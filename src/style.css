@@ -4,3 +4,10 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #hud, #homebase, #overlay { position: absolute; inset: 0; }
 .hidden { display: none !important; }
+
+.pause-card {
+  display: grid; place-items: center; height: 100%;
+  background: rgba(20, 26, 38, 0.55); text-align: center;
+  cursor: pointer; pointer-events: none;
+}
+.pause-card h1 { font-size: 2.2rem; margin-bottom: 0.4rem; }

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { createPlayer } from './player.js';
+import { bus } from './events.js';
 
 const canvas = document.getElementById('game');
 
@@ -30,6 +32,17 @@ function init(renderer) {
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
   camera.position.set(0, 1.6, 5);
 
+  const player = createPlayer(camera, canvas);
+  player.enable(); // temporary — Task 11's home base takes over enabling
+
+  // temporary pause overlay behavior:
+  const overlay = document.getElementById('overlay');
+  overlay.innerHTML = '<div class="pause-card"><h1>Paused</h1><p>Click the game to resume</p></div>';
+  overlay.classList.remove('hidden');
+  bus.on('player:lockchange', ({ locked }) => {
+    overlay.classList.toggle('hidden', locked);
+  });
+
   const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
   sun.position.set(30, 50, 20);
   scene.add(sun);
@@ -51,7 +64,7 @@ function init(renderer) {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
-    void dt; // game systems consume this in later tasks
+    player.update(dt, [], { minX: -90, maxX: 90, minZ: -90, maxZ: 90 });
     renderer.render(scene, camera);
   });
 }
