@@ -1,0 +1,6 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #app { width: 100%; height: 100%; overflow: hidden; }
+body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; color: #fff; }
+#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud, #homebase, #overlay { position: absolute; inset: 0; }
+.hidden { display: none !important; }
