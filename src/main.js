@@ -24,6 +24,7 @@ import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { cameraOffset } from './catcam.js';
+import { mulberry32 } from './rng.js';
 
 const AREAS = { neighborhood, park, seaside };
 
@@ -192,7 +193,8 @@ function init() {
     if (session && player.locked && session.cameraMode) snapPhoto(session);
   });
 
-  function startWalk({ duskMode = false } = {}) {
+  function startWalk({ duskMode = false, roomSeed } = {}) {
+    const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
     const state = progression.state;
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
@@ -227,13 +229,13 @@ function init() {
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
     if (!duskActive) {
-      weather = createWeather(scene, sun, rollWeather(Math.random), Math.random);
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng);
       if (weather.condition === 'rain') {
         // extra puddles
         const extra = [];
         for (let i = 0; i < 3; i++) {
-          const px = areaData.bounds.minX / 2 + Math.random() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;
-          const pz = areaData.bounds.minZ / 2 + Math.random() * (areaData.bounds.maxZ - areaData.bounds.minZ) / 2;
+          const px = areaData.bounds.minX / 2 + walkRng() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;
+          const pz = areaData.bounds.minZ / 2 + walkRng() * (areaData.bounds.maxZ - areaData.bounds.minZ) / 2;
           extra.push({ x: px, z: pz, r: 0.8 });
           scene.add(puddleProp(px, pz, 0.8));
         }
@@ -248,8 +250,8 @@ function init() {
       }
     }
 
-    const secretRolls = rollSecrets(Math.random, { eveningLight: duskActive || weather.condition === 'sunset' });
-    const secrets = createSecrets(scene, areaData, secretRolls, Math.random);
+    const secretRolls = rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' });
+    const secrets = createSecrets(scene, areaData, secretRolls, walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
@@ -274,7 +276,7 @@ function init() {
     const giver = critters.list.find((c) => c.type === 'villager');
     if (giver) {
       questGiver = giver;
-      quest = createQuest(Math.random, areaData.pois);
+      quest = createQuest(walkRng, areaData.pois);
       const marker = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.4, 6),
         new THREE.MeshLambertMaterial({ color: 0xf2c14e, emissive: 0x6a5010 })
@@ -312,13 +314,15 @@ function init() {
       scene.add(questObject);
     }
 
-    const strayCats = createStrayCats(scene, areaData, 22);
-    for (const stray of strayCats.strays) {
-      if (progression.friendLevel(stray.name) === 'best' && Math.random() < 0.3) stray.hasGift = true;
+    const strayCats = createStrayCats(scene, areaData, 22, walkRng);
+    if (roomSeed === undefined) {
+      for (const stray of strayCats.strays) {
+        if (progression.friendLevel(stray.name) === 'best' && Math.random() < 0.3) stray.hasGift = true;
+      }
     }
     const toy = createToy(scene);
     const tippables = createTippables(scene, areaData.tippables ?? []);
-    const scent = createScent(scene, areaData, Math.random);
+    const scent = createScent(scene, areaData, walkRng);
 
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -334,7 +338,7 @@ function init() {
       }
     });
 
-    const goals = createGoals(Math.random);
+    const goals = createGoals(walkRng);
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
