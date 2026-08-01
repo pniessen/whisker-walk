@@ -1,5 +1,5 @@
 const SAVE_KEY = 'whisker-walk-save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2; // v2: starter unlocks (3 cats, 2 accessories)
 
 export const CATALOG = {
   cats: {
@@ -30,7 +30,7 @@ function defaultState() {
     version: SAVE_VERSION,
     points: 0,
     walks: { neighborhood: 0, park: 0, seaside: 0 },
-    unlocked: { cats: ['tabby'], accessories: [], areas: ['neighborhood'] },
+    unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, outfit: null },
     area: 'neighborhood',
   };
