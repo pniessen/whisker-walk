@@ -65,6 +65,14 @@ function init() {
   const homebase = createHomeBase(progression, album, startWalk);
   homebase.show();
 
+  function noteGoal(type) {
+    if (!session?.goals) return;
+    const res = session.goals.note(type);
+    hud.setGoals(session.goals.goals);
+    if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+    if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
+  }
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -74,13 +82,8 @@ function init() {
   bus.on('discovery', ({ type }) => {
     hud.setPoints(progression.state.points);
     audio.chime();
-    if (session) session.discoveryCount += 1;
-    if (session?.goals) {
-      const res = session.goals.note(type);
-      hud.setGoals(session.goals.goals);
-      if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
-      if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
-    }
+    if (session && type !== 'goal' && type !== 'jackpot') session.discoveryCount += 1;
+    noteGoal(type);
     if (session) {
       const r = rankFor(progression.state.lifetimePoints).title;
       if (r !== session.rankTitle) {
@@ -337,7 +340,7 @@ function init() {
       goals,
       startPoints: state.points,
       discoveryCount: 0,
-      friendToasts: 0,
+      catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
       secrets,
@@ -389,7 +392,7 @@ function init() {
     const goalsDone = session.goals.goals.filter((g) => g.done).length;
     const isRecord = progression.recordWalkScore(earned);
     const discoveries = session.discoveryCount;
-    const friendsGreeted = session.friendToasts;
+    const friendsGreeted = session.catsGreeted;
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -668,8 +671,8 @@ function init() {
       const stray = s.prompt.data;
       s.strayCats.greet(stray, s.cat.position);
       log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
+      s.catsGreeted += 1;
       const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
-      if (level) s.friendToasts += 1;
       if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
       else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
       else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
@@ -748,6 +751,7 @@ function init() {
     });
     hud.toast(`📸 ${subject.label}`);
     if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);
+    else noteGoal('photo');
   }
 
   function labelFor(type) {

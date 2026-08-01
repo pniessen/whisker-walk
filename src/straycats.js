@@ -54,7 +54,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random) {
   const names = shuffled(CAT_NAMES, rng);
 
   for (let i = 0; i < count; i++) {
-    const breed = BREEDS[Math.floor(Math.random() * BREEDS.length)];
+    const name = names[i % names.length];
+    // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
+    // is always the same breed across walks
+    const breed = BREEDS[[...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % BREEDS.length];
     const group = buildCat(breed, undefined, { simple: true });
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, Math.random());
@@ -62,7 +65,6 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random) {
     group.position.set(x, 0, z);
     group.rotation.y = Math.random() * Math.PI * 2;
 
-    const name = names[i % names.length];
     const roll = (rng() + i * GOLDEN) % 1;
     const personality = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
 
