@@ -15,7 +15,10 @@ export function createHud() {
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · M mute · Esc menu</div>
     <div class="hud-crosshair">·</div>
-    <div class="hud-viewfinder hidden" id="hud-viewfinder"><span>📷 click to snap · C to lower</span></div>
+    <div class="hud-viewfinder hidden" id="hud-viewfinder">
+      <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
+      <span class="vf-hint-touch">📷 tap to snap · 📷 button to lower</span>
+    </div>
   `;
   const pointsEl = root.querySelector('#hud-points-value');
   const areaEl = root.querySelector('#hud-area');
@@ -23,6 +26,7 @@ export function createHud() {
   const toastsEl = root.querySelector('#hud-toasts');
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
+  let lastPrompt = { text: null, tappable: null };
 
   const api = {
     show() { root.classList.remove('hidden'); },
@@ -34,7 +38,13 @@ export function createHud() {
     // becomes a button — strip the "E — " keyboard-hint prefix for display
     // and fire onPromptTap handlers when it's tapped. Desktop keeps the
     // passive (non-interactive) pill it always had.
+    // Called every frame from updateInteractions — cache the last {text,
+    // tappable} and no-op when unchanged so it isn't rebuilding a fresh
+    // button node (and reattaching its click listener) 60 times a second.
     setPrompt(text, tappable) {
+      const next = { text: text || null, tappable: !!tappable };
+      if (lastPrompt.text === next.text && lastPrompt.tappable === next.tappable) return;
+      lastPrompt = next;
       promptEl.classList.toggle('hidden', !text);
       if (!text) return;
       if (tappable) {

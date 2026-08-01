@@ -83,9 +83,17 @@ export function createTouchUI(root, callbacks) {
     return !!(target && target.closest && target.closest('.tui-btn, .tui-pause'));
   }
 
+  // The prompt pill (#hud-prompt, tappable when a touch interaction is
+  // available) sits visually above .touch-ui but shares the same screen
+  // region. Ignore touches that land on it so its own click handler fires
+  // instead of this layer stealing them as a joystick/orbit/tapWorld touch.
+  function isPromptTarget(target) {
+    return !!(target && target.closest && target.closest('.hud-prompt'));
+  }
+
   wrap.addEventListener('touchstart', (e) => {
     for (const t of e.changedTouches) {
-      if (isButtonTarget(t.target)) continue; // let the button's own click handler fire
+      if (isButtonTarget(t.target) || isPromptTarget(t.target)) continue; // let the button's own click handler fire
       e.preventDefault();
       const x = t.clientX;
       const y = t.clientY;

@@ -53,7 +53,8 @@ export function createPlayer(camera, canvas) {
       return velocity.length();
     },
     get inputActive() {
-      return keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight');
+      return keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight') ||
+        (!!touchMove && touchMove.mag > 0);
     },
     get stalking() {
       return keys.has('ShiftLeft') || keys.has('ShiftRight') ||

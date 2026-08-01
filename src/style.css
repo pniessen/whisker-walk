@@ -50,6 +50,7 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
   position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
   background: rgba(242,193,78,0.92); color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 10px;
+  z-index: 2;
 }
 .hud-prompt-btn {
   pointer-events: auto; border: 0; background: transparent; color: inherit;
@@ -82,12 +83,17 @@ body.touch-mode .hud-controls { display: none; }
   position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
   background: rgba(20,26,38,0.7); padding: 4px 12px; border-radius: 999px; font-size: 0.9rem;
 }
+/* Desktop shows the click/keyboard hint; touch-mode (JS-driven, same
+   signal as .touch-ui/.hud-controls elsewhere) swaps in the tap hint. */
+.hud-viewfinder .vf-hint-touch { display: none; }
+body.touch-mode .hud-viewfinder .vf-hint-desktop { display: none; }
+body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 
 /* --- Touch controls: joystick, orbit-drag capture, action cluster, pause ---
    All touch handling is captured by .touch-ui itself (touchstart on it picks
    the left-40%/right-60% region by clientX); the joystick visual below is
    purely cosmetic and never a hit target. */
-.touch-ui { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+.touch-ui { position: absolute; inset: 0; pointer-events: auto; touch-action: none; z-index: 1; }
 .tui-joystick {
   position: absolute; width: 120px; height: 120px; margin-left: -60px; margin-top: -60px;
   pointer-events: none;
@@ -118,8 +124,10 @@ body.touch-mode .hud-controls { display: none; }
 .tui-btn:active { background: rgba(20,26,38,0.8); }
 .tui-pause {
   position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  right: max(16px, env(safe-area-inset-right));
+  /* Top-left, under the points pill (.hud-top sits at
+     max(16px, safe-area-inset-top) and runs ~40px tall). */
+  top: max(64px, calc(env(safe-area-inset-top) + 64px));
+  left: max(16px, env(safe-area-inset-left));
   width: 44px; height: 44px; min-width: 44px; min-height: 44px;
   border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
   background: rgba(20,26,38,0.55); color: #fff; font-size: 1.1rem;

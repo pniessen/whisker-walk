@@ -439,6 +439,11 @@ function init() {
   function handleTouchAction(name) {
     if (name === 'pause') {
       player.setTouchEngaged(false);
+      // A hybrid device can upgrade into touch mode mid-walk while still
+      // pointer-locked from before the upgrade — without this, ⏸ would
+      // disengage touch but the mouse would stay captured and the pause
+      // overlay's buttons would be unreachable.
+      if (document.pointerLockElement) document.exitPointerLock();
       return;
     }
     if (!session || !player.engaged) return;
@@ -483,6 +488,8 @@ function init() {
     }
   });
   document.addEventListener('mousedown', () => {
+    if (isTouch) return; // touch snapping goes through tapWorld — a synthesized
+    // mousedown from a button tap must not double-snap.
     if (session && player.engaged && session.cameraMode) snapPhoto(session);
   });
 
