@@ -1,7 +1,7 @@
 # Whisker Walk v5 — Multiplayer — Design Spec
 
 **Date:** 2026-08-01
-**Status:** DRAFT — awaiting user review; no implementation yet
+**Status:** Approved by user (2026-08-01)
 **Base:** deployed single-player game (GitHub Pages, https://pniessen.github.io/whisker-walk/)
 
 ## Vision
