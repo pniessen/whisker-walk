@@ -60,6 +60,7 @@ export function createPlayer(camera, canvas) {
   });
   document.addEventListener('pointerlockchange', () => {
     api.locked = document.pointerLockElement === canvas;
+    if (!api.locked) keys.clear();
     bus.emit('player:lockchange', { locked: api.locked });
   });
   document.addEventListener('mousemove', (e) => {

@@ -82,7 +82,7 @@ function init() {
     if (e.target.id === 'btn-end') endWalk();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyE' && session) handleInteract(session);
+    if (e.code === 'KeyE' && session && player.locked) handleInteract(session);
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
   });
 
@@ -159,6 +159,12 @@ function init() {
     if (!session) return;
     progression.completeWalk();
     session.critters.dispose();
+    session.scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) m.dispose();
+      }
+    });
     session = null;
     player.disable();
     hud.hide();
@@ -329,11 +335,13 @@ function init() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     if (!session) return;
-    player.update(dt, session.areaData.colliders, session.areaData.bounds);
-    session.critters.update(dt, t, camera.position, session.cat.position);
-    updateCat(session, dt, t);
-    updateInteractions(session);
-    updateMoments(session, dt);
+    if (player.locked) {
+      player.update(dt, session.areaData.colliders, session.areaData.bounds);
+      session.critters.update(dt, t, camera.position, session.cat.position);
+      updateCat(session, dt, t);
+      updateInteractions(session);
+      updateMoments(session, dt);
+    }
     renderer.render(session.scene, camera);
   });
 }
