@@ -6,6 +6,7 @@ import { animateCat } from './cat/animator.js';
 import { createLeash, MAX_LEN } from './leash.js';
 import { createBrain, PERSONALITIES } from './cat/brain.js';
 import * as neighborhood from './world/neighborhood.js';
+import { createCritters } from './critters.js';
 
 const canvas = document.getElementById('game');
 
@@ -53,6 +54,8 @@ function init(renderer) {
   const area = neighborhood.build(scene);
   camera.position.set(area.spawn.x, 1.6, area.spawn.z);
 
+  const critters = createCritters(scene, area.critterSpawns, {});
+
   let cat = buildCat('tabby');
   cat.position.set(area.spawn.x + 1, 0, area.spawn.z - 2);
   scene.add(cat);
@@ -60,6 +63,10 @@ function init(renderer) {
   let brain = createBrain(cat.userData.breed);
   const leash = createLeash(scene);
   const catVelocity = new THREE.Vector3();
+
+  bus.on('critter:scare', () => {
+    brain.scare(); // returns false for fearless/steady cats — that's fine
+  });
 
   function handPosition() {
     // just below and right of the camera
@@ -75,7 +82,9 @@ function init(renderer) {
     const distToPlayer = toPlayer.length();
     const tension = distToPlayer / MAX_LEN;
 
-    brain.update(dt, { leashTension: tension, critterNearby: false, poiNearby: false });
+    const nearCritter = critters.nearest(cat.position, 8);
+    const nearPoi = area.pois.some((poi) => Math.hypot(poi.x - cat.position.x, poi.z - cat.position.z) < p.sniffRange);
+    brain.update(dt, { leashTension: tension, critterNearby: !!nearCritter, poiNearby: nearPoi });
 
     // pick a target by state
     let target = null;
@@ -84,8 +93,12 @@ function init(renderer) {
       target = camera.position.clone().add(player.forward().multiplyScalar(2)).add(
         player.forward().clone().cross(new THREE.Vector3(0, 1, 0)).multiplyScalar(0.8)
       );
+    } else if (state === 'distracted' && nearCritter) {
+      target = nearCritter.group.position.clone();
+    } else if (state === 'distracted') {
+      brain.set('follow', 2); // critter got away
     }
-    // sniff/nap/requestPet: stay put; distracted gets a real target in Task 9
+    // sniff/nap/requestPet: stay put
 
     const desired = new THREE.Vector3();
     if (target) {
@@ -105,6 +118,12 @@ function init(renderer) {
       const heading = Math.atan2(catVelocity.x, catVelocity.z) + Math.PI;
       cat.rotation.y = heading;
     }
+
+    if (state === 'distracted') {
+      const caught = critters.catchAt(cat.position.clone().setY(0.8));
+      if (caught && p.special === 'pouncer') bus.emit('cat:pounce', { critter: caught });
+    }
+
     animateCat(cat, state, t, speed);
 
     // leash drags the player when the cat pulls
@@ -135,6 +154,7 @@ function init(renderer) {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
     player.update(dt, area.colliders, area.bounds);
+    critters.update(dt, clock.elapsedTime, camera.position, cat.position);
     updateCat(dt, clock.elapsedTime);
     renderer.render(scene, camera);
   });
