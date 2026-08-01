@@ -241,6 +241,7 @@ function init() {
       toy, toyPlay: { bats: 0, returning: false, batReady: true },
       cameraMode: false,
       catOnScreen: true,
+      offScreenTime: 0,
     };
 
     log.startWalk();
@@ -265,7 +266,10 @@ function init() {
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
-        for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) m.dispose();
+        for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) {
+          if (m.map) m.map.dispose(); // Material.dispose() doesn't cascade to textures
+          m.dispose();
+        }
       }
     });
     session.critters.dispose();
@@ -288,13 +292,37 @@ function init() {
     return hand;
   }
 
-  function updateCatVisibility(s) {
+  function updateCatVisibility(s, dt) {
+    camera.updateMatrixWorld(); // matrixWorldInverse otherwise lags a frame behind mouse-look
     const pos = s.cat.position.clone().add(new THREE.Vector3(0, 0.4, 0));
     const local = pos.clone().applyMatrix4(camera.matrixWorldInverse);
     const ndc = pos.clone().project(camera);
     const ind = screenIndicator(local, ndc);
     s.catOnScreen = !ind;
     hud.setCatIndicator(ind);
+
+    // hard guarantee: if the cat stays off-screen it quietly relocates to just
+    // ahead of the player — the jump happens while unseen, so from the player's
+    // POV the cat is simply always there. Fetch is exempt (the indicator covers it).
+    if (s.catOnScreen) {
+      s.offScreenTime = 0;
+    } else {
+      s.offScreenTime += dt;
+      if (s.offScreenTime > 1.1 && s.brain.state !== 'fetch') {
+        const b = s.areaData.bounds;
+        const spot = camera.position.clone()
+          .add(player.forward().multiplyScalar(2.5))
+          .add(player.forward().clone().cross(new THREE.Vector3(0, 1, 0)).multiplyScalar(0.8));
+        s.cat.position.set(
+          THREE.MathUtils.clamp(spot.x, b.minX, b.maxX),
+          0,
+          THREE.MathUtils.clamp(spot.z, b.minZ, b.maxZ)
+        );
+        s.catVelocity.set(0, 0, 0);
+        s.brain.set('follow', 2 + Math.random() * 2);
+        s.offScreenTime = 0;
+      }
+    }
   }
 
   function updateCat(s, dt, t) {
@@ -308,13 +336,6 @@ function init() {
       (poi) => Math.hypot(poi.x - cat.position.x, poi.z - cat.position.z) < p.sniffRange
     ) || !!s.strayCats.nearest(cat.position, p.sniffRange);
     brain.update(dt, { leashTension: tension, critterNearby: !!nearCritter, poiNearby: nearPoi });
-
-    // keep the cat in view: a stationary cat you're walking away from breaks
-    // its state and trots after you before it slips far behind off-screen
-    if (!s.catOnScreen && toPlayer.length() > 3.5 &&
-        (brain.state === 'sniff' || brain.state === 'nap' || brain.state === 'requestPet')) {
-      brain.set('follow', 3);
-    }
 
     let target = null;
     const state = brain.state;
@@ -615,7 +636,7 @@ function init() {
            (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
         session.toy.retrieve(); // walked over it, or everyone lost interest
       }
-      updateCatVisibility(session);
+      updateCatVisibility(session, dt);
       updateCat(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);

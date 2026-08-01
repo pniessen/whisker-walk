@@ -37,7 +37,7 @@ export function build(scene) {
 
   // a little roadside advertising
   scene.add(b.billboard(7, -14, -Math.PI / 2));
-  addC(7, -14, 1.4);
+  addC(7, -14, 2.3);
 
   // small playground: slide-ish ramp + swing frame
   scene.add(b.bench(28, 28, Math.PI / 4));

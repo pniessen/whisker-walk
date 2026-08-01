@@ -55,7 +55,7 @@ export function build(scene) {
   for (const [x, z] of [[2, 40], [-12, 10], [-4, -14], [10, -32]]) scene.add(b.lampPost(x, z));
 
   scene.add(b.billboard(6, 38, -0.5));
-  addC(6, 38, 1.4);
+  addC(6, 38, 2.3);
   for (const [x, z] of [[-18, 22], [20, 12], [6, -16]]) scene.add(b.flowerPatch(x, z));
   const puddles = [{ x: 2, z: 32, r: 0.9 }, { x: -10, z: -8, r: 0.8 }];
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
