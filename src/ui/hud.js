@@ -12,8 +12,11 @@ export function createHud() {
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder"><span>📷 click to snap · C to lower</span></div>
+    <div class="hud-catdot hidden" id="hud-catdot"><span class="hud-catdot-arrow" id="hud-catdot-arrow">➤</span>🐾</div>
   `;
   const pointsEl = root.querySelector('#hud-points-value');
+  const catdotEl = root.querySelector('#hud-catdot');
+  const catdotArrowEl = root.querySelector('#hud-catdot-arrow');
   const areaEl = root.querySelector('#hud-area');
   const toastsEl = root.querySelector('#hud-toasts');
   const promptEl = root.querySelector('#hud-prompt');
@@ -42,6 +45,14 @@ export function createHud() {
     },
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
+    },
+    setCatIndicator(ind) {
+      catdotEl.classList.toggle('hidden', !ind);
+      if (ind) {
+        catdotEl.style.left = `${ind.leftPct}%`;
+        catdotEl.style.top = `${ind.topPct}%`;
+        catdotArrowEl.style.transform = `rotate(${ind.rotDeg}deg)`;
+      }
     },
   };
 

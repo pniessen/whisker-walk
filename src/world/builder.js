@@ -169,3 +169,44 @@ export function flowerPatch(x, z) {
   g.position.set(x, 0, z);
   return g;
 }
+
+export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'now streaming · very good episodes') {
+  const g = new THREE.Group();
+  for (const px of [-1.7, 1.7]) {
+    const post = box(0.18, 3.2, 0.18, 0x7a5230);
+    post.position.set(px, 1.6, 0);
+    g.add(post);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 288;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f6ecd8';
+  ctx.fillRect(0, 0, 512, 288);
+  ctx.strokeStyle = '#b05a4a';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(10, 10, 492, 268);
+  ctx.fillStyle = '#2a3550';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 72px Avenir, Trebuchet MS, sans-serif';
+  ctx.fillText(title, 256, 140);
+  ctx.font = '28px Avenir, Trebuchet MS, sans-serif';
+  ctx.fillStyle = '#b05a4a';
+  ctx.fillText(subtitle, 256, 200);
+  ctx.font = '34px sans-serif';
+  ctx.fillText('📺  🐈  👨', 256, 250);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.4, 2.5),
+    new THREE.MeshBasicMaterial({ map: texture })
+  );
+  panel.position.y = 2.9;
+  g.add(panel);
+  const back = box(4.5, 2.6, 0.08, 0x8a7048);
+  back.position.set(0, 2.9, -0.06);
+  g.add(back);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}

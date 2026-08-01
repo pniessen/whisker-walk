@@ -35,6 +35,10 @@ export function build(scene) {
   addC(-4, 20, 1.8);
   for (const [x, z] of [[3, -10], [-3, 10], [10, 3], [-10, -3]]) scene.add(b.lampPost(x, z));
 
+  // a little roadside advertising
+  scene.add(b.billboard(7, -14, -Math.PI / 2));
+  addC(7, -14, 1.4);
+
   // small playground: slide-ish ramp + swing frame
   scene.add(b.bench(28, 28, Math.PI / 4));
   scene.add(b.bench(32, 24, Math.PI / 4));

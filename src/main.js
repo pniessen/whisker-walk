@@ -20,6 +20,7 @@ import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
+import { screenIndicator } from './indicator.js';
 import { puddle as puddleProp } from './world/builder.js';
 
 const AREAS = { neighborhood, park, seaside };
@@ -239,6 +240,7 @@ function init() {
       balkedPuddles: new Set(),
       toy, toyPlay: { bats: 0, returning: false, batReady: true },
       cameraMode: false,
+      catOnScreen: true,
     };
 
     log.startWalk();
@@ -274,6 +276,7 @@ function init() {
     hud.setPrompt(null);
     hud.setObjective(null);
     hud.setCamera(false);
+    hud.setCatIndicator(null);
     overlay.classList.add('hidden');
     homebase.show();
     audio.stopAmbient();
@@ -283,6 +286,15 @@ function init() {
     const hand = player.forward().multiplyScalar(0.3);
     hand.add(camera.position).add(new THREE.Vector3(0, -0.5, 0));
     return hand;
+  }
+
+  function updateCatVisibility(s) {
+    const pos = s.cat.position.clone().add(new THREE.Vector3(0, 0.4, 0));
+    const local = pos.clone().applyMatrix4(camera.matrixWorldInverse);
+    const ndc = pos.clone().project(camera);
+    const ind = screenIndicator(local, ndc);
+    s.catOnScreen = !ind;
+    hud.setCatIndicator(ind);
   }
 
   function updateCat(s, dt, t) {
@@ -296,6 +308,13 @@ function init() {
       (poi) => Math.hypot(poi.x - cat.position.x, poi.z - cat.position.z) < p.sniffRange
     ) || !!s.strayCats.nearest(cat.position, p.sniffRange);
     brain.update(dt, { leashTension: tension, critterNearby: !!nearCritter, poiNearby: nearPoi });
+
+    // keep the cat in view: a stationary cat you're walking away from breaks
+    // its state and trots after you before it slips far behind off-screen
+    if (!s.catOnScreen && toPlayer.length() > 3.5 &&
+        (brain.state === 'sniff' || brain.state === 'nap' || brain.state === 'requestPet')) {
+      brain.set('follow', 3);
+    }
 
     let target = null;
     const state = brain.state;
@@ -341,8 +360,16 @@ function init() {
     const desired = new THREE.Vector3();
     if (target) {
       desired.copy(target).sub(cat.position).setY(0);
-      if (desired.length() > 0.4) desired.normalize().multiplyScalar(p.speed * (state === 'scared' ? 1.8 : 1));
-      else desired.set(0, 0, 0);
+      if (desired.length() > 0.4) {
+        // catch-up boost: the farther behind the cat is, the faster it trots,
+        // so it overtakes back into view instead of trailing off-screen
+        const catchUp = state === 'follow'
+          ? THREE.MathUtils.clamp(1 + (toPlayer.length() - 2.5) * 0.35, 1, 2.2)
+          : 1;
+        desired.normalize().multiplyScalar(p.speed * (state === 'scared' ? 1.8 : catchUp));
+      } else {
+        desired.set(0, 0, 0);
+      }
     }
     if (tension > 1 && state !== 'fetch') desired.add(toPlayer.normalize().multiplyScalar((tension - 1) * 20));
 
@@ -588,6 +615,7 @@ function init() {
            (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
         session.toy.retrieve(); // walked over it, or everyone lost interest
       }
+      updateCatVisibility(session);
       updateCat(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);

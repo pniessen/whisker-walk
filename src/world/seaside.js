@@ -56,6 +56,9 @@ export function build(scene) {
   scene.add(b.bench(18, 14, Math.PI / 2));
   scene.add(b.bench(18, -18, Math.PI / 2));
   for (const [x, z] of [[20, 30], [20, -30]]) scene.add(b.lampPost(x, z));
+
+  scene.add(b.billboard(15, 34, Math.PI / 2));
+  addC(15, 34, 1.4);
   // beach grass tufts
   for (const [x, z] of [[-14, 30], [-2, -14], [-24, -20], [8, 2]]) scene.add(b.bush(x, z));
 
