@@ -244,7 +244,7 @@ function init() {
       if (desired.length() > 0.4) desired.normalize().multiplyScalar(p.speed * (state === 'scared' ? 1.8 : 1));
       else desired.set(0, 0, 0);
     }
-    if (tension > 1) desired.add(toPlayer.normalize().multiplyScalar((tension - 1) * 20));
+    if (tension > 1 && state !== 'fetch') desired.add(toPlayer.normalize().multiplyScalar((tension - 1) * 20));
 
     s.catVelocity.lerp(desired, 1 - Math.pow(0.001, dt));
     cat.position.addScaledVector(s.catVelocity, dt);
@@ -279,6 +279,7 @@ function init() {
       cat.position.clone().add(new THREE.Vector3(0, 0.4, 0))
     );
     player.speedFactor = leashTension > 0.9 ? Math.max(0.35, 1 - (leashTension - 0.9) * (p.pull / 4)) : 1;
+    if (state === 'fetch') player.speedFactor = 1; // no drag while playing fetch
   }
 
   function updateInteractions(s) {

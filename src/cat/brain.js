@@ -46,7 +46,7 @@ export function createBrain(breed, rng = Math.random) {
       return true;
     },
     update(dt, ctx) {
-      if (ctx.leashTension > 1 && state !== 'follow' && state !== 'scared') {
+      if (ctx.leashTension > 1 && state !== 'follow' && state !== 'scared' && state !== 'fetch') {
         api.set('follow', 2);
       }
       timer -= dt;

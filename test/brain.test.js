@@ -52,6 +52,13 @@ describe('createBrain', () => {
     expect(brain.state).toBe('follow');
   });
 
+  it('taut leash does not interrupt fetch', () => {
+    const brain = createBrain('siamese');
+    brain.set('fetch', 10);
+    brain.update(0.016, { ...CALM_CTX, leashTension: 1.5 });
+    expect(brain.state).toBe('fetch');
+  });
+
   it('petting works only during requestPet or nap', () => {
     const brain = createBrain('tabby');
     expect(brain.pet()).toBe(false);
