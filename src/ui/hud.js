@@ -8,6 +8,7 @@ export function createHud() {
       <div class="hud-area" id="hud-area"></div>
     </div>
     <div class="hud-objective hidden" id="hud-objective"></div>
+    <div class="hud-goals hidden" id="hud-goals"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-crosshair">·</div>
@@ -42,6 +43,16 @@ export function createHud() {
     },
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
+    },
+    setGoals(goals) {
+      const el = root.querySelector('#hud-goals');
+      el.classList.toggle('hidden', !goals);
+      if (goals) {
+        el.innerHTML = goals.map((g) =>
+          `<div class="goal ${g.done ? 'done' : ''}">${g.done ? '✓' : '○'} ${g.text}` +
+          (g.target > 1 ? ` — ${Math.min(g.progress, g.target)}/${g.target}` : '') + `</div>`
+        ).join('');
+      }
     },
   };
 

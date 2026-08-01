@@ -14,6 +14,7 @@ import { createScent } from './scent.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
 import { createProgression } from './progression.js';
+import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
@@ -70,9 +71,15 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  bus.on('discovery', () => {
+  bus.on('discovery', ({ type }) => {
     hud.setPoints(progression.state.points);
     audio.chime();
+    if (session?.goals) {
+      const res = session.goals.note(type);
+      hud.setGoals(session.goals.goals);
+      if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+      if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
+    }
   });
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
@@ -305,8 +312,11 @@ function init() {
       }
     });
 
+    const goals = createGoals(Math.random);
+
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
+      goals,
       weather,
       secrets,
       tippables,
@@ -334,6 +344,7 @@ function init() {
     hud.show();
     hud.setArea(areaData.name);
     hud.setPoints(state.points);
+    hud.setGoals(goals.goals);
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
       <button id="btn-resume">Start exploring (click)</button>
@@ -366,6 +377,7 @@ function init() {
     hud.setPrompt(null);
     hud.setObjective(null);
     hud.setCamera(false);
+    hud.setGoals(null);
     overlay.classList.add('hidden');
     homebase.show();
     audio.stopAmbient();

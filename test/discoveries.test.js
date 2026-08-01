@@ -58,4 +58,10 @@ describe('createDiscoveryLog', () => {
     expect(AWARDS.sits).toBe(8);
     expect(AWARDS.treasure).toBe(12);
   });
+
+  it('defines the v4 award values', () => {
+    expect(AWARDS.goal).toBe(15);
+    expect(AWARDS.jackpot).toBe(40);
+    expect(AWARDS.gift).toBe(10);
+  });
 });
