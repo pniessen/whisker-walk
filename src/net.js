@@ -58,11 +58,11 @@ function isValidStateMsg(msg) {
     typeof msg.id === 'string' &&
     Array.isArray(msg.pos) &&
     msg.pos.length === 2 &&
-    typeof msg.pos[0] === 'number' &&
-    typeof msg.pos[1] === 'number' &&
-    typeof msg.yaw === 'number' &&
+    Number.isFinite(msg.pos[0]) &&
+    Number.isFinite(msg.pos[1]) &&
+    Number.isFinite(msg.yaw) &&
     typeof msg.pose === 'string' &&
-    typeof msg.speed === 'number' &&
+    Number.isFinite(msg.speed) &&
     messageSizeOk(msg)
   );
 }
@@ -131,7 +131,7 @@ export function createNet(transport) {
   async function leave() {
     await transport.leave();
     selfId = null;
-    roster = [];
+    setRoster([]);
   }
 
   function sendState(state) {

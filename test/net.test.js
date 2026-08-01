@@ -55,6 +55,18 @@ describe('createNet over a fake hub', () => {
     expect(seen).toHaveLength(0);
   });
 
+  it('drops non-finite numeric fields (NaN/Infinity)', async () => {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport());
+    const b = createNet(hub.transport());
+    await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    const seen = [];
+    b.onState((s) => seen.push(s));
+    a.sendState({ v: 1, id: 'aaa', pos: [NaN, 0], yaw: 0, pose: 'follow', speed: 0 });
+    expect(seen).toHaveLength(0);
+  });
+
   it('host migrates when the smallest id leaves', async () => {
     const hub = createFakeHub();
     const a = createNet(hub.transport());
