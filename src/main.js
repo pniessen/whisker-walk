@@ -299,6 +299,7 @@ function init() {
       cameraMode: false,
       idleTime: 0,
       freezeTime: 0,
+      boxTime: 0,
       perched: null,
       pounceTime: 0,
       pounceCooldown: 0,
@@ -359,7 +360,7 @@ function init() {
     s.critters.setFleeModifier(s.perched || player.stalking ? 0.5 : 1);
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
-    player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : 1;
+    player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
     if (s.pounceTime > 0) s.pounceTime -= dt;
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
 
@@ -380,6 +381,7 @@ function init() {
     if (s.freezeTime > 0) pose = 'scared';
     else if (s.pounceTime > 0) pose = 'pounce';
     else if (s.perched) pose = 'perch';
+    else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';
     else if (s.sniffTime > 0) pose = 'sniff';
     else if (speed > 0.3 && (player.stalking ?? false)) pose = 'stalk';
@@ -408,6 +410,17 @@ function init() {
         s.freezeTime = Math.max(s.freezeTime, 0.8); // don't shorten a dog-scare freeze
         hud.toast('Brrr — cold paws! 💦');
       }
+    }
+
+    // if I fits, I sits
+    const inBox = (s.areaData.boxes ?? []).findIndex(
+      (bx) => Math.hypot(bx.x - cat.position.x, bx.z - cat.position.z) < 0.35
+    );
+    if (inBox >= 0 && speed < 0.3 && !s.perched) {
+      s.boxTime += dt;
+      if (s.boxTime > 1) log.awardOnce('sits', `box-${inBox}`, 'If I fits, I sits 📦');
+    } else {
+      s.boxTime = 0;
     }
 
     // yarn play: run into your ball to bat it; a good play session earns points

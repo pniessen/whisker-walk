@@ -62,11 +62,15 @@ export function build(scene) {
   // beach grass tufts
   for (const [x, z] of [[-14, 30], [-2, -14], [-24, -20], [8, 2]]) scene.add(b.bush(x, z));
 
+  // cardboard boxes
+  for (const b2 of [[19, 24], [-14, 4], [30, -6]]) scene.add(b.cardboardBox(b2[0], b2[1]));
+
   return {
     name: 'Seaside',
     colliders,
     bounds: { minX: -48, maxX: 36, minZ: -34, maxZ: 48 },
     spawn: { x: 18, z: 42 },
+    boxes: [{ x: 19, z: 24 }, { x: -14, z: 4 }, { x: 30, z: -6 }],
     pois: [
       { x: 20, z: 14 }, { x: 34, z: -10 }, { x: -8, z: 10 }, { x: -20, z: -2 },
       { x: 4, z: 24 }, { x: -28, z: 18 }, { x: 18, z: -18 }, { x: -2, z: -14 },

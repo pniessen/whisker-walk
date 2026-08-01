@@ -50,11 +50,15 @@ export function build(scene) {
   scene.add(b.fenceRun(18, -28, 18, -20));
   scene.add(b.fenceRun(26, -28, 26, -20));
 
+  // cardboard boxes
+  for (const b2 of [[-10, -28], [13, 18], [-18, 8]]) scene.add(b.cardboardBox(b2[0], b2[1], b2[0] * 0.7));
+
   return {
     name: 'Cozy Neighborhood',
     colliders,
     bounds: { minX: -55, maxX: 55, minZ: -55, maxZ: 55 },
     spawn: { x: 0, z: 45 },
+    boxes: [{ x: -10, z: -28 }, { x: 13, z: 18 }, { x: -18, z: 8 }],
     pois: [
       { x: -8, z: 4 }, { x: 4, z: -35 }, { x: 16, z: 2 }, { x: -12, z: 32 },
       { x: 8, z: 27 }, { x: -6, z: -40 }, { x: 20, z: -8 }, { x: 28, z: 28 },

@@ -60,11 +60,15 @@ export function build(scene) {
   const puddles = [{ x: 2, z: 32, r: 0.9 }, { x: -10, z: -8, r: 0.8 }];
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
 
+  // cardboard boxes
+  for (const b2 of [[5, 33], [-12, -14]]) scene.add(b.cardboardBox(b2[0], b2[1]));
+
   return {
     name: 'City Park',
     colliders,
     bounds: { minX: -45, maxX: 45, minZ: -50, maxZ: 52 },
     spawn: { x: 0, z: 45 },
+    boxes: [{ x: 5, z: 33 }, { x: -12, z: -14 }],
     pois: [
       { x: 0, z: 20 }, { x: -14, z: 2 }, { x: 3, z: 26 }, { x: -10, z: -20 },
       { x: 12, z: -30 }, { x: 22, z: -22 }, { x: -18, z: 22 }, { x: 16, z: 10 },

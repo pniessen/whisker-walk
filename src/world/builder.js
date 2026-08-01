@@ -210,3 +210,29 @@ export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'no
   g.rotation.y = rotY;
   return g;
 }
+
+export function cardboardBox(x, z, rotY = 0) {
+  const g = new THREE.Group();
+  const cardboard = mat(0xc8a678);
+  const wallSpecs = [
+    [0.55, 0.3, 0.03, 0, 0.15, 0.26], [0.55, 0.3, 0.03, 0, 0.15, -0.26],
+    [0.03, 0.3, 0.55, 0.26, 0.15, 0], [0.03, 0.3, 0.55, -0.26, 0.15, 0],
+  ];
+  for (const [w, h, d, px, py, pz] of wallSpecs) {
+    const wall = box(w, h, d, 0xc8a678);
+    wall.position.set(px, py, pz);
+    g.add(wall);
+  }
+  const bottom = box(0.55, 0.03, 0.55, 0xb89468);
+  bottom.position.y = 0.015;
+  g.add(bottom);
+  for (const side of [-1, 1]) {
+    const flap = box(0.55, 0.02, 0.2, 0xd8b688);
+    flap.position.set(0, 0.31, side * 0.34);
+    flap.rotation.x = side * -0.7;
+    g.add(flap);
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
