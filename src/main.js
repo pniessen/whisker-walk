@@ -25,12 +25,39 @@ import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { cameraOffset } from './catcam.js';
-import { mulberry32 } from './rng.js';
+import { mulberry32, seedFromCode } from './rng.js';
+import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
 
 const AREAS = { neighborhood, park, seaside };
 // wall-clock seconds, used to keep remote-pet interpolation/despawn timing
 // consistent between the async net callbacks and the render loop
 const nowSec = () => performance.now() / 1000;
+
+// stable per-browser identity for co-walk rooms — generated once and cached,
+// survives reloads so a mid-walk refresh doesn't orphan a room membership.
+let pid;
+try {
+  pid = window.localStorage.getItem('whisker-walk-player');
+  if (!pid) {
+    pid = crypto.randomUUID();
+    window.localStorage.setItem('whisker-walk-player', pid);
+  }
+} catch {
+  pid = crypto.randomUUID(); // storage unavailable (private mode, quota) — still usable this session
+}
+
+// multiplayer is entirely env-gated: absent keys means "Walk together" shows
+// a friendly not-configured state and nothing else about solo play changes.
+const MP = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+// petNames arrive over the network from other players' clients, which may
+// not have enforced validPetName themselves — escape before interpolating
+// into innerHTML (the summary card's "walked with" line).
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
 
 // volume factor for a remote meow/cluck event: full volume within earshot
 // (<=8 units), fading linearly down to a quiet 0.2 floor by 40 units.
@@ -79,7 +106,121 @@ function init() {
 
   let session = null;
 
-  const homebase = createHomeBase(progression, album, startWalk);
+  // Room state lives OUTSIDE the walk session — a room can be formed on the
+  // home base screen (host/join) before anyone has clicked Start, and
+  // survives across walks only until endWalk explicitly leaves it.
+  let pendingRoom = null; // { net, code, roster }
+  const roomChangeHandlers = [];
+  function notifyRoomChange() {
+    for (const fn of roomChangeHandlers) fn();
+  }
+
+  function roomProfile() {
+    const st = progression.state;
+    return {
+      playerId: pid,
+      petName: st.petName,
+      breed: st.equipped.cat,
+      accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
+    };
+  }
+
+  // The host broadcasts walk-config once (on Start); every other member of
+  // the room is idle on the home base screen with this handler wired up via
+  // setupRoomNet, so receiving it is what actually launches their walk —
+  // there's no separate "join the walk" click.
+  function handleLobbyEvent(ev) {
+    if (!pendingRoom || ev.type !== 'walk-config') return;
+    if (progression.isUnlocked('areas', ev.area)) {
+      progression.setArea(ev.area);
+      startWalk({ duskMode: ev.dusk, roomSeed: ev.seed });
+    } else {
+      // don't force an unlocked-area change onto their save — just render
+      // the host's area for this one walk via the override.
+      startWalk({ duskMode: ev.dusk, roomSeed: ev.seed, areaOverride: ev.area });
+    }
+  }
+
+  function setupRoomNet(net, code) {
+    pendingRoom = { net, code, roster: [] };
+    net.onRoster((roster) => {
+      if (!pendingRoom) return; // left/torn down between the send and this callback
+      pendingRoom.roster = roster;
+      notifyRoomChange();
+    });
+    net.onEvent(handleLobbyEvent);
+  }
+
+  const rooms = {
+    available: MP,
+    getState() {
+      if (!pendingRoom) return null;
+      return { code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost() };
+    },
+    async host() {
+      if (!MP || pendingRoom) return { ok: false };
+      const code = generateRoomCode();
+      const net = createNet(createSupabaseTransport(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      ));
+      try {
+        await net.join(code, roomProfile());
+      } catch (err) {
+        console.warn('Whisker Walk: failed to host a room', err);
+        return { ok: false };
+      }
+      setupRoomNet(net, code);
+      notifyRoomChange();
+      return { ok: true, code };
+    },
+    async join(code) {
+      if (!MP || pendingRoom) return { ok: false };
+      const net = createNet(createSupabaseTransport(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      ));
+      try {
+        await net.join(code, roomProfile());
+      } catch (err) {
+        console.warn('Whisker Walk: failed to join room', err);
+        return { ok: false };
+      }
+      setupRoomNet(net, code);
+      notifyRoomChange();
+      return { ok: true, code };
+    },
+    async leave() {
+      if (!pendingRoom) return;
+      const net = pendingRoom.net;
+      pendingRoom = null;
+      notifyRoomChange();
+      await net.leave();
+    },
+    onChange(fn) {
+      roomChangeHandlers.push(fn);
+    },
+  };
+
+  // homebase's Start button always calls this; solo play (no room, or a
+  // joiner who — thanks to the disabled "Waiting for host…" button — never
+  // gets a click through) is unaffected. Only the host actually reaches the
+  // room branch, and it's the host who owns the shared seed: it's computed
+  // once here and carried to everyone (including the host) via walk-config.
+  function beginWalkFromHomebase({ duskMode }) {
+    if (pendingRoom && pendingRoom.net.isHost()) {
+      const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
+      pendingRoom.net.sendEvent({
+        v: 1, id: pid, type: 'walk-config',
+        area: progression.state.area, dusk: duskMode, seed,
+      });
+      startWalk({ duskMode, roomSeed: seed });
+    } else {
+      startWalk({ duskMode });
+    }
+  }
+
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms);
   homebase.show();
 
   function noteGoal(type) {
@@ -231,16 +372,20 @@ function init() {
     if (session && player.locked && session.cameraMode) snapPhoto(session);
   });
 
-  function startWalk({ duskMode = false, roomSeed } = {}) {
+  function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
     const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
     const state = progression.state;
+    // areaOverride: a joiner who hasn't unlocked the host's area still walks
+    // there for this one co-walk, without progression.setArea persisting an
+    // area they haven't actually earned.
+    const areaId = areaOverride ?? state.area;
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
 
-    const areaData = AREAS[state.area].build(scene);
+    const areaData = AREAS[areaId].build(scene);
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
@@ -426,9 +571,16 @@ function init() {
       sniffTime: 0,
     };
 
-    // co-walks: session.net/session.playerId are set by the room-join flow
-    // (Task 6) — everything here is a no-op until that lands, and solo
-    // walks never set session.net at all.
+    // co-walks: a room formed on the home base screen (host/join) carries
+    // its net/playerId/petName into the session here; solo walks never set
+    // pendingRoom at all, so session.net stays undefined and every co-walk
+    // branch below is a no-op.
+    if (pendingRoom) {
+      session.net = pendingRoom.net;
+      session.playerId = pid;
+      session.petName = progression.state.petName;
+    }
+
     if (session.net) {
       const net = session.net;
       net.onRoster((roster) => {
@@ -440,6 +592,7 @@ function init() {
           if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet
           remotes.upsert(p, nowSec());
         }
+        hud.setRoster(remotes.list.map((r) => r.petName));
       });
       net.onState((state) => {
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
@@ -473,7 +626,7 @@ function init() {
     player.enable();
 
     catVoice();
-    audio.startAmbient(state.area);
+    audio.startAmbient(areaId);
   }
 
   function endWalk() {
@@ -486,6 +639,7 @@ function init() {
     const isRecord = progression.recordWalkScore(earned);
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
+    const walkedWith = session.net ? session.remotes.list.map((r) => r.petName) : [];
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -497,8 +651,20 @@ function init() {
         <div class="stat"><span class="stat-value">${friendsGreeted}</span><span class="stat-label">cats greeted</span></div>
         <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
       </div>
+      ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
+
+    // co-walk rooms are per-walk: leaving here means the footer's "Host a
+    // walk"/"Join" flow is available again next time everyone's back on the
+    // home base screen. Fire-and-forget: endWalk must finish tearing down
+    // the scene synchronously regardless of how the network leave resolves.
+    if (session.net) {
+      const net = session.net;
+      pendingRoom = null;
+      notifyRoomChange();
+      Promise.resolve(net.leave()).catch(() => {});
+    }
 
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
@@ -519,6 +685,7 @@ function init() {
     hud.setObjective(null);
     hud.setCamera(false);
     hud.setGoals(null);
+    hud.setRoster(null);
 
     overlay.innerHTML = summaryHtml;
     overlay.classList.remove('hidden');

@@ -21,9 +21,31 @@ titles, and beat your best-walk score.
 mouse orbits the camera · Space to pounce or climb · E to interact / sniff ·
 V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
 
+## Walk together 🐾🐾
+
+Up to 4 players can share a live walk — one shared seeded world, everyone's
+pet rendered in real time, plus touch-noses, duet meows, yarn rallies, and
+nap piles. From the home base screen: name your pet, then either **Host a
+walk** (get a 4-character room code to share) or **Join** with a code a
+friend sent you. The host picks the area and starts the walk for everyone;
+joiners' Start button reads "Waiting for host…" until then.
+
+Multiplayer runs on [Supabase](https://supabase.com) Realtime — no server of
+ours involved. To enable it locally, create a free Supabase project and put
+its Project URL and anon public key in a `.env.local` file (gitignored):
+
+    VITE_SUPABASE_URL=https://your-project.supabase.co
+    VITE_SUPABASE_ANON_KEY=your-anon-public-key
+
+Without these two variables set, "Walk together" simply shows a
+"multiplayer not configured" message and the rest of the game is unaffected
+— solo play never depends on them. The deploy workflow reads the same two
+variables from the repo's GitHub Actions secrets at build time.
+
 ## Develop
 
     npm test          # unit tests (Vitest)
     npm run build     # production build in dist/
 
 Design spec: docs/superpowers/specs/2026-07-31-whisker-walk-design.md
+Multiplayer design spec: docs/superpowers/specs/2026-08-01-whisker-walk-v5-multiplayer.md

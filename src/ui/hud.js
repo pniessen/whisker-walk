@@ -8,6 +8,7 @@ export function createHud() {
       <div class="hud-rank" id="hud-rank"></div>
       <div class="hud-area" id="hud-area"></div>
     </div>
+    <div class="hud-roster hidden" id="hud-roster"></div>
     <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-goals hidden" id="hud-goals"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
@@ -47,6 +48,18 @@ export function createHud() {
     },
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
+    },
+    setRoster(names) {
+      const el = root.querySelector('#hud-roster');
+      const list = Array.isArray(names) ? names : [];
+      el.classList.toggle('hidden', list.length === 0);
+      el.innerHTML = '';
+      for (const name of list) {
+        const chip = document.createElement('span');
+        chip.className = 'hud-roster-chip';
+        chip.textContent = `🟢 ${name}`; // textContent, not innerHTML — names come over the network
+        el.appendChild(chip);
+      }
     },
     setGoals(goals) {
       const el = root.querySelector('#hud-goals');

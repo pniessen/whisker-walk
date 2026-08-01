@@ -1,5 +1,6 @@
 import { CATALOG, rankFor } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
+import { validPetName } from '../net.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -24,8 +25,19 @@ const ACC_BLURBS = {
   crown: 'Butterflies trail your cat',
 };
 
-export function createHomeBase(progression, album, onStartWalk) {
+// petNames in a room roster arrive over the network (another player's
+// client, not necessarily one that enforced validPetName) — escape before
+// interpolating into innerHTML.
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+export function createHomeBase(progression, album, onStartWalk, rooms) {
   const root = document.getElementById('homebase');
+  let petNameError = null;
+  let joinError = null;
 
   function card(kind, id, item, ownedLabel) {
     const s = progression.state;
@@ -62,6 +74,41 @@ export function createHomeBase(progression, album, onStartWalk) {
     </div>`;
   }
 
+  function renderWalkTogether() {
+    if (!rooms || !rooms.available) {
+      return `<div class="tag">multiplayer not configured</div>`;
+    }
+    const st = rooms.getState();
+    if (st) {
+      return `
+        <div class="wt-room">
+          <div class="wt-room-code">Room ${escapeHtml(st.code)} — share this code!</div>
+          <div class="wt-roster">
+            ${st.roster.length
+              ? st.roster.map((p) => `<span class="wt-roster-chip">🟢 ${escapeHtml(p.petName)}</span>`).join('')
+              : '<span class="tag">waiting for friends…</span>'}
+          </div>
+          <button id="wt-leave">Leave room</button>
+        </div>`;
+    }
+    const name = progression.state.petName ?? '';
+    const canHost = validPetName(name);
+    return `
+      <div class="wt-petname">
+        <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
+        <button id="wt-petname-save">Save</button>
+        ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
+      </div>
+      <div class="wt-actions">
+        <button id="wt-host" ${canHost ? '' : 'disabled'}>Host a walk</button>
+        <div class="wt-join-row">
+          <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
+          <button id="wt-join">Join</button>
+        </div>
+        ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
+      </div>`;
+  }
+
   function render() {
     const s = progression.state;
     const glowReady = s.equipped.collar === 'glow';
@@ -69,6 +116,8 @@ export function createHomeBase(progression, album, onStartWalk) {
     const nextLine = rank.next
       ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
       : 'top rank!';
+    const roomState = rooms && rooms.available ? rooms.getState() : null;
+    const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
       <div class="homebase-scroll">
         <header class="hb-header">
@@ -105,15 +154,20 @@ export function createHomeBase(progression, album, onStartWalk) {
                 </div>`).join('')
             : '<div class="tag">No cat friends yet — go touch noses!</div>'}
         </div></section>
+        <section class="walk-together"><h2>Walk together 🐾🐾</h2>
+          ${renderWalkTogether()}
+        </section>
         <footer class="hb-footer">
           ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
-          <button id="btn-start" class="primary">Start the walk 🐾</button>
+          ${waitingForHost
+            ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
+            : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
           <button id="btn-reset" class="danger">Start over</button>
         </footer>
       </div>`;
   }
 
-  root.addEventListener('click', (e) => {
+  root.addEventListener('click', async (e) => {
     if (e.target.id === 'btn-start') {
       const dusk = root.querySelector('#dusk-toggle');
       onStartWalk({ duskMode: !!(dusk && dusk.checked) });
@@ -125,6 +179,46 @@ export function createHomeBase(progression, album, onStartWalk) {
         album.clear();
         render();
       }
+      return;
+    }
+    if (e.target.id === 'wt-petname-save') {
+      const input = root.querySelector('#wt-petname-input');
+      const name = (input?.value ?? '').trim();
+      if (validPetName(name)) {
+        progression.setPetName(name);
+        petNameError = null;
+      } else {
+        petNameError = 'Pet names are 2–16 letters, spaces, or hyphens.';
+      }
+      render();
+      return;
+    }
+    if (e.target.id === 'wt-host') {
+      joinError = null;
+      e.target.disabled = true;
+      const res = await rooms.host();
+      if (!res.ok) joinError = 'Could not host a room — try again.';
+      render();
+      return;
+    }
+    if (e.target.id === 'wt-join') {
+      const input = root.querySelector('#wt-join-code');
+      const code = (input?.value ?? '').trim().toUpperCase();
+      if (code.length !== 4) {
+        joinError = 'Enter the 4-character room code.';
+        render();
+        return;
+      }
+      e.target.disabled = true;
+      const res = await rooms.join(code);
+      if (!res.ok) joinError = 'Could not join that room — check the code and try again.';
+      else joinError = null;
+      render();
+      return;
+    }
+    if (e.target.id === 'wt-leave') {
+      await rooms.leave();
+      render();
       return;
     }
     const cardEl = e.target.closest('.card');
@@ -140,6 +234,15 @@ export function createHomeBase(progression, album, onStartWalk) {
     }
     render();
   });
+
+  // room state (roster arrivals, host migration) can change while sitting on
+  // this screen waiting for friends — re-render to keep the roster/host
+  // status live, but only while home base is actually visible.
+  if (rooms) {
+    rooms.onChange(() => {
+      if (!root.classList.contains('hidden')) render();
+    });
+  }
 
   return {
     show() {

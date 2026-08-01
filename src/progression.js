@@ -59,6 +59,7 @@ function defaultState() {
     lifetimePoints: 0,
     bestWalk: 0,
     friends: {},
+    petName: null,
   };
 }
 
@@ -70,12 +71,15 @@ export function createProgression(storage) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version === SAVE_VERSION) state = parsed;
       else if (parsed && parsed.version === 2) {
-        state = { ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {} };
+        state = { ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null };
       } else console.warn('Whisker Walk: incompatible save, starting fresh');
     }
   } catch (err) {
     console.warn('Whisker Walk: could not read save, starting fresh', err);
   }
+  // covers existing v3 saves captured before petName existed — additive
+  // field, no version bump needed.
+  state.petName ??= null;
 
   const save = () => {
     try {
@@ -162,6 +166,10 @@ export function createProgression(storage) {
     },
     reset() {
       state = defaultState();
+      save();
+    },
+    setPetName(name) {
+      state.petName = name;
       save();
     },
   };

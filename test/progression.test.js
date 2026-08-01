@@ -148,6 +148,38 @@ describe('createProgression', () => {
     expect(p.state.bestWalk).toBe(45);
   });
 
+  it('defaults petName to null and persists it via setPetName', () => {
+    expect(p.state.petName).toBe(null);
+    p.setPetName('Hagrid');
+    expect(p.state.petName).toBe('Hagrid');
+    const reloaded = createProgression(storage);
+    expect(reloaded.state.petName).toBe('Hagrid');
+  });
+
+  it('defaults petName to null for existing v3 saves missing the field', () => {
+    const v3 = {
+      version: 3, points: 10,
+      walks: { neighborhood: 0, park: 0, seaside: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: null, outfit: null },
+      area: 'neighborhood', lifetimePoints: 10, bestWalk: 0, friends: {},
+    };
+    const p2 = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify(v3) }));
+    expect(p2.state.petName).toBe(null);
+  });
+
+  it('gives a v2 migration petName: null too', () => {
+    const v2 = {
+      version: 2, points: 5,
+      walks: { neighborhood: 0, park: 0, seaside: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: null, outfit: null },
+      area: 'neighborhood',
+    };
+    const p2 = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify(v2) }));
+    expect(p2.state.petName).toBe(null);
+  });
+
   it('maps lifetime points to ranks', () => {
     expect(rankFor(0).title).toBe('House Cat');
     expect(rankFor(151).title).toBe('Yard Prowler');
