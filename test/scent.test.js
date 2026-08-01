@@ -39,4 +39,23 @@ describe('createScent', () => {
     const scent = createScent(scene, AREA, () => 0.4);
     expect(scent.sniff({ x: 999, z: 999 }, 18)).toBe(null);
   });
+
+  it('nudges a treat that rolled onto a collider center clear of it and in bounds', () => {
+    const area = {
+      pois: [{ x: 0, z: 0 }],
+      colliders: [{ x: 0, z: 0, r: 3 }],
+      bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 },
+    };
+    // constant rng => zero jitter => the treat rolls exactly onto the poi,
+    // which sits dead-center on the collider.
+    const scent = createScent(scene, area, () => 0.5);
+    expect(scent.treats.length).toBeGreaterThan(0);
+    for (const tr of scent.treats) {
+      expect(Math.hypot(tr.x, tr.z)).toBeGreaterThanOrEqual(4.5);
+      expect(tr.x).toBeGreaterThanOrEqual(area.bounds.minX);
+      expect(tr.x).toBeLessThanOrEqual(area.bounds.maxX);
+      expect(tr.z).toBeGreaterThanOrEqual(area.bounds.minZ);
+      expect(tr.z).toBeLessThanOrEqual(area.bounds.maxZ);
+    }
+  });
 });

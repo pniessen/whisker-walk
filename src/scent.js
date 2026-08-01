@@ -29,12 +29,40 @@ export function trailPoints(from, to, rng, steps = 7) {
   return pts;
 }
 
+// rollTreats scatters treats around POIs with no awareness of colliders or
+// bounds — nudge any treat that landed inside a collider's push-out zone (or
+// too near the world edge) so it stays diggable.
+function keepReachable(tr, area) {
+  const colliders = area.colliders ?? [];
+  for (const c of colliders) {
+    const dx = tr.x - c.x;
+    const dz = tr.z - c.z;
+    const d = Math.hypot(dx, dz);
+    if (d < c.r + 1.55) {
+      const dist = c.r + 1.7;
+      if (d > 0.0001) {
+        tr.x = c.x + (dx / d) * dist;
+        tr.z = c.z + (dz / d) * dist;
+      } else {
+        tr.x = c.x + dist;
+        tr.z = c.z;
+      }
+    }
+  }
+  const bounds = area.bounds;
+  if (bounds) {
+    tr.x = THREE.MathUtils.clamp(tr.x, bounds.minX + 1.5, bounds.maxX - 1.5);
+    tr.z = THREE.MathUtils.clamp(tr.z, bounds.minZ + 1.5, bounds.maxZ - 1.5);
+  }
+  return tr;
+}
+
 export function createScent(scene, area, rng) {
-  const treats = rollTreats(rng, area.pois, 2).map((tr) => ({
+  const treats = rollTreats(rng, area.pois, 2).map((tr) => keepReachable({
     ...tr,
     revealed: false,
     dug: false,
-  }));
+  }, area));
 
   // subtle mounds, visible when close
   for (const tr of treats) {

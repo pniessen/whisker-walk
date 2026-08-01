@@ -98,7 +98,7 @@ function init() {
     if (e.target.id === 'btn-end') endWalk();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyE' && session && player.locked) {
+    if (e.code === 'KeyE' && session && player.locked && !e.repeat) {
       if (session.prompt) handleInteract(session);
       else {
         session.sniffTime = 1;
@@ -107,11 +107,11 @@ function init() {
         hud.toast(found ? 'You smell something… follow the paw prints! 👃' : 'Nothing on the breeze.');
       }
     }
-    if (e.code === 'KeyV' && session && player.locked) {
+    if (e.code === 'KeyV' && session && player.locked && !e.repeat) {
       audio.meow();
       session.critters.reactToMeow(session.cat.position);
       if (session.strayCats.reactToMeow(session.cat.position) > 0) {
-        setTimeout(() => audio.meow(), 350); // a reply from a friend
+        setTimeout(() => { if (session) audio.meow(); }, 350); // a reply from a friend
       }
     }
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
@@ -137,9 +137,13 @@ function init() {
         session.perched = null;                    // hop down
         player.perchY = 0;
       } else {
-        const perch = (session.areaData.perches ?? []).find(
-          (pp) => Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < 1.2
-        );
+        const perch = (session.areaData.perches ?? []).find((pp) => {
+          // high perches (car roofs etc.) sit at a collider's own center, so the
+          // cat is always held out to collider.r + 0.35 — give those a longer
+          // reach so climbing them is actually possible from outside the footprint.
+          const reach = pp.y > 1 ? 2.6 : 1.2;
+          return Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < reach;
+        });
         if (perch) {
           session.perched = perch;
           player.perchY = perch.y;
@@ -436,7 +440,7 @@ function init() {
     );
     if (inBox >= 0 && speed < 0.3 && !s.perched) {
       s.boxTime += dt;
-      if (s.boxTime > 1) log.awardOnce('sits', `box-${inBox}`, 'If I fits, I sits 📦');
+      if (s.boxTime > 1) log.awardOnce('sits', `box-${inBox}`, 'a perfect box fit 📦');
     } else {
       s.boxTime = 0;
     }
@@ -579,14 +583,14 @@ function init() {
       log.awardOnce('collectible', `col-${c.id}`, c.label);
     } else if (s.prompt.kind === 'tip') {
       if (s.tippables.tip(s.prompt.data)) {
-        log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'Gravity check! 🐾');
+        log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'a gravity check 🐾');
         s.critters.dismayNear(s.prompt.data.group.position, 8);
       }
     } else if (s.prompt.kind === 'tip-gnome') {
       const gnome = s.prompt.data;
       gnome.group.rotation.z = -1.4;
       gnome.group.userData.tipped = true;
-      log.awardOnce('mischief', 'tip-gnome', 'Gnome down! 🧙');
+      log.awardOnce('mischief', 'tip-gnome', 'a gnome bowled over 🧙');
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
       hud.toast(s.quest.texts.offer);

@@ -213,7 +213,6 @@ export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'no
 
 export function cardboardBox(x, z, rotY = 0) {
   const g = new THREE.Group();
-  const cardboard = mat(0xc8a678);
   const wallSpecs = [
     [0.55, 0.3, 0.03, 0, 0.15, 0.26], [0.55, 0.3, 0.03, 0, 0.15, -0.26],
     [0.03, 0.3, 0.55, 0.26, 0.15, 0], [0.03, 0.3, 0.55, -0.26, 0.15, 0],
