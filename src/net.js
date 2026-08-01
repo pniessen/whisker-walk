@@ -245,11 +245,27 @@ function flattenPresenceState(state) {
   return roster;
 }
 
+// getSupabaseClient(url, key) — the single shared Supabase client factory.
+// @supabase/supabase-js is dynamically imported here (and only here) so
+// solo (no-multiplayer) bundles never pay for it. The client is memoized per
+// url+key pair so the realtime transport and the cloud RPC client (src/cloud.js)
+// share one underlying connection instead of each creating their own.
+const clientCache = new Map();
+
+export async function getSupabaseClient(url, key) {
+  const cacheKey = url + '|' + key;
+  if (!clientCache.has(cacheKey)) {
+    const { createClient } = await import('@supabase/supabase-js');
+    clientCache.set(cacheKey, createClient(url, key));
+  }
+  return clientCache.get(cacheKey);
+}
+
 /**
  * createSupabaseTransport(url, key) — real transport backed by a Supabase
  * Realtime channel: presence for the roster, broadcast for state/event
- * messages. @supabase/supabase-js is dynamically imported inside join() so
- * solo (no-multiplayer) bundles never pay for it.
+ * messages. Uses the shared getSupabaseClient() so solo (no-multiplayer)
+ * bundles never pay for @supabase/supabase-js until it's actually needed.
  *
  * This path is intentionally thin — no validation, no host logic, no roster
  * sorting — all of that lives in createNet. It's exercised against a live
@@ -261,8 +277,7 @@ export function createSupabaseTransport(url, key) {
 
   return {
     async join(code, profile, handlers) {
-      const { createClient } = await import('@supabase/supabase-js');
-      client = createClient(url, key);
+      client = await getSupabaseClient(url, key);
       channel = client.channel('room:' + code, {
         config: {
           broadcast: { self: false },
