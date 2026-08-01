@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { createPlayer } from './player.js';
 import { bus } from './events.js';
+import { buildCat } from './cat/model.js';
+import { animateCat } from './cat/animator.js';
 
 const canvas = document.getElementById('game');
 
@@ -55,6 +57,23 @@ function init(renderer) {
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
+  let cat = buildCat('tabby');
+  cat.position.set(0, 0, 2);
+  scene.add(cat);
+
+  // debug breed/state switcher — REMOVED in Task 11
+  const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
+  let debugState = 'follow';
+  document.addEventListener('keydown', (e) => {
+    if (e.code.startsWith('Digit') && breeds[+e.code.slice(5) - 1]) {
+      scene.remove(cat);
+      cat = buildCat(breeds[+e.code.slice(5) - 1], { collar: 'bell', outfit: 'bandana' });
+      cat.position.set(0, 0, 2);
+      scene.add(cat);
+    }
+    if (e.code === 'KeyN') debugState = debugState === 'nap' ? 'follow' : 'nap';
+  });
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -65,6 +84,7 @@ function init(renderer) {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
     player.update(dt, [], { minX: -90, maxX: 90, minZ: -90, maxZ: 90 });
+    animateCat(cat, debugState, clock.elapsedTime, 0.5);
     renderer.render(scene, camera);
   });
 }
