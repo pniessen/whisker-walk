@@ -12,6 +12,8 @@ function fakeScene() {
 }
 
 const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 } };
+const FAR = new THREE.Vector3(999, 0, 999);
+const NO_OPTS = { stalking: false, catSpeed: 0, toy: null };
 
 describe('createStrayCats', () => {
   it('spawns the requested number of strays inside the area bounds', () => {
@@ -27,7 +29,7 @@ describe('createStrayCats', () => {
 
   it('wanders without leaving bounds or crashing over many frames', () => {
     const strays = createStrayCats(fakeScene(), AREA, 3);
-    for (let i = 0; i < 600; i++) strays.update(0.05, i * 0.05);
+    for (let i = 0; i < 600; i++) strays.update(0.05, i * 0.05, FAR, NO_OPTS);
     for (const s of strays.strays) {
       expect(s.group.position.x).toBeGreaterThanOrEqual(AREA.bounds.minX);
       expect(s.group.position.x).toBeLessThanOrEqual(AREA.bounds.maxX);
@@ -63,7 +65,7 @@ describe('createStrayCats', () => {
     strays.greet(s, s.group.position.clone().add(new THREE.Vector3(0, 0, 5)));
     expect(s.state).toBe('greet');
     expect(s.greeted).toBe(true);
-    for (let i = 0; i < 100; i++) strays.update(0.05, i * 0.05);
+    for (let i = 0; i < 100; i++) strays.update(0.05, i * 0.05, FAR, NO_OPTS);
     expect(s.state).not.toBe('greet');
     expect(s.greeted).toBe(true); // stays greeted for the rest of the walk
   });

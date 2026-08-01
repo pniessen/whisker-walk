@@ -19,7 +19,7 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
   return m;
 }
 
-export function buildCat(breed, accessories = { collar: null, outfit: null }) {
+export function buildCat(breed, accessories = { collar: null, outfit: null }, opts = {}) {
   const s = STYLE[breed];
   const g = new THREE.Group();
   const pointColor = s.points ? s.accent : s.base;
@@ -43,17 +43,21 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }) {
   nose.position.set(0, -0.02, -0.245);
   head.add(nose);
   for (const side of [-1, 1]) {
-    const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
-    cheek.position.set(side * 0.085, -0.07, -0.14);
-    head.add(cheek);
+    if (!opts.simple) {
+      const cheek = ball(0.065, s.belly, 1, 0.9, 0.8, 8, 6);
+      cheek.position.set(side * 0.085, -0.07, -0.14);
+      head.add(cheek);
+    }
     const ear = new THREE.Mesh(new THREE.ConeGeometry(0.075, s.tufts ? 0.19 : 0.15, 4), mat(pointColor));
     ear.position.set(side * 0.12, 0.18, 0.01);
     ear.rotation.z = -side * 0.22;
     head.add(ear);
-    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.09, 4), mat(INNER_EAR));
-    inner.position.set(side * 0.115, 0.16, -0.015);
-    inner.rotation.z = -side * 0.22;
-    head.add(inner);
+    if (!opts.simple) {
+      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.09, 4), mat(INNER_EAR));
+      inner.position.set(side * 0.115, 0.16, -0.015);
+      inner.rotation.z = -side * 0.22;
+      head.add(inner);
+    }
     if (side === -1) head.userData.earL = ear;
     else head.userData.earR = ear;
 
@@ -63,23 +67,27 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }) {
     const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
     pupil.position.set(side * 0.083, 0.03, -0.19);
     head.add(pupil);
-    const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
-    shine.position.set(side * 0.07, 0.05, -0.195);
-    head.add(shine);
+    if (!opts.simple) {
+      const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
+      shine.position.set(side * 0.07, 0.05, -0.195);
+      head.add(shine);
+    }
   }
   // whiskers
   const whiskers = [];
-  const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.65 });
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 3; i++) {
-      const y = -0.05 - i * 0.018;
-      const geo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(side * 0.07, y, -0.19),
-        new THREE.Vector3(side * 0.28, y + (i - 1) * 0.035, -0.14),
-      ]);
-      const w = new THREE.Line(geo, whiskerMat);
-      head.add(w);
-      whiskers.push(w);
+  if (!opts.simple) {
+    const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.65 });
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const y = -0.05 - i * 0.018;
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(side * 0.07, y, -0.19),
+          new THREE.Vector3(side * 0.28, y + (i - 1) * 0.035, -0.14),
+        ]);
+        const w = new THREE.Line(geo, whiskerMat);
+        head.add(w);
+        whiskers.push(w);
+      }
     }
   }
   head.position.set(0, 0.56, -0.44);

@@ -293,7 +293,7 @@ function init() {
       scene.add(questObject);
     }
 
-    const strayCats = createStrayCats(scene, areaData, 3);
+    const strayCats = createStrayCats(scene, areaData, 22);
     const toy = createToy(scene);
     const tippables = createTippables(scene, areaData.tippables ?? []);
     const scent = createScent(scene, areaData, Math.random);
@@ -712,7 +712,11 @@ function init() {
     if (player.locked) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
       session.critters.update(dt, t, session.cat.position, session.cat.position);
-      session.strayCats.update(dt, t);
+      session.strayCats.update(dt, t, session.cat.position, {
+        stalking: player.stalking,
+        catSpeed: player.speed,
+        toy: session.toy,
+      });
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
