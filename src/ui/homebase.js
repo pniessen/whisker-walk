@@ -1,4 +1,5 @@
 import { CATALOG, rankFor } from '../progression.js';
+import { menuThumbnails } from '../thumbnails.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -30,6 +31,8 @@ export function createHomeBase(progression, album, onStartWalk) {
       (kind === 'accessories' && s.equipped[item.slot] === id) ||
       (kind === 'areas' && s.area === id);
     const blurb = kind === 'cats' ? CAT_BLURBS[id] : kind === 'accessories' ? ACC_BLURBS[id] : '';
+    const thumbs = menuThumbnails();
+    const thumb = kind === 'cats' ? thumbs.cats[id] : kind === 'accessories' ? thumbs.accessories[id] : null;
     let action;
     if (owned) {
       action = selected
@@ -48,6 +51,7 @@ export function createHomeBase(progression, album, onStartWalk) {
     }
     return `<div class="card ${selected ? 'selected' : ''} ${owned ? '' : 'locked'}"
       data-kind="${kind}" data-id="${id}">
+      ${thumb ? `<img class="card-thumb" src="${thumb}" alt="${item.name}">` : ''}
       <div class="card-name">${item.name}</div>
       ${blurb ? `<div class="card-sub">${blurb}</div>` : ''}
       ${action}
