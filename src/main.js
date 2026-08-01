@@ -99,6 +99,12 @@ function init() {
   // below), never downgrades.
   let isTouch = detectTouch();
   player.setTouchMode(isTouch);
+  // body.touch-mode is the JS-driven counterpart to the `@media (pointer:
+  // coarse)` CSS rule: the media query never matches on a hybrid device that
+  // only reveals itself via a real touch event, so without this the desktop
+  // .hud-controls bar would keep showing alongside the touch UI after an
+  // onFirstTouch upgrade.
+  if (isTouch) document.body.classList.add('touch-mode');
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
   const log = createDiscoveryLog(progression);
@@ -109,14 +115,20 @@ function init() {
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: handleTouchAction,
   });
-  hud.onPromptTap(() => {
-    if (session) handleInteract(session);
-  });
+  // routed through handleTouchAction('interact') rather than calling
+  // handleInteract directly so the prompt-pill tap shares the exact same
+  // session/engaged guard as every other touch action.
+  hud.onPromptTap(() => handleTouchAction('interact'));
   onFirstTouch(() => {
     if (isTouch) return;
     isTouch = true;
     player.setTouchMode(true);
+    document.body.classList.add('touch-mode');
     if (session) touchUI.setVisible(true);
+    // the pause overlay may already be showing stale desktop copy from
+    // before this upgrade — refresh the resume label so it isn't stale.
+    const resumeBtn = document.getElementById('btn-resume');
+    if (resumeBtn) resumeBtn.textContent = 'Tap to explore';
   });
   // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
   // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.

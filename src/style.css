@@ -64,6 +64,11 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 @media (pointer: coarse) {
   .hud-controls { display: none; }
 }
+/* JS-driven counterpart to the media query above: catches hybrid devices
+   that report pointer:fine but were upgraded into touch mode after a real
+   touchstart (see onFirstTouch in main.js), where the media query never
+   matches. */
+body.touch-mode .hud-controls { display: none; }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   font-size: 1.6rem; opacity: 0.7;
