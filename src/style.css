@@ -13,6 +13,11 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 }
 .hud-points { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; }
 .hud-area { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; }
+.hud-objective {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  background: rgba(242,193,78,0.9); color: #3a2a10; font-weight: 700;
+  padding: 6px 16px; border-radius: 999px; font-size: 0.95rem;
+}
 .hud-toasts {
   position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 6px;

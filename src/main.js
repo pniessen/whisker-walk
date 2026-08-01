@@ -11,6 +11,7 @@ import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
 import { createToy } from './toy.js';
+import { createQuest } from './quests.js';
 import { createProgression } from './progression.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -135,11 +136,56 @@ function init() {
       collectibleMeshes.set(c.id, m);
     }
 
+    let questGiver = null;
+    let quest = null;
+    let questObject = null;
+    const giver = critters.list.find((c) => c.type === 'villager');
+    if (giver) {
+      questGiver = giver;
+      quest = createQuest(Math.random, areaData.pois);
+      const marker = new THREE.Mesh(
+        new THREE.ConeGeometry(0.12, 0.4, 6),
+        new THREE.MeshLambertMaterial({ color: 0xf2c14e, emissive: 0x6a5010 })
+      );
+      marker.rotation.x = Math.PI;
+      marker.position.y = 2.1;
+      giver.group.add(marker);
+      questGiver.marker = marker;
+      // quest object at the target, revealed on accept
+      const t = quest.target;
+      if (quest.type === 'kitten') {
+        questObject = buildCat(['tabby', 'calico', 'black'][Math.floor(Math.random() * 3)]);
+        questObject.scale.multiplyScalar(0.5);
+      } else if (quest.type === 'letter') {
+        questObject = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.25, 0),
+          new THREE.MeshLambertMaterial({ color: 0xf2e04e, emissive: 0x8a7a20 })
+        );
+        questObject.position.y = 1;
+      } else {
+        questObject = new THREE.Group();
+        for (const side of [-0.12, 0.12]) {
+          const lens = new THREE.Mesh(
+            new THREE.TorusGeometry(0.09, 0.02, 6, 12),
+            new THREE.MeshLambertMaterial({ color: 0x4a4a52 })
+          );
+          lens.position.x = side;
+          questObject.add(lens);
+        }
+        questObject.position.y = 0.15;
+      }
+      questObject.position.x = t.x;
+      questObject.position.z = t.z;
+      questObject.visible = false;
+      scene.add(questObject);
+    }
+
     const strayCats = createStrayCats(scene, areaData, 3);
     const toy = createToy(scene);
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
+      quest, questGiver, questObject,
       brain: createBrain(state.equipped.cat),
       leash: createLeash(scene),
       catVelocity: new THREE.Vector3(),
@@ -181,6 +227,7 @@ function init() {
     player.disable();
     hud.hide();
     hud.setPrompt(null);
+    hud.setObjective(null);
     overlay.classList.add('hidden');
     homebase.show();
     audio.stopAmbient();
@@ -283,6 +330,11 @@ function init() {
   }
 
   function updateInteractions(s) {
+    if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
+      s.questObject.visible = Math.hypot(
+        s.quest.target.x - camera.position.x, s.quest.target.z - camera.position.z
+      ) < 10;
+    }
     const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
     for (const [id, m] of s.collectibleMeshes) {
       const c = s.areaData.collectibles.find((x) => x.id === id);
@@ -309,6 +361,17 @@ function init() {
         hud.setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
           : `E — pick up ${c.label}`);
+      }
+    }
+    if (!s.prompt && s.quest && s.questGiver) {
+      if (s.quest.state === 'offered' &&
+          s.questGiver.group.position.distanceTo(camera.position) < 2.5) {
+        s.prompt = { kind: 'quest-accept' };
+        hud.setPrompt('E — talk to the neighbor');
+      } else if (s.quest.state === 'active' &&
+          Math.hypot(s.quest.target.x - camera.position.x, s.quest.target.z - camera.position.z) < 2) {
+        s.prompt = { kind: 'quest-complete' };
+        hud.setPrompt(s.quest.texts.prompt);
       }
     }
     if (!s.prompt) {
@@ -340,6 +403,19 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+    } else if (s.prompt.kind === 'quest-accept') {
+      s.quest.accept();
+      hud.toast(s.quest.texts.offer);
+      hud.setObjective(s.quest.texts.objective);
+      if (s.questObject) s.questObject.visible = true;
+      if (s.questGiver.marker) s.questGiver.marker.visible = false;
+    } else if (s.prompt.kind === 'quest-complete') {
+      if (s.quest.tryComplete(camera.position)) {
+        log.award('quest', 'quest', s.quest.texts.done);
+        hud.setObjective(null);
+        if (s.questObject) s.questObject.visible = false;
+        audio.chime();
+      }
     } else if (s.prompt.kind === 'stray') {
       const stray = s.prompt.data;
       s.strayCats.greet(stray, camera.position);
@@ -402,6 +478,9 @@ function init() {
       updateCat(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);
+      if (session.questGiver?.marker?.visible) {
+        session.questGiver.marker.position.y = 2.1 + Math.sin(t * 3) * 0.12;
+      }
     }
     renderer.render(session.scene, camera);
   });

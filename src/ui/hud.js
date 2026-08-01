@@ -7,6 +7,7 @@ export function createHud() {
       <div class="hud-points">🐾 <span id="hud-points-value">0</span></div>
       <div class="hud-area" id="hud-area"></div>
     </div>
+    <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-crosshair">·</div>
@@ -32,6 +33,11 @@ export function createHud() {
       toastsEl.appendChild(el);
       setTimeout(() => el.classList.add('fade'), 2600);
       setTimeout(() => el.remove(), 3400);
+    },
+    setObjective(text) {
+      const el = root.querySelector('#hud-objective');
+      el.classList.toggle('hidden', !text);
+      if (text) el.textContent = text;
     },
   };
 
