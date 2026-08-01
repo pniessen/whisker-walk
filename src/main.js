@@ -9,6 +9,7 @@ import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
+import { createRemoteCats } from './remotecats.js';
 import { createTippables } from './tippables.js';
 import { createScent } from './scent.js';
 import { createToy } from './toy.js';
@@ -27,6 +28,9 @@ import { cameraOffset } from './catcam.js';
 import { mulberry32 } from './rng.js';
 
 const AREAS = { neighborhood, park, seaside };
+// wall-clock seconds, used to keep remote-pet interpolation/despawn timing
+// consistent between the async net callbacks and the render loop
+const nowSec = () => performance.now() / 1000;
 
 const canvas = document.getElementById('game');
 const overlay = document.getElementById('overlay');
@@ -315,6 +319,7 @@ function init() {
     }
 
     const strayCats = createStrayCats(scene, areaData, 22, walkRng);
+    const remotes = createRemoteCats(scene);
     if (roomSeed === undefined) {
       for (const stray of strayCats.strays) {
         if (progression.friendLevel(stray.name) === 'best' && Math.random() < 0.3) stray.hasGift = true;
@@ -341,8 +346,9 @@ function init() {
     const goals = createGoals(walkRng);
 
     session = {
-      scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
+      scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       walkStamp,
+      netSendAccum: 0,
       goals,
       startPoints: state.points,
       discoveryCount: 0,
@@ -370,6 +376,24 @@ function init() {
       stretchTime: 0,
       sniffTime: 0,
     };
+
+    // co-walks: session.net/session.playerId are set by the room-join flow
+    // (Task 6) — everything here is a no-op until that lands, and solo
+    // walks never set session.net at all.
+    if (session.net) {
+      const net = session.net;
+      net.onRoster((roster) => {
+        const liveIds = new Set(roster.map((p) => p.playerId));
+        for (const r of remotes.list) {
+          if (!liveIds.has(r.playerId)) remotes.remove(r.playerId);
+        }
+        for (const p of roster) {
+          if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet
+          remotes.upsert(p, nowSec());
+        }
+      });
+      net.onState((state) => remotes.applyState(state, nowSec()));
+    }
 
     log.startWalk();
     hud.show();
@@ -424,6 +448,7 @@ function init() {
     });
     session.critters.dispose();
     session.strayCats.dispose();
+    session.remotes.dispose();
     session = null;
     player.disable();
     hud.hide();
@@ -721,6 +746,7 @@ function init() {
       if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${c.type}`, label: labelFor(c.type), pos: c.group.position });
     }
     for (const st of s.strayCats.strays) candidates.push({ key: 'stray', label: 'a stray cat', pos: st.group.position });
+    for (const r of s.remotes.list) candidates.push({ key: 'friend-pet', label: r.petName, pos: r.group.position });
     for (const sec of s.secrets?.list ?? []) {
       if (sec.group.visible) candidates.push({ key: sec.key, label: sec.label, pos: sec.group.position });
     }
@@ -786,6 +812,21 @@ function init() {
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.tippables.update(dt);
       session.scent.update(dt);
+      session.remotes.update(dt, nowSec());
+      if (session.net) {
+        session.netSendAccum += dt;
+        if (session.netSendAccum >= 0.125) { // 8Hz
+          session.netSendAccum = 0;
+          session.net.sendState({
+            v: 1,
+            id: session.playerId,
+            pos: [session.cat.position.x, session.cat.position.z],
+            yaw: session.cat.rotation.y,
+            pose: session.pose,
+            speed: player.speed,
+          });
+        }
+      }
       if (session.weather.rainbowVisible) {
         const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
         if (to.normalize().dot(player.forward()) > 0.6) {

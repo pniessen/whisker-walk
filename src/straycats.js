@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
+import { makeNameTag } from './nametag.js';
 
 const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
 const WANDER_SPEED = 1.4;
@@ -26,28 +27,6 @@ function shuffled(arr, rng) {
   return a;
 }
 
-function makeTag(name) {
-  const tagCanvas = document.createElement('canvas');
-  tagCanvas.width = 256;
-  tagCanvas.height = 64;
-  const tctx = tagCanvas.getContext('2d');
-  tctx.font = 'bold 34px Avenir, sans-serif';
-  tctx.textAlign = 'center';
-  tctx.fillStyle = 'rgba(20,26,38,0.7)';
-  tctx.beginPath();
-  if (tctx.roundRect) tctx.roundRect(28, 8, 200, 48, 22);
-  else tctx.rect(28, 8, 200, 48);
-  tctx.fill();
-  tctx.fillStyle = '#fff';
-  tctx.fillText(name, 128, 42);
-  const tagTex = new THREE.CanvasTexture(tagCanvas);
-  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
-  tag.scale.set(1.4, 0.35, 1);
-  tag.position.y = 1.05;
-  tag.visible = false;
-  return tag;
-}
-
 export function createStrayCats(scene, area, count = 3, rng = Math.random) {
   const strays = [];
   const b = area.bounds;
@@ -68,7 +47,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random) {
     const roll = (rng() + i * GOLDEN) % 1;
     const personality = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
 
-    const tag = typeof document !== 'undefined' ? makeTag(name) : null;
+    const tag = makeNameTag(name);
     if (tag) group.add(tag);
 
     scene.add(group);
