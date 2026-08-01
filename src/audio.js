@@ -49,6 +49,10 @@ export function createAudio() {
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
       tone(210, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 120, delay: 0.18 });
     },
+    shutter() {
+      tone(1300, 0.03, { type: 'square', gain: 0.09 });
+      tone(700, 0.04, { type: 'square', gain: 0.07, delay: 0.05 });
+    },
     startAmbient(areaKey) {
       if (muted) return;
       const ac = ensure();

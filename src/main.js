@@ -17,6 +17,7 @@ import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { createAudio } from './audio.js';
+import { createAlbum } from './album.js';
 
 const AREAS = { neighborhood, park, seaside };
 
@@ -45,6 +46,7 @@ function init() {
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
   const player = createPlayer(camera, canvas);
   const progression = createProgression(window.localStorage);
+  const album = createAlbum(window.localStorage);
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
@@ -52,7 +54,7 @@ function init() {
 
   let session = null;
 
-  const homebase = createHomeBase(progression, startWalk);
+  const homebase = createHomeBase(progression, album, startWalk);
   homebase.show();
 
   window.addEventListener('resize', () => {
@@ -67,6 +69,7 @@ function init() {
   });
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
+    if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
   });
   bus.on('critter:scare', () => {
     if (session && session.brain.scare()) hud.toast('Woof! Your cat got spooked!');
@@ -92,6 +95,13 @@ function init() {
       session.toyPlay = { bats: 0, returning: false };
       session.brain.set('fetch', 14);
     }
+    if (e.code === 'KeyC' && session && player.locked) {
+      session.cameraMode = !session.cameraMode;
+      hud.setCamera(session.cameraMode);
+    }
+  });
+  document.addEventListener('mousedown', () => {
+    if (session && player.locked && session.cameraMode) snapPhoto(session);
   });
 
   function startWalk({ duskMode = false } = {}) {
@@ -195,6 +205,7 @@ function init() {
       prompt: null,
       balkedPuddles: new Set(),
       toy, toyPlay: { bats: 0, returning: false },
+      cameraMode: false,
     };
 
     log.startWalk();
@@ -228,6 +239,7 @@ function init() {
     hud.hide();
     hud.setPrompt(null);
     hud.setObjective(null);
+    hud.setCamera(false);
     overlay.classList.add('hidden');
     homebase.show();
     audio.stopAmbient();
@@ -449,6 +461,50 @@ function init() {
       }
       if (s.activeMoment.timeLeft <= 0) s.activeMoment = null;
     }
+  }
+
+  function findPhotoSubject(s) {
+    const candidates = [];
+    for (const c of s.critters.list) {
+      if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${c.type}`, label: labelFor(c.type), pos: c.group.position });
+    }
+    for (const st of s.strayCats.strays) candidates.push({ key: 'stray', label: 'a stray cat', pos: st.group.position });
+    for (const sec of s.secrets?.list ?? []) {
+      if (sec.group.visible) candidates.push({ key: sec.key, label: sec.label, pos: sec.group.position });
+    }
+    if (s.activeMoment) {
+      candidates.push({ key: `moment-${s.activeMoment.m.id}`, label: s.activeMoment.m.label, pos: new THREE.Vector3(s.activeMoment.m.x, 0, s.activeMoment.m.z) });
+    }
+    for (const sc of s.areaData.scenics) candidates.push({ key: `scenic-${sc.id}`, label: sc.label, pos: new THREE.Vector3(sc.x, 0, sc.z) });
+    let best = null;
+    let bestDot = 0.75;
+    for (const c of candidates) {
+      const to = c.pos.clone().sub(camera.position).setY(0);
+      if (to.length() > 12) continue;
+      const dot = to.normalize().dot(player.forward());
+      if (dot > bestDot) { bestDot = dot; best = c; }
+    }
+    return best;
+  }
+
+  function snapPhoto(s) {
+    audio.shutter();
+    const subject = findPhotoSubject(s);
+    if (!subject) {
+      hud.toast('Just scenery… get closer to something!');
+      return;
+    }
+    renderer.render(s.scene, camera);
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 160;
+    thumbCanvas.height = 120;
+    thumbCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, 160, 120);
+    const first = album.add({
+      key: subject.key, label: subject.label, area: s.areaData.name,
+      thumb: thumbCanvas.toDataURL('image/jpeg', 0.6),
+    });
+    hud.toast(`📸 ${subject.label}`);
+    if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);
   }
 
   function labelFor(type) {

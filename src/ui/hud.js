@@ -11,6 +11,7 @@ export function createHud() {
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-crosshair">·</div>
+    <div class="hud-viewfinder hidden" id="hud-viewfinder"><span>📷 click to snap · C to lower</span></div>
   `;
   const pointsEl = root.querySelector('#hud-points-value');
   const areaEl = root.querySelector('#hud-area');
@@ -38,6 +39,9 @@ export function createHud() {
       const el = root.querySelector('#hud-objective');
       el.classList.toggle('hidden', !text);
       if (text) el.textContent = text;
+    },
+    setCamera(on) {
+      root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
     },
   };
 

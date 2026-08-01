@@ -17,7 +17,7 @@ const ACC_BLURBS = {
   crown: 'Butterflies trail your cat',
 };
 
-export function createHomeBase(progression, onStartWalk) {
+export function createHomeBase(progression, album, onStartWalk) {
   const root = document.getElementById('homebase');
 
   function card(kind, id, item, ownedLabel) {
@@ -69,6 +69,11 @@ export function createHomeBase(progression, onStartWalk) {
         </div></section>
         <section><h2>Where to?</h2><div class="cards">
           ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
+        </div></section>
+        <section><h2>Photo album 📸</h2><div class="photos">
+          ${album.photos.length
+            ? album.photos.map((p) => `<figure><img src="${p.thumb}" alt="${p.label}"><figcaption>${p.label} — ${p.area}</figcaption></figure>`).join('')
+            : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
         </div></section>
         <footer class="hb-footer">
           ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
