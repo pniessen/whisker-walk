@@ -21,6 +21,8 @@ titles, and beat your best-walk score.
 mouse orbits the camera · Space to pounce or climb · E to interact / sniff ·
 V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
 
+**On phones & tablets:** left-thumb joystick to move (tilt gently to stalk) · drag the right side to look around · tap the buttons for pounce, meow, yarn, and camera · tap prompts to interact · ⏸ to pause.
+
 ## Walk together 🐾🐾
 
 Up to 4 players can share a live walk — one shared seeded world, everyone's
