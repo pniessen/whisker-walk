@@ -28,6 +28,12 @@ describe('createDiscoveryLog', () => {
     expect(log.award('critter', 'bird-1', 'a songbird')).toBe(AWARDS.critter);
   });
 
+  it('awards friend points for greeting a stray cat once per walk', () => {
+    expect(AWARDS.friend).toBe(6);
+    expect(log.awardOnce('friend', 'friend-stray-0', 'a new cat friend')).toBe(AWARDS.friend);
+    expect(log.awardOnce('friend', 'friend-stray-0', 'a new cat friend')).toBe(0);
+  });
+
   it('emits discovery events on the bus', () => {
     const fn = vi.fn();
     const off = bus.on('discovery', fn);

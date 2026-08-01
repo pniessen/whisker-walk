@@ -1,6 +1,6 @@
 import { bus } from './events.js';
 
-export const AWARDS = { critter: 5, collectible: 10, pet: 4, scenic: 8, moment: 12, perk: 3 };
+export const AWARDS = { critter: 5, collectible: 10, pet: 4, scenic: 8, moment: 12, perk: 3, friend: 6 };
 
 export function createDiscoveryLog(progression) {
   let seen = new Map();

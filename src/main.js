@@ -9,6 +9,7 @@ import * as neighborhood from './world/neighborhood.js';
 import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
+import { createStrayCats } from './straycats.js';
 import { createProgression } from './progression.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -128,8 +129,10 @@ function init() {
       collectibleMeshes.set(c.id, m);
     }
 
+    const strayCats = createStrayCats(scene, areaData, 3);
+
     session = {
-      scene, areaData, cat, critters, collectibleMeshes, duskMode,
+      scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
       brain: createBrain(state.equipped.cat),
       leash: createLeash(scene),
       catVelocity: new THREE.Vector3(),
@@ -165,6 +168,7 @@ function init() {
       }
     });
     session.critters.dispose();
+    session.strayCats.dispose();
     session = null;
     player.disable();
     hud.hide();
@@ -189,7 +193,7 @@ function init() {
     const nearCritter = s.critters.nearest(cat.position, 8);
     const nearPoi = s.areaData.pois.some(
       (poi) => Math.hypot(poi.x - cat.position.x, poi.z - cat.position.z) < p.sniffRange
-    );
+    ) || !!s.strayCats.nearest(cat.position, p.sniffRange);
     brain.update(dt, { leashTension: tension, critterNearby: !!nearCritter, poiNearby: nearPoi });
 
     let target = null;
@@ -259,6 +263,12 @@ function init() {
         log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type));
       }
     }
+    for (const stray of s.strayCats.strays) {
+      const to = stray.group.position.clone().sub(camera.position).setY(0);
+      if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
+        log.awardOnce('critter', `spot-${stray.id}`, 'a wandering stray cat');
+      }
+    }
     s.prompt = null;
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
@@ -267,6 +277,13 @@ function init() {
         hud.setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
           : `E — pick up ${c.label}`);
+      }
+    }
+    if (!s.prompt) {
+      const stray = s.strayCats.nearest(camera.position, 2.5);
+      if (stray && !stray.greeted) {
+        s.prompt = { kind: 'stray', data: stray };
+        hud.setPrompt('E — greet the stray cat');
       }
     }
     if (!s.prompt && (s.brain.state === 'requestPet' || s.brain.state === 'nap') &&
@@ -291,6 +308,11 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+    } else if (s.prompt.kind === 'stray') {
+      const stray = s.prompt.data;
+      s.strayCats.greet(stray, camera.position);
+      log.awardOnce('friend', `friend-${stray.id}`, 'a new cat friend');
+      audio.meow();
     } else if (s.prompt.kind === 'pet') {
       const wasNapping = s.brain.state === 'nap';
       if (s.brain.pet()) {
@@ -338,6 +360,7 @@ function init() {
     if (player.locked) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
       session.critters.update(dt, t, camera.position, session.cat.position);
+      session.strayCats.update(dt, t);
       updateCat(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);

@@ -28,10 +28,10 @@ export function createPlayer(camera, canvas) {
     update(dt, colliders = [], bounds = null) {
       if (!enabled) return;
       const dir = new THREE.Vector3();
-      if (keys.has('KeyW')) dir.z -= 1;
-      if (keys.has('KeyS')) dir.z += 1;
-      if (keys.has('KeyA')) dir.x -= 1;
-      if (keys.has('KeyD')) dir.x += 1;
+      if (keys.has('ArrowUp')) dir.z -= 1;
+      if (keys.has('ArrowDown')) dir.z += 1;
+      if (keys.has('ArrowLeft')) dir.x -= 1;
+      if (keys.has('ArrowRight')) dir.x += 1;
       dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
       const speed = WALK_SPEED * api.speedFactor;
       velocity.lerp(dir.multiplyScalar(speed), 1 - Math.pow(0.001, dt));
@@ -71,7 +71,9 @@ export function createPlayer(camera, canvas) {
     camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
   });
   document.addEventListener('keydown', (e) => {
-    if (enabled) keys.add(e.code);
+    if (!enabled) return;
+    if (e.code.startsWith('Arrow')) e.preventDefault(); // arrows shouldn't scroll the page
+    keys.add(e.code);
   });
   document.addEventListener('keyup', (e) => keys.delete(e.code));
 
