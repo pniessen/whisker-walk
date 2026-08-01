@@ -55,12 +55,12 @@ describe('createAlbum', () => {
     it('round-trips a raw album payload through storage and reloads live state', () => {
       const storage = fakeStorage();
       const album = createAlbum(storage);
-      album.add({ key: 'local', label: 'local photo', area: 'X', thumb: 'tL' });
+      album.add({ key: 'local', label: 'local photo', area: 'X', thumb: 'data:image/jpeg;base64,LOCAL' });
 
       const donorStorage = fakeStorage();
       const donor = createAlbum(donorStorage);
-      donor.add({ key: 'cloud-1', label: 'cloud photo one', area: 'Y', thumb: 'tC1' });
-      donor.add({ key: 'cloud-2', label: 'cloud photo two', area: 'Y', thumb: 'tC2' });
+      donor.add({ key: 'cloud-1', label: 'cloud photo one', area: 'Y', thumb: 'data:image/jpeg;base64,C1' });
+      donor.add({ key: 'cloud-2', label: 'cloud photo two', area: 'Y', thumb: 'data:image/jpeg;base64,C2' });
 
       album.replaceFromPayload(donor.serialize());
 
@@ -75,7 +75,7 @@ describe('createAlbum', () => {
     it('falls back to an empty album when the payload has no photos array', () => {
       const storage = fakeStorage();
       const album = createAlbum(storage);
-      album.add({ key: 'a', label: 'a', area: 'X', thumb: 't' });
+      album.add({ key: 'a', label: 'a', area: 'X', thumb: 'data:image/jpeg;base64,A' });
 
       album.replaceFromPayload({ notPhotos: true });
 
@@ -93,13 +93,65 @@ describe('createAlbum', () => {
         },
       };
       const album = createAlbum(storage);
-      album.add({ key: 'a', label: 'a', area: 'X', thumb: 't' });
+      album.add({ key: 'a', label: 'a', area: 'X', thumb: 'data:image/jpeg;base64,A' });
 
-      album.replaceFromPayload({ version: 1, photos: [{ key: 'quota-buster', label: 'x', area: 'X', thumb: 't' }] });
+      album.replaceFromPayload({
+        version: 1,
+        photos: [{ key: 'k', label: 'x', area: 'X', thumb: 'data:image/jpeg;base64,quota-buster' }],
+      });
 
       expect(warn).toHaveBeenCalled();
-      expect(album.photos).toEqual([{ key: 'a', label: 'a', area: 'X', thumb: 't' }]);
+      expect(album.photos).toEqual([{ key: 'a', label: 'a', area: 'X', thumb: 'data:image/jpeg;base64,A' }]);
       warn.mockRestore();
+    });
+
+    it('drops entries whose thumb is not a data:image/ URI (stored-XSS hardening)', () => {
+      const storage = fakeStorage();
+      const album = createAlbum(storage);
+
+      album.replaceFromPayload({
+        version: 1,
+        photos: [
+          { key: 'ok', label: 'fine', area: 'X', thumb: 'data:image/png;base64,AAAA' },
+          { key: 'xss1', label: '<img src=x onerror=alert(1)>', area: 'X', thumb: '"><script>alert(1)</script>' },
+          { key: 'xss2', label: 'javascript scheme', area: 'X', thumb: 'javascript:alert(1)' },
+          { key: 'not-a-string-thumb', label: 'bad type', area: 'X', thumb: { toString: () => 'data:image/png;base64,fake' } },
+          'not even an object',
+          null,
+        ],
+      });
+
+      expect(album.photos).toEqual([{ key: 'ok', label: 'fine', area: 'X', thumb: 'data:image/png;base64,AAAA' }]);
+    });
+
+    it('truncates oversized label/area to 80 chars instead of dropping the photo', () => {
+      const storage = fakeStorage();
+      const album = createAlbum(storage);
+      const longLabel = 'x'.repeat(500);
+
+      album.replaceFromPayload({
+        version: 1,
+        photos: [{ key: 'k', label: longLabel, area: longLabel, thumb: 'data:image/png;base64,AAAA' }],
+      });
+
+      expect(album.photos).toHaveLength(1);
+      expect(album.photos[0].label).toHaveLength(80);
+      expect(album.photos[0].area).toHaveLength(80);
+    });
+
+    it('enforces the cap, keeping only the newest entries', () => {
+      const storage = fakeStorage();
+      const album = createAlbum(storage, 3);
+      const photos = Array.from({ length: 10 }, (_, i) => ({
+        key: `k${i}`, label: `p${i}`, area: 'X', thumb: `data:image/png;base64,${i}`,
+      }));
+
+      album.replaceFromPayload({ version: 1, photos });
+
+      expect(album.photos).toHaveLength(3);
+      expect(album.photos.map((p) => p.key)).toEqual(['k7', 'k8', 'k9']);
+      // persisted capped/sanitized, not just held in memory
+      expect(createAlbum(storage, 3).photos).toHaveLength(3);
     });
   });
 });

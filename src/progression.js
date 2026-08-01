@@ -48,6 +48,19 @@ export const CATALOG = {
   },
 };
 
+function isPlainObject(v) {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+function asFiniteNonNeg(v, fallback) {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+function asFiniteNonNegInt(v, fallback) {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback;
+}
+function asStringArray(v) {
+  return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : [];
+}
+
 function defaultState() {
   return {
     version: SAVE_VERSION,
@@ -63,28 +76,99 @@ function defaultState() {
   };
 }
 
+// Cloud-loaded (or otherwise externally supplied) friends are untrusted:
+// homebase interpolates the name/breed into innerHTML, so every key/value
+// is type- and shape-checked here rather than trusted wholesale — a bad
+// name/breed is dropped (name) or coerced to a safe default (breed).
+function sanitizeFriends(v) {
+  if (!isPlainObject(v)) return {};
+  const knownBreeds = new Set(Object.keys(CATALOG.cats));
+  const out = {};
+  for (const [name, f] of Object.entries(v)) {
+    if (typeof name !== 'string' || name.length === 0 || name.length > 24) continue;
+    if (!isPlainObject(f)) continue;
+    out[name] = {
+      breed: typeof f.breed === 'string' && knownBreeds.has(f.breed) ? f.breed : 'tabby',
+      greets: asFiniteNonNegInt(f.greets, 0),
+      lastWalk: typeof f.lastWalk === 'string' ? f.lastWalk : null,
+    };
+  }
+  return out;
+}
+
+// A cloud-loaded (or otherwise externally supplied/corrupted) save is
+// untrusted input: version acceptance/migration alone isn't enough — a
+// payload can claim version 3 while missing or mistyping any field, which
+// would otherwise leave `state` in a shape homebase's render() throws on
+// (e.g. missing `equipped`/`friends`), and since it's already persisted by
+// the time that happens, every subsequent boot crashes too. Every field is
+// therefore individually type-checked here and either kept or defaulted —
+// never merged in wholesale.
+function sanitizeState(parsed) {
+  const d = defaultState();
+  if (!isPlainObject(parsed)) return d;
+
+  const knownCats = new Set(Object.keys(CATALOG.cats));
+  const knownAcc = new Set(Object.keys(CATALOG.accessories));
+  const knownAreas = new Set(Object.keys(CATALOG.areas));
+
+  const unlockedCats = asStringArray(parsed.unlocked?.cats).filter((id) => knownCats.has(id));
+  const unlockedAcc = asStringArray(parsed.unlocked?.accessories).filter((id) => knownAcc.has(id));
+  const unlockedAreas = asStringArray(parsed.unlocked?.areas).filter((id) => knownAreas.has(id));
+  // starter unlocks are guaranteed on every fresh save (defaultState) —
+  // guarantee them here too so a malformed/truncated payload never leaves
+  // the player with zero cats/areas to actually play with.
+  for (const id of d.unlocked.cats) if (!unlockedCats.includes(id)) unlockedCats.push(id);
+  for (const id of d.unlocked.accessories) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
+  for (const id of d.unlocked.areas) if (!unlockedAreas.includes(id)) unlockedAreas.push(id);
+
+  const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
+    ? parsed.equipped.cat : d.equipped.cat;
+  const collar = parsed.equipped?.collar;
+  const equippedCollar = typeof collar === 'string' && unlockedAcc.includes(collar) && CATALOG.accessories[collar]?.slot === 'collar'
+    ? collar : null;
+  const outfit = parsed.equipped?.outfit;
+  const equippedOutfit = typeof outfit === 'string' && unlockedAcc.includes(outfit) && CATALOG.accessories[outfit]?.slot === 'outfit'
+    ? outfit : null;
+
+  const area = typeof parsed.area === 'string' && unlockedAreas.includes(parsed.area) ? parsed.area : d.area;
+
+  const walks = {};
+  for (const key of Object.keys(d.walks)) walks[key] = asFiniteNonNegInt(parsed.walks?.[key], 0);
+
+  return {
+    version: SAVE_VERSION,
+    points: asFiniteNonNeg(parsed.points, 0),
+    walks,
+    unlocked: { cats: unlockedCats, accessories: unlockedAcc, areas: unlockedAreas },
+    equipped: { cat: equippedCat, collar: equippedCollar, outfit: equippedOutfit },
+    area,
+    lifetimePoints: asFiniteNonNeg(parsed.lifetimePoints, 0),
+    bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
+    friends: sanitizeFriends(parsed.friends),
+    petName: typeof parsed.petName === 'string' ? parsed.petName.slice(0, 16) : null,
+  };
+}
+
 // Shared by createProgression's initial load AND replaceFromPayload below —
 // a cloud-loaded (or otherwise externally supplied) save must go through
-// the exact same parse/version-migration path as a normal boot, so there's
-// only one place that knows how to read whisker-walk-save.
+// the exact same parse/version-migration/sanitize path as a normal boot,
+// so there's only one place that knows how to read whisker-walk-save.
 function loadState(storage) {
-  let state = defaultState();
   try {
     const raw = storage.getItem(SAVE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.version === SAVE_VERSION) state = parsed;
-      else if (parsed && parsed.version === 2) {
-        state = { ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null };
-      } else console.warn('Whisker Walk: incompatible save, starting fresh');
+      if (parsed && parsed.version === SAVE_VERSION) return sanitizeState(parsed);
+      if (parsed && parsed.version === 2) {
+        return sanitizeState({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null });
+      }
+      console.warn('Whisker Walk: incompatible save, starting fresh');
     }
   } catch (err) {
     console.warn('Whisker Walk: could not read save, starting fresh', err);
   }
-  // covers existing v3 saves captured before petName existed — additive
-  // field, no version bump needed.
-  state.petName ??= null;
-  return state;
+  return defaultState();
 }
 
 export function createProgression(storage) {

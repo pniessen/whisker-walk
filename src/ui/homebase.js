@@ -199,7 +199,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
         </div></section>
         <section><h2>Photo album 📸</h2><div class="photos">
           ${album.photos.length
-            ? album.photos.map((p) => `<figure><img src="${p.thumb}" alt="${p.label}"><figcaption>${p.label} — ${p.area}</figcaption></figure>`).join('')
+            ? album.photos.map((p) => `<figure><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${escapeHtml(p.label)} — ${escapeHtml(p.area)}</figcaption></figure>`).join('')
             : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
         </div></section>
         <section><h2>Cat friends 🐾</h2><div class="friends-list">
@@ -208,7 +208,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
                 .sort(([, a], [, b]) => b.greets - a.greets)
                 .map(([name, f]) => `<div class="friend-row">
                   <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
-                  <span class="friend-name">${name}</span> — ${f.breed}, ${f.greets} greets
+                  <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
                 </div>`).join('')
             : '<div class="tag">No cat friends yet — go touch noses!</div>'}
         </div></section>

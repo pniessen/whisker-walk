@@ -244,5 +244,113 @@ describe('createProgression', () => {
       expect(warn).toHaveBeenCalled();
       warn.mockRestore();
     });
+
+    it('yields a playable default-shaped state from a bare {version:3} payload', () => {
+      // a malformed-but-version-3-claiming payload must never leave the
+      // save missing fields render()/canBuy()/isUnlocked() rely on — this
+      // used to persist wholesale and brick every future boot.
+      p.replaceFromPayload({ version: 3 });
+
+      expect(p.state).toEqual({
+        version: 3, points: 0,
+        walks: { neighborhood: 0, park: 0, seaside: 0 },
+        unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+        equipped: { cat: 'tabby', collar: null, outfit: null },
+        area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      });
+      // and it's genuinely playable, not just shaped right
+      expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
+      expect(() => p.canBuy('areas', 'park')).not.toThrow();
+      expect(p.isUnlocked('cats', 'tabby')).toBe(true);
+      // persisted sanitized — a fresh instance over the same storage
+      // doesn't re-inherit the malformed payload.
+      const reloaded = createProgression(storage);
+      expect(reloaded.state).toEqual(p.state);
+    });
+
+    it('corrects garbage nested types field-by-field instead of trusting them wholesale', () => {
+      p.replaceFromPayload({
+        version: 3,
+        points: 'a lot',
+        lifetimePoints: -50,
+        bestWalk: NaN,
+        walks: null,
+        unlocked: { cats: 'tabby', accessories: [1, 2, 3], areas: null },
+        equipped: 'siamese',
+        area: { evil: true },
+        friends: ['not', 'a', 'dict'],
+        petName: { toString: () => 'hi' },
+      });
+
+      expect(p.state.points).toBe(0);
+      expect(p.state.lifetimePoints).toBe(0);
+      expect(p.state.bestWalk).toBe(0);
+      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0 });
+      // starter unlocks are still guaranteed even though the payload's
+      // unlocked lists were unusable
+      expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
+      expect(p.state.equipped).toEqual({ cat: 'tabby', collar: null, outfit: null });
+      expect(p.state.area).toBe('neighborhood');
+      expect(p.state.friends).toEqual({});
+      expect(p.state.petName).toBe(null);
+      expect(() => p.canBuy('areas', 'park')).not.toThrow();
+    });
+
+    it('rejects an equipped id the payload never actually unlocked', () => {
+      p.replaceFromPayload({
+        version: 3, points: 0,
+        walks: { neighborhood: 0, park: 0, seaside: 0 },
+        unlocked: { cats: ['tabby'], accessories: ['bell'], areas: ['neighborhood'] },
+        equipped: { cat: 'hagrid', collar: 'glow', outfit: 'crown' }, // none of these are unlocked above
+        area: 'seaside', // not unlocked either
+        lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      });
+
+      expect(p.state.equipped).toEqual({ cat: 'tabby', collar: null, outfit: null });
+      expect(p.state.area).toBe('neighborhood');
+    });
+
+    it('rejects a collar id placed in the wrong slot', () => {
+      p.replaceFromPayload({
+        version: 3, points: 0,
+        walks: { neighborhood: 0, park: 0, seaside: 0 },
+        unlocked: { cats: ['tabby'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+        equipped: { cat: 'tabby', collar: 'bandana', outfit: 'bell' }, // slots swapped
+        area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      });
+
+      expect(p.state.equipped.collar).toBe(null);
+      expect(p.state.equipped.outfit).toBe(null);
+    });
+
+    it('sanitizes friends: drops unusable entries, coerces breed/greets, keeps long/short names by length only', () => {
+      p.replaceFromPayload({
+        version: 3, points: 0,
+        walks: { neighborhood: 0, park: 0, seaside: 0 },
+        unlocked: { cats: ['tabby'], accessories: ['bell'], areas: ['neighborhood'] },
+        equipped: { cat: 'tabby', collar: null, outfit: null },
+        area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, petName: null,
+        friends: {
+          'Pickles': { breed: 'tabby', greets: 3, lastWalk: 'walk-1' },
+          '<img src=x onerror=1>': { breed: 'siamese', greets: 1, lastWalk: null }, // kept (≤24 chars) — escaped at render, not here
+          'UnknownBreed': { breed: 'totally-not-a-cat', greets: 2, lastWalk: null },
+          'NegativeGreets': { breed: 'tabby', greets: -5, lastWalk: null },
+          'StringGreets': { breed: 'tabby', greets: 'lots', lastWalk: null },
+          ['x'.repeat(25)]: { breed: 'tabby', greets: 1, lastWalk: null }, // too long — dropped
+          '': { breed: 'tabby', greets: 1, lastWalk: null }, // empty — dropped
+          'NotAnObject': 'nope', // wrong shape — dropped
+        },
+      });
+
+      const f = p.state.friends;
+      expect(f['Pickles']).toEqual({ breed: 'tabby', greets: 3, lastWalk: 'walk-1' });
+      expect(f['<img src=x onerror=1>']).toEqual({ breed: 'siamese', greets: 1, lastWalk: null });
+      expect(f['UnknownBreed']).toEqual({ breed: 'tabby', greets: 2, lastWalk: null }); // coerced to a safe default
+      expect(f['NegativeGreets'].greets).toBe(0);
+      expect(f['StringGreets'].greets).toBe(0);
+      expect(f['x'.repeat(25)]).toBeUndefined();
+      expect(f['']).toBeUndefined();
+      expect(f['NotAnObject']).toBeUndefined();
+    });
   });
 });
