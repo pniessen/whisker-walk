@@ -18,6 +18,8 @@ import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
+import { rollWeather, createWeather } from './weather.js';
+import { puddle as puddleProp } from './world/builder.js';
 
 const AREAS = { neighborhood, park, seaside };
 
@@ -122,18 +124,43 @@ function init() {
     scene.add(cat);
 
     const equipped = state.equipped;
-    const critters = createCritters(scene, areaData.critterSpawns, {
-      fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
-      spawnFireflies: duskMode && equipped.collar === 'glow', // glow: dusk fireflies
-      trailButterflies: equipped.outfit === 'crown',           // crown: butterflies trail the cat
-    });
+    const duskActive = duskMode && equipped.collar === 'glow';
 
-    if (duskMode && equipped.collar === 'glow') {
+    if (duskActive) {
       const { top, horizon } = areaData.skyDusk;
       scene.background = new THREE.Color(top);
       scene.fog = new THREE.Fog(horizon, 30, 110);
       sun.intensity = 0.7;
     }
+
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
+    if (!duskActive) {
+      weather = createWeather(scene, sun, rollWeather(Math.random), Math.random);
+      if (weather.condition === 'rain') {
+        // extra puddles
+        const extra = [];
+        for (let i = 0; i < 3; i++) {
+          const px = areaData.bounds.minX / 2 + Math.random() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;
+          const pz = areaData.bounds.minZ / 2 + Math.random() * (areaData.bounds.maxZ - areaData.bounds.minZ) / 2;
+          extra.push({ x: px, z: pz, r: 0.8 });
+          scene.add(puddleProp(px, pz, 0.8));
+        }
+        areaData.puddles = [...areaData.puddles, ...extra];
+        // birds shelter from rain: halve bird-type spawns
+        let keep = false;
+        areaData.critterSpawns = areaData.critterSpawns.filter((c) => {
+          if (c.type !== 'bird' && c.type !== 'seagull') return true;
+          keep = !keep;
+          return keep;
+        });
+      }
+    }
+
+    const critters = createCritters(scene, areaData.critterSpawns, {
+      fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
+      spawnFireflies: duskActive,                              // glow: dusk fireflies
+      trailButterflies: equipped.outfit === 'crown',           // crown: butterflies trail the cat
+    });
 
     const collectibleMeshes = new Map();
     for (const c of areaData.collectibles) {
@@ -195,6 +222,7 @@ function init() {
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
+      weather,
       quest, questGiver, questObject,
       brain: createBrain(state.equipped.cat),
       leash: createLeash(scene),
@@ -525,6 +553,13 @@ function init() {
       session.critters.update(dt, t, camera.position, session.cat.position);
       session.strayCats.update(dt, t);
       session.toy.update(dt, session.areaData.bounds);
+      session.weather.update(dt, camera.position);
+      if (session.weather.rainbowVisible) {
+        const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
+        if (to.normalize().dot(player.forward()) > 0.6) {
+          log.awardOnce('rainbow', 'rainbow', 'a rainbow after the rain! 🌈');
+        }
+      }
       if (session.toy.active &&
           (session.toy.idleTime > 15 ||
            (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
