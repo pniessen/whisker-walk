@@ -1,0 +1,83 @@
+import * as b from './builder.js';
+
+export function build(scene) {
+  b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
+  scene.add(b.ground(120, 0x7cb860));
+
+  const colliders = [];
+  const addC = (x, z, r) => colliders.push({ x, z, r });
+
+  // main street running north-south, side street east-west
+  scene.add(b.path(0, -50, 0, 50, 5));
+  scene.add(b.path(-50, 0, 50, 0, 5));
+
+  // houses along the streets
+  const lots = [
+    [-12, -30, 0xe8d8b0], [-12, -15, 0xd8c8e8], [-12, 15, 0xf2e0c0], [-12, 30, 0xc8e0d0],
+    [12, -30, 0xf0d8c8], [12, -15, 0xe0e8c8], [12, 15, 0xd8d0f0], [12, 30, 0xe8e0b8],
+  ];
+  for (const [x, z, color] of lots) {
+    scene.add(b.house(x, z, color));
+    addC(x, z, 3.4);
+    scene.add(b.mailbox(x + (x < 0 ? 4 : -4), z + 2));
+    scene.add(b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2));
+  }
+
+  // trees, bushes, parked cars, lamps
+  for (const [x, z] of [[-6, -40], [7, -22], [-8, 8], [6, 40], [-20, 22], [20, -8], [24, 18], [-24, -18]]) {
+    scene.add(b.tree(x, z, 0.9 + ((x * z) % 5) * 0.08));
+    addC(x, z, 0.6);
+  }
+  for (const [x, z] of [[-4, -12], [5, 25], [18, 4], [-18, -4]]) scene.add(b.bush(x, z));
+  scene.add(b.car(4, -35, 0xd06048, 0));
+  addC(4, -35, 1.8);
+  scene.add(b.car(-4, 20, 0x4a6ea5, 0));
+  addC(-4, 20, 1.8);
+  for (const [x, z] of [[3, -10], [-3, 10], [10, 3], [-10, -3]]) scene.add(b.lampPost(x, z));
+
+  // small playground: slide-ish ramp + swing frame
+  scene.add(b.bench(28, 28, Math.PI / 4));
+  scene.add(b.bench(32, 24, Math.PI / 4));
+  const puddles = [{ x: -7, z: -8, r: 0.9 }, { x: 9, z: 12, r: 0.8 }];
+  for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
+
+  // fenced yard with the dog (scare event source)
+  scene.add(b.fenceRun(18, -28, 26, -28));
+  scene.add(b.fenceRun(18, -28, 18, -20));
+  scene.add(b.fenceRun(26, -28, 26, -20));
+
+  return {
+    name: 'Cozy Neighborhood',
+    colliders,
+    bounds: { minX: -55, maxX: 55, minZ: -55, maxZ: 55 },
+    spawn: { x: 0, z: 45 },
+    pois: [
+      { x: -8, z: 4 }, { x: 4, z: -35 }, { x: 16, z: 2 }, { x: -12, z: 32 },
+      { x: 8, z: 27 }, { x: -6, z: -40 }, { x: 20, z: -8 }, { x: 28, z: 28 },
+    ],
+    collectibles: [
+      { id: 'yarn-1', x: -14, z: 33.5, label: 'a red yarn ball' },
+      { id: 'yarn-2', x: 5.5, z: -36.5, label: 'a blue yarn ball' },
+      { id: 'yarn-3', x: 25, z: 21, label: 'a golden yarn ball' },
+      { id: 'yarn-4', x: -21, z: -19, label: 'a green yarn ball' },
+    ],
+    scenics: [
+      { id: 'playground', x: 30, z: 26, label: 'the little playground' },
+      { id: 'crossroads', x: 0, z: 0, label: 'the sunny crossroads' },
+    ],
+    critterSpawns: [
+      { type: 'bird', x: -6, z: -40 }, { type: 'bird', x: 6, z: 40 }, { type: 'bird', x: 24, z: 18 },
+      { type: 'squirrel', x: -20, z: 22, x2: 7, z2: -22 },
+      { type: 'squirrel', x: 20, z: -8, x2: -8, z2: 8 },
+      { type: 'butterfly', x: -12, z: 28 }, { type: 'butterfly', x: 12, z: -12 },
+      { type: 'dog', x: 22, z: -24 },
+      { type: 'villager', x: -16, z: 12 }, { type: 'villager', x: 14, z: 34 },
+    ],
+    moments: [
+      { id: 'feeder-raid', label: 'a squirrel raiding the bird feeder!', x: -12, z: 30, from: { x: -20, z: 22 } },
+      { id: 'mail-nap', label: 'a delivery drone bothering the mailbox birds', x: 12, z: 32, from: { x: 6, z: 40 } },
+    ],
+    puddles,
+    skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
+  };
+}

@@ -5,6 +5,7 @@ import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { createLeash, MAX_LEN } from './leash.js';
 import { createBrain, PERSONALITIES } from './cat/brain.js';
+import * as neighborhood from './world/neighborhood.js';
 
 const canvas = document.getElementById('game');
 
@@ -30,11 +31,8 @@ function init(renderer) {
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x9fd4e8); // placeholder sky, area builders replace it
-  scene.fog = new THREE.Fog(0x9fd4e8, 40, 120);
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
-  camera.position.set(0, 1.6, 5);
 
   const player = createPlayer(camera, canvas);
   player.enable(); // temporary — Task 11's home base takes over enabling
@@ -52,15 +50,11 @@ function init(renderer) {
   scene.add(sun);
   scene.add(new THREE.AmbientLight(0xbfd8ff, 0.9));
 
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(200, 200),
-    new THREE.MeshLambertMaterial({ color: 0x7cb860 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
+  const area = neighborhood.build(scene);
+  camera.position.set(area.spawn.x, 1.6, area.spawn.z);
 
   let cat = buildCat('tabby');
-  cat.position.set(0, 0, 2);
+  cat.position.set(area.spawn.x + 1, 0, area.spawn.z - 2);
   scene.add(cat);
 
   let brain = createBrain(cat.userData.breed);
@@ -140,7 +134,7 @@ function init(renderer) {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
-    player.update(dt, [], { minX: -90, maxX: 90, minZ: -90, maxZ: 90 });
+    player.update(dt, area.colliders, area.bounds);
     updateCat(dt, clock.elapsedTime);
     renderer.render(scene, camera);
   });
