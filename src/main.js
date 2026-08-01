@@ -45,6 +45,8 @@ if (!renderer) {
 function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
   const player = createPlayer(camera, canvas);
@@ -248,6 +250,20 @@ function init() {
 
     const strayCats = createStrayCats(scene, areaData, 3);
     const toy = createToy(scene);
+
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -70;
+    sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70;
+    sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.far = 160;
+    scene.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      }
+    });
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
