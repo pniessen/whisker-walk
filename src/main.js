@@ -281,6 +281,9 @@ function init() {
       freezeTime: 0,
       pounceTime: 0,
       pounceCooldown: 0,
+      pose: 'follow',
+      stretchTime: 0,
+      sniffTime: 0,
     };
 
     log.startWalk();
@@ -341,13 +344,29 @@ function init() {
     if (speed > 0.3) s.idleTime = 0;
     else s.idleTime += dt;
 
-    // idle charm: stand still and you sit; stay still and you curl up
-    const sitAt = p.special === 'napper' ? 3 : 6;
-    const napAt = p.special === 'napper' ? 7 : 14;
+    // idle charm: stand still and you groom, then sit, then curl up
+    const napper = p.special === 'napper';
+    const groomAt = napper ? 3 : 6;
+    const sitAt = napper ? 5 : 10;
+    const napAt = napper ? 8 : 16;
+
+    if (s.stretchTime > 0) s.stretchTime -= dt;
+    if (s.sniffTime > 0) s.sniffTime -= dt;
+    const wasNapping = s.pose === 'nap';
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
+    else if (s.pounceTime > 0) pose = 'pounce';
+    else if (s.stretchTime > 0) pose = 'stretch';
+    else if (s.sniffTime > 0) pose = 'sniff';
+    else if (speed > 0.3 && (player.stalking ?? false)) pose = 'stalk';
     else if (s.idleTime > napAt) pose = 'nap';
     else if (s.idleTime > sitAt) pose = 'requestPet';
+    else if (s.idleTime > groomAt) pose = 'groom';
+    if (wasNapping && pose !== 'nap' && s.stretchTime <= 0) {
+      s.stretchTime = 1; // wake-up stretch
+      pose = 'stretch';
+    }
+    s.pose = pose;
     animateCat(cat, pose, t, speed);
 
     if (progression.state.equipped.collar === 'bell' && speed > 1 && Math.random() < dt * 1.6) {
