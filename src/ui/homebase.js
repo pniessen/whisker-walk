@@ -1,5 +1,7 @@
 import { CATALOG } from '../progression.js';
 
+const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
+
 const CAT_BLURBS = {
   tabby: 'Curious — sniffs out hidden treasures',
   siamese: 'Hyper — fast, loud, chases everything',
@@ -74,6 +76,16 @@ export function createHomeBase(progression, album, onStartWalk) {
           ${album.photos.length
             ? album.photos.map((p) => `<figure><img src="${p.thumb}" alt="${p.label}"><figcaption>${p.label} — ${p.area}</figcaption></figure>`).join('')
             : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
+        </div></section>
+        <section><h2>Cat friends 🐾</h2><div class="friends-list">
+          ${Object.entries(s.friends).length
+            ? Object.entries(s.friends)
+                .sort(([, a], [, b]) => b.greets - a.greets)
+                .map(([name, f]) => `<div class="friend-row">
+                  <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
+                  <span class="friend-name">${name}</span> — ${f.breed}, ${f.greets} greets
+                </div>`).join('')
+            : '<div class="tag">No cat friends yet — go touch noses!</div>'}
         </div></section>
         <footer class="hb-footer">
           ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}

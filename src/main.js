@@ -176,6 +176,7 @@ function init() {
 
   function startWalk({ duskMode = false } = {}) {
     const state = progression.state;
+    const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
@@ -294,6 +295,9 @@ function init() {
     }
 
     const strayCats = createStrayCats(scene, areaData, 22);
+    for (const stray of strayCats.strays) {
+      if (progression.friendLevel(stray.name) === 'best' && Math.random() < 0.3) stray.hasGift = true;
+    }
     const toy = createToy(scene);
     const tippables = createTippables(scene, areaData.tippables ?? []);
     const scent = createScent(scene, areaData, Math.random);
@@ -316,6 +320,7 @@ function init() {
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
+      walkStamp,
       goals,
       weather,
       secrets,
@@ -508,6 +513,10 @@ function init() {
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
         log.awardOnce('critter', `spot-${stray.id}`, 'a wandering stray cat');
       }
+      if (stray.hasGift && stray.group.position.distanceTo(catP) < 3) {
+        log.awardOnce('gift', 'gift-' + stray.name, stray.name + ' brought you a gift! 🎁');
+        stray.hasGift = false;
+      }
     }
     for (const sec of s.secrets.list) {
       if (!sec.group.visible) continue;
@@ -560,7 +569,7 @@ function init() {
       const stray = s.strayCats.nearest(catP, 2.5, { ungreetedOnly: true });
       if (stray) {
         s.prompt = { kind: 'stray', data: stray };
-        hud.setPrompt('E — touch noses');
+        hud.setPrompt(`E — touch noses with ${stray.name}`);
       }
     }
     if (!s.prompt) {
@@ -618,7 +627,11 @@ function init() {
     } else if (s.prompt.kind === 'stray') {
       const stray = s.prompt.data;
       s.strayCats.greet(stray, s.cat.position);
-      log.awardOnce('friend', `friend-${stray.id}`, 'a new cat friend');
+      log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
+      const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
+      if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
+      else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
+      else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
       audio.meow();
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
