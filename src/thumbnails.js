@@ -10,15 +10,19 @@ const SIZE = 160;
 let cache = null;
 
 function renderAll() {
+  try {
+    return renderAllUnsafe();
+  } catch (err) {
+    console.warn('Whisker Walk: thumbnail rendering unavailable', err);
+    return { cats: {}, accessories: {} }; // graceful: cards just show no image
+  }
+}
+
+function renderAllUnsafe() {
   const canvas = document.createElement('canvas');
   canvas.width = SIZE;
   canvas.height = SIZE;
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-  } catch {
-    return { cats: {}, accessories: {} }; // graceful: cards just show no image
-  }
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(SIZE, SIZE);
 
@@ -72,6 +76,7 @@ function renderAll() {
   }
 
   renderer.dispose();
+  renderer.forceContextLoss(); // deterministically release the throwaway context
   return { cats, accessories };
 }
 
