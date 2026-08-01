@@ -280,8 +280,8 @@ function init() {
       }
     }
     if (!s.prompt) {
-      const stray = s.strayCats.nearest(camera.position, 2.5);
-      if (stray && !stray.greeted) {
+      const stray = s.strayCats.nearest(camera.position, 2.5, { ungreetedOnly: true });
+      if (stray) {
         s.prompt = { kind: 'stray', data: stray };
         hud.setPrompt('E — greet the stray cat');
       }

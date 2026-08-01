@@ -46,6 +46,17 @@ describe('createStrayCats', () => {
     expect(strays.nearest(far, 2.5)).toBe(null);
   });
 
+  it('nearest with ungreetedOnly skips a closer greeted stray in favor of an ungreeted one', () => {
+    const strays = createStrayCats(fakeScene(), AREA, 2);
+    const [a, b] = strays.strays;
+    a.group.position.set(0, 0, 0);
+    b.group.position.set(0, 0, 1);
+    const playerPos = new THREE.Vector3(0, 0, -0.5); // a is closer than b
+    strays.greet(a, playerPos);
+    expect(strays.nearest(playerPos, 2.5)).toBe(a);
+    expect(strays.nearest(playerPos, 2.5, { ungreetedOnly: true })).toBe(b);
+  });
+
   it('greet turns the stray toward the greeter, marks it greeted, and later resumes wandering', () => {
     const strays = createStrayCats(fakeScene(), AREA, 1);
     const s = strays.strays[0];

@@ -33,10 +33,11 @@ export function createStrayCats(scene, area, count = 3) {
 
   return {
     strays,
-    nearest(pos, maxDist) {
+    nearest(pos, maxDist, { ungreetedOnly = false } = {}) {
       let best = null;
       let bestD = maxDist;
       for (const s of strays) {
+        if (ungreetedOnly && s.greeted) continue;
         const d = s.group.position.distanceTo(pos);
         if (d < bestD) {
           bestD = d;
