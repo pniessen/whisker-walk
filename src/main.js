@@ -13,6 +13,7 @@ import { createProgression } from './progression.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
+import { createAudio } from './audio.js';
 
 const AREAS = { neighborhood, park, seaside };
 
@@ -43,6 +44,7 @@ function init() {
   const progression = createProgression(window.localStorage);
   const log = createDiscoveryLog(progression);
   const hud = createHud();
+  const audio = createAudio();
   const clock = new THREE.Clock();
 
   let session = null;
@@ -56,12 +58,16 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  bus.on('discovery', () => hud.setPoints(progression.state.points));
+  bus.on('discovery', () => {
+    hud.setPoints(progression.state.points);
+    audio.chime();
+  });
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
   });
   bus.on('critter:scare', () => {
     if (session && session.brain.scare()) hud.toast('Woof! Your cat got spooked!');
+    if (session) audio.bark();
   });
   bus.on('villager:wave', ({ id }) => {
     if (session && progression.state.equipped.outfit === 'bandana') {
@@ -77,6 +83,7 @@ function init() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' && session) handleInteract(session);
+    if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
   });
 
   function startWalk({ duskMode = false } = {}) {
@@ -143,6 +150,9 @@ function init() {
       <button id="btn-end">End walk &amp; head home</button></div>`;
     overlay.classList.remove('hidden');
     player.enable();
+
+    audio.meow();
+    audio.startAmbient(state.area);
   }
 
   function endWalk() {
@@ -155,6 +165,7 @@ function init() {
     hud.setPrompt(null);
     overlay.classList.add('hidden');
     homebase.show();
+    audio.stopAmbient();
   }
 
   function handPosition() {
@@ -200,6 +211,9 @@ function init() {
     const speed = s.catVelocity.length();
     if (speed > 0.15) cat.rotation.y = Math.atan2(s.catVelocity.x, s.catVelocity.z) + Math.PI;
     animateCat(cat, state, t, speed);
+    if (progression.state.equipped.collar === 'bell' && speed > 1 && Math.random() < dt * 1.6) {
+      audio.bell();
+    }
 
     for (const pd of s.areaData.puddles) {
       const inPuddle = Math.hypot(pd.x - cat.position.x, pd.z - cat.position.z) < pd.r + 0.2;
@@ -275,6 +289,7 @@ function init() {
       const wasNapping = s.brain.state === 'nap';
       if (s.brain.pet()) {
         log.award('pet', 'pet', 'a rumbling purr');
+        audio.purr();
         if (wasNapping && PERSONALITIES[s.cat.userData.breed].special === 'napper') {
           log.award('perk', 'nap-pet', 'a deep sleepy purr');
         }
