@@ -30,6 +30,11 @@ export function createAudio() {
       if (muted) api.stopAmbient();
       return muted;
     },
+    cluck() {
+      tone(700, 0.08, { type: 'square', gain: 0.07, slideTo: 500 });
+      tone(650, 0.1, { type: 'square', gain: 0.06, slideTo: 420, delay: 0.12 });
+      tone(760, 0.07, { type: 'square', gain: 0.05, slideTo: 520, delay: 0.26 });
+    },
     meow() {
       tone(520, 0.22, { type: 'square', gain: 0.05, slideTo: 780 });
       tone(760, 0.25, { type: 'square', gain: 0.04, slideTo: 430, delay: 0.2 });

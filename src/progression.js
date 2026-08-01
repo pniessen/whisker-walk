@@ -28,6 +28,10 @@ export const CATALOG = {
     black: { name: 'Black Cat', price: 45 },
     calico: { name: 'Calico', price: 45 },
     mainecoon: { name: 'Maine Coon', price: 60 },
+    zeetoo: { name: 'Zeetoo', price: 40 },
+    rosa: { name: 'Rosa', price: 40 },
+    robbie: { name: 'Robbie', price: 40 },
+    hagrid: { name: 'Hagrid', price: 60 },
   },
   accessories: {
     bell: { name: 'Bell Collar', slot: 'collar', price: 20 },

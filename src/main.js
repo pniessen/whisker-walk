@@ -58,6 +58,8 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  // Hagrid is a chicken; chickens cluck
+  const catVoice = () => (session && session.cat.userData.breed === 'hagrid' ? audio.cluck() : audio.meow());
   const clock = new THREE.Clock();
 
   let session = null;
@@ -131,7 +133,7 @@ function init() {
       }
     }
     if (e.code === 'KeyV' && session && player.locked && !e.repeat) {
-      audio.meow();
+      catVoice();
       session.critters.reactToMeow(session.cat.position);
       if (session.strayCats.reactToMeow(session.cat.position) > 0) {
         setTimeout(() => { if (session) audio.meow(); }, 350); // a reply from a friend
@@ -172,7 +174,7 @@ function init() {
           player.perchY = perch.y;
           player.halt();
           session.cat.position.set(perch.x, perch.y, perch.z);
-          audio.meow();
+          catVoice();
           if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
         } else if (session.pounceCooldown <= 0) {
           player.pounce();
@@ -379,7 +381,7 @@ function init() {
     overlay.classList.remove('hidden');
     player.enable();
 
-    audio.meow();
+    catVoice();
     audio.startAmbient(state.area);
   }
 
@@ -439,7 +441,7 @@ function init() {
       s.perched = null;
       player.perchY = 0;
     }
-    s.critters.setFleeModifier(s.perched || player.stalking ? 0.5 : 1);
+    s.critters.setFleeModifier((s.perched || player.stalking ? 0.5 : 1) * (p.special === 'bird' ? 0.15 : 1));
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
@@ -676,7 +678,7 @@ function init() {
       if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
       else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
       else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
-      audio.meow();
+      catVoice();
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) log.awardOnce('treasure', treat.id, 'a buried treasure!');
