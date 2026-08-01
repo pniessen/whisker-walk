@@ -19,6 +19,7 @@ import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
+import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
 import { rollWeather, createWeather } from './weather.js';
@@ -93,11 +94,30 @@ function init() {
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
   const player = createPlayer(camera, canvas);
+  // isTouch gates which control surface is active; a hybrid device that only
+  // reveals itself via a real touch event upgrades mid-session (onFirstTouch
+  // below), never downgrades.
+  let isTouch = detectTouch();
+  player.setTouchMode(isTouch);
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  const touchUI = createTouchUI(document.getElementById('hud'), {
+    onMove: (v) => player.setTouchMove(v),
+    onOrbit: (dx, dy) => player.addOrbit(dx, dy),
+    onAction: handleTouchAction,
+  });
+  hud.onPromptTap(() => {
+    if (session) handleInteract(session);
+  });
+  onFirstTouch(() => {
+    if (isTouch) return;
+    isTouch = true;
+    player.setTouchMode(true);
+    if (session) touchUI.setVisible(true);
+  });
   // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
   // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.
   const catVoice = (pitch = 1) =>
@@ -303,15 +323,126 @@ function init() {
     }
   });
   overlay.addEventListener('click', (e) => {
-    if (e.target.id === 'btn-resume') canvas.requestPointerLock();
+    if (e.target.id === 'btn-resume') {
+      if (isTouch) player.setTouchEngaged(true);
+      else canvas.requestPointerLock();
+    }
     if (e.target.id === 'btn-end') endWalk();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
       homebase.show();
     }
   });
+  // Bodies extracted out of the keydown handlers below (pure move — same
+  // logic, no behavior change) so both the keyboard path and the touch
+  // action-button path can invoke them. Callers are responsible for the
+  // session/engagement/mode guards, exactly as the keydown handler always was.
+  function doMeow() {
+    catVoice();
+    session.critters.reactToMeow(session.cat.position);
+    if (session.strayCats.reactToMeow(session.cat.position) > 0) {
+      setTimeout(() => { if (session) audio.meow(); }, 350); // a reply from a friend
+    }
+    if (session.net) {
+      session.net.sendEvent({
+        v: 1,
+        id: session.playerId,
+        type: 'meow',
+        breed: session.cat.userData.breed,
+        pos: [session.cat.position.x, session.cat.position.z],
+      });
+    }
+    // duet: replying while a nearby remote meow's 3s window is open
+    if (session.duetWindow && nowSec() <= session.duetWindow.until) {
+      const withId = session.duetWindow.withId;
+      session.duetWindow = null;
+      log.awardOnce('duet', `duet-${withId}`, `a harmonized duet with ${petNameFor(session, withId)} 🎶`);
+      catVoice(1.26); // layered on top of the normal-pitch meow just played above
+      if (session.net) session.net.sendEvent({ v: 1, id: session.playerId, type: 'duet', withId });
+    }
+  }
+
+  function doYarn() {
+    if (!session.toy.active) {
+      // one shared yarn ball per co-walk: don't spawn a second one while a
+      // remote player's ball is in play (fresh within the same 1s
+      // staleness window the ghost render/bat logic uses)
+      if (session.remoteToy && nowSec() - session.remoteToy.at < 1) {
+        hud.toast('A yarn ball is already in play! 🧶');
+        return;
+      }
+      // drop the yarn ball just ahead and give it a little kick to chase
+      const drop = session.cat.position.clone()
+        .add(player.forward().multiplyScalar(0.8))
+        .setY(0.8);
+      session.toy.throwFrom(drop, player.forward(), 2.5);
+      session.batCount = 0;
+      session.batReady = true;
+    } else if (session.toy.mesh.position.distanceTo(session.cat.position) < 1.4) {
+      session.toy.retrieve();
+      hud.toast('Yarn ball pocketed 🧶');
+    } else {
+      hud.toast('Go grab your yarn ball first!');
+    }
+  }
+
+  function doPounceOrClimb() {
+    if (session.perched) {
+      session.perched = null;                    // hop down
+      player.perchY = 0;
+    } else {
+      const perch = (session.areaData.perches ?? []).find((pp) => {
+        // high perches (car roofs etc.) sit at a collider's own center, so the
+        // cat is always held out to collider.r + 0.35 — give those a longer
+        // reach so climbing them is actually possible from outside the footprint.
+        const reach = pp.y > 1 ? 2.6 : 1.2;
+        return Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < reach;
+      });
+      if (perch) {
+        session.perched = perch;
+        player.perchY = perch.y;
+        player.halt();
+        session.cat.position.set(perch.x, perch.y, perch.z);
+        catVoice();
+        if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
+      } else if (session.pounceCooldown <= 0) {
+        player.pounce();
+        session.pounceTime = 0.3;
+        session.pounceCooldown = 1.2;
+      }
+    }
+  }
+
+  function doCameraToggle() {
+    session.cameraMode = !session.cameraMode;
+    hud.setCamera(session.cameraMode);
+  }
+
+  // Touch action-cluster/pause/prompt-pill dispatch — mirrors the same
+  // session/engaged/mode guards the keydown handler below applies per key.
+  function handleTouchAction(name) {
+    if (name === 'pause') {
+      player.setTouchEngaged(false);
+      return;
+    }
+    if (!session || !player.engaged) return;
+    if (name === 'pounce') {
+      if (!session.cameraMode && session.freezeTime <= 0) doPounceOrClimb();
+    } else if (name === 'meow') {
+      doMeow();
+    } else if (name === 'yarn') {
+      doYarn();
+    } else if (name === 'camera') {
+      doCameraToggle();
+    } else if (name === 'interact') {
+      handleInteract(session);
+    } else if (name === 'tapWorld') {
+      if (session.cameraMode) snapPhoto(session);
+    }
+  }
+
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyE' && session && player.locked && !e.repeat) {
+    if (e.code === 'KeyE' && session && player.engaged && !e.repeat) {
       if (session.prompt) handleInteract(session);
       else {
         session.sniffTime = 1;
@@ -320,88 +451,23 @@ function init() {
         hud.toast(found ? 'You smell something… follow the paw prints! 👃' : 'Nothing on the breeze.');
       }
     }
-    if (e.code === 'KeyV' && session && player.locked && !e.repeat) {
-      catVoice();
-      session.critters.reactToMeow(session.cat.position);
-      if (session.strayCats.reactToMeow(session.cat.position) > 0) {
-        setTimeout(() => { if (session) audio.meow(); }, 350); // a reply from a friend
-      }
-      if (session.net) {
-        session.net.sendEvent({
-          v: 1,
-          id: session.playerId,
-          type: 'meow',
-          breed: session.cat.userData.breed,
-          pos: [session.cat.position.x, session.cat.position.z],
-        });
-      }
-      // duet: replying with V while a nearby remote meow's 3s window is open
-      if (session.duetWindow && nowSec() <= session.duetWindow.until) {
-        const withId = session.duetWindow.withId;
-        session.duetWindow = null;
-        log.awardOnce('duet', `duet-${withId}`, `a harmonized duet with ${petNameFor(session, withId)} 🎶`);
-        catVoice(1.26); // layered on top of the normal-pitch meow just played above
-        if (session.net) session.net.sendEvent({ v: 1, id: session.playerId, type: 'duet', withId });
-      }
+    if (e.code === 'KeyV' && session && player.engaged && !e.repeat) {
+      doMeow();
     }
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
-    if (e.code === 'KeyT' && session && player.locked) {
-      if (!session.toy.active) {
-        // one shared yarn ball per co-walk: don't spawn a second one while a
-        // remote player's ball is in play (fresh within the same 1s
-        // staleness window the ghost render/bat logic uses)
-        if (session.remoteToy && nowSec() - session.remoteToy.at < 1) {
-          hud.toast('A yarn ball is already in play! 🧶');
-          return;
-        }
-        // drop the yarn ball just ahead and give it a little kick to chase
-        const drop = session.cat.position.clone()
-          .add(player.forward().multiplyScalar(0.8))
-          .setY(0.8);
-        session.toy.throwFrom(drop, player.forward(), 2.5);
-        session.batCount = 0;
-        session.batReady = true;
-      } else if (session.toy.mesh.position.distanceTo(session.cat.position) < 1.4) {
-        session.toy.retrieve();
-        hud.toast('Yarn ball pocketed 🧶');
-      } else {
-        hud.toast('Go grab your yarn ball first!');
-      }
+    if (e.code === 'KeyT' && session && player.engaged) {
+      doYarn();
     }
-    if (e.code === 'Space' && session && player.locked && !e.repeat &&
+    if (e.code === 'Space' && session && player.engaged && !e.repeat &&
         !session.cameraMode && session.freezeTime <= 0) {
-      if (session.perched) {
-        session.perched = null;                    // hop down
-        player.perchY = 0;
-      } else {
-        const perch = (session.areaData.perches ?? []).find((pp) => {
-          // high perches (car roofs etc.) sit at a collider's own center, so the
-          // cat is always held out to collider.r + 0.35 — give those a longer
-          // reach so climbing them is actually possible from outside the footprint.
-          const reach = pp.y > 1 ? 2.6 : 1.2;
-          return Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < reach;
-        });
-        if (perch) {
-          session.perched = perch;
-          player.perchY = perch.y;
-          player.halt();
-          session.cat.position.set(perch.x, perch.y, perch.z);
-          catVoice();
-          if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
-        } else if (session.pounceCooldown <= 0) {
-          player.pounce();
-          session.pounceTime = 0.3;
-          session.pounceCooldown = 1.2;
-        }
-      }
+      doPounceOrClimb();
     }
-    if (e.code === 'KeyC' && session && player.locked) {
-      session.cameraMode = !session.cameraMode;
-      hud.setCamera(session.cameraMode);
+    if (e.code === 'KeyC' && session && player.engaged) {
+      doCameraToggle();
     }
   });
   document.addEventListener('mousedown', () => {
-    if (session && player.locked && session.cameraMode) snapPhoto(session);
+    if (session && player.engaged && session.cameraMode) snapPhoto(session);
   });
 
   function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
@@ -659,11 +725,14 @@ function init() {
     hud.setGoals(goals.goals);
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
-      <button id="btn-resume">Start exploring (click)</button>
+      <button id="btn-resume">${isTouch ? 'Tap to explore' : 'Start exploring (click)'}</button>
       <button id="btn-end">End walk &amp; head home</button>
-      <p class="controls-hint">Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera</p></div>`;
+      <p class="controls-hint">${isTouch
+        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · tap the prompt to interact'
+        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera'}</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
+    touchUI.setVisible(isTouch);
 
     catVoice();
     audio.startAmbient(areaId);
@@ -721,6 +790,7 @@ function init() {
     session = null;
     player.disable();
     hud.hide();
+    touchUI.setVisible(false);
     hud.setPrompt(null);
     hud.setObjective(null);
     hud.setCamera(false);
@@ -858,6 +928,12 @@ function init() {
     }
   }
 
+  // touch has no E key — the prompt pill becomes tappable there (hud.js
+  // strips the "E — " prefix and wires the tap to hud.onPromptTap above).
+  function setPrompt(text) {
+    hud.setPrompt(text, isTouch);
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
@@ -899,7 +975,7 @@ function init() {
       if (!s.collectibleMeshes.has(c.id)) continue;
       if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6) {
         s.prompt = { kind: 'collect', data: c };
-        hud.setPrompt(s.walk.carried >= s.walk.carryCap
+        setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
           : `E — pick up ${c.label}`);
       }
@@ -909,36 +985,36 @@ function init() {
       const gnome = s.secrets.list.find((e) => e.key === 'gnome');
       if (tippable) {
         s.prompt = { kind: 'tip', data: tippable };
-        hud.setPrompt('E — paw it over');
+        setPrompt('E — paw it over');
       } else if (gnome && !gnome.group.userData.tipped &&
           gnome.group.position.distanceTo(catP) < 1.3) {
         s.prompt = { kind: 'tip-gnome', data: gnome };
-        hud.setPrompt('E — paw over the gnome');
+        setPrompt('E — paw over the gnome');
       }
     }
     if (!s.prompt) {
       const mound = s.scent.nearestMound(catP, 1.2);
       if (mound && mound.revealed) {
         s.prompt = { kind: 'dig' };
-        hud.setPrompt('E — dig it up');
+        setPrompt('E — dig it up');
       }
     }
     if (!s.prompt && s.quest && s.questGiver) {
       if (s.quest.state === 'offered' &&
           s.questGiver.group.position.distanceTo(catP) < 2.5) {
         s.prompt = { kind: 'quest-accept' };
-        hud.setPrompt('E — meow at the neighbor');
+        setPrompt('E — meow at the neighbor');
       } else if (s.quest.state === 'active' &&
           Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2) {
         s.prompt = { kind: 'quest-complete' };
-        hud.setPrompt(s.quest.texts.prompt);
+        setPrompt(s.quest.texts.prompt);
       }
     }
     if (!s.prompt) {
       const stray = s.strayCats.nearest(catP, 2.5, { ungreetedOnly: true });
       if (stray) {
         s.prompt = { kind: 'stray', data: stray };
-        hud.setPrompt(`E — touch noses with ${stray.name}`);
+        setPrompt(`E — touch noses with ${stray.name}`);
       }
     }
     if (!s.prompt) {
@@ -946,7 +1022,7 @@ function init() {
         if (c.type !== 'villager' || c.scratched) continue;
         if (c.group.position.distanceTo(catP) < 2.2) {
           s.prompt = { kind: 'scratch', data: c };
-          hud.setPrompt('E — get head scratches');
+          setPrompt('E — get head scratches');
           break;
         }
       }
@@ -958,10 +1034,10 @@ function init() {
       const remote = s.remotes.nearest(catP, 1.5);
       if (remote) {
         s.prompt = { kind: 'boop', data: remote };
-        hud.setPrompt(`E — touch noses with ${remote.petName}`);
+        setPrompt(`E — touch noses with ${remote.petName}`);
       }
     }
-    if (!s.prompt) hud.setPrompt(null);
+    if (!s.prompt) setPrompt(null);
 
     for (const sc of s.areaData.scenics) {
       if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
@@ -1259,7 +1335,7 @@ function init() {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     if (!session) return;
-    if (player.locked) {
+    if (player.engaged) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
       session.critters.update(dt, t, session.cat.position, session.cat.position);
       session.strayCats.update(dt, t, session.cat.position, {

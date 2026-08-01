@@ -22,6 +22,7 @@ export function createHud() {
   const rankEl = root.querySelector('#hud-rank');
   const toastsEl = root.querySelector('#hud-toasts');
   const promptEl = root.querySelector('#hud-prompt');
+  const promptTapHandlers = [];
 
   const api = {
     show() { root.classList.remove('hidden'); },
@@ -29,9 +30,30 @@ export function createHud() {
     setPoints(n) { pointsEl.textContent = String(n); },
     setArea(name) { areaEl.textContent = name; },
     setRank(title) { rankEl.textContent = `🏆 ${title}`; },
-    setPrompt(text) {
+    // tappable: on touch devices there's no E key, so the prompt pill itself
+    // becomes a button — strip the "E — " keyboard-hint prefix for display
+    // and fire onPromptTap handlers when it's tapped. Desktop keeps the
+    // passive (non-interactive) pill it always had.
+    setPrompt(text, tappable) {
       promptEl.classList.toggle('hidden', !text);
-      if (text) promptEl.textContent = text;
+      if (!text) return;
+      if (tappable) {
+        const display = text.replace(/^E\s+—\s+/, '');
+        promptEl.innerHTML = '';
+        const btn = document.createElement('button');
+        btn.className = 'hud-prompt-btn';
+        btn.type = 'button';
+        btn.textContent = display;
+        btn.addEventListener('click', () => {
+          for (const fn of promptTapHandlers) fn();
+        });
+        promptEl.appendChild(btn);
+      } else {
+        promptEl.textContent = text;
+      }
+    },
+    onPromptTap(fn) {
+      promptTapHandlers.push(fn);
     },
     toast(text, points) {
       const el = document.createElement('div');

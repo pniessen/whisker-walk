@@ -27,6 +27,7 @@ export function createPlayer(camera, canvas) {
   const velocity = new THREE.Vector3();
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
   let touchEngaged = false;
+  let touchMode = false; // set by main when a touch UI is active — gates click-to-lock
 
   const api = {
     locked: false,
@@ -74,6 +75,9 @@ export function createPlayer(camera, canvas) {
       if (touchEngaged === next) return;
       touchEngaged = next;
       bus.emit('player:lockchange', { locked: api.engaged });
+    },
+    setTouchMode(mode) {
+      touchMode = !!mode;
     },
     halt() {
       velocity.set(0, 0, 0);
@@ -123,12 +127,17 @@ export function createPlayer(camera, canvas) {
   };
 
   canvas.addEventListener('click', () => {
+    if (touchMode) return; // a touch UI handles engagement itself — don't fight it for pointer lock
     if (enabled && !api.locked) canvas.requestPointerLock();
   });
   document.addEventListener('pointerlockchange', () => {
     api.locked = document.pointerLockElement === canvas;
     if (!api.locked) keys.clear();
-    bus.emit('player:lockchange', { locked: api.locked });
+    // emit engaged (locked || touchEngaged), not raw locked: on desktop
+    // touchEngaged is always false so this is identical, but it prevents a
+    // stray pointer-lock event on a hybrid/touch device from contradicting
+    // touch engagement (e.g. a lock loss while touch controls are active).
+    bus.emit('player:lockchange', { locked: api.engaged });
   });
   document.addEventListener('mousemove', (e) => {
     if (!api.locked || !enabled) return;

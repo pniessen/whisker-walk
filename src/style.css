@@ -1,13 +1,17 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body, #app { width: 100%; height: 100%; overflow: hidden; }
+html, body { overscroll-behavior: none; }
 body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; color: #fff; }
-#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #hud, #homebase, #overlay { position: absolute; inset: 0; }
 .hidden { display: none !important; }
 
 #hud { pointer-events: none; }
 .hud-top {
-  position: absolute; top: 16px; left: 16px; right: 16px;
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
   display: flex; justify-content: space-between; font-size: 1.2rem;
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
@@ -47,10 +51,18 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
   background: rgba(242,193,78,0.92); color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 10px;
 }
+.hud-prompt-btn {
+  pointer-events: auto; border: 0; background: transparent; color: inherit;
+  font: inherit; font-weight: 700; cursor: pointer;
+  min-height: 44px; min-width: 44px; padding: 4px 6px;
+}
 .hud-controls {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
   background: rgba(20,26,38,0.5); font-size: 0.8rem; border-radius: 999px;
   padding: 6px 18px; white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .hud-controls { display: none; }
 }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -64,6 +76,49 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 .hud-viewfinder span {
   position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
   background: rgba(20,26,38,0.7); padding: 4px 12px; border-radius: 999px; font-size: 0.9rem;
+}
+
+/* --- Touch controls: joystick, orbit-drag capture, action cluster, pause ---
+   All touch handling is captured by .touch-ui itself (touchstart on it picks
+   the left-40%/right-60% region by clientX); the joystick visual below is
+   purely cosmetic and never a hit target. */
+.touch-ui { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+.tui-joystick {
+  position: absolute; width: 120px; height: 120px; margin-left: -60px; margin-top: -60px;
+  pointer-events: none;
+}
+.tui-joystick-base {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(20,26,38,0.35); border: 2px solid rgba(255,255,255,0.35);
+}
+.tui-joystick-nub {
+  position: absolute; top: 50%; left: 50%; width: 52px; height: 52px;
+  margin-left: -26px; margin-top: -26px; border-radius: 50%;
+  background: rgba(255,255,255,0.55); border: 2px solid rgba(255,255,255,0.8);
+  transition: transform 0.03s linear;
+}
+.tui-actions {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(88px, calc(88px + env(safe-area-inset-bottom)));
+  display: grid; grid-template-columns: repeat(2, 56px); gap: 10px;
+  pointer-events: auto; touch-action: none;
+}
+.tui-btn {
+  width: 56px; height: 56px; min-width: 44px; min-height: 44px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(20,26,38,0.55); color: #fff; font-size: 1.4rem;
+  display: grid; place-items: center; touch-action: none; cursor: pointer;
+}
+.tui-btn:active { background: rgba(20,26,38,0.8); }
+.tui-pause {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(20,26,38,0.55); color: #fff; font-size: 1.1rem;
+  display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .photos figure { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 8px; }
