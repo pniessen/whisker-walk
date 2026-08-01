@@ -32,6 +32,14 @@ const AREAS = { neighborhood, park, seaside };
 // consistent between the async net callbacks and the render loop
 const nowSec = () => performance.now() / 1000;
 
+// volume factor for a remote meow/cluck event: full volume within earshot
+// (<=8 units), fading linearly down to a quiet 0.2 floor by 40 units.
+function meowVolumeForDistance(dist) {
+  if (dist <= 8) return 1;
+  if (dist >= 40) return 0.2;
+  return 1 - ((dist - 8) / (40 - 8)) * 0.8;
+}
+
 const canvas = document.getElementById('game');
 const overlay = document.getElementById('overlay');
 
@@ -142,6 +150,15 @@ function init() {
       session.critters.reactToMeow(session.cat.position);
       if (session.strayCats.reactToMeow(session.cat.position) > 0) {
         setTimeout(() => { if (session) audio.meow(); }, 350); // a reply from a friend
+      }
+      if (session.net) {
+        session.net.sendEvent({
+          v: 1,
+          id: session.playerId,
+          type: 'meow',
+          breed: session.cat.userData.breed,
+          pos: [session.cat.position.x, session.cat.position.z],
+        });
       }
     }
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
@@ -396,6 +413,7 @@ function init() {
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
         remotes.applyState(state, nowSec());
       });
+      net.onEvent((ev) => applyRemoteEvent(session, ev));
     }
 
     log.startWalk();
@@ -679,16 +697,19 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
       if (s.tippables.tip(s.prompt.data)) {
         log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'a gravity check 🐾');
         s.critters.dismayNear(s.prompt.data.group.position, 8);
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: s.prompt.data.id });
       }
     } else if (s.prompt.kind === 'tip-gnome') {
       const gnome = s.prompt.data;
       gnome.group.rotation.z = -1.4;
       gnome.group.userData.tipped = true;
       log.awardOnce('mischief', 'tip-gnome', 'a gnome bowled over 🧙');
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip-gnome' });
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
       hud.toast(s.quest.texts.offer);
@@ -713,7 +734,10 @@ function init() {
       catVoice();
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
-      if (treat) log.awardOnce('treasure', treat.id, 'a buried treasure!');
+      if (treat) {
+        log.awardOnce('treasure', treat.id, 'a buried treasure!');
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'dig', treatId: treat.id });
+      }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');
@@ -721,6 +745,56 @@ function init() {
       if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
         log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }
+    }
+  }
+
+  function petNameFor(s, playerId) {
+    return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
+  }
+
+  // canon world objects (tippables/treats/collectibles) are first-come: a
+  // remote player's tip/dig/collect event may consume something we were
+  // headed for ourselves — if it happened within our own prompt range, let
+  // the player know why their prompt just vanished.
+  function maybeSnipeToast(s, ev, pos) {
+    if (pos && s.cat.position.distanceTo(pos) <= 6) {
+      hud.toast(`${petNameFor(s, ev.id)} got there first!`);
+    }
+  }
+
+  // Applies a remote player's canon-event broadcast locally, WITHOUT
+  // awarding any points — points are earned only by the player who actually
+  // performed the action; this just mirrors the resulting world state
+  // (topple/mound-open/mesh-removal/sound) so both clients see the same walk.
+  function applyRemoteEvent(s, ev) {
+    if (!s || !ev || typeof ev.type !== 'string') return;
+    if (ev.type === 'tip') {
+      const e = s.tippables.list.find((x) => x.id === ev.tipId);
+      if (e && s.tippables.tipById(ev.tipId)) maybeSnipeToast(s, ev, e.group.position);
+    } else if (ev.type === 'tip-gnome') {
+      const gnome = s.secrets.list.find((x) => x.key === 'gnome');
+      if (gnome && !gnome.group.userData.tipped) {
+        gnome.group.rotation.z = -1.4;
+        gnome.group.userData.tipped = true;
+        maybeSnipeToast(s, ev, gnome.group.position);
+      }
+    } else if (ev.type === 'dig') {
+      const treat = s.scent.digById(ev.treatId);
+      if (treat) maybeSnipeToast(s, ev, new THREE.Vector3(treat.x, 0, treat.z));
+    } else if (ev.type === 'collect') {
+      if (s.collectibleMeshes.has(ev.collectibleId)) {
+        const c = s.areaData.collectibles.find((x) => x.id === ev.collectibleId);
+        s.scene.remove(s.collectibleMeshes.get(ev.collectibleId));
+        s.collectibleMeshes.delete(ev.collectibleId);
+        if (c) maybeSnipeToast(s, ev, new THREE.Vector3(c.x, 0, c.z));
+      }
+    } else if (ev.type === 'meow') {
+      const pos = Array.isArray(ev.pos) && ev.pos.length === 2
+        ? new THREE.Vector3(ev.pos[0], 0, ev.pos[1])
+        : s.cat.position;
+      const vol = meowVolumeForDistance(s.cat.position.distanceTo(pos));
+      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol);
+      s.critters.reactToMeow(pos);
     }
   }
 

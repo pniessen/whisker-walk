@@ -34,6 +34,16 @@ function buildTippable(kind) {
   return g;
 }
 
+// shared mutation for tipping an entry, used by both tip(e) (caller already
+// has the entry, e.g. from nearest()) and tipById(id) (remote events only
+// carry the id over the wire)
+function tipEntry(e) {
+  if (e.tipped) return false;
+  e.tipped = true;
+  e.anim = 0.5;
+  return true;
+}
+
 export function createTippables(scene, spots) {
   const list = [];
   for (const spot of spots) {
@@ -60,10 +70,11 @@ export function createTippables(scene, spots) {
       return best;
     },
     tip(e) {
-      if (e.tipped) return false;
-      e.tipped = true;
-      e.anim = 0.5;
-      return true;
+      return tipEntry(e);
+    },
+    tipById(id) {
+      const e = list.find((x) => x.id === id);
+      return e ? tipEntry(e) : false;
     },
     update(dt) {
       for (const e of list) {

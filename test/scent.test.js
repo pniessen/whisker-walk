@@ -40,6 +40,24 @@ describe('createScent', () => {
     expect(scent.sniff({ x: 999, z: 999 }, 18)).toBe(null);
   });
 
+  it('digById unearths a treat by id with no proximity check, sharing digAt\'s unearth path', () => {
+    const scent = createScent(scene, AREA, () => 0.4);
+    const treat = scent.treats[1];
+    expect(treat.mound.scale.y).toBe(0.25); // untouched mound, pre-dig
+    const result = scent.digById(treat.id);
+    expect(result).toBe(treat);
+    expect(treat.dug).toBe(true);
+    expect(treat.mound.scale.y).toBe(0.08); // same mound-open side effect as digAt
+  });
+
+  it('digById returns null for an already-dug id or an unknown id', () => {
+    const scent = createScent(scene, AREA, () => 0.4);
+    const treat = scent.treats[0];
+    expect(scent.digById(treat.id)).toBe(treat);
+    expect(scent.digById(treat.id)).toBe(null); // already dug
+    expect(scent.digById('no-such-id')).toBe(null); // unknown id
+  });
+
   it('nudges a treat that rolled onto a collider center clear of it and in bounds', () => {
     const area = {
       pois: [{ x: 0, z: 0 }],

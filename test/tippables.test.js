@@ -32,4 +32,19 @@ describe('createTippables', () => {
     for (let i = 0; i < 40; i++) tp.update(0.05);
     expect(Math.abs(e.group.rotation.z) + Math.abs(e.group.rotation.x)).toBeGreaterThan(1.2);
   });
+
+  it('tipById finds an entry by id and tips it, same as tip()', () => {
+    const tp = createTippables(scene, SPOTS);
+    const target = tp.list[1];
+    expect(tp.tipById(target.id)).toBe(true);
+    expect(target.tipped).toBe(true);
+  });
+
+  it('tipById returns false for an already-tipped id or an unknown id', () => {
+    const tp = createTippables(scene, SPOTS);
+    const target = tp.list[2];
+    expect(tp.tipById(target.id)).toBe(true);
+    expect(tp.tipById(target.id)).toBe(false); // already tipped
+    expect(tp.tipById('no-such-id')).toBe(false); // unknown id
+  });
 });

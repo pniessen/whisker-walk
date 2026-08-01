@@ -78,6 +78,23 @@ export function createScent(scene, area, rng) {
 
   const decals = [];
 
+  // shared mutation for unearthing a treat, used by both digAt(pos) (proximity
+  // check happens in the caller) and digById(id) (remote dig events arrive
+  // with no position to check — the sender already validated proximity on
+  // their own client)
+  function unearth(tr) {
+    tr.dug = true;
+    tr.mound.scale.y = 0.08;
+    const fish = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0x9ab8d0 })
+    );
+    fish.scale.set(1.4, 0.7, 0.5);
+    fish.position.set(tr.x, 0.4, tr.z);
+    scene.add(fish);
+    return tr;
+  }
+
   return {
     treats,
     sniff(pos, range) {
@@ -115,19 +132,15 @@ export function createScent(scene, area, rng) {
       for (const tr of treats) {
         if (tr.dug) continue;
         if (Math.hypot(tr.x - pos.x, tr.z - pos.z) <= 1.2) {
-          tr.dug = true;
-          tr.mound.scale.y = 0.08;
-          const fish = new THREE.Mesh(
-            new THREE.SphereGeometry(0.12, 8, 6),
-            new THREE.MeshLambertMaterial({ color: 0x9ab8d0 })
-          );
-          fish.scale.set(1.4, 0.7, 0.5);
-          fish.position.set(tr.x, 0.4, tr.z);
-          scene.add(fish);
-          return tr;
+          return unearth(tr);
         }
       }
       return null;
+    },
+    digById(treatId) {
+      const tr = treats.find((t) => t.id === treatId);
+      if (!tr || tr.dug) return null;
+      return unearth(tr);
     },
     update(dt) {
       for (const d of [...decals]) {
