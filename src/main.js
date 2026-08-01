@@ -7,13 +7,14 @@ import { createBrain, PERSONALITIES } from './cat/brain.js';
 import { createLeash, MAX_LEN } from './leash.js';
 import * as neighborhood from './world/neighborhood.js';
 import * as park from './world/park.js';
+import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createProgression } from './progression.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 
-const AREAS = { neighborhood, park }; // seaside (Task 13) registers here
+const AREAS = { neighborhood, park, seaside };
 
 const canvas = document.getElementById('game');
 const overlay = document.getElementById('overlay');
