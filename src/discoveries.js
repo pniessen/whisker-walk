@@ -1,0 +1,34 @@
+import { bus } from './events.js';
+
+export const AWARDS = { critter: 5, collectible: 10, pet: 4, scenic: 8, moment: 12, perk: 3 };
+
+export function createDiscoveryLog(progression) {
+  let seen = new Map();
+
+  function pay(type, key, label, points, repeat) {
+    progression.addPoints(points);
+    bus.emit('discovery', { type, key, label, points, repeat });
+    return points;
+  }
+
+  return {
+    startWalk() {
+      seen = new Map();
+    },
+    count(key) {
+      return seen.get(key) || 0;
+    },
+    award(type, key, label) {
+      const n = seen.get(key) || 0;
+      seen.set(key, n + 1);
+      const base = AWARDS[type];
+      const points = n === 0 ? base : Math.max(1, Math.round(base / 2));
+      return pay(type, key, label, points, n > 0);
+    },
+    awardOnce(type, key, label) {
+      if (seen.has(key)) return 0;
+      seen.set(key, 1);
+      return pay(type, key, label, AWARDS[type], false);
+    },
+  };
+}

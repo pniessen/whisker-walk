@@ -7,6 +7,9 @@ import { createLeash, MAX_LEN } from './leash.js';
 import { createBrain, PERSONALITIES } from './cat/brain.js';
 import * as neighborhood from './world/neighborhood.js';
 import { createCritters } from './critters.js';
+import { createProgression } from './progression.js';
+import { createDiscoveryLog } from './discoveries.js';
+import { createHud } from './ui/hud.js';
 
 const canvas = document.getElementById('game');
 
@@ -54,6 +57,26 @@ function init(renderer) {
   const area = neighborhood.build(scene);
   camera.position.set(area.spawn.x, 1.6, area.spawn.z);
 
+  const progression = createProgression(window.localStorage);
+  const log = createDiscoveryLog(progression);
+  const hud = createHud();
+  hud.show();
+  hud.setArea(area.name);
+  hud.setPoints(progression.state.points);
+  log.startWalk();
+  bus.on('discovery', () => hud.setPoints(progression.state.points));
+
+  const collectibleMeshes = new Map();
+  for (const c of area.collectibles) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 8, 8),
+      new THREE.MeshLambertMaterial({ color: 0xf25c8a, emissive: 0x5a1a30 })
+    );
+    m.position.set(c.x, 0.2, c.z);
+    scene.add(m);
+    collectibleMeshes.set(c.id, m);
+  }
+
   const critters = createCritters(scene, area.critterSpawns, {});
 
   let cat = buildCat('tabby');
@@ -65,7 +88,7 @@ function init(renderer) {
   const catVelocity = new THREE.Vector3();
 
   bus.on('critter:scare', () => {
-    brain.scare(); // returns false for fearless/steady cats — that's fine
+    if (brain.scare()) hud.toast('Woof! Your cat got spooked!');
   });
 
   function handPosition() {
@@ -131,6 +154,65 @@ function init(renderer) {
     player.speedFactor = leashTension > 0.9 ? Math.max(0.35, 1 - (leashTension - 0.9) * (p.pull / 4)) : 1;
   }
 
+  const walk = { carried: 0, carryCap: 2 }; // backpack raises cap in Task 14
+  let currentPrompt = null;
+
+  function updateInteractions() {
+    // 1. critter spotting: within 6, roughly in front of the player
+    for (const c of critters.list) {
+      if (!c.spottable || c.fleeing) continue;
+      const to = c.group.position.clone().sub(camera.position).setY(0);
+      if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
+        log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type));
+      }
+    }
+    // 2. nearest collectible
+    currentPrompt = null;
+    for (const c of area.collectibles) {
+      if (!collectibleMeshes.has(c.id)) continue;
+      if (Math.hypot(c.x - camera.position.x, c.z - camera.position.z) < 1.6) {
+        currentPrompt = { kind: 'collect', data: c };
+        hud.setPrompt(walk.carried >= walk.carryCap ? 'Paws full! (carry limit reached)' : `E — pick up ${c.label}`);
+      }
+    }
+    // 3. petting
+    if (!currentPrompt && (brain.state === 'requestPet' || brain.state === 'nap') &&
+        cat.position.distanceTo(camera.position) < 2.8) {
+      currentPrompt = { kind: 'pet' };
+      hud.setPrompt(brain.state === 'nap' ? 'E — pet the sleepy cat' : 'E — your cat wants pets!');
+    }
+    if (!currentPrompt) hud.setPrompt(null);
+
+    // 4. scenic spots
+    for (const s of area.scenics) {
+      if (Math.hypot(s.x - camera.position.x, s.z - camera.position.z) < 4) {
+        log.awardOnce('scenic', `scenic-${s.id}`, s.label);
+      }
+    }
+  }
+
+  function labelFor(type) {
+    return { bird: 'a songbird', squirrel: 'a busy squirrel', butterfly: 'a butterfly',
+      duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
+      dog: 'the neighbor’s dog', villager: 'a friendly neighbor' }[type] ?? 'something interesting';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyE' || !currentPrompt) return;
+    if (currentPrompt.kind === 'collect' && walk.carried < walk.carryCap) {
+      const c = currentPrompt.data;
+      scene.remove(collectibleMeshes.get(c.id));
+      collectibleMeshes.delete(c.id);
+      walk.carried += 1;
+      log.awardOnce('collectible', `col-${c.id}`, c.label);
+    } else if (currentPrompt.kind === 'pet' && brain.pet()) {
+      log.award('pet', 'pet', 'a rumbling purr');
+    }
+  });
+
+  let momentTimer = 40;
+  let activeMoment = null;
+
   // debug breed switcher — REMOVED in Task 11
   const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
   document.addEventListener('keydown', (e) => {
@@ -156,6 +238,25 @@ function init(renderer) {
     player.update(dt, area.colliders, area.bounds);
     critters.update(dt, clock.elapsedTime, camera.position, cat.position);
     updateCat(dt, clock.elapsedTime);
+
+    momentTimer -= dt;
+    if (momentTimer <= 0 && area.moments.length) {
+      momentTimer = 45 + Math.random() * 30;
+      const m = area.moments[Math.floor(Math.random() * area.moments.length)];
+      critters.playMoment(m);
+      activeMoment = { m, timeLeft: 6 };
+    }
+    if (activeMoment) {
+      activeMoment.timeLeft -= dt;
+      const { m } = activeMoment;
+      const to = new THREE.Vector3(m.x, 0, m.z).sub(camera.position).setY(0);
+      if (to.length() < 15 && to.normalize().dot(player.forward()) > 0.4) {
+        log.awardOnce('moment', `moment-${m.id}`, m.label);
+      }
+      if (activeMoment.timeLeft <= 0) activeMoment = null;
+    }
+
+    updateInteractions();
     renderer.render(scene, camera);
   });
 }
