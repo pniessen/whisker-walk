@@ -1,4 +1,4 @@
-import { CATALOG } from '../progression.js';
+import { CATALOG, rankFor } from '../progression.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -57,11 +57,21 @@ export function createHomeBase(progression, album, onStartWalk) {
   function render() {
     const s = progression.state;
     const glowReady = s.equipped.collar === 'glow';
+    const rank = rankFor(s.lifetimePoints);
+    const nextLine = rank.next
+      ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
+      : 'top rank!';
     root.innerHTML = `
       <div class="homebase-scroll">
         <header class="hb-header">
           <h1>🐈 Whisker Walk</h1>
-          <div class="hb-points">🐾 ${s.points} whisker points</div>
+          <div class="hb-header-right">
+            <div class="hb-points">🐾 ${s.points} whisker points</div>
+            <div class="hb-substats">
+              <span>🏆 ${rank.title} — ${nextLine}</span>
+              <span>best walk: ${s.bestWalk} 🐾</span>
+            </div>
+          </div>
         </header>
         <section><h2>Your cat</h2><div class="cards">
           ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}

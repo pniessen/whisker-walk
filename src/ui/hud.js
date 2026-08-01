@@ -5,17 +5,20 @@ export function createHud() {
   root.innerHTML = `
     <div class="hud-top">
       <div class="hud-points">🐾 <span id="hud-points-value">0</span></div>
+      <div class="hud-rank" id="hud-rank"></div>
       <div class="hud-area" id="hud-area"></div>
     </div>
     <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-goals hidden" id="hud-goals"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
+    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · M mute · Esc menu</div>
     <div class="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder"><span>📷 click to snap · C to lower</span></div>
   `;
   const pointsEl = root.querySelector('#hud-points-value');
   const areaEl = root.querySelector('#hud-area');
+  const rankEl = root.querySelector('#hud-rank');
   const toastsEl = root.querySelector('#hud-toasts');
   const promptEl = root.querySelector('#hud-prompt');
 
@@ -24,6 +27,7 @@ export function createHud() {
     hide() { root.classList.add('hidden'); },
     setPoints(n) { pointsEl.textContent = String(n); },
     setArea(name) { areaEl.textContent = name; },
+    setRank(title) { rankEl.textContent = `🏆 ${title}`; },
     setPrompt(text) {
       promptEl.classList.toggle('hidden', !text);
       if (text) promptEl.textContent = text;

@@ -13,7 +13,7 @@ import { createTippables } from './tippables.js';
 import { createScent } from './scent.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
-import { createProgression } from './progression.js';
+import { createProgression, rankFor } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -74,11 +74,20 @@ function init() {
   bus.on('discovery', ({ type }) => {
     hud.setPoints(progression.state.points);
     audio.chime();
+    if (session) session.discoveryCount += 1;
     if (session?.goals) {
       const res = session.goals.note(type);
       hud.setGoals(session.goals.goals);
       if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
       if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
+    }
+    if (session) {
+      const r = rankFor(progression.state.lifetimePoints).title;
+      if (r !== session.rankTitle) {
+        session.rankTitle = r;
+        hud.setRank(r);
+        hud.toast(`RANK UP — ${r}! 🏆`);
+      }
     }
   });
   bus.on('player:lockchange', ({ locked }) => {
@@ -103,6 +112,10 @@ function init() {
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') canvas.requestPointerLock();
     if (e.target.id === 'btn-end') endWalk();
+    if (e.target.id === 'btn-summary-continue') {
+      overlay.classList.add('hidden');
+      homebase.show();
+    }
   });
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' && session && player.locked && !e.repeat) {
@@ -322,6 +335,10 @@ function init() {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
       walkStamp,
       goals,
+      startPoints: state.points,
+      discoveryCount: 0,
+      friendToasts: 0,
+      rankTitle: rankFor(state.lifetimePoints).title,
       weather,
       secrets,
       tippables,
@@ -349,6 +366,7 @@ function init() {
     hud.show();
     hud.setArea(areaData.name);
     hud.setPoints(state.points);
+    hud.setRank(session.rankTitle);
     hud.setGoals(goals.goals);
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
@@ -365,6 +383,27 @@ function init() {
   function endWalk() {
     if (!session) return;
     progression.completeWalk();
+
+    // compute summary numbers while the session is still live
+    const earned = progression.state.points - session.startPoints;
+    const goalsDone = session.goals.goals.filter((g) => g.done).length;
+    const isRecord = progression.recordWalkScore(earned);
+    const discoveries = session.discoveryCount;
+    const friendsGreeted = session.friendToasts;
+    const summaryHtml = `<div class="summary-card">
+      <h1>Walk complete!</h1>
+      ${isRecord
+        ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
+        : `<div class="best-line">best walk: ${progression.state.bestWalk} 🐾</div>`}
+      <div class="summary-stats">
+        <div class="stat"><span class="stat-value">${earned}</span><span class="stat-label">whisker points</span></div>
+        <div class="stat"><span class="stat-value">${discoveries}</span><span class="stat-label">discoveries</span></div>
+        <div class="stat"><span class="stat-value">${friendsGreeted}</span><span class="stat-label">cats greeted</span></div>
+        <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
+      </div>
+      <button id="btn-summary-continue" class="primary">Continue</button>
+    </div>`;
+
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
@@ -383,8 +422,9 @@ function init() {
     hud.setObjective(null);
     hud.setCamera(false);
     hud.setGoals(null);
-    overlay.classList.add('hidden');
-    homebase.show();
+
+    overlay.innerHTML = summaryHtml;
+    overlay.classList.remove('hidden');
     audio.stopAmbient();
   }
 
@@ -629,6 +669,7 @@ function init() {
       s.strayCats.greet(stray, s.cat.position);
       log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
       const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
+      if (level) s.friendToasts += 1;
       if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
       else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
       else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
