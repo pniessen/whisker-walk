@@ -99,5 +99,9 @@ export function build(scene) {
       { x: 17, z: 15, kind: 'pot' }, { x: 17, z: -17, kind: 'can' },
       { x: 21, z: 29, kind: 'bin' }, { x: -7, z: 9, kind: 'pot' },
     ],
+    perches: [
+      { x: 18, z: 14, y: 0.58 }, { x: 18, z: -18, y: 0.58 }, { x: -8, z: 10, y: 0.72 },
+      { x: -28, z: 18, y: 0.72, label: 'overlook boulder', vantage: true },
+    ],
   };
 }

@@ -88,5 +88,10 @@ export function build(scene) {
       { x: -14, z: 17, kind: 'can' }, { x: 15, z: 32, kind: 'pot' },
       { x: 5, z: 22, kind: 'bin' },
     ],
+    perches: [
+      { x: 28, z: 28, y: 0.58 }, { x: 32, z: 24, y: 0.58 },
+      { x: 4, z: -35, y: 1.35, label: 'king of the car roof', vantage: true },
+      { x: -4, z: 20, y: 1.35 },
+    ],
   };
 }

@@ -116,10 +116,27 @@ function init() {
       }
     }
     if (e.code === 'Space' && session && player.locked && !e.repeat &&
-        !session.cameraMode && session.pounceCooldown <= 0 && session.freezeTime <= 0) {
-      player.pounce();
-      session.pounceTime = 0.3;
-      session.pounceCooldown = 1.2;
+        !session.cameraMode && session.freezeTime <= 0) {
+      if (session.perched) {
+        session.perched = null;                    // hop down
+        player.perchY = 0;
+      } else {
+        const perch = (session.areaData.perches ?? []).find(
+          (pp) => Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < 1.2
+        );
+        if (perch) {
+          session.perched = perch;
+          player.perchY = perch.y;
+          player.halt();
+          session.cat.position.set(perch.x, perch.y, perch.z);
+          audio.meow();
+          if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
+        } else if (session.pounceCooldown <= 0) {
+          player.pounce();
+          session.pounceTime = 0.3;
+          session.pounceCooldown = 1.2;
+        }
+      }
     }
     if (e.code === 'KeyC' && session && player.locked) {
       session.cameraMode = !session.cameraMode;
@@ -282,6 +299,7 @@ function init() {
       cameraMode: false,
       idleTime: 0,
       freezeTime: 0,
+      perched: null,
       pounceTime: 0,
       pounceCooldown: 0,
       pose: 'follow',
@@ -334,12 +352,14 @@ function init() {
     const { cat } = s;
     const p = PERSONALITIES[cat.userData.breed];
 
-    if (s.freezeTime > 0) {
-      s.freezeTime -= dt;
-      player.speedFactor = 0;
-    } else {
-      player.speedFactor = 1;
+    if (s.perched && player.inputActive) {
+      s.perched = null;
+      player.perchY = 0;
     }
+    s.critters.setFleeModifier(s.perched || player.stalking ? 0.5 : 1);
+
+    if (s.freezeTime > 0) s.freezeTime -= dt;
+    player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : 1;
     if (s.pounceTime > 0) s.pounceTime -= dt;
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
 
@@ -359,6 +379,7 @@ function init() {
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
     else if (s.pounceTime > 0) pose = 'pounce';
+    else if (s.perched) pose = 'perch';
     else if (s.stretchTime > 0) pose = 'stretch';
     else if (s.sniffTime > 0) pose = 'sniff';
     else if (speed > 0.3 && (player.stalking ?? false)) pose = 'stalk';

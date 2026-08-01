@@ -80,6 +80,7 @@ let nextId = 1;
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
+  let fleeModifier = 1;
   const list = [];
 
   function spawn(def) {
@@ -157,6 +158,9 @@ export function createCritters(scene, spawns, opts = {}) {
     dispose() {
       for (const c of [...list]) remove(c);
     },
+    setFleeModifier(m) {
+      fleeModifier = m;
+    },
     update(dt, t, playerPos, catPos) {
       for (const c of [...list]) {
         const p = c.group.position;
@@ -187,7 +191,7 @@ export function createCritters(scene, spawns, opts = {}) {
             }
           } else {
             p.y = Math.abs(Math.sin(t * 3 + c.phase)) * 0.08; // hop
-            if (threat < 2.5 * fleeScale * (c.type === 'seagull' ? 1.4 : 1)) {
+            if (threat < 2.5 * fleeScale * fleeModifier * (c.type === 'seagull' ? 1.4 : 1)) {
               c.fleeing = true;
               c.cooldown = 18;
             }

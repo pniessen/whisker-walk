@@ -19,12 +19,14 @@ export function createPlayer(camera, canvas) {
   const api = {
     locked: false,
     speedFactor: 1, // 0 while frozen by a scare; 1 normally
+    perchY: 0,
     setAvatar(cat, catPace) {
       avatar = cat;
       pace = catPace;
       yaw = 0;
       pitch = 0.18;
       velocity.set(0, 0, 0);
+      api.perchY = 0;
     },
     forward() {
       return viewForward(yaw);
@@ -34,6 +36,12 @@ export function createPlayer(camera, canvas) {
     },
     get speed() {
       return velocity.length();
+    },
+    get inputActive() {
+      return keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight');
+    },
+    get stalking() {
+      return keys.has('ShiftLeft') || keys.has('ShiftRight');
     },
     halt() {
       velocity.set(0, 0, 0);
@@ -55,7 +63,7 @@ export function createPlayer(camera, canvas) {
       const dir = moveDirection(keys, yaw);
       velocity.lerp(dir.multiplyScalar(pace * api.speedFactor), 1 - Math.pow(0.001, dt));
       avatar.position.addScaledVector(velocity, dt);
-      avatar.position.y = 0;
+      avatar.position.y = api.perchY;
 
       for (const c of colliders) {
         const dx = avatar.position.x - c.x;

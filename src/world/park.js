@@ -99,5 +99,9 @@ export function build(scene) {
       { x: 4, z: 27, kind: 'can' }, { x: -3, z: 15, kind: 'pot' },
       { x: -9, z: -21, kind: 'bin' }, { x: 15, z: -27, kind: 'pot' },
     ],
+    perches: [
+      { x: 3, z: 26, y: 0.58 }, { x: -4, z: 14, y: 0.58 }, { x: -10, z: -20, y: 0.58 },
+      { x: 2.8, z: 22.2, y: 0.75, label: 'fountain-edge lookout', vantage: true },
+    ],
   };
 }
