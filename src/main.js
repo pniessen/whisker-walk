@@ -158,13 +158,13 @@ function init() {
   function endWalk() {
     if (!session) return;
     progression.completeWalk();
-    session.critters.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
         for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) m.dispose();
       }
     });
+    session.critters.dispose();
     session = null;
     player.disable();
     hud.hide();
