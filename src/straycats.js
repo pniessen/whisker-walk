@@ -56,6 +56,18 @@ export function createStrayCats(scene, area, count = 3) {
     dispose() {
       for (const s of strays) scene.remove(s.group);
     },
+    reactToMeow(pos) {
+      let count = 0;
+      for (const s of strays) {
+        if (s.group.position.distanceTo(pos) < 8) {
+          s.state = 'greet';
+          s.timer = 1.5;
+          s.group.rotation.y = Math.atan2(pos.x - s.group.position.x, pos.z - s.group.position.z) + Math.PI;
+          count += 1;
+        }
+      }
+      return count;
+    },
     update(dt, t) {
       for (const s of strays) {
         s.timer -= dt;

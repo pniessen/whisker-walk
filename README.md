@@ -13,10 +13,9 @@ Open the printed localhost URL.
 
 You ARE the cat: third-person camera, the world moves at your pace.
 
-**Controls:** click to grab the mouse · arrow keys to prowl · mouse orbits the
-camera · E to interact (pick up, touch noses, meow, get head scratches) ·
-Space to pounce · T to drop/pocket your yarn ball · C for camera ·
-M to mute · Esc to pause or end the walk.
+**Controls:** click to grab the mouse · arrow keys to prowl · Shift to stalk ·
+mouse orbits the camera · Space to pounce or climb · E to interact / sniff ·
+V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
 
 ## Develop
 

@@ -10,6 +10,7 @@ import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
 import { createTippables } from './tippables.js';
+import { createScent } from './scent.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
 import { createProgression } from './progression.js';
@@ -97,7 +98,22 @@ function init() {
     if (e.target.id === 'btn-end') endWalk();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyE' && session && player.locked) handleInteract(session);
+    if (e.code === 'KeyE' && session && player.locked) {
+      if (session.prompt) handleInteract(session);
+      else {
+        session.sniffTime = 1;
+        const range = PERSONALITIES[session.cat.userData.breed].special === 'keenNose' ? 30 : 18;
+        const found = session.scent.sniff(session.cat.position, range);
+        hud.toast(found ? 'You smell something… follow the paw prints! 👃' : 'Nothing on the breeze.');
+      }
+    }
+    if (e.code === 'KeyV' && session && player.locked) {
+      audio.meow();
+      session.critters.reactToMeow(session.cat.position);
+      if (session.strayCats.reactToMeow(session.cat.position) > 0) {
+        setTimeout(() => audio.meow(), 350); // a reply from a friend
+      }
+    }
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
     if (e.code === 'KeyT' && session && player.locked) {
       if (!session.toy.active) {
@@ -269,6 +285,7 @@ function init() {
     const strayCats = createStrayCats(scene, areaData, 3);
     const toy = createToy(scene);
     const tippables = createTippables(scene, areaData.tippables ?? []);
+    const scent = createScent(scene, areaData, Math.random);
 
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -289,6 +306,7 @@ function init() {
       weather,
       secrets,
       tippables,
+      scent,
       quest, questGiver, questObject,
       walk: { carried: 0, carryCap: equipped.outfit === 'backpack' ? 3 : 2 },
       momentTimer: 40,
@@ -316,7 +334,7 @@ function init() {
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
       <button id="btn-resume">Start exploring (click)</button>
       <button id="btn-end">End walk &amp; head home</button>
-      <p class="controls-hint">Arrows move · mouse orbits · E interact · Space pounce · T yarn ball · C camera · M mute</p></div>`;
+      <p class="controls-hint">Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
 
@@ -504,6 +522,13 @@ function init() {
         hud.setPrompt('E — paw over the gnome');
       }
     }
+    if (!s.prompt) {
+      const mound = s.scent.nearestMound(catP, 1.2);
+      if (mound && mound.revealed) {
+        s.prompt = { kind: 'dig' };
+        hud.setPrompt('E — dig it up');
+      }
+    }
     if (!s.prompt && s.quest && s.questGiver) {
       if (s.quest.state === 'offered' &&
           s.questGiver.group.position.distanceTo(catP) < 2.5) {
@@ -579,6 +604,9 @@ function init() {
       s.strayCats.greet(stray, s.cat.position);
       log.awardOnce('friend', `friend-${stray.id}`, 'a new cat friend');
       audio.meow();
+    } else if (s.prompt.kind === 'dig') {
+      const treat = s.scent.digAt(s.cat.position);
+      if (treat) log.awardOnce('treasure', treat.id, 'a buried treasure!');
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');
@@ -673,6 +701,7 @@ function init() {
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.tippables.update(dt);
+      session.scent.update(dt);
       if (session.weather.rainbowVisible) {
         const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
         if (to.normalize().dot(player.forward()) > 0.6) {

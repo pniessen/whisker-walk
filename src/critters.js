@@ -155,6 +155,16 @@ export function createCritters(scene, spawns, opts = {}) {
         if (c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
       }
     },
+    reactToMeow(pos) {
+      for (const c of list) {
+        if (c.type === 'villager' && c.group.position.distanceTo(pos) < 6) c.meowWaveT = 1.5;
+        if ((c.type === 'bird' || c.type === 'seagull') && !c.fleeing &&
+            c.group.position.distanceTo(pos) < 5) {
+          c.fleeing = true;
+          c.cooldown = 18;
+        }
+      }
+    },
     dispose() {
       for (const c of [...list]) remove(c);
     },
