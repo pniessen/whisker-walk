@@ -188,4 +188,61 @@ describe('createProgression', () => {
     expect(rankFor(160).next.title).toBe('Street Smart');
     expect(RANKS).toHaveLength(5);
   });
+
+  describe('replaceFromPayload', () => {
+    it('round-trips a raw v3 save object through storage and reloads live state', () => {
+      p.addPoints(999);
+      p.buy('cats', 'black');
+      p.setPetName('Hagrid');
+      const donorStorage = fakeStorage();
+      const donor = createProgression(donorStorage);
+      donor.addPoints(321);
+      donor.setPetName('Whiskers');
+      donor.equipCat('siamese');
+
+      p.replaceFromPayload(donor.state);
+
+      expect(p.state).toEqual(donor.state);
+      expect(p.state.petName).toBe('Whiskers');
+      expect(p.state.lifetimePoints).toBe(321);
+      // persisted, not just in-memory — a fresh instance over the same
+      // storage sees the replacement too.
+      const reloaded = createProgression(storage);
+      expect(reloaded.state.petName).toBe('Whiskers');
+      expect(reloaded.state.lifetimePoints).toBe(321);
+    });
+
+    it('migrates a v2-format payload on replace, same as the normal load path', () => {
+      const v2 = {
+        version: 2, points: 88,
+        walks: { neighborhood: 3, park: 0, seaside: 0 },
+        unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+        equipped: { cat: 'persian', collar: null, outfit: null },
+        area: 'neighborhood',
+      };
+      p.addPoints(5); // pre-existing state should be fully discarded, not merged
+
+      p.replaceFromPayload(v2);
+
+      expect(p.state.version).toBe(3);
+      expect(p.state.points).toBe(88);
+      expect(p.state.lifetimePoints).toBe(88);
+      expect(p.state.bestWalk).toBe(0);
+      expect(p.state.friends).toEqual({});
+      expect(p.state.petName).toBe(null);
+      expect(p.state.equipped.cat).toBe('persian');
+    });
+
+    it('recovers to a fresh save with a warning when the payload is unreadable', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      p.addPoints(50);
+
+      p.replaceFromPayload({ version: 999, points: 1 });
+
+      expect(p.state.points).toBe(0);
+      expect(p.state.version).toBe(3);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
 });

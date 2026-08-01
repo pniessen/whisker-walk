@@ -34,10 +34,17 @@ function escapeHtml(str) {
   }[c]));
 }
 
-export function createHomeBase(progression, album, onStartWalk, rooms) {
+export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
+
+  // Sync ☁️ section state — mirrors the wt-*/joinError pattern above.
+  let cloudBusy = false;
+  let cloudError = null;
+  let cloudStatus = null; // inline result text after a manual "Sync now"
+  let cloudJustLinked = false; // show the big "write this down" code once, right after linking
+  let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
 
   function card(kind, id, item, ownedLabel) {
     const s = progression.state;
@@ -109,6 +116,57 @@ export function createHomeBase(progression, album, onStartWalk, rooms) {
       </div>`;
   }
 
+  function renderSync() {
+    if (!sync || !sync.available) return '';
+    let body;
+    if (cloudPreview) {
+      const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best walk ${s.bestWalk}`;
+      body = `
+        <div class="sync-preview">
+          <div class="sync-compare">
+            <div class="sync-col"><h3>This device</h3><div>${fmt(cloudPreview.local)}</div></div>
+            <div class="sync-col"><h3>Cloud save ${escapeHtml(cloudPreview.code)}</h3><div>${fmt(cloudPreview.cloud)}</div></div>
+          </div>
+          <div class="tag error">Loading will overwrite everything on this device — this can't be undone.</div>
+          <div class="sync-actions">
+            <button id="sync-confirm-load" class="primary" ${cloudBusy ? 'disabled' : ''}>Confirm — overwrite this device</button>
+            <button id="sync-cancel-load" ${cloudBusy ? 'disabled' : ''}>Cancel</button>
+          </div>
+        </div>`;
+    } else if (sync.getCode()) {
+      const code = sync.getCode();
+      if (cloudJustLinked) {
+        body = `
+          <div class="sync-code-big">
+            <div class="sync-code-value">${escapeHtml(code)}</div>
+            <div class="tag error">Write this down! It's the only way to find this save again.</div>
+            <button id="sync-got-it" class="primary">Got it</button>
+          </div>`;
+      } else {
+        body = `
+          <div class="sync-linked">
+            <div class="tag on">☁️ synced as ${escapeHtml(code)} · after every walk</div>
+            ${cloudStatus ? `<div class="tag">${escapeHtml(cloudStatus)}</div>` : ''}
+            <div class="sync-actions">
+              <button id="sync-now" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Syncing…' : 'Sync now'}</button>
+              <button id="sync-unlink" class="danger" ${cloudBusy ? 'disabled' : ''}>Unlink</button>
+            </div>
+          </div>`;
+      }
+    } else {
+      body = `
+        <div class="sync-unlinked">
+          <button id="sync-save" ${cloudBusy ? 'disabled' : ''}>${cloudBusy ? 'Saving…' : 'Save to cloud'}</button>
+          <div class="sync-load-row">
+            <input type="text" id="sync-load-code" maxlength="24" placeholder="WORD-WORD-WORD-00" class="wt-code-input sync-code-input" />
+            <button id="sync-load" ${cloudBusy ? 'disabled' : ''}>Load from cloud</button>
+          </div>
+          ${cloudError ? `<div class="tag error">${escapeHtml(cloudError)}</div>` : ''}
+        </div>`;
+    }
+    return body;
+  }
+
   function render() {
     const s = progression.state;
     const glowReady = s.equipped.collar === 'glow';
@@ -157,6 +215,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms) {
         <section class="walk-together"><h2>Walk together 🐾🐾</h2>
           ${renderWalkTogether()}
         </section>
+        ${sync && sync.available ? `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>` : ''}
         <footer class="hb-footer">
           ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
           ${waitingForHost
@@ -221,11 +280,67 @@ export function createHomeBase(progression, album, onStartWalk, rooms) {
       render();
       return;
     }
+    if (e.target.id === 'sync-save') {
+      cloudBusy = true; cloudError = null; render();
+      const res = await sync.saveToCloud();
+      cloudBusy = false;
+      if (res.ok) cloudJustLinked = true;
+      else cloudError = res.error;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-load') {
+      const input = root.querySelector('#sync-load-code');
+      cloudBusy = true; cloudError = null; render();
+      const res = await sync.previewLoad(input?.value ?? '');
+      cloudBusy = false;
+      if (res.ok) cloudPreview = res.preview;
+      else cloudError = res.error;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-confirm-load') {
+      cloudBusy = true; render();
+      const res = await sync.confirmLoad(cloudPreview);
+      cloudBusy = false;
+      cloudPreview = null;
+      if (!res.ok) cloudError = res.error;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-cancel-load') {
+      cloudPreview = null;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-got-it') {
+      cloudJustLinked = false;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-now') {
+      cloudBusy = true; cloudStatus = null; render();
+      const res = await sync.syncNow();
+      cloudBusy = false;
+      cloudStatus = res.message;
+      render();
+      return;
+    }
+    if (e.target.id === 'sync-unlink') {
+      sync.unlink();
+      cloudStatus = null;
+      cloudError = null;
+      cloudJustLinked = false;
+      render();
+      return;
+    }
     const cardEl = e.target.closest('.card');
     const action = e.target.dataset.action;
     if (!cardEl || !action) return;
     const { kind, id } = cardEl.dataset;
-    if (action === 'buy') progression.buy(kind, id);
+    if (action === 'buy') {
+      if (progression.buy(kind, id)) sync?.autoSync?.();
+    }
     else if (action === 'unequip') progression.unequip(CATALOG.accessories[id].slot);
     else if (action === 'equip') {
       if (kind === 'cats') progression.equipCat(id);

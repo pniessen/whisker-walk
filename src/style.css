@@ -6,6 +6,11 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 #hud, #homebase, #overlay { position: absolute; inset: 0; }
 /* the pause/summary overlay must beat every HUD child (touch-ui z1, prompt z2) */
 #overlay { z-index: 10; }
+/* lives outside #hud/#homebase so cloud-sync toasts (stale/denied) stay
+   visible on the home base screen too, where #hud is display:none.
+   Positioning (bottom/left/transform) comes from the shared .hud-toasts
+   class below — only pointer-events/z-index need overriding here. */
+#cloud-toasts { pointer-events: none; z-index: 11; }
 .hidden { display: none !important; }
 
 #hud { pointer-events: none; }
@@ -204,6 +209,20 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 .wt-roster { display: flex; flex-wrap: wrap; gap: 8px; }
 .wt-roster-chip {
   background: rgba(255,255,255,0.08); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem;
+}
+.sync-cloud .sync-actions, .sync-load-row, .sync-unlinked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.sync-cloud .sync-actions { margin-top: 8px; }
+.sync-code-input { text-transform: uppercase; width: 14em; letter-spacing: 0.04em; }
+.sync-code-big { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.sync-code-value { font-size: 1.5rem; font-weight: 700; color: #f2c14e; letter-spacing: 0.03em; }
+.sync-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 10px; }
+.sync-col h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 4px; font-weight: 700; }
+.sync-actions .danger { background: transparent; color: #d08080; }
+.sync-cloud .primary { background: #f2c14e; color: #3a2a10; }
+.sync-cloud .primary:hover { background: #f2c14e; filter: brightness(1.08); }
+.sync-cloud .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
+@media (max-width: 480px) {
+  .sync-compare { grid-template-columns: 1fr; gap: 8px; }
 }
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }

@@ -63,7 +63,11 @@ function defaultState() {
   };
 }
 
-export function createProgression(storage) {
+// Shared by createProgression's initial load AND replaceFromPayload below —
+// a cloud-loaded (or otherwise externally supplied) save must go through
+// the exact same parse/version-migration path as a normal boot, so there's
+// only one place that knows how to read whisker-walk-save.
+function loadState(storage) {
   let state = defaultState();
   try {
     const raw = storage.getItem(SAVE_KEY);
@@ -80,6 +84,11 @@ export function createProgression(storage) {
   // covers existing v3 saves captured before petName existed — additive
   // field, no version bump needed.
   state.petName ??= null;
+  return state;
+}
+
+export function createProgression(storage) {
+  let state = loadState(storage);
 
   const save = () => {
     try {
@@ -171,6 +180,19 @@ export function createProgression(storage) {
     setPetName(name) {
       state.petName = name;
       save();
+    },
+    // replaceFromPayload(rawSaveObject) — used by cloud "Load from cloud":
+    // writes the raw object straight to storage under the save key, then
+    // reloads live state through the SAME loadState() the constructor uses,
+    // so a v2-format cloud payload migrates exactly like a normal v2 save
+    // would on next boot instead of needing its own migration logic here.
+    replaceFromPayload(rawSaveObject) {
+      try {
+        storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
+      } catch (err) {
+        console.warn('Whisker Walk: could not write cloud save', err);
+      }
+      state = loadState(storage);
     },
   };
   return api;
