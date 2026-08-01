@@ -3,8 +3,7 @@ import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
-import { createBrain, PERSONALITIES } from './cat/brain.js';
-import { createLeash, MAX_LEN } from './leash.js';
+import { PERSONALITIES } from './cat/brain.js';
 import * as neighborhood from './world/neighborhood.js';
 import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
@@ -20,7 +19,6 @@ import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
-import { screenIndicator } from './indicator.js';
 import { puddle as puddleProp } from './world/builder.js';
 
 const AREAS = { neighborhood, park, seaside };
@@ -76,16 +74,18 @@ function init() {
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
   });
   bus.on('critter:scare', () => {
-    if (session && session.brain.scare()) hud.toast('Woof! Your cat got spooked!');
-    if (session) audio.bark();
+    if (!session) return;
+    audio.bark();
+    const special = PERSONALITIES[session.cat.userData.breed].special;
+    if (special !== 'fearless' && special !== 'steady') {
+      session.freezeTime = 1.5;
+      hud.toast('Woof! You froze on the spot! 🙀');
+    }
   });
   bus.on('villager:wave', ({ id }) => {
     if (session && progression.state.equipped.outfit === 'bandana') {
       log.award('perk', `wave-${id}`, 'a friendly wave back');
     }
-  });
-  bus.on('cat:pounce', () => {
-    if (session) log.award('perk', 'pounce', 'a perfect pounce!');
   });
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') canvas.requestPointerLock();
@@ -94,10 +94,26 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' && session && player.locked) handleInteract(session);
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
-    if (e.code === 'KeyT' && session && player.locked && !session.toy.active) {
-      session.toy.throwFrom(handPosition(), player.forward());
-      session.toyPlay = { bats: 0, returning: false, batReady: true };
-      session.brain.set('fetch', 14);
+    if (e.code === 'KeyT' && session && player.locked) {
+      if (!session.toy.active) {
+        // drop the yarn ball just ahead and give it a little kick to chase
+        const drop = session.cat.position.clone()
+          .add(player.forward().multiplyScalar(0.8))
+          .setY(0.8);
+        session.toy.throwFrom(drop, player.forward(), 2.5);
+        session.batCount = 0;
+        session.batReady = true;
+      } else if (session.toy.mesh.position.distanceTo(session.cat.position) < 1.4) {
+        session.toy.retrieve();
+        hud.toast('Yarn ball pocketed 🧶');
+      } else {
+        hud.toast('Go grab your yarn ball first!');
+      }
+    }
+    if (e.code === 'Space' && session && player.locked && session.pounceCooldown <= 0 && session.freezeTime <= 0) {
+      player.pounce();
+      session.pounceTime = 0.3;
+      session.pounceCooldown = 1.2;
     }
     if (e.code === 'KeyC' && session && player.locked) {
       session.cameraMode = !session.cameraMode;
@@ -116,14 +132,19 @@ function init() {
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
 
     const areaData = AREAS[state.area].build(scene);
-    camera.position.set(areaData.spawn.x, 1.6, areaData.spawn.z);
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
       outfit: state.equipped.outfit,
     });
-    cat.position.set(areaData.spawn.x + 1, 0, areaData.spawn.z - 2);
+    cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
+    cat.rotation.y = Math.PI; // face into the area (-z)
     scene.add(cat);
+    // your pace IS the world's pace: breed speed sets how fast anything scrolls
+    const pace = 2.2 + PERSONALITIES[state.equipped.cat].speed * 0.8;
+    player.setAvatar(cat, pace);
+    camera.position.set(areaData.spawn.x, 2.2, areaData.spawn.z + 4.5);
+    camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
     const equipped = state.equipped;
     const duskActive = duskMode && equipped.collar === 'glow';
@@ -228,20 +249,19 @@ function init() {
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
       weather,
-      secrets, lastPlayerPos: new THREE.Vector3().copy(camera.position),
+      secrets,
       quest, questGiver, questObject,
-      brain: createBrain(state.equipped.cat),
-      leash: createLeash(scene),
-      catVelocity: new THREE.Vector3(),
       walk: { carried: 0, carryCap: equipped.outfit === 'backpack' ? 3 : 2 },
       momentTimer: 40,
       activeMoment: null,
       prompt: null,
       balkedPuddles: new Set(),
-      toy, toyPlay: { bats: 0, returning: false, batReady: true },
+      toy, batCount: 0, batReady: true,
       cameraMode: false,
-      catOnScreen: true,
-      offScreenTime: 0,
+      idleTime: 0,
+      freezeTime: 0,
+      pounceTime: 0,
+      pounceCooldown: 0,
     };
 
     log.startWalk();
@@ -250,9 +270,9 @@ function init() {
     hud.setPoints(state.points);
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
-      <button id="btn-resume">Start walking (click)</button>
+      <button id="btn-resume">Start exploring (click)</button>
       <button id="btn-end">End walk &amp; head home</button>
-      <p class="controls-hint">Arrows move · mouse looks · E interact · T toy · C camera · M mute</p></div>`;
+      <p class="controls-hint">Arrows move · mouse orbits · E interact · Space pounce · T yarn ball · C camera · M mute</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
 
@@ -280,126 +300,37 @@ function init() {
     hud.setPrompt(null);
     hud.setObjective(null);
     hud.setCamera(false);
-    hud.setCatIndicator(null);
     overlay.classList.add('hidden');
     homebase.show();
     audio.stopAmbient();
   }
 
-  function handPosition() {
-    const hand = player.forward().multiplyScalar(0.3);
-    hand.add(camera.position).add(new THREE.Vector3(0, -0.5, 0));
-    return hand;
-  }
-
-  function updateCatVisibility(s, dt) {
-    camera.updateMatrixWorld(); // matrixWorldInverse otherwise lags a frame behind mouse-look
-    const pos = s.cat.position.clone().add(new THREE.Vector3(0, 0.4, 0));
-    const local = pos.clone().applyMatrix4(camera.matrixWorldInverse);
-    const ndc = pos.clone().project(camera);
-    const ind = screenIndicator(local, ndc);
-    s.catOnScreen = !ind;
-    hud.setCatIndicator(ind);
-
-    // hard guarantee: if the cat stays off-screen it quietly relocates to just
-    // ahead of the player — the jump happens while unseen, so from the player's
-    // POV the cat is simply always there. Fetch is exempt (the indicator covers it).
-    if (s.catOnScreen) {
-      s.offScreenTime = 0;
-    } else {
-      s.offScreenTime += dt;
-      if (s.offScreenTime > 1.1 && s.brain.state !== 'fetch') {
-        const b = s.areaData.bounds;
-        const spot = camera.position.clone()
-          .add(player.forward().multiplyScalar(2.5))
-          .add(player.forward().clone().cross(new THREE.Vector3(0, 1, 0)).multiplyScalar(0.8));
-        s.cat.position.set(
-          THREE.MathUtils.clamp(spot.x, b.minX, b.maxX),
-          0,
-          THREE.MathUtils.clamp(spot.z, b.minZ, b.maxZ)
-        );
-        s.catVelocity.set(0, 0, 0);
-        s.brain.set('follow', 2 + Math.random() * 2);
-        s.offScreenTime = 0;
-      }
-    }
-  }
-
-  function updateCat(s, dt, t) {
-    const { cat, brain } = s;
+  function updateAvatar(s, dt, t) {
+    const { cat } = s;
     const p = PERSONALITIES[cat.userData.breed];
-    const toPlayer = camera.position.clone().sub(cat.position).setY(0);
-    const tension = toPlayer.length() / MAX_LEN;
 
-    const nearCritter = s.critters.nearest(cat.position, 8);
-    const nearPoi = s.areaData.pois.some(
-      (poi) => Math.hypot(poi.x - cat.position.x, poi.z - cat.position.z) < p.sniffRange
-    ) || !!s.strayCats.nearest(cat.position, p.sniffRange);
-    brain.update(dt, { leashTension: tension, critterNearby: !!nearCritter, poiNearby: nearPoi });
-
-    let target = null;
-    const state = brain.state;
-    if (state === 'follow' || state === 'scared') {
-      target = camera.position.clone()
-        .add(player.forward().multiplyScalar(2))
-        .add(player.forward().clone().cross(new THREE.Vector3(0, 1, 0)).multiplyScalar(0.8));
-    } else if (state === 'distracted') {
-      if (nearCritter) target = nearCritter.group.position.clone();
-      else brain.set('follow', 2);
-    } else if (state === 'fetch') {
-      if (!s.toy.active) {
-        brain.set('follow', 2);
-      } else {
-        target = s.toy.mesh.position.clone();
-        const catToyDist = cat.position.distanceTo(s.toy.mesh.position);
-        if (catToyDist < 0.6) {
-          if (s.toyPlay.bats < 2) {
-            if (s.toyPlay.batReady) {
-              s.toyPlay.bats += 1;
-              s.toy.bat(cat.position);
-              s.toyPlay.batReady = false;
-            }
-          } else if (p.special === 'pouncer' || p.special === 'chaser') {
-            s.toyPlay.returning = true;
-            s.toy.nudgeToward(camera.position, dt);
-          } else {
-            brain.set('follow', 3); // lost interest — ball stays put
-          }
-        }
-        if (catToyDist > 1.2) {
-          s.toyPlay.batReady = true;
-        }
-        if (s.toyPlay.returning && s.toy.mesh.position.distanceTo(camera.position) < 2) {
-          log.award('play', 'fetch', 'a perfect fetch!');
-          audio.purr();
-          s.toy.retrieve();
-          brain.set('follow', 3);
-        }
-      }
+    if (s.freezeTime > 0) {
+      s.freezeTime -= dt;
+      player.speedFactor = 0;
+    } else {
+      player.speedFactor = 1;
     }
+    if (s.pounceTime > 0) s.pounceTime -= dt;
+    if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
 
-    const desired = new THREE.Vector3();
-    if (target) {
-      desired.copy(target).sub(cat.position).setY(0);
-      if (desired.length() > 0.4) {
-        // catch-up boost: the farther behind the cat is, the faster it trots,
-        // so it overtakes back into view instead of trailing off-screen
-        const catchUp = state === 'follow'
-          ? THREE.MathUtils.clamp(1 + (toPlayer.length() - 2.5) * 0.35, 1, 2.2)
-          : 1;
-        desired.normalize().multiplyScalar(p.speed * (state === 'scared' ? 1.8 : catchUp));
-      } else {
-        desired.set(0, 0, 0);
-      }
-    }
-    if (tension > 1 && state !== 'fetch') desired.add(toPlayer.normalize().multiplyScalar((tension - 1) * 20));
+    const speed = player.speed;
+    if (speed > 0.3) s.idleTime = 0;
+    else s.idleTime += dt;
 
-    s.catVelocity.lerp(desired, 1 - Math.pow(0.001, dt));
-    cat.position.addScaledVector(s.catVelocity, dt);
-    cat.position.y = 0;
-    const speed = s.catVelocity.length();
-    if (speed > 0.15) cat.rotation.y = Math.atan2(s.catVelocity.x, s.catVelocity.z) + Math.PI;
-    animateCat(cat, state, t, speed);
+    // idle charm: stand still and you sit; stay still and you curl up
+    const sitAt = p.special === 'napper' ? 3 : 6;
+    const napAt = p.special === 'napper' ? 7 : 14;
+    let pose = 'follow';
+    if (s.freezeTime > 0) pose = 'scared';
+    else if (s.idleTime > napAt) pose = 'nap';
+    else if (s.idleTime > sitAt) pose = 'requestPet';
+    animateCat(cat, pose, t, speed);
+
     if (progression.state.equipped.collar === 'bell' && speed > 1 && Math.random() < dt * 1.6) {
       audio.bell();
     }
@@ -412,51 +343,63 @@ function init() {
         log.awardOnce('perk', key, 'a joyful puddle splash');
       } else if (p.special !== 'steady' && !s.balkedPuddles.has(key)) {
         s.balkedPuddles.add(key);
-        brain.set('follow', 2);
-        hud.toast('Your cat balks at the puddle! 💦');
+        s.freezeTime = 0.8;
+        hud.toast('Brrr — cold paws! 💦');
       }
     }
 
-    if (state === 'distracted') {
-      const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
-      if (caught && p.special === 'pouncer') bus.emit('cat:pounce', { critter: caught });
+    // yarn play: run into your ball to bat it; a good play session earns points
+    if (s.toy.active) {
+      const dist = cat.position.distanceTo(s.toy.mesh.position);
+      if (dist < 0.5 && s.batReady) {
+        s.toy.bat(cat.position);
+        s.batCount += 1;
+        s.batReady = false;
+        if (s.batCount === 4) log.awardOnce('play', 'play', 'a very good play session');
+      } else if (dist > 1.1) {
+        s.batReady = true;
+      }
+      if (s.toy.idleTime > 25) s.toy.retrieve();
     }
 
-    const leashTension = s.leash.update(
-      handPosition(),
-      cat.position.clone().add(new THREE.Vector3(0, 0.4, 0))
-    );
-    player.speedFactor = leashTension > 0.9 ? Math.max(0.35, 1 - (leashTension - 0.9) * (p.pull / 4)) : 1;
-    if (state === 'fetch') player.speedFactor = 1; // no drag while playing fetch
+    // pouncing mid-dash catches butterflies and fireflies
+    if (s.pounceTime > 0) {
+      const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
+      if (caught) {
+        log.award('perk', 'catch', 'a mid-air catch!');
+        if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
+      }
+    }
   }
 
   function updateInteractions(s) {
+    const catP = s.cat.position;
     if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
       s.questObject.visible = Math.hypot(
-        s.quest.target.x - camera.position.x, s.quest.target.z - camera.position.z
+        s.quest.target.x - catP.x, s.quest.target.z - catP.z
       ) < 10;
     }
     const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
     for (const [id, m] of s.collectibleMeshes) {
       const c = s.areaData.collectibles.find((x) => x.id === id);
-      m.visible = Math.hypot(c.x - camera.position.x, c.z - camera.position.z) < reveal;
+      m.visible = Math.hypot(c.x - catP.x, c.z - catP.z) < reveal;
     }
     for (const c of s.critters.list) {
       if (!c.spottable || c.fleeing) continue;
-      const to = c.group.position.clone().sub(camera.position).setY(0);
+      const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
         log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type));
       }
     }
     for (const stray of s.strayCats.strays) {
-      const to = stray.group.position.clone().sub(camera.position).setY(0);
+      const to = stray.group.position.clone().sub(catP).setY(0);
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
         log.awardOnce('critter', `spot-${stray.id}`, 'a wandering stray cat');
       }
     }
     for (const sec of s.secrets.list) {
       if (!sec.group.visible) continue;
-      const to = sec.group.position.clone().sub(camera.position).setY(0);
+      const to = sec.group.position.clone().sub(catP).setY(0);
       if (to.length() < sec.spotRange && to.normalize().dot(player.forward()) > 0.5) {
         log.awardOnce(sec.award, sec.key, sec.label);
       }
@@ -464,7 +407,7 @@ function init() {
     s.prompt = null;
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
-      if (Math.hypot(c.x - camera.position.x, c.z - camera.position.z) < 1.6) {
+      if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6) {
         s.prompt = { kind: 'collect', data: c };
         hud.setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
@@ -473,31 +416,39 @@ function init() {
     }
     if (!s.prompt && s.quest && s.questGiver) {
       if (s.quest.state === 'offered' &&
-          s.questGiver.group.position.distanceTo(camera.position) < 2.5) {
+          s.questGiver.group.position.distanceTo(catP) < 2.5) {
         s.prompt = { kind: 'quest-accept' };
-        hud.setPrompt('E — talk to the neighbor');
+        hud.setPrompt('E — meow at the neighbor');
       } else if (s.quest.state === 'active' &&
-          Math.hypot(s.quest.target.x - camera.position.x, s.quest.target.z - camera.position.z) < 2) {
+          Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2) {
         s.prompt = { kind: 'quest-complete' };
         hud.setPrompt(s.quest.texts.prompt);
       }
     }
     if (!s.prompt) {
-      const stray = s.strayCats.nearest(camera.position, 2.5, { ungreetedOnly: true });
+      const stray = s.strayCats.nearest(catP, 2.5, { ungreetedOnly: true });
       if (stray) {
         s.prompt = { kind: 'stray', data: stray };
-        hud.setPrompt('E — greet the stray cat');
+        hud.setPrompt('E — touch noses');
       }
     }
-    if (!s.prompt && (s.brain.state === 'requestPet' || s.brain.state === 'nap') &&
-        s.cat.position.distanceTo(camera.position) < 2.8) {
-      s.prompt = { kind: 'pet' };
-      hud.setPrompt(s.brain.state === 'nap' ? 'E — pet the sleepy cat' : 'E — your cat wants pets!');
+    if (!s.prompt) {
+      for (const c of s.critters.list) {
+        if (c.type !== 'villager' || c.scratched) continue;
+        if (c.group.position.distanceTo(catP) < 2.2) {
+          s.prompt = { kind: 'scratch', data: c };
+          hud.setPrompt('E — get head scratches');
+          break;
+        }
+      }
+    }
+    for (const c of s.critters.list) {
+      if (c.type === 'villager' && c.scratched && c.group.position.distanceTo(catP) > 4) c.scratched = false;
     }
     if (!s.prompt) hud.setPrompt(null);
 
     for (const sc of s.areaData.scenics) {
-      if (Math.hypot(sc.x - camera.position.x, sc.z - camera.position.z) < 4) {
+      if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
       }
     }
@@ -518,24 +469,22 @@ function init() {
       if (s.questObject) s.questObject.visible = true;
       if (s.questGiver.marker) s.questGiver.marker.visible = false;
     } else if (s.prompt.kind === 'quest-complete') {
-      if (s.quest.tryComplete(camera.position)) {
+      if (s.quest.tryComplete(s.cat.position)) {
         log.award('quest', 'quest', s.quest.texts.done);
         hud.setObjective(null);
         if (s.questObject) s.questObject.visible = false;
       }
     } else if (s.prompt.kind === 'stray') {
       const stray = s.prompt.data;
-      s.strayCats.greet(stray, camera.position);
+      s.strayCats.greet(stray, s.cat.position);
       log.awardOnce('friend', `friend-${stray.id}`, 'a new cat friend');
       audio.meow();
-    } else if (s.prompt.kind === 'pet') {
-      const wasNapping = s.brain.state === 'nap';
-      if (s.brain.pet()) {
-        log.award('pet', 'pet', 'a rumbling purr');
-        audio.purr();
-        if (wasNapping && PERSONALITIES[s.cat.userData.breed].special === 'napper') {
-          log.award('perk', 'nap-pet', 'a deep sleepy purr');
-        }
+    } else if (s.prompt.kind === 'scratch') {
+      s.prompt.data.scratched = true;
+      log.award('pet', 'pet', 'blissful head scratches');
+      audio.purr();
+      if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
+        log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }
     }
   }
@@ -551,7 +500,7 @@ function init() {
     if (s.activeMoment) {
       s.activeMoment.timeLeft -= dt;
       const { m } = s.activeMoment;
-      const to = new THREE.Vector3(m.x, 0, m.z).sub(camera.position).setY(0);
+      const to = new THREE.Vector3(m.x, 0, m.z).sub(s.cat.position).setY(0);
       if (to.length() < 15 && to.normalize().dot(player.forward()) > 0.4) {
         log.awardOnce('moment', `moment-${m.id}`, m.label);
       }
@@ -618,13 +567,11 @@ function init() {
     if (!session) return;
     if (player.locked) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
-      session.critters.update(dt, t, camera.position, session.cat.position);
+      session.critters.update(dt, t, session.cat.position, session.cat.position);
       session.strayCats.update(dt, t);
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
-      const playerSpeed = camera.position.distanceTo(session.lastPlayerPos) / Math.max(dt, 0.001);
-      session.lastPlayerPos.copy(camera.position);
-      session.secrets.update(dt, t, camera.position, playerSpeed);
+      session.secrets.update(dt, t, session.cat.position, player.speed);
       if (session.weather.rainbowVisible) {
         const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
         if (to.normalize().dot(player.forward()) > 0.6) {
@@ -636,8 +583,7 @@ function init() {
            (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
         session.toy.retrieve(); // walked over it, or everyone lost interest
       }
-      updateCatVisibility(session, dt);
-      updateCat(session, dt, t);
+      updateAvatar(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);
       if (session.questGiver?.marker?.visible) {

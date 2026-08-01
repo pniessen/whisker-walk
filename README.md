@@ -11,8 +11,11 @@ whisker points you can spend on new cats, accessories, and places to walk.
 
 Open the printed localhost URL.
 
-**Controls:** click to grab the mouse · arrow keys to walk · mouse to look ·
-E to pet / pick up / greet / talk · T to throw the yarn ball · C for camera ·
+You ARE the cat: third-person camera, the world moves at your pace.
+
+**Controls:** click to grab the mouse · arrow keys to prowl · mouse orbits the
+camera · E to interact (pick up, touch noses, meow, get head scratches) ·
+Space to pounce · T to drop/pocket your yarn ball · C for camera ·
 M to mute · Esc to pause or end the walk.
 
 ## Develop

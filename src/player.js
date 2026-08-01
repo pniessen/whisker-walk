@@ -1,21 +1,43 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
+import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 
-const WALK_SPEED = 4.2;
+// You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
+// follows behind/above with mouse-orbit, and the cat stays centered on screen.
+
+const CAT_RADIUS = 0.35;
 
 export function createPlayer(camera, canvas) {
   let yaw = 0;
-  let pitch = 0;
+  let pitch = 0.18;
   let enabled = false;
+  let avatar = null;
+  let pace = 3.5;
   const keys = new Set();
   const velocity = new THREE.Vector3();
 
   const api = {
-    position: camera.position,
-    speedFactor: 1,
     locked: false,
+    speedFactor: 1, // 0 while frozen by a scare; 1 normally
+    setAvatar(cat, catPace) {
+      avatar = cat;
+      pace = catPace;
+      yaw = 0;
+      pitch = 0.18;
+      velocity.set(0, 0, 0);
+    },
     forward() {
-      return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+      return viewForward(yaw);
+    },
+    get position() {
+      return avatar ? avatar.position : camera.position;
+    },
+    get speed() {
+      return velocity.length();
+    },
+    pounce() {
+      const dir = velocity.length() > 0.5 ? velocity.clone().setY(0).normalize() : viewForward(yaw);
+      velocity.copy(dir.multiplyScalar(9));
     },
     enable() {
       enabled = true;
@@ -26,32 +48,32 @@ export function createPlayer(camera, canvas) {
       if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
     update(dt, colliders = [], bounds = null) {
-      if (!enabled) return;
-      const dir = new THREE.Vector3();
-      if (keys.has('ArrowUp')) dir.z -= 1;
-      if (keys.has('ArrowDown')) dir.z += 1;
-      if (keys.has('ArrowLeft')) dir.x -= 1;
-      if (keys.has('ArrowRight')) dir.x += 1;
-      dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-      const speed = WALK_SPEED * api.speedFactor;
-      velocity.lerp(dir.multiplyScalar(speed), 1 - Math.pow(0.001, dt));
-      camera.position.addScaledVector(velocity, dt);
-      camera.position.y = 1.6;
+      if (!enabled || !avatar) return;
+      const dir = moveDirection(keys, yaw);
+      velocity.lerp(dir.multiplyScalar(pace * api.speedFactor), 1 - Math.pow(0.001, dt));
+      avatar.position.addScaledVector(velocity, dt);
+      avatar.position.y = 0;
 
       for (const c of colliders) {
-        const dx = camera.position.x - c.x;
-        const dz = camera.position.z - c.z;
+        const dx = avatar.position.x - c.x;
+        const dz = avatar.position.z - c.z;
         const d = Math.hypot(dx, dz);
-        const min = c.r + 0.4;
+        const min = c.r + CAT_RADIUS;
         if (d < min && d > 0.0001) {
-          camera.position.x = c.x + (dx / d) * min;
-          camera.position.z = c.z + (dz / d) * min;
+          avatar.position.x = c.x + (dx / d) * min;
+          avatar.position.z = c.z + (dz / d) * min;
         }
       }
       if (bounds) {
-        camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds.minX, bounds.maxX);
-        camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds.minZ, bounds.maxZ);
+        avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
+        avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
       }
+      if (velocity.length() > 0.15) {
+        avatar.rotation.y = Math.atan2(velocity.x, velocity.z) + Math.PI;
+      }
+
+      camera.position.copy(avatar.position).add(cameraOffset(yaw, pitch));
+      camera.lookAt(avatar.position.x, avatar.position.y + 0.6, avatar.position.z);
     },
   };
 
@@ -65,14 +87,13 @@ export function createPlayer(camera, canvas) {
   });
   document.addEventListener('mousemove', (e) => {
     if (!api.locked || !enabled) return;
-    yaw -= e.movementX * 0.0022;
-    pitch -= e.movementY * 0.0022;
-    pitch = THREE.MathUtils.clamp(pitch, -1.2, 1.2);
-    camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+    yaw -= e.movementX * 0.0024;
+    pitch += e.movementY * 0.002;
+    pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
   });
   document.addEventListener('keydown', (e) => {
     if (!enabled) return;
-    if (e.code.startsWith('Arrow')) e.preventDefault(); // arrows shouldn't scroll the page
+    if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     keys.add(e.code);
   });
   document.addEventListener('keyup', (e) => keys.delete(e.code));
