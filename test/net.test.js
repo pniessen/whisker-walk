@@ -76,4 +76,45 @@ describe('createNet over a fake hub', () => {
     await a.leave();
     expect(b.isHost()).toBe(true);
   });
+
+  // Regression test for the bug where a walk's onRoster subscription (wired
+  // up in main.js's startWalk, well after the room's host()/join() already
+  // resolved in the lobby) never saw the already-settled roster: Supabase
+  // presence 'sync' only fires on a *change*, so if nobody's membership
+  // changes again after the late subscriber registers, it would otherwise
+  // never learn who's already in the room — remote pets simply never appear.
+  it('late subscriber receives the settled roster', async () => {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport());
+    const b = createNet(hub.transport());
+    await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+
+    // b registers onRoster only now — after both players already joined and
+    // the roster already settled, with no further membership change coming.
+    const seenByB = [];
+    b.onRoster((roster) => seenByB.push(roster));
+
+    expect(seenByB).toHaveLength(1); // fired immediately on subscribe, no new join/leave needed
+    expect(seenByB[0]).toHaveLength(2);
+    expect(new Set(seenByB[0].map((p) => p.playerId))).toEqual(new Set(['aaa', 'bbb']));
+  });
+
+  it('a late onRoster subscriber sees the full roster with no further membership change (lobby-to-walk shape)', async () => {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport());
+    const b = createNet(hub.transport());
+    // mirrors host()/join() in main.js: join happens in the lobby...
+    await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+
+    // ...and only later, once the walk actually starts, does startWalk wire
+    // up its own onRoster subscription on the SAME net instance — nobody
+    // joins or leaves in between.
+    let latestRoster = null;
+    a.onRoster((roster) => { latestRoster = roster; });
+
+    expect(latestRoster).not.toBeNull();
+    expect(latestRoster.length).toBe(2);
+  });
 });

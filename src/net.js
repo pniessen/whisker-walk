@@ -152,8 +152,17 @@ export function createNet(transport) {
     eventHandlers.push(fn);
   }
 
+  // Replay-to-late-subscriber: a caller that wires up onRoster() after the
+  // roster has already settled (e.g. main.js's walk-scoped subscription,
+  // registered after the lobby's host()/join() already resolved) would
+  // otherwise never see the current membership — Supabase presence 'sync'
+  // only fires on a *change*, so there may be no future notification coming
+  // at all. Firing immediately with the current roster (when non-empty)
+  // makes onRoster safe to call at any time, not just before the roster
+  // first populates.
   function onRoster(fn) {
     rosterHandlers.push(fn);
+    if (roster.length > 0) fn(roster);
   }
 
   function isHost() {
@@ -273,6 +282,12 @@ export function createSupabaseTransport(url, key) {
             await channel.track(profile);
             resolve({ ok: true, roster: flattenPresenceState(channel.presenceState()) });
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            // don't leak a subscribed-but-unusable channel — a caller who
+            // gets this rejection has no other way to clean it up, since
+            // leave() is only reachable after a successful join()
+            const failedChannel = channel;
+            channel = null;
+            client.removeChannel(failedChannel);
             reject(new Error('supabase channel ' + status));
           }
         });

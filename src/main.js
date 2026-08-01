@@ -110,6 +110,13 @@ function init() {
   // home base screen (host/join) before anyone has clicked Start, and
   // survives across walks only until endWalk explicitly leaves it.
   let pendingRoom = null; // { net, code, roster }
+  // host()/join() both check `pendingRoom` before doing anything async, but
+  // pendingRoom itself is only set AFTER the await — a double-click (or
+  // host+join fired back to back) would pass that guard twice and open two
+  // concurrent room connections, with the loser's net silently orphaned.
+  // This flag closes that window: it's set synchronously before the first
+  // await, so a concurrent call sees it immediately, not just eventually.
+  let roomOpInFlight = false;
   const roomChangeHandlers = [];
   function notifyRoomChange() {
     for (const fn of roomChangeHandlers) fn();
@@ -131,6 +138,12 @@ function init() {
   // there's no separate "join the walk" click.
   function handleLobbyEvent(ev) {
     if (!pendingRoom || ev.type !== 'walk-config') return;
+    if (session) return; // already mid-walk — a stray/duplicate/replayed walk-config can't re-enter startWalk
+    // only the host may launch the room's walk — roster is sorted by
+    // createNet, so the smallest playerId (roster[0]) is always the host;
+    // anyone else's walk-config is either spoofed or stale and must be
+    // ignored rather than hijacking every member's walk.
+    if (ev.id !== pendingRoom.roster[0]?.playerId) return;
     if (progression.isUnlocked('areas', ev.area)) {
       progression.setArea(ev.area);
       startWalk({ duskMode: ev.dusk, roomSeed: ev.seed });
@@ -158,7 +171,8 @@ function init() {
       return { code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost() };
     },
     async host() {
-      if (!MP || pendingRoom) return { ok: false };
+      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
+      roomOpInFlight = true;
       const code = generateRoomCode();
       const net = createNet(createSupabaseTransport(
         import.meta.env.VITE_SUPABASE_URL,
@@ -168,14 +182,25 @@ function init() {
         await net.join(code, roomProfile());
       } catch (err) {
         console.warn('Whisker Walk: failed to host a room', err);
+        roomOpInFlight = false;
+        return { ok: false };
+      }
+      // defensive: shouldn't be reachable given the flag above, but if some
+      // other path claimed pendingRoom while we awaited, don't clobber it —
+      // leave the room we just joined instead of leaking it.
+      if (pendingRoom) {
+        roomOpInFlight = false;
+        await net.leave().catch(() => {});
         return { ok: false };
       }
       setupRoomNet(net, code);
+      roomOpInFlight = false;
       notifyRoomChange();
       return { ok: true, code };
     },
     async join(code) {
-      if (!MP || pendingRoom) return { ok: false };
+      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
+      roomOpInFlight = true;
       const net = createNet(createSupabaseTransport(
         import.meta.env.VITE_SUPABASE_URL,
         import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -184,9 +209,16 @@ function init() {
         await net.join(code, roomProfile());
       } catch (err) {
         console.warn('Whisker Walk: failed to join room', err);
+        roomOpInFlight = false;
+        return { ok: false };
+      }
+      if (pendingRoom) {
+        roomOpInFlight = false;
+        await net.leave().catch(() => {});
         return { ok: false };
       }
       setupRoomNet(net, code);
+      roomOpInFlight = false;
       notifyRoomChange();
       return { ok: true, code };
     },
@@ -401,7 +433,14 @@ function init() {
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
     const equipped = state.equipped;
-    const duskActive = duskMode && equipped.collar === 'glow';
+    // In a room walk (roomSeed set), duskMode was already gated on the
+    // HOST's own glow-collar equip check before being broadcast as
+    // walk-config — re-gating it here on the LOCAL (joiner's) collar would
+    // make joiners without a glow collar branch differently than the host
+    // on the weather/secrets rolls just below, desyncing the shared walkRng
+    // stream for the rest of the walk. Solo walks have no host to trust, so
+    // they keep the local collar check.
+    const duskActive = roomSeed !== undefined ? duskMode : duskMode && equipped.collar === 'glow';
 
     if (duskActive) {
       const { top, horizon } = areaData.skyDusk;
@@ -584,6 +623,7 @@ function init() {
     if (session.net) {
       const net = session.net;
       net.onRoster((roster) => {
+        if (!session) return; // presence sync can land after endWalk tore the session down
         const liveIds = new Set(roster.map((p) => p.playerId));
         for (const r of remotes.list) {
           if (!liveIds.has(r.playerId)) remotes.remove(r.playerId);

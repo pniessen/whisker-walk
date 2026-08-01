@@ -148,6 +148,23 @@ describe('createRemoteCats', () => {
     expect(geoSpy).toHaveBeenCalledTimes(1);
   });
 
+  // Remote profiles arrive over the network from other players' clients,
+  // which may not have enforced net.js's own validation (old build,
+  // tampered client, wire glitch) — upsert must whitelist rather than trust
+  // breed/petName wholesale, since an unknown breed key would otherwise
+  // reach buildCat and throw.
+  it('upsert whitelists an unknown breed to tabby and an invalid petName to a fallback', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    const entry = remotes.upsert(
+      { playerId: 'zzz', petName: 'h4x0r!!', breed: 'dragon', accessories: {} },
+      0
+    );
+    expect(entry.breed).toBe('tabby');
+    expect(entry.petName).toBe('Mystery Cat');
+    expect(remotes.list).toHaveLength(1);
+  });
+
   it('upsert keeps the existing mesh when the profile is unchanged', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);
