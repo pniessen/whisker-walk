@@ -87,7 +87,7 @@ export function build(scene) {
       { type: 'villager', x: 18, z: 16 }, { type: 'villager', x: 32, z: -10 },
     ],
     moments: [
-      { id: 'gull-heist', label: 'a seagull stealing someone's sandwich!', x: 18, z: 14, from: { x: 30, z: -6 } },
+      { id: 'gull-heist', label: 'a seagull stealing someone\'s sandwich!', x: 18, z: 14, from: { x: 30, z: -6 } },
       { id: 'crab-race', label: 'two crabs racing across the boardwalk', x: 20, z: 0, from: { x: -6, z: 14 } },
     ],
     puddles: [],
