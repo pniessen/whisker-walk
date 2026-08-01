@@ -277,18 +277,35 @@ export function createSupabaseTransport(url, key) {
       });
 
       return new Promise((resolve, reject) => {
+        // This status callback persists for the channel's whole lifetime,
+        // not just for the initial subscribe attempt — a normal leave()
+        // (untrack + removeChannel) itself drives the channel through
+        // 'CLOSED', and a transient CHANNEL_ERROR can also land mid-walk
+        // long after we've already resolved. `settled` distinguishes "this
+        // status change is the outcome of the join() call we're inside of"
+        // from "this is a later lifecycle event on an already-joined
+        // channel" — only the former should reject the join promise or
+        // tear down the channel; leave() owns teardown from that point on.
+        let settled = false;
         channel.subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
+            settled = true;
             await channel.track(profile);
             resolve({ ok: true, roster: flattenPresenceState(channel.presenceState()) });
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            // don't leak a subscribed-but-unusable channel — a caller who
-            // gets this rejection has no other way to clean it up, since
-            // leave() is only reachable after a successful join()
-            const failedChannel = channel;
-            channel = null;
-            client.removeChannel(failedChannel);
-            reject(new Error('supabase channel ' + status));
+            if (!settled) {
+              // the join itself failed — don't leak a subscribed-but-
+              // unusable channel, since the caller has no `net` to call
+              // leave() on (join() rejected before returning one).
+              settled = true;
+              const failedChannel = channel;
+              channel = null;
+              client.removeChannel(failedChannel);
+              reject(new Error('supabase channel ' + status));
+            }
+            // else: a post-join status change (e.g. our own leave()
+            // closing the channel, or a transient error) — not our call to
+            // tear down or null the channel here.
           }
         });
       });
