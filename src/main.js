@@ -288,7 +288,7 @@ function init() {
       // quest object at the target, revealed on accept
       const t = quest.target;
       if (quest.type === 'kitten') {
-        questObject = buildCat(['tabby', 'calico', 'black'][Math.floor(Math.random() * 3)]);
+        questObject = buildCat(['tabby', 'calico', 'black'][Math.floor(walkRng() * 3)]);
         questObject.scale.multiplyScalar(0.5);
       } else if (quest.type === 'letter') {
         questObject = new THREE.Mesh(
