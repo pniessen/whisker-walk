@@ -43,4 +43,13 @@ describe('createDiscoveryLog', () => {
     );
     off();
   });
+
+  it('defines the v2 award values', () => {
+    expect(AWARDS.play).toBe(5);
+    expect(AWARDS.quest).toBe(25);
+    expect(AWARDS.photo).toBe(8);
+    expect(AWARDS.secret).toBe(12);
+    expect(AWARDS.legend).toBe(50);
+    expect(AWARDS.rainbow).toBe(15);
+  });
 });

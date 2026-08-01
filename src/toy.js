@@ -1,0 +1,76 @@
+import * as THREE from 'three';
+
+const GRAVITY = -14;
+const BOUNCE = 0.45;
+const RADIUS = 0.13;
+
+export function createToy(scene) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(RADIUS, 8, 8),
+    new THREE.MeshLambertMaterial({ color: 0xe05c8a })
+  );
+  const wrap = new THREE.Mesh(
+    new THREE.TorusGeometry(RADIUS * 0.95, 0.018, 6, 12),
+    new THREE.MeshLambertMaterial({ color: 0xc03060 })
+  );
+  wrap.rotation.x = 1.1;
+  mesh.add(wrap);
+  mesh.visible = false;
+  scene.add(mesh);
+
+  const velocity = new THREE.Vector3();
+
+  const api = {
+    mesh,
+    active: false,
+    idleTime: 0,
+    throwFrom(pos, dir, power = 9) {
+      mesh.position.copy(pos);
+      velocity.copy(dir).setY(0).multiplyScalar(power);
+      velocity.y = 4;
+      mesh.visible = true;
+      api.active = true;
+      api.idleTime = 0;
+    },
+    bat(fromPos) {
+      const dir = mesh.position.clone().sub(fromPos).setY(0);
+      if (dir.lengthSq() < 0.0001) dir.set(1, 0, 0);
+      velocity.add(dir.normalize().multiplyScalar(3 + Math.random() * 2));
+      velocity.y = Math.max(velocity.y, 2);
+      api.idleTime = 0;
+    },
+    nudgeToward(target, dt) {
+      const dir = target.clone().sub(mesh.position).setY(0);
+      if (dir.lengthSq() < 0.0001) return;
+      mesh.position.addScaledVector(dir.normalize(), 1.8 * dt);
+      api.idleTime = 0;
+    },
+    retrieve() {
+      api.active = false;
+      mesh.visible = false;
+      velocity.set(0, 0, 0);
+    },
+    update(dt, bounds) {
+      if (!api.active) return;
+      velocity.y += GRAVITY * dt;
+      mesh.position.addScaledVector(velocity, dt);
+      if (mesh.position.y < RADIUS) {
+        mesh.position.y = RADIUS;
+        if (Math.abs(velocity.y) > 1) velocity.y = -velocity.y * BOUNCE;
+        else velocity.y = 0;
+        const f = Math.pow(0.15, dt); // ground friction
+        velocity.x *= f;
+        velocity.z *= f;
+      }
+      if (bounds) {
+        mesh.position.x = THREE.MathUtils.clamp(mesh.position.x, bounds.minX, bounds.maxX);
+        mesh.position.z = THREE.MathUtils.clamp(mesh.position.z, bounds.minZ, bounds.maxZ);
+      }
+      const speed = velocity.length();
+      if (speed < 0.2 && mesh.position.y <= RADIUS + 0.01) api.idleTime += dt;
+      else api.idleTime = 0;
+      mesh.rotation.x += speed * dt * 2;
+    },
+  };
+  return api;
+}

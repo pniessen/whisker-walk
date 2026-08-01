@@ -10,6 +10,7 @@ import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
+import { createToy } from './toy.js';
 import { createProgression } from './progression.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -85,6 +86,11 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE' && session && player.locked) handleInteract(session);
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
+    if (e.code === 'KeyT' && session && player.locked && !session.toy.active) {
+      session.toy.throwFrom(handPosition(), player.forward());
+      session.toyPlay = { bats: 0, returning: false };
+      session.brain.set('fetch', 14);
+    }
   });
 
   function startWalk({ duskMode = false } = {}) {
@@ -130,6 +136,7 @@ function init() {
     }
 
     const strayCats = createStrayCats(scene, areaData, 3);
+    const toy = createToy(scene);
 
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
@@ -141,6 +148,7 @@ function init() {
       activeMoment: null,
       prompt: null,
       balkedPuddles: new Set(),
+      toy, toyPlay: { bats: 0, returning: false },
     };
 
     log.startWalk();
@@ -205,6 +213,29 @@ function init() {
     } else if (state === 'distracted') {
       if (nearCritter) target = nearCritter.group.position.clone();
       else brain.set('follow', 2);
+    } else if (state === 'fetch') {
+      if (!s.toy.active) {
+        brain.set('follow', 2);
+      } else {
+        target = s.toy.mesh.position.clone();
+        if (cat.position.distanceTo(s.toy.mesh.position) < 0.6) {
+          if (s.toyPlay.bats < 2) {
+            s.toyPlay.bats += 1;
+            s.toy.bat(cat.position);
+          } else if (p.special === 'pouncer' || p.special === 'chaser') {
+            s.toyPlay.returning = true;
+            s.toy.nudgeToward(camera.position, dt);
+          } else {
+            brain.set('follow', 3); // lost interest — ball stays put
+          }
+        }
+        if (s.toyPlay.returning && s.toy.mesh.position.distanceTo(camera.position) < 2) {
+          log.award('play', 'fetch', 'a perfect fetch!');
+          audio.purr();
+          s.toy.retrieve();
+          brain.set('follow', 3);
+        }
+      }
     }
 
     const desired = new THREE.Vector3();
@@ -361,6 +392,12 @@ function init() {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
       session.critters.update(dt, t, camera.position, session.cat.position);
       session.strayCats.update(dt, t);
+      session.toy.update(dt, session.areaData.bounds);
+      if (session.toy.active &&
+          (session.toy.idleTime > 15 ||
+           (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
+        session.toy.retrieve(); // walked over it, or everyone lost interest
+      }
       updateCat(session, dt, t);
       updateInteractions(session);
       updateMoments(session, dt);
