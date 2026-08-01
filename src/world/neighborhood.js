@@ -83,5 +83,10 @@ export function build(scene) {
     ],
     puddles,
     skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
+    tippables: [
+      { x: -8, z: -32, kind: 'pot' }, { x: 9, z: -13, kind: 'pot' },
+      { x: -14, z: 17, kind: 'can' }, { x: 15, z: 32, kind: 'pot' },
+      { x: 5, z: 22, kind: 'bin' },
+    ],
   };
 }

@@ -96,6 +96,7 @@ export function createCritters(scene, spawns, opts = {}) {
       phase: Math.random() * Math.PI * 2,
       cooldown: 0,
       waved: false,
+      meowWaveT: 0,
     };
     list.push(c);
     return c;
@@ -147,6 +148,11 @@ export function createCritters(scene, spawns, opts = {}) {
     playMoment(moment) {
       const runner = spawn({ type: 'squirrel', x: moment.from.x, z: moment.from.z });
       runner.moment = { target: new THREE.Vector3(moment.x, 0, moment.z), t: 0 };
+    },
+    dismayNear(pos, range) {
+      for (const c of list) {
+        if (c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
+      }
     },
     dispose() {
       for (const c of [...list]) remove(c);
@@ -213,9 +219,10 @@ export function createCritters(scene, spawns, opts = {}) {
           c.group.rotation.y = Math.atan2(catPos.x - p.x, catPos.z - p.z);
         } else if (c.type === 'villager') {
           const arm = c.group.userData.arm;
-          if (dPlayer < 5) {
+          if (c.meowWaveT > 0) c.meowWaveT -= dt;
+          if (dPlayer < 5 || c.meowWaveT > 0) {
             arm.rotation.z = 2.6 + Math.sin(t * 6) * 0.3; // wave
-            if (!c.waved) {
+            if (!c.waved && dPlayer < 5) {
               c.waved = true;
               bus.emit('villager:wave', { id: c.id });
             }

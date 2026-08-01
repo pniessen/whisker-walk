@@ -52,4 +52,10 @@ describe('createDiscoveryLog', () => {
     expect(AWARDS.legend).toBe(50);
     expect(AWARDS.rainbow).toBe(15);
   });
+
+  it('defines the v3 award values', () => {
+    expect(AWARDS.mischief).toBe(4);
+    expect(AWARDS.sits).toBe(8);
+    expect(AWARDS.treasure).toBe(12);
+  });
 });

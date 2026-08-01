@@ -9,6 +9,7 @@ import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
+import { createTippables } from './tippables.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
 import { createProgression } from './progression.js';
@@ -250,6 +251,7 @@ function init() {
 
     const strayCats = createStrayCats(scene, areaData, 3);
     const toy = createToy(scene);
+    const tippables = createTippables(scene, areaData.tippables ?? []);
 
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -269,6 +271,7 @@ function init() {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
       weather,
       secrets,
+      tippables,
       quest, questGiver, questObject,
       walk: { carried: 0, carryCap: equipped.outfit === 'backpack' ? 3 : 2 },
       momentTimer: 40,
@@ -455,6 +458,18 @@ function init() {
           : `E — pick up ${c.label}`);
       }
     }
+    if (!s.prompt) {
+      const tippable = s.tippables.nearest(catP, 1.3);
+      const gnome = s.secrets.list.find((e) => e.key === 'gnome');
+      if (tippable) {
+        s.prompt = { kind: 'tip', data: tippable };
+        hud.setPrompt('E — paw it over');
+      } else if (gnome && !gnome.group.userData.tipped &&
+          gnome.group.position.distanceTo(catP) < 1.3) {
+        s.prompt = { kind: 'tip-gnome', data: gnome };
+        hud.setPrompt('E — paw over the gnome');
+      }
+    }
     if (!s.prompt && s.quest && s.questGiver) {
       if (s.quest.state === 'offered' &&
           s.questGiver.group.position.distanceTo(catP) < 2.5) {
@@ -503,6 +518,16 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+    } else if (s.prompt.kind === 'tip') {
+      if (s.tippables.tip(s.prompt.data)) {
+        log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'Gravity check! 🐾');
+        s.critters.dismayNear(s.prompt.data.group.position, 8);
+      }
+    } else if (s.prompt.kind === 'tip-gnome') {
+      const gnome = s.prompt.data;
+      gnome.group.rotation.z = -1.4;
+      gnome.group.userData.tipped = true;
+      log.awardOnce('mischief', 'tip-gnome', 'Gnome down! 🧙');
     } else if (s.prompt.kind === 'quest-accept') {
       s.quest.accept();
       hud.toast(s.quest.texts.offer);
@@ -613,6 +638,7 @@ function init() {
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
+      session.tippables.update(dt);
       if (session.weather.rainbowVisible) {
         const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
         if (to.normalize().dot(player.forward()) > 0.6) {
