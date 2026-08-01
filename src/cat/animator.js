@@ -2,6 +2,11 @@ export function animateCat(cat, state, t, moveSpeed) {
   const { body, head, tail, legs } = cat.userData.parts;
   const walking = moveSpeed > 0.1;
 
+  // nested tail pivots (tail -> pivot0 -> pivot1 -> pivot2), used for the nap curl below
+  const pivot0 = tail.children[0];
+  const pivot1 = pivot0?.children[1];
+  const pivot2 = pivot1?.children[1];
+
   // reset per-frame poses (positions/rotations we animate)
   cat.rotation.z = 0;
   body.position.y = 0.3;
@@ -13,10 +18,19 @@ export function animateCat(cat, state, t, moveSpeed) {
     head.position.y = 0.26;
     head.rotation.x = 0.5;
     for (const leg of legs) leg.scale.y = 0.3;
-    tail.rotation.x = -1.4;
+    // lay the tail down and curl it around the body instead of standing it up as a rigid rod
+    tail.rotation.x = -0.1;
+    tail.rotation.z = 0;
+    if (pivot0) { pivot0.rotation.y = 0.9; pivot0.rotation.z = 0; }
+    if (pivot1) pivot1.rotation.y = 0.9;
+    if (pivot2) pivot2.rotation.y = 0.9;
     return;
   }
   for (const leg of legs) leg.scale.y = 1;
+  // clear any nap curl so the tail returns to its normal pose in non-nap states
+  if (pivot0) pivot0.rotation.y = 0;
+  if (pivot1) pivot1.rotation.y = 0;
+  if (pivot2) pivot2.rotation.y = 0;
 
   if (state === 'requestPet') {
     head.rotation.x = -0.35; // look up at player

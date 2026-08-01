@@ -99,19 +99,19 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }) {
     const collarColor = accessories.collar === 'glow' ? 0x7ef2c0 : 0xd84040;
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 12), mat(collarColor));
     ring.rotation.x = Math.PI / 2 + 0.5;
-    ring.position.set(0, 0.42, -0.28);
-    g.add(ring);
+    ring.position.set(0, -0.02, 0.08); // head-local (was g-local 0, 0.42, -0.28); tracks head
+    head.add(ring);
     if (accessories.collar === 'bell') {
       const bell = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), mat(0xf2c14e));
-      bell.position.set(0, 0.36, -0.4);
-      g.add(bell);
+      bell.position.set(0, -0.08, -0.04); // head-local (was g-local 0, 0.36, -0.4); tracks head
+      head.add(bell);
     }
   }
   if (accessories.outfit === 'bandana') {
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.16, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
-    tri.position.set(0, 0.36, -0.3);
-    g.add(tri);
+    tri.position.set(0, -0.08, 0.06); // head-local (was g-local 0, 0.36, -0.3); tracks head
+    head.add(tri);
   }
   if (accessories.outfit === 'booties') {
     for (const leg of legs) {
@@ -129,8 +129,8 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }) {
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       const petal = new THREE.Mesh(new THREE.SphereGeometry(0.025, 5, 5), mat([0xf2a0c0, 0xf2e04e, 0xffffff][i % 3]));
-      petal.position.set(Math.cos(a) * 0.1, 0.56, -0.36 + Math.sin(a) * 0.06);
-      g.add(petal);
+      petal.position.set(Math.cos(a) * 0.1, 0.12, Math.sin(a) * 0.06); // head-local (was g-local ..., 0.56, -0.36 + ...); tracks head
+      head.add(petal);
     }
   }
 
