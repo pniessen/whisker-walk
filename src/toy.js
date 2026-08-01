@@ -50,6 +50,19 @@ export function createToy(scene) {
       mesh.visible = false;
       velocity.set(0, 0, 0);
     },
+    // co-walk yarn-rally authority handoff: place the ball at rest at a given
+    // position (typically the last-seen ghost position of the player who
+    // just handed off ownership) with zero velocity — unlike throwFrom, this
+    // doesn't launch the ball into the air, so a rally handoff reads as
+    // "the ball is here now" rather than a fresh throw every time.
+    setPosition(pos) {
+      mesh.position.copy(pos);
+      if (mesh.position.y < RADIUS) mesh.position.y = RADIUS;
+      mesh.visible = true;
+      api.active = true;
+      api.idleTime = 0;
+      velocity.set(0, 0, 0);
+    },
     update(dt, bounds) {
       if (!api.active) return;
       velocity.y += GRAVITY * dt;

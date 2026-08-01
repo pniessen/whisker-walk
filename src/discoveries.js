@@ -5,6 +5,7 @@ export const AWARDS = {
   play: 5, quest: 25, photo: 8, secret: 12, legend: 50, rainbow: 15,
   mischief: 4, sits: 8, treasure: 12,
   goal: 15, jackpot: 40, gift: 10,
+  rally: 6, nappile: 10, duet: 5, boop: 5,
 };
 
 export function createDiscoveryLog(progression) {

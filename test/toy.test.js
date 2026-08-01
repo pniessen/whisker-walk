@@ -43,6 +43,20 @@ describe('createToy', () => {
     expect(toy.idleTime).toBe(0);
   });
 
+  it('setPosition places the ball at rest without imparting velocity', () => {
+    const toy = createToy(scene);
+    toy.setPosition(new THREE.Vector3(3, 0, -4));
+    expect(toy.active).toBe(true);
+    expect(toy.mesh.visible).toBe(true);
+    expect(toy.mesh.position.x).toBe(3);
+    expect(toy.mesh.position.z).toBe(-4);
+    const y0 = toy.mesh.position.y;
+    toy.update(0.05, BOUNDS); // one tick — only gravity should move it, no throw arc
+    expect(toy.mesh.position.y).toBeLessThanOrEqual(y0);
+    expect(Math.abs(toy.mesh.position.x - 3)).toBeLessThan(0.01);
+    expect(Math.abs(toy.mesh.position.z - (-4))).toBeLessThan(0.01);
+  });
+
   it('retrieve deactivates and hides', () => {
     const toy = createToy(scene);
     toy.throwFrom(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1));

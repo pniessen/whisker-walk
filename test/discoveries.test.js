@@ -64,4 +64,11 @@ describe('createDiscoveryLog', () => {
     expect(AWARDS.jackpot).toBe(40);
     expect(AWARDS.gift).toBe(10);
   });
+
+  it('defines the v5 co-walk award values', () => {
+    expect(AWARDS.rally).toBe(6);
+    expect(AWARDS.nappile).toBe(10);
+    expect(AWARDS.duet).toBe(5);
+    expect(AWARDS.boop).toBe(5);
+  });
 });

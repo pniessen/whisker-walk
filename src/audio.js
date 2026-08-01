@@ -33,14 +33,17 @@ export function createAudio() {
     // volume: 0..1 multiplier applied to every tone's gain (default 1 = full
     // volume, used for the local cat's own voice); co-walk remote meows scale
     // this down by distance so far-off pets sound farther away.
-    cluck(volume = 1) {
-      tone(700, 0.08, { type: 'square', gain: 0.07 * volume, slideTo: 500 });
-      tone(650, 0.1, { type: 'square', gain: 0.06 * volume, slideTo: 420, delay: 0.12 });
-      tone(760, 0.07, { type: 'square', gain: 0.05 * volume, slideTo: 520, delay: 0.26 });
+    // pitch: multiplier applied to every tone frequency (default 1 = normal
+    // pitch); co-walk duets layer a second voice at pitch 1.26 (+4 semitones)
+    // on top of the normal-pitch voice to sound harmonized rather than just louder.
+    cluck(volume = 1, pitch = 1) {
+      tone(700 * pitch, 0.08, { type: 'square', gain: 0.07 * volume, slideTo: 500 * pitch });
+      tone(650 * pitch, 0.1, { type: 'square', gain: 0.06 * volume, slideTo: 420 * pitch, delay: 0.12 });
+      tone(760 * pitch, 0.07, { type: 'square', gain: 0.05 * volume, slideTo: 520 * pitch, delay: 0.26 });
     },
-    meow(volume = 1) {
-      tone(520, 0.22, { type: 'square', gain: 0.05 * volume, slideTo: 780 });
-      tone(760, 0.25, { type: 'square', gain: 0.04 * volume, slideTo: 430, delay: 0.2 });
+    meow(volume = 1, pitch = 1) {
+      tone(520 * pitch, 0.22, { type: 'square', gain: 0.05 * volume, slideTo: 780 * pitch });
+      tone(760 * pitch, 0.25, { type: 'square', gain: 0.04 * volume, slideTo: 430 * pitch, delay: 0.2 });
     },
     purr() {
       for (let i = 0; i < 8; i++) tone(72, 0.06, { type: 'sawtooth', gain: 0.07, delay: i * 0.08 });

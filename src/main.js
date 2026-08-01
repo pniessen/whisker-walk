@@ -71,8 +71,10 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
-  // Hagrid is a chicken; chickens cluck
-  const catVoice = () => (session && session.cat.userData.breed === 'hagrid' ? audio.cluck() : audio.meow());
+  // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
+  // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.
+  const catVoice = (pitch = 1) =>
+    (session && session.cat.userData.breed === 'hagrid' ? audio.cluck(1, pitch) : audio.meow(1, pitch));
   const clock = new THREE.Clock();
 
   let session = null;
@@ -159,6 +161,14 @@ function init() {
           breed: session.cat.userData.breed,
           pos: [session.cat.position.x, session.cat.position.z],
         });
+      }
+      // duet: replying with V while a nearby remote meow's 3s window is open
+      if (session.duetWindow && nowSec() <= session.duetWindow.until) {
+        const withId = session.duetWindow.withId;
+        session.duetWindow = null;
+        log.awardOnce('duet', `duet-${withId}`, `a harmonized duet with ${petNameFor(session, withId)} 🎶`);
+        catVoice(1.26); // layered on top of the normal-pitch meow just played above
+        if (session.net) session.net.sendEvent({ v: 1, id: session.playerId, type: 'duet', withId });
       }
     }
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
@@ -343,6 +353,17 @@ function init() {
       }
     }
     const toy = createToy(scene);
+    // yarn-rally ghost ball: a single shared marker rendered wherever a
+    // REMOTE player's state message currently reports an active toy
+    // position (session.remoteToy, kept in sync by net.onState below) — it's
+    // not a real toy.js instance, just a visual + hit-test target for
+    // "bat the ghost to request authority".
+    const toyGhost = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 8, 8),
+      new THREE.MeshLambertMaterial({ color: 0xf25c9a })
+    );
+    toyGhost.visible = false;
+    scene.add(toyGhost);
     const tippables = createTippables(scene, areaData.tippables ?? []);
     const scent = createScent(scene, areaData, walkRng);
 
@@ -382,6 +403,10 @@ function init() {
       prompt: null,
       balkedPuddles: new Set(),
       toy, batCount: 0, batReady: true,
+      toyGhost, remoteToy: null,
+      pendingBoop: null, incomingBoop: null,
+      duetWindow: null,
+      rally: null,
       cameraMode: false,
       idleTime: 0,
       freezeTime: 0,
@@ -412,6 +437,16 @@ function init() {
       net.onState((state) => {
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
         remotes.applyState(state, nowSec());
+        // yarn-rally ghost tracking: remember the latest reported position of
+        // whichever remote is currently broadcasting an active toy. Only the
+        // owner clears it (toy: null in their own state) — a different
+        // remote's null toy shouldn't clear someone else's ghost.
+        if (Array.isArray(state.toy) && state.toy.length === 2 &&
+            Number.isFinite(state.toy[0]) && Number.isFinite(state.toy[1])) {
+          session.remoteToy = { ownerId: state.id, pos: state.toy, at: nowSec() };
+        } else if (session.remoteToy && session.remoteToy.ownerId === state.id) {
+          session.remoteToy = null;
+        }
       });
       net.onEvent((ev) => applyRemoteEvent(session, ev));
     }
@@ -529,6 +564,14 @@ function init() {
     s.pose = pose;
     animateCat(cat, pose, t, speed);
 
+    // nap pile: napping near another napping remote pet is worth a shared award
+    if (pose === 'nap') {
+      const nappingNearby = s.remotes.list.some(
+        (r) => r.pose === 'nap' && r.group.position.distanceTo(cat.position) < 1.2
+      );
+      if (nappingNearby) log.awardOnce('nappile', 'nappile', 'nap pile! 😴');
+    }
+
     if (progression.state.equipped.collar === 'bell' && speed > 1 && Math.random() < dt * 1.6) {
       audio.bell();
     }
@@ -571,6 +614,18 @@ function init() {
       if (s.toy.idleTime > 25) {
         s.toy.retrieve();
         hud.toast('Your yarn ball rolled back to your pocket 🧶');
+      }
+    } else if (s.toyGhost.visible) {
+      // yarn rally: batting a REMOTE-owned ghost ball requests authority
+      // over it — the actual handoff happens once the owner's client
+      // receives our 'bat' event (see applyRemoteEvent).
+      const dist = cat.position.distanceTo(s.toyGhost.position);
+      if (dist < 0.5 && s.batReady) {
+        s.batReady = false;
+        noteBat(s, s.playerId); // "in or out" — our own outgoing bat counts toward the rally too
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'bat' });
+      } else if (dist > 1.1) {
+        s.batReady = true;
       }
     }
 
@@ -680,6 +735,13 @@ function init() {
     for (const c of s.critters.list) {
       if (c.type === 'villager' && c.scratched && c.group.position.distanceTo(catP) > 4) c.scratched = false;
     }
+    if (!s.prompt) {
+      const remote = s.remotes.nearest(catP, 1.5);
+      if (remote) {
+        s.prompt = { kind: 'boop', data: remote };
+        hud.setPrompt(`E — touch noses with ${remote.petName}`);
+      }
+    }
     if (!s.prompt) hud.setPrompt(null);
 
     for (const sc of s.areaData.scenics) {
@@ -745,11 +807,72 @@ function init() {
       if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
         log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }
+    } else if (s.prompt.kind === 'boop') {
+      const remote = s.prompt.data;
+      // if they already sent us a request within the last 4s, this E press
+      // IS the counter-request — complete the boop immediately instead of
+      // starting a fresh wait.
+      if (s.incomingBoop && s.incomingBoop.fromId === remote.playerId && nowSec() <= s.incomingBoop.until) {
+        completeBoop(s, remote.playerId);
+      } else {
+        s.pendingBoop = { withId: remote.playerId, until: nowSec() + 4 };
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'boop-request', toId: remote.playerId });
+        hud.toast('waiting for a boop back… 💕');
+      }
     }
   }
 
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
+  }
+
+  // turn the local cat to face a remote pet — reuses the same
+  // "atan2(target - self) + PI" formula strayCats.greet/reactToMeow use to
+  // turn a stray toward the player, just applied to our own cat instead.
+  function turnToFace(s, otherId) {
+    const remote = s.remotes.list.find((r) => r.playerId === otherId);
+    if (!remote) return;
+    const p = remote.group.position;
+    s.cat.rotation.y = Math.atan2(p.x - s.cat.position.x, p.z - s.cat.position.z) + Math.PI;
+  }
+
+  // Boop handshake convergence point. Reachable from three places: a local E
+  // press that matches an incoming request, a remote 'boop-request' that
+  // matches our own outstanding pendingBoop, or a remote 'boop-confirm'
+  // addressed to us. awardOnce naturally dedupes per pair-per-walk, and its
+  // return value (0 once already paid) gates the outbound boop-confirm send
+  // — so however many of the three paths fire, on however many clients, this
+  // converges to exactly one award and one (redundant-but-harmless) confirm
+  // per side without an infinite reply loop.
+  function completeBoop(s, otherId) {
+    const points = log.awardOnce('boop', `boop-${otherId}`, `a nose boop with ${petNameFor(s, otherId)} 💕`);
+    if (points > 0) {
+      audio.purr();
+      turnToFace(s, otherId);
+      hud.toast(`💕 boop with ${petNameFor(s, otherId)}!`);
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'boop-confirm', withId: otherId });
+    }
+    s.pendingBoop = null;
+    s.incomingBoop = null;
+  }
+
+  // Yarn-rally counter: every 'bat' event we observe — our own outgoing
+  // request AND every incoming one — either extends the rally (a different
+  // batter than last time, within the 10s window) or starts a fresh one
+  // (same batter twice in a row, or the rally went stale). Deliberately
+  // tolerant of out-of-order network delivery: a wrong-order event just
+  // resets the count rather than corrupting it.
+  function noteBat(s, batterId) {
+    const now = nowSec();
+    if (!s.rally || now - s.rally.at > 10 || s.rally.lastId === batterId) {
+      s.rally = { count: 1, lastId: batterId, at: now };
+    } else {
+      s.rally = { count: s.rally.count + 1, lastId: batterId, at: now };
+    }
+    if (s.rally.count === 3 || s.rally.count === 6 || s.rally.count === 10) {
+      const points = log.awardOnce('rally', `rally-${s.rally.count}`, `yarn rally x${s.rally.count}! 🧶`);
+      if (points > 0) hud.toast(`yarn rally x${s.rally.count}! 🧶`);
+    }
   }
 
   // canon world objects (tippables/treats/collectibles) are first-come: a
@@ -792,9 +915,48 @@ function init() {
       const pos = Array.isArray(ev.pos) && ev.pos.length === 2
         ? new THREE.Vector3(ev.pos[0], 0, ev.pos[1])
         : s.cat.position;
-      const vol = meowVolumeForDistance(s.cat.position.distanceTo(pos));
+      const dist = s.cat.position.distanceTo(pos);
+      const vol = meowVolumeForDistance(dist);
       if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol);
       s.critters.reactToMeow(pos);
+      // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
+      if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
+    } else if (ev.type === 'boop-request') {
+      if (ev.toId !== s.playerId) return;
+      const now = nowSec();
+      if (s.pendingBoop && s.pendingBoop.withId === ev.id && now <= s.pendingBoop.until) {
+        // we'd already sent our own request to them — request + counter-request = mutual
+        completeBoop(s, ev.id);
+      } else {
+        s.incomingBoop = { fromId: ev.id, until: now + 4 };
+      }
+    } else if (ev.type === 'boop-confirm') {
+      if (ev.withId === s.playerId) completeBoop(s, ev.id);
+    } else if (ev.type === 'duet') {
+      if (ev.withId === s.playerId) {
+        log.awardOnce('duet', `duet-${ev.id}`, `a harmonized duet with ${petNameFor(s, ev.id)} 🎶`);
+        catVoice(1.26);
+      }
+    } else if (ev.type === 'bat') {
+      noteBat(s, ev.id);
+      if (s.toy.active) {
+        // we currently own the yarn ball — hand authority to whoever just batted our ghost
+        if (s.net) {
+          s.net.sendEvent({
+            v: 1,
+            id: s.playerId,
+            type: 'yarn-authority',
+            toId: ev.id,
+            pos: [s.toy.mesh.position.x, s.toy.mesh.position.z],
+          });
+        }
+        s.toy.retrieve(); // silently — this isn't the player's own T-key retrieve
+      }
+    } else if (ev.type === 'yarn-authority') {
+      if (ev.toId === s.playerId && Array.isArray(ev.pos) && ev.pos.length === 2) {
+        s.toy.setPosition(new THREE.Vector3(ev.pos[0], 0.13, ev.pos[1]));
+        s.batReady = true; // freshly acquired — ready to bat right away
+      }
     }
   }
 
@@ -890,6 +1052,15 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.remotes.update(dt, nowSec());
+      // ghost ball is only shown (and batable) while I don't already have my
+      // own active toy out, and its last report is fresh — a remote who went
+      // quiet (despawned, dropped) shouldn't leave a phantom ball behind.
+      if (session.remoteToy && !session.toy.active && nowSec() - session.remoteToy.at < 1) {
+        session.toyGhost.visible = true;
+        session.toyGhost.position.set(session.remoteToy.pos[0], 0.13, session.remoteToy.pos[1]);
+      } else {
+        session.toyGhost.visible = false;
+      }
       if (session.net) {
         session.netSendAccum += dt;
         if (session.netSendAccum >= 0.125) { // 8Hz
@@ -901,6 +1072,7 @@ function init() {
             yaw: session.cat.rotation.y,
             pose: session.pose,
             speed: player.speed,
+            toy: session.toy.active ? [session.toy.mesh.position.x, session.toy.mesh.position.z] : null,
           });
         }
       }
