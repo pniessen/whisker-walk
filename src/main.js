@@ -3,6 +3,8 @@ import { createPlayer } from './player.js';
 import { bus } from './events.js';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
+import { createLeash, MAX_LEN } from './leash.js';
+import { createBrain, PERSONALITIES } from './cat/brain.js';
 
 const canvas = document.getElementById('game');
 
@@ -61,17 +63,72 @@ function init(renderer) {
   cat.position.set(0, 0, 2);
   scene.add(cat);
 
-  // debug breed/state switcher — REMOVED in Task 11
+  let brain = createBrain(cat.userData.breed);
+  const leash = createLeash(scene);
+  const catVelocity = new THREE.Vector3();
+
+  function handPosition() {
+    // just below and right of the camera
+    const hand = player.forward().multiplyScalar(0.3);
+    hand.add(camera.position).add(new THREE.Vector3(0, -0.5, 0));
+    return hand;
+  }
+
+  function updateCat(dt, t) {
+    const p = PERSONALITIES[cat.userData.breed];
+    const toPlayer = camera.position.clone().sub(cat.position);
+    toPlayer.y = 0;
+    const distToPlayer = toPlayer.length();
+    const tension = distToPlayer / MAX_LEN;
+
+    brain.update(dt, { leashTension: tension, critterNearby: false, poiNearby: false });
+
+    // pick a target by state
+    let target = null;
+    const state = brain.state;
+    if (state === 'follow' || state === 'scared') {
+      target = camera.position.clone().add(player.forward().multiplyScalar(2)).add(
+        player.forward().clone().cross(new THREE.Vector3(0, 1, 0)).multiplyScalar(0.8)
+      );
+    }
+    // sniff/nap/requestPet: stay put; distracted gets a real target in Task 9
+
+    const desired = new THREE.Vector3();
+    if (target) {
+      desired.copy(target).sub(cat.position);
+      desired.y = 0;
+      if (desired.length() > 0.4) desired.normalize().multiplyScalar(p.speed * (state === 'scared' ? 1.8 : 1));
+      else desired.set(0, 0, 0);
+    }
+    // taut leash drags the cat toward the player regardless of state
+    if (tension > 1) desired.add(toPlayer.normalize().multiplyScalar((tension - 1) * 20));
+
+    catVelocity.lerp(desired, 1 - Math.pow(0.001, dt));
+    cat.position.addScaledVector(catVelocity, dt);
+    cat.position.y = 0;
+    const speed = catVelocity.length();
+    if (speed > 0.15) {
+      const heading = Math.atan2(catVelocity.x, catVelocity.z) + Math.PI;
+      cat.rotation.y = heading;
+    }
+    animateCat(cat, state, t, speed);
+
+    // leash drags the player when the cat pulls
+    const leashTension = leash.update(handPosition(), cat.position.clone().add(new THREE.Vector3(0, 0.4, 0)));
+    player.speedFactor = leashTension > 0.9 ? Math.max(0.35, 1 - (leashTension - 0.9) * (p.pull / 4)) : 1;
+  }
+
+  // debug breed switcher — REMOVED in Task 11
   const breeds = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
-  let debugState = 'follow';
   document.addEventListener('keydown', (e) => {
     if (e.code.startsWith('Digit') && breeds[+e.code.slice(5) - 1]) {
       scene.remove(cat);
-      cat = buildCat(breeds[+e.code.slice(5) - 1], { collar: 'bell', outfit: 'bandana' });
+      const newBreed = breeds[+e.code.slice(5) - 1];
+      cat = buildCat(newBreed, { collar: 'bell', outfit: 'bandana' });
       cat.position.set(0, 0, 2);
       scene.add(cat);
+      brain = createBrain(newBreed);
     }
-    if (e.code === 'KeyN') debugState = debugState === 'nap' ? 'follow' : 'nap';
   });
 
   window.addEventListener('resize', () => {
@@ -84,7 +141,7 @@ function init(renderer) {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
     player.update(dt, [], { minX: -90, maxX: 90, minZ: -90, maxZ: 90 });
-    animateCat(cat, debugState, clock.elapsedTime, 0.5);
+    updateCat(dt, clock.elapsedTime);
     renderer.render(scene, camera);
   });
 }
