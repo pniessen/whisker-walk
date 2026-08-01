@@ -87,7 +87,11 @@ if (!renderer) {
 }
 
 function init() {
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap —
+  // matches the shadow/stray-count tuning in startWalk below, all in service
+  // of keeping frame time down on weaker mobile GPUs.
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -614,7 +618,7 @@ function init() {
       scene.add(questObject);
     }
 
-    const strayCats = createStrayCats(scene, areaData, 22, walkRng);
+    const strayCats = createStrayCats(scene, areaData, coarse ? 14 : 22, walkRng);
     const remotes = createRemoteCats(scene);
     if (roomSeed === undefined) {
       for (const stray of strayCats.strays) {
@@ -637,7 +641,7 @@ function init() {
     const scent = createScent(scene, areaData, walkRng);
 
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
     sun.shadow.camera.left = -70;
     sun.shadow.camera.right = 70;
     sun.shadow.camera.top = 70;

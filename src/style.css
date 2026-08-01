@@ -160,6 +160,11 @@ body.touch-mode .hud-controls { display: none; }
 }
 .card button:hover, .walk-together button:hover { background: #5a7eb5; }
 .walk-together button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
+@media (pointer: coarse) {
+  .card button, .hb-footer button, .pause-card button, .walk-together button {
+    min-height: 44px;
+  }
+}
 .tag { font-size: 0.85rem; color: #c0ccdd; }
 .tag.on { color: #f2c14e; font-weight: 700; }
 .friends-list { display: flex; flex-direction: column; gap: 6px; }
@@ -179,7 +184,7 @@ body.touch-mode .hud-controls { display: none; }
 .wt-petname { margin-bottom: 10px; }
 .wt-petname input, .wt-join-row input {
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-  padding: 8px 10px; color: #fff; font-size: 0.95rem;
+  padding: 8px 10px; color: #fff; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */
 }
 .wt-code-input { text-transform: uppercase; width: 5em; letter-spacing: 0.1em; }
 .wt-join-row { display: flex; gap: 8px; align-items: center; }
@@ -204,3 +209,18 @@ body.touch-mode .hud-controls { display: none; }
 .summary-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e; }
 .summary-stats .stat-label { font-size: 0.8rem; color: #a8c0e0; }
+
+/* --- Small-viewport pass: phones in either orientation. Desktop/tablet
+   layouts above are untouched — everything here is gated on max-width. --- */
+@media (max-width: 480px) {
+  .homebase-scroll { padding: 20px 14px 44px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .hud-goals { font-size: 0.72rem; padding: 6px 9px; gap: 2px; }
+  .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
+  .summary-card {
+    max-width: 92vw; margin: 0 auto; padding: 16px 0;
+    overflow-y: auto; gap: 10px;
+  }
+  .summary-card h1 { font-size: 1.7rem; }
+  .summary-stats { gap: 14px; }
+}
