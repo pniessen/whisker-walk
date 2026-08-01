@@ -248,7 +248,8 @@ function init() {
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
       <button id="btn-resume">Start walking (click)</button>
-      <button id="btn-end">End walk &amp; head home</button></div>`;
+      <button id="btn-end">End walk &amp; head home</button>
+      <p class="controls-hint">Arrows move · mouse looks · E interact · T toy · C camera · M mute</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
 

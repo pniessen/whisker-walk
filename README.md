@@ -12,7 +12,8 @@ whisker points you can spend on new cats, accessories, and places to walk.
 Open the printed localhost URL.
 
 **Controls:** click to grab the mouse · arrow keys to walk · mouse to look ·
-E to pet / pick up / greet · M to mute · Esc to pause or end the walk.
+E to pet / pick up / greet / talk · T to throw the yarn ball · C for camera ·
+M to mute · Esc to pause or end the walk.
 
 ## Develop
 
