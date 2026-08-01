@@ -35,6 +35,9 @@ export function createPlayer(camera, canvas) {
     get speed() {
       return velocity.length();
     },
+    halt() {
+      velocity.set(0, 0, 0);
+    },
     pounce() {
       const dir = velocity.length() > 0.5 ? velocity.clone().setY(0).normalize() : viewForward(yaw);
       velocity.copy(dir.multiplyScalar(9));

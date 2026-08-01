@@ -20,6 +20,7 @@ import { createAlbum } from './album.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
+import { cameraOffset } from './catcam.js';
 
 const AREAS = { neighborhood, park, seaside };
 
@@ -79,6 +80,7 @@ function init() {
     const special = PERSONALITIES[session.cat.userData.breed].special;
     if (special !== 'fearless' && special !== 'steady') {
       session.freezeTime = 1.5;
+      player.halt(); // frozen means frozen — no sliding
       hud.toast('Woof! You froze on the spot! 🙀');
     }
   });
@@ -110,7 +112,8 @@ function init() {
         hud.toast('Go grab your yarn ball first!');
       }
     }
-    if (e.code === 'Space' && session && player.locked && session.pounceCooldown <= 0 && session.freezeTime <= 0) {
+    if (e.code === 'Space' && session && player.locked && !e.repeat &&
+        !session.cameraMode && session.pounceCooldown <= 0 && session.freezeTime <= 0) {
       player.pounce();
       session.pounceTime = 0.3;
       session.pounceCooldown = 1.2;
@@ -138,12 +141,12 @@ function init() {
       outfit: state.equipped.outfit,
     });
     cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
-    cat.rotation.y = Math.PI; // face into the area (-z)
+    cat.rotation.y = 0; // rotation 0 faces -z, into the area
     scene.add(cat);
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
     const pace = 2.2 + PERSONALITIES[state.equipped.cat].speed * 0.8;
     player.setAvatar(cat, pace);
-    camera.position.set(areaData.spawn.x, 2.2, areaData.spawn.z + 4.5);
+    camera.position.copy(cat.position).add(cameraOffset(0, 0.18));
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
     const equipped = state.equipped;
@@ -343,7 +346,7 @@ function init() {
         log.awardOnce('perk', key, 'a joyful puddle splash');
       } else if (p.special !== 'steady' && !s.balkedPuddles.has(key)) {
         s.balkedPuddles.add(key);
-        s.freezeTime = 0.8;
+        s.freezeTime = Math.max(s.freezeTime, 0.8); // don't shorten a dog-scare freeze
         hud.toast('Brrr — cold paws! 💦');
       }
     }
@@ -359,7 +362,10 @@ function init() {
       } else if (dist > 1.1) {
         s.batReady = true;
       }
-      if (s.toy.idleTime > 25) s.toy.retrieve();
+      if (s.toy.idleTime > 25) {
+        s.toy.retrieve();
+        hud.toast('Your yarn ball rolled back to your pocket 🧶');
+      }
     }
 
     // pouncing mid-dash catches butterflies and fireflies
@@ -577,11 +583,6 @@ function init() {
         if (to.normalize().dot(player.forward()) > 0.6) {
           log.awardOnce('rainbow', 'rainbow', 'a rainbow after the rain! 🌈');
         }
-      }
-      if (session.toy.active &&
-          (session.toy.idleTime > 15 ||
-           (session.toy.idleTime > 0.5 && session.toy.mesh.position.distanceTo(camera.position) < 1.2))) {
-        session.toy.retrieve(); // walked over it, or everyone lost interest
       }
       updateAvatar(session, dt, t);
       updateInteractions(session);
