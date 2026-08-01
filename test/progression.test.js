@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG } from '../src/progression.js';
+import { createProgression, CATALOG, RANKS, rankFor } from '../src/progression.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -103,5 +103,57 @@ describe('createProgression', () => {
     expect(() => p2.addPoints(5)).not.toThrow();
     expect(p2.state.points).toBe(5);
     warn.mockRestore();
+  });
+
+  it('migrates a v2 save keeping data and adding v3 fields', () => {
+    const v2 = {
+      version: 2, points: 77,
+      walks: { neighborhood: 4, park: 0, seaside: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'siamese', collar: 'bell', outfit: null },
+      area: 'neighborhood',
+    };
+    const p2 = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify(v2) }));
+    expect(p2.state.points).toBe(77);
+    expect(p2.state.equipped.cat).toBe('siamese');
+    expect(p2.state.lifetimePoints).toBe(77);
+    expect(p2.state.bestWalk).toBe(0);
+    expect(p2.state.friends).toEqual({});
+    expect(p2.state.version).toBe(3);
+  });
+
+  it('accrues lifetimePoints through addPoints and never decreases on buy', () => {
+    p.addPoints(50);
+    p.buy('cats', 'black'); // costs 45
+    expect(p.state.points).toBe(5);
+    expect(p.state.lifetimePoints).toBe(50);
+  });
+
+  it('tracks friendship levels with one greet per walk per cat', () => {
+    expect(p.recordGreet('Pickles', 'tabby', 'walk-1')).toBe('met');
+    expect(p.recordGreet('Pickles', 'tabby', 'walk-1')).toBe(null); // same walk: no-op
+    expect(p.state.friends.Pickles.greets).toBe(1);
+    p.recordGreet('Pickles', 'tabby', 'walk-2');
+    expect(p.recordGreet('Pickles', 'tabby', 'walk-3')).toBe('friend'); // 3rd greet
+    expect(p.friendLevel('Pickles')).toBe('friend');
+    for (const w of ['w4', 'w5']) p.recordGreet('Pickles', 'tabby', w);
+    expect(p.recordGreet('Pickles', 'tabby', 'w6')).toBe('best');
+    expect(p.friendLevel('Nobody')).toBe('none');
+  });
+
+  it('records best walk scores', () => {
+    expect(p.recordWalkScore(30)).toBe(true);
+    expect(p.recordWalkScore(20)).toBe(false);
+    expect(p.recordWalkScore(45)).toBe(true);
+    expect(p.state.bestWalk).toBe(45);
+  });
+
+  it('maps lifetime points to ranks', () => {
+    expect(rankFor(0).title).toBe('House Cat');
+    expect(rankFor(151).title).toBe('Yard Prowler');
+    expect(rankFor(2500).title).toBe('Mythical Feline');
+    expect(rankFor(2500).next).toBe(null);
+    expect(rankFor(160).next.title).toBe('Street Smart');
+    expect(RANKS).toHaveLength(5);
   });
 });
