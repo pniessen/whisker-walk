@@ -174,6 +174,13 @@ function init() {
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
     if (e.code === 'KeyT' && session && player.locked) {
       if (!session.toy.active) {
+        // one shared yarn ball per co-walk: don't spawn a second one while a
+        // remote player's ball is in play (fresh within the same 1s
+        // staleness window the ghost render/bat logic uses)
+        if (session.remoteToy && nowSec() - session.remoteToy.at < 1) {
+          hud.toast('A yarn ball is already in play! 🧶');
+          return;
+        }
         // drop the yarn ball just ahead and give it a little kick to chase
         const drop = session.cat.position.clone()
           .add(player.forward().multiplyScalar(0.8))
@@ -564,12 +571,17 @@ function init() {
     s.pose = pose;
     animateCat(cat, pose, t, speed);
 
-    // nap pile: napping near another napping remote pet is worth a shared award
+    // nap pile: napping near another napping remote pet is worth a shared award;
+    // toast text scales with the pile size (n nearby nappers + you)
     if (pose === 'nap') {
-      const nappingNearby = s.remotes.list.some(
+      const n = s.remotes.list.filter(
         (r) => r.pose === 'nap' && r.group.position.distanceTo(cat.position) < 1.2
-      );
-      if (nappingNearby) log.awardOnce('nappile', 'nappile', 'nap pile! 😴');
+      ).length;
+      if (n >= 1) {
+        const text = `nap pile of ${n + 1}! 😴`;
+        const points = log.awardOnce('nappile', 'nappile', text);
+        if (points > 0) hud.toast(text);
+      }
     }
 
     if (progression.state.equipped.collar === 'bell' && speed > 1 && Math.random() < dt * 1.6) {
@@ -852,8 +864,10 @@ function init() {
       hud.toast(`💕 boop with ${petNameFor(s, otherId)}!`);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'boop-confirm', withId: otherId });
     }
-    s.pendingBoop = null;
-    s.incomingBoop = null;
+    // only clear state that belongs to THIS pair — an unrelated player's
+    // boop-confirm shouldn't wipe an in-flight request to a third player
+    if (s.pendingBoop?.withId === otherId) s.pendingBoop = null;
+    if (s.incomingBoop?.fromId === otherId) s.incomingBoop = null;
   }
 
   // Yarn-rally counter: every 'bat' event we observe — our own outgoing
