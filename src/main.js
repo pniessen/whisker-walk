@@ -63,6 +63,14 @@ function init() {
   bus.on('critter:scare', () => {
     if (session && session.brain.scare()) hud.toast('Woof! Your cat got spooked!');
   });
+  bus.on('villager:wave', ({ id }) => {
+    if (session && progression.state.equipped.outfit === 'bandana') {
+      log.award('perk', `wave-${id}`, 'a friendly wave back');
+    }
+  });
+  bus.on('cat:pounce', () => {
+    if (session) log.award('perk', 'pounce', 'a perfect pounce!');
+  });
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') canvas.requestPointerLock();
     if (e.target.id === 'btn-end') endWalk();
@@ -88,7 +96,19 @@ function init() {
     cat.position.set(areaData.spawn.x + 1, 0, areaData.spawn.z - 2);
     scene.add(cat);
 
-    const critters = createCritters(scene, areaData.critterSpawns, {});
+    const equipped = state.equipped;
+    const critters = createCritters(scene, areaData.critterSpawns, {
+      fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
+      spawnFireflies: duskMode && equipped.collar === 'glow', // glow: dusk fireflies
+      trailButterflies: equipped.outfit === 'crown',           // crown: butterflies trail the cat
+    });
+
+    if (duskMode && equipped.collar === 'glow') {
+      const { top, horizon } = areaData.skyDusk;
+      scene.background = new THREE.Color(top);
+      scene.fog = new THREE.Fog(horizon, 30, 110);
+      sun.intensity = 0.7;
+    }
 
     const collectibleMeshes = new Map();
     for (const c of areaData.collectibles) {
@@ -106,10 +126,11 @@ function init() {
       brain: createBrain(state.equipped.cat),
       leash: createLeash(scene),
       catVelocity: new THREE.Vector3(),
-      walk: { carried: 0, carryCap: 2 },
+      walk: { carried: 0, carryCap: equipped.outfit === 'backpack' ? 3 : 2 },
       momentTimer: 40,
       activeMoment: null,
       prompt: null,
+      balkedPuddles: new Set(),
     };
 
     log.startWalk();
@@ -180,6 +201,19 @@ function init() {
     if (speed > 0.15) cat.rotation.y = Math.atan2(s.catVelocity.x, s.catVelocity.z) + Math.PI;
     animateCat(cat, state, t, speed);
 
+    for (const pd of s.areaData.puddles) {
+      const inPuddle = Math.hypot(pd.x - cat.position.x, pd.z - cat.position.z) < pd.r + 0.2;
+      if (!inPuddle) continue;
+      const key = `puddle-${pd.x}-${pd.z}`;
+      if (progression.state.equipped.outfit === 'booties') {
+        log.awardOnce('perk', key, 'a joyful puddle splash');
+      } else if (p.special !== 'steady' && !s.balkedPuddles.has(key)) {
+        s.balkedPuddles.add(key);
+        brain.set('follow', 2);
+        hud.toast('Your cat balks at the puddle! 💦');
+      }
+    }
+
     if (state === 'distracted') {
       const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
       if (caught && p.special === 'pouncer') bus.emit('cat:pounce', { critter: caught });
@@ -193,6 +227,11 @@ function init() {
   }
 
   function updateInteractions(s) {
+    const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
+    for (const [id, m] of s.collectibleMeshes) {
+      const c = s.areaData.collectibles.find((x) => x.id === id);
+      m.visible = Math.hypot(c.x - camera.position.x, c.z - camera.position.z) < reveal;
+    }
     for (const c of s.critters.list) {
       if (!c.spottable || c.fleeing) continue;
       const to = c.group.position.clone().sub(camera.position).setY(0);
@@ -232,8 +271,14 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
-    } else if (s.prompt.kind === 'pet' && s.brain.pet()) {
-      log.award('pet', 'pet', 'a rumbling purr');
+    } else if (s.prompt.kind === 'pet') {
+      const wasNapping = s.brain.state === 'nap';
+      if (s.brain.pet()) {
+        log.award('pet', 'pet', 'a rumbling purr');
+        if (wasNapping && PERSONALITIES[s.cat.userData.breed].special === 'napper') {
+          log.award('perk', 'nap-pet', 'a deep sleepy purr');
+        }
+      }
     }
   }
 

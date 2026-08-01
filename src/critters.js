@@ -91,7 +91,7 @@ export function createCritters(scene, spawns, opts = {}) {
       type: def.type,
       def,
       group,
-      spottable: def.type !== 'firefly',
+      spottable: true,
       fleeing: false,
       phase: Math.random() * Math.PI * 2,
       cooldown: 0,
@@ -105,6 +105,12 @@ export function createCritters(scene, spawns, opts = {}) {
   if (opts.spawnFireflies) {
     for (let i = 0; i < 8; i++) {
       spawn({ type: 'firefly', x: (Math.random() - 0.5) * 60, z: (Math.random() - 0.5) * 60 });
+    }
+  }
+  if (opts.trailButterflies) {
+    for (let i = 0; i < 2; i++) {
+      const c = spawn({ type: 'butterfly', x: 0, z: 0 });
+      c.trail = true; // butterfly wander centers on the cat (see update)
     }
   }
 
