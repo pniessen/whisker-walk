@@ -189,6 +189,8 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 }
 .friend-icon { margin-right: 6px; }
 .friend-name { font-weight: 700; color: #fff; }
+.player-pets { margin-top: 12px; }
+.player-pets h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 6px; font-weight: 700; }
 .hb-footer { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
 .hb-footer .primary { background: #f2c14e; color: #3a2a10; font-size: 1.15rem; padding: 12px 22px; }
 .hb-footer .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }

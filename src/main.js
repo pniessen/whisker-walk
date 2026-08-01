@@ -200,6 +200,28 @@ function init() {
     };
   }
 
+  // Cloud profile push (Task 3): publishes what's currently equipped under
+  // this device's playerId/secret. Guarded on MP and on having a pet name —
+  // an unnamed pet was never walk-together-visible either, so there's
+  // nothing meaningful to publish yet. Fire-and-forget with a console-only
+  // catch, same pattern as sync.autoSync: profile visibility lagging by one
+  // push is fine, but it must never block or throw into a caller.
+  function pushProfileNow() {
+    if (!MP) return;
+    const st = progression.state;
+    if (!st.petName) return;
+    const cloud = getCloud();
+    if (!cloud) return;
+    cloud.pushProfile({
+      playerId: pid,
+      secret: psecret,
+      petName: st.petName,
+      breed: st.equipped.cat,
+      accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
+      rankTitle: rankFor(st.lifetimePoints).title,
+    }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
+  }
+
   // The host broadcasts walk-config once (on Start); every other member of
   // the room is idle on the home base screen with this handler wired up via
   // setupRoomNet, so receiving it is what actually launches their walk —
@@ -264,6 +286,7 @@ function init() {
       setupRoomNet(net, code);
       roomOpInFlight = false;
       notifyRoomChange();
+      pushProfileNow(); // fire-and-forget — the room roster already carries petName/breed live
       return { ok: true, code };
     },
     async join(code) {
@@ -288,6 +311,7 @@ function init() {
       setupRoomNet(net, code);
       roomOpInFlight = false;
       notifyRoomChange();
+      pushProfileNow(); // fire-and-forget — same as host() above
       return { ok: true, code };
     },
     async leave() {
@@ -479,7 +503,22 @@ function init() {
     }
   }
 
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync);
+  // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
+  // lazy cloud instance, handed to homebase so it can fetch friendships +
+  // profiles for its own async render without knowing about MP/getCloud.
+  const homebaseCloud = {
+    available: MP,
+    myId: pid,
+    fetchFriendships(id) {
+      const cloud = getCloud();
+      return cloud ? cloud.fetchFriendships(id) : Promise.reject(new Error('cloud unavailable'));
+    },
+    fetchProfiles(ids) {
+      const cloud = getCloud();
+      return cloud ? cloud.fetchProfiles(ids) : Promise.reject(new Error('cloud unavailable'));
+    },
+  };
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud);
   homebase.show();
 
   function noteGoal(type) {
@@ -956,6 +995,7 @@ function init() {
   function endWalk() {
     if (!session) return;
     progression.completeWalk();
+    pushProfileNow(); // refresh the public profile (rank/equip may have changed) while a petName exists
 
     // compute summary numbers while the session is still live
     const earned = progression.state.points - session.startPoints;
@@ -1361,6 +1401,25 @@ function init() {
       turnToFace(s, otherId);
       hud.toast(`💕 boop with ${petNameFor(s, otherId)}!`);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'boop-confirm', withId: otherId });
+      // cross-walk friendship persistence (Task 3): fire-and-forget,
+      // gated on the same `points > 0` branch as the local award so a
+      // redundant completeBoop reached via more than one of the three
+      // convergence paths never sends a second greet for this walk — the
+      // server also dedupes per pair-per-walk via walkStamp, this just
+      // avoids a wasted round trip on the obviously-redundant paths.
+      if (MP) {
+        const cloud = getCloud();
+        if (cloud) {
+          const name = petNameFor(s, otherId);
+          cloud.recordGreet(s.playerId, psecret, otherId, s.walkStamp)
+            .then((greets) => {
+              if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
+              else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
+              else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
+            })
+            .catch((err) => console.warn('Whisker Walk: recordGreet failed', err));
+        }
+      }
     }
     // only clear state that belongs to THIS pair — an unrelated player's
     // boop-confirm shouldn't wipe an in-flight request to a third player

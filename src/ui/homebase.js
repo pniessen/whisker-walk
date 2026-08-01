@@ -34,10 +34,45 @@ function escapeHtml(str) {
   }[c]));
 }
 
-export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
+// last_seen (profiles) / a fetch timestamp rendered as a short relative
+// string ("2h ago"). Anything not a valid date collapses to '' rather than
+// "NaNh ago".
+function relativeTime(iso) {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
+// same 1/3/6 ladder as LEVEL_ICON above, applied to a friendships row's
+// greets count instead of a local friend's.
+function heartFor(greets) {
+  if (greets >= 6) return '💕';
+  if (greets >= 3) return '♥';
+  return '♡';
+}
+
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
+
+  // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
+  // entire innerHTML on nearly every interaction (buy/equip/room changes),
+  // so this section can't hold fetched data as component state the way
+  // cloudPreview etc. do above: render() always emits a fresh "loading…"
+  // placeholder with a stable id, and a separate async function fills it
+  // in afterward. `playerPetsToken` guards re-entrancy — if render() (and
+  // therefore loadPlayerPets()) runs again before an in-flight fetch
+  // resolves, the stale fetch's token no longer matches and it no-ops
+  // instead of writing fetched-for-the-old-DOM data into the new one.
+  let playerPetsToken = 0;
 
   // Sync ☁️ section state — mirrors the wt-*/joinError pattern above.
   let cloudBusy = false;
@@ -167,6 +202,55 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
     return body;
   }
 
+  function renderPlayerPets() {
+    if (!cloud || !cloud.available) return '';
+    return `
+      <div id="player-pets-section" class="player-pets">
+        <h3>Player pets 🐾🐾</h3>
+        <div id="player-pets-roster" class="tag">loading…</div>
+      </div>`;
+  }
+
+  // Fetches this device's cross-walk friendships + the other players'
+  // public profiles, then fills the "#player-pets-roster" placeholder that
+  // render() just emitted. Must be called AFTER root.innerHTML is set (the
+  // placeholder has to already exist in the DOM). Errors omit the whole
+  // subsection quietly rather than leaving a stuck "loading…" — profiles
+  // of players you've walked with are a nice-to-have, not core UI.
+  async function loadPlayerPets() {
+    const token = ++playerPetsToken;
+    try {
+      const rows = await cloud.fetchFriendships(cloud.myId);
+      const otherIds = [...new Set(rows.map((r) => (r.a_id === cloud.myId ? r.b_id : r.a_id)))];
+      const profiles = otherIds.length ? await cloud.fetchProfiles(otherIds) : [];
+      if (token !== playerPetsToken) return; // a newer render()/loadPlayerPets() superseded this fetch
+      const el = root.querySelector('#player-pets-roster');
+      if (!el) return; // section isn't in the current DOM (re-rendered away, e.g. cloud went unavailable)
+      const profileById = new Map(profiles.map((p) => [p.player_id, p]));
+      // petName/breed/last_seen all arrive from OTHER players' pushProfile
+      // calls — untrusted, same class as walk-together roster names —
+      // escapeHtml every one of them before interpolating.
+      const rowsHtml = rows
+        .map((r) => {
+          const otherId = r.a_id === cloud.myId ? r.b_id : r.a_id;
+          const p = profileById.get(otherId);
+          if (!p) return '';
+          return `<div class="friend-row">
+            <span class="friend-icon">${heartFor(r.greets)}</span>
+            <span class="friend-name">${escapeHtml(p.pet_name)}</span> — ${escapeHtml(p.breed)}, ${escapeHtml(relativeTime(p.last_seen))}
+          </div>`;
+        })
+        .filter(Boolean)
+        .join('');
+      el.outerHTML = rowsHtml
+        ? `<div id="player-pets-roster" class="friends-list">${rowsHtml}</div>`
+        : `<div id="player-pets-roster" class="tag">No player pets yet — walk together and touch noses!</div>`;
+    } catch (err) {
+      if (token !== playerPetsToken) return;
+      root.querySelector('#player-pets-section')?.remove();
+    }
+  }
+
   function render() {
     const s = progression.state;
     const glowReady = s.equipped.collar === 'glow';
@@ -211,7 +295,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
                   <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
                 </div>`).join('')
             : '<div class="tag">No cat friends yet — go touch noses!</div>'}
-        </div></section>
+        </div>
+        ${renderPlayerPets()}
+        </section>
         <section class="walk-together"><h2>Walk together 🐾🐾</h2>
           ${renderWalkTogether()}
         </section>
@@ -224,6 +310,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync) {
           <button id="btn-reset" class="danger">Start over</button>
         </footer>
       </div>`;
+    if (cloud && cloud.available) loadPlayerPets();
   }
 
   root.addEventListener('click', async (e) => {
