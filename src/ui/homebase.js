@@ -92,6 +92,7 @@ export function createHomeBase(progression, album, onStartWalk) {
     if (e.target.id === 'btn-reset') {
       if (window.confirm('Erase all progress and start over?')) {
         progression.reset();
+        album.clear();
         render();
       }
       return;

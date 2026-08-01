@@ -95,7 +95,7 @@ function init() {
     if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
     if (e.code === 'KeyT' && session && player.locked && !session.toy.active) {
       session.toy.throwFrom(handPosition(), player.forward());
-      session.toyPlay = { bats: 0, returning: false };
+      session.toyPlay = { bats: 0, returning: false, batReady: true };
       session.brain.set('fetch', 14);
     }
     if (e.code === 'KeyC' && session && player.locked) {
@@ -237,7 +237,7 @@ function init() {
       activeMoment: null,
       prompt: null,
       balkedPuddles: new Set(),
-      toy, toyPlay: { bats: 0, returning: false },
+      toy, toyPlay: { bats: 0, returning: false, batReady: true },
       cameraMode: false,
     };
 
@@ -311,16 +311,23 @@ function init() {
         brain.set('follow', 2);
       } else {
         target = s.toy.mesh.position.clone();
-        if (cat.position.distanceTo(s.toy.mesh.position) < 0.6) {
+        const catToyDist = cat.position.distanceTo(s.toy.mesh.position);
+        if (catToyDist < 0.6) {
           if (s.toyPlay.bats < 2) {
-            s.toyPlay.bats += 1;
-            s.toy.bat(cat.position);
+            if (s.toyPlay.batReady) {
+              s.toyPlay.bats += 1;
+              s.toy.bat(cat.position);
+              s.toyPlay.batReady = false;
+            }
           } else if (p.special === 'pouncer' || p.special === 'chaser') {
             s.toyPlay.returning = true;
             s.toy.nudgeToward(camera.position, dt);
           } else {
             brain.set('follow', 3); // lost interest — ball stays put
           }
+        }
+        if (catToyDist > 1.2) {
+          s.toyPlay.batReady = true;
         }
         if (s.toyPlay.returning && s.toy.mesh.position.distanceTo(camera.position) < 2) {
           log.award('play', 'fetch', 'a perfect fetch!');
