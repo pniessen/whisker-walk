@@ -19,6 +19,7 @@ import { createHomeBase } from './ui/homebase.js';
 import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
 import { rollWeather, createWeather } from './weather.js';
+import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
 
 const AREAS = { neighborhood, park, seaside };
@@ -156,6 +157,9 @@ function init() {
       }
     }
 
+    const secretRolls = rollSecrets(Math.random, { eveningLight: duskActive || weather.condition === 'sunset' });
+    const secrets = createSecrets(scene, areaData, secretRolls, Math.random);
+
     const critters = createCritters(scene, areaData.critterSpawns, {
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
@@ -223,6 +227,7 @@ function init() {
     session = {
       scene, areaData, cat, critters, strayCats, collectibleMeshes, duskMode,
       weather,
+      secrets, lastPlayerPos: new THREE.Vector3().copy(camera.position),
       quest, questGiver, questObject,
       brain: createBrain(state.equipped.cat),
       leash: createLeash(scene),
@@ -393,6 +398,13 @@ function init() {
         log.awardOnce('critter', `spot-${stray.id}`, 'a wandering stray cat');
       }
     }
+    for (const sec of s.secrets.list) {
+      if (!sec.group.visible) continue;
+      const to = sec.group.position.clone().sub(camera.position).setY(0);
+      if (to.length() < sec.spotRange && to.normalize().dot(player.forward()) > 0.5) {
+        log.awardOnce(sec.award, sec.key, sec.label);
+      }
+    }
     s.prompt = null;
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
@@ -554,6 +566,9 @@ function init() {
       session.strayCats.update(dt, t);
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
+      const playerSpeed = camera.position.distanceTo(session.lastPlayerPos) / Math.max(dt, 0.001);
+      session.lastPlayerPos.copy(camera.position);
+      session.secrets.update(dt, t, camera.position, playerSpeed);
       if (session.weather.rainbowVisible) {
         const to = new THREE.Vector3(session.weather.rainbowPos.x, 0, session.weather.rainbowPos.z).sub(camera.position).setY(0);
         if (to.normalize().dot(player.forward()) > 0.6) {
