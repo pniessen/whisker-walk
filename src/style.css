@@ -5,13 +5,6 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 #hud, #homebase, #overlay { position: absolute; inset: 0; }
 .hidden { display: none !important; }
 
-.pause-card {
-  display: grid; place-items: center; height: 100%;
-  background: rgba(20, 26, 38, 0.55); text-align: center;
-  cursor: pointer; pointer-events: none;
-}
-.pause-card h1 { font-size: 2.2rem; margin-bottom: 0.4rem; }
-
 #hud { pointer-events: none; }
 .hud-top {
   position: absolute; top: 16px; left: 16px; right: 16px;
@@ -38,3 +31,34 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   font-size: 1.6rem; opacity: 0.7;
 }
+
+#homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }
+.homebase-scroll { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+.hb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+.hb-header h1 { font-size: 2rem; }
+.hb-points { font-size: 1.2rem; color: #f2c14e; }
+#homebase section { margin-bottom: 22px; }
+#homebase h2 { font-size: 1.1rem; margin-bottom: 10px; color: #a8c0e0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.card {
+  background: rgba(255,255,255,0.07); border-radius: 12px; padding: 12px;
+  display: flex; flex-direction: column; gap: 6px; border: 2px solid transparent;
+}
+.card.selected { border-color: #f2c14e; }
+.card.locked { opacity: 0.75; }
+.card-name { font-weight: 700; }
+.card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
+.card button, .hb-footer button, .pause-card button {
+  border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  background: #4a6ea5; color: #fff; font-weight: 700;
+}
+.card button:hover { background: #5a7eb5; }
+.tag { font-size: 0.85rem; color: #c0ccdd; }
+.tag.on { color: #f2c14e; font-weight: 700; }
+.hb-footer { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
+.hb-footer .primary { background: #f2c14e; color: #3a2a10; font-size: 1.15rem; padding: 12px 22px; }
+.hb-footer .danger { background: transparent; color: #d08080; margin-left: auto; }
+.dusk { color: #c8b8f0; }
+.pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
+  height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
+.pause-card h1 { font-size: 2.2rem; }
