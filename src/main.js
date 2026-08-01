@@ -414,7 +414,6 @@ function init() {
         log.award('quest', 'quest', s.quest.texts.done);
         hud.setObjective(null);
         if (s.questObject) s.questObject.visible = false;
-        audio.chime();
       }
     } else if (s.prompt.kind === 'stray') {
       const stray = s.prompt.data;
