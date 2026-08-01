@@ -392,7 +392,10 @@ function init() {
           remotes.upsert(p, nowSec());
         }
       });
-      net.onState((state) => remotes.applyState(state, nowSec()));
+      net.onState((state) => {
+        if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
+        remotes.applyState(state, nowSec());
+      });
     }
 
     log.startWalk();

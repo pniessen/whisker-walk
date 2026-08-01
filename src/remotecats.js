@@ -14,6 +14,38 @@ function wrapAngleDelta(delta) {
 
 const defaultNow = () => performance.now() / 1000;
 
+// mirrors endWalk's scene-teardown traversal in main.js — dispose every
+// geometry/material (and any material.map, which covers the name-tag's
+// CanvasTexture) reachable from a detached group so despawning/replacing a
+// remote pet doesn't leak GPU resources across joins/leaves.
+function disposeGroup(group) {
+  group.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      }
+    }
+  });
+}
+
+function accessoriesKey(accessories) {
+  try {
+    return JSON.stringify(accessories ?? null);
+  } catch {
+    return String(accessories);
+  }
+}
+
+function profileUnchanged(entry, profile) {
+  return (
+    entry.breed === profile.breed &&
+    entry.petName === profile.petName &&
+    accessoriesKey(entry.accessories) === accessoriesKey(profile.accessories)
+  );
+}
+
 // createRemoteCats(scene) -> remotes
 //
 // Renders other players' pets during a co-walk. Each remote pet is built
@@ -27,7 +59,10 @@ export function createRemoteCats(scene) {
 
   function upsert(profile, now = defaultNow()) {
     const existing = remotes.get(profile.playerId);
-    if (existing) return existing;
+    if (existing) {
+      if (profileUnchanged(existing, profile)) return existing;
+      remove(profile.playerId); // rejoined with a different pet — drop the stale mesh and rebuild
+    }
 
     const group = buildCat(profile.breed, profile.accessories, { simple: true });
     const tag = makeNameTag(profile.petName);
@@ -41,6 +76,7 @@ export function createRemoteCats(scene) {
       playerId: profile.playerId,
       petName: profile.petName,
       breed: profile.breed,
+      accessories: profile.accessories,
       group,
       tag,
       fromPos: new THREE.Vector3(0, 0, 0),
@@ -74,6 +110,7 @@ export function createRemoteCats(scene) {
     const entry = remotes.get(playerId);
     if (!entry) return;
     scene.remove(entry.group);
+    disposeGroup(entry.group);
     remotes.delete(playerId);
   }
 
@@ -106,8 +143,7 @@ export function createRemoteCats(scene) {
   }
 
   function dispose() {
-    for (const entry of remotes.values()) scene.remove(entry.group);
-    remotes.clear();
+    for (const playerId of Array.from(remotes.keys())) remove(playerId);
   }
 
   return {
