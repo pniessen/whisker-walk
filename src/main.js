@@ -10,6 +10,7 @@ import * as seaside from './world/seaside.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
 import { createRemoteCats } from './remotecats.js';
+import { rollGhosts, createGhosts } from './ghosts.js';
 import { createTippables } from './tippables.js';
 import { createScent } from './scent.js';
 import { createToy } from './toy.js';
@@ -31,6 +32,10 @@ import { createNet, createSupabaseTransport, generateRoomCode, validPetName } fr
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from './cloud.js';
 
 const AREAS = { neighborhood, park, seaside };
+// default session.ghosts before (or absent) an async spawn resolves — lets
+// the render loop/updateInteractions/endWalk call the ghosts API
+// unconditionally instead of null-checking it everywhere.
+const NO_GHOSTS = { list: [], nearest: () => null, update() {}, dispose() {} };
 // wall-clock seconds, used to keep remote-pet interpolation/despawn timing
 // consistent between the async net callbacks and the render loop
 const nowSec = () => performance.now() / 1000;
@@ -220,6 +225,53 @@ function init() {
       accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
       rankTitle: rankFor(st.lifetimePoints).title,
     }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
+  }
+
+  // Ghost visits (Task 4): fetch this player's cross-walk friendships +
+  // their public profiles, roll which (if any) show up via rollGhosts, and
+  // spawn them into `mySession`'s scene. Called fire-and-forget from
+  // startWalk right after the session is built — `mySession` is captured
+  // up front (rather than reading the outer `session` variable at resolve
+  // time) so a slow response can't attach ghosts to a scene that's since
+  // been torn down (endWalk) or replaced by a different walk; every await
+  // re-checks `session === mySession` before touching anything.
+  async function spawnGhosts(mySession) {
+    const cloud = getCloud();
+    if (!cloud) return;
+    try {
+      const rows = await cloud.fetchFriendships(pid);
+      if (session !== mySession) return;
+      const greetsById = new Map();
+      const otherIds = [];
+      for (const r of rows) {
+        const otherId = r.a_id === pid ? r.b_id : r.a_id;
+        otherIds.push(otherId);
+        greetsById.set(otherId, r.greets);
+      }
+      if (!otherIds.length) return;
+      const profiles = await cloud.fetchProfiles(otherIds);
+      if (session !== mySession) return;
+      const profileById = new Map(profiles.map((p) => [p.player_id, p]));
+      const friends = otherIds
+        .map((id) => ({ playerId: id, greets: greetsById.get(id) ?? 0, profile: profileById.get(id) }))
+        .filter((f) => f.profile); // a friendship row with no matching profile (deleted/unpublished) can't be visited
+      const chosen = rollGhosts(Math.random, friends);
+      if (!chosen.length) return;
+      mySession.ghosts = createGhosts(
+        mySession.scene,
+        mySession.areaData,
+        chosen.map((f) => ({
+          playerId: f.playerId,
+          petName: f.profile.pet_name,
+          breed: f.profile.breed,
+          accessories: f.profile.accessories,
+          greets: f.greets,
+        })),
+        Math.random
+      );
+    } catch (err) {
+      console.warn('Whisker Walk: ghost spawn failed', err);
+    }
   }
 
   // The host broadcasts walk-config once (on Start); every other member of
@@ -516,6 +568,22 @@ function init() {
     fetchProfiles(ids) {
       const cloud = getCloud();
       return cloud ? cloud.fetchProfiles(ids) : Promise.reject(new Error('cloud unavailable'));
+    },
+    // Friend codes (Task 4): homebase never sees psecret directly — it
+    // passes back only the raw prefix (findByFriendCode) or the resolved
+    // other-player id (addFriendByCode), same "thin adapter" boundary Task
+    // 3 established for fetchFriendships/fetchProfiles above.
+    findByFriendCode(prefix) {
+      const cloud = getCloud();
+      return cloud ? cloud.findByFriendCode(prefix) : Promise.reject(new Error('cloud unavailable'));
+    },
+    addFriendByCode(otherId) {
+      const cloud = getCloud();
+      if (!cloud) return Promise.reject(new Error('cloud unavailable'));
+      // a fresh synthetic walkStamp — this isn't tied to an in-progress
+      // walk (it's a home-base action), just a dedupe key the server
+      // expects; record_friend_greet starts a brand-new pair at 'met'.
+      return cloud.recordGreet(pid, psecret, otherId, 'friendcode-' + Date.now());
     },
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud);
@@ -896,6 +964,7 @@ function init() {
 
     session = {
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      ghosts: NO_GHOSTS,
       walkStamp,
       netSendAccum: 0,
       goals,
@@ -971,6 +1040,14 @@ function init() {
       net.onEvent((ev) => applyRemoteEvent(session, ev));
     }
 
+    // Ghost visits (Task 4): cross-walk friends occasionally show up as a
+    // translucent visitor on a SOLO walk only — a room co-walk already has
+    // live remote pets rendered via `remotes`, and ghosts/rooms don't mix
+    // (see the plan's "ghosts solo-only" note). Fetching friendships +
+    // profiles is unavoidably async, so ghosts pop in a moment after the
+    // walk starts; that's fine.
+    if (roomSeed === undefined && MP) spawnGhosts(session);
+
     log.startWalk();
     hud.show();
     hud.setArea(areaData.name);
@@ -1042,6 +1119,7 @@ function init() {
     session.critters.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
+    session.ghosts.dispose();
     session = null;
     player.disable();
     hud.hide();
@@ -1218,6 +1296,15 @@ function init() {
         stray.hasGift = false;
       }
     }
+    // best-friend ghosts (greets >= 6) may be carrying a gift, rolled once
+    // at spawn by createGhosts — same "close enough" proximity grant as the
+    // stray gift check just above.
+    for (const ghost of s.ghosts.list) {
+      if (ghost.hasGift && ghost.group.position.distanceTo(catP) < 3) {
+        log.awardOnce('gift', 'gift-ghost-' + ghost.playerId, `${ghost.petName} 👻 brought you a gift!`);
+        ghost.hasGift = false;
+      }
+    }
     for (const sec of s.secrets.list) {
       if (!sec.group.visible) continue;
       const to = sec.group.position.clone().sub(catP).setY(0);
@@ -1270,6 +1357,13 @@ function init() {
       if (stray) {
         s.prompt = { kind: 'stray', data: stray };
         setPrompt(`E — touch noses with ${stray.name}`);
+      }
+    }
+    if (!s.prompt) {
+      const ghost = s.ghosts.nearest(catP, 2.5);
+      if (ghost) {
+        s.prompt = { kind: 'ghost', data: ghost };
+        setPrompt(`E — touch noses with ${ghost.petName} 👻`);
       }
     }
     if (!s.prompt) {
@@ -1344,6 +1438,29 @@ function init() {
       else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
       else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
       catVoice();
+    } else if (s.prompt.kind === 'ghost') {
+      const ghost = s.prompt.data;
+      s.ghosts.greet(ghost, s.cat.position);
+      s.catsGreeted += 1;
+      catVoice();
+      // local one-time award, same shape as the stray 'friend' award above —
+      // only fires cloud.recordGreet on the walk this ghost is first
+      // greeted (points > 0 means awardOnce actually paid out this time).
+      const points = log.awardOnce('friend', `friend-ghost-${ghost.playerId}`, `${ghost.petName} 👻 visited`);
+      if (points > 0 && MP) {
+        const cloud = getCloud();
+        if (cloud) {
+          const name = ghost.petName;
+          cloud.recordGreet(pid, psecret, ghost.playerId, s.walkStamp)
+            .then((greets) => {
+              // same 1/3/6 ladder wording as Task 3's completeBoop toasts
+              if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
+              else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);
+              else if (greets === 6) hud.toast(`${name} is now your BEST friend across walks! 💕`);
+            })
+            .catch((err) => console.warn('Whisker Walk: ghost recordGreet failed', err));
+        }
+      }
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) {
@@ -1557,6 +1674,7 @@ function init() {
     }
     for (const st of s.strayCats.strays) candidates.push({ key: 'stray', label: 'a stray cat', pos: st.group.position });
     for (const r of s.remotes.list) candidates.push({ key: 'friend-pet', label: r.petName, pos: r.group.position });
+    for (const g of s.ghosts.list) candidates.push({ key: 'friend-pet', label: g.petName, pos: g.group.position });
     for (const sec of s.secrets?.list ?? []) {
       if (sec.group.visible) candidates.push({ key: sec.key, label: sec.label, pos: sec.group.position });
     }
@@ -1623,6 +1741,7 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.remotes.update(dt, nowSec());
+      session.ghosts.update(dt, t);
       // ghost ball is only shown (and batable) while I don't already have my
       // own active toy out, and its last report is fresh — a remote who went
       // quiet (despawned, dropped) shouldn't leave a phantom ball behind.

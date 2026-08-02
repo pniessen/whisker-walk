@@ -58,6 +58,16 @@ function heartFor(greets) {
   return '♡';
 }
 
+// Friend codes (Task 4): a code is just "CAT-" + the first 8 hex chars of
+// a playerId (the first hyphen-free chunk of the underlying UUID) —
+// normalizing strips a leading "CAT-" (any case), trims, and lowercases so
+// it matches the lowercase hex `player_id` column that findByFriendCode's
+// `like`-prefix query runs against (Postgres `like` is case-sensitive).
+function normalizeFriendCode(input) {
+  return String(input ?? '').trim().replace(/^cat-/i, '').toLowerCase();
+}
+const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
+
 export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud) {
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -73,6 +83,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // resolves, the stale fetch's token no longer matches and it no-ops
   // instead of writing fetched-for-the-old-DOM data into the new one.
   let playerPetsToken = 0;
+
+  // Friend codes (Task 4) section state — mirrors the wt-*/joinError
+  // pattern above: busy flag, an error string, and (once a code resolves
+  // to a real, non-self profile) a pending confirm-card candidate.
+  let friendCodeBusy = false;
+  let friendCodeError = null;
+  let friendCodeCandidate = null; // { playerId, petName, breed } | null
+  let friendCodeSuccess = null; // short "Added X!" line shown once after confirm
 
   // Sync ☁️ section state — mirrors the wt-*/joinError pattern above.
   let cloudBusy = false;
@@ -202,12 +220,36 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return body;
   }
 
+  function renderFriendCode() {
+    const code = `CAT-${cloud.myId.slice(0, 8).toUpperCase()}`;
+    return `
+      <div class="friend-code-block">
+        <div class="tag">Your friend code: <strong>${escapeHtml(code)}</strong></div>
+        <div class="wt-join-row">
+          <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" />
+          <button id="friend-code-add" ${friendCodeBusy ? 'disabled' : ''}>Add a friend by code</button>
+        </div>
+        ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
+        ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
+        ${friendCodeCandidate ? `
+          <div class="friend-code-confirm">
+            <div class="tag">Add <strong>${escapeHtml(friendCodeCandidate.petName)}</strong>
+              (${escapeHtml(friendCodeCandidate.breed)}) as a friend?</div>
+            <div class="sync-actions">
+              <button id="friend-code-confirm" class="primary" ${friendCodeBusy ? 'disabled' : ''}>Add friend</button>
+              <button id="friend-code-cancel" ${friendCodeBusy ? 'disabled' : ''}>Cancel</button>
+            </div>
+          </div>` : ''}
+      </div>`;
+  }
+
   function renderPlayerPets() {
     if (!cloud || !cloud.available) return '';
     return `
       <div id="player-pets-section" class="player-pets">
         <h3>Player pets 🐾🐾</h3>
         <div id="player-pets-roster" class="tag">loading…</div>
+        ${renderFriendCode()}
       </div>`;
   }
 
@@ -364,6 +406,55 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     if (e.target.id === 'wt-leave') {
       await rooms.leave();
+      render();
+      return;
+    }
+    if (e.target.id === 'friend-code-add') {
+      const input = root.querySelector('#friend-code-input');
+      const prefix = normalizeFriendCode(input?.value ?? '');
+      friendCodeError = null;
+      friendCodeCandidate = null;
+      friendCodeSuccess = null;
+      if (!FRIEND_CODE_RE.test(prefix)) {
+        friendCodeError = 'Enter a valid friend code, e.g. CAT-3FA85F64.';
+        render();
+        return;
+      }
+      friendCodeBusy = true;
+      render();
+      try {
+        const rows = await cloud.findByFriendCode(prefix);
+        const self = rows.some((r) => r.player_id === cloud.myId);
+        const match = rows.find((r) => r.player_id !== cloud.myId);
+        if (match) {
+          friendCodeCandidate = { playerId: match.player_id, petName: match.pet_name, breed: match.breed };
+        } else {
+          friendCodeError = self ? "That's your own code!" : 'No player found with that code.';
+        }
+      } catch (err) {
+        friendCodeError = 'Could not look up that code — try again.';
+      }
+      friendCodeBusy = false;
+      render();
+      return;
+    }
+    if (e.target.id === 'friend-code-confirm') {
+      friendCodeBusy = true;
+      render();
+      try {
+        await cloud.addFriendByCode(friendCodeCandidate.playerId);
+        friendCodeSuccess = `Added ${friendCodeCandidate.petName} as a friend!`;
+        friendCodeCandidate = null;
+        friendCodeError = null;
+      } catch (err) {
+        friendCodeError = 'Could not add that friend — try again.';
+      }
+      friendCodeBusy = false;
+      render();
+      return;
+    }
+    if (e.target.id === 'friend-code-cancel') {
+      friendCodeCandidate = null;
       render();
       return;
     }
