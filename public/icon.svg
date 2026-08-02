@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c2431"/>
+
+  <!-- ears -->
+  <polygon points="146,206 214,112 234,224" fill="#f1e0c2"/>
+  <polygon points="366,206 298,112 278,224" fill="#f1e0c2"/>
+  <polygon points="168,196 208,150 218,214" fill="#e7a9a0"/>
+  <polygon points="344,196 304,150 294,214" fill="#e7a9a0"/>
+
+  <!-- head -->
+  <circle cx="256" cy="296" r="146" fill="#f1e0c2"/>
+
+  <!-- tabby markings -->
+  <path d="M212 168 q10 26 4 46" stroke="#d8bd8f" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M256 156 q0 28 0 50" stroke="#d8bd8f" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M300 168 q-10 26 -4 46" stroke="#d8bd8f" stroke-width="10" stroke-linecap="round" fill="none"/>
+
+  <!-- eyes -->
+  <ellipse cx="207" cy="288" rx="17" ry="23" fill="#1c2431"/>
+  <ellipse cx="305" cy="288" rx="17" ry="23" fill="#1c2431"/>
+  <circle cx="212" cy="279" r="5" fill="#f1e0c2"/>
+  <circle cx="310" cy="279" r="5" fill="#f1e0c2"/>
+
+  <!-- nose -->
+  <path d="M246 322 h20 l-10 12 z" fill="#e7a9a0"/>
+
+  <!-- mouth -->
+  <path d="M256 334 v10 M256 344 q-18 16 -38 6 M256 344 q18 16 38 6" stroke="#c99a72" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <!-- whiskers -->
+  <path d="M96 300 h64 M100 322 h60 M96 344 h64" stroke="#f1e0c2" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+  <path d="M352 300 h64 M352 322 h60 M352 344 h64" stroke="#f1e0c2" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+</svg>

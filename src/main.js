@@ -57,6 +57,18 @@ try {
 // a friendly not-configured state and nothing else about solo play changes.
 const MP = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
+// PWA install: only register in production builds (dev's unbundled module
+// graph isn't something a SW should try to cache) and only for a matching
+// path — import.meta.env.BASE_URL is '/' in dev and '/whisker-walk/' on
+// Pages, so deriving the SW URL and scope from it (rather than a hardcoded
+// '/') keeps registration correct under either base.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL;
+    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => {});
+  });
+}
+
 // the capability secret that authorizes profile/friendship writes (and, for
 // a freshly-created save row, doubles as that row's initial secret) —
 // memoized once at module scope, same as pid above; getOrCreateSecret is
