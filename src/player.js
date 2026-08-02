@@ -28,6 +28,7 @@ export function createPlayer(camera, canvas) {
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
   let touchEngaged = false;
   let touchMode = false; // set by main when a touch UI is active — gates click-to-lock
+  let invertY = false; // settings.invertY — negates the pitch delta in both orbit paths below
 
   const api = {
     locked: false,
@@ -68,8 +69,11 @@ export function createPlayer(camera, canvas) {
     },
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
-      pitch += dy * 0.004;
+      pitch += (invertY ? -dy : dy) * 0.004;
       pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
+    },
+    setInvertY(v) {
+      invertY = !!v;
     },
     setTouchEngaged(engaged) {
       const next = !!engaged;
@@ -143,7 +147,7 @@ export function createPlayer(camera, canvas) {
   document.addEventListener('mousemove', (e) => {
     if (!api.locked || !enabled) return;
     yaw -= e.movementX * 0.0024;
-    pitch += e.movementY * 0.002;
+    pitch += (invertY ? -e.movementY : e.movementY) * 0.002;
     pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
   });
   document.addEventListener('keydown', (e) => {

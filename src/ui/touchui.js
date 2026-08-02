@@ -31,8 +31,15 @@ export function onFirstTouch(callback) {
 //
 // callbacks = { onMove(vec|null), onOrbit(dx, dy), onAction(name) }
 // action names: pounce | meow | yarn | camera | pause | interact | tapWorld
-export function createTouchUI(root, callbacks) {
+// opts = { leftHanded } — settings.leftHanded at construction time; mirrors
+// the joystick/orbit zone split (see touchstart below) and, via the
+// body.left-handed CSS class, the action cluster / pause button positions
+// (see style.css). Use setLeftHanded() on the returned handle to change it
+// live without recreating the touch UI.
+export function createTouchUI(root, callbacks, opts = {}) {
   const { onMove, onOrbit, onAction } = callbacks;
+  let leftHanded = !!opts.leftHanded;
+  document.body.classList.toggle('left-handed', leftHanded);
 
   const wrap = document.createElement('div');
   wrap.className = 'touch-ui hidden';
@@ -97,7 +104,10 @@ export function createTouchUI(root, callbacks) {
       e.preventDefault();
       const x = t.clientX;
       const y = t.clientY;
-      if (joyTouch === null && x < window.innerWidth * 0.4) {
+      // left-handed mirrors the zone split: joystick lives in the right 40%
+      // instead of the left, orbit-drag takes the remaining (left) 60%.
+      const inJoystickZone = leftHanded ? x > window.innerWidth * 0.6 : x < window.innerWidth * 0.4;
+      if (joyTouch === null && inJoystickZone) {
         joyTouch = { id: t.identifier, originX: x, originY: y };
         showJoystick(x, y);
       } else if (orbitTouch === null) {
@@ -156,6 +166,18 @@ export function createTouchUI(root, callbacks) {
         orbitTouch = null;
         hideJoystick();
       }
+    },
+    // Live-applies settings.leftHanded (homebase checkbox): flips the
+    // touchstart zone split above AND, via the CSS class, the action
+    // cluster (bottom-right -> bottom-left) / pause button (top-left ->
+    // top-right) positions in style.css. Drops any touch in flight so a
+    // mid-drag flip can't leave a joystick anchored on the wrong side.
+    setLeftHanded(v) {
+      leftHanded = !!v;
+      document.body.classList.toggle('left-handed', leftHanded);
+      joyTouch = null;
+      orbitTouch = null;
+      hideJoystick();
     },
   };
 }

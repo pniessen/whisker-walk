@@ -23,6 +23,7 @@ import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
 import { createAlbum } from './album.js';
+import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
@@ -160,6 +161,7 @@ function init() {
   if (isTouch) document.body.classList.add('touch-mode');
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
+  const settings = createSettings(window.localStorage);
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
@@ -167,7 +169,21 @@ function init() {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
     onAction: handleTouchAction,
-  });
+  }, { leftHanded: settings.get('leftHanded') });
+  // Pushes every live-tunable setting into the systems that read it — audio
+  // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
+  // immediately with no reload or walk restart. Called once at boot (with
+  // whatever was persisted) and again after every homebase settings change
+  // and the M-key mute toggle below. (settings.reducedMotion isn't pushed
+  // here — weather/animateCat read it directly at the point of use, since
+  // those only apply per-walk/per-frame rather than to a live object.)
+  function applySettings() {
+    audio.setVolume(settings.get('volume'));
+    audio.setMuted(settings.get('muted'));
+    player.setInvertY(settings.get('invertY'));
+    touchUI.setLeftHanded(settings.get('leftHanded'));
+  }
+  applySettings();
   // routed through handleTouchAction('interact') rather than calling
   // handleInteract directly so the prompt-pill tap shares the exact same
   // session/engaged guard as every other touch action.
@@ -598,7 +614,7 @@ function init() {
       return cloud.addFriendByCode(pid, psecret, otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings);
   homebase.show();
 
   function noteGoal(type) {
@@ -786,7 +802,16 @@ function init() {
     if (e.code === 'KeyV' && session && player.engaged && !e.repeat) {
       doMeow();
     }
-    if (e.code === 'KeyM') hud.toast(audio.toggleMute() ? 'Sound off 🔇' : 'Sound on 🔊');
+    if (e.code === 'KeyM') {
+      // settings.muted is the single source of truth (see applySettings) —
+      // M just flips it, same as the homebase checkbox does; audio only
+      // ever reads it back via applySettings()'s audio.setMuted() call.
+      const next = !settings.get('muted');
+      settings.set('muted', next);
+      applySettings();
+      homebase.refresh();
+      hud.toast(next ? 'Sound off 🔇' : 'Sound on 🔊');
+    }
     if (e.code === 'KeyT' && session && player.engaged) {
       doYarn();
     }
@@ -851,7 +876,7 @@ function init() {
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
     if (!duskActive) {
-      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng);
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, settings.get('reducedMotion'));
       if (weather.condition === 'rain') {
         // extra puddles
         const extra = [];
@@ -1191,7 +1216,7 @@ function init() {
       pose = 'stretch';
     }
     s.pose = pose;
-    animateCat(cat, pose, t, speed);
+    animateCat(cat, pose, t, speed, settings.get('reducedMotion'));
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

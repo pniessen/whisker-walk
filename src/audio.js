@@ -1,6 +1,11 @@
 export function createAudio() {
   let ctx = null;
   let muted = false;
+  // Master volume factor (0..1), driven live by settings.volume — see
+  // setVolume() below. Multiplies every tone's gain; default 1 so a caller
+  // that never wires up settings (e.g. a stray future test) still hears
+  // full volume rather than silence.
+  let volume = 1;
   let ambient = null;
 
   function ensure() {
@@ -17,7 +22,7 @@ export function createAudio() {
     const t0 = ac.currentTime + delay;
     osc.frequency.setValueAtTime(freq, t0);
     if (slideTo) osc.frequency.linearRampToValueAtTime(slideTo, t0 + dur);
-    g.gain.setValueAtTime(gain, t0);
+    g.gain.setValueAtTime(gain * volume, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     osc.connect(g).connect(ac.destination);
     osc.start(t0);
@@ -25,10 +30,20 @@ export function createAudio() {
   }
 
   const api = {
-    toggleMute() {
-      muted = !muted;
+    // settings.muted is the single source of truth (main.js's M key and the
+    // homebase mute checkbox both write settings then call this) — audio
+    // itself no longer owns a toggle, it just applies what it's told.
+    setMuted(v) {
+      muted = !!v;
       if (muted) api.stopAmbient();
+    },
+    getMuted() {
       return muted;
+    },
+    // 0..1 master factor multiplied into every tone() gain, and (at
+    // creation time) into the seaside ambient noise's gain nodes below.
+    setVolume(v) {
+      volume = typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : volume;
     },
     // volume: 0..1 multiplier applied to every tone's gain (default 1 = full
     // volume, used for the local cat's own voice); co-walk remote meows scale
@@ -81,11 +96,14 @@ export function createAudio() {
         filter.type = 'lowpass';
         filter.frequency.value = 420;
         const g = ac.createGain();
-        g.gain.value = 0.05;
+        // scaled by the volume factor at creation time — this long-lived
+        // node isn't re-touched by a later setVolume() call, same tradeoff
+        // as any other already-playing ambient sound.
+        g.gain.value = 0.05 * volume;
         const lfo = ac.createOscillator();
         const lfoGain = ac.createGain();
         lfo.frequency.value = 0.14;
-        lfoGain.gain.value = 0.035;
+        lfoGain.gain.value = 0.035 * volume;
         lfo.connect(lfoGain).connect(g.gain);
         src.connect(filter).connect(g).connect(ac.destination);
         src.start();

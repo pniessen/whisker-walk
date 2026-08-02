@@ -21,7 +21,11 @@ export function createRainSchedule(rng) {
 
 const RAINBOW_COLORS = [0xe05050, 0xe09a40, 0xe8d84e, 0x58b858, 0x5878d8, 0x8858c8];
 
-export function createWeather(scene, sun, condition, rng) {
+// reducedMotion (settings.reducedMotion): skips creating the rain particle
+// system and its per-frame position updates below — the background/fog/sun
+// mood change and the rainbow payoff still happen, only the falling-particle
+// motion (the part actually implicated in motion discomfort) is dropped.
+export function createWeather(scene, sun, condition, rng, reducedMotion = false) {
   const api = { condition, rainbowVisible: false, rainbowPos: null, update() {} };
   if (condition === 'clear') return api;
 
@@ -41,17 +45,21 @@ export function createWeather(scene, sun, condition, rng) {
   sun.intensity = 1.1;
 
   const COUNT = 600;
-  const positions = new Float32Array(COUNT * 3);
-  for (let i = 0; i < COUNT; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 40;
-    positions[i * 3 + 1] = Math.random() * 25;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+  let rain = null;
+  let geo = null;
+  if (!reducedMotion) {
+    const positions = new Float32Array(COUNT * 3);
+    for (let i = 0; i < COUNT; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 40;
+      positions[i * 3 + 1] = Math.random() * 25;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+    }
+    geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    rain = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xaac8e0, size: 0.08, transparent: true, opacity: 0.7 }));
+    rain.frustumCulled = false;
+    scene.add(rain);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const rain = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xaac8e0, size: 0.08, transparent: true, opacity: 0.7 }));
-  rain.frustumCulled = false;
-  scene.add(rain);
 
   const schedule = createRainSchedule(rng);
   let elapsed = 0;
@@ -61,17 +69,19 @@ export function createWeather(scene, sun, condition, rng) {
     elapsed += dt;
     const phase = schedule.phase(elapsed);
     if (phase === 'rain') {
-      rain.position.x = cameraPos.x;
-      rain.position.z = cameraPos.z;
-      const arr = geo.attributes.position.array;
-      for (let i = 0; i < COUNT; i++) {
-        arr[i * 3 + 1] -= 18 * dt;
-        if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 25;
+      if (rain) {
+        rain.position.x = cameraPos.x;
+        rain.position.z = cameraPos.z;
+        const arr = geo.attributes.position.array;
+        for (let i = 0; i < COUNT; i++) {
+          arr[i * 3 + 1] -= 18 * dt;
+          if (arr[i * 3 + 1] < 0) arr[i * 3 + 1] = 25;
+        }
+        geo.attributes.position.needsUpdate = true;
       }
-      geo.attributes.position.needsUpdate = true;
     } else if (phase === 'rainbow') {
       if (!rainbow) {
-        rain.visible = false;
+        if (rain) rain.visible = false;
         scene.background = prevBackground;
         scene.fog = new THREE.Fog(prevFog.color, prevFog.near, prevFog.far);
         sun.intensity = 2.2;

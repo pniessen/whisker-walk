@@ -4,7 +4,11 @@ const CAT_BASE = { bodyY: 0.34, bodyScale: [0.85, 0.75, 1.35], headPos: [0, 0.56
 // Poses are expressed as deltas/ratios from the model's declared base pose
 // (cat.userData.base) so differently proportioned avatars — like Hagrid the
 // chicken — animate without being squashed into cat proportions.
-export function animateCat(cat, state, t, moveSpeed) {
+// reducedMotion (settings.reducedMotion): only the player's own cat call
+// site (main.js) ever passes this — it skips the vertical body-bob + slight
+// roll below, which is what actually feeds into the camera (camera.position
+// follows avatar.position every frame), leaving the leg gait itself intact.
+export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
   const { body, head, tail, tailPivots, legs, earL, earR } = cat.userData.parts;
   const base = cat.userData.base ?? CAT_BASE;
   const [bsx, bsy, bsz] = base.bodyScale;
@@ -119,8 +123,10 @@ export function animateCat(cat, state, t, moveSpeed) {
     for (let i = 0; i < 4; i++) {
       legs[i].rotation.x = Math.sin(t * freq + GAIT_PHASE[i]) * amp;
     }
-    body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
-    body.rotation.z = Math.sin(t * freq * 0.5) * 0.03;
+    if (!reducedMotion) {
+      body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
+      body.rotation.z = Math.sin(t * freq * 0.5) * 0.03;
+    }
   } else if (state === 'follow') {
     body.scale.y += Math.sin(t * 1.8) * 0.012; // breathing
   }

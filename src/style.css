@@ -140,6 +140,17 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
   background: rgba(20,26,38,0.55); color: #fff; font-size: 1.1rem;
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
+/* Left-handed mode (settings.leftHanded): mirrors the button cluster —
+   joystick/orbit touchstart zones are mirrored in JS (touchui.js), this
+   mirrors the two fixed-position controls to match. */
+body.left-handed .tui-actions {
+  right: auto;
+  left: max(16px, env(safe-area-inset-left));
+}
+body.left-handed .tui-pause {
+  left: auto;
+  right: max(16px, env(safe-area-inset-right));
+}
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .photos figure { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 8px; }
 .photos img { width: 100%; border-radius: 6px; display: block; }
@@ -169,14 +180,14 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 }
 .card.locked .card-thumb { filter: grayscale(0.7) brightness(0.8); }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
-.card button, .hb-footer button, .pause-card button, .walk-together button, .friend-code-block button {
+.card button, .hb-footer button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
   border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
   background: #4a6ea5; color: #fff; font-weight: 700;
 }
 .card button:hover, .walk-together button:hover, .friend-code-block button:hover { background: #5a7eb5; }
 .walk-together button:disabled, .friend-code-block button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
 @media (pointer: coarse) {
-  .card button, .hb-footer button, .pause-card button, .walk-together button, .friend-code-block button {
+  .card button, .hb-footer button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
     min-height: 44px;
   }
 }
@@ -202,6 +213,13 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 .hb-footer .danger { background: transparent; color: #d08080; margin-left: auto; }
 .dusk { color: #c8b8f0; }
 .walk-together { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
+.settings-section { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
+.settings-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.settings-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: #c0ccdd; cursor: pointer; }
+.settings-row input[type="checkbox"] { width: 18px; height: 18px; }
+.settings-volume input[type="range"] { flex: 1; max-width: 240px; }
+.settings-volume-value { min-width: 3.2em; text-align: right; color: #a8c0e0; font-size: 0.85rem; }
+.settings-section .danger { background: transparent; color: #d08080; }
 .wt-petname, .wt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .wt-petname { margin-bottom: 10px; }
 .wt-petname input, .wt-join-row input {

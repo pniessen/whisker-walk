@@ -68,7 +68,13 @@ function normalizeFriendCode(input) {
 }
 const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud) {
+// settings: the createSettings(storage) handle (src/settings.js) — this
+// module reads/writes it directly (settings.get/set/all), same "thin
+// adapter, no local copy of the data" pattern sync/cloud already use here.
+// onSettingsChange: called after every settings.set() from this screen so
+// main.js can push the new value into audio/player/touchUI immediately —
+// settings apply live, no walk restart or reload required.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -220,6 +226,34 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return body;
   }
 
+  // Settings ⚙️ (Task 6): volume/mute/invert-Y/left-handed/reduced-motion,
+  // plus Start-over (moved here from the footer). Every control applies
+  // live via onSettingsChange — no reload, no walk restart. The volume
+  // slider is wired separately (an 'input' listener below, not this
+  // delegated click handler) so dragging it doesn't fight a render() every
+  // tick; the checkboxes and Start-over button DO go through the normal
+  // click-then-render() path since a discrete toggle has no drag to disrupt.
+  function renderSettings() {
+    if (!settings) return '';
+    const s = settings.all();
+    const pct = Math.round(s.volume * 100);
+    return `
+      <section class="settings-section"><h2>Settings ⚙️</h2>
+        <div class="settings-grid">
+          <label class="settings-row settings-volume">
+            <span>Volume</span>
+            <input type="range" id="set-volume" min="0" max="100" step="1" value="${pct}" />
+            <span id="set-volume-value" class="settings-volume-value">${pct}%</span>
+          </label>
+          <label class="settings-row"><input type="checkbox" id="set-muted" ${s.muted ? 'checked' : ''} /> Mute all sound</label>
+          <label class="settings-row"><input type="checkbox" id="set-invert-y" ${s.invertY ? 'checked' : ''} /> Invert look (Y axis)</label>
+          <label class="settings-row"><input type="checkbox" id="set-left-handed" ${s.leftHanded ? 'checked' : ''} /> Left-handed touch controls</label>
+          <label class="settings-row"><input type="checkbox" id="set-reduced-motion" ${s.reducedMotion ? 'checked' : ''} /> Reduced motion</label>
+        </div>
+        <button id="btn-reset" class="danger">Start over</button>
+      </section>`;
+  }
+
   function renderFriendCode() {
     const code = `CAT-${cloud.myId.slice(0, 8).toUpperCase()}`;
     return `
@@ -344,12 +378,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           ${renderWalkTogether()}
         </section>
         ${sync && sync.available ? `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>` : ''}
+        ${renderSettings()}
         <footer class="hb-footer">
           ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
           ${waitingForHost
             ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
             : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
-          <button id="btn-reset" class="danger">Start over</button>
         </footer>
       </div>`;
     if (cloud && cloud.available) loadPlayerPets();
@@ -521,6 +555,30 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
+    if (e.target.id === 'set-muted') {
+      settings.set('muted', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-invert-y') {
+      settings.set('invertY', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-left-handed') {
+      settings.set('leftHanded', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-reduced-motion') {
+      settings.set('reducedMotion', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
     const cardEl = e.target.closest('.card');
     const action = e.target.dataset.action;
     if (!cardEl || !action) return;
@@ -535,6 +593,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       else if (kind === 'areas') progression.setArea(id);
     }
     render();
+  });
+
+  // Volume slider: a dedicated 'input' listener (fires continuously while
+  // dragging) rather than the delegated click handler above — applying live
+  // + patching just the % label keeps the drag smooth. A full render() here
+  // would tear down and recreate the <input type="range"> element on every
+  // tick, which fights native drag handling.
+  root.addEventListener('input', (e) => {
+    if (e.target.id !== 'set-volume' || !settings) return;
+    const vol = Number(e.target.value) / 100;
+    settings.set('volume', vol);
+    onSettingsChange?.();
+    const label = root.querySelector('#set-volume-value');
+    if (label) label.textContent = `${e.target.value}%`;
   });
 
   // room state (roster arrivals, host migration) can change while sitting on
@@ -553,6 +625,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     },
     hide() {
       root.classList.add('hidden');
+    },
+    // Re-renders only if currently visible — used by main.js's M-key mute
+    // handler so a mute toggled from the keyboard while sitting on this
+    // screen keeps the "Mute all sound" checkbox in sync (settings.muted is
+    // the single source of truth; this just reflects it into the DOM).
+    refresh() {
+      if (!root.classList.contains('hidden')) render();
     },
   };
 }

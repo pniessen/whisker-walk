@@ -23,6 +23,8 @@ V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
 
 **On phones & tablets:** left-thumb joystick to move (tilt gently to stalk) · drag the right side to look around · tap the buttons for pounce, meow, yarn, and camera · tap prompts to interact · ⏸ to pause.
 
+**Settings ⚙️** (home base, below Sync): volume, mute, invert look (Y axis), left-handed touch controls (mirrors the joystick/action-button layout), and reduced motion (drops rain particles and the walk body-bob). Everything applies immediately, no reload — and it's all local, so it works fully offline/solo too.
+
 ## Walk together 🐾🐾
 
 Up to 4 players can share a live walk — one shared seeded world, everyone's
