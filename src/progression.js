@@ -48,10 +48,32 @@ export const CATALOG = {
   },
 };
 
+// summarizeSaveForPreview(s) — reduces a save object down to the four fields
+// the cloud-sync "Load from cloud" preview card displays (main.js's
+// previewLoad, rendered by ui/homebase.js's renderSync). `s` may be a
+// hostile/malformed payload smuggled in via the cloud `saves` table (it's
+// read back with no server-side shape validation — see docs/supabase-setup.sql's
+// load_save) — every numeric field is coerced through asFiniteNonNeg so
+// nothing but a plain finite non-negative number ever reaches the preview
+// card, and rank is always one of RANKS' own fixed titles. `s` itself may be
+// any type (string, null, array) since a hostile payload could replace the
+// whole `save` object — optional chaining below means that never throws.
+export function summarizeSaveForPreview(s) {
+  const points = asFiniteNonNeg(s?.points, 0);
+  const lifetimePoints = asFiniteNonNeg(s?.lifetimePoints, 0);
+  const bestWalk = asFiniteNonNeg(s?.bestWalk, 0);
+  return { rank: rankFor(lifetimePoints).title, points, lifetimePoints, bestWalk };
+}
+
 function isPlainObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
-function asFiniteNonNeg(v, fallback) {
+// exported so other untrusted-input call sites (e.g. main.js's cloud-preview
+// summarize, before Task-1-final-fix-wave a raw pass-through that let a
+// hostile cloud payload's non-numeric points/lifetimePoints/bestWalk reach
+// homebase's innerHTML) can reuse the exact same coercion instead of
+// duplicating (and potentially drifting from) it.
+export function asFiniteNonNeg(v, fallback) {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
 }
 function asFiniteNonNegInt(v, fallback) {

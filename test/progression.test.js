@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG, RANKS, rankFor } from '../src/progression.js';
+import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview } from '../src/progression.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -352,5 +352,66 @@ describe('createProgression', () => {
       expect(f['']).toBeUndefined();
       expect(f['NotAnObject']).toBeUndefined();
     });
+  });
+});
+
+// Cloud-preview XSS fix (final fix wave, Task 1): a "Load from cloud" preview
+// reads a save straight back from the `saves` table with no server-side
+// shape check (see docs/supabase-setup.sql's load_save) and — before this
+// fix — rendered its points/lifetimePoints/bestWalk raw into innerHTML
+// (ui/homebase.js's renderSync). summarizeSaveForPreview is the coercion
+// choke point main.js's previewLoad now runs both saves through; these
+// tests exercise it directly with maximally hostile payloads (no jsdom
+// required — this is a pure function, not a DOM render).
+describe('asFiniteNonNeg', () => {
+  it('passes through finite non-negative numbers unchanged', () => {
+    expect(asFiniteNonNeg(0, -1)).toBe(0);
+    expect(asFiniteNonNeg(42, -1)).toBe(42);
+    expect(asFiniteNonNeg(3.5, -1)).toBe(3.5);
+  });
+
+  it('falls back for anything that is not a finite non-negative number', () => {
+    expect(asFiniteNonNeg('<script>alert(1)</script>', 0)).toBe(0);
+    expect(asFiniteNonNeg('42', 0)).toBe(0); // numeric string still isn't a number
+    expect(asFiniteNonNeg(-5, 0)).toBe(0);
+    expect(asFiniteNonNeg(NaN, 0)).toBe(0);
+    expect(asFiniteNonNeg(Infinity, 0)).toBe(0);
+    expect(asFiniteNonNeg(null, 0)).toBe(0);
+    expect(asFiniteNonNeg(undefined, 0)).toBe(0);
+    expect(asFiniteNonNeg({}, 0)).toBe(0);
+    expect(asFiniteNonNeg([1, 2], 0)).toBe(0);
+  });
+});
+
+describe('summarizeSaveForPreview', () => {
+  it('summarizes a normal save into rank/points/lifetimePoints/bestWalk', () => {
+    const summary = summarizeSaveForPreview({ points: 30, lifetimePoints: 500, bestWalk: 12 });
+    expect(summary).toEqual({ rank: 'Street Smart', points: 30, lifetimePoints: 500, bestWalk: 12 });
+  });
+
+  it('coerces a script-tag hostile payload down to safe zeroed numbers', () => {
+    const hostile = {
+      points: '<img src=x onerror=alert(1)>',
+      lifetimePoints: '<script>document.location="https://evil.example"</script>',
+      bestWalk: { toString: () => '<b>hi</b>' },
+    };
+    const summary = summarizeSaveForPreview(hostile);
+    expect(summary.points).toBe(0);
+    expect(summary.lifetimePoints).toBe(0);
+    expect(summary.bestWalk).toBe(0);
+    expect(summary.rank).toBe('House Cat'); // rankFor(0)
+    // belt-and-suspenders: nothing markup-shaped survives into the summary
+    expect(Object.values(summary).some((v) => typeof v === 'string' && /[<>]/.test(v))).toBe(false);
+  });
+
+  it('coerces negative/NaN/Infinity numeric fields to 0 rather than passing them through', () => {
+    const summary = summarizeSaveForPreview({ points: -50, lifetimePoints: NaN, bestWalk: Infinity });
+    expect(summary).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
+  });
+
+  it('never throws when the whole save is missing/null/a primitive, defaulting everything to 0', () => {
+    expect(summarizeSaveForPreview(undefined)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
+    expect(summarizeSaveForPreview(null)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
+    expect(summarizeSaveForPreview('<script>alert(1)</script>')).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
   });
 });

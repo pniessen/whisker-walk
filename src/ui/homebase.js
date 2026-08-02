@@ -158,7 +158,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </div>`;
     }
     const name = progression.state.petName ?? '';
-    const canHost = validPetName(name);
+    // a joiner with no valid pet name can never build a profile row (their
+    // own recordGreet calls are denied server-side), so their greets would
+    // silently fail — Join is gated the same as Host, not just Host.
+    const hasValidPetName = validPetName(name);
     return `
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
@@ -166,10 +169,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
       <div class="wt-actions">
-        <button id="wt-host" ${canHost ? '' : 'disabled'}>Host a walk</button>
+        <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
           <input type="text" id="wt-join-code" maxlength="4" placeholder="CODE" class="wt-code-input" />
-          <button id="wt-join">Join</button>
+          <button id="wt-join" ${hasValidPetName ? '' : 'disabled'}>Join</button>
         </div>
         ${joinError ? `<div class="tag error">${escapeHtml(joinError)}</div>` : ''}
       </div>`;
@@ -180,11 +183,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     let body;
     if (cloudPreview) {
       const fmt = (s) => `${s.rank} · ${s.points} 🐾 (lifetime ${s.lifetimePoints}) · best walk ${s.bestWalk}`;
+      // Defense in depth: main.js's summarizeSaveForPreview already coerces
+      // every numeric field of a cloud-loaded (untrusted) save, so `s.rank`
+      // is always one of RANKS' own titles and the numbers are always plain
+      // finite numbers — but this fires BEFORE the user confirms anything,
+      // so escape the rendered text here too rather than trust that upstream
+      // sanitation never regresses.
       body = `
         <div class="sync-preview">
           <div class="sync-compare">
-            <div class="sync-col"><h3>This device</h3><div>${fmt(cloudPreview.local)}</div></div>
-            <div class="sync-col"><h3>Cloud save ${escapeHtml(cloudPreview.code)}</h3><div>${fmt(cloudPreview.cloud)}</div></div>
+            <div class="sync-col"><h3>This device</h3><div>${escapeHtml(fmt(cloudPreview.local))}</div></div>
+            <div class="sync-col"><h3>Cloud save ${escapeHtml(cloudPreview.code)}</h3><div>${escapeHtml(fmt(cloudPreview.cloud))}</div></div>
           </div>
           <div class="tag error">Loading will overwrite everything on this device — this can't be undone.</div>
           <div class="sync-actions">
@@ -256,13 +265,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   function renderFriendCode() {
     const code = `CAT-${cloud.myId.slice(0, 8).toUpperCase()}`;
+    // Gated the same as Host/Join above: addFriendByCode's recordGreet call
+    // validates the CALLER's own profile row, which only exists once a
+    // valid pet name has been set — without one, "Add a friend by code"
+    // would always fail server-side, so disable it up front rather than
+    // let the player hit that error blind.
+    const hasValidPetName = validPetName(progression.state.petName ?? '');
     return `
       <div class="friend-code-block">
         <div class="tag">Your friend code: <strong>${escapeHtml(code)}</strong></div>
         <div class="wt-join-row">
-          <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" />
-          <button id="friend-code-add" ${friendCodeBusy ? 'disabled' : ''}>Add a friend by code</button>
+          <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
+          <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
         </div>
+        ${!hasValidPetName ? '<div class="tag">Set your pet’s name below (Walk together) to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -305,15 +321,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
       // petName/breed/last_seen all arrive from OTHER players' pushProfile
       // calls — untrusted, same class as walk-together roster names —
-      // escapeHtml every one of them before interpolating.
+      // escapeHtml every one of them before interpolating. A blocked
+      // playerId (Task 3 — unilateral-friendship mitigation, see
+      // src/blocklist.js) is dropped from the roster entirely: greets can
+      // still land on this pair server-side, but the player no longer has
+      // to look at them here.
       const rowsHtml = rows
         .map((r) => {
           const otherId = r.a_id === cloud.myId ? r.b_id : r.a_id;
+          if (cloud.isBlocked?.(otherId)) return '';
           const p = profileById.get(otherId);
           if (!p) return '';
-          return `<div class="friend-row">
+          return `<div class="friend-row" data-player-id="${escapeHtml(otherId)}">
             <span class="friend-icon">${heartFor(r.greets)}</span>
             <span class="friend-name">${escapeHtml(p.pet_name)}</span> — ${escapeHtml(p.breed)}, ${escapeHtml(relativeTime(p.last_seen))}
+            <button class="friend-hide" data-action="hide-player" data-player-id="${escapeHtml(otherId)}"
+              title="Hide this visitor" aria-label="Hide this visitor">✕</button>
           </div>`;
         })
         .filter(Boolean)
@@ -443,6 +466,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
+    if (e.target.dataset.action === 'hide-player') {
+      // Unilateral-friendship mitigation (Task 3, final fix wave): stop
+      // showing this visitor in the roster (and, on future walks, as a
+      // ghost) on THIS device — see src/blocklist.js for why this can't be
+      // a server-side fix. Re-fetches + re-filters the roster rather than
+      // just removing the DOM row, so the "No player pets yet…" empty
+      // state appears correctly if this was the last one.
+      cloud.blockPlayer?.(e.target.dataset.playerId);
+      loadPlayerPets();
+      return;
+    }
     if (e.target.id === 'friend-code-add') {
       const input = root.querySelector('#friend-code-input');
       const prefix = normalizeFriendCode(input?.value ?? '');
@@ -480,16 +514,28 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         // 'already': a friendship row for this pair already exists (any
         // greets > 0) — addFriendByCode deliberately skipped recordGreet
         // rather than re-sending it, so repeated add clicks on the same
-        // code can't farm greets. 'self'/anything else: no-op, shouldn't
-        // be reachable since the UI already excludes your own code above.
-        friendCodeSuccess = result?.status === 'already'
-          ? `You're already friends with ${friendCodeCandidate.petName}!`
-          : result?.status === 'added'
-            ? `Added ${friendCodeCandidate.petName} as a friend!`
-            : null;
+        // code can't farm greets. 'failed': recordGreet was denied (-1) —
+        // almost always because the CALLER's own profile row doesn't exist
+        // yet, even though the UI gates this section on a valid pet name
+        // (the push could still have failed, e.g. offline). 'self'/anything
+        // else: no-op, shouldn't be reachable since the UI already excludes
+        // your own code above.
+        if (result?.status === 'already') {
+          friendCodeSuccess = `You're already friends with ${friendCodeCandidate.petName}!`;
+          friendCodeError = null;
+        } else if (result?.status === 'added') {
+          friendCodeSuccess = `Added ${friendCodeCandidate.petName} as a friend!`;
+          friendCodeError = null;
+        } else if (result?.status === 'failed') {
+          friendCodeSuccess = null;
+          friendCodeError = "Couldn't add friend — set your pet's name first";
+        } else {
+          friendCodeSuccess = null;
+          friendCodeError = null;
+        }
         friendCodeCandidate = null;
-        friendCodeError = null;
       } catch (err) {
+        friendCodeSuccess = null;
         friendCodeError = 'Could not add that friend — try again.';
       }
       friendCodeBusy = false;

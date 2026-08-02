@@ -82,3 +82,21 @@ SECURITY DEFINER functions validating secrets/codes.
 
 Leaderboards/photo wall (later), co-walk verbs + charm pack (v8),
 account recovery beyond save codes, moderation tooling.
+
+### Known limitation — unilateral friendships
+
+`record_friend_greet` validates the CALLER's own identity (`p_my_id` +
+`p_my_secret`) but never validates `p_other_id` — any client that knows
+(or guesses/enumerates) another player's `playerId` can drive greets
+against them, including via the friend-code flow, with no consent step
+on the victim's side. Those greets surface as uninvited ghost visits
+(`spawnGhosts`) and Player pets roster rows on the victim's own device.
+
+v7 mitigates the symptom client-side only: home base's Player pets
+roster lets a player hide any visitor (✕ button), which adds that
+`playerId` to a per-device `whisker-walk-blocked` set (see
+`src/blocklist.js`) and filters it out of both the roster and future
+ghost spawns on that device. This does not stop the greet from being
+recorded server-side, and does not protect a different device/browser
+signed in as the same victim. Server-side moderation and rate-limiting
+of `record_friend_greet` are deferred to v8.

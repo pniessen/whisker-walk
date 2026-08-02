@@ -200,6 +200,15 @@ body.left-handed .tui-pause {
 }
 .friend-icon { margin-right: 6px; }
 .friend-name { font-weight: 700; color: #fff; }
+.friend-hide {
+  float: right; border: 0; border-radius: 50%; width: 26px; height: 26px;
+  line-height: 26px; padding: 0; text-align: center; cursor: pointer;
+  background: rgba(255,255,255,0.12); color: #c0ccdd; font-weight: 700;
+}
+.friend-hide:hover { background: rgba(255,255,255,0.22); color: #fff; }
+@media (pointer: coarse) {
+  .friend-hide { width: 32px; height: 32px; line-height: 32px; }
+}
 .player-pets { margin-top: 12px; }
 .player-pets h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 6px; font-weight: 700; }
 .friend-code-block { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }

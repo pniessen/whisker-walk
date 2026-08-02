@@ -37,9 +37,6 @@ export function createAudio() {
       muted = !!v;
       if (muted) api.stopAmbient();
     },
-    getMuted() {
-      return muted;
-    },
     // 0..1 master factor multiplied into every tone() gain, and (at
     // creation time) into the seaside ambient noise's gain nodes below.
     setVolume(v) {

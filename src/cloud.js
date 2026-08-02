@@ -16,8 +16,8 @@
 import { getSupabaseClient } from './net.js';
 
 // 256-word safe list for save codes: short (4-6 letter), friendly
-// nouns/animals/colors. No offensive or ambiguous words. ~27 bits of
-// entropy across 3 words + a 2-digit suffix (256^3 * 100 ≈ 2^27.6).
+// nouns/animals/colors. No offensive or ambiguous words. ~30.6 bits of
+// entropy across 3 words + a 2-digit suffix (256^3 * 100 ≈ 2^30.6).
 const WORDLIST = [
   'OTTER', 'PANDA', 'ZEBRA', 'TIGER', 'EAGLE', 'ROBIN', 'HERON', 'RAVEN',
   'GOOSE', 'SWAN', 'CRANE', 'FINCH', 'QUAIL', 'OWLET', 'LLAMA', 'ALPACA',
@@ -141,7 +141,7 @@ export function createCloud({ rpc, select }) {
     return select('friendships', 'or', `a_id.eq.${myId},b_id.eq.${myId}`);
   }
 
-  // addFriendByCode(myId, mySecret, otherId) -> {status: 'self'|'already'|'added'}
+  // addFriendByCode(myId, mySecret, otherId) -> {status: 'self'|'already'|'added'|'failed'}
   //
   // The friend-code flow (Task 4) must be idempotent per pair, not per
   // click: home base's "confirm" button can legitimately fire more than
@@ -159,12 +159,21 @@ export function createCloud({ rpc, select }) {
   // can only ever register once server-side. Net effect: a friend code can
   // raise a pair from nothing to 'met' exactly once, ever; deepening the
   // friendship past that still requires real co-walk/ghost greets.
+  //
+  // recordGreet returning -1 means record_friend_greet denied the call —
+  // in this flow that's almost always because the CALLER (myId/mySecret)
+  // has no profile row yet (e.g. they just typed a pet name but never
+  // pushed a profile), not that anything about `otherId` was wrong. Before
+  // this fix that -1 was silently discarded and swallowed into a false
+  // 'added', so a caller with no profile could believe the friend was
+  // added when nothing was ever recorded server-side.
   async function addFriendByCode(myId, mySecret, otherId) {
     if (otherId === myId) return { status: 'self' }; // belt-and-suspenders — callers should already exclude self
     const rows = await fetchFriendships(myId);
     const already = rows.some((r) => r.a_id === otherId || r.b_id === otherId);
     if (already) return { status: 'already' };
-    await recordGreet(myId, mySecret, otherId, 'friendcode');
+    const greets = await recordGreet(myId, mySecret, otherId, 'friendcode');
+    if (greets === -1) return { status: 'failed' };
     return { status: 'added' };
   }
 

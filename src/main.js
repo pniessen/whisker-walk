@@ -15,7 +15,7 @@ import { createTippables } from './tippables.js';
 import { createScent } from './scent.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
-import { createProgression, rankFor } from './progression.js';
+import { createProgression, rankFor, summarizeSaveForPreview } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -31,6 +31,7 @@ import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from './cloud.js';
+import { createBlockList } from './blocklist.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -58,6 +59,11 @@ try {
 // a friendly not-configured state and nothing else about solo play changes.
 const MP = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
+// per-device "hide this visitor" list — see src/blocklist.js. Module-scope
+// like pid above (not gated on MP): harmless to create even in a solo
+// deploy, and both spawnGhosts and homebaseCloud need the same instance.
+const blockList = createBlockList(window.localStorage);
+
 // PWA install: only register in production builds (dev's unbundled module
 // graph isn't something a SW should try to cache) and only for a matching
 // path — import.meta.env.BASE_URL is '/' in dev and '/whisker-walk/' on
@@ -72,9 +78,16 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
 // the capability secret that authorizes profile/friendship writes (and, for
 // a freshly-created save row, doubles as that row's initial secret) —
-// memoized once at module scope, same as pid above; getOrCreateSecret is
-// itself storage-guarded (private mode/quota degrades to a session secret).
-const psecret = getOrCreateSecret(window.localStorage);
+// memoized lazily via getPsecret() below, on first actual use, rather than
+// at module scope: every call site that needs it is already downstream of
+// an MP check (getCloud() returns null when !MP), so an unconfigured (solo)
+// deploy should never generate-and-persist a secret it will never use.
+let psecretCache = null;
+function getPsecret() {
+  if (!MP) return null;
+  if (!psecretCache) psecretCache = getOrCreateSecret(window.localStorage);
+  return psecretCache;
+}
 
 // cloud RPC client — created lazily (only once actually needed, and only
 // when MP) rather than at module scope, so an unconfigured deploy never
@@ -239,15 +252,19 @@ function init() {
   // nothing meaningful to publish yet. Fire-and-forget with a console-only
   // catch, same pattern as sync.autoSync: profile visibility lagging by one
   // push is fine, but it must never block or throw into a caller.
+  // Returns the push's promise (resolved even on failure, since the catch
+  // below handles it) rather than nothing — most callers still fire-and-forget
+  // it, but homebaseCloud.addFriendByCode below awaits it so a just-named
+  // pet's profile row exists before the friend-code flow's recordGreet call.
   function pushProfileNow() {
-    if (!MP) return;
+    if (!MP) return Promise.resolve();
     const st = progression.state;
-    if (!st.petName) return;
+    if (!st.petName) return Promise.resolve();
     const cloud = getCloud();
-    if (!cloud) return;
-    cloud.pushProfile({
+    if (!cloud) return Promise.resolve();
+    return cloud.pushProfile({
       playerId: pid,
-      secret: psecret,
+      secret: getPsecret(),
       petName: st.petName,
       breed: st.equipped.cat,
       accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
@@ -282,7 +299,10 @@ function init() {
       const profileById = new Map(profiles.map((p) => [p.player_id, p]));
       const friends = otherIds
         .map((id) => ({ playerId: id, greets: greetsById.get(id) ?? 0, profile: profileById.get(id) }))
-        .filter((f) => f.profile); // a friendship row with no matching profile (deleted/unpublished) can't be visited
+        // a friendship row with no matching profile (deleted/unpublished) can't be
+        // visited; a blocked playerId (Task 3 — see src/blocklist.js) never spawns
+        // as a ghost either, regardless of how many greets are on record.
+        .filter((f) => f.profile && !blockList.has(f.playerId));
       const chosen = rollGhosts(Math.random, friends);
       if (!chosen.length) return;
       mySession.ghosts = createGhosts(
@@ -495,11 +515,12 @@ function init() {
       const code = generateSaveCode();
       try {
         const payload = composeCloudPayload();
-        const result = await cloud.saveToCloud(code, psecret, payload, payload.save.lifetimePoints ?? 0);
+        const secret = getPsecret();
+        const result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
         if (result !== 'created') {
           return { ok: false, error: 'That code was already taken — please try again.' };
         }
-        writeCloudLink(code, psecret);
+        writeCloudLink(code, secret);
         deniedNotified = false;
         return { ok: true, code };
       } catch (err) {
@@ -521,17 +542,14 @@ function init() {
         }
         const localSave = progression.state;
         const cloudSave = data.payload.save;
-        const summarize = (s) => ({
-          rank: rankFor(s.lifetimePoints ?? 0).title,
-          points: s.points ?? 0,
-          lifetimePoints: s.lifetimePoints ?? 0,
-          bestWalk: s.bestWalk ?? 0,
-        });
+        // cloudSave is untrusted (read straight back from the `saves` table
+        // with no server-side shape check) — summarizeSaveForPreview coerces
+        // every numeric field before it ever reaches the preview card.
         return {
           ok: true,
           preview: {
             code, secret: data.secret, payload: data.payload,
-            local: summarize(localSave), cloud: summarize(cloudSave),
+            local: summarizeSaveForPreview(localSave), cloud: summarizeSaveForPreview(cloudSave),
           },
         };
       } catch (err) {
@@ -571,13 +589,27 @@ function init() {
   // room branch, and it's the host who owns the shared seed: it's computed
   // once here and carried to everyone (including the host) via walk-config.
   function beginWalkFromHomebase({ duskMode }) {
-    if (pendingRoom && pendingRoom.net.isHost()) {
-      const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
-      pendingRoom.net.sendEvent({
-        v: 1, id: pid, type: 'walk-config',
-        area: progression.state.area, dusk: duskMode, seed,
-      });
-      startWalk({ duskMode, roomSeed: seed });
+    if (pendingRoom) {
+      if (pendingRoom.net.isHost()) {
+        const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
+        pendingRoom.net.sendEvent({
+          v: 1, id: pid, type: 'walk-config',
+          area: progression.state.area, dusk: duskMode, seed,
+        });
+        startWalk({ duskMode, roomSeed: seed });
+      } else {
+        // Host-flip race: the Start button only renders enabled when
+        // rooms.getState().isHost was true as of the LAST render — a
+        // roster change (the host leaving, or a smaller playerId joining)
+        // can flip isHost() false in the window between that render and
+        // this click. Falling through to a solo walk here would spawn
+        // ghosts (see spawnGhosts) into what should still be a room
+        // member's walk, and would leave pendingRoom dangling (never
+        // left) — so stay on the home base screen and let them rejoin
+        // instead of silently downgrading to solo.
+        cloudToast('Host changed — rejoin the room to start.');
+        homebase.refresh();
+      }
     } else {
       startWalk({ duskMode });
     }
@@ -608,10 +640,29 @@ function init() {
     addFriendByCode(otherId) {
       const cloud = getCloud();
       if (!cloud) return Promise.reject(new Error('cloud unavailable'));
-      // idempotent-per-pair add — see cloud.js's addFriendByCode for why
-      // this can't just be a bare recordGreet with a fresh timestamp stamp
-      // (repeated clicks on the same code would farm greets).
-      return cloud.addFriendByCode(pid, psecret, otherId);
+      // record_friend_greet (called inside cloud.addFriendByCode) validates
+      // the CALLER's own profile row/secret — a player who only just typed
+      // their pet name (never hosted/joined a room or finished a walk) has
+      // no profile row on the server yet, which would otherwise make every
+      // friend-code add fail with a denied (-1). Push it first — awaited,
+      // not fire-and-forget, so the row genuinely exists before the RPC
+      // that needs it — and let cloud.addFriendByCode's own 'failed' status
+      // (see below) surface anything that still goes wrong.
+      return Promise.resolve(pushProfileNow()).then(() => cloud.addFriendByCode(pid, getPsecret(), otherId));
+    },
+    // Unilateral-friendship mitigation (final fix wave, Task 3): record_friend_greet
+    // doesn't validate p_other_id, so any client can drive greets against a
+    // victim who never agreed to anything — those surface as ghosts
+    // (spawnGhosts) and Player pets roster rows. This is a client-side,
+    // per-device "stop showing me this visitor" list, not a server-side fix
+    // (see docs/superpowers/specs/2026-08-01-whisker-walk-v7-online.md's
+    // "Known limitation" note) — homebase's roster ✕ button and spawnGhosts
+    // both consult it.
+    isBlocked(otherId) {
+      return blockList.has(otherId);
+    },
+    blockPlayer(otherId) {
+      blockList.add(otherId);
     },
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings);
@@ -1488,7 +1539,7 @@ function init() {
         const cloud = getCloud();
         if (cloud) {
           const name = ghost.petName;
-          cloud.recordGreet(pid, psecret, ghost.playerId, s.walkStamp)
+          cloud.recordGreet(pid, getPsecret(), ghost.playerId, s.walkStamp)
             .then((greets) => {
               // same 1/3/6 ladder wording as Task 3's completeBoop toasts
               if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
@@ -1565,7 +1616,7 @@ function init() {
         const cloud = getCloud();
         if (cloud) {
           const name = petNameFor(s, otherId);
-          cloud.recordGreet(s.playerId, psecret, otherId, s.walkStamp)
+          cloud.recordGreet(s.playerId, getPsecret(), otherId, s.walkStamp)
             .then((greets) => {
               if (greets === 1) hud.toast(`You met ${name} across walks! ♡`);
               else if (greets === 3) hud.toast(`${name} is now your friend across walks! ♥`);

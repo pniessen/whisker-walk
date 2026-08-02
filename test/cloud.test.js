@@ -232,6 +232,26 @@ describe('addFriendByCode (idempotent-per-pair friend-code add)', () => {
     expect(new Set(rpcCalls.map((c) => c.args.p_walk)).size).toBe(1); // same stamp both times, not Date.now()-varying
   });
 
+  it('returns a failed status (and never claims added) when recordGreet denies with -1', async () => {
+    // -1 means record_friend_greet denied the call — in this flow that's
+    // almost always because the CALLER has no profile row yet, not that
+    // anything is wrong with the friend being added. Before this fix that
+    // -1 was silently discarded and the flow fell through to {status:
+    // 'added'} — a false success.
+    const rpcCalls = [];
+    const rpc = async (name, args) => {
+      rpcCalls.push({ name, args });
+      return -1;
+    };
+    const select = async () => []; // no existing friendship row
+    const cloud = createCloud({ rpc, select });
+    const result = await cloud.addFriendByCode('me', 'sekrit', 'other');
+    expect(result).toEqual({ status: 'failed' });
+    expect(rpcCalls).toEqual([
+      { name: 'record_friend_greet', args: { p_my_id: 'me', p_my_secret: 'sekrit', p_other_id: 'other', p_walk: 'friendcode' } },
+    ]);
+  });
+
   it('short-circuits on self-add without calling select or rpc at all', async () => {
     const calls = [];
     const rpc = async (...args) => calls.push(['rpc', ...args]);
