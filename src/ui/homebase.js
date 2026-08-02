@@ -442,8 +442,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       friendCodeBusy = true;
       render();
       try {
-        await cloud.addFriendByCode(friendCodeCandidate.playerId);
-        friendCodeSuccess = `Added ${friendCodeCandidate.petName} as a friend!`;
+        const result = await cloud.addFriendByCode(friendCodeCandidate.playerId);
+        // 'already': a friendship row for this pair already exists (any
+        // greets > 0) — addFriendByCode deliberately skipped recordGreet
+        // rather than re-sending it, so repeated add clicks on the same
+        // code can't farm greets. 'self'/anything else: no-op, shouldn't
+        // be reachable since the UI already excludes your own code above.
+        friendCodeSuccess = result?.status === 'already'
+          ? `You're already friends with ${friendCodeCandidate.petName}!`
+          : result?.status === 'added'
+            ? `Added ${friendCodeCandidate.petName} as a friend!`
+            : null;
         friendCodeCandidate = null;
         friendCodeError = null;
       } catch (err) {

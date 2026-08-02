@@ -141,7 +141,37 @@ export function createCloud({ rpc, select }) {
     return select('friendships', 'or', `a_id.eq.${myId},b_id.eq.${myId}`);
   }
 
-  return { saveToCloud, loadFromCloud, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships };
+  // addFriendByCode(myId, mySecret, otherId) -> {status: 'self'|'already'|'added'}
+  //
+  // The friend-code flow (Task 4) must be idempotent per pair, not per
+  // click: home base's "confirm" button can legitimately fire more than
+  // once (a double-tap, or a search→cancel→search→confirm sequence on the
+  // same code), and record_friend_greet's dedupe key is the WALK STAMP the
+  // caller supplies — so a naive `'friendcode-' + Date.now()` stamp on
+  // every call defeats that dedupe entirely and lets repeated clicks farm
+  // greets 0→6, unlocking best-friend/gift status without any real
+  // interaction. Fixed here by (a) checking the already-fetched-for-the-
+  // roster friendships list before ever calling recordGreet — any existing
+  // row for this pair (any greets > 0) means "already met", so the call is
+  // skipped entirely rather than re-sent — and (b) using a single STABLE
+  // per-pair stamp ('friendcode', not a timestamp) for the one legitimate
+  // first-ever call, so even a genuine race between two rapid first-adds
+  // can only ever register once server-side. Net effect: a friend code can
+  // raise a pair from nothing to 'met' exactly once, ever; deepening the
+  // friendship past that still requires real co-walk/ghost greets.
+  async function addFriendByCode(myId, mySecret, otherId) {
+    if (otherId === myId) return { status: 'self' }; // belt-and-suspenders — callers should already exclude self
+    const rows = await fetchFriendships(myId);
+    const already = rows.some((r) => r.a_id === otherId || r.b_id === otherId);
+    if (already) return { status: 'already' };
+    await recordGreet(myId, mySecret, otherId, 'friendcode');
+    return { status: 'added' };
+  }
+
+  return {
+    saveToCloud, loadFromCloud, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
+    addFriendByCode,
+  };
 }
 
 async function realRpc(client, name, args) {

@@ -580,10 +580,10 @@ function init() {
     addFriendByCode(otherId) {
       const cloud = getCloud();
       if (!cloud) return Promise.reject(new Error('cloud unavailable'));
-      // a fresh synthetic walkStamp — this isn't tied to an in-progress
-      // walk (it's a home-base action), just a dedupe key the server
-      // expects; record_friend_greet starts a brand-new pair at 'met'.
-      return cloud.recordGreet(pid, psecret, otherId, 'friendcode-' + Date.now());
+      // idempotent-per-pair add — see cloud.js's addFriendByCode for why
+      // this can't just be a bare recordGreet with a fresh timestamp stamp
+      // (repeated clicks on the same code would farm greets).
+      return cloud.addFriendByCode(pid, psecret, otherId);
     },
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud);

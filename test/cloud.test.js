@@ -169,3 +169,76 @@ describe('createCloud RPC arg mapping', () => {
     expect(calls).toEqual([['friendships', 'or', 'a_id.eq.me,b_id.eq.me']]);
   });
 });
+
+describe('addFriendByCode (idempotent-per-pair friend-code add)', () => {
+  it('does NOT call recordGreet when a friendship row for this pair already exists', async () => {
+    const rpcCalls = [];
+    const rpc = async (name, args) => {
+      rpcCalls.push({ name, args });
+      return 'created';
+    };
+    // 'other' already appears as b_id on an existing row for 'me'
+    const select = async () => [{ a_id: 'me', b_id: 'other', greets: 3 }];
+    const cloud = createCloud({ rpc, select });
+    const result = await cloud.addFriendByCode('me', 'sekrit', 'other');
+    expect(result).toEqual({ status: 'already' });
+    expect(rpcCalls).toEqual([]); // recordGreet (record_friend_greet) must never fire
+  });
+
+  it('finds an existing pair regardless of which side (a_id/b_id) otherId is on', async () => {
+    const rpcCalls = [];
+    const rpc = async (name, args) => rpcCalls.push({ name, args });
+    const select = async () => [{ a_id: 'other', b_id: 'me', greets: 1 }];
+    const cloud = createCloud({ rpc, select });
+    const result = await cloud.addFriendByCode('me', 'sekrit', 'other');
+    expect(result).toEqual({ status: 'already' });
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it('calls recordGreet with a STABLE per-pair stamp (not a timestamp) on a genuine first add', async () => {
+    const rpcCalls = [];
+    const rpc = async (name, args) => {
+      rpcCalls.push({ name, args });
+      return 1;
+    };
+    const select = async () => []; // no existing friendship row
+    const cloud = createCloud({ rpc, select });
+    const result = await cloud.addFriendByCode('me', 'sekrit', 'other');
+    expect(result).toEqual({ status: 'added' });
+    expect(rpcCalls).toEqual([
+      { name: 'record_friend_greet', args: { p_my_id: 'me', p_my_secret: 'sekrit', p_other_id: 'other', p_walk: 'friendcode' } },
+    ]);
+  });
+
+  it('repeated calls for the same never-before-met pair only ever record one greet (idempotent, not just no-op-on-existing)', async () => {
+    // simulates two rapid clicks: the first call's fetchFriendships still
+    // sees no row (the greet hasn't landed yet), so BOTH calls would send
+    // record_friend_greet — the stable 'friendcode' stamp is what makes
+    // that safe: the server-side dedupe on (pair, walk stamp) collapses
+    // both calls to a single recorded greet no matter how many the client
+    // sends.
+    const rpcCalls = [];
+    let greets = 0;
+    const rpc = async (name, args) => {
+      rpcCalls.push({ name, args });
+      if (args.p_walk === 'friendcode') greets = 1; // dedupe: stays 1 no matter how many times this fires
+      return greets;
+    };
+    const select = async () => []; // both calls race before any row exists
+    const cloud = createCloud({ rpc, select });
+    await cloud.addFriendByCode('me', 'sekrit', 'other');
+    await cloud.addFriendByCode('me', 'sekrit', 'other');
+    expect(rpcCalls.every((c) => c.args.p_walk === 'friendcode')).toBe(true);
+    expect(new Set(rpcCalls.map((c) => c.args.p_walk)).size).toBe(1); // same stamp both times, not Date.now()-varying
+  });
+
+  it('short-circuits on self-add without calling select or rpc at all', async () => {
+    const calls = [];
+    const rpc = async (...args) => calls.push(['rpc', ...args]);
+    const select = async (...args) => calls.push(['select', ...args]);
+    const cloud = createCloud({ rpc, select });
+    const result = await cloud.addFriendByCode('me', 'sekrit', 'me');
+    expect(result).toEqual({ status: 'self' });
+    expect(calls).toEqual([]);
+  });
+});
