@@ -1,0 +1,31 @@
+name: Supabase keep-alive
+
+# Supabase pauses free-tier projects after 7 days of inactivity. This pings
+# the project a few times a week so it never idles long enough to pause.
+# One harmless read against the public `profiles` table counts as activity.
+
+on:
+  schedule:
+    # 09:17 UTC every Mon / Thu (~3-4 day gap, comfortably inside the 7-day window).
+    # Odd minute avoids the top-of-hour spikes GitHub delays cron runs during.
+    - cron: '17 9 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/profiles?select=player_id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY")
+          echo "Supabase responded with HTTP $code"
+          # 200 = read succeeded; treat anything else as a failure worth a notification.
+          if [ "$code" != "200" ]; then
+            echo "::error::Unexpected status $code — project may be paused or misconfigured."
+            exit 1
+          fi
