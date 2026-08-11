@@ -302,9 +302,24 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (!cloud || !cloud.available) return '';
     return `
       <div id="player-pets-section" class="player-pets">
-        <h3>Player pets 🐾🐾</h3>
+        <h3>Player pets</h3>
         <div id="player-pets-roster" class="tag">loading…</div>
-        ${renderFriendCode()}
+      </div>`;
+  }
+
+  function renderStrayFriends() {
+    const s = progression.state;
+    const entries = Object.entries(s.friends);
+    return `<h3>Stray cats</h3>
+      <div class="friends-list">
+        ${entries.length
+          ? entries
+              .sort(([, a], [, b]) => b.greets - a.greets)
+              .map(([name, f]) => `<div class="friend-row">
+                <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
+                <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
+              </div>`).join('')
+          : '<div class="tag">No cat friends yet — go touch noses!</div>'}
       </div>`;
   }
 
@@ -415,17 +430,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <section class="walk-together"><h2>Walk together 🐾🐾</h2>
               ${renderWalkTogether()}
             </section>
-            <section><h2>Cat friends 🐾</h2><div class="friends-list">
-              ${Object.entries(s.friends).length
-                ? Object.entries(s.friends)
-                    .sort(([, a], [, b]) => b.greets - a.greets)
-                    .map(([name, f]) => `<div class="friend-row">
-                      <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
-                      <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
-                    </div>`).join('')
-                : '<div class="tag">No cat friends yet — go touch noses!</div>'}
-            </div>
-            ${renderPlayerPets()}
+            <section class="friends-section"><h2>Friends 🐾</h2>
+              ${renderPlayerPets()}
+              ${renderStrayFriends()}
+              ${cloud && cloud.available ? renderFriendCode() : ''}
             </section>
           </div>
           <div class="hb-panel" data-panel="album">
