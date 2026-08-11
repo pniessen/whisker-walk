@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createNet, createFakeHub, generateRoomCode, validPetName } from '../src/net.js';
+import { PHRASES } from '../src/chat.js';
 
 describe('room codes and names', () => {
   it('generates 4-char codes from the safe alphabet', () => {
@@ -116,5 +117,28 @@ describe('createNet over a fake hub', () => {
 
     expect(latestRoster).not.toBeNull();
     expect(latestRoster.length).toBe(2);
+  });
+});
+
+describe('chat broadcast kind', () => {
+  it('delivers valid chat to peers, suppresses echo, drops invalid', async () => {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport());
+    const b = createNet(hub.transport());
+    await a.join('ROOM', { playerId: 'a', petName: 'Ada', breed: 'tabby', accessories: {} });
+    await b.join('ROOM', { playerId: 'b', petName: 'Bea', breed: 'tux', accessories: {} });
+
+    const aGot = [];
+    const bGot = [];
+    a.onChat((m) => aGot.push(m));
+    b.onChat((m) => bGot.push(m));
+
+    a.sendChat({ v: 1, id: 'a', phraseId: PHRASES[0].id });
+    expect(bGot).toHaveLength(1);
+    expect(bGot[0].phraseId).toBe(PHRASES[0].id);
+    expect(aGot).toHaveLength(0); // echo suppressed for the sender
+
+    a.sendChat({ v: 1, id: 'a', phraseId: 'totally-unknown' }); // invalid → dropped
+    expect(bGot).toHaveLength(1);
   });
 });

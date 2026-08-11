@@ -9,6 +9,8 @@
 // in Task 6); all the logic that *can* be unit tested lives in createNet and
 // is tested here against createFakeHub.
 
+import { isValidChatMsg } from './chat.js';
+
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no I/O/0/1
 const MAX_MESSAGE_BYTES = 2048;
 
@@ -99,6 +101,7 @@ export function createNet(transport) {
   let roster = [];
   const stateHandlers = [];
   const eventHandlers = [];
+  const chatHandlers = [];
   const rosterHandlers = [];
 
   function setRoster(list) {
@@ -115,6 +118,10 @@ export function createNet(transport) {
       if (!isValidEventMsg(payload)) return;
       if (payload.id === selfId) return; // echo suppression
       for (const fn of eventHandlers) fn(payload);
+    } else if (kind === 'chat') {
+      if (!isValidChatMsg(payload)) return;
+      if (payload.id === selfId) return; // echo suppression
+      for (const fn of chatHandlers) fn(payload);
     }
   }
 
@@ -144,12 +151,21 @@ export function createNet(transport) {
     transport.send('event', event);
   }
 
+  function sendChat(msg) {
+    if (!isValidChatMsg(msg)) return;
+    transport.send('chat', msg);
+  }
+
   function onState(fn) {
     stateHandlers.push(fn);
   }
 
   function onEvent(fn) {
     eventHandlers.push(fn);
+  }
+
+  function onChat(fn) {
+    chatHandlers.push(fn);
   }
 
   // Replay-to-late-subscriber: a caller that wires up onRoster() after the
@@ -169,7 +185,7 @@ export function createNet(transport) {
     return roster.length > 0 && selfId != null && roster[0].playerId === selfId;
   }
 
-  return { join, leave, sendState, sendEvent, onState, onEvent, onRoster, isHost };
+  return { join, leave, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
 }
 
 /**
