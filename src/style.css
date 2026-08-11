@@ -287,3 +287,19 @@ body.left-handed .tui-pause {
   .summary-card h1 { font-size: 1.7rem; }
   .summary-stats { gap: 14px; }
 }
+.chat-wheel { position: fixed; right: 16px; bottom: 96px; z-index: 5; }
+.chat-wheel.hidden { display: none; }
+.chat-toggle { width: 56px; height: 56px; border-radius: 50%; border: none;
+  font-size: 26px; background: rgba(28,36,49,0.85); color: #fff; cursor: pointer; }
+.chat-tray { position: absolute; right: 0; bottom: 68px; width: 260px;
+  background: rgba(20,26,38,0.96); border-radius: 14px; padding: 10px; }
+.chat-tray.hidden { display: none; }
+.chat-phrases { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chat-phrase { padding: 10px 8px; border: none; border-radius: 10px;
+  background: #2b3648; color: #fff; font-size: 15px; cursor: pointer; }
+.chat-emote { font-size: 22px; }
+.chat-mutes { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.chat-mute-row { text-align: left; padding: 6px 8px; border: none; border-radius: 8px;
+  background: transparent; color: #cdd6e4; font-size: 13px; cursor: pointer; }
+body.left-handed .chat-wheel { left: 16px; right: auto; }
+body.left-handed .chat-tray { left: 0; right: auto; }
