@@ -39,6 +39,9 @@ describe('isValidChatMsg', () => {
     expect(isValidChatMsg(null)).toBe(false);
     expect(isValidChatMsg('hi')).toBe(false);
   });
+  it('rejects an oversized id (bounds the rate-limiter Map key)', () => {
+    expect(isValidChatMsg({ v: 1, id: 'x'.repeat(200), phraseId: PHRASES[0].id })).toBe(false);
+  });
 });
 
 describe('createChatRateLimiter', () => {

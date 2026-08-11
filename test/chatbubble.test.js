@@ -7,7 +7,16 @@ function fakeTarget() {
   } };
 }
 function fakeSpriteFactory() {
-  return () => ({ material: { opacity: 1, map: { dispose() {} }, dispose() {} } });
+  return () => {
+    const map = { disposed: false, dispose() { this.disposed = true; } };
+    const material = {
+      opacity: 1,
+      map,
+      disposed: false,
+      dispose() { this.disposed = true; },
+    };
+    return { material };
+  };
 }
 
 describe('createChatBubbles', () => {
@@ -41,6 +50,32 @@ describe('createChatBubbles', () => {
     bubbles.show(cat, 'Bye!', 10);
     expect(bubbles.activeCount).toBe(1);
     expect(cat.children).toHaveLength(1);
+  });
+
+  it('disposes the replaced sprite\'s material and map', () => {
+    let t = 0;
+    const bubbles = createChatBubbles(fakeTarget(), { makeSprite: fakeSpriteFactory(), now: () => t });
+    const cat = fakeTarget();
+    bubbles.show(cat, 'Hi!', 0);
+    const firstSprite = cat.children[0];
+    bubbles.show(cat, 'Bye!', 10);
+    expect(firstSprite.material.disposed).toBe(true);
+    expect(firstSprite.material.map.disposed).toBe(true);
+    // the new sprite should remain untouched
+    expect(cat.children[0].material.disposed).toBe(false);
+    expect(cat.children[0].material.map.disposed).toBe(false);
+  });
+
+  it('disposes the sprite\'s material and map when the bubble expires', () => {
+    let t = 0;
+    const bubbles = createChatBubbles(fakeTarget(), { makeSprite: fakeSpriteFactory(), now: () => t });
+    const cat = fakeTarget();
+    bubbles.show(cat, 'Hi!', 0);
+    const sprite = cat.children[0];
+    t = 3500; bubbles.update(t); // past LIFETIME_MS
+    expect(bubbles.activeCount).toBe(0);
+    expect(sprite.material.disposed).toBe(true);
+    expect(sprite.material.map.disposed).toBe(true);
   });
 
   it('no-ops when the sprite factory returns null (headless)', () => {

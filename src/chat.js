@@ -34,6 +34,7 @@ export function isValidChatMsg(msg) {
     msg.v === 1 &&
     typeof msg.id === 'string' &&
     msg.id.length > 0 &&
+    msg.id.length <= 64 && // playerIds are UUID-length (~36 chars); bounds the rate-limiter Map key
     typeof msg.phraseId === 'string' &&
     BY_ID.has(msg.phraseId)
   );

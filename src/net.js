@@ -301,8 +301,14 @@ export function createSupabaseTransport(url, key) {
         },
       });
 
+      // This subscription list MUST include every broadcast kind createNet's
+      // handleBroadcast() handles (state/event/chat) — a kind missing here is
+      // silently never delivered to peers, even though createNet is fully
+      // wired to route it. Add a new `channel.on('broadcast', ...)` line
+      // whenever a new kind is added to handleBroadcast.
       channel.on('broadcast', { event: 'state' }, ({ payload }) => handlers.onBroadcast('state', payload));
       channel.on('broadcast', { event: 'event' }, ({ payload }) => handlers.onBroadcast('event', payload));
+      channel.on('broadcast', { event: 'chat' }, ({ payload }) => handlers.onBroadcast('chat', payload));
       channel.on('presence', { event: 'sync' }, () => {
         handlers.onRoster(flattenPresenceState(channel.presenceState()));
       });
