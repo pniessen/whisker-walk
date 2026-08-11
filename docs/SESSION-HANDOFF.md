@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-02 · **Branch:** `main` · **Tests:** 186 passing (24 files) · **Latest commit:** `80a4357`
+**Last updated:** 2026-08-11 · **Branch:** `main` · **Tests:** 200 passing (26 files) · **Latest commit:** `bc3292c`
 
 ---
 
@@ -74,7 +74,8 @@ in `docs/superpowers/`.
 - **v4 "Real Game"** — progression depth, discovery currency, quests/events. (Test baseline ~79→119.)
 - **v5 "Co-Walks"** — live multiplayer co-walking via Supabase Realtime; pets are *named* (not "players"); occasional ghosts. Family pets added: **Zeetoo** (tabby), **Rosa** (tux), **Robbie** (cow cat), **Hagrid** (a chicken). Two-player boop acceptance test passed live.
 - **v6 "Mobile"** — mobile-friendly: virtual joystick (lower-LEFT thumb), orbit drag (right side), touch engagement model, coarse-pointer perf tuning.
-- **v7 "Always Online"** (latest, this session's context) — see §5.
+- **v7 "Always Online"** — cloud saves, persistent friendships, ghost visits, PWA, settings — see §5.
+- **v8 "Say Hi"** (latest) — live in-game chat during co-walks. Curated phrase/emote tray (💬 button), speech bubbles over cats (`src/chatbubble.js` mirrors `nametag.js`), per-player mute + `hideChat` setting. **Safety keystone: only a phrase-ID enum crosses the wire** (`src/chat.js` catalog; `net.js` `chat` broadcast kind) — no free text, so no moderation surface. Files: `src/chat.js`, `src/chatbubble.js`, `src/ui/chatwheel.js`, chat wiring in `src/main.js`. Spec/plan: `docs/superpowers/{specs,plans}/2026-08-11-whisker-walk-v8-chat.md`. **Lesson:** the live Supabase transport must subscribe to every broadcast kind `createNet.handleBroadcast` handles — the final review caught `chat` missing from `createSupabaseTransport.join` (unit tests passed because the fake hub is kind-agnostic). Verify multiplayer wire changes with a live two-client round-trip, not just unit tests.
 
 ## 4. Backend — the LIVE Supabase contract ⚠️
 
@@ -169,8 +170,10 @@ Every fix independently re-probed with hostile payloads.
 
 ## 7. Open threads / next steps
 
-- **No pending build work.** v7 is complete, merged to `main`, deployed.
-- **v8 backlog** (mentioned in specs, not yet requested to build): **co-walk
+- **No pending build work.** v7 and v8 are complete, merged to `main`, deployed.
+- **Backlog** (mentioned in specs, not yet requested to build): async/offline
+  friend messaging (a persistent inbox — deferred from v8, needs tables + RPCs +
+  stored-content moderation); **co-walk
   verbs** (tag/zoomies, ambush pounce, mutual grooming, duo goals, relay quests);
   **charm pack** (emote wheel, critter journal, home interior, cat customization,
   lofi music); leaderboards / photo wall; **server-side moderation + rate-limiting
