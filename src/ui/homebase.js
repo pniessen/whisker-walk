@@ -5,6 +5,8 @@ import { HOME_TABS, resolveTab } from './hometabs.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
+const TAB_LABEL = { play: '🎽 Play', social: '🐾 Social', album: '📸 Album', settings: '⚙️ Settings' };
+
 const CAT_BLURBS = {
   tabby: 'Curious — sniffs out hidden treasures',
   siamese: 'Hyper — fast, loud, chases everything',
@@ -374,30 +376,29 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
       <div class="homebase-scroll">
-        <div class="hb-hero">
-          <header class="hb-header">
-            <h1>🐈 Whisker Walk</h1>
-            <div class="hb-header-right">
-              <div class="hb-points">🐾 ${s.points} whisker points</div>
-              <div class="hb-substats">
-                <span>🏆 ${rank.title} — ${nextLine}</span>
-                <span>best walk: ${s.bestWalk} 🐾</span>
+        <div class="hb-topbar">
+          <div class="hb-hero">
+            <header class="hb-header">
+              <h1>🐈 Whisker Walk</h1>
+              <div class="hb-header-right">
+                <div class="hb-points">🐾 ${s.points} whisker points</div>
+                <div class="hb-substats">
+                  <span>🏆 ${rank.title} — ${nextLine}</span>
+                  <span>best walk: ${s.bestWalk} 🐾</span>
+                </div>
               </div>
+            </header>
+            <div class="hb-hero-start">
+              ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
+              ${waitingForHost
+                ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
+                : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
             </div>
-          </header>
-          <div class="hb-hero-start">
-            ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
-            ${waitingForHost
-              ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
-              : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
           </div>
+          <nav class="hb-tabs" role="tablist">
+            ${HOME_TABS.map((id) => `<button class="hb-tab" data-tab="${id}" role="tab">${TAB_LABEL[id]}</button>`).join('')}
+          </nav>
         </div>
-        <nav class="hb-tabs" role="tablist">
-          <button class="hb-tab" data-tab="play" role="tab">🎽 Play</button>
-          <button class="hb-tab" data-tab="social" role="tab">🐾 Social</button>
-          <button class="hb-tab" data-tab="album" role="tab">📸 Album</button>
-          <button class="hb-tab" data-tab="settings" role="tab">⚙️ Settings</button>
-        </nav>
         <div class="hb-panels">
           <div class="hb-panel" data-panel="play">
             <section><h2>Your cat</h2><div class="cards">
