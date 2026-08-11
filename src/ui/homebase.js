@@ -1,6 +1,7 @@
 import { CATALOG, rankFor } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
+import { HOME_TABS, resolveTab } from './hometabs.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -78,6 +79,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
+  let activeTab = 'play';
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
@@ -351,6 +353,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
   }
 
+  function applyActiveTab() {
+    for (const btn of root.querySelectorAll('.hb-tab')) {
+      btn.classList.toggle('active', btn.dataset.tab === activeTab);
+      btn.setAttribute('aria-selected', btn.dataset.tab === activeTab ? 'true' : 'false');
+    }
+    for (const panel of root.querySelectorAll('.hb-panel')) {
+      panel.classList.toggle('active', panel.dataset.panel === activeTab);
+    }
+  }
+
   function render() {
     const s = progression.state;
     const glowReady = s.equipped.collar === 'glow';
@@ -362,58 +374,84 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
       <div class="homebase-scroll">
-        <header class="hb-header">
-          <h1>🐈 Whisker Walk</h1>
-          <div class="hb-header-right">
-            <div class="hb-points">🐾 ${s.points} whisker points</div>
-            <div class="hb-substats">
-              <span>🏆 ${rank.title} — ${nextLine}</span>
-              <span>best walk: ${s.bestWalk} 🐾</span>
+        <div class="hb-hero">
+          <header class="hb-header">
+            <h1>🐈 Whisker Walk</h1>
+            <div class="hb-header-right">
+              <div class="hb-points">🐾 ${s.points} whisker points</div>
+              <div class="hb-substats">
+                <span>🏆 ${rank.title} — ${nextLine}</span>
+                <span>best walk: ${s.bestWalk} 🐾</span>
+              </div>
             </div>
+          </header>
+          <div class="hb-hero-start">
+            ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
+            ${waitingForHost
+              ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
+              : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
           </div>
-        </header>
-        <section><h2>Your cat</h2><div class="cards">
-          ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}
-        </div></section>
-        <section><h2>Accessories</h2><div class="cards">
-          ${Object.entries(CATALOG.accessories).map(([id, a]) => card('accessories', id, a, `on (${a.slot})`)).join('')}
-        </div></section>
-        <section><h2>Where to?</h2><div class="cards">
-          ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
-        </div></section>
-        <section><h2>Photo album 📸</h2><div class="photos">
-          ${album.photos.length
-            ? album.photos.map((p) => `<figure><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${escapeHtml(p.label)} — ${escapeHtml(p.area)}</figcaption></figure>`).join('')
-            : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
-        </div></section>
-        <section><h2>Cat friends 🐾</h2><div class="friends-list">
-          ${Object.entries(s.friends).length
-            ? Object.entries(s.friends)
-                .sort(([, a], [, b]) => b.greets - a.greets)
-                .map(([name, f]) => `<div class="friend-row">
-                  <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
-                  <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
-                </div>`).join('')
-            : '<div class="tag">No cat friends yet — go touch noses!</div>'}
         </div>
-        ${renderPlayerPets()}
-        </section>
-        <section class="walk-together"><h2>Walk together 🐾🐾</h2>
-          ${renderWalkTogether()}
-        </section>
-        ${sync && sync.available ? `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>` : ''}
-        ${renderSettings()}
-        <footer class="hb-footer">
-          ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
-          ${waitingForHost
-            ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
-            : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
-        </footer>
+        <nav class="hb-tabs" role="tablist">
+          <button class="hb-tab" data-tab="play" role="tab">🎽 Play</button>
+          <button class="hb-tab" data-tab="social" role="tab">🐾 Social</button>
+          <button class="hb-tab" data-tab="album" role="tab">📸 Album</button>
+          <button class="hb-tab" data-tab="settings" role="tab">⚙️ Settings</button>
+        </nav>
+        <div class="hb-panels">
+          <div class="hb-panel" data-panel="play">
+            <section><h2>Your cat</h2><div class="cards">
+              ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}
+            </div></section>
+            <section><h2>Accessories</h2><div class="cards">
+              ${Object.entries(CATALOG.accessories).map(([id, a]) => card('accessories', id, a, `on (${a.slot})`)).join('')}
+            </div></section>
+            <section><h2>Where to?</h2><div class="cards">
+              ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
+            </div></section>
+          </div>
+          <div class="hb-panel" data-panel="social">
+            <section class="walk-together"><h2>Walk together 🐾🐾</h2>
+              ${renderWalkTogether()}
+            </section>
+            <section><h2>Cat friends 🐾</h2><div class="friends-list">
+              ${Object.entries(s.friends).length
+                ? Object.entries(s.friends)
+                    .sort(([, a], [, b]) => b.greets - a.greets)
+                    .map(([name, f]) => `<div class="friend-row">
+                      <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
+                      <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
+                    </div>`).join('')
+                : '<div class="tag">No cat friends yet — go touch noses!</div>'}
+            </div>
+            ${renderPlayerPets()}
+            </section>
+          </div>
+          <div class="hb-panel" data-panel="album">
+            <section><h2>Photo album 📸</h2><div class="photos">
+              ${album.photos.length
+                ? album.photos.map((p) => `<figure><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${escapeHtml(p.label)} — ${escapeHtml(p.area)}</figcaption></figure>`).join('')
+                : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
+            </div></section>
+          </div>
+          <div class="hb-panel" data-panel="settings">
+            ${sync && sync.available ? `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>` : ''}
+            ${renderSettings()}
+          </div>
+        </div>
       </div>`;
+    activeTab = resolveTab(activeTab);
+    applyActiveTab();
     if (cloud && cloud.available) loadPlayerPets();
   }
 
   root.addEventListener('click', async (e) => {
+    const tabBtn = e.target.closest('.hb-tab');
+    if (tabBtn) {
+      activeTab = resolveTab(tabBtn.dataset.tab);
+      applyActiveTab();
+      return;
+    }
     if (e.target.id === 'btn-start') {
       const dusk = root.querySelector('#dusk-toggle');
       onStartWalk({ duskMode: !!(dusk && dusk.checked) });

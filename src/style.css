@@ -303,3 +303,15 @@ body.left-handed .tui-pause {
   background: transparent; color: #cdd6e4; font-size: 13px; cursor: pointer; }
 body.left-handed .chat-wheel { left: 16px; right: auto; }
 body.left-handed .chat-tray { left: 0; right: auto; }
+
+.hb-hero { position: sticky; top: 0; z-index: 3; background: #1c2431;
+  padding: 12px 0 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.hb-hero-start { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.hb-hero-start .primary { flex: 1; }
+.hb-tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 4px;
+  background: #1c2431; padding: 8px 0; }
+.hb-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px;
+  background: #2b3648; color: #cdd6e4; font-size: 14px; cursor: pointer; }
+.hb-tab.active { background: #3a4a63; color: #fff; }
+.hb-panel { display: none; }
+.hb-panel.active { display: block; }
