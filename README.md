@@ -23,7 +23,7 @@ V to meow · T yarn ball · C camera · M mute · Esc to pause or end the walk.
 
 **On phones & tablets:** left-thumb joystick to move (tilt gently to stalk) · drag the right side to look around · tap the buttons for pounce, meow, yarn, and camera · tap prompts to interact · ⏸ to pause.
 
-**Settings ⚙️** (home base, below Sync): volume, mute, invert look (Y axis), left-handed touch controls (mirrors the joystick/action-button layout), and reduced motion (drops rain particles and the walk body-bob). Everything applies immediately, no reload — and it's all local, so it works fully offline/solo too.
+**Settings ⚙️** (home base, below Sync): volume, mute, invert look (Y axis), left-handed touch controls (mirrors the joystick/action-button layout), reduced motion (drops rain particles and the walk body-bob), and hide chat bubbles (silences incoming in-game chat during a co-walk). Everything applies immediately, no reload — and it's all local, so it works fully offline/solo too.
 
 ## Walk together 🐾🐾
 
@@ -33,6 +33,14 @@ nap piles. From the home base screen: name your pet, then either **Host a
 walk** (get a 4-character room code to share) or **Join** with a code a
 friend sent you. The host picks the area and starts the walk for everyone;
 joiners' Start button reads "Waiting for host…" until then.
+
+During a co-walk, tap the 💬 button to open a tray of curated phrases and
+emotes — no free text, so chat is always safe to broadcast. Picked phrases
+show as a speech bubble over your cat (and the sender's, for everyone else)
+and appear in the tray as a per-player mute toggle. Chat is co-walk-only:
+solo walks and ghost visits never show the 💬 button or send/receive
+anything. See the "Hide chat bubbles" setting above to silence incoming
+chat entirely.
 
 Multiplayer runs on [Supabase](https://supabase.com) Realtime — no server of
 ours involved. To enable it locally, create a free Supabase project and put

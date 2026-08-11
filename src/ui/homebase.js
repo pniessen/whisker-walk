@@ -258,6 +258,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <label class="settings-row"><input type="checkbox" id="set-invert-y" ${s.invertY ? 'checked' : ''} /> Invert look (Y axis)</label>
           <label class="settings-row"><input type="checkbox" id="set-left-handed" ${s.leftHanded ? 'checked' : ''} /> Left-handed touch controls</label>
           <label class="settings-row"><input type="checkbox" id="set-reduced-motion" ${s.reducedMotion ? 'checked' : ''} /> Reduced motion</label>
+          <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
         </div>
         <button id="btn-reset" class="danger">Start over</button>
       </section>`;
@@ -621,6 +622,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     if (e.target.id === 'set-reduced-motion') {
       settings.set('reducedMotion', e.target.checked);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-hide-chat') {
+      settings.set('hideChat', e.target.checked);
       onSettingsChange?.();
       render();
       return;

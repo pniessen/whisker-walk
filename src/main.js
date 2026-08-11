@@ -32,6 +32,9 @@ import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
 import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from './cloud.js';
 import { createBlockList } from './blocklist.js';
+import { createChatBubbles } from './chatbubble.js';
+import { createChatWheel } from './ui/chatwheel.js';
+import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './chat.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -1097,6 +1100,34 @@ function init() {
       session.petName = progression.state.petName;
     }
 
+    // In-game chat (Task 6): co-walk-only — the wheel is created every walk
+    // but only made visible when session.net is truthy, and the receive
+    // handler below is only ever wired inside the `if (session.net)` block,
+    // so solo walks and ghost-only walks never touch any of this.
+    // session.cat is already set via the `cat` shorthand in the session
+    // object literal above; chatBubbles anchors on that same Object3D.
+    const chatBubbles = createChatBubbles(scene);
+    const chatRate = createChatRateLimiter({ perMs: 1200 });   // receive-side, per remote sender
+    const sendGate = createChatRateLimiter({ perMs: 1500 });   // local self-send cooldown
+    const mutedIds = new Set();                                // per-walk, ephemeral
+    session.chatBubbles = chatBubbles;
+
+    const chatWheel = createChatWheel(document.body, {
+      onPick: (phraseId) => {
+        if (!session.net) return;
+        if (!sendGate.allow(session.playerId)) return;
+        const p = phraseById(phraseId);
+        if (!p) return;
+        chatBubbles.show(session.cat, p.text);            // instant local feedback
+        session.net.sendChat({ v: 1, id: session.playerId, phraseId });
+      },
+      getPlayers: () => (session.net ? session.remotes.list.map((r) => ({ id: r.playerId, name: r.petName })) : []),
+      isMuted: (id) => mutedIds.has(id),
+      toggleMute: (id) => { if (mutedIds.has(id)) mutedIds.delete(id); else mutedIds.add(id); },
+    });
+    session.chatWheel = chatWheel;
+    chatWheel.setVisible(Boolean(session.net));
+
     if (session.net) {
       const net = session.net;
       net.onRoster((roster) => {
@@ -1110,6 +1141,7 @@ function init() {
           remotes.upsert(p, nowSec());
         }
         hud.setRoster(remotes.list.map((r) => r.petName));
+        session.chatWheel?.refresh();
       });
       net.onState((state) => {
         if (state.id === session.playerId) return; // explicit self-filter; applyState is a no-op for us anyway
@@ -1126,6 +1158,18 @@ function init() {
         }
       });
       net.onEvent((ev) => applyRemoteEvent(session, ev));
+      net.onChat((msg) => {
+        if (!shouldShowIncomingChat(msg.id, {
+          hideChat: settings.get('hideChat'),
+          isMuted: (id) => mutedIds.has(id),
+          isBlocked: (id) => blockList.has(id),
+        })) return;
+        if (!chatRate.allow(msg.id)) return;
+        const p = phraseById(msg.phraseId);
+        if (!p) return;
+        const entry = session.remotes.list.find((r) => r.playerId === msg.id);
+        if (entry) chatBubbles.show(entry.group, p.text);
+      });
     }
 
     // Ghost visits (Task 4): cross-walk friends occasionally show up as a
@@ -1208,6 +1252,8 @@ function init() {
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
+    session.chatBubbles?.clear();
+    session.chatWheel?.destroy();
     session = null;
     player.disable();
     hud.hide();
@@ -1829,6 +1875,7 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.remotes.update(dt, nowSec());
+      session.chatBubbles?.update();
       session.ghosts.update(dt, t);
       // ghost ball is only shown (and batable) while I don't already have my
       // own active toy out, and its last report is fresh — a remote who went
