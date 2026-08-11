@@ -15,6 +15,7 @@ describe('createSettings', () => {
       invertY: false,
       leftHanded: false,
       reducedMotion: false,
+      hideChat: false,
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -41,6 +42,7 @@ describe('createSettings', () => {
       invertY: false,
       leftHanded: true,
       reducedMotion: false,
+      hideChat: false,
     });
   });
 
@@ -53,6 +55,7 @@ describe('createSettings', () => {
       invertY: false,
       leftHanded: false,
       reducedMotion: false,
+      hideChat: false,
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -66,5 +69,15 @@ describe('createSettings', () => {
     expect(settings.get('volume')).toBe(0);
     settings.set('notAKey', true);
     expect(settings.all().notAKey).toBeUndefined();
+  });
+
+  it('defaults hideChat to false, persists a set, ignores corrupt', () => {
+    const store = fakeStorage();
+    const s = createSettings(store);
+    expect(s.get('hideChat')).toBe(false);
+    s.set('hideChat', true);
+    expect(s.get('hideChat')).toBe(true);
+    const reloaded = createSettings(store);
+    expect(reloaded.get('hideChat')).toBe(true);
   });
 });

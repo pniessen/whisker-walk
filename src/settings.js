@@ -6,6 +6,7 @@ const DEFAULTS = {
   invertY: false,
   leftHanded: false,
   reducedMotion: false,
+  hideChat: false,
 };
 
 function isPlainObject(v) {
@@ -29,6 +30,7 @@ function sanitize(raw) {
     invertY: typeof raw.invertY === 'boolean' ? raw.invertY : DEFAULTS.invertY,
     leftHanded: typeof raw.leftHanded === 'boolean' ? raw.leftHanded : DEFAULTS.leftHanded,
     reducedMotion: typeof raw.reducedMotion === 'boolean' ? raw.reducedMotion : DEFAULTS.reducedMotion,
+    hideChat: typeof raw.hideChat === 'boolean' ? raw.hideChat : DEFAULTS.hideChat,
   };
 }
 
