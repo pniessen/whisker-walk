@@ -1063,6 +1063,9 @@ function init() {
     sun.shadow.camera.top = 70;
     sun.shadow.camera.bottom = -70;
     sun.shadow.camera.far = 160;
+    sun.shadow.bias = -0.0004;        // kill shadow acne on the low-poly spheres
+    sun.shadow.normalBias = 0.02;     // kill peter-panning at contact points
+    sun.shadow.camera.near = 1;
     scene.traverse((obj) => {
       if (obj.isMesh) {
         obj.castShadow = true;
