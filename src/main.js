@@ -38,6 +38,10 @@ import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './cha
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -179,6 +183,22 @@ function init() {
   const envMap = buildEnvMap(renderer);
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
+
+  // Post-processing: EffectComposer with a subtle bloom pass, built
+  // unconditionally for now. Task 5 makes this tier-gated + lazy.
+  const renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.35,  // strength — gentle
+    0.6,   // radius
+    0.85   // threshold — only bright emissives/sky bloom
+  );
+  const composer = new EffectComposer(renderer);
+  composer.addPass(renderPass);
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass()); // applies renderer.toneMapping + sRGB at the end
+  function renderFrame() { composer.render(); }
+
   const player = createPlayer(camera, canvas);
   // isTouch gates which control surface is active; a hybrid device that only
   // reveals itself via a real touch event upgrades mid-session (onFirstTouch
@@ -699,6 +719,8 @@ function init() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    bloomPass.setSize(window.innerWidth, window.innerHeight);
   });
 
   bus.on('discovery', ({ type }) => {
@@ -918,6 +940,7 @@ function init() {
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     scene.environment = envMap;
+    renderPass.scene = scene; // point the composer's RenderPass at this walk's scene
     scene.environmentIntensity = 0.35; // subtle IBL; Task 5 routes this through the tier
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
@@ -1900,7 +1923,7 @@ function init() {
       hud.toast('Just scenery… get closer to something!');
       return;
     }
-    renderer.render(s.scene, camera);
+    renderFrame();
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = 160;
     thumbCanvas.height = 120;
@@ -1980,6 +2003,6 @@ function init() {
         session.questGiver.marker.position.y = 2.1 + Math.sin(t * 3) * 0.12;
       }
     }
-    renderer.render(session.scene, camera);
+    renderFrame();
   });
 }
