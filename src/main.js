@@ -38,6 +38,7 @@ import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './cha
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
+import { resolveQuality } from './render/quality.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -184,20 +185,30 @@ function init() {
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
 
-  // Post-processing: EffectComposer with a subtle bloom pass, built
-  // unconditionally for now. Task 5 makes this tier-gated + lazy.
-  const renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
-  const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.35,  // strength — gentle
-    0.6,   // radius
-    0.85   // threshold — only bright emissives/sky bloom
-  );
-  const composer = new EffectComposer(renderer);
-  composer.addPass(renderPass);
-  composer.addPass(bloomPass);
-  composer.addPass(new OutputPass()); // applies renderer.toneMapping + sRGB at the end
-  function renderFrame() { composer.render(); }
+  // Post-processing: EffectComposer with a subtle bloom pass, built lazily —
+  // only high-tier walks (see resolveQuality) ever call ensureComposer(), so
+  // a device that only ever runs low tier never allocates the composer or
+  // its render targets.
+  let composer = null, renderPass = null, bloomPass = null;
+  function ensureComposer() {
+    if (composer) return;
+    renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.35,  // strength — gentle
+      0.6,   // radius
+      0.85   // threshold — only bright emissives/sky bloom
+    );
+    composer = new EffectComposer(renderer);
+    composer.addPass(renderPass);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass()); // applies renderer.toneMapping + sRGB at the end
+    composer.setSize(window.innerWidth, window.innerHeight);
+  }
+  function renderFrame() {
+    if (session?.useComposer && composer) composer.render();
+    else renderer.render(session.scene, camera);
+  }
 
   const player = createPlayer(camera, canvas);
   // isTouch gates which control surface is active; a hybrid device that only
@@ -719,8 +730,10 @@ function init() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    bloomPass.setSize(window.innerWidth, window.innerHeight);
+    if (composer) {
+      composer.setSize(window.innerWidth, window.innerHeight);
+      bloomPass.setSize(window.innerWidth, window.innerHeight);
+    }
   });
 
   bus.on('discovery', ({ type }) => {
@@ -931,6 +944,12 @@ function init() {
   });
 
   function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
+    const tier = resolveQuality({
+      coarse,
+      reducedMotion: settings.get('reducedMotion'),
+      override: settings.get('quality'),
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.pixelRatioCap));
     const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
     const state = progression.state;
     // areaOverride: a joiner who hasn't unlocked the host's area still walks
@@ -940,8 +959,12 @@ function init() {
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     scene.environment = envMap;
-    renderPass.scene = scene; // point the composer's RenderPass at this walk's scene
-    scene.environmentIntensity = 0.35; // subtle IBL; Task 5 routes this through the tier
+    scene.environmentIntensity = tier.envIntensity;
+    if (tier.postFx) {
+      ensureComposer();
+      renderPass.scene = scene; // point the composer's RenderPass at this walk's scene
+      renderPass.camera = camera;
+    }
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
@@ -1088,7 +1111,7 @@ function init() {
     const scent = createScent(scene, areaData, walkRng);
 
     sun.castShadow = true;
-    sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
+    sun.shadow.mapSize.set(tier.shadowMapSize, tier.shadowMapSize);
     sun.shadow.camera.left = -70;
     sun.shadow.camera.right = 70;
     sun.shadow.camera.top = 70;
@@ -1108,6 +1131,7 @@ function init() {
 
     session = {
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      useComposer: tier.postFx,
       ghosts: NO_GHOSTS,
       walkStamp,
       netSendAccum: 0,
