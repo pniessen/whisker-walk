@@ -35,6 +35,7 @@ import { createBlockList } from './blocklist.js';
 import { createChatBubbles } from './chatbubble.js';
 import { createChatWheel } from './ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './chat.js';
+import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -132,6 +133,14 @@ function meowVolumeForDistance(dist) {
   if (dist <= 8) return 1;
   if (dist >= 40) return 0.2;
   return 1 - ((dist - 8) / (40 - 8)) * 0.8;
+}
+
+// Deterministic per-cat offset for seeded reply selection (chat.js's
+// countsAsGreet/replyFor pool picks) — sum of char codes, no Math.random.
+function hashName(name) {
+  let h = 0;
+  for (const ch of String(name ?? '')) h += ch.charCodeAt(0);
+  return h;
 }
 
 const canvas = document.getElementById('game');
@@ -1100,10 +1109,12 @@ function init() {
       session.petName = progression.state.petName;
     }
 
-    // In-game chat (Task 6): co-walk-only — the wheel is created every walk
-    // but only made visible when session.net is truthy, and the receive
-    // handler below is only ever wired inside the `if (session.net)` block,
-    // so solo walks and ghost-only walks never touch any of this.
+    // In-game chat (Task 6/10): the wheel is created every walk and is now
+    // visible in every walk (solo included, Task 10) — the receive handler
+    // below (net.onChat) is still only ever wired inside the `if
+    // (session.net)` block below, so solo walks never touch the v8
+    // player-to-player receive path; they only ever show local + AI-cat
+    // reply bubbles via sendPhrase.
     // session.cat is already set via the `cat` shorthand in the session
     // object literal above; chatBubbles anchors on that same Object3D.
     const chatBubbles = createChatBubbles(scene);
@@ -1112,21 +1123,45 @@ function init() {
     const mutedIds = new Set();                                // per-walk, ephemeral
     session.chatBubbles = chatBubbles;
 
+    // Greet-by-chat: reuses awardStrayGreet — the SAME body the E-to-boop
+    // interact prompt uses (see above) — so friendship is truly capped:
+    // talking to an already-greeted cat (booped OR previously chat-greeted)
+    // still gets a reply, but never a second award.
+    function greetStrayByChat(stray) {
+      if (stray.greeted) return;
+      awardStrayGreet(session, stray);
+    }
+
+    function sendPhrase(phraseId) {
+      const p = phraseById(phraseId);
+      if (!p) return;
+      if (!sendGate.allow(session.playerId)) return;          // reuse existing 1500ms self-cooldown
+      chatBubbles.show(session.cat, p.text);                   // local bubble
+      if (session.net) session.net.sendChat({ v: 1, id: session.playerId, phraseId }); // players (v8)
+      // Aim at the nearest AI cat and let it answer.
+      const catP = session.cat.position;
+      const target = session.strayCats.nearest(catP, 5);       // no ungreetedOnly — talk to any nearby cat
+      if (target) {
+        const breed = target.breed ?? target.group?.userData?.breed;
+        const seed = (session.walkStamp ?? 0) + hashName(target.name);
+        const line = replyFor(breed, phraseId, seed);
+        setTimeout(() => {
+          if (session && session.strayCats.strays.includes(target)) chatBubbles.show(target.group, line);
+        }, 600);
+        // Friendship: a greeting counts once, only if this cat is still ungreeted this walk.
+        if (countsAsGreet(phraseId)) greetStrayByChat(target);
+      }
+    }
+    session.sendPhrase = sendPhrase; // exposed for Task 3's keyboard-driven send
+
     const chatWheel = createChatWheel(document.body, {
-      onPick: (phraseId) => {
-        if (!session.net) return;
-        if (!sendGate.allow(session.playerId)) return;
-        const p = phraseById(phraseId);
-        if (!p) return;
-        chatBubbles.show(session.cat, p.text);            // instant local feedback
-        session.net.sendChat({ v: 1, id: session.playerId, phraseId });
-      },
+      onPick: sendPhrase,
       getPlayers: () => (session.net ? session.remotes.list.map((r) => ({ id: r.playerId, name: r.petName })) : []),
       isMuted: (id) => mutedIds.has(id),
       toggleMute: (id) => { if (mutedIds.has(id)) mutedIds.delete(id); else mutedIds.add(id); },
     });
     session.chatWheel = chatWheel;
-    chatWheel.setVisible(Boolean(session.net));
+    chatWheel.setVisible(true);
 
     if (session.net) {
       const net = session.net;
@@ -1529,6 +1564,23 @@ function init() {
     }
   }
 
+  // Shared greet-award body for a stray cat: friend-points award, progression
+  // ladder toast, and marking the stray greeted (so nearest(...,
+  // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
+  // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
+  // there is exactly one path that can ever pay out a stray friendship
+  // award — talking never awards more than booping.
+  function awardStrayGreet(s, stray) {
+    s.strayCats.greet(stray, s.cat.position);
+    log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
+    s.catsGreeted += 1;
+    const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
+    if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
+    else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
+    else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
+    catVoice();
+  }
+
   function handleInteract(s) {
     if (!s.prompt) return;
     if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
@@ -1563,15 +1615,7 @@ function init() {
         if (s.questObject) s.questObject.visible = false;
       }
     } else if (s.prompt.kind === 'stray') {
-      const stray = s.prompt.data;
-      s.strayCats.greet(stray, s.cat.position);
-      log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
-      s.catsGreeted += 1;
-      const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
-      if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
-      else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
-      else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
-      catVoice();
+      awardStrayGreet(s, s.prompt.data);
     } else if (s.prompt.kind === 'ghost') {
       const ghost = s.prompt.data;
       s.ghosts.greet(ghost, s.cat.position);
