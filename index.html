@@ -17,7 +17,59 @@
       <div id="homebase" class="hidden"></div>
       <div id="overlay" class="hidden"></div>
       <div id="cloud-toasts" class="hud-toasts"></div>
+      <div id="splash" role="img" aria-label="Whisker Walk">
+        <div class="splash-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true">
+            <defs><clipPath id="splashClip"><rect width="512" height="512" rx="96"/></clipPath></defs>
+            <g clip-path="url(#splashClip)">
+              <path d="M40,460 Q256,395 472,460 L472,512 L40,512 Z" fill="#9fbf9c"/>
+              <path d="M40,460 Q256,395 472,460" fill="none" stroke="#7fa87c" stroke-width="6" opacity="0.6"/>
+              <path d="M175,372 Q118,362 112,312 Q108,280 145,268" fill="none" stroke="#f1e0c2" stroke-width="24" stroke-linecap="round"/>
+              <ellipse cx="208" cy="422" rx="26" ry="17" fill="#f1e0c2"/>
+              <ellipse cx="302" cy="436" rx="28" ry="18" fill="#f1e0c2"/>
+              <ellipse cx="256" cy="362" rx="90" ry="74" fill="#f1e0c2"/>
+              <circle cx="256" cy="230" r="118" fill="#f1e0c2"/>
+              <path d="M215,150 q9,23 4,41" fill="none" stroke="#d8bd8f" stroke-width="9" stroke-linecap="round"/>
+              <path d="M256,140 q0,25 0,45" fill="none" stroke="#d8bd8f" stroke-width="9" stroke-linecap="round"/>
+              <path d="M297,150 q-9,23 -4,41" fill="none" stroke="#d8bd8f" stroke-width="9" stroke-linecap="round"/>
+              <polygon points="167,157 222,81 238,172" fill="#f1e0c2"/>
+              <polygon points="345,157 290,81 274,172" fill="#f1e0c2"/>
+              <polygon points="185,149 217,112 225,164" fill="#e7a9a0"/>
+              <polygon points="327,149 295,112 287,164" fill="#e7a9a0"/>
+              <path d="M195,328 Q256,350 317,328" fill="none" stroke="#f0a58c" stroke-width="18" stroke-linecap="round"/>
+              <polygon points="244,338 268,338 256,358" fill="#f0a58c"/>
+              <ellipse cx="222" cy="232" rx="16" ry="21" fill="#1c2431"/>
+              <ellipse cx="290" cy="232" rx="16" ry="21" fill="#1c2431"/>
+              <circle cx="227" cy="222" r="6" fill="#f1e0c2"/>
+              <circle cx="295" cy="222" r="6" fill="#f1e0c2"/>
+              <path d="M246,270 h20 l-10,13 z" fill="#e7a9a0"/>
+              <path d="M256,283 v9 M256,292 q-17,15 -35,5 M256,292 q17,15 35,5" fill="none" stroke="#c99a72" stroke-width="5.5" stroke-linecap="round"/>
+              <path d="M108,262 h52 M112,282 h50 M108,302 h52" stroke="#f1e0c2" stroke-width="5" stroke-linecap="round" opacity="0.85"/>
+              <path d="M330,362 Q368,338 402,302" fill="none" stroke="#f1e0c2" stroke-width="26" stroke-linecap="round"/>
+              <circle cx="402" cy="296" r="22" fill="#f1e0c2"/>
+            </g>
+          </svg>
+          <div class="splash-word">Whisker Walk</div>
+        </div>
+      </div>
     </div>
+    <script>
+      // Boot splash: shown instantly on load, fades out once the page has
+      // loaded (with a small min-display so it never just flashes), plus a
+      // hard fallback timeout so a slow/failed boot can never trap the player.
+      (function () {
+        var s = document.getElementById('splash');
+        if (!s) return;
+        var done = false;
+        function hide() {
+          if (done) return; done = true;
+          s.classList.add('hide');
+          setTimeout(function () { s.style.display = 'none'; }, 650);
+        }
+        window.addEventListener('load', function () { setTimeout(hide, 750); });
+        setTimeout(hide, 4000); // fallback
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

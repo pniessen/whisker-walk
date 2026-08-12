@@ -315,3 +315,17 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .hb-tab.active { background: #3a4a63; color: #fff; }
 .hb-panel { display: none; }
 .hb-panel.active { display: block; }
+
+/* Boot splash (A2 mascot) — shown on load, fades into the game */
+#splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
+  justify-content: center; background: #1c2431; transition: opacity 0.6s ease; }
+#splash.hide { opacity: 0; pointer-events: none; }
+.splash-inner { text-align: center; }
+.splash-inner svg { width: min(52vw, 220px); height: auto; display: block; margin: 0 auto; }
+.splash-word { margin-top: 10px; color: #f1e0c2; font-family: Avenir, 'Nunito', sans-serif;
+  font-weight: 700; font-size: 1.7rem; letter-spacing: 0.02em; }
+@media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
+
+/* Home base hero wordmark (C1) — replaces the plain title text */
+.hb-wordmark { margin: 0; line-height: 0; }
+.hb-wordmark svg { display: block; width: 240px; max-width: min(64vw, 300px); height: auto; }
