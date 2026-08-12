@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-11 · **Branch:** `main` · **Tests:** 200 passing (26 files) · **Latest commit:** `bc3292c`
+**Last updated:** 2026-08-12 · **Branch:** `main` · **Tests:** 212 passing (29 files) · **Latest commit:** `92f99b3`
 
 ---
 
@@ -76,6 +76,9 @@ in `docs/superpowers/`.
 - **v6 "Mobile"** — mobile-friendly: virtual joystick (lower-LEFT thumb), orbit drag (right side), touch engagement model, coarse-pointer perf tuning.
 - **v7 "Always Online"** — cloud saves, persistent friendships, ghost visits, PWA, settings — see §5.
 - **v8 "Say Hi"** (latest) — live in-game chat during co-walks. Curated phrase/emote tray (💬 button), speech bubbles over cats (`src/chatbubble.js` mirrors `nametag.js`), per-player mute + `hideChat` setting. **Safety keystone: only a phrase-ID enum crosses the wire** (`src/chat.js` catalog; `net.js` `chat` broadcast kind) — no free text, so no moderation surface. Files: `src/chat.js`, `src/chatbubble.js`, `src/ui/chatwheel.js`, chat wiring in `src/main.js`. Spec/plan: `docs/superpowers/{specs,plans}/2026-08-11-whisker-walk-v8-chat.md`. **Lesson:** the live Supabase transport must subscribe to every broadcast kind `createNet.handleBroadcast` handles — the final review caught `chat` missing from `createSupabaseTransport.join` (unit tests passed because the fake hub is kind-agnostic). Verify multiplayer wire changes with a live two-client round-trip, not just unit tests.
+- **v9 "Home Base, Tidied"** — the home base became a sticky hero (cat wordmark + rank + Start) over four tabs: **Play / Social / Album / Settings** (`src/ui/hometabs.js` + restructured `src/ui/homebase.js`). Consolidated the three social blocks into one Friends section. Reorganization only — all handlers/escaping preserved.
+- **Logo branding** — B1 refined-face app icon (`public/icon.svg`), C1 wordmark lockup as the home base hero title (`homebase.js`), A2 chibi mascot as a boot splash (`index.html` `#splash` + fade script, fallback timeout so it can't trap the player). Shipped with v10.
+- **v10 "Talk to the Cats"** (latest) — message a nearby AI cat with a curated phrase, get a personality-appropriate **canned** reply as a speech bubble (`src/catreplies.js`, pure `(personality,intent)→line`, all 10 voices incl. Hagrid clucks). Greetings count one **capped** friendship greet (shared `awardStrayGreet`, `stray.greeted` guard — never out-farms booping). **Keyboard chat** (`src/chatkeys.js` + `main.js` keydown): number row `1`–`0` sends *under pointer lock* (fixes desktop-unusable chat — the 💬 button was unreachable with the cursor captured), `Enter` opens the tray (releases pointer lock), `Esc` closes; chat now works in **solo** walks too. **Lesson:** the reply seed must be numeric — `session.walkStamp` is the STRING `'walk-<ms>'`, so `string + number` fed `pick()` `NaN>>>0=0` and made every same-breed cat reply identically; fixed with `seedFromCode(walkStamp)+hashName(name)`. Known limitation: named-cat voices (zeetoo/rosa/robbie/hagrid) aren't reachable in-game yet (strays spawn the 6 base breeds; ghost-reply wiring is a future follow-up).
 
 ## 4. Backend — the LIVE Supabase contract ⚠️
 
@@ -170,7 +173,19 @@ Every fix independently re-probed with hostile payloads.
 
 ## 7. Open threads / next steps
 
-- **No pending build work.** v7 and v8 are complete, merged to `main`, deployed.
+- **No pending build work.** v7–v10 + logos are complete, merged to `main`, deployed.
+- **Phase 0 renderer upgrade — PLANNED, NOT BUILT.** The highest-leverage 3D-detail
+  win (user's stated #1 priority for the game's look): shadows tuning + PBR
+  materials + runtime asset-free IBL (`RoomEnvironment`+PMREM) + ACES tone mapping
+  + subtle bloom + a mobile quality tier. Plan:
+  `docs/superpowers/plans/2026-08-12-whisker-walk-phase0-renderer.md`; the broader
+  tech-stack study it came from was saved to a scratchpad (not in repo). Note:
+  shadows are ALREADY wired (PCFSoft) — the win is materials + lighting. Biggest
+  risk: the global look re-calibration (Lambert→Standard+IBL+ACES) needs by-eye
+  tuning across weather/areas — get the browser preview working or do tight
+  before/after screenshots.
+- **v10 follow-up:** wire ghost visitors into the reply path so the named-cat
+  voices (zeetoo/rosa/robbie/hagrid) become reachable.
 - **Backlog** (mentioned in specs, not yet requested to build): async/offline
   friend messaging (a persistent inbox — deferred from v8, needs tables + RPCs +
   stored-content moderation); **co-walk
