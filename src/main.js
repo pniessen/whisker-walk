@@ -136,7 +136,7 @@ function meowVolumeForDistance(dist) {
   return 1 - ((dist - 8) / (40 - 8)) * 0.8;
 }
 
-// Deterministic per-cat offset for seeded reply selection (chat.js's
+// Deterministic per-cat offset for seeded reply selection (catreplies.js's
 // countsAsGreet/replyFor pool picks) — sum of char codes, no Math.random.
 function hashName(name) {
   let h = 0;
@@ -1153,7 +1153,7 @@ function init() {
       const target = session.strayCats.nearest(catP, 5);       // no ungreetedOnly — talk to any nearby cat
       if (target) {
         const breed = target.breed ?? target.group?.userData?.breed;
-        const seed = (session.walkStamp ?? 0) + hashName(target.name);
+        const seed = (seedFromCode(session.walkStamp ?? '') + hashName(target.name)) >>> 0;
         const line = replyFor(breed, phraseId, seed);
         setTimeout(() => {
           if (session && session.strayCats.strays.includes(target)) chatBubbles.show(target.group, line);

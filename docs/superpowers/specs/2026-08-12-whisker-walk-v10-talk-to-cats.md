@@ -13,7 +13,7 @@ Three related additions, one combined wave:
 1. **Keyboard chat controls** — chat is currently reachable only by tapping
    the 💬 button, but a desktop walk holds **pointer lock** (cursor hidden,
    mouse drives the camera — `src/player.js:147` only rotates while
-   `api.locked`), so the button is unreachable on a PC. Add number-key + `T`
+   `api.locked`), so the button is unreachable on a PC. Add number-key + `Enter`
    controls that work under pointer lock.
 2. **Chat input in solo walks** — today the chat wheel/keys appear only in
    co-walks (`session.net`). Enable them in solo walks too, because there are
@@ -47,9 +47,9 @@ Three related additions, one combined wave:
 - **`1`–`9`, `0`** send the ten phrases by tray order (1 = first phrase … 0 =
   tenth). Works while pointer-locked — no cursor needed. This is the primary
   desktop path.
-- **`T`** ("talk") toggles the phrase tray open; opening **releases pointer
+- **`Enter`** toggles the phrase tray open; opening **releases pointer
   lock** (`document.exitPointerLock()`) so the cursor returns and the tray
-  (and mute list) is readable/clickable.
+  (and mute list) is readable/clickable. (`T` is reserved for the yarn toy.)
 - **`Esc`** closes the tray. Because browsers only grant pointer lock on a
   user gesture, closing does **not** force re-lock — it returns to the game's
   existing "click to resume look" state (the same lock-loss flow the game
@@ -57,7 +57,7 @@ Three related additions, one combined wave:
   the current handler). Sending a phrase by number key while locked never
   touches lock at all — that path needs no cursor.
 - A brief on-screen **hint** when chat input first becomes available in a walk
-  ("Press 1–9 to chat · T for more").
+  ("Press 1–9 to chat · Enter for phrases").
 - All chat keys are gated to walks where chat input is active (see Feature 2)
   and do not collide with movement (arrows/space) or the existing `C`/`M`
   bindings. Number keys are ignored when a text input is focused (home base).
@@ -114,6 +114,12 @@ Three related additions, one combined wave:
 - New multiplayer/server surface — none; all local.
 - Conversation history/logs.
 
+**Known limitation:** the named-cat voices (Zeetoo/Rosa/Robbie/Hagrid) in
+`catreplies.js` are only reachable when those breeds appear as messageable
+cats. Current strays spawn the six base breeds (tabby, siamese, persian,
+black, calico, mainecoon); wiring ghost visitors (which do carry named
+breeds) into the same reply path is a future follow-up.
+
 ## Testing
 
 - Unit (Vitest): `catreplies.js` — intent bucketing for every catalog phrase;
@@ -123,7 +129,7 @@ Three related additions, one combined wave:
   is a pure function, unit-tested (and ignores presses when a text field is
   focused).
 - Existing suite stays green; `npx vite build` green.
-- Browser/screenshot verification of: keyboard send under pointer lock, `T`
+- Browser/screenshot verification of: keyboard send under pointer lock, `Enter`
   releasing lock + tray, a cat reply bubble, and the solo-walk 💬 button.
 - Final whole-branch review (most capable model) + fix wave per SDD, then
   merge branding + feature together and deploy once.
