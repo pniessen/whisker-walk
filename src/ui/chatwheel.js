@@ -52,5 +52,14 @@ export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute 
     setVisible(v) { wrap.classList.toggle('hidden', !v); if (!v) closeTray(); },
     refresh() { if (!tray.classList.contains('hidden')) renderMutes(); },
     destroy() { wrap.remove(); },
+    // Keyboard-driven open/close (Task 3): Enter opens the tray and releases
+    // pointer lock so the cursor comes back to click a phrase; Escape closes
+    // it. Kept separate from the toggle-button click handler above so mouse
+    // interaction is untouched.
+    openFromKeyboard() {
+      openTray();
+      if (document.exitPointerLock) document.exitPointerLock();
+    },
+    closeFromKeyboard() { closeTray(); },
   };
 }

@@ -36,6 +36,7 @@ import { createChatBubbles } from './chatbubble.js';
 import { createChatWheel } from './ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './chat.js';
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
+import { phraseIdForDigit } from './chatkeys.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -885,6 +886,15 @@ function init() {
     if (e.code === 'KeyC' && session && player.engaged) {
       doCameraToggle();
     }
+    // chat keys — only during an active engaged walk, never while typing
+    // (guards home-base pet-name/friend-code/room-code inputs).
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+    if (session && player.engaged && !typing) {
+      const digitPhrase = phraseIdForDigit(e.code);
+      if (digitPhrase) { session.sendPhrase(digitPhrase); return; }
+      if (e.code === 'Enter') { session.chatWheel?.openFromKeyboard?.(); return; }
+      if (e.code === 'Escape') { session.chatWheel?.closeFromKeyboard?.(); return; }
+    }
   });
   document.addEventListener('mousedown', () => {
     if (isTouch) return; // touch snapping goes through tapWorld — a synthesized
@@ -1162,6 +1172,7 @@ function init() {
     });
     session.chatWheel = chatWheel;
     chatWheel.setVisible(true);
+    hud.toast('Press 1–9 to chat · Enter for phrases'); // once per walk (startWalk runs once per walk)
 
     if (session.net) {
       const net = session.net;
