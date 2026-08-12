@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { litMaterial } from '../render/materials.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -15,7 +16,7 @@ const STYLE = {
 const INNER_EAR = 0xe8a0a8;
 const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, rosa: 0xd8b830, zeetoo: 0x4e9440 };
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 
 function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));

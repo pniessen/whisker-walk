@@ -37,6 +37,7 @@ import { createChatWheel } from './ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './chat.js';
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 import { phraseIdForDigit } from './chatkeys.js';
+import { litMaterial, buildEnvMap } from './render/materials.js';
 
 const AREAS = { neighborhood, park, seaside };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -171,6 +172,11 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  // Baked once from a procedural RoomEnvironment (no network/HDRI fetch) and
+  // reused across every walk — never disposed per-walk.
+  const envMap = buildEnvMap(renderer);
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
   const player = createPlayer(camera, canvas);
@@ -911,6 +917,8 @@ function init() {
     const areaId = areaOverride ?? state.area;
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
+    scene.environment = envMap;
+    scene.environmentIntensity = 0.35; // subtle IBL; Task 5 routes this through the tier
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
@@ -983,7 +991,7 @@ function init() {
     for (const c of areaData.collectibles) {
       const m = new THREE.Mesh(
         new THREE.SphereGeometry(0.18, 8, 8),
-        new THREE.MeshLambertMaterial({ color: 0xf25c8a, emissive: 0x5a1a30 })
+        litMaterial(0xf25c8a, { emissive: 0x5a1a30 })
       );
       m.position.set(c.x, 0.2, c.z);
       scene.add(m);
@@ -999,7 +1007,7 @@ function init() {
       quest = createQuest(walkRng, areaData.pois);
       const marker = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.4, 6),
-        new THREE.MeshLambertMaterial({ color: 0xf2c14e, emissive: 0x6a5010 })
+        litMaterial(0xf2c14e, { emissive: 0x6a5010 })
       );
       marker.rotation.x = Math.PI;
       marker.position.y = 2.1;
@@ -1013,7 +1021,7 @@ function init() {
       } else if (quest.type === 'letter') {
         questObject = new THREE.Mesh(
           new THREE.OctahedronGeometry(0.25, 0),
-          new THREE.MeshLambertMaterial({ color: 0xf2e04e, emissive: 0x8a7a20 })
+          litMaterial(0xf2e04e, { emissive: 0x8a7a20 })
         );
         questObject.position.y = 1;
       } else {
@@ -1021,7 +1029,7 @@ function init() {
         for (const side of [-0.12, 0.12]) {
           const lens = new THREE.Mesh(
             new THREE.TorusGeometry(0.09, 0.02, 6, 12),
-            new THREE.MeshLambertMaterial({ color: 0x4a4a52 })
+            litMaterial(0x4a4a52)
           );
           lens.position.x = side;
           questObject.add(lens);
@@ -1049,7 +1057,7 @@ function init() {
     // "bat the ghost to request authority".
     const toyGhost = new THREE.Mesh(
       new THREE.SphereGeometry(0.13, 8, 8),
-      new THREE.MeshLambertMaterial({ color: 0xf25c9a })
+      litMaterial(0xf25c9a)
     );
     toyGhost.visible = false;
     scene.add(toyGhost);

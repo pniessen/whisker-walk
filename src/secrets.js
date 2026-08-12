@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { litMaterial } from './render/materials.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
 
 export function rollSecrets(rng, { eveningLight }) {
@@ -27,7 +28,7 @@ function buildUnicorn() {
   const head = box(0.24, 0.24, 0.45, 0xf2e8f8);
   head.position.set(0, 1.5, -0.68);
   g.add(head);
-  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.35, 6), new THREE.MeshLambertMaterial({ color: 0xf2c14e, emissive: 0x9a7a20 }));
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.35, 6), litMaterial(0xf2c14e, { emissive: 0x9a7a20 }));
   horn.position.set(0, 1.75, -0.72);
   g.add(horn);
   const maneColors = [0xf2a0c0, 0xa0c0f2, 0xc0f2a0];
@@ -72,7 +73,7 @@ function buildUfo() {
   const disc = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 6), mat(0x9aa2b0));
   disc.scale.y = 0.25;
   g.add(disc);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8), new THREE.MeshLambertMaterial({ color: 0x9ae0e8, emissive: 0x2a6a70 }));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8), litMaterial(0x9ae0e8, { emissive: 0x2a6a70 }));
   dome.position.y = 0.2;
   g.add(dome);
   return g;

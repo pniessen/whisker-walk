@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
+import { litMaterial } from './render/materials.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
 
 const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', 'duck', 'firefly']);
@@ -33,7 +34,7 @@ function buildCritter(type) {
     }
     if (type === 'firefly') {
       const glow = new THREE.Mesh(new THREE.SphereGeometry(0.04, 5, 5),
-        new THREE.MeshLambertMaterial({ color: 0xf2e04e, emissive: 0xb8a820 }));
+        litMaterial(0xf2e04e, { emissive: 0xb8a820 }));
       g.add(glow);
     }
   } else if (type === 'duck') {

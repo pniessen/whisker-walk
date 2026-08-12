@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { litMaterial } from '../render/materials.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 
 export function build(scene) {
   b.applySky(scene, 0x9fc8e8, 0xe8e0d0);

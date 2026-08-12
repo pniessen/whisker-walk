@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { litMaterial } from '../render/materials.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
 
 export function applySky(scene, top, horizon) {
@@ -135,7 +136,7 @@ export function lampPost(x, z) {
   pole.position.y = 1.6;
   g.add(pole);
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8),
-    new THREE.MeshLambertMaterial({ color: 0xfff2c0, emissive: 0x8a7a40 }));
+    litMaterial(0xfff2c0, { emissive: 0x8a7a40 }));
   lamp.position.y = 3.3;
   g.add(lamp);
   g.position.set(x, 0, z);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { litMaterial } from './render/materials.js';
 
 export function rollTreats(rng, pois, count = 2) {
   const treats = [];
@@ -68,7 +69,7 @@ export function createScent(scene, area, rng) {
   for (const tr of treats) {
     const mound = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 8, 5),
-      new THREE.MeshLambertMaterial({ color: 0x8a6a48 })
+      litMaterial(0x8a6a48)
     );
     mound.scale.y = 0.25;
     mound.position.set(tr.x, 0.02, tr.z);
@@ -87,7 +88,7 @@ export function createScent(scene, area, rng) {
     tr.mound.scale.y = 0.08;
     const fish = new THREE.Mesh(
       new THREE.SphereGeometry(0.12, 8, 6),
-      new THREE.MeshLambertMaterial({ color: 0x9ab8d0 })
+      litMaterial(0x9ab8d0)
     );
     fish.scale.set(1.4, 0.7, 0.5);
     fish.position.set(tr.x, 0.4, tr.z);

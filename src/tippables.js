@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { litMaterial } from './render/materials.js';
 
-const mat = (color) => new THREE.MeshLambertMaterial({ color });
+const mat = (color) => litMaterial(color);
 let nextId = 1;
 
 function buildTippable(kind) {

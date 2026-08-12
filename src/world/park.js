@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
+import { litMaterial } from '../render/materials.js';
 
 export function build(scene) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
@@ -18,15 +19,15 @@ export function build(scene) {
   // fountain at the path junction
   const fountain = new THREE.Group();
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.6, 12),
-    new THREE.MeshLambertMaterial({ color: 0xb8b8c0 }));
+    litMaterial(0xb8b8c0));
   basin.position.y = 0.3;
   fountain.add(basin);
   const water = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 12),
-    new THREE.MeshLambertMaterial({ color: 0x8ab8d8 }));
+    litMaterial(0x8ab8d8));
   water.position.y = 0.62;
   fountain.add(water);
   const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 8),
-    new THREE.MeshLambertMaterial({ color: 0xb8b8c0 }));
+    litMaterial(0xb8b8c0));
   spire.position.y = 1.2;
   fountain.add(spire);
   fountain.position.set(0, 0, 20);
@@ -35,7 +36,7 @@ export function build(scene) {
 
   // pond (duck home)
   const pond = new THREE.Mesh(new THREE.CircleGeometry(7, 20),
-    new THREE.MeshLambertMaterial({ color: 0x7ab0d8 }));
+    litMaterial(0x7ab0d8));
   pond.rotation.x = -Math.PI / 2;
   pond.position.set(-14, 0.02, 2);
   scene.add(pond);

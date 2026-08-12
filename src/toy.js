@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { litMaterial } from './render/materials.js';
 
 const GRAVITY = -14;
 const BOUNCE = 0.45;
@@ -7,11 +8,11 @@ const RADIUS = 0.13;
 export function createToy(scene) {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(RADIUS, 8, 8),
-    new THREE.MeshLambertMaterial({ color: 0xe05c8a })
+    litMaterial(0xe05c8a)
   );
   const wrap = new THREE.Mesh(
     new THREE.TorusGeometry(RADIUS * 0.95, 0.018, 6, 12),
-    new THREE.MeshLambertMaterial({ color: 0xc03060 })
+    litMaterial(0xc03060)
   );
   wrap.rotation.x = 1.1;
   mesh.add(wrap);
