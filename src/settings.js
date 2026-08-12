@@ -7,7 +7,14 @@ const DEFAULTS = {
   leftHanded: false,
   reducedMotion: false,
   hideChat: false,
+  quality: 'auto',
 };
+
+// Resolved into a render tier by src/render/quality.js (resolveQuality) —
+// 'auto' defers to device signals (coarse pointer / prefers-reduced-motion),
+// 'high'/'low' force a tier. Applied at walk start, so a change here takes
+// effect on the next walk, not live.
+const QUALITY = ['auto', 'high', 'low'];
 
 function isPlainObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -15,6 +22,10 @@ function isPlainObject(v) {
 
 function clampVolume(v, fallback) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;
+}
+
+function clampEnum(v, allowed, fallback) {
+  return allowed.includes(v) ? v : fallback;
 }
 
 // Same "sanitize on the way in" shape as album.js/progression.js: a
@@ -31,6 +42,7 @@ function sanitize(raw) {
     leftHanded: typeof raw.leftHanded === 'boolean' ? raw.leftHanded : DEFAULTS.leftHanded,
     reducedMotion: typeof raw.reducedMotion === 'boolean' ? raw.reducedMotion : DEFAULTS.reducedMotion,
     hideChat: typeof raw.hideChat === 'boolean' ? raw.hideChat : DEFAULTS.hideChat,
+    quality: clampEnum(raw.quality, QUALITY, DEFAULTS.quality),
   };
 }
 
@@ -69,6 +81,7 @@ export function createSettings(storage) {
     set(key, val) {
       if (!(key in DEFAULTS)) return;
       if (key === 'volume') state = { ...state, volume: clampVolume(val, state.volume) };
+      else if (key === 'quality') state = { ...state, quality: clampEnum(val, QUALITY, state.quality) };
       else state = { ...state, [key]: !!val };
       save();
     },

@@ -263,6 +263,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <label class="settings-row"><input type="checkbox" id="set-left-handed" ${s.leftHanded ? 'checked' : ''} /> Left-handed touch controls</label>
           <label class="settings-row"><input type="checkbox" id="set-reduced-motion" ${s.reducedMotion ? 'checked' : ''} /> Reduced motion</label>
           <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
+          <label class="settings-row settings-quality">
+            <span>Graphics quality (applies next walk)</span>
+            <select id="set-quality">
+              <option value="auto" ${s.quality === 'auto' ? 'selected' : ''}>Auto</option>
+              <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High detail</option>
+              <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Low detail</option>
+            </select>
+          </label>
         </div>
         <button id="btn-reset" class="danger">Start over</button>
       </section>`;
@@ -707,6 +715,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     onSettingsChange?.();
     const label = root.querySelector('#set-volume-value');
     if (label) label.textContent = `${e.target.value}%`;
+  });
+
+  // Quality select: a dedicated 'change' listener (not the delegated click
+  // handler above) since choosing a <select> option doesn't reliably fire a
+  // click on the <select> itself in every browser. The tier is resolved from
+  // this setting at walk start (Task 5), so this never applies live — just
+  // persist it and re-render to reflect the chosen value.
+  root.addEventListener('change', (e) => {
+    if (e.target.id !== 'set-quality' || !settings) return;
+    settings.set('quality', e.target.value);
+    onSettingsChange?.();
+    render();
   });
 
   // room state (roster arrivals, host migration) can change while sitting on

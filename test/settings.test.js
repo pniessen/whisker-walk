@@ -16,6 +16,7 @@ describe('createSettings', () => {
       leftHanded: false,
       reducedMotion: false,
       hideChat: false,
+      quality: 'auto',
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -43,6 +44,7 @@ describe('createSettings', () => {
       leftHanded: true,
       reducedMotion: false,
       hideChat: false,
+      quality: 'auto',
     });
   });
 
@@ -56,6 +58,7 @@ describe('createSettings', () => {
       leftHanded: false,
       reducedMotion: false,
       hideChat: false,
+      quality: 'auto',
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -79,5 +82,20 @@ describe('createSettings', () => {
     expect(s.get('hideChat')).toBe(true);
     const reloaded = createSettings(store);
     expect(reloaded.get('hideChat')).toBe(true);
+  });
+
+  it('defaults quality to auto, accepts valid tiers, rejects bogus values, and sanitizes corrupt persisted data', () => {
+    const store = fakeStorage();
+    const s = createSettings(store);
+    expect(s.get('quality')).toBe('auto');
+
+    s.set('quality', 'high');
+    expect(s.get('quality')).toBe('high');
+
+    s.set('quality', 'bogus');
+    expect(s.get('quality')).toBe('high');
+
+    const reloaded = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ quality: 42 }) }));
+    expect(reloaded.get('quality')).toBe('auto');
   });
 });
