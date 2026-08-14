@@ -144,14 +144,21 @@ export function createPlayer(camera, canvas) {
       avatar.position.addScaledVector(velocity, dt);
       avatar.position.y = api.perchY;
 
-      for (const c of colliders) {
-        const dx = avatar.position.x - c.x;
-        const dz = avatar.position.z - c.z;
-        const d = Math.hypot(dx, dz);
-        const min = c.r + CAT_RADIUS;
-        if (d < min && d > 0.0001) {
-          avatar.position.x = c.x + (dx / d) * min;
-          avatar.position.z = c.z + (dz / d) * min;
+      // Skip collider push while perched (perchY > 0): a perched cat is
+      // standing ON the object (car roof, crate, rooftop…), often snapped to
+      // that very collider's own center, so this push is exactly what would
+      // fight the perch and shove the cat back off it. Grounded cats
+      // (perchY === 0) still get pushed out of every collider as before.
+      if (api.perchY === 0) {
+        for (const c of colliders) {
+          const dx = avatar.position.x - c.x;
+          const dz = avatar.position.z - c.z;
+          const d = Math.hypot(dx, dz);
+          const min = c.r + CAT_RADIUS;
+          if (d < min && d > 0.0001) {
+            avatar.position.x = c.x + (dx / d) * min;
+            avatar.position.z = c.z + (dz / d) * min;
+          }
         }
       }
       if (bounds) {
