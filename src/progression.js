@@ -31,6 +31,11 @@ const GOLD_MAX_COUNT = 64;
 // and, via 5 * count in recordStreakWalk-adjacent bonus math and repeated
 // save() round-trips, an avoidable way to inflate the persisted save.
 const STREAK_COUNT_MAX = 3650;
+// Ceiling on state.race.bestMs: 24 hours in ms. No real daily-race best time
+// is ever going to approach this — its job, like STREAK_COUNT_MAX above, is
+// rejecting a hostile/corrupted cloud payload's implausible number rather
+// than persisting (and later displaying) it.
+const RACE_MS_MAX = 24 * 60 * 60 * 1000;
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -142,6 +147,7 @@ function defaultState() {
     golden: [],
     streak: { last: null, count: 0 },
     kitten: { stage: 0 },
+    race: { date: null, area: null, bestMs: null },
   };
 }
 
@@ -188,6 +194,25 @@ function sanitizeStreak(v) {
 function sanitizeKitten(v) {
   const stage = asFiniteNonNegInt(v?.stage, 0);
   return { stage: Math.min(3, stage) };
+}
+
+// Cloud-loaded (or otherwise externally supplied) race field: same untrusted
+// threat model as sanitizeStreak. date must be a plain YMD string, area must
+// be one of CATALOG.areas' own known ids (a fresh Set here rather than
+// reusing sanitizeState's local knownAreas — this function also runs
+// standalone from tests), and bestMs must be a finite, POSITIVE (a 0 or
+// negative "best time" is meaningless) number no larger than RACE_MS_MAX. A
+// bad value in any one field resets just that field to null rather than
+// discarding the whole race record — mirrors sanitizeFriends' per-field
+// approach, not sanitizeStreak's all-or-nothing one, because date/area/bestMs
+// aren't load-bearing on each other the way streak's last+count are.
+function sanitizeRace(v) {
+  const date = typeof v?.date === 'string' && YMD_PATTERN.test(v.date) ? v.date : null;
+  const knownAreas = new Set(Object.keys(CATALOG.areas));
+  const area = typeof v?.area === 'string' && knownAreas.has(v.area) ? v.area : null;
+  const bestMs = typeof v?.bestMs === 'number' && Number.isFinite(v.bestMs) && v.bestMs > 0 && v.bestMs <= RACE_MS_MAX
+    ? v.bestMs : null;
+  return { date, area, bestMs };
 }
 
 function ymdToUTCms(ymd) {
@@ -277,6 +302,7 @@ function sanitizeState(parsed) {
     golden: sanitizeGolden(parsed.golden),
     streak: sanitizeStreak(parsed.streak),
     kitten: sanitizeKitten(parsed.kitten),
+    race: sanitizeRace(parsed.race),
   };
 }
 
@@ -468,6 +494,22 @@ export function createProgression(storage) {
         state.kitten.stage = bounded;
         save();
       }
+    },
+    // recordRace(dateStr, areaId, ms) → { isBest } — dateStr/areaId identify
+    // TODAY's course (race.js's raceCourse derives the actual 5 waypoints
+    // from exactly this date+area pair), so a new date OR a new area means a
+    // genuinely different course, not a comparison against an old one — the
+    // stored best resets outright. Same date+area: keep whichever ms is
+    // smaller (faster), same "is this actually better" logic as
+    // recordWalkScore's > check, just inverted (lower is better for a timer).
+    recordRace(dateStr, areaId, ms) {
+      const r = state.race;
+      if (r.date === dateStr && r.area === areaId && r.bestMs != null && r.bestMs <= ms) {
+        return { isBest: false };
+      }
+      state.race = { date: dateStr, area: areaId, bestMs: ms };
+      save();
+      return { isBest: true };
     },
     // replaceFromPayload(rawSaveObject) — used by cloud "Load from cloud":
     // writes the raw object straight to storage under the save key, then

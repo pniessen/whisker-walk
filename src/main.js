@@ -32,6 +32,7 @@ import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { GOLD_MICE, createGoldMice } from './goldmice.js';
 import { kittenPlan, createKittenEncounter } from './kitten.js';
+import { raceCourse, createRace } from './race.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
@@ -1305,6 +1306,31 @@ function init() {
     // this stale-by-design kind can never regress the stage either way.
     session.kittenPlanKind = kittenPlanResult?.kind ?? null;
 
+    // Daily zoomies race (Task 6.3): a 5-checkpoint course seeded from
+    // TODAY's date + this area — NOT walkRng (that stream is reserved for
+    // the shared co-walk world-gen sequence both clients step through in
+    // lockstep; the race seed must stay identical every time either sibling
+    // opens this area today, including a re-walk, so it can't be perturbed
+    // by weather/secrets rolls upstream of it) and no wire event ever
+    // carries the course itself — a solo player AND every device in a room
+    // independently derive the exact same 5 waypoints from (today, areaId),
+    // so siblings racing together are automatically on the same course.
+    // areaData.pois always has >= 8 entries for every real area (see
+    // src/world/*.js), but the guard below keeps this inert instead of
+    // throwing if a future area (e.g. the den) ever ships with fewer than 5.
+    const today = new Date().toISOString().slice(0, 10);
+    session.race = areaData.pois.length >= 5
+      ? createRace(scene, raceCourse(areaData.pois, seedFromCode(today + '-' + areaId)), areaData.spawn)
+      : { state: 'idle', timeMs: 0, currentRing: 0, update() {}, promptAt: () => null, begin() {}, dispose() {} };
+    session.areaId = areaId;
+    session.raceDate = today;
+    // last "ring N/5" value written to the HUD objective (or null when the
+    // race isn't the one currently occupying it) — lets the per-frame loop
+    // below update the objective only on an actual ring change instead of
+    // every frame, and tells the 'done' transition whether it's safe to
+    // clear the objective (only if OUR text is still the one showing).
+    session.raceRingShown = null;
+
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
     // pendingRoom at all, so session.net stays undefined and every co-walk
@@ -1528,6 +1554,7 @@ function init() {
     session.critters.dispose();
     session.goldMice.dispose();
     session.kittenEnc.dispose();
+    session.race.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -1863,6 +1890,13 @@ function init() {
       }
     }
     if (!s.prompt) {
+      const rp = s.race.promptAt(catP);
+      if (rp) {
+        s.prompt = { kind: 'race' };
+        setPrompt(rp);
+      }
+    }
+    if (!s.prompt) {
       for (const c of s.critters.list) {
         if (c.type !== 'villager' || c.scratched) continue;
         if (c.group.position.distanceTo(catP) < 2.2) {
@@ -1994,6 +2028,8 @@ function init() {
       } else {
         log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
+    } else if (s.prompt.kind === 'race') {
+      s.race.begin();
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) {
@@ -2348,6 +2384,32 @@ function init() {
         session.goldMice.remove(gm.id);
       }
       session.kittenEnc.update(dt, session.cat.position);
+      // Daily zoomies race: advance the ring timer/crossing checks, then
+      // reflect it in the HUD objective (throttled to actual ring changes)
+      // and, on the run→done transition, pay out the local best-time record.
+      // Conflict resolution with a quest's own objective: the lost-kitten/
+      // letter/glasses quest objective always wins — while s.quest?.state
+      // === 'active', the race simply doesn't touch hud.setObjective at all
+      // (neither writing its own ring text nor clearing the quest's), so a
+      // race running alongside an active quest never clobbers what the
+      // player is actually supposed to be doing.
+      const wasRacing = session.race.state === 'running';
+      session.race.update(dt, session.cat.position);
+      const questActive = session.quest?.state === 'active';
+      if (session.race.state === 'running') {
+        if (!questActive && session.raceRingShown !== session.race.currentRing) {
+          session.raceRingShown = session.race.currentRing;
+          hud.setObjective(`Race: ring ${session.race.currentRing}/5`);
+        }
+      } else if (wasRacing && session.race.state === 'done') {
+        if (session.raceRingShown != null && !questActive) hud.setObjective(null);
+        session.raceRingShown = null;
+        const r = progression.recordRace(session.raceDate, session.areaId, session.race.timeMs);
+        const secs = (session.race.timeMs / 1000).toFixed(1);
+        hud.toast(r.isBest ? `🏁 ${secs}s — today’s best!` : `🏁 ${secs}s`);
+        log.awardOnce('goal', 'race-done', 'the daily zoomies race');
+        session.fx.burst(session.cat.position, 0xffe27a, 14);
+      }
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);
