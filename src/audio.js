@@ -1,15 +1,59 @@
-export function createAudio() {
+export function createAudio({ contextFactory = () => new (window.AudioContext || window.webkitAudioContext)() } = {}) {
   let ctx = null;
   let muted = false;
   // Master volume factor (0..1), driven live by settings.volume — see
-  // setVolume() below. Multiplies every tone's gain; default 1 so a caller
-  // that never wires up settings (e.g. a stray future test) still hears
-  // full volume rather than silence.
+  // setVolume() below. Applied once at the master gain node (built by
+  // ensure()) rather than multiplied into every individual sound's gain, so
+  // a live setVolume() call takes effect immediately even on long-lived
+  // nodes like the seaside ambient loop. Default 1 so a caller that never
+  // wires up settings (e.g. a stray future test) still hears full volume
+  // rather than silence.
   let volume = 1;
   let ambient = null;
 
+  // Master bus, built once on first sound: every node's audio ultimately
+  // reaches `master`, then splits into a dry path (comp → destination) and a
+  // wet reverb send (wet → reverb → comp), so all sounds share one
+  // compressor (glues levels together, avoids clipping) and one generated
+  // impulse-response reverb (a little shared space instead of dead-dry
+  // beeps).
+  let master = null;
+  let comp = null;
+  let reverb = null;
+  let wet = null;
+
+  function buildImpulse(ac) {
+    const len = Math.floor(ac.sampleRate * 1.2);
+    const buffer = ac.createBuffer(2, len, ac.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+      }
+    }
+    return buffer;
+  }
+
   function ensure() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!ctx) ctx = contextFactory();
+    if (!master) {
+      // Created FIRST so it's unambiguously the "first gain node" — tests
+      // and any future debugging rely on that ordering to find the master.
+      master = ctx.createGain();
+      master.gain.value = volume;
+      comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -18;
+      comp.knee.value = 20;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.005;
+      comp.release.value = 0.2;
+      reverb = ctx.createConvolver();
+      reverb.buffer = buildImpulse(ctx);
+      wet = ctx.createGain();
+      wet.gain.value = 0.16;
+      master.connect(comp).connect(ctx.destination);
+      master.connect(wet).connect(reverb).connect(comp);
+    }
     return ctx;
   }
 
@@ -22,9 +66,9 @@ export function createAudio() {
     const t0 = ac.currentTime + delay;
     osc.frequency.setValueAtTime(freq, t0);
     if (slideTo) osc.frequency.linearRampToValueAtTime(slideTo, t0 + dur);
-    g.gain.setValueAtTime(gain * volume, t0);
+    g.gain.setValueAtTime(gain, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g).connect(ac.destination);
+    osc.connect(g).connect(master);
     osc.start(t0);
     osc.stop(t0 + dur + 0.05);
   }
@@ -37,10 +81,12 @@ export function createAudio() {
       muted = !!v;
       if (muted) api.stopAmbient();
     },
-    // 0..1 master factor multiplied into every tone() gain, and (at
-    // creation time) into the seaside ambient noise's gain nodes below.
+    // 0..1 master factor applied live at the master gain node — affects
+    // every currently-playing and future sound immediately, including
+    // long-lived ambient loops.
     setVolume(v) {
       volume = typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : volume;
+      if (master) master.gain.value = volume;
     },
     // volume: 0..1 multiplier applied to every tone's gain (default 1 = full
     // volume, used for the local cat's own voice); co-walk remote meows scale
@@ -93,16 +139,16 @@ export function createAudio() {
         filter.type = 'lowpass';
         filter.frequency.value = 420;
         const g = ac.createGain();
-        // scaled by the volume factor at creation time — this long-lived
-        // node isn't re-touched by a later setVolume() call, same tradeoff
-        // as any other already-playing ambient sound.
-        g.gain.value = 0.05 * volume;
+        // Routed through the master bus, so this long-lived node stays in
+        // sync with any later setVolume() call instead of freezing at the
+        // volume factor present when it started.
+        g.gain.value = 0.05;
         const lfo = ac.createOscillator();
         const lfoGain = ac.createGain();
         lfo.frequency.value = 0.14;
-        lfoGain.gain.value = 0.035 * volume;
+        lfoGain.gain.value = 0.035;
         lfo.connect(lfoGain).connect(g.gain);
-        src.connect(filter).connect(g).connect(ac.destination);
+        src.connect(filter).connect(g).connect(master);
         src.start();
         lfo.start();
         ambient = { stop: () => { src.stop(); lfo.stop(); } };
