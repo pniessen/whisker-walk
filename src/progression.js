@@ -495,8 +495,17 @@ export function createProgression(storage) {
         save();
       }
     },
-    completeWalk() {
-      state.walks[state.area] += 1;
+    // completeWalk(areaId = state.area) — defaults to the persisted area so
+    // every existing call site (which never passed an area) keeps counting
+    // whatever area is currently equipped, same as before. main.js's endWalk
+    // now passes session.areaId explicitly (Task 7.2 fix): a den walk never
+    // persists state.area (areaOverride semantics), so without this the
+    // default would silently credit whatever OTHER area was last set via
+    // setArea instead of 'den' — inflating that area's walk count (and thus
+    // its walks-gated unlocks, e.g. park's "2 walks in neighborhood") every
+    // time the freely-repeatable den is visited.
+    completeWalk(areaId = state.area) {
+      state.walks[areaId] += 1;
       save();
     },
     recordGreet(name, breed, walkStamp) {

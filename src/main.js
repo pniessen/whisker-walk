@@ -1544,7 +1544,11 @@ function init() {
 
   function endWalk() {
     if (!session) return;
-    progression.completeWalk();
+    // session.areaId is the area actually walked (set in startWalk from
+    // areaOverride ?? state.area) — pass it explicitly so a den walk (which
+    // never persists state.area) increments walks.den, not whatever other
+    // area state.area still points at.
+    progression.completeWalk(session.areaId);
     // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
     // computed, so the streak bonus is folded into this walk's own "whisker
     // points" total rather than silently landing in the next walk's earned

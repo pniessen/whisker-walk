@@ -67,6 +67,24 @@ describe('createProgression', () => {
     expect(p.canBuy('areas', 'park')).toBe(true);
   });
 
+  // Regression (Task 7.2 fix): the den is freely repeatable and never
+  // persists state.area (areaOverride semantics — see main.js's startWalk),
+  // so completeWalk must accept the walked area explicitly rather than
+  // always crediting state.area — otherwise every den walk would silently
+  // inflate whatever OTHER area was last set via setArea, e.g. letting a
+  // player farm den walks to unlock park/seaside's walks-gated requirement
+  // without ever actually walking neighborhood.
+  it('completeWalk(areaId) credits the area actually walked, not state.area', () => {
+    expect(p.state.walks.den).toBe(0);
+    expect(p.state.walks.neighborhood).toBe(0);
+    p.completeWalk('den');
+    expect(p.state.walks.den).toBe(1);
+    expect(p.state.walks.neighborhood).toBe(0); // untouched — state.area is still 'neighborhood'
+    p.completeWalk('den');
+    expect(p.state.walks.den).toBe(2);
+    expect(p.state.walks.neighborhood).toBe(0);
+  });
+
   it('equips only unlocked cats and accessories into the right slot', () => {
     p.equipCat('black');
     expect(p.state.equipped.cat).toBe('tabby'); // locked → ignored
