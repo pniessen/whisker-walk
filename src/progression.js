@@ -1,3 +1,5 @@
+import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+
 const SAVE_KEY = 'whisker-walk-save';
 const SAVE_VERSION = 4; // v4: per-slot cosmetic accessories
 
@@ -36,6 +38,16 @@ const STREAK_COUNT_MAX = 3650;
 // rejecting a hostile/corrupted cloud payload's implausible number rather
 // than persisting (and later displaying) it.
 const RACE_MS_MAX = 24 * 60 * 60 * 1000;
+// Ceiling on state.den.owned's length. There are only 6 real den items (see
+// DEN_ITEMS in src/den.js), so 32 is generous headroom for future additions —
+// its real job, same as GOLD_MAX_COUNT above, is capping the array so a
+// hostile cloud payload can't pad state.den.owned with thousands of
+// known-shaped ids and bloat the save past the localStorage quota.
+const DEN_OWNED_MAX = 32;
+// Known den item/spot ids, computed once from den.js's own exports rather
+// than duplicated here — sanitizeDen and placeDenItem both need these sets.
+const DEN_ITEM_IDS = new Set(Object.keys(DEN_ITEMS));
+const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -135,7 +147,14 @@ function defaultState() {
   return {
     version: SAVE_VERSION,
     points: 0,
-    walks: { neighborhood: 0, park: 0, seaside: 0 },
+    // v17: 'den' added alongside the walk areas. It's not a CATALOG.areas
+    // entry (the den isn't unlocked/bought like neighborhood/park/seaside —
+    // see Task 7.2), but completeWalk() increments state.walks[state.area]
+    // unconditionally, so state.walks needs a 'den' key present from the
+    // start — otherwise a den walk would do `undefined + 1` and leave
+    // state.walks.den as NaN forever (NaN + 1 is still NaN, so it would
+    // never self-heal on a later walk either).
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0 },
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
     area: 'neighborhood',
@@ -148,6 +167,7 @@ function defaultState() {
     streak: { last: null, count: 0 },
     kitten: { stage: 0 },
     race: { date: null, area: null, bestMs: null },
+    den: { owned: [], placed: {} },
   };
 }
 
@@ -213,6 +233,37 @@ function sanitizeRace(v) {
   const bestMs = typeof v?.bestMs === 'number' && Number.isFinite(v.bestMs) && v.bestMs > 0 && v.bestMs <= RACE_MS_MAX
     ? v.bestMs : null;
   return { date, area, bestMs };
+}
+
+// Cloud-loaded (or otherwise externally supplied) den field: same untrusted
+// threat model as every other field in sanitizeState. owned is filtered to
+// DEN_ITEMS' own keys, deduped, and capped at DEN_OWNED_MAX (mirrors
+// sanitizeGolden's dedupe-while-capping walk). placed is a plain object whose
+// keys must be a known DEN_SPOTS id AND whose value must be a known DEN_ITEMS
+// id that also survived into the sanitized owned list above — an item placed
+// in a spot but not actually owned (e.g. a payload edited after the fact, or
+// an id that got dropped from owned by the cap) is dropped rather than kept,
+// same "don't trust it just because it parses" rule as the rest of this file.
+function sanitizeDen(v) {
+  const ownedRaw = asStringArray(v?.owned).filter((id) => DEN_ITEM_IDS.has(id));
+  const owned = [];
+  const seen = new Set();
+  for (const id of ownedRaw) {
+    if (owned.length >= DEN_OWNED_MAX) break;
+    if (!seen.has(id)) {
+      seen.add(id);
+      owned.push(id);
+    }
+  }
+  const placed = {};
+  if (isPlainObject(v?.placed)) {
+    for (const [spotId, itemId] of Object.entries(v.placed)) {
+      if (!DEN_SPOT_IDS.has(spotId)) continue;
+      if (typeof itemId !== 'string' || !DEN_ITEM_IDS.has(itemId) || !owned.includes(itemId)) continue;
+      placed[spotId] = itemId;
+    }
+  }
+  return { owned, placed };
 }
 
 function ymdToUTCms(ymd) {
@@ -303,6 +354,7 @@ function sanitizeState(parsed) {
     streak: sanitizeStreak(parsed.streak),
     kitten: sanitizeKitten(parsed.kitten),
     race: sanitizeRace(parsed.race),
+    den: sanitizeDen(parsed.den),
   };
 }
 
@@ -385,6 +437,41 @@ export function createProgression(storage) {
       save();
       return true;
     },
+    // buyDenItem(id) → bool — mirrors buy() above but against DEN_ITEMS/
+    // state.den.owned instead of CATALOG/state.unlocked: known id, not
+    // already owned, enough points. Kept separate from buy() rather than
+    // folded into CATALOG/kind because den furniture has no `requires` gate
+    // and owned is a flat array, not a per-kind bucket under `unlocked`.
+    buyDenItem(id) {
+      const item = DEN_ITEMS[id];
+      if (!item || state.den.owned.includes(id) || state.points < item.price) return false;
+      state.points -= item.price;
+      state.den.owned.push(id);
+      save();
+      return true;
+    },
+    // placeDenItem(spotId, itemId) → bool — itemId may be null to clear the
+    // spot. Validates spotId is a known DEN_SPOTS id and (when not clearing)
+    // itemId is a known DEN_ITEMS id the player actually owns. DECISION: a
+    // single piece of furniture exists once, so placing an owned item at a
+    // spot first removes it from any other spot it currently occupies —
+    // there's only one Sunbeam Rug, it can't be in two places in the den at
+    // the same time.
+    placeDenItem(spotId, itemId) {
+      if (!DEN_SPOT_IDS.has(spotId)) return false;
+      if (itemId === null) {
+        delete state.den.placed[spotId];
+        save();
+        return true;
+      }
+      if (typeof itemId !== 'string' || !DEN_ITEMS[itemId] || !state.den.owned.includes(itemId)) return false;
+      for (const s of Object.keys(state.den.placed)) {
+        if (state.den.placed[s] === itemId) delete state.den.placed[s];
+      }
+      state.den.placed[spotId] = itemId;
+      save();
+      return true;
+    },
     equipCat(id) {
       if (api.isUnlocked('cats', id)) {
         state.equipped.cat = id;
@@ -408,8 +495,17 @@ export function createProgression(storage) {
         save();
       }
     },
-    completeWalk() {
-      state.walks[state.area] += 1;
+    // completeWalk(areaId = state.area) — defaults to the persisted area so
+    // every existing call site (which never passed an area) keeps counting
+    // whatever area is currently equipped, same as before. main.js's endWalk
+    // now passes session.areaId explicitly (Task 7.2 fix): a den walk never
+    // persists state.area (areaOverride semantics), so without this the
+    // default would silently credit whatever OTHER area was last set via
+    // setArea instead of 'den' — inflating that area's walk count (and thus
+    // its walks-gated unlocks, e.g. park's "2 walks in neighborhood") every
+    // time the freely-repeatable den is visited.
+    completeWalk(areaId = state.area) {
+      state.walks[areaId] += 1;
       save();
     },
     recordGreet(name, breed, walkStamp) {

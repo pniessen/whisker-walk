@@ -7,6 +7,7 @@ import { PERSONALITIES } from './cat/brain.js';
 import * as neighborhood from './world/neighborhood.js';
 import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
+import * as den from './world/den.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
 import { createRemoteCats } from './remotecats.js';
@@ -25,6 +26,7 @@ import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
@@ -53,7 +55,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
-const AREAS = { neighborhood, park, seaside };
+const AREAS = { neighborhood, park, seaside, den };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -237,6 +239,14 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  // Generative lofi music (Task 7.3): its own gain node, connected to the
+  // shared master bus via audio.getMaster() — that bus covers volume
+  // scaling for free (audio.setVolume() writes master.gain.value), but NOT
+  // mute (audio.setMuted() only gates its own tone()/vocal() calls, it never
+  // touches master.gain) — so applySettings() below also pushes
+  // music.setMuted() to silence the generative music. See music.js's
+  // file-header comment for the full story.
+  const music = createMusic(() => audio.getContext(), () => audio.getMaster());
   // Sampled pet voices: created AFTER audio so its decode hook can reach
   // audio.getContext(). Loads public/sounds/manifest.json and lazily
   // decodes every listed file; decodeAudioData works without a user gesture
@@ -265,6 +275,8 @@ function init() {
   function applySettings() {
     audio.setVolume(settings.get('volume'));
     audio.setMuted(settings.get('muted'));
+    music.setVolume(settings.get('musicVolume'));
+    music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
   }
@@ -717,6 +729,17 @@ function init() {
     }
   }
 
+  // The den button's variant (Task 7.2): the den never joins a room walk
+  // (homebase hides the button while a room is pending — see
+  // renderDenSection's `rooms.getState()` check), so this bypasses
+  // beginWalkFromHomebase's host/joiner room branch entirely and calls
+  // startWalk directly with areaOverride: 'den' — same mechanism a room
+  // joiner's areaOverride uses to walk somewhere without persisting it as
+  // state.area (main.js:974-ish, see startWalk's areaId comment).
+  function beginDenWalk() {
+    startWalk({ areaOverride: 'den' });
+  }
+
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
   // lazy cloud instance, handed to homebase so it can fetch friendships +
   // profiles for its own async render without knowing about MP/getCloud.
@@ -767,7 +790,7 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk);
   homebase.show();
 
   // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
@@ -1043,6 +1066,11 @@ function init() {
     // there for this one co-walk, without progression.setArea persisting an
     // area they haven't actually earned.
     const areaId = areaOverride ?? state.area;
+    // The den (Task 7.2): a small indoor area with its own build signature
+    // (den.build(scene, { placed })) and a stack of walk-system guards below
+    // — no weather/secrets/quest/strays/goals/race/goldMice/sky-life indoors,
+    // but ghosts still visit and the kitten's home-stage still shows up.
+    const isDen = areaId === 'den';
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     scene.environment = envMap;
@@ -1056,7 +1084,9 @@ function init() {
     sun.position.set(30, 50, 20);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
 
-    const areaData = AREAS[areaId].build(scene);
+    const areaData = isDen
+      ? AREAS.den.build(scene, { placed: progression.state.den.placed })
+      : AREAS[areaId].build(scene);
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
@@ -1103,7 +1133,7 @@ function init() {
     }
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
-    if (!duskActive) {
+    if (!duskActive && !isDen) {
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, settings.get('reducedMotion'));
       if (weather.condition === 'rain') {
         // extra puddles
@@ -1125,8 +1155,11 @@ function init() {
       }
     }
 
-    const secretRolls = rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' });
-    const secrets = createSecrets(scene, areaData, secretRolls, walkRng);
+    // Secrets (unicorn/UFO) are outdoor-only sight gags — skip them indoors
+    // rather than have one spawn inside the den's 16x16 room.
+    const secrets = isDen
+      ? { list: [], update() {} }
+      : createSecrets(scene, areaData, rollSecrets(walkRng, { eveningLight: duskActive || weather.condition === 'sunset' }), walkRng);
 
     const critters = createCritters(scene, areaData.critterSpawns, {
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
@@ -1148,7 +1181,10 @@ function init() {
     let questGiver = null;
     let quest = null;
     let questObject = null;
-    const giver = critters.list.find((c) => c.type === 'villager');
+    // No quest givers indoors — den critterSpawns is already empty so this
+    // is naturally null, but isDen keeps it explicit against a future den
+    // critter addition accidentally growing a quest chain in the den.
+    const giver = isDen ? null : critters.list.find((c) => c.type === 'villager');
     if (giver) {
       questGiver = giver;
       quest = createQuest(walkRng, areaData.pois);
@@ -1189,7 +1225,7 @@ function init() {
       scene.add(questObject);
     }
 
-    const strayCats = createStrayCats(scene, areaData, coarse ? 14 : 22, walkRng);
+    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng);
     const remotes = createRemoteCats(scene);
     if (roomSeed === undefined) {
       for (const stray of strayCats.strays) {
@@ -1228,13 +1264,19 @@ function init() {
       }
     });
 
-    const goals = createGoals(walkRng);
+    // No goals in the den (Task 7.2) — session.goals stays null and every
+    // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
+    // endWalk's goalsDone/summary) treats a null goals as "this walk has no
+    // goal HUD" rather than crashing on it.
+    const goals = isDen ? null : createGoals(walkRng);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
     // slot 0 with an identical shared goal — no extra wire event needed to
     // agree on what the duo goal even is, only on its progress (see
-    // 'goal-progress' in applyRemoteEvent).
-    if (roomSeed !== undefined) {
+    // 'goal-progress' in applyRemoteEvent). Den never carries a roomSeed
+    // (it never joins room walks), so the `goals &&` guard here is belt-
+    // and-suspenders rather than a path that actually gets hit.
+    if (goals && roomSeed !== undefined) {
       goals.goals[0] = {
         id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend',
         target: 5, duo: true, progress: 0, done: false,
@@ -1263,7 +1305,9 @@ function init() {
       // shared determinism stream that co-walk clients rely on staying in
       // sync — see Global Constraints. Seeding off roomSeed (when present)
       // keeps co-walk clients' clouds identical without touching walkRng.
-      skyLife: createSkyLife(scene, {
+      // Indoor den: no sky to animate — a no-op stub keeps the render loop's
+      // unconditional session.skyLife.update()/dispose() calls safe.
+      skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
         reducedMotion: settings.get('reducedMotion'),
       }),
@@ -1493,7 +1537,7 @@ function init() {
     hud.setArea(areaData.name);
     hud.setPoints(state.points);
     hud.setRank(session.rankTitle);
-    hud.setGoals(goals.goals);
+    hud.setGoals(goals ? goals.goals : null);
     homebase.hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
       <button id="btn-resume">${isTouch ? 'Tap to explore' : 'Start exploring (click)'}</button>
@@ -1507,11 +1551,26 @@ function init() {
 
     catVoice();
     audio.startAmbient(areaId, { dusk: duskActive, rain: weather.condition === 'rain' });
+    // roomSeed (when present) is shared by every player in the room, so a
+    // co-walk hears the identical generated song; solo/den walks fall back
+    // to a seed derived from this walk's own stamp. Mood mirrors the same
+    // dusk/rain/sunset/day branching already used for ambience/lighting
+    // above. music.setVolume(0) (pushed by applySettings) makes start() a
+    // cheap no-op, so no separate "is music enabled" check is needed here —
+    // being muted does NOT skip start(): the scheduler still runs, silenced
+    // via music.setMuted()'s gain-zeroing, so unmuting mid-walk resumes
+    // instantly instead of waiting for the next walk.
+    const musicMood = duskActive ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
+    music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
   }
 
   function endWalk() {
     if (!session) return;
-    progression.completeWalk();
+    // session.areaId is the area actually walked (set in startWalk from
+    // areaOverride ?? state.area) — pass it explicitly so a den walk (which
+    // never persists state.area) increments walks.den, not whatever other
+    // area state.area still points at.
+    progression.completeWalk(session.areaId);
     // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
     // computed, so the streak bonus is folded into this walk's own "whisker
     // points" total rather than silently landing in the next walk's earned
@@ -1523,7 +1582,9 @@ function init() {
 
     // compute summary numbers while the session is still live
     const earned = progression.state.points - session.startPoints;
-    const goalsDone = session.goals.goals.filter((g) => g.done).length;
+    // Den walks carry no goals (session.goals is null there) — the summary
+    // below hides the goals stat entirely rather than show "0/3".
+    const goalsDone = session.goals ? session.goals.goals.filter((g) => g.done).length : 0;
     const isRecord = progression.recordWalkScore(earned);
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
@@ -1543,7 +1604,7 @@ function init() {
         <div class="stat"><span class="stat-value">${earned}</span><span class="stat-label">whisker points</span></div>
         <div class="stat"><span class="stat-value">${discoveries}</span><span class="stat-label">discoveries</span></div>
         <div class="stat"><span class="stat-value">${friendsGreeted}</span><span class="stat-label">cats greeted</span></div>
-        <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
+        ${session.goals ? `<div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>` : ''}
       </div>
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
@@ -1595,6 +1656,7 @@ function init() {
     overlay.innerHTML = summaryHtml;
     overlay.classList.remove('hidden');
     audio.stopAmbient();
+    music.stop();
   }
 
   function updateAvatar(s, dt, t) {

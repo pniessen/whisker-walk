@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
+import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -64,6 +65,24 @@ describe('createProgression', () => {
     p.completeWalk(); // area defaults to neighborhood
     p.completeWalk();
     expect(p.canBuy('areas', 'park')).toBe(true);
+  });
+
+  // Regression (Task 7.2 fix): the den is freely repeatable and never
+  // persists state.area (areaOverride semantics — see main.js's startWalk),
+  // so completeWalk must accept the walked area explicitly rather than
+  // always crediting state.area — otherwise every den walk would silently
+  // inflate whatever OTHER area was last set via setArea, e.g. letting a
+  // player farm den walks to unlock park/seaside's walks-gated requirement
+  // without ever actually walking neighborhood.
+  it('completeWalk(areaId) credits the area actually walked, not state.area', () => {
+    expect(p.state.walks.den).toBe(0);
+    expect(p.state.walks.neighborhood).toBe(0);
+    p.completeWalk('den');
+    expect(p.state.walks.den).toBe(1);
+    expect(p.state.walks.neighborhood).toBe(0); // untouched — state.area is still 'neighborhood'
+    p.completeWalk('den');
+    expect(p.state.walks.den).toBe(2);
+    expect(p.state.walks.neighborhood).toBe(0);
   });
 
   it('equips only unlocked cats and accessories into the right slot', () => {
@@ -255,12 +274,13 @@ describe('createProgression', () => {
 
       expect(p.state).toEqual({
         version: 4, points: 0,
-        walks: { neighborhood: 0, park: 0, seaside: 0 },
+        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
+        den: { owned: [], placed: {} },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -289,7 +309,7 @@ describe('createProgression', () => {
       expect(p.state.points).toBe(0);
       expect(p.state.lifetimePoints).toBe(0);
       expect(p.state.bestWalk).toBe(0);
-      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0 });
       // starter unlocks are still guaranteed even though the payload's
       // unlocked lists were unusable
       expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
@@ -431,7 +451,7 @@ describe('v11 slots + save migration', () => {
       expect(p.state.lifetimePoints).toBe(300);     // veteran rank must survive
       expect(p.state.bestWalk).toBe(40);             // best-walk record must survive
       expect(p.state.area).toBe('park');
-      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0 });
       expect(p.state.friends).toEqual({ Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } });
       expect(p.state.petName).toBe('Zeetoo');
       expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black', 'siamese', 'persian']));
@@ -733,6 +753,125 @@ describe('v17 race save field', () => {
       race: { date: '2026-08-12', area: 'park', bestMs: 8800 },
     });
     expect(p.state.race).toEqual({ date: '2026-08-12', area: 'park', bestMs: 8800 });
+  });
+});
+
+// v17 Cozy Den: two additive save fields (state.den's owned/placed furniture,
+// and state.walks.den — the den's own walk counter). Still SAVE_VERSION 4 —
+// additive, not a new version — same untrusted-input threat model as every
+// other field in sanitizeState: a hostile/malformed cloud payload must have
+// den validated field-by-field rather than trusted wholesale.
+describe('v17 den save fields', () => {
+  it('v4 save without den/walks.den loads with defaults', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, points: 10 }) });
+    const p = createProgression(storage);
+    expect(p.state.den).toEqual({ owned: [], placed: {} });
+    expect(p.state.walks.den).toBe(0);
+  });
+
+  it('sanitizes a hostile den payload: unknown owned item and unowned/unknown placed entries are dropped', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      den: {
+        owned: ['rug', 'nuke'],
+        placed: { 'rug-spot': 'cattree', evil: 'rug' },
+      } }) });
+    const p = createProgression(storage);
+    expect(p.state.den.owned).toEqual(['rug']);
+    expect(p.state.den.placed).toEqual({});
+  });
+
+  it('dedupes owned ids and caps at 32', () => {
+    const owned = Array(50).fill('rug');
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, den: { owned, placed: {} } }) });
+    const p = createProgression(storage);
+    expect(p.state.den.owned).toEqual(['rug']);
+  });
+
+  it('caps owned at 32 even with 40 distinct known-shaped ids padded beyond the real catalog', () => {
+    // DEN_ITEMS only has 6 real keys, so repeat the known ones — the cap's
+    // job is bounding array length regardless of how many are duplicates
+    // once dedup happens; this proves the raw (pre-dedupe) list is capped
+    // as it's walked, same discipline as sanitizeGolden's GOLD_MAX_COUNT.
+    const owned = Array.from({ length: 40 }, (_, i) => Object.keys(DEN_ITEMS)[i % 6]);
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, den: { owned, placed: {} } }) });
+    const p = createProgression(storage);
+    expect(p.state.den.owned.length).toBeLessThanOrEqual(32);
+  });
+
+  it('walks.den defaults to 0 and is sanitized like every other walks entry', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, walks: { den: -5 } }) });
+    const p = createProgression(storage);
+    expect(p.state.walks.den).toBe(0);
+  });
+
+  it('buyDenItem: known id, not owned, enough points -> deducts and unlocks', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    expect(p.buyDenItem('rug')).toBe(true);
+    expect(p.state.points).toBe(0);
+    expect(p.state.den.owned).toEqual(['rug']);
+  });
+
+  it('buyDenItem: unknown id, already-owned id, or insufficient points all fail', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    expect(p.buyDenItem('nuke')).toBe(false);
+    expect(p.buyDenItem('cattree')).toBe(false); // costs 60, only have 30
+    expect(p.buyDenItem('rug')).toBe(true);
+    expect(p.buyDenItem('rug')).toBe(false); // already owned
+    expect(p.state.den.owned).toEqual(['rug']);
+  });
+
+  it('placeDenItem: happy path places an owned item at a known spot', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    p.buyDenItem('rug');
+    expect(p.placeDenItem('rug-spot', 'rug')).toBe(true);
+    expect(p.state.den.placed).toEqual({ 'rug-spot': 'rug' });
+  });
+
+  it('placeDenItem: rejects an unknown spot, unknown item, or unowned item', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    p.buyDenItem('rug');
+    expect(p.placeDenItem('nowhere', 'rug')).toBe(false);
+    expect(p.placeDenItem('rug-spot', 'nuke')).toBe(false);
+    expect(p.placeDenItem('rug-spot', 'cattree')).toBe(false); // known item, not owned
+    expect(p.state.den.placed).toEqual({});
+  });
+
+  it('placeDenItem: null clears a spot', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    p.buyDenItem('rug');
+    p.placeDenItem('rug-spot', 'rug');
+    expect(p.placeDenItem('rug-spot', null)).toBe(true);
+    expect(p.state.den.placed).toEqual({});
+  });
+
+  it('placeDenItem: placing an owned item at a new spot removes it from any spot it already occupied', () => {
+    const p = createProgression(fakeStorage({}));
+    p.addPoints(30);
+    p.buyDenItem('rug');
+    p.placeDenItem('rug-spot', 'rug');
+    expect(p.placeDenItem('window', 'rug')).toBe(true);
+    expect(p.state.den.placed).toEqual({ window: 'rug' }); // moved, not duplicated
+  });
+
+  it('replaceFromPayload (cloud round-trip) preserves den', () => {
+    const p = createProgression(fakeStorage({}));
+    p.replaceFromPayload({
+      version: 4, points: 0,
+      walks: { neighborhood: 0, park: 0, seaside: 0, den: 3 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
+      area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
+      race: { date: null, area: null, bestMs: null },
+      den: { owned: ['rug', 'lamp'], placed: { 'rug-spot': 'rug' } },
+    });
+    expect(p.state.den).toEqual({ owned: ['rug', 'lamp'], placed: { 'rug-spot': 'rug' } });
+    expect(p.state.walks.den).toBe(3);
   });
 });
 

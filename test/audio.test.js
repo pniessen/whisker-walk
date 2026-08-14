@@ -92,4 +92,30 @@ describe('layered ambience', () => {
     expect(() => audio.startAmbient('park')).not.toThrow();
     audio.stopAmbient();
   });
+
+  // Task 7.2: the den's ambience is fireplace-crackle only — no wind,
+  // birdsong, or crickets, even if a caller somehow passed dusk: true (the
+  // den never surfaces the dusk toggle, but startAmbient stays defensive).
+  it('den ambience is crackle-only: one looped-noise layer, never crickets at dusk', () => {
+    const ctx = fakeCtx();
+    const bufferSources = [];
+    const origCreateBufferSource = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const n = origCreateBufferSource(); bufferSources.push(n); return n; };
+    let intervalCalls = 0;
+    const origSetInterval = global.setInterval;
+    global.setInterval = (...args) => { intervalCalls++; return origSetInterval(...args); };
+    const audio = createAudio({ contextFactory: () => ctx });
+    try {
+      audio.startAmbient('den', { dusk: true });
+    } finally {
+      global.setInterval = origSetInterval;
+    }
+    // exactly one looped noise source (the crackle layer) — no wind/waves
+    // layer stacked alongside it, and no interval-based cricket/birdsong
+    // layer scheduled either.
+    expect(bufferSources).toHaveLength(1);
+    expect(intervalCalls).toBe(0);
+    audio.stopAmbient();
+    expect(bufferSources[0].stopped).toBe(true);
+  });
 });
