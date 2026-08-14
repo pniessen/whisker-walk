@@ -25,6 +25,7 @@ import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
@@ -236,6 +237,19 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  // Sampled pet voices: created AFTER audio so its decode hook can reach
+  // audio.getContext(). Loads public/sounds/manifest.json and lazily
+  // decodes every listed file; decodeAudioData works without a user gesture
+  // in modern browsers (only starting playback needs one), so kicking this
+  // off immediately at boot — while the AudioContext may still be
+  // suspended — is safe. Until a family recording decodes successfully,
+  // samples.has() stays false and catVoice/applyRemoteEvent fall through to
+  // the synth voice, so an empty manifest is behavior-identical to no
+  // samples module at all.
+  const samples = createSamples(import.meta.env.BASE_URL, {
+    decode: (arrayBuf) => audio.getContext().decodeAudioData(arrayBuf),
+    playBuffer: (buf, opts) => audio.playBuffer(buf, opts),
+  });
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
@@ -276,6 +290,14 @@ function init() {
   const catVoice = (pitch = 1) => {
     if (!session) return;
     const breed = session.cat.userData.breed;
+    // A recorded family voice, once decoded, takes priority over every
+    // synth branch below (hagrid's cluck included) — if the family records
+    // Hagrid, he gets his real cluck too. See src/samples.js's has()
+    // contract: true only once that breed's file has actually decoded.
+    if (samples.has(breed)) {
+      samples.play(breed, { rate: 0.95 + Math.random() * 0.1 });
+      return;
+    }
     const v = voiceFor(breed);
     if (breed === 'hagrid') audio.cluck(1, pitch * v.pitch);
     else audio.meow(1, pitch, v);
@@ -2190,7 +2212,9 @@ function init() {
         : s.cat.position;
       const dist = s.cat.position.distanceTo(pos);
       const vol = meowVolumeForDistance(dist);
-      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
+      if (samples.has(ev.breed)) {
+        samples.play(ev.breed, { rate: 0.95 + Math.random() * 0.1, volume: vol });
+      } else if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
       s.critters.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
