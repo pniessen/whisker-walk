@@ -18,10 +18,12 @@ import { createQuest } from './quests.js';
 import { createProgression, rankFor, summarizeSaveForPreview } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
+import { createFx } from './fx.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
@@ -178,7 +180,7 @@ function init() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.1;
   // Baked once from a procedural RoomEnvironment (no network/HDRI fetch) and
   // reused across every walk — never disposed per-walk.
   const envMap = buildEnvMap(renderer);
@@ -264,8 +266,14 @@ function init() {
   });
   // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
   // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.
-  const catVoice = (pitch = 1) =>
-    (session && session.cat.userData.breed === 'hagrid' ? audio.cluck(1, pitch) : audio.meow(1, pitch));
+  // Breed-aware: every breed gets its own formant voice via voiceFor().
+  const catVoice = (pitch = 1) => {
+    if (!session) return;
+    const breed = session.cat.userData.breed;
+    const v = voiceFor(breed);
+    if (breed === 'hagrid') audio.cluck(1, pitch * v.pitch);
+    else audio.meow(1, pitch, v);
+  };
   const clock = new THREE.Clock();
 
   let session = null;
@@ -738,7 +746,10 @@ function init() {
     if (!session?.goals) return;
     const res = session.goals.note(type);
     hud.setGoals(session.goals.goals);
-    if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+    if (res.completed) {
+      log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+      session.fx?.burst(session.cat.position, 0x8ae08a, 14);
+    }
     if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
   }
 
@@ -752,9 +763,16 @@ function init() {
     }
   });
 
-  bus.on('discovery', ({ type }) => {
+  bus.on('discovery', ({ type, points }) => {
     hud.setPoints(progression.state.points);
-    audio.chime();
+    if (type === 'jackpot') {
+      audio.fanfare();
+    } else if (type === 'collectible' || type === 'treasure') {
+      audio.collectArp();
+    } else {
+      audio.chime();
+    }
+    if (session?.fx && points > 0) session.fx.popup(session.cat.position, `+${points} 🐾`);
     if (session && type !== 'goal' && type !== 'jackpot') session.discoveryCount += 1;
     noteGoal(type);
     if (session) {
@@ -854,6 +872,7 @@ function init() {
     if (session.perched) {
       session.perched = null;                    // hop down
       player.perchY = 0;
+      session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else {
       const perch = (session.areaData.perches ?? []).find((pp) => {
         // high perches (car roofs etc.) sit at a collider's own center, so the
@@ -1162,6 +1181,7 @@ function init() {
       catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
+      fx: createFx(scene, { reducedMotion: settings.get('reducedMotion') }),
       secrets,
       tippables,
       scent,
@@ -1170,6 +1190,7 @@ function init() {
       momentTimer: 40,
       activeMoment: null,
       prompt: null,
+      lastPromptKind: null,
       balkedPuddles: new Set(),
       toy, batCount: 0, batReady: true,
       toyGhost, remoteToy: null,
@@ -1364,6 +1385,7 @@ function init() {
       Promise.resolve(net.leave()).catch(() => {});
     }
 
+    session.fx.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
@@ -1406,7 +1428,9 @@ function init() {
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
+    const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
+    if (wasPouncing && s.pounceTime <= 0) s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
 
     const speed = player.speed;
@@ -1652,6 +1676,17 @@ function init() {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
       }
     }
+
+    // Approach-trill: a short "brrrup?" the moment a stray first comes
+    // within greeting range, distinct from the "meow" played on the actual
+    // E-to-greet (awardStrayGreet). Only fires on the transition INTO
+    // 'stray' from some other (or no) prompt kind, not on every frame the
+    // prompt stays 'stray'.
+    const promptKind = s.prompt ? s.prompt.kind : null;
+    if (promptKind === 'stray' && s.lastPromptKind !== 'stray') {
+      audio.trill(0.6);
+    }
+    s.lastPromptKind = promptKind;
   }
 
   // Shared greet-award body for a stray cat: friend-points award, progression
@@ -1679,6 +1714,7 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+      s.fx.burst(s.cat.position, 0xf2c14e, 12);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
       if (s.tippables.tip(s.prompt.data)) {
@@ -1733,12 +1769,13 @@ function init() {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) {
         log.awardOnce('treasure', treat.id, 'a buried treasure!');
+        s.fx.burst(s.cat.position, 0xf2c14e, 12);
         if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'dig', treatId: treat.id });
       }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');
-      audio.purr();
+      audio.purr(2.5);
       if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
         log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }
@@ -1873,7 +1910,7 @@ function init() {
         : s.cat.position;
       const dist = s.cat.position.distanceTo(pos);
       const vol = meowVolumeForDistance(dist);
-      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol);
+      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
       s.critters.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
@@ -2008,6 +2045,7 @@ function init() {
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.tippables.update(dt);
       session.scent.update(dt);
+      session.fx.update(dt);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);

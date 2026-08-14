@@ -6,7 +6,7 @@
 const HIGH = Object.freeze({
   name: 'high',
   shadowMapSize: 2048,
-  envIntensity: 0.35,
+  envIntensity: 0.45,
   postFx: true,
   pixelRatioCap: 2,
 });
@@ -14,7 +14,7 @@ const HIGH = Object.freeze({
 const LOW = Object.freeze({
   name: 'low',
   shadowMapSize: 1024,
-  envIntensity: 0.25,
+  envIntensity: 0.32,
   postFx: false,
   pixelRatioCap: 1.5,
 });
