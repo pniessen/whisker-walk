@@ -26,6 +26,7 @@ import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
@@ -238,6 +239,11 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  // Generative lofi music (Task 7.3): its own gain node, connected to the
+  // shared master bus via audio.getMaster() — see music.js's file-header
+  // comment for why that means the existing M-mute/volume already covers it
+  // with no extra wiring here.
+  const music = createMusic(() => audio.getContext(), () => audio.getMaster());
   // Sampled pet voices: created AFTER audio so its decode hook can reach
   // audio.getContext(). Loads public/sounds/manifest.json and lazily
   // decodes every listed file; decodeAudioData works without a user gesture
@@ -266,6 +272,7 @@ function init() {
   function applySettings() {
     audio.setVolume(settings.get('volume'));
     audio.setMuted(settings.get('muted'));
+    music.setVolume(settings.get('musicVolume'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
   }
@@ -1540,6 +1547,14 @@ function init() {
 
     catVoice();
     audio.startAmbient(areaId, { dusk: duskActive, rain: weather.condition === 'rain' });
+    // roomSeed (when present) is shared by every player in the room, so a
+    // co-walk hears the identical generated song; solo/den walks fall back
+    // to a seed derived from this walk's own stamp. Mood mirrors the same
+    // dusk/rain/sunset/day branching already used for ambience/lighting
+    // above. music.setVolume(0) (pushed by applySettings) makes start() a
+    // cheap no-op, so no separate "is music enabled" check is needed here.
+    const musicMood = duskActive ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
+    music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
   }
 
   function endWalk() {
@@ -1634,6 +1649,7 @@ function init() {
     overlay.innerHTML = summaryHtml;
     overlay.classList.remove('hidden');
     audio.stopAmbient();
+    music.stop();
   }
 
   function updateAvatar(s, dt, t) {

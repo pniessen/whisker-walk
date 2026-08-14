@@ -2,6 +2,7 @@ const KEY = 'whisker-walk-settings';
 
 const DEFAULTS = {
   volume: 0.8,
+  musicVolume: 0.5,
   muted: false,
   invertY: false,
   leftHanded: false,
@@ -37,6 +38,7 @@ function sanitize(raw) {
   if (!isPlainObject(raw)) return { ...DEFAULTS };
   return {
     volume: clampVolume(raw.volume, DEFAULTS.volume),
+    musicVolume: clampVolume(raw.musicVolume, DEFAULTS.musicVolume),
     muted: typeof raw.muted === 'boolean' ? raw.muted : DEFAULTS.muted,
     invertY: typeof raw.invertY === 'boolean' ? raw.invertY : DEFAULTS.invertY,
     leftHanded: typeof raw.leftHanded === 'boolean' ? raw.leftHanded : DEFAULTS.leftHanded,
@@ -81,6 +83,7 @@ export function createSettings(storage) {
     set(key, val) {
       if (!(key in DEFAULTS)) return;
       if (key === 'volume') state = { ...state, volume: clampVolume(val, state.volume) };
+      else if (key === 'musicVolume') state = { ...state, musicVolume: clampVolume(val, state.musicVolume) };
       else if (key === 'quality') state = { ...state, quality: clampEnum(val, QUALITY, state.quality) };
       else state = { ...state, [key]: !!val };
       save();

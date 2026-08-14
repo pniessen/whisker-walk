@@ -11,6 +11,7 @@ describe('createSettings', () => {
     const settings = createSettings(fakeStorage());
     expect(settings.all()).toEqual({
       volume: 0.8,
+      musicVolume: 0.5,
       muted: false,
       invertY: false,
       leftHanded: false,
@@ -39,6 +40,7 @@ describe('createSettings', () => {
     expect(reloaded.get('leftHanded')).toBe(true);
     expect(reloaded.all()).toEqual({
       volume: 0.8,
+      musicVolume: 0.5,
       muted: false,
       invertY: false,
       leftHanded: true,
@@ -53,6 +55,7 @@ describe('createSettings', () => {
     const settings = createSettings(fakeStorage({ 'whisker-walk-settings': '{not json' }));
     expect(settings.all()).toEqual({
       volume: 0.8,
+      musicVolume: 0.5,
       muted: false,
       invertY: false,
       leftHanded: false,
@@ -97,5 +100,20 @@ describe('createSettings', () => {
 
     const reloaded = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ quality: 42 }) }));
     expect(reloaded.get('quality')).toBe('auto');
+  });
+
+  it('defaults musicVolume to 0.5, clamps out-of-range sets, and sanitizes corrupt persisted data', () => {
+    const settings = createSettings(fakeStorage());
+    expect(settings.get('musicVolume')).toBe(0.5);
+
+    settings.set('musicVolume', 5);
+    expect(settings.get('musicVolume')).toBe(1);
+    settings.set('musicVolume', -2);
+    expect(settings.get('musicVolume')).toBe(0);
+    settings.set('musicVolume', 0.25);
+    expect(settings.get('musicVolume')).toBe(0.25);
+
+    const reloaded = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ musicVolume: 'loud' }) }));
+    expect(reloaded.get('musicVolume')).toBe(0.5);
   });
 });

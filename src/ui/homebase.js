@@ -315,6 +315,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (!settings) return '';
     const s = settings.all();
     const pct = Math.round(s.volume * 100);
+    const musicPct = Math.round(s.musicVolume * 100);
     return `
       <section class="settings-section"><h2>Settings ⚙️</h2>
         <div class="settings-grid">
@@ -322,6 +323,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <span>Volume</span>
             <input type="range" id="set-volume" min="0" max="100" step="1" value="${pct}" />
             <span id="set-volume-value" class="settings-volume-value">${pct}%</span>
+          </label>
+          <label class="settings-row settings-volume">
+            <span>Music 🎵</span>
+            <input type="range" id="set-music-volume" min="0" max="100" step="5" value="${musicPct}" />
+            <span id="set-music-volume-value" class="settings-volume-value">${musicPct}%</span>
           </label>
           <label class="settings-row"><input type="checkbox" id="set-muted" ${s.muted ? 'checked' : ''} /> Mute all sound</label>
           <label class="settings-row"><input type="checkbox" id="set-invert-y" ${s.invertY ? 'checked' : ''} /> Invert look (Y axis)</label>
@@ -818,12 +824,24 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
-    if (e.target.id !== 'set-volume' || !settings) return;
-    const vol = Number(e.target.value) / 100;
-    settings.set('volume', vol);
-    onSettingsChange?.();
-    const label = root.querySelector('#set-volume-value');
-    if (label) label.textContent = `${e.target.value}%`;
+    if (!settings) return;
+    if (e.target.id === 'set-volume') {
+      const vol = Number(e.target.value) / 100;
+      settings.set('volume', vol);
+      onSettingsChange?.();
+      const label = root.querySelector('#set-volume-value');
+      if (label) label.textContent = `${e.target.value}%`;
+      return;
+    }
+    // Music slider: same dedicated-'input'-listener pattern as the volume
+    // slider above (live updates + label patch, no full render() mid-drag).
+    if (e.target.id === 'set-music-volume') {
+      const vol = Number(e.target.value) / 100;
+      settings.set('musicVolume', vol);
+      onSettingsChange?.();
+      const label = root.querySelector('#set-music-volume-value');
+      if (label) label.textContent = `${e.target.value}%`;
+    }
   });
 
   // Quality select: a dedicated 'change' listener (not the delegated click

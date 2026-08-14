@@ -266,6 +266,16 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     getContext() {
       return ensure();
     },
+    // Exposes the master gain node itself (built by ensure(), same lazy
+    // trigger as getContext()) so a separate subsystem — src/music.js's
+    // createMusic() — can connect its own gain node straight into the
+    // shared bus. That keeps generative music behind the same
+    // volume/mute/compressor/reverb chain as every other sound here with no
+    // extra wiring: setMuted()/setVolume() already reach it via `master`.
+    getMaster() {
+      ensure();
+      return master;
+    },
     // Plays a pre-decoded sample buffer (a real recorded pet voice) through
     // the same master bus as every synth sound — so recorded and synth
     // voices share the compressor + reverb send and respond to the same
