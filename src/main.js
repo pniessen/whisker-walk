@@ -894,6 +894,7 @@ function init() {
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else if (session.pounceCooldown <= 0) {
       player.pounce();
+      audio.pounceWhoosh();
       session.pounceTime = 0.3;
       session.pounceCooldown = 1.2;
     }
@@ -1229,6 +1230,8 @@ function init() {
       perched: null,
       pounceTime: 0,
       pounceCooldown: 0,
+      landTime: 0,
+      stepPhase: 0,
       slowmoTime: 0,
       pose: 'follow',
       stretchTime: 0,
@@ -1458,12 +1461,25 @@ function init() {
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
     const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
-    if (wasPouncing && s.pounceTime <= 0) s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+    if (wasPouncing && s.pounceTime <= 0) {
+      s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+      audio.landThump();
+      s.landTime = 0.12;
+    }
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
+    if (s.landTime > 0) s.landTime -= dt;
 
     const speed = player.speed;
     if (speed > 0.3) s.idleTime = 0;
     else s.idleTime += dt;
+
+    // soft footsteps: a near-subliminal tick each time the gait phase
+    // wraps, while actually moving at a brisk pace
+    s.stepPhase += speed * dt * 2.2;
+    if (s.stepPhase > 1 && speed > 1.5) {
+      s.stepPhase = 0;
+      audio.step();
+    }
 
     // idle charm: stand still and you groom, then sit, then curl up
     const napper = p.special === 'napper';
@@ -1477,6 +1493,7 @@ function init() {
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
     else if (s.pounceTime > 0) pose = 'pounce';
+    else if (s.landTime > 0) pose = 'land';
     else if (s.perched) pose = 'perch';
     else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';
