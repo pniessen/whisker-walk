@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-14 (v11–v17 program shipped) · **Branch:** `main` · **Tests:** 392 passing (44 files) · **Latest commit:** merge `0a92a5a`
+**Last updated:** 2026-08-14 (v11–v17 program + Cats/Accessories tab split shipped) · **Branch:** `main` · **Tests:** 393 passing (44 files) · **Latest commit:** merge `085f61e`
 
 ---
 
@@ -18,7 +18,7 @@ discoveries, earning ranks, and (as of v7) co-walking with real friends,
 keeping a cloud-synced save, and getting ghost visits from befriended pets.
 
 - **Live site:** https://pniessen.github.io/whisker-walk/
-- **Local dev:** `http://localhost:5173` (`npm run dev`)
+- **Local dev:** `http://localhost:5174` (`npm run dev` — pinned via `.claude/launch.json` `--strictPort`)
 - **Repo:** https://github.com/pniessen/whisker-walk
 - Started as "first-person cat *walking* (you hold the leash)"; pivoted early
   on user feedback to **third-person "be the cat."** That framing is load-bearing
@@ -83,7 +83,7 @@ in `docs/superpowers/`.
 - **v6 "Mobile"** — mobile-friendly: virtual joystick (lower-LEFT thumb), orbit drag (right side), touch engagement model, coarse-pointer perf tuning.
 - **v7 "Always Online"** — cloud saves, persistent friendships, ghost visits, PWA, settings — see §5.
 - **v8 "Say Hi"** (latest) — live in-game chat during co-walks. Curated phrase/emote tray (💬 button), speech bubbles over cats (`src/chatbubble.js` mirrors `nametag.js`), per-player mute + `hideChat` setting. **Safety keystone: only a phrase-ID enum crosses the wire** (`src/chat.js` catalog; `net.js` `chat` broadcast kind) — no free text, so no moderation surface. Files: `src/chat.js`, `src/chatbubble.js`, `src/ui/chatwheel.js`, chat wiring in `src/main.js`. Spec/plan: `docs/superpowers/{specs,plans}/2026-08-11-whisker-walk-v8-chat.md`. **Lesson:** the live Supabase transport must subscribe to every broadcast kind `createNet.handleBroadcast` handles — the final review caught `chat` missing from `createSupabaseTransport.join` (unit tests passed because the fake hub is kind-agnostic). Verify multiplayer wire changes with a live two-client round-trip, not just unit tests.
-- **v9 "Home Base, Tidied"** — the home base became a sticky hero (cat wordmark + rank + Start) over four tabs: **Play / Social / Album / Settings** (`src/ui/hometabs.js` + restructured `src/ui/homebase.js`). Consolidated the three social blocks into one Friends section. Reorganization only — all handlers/escaping preserved.
+- **v9 "Home Base, Tidied"** — the home base became a sticky hero (cat wordmark + rank + Start) over tabs (`src/ui/hometabs.js` + restructured `src/ui/homebase.js`; originally four — Play/Social/Album/Settings — now five, see the tab split entry below). Consolidated the three social blocks into one Friends section. Reorganization only — all handlers/escaping preserved.
 - **Logo branding** — B1 refined-face app icon (`public/icon.svg`), C1 wordmark lockup as the home base hero title (`homebase.js`), A2 chibi mascot as a boot splash (`index.html` `#splash` + fade script, fallback timeout so it can't trap the player). Shipped with v10.
 - **v11 "Cat Couture"** — six layered cosmetic slots (head/face/neck/body/back/feet + collar), 12 new items, save v3→4 migration (no data loss), slot-grouped Accessories UI, slot-aware thumbnail framing. Hoodie hood renders up/down by head-slot state; Hagrid gracefully skips what doesn't fit a chicken.
 - **v12 "Juice & Polish"** — WebAudio master bus (gain→compressor→generated-impulse reverb, `src/audio.js`), formant-synthesized meow/purr/trill with per-breed voices (`src/catvoice.js`), tone-mapping/IBL calibration (exposure 1.1, envIntensity 0.45/0.32), FX system (`src/fx.js`: "+N 🐾" popups + particle bursts), collect arpeggio + jackpot fanfare.
@@ -91,7 +91,8 @@ in `docs/superpowers/`.
 - **v14 "Cat Athletics"** — zoomies (earned sprint: 1.5s full-speed charge → pace×1.55 drift, FOV kick, trail, whoosh; freeze instantly cancels), parkour perch chains with `src/climbing.js` (`canReach`/`bestPerch` — highest-reachable selection; perched cats skip the collider push), rooftop collectibles, stalk-and-pounce critter tag (mouse critter, 20s cooldown, perfect-sneak slow-mo), movement audio + landing squash pose.
 - **v15 "Collector's Journal"** — four ADDITIVE save fields (journal/golden/streak/kitten — no version bump; per-field sanitize with size caps), critter journal Album grid (`src/journal.js`), nine golden mice at parkour spots (`src/goldmice.js`), the 3-walk lost-kitten story arc (`src/kitten.js` — E-mash-proofed: encounter guards + plan-kind dispatch), daily streak bonus, dated/framed album photos.
 - **v16 "Together"** — ghosts answer chat in the named-cat voices (Zeetoo/Rosa/Robbie/Hagrid reachable at last); co-walk verbs: pounce-tag (boop-style awardOnce convergence), mutual grooming (local detection from synced poses), duo goal (`goal-progress` events, `noteDuoRemote` never re-broadcasts); daily zoomies race (`src/race.js` — date+area-seeded 5-ring course, identical across devices, local best); sampled pet voices (`src/samples.js` — manifest-driven, synth fallback; `docs/RECORDING-PETS.md` tells the family how to record the real cats). **All new events ride the existing `event` broadcast kind — live-verified with a two-process bot round-trip through the real Supabase relay.**
-- **v17 "Cozy Den"** — walkable furnished den (`src/den.js` catalog + `src/world/den.js` interior; buy/place furniture from the Play tab; open fourth wall + inward spawn for the follow camera; cattree is a climbable perch; ghosts and stage-3 Mochi visit; fireplace-crackle ambience; `completeWalk(areaId)` so den walks count `walks.den`), seeded generative lofi music (`src/music.js` — pentatonic phrases, mood per walk type, `musicVolume` setting, mute-safe).
+- **v17 "Cozy Den"** — walkable furnished den (`src/den.js` catalog + `src/world/den.js` interior; buy/place furniture from the home base; open fourth wall + inward spawn for the follow camera; cattree is a climbable perch; ghosts and stage-3 Mochi visit; fireplace-crackle ambience; `completeWalk(areaId)` so den walks count `walks.den`), seeded generative lofi music (`src/music.js` — pentatonic phrases, mood per walk type, `musicVolume` setting, mute-safe).
+- **Tab split (post-v17, `085f61e`)** — the home base now has **five tabs: Cats 🐱 / Accessories 🎩 / Social / Album / Settings**. The old Play tab was renamed Cats (cat pick, areas, den section); the slot-grouped accessory shop ("Dress up your cat") moved to its own Accessories tab. `resolveTab`'s unknown-id fallback clamps a stale persisted `'play'` id to `'cats'` (test-pinned in `test/hometabs.test.js`).
 - **v10 "Talk to the Cats"** (latest) — message a nearby AI cat with a curated phrase, get a personality-appropriate **canned** reply as a speech bubble (`src/catreplies.js`, pure `(personality,intent)→line`, all 10 voices incl. Hagrid clucks). Greetings count one **capped** friendship greet (shared `awardStrayGreet`, `stray.greeted` guard — never out-farms booping). **Keyboard chat** (`src/chatkeys.js` + `main.js` keydown): number row `1`–`0` sends *under pointer lock* (fixes desktop-unusable chat — the 💬 button was unreachable with the cursor captured), `Enter` opens the tray (releases pointer lock), `Esc` closes; chat now works in **solo** walks too. **Lesson:** the reply seed must be numeric — `session.walkStamp` is the STRING `'walk-<ms>'`, so `string + number` fed `pick()` `NaN>>>0=0` and made every same-breed cat reply identically; fixed with `seedFromCode(walkStamp)+hashName(name)`. Known limitation: named-cat voices (zeetoo/rosa/robbie/hagrid) aren't reachable in-game yet (strays spawn the 6 base breeds; ghost-reply wiring is a future follow-up).
 
 ## 4. Backend — the LIVE Supabase contract ⚠️
@@ -162,7 +163,7 @@ Every fix independently re-probed with hostile payloads.
 
 ## 6. How to work on this repo
 
-- **Run:** `npm run dev` (localhost:5173). **Test:** `npx vitest run` (186 green).
+- **Run:** `npm run dev` (localhost:5174, pinned `--strictPort`). **Test:** `npx vitest run` (393 green).
   **Build:** `npx vite build`. **Preview prod:** `npx vite preview`.
 - **Verify in-browser** with the Browser-pane tools (never Bash for dev
   servers). Reviewers have repeatedly found real defects only visible by
