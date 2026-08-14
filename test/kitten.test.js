@@ -27,6 +27,17 @@ describe('kittenPlan', () => {
     expect(kittenPlan(3, 'park')).toEqual({ kind: 'home' });
     expect(kittenPlan(3, 'seaside')).toEqual({ kind: 'home' });
   });
+  // Task 7.2: the den is just another area to this pure function — stage >= 2
+  // checks first, before the neighborhood-only gate, so Mochi hangs out at
+  // home base in the den exactly like she would in the park or seaside.
+  it('stage 2/3 + den -> home (Mochi hangs out in the den too)', () => {
+    expect(kittenPlan(2, 'den')).toEqual({ kind: 'home' });
+    expect(kittenPlan(3, 'den')).toEqual({ kind: 'home' });
+  });
+  it('stage 0/1 + den -> null (den is not neighborhood, so no trail/meet there)', () => {
+    expect(kittenPlan(0, 'den')).toBeNull();
+    expect(kittenPlan(1, 'den')).toBeNull();
+  });
 });
 
 describe('KITTEN_SPOT', () => {

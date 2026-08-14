@@ -218,6 +218,31 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     return { stop: () => clearTimeout(id) };
   }
 
+  // Fireplace crackle — the den's only ambience (Task 7.2): looped noise
+  // narrowed to a warm low-mid band, with a slow randomized LFO on the gain
+  // so it swells and settles like an actual fire instead of a flat hiss.
+  function crackleLayer() {
+    const ac = ensure();
+    const src = loopedNoiseSource(2);
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 500;
+    bp.Q.value = 0.7;
+    const g = ac.createGain();
+    g.gain.value = 0.03;
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    // "slow random-ish": a low, non-round frequency so the swell doesn't
+    // read as a metronomic pulse the way a clean 0.1Hz LFO would.
+    lfo.frequency.value = 0.37;
+    lfoGain.gain.value = 0.012;
+    lfo.connect(lfoGain).connect(g.gain);
+    src.connect(bp).connect(g).connect(master);
+    src.start();
+    lfo.start();
+    return { stop: () => { src.stop(); lfo.stop(); } };
+  }
+
   // Rapid triple-tick crickets on a fixed 700ms cadence. Dusk only, any
   // area — layered on top of whichever base layers are already playing.
   function cricketLayer() {
@@ -410,7 +435,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       api.stopAmbient();
       if (muted) return;
       const layers = [];
-      if (areaKey === 'seaside') {
+      if (areaKey === 'den') {
+        // Indoor: just the fireplace, never crickets (dusk doesn't apply to
+        // the den — it never surfaces the dusk toggle — but this stays
+        // explicit rather than relying on the caller never passing dusk: true).
+        layers.push(crackleLayer());
+      } else if (areaKey === 'seaside') {
         layers.push(wavesLayer());
         layers.push(gullLayer());
       } else {
@@ -420,7 +450,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       }
-      if (dusk) layers.push(cricketLayer());
+      if (dusk && areaKey !== 'den') layers.push(cricketLayer());
       ambient = layers;
     },
     stopAmbient() {

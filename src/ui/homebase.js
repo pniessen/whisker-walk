@@ -4,6 +4,7 @@ import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab } from './hometabs.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
+import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -85,7 +86,11 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // onSettingsChange: called after every settings.set() from this screen so
 // main.js can push the new value into audio/player/touchUI immediately —
 // settings apply live, no walk restart or reload required.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange) {
+// onVisitDen: the den button's own start callback (Task 7.2) — kept
+// separate from onStartWalk (beginWalkFromHomebase) because the den never
+// joins a room walk; main.js wires it straight to `startWalk({ areaOverride:
+// 'den' })`, bypassing the host/joiner room branch onStartWalk goes through.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -150,6 +155,58 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${blurb ? `<div class="card-sub">${blurb}</div>` : ''}
       ${action}
     </div>`;
+  }
+
+  // Den furniture card (Task 7.2) — same `.card` markup idiom as card()
+  // above (price tag / Buy button / owned tag) but against DEN_ITEMS +
+  // state.den.owned instead of CATALOG + state.unlocked: den items have no
+  // "equip" concept of their own (placement happens via the per-spot
+  // <select>s in renderDenSection below), just owned-or-not-yet.
+  function denItemCard(id, item) {
+    const s = progression.state;
+    const owned = s.den.owned.includes(id);
+    let action;
+    if (owned) {
+      action = `<div class="tag on">owned</div>`;
+    } else if (s.points >= item.price) {
+      action = `<button data-action="buy-den" data-id="${id}">Unlock — ${item.price} 🐾</button>`;
+    } else {
+      action = `<div class="tag">${item.price} 🐾</div>`;
+    }
+    return `<div class="card ${owned ? 'selected' : 'locked'}" data-kind="den" data-id="${id}">
+      <div class="card-name">${item.name}</div>
+      ${action}
+    </div>`;
+  }
+
+  // "Your Den" Play-tab section (Task 7.2): the DEN_ITEMS catalog as cards
+  // (Buy -> buyDenItem) plus one <select> per DEN_SPOTS anchor point (options
+  // = "empty" + every owned item) that calls placeDenItem on change. All
+  // labels here are the static catalog strings (item.name / spot.id) — no
+  // user-authored text ever reaches this section's innerHTML.
+  function renderDenSection() {
+    const s = progression.state;
+    return `
+      <section class="den-section"><h2>Your Den 🏠</h2>
+        <div class="cards">
+          ${Object.entries(DEN_ITEMS).map(([id, item]) => denItemCard(id, item)).join('')}
+        </div>
+        <div class="den-spots">
+          ${DEN_SPOTS.map((spot) => {
+            const current = s.den.placed[spot.id] ?? '';
+            const options = s.den.owned.map((ownedId) =>
+              `<option value="${ownedId}" ${ownedId === current ? 'selected' : ''}>${DEN_ITEMS[ownedId].name}</option>`
+            ).join('');
+            return `<label class="den-spot-row">
+              <span class="den-spot-id">${spot.id}</span>
+              <select data-den-spot="${spot.id}">
+                <option value="" ${current === '' ? 'selected' : ''}>— empty —</option>
+                ${options}
+              </select>
+            </label>`;
+          }).join('')}
+        </div>
+      </section>`;
   }
 
   function renderWalkTogether() {
@@ -439,6 +496,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               ${waitingForHost
                 ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
                 : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
+              ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}
             </div>
           </div>
           <nav class="hb-tabs" role="tablist">
@@ -465,6 +523,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <section><h2>Where to?</h2><div class="cards">
               ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
             </div></section>
+            ${renderDenSection()}
           </div>
           <div class="hb-panel" data-panel="social">
             <section class="walk-together"><h2>Walk together 🐾🐾</h2>
@@ -515,6 +574,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'btn-start') {
       const dusk = root.querySelector('#dusk-toggle');
       onStartWalk({ duskMode: !!(dusk && dusk.checked) });
+      return;
+    }
+    if (e.target.id === 'btn-visit-den') {
+      onVisitDen?.();
       return;
     }
     if (e.target.id === 'btn-reset') {
@@ -737,6 +800,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (action === 'buy') {
       if (progression.buy(kind, id)) sync?.autoSync?.();
     }
+    else if (action === 'buy-den') {
+      if (progression.buyDenItem(id)) sync?.autoSync?.();
+    }
     else if (action === 'unequip') progression.unequip(CATALOG.accessories[id].slot);
     else if (action === 'equip') {
       if (kind === 'cats') progression.equipCat(id);
@@ -766,10 +832,21 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // this setting at walk start (Task 5), so this never applies live — just
   // persist it and re-render to reflect the chosen value.
   root.addEventListener('change', (e) => {
-    if (e.target.id !== 'set-quality' || !settings) return;
-    settings.set('quality', e.target.value);
-    onSettingsChange?.();
-    render();
+    if (e.target.id === 'set-quality' && settings) {
+      settings.set('quality', e.target.value);
+      onSettingsChange?.();
+      render();
+      return;
+    }
+    // Den placement (Task 7.2): each DEN_SPOTS anchor has its own <select>;
+    // picking an owned item there calls placeDenItem, picking "— empty —"
+    // (value "") clears the spot. placeDenItem itself already handles the
+    // "this item is already at a different spot" move.
+    const spotId = e.target.dataset.denSpot;
+    if (spotId) {
+      progression.placeDenItem(spotId, e.target.value || null);
+      render();
+    }
   });
 
   // room state (roster arrivals, host migration) can change while sitting on
