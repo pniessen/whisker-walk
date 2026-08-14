@@ -67,7 +67,11 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
 
   function removeEffect(effect) {
     scene.remove(effect.obj);
-    if (effect.obj.geometry) effect.obj.geometry.dispose();
+    // Sprites (popups) share THREE's static plane geometry singleton across the whole
+    // app (see chatbubble.js's disposeSprite / nametag.js) — disposing it here would
+    // evict the GPU buffer backing every other visible sprite. Only Points (bursts)
+    // own per-instance geometry that's safe, and necessary, to dispose.
+    if (effect.obj.geometry && !effect.obj.isSprite) effect.obj.geometry.dispose();
     if (effect.obj.material) {
       if (effect.obj.material.map) effect.obj.material.map.dispose();
       effect.obj.material.dispose();
