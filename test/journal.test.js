@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
+import { JOURNAL_TYPES } from '../src/progression.js';
 
 describe('CRITTER_INFO', () => {
   it('has all 10 journal critter types with kid-friendly entries', () => {
@@ -10,6 +11,10 @@ describe('CRITTER_INFO', () => {
       expect(typeof entry.name).toBe('string');
       expect(typeof entry.hint).toBe('string');
     }
+  });
+
+  it('ids exactly match progression.js JOURNAL_TYPES (no typo drift)', () => {
+    expect(CRITTER_INFO.map((c) => c.id).sort()).toEqual([...JOURNAL_TYPES].sort());
   });
 });
 
