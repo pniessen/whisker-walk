@@ -19,6 +19,7 @@ import { createProgression, rankFor, summarizeSaveForPreview } from './progressi
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createFx } from './fx.js';
+import { createSkyLife } from './skylife.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
@@ -1182,6 +1183,14 @@ function init() {
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
       fx: createFx(scene, { reducedMotion: settings.get('reducedMotion') }),
+      // dedicated rng stream (never walkRng): sky life must not perturb the
+      // shared determinism stream that co-walk clients rely on staying in
+      // sync — see Global Constraints. Seeding off roomSeed (when present)
+      // keeps co-walk clients' clouds identical without touching walkRng.
+      skyLife: createSkyLife(scene, {
+        rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
+        reducedMotion: settings.get('reducedMotion'),
+      }),
       secrets,
       tippables,
       scent,
@@ -1386,6 +1395,7 @@ function init() {
     }
 
     session.fx.dispose();
+    session.skyLife.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
@@ -2046,6 +2056,7 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);
+      session.skyLife.update(dt);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
