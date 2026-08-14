@@ -6,6 +6,9 @@ const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
 
 const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', 'duck', 'firefly']);
+// grounded skittish critters that participate in stalk-and-pounce tag
+// (bird included per spec even though it flies once fleeing — see markStalked/pounceCatch)
+const STALKABLE = new Set(['squirrel', 'bird', 'mouse']);
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -18,12 +21,15 @@ function buildCritter(type) {
     beak.rotation.x = Math.PI / 2;
     beak.position.set(0, 0.1 * s, -0.1 * s);
     g.add(beak);
-  } else if (type === 'squirrel') {
-    const body = box(0.12, 0.12, 0.22, 0xa06a3a);
-    body.position.y = 0.1;
+  } else if (type === 'squirrel' || type === 'mouse') {
+    const s = type === 'mouse' ? 0.5 : 1;
+    const furColor = type === 'mouse' ? 0x8a8a92 : 0xa06a3a;
+    const tailColor = type === 'mouse' ? 0x8a8a92 : 0xb87a4a;
+    const body = box(0.12 * s, 0.12 * s, 0.22 * s, furColor);
+    body.position.y = 0.1 * s;
     g.add(body);
-    const tailS = new THREE.Mesh(new THREE.SphereGeometry(0.09, 5, 5), mat(0xb87a4a));
-    tailS.position.set(0, 0.2, 0.16);
+    const tailS = new THREE.Mesh(new THREE.SphereGeometry(0.09 * s, 5, 5), mat(tailColor));
+    tailS.position.set(0, 0.2 * s, 0.16 * s);
     g.add(tailS);
   } else if (type === 'butterfly' || type === 'firefly') {
     const color = type === 'firefly' ? 0xf2e04e : 0xe070b0;
@@ -82,6 +88,7 @@ let nextId = 1;
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
   let fleeModifier = 1;
+  let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
 
   function spawn(def) {
@@ -172,7 +179,38 @@ export function createCritters(scene, spawns, opts = {}) {
     setFleeModifier(m) {
       fleeModifier = m;
     },
+    markStalked(catPos, isStalking) {
+      for (const c of list) {
+        if (!STALKABLE.has(c.type)) continue;
+        const d = c.group.position.distanceTo(catPos);
+        if (isStalking && d < 3) c.stalkClose = true;
+        else if (!isStalking && d > 6) c.stalkClose = false;
+      }
+    },
+    // tag, not hunting-hunting: no critter is ever removed here — the catch just
+    // marks it caught (uncatchable for 20s) and sends it fleeing fast.
+    pounceCatch(pos) {
+      let best = null;
+      let bestD = 0.9;
+      for (const c of list) {
+        if (!STALKABLE.has(c.type)) continue;
+        if (c.caughtUntil && c.caughtUntil > clock) continue;
+        const d = c.group.position.distanceTo(pos);
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      if (!best) return null;
+      const wasStalked = !!best.stalkClose;
+      best.caughtUntil = clock + 20;
+      best.fleeing = true;
+      best.cooldown = best.type === 'bird' ? 18 : 3;
+      best.stalkClose = false;
+      return { type: best.type, wasStalked };
+    },
     update(dt, t, playerPos, catPos) {
+      clock = t;
       for (const c of [...list]) {
         const p = c.group.position;
         const dPlayer = p.distanceTo(playerPos);
@@ -207,11 +245,22 @@ export function createCritters(scene, spawns, opts = {}) {
               c.cooldown = 18;
             }
           }
-        } else if (c.type === 'squirrel') {
-          const a = new THREE.Vector3(c.def.x, 0, c.def.z);
-          const bPt = new THREE.Vector3(c.def.x2 ?? c.def.x + 6, 0, c.def.z2 ?? c.def.z);
-          const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
-          p.lerpVectors(a, bPt, k);
+        } else if (c.type === 'squirrel' || c.type === 'mouse') {
+          if (c.fleeing) {
+            // pounce-tagged: dash away from the cat for a few seconds, then resume patrol
+            const away = p.clone().sub(catPos).setY(0);
+            if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
+            away.normalize();
+            const fleeSpeed = c.type === 'mouse' ? 6.5 : 4.5;
+            p.addScaledVector(away, dt * fleeSpeed);
+            c.cooldown -= dt;
+            if (c.cooldown <= 0) c.fleeing = false;
+          } else {
+            const a = new THREE.Vector3(c.def.x, 0, c.def.z);
+            const bPt = new THREE.Vector3(c.def.x2 ?? c.def.x + 6, 0, c.def.z2 ?? c.def.z);
+            const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
+            p.lerpVectors(a, bPt, k);
+          }
         } else if (c.type === 'butterfly' || c.type === 'firefly') {
           const cx = c.trail ? catPos.x : c.def.x;
           const cz = c.trail ? catPos.z : c.def.z;

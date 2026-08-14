@@ -1229,6 +1229,7 @@ function init() {
       perched: null,
       pounceTime: 0,
       pounceCooldown: 0,
+      slowmoTime: 0,
       pose: 'follow',
       stretchTime: 0,
       sniffTime: 0,
@@ -1451,6 +1452,7 @@ function init() {
       player.perchY = 0;
     }
     s.critters.setFleeModifier((s.perched || player.stalking ? 0.5 : 1) * (p.special === 'bird' ? 0.15 : 1));
+    s.critters.markStalked(cat.position, player.stalking);
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
@@ -1566,6 +1568,12 @@ function init() {
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
+      }
+      const hunted = s.critters.pounceCatch(cat.position);
+      if (hunted) {
+        const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
+        log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);
+        if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
       }
     }
   }
@@ -2051,7 +2059,7 @@ function init() {
       bird: 'a songbird', squirrel: 'a busy squirrel', butterfly: 'a butterfly',
       duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
       dog: 'the neighbor’s dog', villager: 'a friendly neighbor',
-      firefly: 'a glowing firefly',
+      firefly: 'a glowing firefly', mouse: 'a quick little mouse',
     }[type] ?? 'something interesting';
   }
 
@@ -2096,8 +2104,13 @@ function init() {
       if (player.zooming && !session.wasZooming) audio.zoomWind();
       session.wasZooming = player.zooming;
 
-      session.critters.update(dt, t, session.cat.position, session.cat.position);
-      session.strayCats.update(dt, t, session.cat.position, {
+      // Slow-mo on a perfect stalk-and-pounce catch: critters/strays/sky slow down for
+      // a beat while player/camera/remotes keep real-time motion (remotes MUST stay
+      // real dt — slowing their interpolation would desync them from the network clock).
+      if (session.slowmoTime > 0) session.slowmoTime -= dt;
+      const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
+      session.critters.update(wdt, t, session.cat.position, session.cat.position);
+      session.strayCats.update(wdt, t, session.cat.position, {
         stalking: player.stalking,
         catSpeed: player.speed,
         toy: session.toy,
@@ -2108,7 +2121,7 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);
-      session.skyLife.update(dt);
+      session.skyLife.update(wdt);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);

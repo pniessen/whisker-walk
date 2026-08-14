@@ -109,6 +109,8 @@ export function build(scene) {
       { type: 'seagull', x: 16, z: -26 }, { type: 'seagull', x: 8, z: 30 },
       { type: 'crab', x: -6, z: 14 }, { type: 'crab', x: -18, z: 2 }, { type: 'crab', x: 2, z: -10 },
       { type: 'butterfly', x: -14, z: 30 },
+      { type: 'mouse', x: -22, z: 20, x2: -14, z2: 25 },
+      { type: 'mouse', x: 10, z: 22, x2: 16, z2: 18 },
       { type: 'villager', x: 18, z: 16 }, { type: 'villager', x: 32, z: -10 },
     ],
     moments: [

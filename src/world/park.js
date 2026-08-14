@@ -108,6 +108,8 @@ export function build(scene) {
       { type: 'squirrel', x: 28, z: 0, x2: 8, z2: -38 },
       { type: 'butterfly', x: -18, z: 22 }, { type: 'butterfly', x: 20, z: 12 }, { type: 'butterfly', x: 6, z: -16 },
       { type: 'duck', x: -14, z: 2 }, { type: 'duck', x: -12, z: 0 }, { type: 'duck', x: -16, z: 4 },
+      { type: 'mouse', x: -9, z: 25, x2: -4, z2: 30 },
+      { type: 'mouse', x: 6, z: -18, x2: 2, z2: -24 },
       { type: 'villager', x: 4, z: 27 }, { type: 'villager', x: -8, z: -22 },
     ],
     moments: [

@@ -33,4 +33,11 @@ describe('createGoals', () => {
     expect(g.note('goal')).toEqual({});
     expect(g.note('jackpot')).toEqual({});
   });
+
+  it('pool contains the pounce-play hunt goal', () => {
+    const entry = GOAL_POOL.find((g) => g.id === 'pounce-play');
+    expect(entry).toBeDefined();
+    expect(entry.type).toBe('hunt');
+    expect(entry.target).toBe(2);
+  });
 });

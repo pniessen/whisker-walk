@@ -9,6 +9,7 @@ export const GOAL_POOL = [
   { id: 'dig-treasure', text: 'Dig up a buried treasure', type: 'treasure', target: 1 },
   { id: 'box-sit', text: 'Sit in a box', type: 'sits', target: 1 },
   { id: 'scenic-spots', text: 'Visit 2 scenic spots', type: 'scenic', target: 2 },
+  { id: 'pounce-play', text: 'Pounce-tag 2 critters', type: 'hunt', target: 2 },
 ];
 
 export function createGoals(rng) {
