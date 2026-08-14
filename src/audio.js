@@ -318,6 +318,30 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(880, 0.09, { type: 'triangle', gain: 0.07, delay: 0.07 });
       tone(1320, 0.16, { type: 'triangle', gain: 0.08, delay: 0.14 });
     },
+    // Soft wind whoosh fired once on the transition into zoomies: a short
+    // noise burst narrowed to a mid-band "shhh" by the bandpass, quiet enough
+    // to sit under everything else (gain 0.02, vs. e.g. bell's 0.045).
+    zoomWind() {
+      if (muted) return;
+      const ac = ensure();
+      const dur = 0.25;
+      const size = Math.floor(ac.sampleRate * dur);
+      const buffer = ac.createBuffer(1, size, ac.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+      const src = ac.createBufferSource();
+      src.buffer = buffer;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 900;
+      bp.Q.value = 1;
+      const g = ac.createGain();
+      g.gain.value = 0.02;
+      src.connect(bp).connect(g).connect(master);
+      const t0 = ac.currentTime;
+      src.start(t0);
+      src.stop(t0 + dur);
+    },
     fanfare() {
       const notes = [523, 659, 784, 1047];
       notes.forEach((f, i) => tone(f, i === 3 ? 0.35 : 0.12, { type: 'triangle', gain: 0.09, delay: i * 0.11 }));

@@ -1185,6 +1185,11 @@ function init() {
       ghosts: NO_GHOSTS,
       walkStamp,
       netSendAccum: 0,
+      // read once per walk (not per frame) so the zoomies trail's reducedMotion
+      // gate doesn't re-query settings 60x/sec in the render loop.
+      reducedMotion: settings.get('reducedMotion'),
+      zoomTrailAccum: 0,
+      wasZooming: false,
       goals,
       startPoints: state.points,
       discoveryCount: 0,
@@ -2053,6 +2058,41 @@ function init() {
     if (!session) return;
     if (player.engaged) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
+
+      // Zoomies FOV kick: ease toward a wider field of view while sprinting,
+      // back to normal otherwise. updateProjectionMatrix is comparatively
+      // expensive, so it's skipped on frames where the eased value barely
+      // moved (a settled camera.fov near its target, e.g. mid-hold or
+      // mid-cooldown) rather than called unconditionally every frame.
+      const fovTarget = player.zooming ? 77 : 70;
+      const fovDelta = (fovTarget - camera.fov) * Math.min(1, dt * 4);
+      if (Math.abs(fovDelta) > 0.01) {
+        camera.fov += fovDelta;
+        camera.updateProjectionMatrix();
+      }
+
+      // Sparkle trail while zooming — throttled to every 0.12s so it reads as
+      // a trail of bursts rather than a solid particle firehose. Generic
+      // (breed/gear-agnostic): the v11 "Superhero Cape" item spec calls for
+      // the cape to own its own zoomie sparkle trail, but no cape-specific
+      // trail effect exists yet, so this shared trail covers everyone who
+      // zooms — decision: generic trail for all, cape differentiation
+      // dropped for now (simpler, and kid-fairer than a paywalled trail).
+      if (player.zooming && !session.reducedMotion) {
+        session.zoomTrailAccum += dt;
+        if (session.zoomTrailAccum >= 0.12) {
+          session.zoomTrailAccum = 0;
+          session.fx.burst(session.cat.position, 0xfff2c0, 4);
+        }
+      } else {
+        session.zoomTrailAccum = 0;
+      }
+
+      // Wind whoosh fires once on the transition INTO zooming, not every
+      // frame while zooming continues.
+      if (player.zooming && !session.wasZooming) audio.zoomWind();
+      session.wasZooming = player.zooming;
+
       session.critters.update(dt, t, session.cat.position, session.cat.position);
       session.strayCats.update(dt, t, session.cat.position, {
         stalking: player.stalking,
