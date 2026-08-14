@@ -237,7 +237,8 @@ export function leafLitter(x, z, seed = 1) {
 export function bike(x, z, rotY = 0) {
   const g = new THREE.Group();
   for (const wz of [-0.45, 0.45]) {
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.04, 6, 12), mat(0x3a3a42));
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 10), mat(0x3a3a42));
+    wheel.rotation.z = Math.PI / 2;
     wheel.position.set(0, 0.28, wz);
     g.add(wheel);
   }
@@ -247,7 +248,8 @@ export function bike(x, z, rotY = 0) {
   const bars = box(0.4, 0.06, 0.06, 0x3a3a42);
   bars.position.set(0, 0.62, -0.45);
   g.add(bars);
-  g.position.set(x, 0, z); g.rotation.y = rotY;
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
   return g;
 }
 
