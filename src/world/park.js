@@ -59,6 +59,11 @@ export function build(scene) {
   for (const [x, z, seed] of [[-40, -40, 1], [40, 40, 2], [40, -40, 3]]) scene.add(b.leafLitter(x, z, seed));
   for (const [x, z] of [[-35, -20], [35, 20], [-35, 35], [35, -30]]) scene.add(b.bush(x, z));
   for (const [x, z] of [[-40, 10], [40, -10]]) scene.add(b.flowerPatch(x, z));
+  // an oak beside the bench — its branch is the second step of a short
+  // climb chain (bench -> branch), 1.98 horizontally and 1.52 vertically
+  // from the bench, both inside the reach/climb budget.
+  scene.add(b.tree(4.5, 27.3, 1.1));
+  addC(4.5, 27.3, 0.6);
   scene.add(b.bench(3, 26, -0.5));
   scene.add(b.bench(-4, 14, 0.7));
   scene.add(b.bench(-10, -20, 2.2));
@@ -89,6 +94,7 @@ export function build(scene) {
       { id: 'feather-2', x: 27, z: 1.5, label: 'a dove feather' },
       { id: 'feather-3', x: -15.5, z: -33, label: 'a golden feather' },
       { id: 'feather-4', x: 11, z: 35, label: 'a tiny down feather' },
+      { id: 'feather-5', x: 4.5, z: 27.3, y: 2.1, label: 'a downy feather from way up high' },
     ],
     scenics: [
       { id: 'fountain', x: 3, z: 23, label: 'the old fountain' },
@@ -117,6 +123,7 @@ export function build(scene) {
     perches: [
       { x: 3, z: 26, y: 0.58 }, { x: -4, z: 14, y: 0.58 }, { x: -10, z: -20, y: 0.58 },
       { x: 2.8, z: 22.2, y: 0.75, label: 'fountain-edge lookout', vantage: true },
+      { x: 4.5, z: 27.3, y: 2.1, label: 'oak branch lookout', vantage: true },
     ],
   };
 }

@@ -254,6 +254,15 @@ export function bike(x, z, rotY = 0) {
   return g;
 }
 
+// A flat-topped box the cat can stand on — crate stacks, porch/shed roofs,
+// dune ledges. Spans y `yBottom`..`yTop` so several calls at the same x/z
+// with increasing yBottom stack into a tiered climbing platform.
+export function platform(x, z, yTop, yBottom = 0, size = 1.2, color = 0xc8a678) {
+  const m = box(size, yTop - yBottom, size, color);
+  m.position.set(x, yBottom + (yTop - yBottom) / 2, z);
+  return m;
+}
+
 export function cardboardBox(x, z, rotY = 0) {
   const g = new THREE.Group();
   const wallSpecs = [

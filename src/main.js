@@ -30,6 +30,7 @@ import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
+import { canReach } from './climbing.js';
 import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
@@ -870,30 +871,31 @@ function init() {
   }
 
   function doPounceOrClimb() {
-    if (session.perched) {
+    // Look for a NEW perch reachable from wherever the cat is right now —
+    // canReach uses player.perchY, which still holds the current perch's
+    // height while perched (it's only zeroed by the hop-down branch below),
+    // so a chain of perches within canReach's ≤1.6-per-hop climb budget can
+    // be walked upward with repeated presses of this same key, never
+    // dropping to the ground in between. Hopping down (or off a perch with
+    // nothing else in reach) is the fallback.
+    const next = (session.areaData.perches ?? []).find((pp) =>
+      pp !== session.perched && canReach(pp, session.cat.position, player.perchY)
+    );
+    if (next) {
+      session.perched = next;
+      player.perchY = next.y;
+      player.halt();
+      session.cat.position.set(next.x, next.y, next.z);
+      catVoice();
+      if (next.vantage) log.awardOnce('scenic', `perch-${next.label}`, next.label);
+    } else if (session.perched) {
       session.perched = null;                    // hop down
       player.perchY = 0;
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
-    } else {
-      const perch = (session.areaData.perches ?? []).find((pp) => {
-        // high perches (car roofs etc.) sit at a collider's own center, so the
-        // cat is always held out to collider.r + 0.35 — give those a longer
-        // reach so climbing them is actually possible from outside the footprint.
-        const reach = pp.y > 1 ? 2.6 : 1.2;
-        return Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < reach;
-      });
-      if (perch) {
-        session.perched = perch;
-        player.perchY = perch.y;
-        player.halt();
-        session.cat.position.set(perch.x, perch.y, perch.z);
-        catVoice();
-        if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
-      } else if (session.pounceCooldown <= 0) {
-        player.pounce();
-        session.pounceTime = 0.3;
-        session.pounceCooldown = 1.2;
-      }
+    } else if (session.pounceCooldown <= 0) {
+      player.pounce();
+      session.pounceTime = 0.3;
+      session.pounceCooldown = 1.2;
     }
   }
 
@@ -1089,7 +1091,7 @@ function init() {
         new THREE.SphereGeometry(0.18, 8, 8),
         litMaterial(0xf25c8a, { emissive: 0x5a1a30 })
       );
-      m.position.set(c.x, 0.2, c.z);
+      m.position.set(c.x, (c.y ?? 0) + 0.2, c.z);
       scene.add(m);
       collectibleMeshes.set(c.id, m);
     }
@@ -1622,7 +1624,8 @@ function init() {
     s.prompt = null;
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
-      if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6) {
+      if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6 &&
+          Math.abs((s.perched?.y ?? 0) - (c.y ?? 0)) < 0.9) {
         s.prompt = { kind: 'collect', data: c };
         setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
