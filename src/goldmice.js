@@ -37,6 +37,11 @@ export const GOLD_MICE = {
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
 export const GOLD_TOTAL = KNOWN_GOLD.size; // 9
 
+// Returns { group, material } rather than just the group: all 3 child
+// meshes share this single litMaterial instance, so disposeMouse below
+// needs a direct handle on it (not a traverse-and-guess) to dispose it
+// exactly once per mouse, matching the fx.js/skylife.js dispose pattern
+// instead of leaking it on removal.
 function buildMouse() {
   const g = new THREE.Group();
   const mat = litMaterial(0xf2c14e, { emissive: 0x9a7a20 });
@@ -49,7 +54,20 @@ function buildMouse() {
   const tail = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.22), mat);
   tail.position.set(0, -0.02, -0.17);
   g.add(tail);
-  return g;
+  return { group: g, material: mat };
+}
+
+// disposeMouse(mo) — disposes every child mesh's own geometry (the body
+// sphere, nose cone, and tail box are each unique) plus the one shared
+// material, exactly once. Called only after the group has already been
+// removed from the scene (both by remove() below and, at end-of-walk, by
+// endWalk's own scene-wide traversal running before session.goldMice.dispose()),
+// so nothing here risks a double-dispose of a still-rendered mesh.
+function disposeMouse(mo) {
+  for (const child of mo.group.children) {
+    child.geometry?.dispose();
+  }
+  mo.material.dispose();
 }
 
 // createGoldMice(scene, areaId, foundIds) — spawns every GOLD_MICE[areaId]
@@ -61,16 +79,21 @@ export function createGoldMice(scene, areaId, foundIds) {
   const list = [];
   for (const m of GOLD_MICE[areaId] ?? []) {
     if (foundIds.has(m.id)) continue;
-    const group = buildMouse();
+    const { group, material } = buildMouse();
     group.position.set(m.x, m.y, m.z);
     scene.add(group);
-    list.push({ id: m.id, x: m.x, y: m.y, z: m.z, group, phase: Math.random() * Math.PI * 2 });
+    list.push({ id: m.id, x: m.x, y: m.y, z: m.z, group, material, phase: Math.random() * Math.PI * 2 });
   }
 
+  // remove(id) — despawns one mouse: pulls it out of the scene, disposes
+  // its geometry/material via disposeMouse (the single shared helper —
+  // dispose() below routes through this same function per-mouse rather
+  // than duplicating the cleanup), then drops it from list.
   function remove(id) {
     const idx = list.findIndex((mo) => mo.id === id);
     if (idx === -1) return;
     scene.remove(list[idx].group);
+    disposeMouse(list[idx]);
     list.splice(idx, 1);
   }
 
