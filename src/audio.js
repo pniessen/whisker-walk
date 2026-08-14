@@ -108,6 +108,129 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     osc.stop(t0 + dur + 0.05); vib.stop(t0 + dur + 0.05);
   }
 
+  // --- Ambient layers -------------------------------------------------
+  // Each builder below returns { stop() } and connects its own audio graph
+  // to `master` (never straight to ac.destination), same as tone()/vocal().
+  // startAmbient() composes a set of these per area/weather/dusk and keeps
+  // them in `ambient` (an array) so stopAmbient() can tear every one down —
+  // no leaked intervals or dangling buffer sources across walks.
+
+  function loopedNoiseSource(durationSec) {
+    const ac = ensure();
+    const size = Math.floor(ac.sampleRate * durationSec);
+    const buffer = ac.createBuffer(1, size, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    return src;
+  }
+
+  // filtered looping noise swelled by a slow LFO = waves. Seaside only.
+  function wavesLayer() {
+    const ac = ensure();
+    const src = loopedNoiseSource(2);
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 420;
+    const g = ac.createGain();
+    // Routed through the master bus, so this long-lived node stays in sync
+    // with any later setVolume() call instead of freezing at the volume
+    // factor present when it started.
+    g.gain.value = 0.05;
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.frequency.value = 0.14;
+    lfoGain.gain.value = 0.035;
+    lfo.connect(lfoGain).connect(g.gain);
+    src.connect(filter).connect(g).connect(master);
+    src.start();
+    lfo.start();
+    return { stop: () => { src.stop(); lfo.stop(); } };
+  }
+
+  // Same technique as wavesLayer, but lower-passed and much quieter — a
+  // soft backdrop for neighborhood/park walks.
+  function windLayer() {
+    const ac = ensure();
+    const src = loopedNoiseSource(2);
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 300;
+    const g = ac.createGain();
+    g.gain.value = 0.03;
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.frequency.value = 0.07;
+    lfoGain.gain.value = 0.012;
+    lfo.connect(lfoGain).connect(g.gain);
+    src.connect(filter).connect(g).connect(master);
+    src.start();
+    lfo.start();
+    return { stop: () => { src.stop(); lfo.stop(); } };
+  }
+
+  // Looping noise band-passed to a hiss = rain wash.
+  function rainLayer() {
+    const ac = ensure();
+    const src = loopedNoiseSource(2);
+    const hp = ac.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 400;
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2800;
+    const g = ac.createGain();
+    g.gain.value = 0.045;
+    src.connect(hp).connect(lp).connect(g).connect(master);
+    src.start();
+    return { stop: () => src.stop() };
+  }
+
+  // Occasional distant birdsong. Seaside doesn't use this (gulls instead);
+  // callers also skip it during rain/dusk (birds go quiet).
+  function birdsongLayer() {
+    const id = setInterval(() => {
+      if (!muted && Math.random() < 0.45) {
+        tone(1500 + Math.random() * 700, 0.1, { gain: 0.025, slideTo: 1900 });
+        tone(1700 + Math.random() * 500, 0.08, { gain: 0.02, delay: 0.14 });
+      }
+    }, 2600);
+    return { stop: () => clearInterval(id) };
+  }
+
+  // Occasional gull cries: two descending sawtooth "calls" 0.3s apart, on a
+  // randomized 6–14s cadence. Seaside only.
+  function gullLayer() {
+    let id = null;
+    const schedule = () => {
+      const wait = 6000 + Math.random() * 8000;
+      id = setTimeout(() => {
+        if (!muted && Math.random() < 0.45) {
+          tone(1400, 0.25, { type: 'sawtooth', gain: 0.02, slideTo: 900 });
+          tone(1400, 0.25, { type: 'sawtooth', gain: 0.02, slideTo: 900, delay: 0.3 });
+        }
+        schedule();
+      }, wait);
+    };
+    schedule();
+    return { stop: () => clearTimeout(id) };
+  }
+
+  // Rapid triple-tick crickets on a fixed 700ms cadence. Dusk only, any
+  // area — layered on top of whichever base layers are already playing.
+  function cricketLayer() {
+    const id = setInterval(() => {
+      if (!muted && Math.random() < 0.7) {
+        for (let i = 0; i < 3; i++) {
+          tone(4200, 0.02, { gain: 0.012, delay: i * 0.045 });
+        }
+      }
+    }, 700);
+    return { stop: () => clearInterval(id) };
+  }
+
   const api = {
     // settings.muted is the single source of truth (main.js's M key and the
     // homebase mute checkbox both write settings then call this) — audio
@@ -199,50 +322,26 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       const notes = [523, 659, 784, 1047];
       notes.forEach((f, i) => tone(f, i === 3 ? 0.35 : 0.12, { type: 'triangle', gain: 0.09, delay: i * 0.11 }));
     },
-    startAmbient(areaKey) {
-      if (muted) return;
-      const ac = ensure();
+    startAmbient(areaKey, { dusk = false, rain = false } = {}) {
       api.stopAmbient();
+      if (muted) return;
+      const layers = [];
       if (areaKey === 'seaside') {
-        // filtered looping noise swelled by an LFO = waves
-        const size = ac.sampleRate * 2;
-        const buffer = ac.createBuffer(1, size, ac.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
-        const src = ac.createBufferSource();
-        src.buffer = buffer;
-        src.loop = true;
-        const filter = ac.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 420;
-        const g = ac.createGain();
-        // Routed through the master bus, so this long-lived node stays in
-        // sync with any later setVolume() call instead of freezing at the
-        // volume factor present when it started.
-        g.gain.value = 0.05;
-        const lfo = ac.createOscillator();
-        const lfoGain = ac.createGain();
-        lfo.frequency.value = 0.14;
-        lfoGain.gain.value = 0.035;
-        lfo.connect(lfoGain).connect(g.gain);
-        src.connect(filter).connect(g).connect(master);
-        src.start();
-        lfo.start();
-        ambient = { stop: () => { src.stop(); lfo.stop(); } };
+        layers.push(wavesLayer());
+        layers.push(gullLayer());
       } else {
-        // occasional distant birdsong
-        const id = setInterval(() => {
-          if (!muted && Math.random() < 0.45) {
-            tone(1500 + Math.random() * 700, 0.1, { gain: 0.025, slideTo: 1900 });
-            tone(1700 + Math.random() * 500, 0.08, { gain: 0.02, delay: 0.14 });
-          }
-        }, 2600);
-        ambient = { stop: () => clearInterval(id) };
+        layers.push(windLayer());
+        // Birdsong is suppressed when it's raining (rainLayer takes its
+        // place) or at dusk (birds have gone quiet, crickets take over).
+        if (rain) layers.push(rainLayer());
+        else if (!dusk) layers.push(birdsongLayer());
       }
+      if (dusk) layers.push(cricketLayer());
+      ambient = layers;
     },
     stopAmbient() {
       if (ambient) {
-        ambient.stop();
+        for (const layer of ambient) layer.stop();
         ambient = null;
       }
     },

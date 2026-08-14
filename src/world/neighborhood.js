@@ -11,6 +11,12 @@ export function build(scene) {
   scene.add(b.path(0, -50, 0, 50, 5));
   scene.add(b.path(-50, 0, 50, 0, 5));
 
+  // sidewalks flanking both streets
+  scene.add(b.sidewalk(-3.2, -50, -3.2, 50));
+  scene.add(b.sidewalk(3.2, -50, 3.2, 50));
+  scene.add(b.sidewalk(-50, -3.2, 50, -3.2));
+  scene.add(b.sidewalk(-50, 3.2, 50, 3.2));
+
   // houses along the streets
   const lots = [
     [-12, -30, 0xe8d8b0], [-12, -15, 0xd8c8e8], [-12, 15, 0xf2e0c0], [-12, 30, 0xc8e0d0],
@@ -29,6 +35,32 @@ export function build(scene) {
     addC(x, z, 0.6);
   }
   for (const [x, z] of [[-4, -12], [5, 25], [18, 4], [-18, -4]]) scene.add(b.bush(x, z));
+
+  // low front fences along two west-side lots (curbside, just outside the house footprint)
+  scene.add(b.fenceRun(-9, -17, -9, -13));
+  scene.add(b.fenceRun(-9, 13, -9, 17));
+
+  // extra scatter trees in the open lawn corners (with colliders) + leaves swept beneath
+  const scatterTrees = [[-30, -12], [30, 12], [-32, 38], [32, -38]];
+  for (const [x, z] of scatterTrees) {
+    scene.add(b.tree(x, z, 1.0));
+    addC(x, z, 0.6);
+  }
+  const leafSpots = [[-30, -12, 1], [30, 12, 2], [-32, 38, 3], [32, -38, 4], [-8, 8, 5]];
+  for (const [x, z, seed] of leafSpots) scene.add(b.leafLitter(x, z, seed));
+
+  // scatter bushes near lot frontages
+  for (const [x, z] of [[-6, -22], [-6, 22], [9, -24], [9, 22], [-24, 5], [24, -30]]) scene.add(b.bush(x, z));
+
+  // flowerbeds beside houses
+  for (const [x, z] of [[-16, -28], [16, -28], [-17, 29], [16, 32]]) scene.add(b.flowerPatch(x, z));
+
+  // a bike left leaning in a side yard
+  scene.add(b.bike(-14, 8, 0.9));
+  addC(-14, 8, 0.5);
+
+  // a couple more rocks scattered on the lawns
+  for (const [x, z] of [[6, -45], [-30, 20]]) scene.add(b.rock(x, z));
   scene.add(b.car(4, -35, 0xd06048, 0));
   addC(4, -35, 1.8);
   scene.add(b.car(-4, 20, 0x4a6ea5, 0));

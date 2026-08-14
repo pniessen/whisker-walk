@@ -5,7 +5,7 @@ function fakeParam(v = 1) {
   return { value: v, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
 }
 function fakeNode(extra = {}) {
-  const n = { connections: [], connect(t) { n.connections.push(t); return t; }, start() {}, stop() {}, ...extra };
+  const n = { connections: [], stopped: false, connect(t) { n.connections.push(t); return t; }, start() {}, stop() { n.stopped = true; }, ...extra };
   return n;
 }
 function fakeCtx() {
@@ -51,5 +51,45 @@ describe('audio master bus', () => {
     audio.setVolume(0.3);
     const master = ctx.created.gains[0]; // first gain created is the master
     expect(master.gain.value).toBeCloseTo(0.3);
+  });
+});
+
+describe('layered ambience', () => {
+  it('startAmbient(dusk) then stopAmbient() stops every started source', () => {
+    const ctx = fakeCtx();
+    const bufferSources = [];
+    const origCreateBufferSource = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const n = origCreateBufferSource(); bufferSources.push(n); return n; };
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.startAmbient('neighborhood', { dusk: true });
+    expect(bufferSources.length).toBeGreaterThan(0);
+    for (const src of bufferSources) expect(src.stopped).toBe(false);
+    audio.stopAmbient();
+    for (const src of bufferSources) expect(src.stopped).toBe(true);
+  });
+
+  it('starting ambience twice does not stack — the first set is stopped', () => {
+    const ctx = fakeCtx();
+    const bufferSources = [];
+    const origCreateBufferSource = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const n = origCreateBufferSource(); bufferSources.push(n); return n; };
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.startAmbient('seaside');
+    const firstBatch = [...bufferSources];
+    expect(firstBatch.length).toBeGreaterThan(0);
+    audio.startAmbient('seaside');
+    for (const src of firstBatch) expect(src.stopped).toBe(true);
+    audio.stopAmbient();
+  });
+
+  it('defaults (no opts) keep existing behavior: seaside = waves+gulls, others = wind+birdsong', () => {
+    const ctx = fakeCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    expect(() => audio.startAmbient('seaside')).not.toThrow();
+    audio.stopAmbient();
+    expect(() => audio.startAmbient('neighborhood')).not.toThrow();
+    audio.stopAmbient();
+    expect(() => audio.startAmbient('park')).not.toThrow();
+    audio.stopAmbient();
   });
 });

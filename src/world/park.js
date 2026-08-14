@@ -49,6 +49,16 @@ export function build(scene) {
     addC(x, z, 0.7);
   }
   for (const [x, z] of [[-10, 26], [10, 18], [-20, -6], [4, -24]]) scene.add(b.bush(x, z));
+
+  // extra trees in the far lawn corners (with colliders) + leaves beneath three of them
+  const scatterTrees = [[-40, -40], [40, 40], [-40, 40], [40, -40]];
+  for (const [x, z] of scatterTrees) {
+    scene.add(b.tree(x, z, 1.1));
+    addC(x, z, 0.6);
+  }
+  for (const [x, z, seed] of [[-40, -40, 1], [40, 40, 2], [40, -40, 3]]) scene.add(b.leafLitter(x, z, seed));
+  for (const [x, z] of [[-35, -20], [35, 20], [-35, 35], [35, -30]]) scene.add(b.bush(x, z));
+  for (const [x, z] of [[-40, 10], [40, -10]]) scene.add(b.flowerPatch(x, z));
   scene.add(b.bench(3, 26, -0.5));
   scene.add(b.bench(-4, 14, 0.7));
   scene.add(b.bench(-10, -20, 2.2));

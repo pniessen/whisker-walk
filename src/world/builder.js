@@ -38,6 +38,7 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a) {
   g.add(door);
   for (const wx of [-1.6, 1.6]) {
     const win = box(0.9, 0.9, 0.1, 0xa8d8e8);
+    win.userData.window = true;
     win.position.set(wx, 1.8, 2.01);
     g.add(win);
   }
@@ -207,6 +208,47 @@ export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'no
   const back = box(4.5, 2.6, 0.08, 0x8a7048);
   back.position.set(0, 2.9, -0.06);
   g.add(back);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+export function sidewalk(x1, z1, x2, z2, w = 1.2) {
+  // a lighter strip beside a street — reuses path() geometry with pavement color
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, len), mat(0xd8d0c0));
+  m.rotation.x = -Math.PI / 2;
+  m.rotation.z = -Math.atan2(x2 - x1, z2 - z1);
+  m.position.set((x1 + x2) / 2, 0.008, (z1 + z2) / 2);
+  return m;
+}
+
+export function leafLitter(x, z, seed = 1) {
+  const g = new THREE.Group();
+  const colors = [0xc8823a, 0xb05a2a, 0xd8a04e];
+  for (let i = 0; i < 5; i++) {
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.09, 5), mat(colors[(seed + i) % 3]));
+    leaf.rotation.x = -Math.PI / 2;
+    leaf.position.set(x + Math.sin(seed * 3 + i * 2.1) * 0.8, 0.015, z + Math.cos(seed * 2 + i * 1.7) * 0.8);
+    g.add(leaf);
+  }
+  return g;
+}
+
+export function bike(x, z, rotY = 0) {
+  const g = new THREE.Group();
+  for (const wz of [-0.45, 0.45]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 10), mat(0x3a3a42));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(0, 0.28, wz);
+    g.add(wheel);
+  }
+  const frame = box(0.06, 0.06, 0.9, 0xd06048);
+  frame.position.y = 0.45; frame.rotation.x = 0.2;
+  g.add(frame);
+  const bars = box(0.4, 0.06, 0.06, 0x3a3a42);
+  bars.position.set(0, 0.62, -0.45);
+  g.add(bars);
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;

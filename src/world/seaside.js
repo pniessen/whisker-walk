@@ -63,6 +63,16 @@ export function build(scene) {
   // beach grass tufts
   for (const [x, z] of [[-14, 30], [-2, -14], [-24, -20], [8, 2]]) scene.add(b.bush(x, z));
 
+  // a few more rocks and grass tufts scattered on the sand
+  for (const [x, z] of [[-32, 30], [12, -10], [-32, -10]]) scene.add(b.rock(x, z));
+  for (const [x, z] of [[-30, 5], [12, 20]]) scene.add(b.bush(x, z));
+
+  // driftwood washed up at the sand line
+  const driftwood = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 0.25), mat(0x9a8468));
+  driftwood.position.set(24, 0.1, 0);
+  driftwood.rotation.y = 0.4;
+  scene.add(driftwood);
+
   // cardboard boxes
   for (const b2 of [[19, 24], [-14, 4], [30, -6]]) scene.add(b.cardboardBox(b2[0], b2[1]));
 
