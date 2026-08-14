@@ -2397,7 +2397,15 @@ function init() {
       session.race.update(dt, session.cat.position);
       const questActive = session.quest?.state === 'active';
       if (session.race.state === 'running') {
-        if (!questActive && session.raceRingShown !== session.race.currentRing) {
+        if (questActive) {
+          // The quest objective owns the HUD right now — reset raceRingShown
+          // to null (rather than leaving it at the last ring shown) so that
+          // the moment questActive flips back to false (quest accepted-then-
+          // completed mid-race, or abandoned), the != currentRing check
+          // below fires on the very next frame and re-writes "Race: ring
+          // N/5" immediately, instead of waiting for the next ring crossing.
+          session.raceRingShown = null;
+        } else if (session.raceRingShown !== session.race.currentRing) {
           session.raceRingShown = session.race.currentRing;
           hud.setObjective(`Race: ring ${session.race.currentRing}/5`);
         }
