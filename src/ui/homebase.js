@@ -14,7 +14,7 @@ const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 const ACCESSORY_SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
 
-const TAB_LABEL = { play: '🎽 Play', social: '🐾 Social', album: '📸 Album', settings: '⚙️ Settings' };
+const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', social: '🐾 Social', album: '📸 Album', settings: '⚙️ Settings' };
 
 const CAT_BLURBS = {
   tabby: 'Curious — sniffs out hidden treasures',
@@ -94,7 +94,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
-  let activeTab = 'play';
+  let activeTab = 'cats';
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
@@ -510,11 +510,17 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           </nav>
         </div>
         <div class="hb-panels">
-          <div class="hb-panel" data-panel="play">
+          <div class="hb-panel" data-panel="cats">
             <section><h2>Your cat</h2><div class="cards">
               ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}
             </div></section>
-            <section><h2>Accessories</h2>
+            <section><h2>Where to?</h2><div class="cards">
+              ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
+            </div></section>
+            ${renderDenSection()}
+          </div>
+          <div class="hb-panel" data-panel="accessories">
+            <section><h2>Dress up your cat</h2>
               ${ACCESSORY_SLOTS.map((slot) => {
                 const items = Object.entries(CATALOG.accessories).filter(([, a]) => a.slot === slot);
                 if (!items.length) return '';
@@ -526,10 +532,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                 </div>`;
               }).join('')}
             </section>
-            <section><h2>Where to?</h2><div class="cards">
-              ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
-            </div></section>
-            ${renderDenSection()}
           </div>
           <div class="hb-panel" data-panel="social">
             <section class="walk-together"><h2>Walk together 🐾🐾</h2>
