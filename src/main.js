@@ -1910,7 +1910,7 @@ function init() {
         : s.cat.position;
       const dist = s.cat.position.distanceTo(pos);
       const vol = meowVolumeForDistance(dist);
-      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol);
+      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
       s.critters.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
