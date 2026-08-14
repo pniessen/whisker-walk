@@ -1586,11 +1586,13 @@ function init() {
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
+        progression.recordSighting(caught.type);
       }
       const hunted = s.critters.pounceCatch(cat.position);
       if (hunted) {
         const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
         log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);
+        progression.recordSighting(hunted.type);
         if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
       }
     }
@@ -1618,7 +1620,7 @@ function init() {
       if (!c.spottable || c.fleeing) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
-        log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type));
+        if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
       }
     }
     for (const stray of s.strayCats.strays) {
