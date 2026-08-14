@@ -1322,6 +1322,24 @@ function init() {
         }, 600);
         // Friendship: a greeting counts once, only if this cat is still ungreeted this walk.
         if (countsAsGreet(phraseId)) greetStrayByChat(target);
+      } else {
+        // No stray in range — try the nearest ghost (befriended cross-walk
+        // pet visiting this solo walk). Reply-only: no greetStrayByChat/
+        // awardStrayGreet call here — ghost greets are earned exclusively
+        // via the E-boop 'ghost' interact branch above, so chatting near a
+        // ghost never double-awards friendship.
+        const ghost = session.ghosts.nearest(catP, 5);
+        if (ghost) {
+          // ghost.petName is server-derived (untrusted) — it is ONLY hashed
+          // below, never rendered; `line` comes from the static catreplies
+          // catalog keyed on ghost.breed, so nothing untrusted reaches the
+          // bubble text.
+          const seed = (seedFromCode(session.walkStamp ?? '') + hashName(ghost.petName)) >>> 0;
+          const line = replyFor(ghost.breed, phraseId, seed);
+          setTimeout(() => {
+            if (session && session.ghosts.list.includes(ghost)) chatBubbles.show(ghost.group, line);
+          }, 600);
+        }
       }
     }
     session.sendPhrase = sendPhrase; // exposed for Task 3's keyboard-driven send
