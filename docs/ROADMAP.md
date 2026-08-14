@@ -7,8 +7,11 @@
 > (brainstorm → spec → plan → subagent execution → final review). Each wave is
 > ordered so it makes the *next* wave land harder.
 >
-> Status: proposal — nothing below is specced yet. v11 "Cat Couture" is
-> already specced/planned and comes first.
+> **Status: SHIPPED (2026-08-14).** All seven waves (v11–v17) were implemented,
+> reviewed, and deployed to the live site via the master plan
+> (`docs/superpowers/plans/2026-08-13-whisker-walk-v11-v17-master.md`). This
+> document is retained as the design rationale; see `docs/SESSION-HANDOFF.md`
+> §3 for what actually shipped per wave and §7 for the remaining backlog.
 
 ## The through-line
 
