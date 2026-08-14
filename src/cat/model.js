@@ -32,6 +32,17 @@ const WING_COLORS = [0xf29a8a, 0x9fc9a0]; // coral / sage, mirrored
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
 const RAINBOOT_COLOR = 0x3a6ea5;
+// Wave-2 catalog balance: every slot gets 4 choices
+const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34 }; // default red below
+const HEART_CHARM = 0xe0447a;
+const WIZARD_COLOR = 0x4a3b8c;
+const RAINCOAT_COLOR = 0xf2c94e;
+const SWEATER_BASE = 0x2c6e63;
+const SWEATER_STRIPE = 0xf2ead9;
+const JETPACK_SILVER = 0xb8bcc4;
+const JETPACK_FLAME = 0xf2822e;
+const BALLOON_COLOR = 0xf25c8a;
+const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on purpose
 
 const mat = (color) => litMaterial(color);
 
@@ -39,6 +50,39 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
+}
+
+// Collar ring + per-style extras, shared by cat and chicken (which wear the
+// same collars at different sizes). `scale` shrinks the whole thing for the
+// chicken; the ring/charm anchor points are passed in by the caller.
+function buildCollar(style, ringR, tubeR, charmPos) {
+  const group = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? 0xd84040));
+  ring.rotation.x = Math.PI / 2 + 0.32;
+  group.add(ring);
+  if (style === 'bell') {
+    const bell = ball(tubeR * 1.35, 0xf2c14e, 1, 1, 1, 8, 6);
+    bell.position.copy(charmPos);
+    group.add(bell);
+  } else if (style === 'heart') {
+    const charm = ball(tubeR * 1.1, HEART_CHARM, 1, 0.85, 0.6, 8, 6);
+    charm.position.copy(charmPos);
+    group.add(charm);
+    for (const side of [-1, 1]) {
+      const lobe = ball(tubeR * 0.6, HEART_CHARM, 1, 1, 0.6, 6, 5);
+      lobe.position.set(charmPos.x + side * tubeR * 0.55, charmPos.y + tubeR * 0.7, charmPos.z);
+      group.add(lobe);
+    }
+  } else if (style === 'studded') {
+    // studs live in the ring's local XY plane so they follow its tilt
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const stud = ball(tubeR * 0.55, 0xf2c14e, 1, 1, 1, 5, 4);
+      stud.position.set(Math.cos(a) * ringR, Math.sin(a) * ringR, tubeR * 0.7);
+      ring.add(stud);
+    }
+  }
+  return group;
 }
 
 // Hagrid the chicken honors the cat parts contract so the animator, camera,
@@ -132,16 +176,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // worth dressing, so body/back/feet items are skipped outright below rather
   // than crammed onto a bird frame.
   if (accessories.collar) {
-    const collarColor = accessories.collar === 'glow' ? 0x7ef2c0 : 0xd84040;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.024, 6, 12), mat(collarColor));
-    ring.rotation.x = Math.PI / 2 + 0.3;
-    ring.position.set(0, -0.13, 0.06);
-    head.add(ring);
-    if (accessories.collar === 'bell') {
-      const bell = ball(0.034, 0xf2c14e, 1, 1, 1, 8, 6);
-      bell.position.set(0, -0.18, 0);
-      head.add(bell);
-    }
+    const collar = buildCollar(accessories.collar, 0.12, 0.024, new THREE.Vector3(0, -0.05, -0.06));
+    collar.position.set(0, -0.13, 0.06);
+    head.add(collar);
   }
 
   // head: hats sit between the comb and the beak, scaled down for a chicken skull
@@ -166,6 +203,17 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     const pompom = ball(0.026, 0xf5f5f5, 1, 1, 1, 6, 5);
     pompom.position.set(0, 0.28, 0);
     head.add(pompom);
+  } else if (accessories.head === 'wizard') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.015, 10), mat(WIZARD_COLOR));
+    brim.position.set(0, 0.19, 0);
+    head.add(brim);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.18, 10), mat(WIZARD_COLOR));
+    cone.position.set(0, 0.28, 0);
+    cone.rotation.z = 0.12;
+    head.add(cone);
+    const star = ball(0.016, 0xf2c14e, 1, 1, 0.5, 5, 4);
+    star.position.set(0.04, 0.25, -0.05);
+    head.add(star);
   }
 
   // face: two small frames at eye level plus a bridge
@@ -182,6 +230,24 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.005, 0.005), mat(frameColor));
     bridge.position.set(0, 0.03, -0.1);
     head.add(bridge);
+  } else if (accessories.face === 'monocle') {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.005, 6, 10), mat(GLASSES_FRAME));
+    rim.position.set(0.09, 0.03, -0.1);
+    head.add(rim);
+    for (let i = 0; i < 2; i++) {
+      const link = ball(0.006, GLASSES_FRAME, 1, 1, 1, 4, 3);
+      link.position.set(0.105 + i * 0.01, 0 - i * 0.024, -0.09);
+      head.add(link);
+    }
+  } else if (accessories.face === 'eyepatch') {
+    const patch = ball(0.032, HAT_BLACK, 1, 1, 0.4, 8, 6);
+    patch.position.set(0.09, 0.03, -0.105);
+    head.add(patch);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.006, 6, 14), mat(HAT_BLACK));
+    band.rotation.x = Math.PI / 2 - 0.25;
+    band.rotation.z = 0.2;
+    band.position.set(0, 0.05, 0);
+    head.add(band);
   }
 
   // neck: at the neck seam, just below the wattle — a chicken in a bowtie is the joke
@@ -220,8 +286,8 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   }
 
   // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
-  // bird frame — hoodie/cape, wings/backpack, and sneakers/rainboots/booties
-  // are all skipped here rather than rendered floating or mis-anchored.
+  // bird frame — every item in those slots is skipped here rather than
+  // rendered floating or mis-anchored.
 
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
@@ -390,16 +456,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // idiom the body/head/legs already rely on) — a Persian (1.05x) and a
   // Maine Coon (1.3x) both get a proportionally-sized outfit for free.
   if (accessories.collar) {
-    const collarColor = accessories.collar === 'glow' ? 0x7ef2c0 : 0xd84040;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.028, 6, 12), mat(collarColor));
-    ring.rotation.x = Math.PI / 2 + 0.35;
-    ring.position.set(0, -0.14, 0.1);
-    head.add(ring);
-    if (accessories.collar === 'bell') {
-      const bell = ball(0.038, 0xf2c14e, 1, 1, 1, 8, 6);
-      bell.position.set(0, -0.2, -0.02);
-      head.add(bell);
-    }
+    const collar = buildCollar(accessories.collar, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
+    collar.position.set(0, -0.14, 0.1);
+    head.add(collar);
   }
 
   // head: above the skull, hats sit between the ears
@@ -424,6 +483,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const pompom = ball(0.032, 0xf5f5f5, 1, 1, 1, 6, 5);
     pompom.position.set(0, 0.35, 0);
     head.add(pompom);
+  } else if (accessories.head === 'wizard') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 10), mat(WIZARD_COLOR));
+    brim.position.set(0, 0.23, 0);
+    head.add(brim);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.26, 10), mat(WIZARD_COLOR));
+    cone.position.set(0, 0.36, 0);
+    cone.rotation.z = 0.12;
+    head.add(cone);
+    const star = ball(0.022, CAPE_ACCENT, 1, 1, 0.5, 5, 4);
+    star.position.set(0.05, 0.31, -0.075);
+    head.add(star);
   }
 
   // face: eye level — two small frames plus a bridge
@@ -440,6 +510,24 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.006), mat(frameColor));
     bridge.position.set(0, 0.03, -0.17);
     head.add(bridge);
+  } else if (accessories.face === 'monocle') {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 6, 10), mat(GLASSES_FRAME));
+    rim.position.set(0.083, 0.03, -0.17);
+    head.add(rim);
+    for (let i = 0; i < 3; i++) { // chain dangles toward the cheek
+      const link = ball(0.007, GLASSES_FRAME, 1, 1, 1, 4, 3);
+      link.position.set(0.105 + i * 0.012, -0.005 - i * 0.028, -0.16);
+      head.add(link);
+    }
+  } else if (accessories.face === 'eyepatch') {
+    const patch = ball(0.044, HAT_BLACK, 1, 1, 0.4, 8, 6);
+    patch.position.set(0.083, 0.03, -0.175);
+    head.add(patch);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.008, 6, 14), mat(HAT_BLACK));
+    band.rotation.x = Math.PI / 2 - 0.25;
+    band.rotation.z = 0.2;
+    band.position.set(0, 0.06, -0.01);
+    head.add(band);
   }
 
   // neck: at the neck seam, where the collar also sits
@@ -502,6 +590,36 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
     clasp.position.set(0, 0.48, 0.28);
     g.add(clasp);
+  } else if (accessories.body === 'raincoat') {
+    const shell = ball(0.33, RAINCOAT_COLOR, 0.88, 0.78, 1.32, 10, 8);
+    shell.position.set(0, 0.35, 0.02);
+    g.add(shell);
+    // same hood-up/hood-down rule as the hoodie: hats need the head clear
+    if (!accessories.head) {
+      const hood = ball(0.17, RAINCOAT_COLOR, 1, 1, 0.9, 8, 6);
+      hood.position.set(0, 0.64, -0.28);
+      g.add(hood);
+    } else {
+      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(RAINCOAT_COLOR));
+      bunch.rotation.x = Math.PI / 2 + 0.3;
+      bunch.position.set(0, 0.5, -0.36);
+      g.add(bunch);
+    }
+    for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
+      const button = ball(0.02, 0x8a6a20, 1, 1, 0.6, 6, 5);
+      button.position.set(0, 0.42 - i * 0.09, -0.36 - i * 0.03);
+      g.add(button);
+    }
+  } else if (accessories.body === 'sweater') {
+    const shell = ball(0.33, SWEATER_BASE, 0.88, 0.78, 1.32, 10, 8);
+    shell.position.set(0, 0.35, 0.02);
+    g.add(shell);
+    for (let i = 0; i < 3; i++) { // knit stripes ring the torso
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.038, 6, 14), mat(SWEATER_STRIPE));
+      stripe.scale.set(1, 0.88, 1);
+      stripe.position.set(0, 0.35, -0.14 + i * 0.18);
+      g.add(stripe);
+    }
   }
 
   // back: behind the shoulders
@@ -517,6 +635,29 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       wing.rotation.y = side * 0.3;
       g.add(wing);
     }
+  } else if (accessories.back === 'jetpack') {
+    for (const side of [-1, 1]) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8), mat(JETPACK_SILVER));
+      tank.position.set(side * 0.07, 0.52, 0.16);
+      tank.rotation.x = 0.15;
+      g.add(tank);
+      const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.06, 8), mat(JETPACK_FLAME));
+      nozzle.rotation.x = Math.PI;
+      nozzle.position.set(side * 0.07, 0.4, 0.185);
+      g.add(nozzle);
+    }
+  } else if (accessories.back === 'balloon') {
+    // hovers just over the tail — low enough to stay inside the shop
+    // thumbnail's whole-cat framing (~y 1.1 at this plane)
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 4), mat(0xf5f5f5));
+    string.position.set(0.06, 0.75, 0.2);
+    g.add(string);
+    const knot = ball(0.014, BALLOON_COLOR, 1, 1, 1, 5, 4);
+    knot.position.set(0.06, 0.92, 0.2);
+    g.add(knot);
+    const balloon = ball(0.09, BALLOON_COLOR, 1, 1.15, 1, 10, 8);
+    balloon.position.set(0.06, 1.0, 0.2);
+    g.add(balloon);
   }
 
   // feet: small shells on the paw positions
@@ -538,6 +679,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(RAINBOOT_COLOR);
       leg.userData.paw.scale.set(1.15, 1.4, 1.15);
     }
+  } else if (accessories.feet === 'socks') {
+    legs.forEach((leg, i) => {
+      leg.userData.paw.material = mat(SOCK_COLORS[i % SOCK_COLORS.length]);
+      leg.userData.paw.scale.set(1.1, 1.3, 1.1);
+    });
   }
 
   g.scale.setScalar(s.scale);

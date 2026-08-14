@@ -425,6 +425,14 @@ describe('v11 slots + save migration', () => {
     }
   });
 
+  it('every slot offers 4-5 choices so no category feels thin', () => {
+    for (const slot of ['collar', ...SLOTS]) {
+      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot).length;
+      expect(count, `slot "${slot}" has ${count} items`).toBeGreaterThanOrEqual(4);
+      expect(count, `slot "${slot}" has ${count} items`).toBeLessThanOrEqual(5);
+    }
+  });
+
   it('re-homes the old outfit item into its new slot on a v3 save, preserving every other persisted field', () => {
     const cases = [['bandana', 'neck'], ['booties', 'feet'], ['backpack', 'back'], ['crown', 'head']];
     for (const [item, slot] of cases) {

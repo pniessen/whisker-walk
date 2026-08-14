@@ -78,8 +78,9 @@ function renderAllUnsafe() {
     const slot = CATALOG.accessories[id].slot;
     const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
     const closeUp = !wholeCatSlots.has(slot);
-    // the backpack sits on the back so it gets a rear-quarter angle
-    accessories[id] = snap(worn, closeUp, id === 'backpack' ? -2.4 : -0.45);
+    // backpack and jetpack sit flat on the back so they get a rear-quarter
+    // angle; wings/balloon read fine from the front
+    accessories[id] = snap(worn, closeUp, id === 'backpack' || id === 'jetpack' ? -2.4 : -0.45);
   }
 
   renderer.dispose();
