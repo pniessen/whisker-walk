@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { resolveQuality } from '../src/render/quality.js';
 
-const high = { name: 'high', shadowMapSize: 2048, envIntensity: 0.35, postFx: true, pixelRatioCap: 2 };
-const low  = { name: 'low',  shadowMapSize: 1024, envIntensity: 0.25, postFx: false, pixelRatioCap: 1.5 };
+const high = { name: 'high', shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2 };
+const low  = { name: 'low',  shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5 };
 
 describe('resolveQuality', () => {
   it('auto → high on a desktop pointer with motion allowed', () => {

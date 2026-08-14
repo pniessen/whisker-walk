@@ -179,7 +179,7 @@ function init() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.1;
   // Baked once from a procedural RoomEnvironment (no network/HDRI fetch) and
   // reused across every walk — never disposed per-walk.
   const envMap = buildEnvMap(renderer);
