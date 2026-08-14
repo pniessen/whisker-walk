@@ -165,4 +165,66 @@ describe('createMusic scheduler', () => {
       global.clearInterval = origClearInterval;
     }
   });
+
+  // M-mute fix: setMuted() must zero musicGain directly, without touching
+  // the scheduler, so unmuting mid-walk resumes exactly where the song was.
+  it('setMuted zeroes musicGain without stopping the scheduler; unmute restores volume', () => {
+    const ctx = fakeCtx();
+    const gains = [];
+    const origCreateGain = ctx.createGain.bind(ctx);
+    ctx.createGain = () => { const g = origCreateGain(); gains.push(g); return g; };
+    const master = fakeNode();
+    const music = createMusic(() => ctx, () => master);
+    music.setVolume(0.7);
+    music.start(1, 'day');
+    const musicGain = gains[0]; // first createGain() call is ensureGain()'s musicGain
+    expect(musicGain.gain.value).toBe(0.7);
+
+    music.setMuted(true);
+    expect(musicGain.gain.value).toBe(0);
+    expect(music.playing).toBe(true); // scheduler untouched by mute
+
+    music.setMuted(false);
+    expect(musicGain.gain.value).toBe(0.7); // restored to the pre-mute volume
+    expect(music.playing).toBe(true);
+  });
+
+  // Minor fix: raising the music slider from 0 mid-walk should start music
+  // that a prior start() call declined (volume was 0 at the time), and the
+  // slider should be able to stop/resume it repeatedly without a fresh
+  // start() call from main.js.
+  it('setVolume can start a previously-declined start(), then stop/resume on 0<->0.5', () => {
+    const ctx = fakeCtx();
+    const master = fakeNode();
+    let intervalCalls = 0;
+    let clearCalls = 0;
+    const origSetInterval = global.setInterval;
+    const origClearInterval = global.clearInterval;
+    global.setInterval = (...args) => { intervalCalls++; return origSetInterval(...args); };
+    global.clearInterval = (...args) => { clearCalls++; return origClearInterval(...args); };
+    try {
+      const music = createMusic(() => ctx, () => master);
+      music.setVolume(0);
+      music.start(1, 'day'); // declined — volume is 0
+      expect(music.playing).toBe(false);
+      expect(intervalCalls).toBe(0);
+
+      music.setVolume(0.5); // 0 -> 0.5: begins the remembered start()
+      expect(music.playing).toBe(true);
+      expect(intervalCalls).toBe(1);
+
+      music.setVolume(0); // 0.5 -> 0: stops
+      expect(music.playing).toBe(false);
+      expect(clearCalls).toBe(1);
+
+      music.setVolume(0.5); // 0 -> 0.5 again: resumes
+      expect(music.playing).toBe(true);
+      expect(intervalCalls).toBe(2);
+
+      music.stop();
+    } finally {
+      global.setInterval = origSetInterval;
+      global.clearInterval = origClearInterval;
+    }
+  });
 });

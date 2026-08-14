@@ -7,9 +7,13 @@ import { mulberry32 } from './rng.js';
 //     drives composePhrase off ctx.currentTime and plays the result.
 //
 // M-mute note: music is scheduled onto a `musicGain` node that connects
-// straight into the shared master bus (same node audio.js's setVolume/mute
-// already drive) — see ensureGain() below. No separate mute wiring needed;
-// the existing M-key/settings mute silences music for free.
+// straight into the shared master bus — see ensureGain() below. That bus
+// covers *volume* for free (audio.js's setVolume() writes master.gain.value,
+// which scales everything downstream including music), but NOT mute:
+// audio.js's setMuted() only gates its own tone()/vocal()/purr() calls, it
+// never touches master.gain, so it does nothing to musicGain's oscillators.
+// createMusic's own setMuted() below covers that gap — main.js's
+// applySettings() calls it alongside music.setVolume().
 
 const SCALE = [0, 3, 5, 7, 10]; // major pentatonic degrees, +12 (octave up) allowed per note
 
@@ -72,7 +76,14 @@ export function createMusic(getCtx, getMaster) {
   let intervalId = null;
   let musicGain = null;
   let volume = 1; // matches audio.js's default-to-full-volume-if-unwired convention
+  let muted = false; // settings.muted, pushed by main.js's applySettings — see setMuted() below
   let playingFlag = false;
+
+  // Last { seed, mood } passed to start(), remembered regardless of whether
+  // that call actually started playback — setVolume() below uses it to
+  // begin/resume music without a fresh start() call when the slider is
+  // raised mid-walk (see setVolume()'s comment).
+  let pendingStart = null;
 
   let seed = 0;
   let mood = 'day';
@@ -89,10 +100,17 @@ export function createMusic(getCtx, getMaster) {
     const ctx = getCtx();
     if (!musicGain) {
       musicGain = ctx.createGain();
-      musicGain.gain.value = volume;
+      musicGain.gain.value = muted ? 0 : volume;
       musicGain.connect(getMaster());
     }
     return { ctx, gain: musicGain };
+  }
+
+  // Effective audible gain: 0 whenever muted, else the live volume slider.
+  // Both setMuted() and setVolume() route through this so neither call can
+  // clobber what the other one set.
+  function applyGain() {
+    if (musicGain) musicGain.gain.value = muted ? 0 : volume;
   }
 
   function killPad() {
@@ -190,11 +208,14 @@ export function createMusic(getCtx, getMaster) {
     // seed/mood per the brief: room walks share roomSeed so co-walkers hear
     // the same song; mood picks the root + (for dusk) a slower beat feel.
     start(newSeed, newMood = 'day') {
+      // Remembered regardless of whether this call actually starts playing —
+      // see the `pendingStart` declaration above and setVolume() below.
+      pendingStart = { seed: (newSeed ?? 0) >>> 0, mood: newMood };
       if (volume <= 0) return; // cheap opt-out — no nodes, no interval, nothing to tear down later
-      if (intervalId) api.stop(); // restart cleanly rather than stacking a second scheduler
+      if (intervalId) api.stop({ keepPending: true }); // restart cleanly rather than stacking a second scheduler
       const { ctx } = ensureGain();
-      seed = (newSeed ?? 0) >>> 0;
-      mood = newMood;
+      seed = pendingStart.seed;
+      mood = pendingStart.mood;
       beatDur = BASE_BEAT_DUR * (mood === 'dusk' ? 1.15 : 1); // dusk: same 70bpm grid, slightly longer beats = slower feel
       beatCursor = 0;
       phraseIndex = -1;
@@ -203,19 +224,40 @@ export function createMusic(getCtx, getMaster) {
       scheduleLoop();
       intervalId = setInterval(scheduleLoop, SCHEDULER_INTERVAL_MS);
     },
-    stop() {
+    // keepPending: true is used by internal callers (start()'s
+    // restart-cleanly path, setVolume()'s volume-drops-to-0 path) that need
+    // `pendingStart` preserved. External callers (main.js at walk end)
+    // default to clearing it, so a later volume tweak made outside a walk
+    // (e.g. at homebase) doesn't resurrect a finished walk's song.
+    stop({ keepPending = false } = {}) {
       if (intervalId) { clearInterval(intervalId); intervalId = null; }
       killPad();
       playingFlag = false;
+      if (!keepPending) pendingStart = null;
     },
     // Live volume control (0..1) on musicGain, same pattern as audio.js's
     // master setVolume — takes effect immediately on whatever's scheduled.
-    // Dropping to 0 while playing stops the scheduler outright (matches the
-    // "volume 0 == off" cheap opt-out used at start()).
+    // Dropping to 0 while playing stops the scheduler (cheap "volume 0 ==
+    // off" opt-out, matching start()'s decline) but KEEPS pendingStart, so
+    // raising the slider back above 0 — even mid-walk, with no fresh start()
+    // call — resumes the same seed/mood instead of staying silent until the
+    // next walk.
     setVolume(v) {
       volume = typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : volume;
-      if (musicGain) musicGain.gain.value = volume;
-      if (volume === 0 && intervalId) api.stop();
+      applyGain();
+      if (volume === 0 && playingFlag) {
+        api.stop({ keepPending: true });
+      } else if (volume > 0 && !playingFlag && pendingStart) {
+        api.start(pendingStart.seed, pendingStart.mood);
+      }
+    },
+    // M-mute / settings.muted, pushed by main.js's applySettings. Zeroes
+    // musicGain.gain directly via applyGain() WITHOUT touching the
+    // scheduler/intervalId — unmuting mid-walk resumes seamlessly right
+    // where the generated phrase already is, instead of restarting the song.
+    setMuted(m) {
+      muted = !!m;
+      applyGain();
     },
   };
   return api;

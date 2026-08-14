@@ -240,9 +240,12 @@ function init() {
   const hud = createHud();
   const audio = createAudio();
   // Generative lofi music (Task 7.3): its own gain node, connected to the
-  // shared master bus via audio.getMaster() — see music.js's file-header
-  // comment for why that means the existing M-mute/volume already covers it
-  // with no extra wiring here.
+  // shared master bus via audio.getMaster() — that bus covers volume
+  // scaling for free (audio.setVolume() writes master.gain.value), but NOT
+  // mute (audio.setMuted() only gates its own tone()/vocal() calls, it never
+  // touches master.gain) — so applySettings() below also pushes
+  // music.setMuted() to silence the generative music. See music.js's
+  // file-header comment for the full story.
   const music = createMusic(() => audio.getContext(), () => audio.getMaster());
   // Sampled pet voices: created AFTER audio so its decode hook can reach
   // audio.getContext(). Loads public/sounds/manifest.json and lazily
@@ -273,6 +276,7 @@ function init() {
     audio.setVolume(settings.get('volume'));
     audio.setMuted(settings.get('muted'));
     music.setVolume(settings.get('musicVolume'));
+    music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
   }
@@ -1552,7 +1556,10 @@ function init() {
     // to a seed derived from this walk's own stamp. Mood mirrors the same
     // dusk/rain/sunset/day branching already used for ambience/lighting
     // above. music.setVolume(0) (pushed by applySettings) makes start() a
-    // cheap no-op, so no separate "is music enabled" check is needed here.
+    // cheap no-op, so no separate "is music enabled" check is needed here —
+    // being muted does NOT skip start(): the scheduler still runs, silenced
+    // via music.setMuted()'s gain-zeroing, so unmuting mid-walk resumes
+    // instantly instead of waiting for the next walk.
     const musicMood = duskActive ? 'dusk' : weather.condition === 'rain' ? 'rain' : weather.condition === 'sunset' ? 'sunset' : 'day';
     music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
   }

@@ -269,9 +269,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     // Exposes the master gain node itself (built by ensure(), same lazy
     // trigger as getContext()) so a separate subsystem — src/music.js's
     // createMusic() — can connect its own gain node straight into the
-    // shared bus. That keeps generative music behind the same
-    // volume/mute/compressor/reverb chain as every other sound here with no
-    // extra wiring: setMuted()/setVolume() already reach it via `master`.
+    // shared bus. setVolume() writes master.gain.value directly, so it
+    // automatically scales music along with every other sound routed through
+    // here — no extra wiring needed for volume. setMuted() does NOT reach
+    // music for free, though: it never touches master.gain, it only gates
+    // this module's own tone()/vocal()/purr() calls (see setMuted() below).
+    // main.js's applySettings() covers the gap by also calling
+    // music.setMuted() directly.
     getMaster() {
       ensure();
       return master;
@@ -297,7 +301,11 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     },
     // settings.muted is the single source of truth (main.js's M key and the
     // homebase mute checkbox both write settings then call this) — audio
-    // itself no longer owns a toggle, it just applies what it's told.
+    // itself no longer owns a toggle, it just applies what it's told. This
+    // only gates THIS module's own tone()/vocal()/purr() calls and ambient
+    // loops — it never touches master.gain, so it does nothing for
+    // src/music.js's generative music. That has its own setMuted(), called
+    // separately by main.js's applySettings().
     setMuted(v) {
       muted = !!v;
       if (muted) api.stopAmbient();
