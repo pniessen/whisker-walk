@@ -1260,6 +1260,16 @@ function init() {
     session.kittenEnc = kittenPlanResult
       ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5) })
       : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
+    // Fixed at walk start, from the SAME kittenPlanResult that built the
+    // encounter above — handleInteract's 'kitten' branch dispatches on this,
+    // not the live progression.state.kitten.stage. Reading the live stage
+    // there let three E-presses in one walk race through all three award
+    // branches (trail's promptAt had no post-interact gate, so a stray extra
+    // press re-entered handleInteract, saw the stage the FIRST press just
+    // advanced to, and paid the next branch's award — collapsing the whole
+    // 3-walk arc into one walk). setKittenStage is monotonic, so branching on
+    // this stale-by-design kind can never regress the stage either way.
+    session.kittenPlanKind = kittenPlanResult?.kind ?? null;
 
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
@@ -1860,12 +1870,14 @@ function init() {
       }
     } else if (s.prompt.kind === 'kitten') {
       s.kittenEnc.interact();
-      const stage = progression.state.kitten.stage;
-      if (stage === 0) {
+      // Dispatches on the walk's fixed plan kind (set once in startWalk),
+      // never the live progression.state.kitten.stage — see the comment on
+      // session.kittenPlanKind above for why.
+      if (s.kittenPlanKind === 'trail') {
         progression.setKittenStage(1);
         hud.toast('A tiny mew… but nothing here. Maybe next walk. 🐾');
         log.award('quest', 'kitten-trail', 'you followed the tiny paw prints');
-      } else if (stage === 1) {
+      } else if (s.kittenPlanKind === 'meet') {
         progression.setKittenStage(2);
         hud.toast('The kitten trusts you! She follows close. 🐱');
         log.award('quest', 'kitten-meet', 'a lost kitten befriended');

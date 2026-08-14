@@ -67,15 +67,25 @@ function createTrail(scene) {
   }
   scene.add(group);
 
+  // advanced: mirrors meet's `following` guard — once the trail has been
+  // investigated, promptAt goes permanently null for the rest of this walk
+  // so E-mashing at the same spot can't re-fire the advance (and, paired
+  // with main.js now dispatching on the walk's fixed plan kind rather than
+  // the live stage, can't skip straight through the meet/nuzzle branches).
+  let advanced = false;
+
   return {
     group,
     update() {},
     promptAt(catPos) {
+      if (advanced) return null;
       return Math.hypot(catPos.x - KITTEN_SPOT.x, catPos.z - KITTEN_SPOT.z) < PROMPT_RANGE
         ? 'E — investigate the tiny mew'
         : null;
     },
     interact() {
+      if (advanced) return null;
+      advanced = true;
       return 'advanced';
     },
     dispose() {

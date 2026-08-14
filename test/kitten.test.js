@@ -65,6 +65,21 @@ describe('createKittenEncounter — trail', () => {
     expect(enc.interact()).toBe('advanced');
   });
 
+  // Regression: a stray extra E press at KITTEN_SPOT within the same walk
+  // must not re-fire — promptAt has to go permanently null after interact()
+  // (mirroring meet's `following` guard), otherwise repeated presses race
+  // handleInteract through every branch in one walk (main.js's own fix pairs
+  // with this by dispatching on the walk's fixed plan kind, not the live
+  // stage — but the encounter must stop offering the prompt regardless).
+  it('promptAt returns null for the rest of the walk after interact()', () => {
+    const enc = createKittenEncounter(fakeScene(), { kind: 'trail' }, { x: 0, z: 0 });
+    expect(enc.promptAt({ x: KITTEN_SPOT.x, z: KITTEN_SPOT.z })).toBe('E — investigate the tiny mew');
+    expect(enc.interact()).toBe('advanced');
+    expect(enc.promptAt({ x: KITTEN_SPOT.x, z: KITTEN_SPOT.z })).toBeNull();
+    // a second interact() call is also a no-op, not a repeat 'advanced'
+    expect(enc.interact()).toBeNull();
+  });
+
   it('dispose removes the group from the scene', () => {
     const scene = fakeScene();
     const enc = createKittenEncounter(scene, { kind: 'trail' }, { x: 0, z: 0 });
