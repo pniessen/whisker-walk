@@ -1,5 +1,5 @@
 const SAVE_KEY = 'whisker-walk-save';
-const SAVE_VERSION = 3; // v3: lifetime points, best walk, cat friends
+const SAVE_VERSION = 4; // v4: per-slot cosmetic accessories
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -36,10 +36,22 @@ export const CATALOG = {
   accessories: {
     bell: { name: 'Bell Collar', slot: 'collar', price: 20 },
     glow: { name: 'Glow Collar', slot: 'collar', price: 40 },
-    bandana: { name: 'Bandana', slot: 'outfit', price: 20 },
-    booties: { name: 'Rain Booties', slot: 'outfit', price: 25 },
-    backpack: { name: 'Tiny Backpack', slot: 'outfit', price: 35 },
-    crown: { name: 'Flower Crown', slot: 'outfit', price: 35 },
+    bandana: { name: 'Bandana', slot: 'neck', price: 20 },
+    booties: { name: 'Rain Booties', slot: 'feet', price: 25 },
+    backpack: { name: 'Tiny Backpack', slot: 'back', price: 35 },
+    crown: { name: 'Flower Crown', slot: 'head', price: 35 },
+    tophat: { name: 'Top Hat', slot: 'head', price: 30 },
+    beanie: { name: 'Cozy Beanie', slot: 'head', price: 20 },
+    glasses: { name: 'Round Glasses', slot: 'face', price: 25 },
+    sunglasses: { name: 'Cool Sunglasses', slot: 'face', price: 25 },
+    necktie: { name: 'Necktie', slot: 'neck', price: 25 },
+    bowtie: { name: 'Bow Tie', slot: 'neck', price: 25 },
+    scarf: { name: 'Cozy Scarf', slot: 'neck', price: 30 },
+    hoodie: { name: 'Purple Hoodie', slot: 'body', price: 35 },
+    cape: { name: 'Superhero Cape', slot: 'body', price: 40 },
+    wings: { name: 'Butterfly Wings', slot: 'back', price: 45 },
+    sneakers: { name: 'Sporty Sneakers', slot: 'feet', price: 25 },
+    rainboots: { name: 'Rain Boots', slot: 'feet', price: 25 },
   },
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
@@ -89,7 +101,7 @@ function defaultState() {
     points: 0,
     walks: { neighborhood: 0, park: 0, seaside: 0 },
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
-    equipped: { cat: 'tabby', collar: null, outfit: null },
+    equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
     area: 'neighborhood',
     lifetimePoints: 0,
     bestWalk: 0,
@@ -149,9 +161,16 @@ function sanitizeState(parsed) {
   const collar = parsed.equipped?.collar;
   const equippedCollar = typeof collar === 'string' && unlockedAcc.includes(collar) && CATALOG.accessories[collar]?.slot === 'collar'
     ? collar : null;
-  const outfit = parsed.equipped?.outfit;
-  const equippedOutfit = typeof outfit === 'string' && unlockedAcc.includes(outfit) && CATALOG.accessories[outfit]?.slot === 'outfit'
-    ? outfit : null;
+  // Cat Couture v4: the single `outfit` slot became six cosmetic slots
+  // (head/face/neck/body/back/feet) — each is validated the same way collar
+  // is above: a value survives only if it's a string, actually unlocked, and
+  // its catalog entry's slot matches the slot key it's sitting in.
+  const equippedSlots = {};
+  for (const slotKey of ['head', 'face', 'neck', 'body', 'back', 'feet']) {
+    const v = parsed.equipped?.[slotKey];
+    equippedSlots[slotKey] = typeof v === 'string' && unlockedAcc.includes(v) && CATALOG.accessories[v]?.slot === slotKey
+      ? v : null;
+  }
 
   const area = typeof parsed.area === 'string' && unlockedAreas.includes(parsed.area) ? parsed.area : d.area;
 
@@ -163,13 +182,30 @@ function sanitizeState(parsed) {
     points: asFiniteNonNeg(parsed.points, 0),
     walks,
     unlocked: { cats: unlockedCats, accessories: unlockedAcc, areas: unlockedAreas },
-    equipped: { cat: equippedCat, collar: equippedCollar, outfit: equippedOutfit },
+    equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots },
     area,
     lifetimePoints: asFiniteNonNeg(parsed.lifetimePoints, 0),
     bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
     friends: sanitizeFriends(parsed.friends),
     petName: typeof parsed.petName === 'string' ? parsed.petName.slice(0, 16) : null,
   };
+}
+
+// v3 → v4: the single `outfit` slot became six cosmetic slots. Re-home the
+// equipped outfit item into whatever slot its catalog entry now uses, so
+// nobody loses the accessory they were wearing. Shared by both the v3 and
+// v2 branches below (a v2 save is migrated 2 → 3 → 4 by building the v3
+// shape and routing it through this same function, rather than duplicating
+// the re-homing logic).
+function migrateV3ToV4(parsed) {
+  const worn = parsed.equipped?.outfit;
+  const slot = typeof worn === 'string' ? CATALOG.accessories[worn]?.slot : null;
+  const { outfit, ...rest } = parsed.equipped ?? {};
+  return sanitizeState({
+    ...parsed,
+    version: 4,
+    equipped: { ...rest, ...(slot ? { [slot]: worn } : {}) },
+  });
 }
 
 // Shared by createProgression's initial load AND replaceFromPayload below —
@@ -182,8 +218,11 @@ function loadState(storage) {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.version === SAVE_VERSION) return sanitizeState(parsed);
+      if (parsed && parsed.version === 3) {
+        return migrateV3ToV4(parsed);
+      }
       if (parsed && parsed.version === 2) {
-        return sanitizeState({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null });
+        return migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null });
       }
       console.warn('Whisker Walk: incompatible save, starting fresh');
     }
