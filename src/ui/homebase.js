@@ -408,6 +408,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // straight into innerHTML) — coerce again here rather than trust that
     // upstream guarantee to hold forever.
     const streakCount = asFiniteNonNeg(s.streak?.count, 0);
+    // Same defensive-coercion rationale as streakCount above: s.race comes
+    // through progression.js's sanitizeRace on every load/replaceFromPayload
+    // (so bestMs is already either null or a genuine finite positive
+    // number), but this is still an innerHTML display path, so bestMs is
+    // coerced again through asFiniteNonNeg rather than trusted wholesale.
+    const today = new Date().toISOString().slice(0, 10);
+    const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
@@ -422,6 +429,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                   <span>🏆 ${rank.title} — ${nextLine}</span>
                   ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
                   <span>best walk: ${s.bestWalk} 🐾</span>
+                  ${raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : ''}
                   ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
                 </div>
               </div>

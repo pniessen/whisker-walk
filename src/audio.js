@@ -232,6 +232,34 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   }
 
   const api = {
+    // Exposes the (lazily-built) AudioContext for src/samples.js's decode
+    // hook: `audio.getContext().decodeAudioData(arrayBuffer)`. Calling this
+    // builds the master bus via ensure() if it hasn't been already, same as
+    // every other sound-producing call here — decoding doesn't need the bus,
+    // but there's no separate "just the context" path and this keeps the one
+    // ctx/master pair consistent no matter what triggers its creation first.
+    getContext() {
+      return ensure();
+    },
+    // Plays a pre-decoded sample buffer (a real recorded pet voice) through
+    // the same master bus as every synth sound — so recorded and synth
+    // voices share the compressor + reverb send and respond to the same
+    // setVolume()/setMuted() controls. rate drives BufferSource.playbackRate
+    // (main.js randomizes this slightly per-call so repeats don't sound
+    // identical); volume is a 0..1 multiplier on top of a fixed ~0.5 "voice"
+    // level, matched roughly to meow()'s amp so samples and synth don't jump
+    // in loudness when a family recording is added later.
+    playBuffer(audioBuffer, { rate = 1, volume = 1 } = {}) {
+      if (muted || !audioBuffer) return;
+      const ac = ensure();
+      const src = ac.createBufferSource();
+      src.buffer = audioBuffer;
+      src.playbackRate.value = rate;
+      const g = ac.createGain();
+      g.gain.value = 0.5 * volume;
+      src.connect(g).connect(master);
+      src.start();
+    },
     // settings.muted is the single source of truth (main.js's M key and the
     // homebase mute checkbox both write settings then call this) — audio
     // itself no longer owns a toggle, it just applies what it's told.

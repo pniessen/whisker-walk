@@ -260,6 +260,7 @@ describe('createProgression', () => {
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
+        race: { date: null, area: null, bestMs: null },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -656,6 +657,82 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(p.state.golden).toEqual(['gm-seaside-2']);
     expect(p.state.streak).toEqual({ last: '2026-08-10', count: 3 });
     expect(p.state.kitten).toEqual({ stage: 2 });
+  });
+});
+
+// v17 daily zoomies race: one additive save field, same discipline as the
+// v15 block above (still SAVE_VERSION 4 — additive, not a new version).
+describe('v17 race save field', () => {
+  it('v4 save without race loads with defaults', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, points: 10 }) });
+    const p = createProgression(storage);
+    expect(p.state.race).toEqual({ date: null, area: null, bestMs: null });
+  });
+
+  it('sanitizes a hostile race field: bad date/area/bestMs each drop to null independently', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      race: { date: 'not-a-date', area: 'atlantis', bestMs: -50 } }) });
+    const p = createProgression(storage);
+    expect(p.state.race).toEqual({ date: null, area: null, bestMs: null });
+  });
+
+  it('rejects a bestMs beyond 24 hours or non-finite/non-numeric', () => {
+    const tooBig = JSON.stringify({ version: 4, race: { date: '2026-08-13', area: 'park', bestMs: 25 * 60 * 60 * 1000 } });
+    expect(createProgression(fakeStorage({ 'whisker-walk-save': tooBig })).state.race.bestMs).toBeNull();
+    const nan = JSON.stringify({ version: 4, race: { date: '2026-08-13', area: 'park', bestMs: NaN } });
+    expect(createProgression(fakeStorage({ 'whisker-walk-save': nan })).state.race.bestMs).toBeNull();
+    const str = JSON.stringify({ version: 4, race: { date: '2026-08-13', area: 'park', bestMs: '12000' } });
+    expect(createProgression(fakeStorage({ 'whisker-walk-save': str })).state.race.bestMs).toBeNull();
+  });
+
+  it('accepts a well-formed race field', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      race: { date: '2026-08-13', area: 'seaside', bestMs: 12345 } }) });
+    const p = createProgression(storage);
+    expect(p.state.race).toEqual({ date: '2026-08-13', area: 'seaside', bestMs: 12345 });
+  });
+
+  it('recordRace: first race of the day/area is always the best', () => {
+    const p = createProgression(fakeStorage({}));
+    expect(p.recordRace('2026-08-13', 'neighborhood', 15000)).toEqual({ isBest: true });
+    expect(p.state.race).toEqual({ date: '2026-08-13', area: 'neighborhood', bestMs: 15000 });
+  });
+
+  it('recordRace: same day+area — faster time improves the best, slower does not', () => {
+    const p = createProgression(fakeStorage({}));
+    p.recordRace('2026-08-13', 'neighborhood', 15000);
+    expect(p.recordRace('2026-08-13', 'neighborhood', 20000)).toEqual({ isBest: false });
+    expect(p.state.race.bestMs).toBe(15000); // unchanged — slower run
+    expect(p.recordRace('2026-08-13', 'neighborhood', 9000)).toEqual({ isBest: true });
+    expect(p.state.race.bestMs).toBe(9000);
+  });
+
+  it('recordRace: a new day resets the best even if slower than yesterday', () => {
+    const p = createProgression(fakeStorage({}));
+    p.recordRace('2026-08-13', 'neighborhood', 9000);
+    expect(p.recordRace('2026-08-14', 'neighborhood', 30000)).toEqual({ isBest: true });
+    expect(p.state.race).toEqual({ date: '2026-08-14', area: 'neighborhood', bestMs: 30000 });
+  });
+
+  it('recordRace: a new area (same day) resets the best too', () => {
+    const p = createProgression(fakeStorage({}));
+    p.recordRace('2026-08-13', 'neighborhood', 9000);
+    expect(p.recordRace('2026-08-13', 'park', 40000)).toEqual({ isBest: true });
+    expect(p.state.race).toEqual({ date: '2026-08-13', area: 'park', bestMs: 40000 });
+  });
+
+  it('replaceFromPayload (cloud round-trip) preserves race', () => {
+    const p = createProgression(fakeStorage({}));
+    p.replaceFromPayload({
+      version: 4, points: 0,
+      walks: { neighborhood: 0, park: 0, seaside: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
+      area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
+      race: { date: '2026-08-12', area: 'park', bestMs: 8800 },
+    });
+    expect(p.state.race).toEqual({ date: '2026-08-12', area: 'park', bestMs: 8800 });
   });
 });
 

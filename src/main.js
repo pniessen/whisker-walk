@@ -18,12 +18,14 @@ import { createQuest } from './quests.js';
 import { createProgression, rankFor, summarizeSaveForPreview } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
+import { tagState, groomTimer } from './verbs.js';
 import { createFx } from './fx.js';
 import { createSkyLife } from './skylife.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { createSamples } from './samples.js';
 import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
@@ -31,6 +33,7 @@ import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { GOLD_MICE, createGoldMice } from './goldmice.js';
 import { kittenPlan, createKittenEncounter } from './kitten.js';
+import { raceCourse, createRace } from './race.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
@@ -234,6 +237,19 @@ function init() {
   const log = createDiscoveryLog(progression);
   const hud = createHud();
   const audio = createAudio();
+  // Sampled pet voices: created AFTER audio so its decode hook can reach
+  // audio.getContext(). Loads public/sounds/manifest.json and lazily
+  // decodes every listed file; decodeAudioData works without a user gesture
+  // in modern browsers (only starting playback needs one), so kicking this
+  // off immediately at boot — while the AudioContext may still be
+  // suspended — is safe. Until a family recording decodes successfully,
+  // samples.has() stays false and catVoice/applyRemoteEvent fall through to
+  // the synth voice, so an empty manifest is behavior-identical to no
+  // samples module at all.
+  const samples = createSamples(import.meta.env.BASE_URL, {
+    decode: (arrayBuf) => audio.getContext().decodeAudioData(arrayBuf),
+    playBuffer: (buf, opts) => audio.playBuffer(buf, opts),
+  });
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
@@ -274,6 +290,14 @@ function init() {
   const catVoice = (pitch = 1) => {
     if (!session) return;
     const breed = session.cat.userData.breed;
+    // A recorded family voice, once decoded, takes priority over every
+    // synth branch below (hagrid's cluck included) — if the family records
+    // Hagrid, he gets his real cluck too. See src/samples.js's has()
+    // contract: true only once that breed's file has actually decoded.
+    if (samples.has(breed)) {
+      samples.play(breed, { rate: 0.95 + Math.random() * 0.1 });
+      return;
+    }
     const v = voiceFor(breed);
     if (breed === 'hagrid') audio.cluck(1, pitch * v.pitch);
     else audio.meow(1, pitch, v);
@@ -746,15 +770,36 @@ function init() {
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings);
   homebase.show();
 
-  function noteGoal(type) {
-    if (!session?.goals) return;
-    const res = session.goals.note(type);
-    hud.setGoals(session.goals.goals);
+  // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
+  // result into awards + HUD refresh + fx, regardless of whether the
+  // progress came from our own action (noteGoal) or a partner's synced
+  // duo-goal event (applyRemoteEvent's 'goal-progress') — completion pays
+  // the normal goal award either way, so a duo goal your partner finishes
+  // still pays you too, plus the extra 'duogoal' bonus on a duo completion.
+  function applyGoalResult(s, res) {
+    hud.setGoals(s.goals.goals);
     if (res.completed) {
       log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
-      session.fx?.burst(session.cat.position, 0x8ae08a, 14);
+      s.fx?.burst(s.cat.position, 0x8ae08a, 14);
+      if (res.completed.duo) {
+        log.awardOnce('duogoal', res.completed.id, 'a goal completed TOGETHER! 🤝');
+      }
     }
     if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
+  }
+
+  function noteGoal(type) {
+    if (!session?.goals) return;
+    // captured BEFORE note() mutates it — the duo goal may transition from
+    // not-done to done in this very call, and we still want to broadcast
+    // that final increment to the partner (see the send below).
+    const duo = session.goals.goals.find((g) => g.duo);
+    const duoWasDone = duo?.done ?? true;
+    const res = session.goals.note(type);
+    applyGoalResult(session, res);
+    if (type === 'friend' && duo && !duoWasDone && session.net) {
+      session.net.sendEvent({ v: 1, id: session.playerId, type: 'goal-progress', goalId: duo.id });
+    }
   }
 
   window.addEventListener('resize', () => {
@@ -1184,6 +1229,17 @@ function init() {
     });
 
     const goals = createGoals(walkRng);
+    // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
+    // seeded goal pool + walkRng draw, then deterministically overwrite
+    // slot 0 with an identical shared goal — no extra wire event needed to
+    // agree on what the duo goal even is, only on its progress (see
+    // 'goal-progress' in applyRemoteEvent).
+    if (roomSeed !== undefined) {
+      goals.goals[0] = {
+        id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend',
+        target: 5, duo: true, progress: 0, done: false,
+      };
+    }
 
     session = {
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
@@ -1224,6 +1280,7 @@ function init() {
       toy, batCount: 0, batReady: true,
       toyGhost, remoteToy: null,
       pendingBoop: null, incomingBoop: null,
+      tagChain: null, groomTimers: new Map(),
       duetWindow: null,
       rally: null,
       cameraMode: false,
@@ -1270,6 +1327,31 @@ function init() {
     // 3-walk arc into one walk). setKittenStage is monotonic, so branching on
     // this stale-by-design kind can never regress the stage either way.
     session.kittenPlanKind = kittenPlanResult?.kind ?? null;
+
+    // Daily zoomies race (Task 6.3): a 5-checkpoint course seeded from
+    // TODAY's date + this area — NOT walkRng (that stream is reserved for
+    // the shared co-walk world-gen sequence both clients step through in
+    // lockstep; the race seed must stay identical every time either sibling
+    // opens this area today, including a re-walk, so it can't be perturbed
+    // by weather/secrets rolls upstream of it) and no wire event ever
+    // carries the course itself — a solo player AND every device in a room
+    // independently derive the exact same 5 waypoints from (today, areaId),
+    // so siblings racing together are automatically on the same course.
+    // areaData.pois always has >= 8 entries for every real area (see
+    // src/world/*.js), but the guard below keeps this inert instead of
+    // throwing if a future area (e.g. the den) ever ships with fewer than 5.
+    const today = new Date().toISOString().slice(0, 10);
+    session.race = areaData.pois.length >= 5
+      ? createRace(scene, raceCourse(areaData.pois, seedFromCode(today + '-' + areaId)), areaData.spawn)
+      : { state: 'idle', timeMs: 0, currentRing: 0, update() {}, promptAt: () => null, begin() {}, dispose() {} };
+    session.areaId = areaId;
+    session.raceDate = today;
+    // last "ring N/5" value written to the HUD objective (or null when the
+    // race isn't the one currently occupying it) — lets the per-frame loop
+    // below update the objective only on an actual ring change instead of
+    // every frame, and tells the 'done' transition whether it's safe to
+    // clear the objective (only if OUR text is still the one showing).
+    session.raceRingShown = null;
 
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
@@ -1322,6 +1404,24 @@ function init() {
         }, 600);
         // Friendship: a greeting counts once, only if this cat is still ungreeted this walk.
         if (countsAsGreet(phraseId)) greetStrayByChat(target);
+      } else {
+        // No stray in range — try the nearest ghost (befriended cross-walk
+        // pet visiting this solo walk). Reply-only: no greetStrayByChat/
+        // awardStrayGreet call here — ghost greets are earned exclusively
+        // via the E-boop 'ghost' interact branch above, so chatting near a
+        // ghost never double-awards friendship.
+        const ghost = session.ghosts.nearest(catP, 5);
+        if (ghost) {
+          // ghost.petName is server-derived (untrusted) — it is ONLY hashed
+          // below, never rendered; `line` comes from the static catreplies
+          // catalog keyed on ghost.breed, so nothing untrusted reaches the
+          // bubble text.
+          const seed = (seedFromCode(session.walkStamp ?? '') + hashName(ghost.petName)) >>> 0;
+          const line = replyFor(ghost.breed, phraseId, seed);
+          setTimeout(() => {
+            if (session && session.ghosts.list.includes(ghost)) chatBubbles.show(ghost.group, line);
+          }, 600);
+        }
       }
     }
     session.sendPhrase = sendPhrase; // exposed for Task 3's keyboard-driven send
@@ -1476,6 +1576,7 @@ function init() {
     session.critters.dispose();
     session.goldMice.dispose();
     session.kittenEnc.dispose();
+    session.race.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -1515,6 +1616,32 @@ function init() {
       s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
       audio.landThump();
       s.landTime = 0.12;
+      // pounce-tag (Task 6.2, room walks only): landing within 1.3 of a
+      // remote counts as a tag touch. Feed it through tagState — this is
+      // the same reducer applyRemoteEvent's 'pounce-tag' handler uses for
+      // an incoming touch, so whichever side lands second (within 30s, on
+      // the same partner) completes the chain right here, locally, without
+      // waiting on the network. completeTag also fires a 'tag-back' so the
+      // FIRST toucher (who can't complete locally — they're still waiting)
+      // converges too, mirroring completeBoop's convergence pattern.
+      if (s.net) {
+        let nearest = null;
+        let nearestDist = 1.3;
+        for (const r of s.remotes.list) {
+          const d = r.group.position.distanceTo(cat.position);
+          if (d < nearestDist) { nearestDist = d; nearest = r; }
+        }
+        if (nearest) {
+          const now = nowSec();
+          s.tagChain = tagState(s.tagChain, { type: 'pounce-tag', fromId: nearest.playerId }, now);
+          s.net.sendEvent({ v: 1, id: s.playerId, type: 'pounce-tag', toId: nearest.playerId });
+          if (s.tagChain.completed) {
+            completeTag(s, nearest.playerId);
+          } else {
+            hud.toast('Tag! Pounce them back! 🐾');
+          }
+        }
+      }
     }
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
     if (s.landTime > 0) s.landTime -= dt;
@@ -1569,6 +1696,30 @@ function init() {
         const text = `nap pile of ${n + 1}! 😴`;
         const points = log.awardOnce('nappile', 'nappile', text);
         if (points > 0) hud.toast(text);
+      }
+    }
+
+    // mutual grooming (Task 6.2, room walks only): local-only detection —
+    // poses already sync via the normal remote-state broadcast, so unlike
+    // pounce-tag this needs no dedicated event, just each side watching the
+    // OTHER'S synced pose. Per-remote continuous-hold timers (keyed by
+    // playerId, since more than one remote could be nearby at once) live in
+    // s.groomTimers; awardOnce dedupes the pair-per-walk award identically
+    // on both sides once each independently reaches 2s.
+    if (s.net) {
+      for (const r of s.remotes.list) {
+        const bothGrooming = pose === 'groom' && r.pose === 'groom';
+        const close = r.group.position.distanceTo(cat.position) < 1.2;
+        const prev = s.groomTimers.get(r.playerId) ?? null;
+        const next = groomTimer(prev, dt, { bothGrooming, close });
+        s.groomTimers.set(r.playerId, next);
+        if (next.done) {
+          const points = log.awardOnce('groom', `groom-${r.playerId}`, `mutual grooming with ${petNameFor(s, r.playerId)} 🫧`);
+          if (points > 0) {
+            hud.toast(`mutual grooming with ${petNameFor(s, r.playerId)} 🫧`);
+            s.fx.burst(cat.position, 0xd8b4e2, 8);
+          }
+        }
       }
     }
 
@@ -1761,6 +1912,13 @@ function init() {
       }
     }
     if (!s.prompt) {
+      const rp = s.race.promptAt(catP);
+      if (rp) {
+        s.prompt = { kind: 'race' };
+        setPrompt(rp);
+      }
+    }
+    if (!s.prompt) {
       for (const c of s.critters.list) {
         if (c.type !== 'villager' || c.scratched) continue;
         if (c.group.position.distanceTo(catP) < 2.2) {
@@ -1892,6 +2050,8 @@ function init() {
       } else {
         log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
+    } else if (s.prompt.kind === 'race') {
+      s.race.begin();
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) {
@@ -1976,6 +2136,21 @@ function init() {
     if (s.incomingBoop?.fromId === otherId) s.incomingBoop = null;
   }
 
+  // Pounce-tag chain convergence point (Task 6.2). Reachable from two
+  // places: our own landing-detection in updateAvatar, when tagState
+  // reports the chain we just touched completed locally; and a remote
+  // 'tag-back' confirm addressed to us. awardOnce dedupes per pair per
+  // walk exactly like completeBoop, and the outbound 'tag-back' it sends
+  // is gated on points > 0 so the redundant paths stay harmless.
+  function completeTag(s, otherId) {
+    const points = log.awardOnce('tag', `tag-${otherId}`, `tag with ${petNameFor(s, otherId)}! 🏃`);
+    if (points > 0) {
+      hud.toast(`tag with ${petNameFor(s, otherId)}! 🏃`);
+      s.fx.burst(s.cat.position, 0xffd166, 10);
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tag-back', toId: otherId });
+    }
+  }
+
   // Yarn-rally counter: every 'bat' event we observe — our own outgoing
   // request AND every incoming one — either extends the rally (a different
   // batter than last time, within the 10s window) or starts a fresh one
@@ -2037,7 +2212,9 @@ function init() {
         : s.cat.position;
       const dist = s.cat.position.distanceTo(pos);
       const vol = meowVolumeForDistance(dist);
-      if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
+      if (samples.has(ev.breed)) {
+        samples.play(ev.breed, { rate: 0.95 + Math.random() * 0.1, volume: vol });
+      } else if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
       s.critters.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
       if (dist <= 8) s.duetWindow = { withId: ev.id, until: nowSec() + 3 };
@@ -2077,6 +2254,14 @@ function init() {
         s.toy.setPosition(new THREE.Vector3(ev.pos[0], 0.13, ev.pos[1]));
         s.batReady = true; // freshly acquired — ready to bat right away
       }
+    } else if (ev.type === 'pounce-tag') {
+      if (ev.toId !== s.playerId) return;
+      s.tagChain = tagState(s.tagChain, { type: 'pounce-tag', fromId: ev.id }, nowSec());
+      if (s.tagChain.completed) completeTag(s, ev.id);
+    } else if (ev.type === 'tag-back') {
+      if (ev.toId === s.playerId) completeTag(s, ev.id);
+    } else if (ev.type === 'goal-progress') {
+      if (s.goals) applyGoalResult(s, s.goals.noteDuoRemote(ev.goalId));
     }
   }
 
@@ -2223,6 +2408,40 @@ function init() {
         session.goldMice.remove(gm.id);
       }
       session.kittenEnc.update(dt, session.cat.position);
+      // Daily zoomies race: advance the ring timer/crossing checks, then
+      // reflect it in the HUD objective (throttled to actual ring changes)
+      // and, on the run→done transition, pay out the local best-time record.
+      // Conflict resolution with a quest's own objective: the lost-kitten/
+      // letter/glasses quest objective always wins — while s.quest?.state
+      // === 'active', the race simply doesn't touch hud.setObjective at all
+      // (neither writing its own ring text nor clearing the quest's), so a
+      // race running alongside an active quest never clobbers what the
+      // player is actually supposed to be doing.
+      const wasRacing = session.race.state === 'running';
+      session.race.update(dt, session.cat.position);
+      const questActive = session.quest?.state === 'active';
+      if (session.race.state === 'running') {
+        if (questActive) {
+          // The quest objective owns the HUD right now — reset raceRingShown
+          // to null (rather than leaving it at the last ring shown) so that
+          // the moment questActive flips back to false (quest accepted-then-
+          // completed mid-race, or abandoned), the != currentRing check
+          // below fires on the very next frame and re-writes "Race: ring
+          // N/5" immediately, instead of waiting for the next ring crossing.
+          session.raceRingShown = null;
+        } else if (session.raceRingShown !== session.race.currentRing) {
+          session.raceRingShown = session.race.currentRing;
+          hud.setObjective(`Race: ring ${session.race.currentRing}/5`);
+        }
+      } else if (wasRacing && session.race.state === 'done') {
+        if (session.raceRingShown != null && !questActive) hud.setObjective(null);
+        session.raceRingShown = null;
+        const r = progression.recordRace(session.raceDate, session.areaId, session.race.timeMs);
+        const secs = (session.race.timeMs / 1000).toFixed(1);
+        hud.toast(r.isBest ? `🏁 ${secs}s — today’s best!` : `🏁 ${secs}s`);
+        log.awardOnce('goal', 'race-done', 'the daily zoomies race');
+        session.fx.burst(session.cat.position, 0xffe27a, 14);
+      }
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);

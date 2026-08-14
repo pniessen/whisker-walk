@@ -40,4 +40,53 @@ describe('createGoals', () => {
     expect(entry.type).toBe('hunt');
     expect(entry.target).toBe(2);
   });
+
+  describe('noteDuoRemote', () => {
+    it('advances only the matching duo goal by id, ignoring non-duo goals', () => {
+      const g = createGoals(rngQueue(0, 0, 0));
+      g.goals[0] = { id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend', target: 5, duo: true, progress: 0, done: false };
+      const res = g.noteDuoRemote('duo-greet');
+      expect(res.completed).toBeUndefined();
+      expect(g.goals[0].progress).toBe(1);
+      expect(g.goals[1].progress).toBe(0);
+      expect(g.goals[2].progress).toBe(0);
+    });
+
+    it('is a no-op for an id that does not match any duo goal', () => {
+      const g = createGoals(rngQueue(0, 0, 0));
+      g.goals[0] = { id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend', target: 5, duo: true, progress: 0, done: false };
+      const res = g.noteDuoRemote('no-such-goal');
+      expect(res).toEqual({});
+      expect(g.goals[0].progress).toBe(0);
+    });
+
+    it('is a no-op for a non-duo goal even if the id matched', () => {
+      const g = createGoals(rngQueue(0, 0, 0));
+      const nonDuoId = g.goals[0].id;
+      const res = g.noteDuoRemote(nonDuoId);
+      expect(res).toEqual({});
+      expect(g.goals[0].progress).toBe(0);
+    });
+
+    it('completes at target, with jackpot when it is the last goal standing', () => {
+      const g = createGoals(rngQueue(0, 0, 0));
+      g.goals[0] = { id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend', target: 2, duo: true, progress: 0, done: false };
+      g.goals[1].done = true;
+      g.goals[2].done = true;
+      g.noteDuoRemote('duo-greet');
+      const res = g.noteDuoRemote('duo-greet');
+      expect(res.completed).toBe(g.goals[0]);
+      expect(res.jackpot).toBe(true);
+      expect(g.goals[0].done).toBe(true);
+    });
+
+    it('never advances a duo goal past done (no double-completion)', () => {
+      const g = createGoals(rngQueue(0, 0, 0));
+      g.goals[0] = { id: 'duo-greet', text: 'Together: greet 5 cats', type: 'friend', target: 1, duo: true, progress: 0, done: false };
+      g.noteDuoRemote('duo-greet');
+      const res = g.noteDuoRemote('duo-greet');
+      expect(res).toEqual({});
+      expect(g.goals[0].progress).toBe(1);
+    });
+  });
 });
