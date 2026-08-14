@@ -54,6 +54,12 @@ export function build(scene) {
 
   // beach props
   for (const [x, z] of [[-8, 10], [-20, -2], [4, 24], [-28, 18]]) scene.add(b.rock(x, z));
+
+  // a dune ledge beside the overlook boulder — second step of a short climb
+  // chain (boulder y 0.72 -> ledge y 1.9), 1.41 horizontally and 1.18
+  // vertically away, both inside the reach/climb budget.
+  scene.add(b.platform(-29, 19, 1.9, 0, 1.8, 0xd8c088));
+  addC(-29, 19, 1.0);
   scene.add(b.bench(18, 14, Math.PI / 2));
   scene.add(b.bench(18, -18, Math.PI / 2));
   for (const [x, z] of [[20, 30], [20, -30]]) scene.add(b.lampPost(x, z));
@@ -91,6 +97,7 @@ export function build(scene) {
       { id: 'fish-2', x: -9, z: 8.5, label: 'a striped shell-fish' },
       { id: 'fish-3', x: -29, z: 16.5, label: 'a silver sardine' },
       { id: 'fish-4', x: 19, z: -31, label: 'a lost lure-fish' },
+      { id: 'fish-5', x: -29, z: 19, y: 1.9, label: 'a gull-dropped fish' },
     ],
     scenics: [
       { id: 'pier-end', x: 34, z: -18, label: 'the end of the pier' },
@@ -102,6 +109,8 @@ export function build(scene) {
       { type: 'seagull', x: 16, z: -26 }, { type: 'seagull', x: 8, z: 30 },
       { type: 'crab', x: -6, z: 14 }, { type: 'crab', x: -18, z: 2 }, { type: 'crab', x: 2, z: -10 },
       { type: 'butterfly', x: -14, z: 30 },
+      { type: 'mouse', x: -22, z: 20, x2: -14, z2: 25 },
+      { type: 'mouse', x: 10, z: 22, x2: 16, z2: 18 },
       { type: 'villager', x: 18, z: 16 }, { type: 'villager', x: 32, z: -10 },
     ],
     moments: [
@@ -117,6 +126,7 @@ export function build(scene) {
     perches: [
       { x: 18, z: 14, y: 0.58 }, { x: 18, z: -18, y: 0.58 }, { x: -8, z: 10, y: 0.72 },
       { x: -28, z: 18, y: 0.72, label: 'overlook boulder', vantage: true },
+      { x: -29, z: 19, y: 1.9, label: 'dune ledge', vantage: true },
     ],
   };
 }

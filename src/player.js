@@ -17,6 +17,27 @@ function touchDirection(vec, yaw) {
   return new THREE.Vector3(vec.x, 0, vec.z).applyAxisAngle(UP, yaw);
 }
 
+// Pure zoomies state machine. `active && !stalking && speedRatio > 0.85 &&
+// speedFactor > 0` (full-speed running, not stalking, not frozen) charges
+// for 1.5s of accumulated time, then flips to `zooming`. Any stop, stalk, or
+// freeze resets instantly — no charge carries over, so a jittery input can't
+// "bank" partial charge.
+//
+// speedFactor gates the running condition directly (rather than leaving
+// freeze-detection to speedRatio alone) because speedRatio's denominator is
+// `pace * speedFactor || 1` — when speedFactor is 0 that denominator falls
+// back to 1, so residual velocity from before a freeze can push speedRatio
+// past 0.85 and falsely read as "still running". Requiring speedFactor > 0
+// here makes the reset correct regardless of whether a given freeze call
+// site (e.g. a puddle balk) remembers to also call player.halt().
+export function zoomState(prev, dt, { active, stalking, speedRatio, speedFactor = 1 }) {
+  const running = active && !stalking && speedRatio > 0.85 && speedFactor > 0;
+  if (!running) return { charging: false, zooming: false, time: 0 };
+  const time = prev.time + dt;
+  const zooming = prev.zooming || time >= 1.5;
+  return { charging: !zooming, zooming, time };
+}
+
 export function createPlayer(camera, canvas) {
   let yaw = 0;
   let pitch = 0.18;
@@ -29,6 +50,7 @@ export function createPlayer(camera, canvas) {
   let touchEngaged = false;
   let touchMode = false; // set by main when a touch UI is active — gates click-to-lock
   let invertY = false; // settings.invertY — negates the pitch delta in both orbit paths below
+  let zoom = { charging: false, zooming: false, time: 0 };
 
   const api = {
     locked: false,
@@ -43,6 +65,7 @@ export function createPlayer(camera, canvas) {
       api.perchY = 0;
       touchMove = null;
       touchEngaged = false;
+      zoom = { charging: false, zooming: false, time: 0 };
     },
     forward() {
       return viewForward(yaw);
@@ -63,6 +86,9 @@ export function createPlayer(camera, canvas) {
     },
     get engaged() {
       return api.locked || touchEngaged;
+    },
+    get zooming() {
+      return zoom.zooming;
     },
     setTouchMove(vec) {
       touchMove = vec || null;
@@ -99,23 +125,40 @@ export function createPlayer(camera, canvas) {
       keys.clear();
       touchMove = null;
       api.setTouchEngaged(false);
+      zoom = { charging: false, zooming: false, time: 0 };
       if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
     update(dt, colliders = [], bounds = null) {
       if (!enabled || !avatar) return;
       const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
-      velocity.lerp(dir.multiplyScalar(pace * api.speedFactor), 1 - Math.pow(0.001, dt));
+      // speedRatio must be read from velocity BEFORE the lerp below moves it
+      // toward this frame's target — it reflects how close last frame's
+      // actual speed already is to full pace, which is what "full-speed
+      // running" (the zoomies charge condition) means.
+      const targetSpeedDenom = pace * api.speedFactor || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
+      const speedRatio = velocity.length() / Math.max(Math.abs(targetSpeedDenom), 0.0001);
+      zoom = zoomState(zoom, dt, { active: api.inputActive, stalking: api.stalking, speedRatio, speedFactor: api.speedFactor });
+      const zoomPace = zoom.zooming ? pace * 1.55 : pace;
+      const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
+      velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       avatar.position.addScaledVector(velocity, dt);
       avatar.position.y = api.perchY;
 
-      for (const c of colliders) {
-        const dx = avatar.position.x - c.x;
-        const dz = avatar.position.z - c.z;
-        const d = Math.hypot(dx, dz);
-        const min = c.r + CAT_RADIUS;
-        if (d < min && d > 0.0001) {
-          avatar.position.x = c.x + (dx / d) * min;
-          avatar.position.z = c.z + (dz / d) * min;
+      // Skip collider push while perched (perchY > 0): a perched cat is
+      // standing ON the object (car roof, crate, rooftop…), often snapped to
+      // that very collider's own center, so this push is exactly what would
+      // fight the perch and shove the cat back off it. Grounded cats
+      // (perchY === 0) still get pushed out of every collider as before.
+      if (api.perchY === 0) {
+        for (const c of colliders) {
+          const dx = avatar.position.x - c.x;
+          const dz = avatar.position.z - c.z;
+          const d = Math.hypot(dx, dz);
+          const min = c.r + CAT_RADIUS;
+          if (d < min && d > 0.0001) {
+            avatar.position.x = c.x + (dx / d) * min;
+            avatar.position.z = c.z + (dz / d) * min;
+          }
         }
       }
       if (bounds) {

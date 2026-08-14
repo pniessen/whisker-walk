@@ -117,6 +117,13 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
     earR.rotation.z = -0.6;
   }
 
+  if (state === 'land') {
+    // landing squash: wide and low for a beat
+    body.scale.set(bsx * 1.14, bsy * 0.78, bsz * 1.05);
+    body.position.y = base.bodyY - 0.05;
+    return;
+  }
+
   if (walking) {
     const freq = 4.5 + moveSpeed * 1.4;
     const amp = Math.min(0.6, 0.25 + moveSpeed * 0.09);

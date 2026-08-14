@@ -30,6 +30,7 @@ import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
+import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
@@ -870,30 +871,33 @@ function init() {
   }
 
   function doPounceOrClimb() {
-    if (session.perched) {
+    // Look for a NEW perch reachable from wherever the cat is right now —
+    // canReach uses player.perchY, which still holds the current perch's
+    // height while perched (it's only zeroed by the hop-down branch below),
+    // so a chain of perches within canReach's ≤1.6-per-hop climb budget can
+    // be walked upward with repeated presses of this same key, never
+    // dropping to the ground in between. bestPerch prefers the HIGHEST
+    // reachable candidate (drops are always "reachable" per canReach, so a
+    // naive first-match pick could shadow a higher chain-mate with a lower
+    // one) — climbs beat drops whenever both are in reach. Hopping down (or
+    // off a perch with nothing else in reach) is the fallback.
+    const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched);
+    if (next) {
+      session.perched = next;
+      player.perchY = next.y;
+      player.halt();
+      session.cat.position.set(next.x, next.y, next.z);
+      catVoice();
+      if (next.vantage) log.awardOnce('scenic', `perch-${next.label}`, next.label);
+    } else if (session.perched) {
       session.perched = null;                    // hop down
       player.perchY = 0;
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
-    } else {
-      const perch = (session.areaData.perches ?? []).find((pp) => {
-        // high perches (car roofs etc.) sit at a collider's own center, so the
-        // cat is always held out to collider.r + 0.35 — give those a longer
-        // reach so climbing them is actually possible from outside the footprint.
-        const reach = pp.y > 1 ? 2.6 : 1.2;
-        return Math.hypot(pp.x - session.cat.position.x, pp.z - session.cat.position.z) < reach;
-      });
-      if (perch) {
-        session.perched = perch;
-        player.perchY = perch.y;
-        player.halt();
-        session.cat.position.set(perch.x, perch.y, perch.z);
-        catVoice();
-        if (perch.vantage) log.awardOnce('scenic', `perch-${perch.label}`, perch.label);
-      } else if (session.pounceCooldown <= 0) {
-        player.pounce();
-        session.pounceTime = 0.3;
-        session.pounceCooldown = 1.2;
-      }
+    } else if (session.pounceCooldown <= 0) {
+      player.pounce();
+      audio.pounceWhoosh();
+      session.pounceTime = 0.3;
+      session.pounceCooldown = 1.2;
     }
   }
 
@@ -1089,7 +1093,7 @@ function init() {
         new THREE.SphereGeometry(0.18, 8, 8),
         litMaterial(0xf25c8a, { emissive: 0x5a1a30 })
       );
-      m.position.set(c.x, 0.2, c.z);
+      m.position.set(c.x, (c.y ?? 0) + 0.2, c.z);
       scene.add(m);
       collectibleMeshes.set(c.id, m);
     }
@@ -1185,6 +1189,11 @@ function init() {
       ghosts: NO_GHOSTS,
       walkStamp,
       netSendAccum: 0,
+      // read once per walk (not per frame) so the zoomies trail's reducedMotion
+      // gate doesn't re-query settings 60x/sec in the render loop.
+      reducedMotion: settings.get('reducedMotion'),
+      zoomTrailAccum: 0,
+      wasZooming: false,
       goals,
       startPoints: state.points,
       discoveryCount: 0,
@@ -1222,6 +1231,9 @@ function init() {
       perched: null,
       pounceTime: 0,
       pounceCooldown: 0,
+      landTime: 0,
+      stepPhase: 0,
+      slowmoTime: 0,
       pose: 'follow',
       stretchTime: 0,
       sniffTime: 0,
@@ -1444,17 +1456,31 @@ function init() {
       player.perchY = 0;
     }
     s.critters.setFleeModifier((s.perched || player.stalking ? 0.5 : 1) * (p.special === 'bird' ? 0.15 : 1));
+    s.critters.markStalked(cat.position, player.stalking);
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
     const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
-    if (wasPouncing && s.pounceTime <= 0) s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+    if (wasPouncing && s.pounceTime <= 0) {
+      s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+      audio.landThump();
+      s.landTime = 0.12;
+    }
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
+    if (s.landTime > 0) s.landTime -= dt;
 
     const speed = player.speed;
     if (speed > 0.3) s.idleTime = 0;
     else s.idleTime += dt;
+
+    // soft footsteps: a near-subliminal tick each time the gait phase
+    // wraps, while actually moving at a brisk pace
+    s.stepPhase += speed * dt * 2.2;
+    if (s.stepPhase > 1 && speed > 1.5) {
+      s.stepPhase = 0;
+      audio.step();
+    }
 
     // idle charm: stand still and you groom, then sit, then curl up
     const napper = p.special === 'napper';
@@ -1468,6 +1494,7 @@ function init() {
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
     else if (s.pounceTime > 0) pose = 'pounce';
+    else if (s.landTime > 0) pose = 'land';
     else if (s.perched) pose = 'perch';
     else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';
@@ -1560,6 +1587,12 @@ function init() {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
       }
+      const hunted = s.critters.pounceCatch(cat.position);
+      if (hunted) {
+        const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
+        log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);
+        if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
+      }
     }
   }
 
@@ -1617,7 +1650,8 @@ function init() {
     s.prompt = null;
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
-      if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6) {
+      if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6 &&
+          Math.abs((s.perched?.y ?? 0) - (c.y ?? 0)) < 0.9) {
         s.prompt = { kind: 'collect', data: c };
         setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
@@ -2043,7 +2077,7 @@ function init() {
       bird: 'a songbird', squirrel: 'a busy squirrel', butterfly: 'a butterfly',
       duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
       dog: 'the neighbor’s dog', villager: 'a friendly neighbor',
-      firefly: 'a glowing firefly',
+      firefly: 'a glowing firefly', mouse: 'a quick little mouse',
     }[type] ?? 'something interesting';
   }
 
@@ -2053,8 +2087,51 @@ function init() {
     if (!session) return;
     if (player.engaged) {
       player.update(dt, session.areaData.colliders, session.areaData.bounds);
-      session.critters.update(dt, t, session.cat.position, session.cat.position);
-      session.strayCats.update(dt, t, session.cat.position, {
+
+      // Zoomies FOV kick: ease toward a wider field of view while sprinting,
+      // back to normal otherwise. updateProjectionMatrix is comparatively
+      // expensive, so it's skipped on frames where the eased value barely
+      // moved (a settled camera.fov near its target, e.g. mid-hold or
+      // mid-cooldown) rather than called unconditionally every frame.
+      const fovTarget = player.zooming ? 77 : 70;
+      const fovDelta = (fovTarget - camera.fov) * Math.min(1, dt * 4);
+      if (Math.abs(fovDelta) > 0.01) {
+        camera.fov += fovDelta;
+        camera.updateProjectionMatrix();
+      }
+
+      // Sparkle trail while zooming — throttled to every 0.12s so it reads as
+      // a trail of bursts rather than a solid particle firehose. Generic
+      // (breed/gear-agnostic): the v11 "Superhero Cape" item spec calls for
+      // the cape to own its own zoomie sparkle trail, but no cape-specific
+      // trail effect exists yet, so this shared trail covers everyone who
+      // zooms — decision: generic trail for all, cape differentiation
+      // dropped for now (simpler, and kid-fairer than a paywalled trail).
+      if (player.zooming && !session.reducedMotion) {
+        session.zoomTrailAccum += dt;
+        if (session.zoomTrailAccum >= 0.12) {
+          session.zoomTrailAccum = 0;
+          session.fx.burst(session.cat.position, 0xfff2c0, 4);
+        }
+      } else {
+        session.zoomTrailAccum = 0;
+      }
+
+      // Wind whoosh fires once on the transition INTO zooming, not every
+      // frame while zooming continues.
+      if (player.zooming && !session.wasZooming) audio.zoomWind();
+      session.wasZooming = player.zooming;
+
+      // Slow-mo on a perfect stalk-and-pounce catch: critters/strays slow down for
+      // a beat while player/camera/remotes keep real-time motion (remotes MUST stay
+      // real dt — slowing their interpolation would desync them from the network clock).
+      // skyLife also stays on real dt below: its rng timers are seeded from roomSeed so
+      // co-walk clouds/birds stay identical across clients, and a local-only slow-mo
+      // would desync that shared stream permanently.
+      if (session.slowmoTime > 0) session.slowmoTime -= dt;
+      const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
+      session.critters.update(wdt, t, session.cat.position, session.cat.position);
+      session.strayCats.update(wdt, t, session.cat.position, {
         stalking: player.stalking,
         catSpeed: player.speed,
         toy: session.toy,

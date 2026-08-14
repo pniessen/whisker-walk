@@ -71,6 +71,18 @@ export function build(scene) {
   scene.add(b.billboard(7, -14, -Math.PI / 2));
   addC(7, -14, 2.3);
 
+  // crate stack beside the billboard — a two-tier step up onto its top,
+  // clear of the billboard's own collider (2.4 from its center, just
+  // outside the 2.3 radius) but still within climbing reach of it.
+  scene.add(b.platform(9.4, -14, 1.1, 0, 1.0));
+  scene.add(b.platform(9.4, -14, 2.0, 1.1, 0.8));
+  addC(9.4, -14, 0.5);
+
+  // a lean-to porch roof against the fence corner by the (-12,15) house —
+  // first step of the rooftop climb chain up to its ridge.
+  scene.add(b.platform(-9, 17.5, 1.3, 0, 1.6, 0xa8846a));
+  addC(-9, 17.5, 0.9);
+
   // small playground: slide-ish ramp + swing frame
   scene.add(b.bench(28, 28, Math.PI / 4));
   scene.add(b.bench(32, 24, Math.PI / 4));
@@ -100,6 +112,7 @@ export function build(scene) {
       { id: 'yarn-2', x: 5.5, z: -36.5, label: 'a blue yarn ball' },
       { id: 'yarn-3', x: 25, z: 21, label: 'a golden yarn ball' },
       { id: 'yarn-4', x: -21, z: -19, label: 'a green yarn ball' },
+      { id: 'yarn-roof', x: -11.5, z: 15.5, y: 4.1, label: 'a legendary silver yarn ball' },
     ],
     scenics: [
       { id: 'playground', x: 30, z: 26, label: 'the little playground' },
@@ -110,6 +123,8 @@ export function build(scene) {
       { type: 'squirrel', x: -20, z: 22, x2: 7, z2: -22 },
       { type: 'squirrel', x: 20, z: -8, x2: -8, z2: 8 },
       { type: 'butterfly', x: -12, z: 28 }, { type: 'butterfly', x: 12, z: -12 },
+      { type: 'mouse', x: -4, z: -10, x2: 2, z2: -6 },
+      { type: 'mouse', x: 16, z: 30, x2: 10, z2: 25 },
       { type: 'dog', x: 22, z: -24 },
       { type: 'villager', x: -16, z: 12 }, { type: 'villager', x: 14, z: 34 },
     ],
@@ -128,6 +143,15 @@ export function build(scene) {
       { x: 28, z: 28, y: 0.58 }, { x: 32, z: 24, y: 0.58 },
       { x: 4, z: -35, y: 1.35, label: 'king of the car roof', vantage: true },
       { x: -4, z: 20, y: 1.35 },
+      // dog-yard fence tops
+      { x: 22, z: -28, y: 0.85 }, { x: 18, z: -24, y: 0.85 },
+      // billboard crate-stack chain: ground -> crate -> crate top -> billboard
+      { x: 9.4, z: -14, y: 1.1 }, { x: 9.4, z: -14, y: 2.0 },
+      { x: 7, z: -14, y: 3.3, label: 'billboard lookout', vantage: true },
+      // rooftop chain: ground -> porch roof -> rooftop -> ridge
+      { x: -9, z: 17.5, y: 1.3 },
+      { x: -9.5, z: 15.5, y: 2.9, label: 'rooftop scout', vantage: true },
+      { x: -11.5, z: 15.5, y: 4.1, label: 'king of the roof', vantage: true },
     ],
   };
 }
