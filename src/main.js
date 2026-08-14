@@ -1040,6 +1040,15 @@ function init() {
       scene.background = new THREE.Color(top);
       scene.fog = new THREE.Fog(horizon, 30, 110);
       sun.intensity = 0.7;
+      // dusk: house windows glow warm (bloom-friendly on the high tier; endWalk's
+      // scene traversal disposes the swapped material like any other)
+      scene.traverse((o) => {
+        if (o.userData?.window) {
+          const old = o.material;
+          o.material = litMaterial(0xffe0a0, { emissive: 0x8a6a20 });
+          old.dispose();
+        }
+      });
     }
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };

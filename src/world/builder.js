@@ -38,6 +38,7 @@ export function house(x, z, bodyColor = 0xe8d8b0, roofColor = 0xb05a4a) {
   g.add(door);
   for (const wx of [-1.6, 1.6]) {
     const win = box(0.9, 0.9, 0.1, 0xa8d8e8);
+    win.userData.window = true;
     win.position.set(wx, 1.8, 2.01);
     g.add(win);
   }
