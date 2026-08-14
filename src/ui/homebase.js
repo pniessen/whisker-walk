@@ -1,7 +1,9 @@
-import { CATALOG, rankFor } from '../progression.js';
+import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab } from './hometabs.js';
+import { renderJournalHtml } from '../journal.js';
+import { GOLD_TOTAL } from '../goldmice.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -401,6 +403,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const nextLine = rank.next
       ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
       : 'top rank!';
+    // s.streak comes through progression.js's sanitizeStreak on every
+    // load/replaceFromPayload, but this is a display path (interpolated
+    // straight into innerHTML) — coerce again here rather than trust that
+    // upstream guarantee to hold forever.
+    const streakCount = asFiniteNonNeg(s.streak?.count, 0);
     const roomState = rooms && rooms.available ? rooms.getState() : null;
     const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
@@ -413,7 +420,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                 <div class="hb-points">🐾 ${s.points} whisker points</div>
                 <div class="hb-substats">
                   <span>🏆 ${rank.title} — ${nextLine}</span>
+                  ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
                   <span>best walk: ${s.bestWalk} 🐾</span>
+                  ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
                 </div>
               </div>
             </header>
@@ -460,9 +469,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             </section>
           </div>
           <div class="hb-panel" data-panel="album">
+            <section class="journal-section"><h2>Critter Journal 📖</h2>
+              ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, GOLD_TOTAL)}
+            </section>
             <section><h2>Photo album 📸</h2><div class="photos">
               ${album.photos.length
-                ? album.photos.map((p) => `<figure><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${escapeHtml(p.label)} — ${escapeHtml(p.area)}</figcaption></figure>`).join('')
+                ? album.photos.map((p) => {
+                  // p.date is sanitize-shaped (YYYY-MM-DD or absent — see
+                  // album.js's sanitizePhoto/YMD_PATTERN) via the
+                  // cloud-load path, but a plain local-storage load never
+                  // routes through that sanitizer — escapeHtml it too, same
+                  // as label/area, rather than trust the shape to hold.
+                  const caption = [escapeHtml(p.label), escapeHtml(p.area), ...(p.date ? [escapeHtml(p.date)] : [])].join(' · ');
+                  return `<figure class="photo-framed"><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${caption}</figcaption></figure>`;
+                }).join('')
                 : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
             </div></section>
           </div>

@@ -1,6 +1,37 @@
 const SAVE_KEY = 'whisker-walk-save';
 const SAVE_VERSION = 4; // v4: per-slot cosmetic accessories
 
+// v15 Collector's Journal critter types — the fixed vocabulary state.journal
+// counts are restricted to (sanitizeState drops anything outside this list).
+export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse'];
+
+// Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
+// state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
+// that module doesn't exist yet (it lands in Task 5.3) — importing it here
+// would make progression.js depend on a not-yet-existing module and invite
+// an import cycle once goldmice.js exists. Validating against this id-shape
+// pattern instead needs no cross-module import and still rejects anything
+// that isn't a plausible golden-mouse id; Task 5.3 can layer a real
+// existence check in the game logic that calls recordGolden.
+// Bounded to 24 chars in the middle segment — real area-name segments (e.g.
+// 'neigh', 'park', 'seaside') are a handful of characters; the cap just
+// forecloses a hostile payload using an unbounded `[a-z]+` to smuggle
+// megabytes of 'a's into a single golden id.
+const GOLD_ID_PATTERN = /^gm-[a-z]{1,24}-[1-9]$/;
+const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// Ceiling on how many golden ids sanitizeGolden keeps. There are only 9 real
+// golden mice (see Task 5.3 / src/goldmice.js), so 64 is already generous
+// headroom for future additions — its real job is capping the array so a
+// hostile cloud payload can't pad state.golden with thousands of
+// valid-shaped-but-fake ids and bloat the save past the localStorage quota.
+const GOLD_MAX_COUNT = 64;
+// Ceiling on state.streak.count: a ten-year unbroken daily streak. Matches
+// kitten.stage's Math.min clamp just below — asFiniteNonNegInt alone accepts
+// any finite non-negative integer (e.g. 1e15), which is a meaningless streak
+// and, via 5 * count in recordStreakWalk-adjacent bonus math and repeated
+// save() round-trips, an avoidable way to inflate the persisted save.
+const STREAK_COUNT_MAX = 3650;
+
 export const RANKS = [
   { at: 0, title: 'House Cat' },
   { at: 150, title: 'Yard Prowler' },
@@ -107,7 +138,61 @@ function defaultState() {
     bestWalk: 0,
     friends: {},
     petName: null,
+    journal: {},
+    golden: [],
+    streak: { last: null, count: 0 },
+    kitten: { stage: 0 },
   };
+}
+
+// Cloud-loaded (or otherwise externally supplied) journal counts are
+// untrusted: each key must be one of the fixed JOURNAL_TYPES and each value
+// a finite non-negative integer, or the whole entry is dropped rather than
+// coerced/defaulted — an unknown critter type or a garbage count simply
+// never makes it into state.journal.
+function sanitizeJournal(v) {
+  if (!isPlainObject(v)) return {};
+  const out = {};
+  for (const type of JOURNAL_TYPES) {
+    if (!Object.prototype.hasOwnProperty.call(v, type)) continue;
+    const n = asFiniteNonNegInt(v[type], undefined);
+    if (n !== undefined) out[type] = n;
+  }
+  return out;
+}
+
+// Golden-mouse ids: string + GOLD_ID_PATTERN shape check (see the comment on
+// GOLD_ID_PATTERN above for why this replaces a KNOWN_GOLD import), plus
+// dedupe — a hostile or corrupted payload could otherwise list the same id
+// twice.
+function sanitizeGolden(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const id of v) {
+    if (out.length >= GOLD_MAX_COUNT) break;
+    if (typeof id === 'string' && GOLD_ID_PATTERN.test(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+function sanitizeStreak(v) {
+  const last = typeof v?.last === 'string' && YMD_PATTERN.test(v.last) ? v.last : null;
+  const count = Math.min(STREAK_COUNT_MAX, asFiniteNonNegInt(v?.count, 0));
+  return { last, count };
+}
+
+function sanitizeKitten(v) {
+  const stage = asFiniteNonNegInt(v?.stage, 0);
+  return { stage: Math.min(3, stage) };
+}
+
+function ymdToUTCms(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
 }
 
 // Cloud-loaded (or otherwise externally supplied) friends are untrusted:
@@ -188,6 +273,10 @@ function sanitizeState(parsed) {
     bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
     friends: sanitizeFriends(parsed.friends),
     petName: typeof parsed.petName === 'string' ? parsed.petName.slice(0, 16) : null,
+    journal: sanitizeJournal(parsed.journal),
+    golden: sanitizeGolden(parsed.golden),
+    streak: sanitizeStreak(parsed.streak),
+    kitten: sanitizeKitten(parsed.kitten),
   };
 }
 
@@ -327,6 +416,58 @@ export function createProgression(storage) {
     setPetName(name) {
       state.petName = name;
       save();
+    },
+    // recordSighting(type) — increments the journal count for a known
+    // critter type; unrecognized types (typos, future-removed types, or a
+    // hostile caller) are silently ignored rather than polluting
+    // state.journal with keys sanitizeState would strip on next load.
+    recordSighting(type) {
+      if (!JOURNAL_TYPES.includes(type)) return;
+      state.journal[type] = (state.journal[type] ?? 0) + 1;
+      save();
+    },
+    // recordGolden(id) → bool — records a newly found golden mouse. Returns
+    // false (no-op) for an id that doesn't match GOLD_ID_PATTERN or one
+    // already recorded, so callers can gate a "new find" toast on the
+    // return value.
+    recordGolden(id) {
+      if (typeof id !== 'string' || !GOLD_ID_PATTERN.test(id) || state.golden.includes(id)) return false;
+      state.golden.push(id);
+      save();
+      return true;
+    },
+    // recordStreakWalk(todayStr) → { count, bonus } — todayStr is a
+    // YYYY-MM-DD string from the caller's local walk-completion clock.
+    // Same day as last recorded walk: streak count unchanged, bonus 0 (no
+    // double-dipping same-day walks). Exactly one UTC calendar day after
+    // the last recorded date: streak continues, count+1. Anything else
+    // (first ever walk, or a gap): streak resets to 1. bonus is
+    // min(5*count, 25), awarded only when the day actually changed — the
+    // caller is responsible for adding bonus to points so it can show the
+    // toast itself rather than this module reaching into addPoints.
+    recordStreakWalk(todayStr) {
+      const { last, count } = state.streak;
+      if (last === todayStr) {
+        return { count, bonus: 0 };
+      }
+      const consecutive = last != null && (ymdToUTCms(todayStr) - ymdToUTCms(last) === 86400000);
+      const newCount = consecutive ? count + 1 : 1;
+      const bonus = Math.min(5 * newCount, 25);
+      state.streak = { last: todayStr, count: newCount };
+      save();
+      return { count: newCount, bonus };
+    },
+    // setKittenStage(n) — clamps to 0..3 and is monotonic: a lower/equal
+    // stage than the current one is ignored, so a stale or out-of-order
+    // call (e.g. two quest branches racing) can never regress growth.
+    setKittenStage(n) {
+      const v = asFiniteNonNegInt(n, undefined);
+      if (v === undefined) return;
+      const bounded = Math.min(3, v);
+      if (bounded > state.kitten.stage) {
+        state.kitten.stage = bounded;
+        save();
+      }
     },
     // replaceFromPayload(rawSaveObject) — used by cloud "Load from cloud":
     // writes the raw object straight to storage under the save key, then

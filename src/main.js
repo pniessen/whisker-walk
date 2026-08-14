@@ -29,6 +29,8 @@ import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
+import { GOLD_MICE, createGoldMice } from './goldmice.js';
+import { kittenPlan, createKittenEncounter } from './kitten.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
@@ -1239,6 +1241,36 @@ function init() {
       sniffTime: 0,
     };
 
+    // golden mice: personal, position-static, award-local — no wire events,
+    // so this is co-walk safe without touching walkRng or session.net at
+    // all. areas without an entry in GOLD_MICE (none currently, but future
+    // areas like the den) get an inert stub instead of a lookup throw.
+    session.goldMice = areaId in GOLD_MICE
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden))
+      : { list: [], update() {}, checkFind: () => null, remove() {}, dispose() {} };
+
+    // lost-kitten quest chain: solo walks only (roomSeed === undefined) — a
+    // co-walk kitten would desync the shared canon since it's driven by
+    // this device's own progression.state.kitten.stage. A no-op stub (same
+    // shape as goldMice's above) covers every other case: co-walks, and
+    // solo walks where kittenPlan has nothing to offer this stage/area.
+    const kittenPlanResult = roomSeed === undefined
+      ? kittenPlan(progression.state.kitten.stage, areaId)
+      : null;
+    session.kittenEnc = kittenPlanResult
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5) })
+      : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
+    // Fixed at walk start, from the SAME kittenPlanResult that built the
+    // encounter above — handleInteract's 'kitten' branch dispatches on this,
+    // not the live progression.state.kitten.stage. Reading the live stage
+    // there let three E-presses in one walk race through all three award
+    // branches (trail's promptAt had no post-interact gate, so a stray extra
+    // press re-entered handleInteract, saw the stage the FIRST press just
+    // advanced to, and paid the next branch's award — collapsing the whole
+    // 3-walk arc into one walk). setKittenStage is monotonic, so branching on
+    // this stale-by-design kind can never regress the stage either way.
+    session.kittenPlanKind = kittenPlanResult?.kind ?? null;
+
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
     // pendingRoom at all, so session.net stays undefined and every co-walk
@@ -1380,6 +1412,13 @@ function init() {
   function endWalk() {
     if (!session) return;
     progression.completeWalk();
+    // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
+    // computed, so the streak bonus is folded into this walk's own "whisker
+    // points" total rather than silently landing in the next walk's earned
+    // count.
+    const today = new Date().toISOString().slice(0, 10);
+    const streak = progression.recordStreakWalk(today);
+    if (streak.bonus > 0) progression.addPoints(streak.bonus);
     pushProfileNow(); // refresh the public profile (rank/equip may have changed) while a petName exists
 
     // compute summary numbers while the session is still live
@@ -1389,6 +1428,12 @@ function init() {
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
     const walkedWith = session.net ? session.remotes.list.map((r) => r.petName) : [];
+    // kitten stage 2 is transient — set at the end of the "meet" walk (see
+    // handleInteract's 'kitten' branch) and promoted to 3 right here, at
+    // that same walk's summary, so "Mochi followed you home" lands on the
+    // walk where she actually started following.
+    const mochiArrived = progression.state.kitten.stage === 2;
+    if (mochiArrived) progression.setKittenStage(3);
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -1401,6 +1446,8 @@ function init() {
         <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
       </div>
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
+      ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
 
@@ -1427,6 +1474,8 @@ function init() {
       }
     });
     session.critters.dispose();
+    session.goldMice.dispose();
+    session.kittenEnc.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -1586,11 +1635,13 @@ function init() {
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
+        progression.recordSighting(caught.type);
       }
       const hunted = s.critters.pounceCatch(cat.position);
       if (hunted) {
         const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
         log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);
+        progression.recordSighting(hunted.type);
         if (hunted.wasStalked) { s.slowmoTime = 0.8; audio.fanfare(); }
       }
     }
@@ -1618,7 +1669,7 @@ function init() {
       if (!c.spottable || c.fleeing) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
-        log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type));
+        if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
       }
     }
     for (const stray of s.strayCats.strays) {
@@ -1700,6 +1751,13 @@ function init() {
       if (ghost) {
         s.prompt = { kind: 'ghost', data: ghost };
         setPrompt(`E — touch noses with ${ghost.petName} 👻`);
+      }
+    }
+    if (!s.prompt && s.kittenEnc) {
+      const kp = s.kittenEnc.promptAt(catP);
+      if (kp) {
+        s.prompt = { kind: 'kitten' };
+        setPrompt(kp);
       }
     }
     if (!s.prompt) {
@@ -1817,6 +1875,22 @@ function init() {
             })
             .catch((err) => console.warn('Whisker Walk: ghost recordGreet failed', err));
         }
+      }
+    } else if (s.prompt.kind === 'kitten') {
+      s.kittenEnc.interact();
+      // Dispatches on the walk's fixed plan kind (set once in startWalk),
+      // never the live progression.state.kitten.stage — see the comment on
+      // session.kittenPlanKind above for why.
+      if (s.kittenPlanKind === 'trail') {
+        progression.setKittenStage(1);
+        hud.toast('A tiny mew… but nothing here. Maybe next walk. 🐾');
+        log.award('quest', 'kitten-trail', 'you followed the tiny paw prints');
+      } else if (s.kittenPlanKind === 'meet') {
+        progression.setKittenStage(2);
+        hud.toast('The kitten trusts you! She follows close. 🐱');
+        log.award('quest', 'kitten-meet', 'a lost kitten befriended');
+      } else {
+        log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
@@ -2066,6 +2140,7 @@ function init() {
     const first = album.add({
       key: subject.key, label: subject.label, area: s.areaData.name,
       thumb: thumbCanvas.toDataURL('image/jpeg', 0.6),
+      date: new Date().toISOString().slice(0, 10),
     });
     hud.toast(`📸 ${subject.label}`);
     if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);
@@ -2139,6 +2214,15 @@ function init() {
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
+      session.goldMice.update(t);
+      const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
+      if (gm && progression.recordGolden(gm.id)) {
+        log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
+        session.fx.burst(session.cat.position, 0xf2c14e, 18);
+        audio.fanfare();
+        session.goldMice.remove(gm.id);
+      }
+      session.kittenEnc.update(dt, session.cat.position);
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);

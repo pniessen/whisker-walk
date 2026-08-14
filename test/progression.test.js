@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview } from '../src/progression.js';
+import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -259,6 +259,7 @@ describe('createProgression', () => {
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+        journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -522,6 +523,139 @@ describe('v11 slots + save migration', () => {
     p.unequip('head');
     expect(p.state.equipped.head).toBeNull();
     expect(p.state.equipped.neck).toBe('necktie'); // other slots untouched
+  });
+});
+
+// v15 Collector's Journal: four additive save fields (journal sighting
+// counts, golden-mouse ids found, daily-walk streak, kitten growth stage).
+// SAVE_VERSION stays 4 — these are additive fields, not a new version — so a
+// pre-existing v4 payload missing them must load with sane defaults, and a
+// hostile cloud payload (same untrusted-input threat model as every other
+// field in sanitizeState) must have each field individually validated rather
+// than trusted wholesale.
+describe('v15 journal/golden/streak/kitten save fields', () => {
+  it('v4 save without journal/golden/streak/kitten loads with defaults', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, points: 50, equipped: { cat: 'tabby' } }) });
+    const p = createProgression(storage);
+    expect(p.state.journal).toEqual({});
+    expect(p.state.golden).toEqual([]);
+    expect(p.state.streak).toEqual({ last: null, count: 0 });
+    expect(p.state.kitten).toEqual({ stage: 0 });
+    expect(p.state.points).toBe(50); // nothing else disturbed
+  });
+
+  it('sanitizes hostile new fields', () => {
+    // Deviation from the original brief: state.golden is validated against
+    // the id-shape pattern /^gm-[a-z]+-[1-9]$/ instead of a KNOWN_GOLD set
+    // imported from src/goldmice.js — that module doesn't exist yet (it's
+    // Task 5.3), and importing it here would create a cycle/ordering
+    // dependency progression.js shouldn't have on a not-yet-existing module.
+    // 'gm-neigh-1' matches the pattern and survives; 'nope' (wrong shape)
+    // and 7 (non-string) are dropped, same as the brief's intent.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      journal: { bird: 3, dragon: 9, squirrel: '<img>' }, golden: ['gm-neigh-1', 'nope', 7],
+      streak: { last: 12, count: -3 }, kitten: { stage: 99 } }) });
+    const p = createProgression(storage);
+    expect(p.state.journal).toEqual({ bird: 3 });         // unknown type + non-numeric dropped
+    expect(p.state.golden).toEqual(['gm-neigh-1']);       // unknown/non-string dropped
+    expect(p.state.streak).toEqual({ last: null, count: 0 });
+    expect(p.state.kitten).toEqual({ stage: 3 });         // clamped
+  });
+
+  it('dedupes golden ids and drops duplicates even when the pattern matches', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      golden: ['gm-park-1', 'gm-park-1', 'gm-park-2'] }) });
+    const p = createProgression(storage);
+    expect(p.state.golden).toEqual(['gm-park-1', 'gm-park-2']);
+  });
+
+  it('caps golden ids at 64 even when a hostile payload supplies 100 unique valid-shaped ids', () => {
+    // Spreadsheet-column-style base-26 letters (a, b, ..., z, aa, ab, ...) —
+    // guarantees 100 distinct all-lowercase middle segments that genuinely
+    // satisfy GOLD_ID_PATTERN's [a-z]{1,24}. (A prior version of this test
+    // used `area${i}`, whose digits fail the letters-only pattern — every
+    // entry was silently dropped and the length-≤64 assertion passed
+    // vacuously at length 0, never exercising the cap.)
+    const toLetters = (i) => {
+      let n = i + 1;
+      let s = '';
+      while (n > 0) {
+        n -= 1;
+        s = String.fromCharCode(97 + (n % 26)) + s;
+        n = Math.floor(n / 26);
+      }
+      return s;
+    };
+    const golden = Array.from({ length: 100 }, (_, i) => `gm-${toLetters(i)}-1`);
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, golden }) });
+    const p = createProgression(storage);
+    expect(p.state.golden.length).toBe(64); // exact — proves the cap actually bites
+  });
+
+  it('drops a golden id whose middle segment is a 100-char bloat attempt', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      golden: [`gm-${'a'.repeat(100)}-1`] }) });
+    const p = createProgression(storage);
+    expect(p.state.golden).toEqual([]);
+  });
+
+  it('clamps a hostile streak count of 1e15 down to 3650', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      streak: { last: '2026-08-13', count: 1e15 } }) });
+    const p = createProgression(storage);
+    expect(p.state.streak).toEqual({ last: '2026-08-13', count: 3650 });
+  });
+
+  it('recordStreakWalk: same-day, consecutive, and gap', () => {
+    const p = createProgression(fakeStorage({}));
+    expect(p.recordStreakWalk('2026-08-13')).toEqual({ count: 1, bonus: 5 });
+    expect(p.recordStreakWalk('2026-08-13')).toEqual({ count: 1, bonus: 0 });
+    expect(p.recordStreakWalk('2026-08-14')).toEqual({ count: 2, bonus: 10 });
+    expect(p.recordStreakWalk('2026-08-20')).toEqual({ count: 1, bonus: 5 });
+  });
+
+  it('recordSighting increments known journal types and ignores unknown ones', () => {
+    const p = createProgression(fakeStorage({}));
+    p.recordSighting('bird');
+    p.recordSighting('bird');
+    p.recordSighting('dragon'); // unknown — ignored
+    expect(p.state.journal).toEqual({ bird: 2 });
+    expect(JOURNAL_TYPES).toContain('bird');
+  });
+
+  it('recordGolden returns true once per valid id, false for repeats or malformed ids', () => {
+    const p = createProgression(fakeStorage({}));
+    expect(p.recordGolden('gm-park-3')).toBe(true);
+    expect(p.recordGolden('gm-park-3')).toBe(false); // already found
+    expect(p.recordGolden('nope')).toBe(false);       // malformed
+    expect(p.state.golden).toEqual(['gm-park-3']);
+  });
+
+  it('setKittenStage clamps to 0..3 and never decreases', () => {
+    const p = createProgression(fakeStorage({}));
+    p.setKittenStage(2);
+    expect(p.state.kitten.stage).toBe(2);
+    p.setKittenStage(1); // lower — ignored
+    expect(p.state.kitten.stage).toBe(2);
+    p.setKittenStage(99); // clamped
+    expect(p.state.kitten.stage).toBe(3);
+  });
+
+  it('replaceFromPayload (cloud round-trip) preserves journal/golden/streak/kitten', () => {
+    const p = createProgression(fakeStorage({}));
+    p.replaceFromPayload({
+      version: 4, points: 0,
+      walks: { neighborhood: 0, park: 0, seaside: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
+      area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
+      journal: { bird: 4, mouse: 1 }, golden: ['gm-seaside-2'],
+      streak: { last: '2026-08-10', count: 3 }, kitten: { stage: 2 },
+    });
+    expect(p.state.journal).toEqual({ bird: 4, mouse: 1 });
+    expect(p.state.golden).toEqual(['gm-seaside-2']);
+    expect(p.state.streak).toEqual({ last: '2026-08-10', count: 3 });
+    expect(p.state.kitten).toEqual({ stage: 2 });
   });
 });
 

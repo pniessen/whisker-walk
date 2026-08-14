@@ -5,6 +5,14 @@ function isPlainObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
+// Matches progression.js's YMD_PATTERN — a plain YYYY-MM-DD calendar-date
+// string, the exact shape main.js's snapPhoto stamps onto every new photo
+// (`new Date().toISOString().slice(0, 10)`). Anything else (missing,
+// wrong type, or a hostile payload like '<img>') means the field is just
+// dropped rather than coerced, same "drop, don't guess" rule as the rest
+// of sanitizePhoto below.
+const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 // Shared by createAlbum's initial load AND replaceFromPayload below — a
 // cloud-loaded payload reads through the exact same parse path as a normal
 // boot instead of duplicating the "is this shape sane" check.
@@ -31,12 +39,14 @@ function sanitizePhoto(p) {
   if (!isPlainObject(p)) return null;
   if (typeof p.key !== 'string' || !p.key) return null;
   if (typeof p.thumb !== 'string' || !p.thumb.startsWith('data:image/')) return null;
-  return {
+  const out = {
     key: p.key,
     label: typeof p.label === 'string' ? p.label.slice(0, 80) : '',
     area: typeof p.area === 'string' ? p.area.slice(0, 80) : '',
     thumb: p.thumb,
   };
+  if (typeof p.date === 'string' && YMD_PATTERN.test(p.date)) out.date = p.date;
+  return out;
 }
 
 // Sanitizes + caps a raw album payload before it's ever written to
