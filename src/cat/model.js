@@ -16,6 +16,23 @@ const STYLE = {
 const INNER_EAR = 0xe8a0a8;
 const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, rosa: 0xd8b830, zeetoo: 0x4e9440 };
 
+// Cat Couture: palette for the twelve new per-slot accessory items (plus the
+// four re-homed ones, which keep their original colors inline below).
+const HAT_BLACK = 0x1c1c22;        // tophat
+const BEANIE_COLOR = 0xd6602f;     // cozy rust knit
+const GLASSES_FRAME = 0xd4a24c;    // thin warm frame
+const SUNGLASSES_DARK = 0x26262e;  // dark lens
+const NECKTIE_COLOR = 0x7a2436;    // maroon
+const BOWTIE_COLOR = 0x2c3e6b;     // navy
+const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
+const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
+const CAPE_COLOR = 0xd8303c;       // superhero red
+const CAPE_ACCENT = 0xf2c14e;      // gold clasp
+const WING_COLORS = [0xf29a8a, 0x9fc9a0]; // coral / sage, mirrored
+const SNEAKER_WHITE = 0xf2f2f2;
+const SNEAKER_ACCENT = 0xd8303c;
+const RAINBOOT_COLOR = 0x3a6ea5;
+
 const mat = (color) => litMaterial(color);
 
 function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
@@ -28,7 +45,7 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
 // and every interaction work unchanged: legs[0]/legs[1] are the real legs
 // (the 4-beat gait's front pair is exactly a bipedal alternating step),
 // legs[2]/legs[3] are hidden dummies, and the comb stands in for the ears.
-function buildChicken(accessories = { collar: null, outfit: null }) {
+function buildChicken(accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }) {
   const g = new THREE.Group();
   const FEATHER = 0xb06a30;
   const CREAM = 0xe8d0a8;
@@ -110,7 +127,10 @@ function buildChicken(accessories = { collar: null, outfit: null }) {
   tail.rotation.x = -0.6;
   g.add(tail);
 
-  // accessories fit a chicken just fine (a chicken in a bell collar, especially)
+  // accessories fit a chicken just fine (a chicken in a bell collar, especially) —
+  // but only head/face/neck items: a chicken has no torso, shoulders, or paws
+  // worth dressing, so body/back/feet items are skipped outright below rather
+  // than crammed onto a bird frame.
   if (accessories.collar) {
     const collarColor = accessories.collar === 'glow' ? 0x7ef2c0 : 0xd84040;
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.024, 6, 12), mat(collarColor));
@@ -123,30 +143,85 @@ function buildChicken(accessories = { collar: null, outfit: null }) {
       head.add(bell);
     }
   }
-  if (accessories.outfit === 'bandana') {
-    const tri = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.15, 3), mat(0x3a6ea5));
-    tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.16, 0.02);
-    head.add(tri);
-  }
-  if (accessories.outfit === 'booties') {
-    for (const leg of legs) {
-      if (leg.userData.paw) leg.userData.paw.material = mat(0xf2c14e);
-    }
-  }
-  if (accessories.outfit === 'backpack') {
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.09), mat(0x3a6ea5));
-    pack.position.set(0, 0.6, 0.16);
-    g.add(pack);
-  }
-  if (accessories.outfit === 'crown') {
+
+  // head: hats sit between the comb and the beak, scaled down for a chicken skull
+  if (accessories.head === 'crown') {
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       const petal = ball(0.024, [0xf2a0c0, 0xf2e04e, 0xffffff][i % 3], 1, 1, 1, 5, 4);
       petal.position.set(Math.cos(a) * 0.09, 0.2, Math.sin(a) * 0.06);
       head.add(petal);
     }
+  } else if (accessories.head === 'tophat') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.015, 10), mat(HAT_BLACK));
+    brim.position.set(0, 0.19, 0);
+    head.add(brim);
+    const crownPart = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.1, 10), mat(HAT_BLACK));
+    crownPart.position.set(0, 0.24, 0);
+    head.add(crownPart);
+  } else if (accessories.head === 'beanie') {
+    const cap = ball(0.11, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
+    cap.position.set(0, 0.2, 0);
+    head.add(cap);
+    const pompom = ball(0.026, 0xf5f5f5, 1, 1, 1, 6, 5);
+    pompom.position.set(0, 0.28, 0);
+    head.add(pompom);
   }
+
+  // face: two small frames at eye level plus a bridge
+  if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
+    const dark = accessories.face === 'sunglasses';
+    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
+    for (const side of [-1, 1]) {
+      const lens = dark
+        ? ball(0.024, frameColor, 1, 1, 0.4, 8, 6)
+        : new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.005, 6, 10), mat(frameColor));
+      lens.position.set(side * 0.09, 0.03, -0.1);
+      head.add(lens);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.005, 0.005), mat(frameColor));
+    bridge.position.set(0, 0.03, -0.1);
+    head.add(bridge);
+  }
+
+  // neck: at the neck seam, just below the wattle — a chicken in a bowtie is the joke
+  if (accessories.neck === 'bandana') {
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.15, 3), mat(0x3a6ea5));
+    tri.rotation.x = Math.PI;
+    tri.position.set(0, -0.16, 0.02);
+    head.add(tri);
+  } else if (accessories.neck === 'necktie') {
+    const knot = ball(0.022, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
+    knot.position.set(0, -0.14, 0.03);
+    head.add(knot);
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), mat(NECKTIE_COLOR));
+    blade.rotation.x = Math.PI;
+    blade.position.set(0, -0.24, 0.05);
+    head.add(blade);
+  } else if (accessories.neck === 'bowtie') {
+    const knot = ball(0.02, BOWTIE_COLOR, 1, 1, 1, 6, 5);
+    knot.position.set(0, -0.14, 0.03);
+    head.add(knot);
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.04, 3), mat(BOWTIE_COLOR));
+      wing.rotation.z = -side * (Math.PI / 2);
+      wing.position.set(side * 0.04, -0.14, 0.035);
+      head.add(wing);
+    }
+  } else if (accessories.neck === 'scarf') {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.024, 6, 12), mat(SCARF_COLOR));
+    band.rotation.x = Math.PI / 2 + 0.3;
+    band.position.set(0, -0.12, 0.04);
+    head.add(band);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.1, 0.015), mat(SCARF_COLOR));
+    tail.position.set(0.04, -0.2, 0.06);
+    tail.rotation.z = 0.15;
+    head.add(tail);
+  }
+
+  // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
+  // bird frame — hoodie/cape, wings/backpack, and sneakers/rainboots/booties
+  // are all skipped here rather than rendered floating or mis-anchored.
 
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
@@ -154,7 +229,7 @@ function buildChicken(accessories = { collar: null, outfit: null }) {
   return g;
 }
 
-export function buildCat(breed, accessories = { collar: null, outfit: null }, opts = {}) {
+export function buildCat(breed, accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, opts = {}) {
   if (breed === 'hagrid') return buildChicken(accessories);
   const s = STYLE[breed];
   const g = new THREE.Group();
@@ -309,7 +384,11 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }, op
     head.add(headPatch);
   }
 
-  // accessories — head-parented so they track poses
+  // accessories — head/g-parented so they track poses; every item here is
+  // added BEFORE the final g.scale.setScalar(s.scale) below, so all of its
+  // dimensions and offsets are automatically scaled with the breed (same
+  // idiom the body/head/legs already rely on) — a Persian (1.05x) and a
+  // Maine Coon (1.3x) both get a proportionally-sized outfit for free.
   if (accessories.collar) {
     const collarColor = accessories.collar === 'glow' ? 0x7ef2c0 : 0xd84040;
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.028, 6, 12), mat(collarColor));
@@ -322,29 +401,142 @@ export function buildCat(breed, accessories = { collar: null, outfit: null }, op
       head.add(bell);
     }
   }
-  if (accessories.outfit === 'bandana') {
-    const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
-    tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.18, 0.02);
-    head.add(tri);
-  }
-  if (accessories.outfit === 'booties') {
-    for (const leg of legs) {
-      leg.userData.paw.material = mat(0xf2c14e);
-      leg.userData.paw.scale.multiplyScalar(1.15);
-    }
-  }
-  if (accessories.outfit === 'backpack') {
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.13, 0.1), mat(0x3a6ea5));
-    pack.position.set(0, 0.56, 0.12);
-    g.add(pack);
-  }
-  if (accessories.outfit === 'crown') {
+
+  // head: above the skull, hats sit between the ears
+  if (accessories.head === 'crown') {
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       const petal = ball(0.026, [0xf2a0c0, 0xf2e04e, 0xffffff][i % 3], 1, 1, 1, 5, 4);
       petal.position.set(Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.07);
       head.add(petal);
+    }
+  } else if (accessories.head === 'tophat') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 10), mat(HAT_BLACK));
+    brim.position.set(0, 0.23, 0);
+    head.add(brim);
+    const crownPart = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.14, 10), mat(HAT_BLACK));
+    crownPart.position.set(0, 0.3, 0);
+    head.add(crownPart);
+  } else if (accessories.head === 'beanie') {
+    const cap = ball(0.14, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
+    cap.position.set(0, 0.25, 0);
+    head.add(cap);
+    const pompom = ball(0.032, 0xf5f5f5, 1, 1, 1, 6, 5);
+    pompom.position.set(0, 0.35, 0);
+    head.add(pompom);
+  }
+
+  // face: eye level — two small frames plus a bridge
+  if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
+    const dark = accessories.face === 'sunglasses';
+    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
+    for (const side of [-1, 1]) {
+      const lens = dark
+        ? ball(0.032, frameColor, 1, 1, 0.4, 8, 6)
+        : new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 10), mat(frameColor));
+      lens.position.set(side * 0.083, 0.03, -0.17);
+      head.add(lens);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.006), mat(frameColor));
+    bridge.position.set(0, 0.03, -0.17);
+    head.add(bridge);
+  }
+
+  // neck: at the neck seam, where the collar also sits
+  if (accessories.neck === 'bandana') {
+    const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
+    tri.rotation.x = Math.PI;
+    tri.position.set(0, -0.18, 0.02);
+    head.add(tri);
+  } else if (accessories.neck === 'necktie') {
+    const knot = ball(0.028, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
+    knot.position.set(0, -0.17, 0.04);
+    head.add(knot);
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.22, 4), mat(NECKTIE_COLOR));
+    blade.rotation.x = Math.PI;
+    blade.position.set(0, -0.32, 0.08);
+    head.add(blade);
+  } else if (accessories.neck === 'bowtie') {
+    const knot = ball(0.026, BOWTIE_COLOR, 1, 1, 1, 6, 5);
+    knot.position.set(0, -0.17, 0.04);
+    head.add(knot);
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.05, 3), mat(BOWTIE_COLOR));
+      wing.rotation.z = -side * (Math.PI / 2);
+      wing.position.set(side * 0.05, -0.17, 0.045);
+      head.add(wing);
+    }
+  } else if (accessories.neck === 'scarf') {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12), mat(SCARF_COLOR));
+    band.rotation.x = Math.PI / 2 + 0.35;
+    band.position.set(0, -0.15, 0.08);
+    head.add(band);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), mat(SCARF_COLOR));
+    tail.position.set(0.06, -0.28, 0.1);
+    tail.rotation.z = 0.15;
+    head.add(tail);
+  }
+
+  // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down
+  if (accessories.body === 'hoodie') {
+    const shell = ball(0.33, HOODIE_COLOR, 0.88, 0.78, 1.32, 10, 8);
+    shell.position.set(0, 0.35, 0.02);
+    g.add(shell);
+    // hood-up/hood-down rule: a hat needs the head clear, so the hood only
+    // goes up when no head item is equipped — otherwise it bunches at the neck.
+    if (!accessories.head) {
+      const hood = ball(0.17, HOODIE_COLOR, 1, 1, 0.9, 8, 6);
+      hood.position.set(0, 0.64, -0.28);
+      g.add(hood);
+    } else {
+      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(HOODIE_COLOR));
+      bunch.rotation.x = Math.PI / 2 + 0.3;
+      bunch.position.set(0, 0.5, -0.36);
+      g.add(bunch);
+    }
+  } else if (accessories.body === 'cape') {
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(CAPE_COLOR));
+    cape.position.set(0, 0.28, 0.45);
+    cape.rotation.x = -0.15;
+    g.add(cape);
+    const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
+    clasp.position.set(0, 0.48, 0.28);
+    g.add(clasp);
+  }
+
+  // back: behind the shoulders
+  if (accessories.back === 'backpack') {
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.13, 0.1), mat(0x3a6ea5));
+    pack.position.set(0, 0.56, 0.12);
+    g.add(pack);
+  } else if (accessories.back === 'wings') {
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.02), mat(WING_COLORS[side === -1 ? 0 : 1]));
+      wing.position.set(side * 0.22, 0.44, 0.3);
+      wing.rotation.z = side * 0.5;
+      wing.rotation.y = side * 0.3;
+      g.add(wing);
+    }
+  }
+
+  // feet: small shells on the paw positions
+  if (accessories.feet === 'booties') {
+    for (const leg of legs) {
+      leg.userData.paw.material = mat(0xf2c14e);
+      leg.userData.paw.scale.multiplyScalar(1.15);
+    }
+  } else if (accessories.feet === 'sneakers') {
+    for (const leg of legs) {
+      leg.userData.paw.material = mat(SNEAKER_WHITE);
+      leg.userData.paw.scale.set(1.2, 0.95, 1.25);
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.09), mat(SNEAKER_ACCENT));
+      stripe.position.set(0, -0.27, 0);
+      leg.add(stripe);
+    }
+  } else if (accessories.feet === 'rainboots') {
+    for (const leg of legs) {
+      leg.userData.paw.material = mat(RAINBOOT_COLOR);
+      leg.userData.paw.scale.set(1.15, 1.4, 1.15);
     }
   }
 

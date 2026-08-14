@@ -292,7 +292,15 @@ function init() {
       playerId: pid,
       petName: st.petName,
       breed: st.equipped.cat,
-      accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
+      accessories: {
+        collar: st.equipped.collar,
+        head: st.equipped.head,
+        face: st.equipped.face,
+        neck: st.equipped.neck,
+        body: st.equipped.body,
+        back: st.equipped.back,
+        feet: st.equipped.feet,
+      },
     };
   }
 
@@ -317,7 +325,15 @@ function init() {
       secret: getPsecret(),
       petName: st.petName,
       breed: st.equipped.cat,
-      accessories: { collar: st.equipped.collar, outfit: st.equipped.outfit },
+      accessories: {
+        collar: st.equipped.collar,
+        head: st.equipped.head,
+        face: st.equipped.face,
+        neck: st.equipped.neck,
+        body: st.equipped.body,
+        back: st.equipped.back,
+        feet: st.equipped.feet,
+      },
       rankTitle: rankFor(st.lifetimePoints).title,
     }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
   }
@@ -765,7 +781,7 @@ function init() {
     }
   });
   bus.on('villager:wave', ({ id }) => {
-    if (session && progression.state.equipped.outfit === 'bandana') {
+    if (session && progression.state.equipped.neck === 'bandana') {
       log.award('perk', `wave-${id}`, 'a friendly wave back');
     }
   });
@@ -973,7 +989,12 @@ function init() {
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
-      outfit: state.equipped.outfit,
+      head: state.equipped.head,
+      face: state.equipped.face,
+      neck: state.equipped.neck,
+      body: state.equipped.body,
+      back: state.equipped.back,
+      feet: state.equipped.feet,
     });
     cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
     cat.rotation.y = 0; // rotation 0 faces -z, into the area
@@ -1030,7 +1051,7 @@ function init() {
     const critters = createCritters(scene, areaData.critterSpawns, {
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
-      trailButterflies: equipped.outfit === 'crown',           // crown: butterflies trail the cat
+      trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
     });
 
     const collectibleMeshes = new Map();
@@ -1145,7 +1166,7 @@ function init() {
       tippables,
       scent,
       quest, questGiver, questObject,
-      walk: { carried: 0, carryCap: equipped.outfit === 'backpack' ? 3 : 2 },
+      walk: { carried: 0, carryCap: equipped.back === 'backpack' ? 3 : 2 },
       momentTimer: 40,
       activeMoment: null,
       prompt: null,
@@ -1440,7 +1461,7 @@ function init() {
       const inPuddle = Math.hypot(pd.x - cat.position.x, pd.z - cat.position.z) < pd.r + 0.2;
       if (!inPuddle) continue;
       const key = `puddle-${pd.x}-${pd.z}`;
-      if (progression.state.equipped.outfit === 'booties') {
+      if (progression.state.equipped.feet === 'booties') {
         log.awardOnce('perk', key, 'a joyful puddle splash');
       } else if (p.special !== 'steady' && !s.balkedPuddles.has(key)) {
         s.balkedPuddles.add(key);

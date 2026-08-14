@@ -68,7 +68,7 @@ function renderAllUnsafe() {
   const accessories = {};
   for (const id of Object.keys(CATALOG.accessories)) {
     const slot = CATALOG.accessories[id].slot;
-    const worn = buildCat('tabby', slot === 'collar' ? { collar: id, outfit: null } : { collar: null, outfit: id });
+    const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
     // head-worn items read best close up; booties/backpack need the whole cat,
     // and the backpack sits on the back so it gets a rear-quarter angle
     const closeUp = id !== 'booties' && id !== 'backpack';
