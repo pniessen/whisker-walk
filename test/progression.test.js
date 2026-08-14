@@ -403,14 +403,21 @@ describe('v11 slots + save migration', () => {
     }
   });
 
-  it('re-homes the old outfit item into its new slot on a v3 save', () => {
+  it('re-homes the old outfit item into its new slot on a v3 save, preserving every other persisted field', () => {
     const cases = [['bandana', 'neck'], ['booties', 'feet'], ['backpack', 'back'], ['crown', 'head']];
     for (const [item, slot] of cases) {
       const store = fakeStorage();
+      // Every persisted field below is deliberately set to a distinctive,
+      // non-default value so a migration that silently rebuilds the object
+      // from a partial field list (e.g. dropping lifetimePoints/bestWalk/
+      // friends) would show up as a failing assertion here rather than
+      // slipping through unnoticed.
       store.setItem('whisker-walk-save', JSON.stringify({
-        version: 3, points: 120, lifetimePoints: 300, bestWalk: 40, area: 'neighborhood',
-        walks: {}, friends: {}, petName: 'Zeetoo', discovered: [],
-        unlocked: { cats: ['tabby'], accessories: ['bell', item], areas: ['neighborhood'] },
+        version: 3, points: 120, lifetimePoints: 300, bestWalk: 40, area: 'park',
+        walks: { neighborhood: 5, park: 2, seaside: 0 },
+        friends: { Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } },
+        petName: 'Zeetoo',
+        unlocked: { cats: ['tabby', 'black'], accessories: ['bell', 'glow', item], areas: ['neighborhood', 'park'] },
         equipped: { cat: 'tabby', collar: 'bell', outfit: item },
       }));
       const p = createProgression(store);
@@ -418,9 +425,16 @@ describe('v11 slots + save migration', () => {
       expect(p.state.equipped[slot]).toBe(item);   // re-homed, not lost
       expect(p.state.equipped.collar).toBe('bell'); // collar preserved
       expect(p.state.equipped.outfit).toBeUndefined();
-      expect(p.state.points).toBe(120);             // progress preserved
+      expect(p.state.points).toBe(120);
+      expect(p.state.lifetimePoints).toBe(300);     // veteran rank must survive
+      expect(p.state.bestWalk).toBe(40);             // best-walk record must survive
+      expect(p.state.area).toBe('park');
+      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0 });
+      expect(p.state.friends).toEqual({ Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } });
       expect(p.state.petName).toBe('Zeetoo');
-      expect(p.state.unlocked.accessories).toContain(item);
+      expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black', 'siamese', 'persian']));
+      expect(p.state.unlocked.accessories).toEqual(expect.arrayContaining(['bell', 'glow', item]));
+      expect(p.state.unlocked.areas).toEqual(expect.arrayContaining(['neighborhood', 'park']));
     }
   });
 
@@ -428,7 +442,7 @@ describe('v11 slots + save migration', () => {
     const store = fakeStorage();
     store.setItem('whisker-walk-save', JSON.stringify({
       version: 3, points: 10, lifetimePoints: 10, bestWalk: 0, area: 'neighborhood',
-      walks: {}, friends: {}, petName: null, discovered: [],
+      walks: {}, friends: {}, petName: null,
       unlocked: { cats: ['tabby'], accessories: ['bell'], areas: ['neighborhood'] },
       equipped: { cat: 'tabby', collar: 'bell', outfit: null },
     }));
@@ -440,7 +454,7 @@ describe('v11 slots + save migration', () => {
     const store = fakeStorage();
     store.setItem('whisker-walk-save', JSON.stringify({
       version: 4, points: 0, lifetimePoints: 0, bestWalk: 0, area: 'neighborhood',
-      walks: {}, friends: {}, petName: null, discovered: [],
+      walks: {}, friends: {}, petName: null,
       unlocked: { cats: ['tabby'], accessories: ['bell', 'tophat'], areas: ['neighborhood'] },
       equipped: { cat: 'tabby', collar: 'bell', head: 'bandana', face: 'nope', neck: 42, body: null, back: null, feet: 'sneakers' },
     }));
@@ -450,6 +464,51 @@ describe('v11 slots + save migration', () => {
     expect(p.state.equipped.neck).toBeNull();  // not a string
     expect(p.state.equipped.feet).toBeNull();  // sneakers not unlocked
     expect(p.state.equipped.collar).toBe('bell');
+  });
+
+  it('a v3 save whose equipped.outfit names an id not in the catalog migrates without throwing, leaving all six slots null', () => {
+    const store = fakeStorage();
+    store.setItem('whisker-walk-save', JSON.stringify({
+      version: 3, points: 55, lifetimePoints: 200, bestWalk: 15, area: 'neighborhood',
+      walks: { neighborhood: 3, park: 0, seaside: 0 },
+      friends: { Pickles: { breed: 'tabby', greets: 2, lastWalk: 'walk-2' } },
+      petName: 'Mochi',
+      unlocked: { cats: ['tabby'], accessories: ['bell'], areas: ['neighborhood'] },
+      equipped: { cat: 'tabby', collar: 'bell', outfit: 'oldhat' }, // 'oldhat' was retired, no longer in CATALOG.accessories
+    }));
+    expect(() => createProgression(store)).not.toThrow();
+    const p = createProgression(store);
+    expect(p.state.version).toBe(4);
+    for (const s of SLOTS) expect(p.state.equipped[s]).toBeNull();
+    expect(p.state.equipped.collar).toBe('bell');
+    expect(p.state.points).toBe(55);
+    expect(p.state.lifetimePoints).toBe(200);
+    expect(p.state.bestWalk).toBe(15);
+    expect(p.state.friends).toEqual({ Pickles: { breed: 'tabby', greets: 2, lastWalk: 'walk-2' } });
+    expect(p.state.petName).toBe('Mochi');
+    expect(p.state.unlocked.accessories).toContain('bell');
+  });
+
+  it('a v3 save with equipped missing entirely (or null) migrates without throwing, defaulting equipped while preserving points/unlocks', () => {
+    for (const equipped of [undefined, null]) {
+      const store = fakeStorage();
+      const payload = {
+        version: 3, points: 33, lifetimePoints: 90, bestWalk: 5, area: 'neighborhood',
+        walks: { neighborhood: 1, park: 0, seaside: 0 }, friends: {}, petName: null,
+        unlocked: { cats: ['tabby', 'black'], accessories: ['bell'], areas: ['neighborhood'] },
+        ...(equipped === undefined ? {} : { equipped }),
+      };
+      store.setItem('whisker-walk-save', JSON.stringify(payload));
+      expect(() => createProgression(store)).not.toThrow();
+      const p = createProgression(store);
+      expect(p.state.version).toBe(4);
+      expect(p.state.equipped).toEqual({
+        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null,
+      });
+      expect(p.state.points).toBe(33);
+      expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black']));
+      expect(p.state.unlocked.accessories).toContain('bell');
+    }
   });
 
   it('equips and unequips independently per slot', () => {
