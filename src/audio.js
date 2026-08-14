@@ -96,8 +96,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     bp.frequency.setValueAtTime(filt0, t0);
     bp.frequency.linearRampToValueAtTime(filt1, t0 + dur);
     const g = ac.createGain();
+    // exponentialRampToValueAtTime throws a synchronous RangeError on a
+    // non-positive target — clamp away from zero since `gain` here is
+    // caller/data-driven (volume * voice.gain), unlike tone()'s constants.
+    const amp = Math.max(gain, 0.0001);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.04);
+    g.gain.exponentialRampToValueAtTime(amp, t0 + 0.04);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     osc.connect(bp).connect(g).connect(master);
     osc.start(t0); vib.start(t0);
@@ -156,7 +160,6 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       const rumble = ac.createOscillator();
       rumble.type = 'sine'; rumble.frequency.value = 52;
       const g = ac.createGain();
-      g.gain.value = 0.0001;
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.linearRampToValueAtTime(0.11, t0 + 0.15);
       g.gain.setValueAtTime(0.11, t0 + duration - 0.25);
