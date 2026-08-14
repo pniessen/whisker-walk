@@ -5,6 +5,12 @@ import { HOME_TABS, resolveTab } from './hometabs.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
+// Cat Couture (Task 3): the Accessories section is grouped by slot, in this
+// fixed display order — independent of CATALOG.accessories' insertion order,
+// so adding a new item to the catalog can't silently reorder the headings.
+const ACCESSORY_SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
+const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
+
 const TAB_LABEL = { play: '🎽 Play', social: '🐾 Social', album: '📸 Album', settings: '⚙️ Settings' };
 
 const CAT_BLURBS = {
@@ -427,9 +433,18 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <section><h2>Your cat</h2><div class="cards">
               ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}
             </div></section>
-            <section><h2>Accessories</h2><div class="cards">
-              ${Object.entries(CATALOG.accessories).map(([id, a]) => card('accessories', id, a, `on (${a.slot})`)).join('')}
-            </div></section>
+            <section><h2>Accessories</h2>
+              ${ACCESSORY_SLOTS.map((slot) => {
+                const items = Object.entries(CATALOG.accessories).filter(([, a]) => a.slot === slot);
+                if (!items.length) return '';
+                return `<div class="accessory-slot">
+                  <h3>${SLOT_LABEL[slot]}</h3>
+                  <div class="cards">
+                    ${items.map(([id, a]) => card('accessories', id, a, 'on')).join('')}
+                  </div>
+                </div>`;
+              }).join('')}
+            </section>
             <section><h2>Where to?</h2><div class="cards">
               ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
             </div></section>

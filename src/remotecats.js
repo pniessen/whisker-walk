@@ -71,7 +71,9 @@ export function createRemoteCats(scene) {
       ? profile.breed
       : 'tabby';
     const petName = validPetName(profile.petName) ? profile.petName : 'Mystery Cat';
-    return { ...profile, breed, petName };
+    const accessories =
+      profile.accessories && typeof profile.accessories === 'object' ? profile.accessories : {};
+    return { ...profile, breed, petName, accessories };
   }
 
   function upsert(rawProfile, now = defaultNow()) {
