@@ -1362,7 +1362,7 @@ function init() {
     touchUI.setVisible(isTouch);
 
     catVoice();
-    audio.startAmbient(areaId);
+    audio.startAmbient(areaId, { dusk: duskActive, rain: weather.condition === 'rain' });
   }
 
   function endWalk() {
