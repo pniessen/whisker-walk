@@ -17,12 +17,21 @@ function touchDirection(vec, yaw) {
   return new THREE.Vector3(vec.x, 0, vec.z).applyAxisAngle(UP, yaw);
 }
 
-// Pure zoomies state machine. `active && !stalking && speedRatio > 0.85`
-// (full-speed running, not stalking) charges for 1.5s of accumulated time,
-// then flips to `zooming`. Any stop or stalk resets instantly — no charge
-// carries over, so a jittery input can't "bank" partial charge.
-export function zoomState(prev, dt, { active, stalking, speedRatio }) {
-  const running = active && !stalking && speedRatio > 0.85;
+// Pure zoomies state machine. `active && !stalking && speedRatio > 0.85 &&
+// speedFactor > 0` (full-speed running, not stalking, not frozen) charges
+// for 1.5s of accumulated time, then flips to `zooming`. Any stop, stalk, or
+// freeze resets instantly — no charge carries over, so a jittery input can't
+// "bank" partial charge.
+//
+// speedFactor gates the running condition directly (rather than leaving
+// freeze-detection to speedRatio alone) because speedRatio's denominator is
+// `pace * speedFactor || 1` — when speedFactor is 0 that denominator falls
+// back to 1, so residual velocity from before a freeze can push speedRatio
+// past 0.85 and falsely read as "still running". Requiring speedFactor > 0
+// here makes the reset correct regardless of whether a given freeze call
+// site (e.g. a puddle balk) remembers to also call player.halt().
+export function zoomState(prev, dt, { active, stalking, speedRatio, speedFactor = 1 }) {
+  const running = active && !stalking && speedRatio > 0.85 && speedFactor > 0;
   if (!running) return { charging: false, zooming: false, time: 0 };
   const time = prev.time + dt;
   const zooming = prev.zooming || time >= 1.5;
@@ -128,7 +137,7 @@ export function createPlayer(camera, canvas) {
       // running" (the zoomies charge condition) means.
       const targetSpeedDenom = pace * api.speedFactor || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
       const speedRatio = velocity.length() / Math.max(Math.abs(targetSpeedDenom), 0.0001);
-      zoom = zoomState(zoom, dt, { active: api.inputActive, stalking: api.stalking, speedRatio });
+      zoom = zoomState(zoom, dt, { active: api.inputActive, stalking: api.stalking, speedRatio, speedFactor: api.speedFactor });
       const zoomPace = zoom.zooming ? pace * 1.55 : pace;
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);

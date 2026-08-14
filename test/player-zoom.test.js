@@ -17,4 +17,18 @@ describe('zoomState', () => {
     s = zoomState({ charging: true, zooming: true, time: 2 }, 0.1, { ...RUN, active: false });
     expect(s.zooming).toBe(false);
   });
+  it('resets instantly when frozen (speedFactor 0), even with residual speedRatio', () => {
+    // Regression: a freeze site (e.g. puddle balk) that sets freezeTime
+    // without calling player.halt() leaves residual velocity, which can
+    // spike speedRatio past 0.85 via the pace*speedFactor||1 fallback.
+    // speedFactor must gate zoomState directly so this can't read as
+    // "still running".
+    const s = zoomState(
+      { charging: true, zooming: true, time: 2 },
+      0.1,
+      { active: true, stalking: false, speedRatio: 2, speedFactor: 0 }
+    );
+    expect(s.zooming).toBe(false);
+    expect(s.time).toBe(0);
+  });
 });
