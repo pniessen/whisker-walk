@@ -65,13 +65,20 @@ function renderAllUnsafe() {
     cats[breed] = snap(buildCat(breed), false);
   }
 
+  // items worn on the feet/back/torso (booties, sneakers, rainboots,
+  // backpack, wings, cape, hoodie) sit well outside a head close-up, so
+  // they need the whole-cat framing; head/face/neck-worn items (collar,
+  // head, face, neck slots) still read best close up. Driven by slot
+  // rather than a hardcoded id list so future catalog items frame
+  // correctly automatically.
+  const wholeCatSlots = new Set(['feet', 'back', 'body']);
+
   const accessories = {};
   for (const id of Object.keys(CATALOG.accessories)) {
     const slot = CATALOG.accessories[id].slot;
     const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
-    // head-worn items read best close up; booties/backpack need the whole cat,
-    // and the backpack sits on the back so it gets a rear-quarter angle
-    const closeUp = id !== 'booties' && id !== 'backpack';
+    const closeUp = !wholeCatSlots.has(slot);
+    // the backpack sits on the back so it gets a rear-quarter angle
     accessories[id] = snap(worn, closeUp, id === 'backpack' ? -2.4 : -0.45);
   }
 
