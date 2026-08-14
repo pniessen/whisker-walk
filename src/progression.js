@@ -198,6 +198,8 @@ function sanitizeState(parsed) {
 // shape and routing it through this same function, rather than duplicating
 // the re-homing logic).
 function migrateV3ToV4(parsed) {
+  // AUDIT CARVE-OUT: the only permitted live 'outfit' reads in src/ — this
+  // migration must read the legacy field by name to re-home old saves.
   const worn = parsed.equipped?.outfit;
   const slot = typeof worn === 'string' ? CATALOG.accessories[worn]?.slot : null;
   const { outfit, ...rest } = parsed.equipped ?? {};
