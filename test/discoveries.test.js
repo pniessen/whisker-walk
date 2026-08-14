@@ -71,4 +71,10 @@ describe('createDiscoveryLog', () => {
     expect(AWARDS.duet).toBe(5);
     expect(AWARDS.boop).toBe(5);
   });
+
+  it('defines the v6 co-walk verb award values', () => {
+    expect(AWARDS.tag).toBe(8);
+    expect(AWARDS.groom).toBe(6);
+    expect(AWARDS.duogoal).toBe(20);
+  });
 });

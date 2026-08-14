@@ -7,6 +7,7 @@ export const AWARDS = {
   goal: 15, jackpot: 40, gift: 10,
   rally: 6, nappile: 10, duet: 5, boop: 5,
   hunt: 12,
+  tag: 8, groom: 6, duogoal: 20,
 };
 
 export function createDiscoveryLog(progression) {

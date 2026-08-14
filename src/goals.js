@@ -36,5 +36,23 @@ export function createGoals(rng) {
       }
       return result;
     },
+    // Duo-goal remote path: advances the SAME shared goal from a partner's
+    // 'goal-progress' network event, so both co-walkers' progress bars stay
+    // in lockstep even though only one side performed the actual action.
+    // Deliberately narrow — only touches a goal matching `goalId` that is
+    // flagged `duo` — and never broadcasts, so main.js can call this from
+    // applyRemoteEvent without an echo loop back onto the wire.
+    noteDuoRemote(goalId) {
+      const g = goals.find((x) => x.id === goalId && x.duo);
+      if (!g || g.done) return {};
+      g.progress += 1;
+      const result = {};
+      if (g.progress >= g.target) {
+        g.done = true;
+        result.completed = g;
+        if (goals.every((x) => x.done)) result.jackpot = true;
+      }
+      return result;
+    },
   };
 }
