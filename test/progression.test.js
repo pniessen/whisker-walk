@@ -570,10 +570,26 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
   });
 
   it('caps golden ids at 64 even when a hostile payload supplies 100 unique valid-shaped ids', () => {
-    const golden = Array.from({ length: 100 }, (_, i) => `gm-area${i}-1`);
+    // Spreadsheet-column-style base-26 letters (a, b, ..., z, aa, ab, ...) —
+    // guarantees 100 distinct all-lowercase middle segments that genuinely
+    // satisfy GOLD_ID_PATTERN's [a-z]{1,24}. (A prior version of this test
+    // used `area${i}`, whose digits fail the letters-only pattern — every
+    // entry was silently dropped and the length-≤64 assertion passed
+    // vacuously at length 0, never exercising the cap.)
+    const toLetters = (i) => {
+      let n = i + 1;
+      let s = '';
+      while (n > 0) {
+        n -= 1;
+        s = String.fromCharCode(97 + (n % 26)) + s;
+        n = Math.floor(n / 26);
+      }
+      return s;
+    };
+    const golden = Array.from({ length: 100 }, (_, i) => `gm-${toLetters(i)}-1`);
     const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, golden }) });
     const p = createProgression(storage);
-    expect(p.state.golden.length).toBeLessThanOrEqual(64);
+    expect(p.state.golden.length).toBe(64); // exact — proves the cap actually bites
   });
 
   it('drops a golden id whose middle segment is a 100-char bloat attempt', () => {
