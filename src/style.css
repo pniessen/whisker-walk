@@ -156,6 +156,20 @@ body.left-handed .tui-pause {
 .photos img { width: 100%; border-radius: 6px; display: block; }
 .photos figcaption { font-size: 0.8rem; color: #a8c0e0; margin-top: 6px; }
 
+/* Framed album photos (Task 5.5): a cream mat + slight alternating tilt so
+   the grid reads like a scattered photo album rather than a plain grid —
+   uses the wordmark's cream (#f1e0c2) for the border, matching Whisker
+   Walk's existing palette rather than introducing a new tone. */
+.photos .photo-framed {
+  background: #f1e0c2; border: 1px solid #d8bd8f; border-radius: 6px;
+  padding: 8px 8px 10px; transform: rotate(-1.5deg);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+}
+.photos .photo-framed:nth-child(odd) { transform: rotate(1.5deg); }
+.photos .photo-framed:hover { transform: rotate(0deg); }
+.photos .photo-framed img { border-radius: 3px; }
+.photos .photo-framed figcaption { color: #3a2a10; font-weight: 600; }
+
 .journal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
 .journal-card {
   background: rgba(255,255,255,0.07); border-radius: 10px; padding: 10px 8px;

@@ -1412,6 +1412,13 @@ function init() {
   function endWalk() {
     if (!session) return;
     progression.completeWalk();
+    // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
+    // computed, so the streak bonus is folded into this walk's own "whisker
+    // points" total rather than silently landing in the next walk's earned
+    // count.
+    const today = new Date().toISOString().slice(0, 10);
+    const streak = progression.recordStreakWalk(today);
+    if (streak.bonus > 0) progression.addPoints(streak.bonus);
     pushProfileNow(); // refresh the public profile (rank/equip may have changed) while a petName exists
 
     // compute summary numbers while the session is still live
@@ -1439,6 +1446,7 @@ function init() {
         <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
       </div>
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
@@ -2132,6 +2140,7 @@ function init() {
     const first = album.add({
       key: subject.key, label: subject.label, area: s.areaData.name,
       thumb: thumbCanvas.toDataURL('image/jpeg', 0.6),
+      date: new Date().toISOString().slice(0, 10),
     });
     hud.toast(`📸 ${subject.label}`);
     if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);

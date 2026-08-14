@@ -139,6 +139,31 @@ describe('createAlbum', () => {
       expect(album.photos[0].area).toHaveLength(80);
     });
 
+    it('drops a hostile date field but keeps the rest of the photo', () => {
+      const storage = fakeStorage();
+      const album = createAlbum(storage);
+
+      album.replaceFromPayload({
+        version: 1,
+        photos: [{ key: 'k', label: 'fine', area: 'X', thumb: 'data:image/png;base64,AAAA', date: '<img>' }],
+      });
+
+      expect(album.photos).toHaveLength(1);
+      expect(album.photos[0].date).toBeUndefined();
+    });
+
+    it('keeps a valid YYYY-MM-DD date across a serialize()/replaceFromPayload round-trip', () => {
+      const storage = fakeStorage();
+      const album = createAlbum(storage);
+      album.add({ key: 'a', label: 'a', area: 'X', thumb: 'data:image/png;base64,AAAA', date: '2026-08-13' });
+
+      const donorStorage = fakeStorage();
+      const donor = createAlbum(donorStorage);
+      donor.replaceFromPayload(album.serialize());
+
+      expect(donor.photos).toEqual([{ key: 'a', label: 'a', area: 'X', thumb: 'data:image/png;base64,AAAA', date: '2026-08-13' }]);
+    });
+
     it('enforces the cap, keeping only the newest entries', () => {
       const storage = fakeStorage();
       const album = createAlbum(storage, 3);
