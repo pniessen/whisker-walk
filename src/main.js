@@ -18,6 +18,7 @@ import { createQuest } from './quests.js';
 import { createProgression, rankFor, summarizeSaveForPreview } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
+import { createFx } from './fx.js';
 import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
@@ -745,7 +746,10 @@ function init() {
     if (!session?.goals) return;
     const res = session.goals.note(type);
     hud.setGoals(session.goals.goals);
-    if (res.completed) log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+    if (res.completed) {
+      log.award('goal', `goal-${res.completed.id}`, `goal complete: ${res.completed.text}`);
+      session.fx?.burst(session.cat.position, 0x8ae08a, 14);
+    }
     if (res.jackpot) log.award('jackpot', 'jackpot', 'ALL GOALS COMPLETE! 🎯');
   }
 
@@ -759,9 +763,10 @@ function init() {
     }
   });
 
-  bus.on('discovery', ({ type }) => {
+  bus.on('discovery', ({ type, points }) => {
     hud.setPoints(progression.state.points);
     audio.chime();
+    if (session?.fx && points > 0) session.fx.popup(session.cat.position, `+${points} 🐾`);
     if (session && type !== 'goal' && type !== 'jackpot') session.discoveryCount += 1;
     noteGoal(type);
     if (session) {
@@ -861,6 +866,7 @@ function init() {
     if (session.perched) {
       session.perched = null;                    // hop down
       player.perchY = 0;
+      session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else {
       const perch = (session.areaData.perches ?? []).find((pp) => {
         // high perches (car roofs etc.) sit at a collider's own center, so the
@@ -1169,6 +1175,7 @@ function init() {
       catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
+      fx: createFx(scene, { reducedMotion: settings.get('reducedMotion') }),
       secrets,
       tippables,
       scent,
@@ -1372,6 +1379,7 @@ function init() {
       Promise.resolve(net.leave()).catch(() => {});
     }
 
+    session.fx.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
@@ -1414,7 +1422,9 @@ function init() {
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
     player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
+    const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
+    if (wasPouncing && s.pounceTime <= 0) s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
 
     const speed = player.speed;
@@ -1698,6 +1708,7 @@ function init() {
       s.collectibleMeshes.delete(c.id);
       s.walk.carried += 1;
       log.awardOnce('collectible', `col-${c.id}`, c.label);
+      s.fx.burst(s.cat.position, 0xf2c14e, 12);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
       if (s.tippables.tip(s.prompt.data)) {
@@ -1752,6 +1763,7 @@ function init() {
       const treat = s.scent.digAt(s.cat.position);
       if (treat) {
         log.awardOnce('treasure', treat.id, 'a buried treasure!');
+        s.fx.burst(s.cat.position, 0xf2c14e, 12);
         if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'dig', treatId: treat.id });
       }
     } else if (s.prompt.kind === 'scratch') {
@@ -2027,6 +2039,7 @@ function init() {
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.tippables.update(dt);
       session.scent.update(dt);
+      session.fx.update(dt);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
