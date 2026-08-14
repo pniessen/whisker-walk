@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-12 · **Branch:** `main` · **Tests:** 212 passing (29 files) · **Latest commit:** `92f99b3`
+**Last updated:** 2026-08-14 · **Branch:** `main` · **Tests:** 218 passing (30 files) · **Latest commit:** `261d361`
 
 ---
 
@@ -174,16 +174,21 @@ Every fix independently re-probed with hostile payloads.
 ## 7. Open threads / next steps
 
 - **No pending build work.** v7–v10 + logos are complete, merged to `main`, deployed.
-- **Phase 0 renderer upgrade — PLANNED, NOT BUILT.** The highest-leverage 3D-detail
-  win (user's stated #1 priority for the game's look): shadows tuning + PBR
-  materials + runtime asset-free IBL (`RoomEnvironment`+PMREM) + ACES tone mapping
-  + subtle bloom + a mobile quality tier. Plan:
-  `docs/superpowers/plans/2026-08-12-whisker-walk-phase0-renderer.md`; the broader
-  tech-stack study it came from was saved to a scratchpad (not in repo). Note:
-  shadows are ALREADY wired (PCFSoft) — the win is materials + lighting. Biggest
-  risk: the global look re-calibration (Lambert→Standard+IBL+ACES) needs by-eye
-  tuning across weather/areas — get the browser preview working or do tight
-  before/after screenshots.
+- **Phase 0 renderer upgrade — SHIPPED (2026-08-14, deployed).** PBR
+  `MeshStandardMaterial` (`src/render/materials.js` `litMaterial`) under a
+  runtime-baked asset-free `RoomEnvironment`+PMREM IBL map (`scene.environment`),
+  ACES tone mapping, tuned shadows, and a subtle `EffectComposer`+`UnrealBloomPass`
+  bloom. A quality tier (`src/render/quality.js` `resolveQuality`, `quality`
+  setting) gates the full stack to the high tier; mobile/reduced-motion stay on
+  the light path with the composer **never allocated** (lazy `ensureComposer`).
+  Plan: `docs/superpowers/plans/2026-08-12-whisker-walk-phase0-renderer.md`.
+  **Caveat: the by-eye palette calibration was NOT done** (browser was gated all
+  session) — it shipped with the plan's default values (sun 2.2, ambient 0.9,
+  exposure 1.0, envIntensity high 0.35 / low 0.25). If the daylight/dusk/rain
+  palette reads off on the live site, the levers are `renderer.toneMappingExposure`
+  (try 1.05–1.15) and `scene.environmentIntensity` — NOT `weather.js`. Deferred
+  housekeeping: stale `MeshLambertMaterial` comment in `src/ghosts.js`; the
+  `* 2.js` Finder-dup files still linger.
 - **v10 follow-up:** wire ghost visitors into the reply path so the named-cat
   voices (zeetoo/rosa/robbie/hagrid) become reachable.
 - **Backlog** (mentioned in specs, not yet requested to build): async/offline
