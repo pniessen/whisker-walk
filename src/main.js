@@ -30,6 +30,7 @@ import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { GOLD_MICE, createGoldMice } from './goldmice.js';
+import { kittenPlan, createKittenEncounter } from './kitten.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
@@ -1248,6 +1249,18 @@ function init() {
       ? createGoldMice(scene, areaId, new Set(progression.state.golden))
       : { list: [], update() {}, checkFind: () => null, remove() {}, dispose() {} };
 
+    // lost-kitten quest chain: solo walks only (roomSeed === undefined) — a
+    // co-walk kitten would desync the shared canon since it's driven by
+    // this device's own progression.state.kitten.stage. A no-op stub (same
+    // shape as goldMice's above) covers every other case: co-walks, and
+    // solo walks where kittenPlan has nothing to offer this stage/area.
+    const kittenPlanResult = roomSeed === undefined
+      ? kittenPlan(progression.state.kitten.stage, areaId)
+      : null;
+    session.kittenEnc = kittenPlanResult
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5) })
+      : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
+
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
     // pendingRoom at all, so session.net stays undefined and every co-walk
@@ -1398,6 +1411,12 @@ function init() {
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
     const walkedWith = session.net ? session.remotes.list.map((r) => r.petName) : [];
+    // kitten stage 2 is transient — set at the end of the "meet" walk (see
+    // handleInteract's 'kitten' branch) and promoted to 3 right here, at
+    // that same walk's summary, so "Mochi followed you home" lands on the
+    // walk where she actually started following.
+    const mochiArrived = progression.state.kitten.stage === 2;
+    if (mochiArrived) progression.setKittenStage(3);
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -1410,6 +1429,7 @@ function init() {
         <div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>
       </div>
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
+      ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
 
@@ -1437,6 +1457,7 @@ function init() {
     });
     session.critters.dispose();
     session.goldMice.dispose();
+    session.kittenEnc.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -1714,6 +1735,13 @@ function init() {
         setPrompt(`E — touch noses with ${ghost.petName} 👻`);
       }
     }
+    if (!s.prompt && s.kittenEnc) {
+      const kp = s.kittenEnc.promptAt(catP);
+      if (kp) {
+        s.prompt = { kind: 'kitten' };
+        setPrompt(kp);
+      }
+    }
     if (!s.prompt) {
       for (const c of s.critters.list) {
         if (c.type !== 'villager' || c.scratched) continue;
@@ -1829,6 +1857,20 @@ function init() {
             })
             .catch((err) => console.warn('Whisker Walk: ghost recordGreet failed', err));
         }
+      }
+    } else if (s.prompt.kind === 'kitten') {
+      s.kittenEnc.interact();
+      const stage = progression.state.kitten.stage;
+      if (stage === 0) {
+        progression.setKittenStage(1);
+        hud.toast('A tiny mew… but nothing here. Maybe next walk. 🐾');
+        log.award('quest', 'kitten-trail', 'you followed the tiny paw prints');
+      } else if (stage === 1) {
+        progression.setKittenStage(2);
+        hud.toast('The kitten trusts you! She follows close. 🐱');
+        log.award('quest', 'kitten-meet', 'a lost kitten befriended');
+      } else {
+        log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
     } else if (s.prompt.kind === 'dig') {
       const treat = s.scent.digAt(s.cat.position);
@@ -2159,6 +2201,7 @@ function init() {
         audio.fanfare();
         session.goldMice.remove(gm.id);
       }
+      session.kittenEnc.update(dt, session.cat.position);
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);

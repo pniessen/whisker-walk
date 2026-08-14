@@ -416,6 +416,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                 <div class="hb-substats">
                   <span>🏆 ${rank.title} — ${nextLine}</span>
                   <span>best walk: ${s.bestWalk} 🐾</span>
+                  ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
                 </div>
               </div>
             </header>
