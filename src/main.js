@@ -22,6 +22,7 @@ import { createHud } from './ui/hud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
+import { voiceFor } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
@@ -264,8 +265,14 @@ function init() {
   });
   // Hagrid is a chicken; chickens cluck. pitch defaults to 1 (normal voice);
   // co-walk duets pass 1.26 (+4 semitones) to layer a harmonized second voice.
-  const catVoice = (pitch = 1) =>
-    (session && session.cat.userData.breed === 'hagrid' ? audio.cluck(1, pitch) : audio.meow(1, pitch));
+  // Breed-aware: every breed gets its own formant voice via voiceFor().
+  const catVoice = (pitch = 1) => {
+    if (!session) return;
+    const breed = session.cat.userData.breed;
+    const v = voiceFor(breed);
+    if (breed === 'hagrid') audio.cluck(1, pitch * v.pitch);
+    else audio.meow(1, pitch, v);
+  };
   const clock = new THREE.Clock();
 
   let session = null;
@@ -1170,6 +1177,7 @@ function init() {
       momentTimer: 40,
       activeMoment: null,
       prompt: null,
+      lastPromptKind: null,
       balkedPuddles: new Set(),
       toy, batCount: 0, batReady: true,
       toyGhost, remoteToy: null,
@@ -1652,6 +1660,17 @@ function init() {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
       }
     }
+
+    // Approach-trill: a short "brrrup?" the moment a stray first comes
+    // within greeting range, distinct from the "meow" played on the actual
+    // E-to-greet (awardStrayGreet). Only fires on the transition INTO
+    // 'stray' from some other (or no) prompt kind, not on every frame the
+    // prompt stays 'stray'.
+    const promptKind = s.prompt ? s.prompt.kind : null;
+    if (promptKind === 'stray' && s.lastPromptKind !== 'stray') {
+      audio.trill(0.6);
+    }
+    s.lastPromptKind = promptKind;
   }
 
   // Shared greet-award body for a stray cat: friend-points award, progression
@@ -1738,7 +1757,7 @@ function init() {
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');
-      audio.purr();
+      audio.purr(2.5);
       if (PERSONALITIES[s.cat.userData.breed].special === 'napper') {
         log.award('perk', 'nap-pet', 'a deep contented purr'); // Persians LIVE for this
       }

@@ -73,6 +73,37 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     osc.stop(t0 + dur + 0.05);
   }
 
+  // A "vocal" note: sawtooth source → swept bandpass (the vowel) → gain
+  // envelope, with a gentle vibrato LFO on the source pitch. This is what
+  // makes it read as an animal instead of a slide whistle.
+  function vocal({ f0, f1, f2, filt0, filt1, dur, gain, delay = 0, vibrato = 6.5 }) {
+    if (muted) return;
+    const ac = ensure();
+    const t0 = ac.currentTime + delay;
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f0, t0);
+    osc.frequency.linearRampToValueAtTime(f1, t0 + dur * 0.35); // rise: "mee"
+    osc.frequency.linearRampToValueAtTime(f2, t0 + dur);        // fall: "ow"
+    const vib = ac.createOscillator();
+    const vibGain = ac.createGain();
+    vib.frequency.value = vibrato;
+    vibGain.gain.value = f0 * 0.035;
+    vib.connect(vibGain).connect(osc.frequency);
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 4;
+    bp.frequency.setValueAtTime(filt0, t0);
+    bp.frequency.linearRampToValueAtTime(filt1, t0 + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(bp).connect(g).connect(master);
+    osc.start(t0); vib.start(t0);
+    osc.stop(t0 + dur + 0.05); vib.stop(t0 + dur + 0.05);
+  }
+
   const api = {
     // settings.muted is the single source of truth (main.js's M key and the
     // homebase mute checkbox both write settings then call this) — audio
@@ -99,12 +130,46 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(650 * pitch, 0.1, { type: 'square', gain: 0.06 * volume, slideTo: 420 * pitch, delay: 0.12 });
       tone(760 * pitch, 0.07, { type: 'square', gain: 0.05 * volume, slideTo: 520 * pitch, delay: 0.26 });
     },
-    meow(volume = 1, pitch = 1) {
-      tone(520 * pitch, 0.22, { type: 'square', gain: 0.05 * volume, slideTo: 780 * pitch });
-      tone(760 * pitch, 0.25, { type: 'square', gain: 0.04 * volume, slideTo: 430 * pitch, delay: 0.2 });
+    meow(volume = 1, pitch = 1, voice = {}) {
+      const p = pitch * (voice.pitch ?? 1);
+      const dur = 0.5 / (voice.rate ?? 1);
+      const amp = 0.16 * volume * (voice.gain ?? 1);
+      vocal({ f0: 300 * p, f1: 520 * p, f2: 240 * p, filt0: 1150 * p, filt1: 620 * p, dur, gain: amp });
     },
-    purr() {
-      for (let i = 0; i < 8; i++) tone(72, 0.06, { type: 'sawtooth', gain: 0.07, delay: i * 0.08 });
+    trill(volume = 1, pitch = 1) {
+      // "brrrup?" — short rising note with a fast pitch wobble
+      vocal({ f0: 340 * pitch, f1: 560 * pitch, f2: 620 * pitch, filt0: 900 * pitch, filt1: 1400 * pitch, dur: 0.28, gain: 0.1 * volume, vibrato: 26 });
+    },
+    purr(duration = 1.2) {
+      if (muted) return;
+      const ac = ensure();
+      const t0 = ac.currentTime;
+      // low rumble: filtered noise + a low sine, both amplitude-wobbled at ~25Hz
+      const size = Math.floor(ac.sampleRate * duration);
+      const buffer = ac.createBuffer(1, size, ac.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+      const src = ac.createBufferSource();
+      src.buffer = buffer;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 220;
+      const rumble = ac.createOscillator();
+      rumble.type = 'sine'; rumble.frequency.value = 52;
+      const g = ac.createGain();
+      g.gain.value = 0.0001;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.11, t0 + 0.15);
+      g.gain.setValueAtTime(0.11, t0 + duration - 0.25);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + duration);
+      const lfo = ac.createOscillator();
+      const lfoGain = ac.createGain();
+      lfo.frequency.value = 25;
+      lfoGain.gain.value = 0.05;
+      lfo.connect(lfoGain).connect(g.gain);
+      src.connect(lp).connect(g).connect(master);
+      rumble.connect(g);
+      src.start(t0); rumble.start(t0); lfo.start(t0);
+      src.stop(t0 + duration); rumble.stop(t0 + duration); lfo.stop(t0 + duration);
     },
     bell() {
       tone(1800, 0.14, { gain: 0.045 });
