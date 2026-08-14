@@ -29,6 +29,7 @@ import { createAlbum } from './album.js';
 import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
+import { GOLD_MICE, createGoldMice } from './goldmice.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
@@ -1239,6 +1240,14 @@ function init() {
       sniffTime: 0,
     };
 
+    // golden mice: personal, position-static, award-local — no wire events,
+    // so this is co-walk safe without touching walkRng or session.net at
+    // all. areas without an entry in GOLD_MICE (none currently, but future
+    // areas like the den) get an inert stub instead of a lookup throw.
+    session.goldMice = areaId in GOLD_MICE
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden))
+      : { list: [], update() {}, checkFind: () => null, remove() {}, dispose() {} };
+
     // co-walks: a room formed on the home base screen (host/join) carries
     // its net/playerId/petName into the session here; solo walks never set
     // pendingRoom at all, so session.net stays undefined and every co-walk
@@ -1427,6 +1436,7 @@ function init() {
       }
     });
     session.critters.dispose();
+    session.goldMice.dispose();
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
@@ -2141,6 +2151,14 @@ function init() {
       session.toy.update(dt, session.areaData.bounds);
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
+      session.goldMice.update(t);
+      const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
+      if (gm && progression.recordGolden(gm.id)) {
+        log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
+        session.fx.burst(session.cat.position, 0xf2c14e, 18);
+        audio.fanfare();
+        session.goldMice.remove(gm.id);
+      }
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);

@@ -3,6 +3,7 @@ import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab } from './hometabs.js';
 import { renderJournalHtml } from '../journal.js';
+import { GOLD_TOTAL } from '../goldmice.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -462,8 +463,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           </div>
           <div class="hb-panel" data-panel="album">
             <section class="journal-section"><h2>Critter Journal 📖</h2>
-              ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, 9)}
-              <!-- Task 5.3 replaces 9 with GOLD_TOTAL -->
+              ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, GOLD_TOTAL)}
             </section>
             <section><h2>Photo album 📸</h2><div class="photos">
               ${album.photos.length
