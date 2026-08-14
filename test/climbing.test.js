@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canReach } from '../src/climbing.js';
+import { canReach, bestPerch } from '../src/climbing.js';
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
 // perch at y 1.3 leads to a rooftop perch at y 2.9 (a 1.6 climb), which leads
@@ -50,5 +50,43 @@ describe('canReach', () => {
     expect(canReach(low, { x: 0, z: 0 }, 0)).toBe(true);
     const lowTooFar = { x: 1.3, z: 0, y: 0.85 }; // 1.3 >= 1.2
     expect(canReach(lowTooFar, { x: 0, z: 0 }, 0)).toBe(false);
+  });
+});
+
+// Real coordinates from src/world/neighborhood.js's billboard crate-stack
+// chain: crate1 at (9.4,-14,y1.1) sits below the crate top (9.4,-14,y2.0),
+// which is below the billboard lookout (7,-14,y3.3). From the crate top,
+// both crate1 (a drop, always "reachable") and the lookout (a climb) are in
+// range — bestPerch must prefer the higher one so repeated presses climb
+// the chain instead of getting stuck bouncing to the lower perch.
+describe('bestPerch', () => {
+  const crate1 = { x: 9.4, z: -14, y: 1.1, label: 'crate' };
+  const crateTop = { x: 9.4, z: -14, y: 2.0, label: 'crate top' };
+  const lookout = { x: 7, z: -14, y: 3.3, label: 'billboard lookout', vantage: true };
+  const perches = [crate1, crateTop, lookout];
+
+  it('from the crate top, prefers the higher billboard lookout over the lower crate1, even though crate1 (a drop) is also reachable', () => {
+    const catPos = { x: crateTop.x, z: crateTop.z };
+    expect(bestPerch(perches, catPos, crateTop.y, crateTop)).toBe(lookout);
+  });
+
+  it('falls back to the only reachable perch when it is lower than the current position (no higher candidate in range)', () => {
+    // Standing near crate1 with nothing else close enough horizontally except
+    // crate1 itself (excluded as current) — simulate by putting the cat where
+    // only crate1 is in reach: far from the lookout's tighter horizontal window.
+    const farFromLookout = [crate1, lookout];
+    const catPos = { x: crate1.x, z: crate1.z };
+    // From ground level near crate1, the lookout (y 3.3) is too high a climb
+    // (3.3 > 1.6) and too far horizontally, so only crate1 is reachable.
+    expect(bestPerch(farFromLookout, catPos, 0, null)).toBe(crate1);
+  });
+
+  it('returns null when no perch is reachable', () => {
+    expect(bestPerch([lookout], { x: 0, z: 0 }, 0, null)).toBeNull();
+  });
+
+  it('skips the current perch by reference even if it would otherwise be the highest candidate', () => {
+    const only = [crateTop];
+    expect(bestPerch(only, { x: crateTop.x, z: crateTop.z }, crateTop.y, crateTop)).toBeNull();
   });
 });

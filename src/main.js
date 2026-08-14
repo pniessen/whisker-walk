@@ -30,7 +30,7 @@ import { createSettings } from './settings.js';
 import { rollWeather, createWeather } from './weather.js';
 import { rollSecrets, createSecrets } from './secrets.js';
 import { puddle as puddleProp } from './world/builder.js';
-import { canReach } from './climbing.js';
+import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
@@ -876,11 +876,12 @@ function init() {
     // height while perched (it's only zeroed by the hop-down branch below),
     // so a chain of perches within canReach's ≤1.6-per-hop climb budget can
     // be walked upward with repeated presses of this same key, never
-    // dropping to the ground in between. Hopping down (or off a perch with
-    // nothing else in reach) is the fallback.
-    const next = (session.areaData.perches ?? []).find((pp) =>
-      pp !== session.perched && canReach(pp, session.cat.position, player.perchY)
-    );
+    // dropping to the ground in between. bestPerch prefers the HIGHEST
+    // reachable candidate (drops are always "reachable" per canReach, so a
+    // naive first-match pick could shadow a higher chain-mate with a lower
+    // one) — climbs beat drops whenever both are in reach. Hopping down (or
+    // off a perch with nothing else in reach) is the fallback.
+    const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched);
     if (next) {
       session.perched = next;
       player.perchY = next.y;
@@ -2121,9 +2122,12 @@ function init() {
       if (player.zooming && !session.wasZooming) audio.zoomWind();
       session.wasZooming = player.zooming;
 
-      // Slow-mo on a perfect stalk-and-pounce catch: critters/strays/sky slow down for
+      // Slow-mo on a perfect stalk-and-pounce catch: critters/strays slow down for
       // a beat while player/camera/remotes keep real-time motion (remotes MUST stay
       // real dt — slowing their interpolation would desync them from the network clock).
+      // skyLife also stays on real dt below: its rng timers are seeded from roomSeed so
+      // co-walk clouds/birds stay identical across clients, and a local-only slow-mo
+      // would desync that shared stream permanently.
       if (session.slowmoTime > 0) session.slowmoTime -= dt;
       const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
       session.critters.update(wdt, t, session.cat.position, session.cat.position);
@@ -2138,7 +2142,7 @@ function init() {
       session.tippables.update(dt);
       session.scent.update(dt);
       session.fx.update(dt);
-      session.skyLife.update(wdt);
+      session.skyLife.update(dt);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
