@@ -190,6 +190,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(1300, 0.03, { type: 'square', gain: 0.09 });
       tone(700, 0.04, { type: 'square', gain: 0.07, delay: 0.05 });
     },
+    collectArp() {
+      tone(660, 0.09, { type: 'triangle', gain: 0.07 });
+      tone(880, 0.09, { type: 'triangle', gain: 0.07, delay: 0.07 });
+      tone(1320, 0.16, { type: 'triangle', gain: 0.08, delay: 0.14 });
+    },
+    fanfare() {
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((f, i) => tone(f, i === 3 ? 0.35 : 0.12, { type: 'triangle', gain: 0.09, delay: i * 0.11 }));
+    },
     startAmbient(areaKey) {
       if (muted) return;
       const ac = ensure();

@@ -765,7 +765,13 @@ function init() {
 
   bus.on('discovery', ({ type, points }) => {
     hud.setPoints(progression.state.points);
-    audio.chime();
+    if (type === 'jackpot') {
+      audio.fanfare();
+    } else if (type === 'collectible' || type === 'treasure') {
+      audio.collectArp();
+    } else {
+      audio.chime();
+    }
     if (session?.fx && points > 0) session.fx.popup(session.cat.position, `+${points} 🐾`);
     if (session && type !== 'goal' && type !== 'jackpot') session.discoveryCount += 1;
     noteGoal(type);
