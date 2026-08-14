@@ -13,8 +13,24 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
 // pattern instead needs no cross-module import and still rejects anything
 // that isn't a plausible golden-mouse id; Task 5.3 can layer a real
 // existence check in the game logic that calls recordGolden.
-const GOLD_ID_PATTERN = /^gm-[a-z]+-[1-9]$/;
+// Bounded to 24 chars in the middle segment — real area-name segments (e.g.
+// 'neigh', 'park', 'seaside') are a handful of characters; the cap just
+// forecloses a hostile payload using an unbounded `[a-z]+` to smuggle
+// megabytes of 'a's into a single golden id.
+const GOLD_ID_PATTERN = /^gm-[a-z]{1,24}-[1-9]$/;
 const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// Ceiling on how many golden ids sanitizeGolden keeps. There are only 9 real
+// golden mice (see Task 5.3 / src/goldmice.js), so 64 is already generous
+// headroom for future additions — its real job is capping the array so a
+// hostile cloud payload can't pad state.golden with thousands of
+// valid-shaped-but-fake ids and bloat the save past the localStorage quota.
+const GOLD_MAX_COUNT = 64;
+// Ceiling on state.streak.count: a ten-year unbroken daily streak. Matches
+// kitten.stage's Math.min clamp just below — asFiniteNonNegInt alone accepts
+// any finite non-negative integer (e.g. 1e15), which is a meaningless streak
+// and, via 5 * count in recordStreakWalk-adjacent bonus math and repeated
+// save() round-trips, an avoidable way to inflate the persisted save.
+const STREAK_COUNT_MAX = 3650;
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -154,6 +170,7 @@ function sanitizeGolden(v) {
   const out = [];
   const seen = new Set();
   for (const id of v) {
+    if (out.length >= GOLD_MAX_COUNT) break;
     if (typeof id === 'string' && GOLD_ID_PATTERN.test(id) && !seen.has(id)) {
       seen.add(id);
       out.push(id);
@@ -164,7 +181,7 @@ function sanitizeGolden(v) {
 
 function sanitizeStreak(v) {
   const last = typeof v?.last === 'string' && YMD_PATTERN.test(v.last) ? v.last : null;
-  const count = asFiniteNonNegInt(v?.count, 0);
+  const count = Math.min(STREAK_COUNT_MAX, asFiniteNonNegInt(v?.count, 0));
   return { last, count };
 }
 

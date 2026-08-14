@@ -569,6 +569,27 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(p.state.golden).toEqual(['gm-park-1', 'gm-park-2']);
   });
 
+  it('caps golden ids at 64 even when a hostile payload supplies 100 unique valid-shaped ids', () => {
+    const golden = Array.from({ length: 100 }, (_, i) => `gm-area${i}-1`);
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, golden }) });
+    const p = createProgression(storage);
+    expect(p.state.golden.length).toBeLessThanOrEqual(64);
+  });
+
+  it('drops a golden id whose middle segment is a 100-char bloat attempt', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      golden: [`gm-${'a'.repeat(100)}-1`] }) });
+    const p = createProgression(storage);
+    expect(p.state.golden).toEqual([]);
+  });
+
+  it('clamps a hostile streak count of 1e15 down to 3650', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      streak: { last: '2026-08-13', count: 1e15 } }) });
+    const p = createProgression(storage);
+    expect(p.state.streak).toEqual({ last: '2026-08-13', count: 3650 });
+  });
+
   it('recordStreakWalk: same-day, consecutive, and gap', () => {
     const p = createProgression(fakeStorage({}));
     expect(p.recordStreakWalk('2026-08-13')).toEqual({ count: 1, bonus: 5 });
