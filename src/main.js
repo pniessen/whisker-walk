@@ -208,7 +208,11 @@ function init() {
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.35,  // strength — gentle
       0.6,   // radius
-      0.85   // threshold — only bright emissives/sky bloom
+      // threshold sits above 1.0 so plain whites (fur, whiskers, clouds —
+      // which top out at ~1.0 in the HDR buffer) never bloom; only surfaces
+      // pushed past 1.0 by an emissive term (dusk windows, glow collar,
+      // fireflies) glow. At 0.85 white cats read as light sources.
+      1.1
     );
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
