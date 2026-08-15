@@ -8,6 +8,7 @@ import * as neighborhood from './world/neighborhood.js';
 import * as park from './world/park.js';
 import * as seaside from './world/seaside.js';
 import * as den from './world/den.js';
+import { clearSpot } from './world/spots.js';
 import { createCritters } from './critters.js';
 import { createStrayCats } from './straycats.js';
 import { createRemoteCats } from './remotecats.js';
@@ -1091,6 +1092,14 @@ function init() {
     const areaData = isDen
       ? AREAS.den.build(scene, { placed: progression.state.den.placed })
       : AREAS[areaId].build(scene);
+    // POIs are authored as "interesting spots" and several sit dead-center
+    // on scenery (the park fountain, the parked car) — fine as vibes, but
+    // race rings and quest objects placed there are unreachable: player
+    // collision stops the cat outside collider.r + 0.35, while the ring
+    // cross check needs < 1.2 and quest completion < 2. clearSpot is
+    // deterministic, so the shared-seed race course stays identical across
+    // devices (it derives from static area data only).
+    const walkPois = areaData.pois.map((p) => clearSpot(p, areaData.colliders, areaData.bounds));
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
@@ -1191,7 +1200,7 @@ function init() {
     const giver = isDen ? null : critters.list.find((c) => c.type === 'villager');
     if (giver) {
       questGiver = giver;
-      quest = createQuest(walkRng, areaData.pois);
+      quest = createQuest(walkRng, walkPois);
       const marker = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.4, 6),
         litMaterial(0xf2c14e, { emissive: 0x6a5010 })
@@ -1389,8 +1398,8 @@ function init() {
     // src/world/*.js), but the guard below keeps this inert instead of
     // throwing if a future area (e.g. the den) ever ships with fewer than 5.
     const today = new Date().toISOString().slice(0, 10);
-    session.race = areaData.pois.length >= 5
-      ? createRace(scene, raceCourse(areaData.pois, seedFromCode(today + '-' + areaId)), areaData.spawn)
+    session.race = walkPois.length >= 5
+      ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn)
       : { state: 'idle', timeMs: 0, currentRing: 0, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
     session.raceDate = today;
