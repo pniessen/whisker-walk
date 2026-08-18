@@ -81,6 +81,19 @@ function tuningField(v, fallback) {
 // behaviour this function shipped with — and callers that pass no tuning at
 // all get exactly that.
 //
+// Two extra state fields, both absent from the plain
+// `{ charging: false, zooming: false, time: 0 }` literals in createPlayer's
+// reset paths (hence the ?? defaults below):
+//
+//  - `idle`   — seconds of not-running accumulated so far in the hold window.
+//  - `banked` — "was zooming when the hold window opened". `zooming` itself
+//    goes FALSE the instant the cat stops, even inside the hold window,
+//    because main.js drives the 77° FOV widening and the sparkle trail
+//    straight off player.zooming: leaving it true would leave a stationary
+//    cat wearing a wide-angle lens and dribbling sparkles for 2.5s. `banked`
+//    is what actually survives the pause, and it snaps the zoom back on the
+//    first running frame instead of making the player re-charge.
+//
 // speedFactor gates the running condition directly (rather than leaving
 // freeze-detection to speedRatio alone) because speedRatio's denominator is
 // `pace * speedFactor || 1` — when speedFactor is 0 that denominator falls
@@ -93,16 +106,19 @@ export function zoomState(prev, dt, { active, stalking, speedRatio, speedFactor 
   const hold = tuningField(holdTime, ZOOM_HOLD_TIME);
   const running = active && !stalking && speedRatio > 0.85 && speedFactor > 0;
   if (!running) {
-    // `idle` is the only new field on the state object. It is absent from the
-    // `{ charging: false, zooming: false, time: 0 }` literals scattered
-    // through createPlayer's reset paths, hence the ?? 0.
     const idle = (prev.idle ?? 0) + Math.max(dt, 0);
-    if (idle >= hold) return { charging: false, zooming: false, time: 0, idle: 0 };
-    return { charging: prev.charging, zooming: prev.zooming, time: prev.time, idle };
+    if (idle >= hold) return { charging: false, zooming: false, time: 0, idle: 0, banked: false };
+    return {
+      charging: false,
+      zooming: false,
+      time: prev.time,
+      idle,
+      banked: !!(prev.zooming || prev.banked),
+    };
   }
   const time = prev.time + dt;
-  const zooming = prev.zooming || time >= charge;
-  return { charging: !zooming, zooming, time, idle: 0 };
+  const zooming = prev.zooming || !!prev.banked || time >= charge;
+  return { charging: !zooming, zooming, time, idle: 0, banked: false };
 }
 
 export function createPlayer(camera, canvas) {

@@ -69,7 +69,7 @@ describe('zoomState tuning parameters', () => {
     // The old unconditional reset, preserved exactly — a jittery input must
     // not be able to bank partial charge on the no-skills path.
     const held = zoomState({ charging: true, zooming: true, time: 5, idle: 0 }, 0.016, { ...RUN, active: false });
-    expect(held).toEqual({ charging: false, zooming: false, time: 0, idle: 0 });
+    expect(held).toEqual({ charging: false, zooming: false, time: 0, idle: 0, banked: false });
   });
 
   it('reaches zooming sooner at the Long Zoomies charge time', () => {
@@ -80,31 +80,49 @@ describe('zoomState tuning parameters', () => {
     expect(s.zooming).toBe(false);
   });
 
-  it('carries the charge through a 2.5s interruption, then wipes it', () => {
+  it('banks the charge through a 2.5s interruption, then wipes it', () => {
     const long = { chargeTime: LONG_ZOOM_CHARGE_TIME, holdTime: LONG_ZOOM_HOLD_TIME };
     const zooming = { charging: false, zooming: true, time: 3, idle: 0 };
-    // 2.0s of not running: still zooming, charge intact.
+    // 2.0s of not running: the zoom itself is OFF (main.js drives the 77° FOV
+    // and the sparkle trail off player.zooming — a stopped cat must not keep
+    // wearing them), but the charge is banked.
     let s = zoomState(zooming, 2.0, { ...RUN, active: false, ...long });
-    expect(s.zooming).toBe(true);
+    expect(s.zooming).toBe(false);
+    expect(s.banked).toBe(true);
     expect(s.time).toBe(3);
     expect(s.idle).toBe(2.0);
-    // ...and resuming clears the idle window rather than leaving it banked.
+    // Resuming inside the window snaps straight back to zooming — no
+    // re-charge — and clears the idle window rather than leaving it banked.
     const resumed = zoomState(s, 0.1, { ...RUN, ...long });
-    expect(resumed.idle).toBe(0);
     expect(resumed.zooming).toBe(true);
+    expect(resumed.idle).toBe(0);
+    expect(resumed.banked).toBe(false);
     // Past 2.5s of not running it goes for good.
     s = zoomState(s, 0.6, { ...RUN, active: false, ...long });
-    expect(s).toEqual({ charging: false, zooming: false, time: 0, idle: 0 });
+    expect(s).toEqual({ charging: false, zooming: false, time: 0, idle: 0, banked: false });
+    // ...and after that a resume has to charge from scratch.
+    expect(zoomState(s, 0.1, { ...RUN, ...long }).zooming).toBe(false);
   });
 
-  it('holds through a freeze and a stalk, not just through letting go', () => {
+  it('banks through a freeze and a stalk, not just through letting go', () => {
     const long = { chargeTime: LONG_ZOOM_CHARGE_TIME, holdTime: LONG_ZOOM_HOLD_TIME };
     const zooming = { charging: false, zooming: true, time: 3, idle: 0 };
     for (const interruption of [{ stalking: true }, { speedFactor: 0 }, { speedRatio: 0.1 }]) {
       const s = zoomState(zooming, 0.5, { ...RUN, ...long, ...interruption });
-      expect(s.zooming).toBe(true);
+      expect(s.zooming).toBe(false);
+      expect(s.banked).toBe(true);
       expect(s.idle).toBe(0.5);
+      expect(zoomState(s, 0.1, { ...RUN, ...long }).zooming).toBe(true);
     }
+  });
+
+  it('never banks a charge on the no-skills path, however brief the stop', () => {
+    let s = { charging: false, zooming: false, time: 0 };
+    for (const dt of [1.0, 0.6]) s = zoomState(s, dt, RUN);
+    expect(s.zooming).toBe(true);
+    s = zoomState(s, 0.001, { ...RUN, active: false }); // the briefest possible stop
+    expect(s.banked).toBe(false);
+    expect(zoomState(s, 1.0, RUN).zooming).toBe(false); // must re-charge in full
   });
 
   it('degrades a NaN or negative tuning to the baseline instead of deleting the zoomies', () => {
