@@ -263,6 +263,294 @@ export function platform(x, z, yTop, yBottom = 0, size = 1.2, color = 0xc8a678) 
   return m;
 }
 
+// ---------------------------------------------------------------------------
+// Dockside props (v18 Task 2.6, "The Old Docks").
+//
+// Every one of these is written so its WALKABLE TOP SURFACE is a number the
+// caller passes in or can read straight off the signature, because the Docks'
+// perch chains are authored against those exact heights. If you change a
+// height here, docks.js's perch array (and the hop math in its comments) has
+// to move with it — test/climbing.test.js BFSes the real shipped arrays and
+// will fail loudly if the two drift apart.
+// ---------------------------------------------------------------------------
+
+// A flat-roofed brick warehouse. Unlike house(), whose cone roof has nowhere
+// to stand, the roof here is a flat deck at exactly `h` ringed by a parapet
+// whose top is `h + PARAPET`. Those are the two numbers the roof chains use:
+// docks.js perches sit on the parapet lip, not on the deck.
+export const PARAPET = 0.3;
+
+export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4650) {
+  const g = new THREE.Group();
+  const body = box(w, h, d, bodyColor);
+  body.position.y = h / 2;
+  g.add(body);
+  // flat roof deck, then a parapet lip on all four sides
+  const deck = box(w, 0.12, d, roofColor);
+  deck.position.y = h + 0.06;
+  g.add(deck);
+  for (const [lw, ld, lx, lz] of [
+    [w, 0.16, 0, d / 2 - 0.08], [w, 0.16, 0, -d / 2 + 0.08],
+    [0.16, d, w / 2 - 0.08, 0], [0.16, d, -w / 2 + 0.08, 0],
+  ]) {
+    const lip = box(lw, PARAPET, ld, roofColor);
+    lip.position.set(lx, h + PARAPET / 2, lz);
+    g.add(lip);
+  }
+  // Two rows of windows on the long (x) faces. userData.window is what
+  // walk.js's dusk pass looks for when it swaps in the warm emissive glow —
+  // the same hook house() uses, so the Docks lights up at dusk for free.
+  const cols = Math.max(2, Math.floor(w / 2.6));
+  for (const face of [1, -1]) {
+    for (let i = 0; i < cols; i++) {
+      for (const wy of h > 3.4 ? [1.1, 2.7] : [1.1]) {
+        const win = box(0.8, 0.7, 0.08, 0xa8d8e8);
+        win.userData.window = true;
+        win.position.set(-w / 2 + (i + 0.5) * (w / cols), wy, face * (d / 2 + 0.02));
+        g.add(win);
+      }
+    }
+  }
+  const door = box(1.6, 2.2, 0.12, 0x53433a);
+  door.position.set(0, 1.1, d / 2 + 0.03);
+  g.add(door);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// A rooftop water tank / vent housing — the thing that turns a flat roof into
+// one more step of a chain. `yBottom` is the roof deck it stands on; the
+// walkable top is `yBottom + height`.
+export function roofTank(x, z, yBottom, height = 0.9, r = 0.85) {
+  const g = new THREE.Group();
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(r, r, height, 10), mat(0x6a5a4a));
+  drum.position.y = yBottom + height / 2;
+  g.add(drum);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.05, r * 1.05, 0.08, 10), mat(0x8a7a62));
+  cap.position.y = yBottom + height;
+  g.add(cap);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// A steel shipping container. Long axis runs along local +x, so rotY turns it
+// broadside. Walkable top is exactly CONTAINER_H.
+export const CONTAINER_H = 2.6;
+
+export function shippingContainer(x, z, rotY = 0, color = 0xb05a4a) {
+  const g = new THREE.Group();
+  const body = box(6, CONTAINER_H, 2.5, color);
+  body.position.y = CONTAINER_H / 2;
+  g.add(body);
+  for (let i = 0; i < 7; i++) { // corrugated ribs
+    const rib = box(0.1, CONTAINER_H - 0.3, 2.56, color === 0xb05a4a ? 0x9a4a3a : 0x3a5a78);
+    rib.position.set(-2.6 + i * 0.87, CONTAINER_H / 2, 0);
+    g.add(rib);
+  }
+  const lid = box(6.05, 0.1, 2.55, 0x6a6a72);
+  lid.position.y = CONTAINER_H;
+  g.add(lid);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+// A night-market stall: counter, four posts, striped awning. The awning top
+// is STALL_AWNING and is the first step of the Docks' crane chain.
+export const STALL_AWNING = 1.3;
+
+export function marketStall(x, z, rotY = 0, awningColor = 0xc85a5a) {
+  const g = new THREE.Group();
+  const counter = box(1.9, 0.75, 1.0, 0x9a7048);
+  counter.position.y = 0.375;
+  g.add(counter);
+  for (const [px, pz] of [[-0.9, -0.5], [0.9, -0.5], [-0.9, 0.5], [0.9, 0.5]]) {
+    const post = box(0.08, STALL_AWNING, 0.08, 0x6a5230);
+    post.position.set(px, STALL_AWNING / 2, pz);
+    g.add(post);
+  }
+  const awning = box(2.2, 0.1, 1.3, awningColor);
+  awning.position.y = STALL_AWNING;
+  g.add(awning);
+  for (let i = 0; i < 3; i++) { // stripes, so two stalls side by side read apart
+    const stripe = box(0.35, 0.12, 1.32, 0xf0e8d8);
+    stripe.position.set(-0.7 + i * 0.7, STALL_AWNING, 0);
+    g.add(stripe);
+  }
+  // a crate of fish on the counter, purely so the stall reads as a fish market
+  const crate = box(0.5, 0.3, 0.4, 0xc8a678);
+  crate.position.set(0.4, 0.9, 0);
+  g.add(crate);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+// A wall-hung fire escape: one grated landing per entry in `heights` (each
+// value is the landing's WALKABLE TOP), joined by ladders. The landings are
+// the perch steps; the ladders are decoration, since climbing in this game is
+// perch-to-perch and not a continuous surface.
+export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9]) {
+  const g = new THREE.Group();
+  let prev = 0;
+  for (const h of heights) {
+    const landing = box(1.6, 0.1, 1.1, 0x4a4a52);
+    landing.position.y = h - 0.05;
+    g.add(landing);
+    for (const rx of [-0.8, 0.8]) { // handrail
+      const rail = box(0.06, 0.5, 1.1, 0x5a5a62);
+      rail.position.set(rx, h + 0.25, 0);
+      g.add(rail);
+    }
+    const ladder = box(0.5, h - prev, 0.06, 0x5a5a62);
+    ladder.position.set(0, prev + (h - prev) / 2, -0.5);
+    g.add(ladder);
+    prev = h;
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+// A dockside gantry crane. Four legs carry a deck whose top is CRANE_DECK;
+// the operator cab stands on the deck and its roof is CRANE_CAB. Those are
+// the two tall steps of the Docks' south-bank chain.
+export const CRANE_DECK = 4.0;
+export const CRANE_CAB = 5.4;
+
+export function dockCrane(x, z, rotY = 0) {
+  const g = new THREE.Group();
+  for (const [lx, lz] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]]) {
+    const leg = box(0.34, CRANE_DECK, 0.34, 0xb0742a);
+    leg.position.set(lx, CRANE_DECK / 2, lz);
+    g.add(leg);
+    const brace = box(0.18, 0.18, 4.4, 0x8a5a20);
+    brace.position.set(lx, CRANE_DECK * 0.55, 0);
+    g.add(brace);
+  }
+  const deck = box(5.4, 0.25, 5.4, 0x8a5a20);
+  deck.position.y = CRANE_DECK - 0.125;
+  g.add(deck);
+  // The operator cab stands on the deck at local (-1, -1) and its roof top is
+  // CRANE_CAB. docks.js's crane chain places its last perch on that roof, so
+  // the offset is part of the contract, not a styling choice.
+  const cab = box(2.0, CRANE_CAB - CRANE_DECK, 2.0, 0xc8862a);
+  cab.position.set(-1.0, (CRANE_DECK + CRANE_CAB) / 2, -1.0);
+  g.add(cab);
+  const cabRoof = box(2.2, 0.12, 2.2, 0x8a5a20);
+  cabRoof.position.set(-1.0, CRANE_CAB, -1.0);
+  g.add(cabRoof);
+  // jib reaching out over the water on the cab's far side, with a hook block
+  const jib = box(0.3, 0.3, 7, 0xb0742a);
+  jib.position.set(1.4, CRANE_DECK + 0.9, 3.2);
+  g.add(jib);
+  const cable = box(0.05, 2.4, 0.05, 0x3a3a42);
+  cable.position.set(1.4, CRANE_DECK - 0.3, 6.2);
+  g.add(cable);
+  const hook = box(0.35, 0.35, 0.35, 0x5a5a62);
+  hook.position.set(1.4, CRANE_DECK - 1.6, 6.2);
+  g.add(hook);
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+// A mooring bollard with a coil of rope — quayside flavour, and a low perch
+// (top BOLLARD_H) for the bank edges.
+export const BOLLARD_H = 0.55;
+
+export function bollard(x, z) {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, BOLLARD_H, 8), mat(0x3a3a42));
+  post.position.y = BOLLARD_H / 2;
+  g.add(post);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), mat(0x4a4a52));
+  cap.position.y = BOLLARD_H;
+  g.add(cap);
+  const rope = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.05, 5, 10), mat(0xc8b088));
+  rope.rotation.x = -Math.PI / 2;
+  rope.position.y = 0.06;
+  g.add(rope);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// An oil-drum barrel. No collider anywhere it is used — like cardboardBox, it
+// is cover to hide things BEHIND rather than an obstacle.
+export function barrel(x, z, color = 0x4a6a5a) {
+  const g = new THREE.Group();
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.75, 10), mat(color));
+  drum.position.y = 0.375;
+  g.add(drum);
+  for (const ry of [0.22, 0.53]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 10), mat(0x2f2f36));
+    band.position.y = ry;
+    g.add(band);
+  }
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// A moored canal barge. Sits IN the water on purpose and carries no perch and
+// no collectible: the Docks canal is scenery plus a bridged crossing, never a
+// place the player has to reach (see docks.js's header — Sea Legs may never
+// ship, so nothing may depend on swimming).
+export function barge(x, z, rotY = 0, color = 0x3a5a78) {
+  const g = new THREE.Group();
+  const hull = box(3.2, 0.7, 9, color);
+  hull.position.y = 0.3;
+  g.add(hull);
+  const gunwale = box(3.3, 0.14, 9.1, 0x2a3a4e);
+  gunwale.position.y = 0.65;
+  g.add(gunwale);
+  const cabin = box(2.2, 1.1, 3, 0xd8cbb0);
+  cabin.position.set(0, 1.2, -2.2);
+  g.add(cabin);
+  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 1.1, 8), mat(0x2f2f36));
+  stack.position.set(0, 2.2, -2.8);
+  g.add(stack);
+  for (let i = 0; i < 3; i++) { // deck cargo
+    const crate = box(0.9, 0.7, 0.9, 0xc8a678);
+    crate.position.set(0, 1.0, 1.4 + i * 1.1);
+    g.add(crate);
+  }
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+// A plank bridge deck across a waterway, with railings. NO COLLIDERS are
+// emitted for the railings by any caller — the deck has to stay walkable,
+// because it is the guaranteed dry crossing between the Docks' two banks.
+export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
+  const g = new THREE.Group();
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const angle = Math.atan2(x2 - x1, z2 - z1);
+  const deck = box(w, 0.14, len, 0xa08050);
+  deck.position.y = y;
+  g.add(deck);
+  const planks = Math.floor(len / 1.1);
+  for (let i = 0; i < planks; i++) {
+    const plank = box(w - 0.1, 0.04, 0.12, 0x8a6a42);
+    plank.position.set(0, y + 0.09, -len / 2 + (i + 0.5) * (len / planks));
+    g.add(plank);
+  }
+  for (const side of [-1, 1]) {
+    const rail = box(0.08, 0.08, len, 0x6a5230);
+    rail.position.set(side * (w / 2 - 0.06), y + 0.65, 0);
+    g.add(rail);
+    const posts = Math.max(2, Math.floor(len / 2));
+    for (let i = 0; i <= posts; i++) {
+      const post = box(0.1, 0.65, 0.1, 0x6a5230);
+      post.position.set(side * (w / 2 - 0.06), y + 0.33, -len / 2 + i * (len / posts));
+      g.add(post);
+    }
+  }
+  g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
+  g.rotation.y = angle;
+  return g;
+}
+
 export function cardboardBox(x, z, rotY = 0) {
   const g = new THREE.Group();
   const wallSpecs = [

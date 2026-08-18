@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 
-// Nine hidden golden mice, three per area, placed at parkour destinations
+// Twelve hidden golden mice, three per area, placed at parkour destinations
 // using the perch coordinates that actually ship in src/world/*.js (see
 // task-4.2-report.md for the chain math) rather than the v11 spec's
 // original coordinates, which Task 4.2 moved. Per area: two mice sit on
@@ -32,10 +32,32 @@ export const GOLD_MICE = {
     // hidden at ground level among the rocks at (-32, -10)
     { id: 'gm-sea-3', x: -32.3, z: -10.4, y: 0 },
   ],
+  // v18 Task 2.6 — The Old Docks. Same discipline the note at the top of this
+  // file records: these three were placed AFTER src/world/docks.js's perch
+  // array existed, by reading the shipped coordinates off it, not authored
+  // from a sketch and fixed up later. Every number below appears verbatim in
+  // that file's `perches`, and test/climbing.test.js BFSes the real array to
+  // prove the hop counts.
+  //
+  // None of the three is in or across the canal: the Docks must stay fully
+  // playable if Sea Legs is descoped (see docks.js's header).
+  docks: [
+    // top of the warehouse roof chain — "the high roof tank", y 6.2, the
+    // highest standable point in the game and five hops from the ground
+    // (crate -> crate top -> fire-escape landing -> parapet -> tank).
+    { id: 'gm-docks-1', x: 18.6, z: 13.6, y: 6.2 },
+    // top of the dock crane chain — "crane cab", four hops
+    // (crate -> container -> crane deck -> cab roof).
+    { id: 'gm-docks-2', x: -17.0, z: -13.0, y: 5.4 },
+    // hidden at ground level in the dark alley between the two west
+    // warehouses, among the barrels and the crate at (-15.6, 16.6). Nothing
+    // there carries a collider, so the cat can walk right up to it.
+    { id: 'gm-docks-3', x: -16.4, z: 17.6, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 9
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 12 (four areas x three)
 
 // Returns { group, material } rather than just the group: all 3 child
 // meshes share this single litMaterial instance, so disposeMouse below
