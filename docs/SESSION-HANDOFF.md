@@ -48,7 +48,14 @@ keeping a cloud-synced save, and getting ghost visits from befriended pets.
 
 | File | Responsibility |
 |------|----------------|
-| `src/main.js` | Game orchestration: walk lifecycle, ghost spawning, boop/greet flow, home-base wiring, SW registration |
+| `src/main.js` | Boot + wiring only (~630 lines): builds every system, owns the live `session` binding, and holds the input/bus handlers and the render loop. The game logic it used to carry now lives in `src/game/*` (below) |
+| `src/game/walk.js` | `startWalk`/`endWalk`, `beginWalkFromHomebase`/`beginDenWalk`, async ghost spawning |
+| `src/game/interactions.js` | Prompt scan (`updateInteractions`), `handleInteract`, the shared `awardStrayGreet`, and the meow/yarn/pounce/camera action helpers + touch dispatch |
+| `src/game/netevents.js` | Co-walk wire events: `applyRemoteEvent`, boop/tag convergence, yarn rally, duet |
+| `src/game/avatar.js` | Per-frame cat state: pose ladder, timers, puddles/boxes, yarn batting, pounce-tag + grooming detection, `updateMoments` |
+| `src/game/rooms.js` | Room lobby (`pendingRoom`, host/join/leave, `walk-config` dispatch) + `pushProfileNow` |
+| `src/game/cloudsync.js` | Lazy `getCloud`/`getPsecret` + the home base's Sync ☁️ `sync` object |
+| `src/game/photo.js`, `src/game/composer.js`, `src/game/labels.js`, `src/game/util.js` | Photo mode; the lazy bloom rig + per-frame draw; critter display names; shared pure helpers (`escapeHtml`, `nowSec`, `hashName`) |
 | `src/net.js` | Supabase client (shared memoized dynamic import), realtime transport, fake hub for tests |
 | `src/cloud.js` | `createCloud({rpc,select})` — save/load/profile/greet/friend-code RPC client; `generateSaveCode`, `getOrCreateSecret` |
 | `src/progression.js` | Save state, `sanitizeState` (hostile-payload hardening), `summarizeSaveForPreview`, RANKS, save version **3** |
