@@ -235,3 +235,240 @@ describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
     }
   });
 });
+
+// ===========================================================================
+// v18 Task 2.3 — the two passive senses abilities, driven through the exact
+// function updateInteractions calls every frame. Every case is asserted in
+// BOTH skill states: an ability that changes nothing without its unlock is
+// half the requirement, and it is the half that is easy to get wrong.
+// ===========================================================================
+describe('updateSenses — Twitchy Nose and Whisker Sense (v18 Task 2.3)', () => {
+  // Two collectibles: one 10m out, one 4m out. The far one sits outside the
+  // 7m reveal radius updateInteractions uses for the meshes, which is the
+  // point — the nose reaches further than the eyes.
+  const COLLECTIBLES = [
+    { id: 'far', x: 10, z: 0, label: 'a far thing' },
+    { id: 'near', x: 4, z: 0, label: 'a near thing' },
+  ];
+
+  function sensesHarness(skills = []) {
+    const progression = { state: { skills, feats: {}, golden: [] } };
+    const log = createDiscoveryLog({ addPoints() {} });
+    log.startWalk();
+    const trails = [];
+    const shimmers = [];
+    const pings = [];
+    const session = {
+      cat: { position: new THREE.Vector3(0, 0, 0) },
+      areaData: { collectibles: COLLECTIBLES },
+      collectibleMeshes: new Map(COLLECTIBLES.map((c) => [c.id, {}])),
+      scent: {
+        trailTo(from, to, opts) {
+          trails.push({ from: { x: from.x, z: from.z }, to, opts });
+          return { x: to.x, z: to.z };
+        },
+      },
+      goldMice: {
+        mice: [],
+        nearestUnfound(pos, maxDist, found) {
+          let best = null;
+          let bestD = maxDist;
+          for (const m of session.goldMice.mice) {
+            if (found && found.has(m.id)) continue;
+            const d = Math.hypot(m.x - pos.x, m.z - pos.z);
+            if (d < bestD) { bestD = d; best = m; }
+          }
+          return best ? { mouse: best, dist: bestD } : null;
+        },
+      },
+      fx: { shimmer: (at, color, n) => shimmers.push({ x: at.x, y: at.y, z: at.z, color, n }) },
+    };
+    const { updateSenses } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player: { perchY: 0 }, progression, log,
+      hud: { toast() {} },
+      audio: { trill() {}, whiskerPing: (c) => pings.push(c) },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    // The throttles key off wall-clock seconds, which a test cannot wind
+    // forward — so tick() deliberately opens both gates, and the throttle
+    // test asserts on where the gates were pushed TO instead.
+    const tick = ({ force = true } = {}) => {
+      if (force) { session.noseNextAt = 0; session.whiskerNextAt = 0; }
+      updateSenses(session, session.cat.position);
+    };
+    return { progression, session, updateSenses, tick, trails, shimmers, pings };
+  }
+
+  // --- Twitchy Nose ------------------------------------------------------
+
+  it('lays no trail at all without Twitchy Nose', () => {
+    const h = sensesHarness([]);
+    for (let i = 0; i < 5; i++) h.tick();
+    expect(h.trails).toHaveLength(0);
+  });
+
+  it('lays a trail toward the NEAREST uncollected collectible with Twitchy Nose', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.tick();
+    expect(h.trails).toHaveLength(1);
+    expect(h.trails[0].to.id).toBe('near');
+  });
+
+  it('retargets once the near one is picked up, and stops when all are gone', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.tick();
+    expect(h.trails[0].to.id).toBe('near');
+    // handleInteract's 'collect' branch is what removes the mesh; a remote
+    // co-walker's collect event removes it too. Either way the Map is the
+    // authority on "still on the ground".
+    h.session.collectibleMeshes.delete('near');
+    h.tick();
+    expect(h.trails[1].to.id).toBe('far');
+    h.session.collectibleMeshes.delete('far');
+    h.tick();
+    expect(h.trails).toHaveLength(2); // nothing left to point at
+  });
+
+  it('reaches further than the eye — a collectible outside the reveal radius', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.session.collectibleMeshes.delete('near');
+    h.tick();
+    // 10m out: past updateInteractions' 7m reveal, inside the 22m nose range.
+    expect(h.trails[0].to.id).toBe('far');
+  });
+
+  it('ignores anything past the nose range', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.session.areaData.collectibles = [{ id: 'miles', x: 400, z: 0 }];
+    h.session.collectibleMeshes = new Map([['miles', {}]]);
+    h.tick();
+    expect(h.trails).toHaveLength(0);
+  });
+
+  it('relays from where the cat is NOW, so the trail follows the player', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.tick();
+    h.session.cat.position.set(1, 0, 2);
+    h.tick();
+    expect(h.trails[0].from).toEqual({ x: 0, z: 0 });
+    expect(h.trails[1].from).toEqual({ x: 1, z: 2 });
+  });
+
+  it('throttles: the gate closes after a relay and holds on the next frame', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.tick();
+    expect(h.session.noseNextAt).toBeGreaterThan(0);
+    h.tick({ force: false });
+    expect(h.trails).toHaveLength(1); // the closed gate held
+  });
+
+  it('clips the trail rather than drawing the whole way to a distant target', () => {
+    const h = sensesHarness(['twitchy-nose']);
+    h.tick();
+    expect(h.trails[0].opts.maxDist).toBeLessThan(22);
+  });
+
+  // --- Whisker Sense -----------------------------------------------------
+
+  it('never shimmers or pings without Whisker Sense, even on top of a mouse', () => {
+    const h = sensesHarness([]);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 0, z: 0 }];
+    for (let i = 0; i < 5; i++) h.tick();
+    expect(h.shimmers).toHaveLength(0);
+    expect(h.pings).toHaveLength(0);
+  });
+
+  it('shimmers and pings for an unfound mouse in range with Whisker Sense', () => {
+    const h = sensesHarness(['whisker-sense']);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 5, z: 0 }];
+    h.tick();
+    expect(h.shimmers).toHaveLength(1);
+    expect(h.pings).toHaveLength(1);
+  });
+
+  it('NEVER pings a mouse the player has already found', () => {
+    // The ability's one hard rule. state.golden is the player's own record of
+    // caught mice, and updateSenses must re-read it, not trust a stale set.
+    const h = sensesHarness(['whisker-sense']);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 2, z: 0 }];
+    h.tick();
+    expect(h.pings).toHaveLength(1);
+    h.progression.state.golden = ['gm-park-1'];
+    for (let i = 0; i < 5; i++) h.tick();
+    expect(h.pings).toHaveLength(1); // no further pings
+    expect(h.shimmers).toHaveLength(1);
+  });
+
+  it('still pings a DIFFERENT mouse once one has been found', () => {
+    const h = sensesHarness(['whisker-sense']);
+    h.session.goldMice.mice = [
+      { id: 'gm-park-1', x: 2, z: 0 },
+      { id: 'gm-park-2', x: 6, z: 0 },
+    ];
+    h.progression.state.golden = ['gm-park-1'];
+    h.tick();
+    expect(h.pings).toHaveLength(1);
+    expect(h.shimmers[0].x).toBeGreaterThan(0); // pointing at gm-park-2, +x
+  });
+
+  it('stays quiet with nothing in range', () => {
+    const h = sensesHarness(['whisker-sense']);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 90, z: 0 }];
+    h.tick();
+    expect(h.pings).toHaveLength(0);
+    expect(h.shimmers).toHaveLength(0);
+  });
+
+  it('pings higher and more often the closer the mouse gets', () => {
+    const far = sensesHarness(['whisker-sense']);
+    far.session.goldMice.mice = [{ id: 'gm-park-1', x: 11, z: 0 }];
+    far.tick();
+    const near = sensesHarness(['whisker-sense']);
+    near.session.goldMice.mice = [{ id: 'gm-park-1', x: 1, z: 0 }];
+    near.tick();
+    expect(near.pings[0]).toBeGreaterThan(far.pings[0]);      // pitch
+    // rate: the gap to the next ping shrinks as you close in
+    expect(near.session.whiskerNextAt).toBeLessThan(far.session.whiskerNextAt);
+  });
+
+  it('shimmers a step out from the cat on the bearing to the mouse, never on it', () => {
+    const h = sensesHarness(['whisker-sense']);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 0, z: 8 }];
+    h.tick();
+    const s = h.shimmers[0];
+    expect(s.z).toBeGreaterThan(0);       // toward the mouse
+    expect(s.z).toBeLessThan(2);          // a step out, not at the mouse
+    expect(s.x).toBeCloseTo(0, 5);
+    expect(s.y).toBeGreaterThan(0);
+  });
+
+  // --- both, and neither -------------------------------------------------
+
+  it('a save with no skills at all changes nothing about either sense', () => {
+    const h = sensesHarness([]);
+    h.session.goldMice.mice = [{ id: 'gm-park-1', x: 1, z: 0 }];
+    for (let i = 0; i < 10; i++) h.tick();
+    expect(h.trails).toHaveLength(0);
+    expect(h.shimmers).toHaveLength(0);
+    expect(h.pings).toHaveLength(0);
+  });
+
+  it('survives a hostile or missing save rather than throwing mid-frame', () => {
+    for (const state of [null, undefined, 'nope', { skills: 'x', feats: 7, golden: 'abc' }]) {
+      const h = sensesHarness([]);
+      h.progression.state = state;
+      h.session.goldMice.mice = [{ id: 'gm-park-1', x: 1, z: 0 }];
+      expect(() => h.tick()).not.toThrow();
+      expect(h.pings).toHaveLength(0);
+    }
+  });
+
+  it('does not need a scent or goldMice to exist', () => {
+    const h = sensesHarness(['twitchy-nose', 'whisker-sense']);
+    h.session.scent = null;
+    h.session.goldMice = null;
+    expect(() => h.tick()).not.toThrow();
+  });
+});

@@ -77,3 +77,83 @@ describe('createScent', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// v18 Twitchy Nose ('twitchy-nose') — scent.trailTo. The ability reuses this
+// module's trail rendering rather than shipping a second look for the same
+// idea, so what is pinned here is the clipping rule, the no-op cases, and the
+// fact that a relaid trail does not leak.
+// ---------------------------------------------------------------------------
+describe('createScent.trailTo (v18 Twitchy Nose)', () => {
+  const counted = () => {
+    const added = [];
+    return { added, add(o) { added.push(o); }, remove(o) { added.splice(added.indexOf(o), 1); } };
+  };
+
+  it('clips the trail to maxDist instead of drawing all the way to a far target', () => {
+    const scent = createScent(scene, AREA, () => 0.5);
+    const end = scent.trailTo({ x: 0, z: 0 }, { x: 40, z: 0 }, { maxDist: 6 });
+    expect(end.x).toBeCloseTo(6, 5);
+    expect(end.z).toBeCloseTo(0, 5);
+  });
+
+  it('draws all the way to a target already inside maxDist', () => {
+    const scent = createScent(scene, AREA, () => 0.5);
+    const end = scent.trailTo({ x: 0, z: 0 }, { x: 0, z: 3 }, { maxDist: 6 });
+    expect(end.z).toBeCloseTo(3, 5);
+  });
+
+  it('is a no-op for a null target or one the cat is standing on', () => {
+    const s = counted();
+    const scent = createScent(s, AREA, () => 0.5);
+    const beforeMounds = s.added.length;
+    expect(scent.trailTo({ x: 0, z: 0 }, null)).toBeNull();
+    expect(scent.trailTo({ x: 1, z: 1 }, { x: 1.1, z: 1 })).toBeNull();
+    expect(s.added.length).toBe(beforeMounds); // nothing drawn either time
+  });
+
+  it('lays `steps` decals and removes every one of them once they expire', () => {
+    const s = counted();
+    const scent = createScent(s, AREA, () => 0.5);
+    const beforeMounds = s.added.length;
+    scent.trailTo({ x: 0, z: 0 }, { x: 20, z: 0 }, { steps: 5, life: 4 });
+    expect(s.added.length).toBe(beforeMounds + 5);
+    scent.update(5);
+    expect(s.added.length).toBe(beforeMounds);
+  });
+
+  it('relaying many trails never accumulates decals past their lifetime', () => {
+    const s = counted();
+    const scent = createScent(s, AREA, () => 0.5);
+    const beforeMounds = s.added.length;
+    for (let i = 0; i < 20; i++) {
+      scent.trailTo({ x: i, z: 0 }, { x: i + 20, z: 0 }, { steps: 5, life: 4 });
+      scent.update(4);
+    }
+    expect(s.added.length).toBe(beforeMounds);
+  });
+
+  // update() used to clamp every decal to a hardcoded 0.85. The nose relays a
+  // trail every few seconds, so it needs its own fainter ceiling or the
+  // prints stack into a solid yellow carpet — hence the per-decal `peak`.
+  it('holds the sniff trail at its full 0.85 and the nose trail at a fainter ceiling', () => {
+    const sniffScene = counted();
+    const sniffScent = createScent(sniffScene, AREA, () => 0.4);
+    const treat = sniffScent.treats[0];
+    const moundCount = sniffScene.added.length;
+    sniffScent.sniff({ x: treat.x - 5, z: treat.z }, 30);
+    sniffScent.update(0.01);
+    const sniffDecals = sniffScene.added.slice(moundCount);
+    expect(sniffDecals.length).toBeGreaterThan(0);
+    for (const d of sniffDecals) expect(d.material.opacity).toBeCloseTo(0.85, 5);
+
+    const noseScene = counted();
+    const noseScent = createScent(noseScene, AREA, () => 0.4);
+    const noseMounds = noseScene.added.length;
+    noseScent.trailTo({ x: 0, z: 0 }, { x: 10, z: 0 });
+    noseScent.update(0.01);
+    const noseDecals = noseScene.added.slice(noseMounds);
+    expect(noseDecals.length).toBeGreaterThan(0);
+    for (const d of noseDecals) expect(d.material.opacity).toBeLessThan(0.85);
+  });
+});
