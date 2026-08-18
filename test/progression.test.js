@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
-import { SKILL_IDS, hasSkill } from '../src/skills.js';
+import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -1078,5 +1078,241 @@ describe('v18 skills/feats save fields', () => {
     p.reset();
     expect(p.state.feats).toEqual({});
     expect(p.state.skills).toEqual([]);
+  });
+});
+
+// v18 Task 1.4 — the foundation corrections. Two of the twelve feats shipped
+// reading a PROXY counter because no faithful source existed; these tests pin
+// the real counters that replaced them, and — just as importantly — pin that
+// the existing awards those counters ride alongside were NOT changed.
+describe('v18 perch/race feat tallies', () => {
+  it('accepts the two dedicated tallies that are not AWARDS types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('perch');
+    p.recordFeat('perch');
+    p.recordFeat('race');
+    expect(p.state.feats).toEqual({ perch: 2, race: 1 });
+  });
+
+  it('keeps the perch tally independent of the scenic award it rides alongside', () => {
+    // The interactions.js call site pays awardOnce('scenic', …) AND records
+    // 'perch'. The award was deliberately not retyped — 'scenic' still feeds
+    // GOAL_POOL's scenic-spots goal — so the two counters must move
+    // independently: a scenic viewpoint visit bumps only 'scenic'.
+    const p = createProgression(fakeStorage());
+    p.recordFeat('scenic');                       // a plain viewpoint visit
+    expect(p.state.feats).toEqual({ scenic: 1 });
+    expect(hasSkill(p.state, 'spring-paws')).toBe(false);
+    p.recordFeat('scenic');                       // and now a vantage perch:
+    p.recordFeat('perch');                        // both, as the call site does
+    expect(p.state.feats).toEqual({ scenic: 2, perch: 1 });
+  });
+
+  it('keeps the race tally independent of the goal award it rides alongside', () => {
+    // Same shape: 'goal' is shared with ordinary per-walk goal completions,
+    // so three goals in one walk must not unlock Long Zoomies.
+    const p = createProgression(fakeStorage());
+    for (let i = 0; i < 3; i++) p.recordFeat('goal');
+    expect(hasSkill(p.state, 'long-zoomies')).toBe(false);
+    for (let i = 0; i < 3; i++) { p.recordFeat('goal'); p.recordFeat('race'); }
+    expect(p.state.feats).toEqual({ goal: 6, race: 3 });
+    expect(hasSkill(p.state, 'long-zoomies')).toBe(true);
+  });
+
+  it('round-trips the two tallies through a save/reload like any other feat', () => {
+    // They are not AWARDS keys, so sanitizeFeats has to know about them too —
+    // otherwise they would be silently dropped on the next boot.
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 10; i++) p.recordFeat('perch');
+    p.recordFeat('race');
+    const reloaded = createProgression(storage);
+    expect(reloaded.state.feats).toEqual({ perch: 10, race: 1 });
+    expect(hasSkill(reloaded.state, 'spring-paws')).toBe(true);
+  });
+
+  it('still drops unknown feat types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('perching');   // near-miss of the real 'perch' key
+    p.recordFeat('races');
+    expect(p.state.feats).toEqual({});
+  });
+});
+
+describe('v18 duskWalks save field', () => {
+  it('a fresh save starts at zero and stays version 4', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.duskWalks).toBe(0);
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating duskWalks loads losslessly with the default', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 120, lifetimePoints: 940, bestWalk: 61,
+      walks: { neighborhood: 7, park: 3, seaside: 2, den: 1 },
+      unlocked: { cats: ['tabby', 'black'], accessories: ['bell'], areas: ['neighborhood', 'park'] },
+      equipped: { cat: 'black', collar: 'bell' },
+      journal: { bird: 4 }, golden: ['gm-park-1'], streak: { last: '2026-08-01', count: 5 },
+      kitten: { stage: 2 }, race: { date: '2026-08-01', area: 'park', bestMs: 21000 },
+      den: { owned: ['rug'], placed: {} }, skills: ['sea-legs'], feats: { mischief: 9 },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.duskWalks).toBe(0);
+    // nothing else disturbed by the new field
+    expect(p.state.points).toBe(120);
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1 });
+    expect(p.state.journal).toEqual({ bird: 4 });
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
+    expect(p.state.kitten).toEqual({ stage: 2 });
+    expect(p.state.race).toEqual({ date: '2026-08-01', area: 'park', bestMs: 21000 });
+    expect(p.state.den).toEqual({ owned: ['rug'], placed: {} });
+    expect(p.state.skills).toEqual(['sea-legs']);
+    expect(p.state.feats).toEqual({ mischief: 9 });
+  });
+
+  it('increments only on a dusk walk, never on an ordinary one', () => {
+    const p = createProgression(fakeStorage());
+    p.completeWalk('park');                        // pre-v18 call shape
+    p.completeWalk('park', {});                    // opts present, no dusk
+    p.completeWalk('park', { dusk: false });
+    expect(p.state.duskWalks).toBe(0);
+    expect(p.state.walks.park).toBe(3);            // walk count still moves
+    p.completeWalk('park', { dusk: true });
+    p.completeWalk('seaside', { dusk: true });
+    expect(p.state.duskWalks).toBe(2);
+    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0 });
+  });
+
+  it('unlocks Night Eyes on the fifth dusk walk and persists across a reload', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 4; i++) p.completeWalk('park', { dusk: true });
+    expect(hasSkill(p.state, 'night-eyes')).toBe(false);
+    p.completeWalk('park', { dusk: true });
+    expect(hasSkill(p.state, 'night-eyes')).toBe(true);
+    expect(createProgression(storage).state.duskWalks).toBe(5);
+  });
+
+  it('sanitizes a hostile duskWalks value down to zero', () => {
+    for (const duskWalks of ['<script>alert(1)</script>', -5, null, true, [], {}, '9']) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, duskWalks }) });
+      expect(createProgression(storage).state.duskWalks).toBe(0);
+    }
+    // JSON can't carry NaN/Infinity, so those go through the in-memory path.
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, duskWalks: NaN });
+    expect(p.state.duskWalks).toBe(0);
+    p.replaceFromPayload({ version: 4, duskWalks: Infinity });
+    expect(p.state.duskWalks).toBe(0);
+    p.replaceFromPayload({ version: 4, duskWalks: 4.9 });
+    expect(p.state.duskWalks).toBe(4); // floored
+  });
+
+  it('clamps an absurd duskWalks rather than persisting it', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, duskWalks: 1e15 }) });
+    const p = createProgression(storage);
+    expect(p.state.duskWalks).toBe(100_000);
+    // and the cap holds against further increments
+    p.completeWalk('park', { dusk: true });
+    expect(p.state.duskWalks).toBe(100_000);
+  });
+
+  it('reset() clears duskWalks back to zero', () => {
+    const p = createProgression(fakeStorage());
+    p.completeWalk('park', { dusk: true });
+    p.reset();
+    expect(p.state.duskWalks).toBe(0);
+  });
+});
+
+describe('recordSkillUnlocks', () => {
+  it('persists newly unlocked ids and returns exactly what it added', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['sure-claws'])).toEqual(['sure-claws']);
+    expect(p.state.skills).toEqual(['sure-claws']);
+  });
+
+  it('returns [] and does not duplicate on a second call with the same ids', () => {
+    // Task 2.7's unlock celebration fires on the return value, so a repeat
+    // call must report nothing new — otherwise it double-fires every walk.
+    const p = createProgression(fakeStorage());
+    p.recordSkillUnlocks(['sure-claws', 'sea-legs']);
+    expect(p.recordSkillUnlocks(['sure-claws', 'sea-legs'])).toEqual([]);
+    expect(p.state.skills).toEqual(['sure-claws', 'sea-legs']);
+  });
+
+  it('returns only the ids added by THIS call, not everything held', () => {
+    const p = createProgression(fakeStorage());
+    p.recordSkillUnlocks(['sure-claws']);
+    expect(p.recordSkillUnlocks(['sure-claws', 'big-swat'])).toEqual(['big-swat']);
+    expect(p.state.skills).toEqual(['sure-claws', 'big-swat']);
+  });
+
+  it('dedupes within a single call', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['sea-legs', 'sea-legs', 'sea-legs'])).toEqual(['sea-legs']);
+    expect(p.state.skills).toEqual(['sea-legs']);
+  });
+
+  it('stores and returns in catalog order regardless of the caller order', () => {
+    const p = createProgression(fakeStorage());
+    const added = p.recordSkillUnlocks(['sea-legs', 'spring-paws', 'charmer']);
+    expect(added).toEqual(['spring-paws', 'charmer', 'sea-legs']);
+    expect(p.state.skills).toEqual(['spring-paws', 'charmer', 'sea-legs']);
+  });
+
+  it('drops unknown and non-string ids without throwing', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['not-a-skill', 7, null, {}, '__proto__', 'big-swat'])).toEqual(['big-swat']);
+    expect(p.state.skills).toEqual(['big-swat']);
+    expect({}.polluted).toBe(undefined);
+  });
+
+  it('tolerates a non-array argument', () => {
+    const p = createProgression(fakeStorage());
+    for (const bad of [undefined, null, 'sea-legs', 42, { 'sea-legs': true }]) {
+      expect(p.recordSkillUnlocks(bad)).toEqual([]);
+    }
+    expect(p.state.skills).toEqual([]);
+  });
+
+  it('never stores more than the catalog holds', () => {
+    const p = createProgression(fakeStorage());
+    const flooded = [];
+    for (let i = 0; i < 40; i++) flooded.push(...SKILL_IDS);
+    expect(p.recordSkillUnlocks(flooded)).toEqual(SKILL_IDS);
+    expect(p.state.skills).toEqual(SKILL_IDS);
+    expect(p.state.skills.length).toBe(SKILL_IDS.length);
+  });
+
+  it('persists through a save/reload', () => {
+    const storage = fakeStorage();
+    createProgression(storage).recordSkillUnlocks(['whisker-sense']);
+    expect(createProgression(storage).state.skills).toEqual(['whisker-sense']);
+  });
+
+  it('does not write to storage when nothing was added', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.recordSkillUnlocks(['sea-legs']);
+    const before = storage.dump()['whisker-walk-save'];
+    expect(p.recordSkillUnlocks(['sea-legs'])).toEqual([]);
+    expect(storage.dump()['whisker-walk-save']).toBe(before);
+  });
+
+  it('keeps an earned ability even after its predicate stops being satisfied', () => {
+    // The whole reason state.skills is stored rather than derived: a later
+    // threshold change must never revoke an ability a child already earned.
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 25; i++) p.recordFeat('mischief');
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+    p.recordSkillUnlocks(unlockedSkills(p.state));
+    expect(p.state.skills).toEqual(['sure-claws']);
+    // simulate the tally being lost/reset while the unlock stays on record
+    p.replaceFromPayload({ version: 4, skills: p.state.skills, feats: {} });
+    expect(p.state.feats).toEqual({});
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
   });
 });
