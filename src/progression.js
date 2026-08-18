@@ -1,11 +1,23 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { AWARDS } from './discoveries.js';
+import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
 
 const SAVE_KEY = 'whisker-walk-save';
-const SAVE_VERSION = 4; // v4: per-slot cosmetic accessories
+// v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
+// are ADDITIVE fields sanitized independently with a default, exactly like
+// v15's journal/golden/streak/kitten, so a payload predating them loads
+// losslessly and an older client simply ignores the extra keys. Bumping the
+// version here would strand every save written by a deployed older client.
+const SAVE_VERSION = 4;
 
 // v15 Collector's Journal critter types — the fixed vocabulary state.journal
 // counts are restricted to (sanitizeState drops anything outside this list).
-export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse'];
+// v18 Task 2.6 adds 'rat' — the eleventh entry, and The Old Docks' own
+// critter, so the fourth area adds a journal PAGE rather than only
+// re-showing critters the player already knows. Purely additive: a save
+// written before v18 simply has no 'rat' key and sanitizeJournal defaults it
+// to 0, exactly as it does for every other unseen type.
+export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -48,13 +60,83 @@ const DEN_OWNED_MAX = 32;
 // than duplicated here — sanitizeDen and placeDenItem both need these sets.
 const DEN_ITEM_IDS = new Set(Object.keys(DEN_ITEMS));
 const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
+// v18 Cat Skills. Both sets are computed from the modules that OWN the
+// vocabulary — skills.js's catalog and discoveries.js's AWARDS — rather than
+// duplicated here, so adding an ability or an award type can never leave
+// sanitizeState silently dropping a legitimate new key.
+const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
+// v18 Task 1.4: two tallies that are NOT award types.
+//
+// state.feats' key vocabulary is normally exactly AWARDS' keys, because
+// recordFeat is driven by discoveries.js's pay(). These two are counted
+// ALONGSIDE an existing award rather than by retyping one, because the
+// existing award type is load-bearing somewhere else and retyping it would
+// silently change live gameplay (the spec's non-goals forbid rebalancing):
+//
+//  - 'perch'  reaching a vantage perch already pays awardOnce('scenic', …),
+//             and GOAL_POOL's 'scenic-spots' goal ("Visit 2 scenic spots")
+//             counts 'scenic' discoveries. Retyping the perch award would
+//             quietly make that goal harder. So the perch call site pays the
+//             unchanged 'scenic' award AND records this second, dedicated
+//             tally, which is what Spring Paws / Fence Runner actually read.
+//  - 'race'   finishing the daily race already pays awardOnce('goal',
+//             'race-done'); 'goal' is shared with the three ordinary per-walk
+//             goal completions, so feats.goal hits 3 in one normal walk.
+//             Same treatment: unchanged award + a dedicated tally, which is
+//             what lets Long Zoomies mean "finish the race 3 times".
+//
+// They live in state.feats (rather than as two more top-level save fields)
+// because they are the same KIND of thing — a lifetime count of a player
+// action — and so inherit sanitizeFeats' coercion, cap and __proto__
+// handling for free. Neither name collides with an AWARDS key; the
+// assertion below makes that a build-time failure rather than a silent
+// double-count if a future award type ever takes one of these names.
+const EXTRA_FEAT_TYPES = ['perch', 'race'];
+for (const t of EXTRA_FEAT_TYPES) {
+  if (Object.prototype.hasOwnProperty.call(AWARDS, t)) {
+    throw new Error(`progression: feat tally '${t}' collides with an AWARDS type`);
+  }
+}
+const FEAT_TYPES = new Set([...Object.keys(AWARDS), ...EXTRA_FEAT_TYPES]);
+// Ceiling on state.feats' per-type lifetime tallies. Same job as
+// STREAK_COUNT_MAX/RACE_MS_MAX above: asFiniteNonNegInt alone would happily
+// persist 1e15 "things tipped over", which is meaningless, renders badly in
+// the Skills tab's progress text, and bloats the save on every round-trip.
+// A million of any one discovery type is already far beyond a lifetime of
+// real play (the highest feat threshold in the catalog is 40).
+const FEAT_COUNT_MAX = 1_000_000;
+// Ceiling on state.duskWalks (v18 Task 1.4). Same job as STREAK_COUNT_MAX and
+// FEAT_COUNT_MAX above: a lifetime of real play is a few thousand walks at
+// the very most, so 100k is generous headroom whose only real purpose is
+// stopping a hostile cloud payload persisting 1e15 dusk walks.
+const DUSK_WALKS_MAX = 100_000;
+// Ceiling on state.gifts. Twelve scenic spots ship across the four areas, so
+// eight outstanding gifts is already most of the world seeded at once — and
+// each one renders a prop, so the cap is a rendering bound as much as a save
+// bound. A hostile payload claiming 10,000 stashed gifts must not turn a
+// walk into ten thousand meshes.
+const GIFTS_MAX = 8;
 
+// The prestige ladder, gated purely on lifetimePoints. Ranks confer NOTHING
+// mechanical — skills.js is the mechanical axis and this is the prestige one,
+// and keeping the two independent is the point (v18 spec §Rank ladder).
+//
+// Must stay sorted ascending by `at`: rankFor walks the array in order and
+// keeps the last entry it clears. The first five entries are the pre-v18
+// ladder and are FROZEN — changing a title or a threshold would demote a
+// player on update, which is the one thing this table may never do. v18
+// appends four tiers past the old 2000 dead end so the HUD's progress bar has
+// somewhere to go.
 export const RANKS = [
   { at: 0, title: 'House Cat' },
   { at: 150, title: 'Yard Prowler' },
   { at: 400, title: 'Street Smart' },
   { at: 900, title: 'Neighborhood Legend' },
   { at: 2000, title: 'Mythical Feline' },
+  { at: 3500, title: 'Rooftop Royalty' },
+  { at: 5500, title: 'Shadow Prowler' },
+  { at: 8000, title: 'Nine Lives' },
+  { at: 12000, title: 'Whisker Legend' },
 ];
 
 export function rankFor(lifetimePoints) {
@@ -115,8 +197,24 @@ export const CATALOG = {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
     seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
+    // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
+    // area has to be registered for the home-base picker: homebase.js renders
+    // a card per CATALOG.areas entry, canBuy reads price + requires, and
+    // setArea equips it. The matching state.walks key is what makes the
+    // "2 walks in Seaside" gate (and this area's own walk count) work —
+    // see defaultState below, where forgetting it is a permanent NaN.
+    docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
   },
 };
+
+// v18 Task 3.2 Gift Paws. Walk-area ids a gift may name, taken from the area
+// catalog rather than duplicated, so adding a fifth area needs no edit here.
+// Note this deliberately excludes 'den': the den is an indoor room reached
+// through its own entry point, has no `scenics`, and is not a CATALOG.areas
+// entry. Declared after CATALOG rather than up with the other sanitize
+// bounds because a `const` is in its temporal dead zone until its own
+// initializer runs.
+const KNOWN_AREA_IDS = new Set(Object.keys(CATALOG.areas));
 
 // summarizeSaveForPreview(s) — reduces a save object down to the four fields
 // the cloud-sync "Load from cloud" preview card displays (main.js's
@@ -164,7 +262,15 @@ function defaultState() {
     // start — otherwise a den walk would do `undefined + 1` and leave
     // state.walks.den as NaN forever (NaN + 1 is still NaN, so it would
     // never self-heal on a later walk either).
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0 },
+    // v18 Task 2.6: 'docks' joins them for exactly the same reason spelled
+    // out above for 'den'. completeWalk does `state.walks[areaId] += 1` with
+    // no guard, so the first Docks walk on a save with no 'docks' key would
+    // compute `undefined + 1` and pin state.walks.docks at NaN forever —
+    // NaN + 1 is still NaN, so it never self-heals on a later walk, and the
+    // walk count would be permanently broken for that save. sanitizeState's
+    // walks loop iterates the keys of THIS object, so a loaded save that
+    // predates v18 picks the key up here with a 0 default.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
     area: 'neighborhood',
@@ -178,6 +284,38 @@ function defaultState() {
     kitten: { stage: 0 },
     race: { date: null, area: null, bestMs: null },
     den: { owned: [], placed: {} },
+    // v18 Cat Skills. `skills` is the list of ability ids already earned —
+    // stored rather than derived so a later threshold change can never
+    // revoke an ability a child has already unlocked. `feats` is the
+    // lifetime per-discovery-type tally the feat predicates read; it is fed
+    // from exactly one place (recordFeat, called by discoveries.js's pay).
+    // DECISION (locked in the spec): no back-fill. Existing saves start
+    // these tallies at zero — feats reading pre-existing fields (golden,
+    // journal, walks, race, friends) are naturally retroactive, the new
+    // tallies are not, and a fabricated back-fill from lifetimePoints would
+    // be a lie about what the player actually did.
+    skills: [],
+    feats: {},
+    // v18 Task 1.4: lifetime count of COMPLETED dusk walks — what Night Eyes
+    // ("Complete 5 dusk walks") reads. It cannot be derived from anything
+    // already persisted: state.walks[area] counts every walk regardless of
+    // time of day, and dusk is a per-walk option that was never recorded.
+    // Additive, so SAVE_VERSION stays 4 (see the note on SAVE_VERSION).
+    // Incremented only by completeWalk({ dusk: true }), and the caller passes
+    // the walk's `duskActive` — not the raw duskMode — because a solo walk
+    // only actually goes dusk when the glow collar is equipped.
+    duskWalks: 0,
+    // v18 Task 3.2 Gift Paws: gifts this cat has tucked away at scenic
+    // spots, waiting to be found on a later walk. Each entry is
+    // { area, spot } — the walk area's catalog id and the scenic spot's own
+    // id out of that area's `scenics` array. Additive, so SAVE_VERSION stays
+    // 4 like `skills`/`feats`/`duskWalks` before it.
+    //
+    // Deliberately NOT a position: a scenic id survives a world builder
+    // moving the fountain three metres, and it is what src/gifts.js resolves
+    // against the live area data at walk start (an id that no longer exists
+    // simply renders nothing, rather than dropping a present in a wall).
+    gifts: [],
   };
 }
 
@@ -276,6 +414,89 @@ function sanitizeDen(v) {
   return { owned, placed };
 }
 
+// v18: unlocked ability ids. Same untrusted threat model as every other
+// field here, and the Skills tab renders these ids' catalog entries, so an
+// unknown id must never survive: strings only, must be a real catalog id
+// (KNOWN_SKILL_IDS, computed from skills.js), deduped, and capped at the
+// catalog length — there is no legitimate save holding more unlocked skills
+// than there are skills. The dedupe+known-id filter already bounds the
+// result, but the explicit cap is kept so the bound stays true if the
+// filter is ever loosened.
+function sanitizeSkills(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const id of v) {
+    if (out.length >= KNOWN_SKILL_IDS.size) break;
+    if (typeof id === 'string' && KNOWN_SKILL_IDS.has(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+// v18: lifetime per-discovery-type tallies. Structurally identical to
+// sanitizeJournal above — iterate the KNOWN key vocabulary and pull each
+// key out of the payload with a hasOwnProperty check, rather than iterating
+// the payload's own keys. That shape is what makes a '__proto__' (or
+// 'constructor', or 'toString') key in a hostile payload inert: it is never
+// visited, never assigned, and the output object only ever gains AWARDS
+// keys. Values go through the same finite-non-negative-integer coercion as
+// journal counts and are clamped at FEAT_COUNT_MAX.
+function sanitizeFeats(v) {
+  if (!isPlainObject(v)) return {};
+  const out = {};
+  for (const type of FEAT_TYPES) {
+    if (!Object.prototype.hasOwnProperty.call(v, type)) continue;
+    const n = asFiniteNonNegInt(v[type], undefined);
+    if (n !== undefined) out[type] = Math.min(FEAT_COUNT_MAX, n);
+  }
+  return out;
+}
+
+// v18 Task 3.2: gifts stashed at scenic spots. Same untrusted threat model
+// as every other field here — this one is rendered into the world (a prop at
+// the spot) AND interpolated into a toast, so a hostile payload gets no
+// latitude at all:
+//
+//   * the entry must be a plain object (not an array, not a string);
+//   * `area` must be a real walk-area catalog id, which is what makes an
+//     unknown/renamed/'__proto__' area id inert rather than something
+//     gifts.js has to defend against later;
+//   * `spot` must be a bounded string. It is NOT validated against the
+//     area's scenic ids here on purpose: progression.js does not (and must
+//     not) import the world builders — those need a DOM canvas. Resolution
+//     happens at walk start in gifts.js, where the live `scenics` array is
+//     in hand and an unknown id is simply skipped.
+//   * duplicates on (area, spot) collapse — one gift per spot, so the list
+//     cannot be inflated by repeating one entry;
+//   * the whole list is capped at GIFTS_MAX.
+//
+// Iterating the payload's own entries is safe here (unlike sanitizeFeats,
+// which iterates a known key vocabulary) because nothing from the payload is
+// ever used as a KEY: the output is a fresh array of fresh objects with two
+// literal fields, so a '__proto__' area or spot value can only ever be
+// dropped by the area check or stored inertly as a string that matches no
+// scenic id.
+function sanitizeGifts(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const g of v) {
+    if (out.length >= GIFTS_MAX) break;
+    if (!isPlainObject(g)) continue;
+    const { area, spot } = g;
+    if (typeof area !== 'string' || !KNOWN_AREA_IDS.has(area)) continue;
+    if (typeof spot !== 'string' || spot.length === 0 || spot.length > 40) continue;
+    const key = `${area}/${spot}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ area, spot });
+  }
+  return out;
+}
+
 function ymdToUTCms(ymd) {
   const [y, m, d] = ymd.split('-').map(Number);
   return Date.UTC(y, m - 1, d);
@@ -365,6 +586,10 @@ function sanitizeState(parsed) {
     kitten: sanitizeKitten(parsed.kitten),
     race: sanitizeRace(parsed.race),
     den: sanitizeDen(parsed.den),
+    skills: sanitizeSkills(parsed.skills),
+    feats: sanitizeFeats(parsed.feats),
+    duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
+    gifts: sanitizeGifts(parsed.gifts),
   };
 }
 
@@ -514,24 +739,53 @@ export function createProgression(storage) {
     // setArea instead of 'den' — inflating that area's walk count (and thus
     // its walks-gated unlocks, e.g. park's "2 walks in neighborhood") every
     // time the freely-repeatable den is visited.
-    completeWalk(areaId = state.area) {
+    // v18 Task 1.4: the optional second argument carries per-walk facts worth
+    // a lifetime tally. `dusk` is the walk's own duskActive — NOT the raw
+    // duskMode the player ticked — because a solo walk only actually turns
+    // dusk when the glow collar is equipped, and Night Eyes ("Complete 5 dusk
+    // walks") must count walks that were really dark, not walks that were
+    // merely requested dark. Defaulted so every pre-v18 call site
+    // (completeWalk() / completeWalk(areaId)) keeps behaving exactly as
+    // before, incrementing nothing new.
+    completeWalk(areaId = state.area, { dusk = false } = {}) {
       state.walks[areaId] += 1;
+      if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
       save();
     },
+    // recordGreet(name, breed, walkStamp) — the ONLY place a greet count ever
+    // moves. The lastWalk guard below is once-per-cat-per-walk and it is
+    // load-bearing: this path persists to a backend whose record_friend_greet
+    // validates the caller's identity and nothing else, so the client-side
+    // cap is what stops greet farming. v18's Charmer moves the RUNGS a count
+    // lands on and has no reach in here — the accrual lines are untouched.
     recordGreet(name, breed, walkStamp) {
       const f = state.friends[name] ?? (state.friends[name] = { breed, greets: 0, lastWalk: null });
       if (f.lastWalk === walkStamp) return null;
       f.lastWalk = walkStamp;
       f.greets += 1;
       save();
-      if (f.greets === 1) return 'met';
-      if (f.greets === 3) return 'friend';
-      if (f.greets === 6) return 'best';
+      // Named off the shared rung table rather than the literals 1/3/6 this
+      // used to carry, so it can never disagree with friendLevel below. Still
+      // exact equality, i.e. still "this greet landed exactly on a rung";
+      // the in-walk toast does not read this return, it uses straycats.js's
+      // friendRungCrossed(before, after), which reports the highest rung a
+      // step crossed and so also copes with a mid-ladder Charmer unlock.
+      const rungs = friendRungs(hasSkill(state, 'charmer'));
+      if (f.greets === rungs.met) return 'met';
+      if (f.greets === rungs.friend) return 'friend';
+      if (f.greets === rungs.best) return 'best';
       return null;
     },
+    // friendLevel(name) → 'none' | 'met' | 'friend' | 'best'. v18 CF-4: this
+    // hardcoded the base 1/3/6, so a Charmer player got the "BEST friend 💕"
+    // toast at four greets while this — and therefore the home-base roster
+    // icon (ui/homebase.js) and the best-friend gift roll (game/walk.js) —
+    // still said ♥ for the same cat. It now reads the same rung table the
+    // toast does.
     friendLevel(name) {
       const g = state.friends[name]?.greets ?? 0;
-      return g >= 6 ? 'best' : g >= 3 ? 'friend' : g >= 1 ? 'met' : 'none';
+      const rungs = friendRungs(hasSkill(state, 'charmer'));
+      return g >= rungs.best ? 'best' : g >= rungs.friend ? 'friend' : g >= rungs.met ? 'met' : 'none';
     },
     recordWalkScore(points) {
       if (points > state.bestWalk) {
@@ -557,6 +811,128 @@ export function createProgression(storage) {
       if (!JOURNAL_TYPES.includes(type)) return;
       state.journal[type] = (state.journal[type] ?? 0) + 1;
       save();
+    },
+    // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
+    // type by one. Its PRIMARY caller is pay() in discoveries.js, the single
+    // funnel every award() / awardOnce() in the game already passes through.
+    // Deliberately not scattered across the ~45 award call sites — one hook
+    // point means a new award type becomes a lifetime counter for free and
+    // no call site can forget to tally.
+    //
+    // Awards routed through pay() inherit the discovery log's per-walk
+    // repeat caps (awardOnce is once per key per walk, recordGreet's
+    // lastWalk guard is once per cat per walk), so those feats cannot be
+    // farmed by holding one key down.
+    //
+    // TWO call sites are NOT inside pay(): the feats.perch tally in
+    // game/interactions.js and the feats.race tally in main.js, both of
+    // which count something no award type means on its own. Neither gets the
+    // cap for free — each must gate itself on its neighbouring awardOnce()
+    // returning non-zero, which is exactly the same per-walk dedup. An
+    // ungated call here IS farmable: the first version of the perch tally
+    // fired on every landing, so re-climbing one perch 100 times bought two
+    // traversal abilities (fixed at the v18 final review; test/
+    // interactions.test.js' "the perch tally is not farmable" drives the real
+    // doPounceOrClimb 100 times to hold that shut). If you add a third
+    // out-of-band tally, gate it the same way.
+    //
+    // Unknown types are ignored rather than stored: state.feats' key
+    // vocabulary is exactly AWARDS' keys, so anything else would just be
+    // dropped again by sanitizeFeats on the next load.
+    recordFeat(type) {
+      if (typeof type !== 'string' || !FEAT_TYPES.has(type)) return;
+      const cur = asFiniteNonNegInt(state.feats[type], 0);
+      if (cur >= FEAT_COUNT_MAX) return;
+      state.feats[type] = cur + 1;
+      save();
+    },
+    // recordSkillUnlocks(ids) → array of the ids that were NEWLY added,
+    // in catalog order. v18 Task 1.4.
+    //
+    // This is the only writer of state.skills. Without it the field
+    // sanitizes correctly but is never populated, which quietly voids the
+    // spec's guarantee that "a later threshold change must never revoke an
+    // ability a child already earned" — hasSkill's union would then rest
+    // entirely on the live predicate.
+    //
+    // The RETURN VALUE is the point of the signature: Task 2.7's in-walk
+    // unlock celebration needs to know which abilities fired just now, and
+    // that is exactly "what this call added", not "what the player has".
+    // Calling it twice with the same ids therefore returns [] the second
+    // time — the celebration cannot double-fire.
+    //
+    // `ids` is normally unlockedSkills(state), but it is treated as
+    // untrusted anyway (same discipline as sanitizeSkills): non-strings and
+    // unknown ids are dropped, order is forced to catalog order rather than
+    // caller order so state.skills is stable regardless of who calls, and
+    // the result is capped at the catalog length. save() only runs when
+    // something actually changed, so a per-walk call on a player who has
+    // unlocked nothing new is not a write.
+    recordSkillUnlocks(ids) {
+      if (!Array.isArray(ids)) return [];
+      const wanted = new Set(ids.filter((id) => typeof id === 'string' && KNOWN_SKILL_IDS.has(id)));
+      const already = new Set(state.skills);
+      const added = SKILL_IDS.filter((id) => wanted.has(id) && !already.has(id));
+      if (added.length === 0) return [];
+      const merged = SKILL_IDS.filter((id) => already.has(id) || wanted.has(id));
+      state.skills = merged.slice(0, KNOWN_SKILL_IDS.size);
+      save();
+      // A skill dropped by the cap was not actually recorded, so it must not
+      // be reported as newly unlocked either (unreachable while the cap is
+      // the catalog length, but the two must not be able to disagree).
+      const kept = new Set(state.skills);
+      return added.filter((id) => kept.has(id));
+    },
+    // ---------------------------------------------------------------------
+    // v18 Task 3.2 — Gift Paws. Three tiny methods over state.gifts.
+    //
+    // They live here rather than in gifts.js for the same reason every other
+    // save mutation does: this module owns `state` and is the only thing
+    // that calls save(). gifts.js is the world/render half and never writes.
+    //
+    // The list is the SAVE's list, not the walk's: a gift left in the park
+    // is still there next week, and the same gift is visible on every walk
+    // in that area until something finds it.
+    // ---------------------------------------------------------------------
+
+    // giftsIn(area) → the gifts stashed in one area, as fresh objects the
+    // caller may keep. Returns [] for an unknown area (including 'den') and
+    // for a state whose gifts field somehow isn't an array.
+    giftsIn(area) {
+      if (typeof area !== 'string' || !Array.isArray(state.gifts)) return [];
+      return state.gifts.filter((g) => g?.area === area).map((g) => ({ area: g.area, spot: g.spot }));
+    },
+
+    // leaveGift(area, spot) → bool. False (and no write) when the area id is
+    // unknown, the spot id is missing/oversized, a gift is already stashed
+    // at that spot, or the cap is full — so the caller can gate its toast
+    // and its award on "a gift was actually left".
+    //
+    // The same validation as sanitizeGifts, applied on the way IN as well as
+    // on the way out: a field that is only cleaned at load time spends the
+    // rest of the session dirty.
+    leaveGift(area, spot) {
+      if (typeof area !== 'string' || !KNOWN_AREA_IDS.has(area)) return false;
+      if (typeof spot !== 'string' || spot.length === 0 || spot.length > 40) return false;
+      if (!Array.isArray(state.gifts)) state.gifts = [];
+      if (state.gifts.length >= GIFTS_MAX) return false;
+      if (state.gifts.some((g) => g?.area === area && g?.spot === spot)) return false;
+      state.gifts.push({ area, spot });
+      save();
+      return true;
+    },
+
+    // claimGift(area, spot) → bool — a visitor found it; the gift is gone.
+    // False when there was nothing there, so the finder's award can be
+    // gated on an actual find and a double call (two frames inside the
+    // proximity radius) cannot pay twice.
+    claimGift(area, spot) {
+      if (!Array.isArray(state.gifts)) return false;
+      const i = state.gifts.findIndex((g) => g?.area === area && g?.spot === spot);
+      if (i < 0) return false;
+      state.gifts.splice(i, 1);
+      save();
+      return true;
     },
     // recordGolden(id) → bool — records a newly found golden mouse. Returns
     // false (no-op) for an id that doesn't match GOLD_ID_PATTERN or one

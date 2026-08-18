@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
+import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -162,6 +163,76 @@ describe('createProgression', () => {
     expect(p.friendLevel('Nobody')).toBe('none');
   });
 
+  // v18 CF-4. friendLevel hardcoded the base 1/3/6 while Charmer moved the
+  // rungs to 1/2/4 inside straycats.js, so a Charmer player was toasted
+  // "BEST friend 💕" at four greets for a cat the home-base roster still drew
+  // as ♥ and the best-friend gift roll still treated as an ordinary friend.
+  // Both now read one table (skills.js's friendRungs).
+  describe('friendLevel and the Charmer rungs', () => {
+    // Sets one cat's lifetime count directly. Nothing here goes through
+    // recordGreet on purpose: these cases are about the RUNG a count lands
+    // on, and the accrual path is pinned separately below.
+    const at = (prog, n) => {
+      prog.state.friends.Pickles = { breed: 'tabby', greets: n, lastWalk: null };
+      return prog.friendLevel('Pickles');
+    };
+
+    it('walks the base 1/3/6 ladder at every rung without Charmer', () => {
+      expect(hasSkill(p.state, 'charmer')).toBe(false);
+      expect([0, 1, 2, 3, 4, 5, 6, 7].map((n) => at(p, n))).toEqual(
+        ['none', 'met', 'met', 'friend', 'friend', 'friend', 'best', 'best']
+      );
+    });
+
+    it('walks the shortened 1/2/4 ladder at every rung with Charmer', () => {
+      p.recordSkillUnlocks(['charmer']);
+      expect(hasSkill(p.state, 'charmer')).toBe(true);
+      expect([0, 1, 2, 3, 4, 5].map((n) => at(p, n))).toEqual(
+        ['none', 'met', 'friend', 'friend', 'best', 'best']
+      );
+    });
+
+    it('agrees with recordGreet\'s own rung names in both states', () => {
+      // The two used to be independent copies of the table; a disagreement
+      // here is exactly the CF-4 defect.
+      for (const charmer of [false, true]) {
+        const q = createProgression(fakeStorage());
+        if (charmer) q.recordSkillUnlocks(['charmer']);
+        for (let w = 1; w <= 6; w++) {
+          const named = q.recordGreet('Pickles', 'tabby', `w${w}`);
+          if (named) expect(q.friendLevel('Pickles')).toBe(named);
+        }
+      }
+    });
+
+    it('never lets Charmer change how greets accrue', () => {
+      // The load-bearing invariant: Charmer moves rungs, never the count.
+      // Same greet script with and without the skill must leave the same
+      // number on the save, including the per-walk dedup rejections.
+      const script = ['w1', 'w1', 'w1', 'w2', 'w3', 'w3', 'w4', 'w5', 'w6', 'w6'];
+      const counts = [false, true].map((charmer) => {
+        const q = createProgression(fakeStorage());
+        if (charmer) q.recordSkillUnlocks(['charmer']);
+        for (const w of script) q.recordGreet('Pickles', 'tabby', w);
+        return q.state.friends.Pickles.greets;
+      });
+      expect(counts[0]).toBe(6); // six distinct walks out of ten greet attempts
+      expect(counts[1]).toBe(counts[0]);
+    });
+
+    it('does not let Charmer bootstrap its own unlock predicate', () => {
+      // Charmer is earned by befriending 5 cats at the BASE ♥ rung. If its
+      // predicate read the Charmer table the bar would drop to two greets
+      // the instant it went true, and earned abilities are never revoked.
+      for (let i = 0; i < 5; i++) {
+        p.state.friends[`Cat${i}`] = { breed: 'tabby', greets: 2, lastWalk: null };
+      }
+      expect(hasSkill(p.state, 'charmer')).toBe(false); // 2 greets is not ♥
+      for (let i = 0; i < 5; i++) p.state.friends[`Cat${i}`].greets = 3;
+      expect(hasSkill(p.state, 'charmer')).toBe(true);
+    });
+  });
+
   it('records best walk scores', () => {
     expect(p.recordWalkScore(30)).toBe(true);
     expect(p.recordWalkScore(20)).toBe(false);
@@ -205,9 +276,63 @@ describe('createProgression', () => {
     expect(rankFor(0).title).toBe('House Cat');
     expect(rankFor(151).title).toBe('Yard Prowler');
     expect(rankFor(2500).title).toBe('Mythical Feline');
-    expect(rankFor(2500).next).toBe(null);
     expect(rankFor(160).next.title).toBe('Street Smart');
-    expect(RANKS).toHaveLength(5);
+  });
+
+  // The pre-v18 ladder is frozen: a title or threshold change here would
+  // demote a live player on update. Pinned literally rather than derived
+  // from RANKS so an accidental edit fails the test instead of following it.
+  it('never demotes: the five pre-v18 tiers keep their exact thresholds', () => {
+    expect(RANKS.slice(0, 5)).toEqual([
+      { at: 0, title: 'House Cat' },
+      { at: 150, title: 'Yard Prowler' },
+      { at: 400, title: 'Street Smart' },
+      { at: 900, title: 'Neighborhood Legend' },
+      { at: 2000, title: 'Mythical Feline' },
+    ]);
+  });
+
+  it('extends to nine tiers, sorted ascending, with no duplicate titles', () => {
+    expect(RANKS).toHaveLength(9);
+    expect(RANKS.map((r) => r.at)).toEqual([0, 150, 400, 900, 2000, 3500, 5500, 8000, 12000]);
+    expect(RANKS.map((r) => r.title)).toEqual([
+      'House Cat', 'Yard Prowler', 'Street Smart', 'Neighborhood Legend',
+      'Mythical Feline', 'Rooftop Royalty', 'Shadow Prowler', 'Nine Lives',
+      'Whisker Legend',
+    ]);
+    expect(new Set(RANKS.map((r) => r.title)).size).toBe(RANKS.length);
+    for (let i = 1; i < RANKS.length; i++) {
+      expect(RANKS[i].at).toBeGreaterThan(RANKS[i - 1].at); // rankFor assumes ascending
+    }
+  });
+
+  // Every boundary at need-1 / need / need+1: one point short still reads as
+  // the tier below, and the threshold itself already promotes.
+  it('promotes exactly at each threshold, not one point early or late', () => {
+    for (let i = 1; i < RANKS.length; i++) {
+      const { at, title } = RANKS[i];
+      const below = RANKS[i - 1].title;
+      expect(rankFor(at - 1).title).toBe(below);
+      expect(rankFor(at).title).toBe(title);
+      expect(rankFor(at + 1).title).toBe(title);
+    }
+  });
+
+  it('points at the next tier below the top and at null on the top tier', () => {
+    expect(rankFor(2000).next.title).toBe('Rooftop Royalty');
+    expect(rankFor(2500).next.title).toBe('Rooftop Royalty'); // no longer the ceiling
+    expect(rankFor(3499).next.title).toBe('Rooftop Royalty');
+    expect(rankFor(8000).next.title).toBe('Whisker Legend');
+    // Top tier: `next` is null rather than pointing past the end of the array.
+    expect(rankFor(12000).title).toBe('Whisker Legend');
+    expect(rankFor(12000).next).toBe(null);
+    expect(rankFor(999999).next).toBe(null);
+  });
+
+  it('floors at House Cat for zero and for below-zero lifetime points', () => {
+    expect(rankFor(0)).toEqual({ title: 'House Cat', next: RANKS[1] });
+    expect(rankFor(-1).title).toBe('House Cat'); // current stays RANKS[0] seed
+    expect(rankFor(-1).next.title).toBe('Yard Prowler');
   });
 
   describe('replaceFromPayload', () => {
@@ -274,13 +399,14 @@ describe('createProgression', () => {
 
       expect(p.state).toEqual({
         version: 4, points: 0,
-        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0 },
+        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
+        skills: [], feats: {}, duskWalks: 0, gifts: [],
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -309,7 +435,7 @@ describe('createProgression', () => {
       expect(p.state.points).toBe(0);
       expect(p.state.lifetimePoints).toBe(0);
       expect(p.state.bestWalk).toBe(0);
-      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 });
       // starter unlocks are still guaranteed even though the payload's
       // unlocked lists were unusable
       expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
@@ -459,7 +585,7 @@ describe('v11 slots + save migration', () => {
       expect(p.state.lifetimePoints).toBe(300);     // veteran rank must survive
       expect(p.state.bestWalk).toBe(40);             // best-walk record must survive
       expect(p.state.area).toBe('park');
-      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0, docks: 0 });
       expect(p.state.friends).toEqual({ Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } });
       expect(p.state.petName).toBe('Zeetoo');
       expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black', 'siamese', 'persian']));
@@ -913,5 +1039,601 @@ describe('summarizeSaveForPreview', () => {
     expect(summarizeSaveForPreview(undefined)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
     expect(summarizeSaveForPreview(null)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
     expect(summarizeSaveForPreview('<script>alert(1)</script>')).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
+  });
+});
+
+describe('v18 skills/feats save fields', () => {
+  it('a fresh save starts with no skills and no feat tallies', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.skills).toEqual([]);
+    expect(p.state.feats).toEqual({});
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating both fields loads losslessly with defaults', () => {
+    // The additive-field contract: an old client's save has no `skills` and
+    // no `feats` key at all, and must survive untouched apart from gaining
+    // the two defaults. This is the v15 precedent (journal/golden/streak/
+    // kitten) applied again.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 120, lifetimePoints: 940, bestWalk: 61,
+      walks: { neighborhood: 7, park: 3, seaside: 2, den: 1 },
+      unlocked: { cats: ['tabby', 'black'], accessories: ['bell'], areas: ['neighborhood', 'park'] },
+      equipped: { cat: 'black', collar: 'bell' },
+      journal: { bird: 4 }, golden: ['gm-park-1'], streak: { last: '2026-08-01', count: 5 },
+      kitten: { stage: 2 }, race: { date: '2026-08-01', area: 'park', bestMs: 21000 },
+      den: { owned: ['rug'], placed: {} },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual([]);
+    expect(p.state.feats).toEqual({});
+    // nothing else disturbed
+    expect(p.state.points).toBe(120);
+    expect(p.state.lifetimePoints).toBe(940);
+    expect(p.state.bestWalk).toBe(61);
+    // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
+    // the whole point of iterating the DEFAULT walks keys rather than the payload's.
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0 });
+    expect(p.state.journal).toEqual({ bird: 4 });
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
+    expect(p.state.kitten).toEqual({ stage: 2 });
+    expect(p.state.race).toEqual({ date: '2026-08-01', area: 'park', bestMs: 21000 });
+    expect(p.state.den).toEqual({ owned: ['rug'], placed: {} });
+    expect(p.state.equipped.cat).toBe('black');
+  });
+
+  it('does NOT back-fill feat tallies for an existing save', () => {
+    // Locked decision: new tallies start at zero. A rich existing save must
+    // not be credited with feats it never actually performed — the feats
+    // that read pre-existing fields (golden/journal/walks/friends/race) are
+    // retroactive on their own, and seeding the rest from lifetimePoints
+    // would be a fabrication.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 5000, lifetimePoints: 50000, bestWalk: 800,
+      journal: { bird: 90 }, golden: ['gm-park-1', 'gm-park-2', 'gm-park-3'],
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({});
+    expect(p.state.skills).toEqual([]);
+  });
+
+  it('round-trips skills and feats through a save/reload', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.recordFeat('mischief');
+    p.recordFeat('mischief');
+    p.recordFeat('gift');
+    expect(createProgression(storage).state.feats).toEqual({ mischief: 2, gift: 1 });
+  });
+
+  it('keeps known skill ids, drops unknown/non-string ones, and dedupes', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      skills: ['spring-paws', 'nonexistent-id', 'spring-paws', 7, null, {}, 'big-swat'] }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(['spring-paws', 'big-swat']);
+  });
+
+  it('drops a non-array skills field wholesale', () => {
+    for (const skills of ['<script>alert(1)</script>', 42, null, { 'sea-legs': true }, true]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, skills }) });
+      expect(createProgression(storage).state.skills).toEqual([]);
+    }
+  });
+
+  it('caps an over-length skills array at the catalog length', () => {
+    // Every real id repeated 40 times: dedupe alone bounds the result, but
+    // the result must never exceed the catalog either way.
+    const flooded = [];
+    for (let i = 0; i < 40; i++) flooded.push(...SKILL_IDS);
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, skills: flooded }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(SKILL_IDS);
+    expect(p.state.skills.length).toBeLessThanOrEqual(SKILL_IDS.length);
+  });
+
+  it('keeps only known AWARDS keys in feats and drops the rest', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 12, scenic: 4, dragonslaying: 99, points: 500 } }) });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({ mischief: 12, scenic: 4 });
+  });
+
+  it('drops non-numeric, negative, NaN and Infinity feat counts', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: '<img src=x onerror=alert(1)>', gift: -5, scenic: null, photo: 3 } }) });
+    const p = createProgression(storage);
+    // JSON can't carry NaN/Infinity, so those go through the in-memory path.
+    expect(p.state.feats).toEqual({ photo: 3 });
+    p.replaceFromPayload({ version: 4, feats: { mischief: NaN, gift: Infinity, scenic: 2.7 } });
+    expect(p.state.feats).toEqual({ scenic: 2 }); // floored, junk dropped
+  });
+
+  it('clamps an absurd feat tally rather than persisting it', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 1e15 } }) });
+    expect(createProgression(storage).state.feats.mischief).toBe(1_000_000);
+  });
+
+  it('ignores a __proto__ key in a feats payload without polluting Object.prototype', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': '{"version":4,"feats":{"__proto__":{"polluted":1},"mischief":3}}' });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({ mischief: 3 });
+    expect(Object.prototype.hasOwnProperty.call(p.state.feats, '__proto__')).toBe(false);
+    expect({}.polluted).toBe(undefined);
+    expect(Object.getPrototypeOf(p.state.feats)).toBe(Object.prototype);
+  });
+
+  it('drops a non-object feats field wholesale', () => {
+    for (const feats of ['<script>', 42, null, ['mischief'], true]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, feats }) });
+      expect(createProgression(storage).state.feats).toEqual({});
+    }
+  });
+
+  it('recordFeat ignores unknown and non-string types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('dragonslaying');
+    p.recordFeat('__proto__');
+    p.recordFeat(null);
+    p.recordFeat(7);
+    p.recordFeat(undefined);
+    expect(p.state.feats).toEqual({});
+    expect({}.polluted).toBe(undefined);
+  });
+
+  it('recordFeat stops at the tally ceiling instead of growing without bound', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 1_000_000 } }) });
+    const p = createProgression(storage);
+    p.recordFeat('mischief');
+    expect(p.state.feats.mischief).toBe(1_000_000);
+  });
+
+  it('feeds hasSkill so an earned feat unlocks its ability', () => {
+    const p = createProgression(fakeStorage());
+    expect(hasSkill(p.state, 'sure-claws')).toBe(false);
+    for (let i = 0; i < 25; i++) p.recordFeat('mischief');
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+    expect(hasSkill(p.state, 'big-swat')).toBe(false); // needs 40
+  });
+
+  it('reset() clears skills and feats back to empty', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('mischief');
+    p.reset();
+    expect(p.state.feats).toEqual({});
+    expect(p.state.skills).toEqual([]);
+  });
+});
+
+// v18 Task 1.4 — the foundation corrections. Two of the twelve feats shipped
+// reading a PROXY counter because no faithful source existed; these tests pin
+// the real counters that replaced them, and — just as importantly — pin that
+// the existing awards those counters ride alongside were NOT changed.
+describe('v18 perch/race feat tallies', () => {
+  it('accepts the two dedicated tallies that are not AWARDS types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('perch');
+    p.recordFeat('perch');
+    p.recordFeat('race');
+    expect(p.state.feats).toEqual({ perch: 2, race: 1 });
+  });
+
+  it('keeps the perch tally independent of the scenic award it rides alongside', () => {
+    // The interactions.js call site pays awardOnce('scenic', …) AND records
+    // 'perch'. The award was deliberately not retyped — 'scenic' still feeds
+    // GOAL_POOL's scenic-spots goal — so the two counters must move
+    // independently: a scenic viewpoint visit bumps only 'scenic'.
+    const p = createProgression(fakeStorage());
+    p.recordFeat('scenic');                       // a plain viewpoint visit
+    expect(p.state.feats).toEqual({ scenic: 1 });
+    expect(hasSkill(p.state, 'spring-paws')).toBe(false);
+    p.recordFeat('scenic');                       // and now a vantage perch:
+    p.recordFeat('perch');                        // both, as the call site does
+    expect(p.state.feats).toEqual({ scenic: 2, perch: 1 });
+  });
+
+  it('keeps the race tally independent of the goal award it rides alongside', () => {
+    // Same shape: 'goal' is shared with ordinary per-walk goal completions,
+    // so three goals in one walk must not unlock Long Zoomies.
+    const p = createProgression(fakeStorage());
+    for (let i = 0; i < 3; i++) p.recordFeat('goal');
+    expect(hasSkill(p.state, 'long-zoomies')).toBe(false);
+    for (let i = 0; i < 3; i++) { p.recordFeat('goal'); p.recordFeat('race'); }
+    expect(p.state.feats).toEqual({ goal: 6, race: 3 });
+    expect(hasSkill(p.state, 'long-zoomies')).toBe(true);
+  });
+
+  it('round-trips the two tallies through a save/reload like any other feat', () => {
+    // They are not AWARDS keys, so sanitizeFeats has to know about them too —
+    // otherwise they would be silently dropped on the next boot.
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 10; i++) p.recordFeat('perch');
+    p.recordFeat('race');
+    const reloaded = createProgression(storage);
+    expect(reloaded.state.feats).toEqual({ perch: 10, race: 1 });
+    expect(hasSkill(reloaded.state, 'spring-paws')).toBe(true);
+  });
+
+  it('still drops unknown feat types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('perching');   // near-miss of the real 'perch' key
+    p.recordFeat('races');
+    expect(p.state.feats).toEqual({});
+  });
+});
+
+describe('v18 duskWalks save field', () => {
+  it('a fresh save starts at zero and stays version 4', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.duskWalks).toBe(0);
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating duskWalks loads losslessly with the default', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 120, lifetimePoints: 940, bestWalk: 61,
+      walks: { neighborhood: 7, park: 3, seaside: 2, den: 1 },
+      unlocked: { cats: ['tabby', 'black'], accessories: ['bell'], areas: ['neighborhood', 'park'] },
+      equipped: { cat: 'black', collar: 'bell' },
+      journal: { bird: 4 }, golden: ['gm-park-1'], streak: { last: '2026-08-01', count: 5 },
+      kitten: { stage: 2 }, race: { date: '2026-08-01', area: 'park', bestMs: 21000 },
+      den: { owned: ['rug'], placed: {} }, skills: ['big-swat'], feats: { mischief: 9 },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.duskWalks).toBe(0);
+    // nothing else disturbed by the new field
+    expect(p.state.points).toBe(120);
+    // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
+    // the whole point of iterating the DEFAULT walks keys rather than the payload's.
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0 });
+    expect(p.state.journal).toEqual({ bird: 4 });
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
+    expect(p.state.kitten).toEqual({ stage: 2 });
+    expect(p.state.race).toEqual({ date: '2026-08-01', area: 'park', bestMs: 21000 });
+    expect(p.state.den).toEqual({ owned: ['rug'], placed: {} });
+    expect(p.state.skills).toEqual(['big-swat']);
+    expect(p.state.feats).toEqual({ mischief: 9 });
+  });
+
+  it('a save that persisted the descoped sea-legs loads losslessly without it', () => {
+    // Sea Legs shipped in no release, but a save written from a v18 dev build
+    // (or a hand-edited/cloud payload) can hold the id. sanitizeSkills
+    // validates against SKILL_IDS, so an id the catalog no longer knows is
+    // dropped like any other unknown one — the save must NOT be rejected, and
+    // the abilities either side of it in catalog order must survive intact.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 88, lifetimePoints: 1200, bestWalk: 44,
+      walks: { neighborhood: 3, park: 2, seaside: 9, den: 1 },
+      journal: { bird: 2 }, golden: ['gm-park-1'],
+      skills: ['spring-paws', 'sea-legs', 'big-swat'],
+      feats: { mischief: 41, perch: 12 }, duskWalks: 3,
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(['spring-paws', 'big-swat']);
+    // Everything else on the save is untouched by the drop.
+    expect(p.state.points).toBe(88);
+    expect(p.state.lifetimePoints).toBe(1200);
+    expect(p.state.bestWalk).toBe(44);
+    expect(p.state.feats).toEqual({ mischief: 41, perch: 12 });
+    expect(p.state.duskWalks).toBe(3);
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    // Nine seaside walks used to satisfy the Sea Legs feat; it must not come
+    // back through the predicate half of hasSkill either.
+    expect(p.state.walks.seaside).toBe(9);
+    expect(unlockedSkills(p.state)).not.toContain('sea-legs');
+    // And the drop survives a re-save/reload round trip rather than
+    // reappearing out of the stored blob.
+    p.recordSkillUnlocks(['charmer']);
+    expect(createProgression(storage).state.skills).toEqual(['spring-paws', 'charmer', 'big-swat']);
+  });
+
+  it('increments only on a dusk walk, never on an ordinary one', () => {
+    const p = createProgression(fakeStorage());
+    p.completeWalk('park');                        // pre-v18 call shape
+    p.completeWalk('park', {});                    // opts present, no dusk
+    p.completeWalk('park', { dusk: false });
+    expect(p.state.duskWalks).toBe(0);
+    expect(p.state.walks.park).toBe(3);            // walk count still moves
+    p.completeWalk('park', { dusk: true });
+    p.completeWalk('seaside', { dusk: true });
+    expect(p.state.duskWalks).toBe(2);
+    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0, docks: 0 });
+  });
+
+  it('unlocks Night Eyes on the fifth dusk walk and persists across a reload', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 4; i++) p.completeWalk('park', { dusk: true });
+    expect(hasSkill(p.state, 'night-eyes')).toBe(false);
+    p.completeWalk('park', { dusk: true });
+    expect(hasSkill(p.state, 'night-eyes')).toBe(true);
+    expect(createProgression(storage).state.duskWalks).toBe(5);
+  });
+
+  it('sanitizes a hostile duskWalks value down to zero', () => {
+    for (const duskWalks of ['<script>alert(1)</script>', -5, null, true, [], {}, '9']) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, duskWalks }) });
+      expect(createProgression(storage).state.duskWalks).toBe(0);
+    }
+    // JSON can't carry NaN/Infinity, so those go through the in-memory path.
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, duskWalks: NaN });
+    expect(p.state.duskWalks).toBe(0);
+    p.replaceFromPayload({ version: 4, duskWalks: Infinity });
+    expect(p.state.duskWalks).toBe(0);
+    p.replaceFromPayload({ version: 4, duskWalks: 4.9 });
+    expect(p.state.duskWalks).toBe(4); // floored
+  });
+
+  it('clamps an absurd duskWalks rather than persisting it', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, duskWalks: 1e15 }) });
+    const p = createProgression(storage);
+    expect(p.state.duskWalks).toBe(100_000);
+    // and the cap holds against further increments
+    p.completeWalk('park', { dusk: true });
+    expect(p.state.duskWalks).toBe(100_000);
+  });
+
+  it('reset() clears duskWalks back to zero', () => {
+    const p = createProgression(fakeStorage());
+    p.completeWalk('park', { dusk: true });
+    p.reset();
+    expect(p.state.duskWalks).toBe(0);
+  });
+});
+
+describe('recordSkillUnlocks', () => {
+  it('persists newly unlocked ids and returns exactly what it added', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['sure-claws'])).toEqual(['sure-claws']);
+    expect(p.state.skills).toEqual(['sure-claws']);
+  });
+
+  it('returns [] and does not duplicate on a second call with the same ids', () => {
+    // Task 2.7's unlock celebration fires on the return value, so a repeat
+    // call must report nothing new — otherwise it double-fires every walk.
+    const p = createProgression(fakeStorage());
+    p.recordSkillUnlocks(['sure-claws', 'charmer']);
+    expect(p.recordSkillUnlocks(['sure-claws', 'charmer'])).toEqual([]);
+    expect(p.state.skills).toEqual(['charmer', 'sure-claws']);
+  });
+
+  it('returns only the ids added by THIS call, not everything held', () => {
+    const p = createProgression(fakeStorage());
+    p.recordSkillUnlocks(['sure-claws']);
+    expect(p.recordSkillUnlocks(['sure-claws', 'big-swat'])).toEqual(['big-swat']);
+    expect(p.state.skills).toEqual(['sure-claws', 'big-swat']);
+  });
+
+  it('dedupes within a single call', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['far-call', 'far-call', 'far-call'])).toEqual(['far-call']);
+    expect(p.state.skills).toEqual(['far-call']);
+  });
+
+  it('stores and returns in catalog order regardless of the caller order', () => {
+    const p = createProgression(fakeStorage());
+    const added = p.recordSkillUnlocks(['big-swat', 'spring-paws', 'charmer']);
+    expect(added).toEqual(['spring-paws', 'charmer', 'big-swat']);
+    expect(p.state.skills).toEqual(['spring-paws', 'charmer', 'big-swat']);
+  });
+
+  it('drops unknown and non-string ids without throwing', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.recordSkillUnlocks(['not-a-skill', 7, null, {}, '__proto__', 'big-swat'])).toEqual(['big-swat']);
+    expect(p.state.skills).toEqual(['big-swat']);
+    expect({}.polluted).toBe(undefined);
+  });
+
+  it('tolerates a non-array argument', () => {
+    const p = createProgression(fakeStorage());
+    for (const bad of [undefined, null, 'big-swat', 42, { 'big-swat': true }]) {
+      expect(p.recordSkillUnlocks(bad)).toEqual([]);
+    }
+    expect(p.state.skills).toEqual([]);
+  });
+
+  it('never stores more than the catalog holds', () => {
+    const p = createProgression(fakeStorage());
+    const flooded = [];
+    for (let i = 0; i < 40; i++) flooded.push(...SKILL_IDS);
+    expect(p.recordSkillUnlocks(flooded)).toEqual(SKILL_IDS);
+    expect(p.state.skills).toEqual(SKILL_IDS);
+    expect(p.state.skills.length).toBe(SKILL_IDS.length);
+  });
+
+  it('persists through a save/reload', () => {
+    const storage = fakeStorage();
+    createProgression(storage).recordSkillUnlocks(['whisker-sense']);
+    expect(createProgression(storage).state.skills).toEqual(['whisker-sense']);
+  });
+
+  it('does not write to storage when nothing was added', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.recordSkillUnlocks(['big-swat']);
+    const before = storage.dump()['whisker-walk-save'];
+    expect(p.recordSkillUnlocks(['big-swat'])).toEqual([]);
+    expect(storage.dump()['whisker-walk-save']).toBe(before);
+  });
+
+  it('keeps an earned ability even after its predicate stops being satisfied', () => {
+    // The whole reason state.skills is stored rather than derived: a later
+    // threshold change must never revoke an ability a child already earned.
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    for (let i = 0; i < 25; i++) p.recordFeat('mischief');
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+    p.recordSkillUnlocks(unlockedSkills(p.state));
+    expect(p.state.skills).toEqual(['sure-claws']);
+    // simulate the tally being lost/reset while the unlock stays on record
+    p.replaceFromPayload({ version: 4, skills: p.state.skills, feats: {} });
+    expect(p.state.feats).toEqual({});
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+  });
+});
+
+// ===========================================================================
+// v18 Task 3.2 — Gift Paws' save field.
+//
+// Additive, exactly like skills/feats/duskWalks before it: SAVE_VERSION stays
+// 4, an old payload loads losslessly with the default, and every field is
+// sanitized independently against a hostile payload.
+// ===========================================================================
+describe('v18 gifts save field', () => {
+  it('a fresh save starts empty and stays version 4', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.gifts).toEqual([]);
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating gifts loads losslessly with the default', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 300, lifetimePoints: 1200,
+      walks: { neighborhood: 4, park: 4, seaside: 2, den: 1, docks: 1 },
+      skills: ['gift-paws'], feats: { gift: 6 }, duskWalks: 5,
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.gifts).toEqual([]);
+    expect(p.state.points).toBe(300);
+    expect(p.state.feats.gift).toBe(6);
+  });
+
+  it('round-trips a real gift through storage', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.leaveGift('park', 'fountain')).toBe(true);
+    expect(createProgression(storage).state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  // --- hostile payloads --------------------------------------------------
+
+  it('drops a gifts field that is not an array', () => {
+    for (const gifts of ['<script>alert(1)</script>', 5, true, null, { area: 'park' }]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, gifts }) });
+      expect(createProgression(storage).state.gifts).toEqual([]);
+    }
+  });
+
+  it('drops entries with the wrong types', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      null, 7, 'park/fountain', [], ['park', 'fountain'],
+      { area: 'park' },                       // no spot
+      { spot: 'fountain' },                   // no area
+      { area: 5, spot: 'fountain' },
+      { area: 'park', spot: 5 },
+      { area: 'park', spot: '' },
+      { area: 'park', spot: 'x'.repeat(41) }, // oversized
+    ] });
+    expect(p.state.gifts).toEqual([]);
+  });
+
+  it('drops an unknown area id — including one that renames itself', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'atlantis', spot: 'fountain' },
+      { area: 'den', spot: 'fountain' },        // the den is not a walk area
+      { area: '__proto__', spot: 'fountain' },
+      { area: 'constructor', spot: 'fountain' },
+      { area: 'toString', spot: 'fountain' },
+      { area: 'park', spot: 'fountain' },       // the one real entry
+    ] });
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  it('never lets a __proto__ spot id pollute anything', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [{ area: 'park', spot: '__proto__' }] });
+    // Stored inertly as a plain string on a plain object — it matches no
+    // scenic id, so gifts.js renders nothing for it (see gifts.test.js).
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: '__proto__' }]);
+    expect(Object.prototype.hasOwnProperty.call({}, 'polluted')).toBe(false);
+    expect({}.spot).toBeUndefined();
+  });
+
+  it('collapses duplicates so one spot can never hold two', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'park', spot: 'fountain' },
+      { area: 'park', spot: 'fountain' },
+      { area: 'seaside', spot: 'fountain' }, // same spot id, different area: kept
+    ] });
+    expect(p.state.gifts).toEqual([
+      { area: 'park', spot: 'fountain' },
+      { area: 'seaside', spot: 'fountain' },
+    ]);
+  });
+
+  it('caps an over-long list rather than persisting it', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: Array.from({ length: 500 }, (_, i) => ({
+      area: 'park', spot: `spot-${i}`,
+    })) });
+    expect(p.state.gifts).toHaveLength(8);
+    // and the cap holds against further leaves
+    expect(p.leaveGift('park', 'one-more')).toBe(false);
+    expect(p.state.gifts).toHaveLength(8);
+  });
+
+  it('keeps only the two declared fields, never whatever else rode along', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'park', spot: 'fountain', points: 1e9, html: '<img onerror=1>' },
+    ] });
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  // --- the API -----------------------------------------------------------
+
+  it('leaveGift refuses an unknown area, a bad spot, and a repeat', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.leaveGift('atlantis', 'fountain')).toBe(false);
+    expect(p.leaveGift('den', 'fountain')).toBe(false);
+    expect(p.leaveGift('park', '')).toBe(false);
+    expect(p.leaveGift('park', 'x'.repeat(41))).toBe(false);
+    expect(p.leaveGift('park', 5)).toBe(false);
+    expect(p.leaveGift(null, 'fountain')).toBe(false);
+    expect(p.state.gifts).toEqual([]);
+    expect(p.leaveGift('park', 'fountain')).toBe(true);
+    expect(p.leaveGift('park', 'fountain')).toBe(false); // one per spot
+    expect(p.state.gifts).toHaveLength(1);
+  });
+
+  it('giftsIn returns only that area, as copies the caller may keep', () => {
+    const p = createProgression(fakeStorage());
+    p.leaveGift('park', 'fountain');
+    p.leaveGift('seaside', 'pier-end');
+    expect(p.giftsIn('park')).toEqual([{ area: 'park', spot: 'fountain' }]);
+    expect(p.giftsIn('docks')).toEqual([]);
+    expect(p.giftsIn('den')).toEqual([]);
+    expect(p.giftsIn(null)).toEqual([]);
+    const copy = p.giftsIn('park')[0];
+    copy.spot = 'tampered';
+    expect(p.state.gifts[0].spot).toBe('fountain');
+  });
+
+  it('claimGift removes exactly one, and reports whether it did', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.leaveGift('park', 'fountain');
+    p.leaveGift('park', 'meadow');
+    expect(p.claimGift('park', 'fountain')).toBe(true);
+    expect(p.claimGift('park', 'fountain')).toBe(false); // already found
+    expect(p.claimGift('seaside', 'meadow')).toBe(false); // wrong area
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'meadow' }]);
+    // persisted, not just in memory
+    expect(createProgression(storage).state.gifts).toEqual([{ area: 'park', spot: 'meadow' }]);
+  });
+
+  it('reset() clears stashed gifts', () => {
+    const p = createProgression(fakeStorage());
+    p.leaveGift('park', 'fountain');
+    p.reset();
+    expect(p.state.gifts).toEqual([]);
   });
 });

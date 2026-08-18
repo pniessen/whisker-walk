@@ -15,6 +15,18 @@ export function createDiscoveryLog(progression) {
 
   function pay(type, key, label, points, repeat) {
     progression.addPoints(points);
+    // v18 Cat Skills: the SINGLE hook point that feeds state.feats' lifetime
+    // per-type tallies, which is what the skill feat predicates in
+    // src/skills.js read. Every award() / awardOnce() in the game funnels
+    // through pay(), so tallying here (rather than at the ~45 individual
+    // award call sites) means no call site can forget, and a future award
+    // type becomes a lifetime counter for free.
+    //
+    // Optional-called because createDiscoveryLog is handed a stand-in
+    // progression in unit tests (a bare { addPoints } is enough to exercise
+    // the repeat/awardOnce rules) — a missing recordFeat must not turn those
+    // into crashes.
+    progression.recordFeat?.(type);
     bus.emit('discovery', { type, key, label, points, repeat });
     return points;
   }

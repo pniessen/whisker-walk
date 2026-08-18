@@ -2,11 +2,70 @@ import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
+import { friendRungs } from './skills.js';
 
 const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
 const GOLDEN = 0.6180339887498949; // spreads personality rolls evenly across strays even with a seeded/constant rng
+
+// How far a meow reaches. MEOW_RADIUS is the shipped "look up and answer"
+// range; FAR_CALL_RADIUS is the outer band v18's Far Call adds, where strays
+// hear the call and come over. STANDOFF is how far short of the caller they
+// stop, and WALK_TIME is the wander budget they get to make the trip (the
+// same "give up on unreachable targets eventually" role the 12s in the idle→
+// wander branch below plays).
+const MEOW_RADIUS = 8;
+const FAR_CALL_RADIUS = 22;
+const FAR_CALL_STANDOFF = 1.6;
+const FAR_CALL_WALK_TIME = 12;
+
+// ---------------------------------------------------------------------------
+// The ♡→♥→💕 friendship ladder
+//
+// progression.recordGreet owns the greet COUNT — and, load-bearingly, the
+// once-per-cat-per-walk dedup guard that is the only reason greets cannot be
+// farmed (they persist to a live backend whose record_friend_greet validates
+// the caller's identity and nothing else, so the client-side cap is what
+// holds). This owns only the separate question "which rung does greet number
+// N land on".
+//
+// They are split on purpose. v18's Charmer ('charmer') moves the RUNGS and
+// must never be able to move the count, so the skill is wired to the table
+// below and has no reach into recordGreet at all.
+//
+// The rung TABLE itself is not here. v18 CF-4: this module used to own its
+// own copy of the base 1/3/6 and the Charmer 1/2/4 rungs while
+// progression.friendLevel owned a hardcoded second copy, and the two drifted
+// — a Charmer player was toasted "BEST friend 💕" at four greets for a cat
+// the home-base roster still drew as ♥. The single table now lives in
+// skills.js (pure, zero-import, already imported by progression.js, so no
+// cycle) and is re-exported here so this module's existing callers —
+// game/interactions.js and test/straycats.test.js — keep their import path.
+// ---------------------------------------------------------------------------
+export { friendRungs };
+
+// friendRungCrossed(before, after, { charmer }) → 'met' | 'friend' | 'best' |
+// null. `before`/`after` are one cat's lifetime greet count either side of a
+// single call to recordGreet.
+//
+// Returns the HIGHEST rung the step crossed, so a Charmer player whose cat
+// was already mid-ladder when the skill unlocked gets one toast for the step,
+// never a burst of backdated ones. Returns null when the count did not move,
+// which is exactly what a greet rejected by the per-walk dedup guard looks
+// like from out here (before === after) — the same "say nothing" recordGreet's
+// null return has always meant at the call site.
+//
+// With charmer=false this reproduces recordGreet's 1/3/6 return values
+// exactly, one greet at a time; test/straycats.test.js pins that.
+export function friendRungCrossed(before, after, { charmer = false } = {}) {
+  if (!(after > before)) return null;
+  const rungs = friendRungs(charmer);
+  for (const level of ['best', 'friend', 'met']) {
+    if (before < rungs[level] && after >= rungs[level]) return level;
+  }
+  return null;
+}
 
 export const CAT_NAMES = [
   'Pickles', 'Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine',
@@ -95,15 +154,44 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random) {
     dispose() {
       for (const s of strays) scene.remove(s.group);
     },
-    reactToMeow(pos) {
+    // reactToMeow(pos, { far }) — someone meowed at `pos`. Strays inside
+    // MEOW_RADIUS look up and hold a greeting pose, exactly as they always
+    // have; `far` is off unless the caller has v18's Far Call, so the
+    // no-skill path is byte-for-byte the old loop.
+    //
+    // Far Call extends the reach to FAR_CALL_RADIUS and has the strays in
+    // that outer band walk over to see who shouted. That draw is MOVEMENT
+    // ONLY: it writes state/target/timer and nothing else. In particular it
+    // must never set s.greeted — `greeted` is the per-walk guard that stops
+    // nearest(..., {ungreetedOnly:true}) re-offering a cat that has already
+    // paid out its one friendship award, and a meow that could set it would
+    // turn Far Call into a greet vector that out-farms walking up to the cat.
+    // Nothing here awards, greets, or increments anything.
+    reactToMeow(pos, { far = false } = {}) {
+      const reach = far ? FAR_CALL_RADIUS : MEOW_RADIUS;
       let count = 0;
       for (const s of strays) {
-        if (s.group.position.distanceTo(pos) < 8) {
+        const d = s.group.position.distanceTo(pos);
+        if (d >= reach) continue;
+        if (d < MEOW_RADIUS) {
           s.state = 'greet';
           s.timer = 1.5;
           s.group.rotation.y = Math.atan2(pos.x - s.group.position.x, pos.z - s.group.position.z) + Math.PI;
-          count += 1;
+        } else {
+          // Approach along the stray's own bearing and stop a body length
+          // short, so a called-in group fans out around the caller instead of
+          // stacking on one point. Derived from positions, never rolled —
+          // no bare Math.random() in here.
+          const away = s.group.position.clone().sub(pos).setY(0);
+          if (away.lengthSq() < 0.0001) away.set(0, 0, 1);
+          const target = pos.clone().setY(0).addScaledVector(away.normalize(), FAR_CALL_STANDOFF);
+          target.x = THREE.MathUtils.clamp(target.x, b.minX + 2, b.maxX - 2);
+          target.z = THREE.MathUtils.clamp(target.z, b.minZ + 2, b.maxZ - 2);
+          s.state = 'wander';
+          s.target = target;
+          s.timer = Math.max(s.timer, FAR_CALL_WALK_TIME);
         }
+        count += 1;
       }
       return count;
     },

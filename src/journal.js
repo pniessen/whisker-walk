@@ -1,4 +1,4 @@
-// v15 Collector's Journal — static catalog + Album-tab renderer for the 10
+// v15 Collector's Journal — static catalog + Album-tab renderer for the 11
 // JOURNAL_TYPES ids tracked in progression.js's state.journal.
 
 // All content here is a fixed, static catalog (ids/emoji/names/hints are
@@ -14,6 +14,10 @@ export const CRITTER_INFO = [
   { id: 'villager', emoji: '🧑', name: 'Neighborhood Villager', hint: 'Wave hello as you walk past.' },
   { id: 'firefly', emoji: '✨', name: 'Glowing Firefly', hint: 'Comes out after dusk — watch for the twinkle.' },
   { id: 'mouse', emoji: '🐭', name: 'Quick Mouse', hint: 'Stalk quietly, then pounce!' },
+  // v18 Task 2.6 — the eleventh page, and The Old Docks' own critter. Hint
+  // style matches the ten above: one short sentence naming WHERE to look,
+  // never a mechanic the player hasn't met yet.
+  { id: 'rat', emoji: '🐀', name: 'Dockside Rat', hint: 'Nose around the crates down at the old docks.' },
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.

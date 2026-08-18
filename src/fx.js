@@ -36,7 +36,12 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     effects.push({ obj, life: 0, ttl: 1.1, kind: 'popup' });
   }
 
-  function burst(position, color, count = 10) {
+  // Shared particle spawner behind burst() and shimmer(). `speed` scales the
+  // launch velocity, `gravity` is the downward pull applied in update(), and
+  // `ttl`/`size` shape how long the cloud lives and how big each mote reads.
+  // burst()'s original numbers are the defaults, so its behaviour is
+  // byte-identical to before this was factored out.
+  function spawnParticles(position, color, count, { ttl = 0.7, gravity = 3, speed = 1, size = 0.09 } = {}) {
     if (reducedMotion) return;
     const positions = new Float32Array(count * 3);
     const velocities = new Float32Array(count * 3);
@@ -49,20 +54,37 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
       vx /= len;
       vy /= len;
       vz /= len;
-      velocities[i * 3] = vx;
-      velocities[i * 3 + 1] = vy;
-      velocities[i * 3 + 2] = vz;
+      velocities[i * 3] = vx * speed;
+      velocities[i * 3 + 1] = vy * speed;
+      velocities[i * 3 + 2] = vz * speed;
       positions[i * 3] = 0;
       positions[i * 3 + 1] = 0;
       positions[i * 3 + 2] = 0;
     }
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const material = new THREE.PointsMaterial({ color, size: 0.09, transparent: true });
+    const material = new THREE.PointsMaterial({ color, size, transparent: true });
     const points = new THREE.Points(geometry, material);
     points.position.copy(position);
     scene.add(points);
-    effects.push({ obj: points, life: 0, ttl: 0.7, kind: 'burst', velocities });
+    effects.push({ obj: points, life: 0, ttl, kind: 'burst', velocities, gravity });
+  }
+
+  function burst(position, color, count = 10) {
+    spawnParticles(position, color, count);
+  }
+
+  // v18 Whisker Sense ('whisker-sense') — a slow, near-weightless sparkle
+  // that hangs in the air instead of exploding and dropping. Same particle
+  // machinery as burst (nothing new to update or dispose), retuned: a third
+  // of the launch speed, a tenth of the gravity, twice the lifetime, and
+  // slightly larger motes so a handful still reads at a glance.
+  //
+  // It shares burst's reducedMotion gate, so a player who asked for less
+  // motion still gets the Whisker Sense *ping* — the audio half of
+  // "shimmer/ping" — without the particles.
+  function shimmer(position, color, count = 10) {
+    spawnParticles(position, color, count, { ttl: 1.6, gravity: 0.3, speed: 0.35, size: 0.12 });
   }
 
   function removeEffect(effect) {
@@ -96,8 +118,9 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
       } else if (effect.kind === 'burst') {
         const positions = effect.obj.geometry.attributes.position.array;
         const velocities = effect.velocities;
+        const gravity = effect.gravity ?? 3;
         for (let p = 0; p < velocities.length / 3; p++) {
-          velocities[p * 3 + 1] -= 3 * dt;
+          velocities[p * 3 + 1] -= gravity * dt;
           positions[p * 3] += velocities[p * 3] * dt;
           positions[p * 3 + 1] += velocities[p * 3 + 1] * dt;
           positions[p * 3 + 2] += velocities[p * 3 + 2] * dt;
@@ -119,5 +142,5 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     effects.length = 0;
   }
 
-  return { popup, burst, update, active, dispose };
+  return { popup, burst, shimmer, update, active, dispose };
 }

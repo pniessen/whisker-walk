@@ -225,6 +225,25 @@ body.left-handed .tui-pause {
 }
 .tag { font-size: 0.85rem; color: #c0ccdd; }
 .tag.on { color: #f2c14e; font-weight: 700; }
+
+/* --- v18 Skills tab. Deliberately thin: the ability cards reuse .card /
+   .card-name / .card-sub / .tag.on wholesale so the tab reads as the same
+   shop the accessories live in. Only the family headings, the feat line and
+   the progress bar are new. --- */
+.skills-intro { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 14px; max-width: 60ch; }
+.skill-family { margin-bottom: 14px; }
+.skill-family:last-of-type { margin-bottom: 0; }
+/* matches .accessory-slot h3, so family headings and slot headings sit at
+   the same visual level across the two shop-like tabs. */
+.skill-family h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 8px; font-weight: 700; }
+/* The feat is the point of the card, so it stays full-strength white even on
+   a locked card (which .card.locked otherwise dims to 0.75). */
+.skill-feat { font-size: 0.8rem; color: #e8eef8; font-weight: 700; }
+.skill-bar {
+  height: 8px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden;
+}
+.skill-bar > span { display: block; height: 100%; border-radius: 999px; background: #f2c14e; }
+.skills-footer { margin-top: 10px; font-size: 0.85rem; color: #f2c14e; font-weight: 700; }
 .friends-list { display: flex; flex-direction: column; gap: 6px; }
 .friend-row {
   background: rgba(255,255,255,0.07); border-radius: 8px; padding: 8px 12px;
@@ -345,6 +364,19 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .hb-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px;
   background: #2b3648; color: #cdd6e4; font-size: 14px; cursor: pointer; }
 .hb-tab.active { background: #3a4a63; color: #fff; }
+/* v18's sixth tab tipped the row's intrinsic width past the 347px a 375px
+   phone leaves (measured 357px, so "Settings" bled into the scroll
+   container's right padding). Trimming the per-tab padding and the gap buys
+   back 18px — enough for six without shrinking the label text or hiding a
+   tab behind a horizontal scroll. Desktop is untouched; the 900px-wide
+   layout has room to spare. This block has to live AFTER the .hb-tab rules
+   above, not up in the main max-width:480px section earlier in the file:
+   equal specificity means source order decides, and from up there it would
+   silently lose. */
+@media (max-width: 480px) {
+  .hb-tabs { gap: 3px; }
+  .hb-tab { padding: 10px 4px; }
+}
 .hb-panel { display: none; }
 .hb-panel.active { display: block; }
 
@@ -361,3 +393,51 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 /* Home base hero wordmark (C1) — replaces the plain title text */
 .hb-wordmark { margin: 0; line-height: 0; }
 .hb-wordmark svg { display: block; width: 240px; max-width: min(64vw, 300px); height: auto; }
+
+/* --- v18 Task 2.7: the in-walk skill-unlock card (src/game/celebrate.js).
+   Sits over the live walk, NOT over the pause/summary overlay, so it is
+   pointer-events:none throughout — the player keeps walking while it plays.
+   z-index 12 puts it over the chat wheel (5), the hud prompt (2), #overlay
+   (10) and #cloud-toasts (11). Over #overlay matters: Night Eyes and Sea
+   Legs can only complete in endWalk, so their card plays while the summary
+   overlay is coming up, and a card behind that overlay's scrim is no
+   celebration at all. pointer-events:none means it still cannot swallow the
+   summary's Continue button. --- */
+.skill-unlock {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+  z-index: 12; pointer-events: none;
+  opacity: 1; transition: opacity 0.7s;
+}
+.skill-unlock.fade { opacity: 0; }
+.skill-unlock-inner {
+  background: rgba(20, 26, 38, 0.92);
+  border: 2px solid #f2c14e; border-radius: 14px;
+  padding: 14px 26px; text-align: center;
+  max-width: min(88vw, 420px);
+  box-shadow: 0 0 28px rgba(242, 193, 78, 0.45);
+  animation: skill-unlock-pop 0.45s ease-out;
+}
+.skill-unlock-kicker {
+  font-size: 0.72rem; letter-spacing: 0.16em; font-weight: 700; color: #f2c14e;
+}
+.skill-unlock-name { font-size: 1.5rem; font-weight: 700; color: #fff; margin-top: 4px; }
+.skill-unlock-effect { font-size: 0.92rem; color: #c0ccdd; margin-top: 6px; }
+.skill-unlock-feat { font-size: 0.8rem; color: #7ee2a0; font-weight: 700; margin-top: 8px; }
+@keyframes skill-unlock-pop {
+  from { transform: scale(0.82); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skill-unlock-inner { animation: none; }
+}
+@media (max-width: 480px) {
+  /* Browser-verified on a 375px viewport: at 12% the card landed on top of
+     the .hud-goals list in the top-left. Drop it clear of the whole HUD
+     header, and tighten the kicker so "NEW ABILITY UNLOCKED" stops wrapping
+     to two lines at this width. */
+  .skill-unlock { top: 26%; }
+  .skill-unlock-inner { padding: 12px 18px; }
+  .skill-unlock-kicker { font-size: 0.64rem; letter-spacing: 0.1em; }
+  .skill-unlock-name { font-size: 1.2rem; }
+  .skill-unlock-effect { font-size: 0.82rem; }
+}

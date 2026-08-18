@@ -55,9 +55,23 @@ function sanitizeGhostProfile(raw) {
  * ghosts don't react to the player's toy/speed/stalking the way strays do,
  * they're atmosphere until you walk up and greet them).
  */
-export function createGhosts(scene, area, profiles, rng = Math.random) {
+export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}) {
   const b = area.bounds;
   const ghosts = [];
+  // v18 Task 3.2 Gift Paws: a gift this player stashed at a scenic spot on
+  // an earlier walk, which a ghost visitor is here to have found. Handed to
+  // the FIRST ghost only — at most one gift is found per walk (see
+  // gifts.js's pickFoundGift) — and that ghost is spawned AT the spot with
+  // its wander home there, so the payoff scene is the friend standing next
+  // to your present rather than a toast from across the map.
+  //
+  // Note this is `foundGift`, not the pre-existing `hasGift`: the two are
+  // opposite directions of the same gesture (hasGift is a best friend
+  // bringing YOU something) and conflating them would have made one award
+  // path fire for both.
+  const gift = opts?.gift && Number.isFinite(opts.gift.x) && Number.isFinite(opts.gift.z)
+    ? opts.gift
+    : null;
 
   for (const raw of profiles) {
     const profile = sanitizeGhostProfile(raw);
@@ -76,8 +90,13 @@ export function createGhosts(scene, area, profiles, rng = Math.random) {
       }
     });
 
-    const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
-    const z = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
+    // Both draws happen either way, so which ghost carries the gift can
+    // never change how the remaining ghosts are placed.
+    const rx = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
+    const rz = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
+    const carriesGift = gift && ghosts.length === 0;
+    const x = carriesGift ? gift.x : rx;
+    const z = carriesGift ? gift.z : rz;
     group.position.set(x, 0, z);
     group.rotation.y = rng() * Math.PI * 2;
 
@@ -102,10 +121,24 @@ export function createGhosts(scene, area, profiles, rng = Math.random) {
       greeted: false,
       // Best-friend (greets >= 6) ghosts have a 30% chance of carrying a
       // gift, rolled once at spawn — mirrors the identical stray mechanic
-      // in main.js's startWalk (`stray.hasGift = Math.random() < 0.3` for
-      // friendLevel 'best'), just keyed off the cross-walk greets count
-      // instead of the local friend ladder.
+      // in game/walk.js's startWalk (`walkRng() < 0.3` for friendLevel
+      // 'best'), just keyed off the cross-walk greets count instead of the
+      // local friend ladder.
+      //
+      // The 6 is DELIBERATELY a literal and deliberately NOT the shared rung
+      // table v18 CF-4 unified (straycats.js's friendRungs, which Charmer
+      // shortens to 1/2/4). This is the only reader that did not move, so it
+      // is the one a future "consistency fix" would break: `profile.greets`
+      // is a CROSS-WALK count published in the cloud profile, and Charmer is
+      // a local unlock the cloud carries no field for. Making this
+      // Charmer-aware would mean one player's skill silently changing which
+      // of OTHER players' cats appear as best friends — and, since the roll
+      // is per-viewer, two people looking at the same ghost would disagree
+      // about whether it carries a gift. Leave the literal.
       hasGift: profile.greets >= 6 && rng() < 0.3,
+      // v18 Gift Paws — the gift THIS player left, which this ghost found.
+      // Cleared by game/interactions.js the moment it is handed over.
+      foundGift: carriesGift ? gift : null,
     });
   }
 
