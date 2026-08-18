@@ -1,4 +1,4 @@
-// v18 "Cat Skills" — the static catalog of the twelve earned abilities and
+// v18 "Cat Skills" — the static catalog of the eleven earned abilities and
 // the feat predicates that unlock them.
 //
 // This module is deliberately PURE and has ZERO imports: no THREE, no DOM,
@@ -14,7 +14,8 @@
 //     unconditionally cycle-free.
 //
 // Abilities are permanent and always-on: no loadout, no respec, no
-// prerequisites. Twelve flat unlocks across four families.
+// prerequisites. Eleven flat unlocks across four families (the spec listed
+// twelve; Sea Legs was descoped — see the note at the end of SKILLS).
 
 // ---------------------------------------------------------------------------
 // Hostile-state coercion
@@ -60,14 +61,6 @@ function topLevelTally(state, key) {
   if (!isPlainObject(state)) return 0;
   if (!Object.prototype.hasOwnProperty.call(state, key)) return 0;
   return countOf(state[key]);
-}
-
-// Completed-walk count for one area out of state.walks.
-function walkCount(state, area) {
-  const walks = state?.walks;
-  if (!isPlainObject(walks)) return 0;
-  if (!Object.prototype.hasOwnProperty.call(walks, area)) return 0;
-  return countOf(walks[area]);
 }
 
 // state.golden is an array of golden-mouse ids; a non-array (or a payload
@@ -126,7 +119,7 @@ export function friendRungs(charmer = false) {
 // `need`) so the UI can decide whether to show "27/25" or clamp it, and so
 // tests can distinguish need-1 / need / need+1.
 //
-// FEAT SOURCE MAPPING. Every one of the twelve feats now reads a counter
+// FEAT SOURCE MAPPING. Every one of the eleven feats now reads a counter
 // that faithfully means what the feat says, and the note on each entry says
 // which counter and why. Four of them (Spring Paws, Long Zoomies, Fence
 // Runner, Night Eyes) originally shipped reading a PROXY, because the action
@@ -309,12 +302,21 @@ export const SKILLS = [
     family: 'social',
     name: 'Gift Paws',
     effect: 'Leave a gift at a scenic spot for ghosts and co-walkers to find.',
-    feat: 'Give or receive 5 gifts',
+    feat: 'Give or receive 3 gifts',
     // Exact match: 'gift' is its own AWARDS type, paid by both the stray and
     // the ghost gift paths in game/interactions.js. NOT retroactive — the
     // tally starts at zero when v18 ships (see the no-back-fill decision in
     // the spec's Save format section).
-    progress: (state) => ({ have: featTally(state, 'gift'), need: 5 }),
+    //
+    // Threshold lowered 5 → 3 (Task 4.0). The feat reads "give or receive",
+    // but GIVING requires this very ability — so until you hold it the only
+    // source is RECEIVING, which needs a best-friend stray (six greets, or
+    // four with Charmer) AND a 0.3 roll on top, once per walk at most. Five
+    // of those is a long RNG grind for a ten-year-old; three is still a
+    // real errand. The wording is deliberately left as "give or receive"
+    // because that is exactly what the predicate counts — once earned, a
+    // gift you leave advances it too.
+    progress: (state) => ({ have: featTally(state, 'gift'), need: 3 }),
   },
 
   // --- Mischief ----------------------------------------------------------
@@ -335,16 +337,17 @@ export const SKILLS = [
     feat: 'Tip over 40 things',
     progress: (state) => ({ have: featTally(state, 'mischief'), need: 40 }),
   },
-  {
-    id: 'sea-legs',
-    family: 'mischief',
-    name: 'Sea Legs',
-    effect: 'Swim — water becomes crossable at a slower paddle.',
-    feat: 'Complete 5 seaside walks',
-    // Exact match: state.walks.seaside, incremented by completeWalk. Fully
-    // retroactive.
-    progress: (state) => ({ have: walkCount(state, 'seaside'), need: 5 }),
-  },
+
+  // DESCOPED: 'sea-legs' (mischief, "Complete 5 seaside walks") lived here and
+  // was removed outright — see CF-12 in the v18 plan. Water in this game has
+  // never carried colliders, so every water body is already a walk-over
+  // surface; "swim at reduced speed" would have made the cat strictly slower.
+  // It is removed rather than shown locked because its feat is perfectly
+  // earnable: leaving it in would fire the unlock celebration and then do
+  // nothing. Reinstating it is a v19 item, gated on water becoming real.
+  // A save that already persisted 'sea-legs' still loads: sanitizeSkills
+  // validates against SKILL_IDS and silently drops ids the catalog no longer
+  // knows, so the id disappears and every other earned ability survives.
 ];
 
 // Catalog ids in catalog order. progression.js's sanitizeSkills imports this

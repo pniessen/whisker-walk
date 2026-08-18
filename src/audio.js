@@ -218,6 +218,58 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     return { stop: () => clearTimeout(id) };
   }
 
+  // Water slapping against pilings — the Docks' base layer (Task 4.0). Same
+  // noise → lowpass → LFO'd gain shape as wavesLayer, retuned for a canal
+  // rather than an open shore: the cutoff sits lower (260Hz vs 420) so there
+  // is no surf hiss, and the LFO runs faster with a deeper swing (0.26Hz /
+  // 0.03 on a 0.038 floor) so it reads as short chop slapping woodwork
+  // instead of long rollers arriving. Quieter than the seaside too — the
+  // canal is a narrow strip of water, not the sea.
+  function waterLapLayer() {
+    const ac = ensure();
+    const src = loopedNoiseSource(2);
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 260;
+    const g = ac.createGain();
+    // Through the master bus like every other long-lived layer, so a later
+    // setVolume() moves it instead of leaving it frozen at start volume.
+    g.gain.value = 0.038;
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.frequency.value = 0.26;
+    lfoGain.gain.value = 0.03;
+    lfo.connect(lfoGain).connect(g.gain);
+    src.connect(filter).connect(g).connect(master);
+    src.start();
+    lfo.start();
+    return { stop: () => { src.stop(); lfo.stop(); } };
+  }
+
+  // A distant ship's horn — the Docks' signature (Task 4.0). Two long low
+  // triangle tones a fifth apart, the upper one quieter, both sagging in
+  // pitch as they fade: that beat between the two is what makes a horn read
+  // as a horn rather than as a bass note. Deliberately RARE (24–52s, and
+  // only a 55% chance when the timer fires) and very quiet — it is a sound
+  // from across the water, and a foghorn on a short loop would be
+  // unbearable on a long walk. Same self-rescheduling setTimeout shape as
+  // gullLayer, so the cadence never locks into a metronome.
+  function hornLayer() {
+    let id = null;
+    const schedule = () => {
+      const wait = 24000 + Math.random() * 28000;
+      id = setTimeout(() => {
+        if (!muted && Math.random() < 0.55) {
+          tone(108, 1.6, { type: 'triangle', gain: 0.03, slideTo: 96 });
+          tone(162, 1.5, { type: 'triangle', gain: 0.014, slideTo: 146, delay: 0.05 });
+        }
+        schedule();
+      }, wait);
+    };
+    schedule();
+    return { stop: () => clearTimeout(id) };
+  }
+
   // Fireplace crackle — the den's only ambience (Task 7.2): looped noise
   // narrowed to a warm low-mid band, with a slow randomized LFO on the gain
   // so it swells and settles like an actual fire instead of a flat hiss.
@@ -490,6 +542,27 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       } else if (areaKey === 'seaside') {
         layers.push(wavesLayer());
         layers.push(gullLayer());
+      } else if (areaKey === 'docks') {
+        // v18 Task 4.0. Without this branch the Docks fell through to the
+        // generic case below and a NIGHT DOCK PLAYED BIRDSONG. Harbour, not
+        // hedgerow: chop against the pilings, the same gulls the seaside
+        // uses (they are harbour gulls either side of the headland), and a
+        // rare horn from out on the water. Birdsong is never added here at
+        // any hour, so unlike the generic branch there is nothing for dusk
+        // to have to suppress; crickets still layer on below, as they do
+        // for every outdoor area.
+        //
+        // Rain DOES get its wash here, which the seaside branch above does
+        // not do. That is a deliberate divergence rather than a copy slip:
+        // adding it to the seaside would change a shipped area's sound,
+        // while the Docks has never had ambience at all, so there is no
+        // behaviour to preserve — and a rainy dock that sounds identical to
+        // a dry one is the same kind of gap as the birdsong this branch
+        // exists to fix.
+        layers.push(waterLapLayer());
+        layers.push(gullLayer());
+        layers.push(hornLayer());
+        if (rain) layers.push(rainLayer());
       } else {
         layers.push(windLayer());
         // Birdsong is suppressed when it's raining (rainLayer takes its

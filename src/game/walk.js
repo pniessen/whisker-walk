@@ -109,9 +109,9 @@ export function createWalkLifecycle({
   // — which is also why endWalk now routes its (previously discarded)
   // recordSkillUnlocks call through here instead of calling it directly.
   // Doing both is safe by construction, and it is what catches the two
-  // abilities that CANNOT complete mid-walk: Night Eyes and Sea Legs are
-  // unlocked by completeWalk's own tallies, which do not exist until the
-  // walk is over.
+  // ability that CANNOT complete mid-walk: Night Eyes is unlocked by
+  // completeWalk's own duskWalks tally, which does not exist until the walk
+  // is over. (Sea Legs was the other; it was descoped — see skills.js.)
   function celebrateNewSkills() {
     const added = progression.recordSkillUnlocks(unlockedSkills(progression.state));
     if (!added.length) return added;
@@ -881,8 +881,8 @@ export function createWalkLifecycle({
     // v18 Task 2.7: the return value is no longer discarded. This is the same
     // recordSkillUnlocks(unlockedSkills(state)) call it always was, now routed
     // through celebrateNewSkills so anything that completed here — Night Eyes
-    // and Sea Legs can ONLY complete here, since their tallies are
-    // completeWalk's — gets the card and the fanfare rather than being stored
+    // can ONLY complete here, since its duskWalks tally is completeWalk's —
+    // gets the card and the fanfare rather than being stored
     // in silence. Placed before the teardown below, while session.fx and
     // session.cat are still live, so the burst has somewhere to land.
     //

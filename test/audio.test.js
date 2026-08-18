@@ -129,6 +129,87 @@ describe('layered ambience', () => {
     audio.stopAmbient();
     expect(bufferSources[0].stopped).toBe(true);
   });
+
+  // v18 Task 4.0 — the Docks used to fall through to the generic branch, so
+  // a night dock played BIRDSONG. These pin the harbour instead.
+  //
+  // Birdsong is the one layer built on setInterval while gulls and the horn
+  // both use a self-rescheduling setTimeout, so counting the two separately
+  // is what distinguishes "gulls are playing" from "birds are playing"
+  // without reaching into the layer objects.
+  const ambienceProbe = (areaKey, opts) => {
+    const ctx = fakeCtx();
+    const bufferSources = [];
+    const origCreateBufferSource = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const n = origCreateBufferSource(); bufferSources.push(n); return n; };
+    const origSetInterval = global.setInterval;
+    const origSetTimeout = global.setTimeout;
+    let intervals = 0;
+    let timeouts = 0;
+    global.setInterval = (...args) => { intervals++; return origSetInterval(...args); };
+    global.setTimeout = (...args) => { timeouts++; return origSetTimeout(...args); };
+    const audio = createAudio({ contextFactory: () => ctx });
+    try {
+      audio.startAmbient(areaKey, opts);
+    } finally {
+      global.setInterval = origSetInterval;
+      global.setTimeout = origSetTimeout;
+    }
+    return { audio, ctx, bufferSources, intervals, timeouts };
+  };
+
+  it('docks ambience is water lap + gulls + horn, and never birdsong', () => {
+    const dry = ambienceProbe('docks');
+    // one looped-noise layer (the water lap), no rain wash stacked on it
+    expect(dry.bufferSources).toHaveLength(1);
+    // gulls and the horn, both setTimeout-scheduled; birdsong/crickets would
+    // be setInterval, and there must be none of either on a dry day walk.
+    expect(dry.timeouts).toBe(2);
+    expect(dry.intervals).toBe(0);
+    dry.audio.stopAmbient();
+    for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
+  });
+
+  it('a dusk dock adds crickets and still never adds birdsong', () => {
+    // The bug this branch fixes: at dusk the generic branch suppressed
+    // birdsong, but a DAY dock got it. Dusk must change exactly one thing.
+    const dusk = ambienceProbe('docks', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(1);
+    expect(dusk.timeouts).toBe(2);
+    expect(dusk.intervals).toBe(1); // crickets only
+    dusk.audio.stopAmbient();
+  });
+
+  it('a rainy dock swaps in the rain wash on top of the lap', () => {
+    const wet = ambienceProbe('docks', { rain: true });
+    expect(wet.bufferSources).toHaveLength(2); // lap + rain
+    expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+    for (const src of wet.bufferSources) expect(src.stopped).toBe(true);
+  });
+
+  it('routes every docks layer through the master bus, never to destination', () => {
+    const { ctx, bufferSources } = ambienceProbe('docks');
+    for (const node of [...ctx.created.oscs, ...ctx.created.gains, ...bufferSources]) {
+      expect(node.connections).not.toContain(ctx.destination);
+    }
+    // The compressor is the only thing that may reach the destination.
+    expect(ctx.created.compressors).toHaveLength(1);
+    expect(ctx.created.compressors[0].connections).toContain(ctx.destination);
+  });
+
+  it('starts no docks layer at all while muted', () => {
+    // settings.muted is the single source of truth: a muted walk must not
+    // leave a horn timer or a looping buffer running in the background.
+    const ctx = fakeCtx();
+    const bufferSources = [];
+    const origCreateBufferSource = ctx.createBufferSource;
+    ctx.createBufferSource = () => { const n = origCreateBufferSource(); bufferSources.push(n); return n; };
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.setMuted(true);
+    audio.startAmbient('docks');
+    expect(bufferSources).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
