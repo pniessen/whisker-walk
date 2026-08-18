@@ -110,6 +110,12 @@ const FEAT_COUNT_MAX = 1_000_000;
 // the very most, so 100k is generous headroom whose only real purpose is
 // stopping a hostile cloud payload persisting 1e15 dusk walks.
 const DUSK_WALKS_MAX = 100_000;
+// Ceiling on state.gifts. Twelve scenic spots ship across the four areas, so
+// eight outstanding gifts is already most of the world seeded at once — and
+// each one renders a prop, so the cap is a rendering bound as much as a save
+// bound. A hostile payload claiming 10,000 stashed gifts must not turn a
+// walk into ten thousand meshes.
+const GIFTS_MAX = 8;
 
 // The prestige ladder, gated purely on lifetimePoints. Ranks confer NOTHING
 // mechanical — skills.js is the mechanical axis and this is the prestige one,
@@ -201,6 +207,15 @@ export const CATALOG = {
   },
 };
 
+// v18 Task 3.2 Gift Paws. Walk-area ids a gift may name, taken from the area
+// catalog rather than duplicated, so adding a fifth area needs no edit here.
+// Note this deliberately excludes 'den': the den is an indoor room reached
+// through its own entry point, has no `scenics`, and is not a CATALOG.areas
+// entry. Declared after CATALOG rather than up with the other sanitize
+// bounds because a `const` is in its temporal dead zone until its own
+// initializer runs.
+const KNOWN_AREA_IDS = new Set(Object.keys(CATALOG.areas));
+
 // summarizeSaveForPreview(s) — reduces a save object down to the four fields
 // the cloud-sync "Load from cloud" preview card displays (main.js's
 // previewLoad, rendered by ui/homebase.js's renderSync). `s` may be a
@@ -290,6 +305,17 @@ function defaultState() {
     // the walk's `duskActive` — not the raw duskMode — because a solo walk
     // only actually goes dusk when the glow collar is equipped.
     duskWalks: 0,
+    // v18 Task 3.2 Gift Paws: gifts this cat has tucked away at scenic
+    // spots, waiting to be found on a later walk. Each entry is
+    // { area, spot } — the walk area's catalog id and the scenic spot's own
+    // id out of that area's `scenics` array. Additive, so SAVE_VERSION stays
+    // 4 like `skills`/`feats`/`duskWalks` before it.
+    //
+    // Deliberately NOT a position: a scenic id survives a world builder
+    // moving the fountain three metres, and it is what src/gifts.js resolves
+    // against the live area data at walk start (an id that no longer exists
+    // simply renders nothing, rather than dropping a present in a wall).
+    gifts: [],
   };
 }
 
@@ -429,6 +455,48 @@ function sanitizeFeats(v) {
   return out;
 }
 
+// v18 Task 3.2: gifts stashed at scenic spots. Same untrusted threat model
+// as every other field here — this one is rendered into the world (a prop at
+// the spot) AND interpolated into a toast, so a hostile payload gets no
+// latitude at all:
+//
+//   * the entry must be a plain object (not an array, not a string);
+//   * `area` must be a real walk-area catalog id, which is what makes an
+//     unknown/renamed/'__proto__' area id inert rather than something
+//     gifts.js has to defend against later;
+//   * `spot` must be a bounded string. It is NOT validated against the
+//     area's scenic ids here on purpose: progression.js does not (and must
+//     not) import the world builders — those need a DOM canvas. Resolution
+//     happens at walk start in gifts.js, where the live `scenics` array is
+//     in hand and an unknown id is simply skipped.
+//   * duplicates on (area, spot) collapse — one gift per spot, so the list
+//     cannot be inflated by repeating one entry;
+//   * the whole list is capped at GIFTS_MAX.
+//
+// Iterating the payload's own entries is safe here (unlike sanitizeFeats,
+// which iterates a known key vocabulary) because nothing from the payload is
+// ever used as a KEY: the output is a fresh array of fresh objects with two
+// literal fields, so a '__proto__' area or spot value can only ever be
+// dropped by the area check or stored inertly as a string that matches no
+// scenic id.
+function sanitizeGifts(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const g of v) {
+    if (out.length >= GIFTS_MAX) break;
+    if (!isPlainObject(g)) continue;
+    const { area, spot } = g;
+    if (typeof area !== 'string' || !KNOWN_AREA_IDS.has(area)) continue;
+    if (typeof spot !== 'string' || spot.length === 0 || spot.length > 40) continue;
+    const key = `${area}/${spot}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ area, spot });
+  }
+  return out;
+}
+
 function ymdToUTCms(ymd) {
   const [y, m, d] = ymd.split('-').map(Number);
   return Date.UTC(y, m - 1, d);
@@ -521,6 +589,7 @@ function sanitizeState(parsed) {
     skills: sanitizeSkills(parsed.skills),
     feats: sanitizeFeats(parsed.feats),
     duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
+    gifts: sanitizeGifts(parsed.gifts),
   };
 }
 
@@ -801,6 +870,57 @@ export function createProgression(storage) {
       // the catalog length, but the two must not be able to disagree).
       const kept = new Set(state.skills);
       return added.filter((id) => kept.has(id));
+    },
+    // ---------------------------------------------------------------------
+    // v18 Task 3.2 — Gift Paws. Three tiny methods over state.gifts.
+    //
+    // They live here rather than in gifts.js for the same reason every other
+    // save mutation does: this module owns `state` and is the only thing
+    // that calls save(). gifts.js is the world/render half and never writes.
+    //
+    // The list is the SAVE's list, not the walk's: a gift left in the park
+    // is still there next week, and the same gift is visible on every walk
+    // in that area until something finds it.
+    // ---------------------------------------------------------------------
+
+    // giftsIn(area) → the gifts stashed in one area, as fresh objects the
+    // caller may keep. Returns [] for an unknown area (including 'den') and
+    // for a state whose gifts field somehow isn't an array.
+    giftsIn(area) {
+      if (typeof area !== 'string' || !Array.isArray(state.gifts)) return [];
+      return state.gifts.filter((g) => g?.area === area).map((g) => ({ area: g.area, spot: g.spot }));
+    },
+
+    // leaveGift(area, spot) → bool. False (and no write) when the area id is
+    // unknown, the spot id is missing/oversized, a gift is already stashed
+    // at that spot, or the cap is full — so the caller can gate its toast
+    // and its award on "a gift was actually left".
+    //
+    // The same validation as sanitizeGifts, applied on the way IN as well as
+    // on the way out: a field that is only cleaned at load time spends the
+    // rest of the session dirty.
+    leaveGift(area, spot) {
+      if (typeof area !== 'string' || !KNOWN_AREA_IDS.has(area)) return false;
+      if (typeof spot !== 'string' || spot.length === 0 || spot.length > 40) return false;
+      if (!Array.isArray(state.gifts)) state.gifts = [];
+      if (state.gifts.length >= GIFTS_MAX) return false;
+      if (state.gifts.some((g) => g?.area === area && g?.spot === spot)) return false;
+      state.gifts.push({ area, spot });
+      save();
+      return true;
+    },
+
+    // claimGift(area, spot) → bool — a visitor found it; the gift is gone.
+    // False when there was nothing there, so the finder's award can be
+    // gated on an actual find and a double call (two frames inside the
+    // proximity radius) cannot pay twice.
+    claimGift(area, spot) {
+      if (!Array.isArray(state.gifts)) return false;
+      const i = state.gifts.findIndex((g) => g?.area === area && g?.spot === spot);
+      if (i < 0) return false;
+      state.gifts.splice(i, 1);
+      save();
+      return true;
     },
     // recordGolden(id) → bool — records a newly found golden mouse. Returns
     // false (no-op) for an id that doesn't match GOLD_ID_PATTERN or one

@@ -28,6 +28,7 @@ import { createCritters } from '../critters.js';
 import { createStrayCats } from '../straycats.js';
 import { createRemoteCats } from '../remotecats.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
+import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
 import { createScent } from '../scent.js';
 import { createToy } from '../toy.js';
@@ -182,6 +183,16 @@ export function createWalkLifecycle({
         .filter((f) => f.profile && !blockList.has(f.playerId));
       const chosen = rollGhosts(Math.random, friends);
       if (!chosen.length) return;
+      // v18 Gift Paws: if a stray was tapped at walk start to find one of
+      // this player's stashed gifts, a ghost gets it instead — a friend
+      // finding your present is the version of this the spec is actually
+      // describing, and a stray is only the offline stand-in. The hand-over
+      // clears the stray so exactly one holder exists; even if it did not,
+      // progression.claimGift is the single gate on the payout.
+      const handover = mySession.strayCats.strays.find((s) => s.foundGift)?.foundGift ?? null;
+      if (handover) {
+        for (const s of mySession.strayCats.strays) s.foundGift = null;
+      }
       mySession.ghosts = createGhosts(
         mySession.scene,
         mySession.areaData,
@@ -192,7 +203,8 @@ export function createWalkLifecycle({
           accessories: f.profile.accessories,
           greets: f.greets,
         })),
-        Math.random
+        Math.random,
+        { gift: handover }
       );
     } catch (err) {
       console.warn('Whisker Walk: ghost spawn failed', err);
@@ -460,9 +472,38 @@ export function createWalkLifecycle({
 
     const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng);
     const remotes = createRemoteCats(scene);
+
+    // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
+    // spots on earlier walks, rendered where they were left. Read off the
+    // save, joined onto THIS area's scenics by gifts.js (a spot id that no
+    // longer exists is skipped, never defaulted to the origin). The den has
+    // no scenics, so it gets the inert stub.
+    const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
+
     if (roomSeed === undefined) {
       for (const stray of strayCats.strays) {
-        if (progression.friendLevel(stray.name) === 'best' && Math.random() < 0.3) stray.hasGift = true;
+        // CF-7: was a bare Math.random(). Harmless as written — this whole
+        // block is already solo-only, where walkRng IS Math.random — but the
+        // guard and the roll were two separate facts a future edit could
+        // separate, so the roll now names the walk's stream explicitly.
+        if (progression.friendLevel(stray.name) === 'best' && walkRng() < 0.3) stray.hasGift = true;
+      }
+      // ...and at most ONE stashed gift may be found this walk. Solo-only,
+      // exactly like the best-friend roll above: the draw is conditional on
+      // a list only this client can see, so taking it off a room walk's
+      // shared walkRng would desync every downstream draw for the co-walker
+      // who has no gifts of their own.
+      //
+      // The finder is a wandering stray by default and is handed over to a
+      // ghost visitor if one turns up (see spawnGhosts) — ghosts arrive
+      // asynchronously and may never arrive at all, so assigning the stray
+      // first is what keeps the ability from being dead for an offline
+      // player. claimGift() is the single point of truth for the payout, so
+      // the hand-over can never award twice.
+      const found = pickFoundGift(walkRng, gifts.list);
+      if (found && strayCats.strays.length) {
+        const finder = strayCats.strays[Math.floor(walkRng() * strayCats.strays.length)];
+        if (finder) finder.foundGift = found;
       }
     }
     const toy = createToy(scene);
@@ -562,6 +603,7 @@ export function createWalkLifecycle({
       }),
       secrets,
       tippables,
+      gifts,
       scent,
       quest, questGiver, questObject,
       walk: { carried: 0, carryCap: equipped.back === 'backpack' ? 3 : 2 },
@@ -921,6 +963,7 @@ export function createWalkLifecycle({
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
+    session.gifts.dispose();
     session.chatBubbles?.clear();
     session.chatWheel?.destroy();
     setSession(null);
