@@ -302,12 +302,21 @@ export const SKILLS = [
     family: 'social',
     name: 'Gift Paws',
     effect: 'Leave a gift at a scenic spot for ghosts and co-walkers to find.',
-    feat: 'Give or receive 5 gifts',
+    feat: 'Give or receive 3 gifts',
     // Exact match: 'gift' is its own AWARDS type, paid by both the stray and
     // the ghost gift paths in game/interactions.js. NOT retroactive — the
     // tally starts at zero when v18 ships (see the no-back-fill decision in
     // the spec's Save format section).
-    progress: (state) => ({ have: featTally(state, 'gift'), need: 5 }),
+    //
+    // Threshold lowered 5 → 3 (Task 4.0). The feat reads "give or receive",
+    // but GIVING requires this very ability — so until you hold it the only
+    // source is RECEIVING, which needs a best-friend stray (six greets, or
+    // four with Charmer) AND a 0.3 roll on top, once per walk at most. Five
+    // of those is a long RNG grind for a ten-year-old; three is still a
+    // real errand. The wording is deliberately left as "give or receive"
+    // because that is exactly what the predicate counts — once earned, a
+    // gift you leave advances it too.
+    progress: (state) => ({ have: featTally(state, 'gift'), need: 3 }),
   },
 
   // --- Mischief ----------------------------------------------------------

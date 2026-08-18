@@ -166,8 +166,20 @@ describe('feat predicates at their boundaries', () => {
     expect(skillProgress(greets(30), 'far-call')).toEqual({ have: 30, need: 30 });
   });
 
-  it('Gift Paws needs 5 gifts (feats.gift)', () => {
+  it('Gift Paws needs 3 gifts (feats.gift)', () => {
     expectBoundary('gift-paws', featState('gift'));
+    // Pinned as a literal, not just via expectBoundary's self-read: lowered
+    // from 5 in Task 4.0 because giving requires the ability, so the only
+    // pre-unlock source is a best-friend stray's 0.3 roll (see skills.js).
+    expect(skillProgress({}, 'gift-paws').need).toBe(3);
+    expect(hasSkill({ feats: { gift: 3 } }, 'gift-paws')).toBe(true);
+  });
+
+  it('states the Gift Paws feat honestly on the card', () => {
+    // The displayed text must say what the predicate counts, or the number
+    // on the card drifts from the number that unlocks it.
+    const card = SKILLS.find((s) => s.id === 'gift-paws');
+    expect(card.feat).toBe('Give or receive 3 gifts');
   });
 
   // Mischief ---------------------------------------------------------------

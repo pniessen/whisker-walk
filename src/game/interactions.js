@@ -706,7 +706,7 @@ export function createInteractions({
         // The existing 'gift' award type at its existing value — the same
         // one the receiving paths pay. Nothing is rebalanced: this is a new
         // discovery, not a new price. It is also what makes the ability's
-        // own feat ("Give or receive 5 gifts") count giving, which until now
+        // own feat ("Give or receive 3 gifts") count giving, which until now
         // nothing in the game could do. Bounded: one per scenic spot, and
         // the save holds at most 8 outstanding gifts.
         log.awardOnce('gift', `gift-left-${s.areaId}-${sc.id}`, `a gift tucked away at ${sc.label}`);
