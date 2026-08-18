@@ -362,7 +362,7 @@ export function createInteractions({
     if (!gift || !progression.claimGift?.(gift.area, gift.spot)) return;
     log.awardOnce('gift', `gift-found-${gift.area}-${gift.spot}`,
       `${who} found the gift you left at ${gift.label}! 🎁`);
-    const entry = s.gifts.list.find((g) => g.spot === gift.spot);
+    const entry = s.gifts?.list?.find((g) => g.spot === gift.spot);
     if (entry) s.gifts.remove(entry);
     s.fx?.burst(holder.group.position, 0xe05a7a, 14);
   }
