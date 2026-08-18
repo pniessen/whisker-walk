@@ -1,7 +1,14 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { AWARDS } from './discoveries.js';
+import { SKILL_IDS } from './skills.js';
 
 const SAVE_KEY = 'whisker-walk-save';
-const SAVE_VERSION = 4; // v4: per-slot cosmetic accessories
+// v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
+// are ADDITIVE fields sanitized independently with a default, exactly like
+// v15's journal/golden/streak/kitten, so a payload predating them loads
+// losslessly and an older client simply ignores the extra keys. Bumping the
+// version here would strand every save written by a deployed older client.
+const SAVE_VERSION = 4;
 
 // v15 Collector's Journal critter types — the fixed vocabulary state.journal
 // counts are restricted to (sanitizeState drops anything outside this list).
@@ -48,6 +55,19 @@ const DEN_OWNED_MAX = 32;
 // than duplicated here — sanitizeDen and placeDenItem both need these sets.
 const DEN_ITEM_IDS = new Set(Object.keys(DEN_ITEMS));
 const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
+// v18 Cat Skills. Both sets are computed from the modules that OWN the
+// vocabulary — skills.js's catalog and discoveries.js's AWARDS — rather than
+// duplicated here, so adding an ability or an award type can never leave
+// sanitizeState silently dropping a legitimate new key.
+const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
+const FEAT_TYPES = new Set(Object.keys(AWARDS));
+// Ceiling on state.feats' per-type lifetime tallies. Same job as
+// STREAK_COUNT_MAX/RACE_MS_MAX above: asFiniteNonNegInt alone would happily
+// persist 1e15 "things tipped over", which is meaningless, renders badly in
+// the Skills tab's progress text, and bloats the save on every round-trip.
+// A million of any one discovery type is already far beyond a lifetime of
+// real play (the highest feat threshold in the catalog is 40).
+const FEAT_COUNT_MAX = 1_000_000;
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -178,6 +198,18 @@ function defaultState() {
     kitten: { stage: 0 },
     race: { date: null, area: null, bestMs: null },
     den: { owned: [], placed: {} },
+    // v18 Cat Skills. `skills` is the list of ability ids already earned —
+    // stored rather than derived so a later threshold change can never
+    // revoke an ability a child has already unlocked. `feats` is the
+    // lifetime per-discovery-type tally the feat predicates read; it is fed
+    // from exactly one place (recordFeat, called by discoveries.js's pay).
+    // DECISION (locked in the spec): no back-fill. Existing saves start
+    // these tallies at zero — feats reading pre-existing fields (golden,
+    // journal, walks, race, friends) are naturally retroactive, the new
+    // tallies are not, and a fabricated back-fill from lifetimePoints would
+    // be a lie about what the player actually did.
+    skills: [],
+    feats: {},
   };
 }
 
@@ -276,6 +308,47 @@ function sanitizeDen(v) {
   return { owned, placed };
 }
 
+// v18: unlocked ability ids. Same untrusted threat model as every other
+// field here, and the Skills tab renders these ids' catalog entries, so an
+// unknown id must never survive: strings only, must be a real catalog id
+// (KNOWN_SKILL_IDS, computed from skills.js), deduped, and capped at the
+// catalog length — there is no legitimate save holding more unlocked skills
+// than there are skills. The dedupe+known-id filter already bounds the
+// result, but the explicit cap is kept so the bound stays true if the
+// filter is ever loosened.
+function sanitizeSkills(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const id of v) {
+    if (out.length >= KNOWN_SKILL_IDS.size) break;
+    if (typeof id === 'string' && KNOWN_SKILL_IDS.has(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+// v18: lifetime per-discovery-type tallies. Structurally identical to
+// sanitizeJournal above — iterate the KNOWN key vocabulary and pull each
+// key out of the payload with a hasOwnProperty check, rather than iterating
+// the payload's own keys. That shape is what makes a '__proto__' (or
+// 'constructor', or 'toString') key in a hostile payload inert: it is never
+// visited, never assigned, and the output object only ever gains AWARDS
+// keys. Values go through the same finite-non-negative-integer coercion as
+// journal counts and are clamped at FEAT_COUNT_MAX.
+function sanitizeFeats(v) {
+  if (!isPlainObject(v)) return {};
+  const out = {};
+  for (const type of FEAT_TYPES) {
+    if (!Object.prototype.hasOwnProperty.call(v, type)) continue;
+    const n = asFiniteNonNegInt(v[type], undefined);
+    if (n !== undefined) out[type] = Math.min(FEAT_COUNT_MAX, n);
+  }
+  return out;
+}
+
 function ymdToUTCms(ymd) {
   const [y, m, d] = ymd.split('-').map(Number);
   return Date.UTC(y, m - 1, d);
@@ -365,6 +438,8 @@ function sanitizeState(parsed) {
     kitten: sanitizeKitten(parsed.kitten),
     race: sanitizeRace(parsed.race),
     den: sanitizeDen(parsed.den),
+    skills: sanitizeSkills(parsed.skills),
+    feats: sanitizeFeats(parsed.feats),
   };
 }
 
@@ -556,6 +631,28 @@ export function createProgression(storage) {
     recordSighting(type) {
       if (!JOURNAL_TYPES.includes(type)) return;
       state.journal[type] = (state.journal[type] ?? 0) + 1;
+      save();
+    },
+    // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
+    // type by one. Called from exactly ONE place: pay() in discoveries.js,
+    // which is the single funnel every award() / awardOnce() in the game
+    // already passes through. Deliberately not scattered across the ~45
+    // award call sites — one hook point means a new award type becomes a
+    // lifetime counter for free and no call site can forget to tally.
+    //
+    // Because it rides the discovery events, it inherits their per-walk
+    // repeat-award caps (awardOnce is once per key per walk, recordGreet's
+    // lastWalk guard is once per cat per walk), so no feat is farmable by
+    // holding one key down.
+    //
+    // Unknown types are ignored rather than stored: state.feats' key
+    // vocabulary is exactly AWARDS' keys, so anything else would just be
+    // dropped again by sanitizeFeats on the next load.
+    recordFeat(type) {
+      if (typeof type !== 'string' || !FEAT_TYPES.has(type)) return;
+      const cur = asFiniteNonNegInt(state.feats[type], 0);
+      if (cur >= FEAT_COUNT_MAX) return;
+      state.feats[type] = cur + 1;
       save();
     },
     // recordGolden(id) → bool — records a newly found golden mouse. Returns

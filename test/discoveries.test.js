@@ -78,3 +78,55 @@ describe('createDiscoveryLog', () => {
     expect(AWARDS.duogoal).toBe(20);
   });
 });
+
+describe('v18 feat tallies', () => {
+  // pay() is the single hook point that feeds state.feats — the counters the
+  // skill feat predicates in src/skills.js read. These pin that exactly one
+  // counter moves by exactly one per paid award, and that an unpaid award
+  // (awardOnce's second call in the same walk) moves nothing.
+  let progression, log;
+  beforeEach(() => {
+    progression = { addPoints: vi.fn(), recordFeat: vi.fn() };
+    log = createDiscoveryLog(progression);
+    log.startWalk();
+  });
+
+  it('increments exactly one counter by one per award', () => {
+    log.award('mischief', 'tip-bin', 'a gravity check 🐾');
+    expect(progression.recordFeat).toHaveBeenCalledTimes(1);
+    expect(progression.recordFeat).toHaveBeenCalledWith('mischief');
+  });
+
+  it('counts a repeat award too — the tally is lifetime, not per-key', () => {
+    log.award('mischief', 'tip-bin', 'a gravity check 🐾');
+    log.award('mischief', 'tip-bin', 'a gravity check 🐾');
+    expect(progression.recordFeat).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not count an awardOnce that paid nothing', () => {
+    log.awardOnce('scenic', 'perch-roof', 'the rooftop');
+    log.awardOnce('scenic', 'perch-roof', 'the rooftop');
+    expect(progression.recordFeat).toHaveBeenCalledTimes(1);
+    expect(progression.recordFeat).toHaveBeenCalledWith('scenic');
+  });
+
+  it('tolerates a progression without recordFeat (older/stand-in collaborators)', () => {
+    const bare = { addPoints: vi.fn() };
+    const bareLog = createDiscoveryLog(bare);
+    bareLog.startWalk();
+    expect(() => bareLog.award('gift', 'gift-mochi', 'a gift')).not.toThrow();
+    expect(bare.addPoints).toHaveBeenCalledTimes(1);
+  });
+
+  it('tallies before emitting, so a discovery listener sees the updated count', () => {
+    // Ordering matters for the in-walk unlock celebration (Task 2.7): it
+    // listens on the 'discovery' bus event and asks skills.js whether a feat
+    // just completed, which is only true if the tally already landed.
+    const order = [];
+    progression.recordFeat = vi.fn(() => order.push('tally'));
+    const off = bus.on('discovery', () => order.push('emit'));
+    createDiscoveryLog(progression).award('gift', 'gift-mochi', 'a gift');
+    off();
+    expect(order).toEqual(['tally', 'emit']);
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
+import { SKILL_IDS, hasSkill } from '../src/skills.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -281,6 +282,7 @@ describe('createProgression', () => {
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
+        skills: [], feats: {},
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -913,5 +915,168 @@ describe('summarizeSaveForPreview', () => {
     expect(summarizeSaveForPreview(undefined)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
     expect(summarizeSaveForPreview(null)).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
     expect(summarizeSaveForPreview('<script>alert(1)</script>')).toEqual({ rank: 'House Cat', points: 0, lifetimePoints: 0, bestWalk: 0 });
+  });
+});
+
+describe('v18 skills/feats save fields', () => {
+  it('a fresh save starts with no skills and no feat tallies', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.skills).toEqual([]);
+    expect(p.state.feats).toEqual({});
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating both fields loads losslessly with defaults', () => {
+    // The additive-field contract: an old client's save has no `skills` and
+    // no `feats` key at all, and must survive untouched apart from gaining
+    // the two defaults. This is the v15 precedent (journal/golden/streak/
+    // kitten) applied again.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 120, lifetimePoints: 940, bestWalk: 61,
+      walks: { neighborhood: 7, park: 3, seaside: 2, den: 1 },
+      unlocked: { cats: ['tabby', 'black'], accessories: ['bell'], areas: ['neighborhood', 'park'] },
+      equipped: { cat: 'black', collar: 'bell' },
+      journal: { bird: 4 }, golden: ['gm-park-1'], streak: { last: '2026-08-01', count: 5 },
+      kitten: { stage: 2 }, race: { date: '2026-08-01', area: 'park', bestMs: 21000 },
+      den: { owned: ['rug'], placed: {} },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual([]);
+    expect(p.state.feats).toEqual({});
+    // nothing else disturbed
+    expect(p.state.points).toBe(120);
+    expect(p.state.lifetimePoints).toBe(940);
+    expect(p.state.bestWalk).toBe(61);
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1 });
+    expect(p.state.journal).toEqual({ bird: 4 });
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
+    expect(p.state.kitten).toEqual({ stage: 2 });
+    expect(p.state.race).toEqual({ date: '2026-08-01', area: 'park', bestMs: 21000 });
+    expect(p.state.den).toEqual({ owned: ['rug'], placed: {} });
+    expect(p.state.equipped.cat).toBe('black');
+  });
+
+  it('does NOT back-fill feat tallies for an existing save', () => {
+    // Locked decision: new tallies start at zero. A rich existing save must
+    // not be credited with feats it never actually performed — the feats
+    // that read pre-existing fields (golden/journal/walks/friends/race) are
+    // retroactive on their own, and seeding the rest from lifetimePoints
+    // would be a fabrication.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 5000, lifetimePoints: 50000, bestWalk: 800,
+      journal: { bird: 90 }, golden: ['gm-park-1', 'gm-park-2', 'gm-park-3'],
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({});
+    expect(p.state.skills).toEqual([]);
+  });
+
+  it('round-trips skills and feats through a save/reload', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.recordFeat('mischief');
+    p.recordFeat('mischief');
+    p.recordFeat('gift');
+    expect(createProgression(storage).state.feats).toEqual({ mischief: 2, gift: 1 });
+  });
+
+  it('keeps known skill ids, drops unknown/non-string ones, and dedupes', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      skills: ['sea-legs', 'nonexistent-id', 'sea-legs', 7, null, {}, 'big-swat'] }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(['sea-legs', 'big-swat']);
+  });
+
+  it('drops a non-array skills field wholesale', () => {
+    for (const skills of ['<script>alert(1)</script>', 42, null, { 'sea-legs': true }, true]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, skills }) });
+      expect(createProgression(storage).state.skills).toEqual([]);
+    }
+  });
+
+  it('caps an over-length skills array at the catalog length', () => {
+    // Every real id repeated 40 times: dedupe alone bounds the result, but
+    // the result must never exceed the catalog either way.
+    const flooded = [];
+    for (let i = 0; i < 40; i++) flooded.push(...SKILL_IDS);
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, skills: flooded }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(SKILL_IDS);
+    expect(p.state.skills.length).toBeLessThanOrEqual(SKILL_IDS.length);
+  });
+
+  it('keeps only known AWARDS keys in feats and drops the rest', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 12, scenic: 4, dragonslaying: 99, points: 500 } }) });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({ mischief: 12, scenic: 4 });
+  });
+
+  it('drops non-numeric, negative, NaN and Infinity feat counts', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: '<img src=x onerror=alert(1)>', gift: -5, scenic: null, photo: 3 } }) });
+    const p = createProgression(storage);
+    // JSON can't carry NaN/Infinity, so those go through the in-memory path.
+    expect(p.state.feats).toEqual({ photo: 3 });
+    p.replaceFromPayload({ version: 4, feats: { mischief: NaN, gift: Infinity, scenic: 2.7 } });
+    expect(p.state.feats).toEqual({ scenic: 2 }); // floored, junk dropped
+  });
+
+  it('clamps an absurd feat tally rather than persisting it', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 1e15 } }) });
+    expect(createProgression(storage).state.feats.mischief).toBe(1_000_000);
+  });
+
+  it('ignores a __proto__ key in a feats payload without polluting Object.prototype', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': '{"version":4,"feats":{"__proto__":{"polluted":1},"mischief":3}}' });
+    const p = createProgression(storage);
+    expect(p.state.feats).toEqual({ mischief: 3 });
+    expect(Object.prototype.hasOwnProperty.call(p.state.feats, '__proto__')).toBe(false);
+    expect({}.polluted).toBe(undefined);
+    expect(Object.getPrototypeOf(p.state.feats)).toBe(Object.prototype);
+  });
+
+  it('drops a non-object feats field wholesale', () => {
+    for (const feats of ['<script>', 42, null, ['mischief'], true]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, feats }) });
+      expect(createProgression(storage).state.feats).toEqual({});
+    }
+  });
+
+  it('recordFeat ignores unknown and non-string types', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('dragonslaying');
+    p.recordFeat('__proto__');
+    p.recordFeat(null);
+    p.recordFeat(7);
+    p.recordFeat(undefined);
+    expect(p.state.feats).toEqual({});
+    expect({}.polluted).toBe(undefined);
+  });
+
+  it('recordFeat stops at the tally ceiling instead of growing without bound', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
+      feats: { mischief: 1_000_000 } }) });
+    const p = createProgression(storage);
+    p.recordFeat('mischief');
+    expect(p.state.feats.mischief).toBe(1_000_000);
+  });
+
+  it('feeds hasSkill so an earned feat unlocks its ability', () => {
+    const p = createProgression(fakeStorage());
+    expect(hasSkill(p.state, 'sure-claws')).toBe(false);
+    for (let i = 0; i < 25; i++) p.recordFeat('mischief');
+    expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+    expect(hasSkill(p.state, 'big-swat')).toBe(false); // needs 40
+  });
+
+  it('reset() clears skills and feats back to empty', () => {
+    const p = createProgression(fakeStorage());
+    p.recordFeat('mischief');
+    p.reset();
+    expect(p.state.feats).toEqual({});
+    expect(p.state.skills).toEqual([]);
   });
 });
