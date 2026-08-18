@@ -282,7 +282,7 @@ describe('createProgression', () => {
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
-        skills: [], feats: {},
+        skills: [], feats: {}, duskWalks: 0,
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();

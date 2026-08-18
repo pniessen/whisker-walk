@@ -60,7 +60,39 @@ const DEN_SPOT_IDS = new Set(DEN_SPOTS.map((s) => s.id));
 // duplicated here, so adding an ability or an award type can never leave
 // sanitizeState silently dropping a legitimate new key.
 const KNOWN_SKILL_IDS = new Set(SKILL_IDS);
-const FEAT_TYPES = new Set(Object.keys(AWARDS));
+// v18 Task 1.4: two tallies that are NOT award types.
+//
+// state.feats' key vocabulary is normally exactly AWARDS' keys, because
+// recordFeat is driven by discoveries.js's pay(). These two are counted
+// ALONGSIDE an existing award rather than by retyping one, because the
+// existing award type is load-bearing somewhere else and retyping it would
+// silently change live gameplay (the spec's non-goals forbid rebalancing):
+//
+//  - 'perch'  reaching a vantage perch already pays awardOnce('scenic', …),
+//             and GOAL_POOL's 'scenic-spots' goal ("Visit 2 scenic spots")
+//             counts 'scenic' discoveries. Retyping the perch award would
+//             quietly make that goal harder. So the perch call site pays the
+//             unchanged 'scenic' award AND records this second, dedicated
+//             tally, which is what Spring Paws / Fence Runner actually read.
+//  - 'race'   finishing the daily race already pays awardOnce('goal',
+//             'race-done'); 'goal' is shared with the three ordinary per-walk
+//             goal completions, so feats.goal hits 3 in one normal walk.
+//             Same treatment: unchanged award + a dedicated tally, which is
+//             what lets Long Zoomies mean "finish the race 3 times".
+//
+// They live in state.feats (rather than as two more top-level save fields)
+// because they are the same KIND of thing — a lifetime count of a player
+// action — and so inherit sanitizeFeats' coercion, cap and __proto__
+// handling for free. Neither name collides with an AWARDS key; the
+// assertion below makes that a build-time failure rather than a silent
+// double-count if a future award type ever takes one of these names.
+const EXTRA_FEAT_TYPES = ['perch', 'race'];
+for (const t of EXTRA_FEAT_TYPES) {
+  if (Object.prototype.hasOwnProperty.call(AWARDS, t)) {
+    throw new Error(`progression: feat tally '${t}' collides with an AWARDS type`);
+  }
+}
+const FEAT_TYPES = new Set([...Object.keys(AWARDS), ...EXTRA_FEAT_TYPES]);
 // Ceiling on state.feats' per-type lifetime tallies. Same job as
 // STREAK_COUNT_MAX/RACE_MS_MAX above: asFiniteNonNegInt alone would happily
 // persist 1e15 "things tipped over", which is meaningless, renders badly in
@@ -68,6 +100,11 @@ const FEAT_TYPES = new Set(Object.keys(AWARDS));
 // A million of any one discovery type is already far beyond a lifetime of
 // real play (the highest feat threshold in the catalog is 40).
 const FEAT_COUNT_MAX = 1_000_000;
+// Ceiling on state.duskWalks (v18 Task 1.4). Same job as STREAK_COUNT_MAX and
+// FEAT_COUNT_MAX above: a lifetime of real play is a few thousand walks at
+// the very most, so 100k is generous headroom whose only real purpose is
+// stopping a hostile cloud payload persisting 1e15 dusk walks.
+const DUSK_WALKS_MAX = 100_000;
 
 export const RANKS = [
   { at: 0, title: 'House Cat' },
@@ -210,6 +247,15 @@ function defaultState() {
     // be a lie about what the player actually did.
     skills: [],
     feats: {},
+    // v18 Task 1.4: lifetime count of COMPLETED dusk walks — what Night Eyes
+    // ("Complete 5 dusk walks") reads. It cannot be derived from anything
+    // already persisted: state.walks[area] counts every walk regardless of
+    // time of day, and dusk is a per-walk option that was never recorded.
+    // Additive, so SAVE_VERSION stays 4 (see the note on SAVE_VERSION).
+    // Incremented only by completeWalk({ dusk: true }), and the caller passes
+    // the walk's `duskActive` — not the raw duskMode — because a solo walk
+    // only actually goes dusk when the glow collar is equipped.
+    duskWalks: 0,
   };
 }
 
@@ -440,6 +486,7 @@ function sanitizeState(parsed) {
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
     feats: sanitizeFeats(parsed.feats),
+    duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
   };
 }
 
@@ -589,8 +636,17 @@ export function createProgression(storage) {
     // setArea instead of 'den' — inflating that area's walk count (and thus
     // its walks-gated unlocks, e.g. park's "2 walks in neighborhood") every
     // time the freely-repeatable den is visited.
-    completeWalk(areaId = state.area) {
+    // v18 Task 1.4: the optional second argument carries per-walk facts worth
+    // a lifetime tally. `dusk` is the walk's own duskActive — NOT the raw
+    // duskMode the player ticked — because a solo walk only actually turns
+    // dusk when the glow collar is equipped, and Night Eyes ("Complete 5 dusk
+    // walks") must count walks that were really dark, not walks that were
+    // merely requested dark. Defaulted so every pre-v18 call site
+    // (completeWalk() / completeWalk(areaId)) keeps behaving exactly as
+    // before, incrementing nothing new.
+    completeWalk(areaId = state.area, { dusk = false } = {}) {
       state.walks[areaId] += 1;
+      if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
       save();
     },
     recordGreet(name, breed, walkStamp) {
@@ -654,6 +710,43 @@ export function createProgression(storage) {
       if (cur >= FEAT_COUNT_MAX) return;
       state.feats[type] = cur + 1;
       save();
+    },
+    // recordSkillUnlocks(ids) → array of the ids that were NEWLY added,
+    // in catalog order. v18 Task 1.4.
+    //
+    // This is the only writer of state.skills. Without it the field
+    // sanitizes correctly but is never populated, which quietly voids the
+    // spec's guarantee that "a later threshold change must never revoke an
+    // ability a child already earned" — hasSkill's union would then rest
+    // entirely on the live predicate.
+    //
+    // The RETURN VALUE is the point of the signature: Task 2.7's in-walk
+    // unlock celebration needs to know which abilities fired just now, and
+    // that is exactly "what this call added", not "what the player has".
+    // Calling it twice with the same ids therefore returns [] the second
+    // time — the celebration cannot double-fire.
+    //
+    // `ids` is normally unlockedSkills(state), but it is treated as
+    // untrusted anyway (same discipline as sanitizeSkills): non-strings and
+    // unknown ids are dropped, order is forced to catalog order rather than
+    // caller order so state.skills is stable regardless of who calls, and
+    // the result is capped at the catalog length. save() only runs when
+    // something actually changed, so a per-walk call on a player who has
+    // unlocked nothing new is not a write.
+    recordSkillUnlocks(ids) {
+      if (!Array.isArray(ids)) return [];
+      const wanted = new Set(ids.filter((id) => typeof id === 'string' && KNOWN_SKILL_IDS.has(id)));
+      const already = new Set(state.skills);
+      const added = SKILL_IDS.filter((id) => wanted.has(id) && !already.has(id));
+      if (added.length === 0) return [];
+      const merged = SKILL_IDS.filter((id) => already.has(id) || wanted.has(id));
+      state.skills = merged.slice(0, KNOWN_SKILL_IDS.size);
+      save();
+      // A skill dropped by the cap was not actually recorded, so it must not
+      // be reported as newly unlocked either (unreachable while the cap is
+      // the catalog length, but the two must not be able to disagree).
+      const kept = new Set(state.skills);
+      return added.filter((id) => kept.has(id));
     },
     // recordGolden(id) → bool — records a newly found golden mouse. Returns
     // false (no-op) for an id that doesn't match GOLD_ID_PATTERN or one
