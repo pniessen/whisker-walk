@@ -47,6 +47,7 @@ import { replyFor, countsAsGreet } from '../catreplies.js';
 import { litMaterial } from '../render/materials.js';
 import { resolveQuality } from '../render/quality.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { unlockedSkills } from '../skills.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
 
 const AREAS = { neighborhood, park, seaside, den };
@@ -277,6 +278,11 @@ export function createWalkLifecycle({
       fleeScale: equipped.collar === 'bell' ? 0.5 : 1,        // bell: birds tolerate you closer
       spawnFireflies: duskActive,                              // glow: dusk fireflies
       trailButterflies: equipped.head === 'crown',              // crown: butterflies trail the cat
+      // v18 Task 1.4: the dusk fireflies are PLACED, so they belong on the
+      // shared determinism stream like secrets/strays/scent above — they
+      // used a bare Math.random(), which put two co-walkers on the same
+      // room seed in visibly different firefly fields.
+      rng: walkRng,
     });
 
     const collectibleMeshes = new Map();
@@ -397,6 +403,11 @@ export function createWalkLifecycle({
 
     const session = {
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
+      // collar for solo walks — see where duskActive is computed above).
+      // endWalk needs it for the duskWalks tally that Night Eyes reads;
+      // duskMode alone would credit a dusk walk the player never got.
+      duskActive,
       useComposer: tier.postFx,
       ghosts: NO_GHOSTS,
       walkStamp,
@@ -693,7 +704,16 @@ export function createWalkLifecycle({
     // areaOverride ?? state.area) — pass it explicitly so a den walk (which
     // never persists state.area) increments walks.den, not whatever other
     // area state.area still points at.
-    progression.completeWalk(session.areaId);
+    progression.completeWalk(session.areaId, { dusk: session.duskActive });
+    // v18 Task 1.4: persist whatever this walk earned. Ordered AFTER
+    // completeWalk on purpose — completeWalk is what bumps duskWalks, so the
+    // fifth dusk walk unlocks Night Eyes at the end of that same walk rather
+    // than the next one. recordSkillUnlocks returns only the ids added just
+    // now, which is what Task 2.7's in-walk unlock celebration will consume;
+    // until then the return value is intentionally unused and this call
+    // exists so an earned ability is stored and can never be revoked by a
+    // later threshold change.
+    progression.recordSkillUnlocks(unlockedSkills(progression.state));
     // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
     // computed, so the streak bonus is folded into this walk's own "whisker
     // points" total rather than silently landing in the next walk's earned

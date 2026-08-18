@@ -579,6 +579,19 @@ function init() {
         const secs = (session.race.timeMs / 1000).toFixed(1);
         hud.toast(r.isBest ? `🏁 ${secs}s — today’s best!` : `🏁 ${secs}s`);
         log.awardOnce('goal', 'race-done', 'the daily zoomies race');
+        // v18 Task 1.4: a SECOND, dedicated tally alongside the unchanged
+        // award above — same reasoning as the perch tally in
+        // game/interactions.js, never a retyping. 'goal' is shared with the
+        // three ordinary per-walk goal completions, so feats.goal reaches 3
+        // in a single normal walk and could never mean "finished the race 3
+        // times"; retyping this award would instead change what the walk
+        // summary and the goals system see. Points and the discovery-log
+        // line are untouched.
+        //
+        // awardOnce is deduped per walk and the race is once per day, so
+        // this counts DISTINCT race finishes — exactly what Long Zoomies'
+        // "Finish the daily zoomies race 3 times" means.
+        progression.recordFeat?.('race');
         session.fx.burst(session.cat.position, 0xffe27a, 14);
       }
       session.tippables.update(dt);

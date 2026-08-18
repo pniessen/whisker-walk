@@ -62,22 +62,37 @@ describe('skills catalog', () => {
 
 describe('feat predicates at their boundaries', () => {
   // Traversal --------------------------------------------------------------
-  it('Spring Paws needs 10 vantage perches (feats.scenic)', () => {
-    expectBoundary('spring-paws', featState('scenic'));
+  it('Spring Paws needs 10 vantage perches (feats.perch)', () => {
+    expectBoundary('spring-paws', featState('perch'));
   });
 
-  it('Fence Runner needs 25 vantage perches (feats.scenic)', () => {
-    expectBoundary('fence-runner', featState('scenic'));
+  it('Fence Runner needs 25 vantage perches (feats.perch)', () => {
+    expectBoundary('fence-runner', featState('perch'));
   });
 
-  it('Long Zoomies unlocks on a finished daily race (state.race.bestMs)', () => {
-    // Deviation from "3 times" — see the comment on the catalog entry: no
-    // lifetime race counter exists, so bestMs is a have-you-ever-finished
-    // flag with need 1.
-    expect(skillProgress({}, 'long-zoomies')).toEqual({ have: 0, need: 1 });
-    expect(hasSkill({ race: { date: null, area: null, bestMs: null } }, 'long-zoomies')).toBe(false);
-    expect(hasSkill({ race: { date: '2026-08-18', area: 'park', bestMs: 0 } }, 'long-zoomies')).toBe(false);
-    expect(hasSkill({ race: { date: '2026-08-18', area: 'park', bestMs: 24310 } }, 'long-zoomies')).toBe(true);
+  // Task 1.4: the perch tally is DEDICATED. feats.scenic is paid by the same
+  // interactions.js call site (the award was left untouched so GOAL_POOL's
+  // scenic-spots goal keeps working), but it also counts plain viewpoint
+  // visits — so it must not advance either climbing ability on its own.
+  it('does not let scenic-spot visits unlock the two climbing abilities', () => {
+    expect(hasSkill({ feats: { scenic: 999 } }, 'spring-paws')).toBe(false);
+    expect(hasSkill({ feats: { scenic: 999 } }, 'fence-runner')).toBe(false);
+    expect(skillProgress({ feats: { scenic: 999, perch: 3 } }, 'spring-paws')).toEqual({ have: 3, need: 10 });
+  });
+
+  it('Long Zoomies needs 3 race finishes (feats.race)', () => {
+    expectBoundary('long-zoomies', featState('race'));
+    expect(skillProgress({}, 'long-zoomies')).toEqual({ have: 0, need: 3 });
+  });
+
+  // The race pays awardOnce('goal', 'race-done') and that award was left
+  // unchanged, but 'goal' is shared with the three ordinary per-walk goal
+  // completions — feats.goal hits 3 in one normal walk, so it must not be
+  // able to hand this ability out for free. Nor may state.race.bestMs, the
+  // have-you-ever-finished proxy this predicate used to read.
+  it('does not let ordinary goal completions or a race best time unlock Long Zoomies', () => {
+    expect(hasSkill({ feats: { goal: 999 } }, 'long-zoomies')).toBe(false);
+    expect(hasSkill({ race: { date: '2026-08-18', area: 'park', bestMs: 24310 } }, 'long-zoomies')).toBe(false);
   });
 
   // Senses -----------------------------------------------------------------
@@ -87,10 +102,17 @@ describe('feat predicates at their boundaries', () => {
     expect(hasSkill({ feats: { treasure: 99 } }, 'twitchy-nose')).toBe(false);
   });
 
-  it('Night Eyes needs 10 fireflies (state.journal.firefly)', () => {
-    expectBoundary('night-eyes', (n) => ({ journal: { firefly: n } }));
-    // Another critter must not count toward it.
-    expect(hasSkill({ journal: { bird: 999 } }, 'night-eyes')).toBe(false);
+  it('Night Eyes needs 5 completed dusk walks (state.duskWalks)', () => {
+    expectBoundary('night-eyes', (n) => ({ duskWalks: n }));
+  });
+
+  // Task 1.4: chasing fireflies is not the same as completing dusk walks —
+  // journal.firefly was the proxy this predicate used to read, and a player
+  // who caught 500 of them on two dusk walks has still done two dusk walks.
+  // Plain walks must not count either.
+  it('does not let firefly sightings or ordinary walks unlock Night Eyes', () => {
+    expect(hasSkill({ journal: { firefly: 500 } }, 'night-eyes')).toBe(false);
+    expect(hasSkill({ walks: { neighborhood: 99, park: 99, seaside: 99, den: 99 } }, 'night-eyes')).toBe(false);
   });
 
   it('Whisker Sense needs 3 golden mice (state.golden)', () => {
@@ -197,6 +219,14 @@ describe('hostile and malformed state', () => {
     { race: { bestMs: -5 } },
     { skills: 'sea-legs' },
     { skills: { 'sea-legs': true } },
+    { duskWalks: '9' },
+    { duskWalks: NaN },
+    { duskWalks: Infinity },
+    { duskWalks: -1 },
+    { duskWalks: null },
+    { duskWalks: { valueOf: () => 99 } },
+    { feats: { perch: '99', race: '99' } },
+    { feats: { perch: -99, race: NaN } },
   ];
 
   it('never throws and never unlocks anything from junk', () => {
@@ -218,8 +248,12 @@ describe('hostile and malformed state', () => {
     // object whose prototype actually carries the key must not count either.
     const feats = Object.create({ mischief: 999 });
     expect(hasSkill({ feats }, 'sure-claws')).toBe(false);
-    const journal = Object.create({ firefly: 999 });
-    expect(hasSkill({ journal }, 'night-eyes')).toBe(false);
+    const perchFeats = Object.create({ perch: 999 });
+    expect(hasSkill({ feats: perchFeats }, 'spring-paws')).toBe(false);
+    // state.duskWalks is a TOP-LEVEL field, so the poisoned prototype here
+    // is on the state object itself rather than on a nested tally bag.
+    const state = Object.create({ duskWalks: 999 });
+    expect(hasSkill(state, 'night-eyes')).toBe(false);
     const walks = Object.create({ seaside: 999 });
     expect(hasSkill({ walks }, 'sea-legs')).toBe(false);
   });

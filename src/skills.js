@@ -52,12 +52,14 @@ function featTally(state, type) {
   return countOf(feats[type]);
 }
 
-// One critter count out of state.journal — same threat model as featTally.
-function journalTally(state, type) {
-  const journal = state?.journal;
-  if (!isPlainObject(journal)) return 0;
-  if (!Object.prototype.hasOwnProperty.call(journal, type)) return 0;
-  return countOf(journal[type]);
+// A plain top-level numeric field on the save (state.duskWalks). Same
+// own-property discipline as featTally above: an attacker
+// controls the whole payload, so a tally arriving via the PROTOTYPE of the
+// state object must not count toward an ability either.
+function topLevelTally(state, key) {
+  if (!isPlainObject(state)) return 0;
+  if (!Object.prototype.hasOwnProperty.call(state, key)) return 0;
+  return countOf(state[key]);
 }
 
 // Completed-walk count for one area out of state.walks.
@@ -97,11 +99,23 @@ const FRIEND_GREETS = 3;
 // `need`) so the UI can decide whether to show "27/25" or clamp it, and so
 // tests can distinguish need-1 / need / need+1.
 //
-// FEAT SOURCE MAPPING. Several spec feats name an action the game does not
-// count under its own award type; the note on each entry says which existing
-// counter was chosen and why. Two feats (Long Zoomies, Night Eyes) have no
-// faithful source at all and are documented as deviations — see the comments
-// on those two entries.
+// FEAT SOURCE MAPPING. Every one of the twelve feats now reads a counter
+// that faithfully means what the feat says, and the note on each entry says
+// which counter and why. Four of them (Spring Paws, Long Zoomies, Fence
+// Runner, Night Eyes) originally shipped reading a PROXY, because the action
+// they name was either counted under an award type shared with something
+// else ('scenic' also means viewpoints; 'goal' also means ordinary goal
+// completions) or not counted at all (dusk walks).
+//
+// Task 1.4 closed all four, and the shape of the fix is worth knowing before
+// you add a thirteenth ability: the existing awards were left completely
+// untouched — same type, same points, same goals advanced, same
+// discovery-log line — and a PARALLEL tally was added next to each
+// (feats.perch, feats.race, state.duskWalks). Retyping an award would have
+// been the smaller diff and the wrong move: award types are read by the
+// goals system, so changing one silently rebalances live gameplay, which the
+// spec's non-goals forbid. If a future feat needs a counter that does not
+// exist, add one alongside; do not repurpose an award.
 // ---------------------------------------------------------------------------
 
 export const SKILL_FAMILIES = [
@@ -119,43 +133,44 @@ export const SKILLS = [
     name: 'Spring Paws',
     effect: 'Your pounce jump goes markedly higher, and you can reach perches a longer hop away.',
     feat: 'Reach 10 vantage perches',
-    // AMBIGUITY: reaching a vantage perch pays awardOnce('scenic', `perch-…`)
-    // (game/interactions.js), the SAME award type as visiting a scenic spot
-    // (`scenic-…`). state.feats is keyed by award type only, so there is no
-    // way to separate the two from the single pay() hook — feats.scenic is
-    // "vantage perches + scenic viewpoints". Chosen anyway because it is the
-    // only counter that exists and it is at least directionally right: both
-    // halves are "go somewhere and look at the view".
-    progress: (state) => ({ have: featTally(state, 'scenic'), need: 10 }),
+    // Exact match, via a dedicated tally (Task 1.4). Reaching a vantage
+    // perch pays awardOnce('scenic', `perch-…`) — the SAME award type as
+    // visiting a scenic spot — so feats.scenic means "perches + viewpoints"
+    // and would unlock this CLIMBING ability for a player who only ever
+    // strolled to ten viewpoints.
+    //
+    // The perch call site (game/interactions.js) therefore records a second,
+    // dedicated feats.perch tally ALONGSIDE the unchanged 'scenic' award.
+    // The award was not retyped: 'scenic' is what GOAL_POOL's 'scenic-spots'
+    // goal ("Visit 2 scenic spots") counts, so retyping it would silently
+    // make that goal harder — a rebalance the spec's non-goals forbid.
+    //
+    // NOT retroactive: feats.perch starts at zero for existing saves, like
+    // every other feats tally (the spec's locked no-back-fill decision).
+    progress: (state) => ({ have: featTally(state, 'perch'), need: 10 }),
   },
   {
     id: 'long-zoomies',
     family: 'traversal',
     name: 'Long Zoomies',
     effect: 'Your zoomies charge runs much longer and recharges faster.',
-    feat: 'Finish the daily zoomies race',
-    // DEVIATION from the spec's "Finish the daily race 3 times". Nothing in
-    // the save counts race finishes: state.race holds only { date, area,
-    // bestMs } for the CURRENT course, and the race's own award is
-    // awardOnce('goal', 'race-done') (main.js) — 'goal' is shared with the
-    // three per-walk goal completions, so feats.goal hits 3 in a single
-    // ordinary walk and would hand this ability out for free.
+    feat: 'Finish the daily zoomies race 3 times',
+    // Exact match to the spec, via a dedicated tally (Task 1.4). state.race
+    // holds only { date, area, bestMs } for the CURRENT course, so it can
+    // only ever answer "have you ever finished one" — and the race's own
+    // award is awardOnce('goal', 'race-done'), whose 'goal' type is shared
+    // with the three ordinary per-walk goal completions, so feats.goal
+    // reaches 3 in a single normal walk and would hand this out free.
     //
-    // state.race.bestMs is therefore used as a "have you ever finished a
-    // daily race" flag: need 1, not 3. It is monotonic (a new day with no
-    // race leaves the previous date/bestMs in place, so it never falls back
-    // to null), retroactive for existing saves, and — unlike feats.goal —
-    // it cannot be satisfied without actually running the race.
+    // main.js's race-finish branch therefore records a dedicated feats.race
+    // tally ALONGSIDE the unchanged awardOnce('goal', 'race-done') call —
+    // not by retyping it, which would change what the goals system and the
+    // walk summary see.
     //
-    // UPGRADE PATH: give the race its own AWARDS type at main.js's
-    // awardOnce('goal', 'race-done') call site, then switch this to
-    // featTally(state, 'race') with need 3. That call site belongs to a
-    // Stage 2 task; Task 1.2 is not allowed to touch main.js.
-    progress: (state) => {
-      const ms = state?.race?.bestMs;
-      const finished = typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? 1 : 0;
-      return { have: finished, need: 1 };
-    },
+    // The count is honest: awardOnce is deduped per walk and the daily race
+    // can only be run once a day, so this is distinct race finishes, not
+    // repeat crossings. NOT retroactive (no back-fill).
+    progress: (state) => ({ have: featTally(state, 'race'), need: 3 }),
   },
   {
     id: 'fence-runner',
@@ -164,14 +179,13 @@ export const SKILLS = [
     effect: 'Chain perch to perch along a fence line without dropping to the ground between hops.',
     feat: 'Reach 25 vantage perches',
     // Spec wording is "Climb 25 times". A climb IS a perch hop (the same
-    // handleInteract branch in game/interactions.js), and only vantage
-    // perches pay out, so feats.scenic is the closest existing counter —
-    // the same one Spring Paws reads, at a higher threshold. That mirrors
-    // the Sure Claws (25) / Big Swat (40) pair below, which the spec itself
-    // stacks on one counter, so a shared traversal counter is in keeping.
-    // The displayed feat says "vantage perches" rather than "climbs" so the
-    // player is told what actually advances the bar.
-    progress: (state) => ({ have: featTally(state, 'scenic'), need: 25 }),
+    // doPounceOrClimb branch in game/interactions.js) and only vantage
+    // perches tally, so this reads the same dedicated feats.perch counter
+    // Spring Paws does, at a higher threshold — mirroring the Sure Claws
+    // (25) / Big Swat (40) pair below, which the spec itself stacks on one
+    // counter. The displayed feat says "vantage perches" rather than
+    // "climbs" so the player is told what actually advances the bar.
+    progress: (state) => ({ have: featTally(state, 'perch'), need: 25 }),
   },
 
   // --- Senses ------------------------------------------------------------
@@ -196,21 +210,22 @@ export const SKILLS = [
     family: 'senses',
     name: 'Night Eyes',
     effect: 'Dusk walks brighten — atmospheric instead of squint-inducing.',
-    feat: 'Spot 10 fireflies on dusk walks',
-    // DEVIATION from the spec's "Complete 5 dusk walks". Dusk is a per-walk
-    // option and is not persisted anywhere: completeWalk only increments
-    // state.walks[area], so there is no dusk-walk tally to read and adding
-    // one would need a third new save field plus a main.js change, both out
-    // of scope for Task 1.1/1.2.
+    feat: 'Complete 5 dusk walks',
+    // Exact match to the spec, via the additive state.duskWalks save field
+    // (Task 1.4). It could not be derived from anything already persisted:
+    // completeWalk only counts state.walks[area], which is time-of-day
+    // blind, and the earlier stand-in — state.journal.firefly, on the
+    // reasoning that fireflies only spawn on dusk walks — counted how many
+    // fireflies you happened to CHASE, not how many dusk walks you took.
     //
-    // state.journal.firefly is used instead because fireflies are
-    // DUSK-EXCLUSIVE: game/walk.js passes `spawnFireflies: duskActive` and
-    // that is the only firefly spawn path in the game, so every firefly in
-    // the journal is proof of a dusk walk. Eight spawn per dusk walk, so
-    // need 10 guarantees at least two separate dusk walks — closer to the
-    // spec's intent than need 5 (satisfiable in one walk) would be. Also
-    // retroactive, which "5 dusk walks" could never have been.
-    progress: (state) => ({ have: journalTally(state, 'firefly'), need: 10 }),
+    // completeWalk now takes the walk's duskActive and bumps duskWalks. It
+    // is duskActive rather than the raw duskMode deliberately: a solo walk
+    // only actually goes dusk when the glow collar is equipped, so ticking
+    // the dusk box without the collar must not credit a dusk walk.
+    //
+    // NOT retroactive: existing saves start at zero, since nothing recorded
+    // dusk before v18.
+    progress: (state) => ({ have: topLevelTally(state, 'duskWalks'), need: 5 }),
   },
   {
     id: 'whisker-sense',

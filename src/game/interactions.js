@@ -100,7 +100,26 @@ export function createInteractions({
       player.halt();
       session.cat.position.set(next.x, next.y, next.z);
       catVoice();
-      if (next.vantage) log.awardOnce('scenic', `perch-${next.label}`, next.label);
+      if (next.vantage) {
+        log.awardOnce('scenic', `perch-${next.label}`, next.label);
+        // v18 Task 1.4: a SECOND, dedicated tally recorded alongside the
+        // award above — deliberately not a retyping of it. The 'scenic'
+        // award type is load-bearing elsewhere: GOAL_POOL's 'scenic-spots'
+        // goal ("Visit 2 scenic spots") counts 'scenic' discoveries, so
+        // giving perches their own award type would quietly make that goal
+        // harder to complete. The award, its point value, the goal it
+        // advances and the discovery-log line are all byte-identical to
+        // before; this call only adds a lifetime perch count.
+        //
+        // It exists because feats.scenic conflates climbing to a perch with
+        // visiting a viewpoint, and Spring Paws / Fence Runner are climbing
+        // abilities: without this, ten scenic spots would hand out a
+        // climbing ability to a player who never climbed anything.
+        //
+        // Optional-called for the same reason discoveries.js's pay() does
+        // it — a stand-in progression in a test need not implement it.
+        progression.recordFeat?.('perch');
+      }
     } else if (session.perched) {
       session.perched = null;                    // hop down
       player.perchY = 0;

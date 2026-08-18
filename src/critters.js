@@ -87,6 +87,13 @@ let nextId = 1;
 
 export function createCritters(scene, spawns, opts = {}) {
   const fleeScale = opts.fleeScale ?? 1;
+  // Injected seeded RNG for anything this builder PLACES in the world. Dusk
+  // firefly positions used a bare Math.random(), which meant two co-walkers
+  // on the same room seed saw the eight fireflies in different spots — the
+  // exact determinism regression the spec calls out. Falls back to
+  // Math.random so a caller that passes no rng (and a solo walk, whose
+  // walkRng *is* Math.random) behaves precisely as before.
+  const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
   let fleeModifier = 1;
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
@@ -114,7 +121,7 @@ export function createCritters(scene, spawns, opts = {}) {
   for (const def of spawns) spawn(def);
   if (opts.spawnFireflies) {
     for (let i = 0; i < 8; i++) {
-      spawn({ type: 'firefly', x: (Math.random() - 0.5) * 60, z: (Math.random() - 0.5) * 60 });
+      spawn({ type: 'firefly', x: (rng() - 0.5) * 60, z: (rng() - 0.5) * 60 });
     }
   }
   if (opts.trailButterflies) {
