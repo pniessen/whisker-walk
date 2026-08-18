@@ -578,9 +578,8 @@ function init() {
         const r = progression.recordRace(session.raceDate, session.areaId, session.race.timeMs);
         const secs = (session.race.timeMs / 1000).toFixed(1);
         hud.toast(r.isBest ? `🏁 ${secs}s — today’s best!` : `🏁 ${secs}s`);
-        log.awardOnce('goal', 'race-done', 'the daily zoomies race');
         // v18 Task 1.4: a SECOND, dedicated tally alongside the unchanged
-        // award above — same reasoning as the perch tally in
+        // award — same reasoning as the perch tally in
         // game/interactions.js, never a retyping. 'goal' is shared with the
         // three ordinary per-walk goal completions, so feats.goal reaches 3
         // in a single normal walk and could never mean "finished the race 3
@@ -588,10 +587,16 @@ function init() {
         // summary and the goals system see. Points and the discovery-log
         // line are untouched.
         //
-        // awardOnce is deduped per walk and the race is once per day, so
-        // this counts DISTINCT race finishes — exactly what Long Zoomies'
-        // "Finish the daily zoomies race 3 times" means.
-        progression.recordFeat?.('race');
+        // GATED ON THE AWARD ACTUALLY PAYING (v18 final review). race.js's
+        // state machine is idle→running→done with no path back, so this
+        // branch cannot re-fire within a walk today and the gate is a no-op
+        // in practice. It is here because the ungated shape is what made
+        // feats.perch farmable: any future edit that lets a walk re-enter
+        // 'running' would otherwise reopen the same hole silently. The
+        // awardOnce return (0 when already seen this walk, points otherwise)
+        // is the same per-walk dedup the perch tally now rides.
+        const racePaid = log.awardOnce('goal', 'race-done', 'the daily zoomies race');
+        if (racePaid > 0) progression.recordFeat?.('race');
         session.fx.burst(session.cat.position, 0xffe27a, 14);
       }
       session.tippables.update(dt);

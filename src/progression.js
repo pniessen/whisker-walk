@@ -813,16 +813,28 @@ export function createProgression(storage) {
       save();
     },
     // recordFeat(type) — v18. Bumps the lifetime tally for one discovery
-    // type by one. Called from exactly ONE place: pay() in discoveries.js,
-    // which is the single funnel every award() / awardOnce() in the game
-    // already passes through. Deliberately not scattered across the ~45
-    // award call sites — one hook point means a new award type becomes a
-    // lifetime counter for free and no call site can forget to tally.
+    // type by one. Its PRIMARY caller is pay() in discoveries.js, the single
+    // funnel every award() / awardOnce() in the game already passes through.
+    // Deliberately not scattered across the ~45 award call sites — one hook
+    // point means a new award type becomes a lifetime counter for free and
+    // no call site can forget to tally.
     //
-    // Because it rides the discovery events, it inherits their per-walk
-    // repeat-award caps (awardOnce is once per key per walk, recordGreet's
-    // lastWalk guard is once per cat per walk), so no feat is farmable by
-    // holding one key down.
+    // Awards routed through pay() inherit the discovery log's per-walk
+    // repeat caps (awardOnce is once per key per walk, recordGreet's
+    // lastWalk guard is once per cat per walk), so those feats cannot be
+    // farmed by holding one key down.
+    //
+    // TWO call sites are NOT inside pay(): the feats.perch tally in
+    // game/interactions.js and the feats.race tally in main.js, both of
+    // which count something no award type means on its own. Neither gets the
+    // cap for free — each must gate itself on its neighbouring awardOnce()
+    // returning non-zero, which is exactly the same per-walk dedup. An
+    // ungated call here IS farmable: the first version of the perch tally
+    // fired on every landing, so re-climbing one perch 100 times bought two
+    // traversal abilities (fixed at the v18 final review; test/
+    // interactions.test.js' "the perch tally is not farmable" drives the real
+    // doPounceOrClimb 100 times to hold that shut). If you add a third
+    // out-of-band tally, gate it the same way.
     //
     // Unknown types are ignored rather than stored: state.feats' key
     // vocabulary is exactly AWARDS' keys, so anything else would just be

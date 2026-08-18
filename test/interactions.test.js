@@ -237,6 +237,86 @@ describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// v18 final review — feats.perch was farmable.
+//
+// The tally sat NEXT TO log.awardOnce('scenic', …) rather than behind it, so
+// it fired on every landing while the award beside it paid once. Climbing
+// onto one walk-up-reachable perch and hopping straight back down re-enters
+// the branch each tap: 100 taps of Space bought Spring Paws (10 perches) and
+// Fence Runner (25) on a single walk, with the points ledger showing one
+// 8-point scenic award the whole time.
+//
+// These drive the real doPounceOrClimb against a real progression, so the
+// tally and the award are compared against each other rather than against a
+// re-statement of the rule.
+// ---------------------------------------------------------------------------
+
+describe('doPounceOrClimb — the perch tally is not farmable', () => {
+  // 0.9m up: inside the 1.6m baseline climb budget, so this is reachable with
+  // no skills at all — the exploit needed no unlock to start.
+  const LOW = { x: 0, z: 0, y: 0.9, label: 'fountain-edge lookout', vantage: true };
+  const OTHER = { x: 6, z: 0, y: 0.9, label: 'crate stack', vantage: true };
+
+  function farmHarness(perches) {
+    const progression = createProgression(fakeStorage());
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const session = {
+      areaData: { perches },
+      cat: { position: new THREE.Vector3(0, 0, 0) },
+      perched: null,
+      pounceCooldown: 0,
+      fx: { burst() {} },
+    };
+    const player = { perchY: 0, halt() {}, pounce() {} };
+    const { doPounceOrClimb } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player, progression, log,
+      hud: { toast() {} }, audio: { trill() {}, pounceWhoosh() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return { progression, log, session, doPounceOrClimb };
+  }
+
+  it('counts one climb no matter how many times the same perch is re-taken', () => {
+    const h = farmHarness([LOW]);
+    // 100 taps: odd taps climb on, even taps hop back down (the `else if
+    // (session.perched)` branch), which is exactly the exploit loop.
+    for (let i = 0; i < 100; i++) h.doPounceOrClimb();
+    expect(h.progression.state.feats.perch).toBe(1);
+    // The tally must agree with the award it rides. Before the fix these
+    // disagreed 50-to-1, which is what made the bug findable at all.
+    expect(h.progression.state.points).toBe(AWARDS.scenic);
+    // Neither traversal ability may have unlocked off one perch.
+    expect(h.progression.state.skills).not.toContain('spring-paws');
+    expect(h.progression.state.skills).not.toContain('fence-runner');
+  });
+
+  it('still counts each DISTINCT perch once, so real climbing advances', () => {
+    const h = farmHarness([LOW, OTHER]);
+    h.doPounceOrClimb();                          // onto LOW
+    h.doPounceOrClimb();                          // hop down
+    h.session.cat.position.set(6, 0, 0);
+    h.doPounceOrClimb();                          // onto OTHER
+    expect(h.progression.state.feats.perch).toBe(2);
+    expect(h.progression.state.points).toBe(AWARDS.scenic * 2);
+  });
+
+  it('re-counts the same perch on a LATER walk, matching the award it rides', () => {
+    // The cap is per-walk, not lifetime — otherwise a favourite perch would
+    // stop advancing the feat forever and neither ability could be finished.
+    const h = farmHarness([LOW]);
+    h.doPounceOrClimb();
+    h.doPounceOrClimb();
+    h.log.startWalk();
+    h.session.perched = null;
+    h.doPounceOrClimb();
+    expect(h.progression.state.feats.perch).toBe(2);
+  });
+});
+
 // ===========================================================================
 // v18 Task 2.3 — the two passive senses abilities, driven through the exact
 // function updateInteractions calls every frame. Every case is asserted in

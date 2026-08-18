@@ -273,6 +273,32 @@ charge-**up** threshold, so taken literally the ability would have been a 67%
 charge-up 1.5 → **0.9s** ("recharges faster"), and the charge now survives
 **2.5s** of interruption ("runs longer").
 
+### §Risks was wrong about farmability — two tallies do NOT ride `discovery`
+
+§Risks says feat counters "ride the same `discovery` events that already carry
+the per-walk repeat-award caps, so inherited caps apply". That is true of nine
+of the eleven counters and **was false of the two that matter most**. Spring
+Paws, Fence Runner and Long Zoomies needed counters no award type means on its
+own, so `feats.perch` (`src/game/interactions.js`) and `feats.race`
+(`src/main.js`) are recorded *beside* their `awardOnce` calls rather than
+through `discoveries.js`'s `pay()` — outside the dedup the risk bullet was
+relying on.
+
+`feats.perch` was therefore genuinely farmable, and the mitigation as written
+("confirm no feat is satisfiable by holding one key") is exactly the check that
+would have caught it: climbing onto one walk-up-reachable perch and hopping
+straight back down re-enters the branch, so **100 taps of Space on one perch
+bought both Spring Paws (10) and Fence Runner (25)** while the deduped `scenic`
+award paid 8 points once.
+
+Fixed at the final review by gating each tally on its neighbouring `awardOnce`
+returning non-zero, which is the same per-walk per-key cap rather than a second
+scheme that could drift from it. `feats.race` got the same gate — `race.js`'s
+`idle→running→done` machine gave it no way to re-fire, but the ungated shape is
+what failed here and a future edit to `race.begin()` would have reopened it.
+**Rule for anything after this wave: a `recordFeat` call outside `pay()`
+inherits nothing and must gate itself.**
+
 ### Also worth knowing
 
 - **Gift Paws' feat is 3 gifts, not 5** (Task 4.0). Giving a gift requires the

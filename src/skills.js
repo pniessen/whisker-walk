@@ -165,6 +165,14 @@ export const SKILLS = [
     // goal ("Visit 2 scenic spots") counts, so retyping it would silently
     // make that goal harder — a rebalance the spec's non-goals forbid.
     //
+    // The tally is GATED on that awardOnce returning non-zero, so it counts
+    // DISTINCT perches per walk. It has to be: climbing onto a perch and
+    // hopping straight back down re-enters the branch, so an ungated tally
+    // let 100 taps of one key on one low perch buy this ability and Fence
+    // Runner (the v18 final review's confirmed exploit). Re-taking the same
+    // perch on a LATER walk does count again — that matches the award, and
+    // without it a favourite perch would stop advancing the bar forever.
+    //
     // NOT retroactive: feats.perch starts at zero for existing saves, like
     // every other feats tally (the spec's locked no-back-fill decision).
     progress: (state) => ({ have: featTally(state, 'perch'), need: 10 }),
@@ -187,9 +195,13 @@ export const SKILLS = [
     // not by retyping it, which would change what the goals system and the
     // walk summary see.
     //
-    // The count is honest: awardOnce is deduped per walk and the daily race
-    // can only be run once a day, so this is distinct race finishes, not
-    // repeat crossings. NOT retroactive (no back-fill).
+    // The count is honest for the same reason the perch tally above is: it
+    // is gated on that awardOnce returning non-zero, so it counts one finish
+    // per walk. Note "the DAILY race" names the course, not a cap on runs —
+    // state.race keys off { date, area }, so three walks in one day can each
+    // finish it and each one counts. race.js's idle→running→done machine has
+    // no path back, so the gate is belt-and-braces against a future edit
+    // rather than a live dedup. NOT retroactive (no back-fill).
     progress: (state) => ({ have: featTally(state, 'race'), need: 3 }),
   },
   {

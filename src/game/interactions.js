@@ -147,24 +147,35 @@ export function createInteractions({
       // ability firing rather than as the cat merely not falling off.
       if (ranTheFence) session.fx?.burst(from, 0xd8cdb8, 6);
       if (next.vantage) {
-        log.awardOnce('scenic', `perch-${next.label}`, next.label);
         // v18 Task 1.4: a SECOND, dedicated tally recorded alongside the
-        // award above — deliberately not a retyping of it. The 'scenic'
-        // award type is load-bearing elsewhere: GOAL_POOL's 'scenic-spots'
-        // goal ("Visit 2 scenic spots") counts 'scenic' discoveries, so
-        // giving perches their own award type would quietly make that goal
-        // harder to complete. The award, its point value, the goal it
-        // advances and the discovery-log line are all byte-identical to
-        // before; this call only adds a lifetime perch count.
+        // award — deliberately not a retyping of it. The 'scenic' award type
+        // is load-bearing elsewhere: GOAL_POOL's 'scenic-spots' goal
+        // ("Visit 2 scenic spots") counts 'scenic' discoveries, so giving
+        // perches their own award type would quietly make that goal harder
+        // to complete. The award, its point value, the goal it advances and
+        // the discovery-log line are all byte-identical to before; this call
+        // only adds a lifetime perch count.
         //
         // It exists because feats.scenic conflates climbing to a perch with
         // visiting a viewpoint, and Spring Paws / Fence Runner are climbing
         // abilities: without this, ten scenic spots would hand out a
         // climbing ability to a player who never climbed anything.
         //
+        // GATED ON THE AWARD ACTUALLY PAYING (v18 final review). awardOnce
+        // returns 0 when the key was already seen this walk and the points
+        // otherwise, so `paid > 0` is exactly "this perch is new this walk".
+        // Tallying unconditionally made feats.perch farmable: climbing onto
+        // one perch and hopping straight back down re-enters this branch
+        // every time, so 100 taps of Space on the same walk-up-reachable
+        // perch bought both Spring Paws (10) and Fence Runner (25) while the
+        // deduped 'scenic' award paid only once. Riding the return value
+        // inherits discoveries.js's per-walk per-key cap rather than
+        // inventing a second bookkeeping scheme that could drift from it.
+        //
         // Optional-called for the same reason discoveries.js's pay() does
         // it — a stand-in progression in a test need not implement it.
-        progression.recordFeat?.('perch');
+        const paid = log.awardOnce('scenic', `perch-${next.label}`, next.label);
+        if (paid > 0) progression.recordFeat?.('perch');
       }
     } else if (session.perched) {
       session.perched = null;                    // hop down
