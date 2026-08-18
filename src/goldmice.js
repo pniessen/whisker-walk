@@ -116,6 +116,36 @@ export function createGoldMice(scene, areaId, foundIds) {
       }
       return null;
     },
+    // v18 Whisker Sense ('whisker-sense') — the nearest mouse the player has
+    // NOT found yet, within maxDist horizontally, as { mouse, dist }, or null.
+    //
+    // `foundIds` is the LIVE found set (new Set(progression.state.golden)),
+    // re-read by the caller each ping rather than captured here. Belt and
+    // braces on purpose: createGoldMice already declines to spawn a found
+    // mouse and remove() pulls one the moment it is caught, so `list` is
+    // unfound-only by construction — but "already-found mice never ping" is
+    // the ability's one hard rule, and a rule that holds only because two
+    // other code paths happen to be correct is a rule waiting to break. A
+    // mouse recorded as found by any route (this walk's catch, a save
+    // restored mid-session, a future remote find) is skipped here on its own
+    // account.
+    //
+    // Distance is horizontal only — the same measure checkFind uses — so a
+    // mouse on a rooftop still pings from the pavement below it, which is
+    // precisely the hint the player needs to know there is something up there.
+    nearestUnfound(pos, maxDist, foundIds) {
+      let best = null;
+      let bestD = maxDist;
+      for (const mo of list) {
+        if (foundIds && typeof foundIds.has === 'function' && foundIds.has(mo.id)) continue;
+        const d = Math.hypot(mo.x - pos.x, mo.z - pos.z);
+        if (d < bestD) {
+          bestD = d;
+          best = mo;
+        }
+      }
+      return best ? { mouse: best, dist: bestD } : null;
+    },
     remove,
     dispose() {
       for (const mo of [...list]) remove(mo.id);

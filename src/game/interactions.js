@@ -198,6 +198,102 @@ export function createInteractions({
     hud.setPrompt(text, getIsTouch());
   }
 
+  // ---------------------------------------------------------------------
+  // v18 Task 2.3 — Twitchy Nose and Whisker Sense.
+  //
+  // Both are always-on PERCEPTION abilities, so neither hangs off a keypress:
+  // they run from updateSenses below, called once a frame out of
+  // updateInteractions. Both are throttled on wall-clock seconds rather than
+  // a dt accumulator because updateInteractions is not handed a dt — the
+  // per-walk timestamps live on the session, so they reset with the walk.
+  //
+  // Neither sends anything over the wire, and neither reads anything a
+  // co-walker sent: a skilled and an unskilled player in the same room walk
+  // see different trails and hear different pings, and the protocol is
+  // unchanged. That is the spec's "abilities are local", intact.
+  // ---------------------------------------------------------------------
+
+  // How far the nose reaches. Deliberately wider than updateInteractions'
+  // 7m/14m collectible REVEAL radius: the point of the ability is to be
+  // pulled toward something you cannot see yet.
+  const NOSE_RANGE = 22;
+  // ...but the trail itself is short. See scent.trailTo — a full-length trail
+  // to a 20m target reads as a paved road, not a scent.
+  const NOSE_TRAIL_DIST = 6;
+  const NOSE_REFRESH = 3.5;   // seconds between relays; decals live 4s
+  const NOSE_RETRY = 1;       // cheaper re-check when nothing is in range
+
+  const WHISKER_RANGE = 12;   // spec: "within ~12m of an unfound golden mouse"
+  const WHISKER_MIN_GAP = 0.6;  // ping interval right on top of a mouse
+  const WHISKER_MAX_GAP = 2.6;  // ...and at the very edge of range
+
+  // The nearest collectible still on the ground, within `range`. A collected
+  // one has had its mesh pulled from s.collectibleMeshes (handleInteract's
+  // 'collect' branch, and netevents' remote-collect path), so that Map is the
+  // authority on "not picked up yet" — including a collectible a co-walker
+  // grabbed, which correctly stops drawing a trail to nothing.
+  function nearestUncollected(s, catP, range) {
+    let best = null;
+    let bestD = range;
+    for (const c of s.areaData.collectibles) {
+      if (!s.collectibleMeshes.has(c.id)) continue;
+      const d = Math.hypot(c.x - catP.x, c.z - catP.z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  function updateSenses(s, catP) {
+    const state = progression.state;
+    const now = nowSec();
+
+    // --- Twitchy Nose -------------------------------------------------
+    if (hasSkill(state, 'twitchy-nose') && s.scent) {
+      if (now >= (s.noseNextAt ?? 0)) {
+        const target = nearestUncollected(s, catP, NOSE_RANGE);
+        // Relaid from wherever the cat is NOW, so the trail keeps turning to
+        // follow the player rather than pointing along a stale heading.
+        const laid = target ? s.scent.trailTo(catP, target, { maxDist: NOSE_TRAIL_DIST }) : null;
+        s.noseNextAt = now + (laid ? NOSE_REFRESH : NOSE_RETRY);
+      }
+    }
+
+    // --- Whisker Sense ------------------------------------------------
+    if (hasSkill(state, 'whisker-sense') && s.goldMice) {
+      if (now >= (s.whiskerNextAt ?? 0)) {
+        // The LIVE found list, re-read per ping. state.golden is the player's
+        // own record of which mice they have caught, so a mouse already found
+        // — this walk, a previous walk, or a save restored mid-session —
+        // cannot ping. (goldMice.list is unfound-only by construction too;
+        // this is the belt to that pair of braces. See goldmice.js.)
+        const found = new Set(Array.isArray(state.golden) ? state.golden : []);
+        const near = s.goldMice.nearestUnfound(catP, WHISKER_RANGE, found);
+        if (near) {
+          const closeness = 1 - near.dist / WHISKER_RANGE;    // 0 at the edge, 1 on top
+          s.whiskerNextAt = now + WHISKER_MAX_GAP - (WHISKER_MAX_GAP - WHISKER_MIN_GAP) * closeness;
+          // A sparkle a step out from the cat's nose, ON the bearing to the
+          // mouse: the ping says "something is near", the shimmer says which
+          // way. Never at the mouse itself — that would hand the player the
+          // location outright and make the hunt a walk.
+          const dx = near.mouse.x - catP.x;
+          const dz = near.mouse.z - catP.z;
+          const len = Math.hypot(dx, dz) || 1;
+          const at = catP.clone();
+          at.x += (dx / len) * 1.1;
+          at.z += (dz / len) * 1.1;
+          at.y += 0.45;
+          s.fx?.shimmer(at, 0xf2c14e, 10);
+          audio.whiskerPing(closeness);
+        } else {
+          s.whiskerNextAt = now + 0.5;
+        }
+      }
+    }
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
@@ -333,6 +429,12 @@ export function createInteractions({
       }
     }
     if (!s.prompt) setPrompt(null);
+
+    // v18 Task 2.3 — the two passive senses abilities. updateInteractions is
+    // the one per-frame hook this module owns (main.js's render loop calls it
+    // every frame with the live session), which is what makes them reachable
+    // in a running walk rather than merely implemented.
+    updateSenses(s, catP);
 
     for (const sc of s.areaData.scenics) {
       if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
@@ -527,5 +629,9 @@ export function createInteractions({
   return {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
     setPrompt, updateInteractions, awardStrayGreet, handleInteract,
+    // Exported for test/interactions.test.js. updateInteractions calls it
+    // itself — main.js does not need to, and must not start, or the senses
+    // would run twice a frame.
+    updateSenses,
   };
 }

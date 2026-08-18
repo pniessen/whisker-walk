@@ -9,7 +9,49 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
+// ---------------------------------------------------------------------------
+// v18 Night Eyes ('night-eyes') — dusk walks brighten.
+//
+// The two levers are renderer.toneMappingExposure and
+// scene.environmentIntensity, both calibrated in v12 (exposure 1.1;
+// envIntensity 0.45 high-tier / 0.32 low-tier) and both owned by this module,
+// which is why the ability lives here rather than in the walk builder.
+//
+// weather.js is explicitly NOT the lever. It is the wrong one twice over: it
+// is skipped entirely on a dusk walk (startWalk only builds weather when
+// !duskActive), and it drives fog/particles/sun colour, so "brightening" via
+// it would mean editing what the weather IS rather than how the frame is
+// exposed. The dusk sky, fog and sun.intensity stay exactly as authored —
+// Night Eyes changes how well the cat's eyes cope with that scene, not what
+// the scene is. That is what keeps dusk atmospheric instead of flattening it
+// into daylight.
+//
+// Gains are multiplicative on whatever base the tier supplies, so the low
+// tier's dimmer envIntensity stays proportionally dimmer, and a future
+// re-calibration of the base numbers carries through without touching these.
+export const NIGHT_EYES_EXPOSURE_GAIN = 1.35;
+export const NIGHT_EYES_ENV_GAIN = 1.6;
+
+// Pure: the exposure/envIntensity a walk should render at. Night Eyes only
+// applies on a walk that is ACTUALLY dusk (duskActive, i.e. the glow collar
+// check has already passed for a solo walk) — a daytime walk renders
+// identically with or without the ability, which is the spec's "dusk walks
+// brighten", not "everything brightens".
+export function nightEyesLighting({ dusk = false, nightEyes = false, baseExposure, baseEnvIntensity }) {
+  const on = !!dusk && !!nightEyes;
+  return {
+    exposure: on ? baseExposure * NIGHT_EYES_EXPOSURE_GAIN : baseExposure,
+    envIntensity: on ? baseEnvIntensity * NIGHT_EYES_ENV_GAIN : baseEnvIntensity,
+  };
+}
+
 export function createComposerRig(renderer, camera) {
+  // The app's calibrated base exposure, read off the renderer main.js already
+  // configured (main.js sets toneMappingExposure before constructing the rig)
+  // rather than re-declared here — one number, one owner, no way for the two
+  // to drift apart.
+  const baseExposure = Number.isFinite(renderer.toneMappingExposure) ? renderer.toneMappingExposure : 1;
+
   // Post-processing: EffectComposer with a subtle bloom pass, built lazily —
   // only high-tier walks (see resolveQuality) ever call ensure(), so
   // a device that only ever runs low tier never allocates the composer or
@@ -59,5 +101,27 @@ export function createComposerRig(renderer, camera) {
     }
   }
 
-  return { ensure, attachScene, renderFrame, resize };
+  // applyLighting(scene, …) — called once per walk from startWalk, after
+  // duskActive is known. Sets BOTH levers unconditionally (not only when the
+  // ability is on), because toneMappingExposure is renderer-global state that
+  // outlives the walk that raised it: a Night Eyes dusk walk followed by an
+  // ordinary daytime walk has to be handed the base exposure back, or the
+  // second walk renders blown out. Returns the applied values for the caller
+  // (and tests) to assert on.
+  function applyLighting(scene, { dusk = false, nightEyes = false, envIntensity } = {}) {
+    const lighting = nightEyesLighting({
+      dusk, nightEyes, baseExposure, baseEnvIntensity: envIntensity,
+    });
+    renderer.toneMappingExposure = lighting.exposure;
+    scene.environmentIntensity = lighting.envIntensity;
+    return lighting;
+  }
+
+  // endWalk hygiene: put the renderer back on its calibrated base exposure so
+  // nothing rendered outside a walk inherits a walk's Night Eyes boost.
+  function resetLighting() {
+    renderer.toneMappingExposure = baseExposure;
+  }
+
+  return { ensure, attachScene, renderFrame, resize, applyLighting, resetLighting, baseExposure };
 }

@@ -2,7 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { createAudio } from '../src/audio.js';
 
 function fakeParam(v = 1) {
-  return { value: v, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
+  // `scheduled` records every setValueAtTime value. tone() sets an
+  // oscillator's pitch that way rather than by assigning .value, so it is the
+  // only place the note actually is. Additive — .value keeps meaning what it
+  // always did (see the master-gain assertion below).
+  const p = {
+    value: v,
+    scheduled: [],
+    setValueAtTime(x) { p.scheduled.push(x); },
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+  };
+  return p;
 }
 function fakeNode(extra = {}) {
   const n = { connections: [], stopped: false, connect(t) { n.connections.push(t); return t; }, start() {}, stop() { n.stopped = true; }, ...extra };
@@ -117,5 +128,58 @@ describe('layered ambience', () => {
     expect(intervalCalls).toBe(0);
     audio.stopAmbient();
     expect(bufferSources[0].stopped).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v18 Task 2.3 / 2.7 — the two new cues. Both are built out of tone(), so
+// what is worth pinning is their SHAPE against the sound each is meant to be
+// a sibling of, plus the fact that whiskerPing's pitch actually tracks
+// proximity (that mapping is the ability's only feedback channel besides the
+// shimmer, and reducedMotion players get nothing else at all).
+// ---------------------------------------------------------------------------
+describe('v18 cues', () => {
+  const freqsOf = (ctx) => ctx.created.oscs.map((o) => o.frequency.scheduled[0]);
+  const pingFreqs = (closeness) => {
+    const ctx = fakeCtx();
+    createAudio({ contextFactory: () => ctx }).whiskerPing(closeness);
+    return freqsOf(ctx);
+  };
+
+  it('unlockFanfare keeps fanfare\'s rising C-major shape and goes one step further', () => {
+    const a = fakeCtx();
+    const b = fakeCtx();
+    createAudio({ contextFactory: () => a }).fanfare();
+    createAudio({ contextFactory: () => b }).unlockFanfare();
+    const fanfare = freqsOf(a);
+    const unlock = freqsOf(b);
+    // Same arpeggio, note for note, as its prefix — deliberately the same
+    // "you did the big thing" sound the player already knows.
+    expect(unlock.slice(0, fanfare.length)).toEqual(fanfare);
+    // ...then more: it climbs higher and carries a sparkle tail.
+    expect(unlock.length).toBeGreaterThan(fanfare.length);
+    expect(Math.max(...unlock)).toBeGreaterThan(Math.max(...fanfare));
+  });
+
+  it('whiskerPing rises in pitch as the mouse gets closer', () => {
+    const farF = pingFreqs(0);
+    const nearF = pingFreqs(1);
+    expect(farF).toHaveLength(2);
+    expect(nearF).toHaveLength(2);
+    for (let i = 0; i < 2; i++) expect(nearF[i]).toBeGreaterThan(farF[i]);
+  });
+
+  it('whiskerPing clamps a nonsense closeness rather than detuning wildly', () => {
+    expect(pingFreqs(-99)).toEqual(pingFreqs(0));
+    expect(pingFreqs(99)).toEqual(pingFreqs(1));
+  });
+
+  it('both stay silent while muted', () => {
+    const ctx = fakeCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.setMuted(true);
+    audio.unlockFanfare();
+    audio.whiskerPing(0.5);
+    expect(ctx.created.oscs).toHaveLength(0);
   });
 });

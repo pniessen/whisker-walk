@@ -79,6 +79,36 @@ export function createScent(scene, area, rng) {
 
   const decals = [];
 
+  // Lay one run of paw-print decals from `from` toward `to`. Extracted out of
+  // sniff() so v18's Twitchy Nose (trailTo below) reuses the EXACT trail
+  // rendering the buried-treasure sniff has always drawn, rather than
+  // shipping a second look for the same idea.
+  //
+  // `peak` is carried per-decal instead of the hardcoded 0.85 update() used
+  // to apply, so a fainter trail (Twitchy Nose's, which redraws every few
+  // seconds and would otherwise stack into a solid yellow carpet) fades
+  // through its own ceiling rather than everyone's.
+  //
+  // The jitter draws from the SAME `rng` sniff always used. For a room walk
+  // that is the shared walkRng — but every world-gen draw off that stream
+  // happens synchronously inside startWalk, so by the time any trail is laid
+  // the stream is spent and perturbing it cannot desync a co-walker. (This
+  // is exactly the property sniff() has relied on since it shipped; trailTo
+  // does not weaken it, and deliberately does not introduce a bare
+  // Math.random() alongside it either.)
+  function layTrail(from, to, { steps = 7, life = 8, peak = 0.85, color = 0xf2e04e } = {}) {
+    for (const p of trailPoints(from, to, rng, steps)) {
+      const decal = new THREE.Mesh(
+        new THREE.CircleGeometry(0.14, 8),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: peak })
+      );
+      decal.rotation.x = -Math.PI / 2;
+      decal.position.set(p.x, 0.03, p.z);
+      scene.add(decal);
+      decals.push({ mesh: decal, life, peak });
+    }
+  }
+
   // shared mutation for unearthing a treat, used by both digAt(pos) (proximity
   // check happens in the caller) and digById(id) (remote dig events arrive
   // with no position to check — the sender already validated proximity on
@@ -111,17 +141,31 @@ export function createScent(scene, area, rng) {
       }
       if (!best) return null;
       best.revealed = true;
-      for (const p of trailPoints(pos, best, rng)) {
-        const decal = new THREE.Mesh(
-          new THREE.CircleGeometry(0.14, 8),
-          new THREE.MeshBasicMaterial({ color: 0xf2e04e, transparent: true, opacity: 0.85 })
-        );
-        decal.rotation.x = -Math.PI / 2;
-        decal.position.set(p.x, 0.03, p.z);
-        scene.add(decal);
-        decals.push({ mesh: decal, life: 8 });
-      }
+      layTrail(pos, best);
       return best;
+    },
+    // v18 Twitchy Nose ('twitchy-nose') — lay a scent trail toward an
+    // arbitrary point (the nearest uncollected collectible; see
+    // game/interactions.js's updateSenses, the only caller).
+    //
+    // The trail is CLIPPED to maxDist rather than drawn all the way to the
+    // target: a collectible 20m off would otherwise carpet the route with 7
+    // decals spaced 2.5m apart, which reads as a road, not a scent. A short
+    // run of prints leaving the cat's paws in the right direction is the
+    // whole ability — the player still has to walk it.
+    //
+    // Returns the endpoint actually drawn to (handy for tests); null when
+    // `to` is null or the cat is already standing on it.
+    trailTo(from, to, { maxDist = 6, steps = 5, life = 4, peak = 0.55 } = {}) {
+      if (!to) return null;
+      const dx = to.x - from.x;
+      const dz = to.z - from.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.4) return null;
+      const k = Math.min(1, maxDist / d);
+      const end = { x: from.x + dx * k, z: from.z + dz * k };
+      layTrail(from, end, { steps, life, peak });
+      return end;
     },
     nearestMound(pos, maxDist) {
       for (const tr of treats) {
@@ -146,9 +190,18 @@ export function createScent(scene, area, rng) {
     update(dt) {
       for (const d of [...decals]) {
         d.life -= dt;
-        d.mesh.material.opacity = Math.min(0.85, d.life / 3);
+        d.mesh.material.opacity = Math.min(d.peak, d.life / 3);
         if (d.life <= 0) {
           scene.remove(d.mesh);
+          // Expired decals used to be dropped from the scene without being
+          // disposed, so their geometry/material outlived the walk (endWalk's
+          // scene traversal only reaches objects still IN the scene). One
+          // sniff per walk made that nearly invisible; Twitchy Nose relays a
+          // trail every few seconds, which would have turned a rounding error
+          // into a real per-walk leak. Each decal owns its geometry and
+          // material outright — nothing else references them.
+          d.mesh.geometry.dispose();
+          d.mesh.material.dispose();
           decals.splice(decals.indexOf(d), 1);
         }
       }

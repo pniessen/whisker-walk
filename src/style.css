@@ -393,3 +393,51 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 /* Home base hero wordmark (C1) — replaces the plain title text */
 .hb-wordmark { margin: 0; line-height: 0; }
 .hb-wordmark svg { display: block; width: 240px; max-width: min(64vw, 300px); height: auto; }
+
+/* --- v18 Task 2.7: the in-walk skill-unlock card (src/game/celebrate.js).
+   Sits over the live walk, NOT over the pause/summary overlay, so it is
+   pointer-events:none throughout — the player keeps walking while it plays.
+   z-index 12 puts it over the chat wheel (5), the hud prompt (2), #overlay
+   (10) and #cloud-toasts (11). Over #overlay matters: Night Eyes and Sea
+   Legs can only complete in endWalk, so their card plays while the summary
+   overlay is coming up, and a card behind that overlay's scrim is no
+   celebration at all. pointer-events:none means it still cannot swallow the
+   summary's Continue button. --- */
+.skill-unlock {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+  z-index: 12; pointer-events: none;
+  opacity: 1; transition: opacity 0.7s;
+}
+.skill-unlock.fade { opacity: 0; }
+.skill-unlock-inner {
+  background: rgba(20, 26, 38, 0.92);
+  border: 2px solid #f2c14e; border-radius: 14px;
+  padding: 14px 26px; text-align: center;
+  max-width: min(88vw, 420px);
+  box-shadow: 0 0 28px rgba(242, 193, 78, 0.45);
+  animation: skill-unlock-pop 0.45s ease-out;
+}
+.skill-unlock-kicker {
+  font-size: 0.72rem; letter-spacing: 0.16em; font-weight: 700; color: #f2c14e;
+}
+.skill-unlock-name { font-size: 1.5rem; font-weight: 700; color: #fff; margin-top: 4px; }
+.skill-unlock-effect { font-size: 0.92rem; color: #c0ccdd; margin-top: 6px; }
+.skill-unlock-feat { font-size: 0.8rem; color: #7ee2a0; font-weight: 700; margin-top: 8px; }
+@keyframes skill-unlock-pop {
+  from { transform: scale(0.82); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skill-unlock-inner { animation: none; }
+}
+@media (max-width: 480px) {
+  /* Browser-verified on a 375px viewport: at 12% the card landed on top of
+     the .hud-goals list in the top-left. Drop it clear of the whole HUD
+     header, and tighten the kicker so "NEW ABILITY UNLOCKED" stops wrapping
+     to two lines at this width. */
+  .skill-unlock { top: 26%; }
+  .skill-unlock-inner { padding: 12px 18px; }
+  .skill-unlock-kicker { font-size: 0.64rem; letter-spacing: 0.1em; }
+  .skill-unlock-name { font-size: 1.2rem; }
+  .skill-unlock-effect { font-size: 0.82rem; }
+}
