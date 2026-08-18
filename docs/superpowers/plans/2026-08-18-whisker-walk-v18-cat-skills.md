@@ -161,3 +161,29 @@ Agent worktrees were observed branching from `main` rather than from the current
 that did not would silently rebuild against a tree with no `src/skills.js`.
 **Every future task brief must instruct the agent to verify its base contains
 `src/skills.js` before starting, and fast-forward onto `v18-cat-skills` if not.**
+
+### CF-4 — Charmer desyncs the friendship ladder (owner: Task 2.8)
+`progression.friendLevel` hardcodes the base 1/3/6 rungs. Charmer shortens them
+to 1/2/4 in `straycats.js`, so a Charmer player is toasted "BEST friend 💕" at 4
+greets while `src/ui/homebase.js:398` still shows ♥ and `src/game/walk.js:350`'s
+best-friend gift roll never fires until 6. **The game tells the player two
+different things about the same cat.** Fix: make `friendLevel` Charmer-aware
+(repoint it at `straycats.js`'s `friendRungs(charmer)` export, or move the rung
+table into `progression.js` and have both read it).
+
+### CF-5 — Far Call draws strays but not critters (owner: Task 2.8)
+The spec says the call draws "strays and critters"; only the stray half shipped,
+because `src/critters.js` was outside the implementing task's ownership.
+
+### CF-6 — "Held" meow descoped (RULING, no work required)
+The spec describes Far Call as a *held* V press. `src/main.js:444` fires
+`doMeow()` on keydown with no keyup plumbing, so hold detection means new input
+handling in an untested module for no gameplay gain. **Ruling: Far Call makes the
+ordinary V press carry far.** The spec text is the thing that is wrong here, not
+the implementation. Simpler for a 10-year-old, and it avoids editing `main.js`.
+
+### CF-7 — Observation, not scheduled
+`src/game/walk.js:350` rolls the best-friend gift with a bare `Math.random()`.
+Harmless solo (solo `walkRng` *is* `Math.random`), but in a room walk two
+co-walkers can disagree about whether a stray carries a gift. Pre-existing, not
+introduced by v18. Logged so it is a decision on record rather than an oversight.
