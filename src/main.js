@@ -50,13 +50,10 @@ import { createPhotoMode } from './game/photo.js';
 import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
+import { createComposerRig } from './game/composer.js';
 import { nowSec, escapeHtml, hashName } from './game/util.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
 import { resolveQuality } from './render/quality.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 const AREAS = { neighborhood, park, seaside, den };
 // default session.ghosts before (or absent) an async spawn resolves — lets
@@ -137,34 +134,9 @@ function init() {
 
   const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
 
-  // Post-processing: EffectComposer with a subtle bloom pass, built lazily —
-  // only high-tier walks (see resolveQuality) ever call ensureComposer(), so
-  // a device that only ever runs low tier never allocates the composer or
-  // its render targets.
-  let composer = null, renderPass = null, bloomPass = null;
-  function ensureComposer() {
-    if (composer) return;
-    renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
-    bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.35,  // strength — gentle
-      0.6,   // radius
-      // threshold sits above 1.0 so plain whites (fur, whiskers, clouds —
-      // which top out at ~1.0 in the HDR buffer) never bloom; only surfaces
-      // pushed past 1.0 by an emissive term (dusk windows, glow collar,
-      // fireflies) glow. At 0.85 white cats read as light sources.
-      1.1
-    );
-    composer = new EffectComposer(renderer);
-    composer.addPass(renderPass);
-    composer.addPass(bloomPass);
-    composer.addPass(new OutputPass()); // applies renderer.toneMapping + sRGB at the end
-    composer.setSize(window.innerWidth, window.innerHeight);
-  }
-  function renderFrame() {
-    if (session?.useComposer && composer) composer.render();
-    else renderer.render(session.scene, camera);
-  }
+  // Post-processing rig + per-frame draw (src/game/composer.js).
+  const composerRig = createComposerRig(renderer, camera);
+  const renderFrame = () => composerRig.renderFrame(session);
 
   const player = createPlayer(camera, canvas);
   // isTouch gates which control surface is active; a hybrid device that only
@@ -512,10 +484,7 @@ function init() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    if (composer) {
-      composer.setSize(window.innerWidth, window.innerHeight);
-      bloomPass.setSize(window.innerWidth, window.innerHeight);
-    }
+    composerRig.resize(window.innerWidth, window.innerHeight);
   });
 
   bus.on('discovery', ({ type, points }) => {
@@ -642,9 +611,8 @@ function init() {
     scene.environment = envMap;
     scene.environmentIntensity = tier.envIntensity;
     if (tier.postFx) {
-      ensureComposer();
-      renderPass.scene = scene; // point the composer's RenderPass at this walk's scene
-      renderPass.camera = camera;
+      composerRig.ensure();
+      composerRig.attachScene(scene); // point the composer's RenderPass at this walk's scene
     }
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
     sun.position.set(30, 50, 20);
