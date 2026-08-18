@@ -18,6 +18,7 @@ import * as neighborhood from '../world/neighborhood.js';
 import * as park from '../world/park.js';
 import * as seaside from '../world/seaside.js';
 import * as den from '../world/den.js';
+import * as docks from '../world/docks.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp } from '../world/builder.js';
 import { buildCat } from '../cat/model.js';
@@ -53,7 +54,13 @@ import { bus } from '../events.js';
 import { createUnlockCelebration } from './celebrate.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
 
-const AREAS = { neighborhood, park, seaside, den };
+// Every walkable area the game can build. Registering here is the last of
+// the three steps that make an area real: the builder module, the
+// CATALOG.areas entry + state.walks key in progression.js (which give it a
+// home-base card, a price and an unlock gate), and this map, which is what
+// startWalk indexes with state.area. An area missing from here is a fully
+// built world nothing can ever call.
+const AREAS = { neighborhood, park, seaside, den, docks };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.

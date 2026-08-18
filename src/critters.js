@@ -8,7 +8,11 @@ const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m
 const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', 'duck', 'firefly']);
 // grounded skittish critters that participate in stalk-and-pounce tag
 // (bird included per spec even though it flies once fleeing — see markStalked/pounceCatch)
-const STALKABLE = new Set(['squirrel', 'bird', 'mouse']);
+// v18 Task 2.6: 'rat' joins them. It is deliberately STALKABLE but NOT
+// CHASEABLE, exactly like 'mouse' — a rat's answer to a cat is to bolt, so it
+// has no business in the chase prompt or (via CURIOUS, which is derived from
+// CHASEABLE) in the set of critters a Far Call draws toward the caller.
+const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat']);
 // v18 Far Call ('far-call') — critters curious enough to come and look when a
 // meow carries. Derived from CHASEABLE rather than listed fresh: everything a
 // cat can chase, MINUS the two types whose existing meow reaction is to bolt
@@ -41,16 +45,35 @@ function buildCritter(type) {
     beak.rotation.x = Math.PI / 2;
     beak.position.set(0, 0.1 * s, -0.1 * s);
     g.add(beak);
-  } else if (type === 'squirrel' || type === 'mouse') {
-    const s = type === 'mouse' ? 0.5 : 1;
-    const furColor = type === 'mouse' ? 0x8a8a92 : 0xa06a3a;
-    const tailColor = type === 'mouse' ? 0x8a8a92 : 0xb87a4a;
+  } else if (type === 'squirrel' || type === 'mouse' || type === 'rat') {
+    // Three sizes off one body: squirrel (1), rat (0.75), mouse (0.5).
+    const s = type === 'mouse' ? 0.5 : type === 'rat' ? 0.75 : 1;
+    const furColor = type === 'mouse' ? 0x8a8a92 : type === 'rat' ? 0x5a5450 : 0xa06a3a;
+    const tailColor = type === 'mouse' ? 0x8a8a92 : type === 'rat' ? 0xb08a86 : 0xb87a4a;
     const body = box(0.12 * s, 0.12 * s, 0.22 * s, furColor);
     body.position.y = 0.1 * s;
     g.add(body);
-    const tailS = new THREE.Mesh(new THREE.SphereGeometry(0.09 * s, 5, 5), mat(tailColor));
-    tailS.position.set(0, 0.2 * s, 0.16 * s);
-    g.add(tailS);
+    if (type === 'rat') {
+      // The rat reads as a rat rather than a big mouse from its long bare
+      // tail and pointed snout, not from its silhouette — a bushy tail sphere
+      // (the squirrel/mouse tail below) would make it look like either.
+      const tail = box(0.03, 0.03, 0.34, tailColor);
+      tail.position.set(0, 0.06, 0.26);
+      g.add(tail);
+      const snout = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 5), mat(furColor));
+      snout.rotation.x = -Math.PI / 2;
+      snout.position.set(0, 0.08, -0.14);
+      g.add(snout);
+      for (const side of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.CircleGeometry(0.045, 6), mat(tailColor));
+        ear.position.set(side * 0.05, 0.14, -0.06);
+        g.add(ear);
+      }
+    } else {
+      const tailS = new THREE.Mesh(new THREE.SphereGeometry(0.09 * s, 5, 5), mat(tailColor));
+      tailS.position.set(0, 0.2 * s, 0.16 * s);
+      g.add(tailS);
+    }
   } else if (type === 'butterfly' || type === 'firefly') {
     const color = type === 'firefly' ? 0xf2e04e : 0xe070b0;
     for (const side of [-1, 1]) {
@@ -200,8 +223,13 @@ export function createCritters(scene, spawns, opts = {}) {
       }
       return null;
     },
+    // playMoment(moment) — the scripted "look at that!" dash. The runner used
+    // to be hardcoded to a squirrel, which is right for the three original
+    // areas and wrong for The Old Docks, where the two moments are both rats
+    // and there is not a squirrel in the district. `moment.type` is optional
+    // and defaults to 'squirrel', so every existing moment is unchanged.
     playMoment(moment) {
-      const runner = spawn({ type: 'squirrel', x: moment.from.x, z: moment.from.z });
+      const runner = spawn({ type: moment.type ?? 'squirrel', x: moment.from.x, z: moment.from.z });
       runner.moment = { target: new THREE.Vector3(moment.x, 0, moment.z), t: 0 };
     },
     dismayNear(pos, range) {
@@ -344,13 +372,13 @@ export function createCritters(scene, spawns, opts = {}) {
               c.cooldown = 18;
             }
           }
-        } else if (c.type === 'squirrel' || c.type === 'mouse') {
+        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat') {
           if (c.fleeing) {
             // pounce-tagged: dash away from the cat for a few seconds, then resume patrol
             const away = p.clone().sub(catPos).setY(0);
             if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
             away.normalize();
-            const fleeSpeed = c.type === 'mouse' ? 6.5 : 4.5;
+            const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rat' ? 5.5 : 4.5;
             p.addScaledVector(away, dt * fleeSpeed);
             c.cooldown -= dt;
             if (c.cooldown <= 0) c.fleeing = false;

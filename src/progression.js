@@ -12,7 +12,12 @@ const SAVE_VERSION = 4;
 
 // v15 Collector's Journal critter types — the fixed vocabulary state.journal
 // counts are restricted to (sanitizeState drops anything outside this list).
-export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse'];
+// v18 Task 2.6 adds 'rat' — the eleventh entry, and The Old Docks' own
+// critter, so the fourth area adds a journal PAGE rather than only
+// re-showing critters the player already knows. Purely additive: a save
+// written before v18 simply has no 'rat' key and sanitizeJournal defaults it
+// to 0, exactly as it does for every other unseen type.
+export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -186,6 +191,13 @@ export const CATALOG = {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
     park: { name: 'City Park', price: 50, requires: { area: 'neighborhood', walks: 2 } },
     seaside: { name: 'Seaside', price: 100, requires: { area: 'park', walks: 2 } },
+    // v18 Task 2.6 — the fourth walk area. The catalog is the ONLY place an
+    // area has to be registered for the home-base picker: homebase.js renders
+    // a card per CATALOG.areas entry, canBuy reads price + requires, and
+    // setArea equips it. The matching state.walks key is what makes the
+    // "2 walks in Seaside" gate (and this area's own walk count) work —
+    // see defaultState below, where forgetting it is a permanent NaN.
+    docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
   },
 };
 
@@ -235,7 +247,15 @@ function defaultState() {
     // start — otherwise a den walk would do `undefined + 1` and leave
     // state.walks.den as NaN forever (NaN + 1 is still NaN, so it would
     // never self-heal on a later walk either).
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0 },
+    // v18 Task 2.6: 'docks' joins them for exactly the same reason spelled
+    // out above for 'den'. completeWalk does `state.walks[areaId] += 1` with
+    // no guard, so the first Docks walk on a save with no 'docks' key would
+    // compute `undefined + 1` and pin state.walks.docks at NaN forever —
+    // NaN + 1 is still NaN, so it never self-heals on a later walk, and the
+    // walk count would be permanently broken for that save. sanitizeState's
+    // walks loop iterates the keys of THIS object, so a loaded save that
+    // predates v18 picks the key up here with a 0 default.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
     area: 'neighborhood',
