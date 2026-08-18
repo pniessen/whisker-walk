@@ -128,3 +128,36 @@ Cut in this order if the wave runs long, and report exactly what was cut.
 No skill tree, no respec, no loadout, no skill points. No new broadcast kind and
 no net protocol change — abilities are local. No rebalancing of existing point
 awards. No ability may gate content that is reachable today.
+
+---
+
+## Carry-forward items (raised mid-execution, must not fall between tasks)
+
+Recorded 2026-08-18 during Stage 2 batch 1. Each was surfaced by a task that
+correctly could not fix it inside its own file ownership.
+
+### CF-1 — Big Swat is inert until wired (owner: Task 2.7)
+`src/tippables.js` gained an optional `opts.getState` getter, but `src/game/walk.js`
+still calls `createTippables(scene, spots)` with two arguments, so the ability
+never activates in the running game. Task 2.7 owns `walk.js` and must pass
+`{ getState: () => progression.state }`. A live getter, not a snapshot — so the
+40th tip-over activates the skill on the next swat rather than after a reload.
+
+### CF-2 — Cascaded props award nothing (owner: a follow-up task owning `src/game/interactions.js`)
+Only the directly-swatted prop pays a `mischief` award; cascaded props pay
+nothing. **This makes Big Swat strictly worse than not having it**: tipping three
+props with one swat yields 1 point and 1 tick toward the "Tip 3 things over"
+goal, where three separate taps yield 3 and 3. An earned ability that slows your
+goal progress is an anti-feature.
+
+Fix: award `mischief` per prop actually tipped, cascaded ones included. This is
+**not** a rebalance and does not violate the non-goals — one tipped prop has
+always paid one `mischief` award, and this preserves exactly that rate. Confirm
+the per-walk repeat-award caps still apply so a cascade cannot farm.
+
+### CF-3 — Worktree base hazard (process)
+Agent worktrees were observed branching from `main` rather than from the current
+`v18-cat-skills` HEAD. One agent caught this and fast-forwarded itself; an agent
+that did not would silently rebuild against a tree with no `src/skills.js`.
+**Every future task brief must instruct the agent to verify its base contains
+`src/skills.js` before starting, and fast-forward onto `v18-cat-skills` if not.**
