@@ -26,6 +26,7 @@ vi.stubGlobal('document', {
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
+const { build: buildDocks } = await import('../src/world/docks.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -273,8 +274,11 @@ const AREAS = {
   neighborhood: buildNeighborhood(new THREE.Scene()),
   park: buildPark(new THREE.Scene()),
   seaside: buildSeaside(new THREE.Scene()),
+  docks: buildDocks(new THREE.Scene()),
 };
 const YARN_ROOF = AREAS.neighborhood.collectibles.find((c) => c.id === 'yarn-roof');
+// The Docks' own high collectible, on W1's parapet four hops up (v18 Task 2.6).
+const SHIPS_BELL = AREAS.docks.collectibles.find((c) => c.id === 'tin-5');
 
 function hopTable(budget) {
   const out = {};
@@ -284,6 +288,11 @@ function hopTable(budget) {
   out['yarn-roof'] = minHops(
     { x: YARN_ROOF.x, z: YARN_ROOF.z, y: YARN_ROOF.y },
     AREAS.neighborhood.perches,
+    budget,
+  );
+  out['tin-5'] = minHops(
+    { x: SHIPS_BELL.x, z: SHIPS_BELL.z, y: SHIPS_BELL.y },
+    AREAS.docks.perches,
     budget,
   );
   return out;
@@ -302,7 +311,12 @@ const SHIPPED_HOPS = {
   'gm-sea-1': 1,   // overlook boulder 0.72
   'gm-sea-2': 2,   // dune ledge: ground -> boulder 0.72 -> ledge 1.9
   'gm-sea-3': 0,
+  // v18 Task 2.6, The Old Docks. The longest chain in the game.
+  'gm-docks-1': 5, // roof tank y 6.2: ground -> crate 1.15 -> crate top 2.4 -> fire-escape landing 3.9 -> parapet 5.3 -> tank 6.2
+  'gm-docks-2': 4, // crane cab y 5.4: ground -> crate 1.3 -> container 2.6 -> crane deck 4.0 -> cab 5.4
+  'gm-docks-3': 0, // hidden at ground level in the alley between the west warehouses
   'yarn-roof': 3,  // the legendary silver yarn ball, on the ridge with gm-neigh-1
+  'tin-5': 4,      // the legendary ship's bell, on the docks warehouse parapet
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
@@ -313,7 +327,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(climbBudget({}));
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -353,11 +367,19 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
     // below 1.9 would restore both chains, at the cost of the spec's number.
     // Both mice still require a climb press from the ground; neither becomes
     // a walk-up, and neither becomes unreachable.
+    //   gm-docks-1  5 -> 4  (the y 1.9 fire-escape landing comes into ground
+    //                         reach, and 1.9 -> 3.9 becomes one 2.0 hop)
+    //   tin-5       4 -> 3  (the same saving, one step lower on the chain)
+    // The Docks' crane chain (gm-docks-2) is deliberately built out of
+    // 1.3-1.4 rungs, so no budget under 2.6 can skip one of its steps — it
+    // stays four hops in every skill state.
     expect(hopTable(SPRING)).toEqual({
       ...SHIPPED_HOPS,
       'gm-neigh-2': 2,
       'gm-park-2': 1,
       'gm-sea-2': 1,
+      'gm-docks-1': 4,
+      'tin-5': 3,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
@@ -368,6 +390,10 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       expect(table['gm-neigh-1']).toBe(3); // y 4.1 ridge — unchanged, 3 hops
       expect(table['yarn-roof']).toBe(3);  // same ridge, the rooftop collectible
       expect(table['gm-neigh-2']).toBeGreaterThan(1); // y 3.3 lookout — never one hop
+      // The Docks' two tall chains are the whole point of the area: neither
+      // may ever become a walk-up, under any budget.
+      expect(table['gm-docks-1']).toBeGreaterThanOrEqual(4);
+      expect(table['gm-docks-2']).toBe(4);
     }
   });
 

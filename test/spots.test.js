@@ -3,6 +3,7 @@ import { clearSpot } from '../src/world/spots.js';
 import * as neighborhood from '../src/world/neighborhood.js';
 import * as park from '../src/world/park.js';
 import * as seaside from '../src/world/seaside.js';
+import * as docks from '../src/world/docks.js';
 
 // The area builders run headless here (no jsdom dep): the only DOM they
 // touch is document.createElement('canvas') for the billboard texture, so a
@@ -78,7 +79,7 @@ describe('clearSpot', () => {
 // day's race unwinnable before clearing.
 describe('cleared area POIs are reachable', () => {
   const stubScene = () => ({ add() {}, background: null, fog: null });
-  const areas = { neighborhood, park, seaside };
+  const areas = { neighborhood, park, seaside, docks };
 
   for (const [name, mod] of Object.entries(areas)) {
     it(`${name}: every cleared POI sits >= 1.2 outside every collider edge`, () => {
