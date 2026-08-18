@@ -215,3 +215,53 @@ introduced by v18. Logged so it is a decision on record rather than an oversight
    project. Pure render helpers therefore belong in `hometabs.js` (the split
    `journal.js` already uses for `renderJournalHtml`). This is what makes UI
    rendering testable at all; follow it rather than adding a DOM shim.
+
+### CF-8 — RULING: Spring Paws keeps the spec's 2.2 budget
+Task 2.2 correctly identified that the spec contradicts itself. §Traversal pins
+the climb budget at 1.6 → **2.2**; §Risks says shipped placements "must not
+become trivially skippable". At 2.2 the two-step chains under `gm-park-2`
+(y 2.1) and `gm-sea-2` (y 1.9) collapse to a single hop. Both cannot hold.
+
+**Ruling: keep 2.2. The §Risks wording was imprecise, not the number.**
+
+- Collapsing a chain from two hops to one is *literally what the ability is
+  described as doing* — "perch chains need fewer intermediate steps". That is
+  the feature, not a violation of it.
+- The two hard constraints both hold and were verified by BFS over the real
+  shipped perch arrays: every golden mouse and rooftop collectible stays
+  reachable with **no** skills, and with Spring Paws neither mouse becomes a
+  walk-up — both still require a climb press, neither becomes unreachable.
+- The tall chains that are the actual destinations are untouched in every skill
+  state: the y 4.1 rooftop ridge (holding `yarn-roof`) stays 3 hops, and the
+  y 3.3 billboard lookout is never one hop.
+- The alternative — dropping below 1.9 to preserve two chains — leaves Spring
+  Paws helping only in the narrow 1.6–1.9 band, i.e. an ability you grind ten
+  vantage perches for that changes almost nothing. That would gut the wave's
+  central thesis that abilities reopen the existing areas.
+
+"Trivialized" should be read as **reachable without climbing at all**, not as
+"reachable in fewer hops". Task 2.2's pinned test recording the collapse stays
+as a deliberate record; it is documenting intended behaviour, not a defect.
+
+### CF-9 — Two ability halves not implemented (owner: a later task)
+- **Spring Paws' "markedly higher pounce jump"** exists only as the climb
+  budget. `player.pounce()` is a horizontal velocity lunge with no vertical
+  component at all, so there is no jump height to raise without new movement
+  code.
+- **Sure Claws' "props that were scenery become climbable"** is world-data work.
+  Shipped perch records are bare `{x, z, y, label?, vantage?}` with no tree or
+  fence tag, so the height lift cannot be made per-prop from `climbing.js`.
+  Both abilities are real and working today; each is missing its second half.
+
+### CF-10 — Traversal abilities are inert until wired (owner: Task 2.8)
+Two one-line edits, in files Task 2.2 did not own:
+- `src/game/interactions.js:96` — pass `climbBudget(progression.state)` as
+  `bestPerch`'s 5th argument. The stale comment at :89 still says "≤1.6-per-hop".
+- `src/game/walk.js` walk start — `player.setZoomTuning(zoomTuning(progression.state))`.
+
+### CF-11 — Long Zoomies: spec text was wrong, implementation is right
+"Charge runs 2.5s (from 1.5s)" misread 1.5 as a burst duration; it is the
+charge-**up** threshold, so taken literally the ability would be a 67% nerf.
+Task 2.2 mapped the spec's two clauses onto the two knobs that exist: charge-up
+1.5 → **0.9s** ("recharges faster") and the charge now survives **2.5s** of
+interruption ("runs longer"). Accepted — the spec sentence is what was wrong.
