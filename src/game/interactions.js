@@ -15,7 +15,7 @@
 // silent exactly as before.
 
 import { PERSONALITIES } from '../cat/brain.js';
-import { bestPerch, climbBudget } from '../climbing.js';
+import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
 import { hasSkill } from '../skills.js';
 import { friendRungCrossed } from '../straycats.js';
 import { labelFor } from './labels.js';
@@ -115,16 +115,36 @@ export function createInteractions({
     // running game. The budget is computed HERE, per press, off the live save
     // rather than captured at walk start, so a skill earned mid-walk raises
     // the cat's reach on the very next hop.
+    //
+    // v18 Task 3.1 Fence Runner: the second reachability path, handed in as
+    // an option rather than folded into the budget (see climbing.js's header
+    // on why a horizontal rule cannot be a climb budget). It only does
+    // anything when the cat is ALREADY perched — bestPerch checks that
+    // itself off `session.perched` — so an unskilled hop and a grounded hop
+    // both behave exactly as they do today. Read live off the save, same as
+    // the budget above, so the 25th vantage perch enables the wall-run on
+    // the very next press.
+    const budget = climbBudget(progression.state);
     const next = bestPerch(
       session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
-      climbBudget(progression.state),
+      budget,
+      { fenceRun: fenceRunning(progression.state) },
     );
     if (next) {
+      // Did the wall-run pay for this hop? Asked exactly — "the ordinary
+      // climb rule would have refused this one" — rather than by guessing
+      // from the height difference, so a short level hop that was always
+      // legal is not mislabelled. Computed BEFORE the position is moved.
+      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget);
       session.perched = next;
       player.perchY = next.y;
       player.halt();
+      const from = session.cat.position.clone();
       session.cat.position.set(next.x, next.y, next.z);
       catVoice();
+      // A puff of dust at the take-off point, so a wall-run reads as an
+      // ability firing rather than as the cat merely not falling off.
+      if (ranTheFence) session.fx?.burst(from, 0xd8cdb8, 6);
       if (next.vantage) {
         log.awardOnce('scenic', `perch-${next.label}`, next.label);
         // v18 Task 1.4: a SECOND, dedicated tally recorded alongside the

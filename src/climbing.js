@@ -75,6 +75,77 @@ export function climbBudget(state) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Fence Runner — v18 Task 3.1
+//
+// "Wall-run: chain perch-to-perch along a fence line without dropping to
+// ground between hops" (spec §Traversal).
+//
+// WHY THIS IS NOT PART OF climbBudget. The budget above is the CLIMB rule:
+// three numbers consumed by canReach, composed by max, and applied to every
+// reachability test including the ones that start on the ground. Fence
+// Runner is a horizontal rule with two properties the budget cannot express:
+//
+//   1. It only exists WHILE ALREADY PERCHED. "Without dropping to ground
+//      between hops" is the whole ability; a cat standing on the pavement
+//      gets nothing from it. climbBudget has no notion of where the cat is.
+//   2. It never lifts the climb ceiling. A fence-run hop is level by
+//      definition (|Δy| <= FENCE_RUN_LEVEL = 0.35, deep inside the 1.6
+//      baseline climb), so it can never make a hop the height gate already
+//      refused — it only makes a LEVEL hop reach further.
+//
+// Widening reachLow/reachHigh in the budget instead would have applied from
+// the ground too, which is Sure Claws' job and which does move the shipped
+// reachability graph. So this is a SEPARATE reachability path, OR'd with
+// canReach inside bestPerch, and canReach itself is untouched.
+//
+// THE SAFETY ARGUMENT, in one line: a fence-run edge joins two perches whose
+// heights differ by at most 0.35, and every step of every shipped golden-mouse
+// chain is a climb of 0.9 or more (the Docks crane's rungs are 1.3-1.4 by
+// deliberate design). No fence-run edge can therefore be a chain step, and
+// test/climbing.test.js BFSes the real shipped perch arrays with the edge
+// switched on to prove that every hop count is byte-identical.
+//
+// THE REACH NUMBER. 6.0 is large next to the 1.2/2.6 climb reaches, and it
+// is that large for a content reason rather than a feel one: the only true
+// fence LINES in the shipped world are neighborhood's dog-yard fence tops
+// (22,-28) -> (18,-24) and its garden-fence pair (28,28) -> (32,24), both
+// exactly 5.66 apart. A reach of 3 or 4 would have made this ability
+// literally inert on every perch array that ships — built, tested, merged
+// and doing nothing, which is this wave's characteristic failure. 6.0 clears
+// 5.66 with a little room and stops well short of joining anything else:
+// the next-nearest level pair in the game is 13.9 apart.
+export const FENCE_RUN_REACH = 6.0;
+// How far off level a hop may be and still count as "along the line". Small
+// on purpose — see the safety argument above. It is also under every
+// baseline reach's own height allowance, so enabling Fence Runner can never
+// unlock a hop that a plain canReach at the SAME horizontal distance would
+// have refused on height.
+export const FENCE_RUN_LEVEL = 0.35;
+
+// canFenceRun(perch, catPos, currentY) — is `perch` a level dash away?
+//
+// Measured from the cat's ACTUAL position rather than the perch it is
+// standing on: a perched cat can walk along its perch (player.js skips the
+// collider push while perchY > 0), so the cat may be a metre or two from the
+// coordinates it landed on, and running from where the paws are is both more
+// forgiving and more honest than running from where the hop started.
+//
+// The caller is responsible for the "must already be perched" half of the
+// rule — see bestPerch, which only consults this when currentPerch is set.
+export function canFenceRun(perch, catPos, currentY) {
+  const horizontal = Math.hypot(perch.x - catPos.x, perch.z - catPos.z);
+  return horizontal < FENCE_RUN_REACH && Math.abs(perch.y - currentY) <= FENCE_RUN_LEVEL;
+}
+
+// fenceRunning(state) — does this save's cat wall-run? Lives here beside the
+// rule (and beside climbBudget) so the one call site in game/interactions.js
+// imports its traversal answers from one module. Total over any input, like
+// climbBudget, because hasSkill is.
+export function fenceRunning(state) {
+  return hasSkill(state, 'fence-runner');
+}
+
 // Per-field coercion with a baseline fallback. A budget can arrive from a
 // call site that built it from a partially-threaded options object, and a
 // missing / NaN / negative field must degrade to today's number rather than
@@ -106,11 +177,23 @@ export function canReach(perch, catPos, currentY, budget = BASE_CLIMB_BUDGET) {
 //
 // The budget is threaded straight through to canReach and defaults the same
 // way, so an un-updated caller keeps the baseline geometry.
-export function bestPerch(perches, catPos, currentY, currentPerch, budget = BASE_CLIMB_BUDGET) {
+//
+// v18 Fence Runner: `opts.fenceRun` adds the level-dash edge described above
+// as a SECOND way for a candidate to qualify, and only while the cat is
+// already on a perch (currentPerch set). Two consequences worth stating:
+//
+//   * The "prefer the highest" rule is untouched, so a climb always beats a
+//     level dash when both are in reach — the ability can never shadow a
+//     chain step with a sideways hop and trap the player on a fence.
+//   * With the option off (the default) this function is byte-for-byte the
+//     one that shipped, which is what keeps the no-skills path exact.
+export function bestPerch(perches, catPos, currentY, currentPerch, budget = BASE_CLIMB_BUDGET, opts = {}) {
+  const fenceRun = !!opts?.fenceRun && !!currentPerch;
   let best = null;
   for (const pp of perches ?? []) {
     if (pp === currentPerch) continue;
-    if (!canReach(pp, catPos, currentY, budget)) continue;
+    if (!canReach(pp, catPos, currentY, budget) &&
+        !(fenceRun && canFenceRun(pp, catPos, currentY))) continue;
     if (!best || pp.y > best.y) best = pp;
   }
   return best;

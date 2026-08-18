@@ -472,3 +472,109 @@ describe('updateSenses — Twitchy Nose and Whisker Sense (v18 Task 2.3)', () =>
     expect(() => h.tick()).not.toThrow();
   });
 });
+
+// ===========================================================================
+// v18 Task 3.1 — Fence Runner, driven through doPounceOrClimb.
+//
+// climbing.test.js pins the RULE (and BFSes the shipped perch arrays to prove
+// it moves no reachability). This block pins the WIRING: that the running
+// game's one climb call site actually passes the option, reads it live off
+// the save, and leaves the no-skill press byte-identical.
+// ===========================================================================
+describe('doPounceOrClimb — Fence Runner (v18 Task 3.1)', () => {
+  // The dog-yard fence tops, verbatim from src/world/neighborhood.js:
+  // 5.657 apart, both y 0.85 — the fence line the ability was sized for.
+  const FENCE_A = { x: 22, z: -28, y: 0.85 };
+  const FENCE_B = { x: 18, z: -24, y: 0.85 };
+
+  function fenceHarness(state, perches = [FENCE_A, FENCE_B]) {
+    const progression = { state, recordFeat() {}, addPoints() {} };
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const bursts = [];
+    const session = {
+      areaData: { perches },
+      cat: { position: new THREE.Vector3(FENCE_A.x, FENCE_A.y, FENCE_A.z) },
+      perched: FENCE_A,
+      pounceCooldown: 0,
+      fx: { burst: (pos) => bursts.push({ x: pos.x, z: pos.z }) },
+    };
+    let pounced = false;
+    const player = { perchY: FENCE_A.y, halt() {}, pounce() { pounced = true; } };
+    const { doPounceOrClimb } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player, progression, log,
+      hud: { toast() {} }, audio: { trill() {}, pounceWhoosh() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return { session, player, doPounceOrClimb, bursts, pounced: () => pounced };
+  }
+
+  it('hops DOWN off the fence without the skill, exactly as today', () => {
+    const h = fenceHarness({ skills: [], feats: {} });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.player.perchY).toBe(0);
+    expect(h.session.cat.position.x).toBe(FENCE_A.x); // still where it was
+  });
+
+  it('runs the fence line to the next post with the skill', () => {
+    const h = fenceHarness({ skills: ['fence-runner'] });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(FENCE_B);
+    expect(h.player.perchY).toBe(FENCE_B.y);
+    expect(h.session.cat.position.x).toBe(FENCE_B.x);
+    expect(h.session.cat.position.z).toBe(FENCE_B.z);
+  });
+
+  it('never dashes from the ground — the whole point is not dropping first', () => {
+    const h = fenceHarness({ skills: ['fence-runner'] }, [FENCE_B]);
+    h.session.perched = null;
+    h.player.perchY = 0;
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.pounced()).toBe(true); // fell through to an ordinary pounce
+  });
+
+  it('reads the save live, so the 25th vantage perch enables the next hop', () => {
+    const state = { skills: [], feats: { perch: 24 } };
+    const h = fenceHarness(state);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null); // one perch short: hopped down
+    h.session.perched = FENCE_A;
+    h.player.perchY = FENCE_A.y;
+    h.session.cat.position.set(FENCE_A.x, FENCE_A.y, FENCE_A.z);
+    state.feats.perch = 25;
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(FENCE_B);
+  });
+
+  it('puffs dust at the take-off point on a wall-run, and not on an ordinary climb', () => {
+    const ran = fenceHarness({ skills: ['fence-runner'] });
+    ran.doPounceOrClimb();
+    expect(ran.bursts).toEqual([{ x: FENCE_A.x, z: FENCE_A.z }]);
+    // A perch the ordinary climb rule already reaches is not a wall-run,
+    // even for a cat that has the skill.
+    const near = { x: FENCE_A.x + 0.5, z: FENCE_A.z, y: 1.35 };
+    const climbed = fenceHarness({ skills: ['fence-runner'] }, [FENCE_A, near]);
+    climbed.doPounceOrClimb();
+    expect(climbed.session.perched).toBe(near);
+    expect(climbed.bursts).toEqual([]);
+  });
+
+  it('still prefers a climb over a level dash, so a chain is never shadowed', () => {
+    const up = { x: FENCE_A.x + 1, z: FENCE_A.z, y: 2.0 };
+    const h = fenceHarness({ skills: ['fence-runner', 'spring-paws'] }, [FENCE_A, FENCE_B, up]);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(up);
+  });
+
+  it('survives a garbage save without wall-running or throwing', () => {
+    for (const state of [null, undefined, 'nope', { skills: 'x', feats: 7 }]) {
+      const h = fenceHarness(state);
+      expect(() => h.doPounceOrClimb()).not.toThrow();
+      expect(h.session.perched).toBe(null);
+    }
+  });
+});

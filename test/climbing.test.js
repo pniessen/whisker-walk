@@ -2,8 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import {
   canReach,
+  canFenceRun,
+  fenceRunning,
   bestPerch,
   climbBudget,
+  FENCE_RUN_REACH,
+  FENCE_RUN_LEVEL,
   BASE_CLIMB_BUDGET,
   SPRING_PAWS_CLIMB,
   SURE_CLAWS_CLIMB,
@@ -241,10 +245,16 @@ describe('climbBudget', () => {
 //     the chains chains.
 // ---------------------------------------------------------------------------
 
-// minHops(target, perches, budget) -> hops needed to stand within the golden
-// mouse pickup window (checkFind's 1.0 horizontal / 0.9 vertical, goldmice.js)
-// of `target`. 0 for a ground-level target, Infinity if no chain gets there.
-function minHops(target, perches, budget) {
+// minHops(target, perches, budget, fenceRun) -> hops needed to stand within
+// the golden mouse pickup window (checkFind's 1.0 horizontal / 0.9 vertical,
+// goldmice.js) of `target`. 0 for a ground-level target, Infinity if no chain
+// gets there.
+//
+// `fenceRun` (v18 Task 3.1) adds the wall-run edge to the PERCH-TO-PERCH pass
+// only, never to the ground pass — which is exactly the rule bestPerch
+// enforces via `currentPerch`, and the reason the ability can never turn
+// anything into a walk-up.
+function minHops(target, perches, budget, fenceRun = false) {
   const dist = new Map();
   const queue = [];
   for (const p of perches) {
@@ -257,7 +267,8 @@ function minHops(target, perches, budget) {
     const cur = queue[i];
     for (const p of perches) {
       if (p === cur || dist.has(p)) continue;
-      if (canReach(p, { x: cur.x, z: cur.z }, cur.y, budget)) {
+      if (canReach(p, { x: cur.x, z: cur.z }, cur.y, budget) ||
+          (fenceRun && canFenceRun(p, { x: cur.x, z: cur.z }, cur.y))) {
         dist.set(p, dist.get(cur) + 1);
         queue.push(p);
       }
@@ -280,20 +291,22 @@ const YARN_ROOF = AREAS.neighborhood.collectibles.find((c) => c.id === 'yarn-roo
 // The Docks' own high collectible, on W1's parapet four hops up (v18 Task 2.6).
 const SHIPS_BELL = AREAS.docks.collectibles.find((c) => c.id === 'tin-5');
 
-function hopTable(budget) {
+function hopTable(budget, fenceRun = false) {
   const out = {};
   for (const [area, mice] of Object.entries(GOLD_MICE)) {
-    for (const m of mice) out[m.id] = minHops(m, AREAS[area].perches, budget);
+    for (const m of mice) out[m.id] = minHops(m, AREAS[area].perches, budget, fenceRun);
   }
   out['yarn-roof'] = minHops(
     { x: YARN_ROOF.x, z: YARN_ROOF.z, y: YARN_ROOF.y },
     AREAS.neighborhood.perches,
     budget,
+    fenceRun,
   );
   out['tin-5'] = minHops(
     { x: SHIPS_BELL.x, z: SHIPS_BELL.z, y: SHIPS_BELL.y },
     AREAS.docks.perches,
     budget,
+    fenceRun,
   );
   return out;
 }
@@ -403,6 +416,175 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
     for (const budget of [SPRING, CLAWS, BOTH]) {
       expect(canReach(roof, { x: roof.x, z: roof.z }, 0, budget)).toBe(false);
       expect(canReach(ridge, { x: ridge.x, z: ridge.z }, 0, budget)).toBe(false);
+    }
+  });
+});
+
+// ===========================================================================
+// v18 Task 3.1 — Fence Runner.
+//
+// The ability is a SECOND reachability path, not a wider climb budget. These
+// tests hold both halves of that claim: it does something real on the perch
+// arrays that actually ship, and it moves NOTHING about the shipped
+// golden-mouse / rooftop-collectible reachability, in any skill state.
+// ===========================================================================
+
+describe('canFenceRun', () => {
+  it('dashes to a level perch well past the ordinary horizontal reach', () => {
+    // The dog-yard fence tops, verbatim from src/world/neighborhood.js:
+    // 5.657 apart, both y 0.85. Out of reach by the climb rule (5.657 >= the
+    // 1.2 reachLow those low perches get), in reach by the wall-run.
+    const a = { x: 22, z: -28, y: 0.85 };
+    const b = { x: 18, z: -24, y: 0.85 };
+    expect(canReach(b, { x: a.x, z: a.z }, a.y)).toBe(false);
+    expect(canFenceRun(b, { x: a.x, z: a.z }, a.y)).toBe(true);
+  });
+
+  it('refuses a dash longer than the reach', () => {
+    const far = { x: FENCE_RUN_REACH, z: 0, y: 0.85 };
+    expect(canFenceRun(far, { x: 0, z: 0 }, 0.85)).toBe(false);
+    const justInside = { x: FENCE_RUN_REACH - 0.01, z: 0, y: 0.85 };
+    expect(canFenceRun(justInside, { x: 0, z: 0 }, 0.85)).toBe(true);
+  });
+
+  it('refuses anything that is not level, in either direction', () => {
+    // THE safety property: a wall-run can never gain (or shed) real height,
+    // so it can never be a chain step. Every shipped chain rung is a climb of
+    // 0.9 or more.
+    const up = { x: 1, z: 0, y: 0.85 + FENCE_RUN_LEVEL + 0.001 };
+    const down = { x: 1, z: 0, y: 0.85 - FENCE_RUN_LEVEL - 0.001 };
+    expect(canFenceRun(up, { x: 0, z: 0 }, 0.85)).toBe(false);
+    expect(canFenceRun(down, { x: 0, z: 0 }, 0.85)).toBe(false);
+    expect(canFenceRun({ x: 1, z: 0, y: 0.85 + FENCE_RUN_LEVEL }, { x: 0, z: 0 }, 0.85)).toBe(true);
+  });
+
+  it('stays well under every shipped chain rung, so it can never be a step', () => {
+    // Smallest climb on any shipped chain step: the fish-market shed roof
+    // (2.1 - 1.1 = 1.0) and the Docks crane's deliberate 1.3-1.4 rungs.
+    expect(FENCE_RUN_LEVEL).toBeLessThan(0.9);
+  });
+});
+
+describe('fenceRunning', () => {
+  it('is off for a fresh save and on for the persisted skill', () => {
+    expect(fenceRunning({})).toBe(false);
+    expect(fenceRunning({ skills: ['fence-runner'] })).toBe(true);
+  });
+
+  it('honours the feat predicate at its boundary (25 vantage perches)', () => {
+    expect(fenceRunning({ feats: { perch: 24 } })).toBe(false);
+    expect(fenceRunning({ feats: { perch: 25 } })).toBe(true);
+  });
+
+  it('never throws on a hostile or absent save', () => {
+    for (const s of [undefined, null, 0, 'x', [], { skills: 'fence-runner' }, { feats: { perch: '9e99' } }]) {
+      expect(fenceRunning(s)).toBe(false);
+    }
+  });
+});
+
+describe('bestPerch — the Fence Runner option', () => {
+  const fenceA = { x: 22, z: -28, y: 0.85 };
+  const fenceB = { x: 18, z: -24, y: 0.85 };
+  const perches = [fenceA, fenceB];
+
+  it('changes nothing when the option is absent — the shipped call is exact', () => {
+    // Standing on fence top A, nothing is in reach today, which is what makes
+    // doPounceOrClimb hop down to the ground.
+    expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA)).toBeNull();
+    expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET, {}))
+      .toBeNull();
+    expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET, { fenceRun: false }))
+      .toBeNull();
+  });
+
+  it('chains along the fence line with the option on', () => {
+    expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET, { fenceRun: true }))
+      .toBe(fenceB);
+    // ...and back again, so the line is walkable in both directions.
+    expect(bestPerch(perches, { x: fenceB.x, z: fenceB.z }, fenceB.y, fenceB, BASE_CLIMB_BUDGET, { fenceRun: true }))
+      .toBe(fenceA);
+  });
+
+  it('does NOTHING from the ground — the ability is "without dropping to ground"', () => {
+    // currentPerch null means the cat is standing on the pavement. A fence
+    // top 5.66m away must stay a walk-over-and-climb, never a standing leap.
+    expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, 0, null, BASE_CLIMB_BUDGET, { fenceRun: true }))
+      .toBe(fenceA); // the one under the cat's paws, by the ordinary rule
+    expect(bestPerch([fenceB], { x: fenceA.x, z: fenceA.z }, 0, null, BASE_CLIMB_BUDGET, { fenceRun: true }))
+      .toBeNull();
+  });
+
+  it('still prefers a climb over a level dash, so a chain is never shadowed', () => {
+    // A step UP is always the better press: it is what walking a chain means.
+    const up = { x: fenceA.x + 1, z: fenceA.z, y: 2.0 };
+    const chosen = bestPerch(
+      [fenceB, up], { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA,
+      climbBudget({ skills: ['spring-paws'] }), { fenceRun: true },
+    );
+    expect(chosen).toBe(up);
+  });
+
+  it('tolerates a garbage opts argument', () => {
+    for (const bad of [null, undefined, 0, 'yes', []]) {
+      expect(bestPerch(perches, { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET, bad))
+        .toBeNull();
+    }
+  });
+});
+
+describe('Fence Runner — the shipped-content pin', () => {
+  const BUDGETS = {
+    none: climbBudget({}),
+    spring: climbBudget({ skills: ['spring-paws'] }),
+    claws: climbBudget({ skills: ['sure-claws'] }),
+    both: climbBudget({ skills: ['spring-paws', 'sure-claws'] }),
+  };
+
+  it('leaves every golden mouse and rooftop collectible at EXACTLY its shipped hop count', () => {
+    // The whole reachability BFS, re-run over the real perch arrays with the
+    // wall-run edge switched on, in every traversal-skill state. Not one
+    // number may move: the fence-run edge is level-only, and every chain step
+    // in the game is a climb of 0.9 or more.
+    for (const budget of Object.values(BUDGETS)) {
+      expect(hopTable(budget, true)).toEqual(hopTable(budget, false));
+    }
+    expect(hopTable(BUDGETS.none, true)).toEqual(SHIPPED_HOPS);
+  });
+
+  it('keeps the Docks crane chain (chain C) at four hops with the wall-run on', () => {
+    // The chain built out of deliberate 1.3-1.4 rungs so no skill can skip a
+    // step. Fence Runner must not be the exception.
+    for (const budget of Object.values(BUDGETS)) {
+      expect(hopTable(budget, true)['gm-docks-2']).toBe(4);
+    }
+  });
+
+  it('never makes anything a walk-up or unreachable', () => {
+    for (const budget of Object.values(BUDGETS)) {
+      const table = hopTable(budget, true);
+      const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+      for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
+    }
+  });
+
+  it('is NOT inert on shipped content — it joins the fence lines that exist', () => {
+    // The counter-test to the pin above: proving nothing moved is only half
+    // the job, since an ability that does nothing at all would also pass.
+    // These are the pairs the ability was sized for.
+    const pairs = [
+      [{ x: 22, z: -28, y: 0.85 }, { x: 18, z: -24, y: 0.85 }],   // dog-yard fence tops
+      [{ x: 28, z: 28, y: 0.58 }, { x: 32, z: 24, y: 0.58 }],     // garden fence tops
+      [{ x: -4, z: 20, y: 1.35 }, { x: -9, z: 17.5, y: 1.3 }],    // wall top -> porch roof
+    ];
+    for (const [a, b] of pairs) {
+      const perches = AREAS.neighborhood.perches;
+      const pa = perches.find((p) => p.x === a.x && p.z === a.z && p.y === a.y);
+      const pb = perches.find((p) => p.x === b.x && p.z === b.z && p.y === b.y);
+      expect(pa && pb).toBeTruthy(); // the coordinates still ship
+      expect(canReach(pb, { x: pa.x, z: pa.z }, pa.y)).toBe(false);
+      expect(canFenceRun(pb, { x: pa.x, z: pa.z }, pa.y)).toBe(true);
     }
   });
 });
