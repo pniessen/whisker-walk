@@ -15,7 +15,7 @@
 // silent exactly as before.
 
 import { PERSONALITIES } from '../cat/brain.js';
-import { bestPerch } from '../climbing.js';
+import { bestPerch, climbBudget } from '../climbing.js';
 import { hasSkill } from '../skills.js';
 import { friendRungCrossed } from '../straycats.js';
 import { labelFor } from './labels.js';
@@ -35,15 +35,19 @@ export function createInteractions({
   function doMeow() {
     const session = getSession();
     catVoice();
-    // v18 Far Call ('far-call'): the same meow, carried farther — strays in
-    // the outer band walk over to see who shouted (movement only; see
-    // straycats.reactToMeow). The skill is read locally and the broadcast
-    // below is unchanged with or without it — no new event kind, no new
-    // field — so a co-walker who has not earned it sees exactly today's meow.
-    // Critters are not drawn in yet: that half lives in critters.js, which
-    // this task does not own.
+    // v18 Far Call ('far-call'): the same meow, carried farther — strays AND
+    // curious critters in the outer band come over to see who shouted
+    // (movement only; see straycats.reactToMeow and critters.reactToMeow).
+    // The critter half is CF-5, added once critters.js came into scope.
+    //
+    // The skill is read locally and the broadcast below is unchanged with or
+    // without it — no new event kind, no new field — so a co-walker who has
+    // not earned it sees exactly today's meow. The remote path
+    // (game/netevents.js) deliberately keeps calling reactToMeow with `far`
+    // off, because the wire event carries no skill information and inventing
+    // one would be the protocol change the spec's non-goals rule out.
     const farCall = hasSkill(progression.state, 'far-call');
-    session.critters.reactToMeow(session.cat.position);
+    session.critters.reactToMeow(session.cat.position, { far: farCall });
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }
@@ -96,14 +100,25 @@ export function createInteractions({
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),
-    // so a chain of perches within canReach's ≤1.6-per-hop climb budget can
-    // be walked upward with repeated presses of this same key, never
-    // dropping to the ground in between. bestPerch prefers the HIGHEST
-    // reachable candidate (drops are always "reachable" per canReach, so a
-    // naive first-match pick could shadow a higher chain-mate with a lower
-    // one) — climbs beat drops whenever both are in reach. Hopping down (or
-    // off a perch with nothing else in reach) is the fallback.
-    const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched);
+    // so a chain of perches within the climb budget can be walked upward with
+    // repeated presses of this same key, never dropping to the ground in
+    // between. That budget is 1.6m a hop for an unskilled cat and rises with
+    // Spring Paws / Sure Claws (climbing.js's climbBudget composes the two by
+    // max). bestPerch prefers the HIGHEST reachable candidate (drops are
+    // always "reachable" per canReach, so a naive first-match pick could
+    // shadow a higher chain-mate with a lower one) — climbs beat drops
+    // whenever both are in reach. Hopping down (or off a perch with nothing
+    // else in reach) is the fallback.
+    //
+    // v18 CF-10a: this call passed four arguments, so bestPerch fell back to
+    // its no-skills default and Spring Paws and Sure Claws did nothing in the
+    // running game. The budget is computed HERE, per press, off the live save
+    // rather than captured at walk start, so a skill earned mid-walk raises
+    // the cat's reach on the very next hop.
+    const next = bestPerch(
+      session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
+      climbBudget(progression.state),
+    );
     if (next) {
       session.perched = next;
       player.perchY = next.y;
@@ -388,10 +403,36 @@ export function createInteractions({
       s.fx.burst(s.cat.position, 0xf2c14e, 12);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
-      if (s.tippables.tip(s.prompt.data)) {
-        log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'a gravity check 🐾');
-        s.critters.dismayNear(s.prompt.data.group.position, 8);
-        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: s.prompt.data.id });
+      const target = s.prompt.data;
+      // v18 CF-2. Big Swat's cascade takes neighbouring props down with the
+      // one you swatted, and EVERY prop that actually goes over pays its own
+      // awardOnce('mischief', `tip-<id>`).
+      //
+      // This is not a rebalance: one tipped prop has always paid exactly one
+      // mischief award. Before this, only the directly-swatted prop paid, so
+      // flattening three in one cascade scored 1 point and moved the "Tip 3
+      // things over" goal by 1 where three separate taps scored 3 and moved
+      // it by 3 — an ability earned by tipping 40 things made tipping goals
+      // slower. An earned ability must never be a downgrade.
+      //
+      // Which props went over is read back off tippables.list rather than
+      // returned by tip(), so nothing about the tippables contract changes —
+      // and neither does the wire event, which still names only the swatted
+      // prop (a cascade is deliberately local spectacle; the spec's non-goals
+      // forbid a new broadcast kind).
+      //
+      // Farming stays bounded exactly as before: awardOnce is keyed per prop
+      // id per walk, and a prop that is down cannot be tipped again this
+      // walk, so no prop can pay twice and the per-walk ceiling is still the
+      // number of props the area has.
+      const standing = s.tippables.list.filter((e) => !e.tipped && e !== target);
+      if (s.tippables.tip(target)) {
+        log.awardOnce('mischief', `tip-${target.id}`, 'a gravity check 🐾');
+        for (const e of standing) {
+          if (e.tipped) log.awardOnce('mischief', `tip-${e.id}`, 'a gravity check 🐾');
+        }
+        s.critters.dismayNear(target.group.position, 8);
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: target.id });
       }
     } else if (s.prompt.kind === 'tip-gnome') {
       const gnome = s.prompt.data;

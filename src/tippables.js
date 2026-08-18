@@ -134,10 +134,18 @@ export function createTippables(scene, spots, opts = {}) {
       }
       return best;
     },
-    // Returns whether THIS entry went over, unchanged from pre-v18 — the
-    // caller awards the mischief point off that boolean and must keep seeing
-    // exactly one award per deliberate swat. Anything the cascade knocks down
-    // is scenery: no award, no net event, no second return value.
+    // Returns whether THIS entry went over, unchanged from pre-v18 and from
+    // the caller's point of view still "did my swat land". Anything the
+    // cascade knocks down gets no net event and no second return value: the
+    // wire event names one prop id, and a cascade is deliberately local
+    // spectacle (see tipById).
+    //
+    // It does NOT go unawarded, though (v18 CF-2): game/interactions.js
+    // diffs `list` across this call and pays the usual one mischief award per
+    // prop that actually went over, cascaded ones included, because an
+    // ability earned by tipping 40 things must not make tipping score less.
+    // The diff lives at the call site rather than in a richer return value so
+    // this contract stays the boolean every other caller already expects.
     tip(e) {
       if (!tipEntry(e)) return false;
       if (bigSwat()) cascadeFrom(e);

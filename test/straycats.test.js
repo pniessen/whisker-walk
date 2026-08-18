@@ -204,6 +204,30 @@ describe('Charmer does not change how fast greets accrue', () => {
     expect(charmed.rungs).toEqual(['met', 'friend', null, 'best', null, null]);
   });
 
+  // v18 CF-4, in one assertion. The in-walk toast is driven by
+  // friendRungCrossed; the home-base roster icon (ui/homebase.js) and the
+  // best-friend gift roll (game/walk.js) are driven by friendLevel. They ran
+  // off two independent rung tables, so a Charmer player was told "BEST
+  // friend 💕" on greet four for a cat both other readers still called ♥.
+  it('friendLevel always agrees with the rung the toast just announced', () => {
+    for (const skills of [[], ['charmer']]) {
+      const p = createProgression(fakeStorage());
+      p.state.skills = skills;
+      const cats = createStrayCats(fakeScene(), AREA, 1);
+      const stray = cats.strays[0];
+      let announced = 'none'; // the highest rung the player has been told about
+      for (let w = 0; w < 6; w++) {
+        const before = p.state.friends[stray.name]?.greets ?? 0;
+        p.recordGreet(stray.name, stray.breed, `walk-${w}`);
+        const after = p.state.friends[stray.name]?.greets ?? 0;
+        announced = friendRungCrossed(before, after, {
+          charmer: hasSkill(p.state, 'charmer'),
+        }) ?? announced;
+        expect(p.friendLevel(stray.name)).toBe(announced);
+      }
+    }
+  });
+
   it('an unearned charmer id in the save does not unlock the shorter ladder', () => {
     // hasSkill accepts a persisted id, so this pins the gate itself: a save
     // that lists no skill and satisfies no feat must read as base rungs.

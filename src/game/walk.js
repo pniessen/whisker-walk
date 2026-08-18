@@ -33,6 +33,7 @@ import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { createGoals } from '../goals.js';
 import { rankFor } from '../progression.js';
+import { zoomTuning } from '../player.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
@@ -216,6 +217,15 @@ export function createWalkLifecycle({
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
     const pace = 2.2 + PERSONALITIES[state.equipped.cat].speed * 0.8;
     player.setAvatar(cat, pace);
+    // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
+    // player.js shipped the tuning and the state machine, but nothing ever
+    // handed the player the save. Set AFTER setAvatar, which resets the charge
+    // state (it deliberately leaves the tuning alone, since the ability is
+    // permanent). Read once per walk rather than per frame because that is the
+    // granularity player.js exposes; a Long Zoomies earned mid-walk therefore
+    // takes effect on the next walk, which is the same "next walk" boundary
+    // the ability's own feat (finishing the daily race) already sits behind.
+    player.setZoomTuning(zoomTuning(progression.state));
     camera.position.copy(cat.position).add(cameraOffset(0, 0.18));
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
@@ -362,7 +372,18 @@ export function createWalkLifecycle({
     );
     toyGhost.visible = false;
     scene.add(toyGhost);
-    const tippables = createTippables(scene, areaData.tippables ?? []);
+    // v18 CF-1: without this getter Big Swat never activated in the running
+    // game — tippables.js accepted opts.getState from the day it shipped, but
+    // this call still passed two arguments, so hasSkill saw a null save and
+    // every path stayed on its pre-v18 behaviour.
+    //
+    // A live GETTER, not a snapshot of progression.state: the walk session is
+    // built before the ability is ever queried, and hasSkill reads the feat
+    // tally off the save, so a player who crosses 40 tip-overs mid-walk gets
+    // Big Swat on the very next swat instead of after a reload.
+    const tippables = createTippables(scene, areaData.tippables ?? [], {
+      getState: () => progression.state,
+    });
     const scent = createScent(scene, areaData, walkRng);
 
     sun.castShadow = true;

@@ -86,10 +86,37 @@ function friendGreetCounts(state) {
   return Object.values(friends).map((f) => (isPlainObject(f) ? countOf(f.greets) : 0));
 }
 
-// The 'friend' rung of progression.js's ♡→♥→💕 ladder (friendLevel: 1 greet
-// = met, 3 = friend, 6 = best). Referenced by name here so Charmer's notion
-// of "befriended" can never drift from the ladder the rest of the game shows.
-const FRIEND_GREETS = 3;
+// ---------------------------------------------------------------------------
+// The ♡→♥→💕 friendship ladder — THE rung table
+//
+// Which greet number lands on which rung, with and without Charmer. This
+// answer used to exist in three places at once — progression.friendLevel's
+// hardcoded 1/3/6, straycats.js's FRIEND_RUNGS/CHARMER_RUNGS, and a
+// FRIEND_GREETS constant right here — and it promptly drifted: a Charmer
+// player was toasted "BEST friend 💕" at four greets while the home-base
+// roster still drew ♥ for the same cat and the best-friend gift roll waited
+// for six. Every reader now imports friendRungs() from here.
+//
+// It lives in THIS module rather than progression.js because Charmer is the
+// thing that moves the rungs, because progression.js already imports
+// skills.js (sanitizeSkills validates against SKILL_IDS) so no new module
+// edge is created, and because the reverse edge would be an import cycle.
+// straycats.js re-exports friendRungs so its own callers keep their path.
+//
+// Charmer shortens only the two upper rungs — a charming cat is called a
+// friend on its second nose-touch and a best friend on its fourth. 'met'
+// stays at the first greet, because there is no shorter first greet than one.
+//
+// This table names RUNGS ONLY, never accrual. progression.recordGreet's
+// once-per-cat-per-walk dedup guard is the only thing between the live
+// backend's greet counter and a farming exploit, and no ability may reach it.
+// ---------------------------------------------------------------------------
+export const FRIEND_RUNGS = { met: 1, friend: 3, best: 6 };
+const CHARMER_RUNGS = { met: 1, friend: 2, best: 4 };
+
+export function friendRungs(charmer = false) {
+  return charmer ? CHARMER_RUNGS : FRIEND_RUNGS;
+}
 
 // ---------------------------------------------------------------------------
 // The catalog
@@ -245,12 +272,18 @@ export const SKILLS = [
     name: 'Charmer',
     effect: 'Strays warm to you faster — the ♡→♥→💕 ladder climbs on fewer greets.',
     feat: 'Befriend 5 cats',
-    // "Befriend" is read as the ♥ rung of the existing friendship ladder
-    // (3 greets = 'friend' in progression.js's friendLevel), not merely
-    // "met" — a cat you nodded at once is not befriended. Reads
+    // "Befriend" is read as the ♥ rung of the friendship ladder above, not
+    // merely "met" — a cat you nodded at once is not befriended. Reads
     // state.friends, which predates v18, so this is retroactive.
+    //
+    // Deliberately the BASE rung (FRIEND_RUNGS.friend), not friendRungs(
+    // hasSkill(state, 'charmer')).friend: Charmer's own unlock condition must
+    // not read a table Charmer moves. Doing so would make the predicate
+    // self-reinforcing — the moment it went true the bar would drop to two
+    // greets and more cats would qualify — and since earned abilities are
+    // never revoked that hysteresis could only ever run one way.
     progress: (state) => ({
-      have: friendGreetCounts(state).filter((g) => g >= FRIEND_GREETS).length,
+      have: friendGreetCounts(state).filter((g) => g >= FRIEND_RUNGS.friend).length,
       need: 5,
     }),
   },
