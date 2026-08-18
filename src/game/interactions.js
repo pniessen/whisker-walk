@@ -16,6 +16,8 @@
 
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch } from '../climbing.js';
+import { hasSkill } from '../skills.js';
+import { friendRungCrossed } from '../straycats.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
 
@@ -33,8 +35,16 @@ export function createInteractions({
   function doMeow() {
     const session = getSession();
     catVoice();
+    // v18 Far Call ('far-call'): the same meow, carried farther — strays in
+    // the outer band walk over to see who shouted (movement only; see
+    // straycats.reactToMeow). The skill is read locally and the broadcast
+    // below is unchanged with or without it — no new event kind, no new
+    // field — so a co-walker who has not earned it sees exactly today's meow.
+    // Critters are not drawn in yet: that half lives in critters.js, which
+    // this task does not own.
+    const farCall = hasSkill(progression.state, 'far-call');
     session.critters.reactToMeow(session.cat.position);
-    if (session.strayCats.reactToMeow(session.cat.position) > 0) {
+    if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }
     if (session.net) {
@@ -327,6 +337,16 @@ export function createInteractions({
     s.lastPromptKind = promptKind;
   }
 
+  // One cat's lifetime greet count off the live save. recordGreet's return
+  // value names only the BASE 1/3/6 rungs, so Charmer — which moves the
+  // rungs and never the count — has to read the raw number to know which rung
+  // a greet just crossed. Coerced rather than trusted: state.friends round
+  // trips through a cloud payload the server stores as opaque jsonb.
+  function greetsFor(name) {
+    const g = progression.state?.friends?.[name]?.greets;
+    return typeof g === 'number' && Number.isFinite(g) && g >= 0 ? g : 0;
+  }
+
   // Shared greet-award body for a stray cat: friend-points award, progression
   // ladder toast, and marking the stray greeted (so nearest(...,
   // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
@@ -337,7 +357,20 @@ export function createInteractions({
     s.strayCats.greet(stray, s.cat.position);
     log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
     s.catsGreeted += 1;
-    const level = progression.recordGreet(stray.name, stray.breed, s.walkStamp);
+    // Still exactly one recordGreet call per greet, with the same arguments
+    // as ever — the walkStamp is what its once-per-cat-per-walk dedup guard
+    // keys on, and that guard is the whole reason talking to a cat can never
+    // out-farm booping it. v18 Charmer ('charmer') reads the count that call
+    // produced and decides which RUNG it lands on; it cannot make the count
+    // move faster. If the guard rejected this greet, `after` equals `before`
+    // and friendRungCrossed returns null — the same silence recordGreet's
+    // null return has always produced here.
+    const before = greetsFor(stray.name);
+    progression.recordGreet(stray.name, stray.breed, s.walkStamp);
+    const after = greetsFor(stray.name);
+    const level = friendRungCrossed(before, after, {
+      charmer: hasSkill(progression.state, 'charmer'),
+    });
     if (level === 'met') hud.toast(`You met ${stray.name}! ♡`);
     else if (level === 'friend') hud.toast(`${stray.name} is now your friend! ♥`);
     else if (level === 'best') hud.toast(`${stray.name} is your BEST friend! 💕`);
