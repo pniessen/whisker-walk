@@ -162,3 +162,76 @@ describe('handleInteract — tipping props (v18 CF-2)', () => {
     expect(h.sent).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v18 CF-10a — the climb budget was never handed to bestPerch.
+//
+// doPounceOrClimb called bestPerch with four arguments, so it silently used
+// the no-skills baseline and Spring Paws and Sure Claws did nothing in the
+// running game. Same failure shape as CF-1 (Big Swat) and CF-10b (Long
+// Zoomies): the ability was fully built, and the file that activates it
+// belonged to a different task.
+// ---------------------------------------------------------------------------
+
+describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
+  // A perch 2.0m up: out of the 1.6m baseline climb budget, inside Spring
+  // Paws' 2.2m one. It separates the two states instead of passing under both.
+  const HIGH = { x: 0, z: 0, y: 2.0, label: 'ledge', vantage: true };
+
+  function climbHarness(state) {
+    const progression = { state, recordFeat() {}, addPoints() {} };
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const session = {
+      areaData: { perches: [HIGH] },
+      cat: { position: new THREE.Vector3(0, 0, 0) },
+      perched: null,
+      pounceCooldown: 0,
+      fx: { burst() {} },
+    };
+    let pounced = false;
+    const player = { perchY: 0, halt() {}, pounce() { pounced = true; } };
+    const { doPounceOrClimb } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player, progression, log,
+      hud: { toast() {} }, audio: { trill() {}, pounceWhoosh() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return { session, player, doPounceOrClimb, pounced: () => pounced };
+  }
+
+  it('leaves a 2.0m perch out of reach for an unskilled cat', () => {
+    const h = climbHarness({ skills: [], feats: {} });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.pounced()).toBe(true); // fell through to an ordinary pounce
+  });
+
+  it('puts the same perch in reach with Spring Paws', () => {
+    const h = climbHarness({ skills: ['spring-paws'] });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(HIGH);
+    expect(h.player.perchY).toBe(2.0);
+  });
+
+  it('reads the budget live, so a skill earned mid-walk lifts the next hop', () => {
+    // Spring Paws is earned at 10 vantage perches. The budget must not be a
+    // snapshot taken at walk start.
+    const state = { skills: [], feats: { perch: 9 } };
+    const h = climbHarness(state);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null); // one perch short
+    state.feats.perch = 10;
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(HIGH);
+  });
+
+  it('survives a garbage save by falling back to the baseline budget', () => {
+    for (const state of [null, undefined, 'nope', { skills: 'x', feats: 7 }]) {
+      const h = climbHarness(state);
+      expect(() => h.doPounceOrClimb()).not.toThrow();
+      expect(h.session.perched).toBe(null); // baseline: 2.0m stays out of reach
+    }
+  });
+});

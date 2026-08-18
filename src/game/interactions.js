@@ -15,7 +15,7 @@
 // silent exactly as before.
 
 import { PERSONALITIES } from '../cat/brain.js';
-import { bestPerch } from '../climbing.js';
+import { bestPerch, climbBudget } from '../climbing.js';
 import { hasSkill } from '../skills.js';
 import { friendRungCrossed } from '../straycats.js';
 import { labelFor } from './labels.js';
@@ -100,14 +100,25 @@ export function createInteractions({
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),
-    // so a chain of perches within canReach's ≤1.6-per-hop climb budget can
-    // be walked upward with repeated presses of this same key, never
-    // dropping to the ground in between. bestPerch prefers the HIGHEST
-    // reachable candidate (drops are always "reachable" per canReach, so a
-    // naive first-match pick could shadow a higher chain-mate with a lower
-    // one) — climbs beat drops whenever both are in reach. Hopping down (or
-    // off a perch with nothing else in reach) is the fallback.
-    const next = bestPerch(session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched);
+    // so a chain of perches within the climb budget can be walked upward with
+    // repeated presses of this same key, never dropping to the ground in
+    // between. That budget is 1.6m a hop for an unskilled cat and rises with
+    // Spring Paws / Sure Claws (climbing.js's climbBudget composes the two by
+    // max). bestPerch prefers the HIGHEST reachable candidate (drops are
+    // always "reachable" per canReach, so a naive first-match pick could
+    // shadow a higher chain-mate with a lower one) — climbs beat drops
+    // whenever both are in reach. Hopping down (or off a perch with nothing
+    // else in reach) is the fallback.
+    //
+    // v18 CF-10a: this call passed four arguments, so bestPerch fell back to
+    // its no-skills default and Spring Paws and Sure Claws did nothing in the
+    // running game. The budget is computed HERE, per press, off the live save
+    // rather than captured at walk start, so a skill earned mid-walk raises
+    // the cat's reach on the very next hop.
+    const next = bestPerch(
+      session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
+      climbBudget(progression.state),
+    );
     if (next) {
       session.perched = next;
       player.perchY = next.y;
