@@ -17,7 +17,7 @@ import { createTippables } from './tippables.js';
 import { createScent } from './scent.js';
 import { createToy } from './toy.js';
 import { createQuest } from './quests.js';
-import { createProgression, rankFor, summarizeSaveForPreview } from './progression.js';
+import { createProgression, rankFor } from './progression.js';
 import { createGoals } from './goals.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { tagState, groomTimer } from './verbs.js';
@@ -42,7 +42,6 @@ import { bestPerch } from './climbing.js';
 import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
-import { createLiveCloud, generateSaveCode, normalizeSaveCode, getOrCreateSecret } from './cloud.js';
 import { createBlockList } from './blocklist.js';
 import { createChatBubbles } from './chatbubble.js';
 import { createChatWheel } from './ui/chatwheel.js';
@@ -50,6 +49,7 @@ import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './cha
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { labelFor } from './game/labels.js';
+import { createCloudToast, createCloudSync } from './game/cloudsync.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
 import { resolveQuality } from './render/quality.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -100,43 +100,10 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
-// the capability secret that authorizes profile/friendship writes (and, for
-// a freshly-created save row, doubles as that row's initial secret) —
-// memoized lazily via getPsecret() below, on first actual use, rather than
-// at module scope: every call site that needs it is already downstream of
-// an MP check (getCloud() returns null when !MP), so an unconfigured (solo)
-// deploy should never generate-and-persist a secret it will never use.
-let psecretCache = null;
-function getPsecret() {
-  if (!MP) return null;
-  if (!psecretCache) psecretCache = getOrCreateSecret(window.localStorage);
-  return psecretCache;
-}
-
-// cloud RPC client — created lazily (only once actually needed, and only
-// when MP) rather than at module scope, so an unconfigured deploy never
-// even attempts the dynamic supabase-js import.
-let cloudInstance = null;
-function getCloud() {
-  if (!MP) return null;
-  if (!cloudInstance) {
-    cloudInstance = createLiveCloud(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
-  }
-  return cloudInstance;
-}
-
 // a toast surface that stays visible on the home base screen (unlike
 // #hud, which is display:none whenever no walk is in progress) — cloud
 // sync results (stale/denied) need to reach the player there too.
-const cloudToastsEl = document.getElementById('cloud-toasts');
-function cloudToast(text) {
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.textContent = text;
-  cloudToastsEl.appendChild(el);
-  setTimeout(() => el.classList.add('fade'), 2600);
-  setTimeout(() => el.remove(), 3400);
-}
+const cloudToast = createCloudToast(document.getElementById('cloud-toasts'));
 
 // petNames arrive over the network from other players' clients, which may
 // not have enforced validPetName themselves — escape before interpolating
@@ -243,6 +210,20 @@ function init() {
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
   const log = createDiscoveryLog(progression);
+
+  // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
+  // panel) lives in src/game/cloudsync.js — created here, alongside the other
+  // system factories, so every later call site sees it already built.
+  const { getPsecret, getCloud, sync } = createCloudSync({
+    MP,
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    storage: window.localStorage,
+    progression,
+    album,
+    cloudToast,
+  });
+
   const hud = createHud();
   const audio = createAudio();
   // Generative lofi music (Task 7.3): its own gain node, connected to the
@@ -543,163 +524,6 @@ function init() {
     },
     onChange(fn) {
       roomChangeHandlers.push(fn);
-    },
-  };
-
-  // ── Cloud save sync ────────────────────────────────────────────────
-  // A linked device stores its save-code + that ROW's secret locally.
-  // The row secret is NOT the player secret (psecret): psecret only ever
-  // authorizes profile/friendship writes (Task 3) and, once, seeds a
-  // freshly-created row's secret — after that the row's own returned
-  // secret (from create or a later load) is what future writes must use.
-  const CLOUD_CODE_KEY = 'whisker-walk-cloudcode';
-  const CLOUD_SECRET_KEY = 'whisker-walk-cloudsecret';
-
-  function readCloudLink() {
-    try {
-      const code = window.localStorage.getItem(CLOUD_CODE_KEY);
-      const secret = window.localStorage.getItem(CLOUD_SECRET_KEY);
-      return code && secret ? { code, secret } : null;
-    } catch {
-      return null;
-    }
-  }
-  function writeCloudLink(code, secret) {
-    try {
-      window.localStorage.setItem(CLOUD_CODE_KEY, code);
-      window.localStorage.setItem(CLOUD_SECRET_KEY, secret);
-    } catch (err) {
-      console.warn('Whisker Walk: could not persist cloud link', err);
-    }
-  }
-  function clearCloudLink() {
-    try {
-      window.localStorage.removeItem(CLOUD_CODE_KEY);
-      window.localStorage.removeItem(CLOUD_SECRET_KEY);
-    } catch (err) {
-      console.warn('Whisker Walk: could not clear cloud link', err);
-    }
-  }
-  // deep-cloned snapshot: composed once per RPC call so an in-flight
-  // fire-and-forget send can't pick up a further mutation mid-flight.
-  function composeCloudPayload() {
-    return JSON.parse(JSON.stringify({ save: progression.state, album: album.serialize() }));
-  }
-  // 'denied' means this code/secret pair no longer authorizes writes
-  // (e.g. re-linked elsewhere) — surfaced once per link, not on every
-  // subsequent auto-sync, so it doesn't spam a toast after every walk.
-  let deniedNotified = false;
-
-  async function runSync() {
-    const link = readCloudLink();
-    if (!link) return { ok: false, message: 'Not linked to a cloud save.' };
-    const cloud = getCloud();
-    if (!cloud) return { ok: false, message: 'Cloud sync is not available.' };
-    try {
-      const payload = composeCloudPayload();
-      const result = await cloud.saveToCloud(link.code, link.secret, payload, payload.save.lifetimePoints ?? 0);
-      if (result === 'created' || result === 'updated') {
-        deniedNotified = false;
-        return { ok: true, message: 'Synced ✓' };
-      }
-      if (result === 'stale') {
-        cloudToast('Cloud has newer progress — open Sync at home base');
-        return { ok: false, message: 'Cloud has newer progress than this device — use Load from cloud to pull it down.' };
-      }
-      if (result === 'denied') {
-        if (!deniedNotified) {
-          cloudToast('Cloud sync denied — unlink and save a new code at home base');
-          deniedNotified = true;
-        }
-        return { ok: false, message: 'Sync denied — this code may be linked elsewhere. Unlink and save a new code.' };
-      }
-      return { ok: false, message: 'Unexpected sync result.' };
-    } catch (err) {
-      console.warn('Whisker Walk: cloud sync failed', err);
-      return { ok: false, message: 'Could not reach the cloud — check your connection and try again.' };
-    }
-  }
-
-  const sync = {
-    available: MP,
-    getCode() {
-      return readCloudLink()?.code ?? null;
-    },
-    // unlinked "Save to cloud": generate a fresh code, upload under it,
-    // and — since this is a brand-new row — seed its secret with the
-    // player's own psecret (the row's secret then becomes the thing
-    // future writes must present, not psecret itself).
-    async saveToCloud() {
-      const cloud = getCloud();
-      if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
-      const code = generateSaveCode();
-      try {
-        const payload = composeCloudPayload();
-        const secret = getPsecret();
-        const result = await cloud.saveToCloud(code, secret, payload, payload.save.lifetimePoints ?? 0);
-        if (result !== 'created') {
-          return { ok: false, error: 'That code was already taken — please try again.' };
-        }
-        writeCloudLink(code, secret);
-        deniedNotified = false;
-        return { ok: true, code };
-      } catch (err) {
-        console.warn('Whisker Walk: saveToCloud failed', err);
-        return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
-      }
-    },
-    // "Load from cloud" step 1: fetch + build a local-vs-cloud comparison
-    // for the confirm-overwrite card. Nothing is written yet.
-    async previewLoad(rawCode) {
-      const cloud = getCloud();
-      if (!cloud) return { ok: false, error: 'Cloud sync is not available.' };
-      const code = normalizeSaveCode(rawCode);
-      if (!code) return { ok: false, error: 'Enter a save code first.' };
-      try {
-        const data = await cloud.loadFromCloud(code);
-        if (!data || !data.payload || !data.payload.save) {
-          return { ok: false, error: 'No save found for that code.' };
-        }
-        const localSave = progression.state;
-        const cloudSave = data.payload.save;
-        // cloudSave is untrusted (read straight back from the `saves` table
-        // with no server-side shape check) — summarizeSaveForPreview coerces
-        // every numeric field before it ever reaches the preview card.
-        return {
-          ok: true,
-          preview: {
-            code, secret: data.secret, payload: data.payload,
-            local: summarizeSaveForPreview(localSave), cloud: summarizeSaveForPreview(cloudSave),
-          },
-        };
-      } catch (err) {
-        console.warn('Whisker Walk: loadFromCloud failed', err);
-        return { ok: false, error: 'Could not reach the cloud — check your connection and try again.' };
-      }
-    },
-    // "Load from cloud" step 2 (after user confirms the overwrite): the
-    // returned row secret — NOT psecret — is what future saveToCloud
-    // calls from this device must use.
-    async confirmLoad(preview) {
-      if (!preview) return { ok: false, error: 'Nothing to load.' };
-      progression.replaceFromPayload(preview.payload.save);
-      album.replaceFromPayload(preview.payload.album ?? { version: 1, photos: [] });
-      writeCloudLink(preview.code, preview.secret);
-      deniedNotified = false;
-      return { ok: true };
-    },
-    async syncNow() {
-      return runSync();
-    },
-    unlink() {
-      clearCloudLink();
-      deniedNotified = false;
-    },
-    // fire-and-forget auto-sync (after the walk summary and after shop
-    // buys) — never awaited by callers, never throws.
-    autoSync() {
-      if (!MP || !readCloudLink()) return;
-      runSync().catch(() => {});
     },
   };
 
