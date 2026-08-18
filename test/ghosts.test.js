@@ -146,4 +146,46 @@ describe('createGhosts', () => {
     expect(a.hasGift).toBe(true);
     expect(b.hasGift).toBe(false);
   });
+
+  // -------------------------------------------------------------------
+  // v18 Task 3.2 — a ghost visitor who FOUND the gift this player stashed.
+  // The opposite direction to hasGift above, and a separate field for
+  // exactly that reason.
+  // -------------------------------------------------------------------
+
+  it('spawns the first ghost at the gift, carrying it', () => {
+    const scene = fakeScene();
+    const gift = { area: 'park', spot: 'fountain', label: 'the old fountain', x: 3, z: 23 };
+    const ghosts = createGhosts(scene, AREA, [profile('a'), profile('b')], () => 0.5, { gift });
+    const [a, b] = ghosts.list;
+    expect(a.foundGift).toBe(gift);
+    expect(a.group.position.x).toBe(3);
+    expect(a.group.position.z).toBe(23);
+    expect(a.home.x).toBe(3);   // it hangs around the present, not the map centre
+    expect(a.home.z).toBe(23);
+    // at most ONE gift is found per walk
+    expect(b.foundGift).toBeNull();
+  });
+
+  it('carries no found gift when none was passed, or when the gift is malformed', () => {
+    const scene = fakeScene();
+    for (const opts of [undefined, {}, { gift: null }, { gift: {} }, { gift: { x: NaN, z: 1 } }, { gift: { x: 1 } }]) {
+      const ghosts = createGhosts(scene, AREA, [profile('a')], () => 0.5, opts);
+      expect(ghosts.list[0].foundGift).toBeNull();
+    }
+  });
+
+  it('does not change where the OTHER ghosts land', () => {
+    // Both position draws happen either way, so handing the gift to ghost
+    // one cannot shift ghost two — the rng stream stays aligned.
+    const scene = fakeScene();
+    const rngValues = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.15, 0.25, 0.35];
+    const plain = createGhosts(scene, AREA, [profile('a'), profile('b')], queueRng(rngValues));
+    const gifted = createGhosts(scene, AREA, [profile('a'), profile('b')], queueRng(rngValues), {
+      gift: { area: 'park', spot: 'fountain', label: 'f', x: 3, z: 23 },
+    });
+    expect(gifted.list[1].group.position.x).toBe(plain.list[1].group.position.x);
+    expect(gifted.list[1].group.position.z).toBe(plain.list[1].group.position.z);
+    expect(gifted.list[1].hasGift).toBe(plain.list[1].hasGift);
+  });
 });

@@ -15,8 +15,9 @@
 // silent exactly as before.
 
 import { PERSONALITIES } from '../cat/brain.js';
-import { bestPerch, climbBudget } from '../climbing.js';
+import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
 import { hasSkill } from '../skills.js';
+import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed } from '../straycats.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
@@ -115,16 +116,36 @@ export function createInteractions({
     // running game. The budget is computed HERE, per press, off the live save
     // rather than captured at walk start, so a skill earned mid-walk raises
     // the cat's reach on the very next hop.
+    //
+    // v18 Task 3.1 Fence Runner: the second reachability path, handed in as
+    // an option rather than folded into the budget (see climbing.js's header
+    // on why a horizontal rule cannot be a climb budget). It only does
+    // anything when the cat is ALREADY perched — bestPerch checks that
+    // itself off `session.perched` — so an unskilled hop and a grounded hop
+    // both behave exactly as they do today. Read live off the save, same as
+    // the budget above, so the 25th vantage perch enables the wall-run on
+    // the very next press.
+    const budget = climbBudget(progression.state);
     const next = bestPerch(
       session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
-      climbBudget(progression.state),
+      budget,
+      { fenceRun: fenceRunning(progression.state) },
     );
     if (next) {
+      // Did the wall-run pay for this hop? Asked exactly — "the ordinary
+      // climb rule would have refused this one" — rather than by guessing
+      // from the height difference, so a short level hop that was always
+      // legal is not mislabelled. Computed BEFORE the position is moved.
+      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget);
       session.perched = next;
       player.perchY = next.y;
       player.halt();
+      const from = session.cat.position.clone();
       session.cat.position.set(next.x, next.y, next.z);
       catVoice();
+      // A puff of dust at the take-off point, so a wall-run reads as an
+      // ability firing rather than as the cat merely not falling off.
+      if (ranTheFence) session.fx?.burst(from, 0xd8cdb8, 6);
       if (next.vantage) {
         log.awardOnce('scenic', `perch-${next.label}`, next.label);
         // v18 Task 1.4: a SECOND, dedicated tally recorded alongside the
@@ -294,6 +315,58 @@ export function createInteractions({
     }
   }
 
+  // -------------------------------------------------------------------
+  // v18 Task 3.2 — Gift Paws.
+  //
+  // Two halves, both here because this module owns the prompt scan and the
+  // proximity grants: leaving a gift at a scenic spot (the E prompt below)
+  // and a visitor turning up with one they found (claimFoundGift).
+  //
+  // Neither half sends or reads a network event. Real-time discovery by a
+  // LIVE co-walker is deliberately NOT built — it would need a new broadcast
+  // kind, which the wave's non-goals forbid. See src/gifts.js's header for
+  // the full ruling.
+  // -------------------------------------------------------------------
+
+  // The nearest scenic spot the cat could stash something at: in range, and
+  // not already holding one of this player's gifts. s.gifts.list is the
+  // authority on "already holding one" — it is built from the save at walk
+  // start and gains anything left during this walk, so the prompt can never
+  // offer a spot twice.
+  function openScenicNear(s, catP) {
+    const taken = new Set(s.gifts.list.map((g) => g.spot));
+    let best = null;
+    let bestD = GIFT_LEAVE_RANGE;
+    for (const sc of s.areaData.scenics ?? []) {
+      if (taken.has(sc.id)) continue;
+      const d = Math.hypot(sc.x - catP.x, sc.z - catP.z);
+      if (d < bestD) {
+        bestD = d;
+        best = sc;
+      }
+    }
+    return best;
+  }
+
+  // A visitor (stray or ghost) hands over a gift this player stashed on an
+  // earlier walk. `holder` is whichever object carries it, `who` is the
+  // display name already decorated by the caller.
+  //
+  // progression.claimGift is the SINGLE gate: it removes the gift from the
+  // save and returns false if it was not there, so a second frame inside the
+  // 3m radius, a stray and a ghost both somehow holding it, or a save
+  // reloaded mid-walk can none of them pay twice.
+  function claimFoundGift(s, holder, who) {
+    const gift = holder.foundGift;
+    holder.foundGift = null;
+    if (!gift || !progression.claimGift?.(gift.area, gift.spot)) return;
+    log.awardOnce('gift', `gift-found-${gift.area}-${gift.spot}`,
+      `${who} found the gift you left at ${gift.label}! 🎁`);
+    const entry = s.gifts?.list?.find((g) => g.spot === gift.spot);
+    if (entry) s.gifts.remove(entry);
+    s.fx?.burst(holder.group.position, 0xe05a7a, 14);
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
@@ -322,6 +395,13 @@ export function createInteractions({
         log.awardOnce('gift', 'gift-' + stray.name, stray.name + ' brought you a gift! 🎁');
         stray.hasGift = false;
       }
+      // v18 Gift Paws: ...and the other direction — a stray who found the
+      // gift YOU left at a scenic spot on an earlier walk. Same proximity
+      // grant, opposite gesture, deliberately a separate field (see
+      // ghosts.js's note on foundGift vs hasGift).
+      if (stray.foundGift && stray.group.position.distanceTo(catP) < 3) {
+        claimFoundGift(s, stray, stray.name);
+      }
     }
     // best-friend ghosts (greets >= 6) may be carrying a gift, rolled once
     // at spawn by createGhosts — same "close enough" proximity grant as the
@@ -330,6 +410,13 @@ export function createInteractions({
       if (ghost.hasGift && ghost.group.position.distanceTo(catP) < 3) {
         log.awardOnce('gift', 'gift-ghost-' + ghost.playerId, `${ghost.petName} 👻 brought you a gift!`);
         ghost.hasGift = false;
+      }
+      // v18 Gift Paws — the ghost visitor found the gift you stashed here.
+      // This is the discovery half of the ability as the spec describes it;
+      // the stray path above is the offline stand-in for a player with no
+      // cross-walk friends.
+      if (ghost.foundGift && ghost.group.position.distanceTo(catP) < 3) {
+        claimFoundGift(s, ghost, `${ghost.petName} 👻`);
       }
     }
     for (const sec of s.secrets.list) {
@@ -426,6 +513,18 @@ export function createInteractions({
       if (remote) {
         s.prompt = { kind: 'boop', data: remote };
         setPrompt(`E — touch noses with ${remote.petName}`);
+      }
+    }
+    // v18 Gift Paws. LAST in the chain on purpose: every prompt above it is
+    // something the player came over to do, and a scenic spot is a big
+    // 3m-wide target that would otherwise shadow a stray standing on it. A
+    // cat without the skill never reaches this branch at all, so the prompt
+    // ladder is byte-identical to today's for a no-skills save.
+    if (!s.prompt && s.gifts && hasSkill(progression.state, 'gift-paws')) {
+      const spot = openScenicNear(s, catP);
+      if (spot) {
+        s.prompt = { kind: 'gift-leave', data: spot };
+        setPrompt(`E — leave a gift at ${spot.label}`);
       }
     }
     if (!s.prompt) setPrompt(null);
@@ -594,6 +693,28 @@ export function createInteractions({
         log.award('quest', 'kitten-meet', 'a lost kitten befriended');
       } else {
         log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
+      }
+    } else if (s.prompt.kind === 'gift-leave') {
+      // v18 Gift Paws. progression.leaveGift is the gate: it refuses an
+      // unknown area, a spot that already holds one, and the save's cap, and
+      // returns false without writing — so the award, the prop and the toast
+      // all hang off "a gift was actually stashed" rather than off "E was
+      // pressed near a viewpoint".
+      const sc = s.prompt.data;
+      if (progression.leaveGift?.(s.areaId, sc.id)) {
+        s.gifts.add(s.areaId, sc);
+        // The existing 'gift' award type at its existing value — the same
+        // one the receiving paths pay. Nothing is rebalanced: this is a new
+        // discovery, not a new price. It is also what makes the ability's
+        // own feat ("Give or receive 5 gifts") count giving, which until now
+        // nothing in the game could do. Bounded: one per scenic spot, and
+        // the save holds at most 8 outstanding gifts.
+        log.awardOnce('gift', `gift-left-${s.areaId}-${sc.id}`, `a gift tucked away at ${sc.label}`);
+        s.fx.burst(s.cat.position, 0xe05a7a, 12);
+        hud.toast(`Gift hidden at ${sc.label} 🎁 someone will find it`);
+        catVoice();
+      } else {
+        hud.toast('You are out of gifts to leave for now 🎁');
       }
     } else if (s.prompt.kind === 'race') {
       s.race.begin();

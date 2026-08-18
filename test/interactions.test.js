@@ -5,6 +5,7 @@ import { createTippables } from '../src/tippables.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { createGoals } from '../src/goals.js';
+import { createGifts } from '../src/gifts.js';
 import { bus } from '../src/events.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
@@ -470,5 +471,376 @@ describe('updateSenses — Twitchy Nose and Whisker Sense (v18 Task 2.3)', () =>
     h.session.scent = null;
     h.session.goldMice = null;
     expect(() => h.tick()).not.toThrow();
+  });
+});
+
+// ===========================================================================
+// v18 Task 3.1 — Fence Runner, driven through doPounceOrClimb.
+//
+// climbing.test.js pins the RULE (and BFSes the shipped perch arrays to prove
+// it moves no reachability). This block pins the WIRING: that the running
+// game's one climb call site actually passes the option, reads it live off
+// the save, and leaves the no-skill press byte-identical.
+// ===========================================================================
+describe('doPounceOrClimb — Fence Runner (v18 Task 3.1)', () => {
+  // The dog-yard fence tops, verbatim from src/world/neighborhood.js:
+  // 5.657 apart, both y 0.85 — the fence line the ability was sized for.
+  const FENCE_A = { x: 22, z: -28, y: 0.85 };
+  const FENCE_B = { x: 18, z: -24, y: 0.85 };
+
+  function fenceHarness(state, perches = [FENCE_A, FENCE_B]) {
+    const progression = { state, recordFeat() {}, addPoints() {} };
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const bursts = [];
+    const session = {
+      areaData: { perches },
+      cat: { position: new THREE.Vector3(FENCE_A.x, FENCE_A.y, FENCE_A.z) },
+      perched: FENCE_A,
+      pounceCooldown: 0,
+      fx: { burst: (pos) => bursts.push({ x: pos.x, z: pos.z }) },
+    };
+    let pounced = false;
+    const player = { perchY: FENCE_A.y, halt() {}, pounce() { pounced = true; } };
+    const { doPounceOrClimb } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player, progression, log,
+      hud: { toast() {} }, audio: { trill() {}, pounceWhoosh() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return { session, player, doPounceOrClimb, bursts, pounced: () => pounced };
+  }
+
+  it('hops DOWN off the fence without the skill, exactly as today', () => {
+    const h = fenceHarness({ skills: [], feats: {} });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.player.perchY).toBe(0);
+    expect(h.session.cat.position.x).toBe(FENCE_A.x); // still where it was
+  });
+
+  it('runs the fence line to the next post with the skill', () => {
+    const h = fenceHarness({ skills: ['fence-runner'] });
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(FENCE_B);
+    expect(h.player.perchY).toBe(FENCE_B.y);
+    expect(h.session.cat.position.x).toBe(FENCE_B.x);
+    expect(h.session.cat.position.z).toBe(FENCE_B.z);
+  });
+
+  it('never dashes from the ground — the whole point is not dropping first', () => {
+    const h = fenceHarness({ skills: ['fence-runner'] }, [FENCE_B]);
+    h.session.perched = null;
+    h.player.perchY = 0;
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.pounced()).toBe(true); // fell through to an ordinary pounce
+  });
+
+  it('reads the save live, so the 25th vantage perch enables the next hop', () => {
+    const state = { skills: [], feats: { perch: 24 } };
+    const h = fenceHarness(state);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null); // one perch short: hopped down
+    h.session.perched = FENCE_A;
+    h.player.perchY = FENCE_A.y;
+    h.session.cat.position.set(FENCE_A.x, FENCE_A.y, FENCE_A.z);
+    state.feats.perch = 25;
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(FENCE_B);
+  });
+
+  it('puffs dust at the take-off point on a wall-run, and not on an ordinary climb', () => {
+    const ran = fenceHarness({ skills: ['fence-runner'] });
+    ran.doPounceOrClimb();
+    expect(ran.bursts).toEqual([{ x: FENCE_A.x, z: FENCE_A.z }]);
+    // A perch the ordinary climb rule already reaches is not a wall-run,
+    // even for a cat that has the skill.
+    const near = { x: FENCE_A.x + 0.5, z: FENCE_A.z, y: 1.35 };
+    const climbed = fenceHarness({ skills: ['fence-runner'] }, [FENCE_A, near]);
+    climbed.doPounceOrClimb();
+    expect(climbed.session.perched).toBe(near);
+    expect(climbed.bursts).toEqual([]);
+  });
+
+  it('still prefers a climb over a level dash, so a chain is never shadowed', () => {
+    const up = { x: FENCE_A.x + 1, z: FENCE_A.z, y: 2.0 };
+    const h = fenceHarness({ skills: ['fence-runner', 'spring-paws'] }, [FENCE_A, FENCE_B, up]);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(up);
+  });
+
+  it('survives a garbage save without wall-running or throwing', () => {
+    for (const state of [null, undefined, 'nope', { skills: 'x', feats: 7 }]) {
+      const h = fenceHarness(state);
+      expect(() => h.doPounceOrClimb()).not.toThrow();
+      expect(h.session.perched).toBe(null);
+    }
+  });
+});
+
+// ===========================================================================
+// v18 Task 3.2 — Gift Paws, driven through the real prompt scan and the real
+// handleInteract, against a real progression over fake storage.
+//
+// Both halves of the loop are exercised: leaving a gift (persisted, capped,
+// one per spot) and a visitor turning up with one they found (awarded once,
+// consumed from the save, the prop removed).
+//
+// Every case is asserted in BOTH skill states — an ability that changes
+// nothing without its unlock is the half that is easy to get wrong.
+// ===========================================================================
+describe('Gift Paws (v18 Task 3.2)', () => {
+  // The real scenic array of src/world/park.js.
+  const SCENICS = [
+    { id: 'fountain', x: 3, z: 23, label: 'the old fountain' },
+    { id: 'pond-shore', x: -14, z: 10, label: 'the duck pond' },
+    { id: 'meadow', x: 12, z: -30, label: 'the quiet meadow' },
+  ];
+
+  function giftHarness({ skills = [], saved = [], storage = fakeStorage(), progression: override } = {}) {
+    let progression = override;
+    if (!progression) {
+      progression = createProgression(storage);
+      progression.replaceFromPayload({ version: 4, skills, gifts: saved });
+    }
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const scene = { add() {}, remove() {} };
+    const gifts = createGifts(scene, SCENICS, progression.giftsIn?.('park') ?? []);
+    const toasts = [];
+    const prompts = [];
+    const strays = [];
+    const ghostList = [];
+    const session = {
+      areaId: 'park',
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: SCENICS },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats: { strays, nearest: () => null },
+      ghosts: { list: ghostList, nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts,
+      perched: null,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const { updateInteractions, handleInteract } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0 },
+      progression, log,
+      hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t) },
+      audio: { trill() {}, meow() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    const walkTo = (x, z) => { session.cat.position.set(x, 0, z); updateInteractions(session); };
+    const pressE = () => handleInteract(session);
+    return {
+      progression, log, session, gifts, storage, toasts, prompts, strays, ghostList,
+      walkTo, pressE,
+    };
+  }
+
+  // --- leaving -----------------------------------------------------------
+
+  it('offers NO gift prompt without the skill, standing right on a scenic spot', () => {
+    const h = giftHarness({ skills: [] });
+    h.walkTo(3, 23);
+    expect(h.session.prompt).toBe(null);
+    expect(h.prompts.at(-1)).toBe(null);
+  });
+
+  it('offers the prompt with the skill, and only inside range', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    h.walkTo(3, 23);
+    expect(h.session.prompt.kind).toBe('gift-leave');
+    expect(h.session.prompt.data.id).toBe('fountain');
+    expect(h.prompts.at(-1)).toContain('the old fountain');
+    h.walkTo(3, 40); // well out of range of everything
+    expect(h.session.prompt).toBe(null);
+  });
+
+  it('leaves a gift on E, persists it, and pays the existing gift award once', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    h.walkTo(3, 23);
+    // standing on the fountain already paid the pre-existing scenic award
+    expect(h.progression.state.points).toBe(AWARDS.scenic);
+    h.pressE();
+    expect(h.progression.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+    expect(h.progression.state.points).toBe(AWARDS.scenic + AWARDS.gift);
+    expect(h.gifts.list.map((g) => g.spot)).toEqual(['fountain']); // visible at once
+    expect(h.toasts.at(-1)).toContain('the old fountain');
+    // ...and the value of an existing award was not changed to do it
+    expect(AWARDS.gift).toBe(10);
+  });
+
+  it('stops offering a spot that already holds a gift', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    h.walkTo(3, 23);
+    h.pressE();
+    h.walkTo(3, 23);
+    expect(h.session.prompt).toBe(null);
+    // a different spot is still on offer
+    h.walkTo(12, -30);
+    expect(h.session.prompt.data.id).toBe('meadow');
+  });
+
+  it('cannot be farmed for points by pressing E on the same spot repeatedly', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    h.walkTo(3, 23);
+    for (let i = 0; i < 10; i++) h.pressE();
+    expect(h.progression.state.points).toBe(AWARDS.scenic + AWARDS.gift);
+    expect(h.progression.state.gifts).toHaveLength(1);
+  });
+
+  it('refuses (and says so) once the save cap is full', () => {
+    const saved = Array.from({ length: 8 }, (_, i) => ({ area: 'park', spot: `held-${i}` }));
+    const h = giftHarness({ skills: ['gift-paws'], saved });
+    h.walkTo(3, 23);
+    expect(h.session.prompt.kind).toBe('gift-leave'); // the spot is free…
+    h.pressE();
+    expect(h.progression.state.gifts).toHaveLength(8); // …but the satchel is not
+    expect(h.toasts.at(-1)).toContain('out of gifts');
+    expect(h.progression.state.points).toBe(AWARDS.scenic); // no gift award paid
+  });
+
+  it('never shadows an existing prompt — the gift branch is last in the chain', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    const stray = { name: 'Pip', breed: 'tabby', group: { position: new THREE.Vector3(3, 0, 23) } };
+    h.session.strayCats.nearest = () => stray;
+    h.walkTo(3, 23);
+    expect(h.session.prompt.kind).toBe('stray');
+  });
+
+  it('survives an area with no scenic spots at all', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    h.session.areaData.scenics = [];
+    expect(() => h.walkTo(3, 23)).not.toThrow();
+    expect(h.session.prompt).toBe(null);
+  });
+
+  // --- finding -----------------------------------------------------------
+
+  function withFinder(h, holder, gift) {
+    holder.foundGift = gift;
+    return holder;
+  }
+
+  it('a stray who found your gift hands it over, once, and it leaves the save', () => {
+    const h = giftHarness({ skills: ['gift-paws'], saved: [{ area: 'park', spot: 'fountain' }] });
+    const gift = h.gifts.list[0];
+    const stray = withFinder(h, {
+      name: 'Pip', hasGift: false, group: { position: new THREE.Vector3(0, 0, 0) },
+    }, gift);
+    h.strays.push(stray);
+    h.walkTo(0, 0);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+    expect(h.progression.state.gifts).toEqual([]);   // consumed
+    expect(h.gifts.list).toHaveLength(0);            // prop gone
+    expect(stray.foundGift).toBe(null);
+    // a second frame in the radius pays nothing more
+    h.walkTo(0, 0);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+  });
+
+  it('a ghost visitor hands it over the same way, naming the friend', () => {
+    const h = giftHarness({ skills: ['gift-paws'], saved: [{ area: 'park', spot: 'meadow' }] });
+    const gift = h.gifts.list[0];
+    const ghost = withFinder(h, {
+      playerId: 'p2', petName: 'Mochi', hasGift: false,
+      group: { position: new THREE.Vector3(0, 0, 0) },
+    }, gift);
+    h.ghostList.push(ghost);
+    h.walkTo(0, 0);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+    expect(h.progression.state.gifts).toEqual([]);
+    expect(h.gifts.list).toHaveLength(0);
+    expect(ghost.foundGift).toBe(null);
+    expect(ghost.hasGift).toBe(false); // the OTHER gift direction untouched
+  });
+
+  it('pays only once even if a stray AND a ghost both somehow hold it', () => {
+    // claimGift is the single gate, so a hand-over race cannot double-pay.
+    const h = giftHarness({ skills: ['gift-paws'], saved: [{ area: 'park', spot: 'fountain' }] });
+    const gift = h.gifts.list[0];
+    h.strays.push(withFinder(h, { name: 'Pip', group: { position: new THREE.Vector3(0, 0, 0) } }, gift));
+    h.ghostList.push(withFinder(h, {
+      playerId: 'p2', petName: 'Mochi', group: { position: new THREE.Vector3(0, 0, 0) },
+    }, gift));
+    h.walkTo(0, 0);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+    expect(h.progression.state.gifts).toEqual([]);
+  });
+
+  it('hands nothing over from across the map', () => {
+    const h = giftHarness({ skills: ['gift-paws'], saved: [{ area: 'park', spot: 'fountain' }] });
+    const gift = h.gifts.list[0];
+    h.strays.push(withFinder(h, { name: 'Pip', group: { position: new THREE.Vector3(30, 0, 30) } }, gift));
+    h.walkTo(0, 0);
+    expect(h.progression.state.gifts).toHaveLength(1);
+    expect(h.progression.state.points).toBe(0);
+  });
+
+  it('does NOT need the skill to receive one — an earned gift is still found later', () => {
+    // Gift Paws is what lets you LEAVE gifts. A save that somehow holds one
+    // (left before a threshold change, restored from cloud) must still be
+    // able to have it found.
+    const h = giftHarness({ skills: [], saved: [{ area: 'park', spot: 'fountain' }] });
+    const gift = h.gifts.list[0];
+    h.strays.push(withFinder(h, { name: 'Pip', group: { position: new THREE.Vector3(0, 0, 0) } }, gift));
+    h.walkTo(0, 0);
+    expect(h.progression.state.gifts).toEqual([]);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+  });
+
+  it('leaves the pre-existing hasGift path exactly as it was', () => {
+    // The opposite direction — a best friend bringing YOU something — must
+    // keep working and must not be confused with foundGift.
+    const h = giftHarness({ skills: [] });
+    h.strays.push({ name: 'Pip', hasGift: true, group: { position: new THREE.Vector3(0, 0, 0) } });
+    h.walkTo(0, 0);
+    expect(h.progression.state.points).toBe(AWARDS.gift);
+    expect(h.strays[0].hasGift).toBe(false);
+  });
+
+  it('a no-skills save with no gifts behaves exactly as today', () => {
+    const h = giftHarness({ skills: [] });
+    h.strays.push({ name: 'Pip', group: { position: new THREE.Vector3(0, 0, 0) } });
+    h.ghostList.push({ playerId: 'p2', petName: 'Mochi', group: { position: new THREE.Vector3(0, 0, 0) } });
+    for (const [x, z] of [[0, 0], [3, 23], [12, -30], [-14, 10]]) h.walkTo(x, z);
+    expect(h.progression.state.gifts).toEqual([]);
+    expect(h.session.prompt).toBe(null);
+    // the only points paid are the scenic-visit awards that already existed
+    expect(h.progression.state.points).toBe(3 * AWARDS.scenic);
+  });
+
+  it('never throws on a hostile save, and offers nothing off one', () => {
+    // A stand-in progression whose `state` is whatever the cloud handed
+    // back. hasSkill is total over any input, so the gift branch simply
+    // never opens.
+    for (const state of [null, undefined, 'nope', { skills: 'x', gifts: 'y' }, { skills: ['gift-paws'] }]) {
+      const h = giftHarness({ progression: {
+        state,
+        giftsIn: () => [],
+        leaveGift: () => false,
+        claimGift: () => false,
+        recordFeat() {}, addPoints() {}, recordSighting() {}, recordGreet() {},
+      } });
+      expect(() => h.walkTo(3, 23)).not.toThrow();
+      expect(() => h.pressE()).not.toThrow();
+      expect(h.gifts.list).toHaveLength(0);
+    }
   });
 });

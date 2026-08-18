@@ -406,7 +406,7 @@ describe('createProgression', () => {
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
-        skills: [], feats: {}, duskWalks: 0,
+        skills: [], feats: {}, duskWalks: 0, gifts: [],
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1442,5 +1442,166 @@ describe('recordSkillUnlocks', () => {
     p.replaceFromPayload({ version: 4, skills: p.state.skills, feats: {} });
     expect(p.state.feats).toEqual({});
     expect(hasSkill(p.state, 'sure-claws')).toBe(true);
+  });
+});
+
+// ===========================================================================
+// v18 Task 3.2 — Gift Paws' save field.
+//
+// Additive, exactly like skills/feats/duskWalks before it: SAVE_VERSION stays
+// 4, an old payload loads losslessly with the default, and every field is
+// sanitized independently against a hostile payload.
+// ===========================================================================
+describe('v18 gifts save field', () => {
+  it('a fresh save starts empty and stays version 4', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.gifts).toEqual([]);
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating gifts loads losslessly with the default', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 300, lifetimePoints: 1200,
+      walks: { neighborhood: 4, park: 4, seaside: 2, den: 1, docks: 1 },
+      skills: ['gift-paws'], feats: { gift: 6 }, duskWalks: 5,
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.gifts).toEqual([]);
+    expect(p.state.points).toBe(300);
+    expect(p.state.feats.gift).toBe(6);
+  });
+
+  it('round-trips a real gift through storage', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.leaveGift('park', 'fountain')).toBe(true);
+    expect(createProgression(storage).state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  // --- hostile payloads --------------------------------------------------
+
+  it('drops a gifts field that is not an array', () => {
+    for (const gifts of ['<script>alert(1)</script>', 5, true, null, { area: 'park' }]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, gifts }) });
+      expect(createProgression(storage).state.gifts).toEqual([]);
+    }
+  });
+
+  it('drops entries with the wrong types', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      null, 7, 'park/fountain', [], ['park', 'fountain'],
+      { area: 'park' },                       // no spot
+      { spot: 'fountain' },                   // no area
+      { area: 5, spot: 'fountain' },
+      { area: 'park', spot: 5 },
+      { area: 'park', spot: '' },
+      { area: 'park', spot: 'x'.repeat(41) }, // oversized
+    ] });
+    expect(p.state.gifts).toEqual([]);
+  });
+
+  it('drops an unknown area id — including one that renames itself', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'atlantis', spot: 'fountain' },
+      { area: 'den', spot: 'fountain' },        // the den is not a walk area
+      { area: '__proto__', spot: 'fountain' },
+      { area: 'constructor', spot: 'fountain' },
+      { area: 'toString', spot: 'fountain' },
+      { area: 'park', spot: 'fountain' },       // the one real entry
+    ] });
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  it('never lets a __proto__ spot id pollute anything', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [{ area: 'park', spot: '__proto__' }] });
+    // Stored inertly as a plain string on a plain object — it matches no
+    // scenic id, so gifts.js renders nothing for it (see gifts.test.js).
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: '__proto__' }]);
+    expect(Object.prototype.hasOwnProperty.call({}, 'polluted')).toBe(false);
+    expect({}.spot).toBeUndefined();
+  });
+
+  it('collapses duplicates so one spot can never hold two', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'park', spot: 'fountain' },
+      { area: 'park', spot: 'fountain' },
+      { area: 'seaside', spot: 'fountain' }, // same spot id, different area: kept
+    ] });
+    expect(p.state.gifts).toEqual([
+      { area: 'park', spot: 'fountain' },
+      { area: 'seaside', spot: 'fountain' },
+    ]);
+  });
+
+  it('caps an over-long list rather than persisting it', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: Array.from({ length: 500 }, (_, i) => ({
+      area: 'park', spot: `spot-${i}`,
+    })) });
+    expect(p.state.gifts).toHaveLength(8);
+    // and the cap holds against further leaves
+    expect(p.leaveGift('park', 'one-more')).toBe(false);
+    expect(p.state.gifts).toHaveLength(8);
+  });
+
+  it('keeps only the two declared fields, never whatever else rode along', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, gifts: [
+      { area: 'park', spot: 'fountain', points: 1e9, html: '<img onerror=1>' },
+    ] });
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+  });
+
+  // --- the API -----------------------------------------------------------
+
+  it('leaveGift refuses an unknown area, a bad spot, and a repeat', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.leaveGift('atlantis', 'fountain')).toBe(false);
+    expect(p.leaveGift('den', 'fountain')).toBe(false);
+    expect(p.leaveGift('park', '')).toBe(false);
+    expect(p.leaveGift('park', 'x'.repeat(41))).toBe(false);
+    expect(p.leaveGift('park', 5)).toBe(false);
+    expect(p.leaveGift(null, 'fountain')).toBe(false);
+    expect(p.state.gifts).toEqual([]);
+    expect(p.leaveGift('park', 'fountain')).toBe(true);
+    expect(p.leaveGift('park', 'fountain')).toBe(false); // one per spot
+    expect(p.state.gifts).toHaveLength(1);
+  });
+
+  it('giftsIn returns only that area, as copies the caller may keep', () => {
+    const p = createProgression(fakeStorage());
+    p.leaveGift('park', 'fountain');
+    p.leaveGift('seaside', 'pier-end');
+    expect(p.giftsIn('park')).toEqual([{ area: 'park', spot: 'fountain' }]);
+    expect(p.giftsIn('docks')).toEqual([]);
+    expect(p.giftsIn('den')).toEqual([]);
+    expect(p.giftsIn(null)).toEqual([]);
+    const copy = p.giftsIn('park')[0];
+    copy.spot = 'tampered';
+    expect(p.state.gifts[0].spot).toBe('fountain');
+  });
+
+  it('claimGift removes exactly one, and reports whether it did', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.leaveGift('park', 'fountain');
+    p.leaveGift('park', 'meadow');
+    expect(p.claimGift('park', 'fountain')).toBe(true);
+    expect(p.claimGift('park', 'fountain')).toBe(false); // already found
+    expect(p.claimGift('seaside', 'meadow')).toBe(false); // wrong area
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'meadow' }]);
+    // persisted, not just in memory
+    expect(createProgression(storage).state.gifts).toEqual([{ area: 'park', spot: 'meadow' }]);
+  });
+
+  it('reset() clears stashed gifts', () => {
+    const p = createProgression(fakeStorage());
+    p.leaveGift('park', 'fountain');
+    p.reset();
+    expect(p.state.gifts).toEqual([]);
   });
 });
