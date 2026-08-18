@@ -311,9 +311,22 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
       }
     }
   }
+  // a narrower column of windows on the short (x) faces, so no elevation of
+  // the building reads as a blank slab
+  for (const face of [1, -1]) {
+    for (const wy of h > 3.4 ? [1.1, 2.7] : [1.1]) {
+      const win = box(0.08, 0.7, 0.8, 0xa8d8e8);
+      win.userData.window = true;
+      win.position.set(face * (w / 2 + 0.02), wy, 0);
+      g.add(win);
+    }
+  }
   const door = box(1.6, 2.2, 0.12, 0x53433a);
   door.position.set(0, 1.1, d / 2 + 0.03);
   g.add(door);
+  const lintel = box(2.0, 0.16, 0.2, 0x5e5450);
+  lintel.position.set(0, 2.3, d / 2 + 0.05);
+  g.add(lintel);
   g.position.set(x, 0, z);
   return g;
 }
@@ -390,23 +403,51 @@ export function marketStall(x, z, rotY = 0, awningColor = 0xc85a5a) {
 // value is the landing's WALKABLE TOP), joined by ladders. The landings are
 // the perch steps; the ladders are decoration, since climbing in this game is
 // perch-to-perch and not a continuous surface.
-export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9]) {
+//
+// `depth` is how far the assembly reaches BACKWARDS (local +z) toward the
+// wall it hangs on. The group's origin sits 0.55 in from the landing's front
+// edge — that origin is the perch point — so the caller places the origin
+// where the cat should stand and sizes `depth` to meet the wall behind it.
+// Without that the landings float in open air, which is exactly how the first
+// draft of this looked in the browser.
+export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9], depth = 2.2) {
   const g = new THREE.Group();
+  const back = depth - 0.55; // local z of the wall face
   let prev = 0;
   for (const h of heights) {
-    const landing = box(1.6, 0.1, 1.1, 0x4a4a52);
-    landing.position.y = h - 0.05;
+    const landing = box(1.7, 0.1, depth, 0x4a4a52);
+    landing.position.set(0, h - 0.05, depth / 2 - 0.55);
     g.add(landing);
-    for (const rx of [-0.8, 0.8]) { // handrail
-      const rail = box(0.06, 0.5, 1.1, 0x5a5a62);
-      rail.position.set(rx, h + 0.25, 0);
+    for (const rx of [-0.85, 0.85]) { // side handrails
+      const rail = box(0.06, 0.55, depth, 0x5a5a62);
+      rail.position.set(rx, h + 0.25, depth / 2 - 0.55);
       g.add(rail);
+      const top = box(0.1, 0.08, depth, 0x6a6a72);
+      top.position.set(rx, h + 0.55, depth / 2 - 0.55);
+      g.add(top);
     }
-    const ladder = box(0.5, h - prev, 0.06, 0x5a5a62);
-    ladder.position.set(0, prev + (h - prev) / 2, -0.5);
-    g.add(ladder);
+    const front = box(1.7, 0.55, 0.06, 0x5a5a62); // front rail
+    front.position.set(0, h + 0.25, -0.55);
+    g.add(front);
+    // ladder up from the previous landing, on the front edge, with rungs
+    for (const lx of [-0.28, 0.28]) {
+      const stile = box(0.06, h - prev, 0.06, 0x6a6a72);
+      stile.position.set(lx, prev + (h - prev) / 2, -0.52);
+      g.add(stile);
+    }
+    const rungs = Math.max(2, Math.round((h - prev) / 0.32));
+    for (let i = 1; i < rungs; i++) {
+      const rung = box(0.56, 0.045, 0.045, 0x6a6a72);
+      rung.position.set(0, prev + (i / rungs) * (h - prev), -0.52);
+      g.add(rung);
+    }
     prev = h;
   }
+  // the bracket plate bolted flat to the wall, so the whole thing reads as
+  // hung off the building rather than standing in front of it
+  const plate = box(1.9, heights[heights.length - 1] + 0.4, 0.1, 0x3e3e46);
+  plate.position.set(0, (heights[heights.length - 1] + 0.4) / 2, back);
+  g.add(plate);
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
   return g;
