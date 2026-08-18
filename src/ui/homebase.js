@@ -1,7 +1,7 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
-import { HOME_TABS, resolveTab } from './hometabs.js';
+import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
@@ -14,7 +14,7 @@ const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 const ACCESSORY_SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
 
-const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', social: '🐾 Social', album: '📸 Album', settings: '⚙️ Settings' };
+const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', skills: '🐾 Skills', social: '👥 Social', album: '📸 Album', settings: '⚙️ Settings' };
 
 const CAT_BLURBS = {
   tabby: 'Curious — sniffs out hidden treasures',
@@ -531,6 +531,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                   </div>
                 </div>`;
               }).join('')}
+            </section>
+          </div>
+          <div class="hb-panel" data-panel="skills">
+            <section class="skills-section"><h2>Cat Skills 🐾</h2>
+              <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
+                ability is yours forever.</p>
+              ${renderSkillsHtml(s)}
             </section>
           </div>
           <div class="hb-panel" data-panel="social">
