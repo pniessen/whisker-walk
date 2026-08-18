@@ -1,7 +1,9 @@
 # Whisker Walk v18 — "Cat Skills" — Design Spec
 
 **Date:** 2026-08-17
-**Status:** Draft (design decisions locked with the user; not yet planned)
+**Status:** Implemented, with corrections — see **§Status as shipped** at the
+end of this document before trusting any detail above it (notably: Sea Legs is
+descoped, so the wave ships eleven abilities, not twelve).
 **Base:** deployed game at v17 + post-v17 tab split, plus the in-flight
 `src/main.js` module carve-out (see §Sequencing).
 
@@ -219,3 +221,70 @@ extracted. Merge the refactor branch and confirm the 393-test baseline is green
 Suggested task order: save fields + feat counters → skills catalog + predicates →
 Skills tab → the nine cheap abilities → rank ladder → the Docks → Fence Runner →
 Gift Paws → Sea Legs.
+
+---
+
+## Status as shipped (appended 2026-08-18, Task 4.0)
+
+**This section is a correction log, not a rewrite.** Everything above is the
+spec as it was written on 2026-08-17 and is deliberately left intact — the
+history is worth keeping. What follows records the three places where the
+shipped code deliberately disagrees with it, and why. A spec that silently
+disagrees with the code is worse than one that records its own corrections.
+
+Full reasoning for each lives in the **Carry-forward** section of the plan,
+`docs/superpowers/plans/2026-08-18-whisker-walk-v18-cat-skills.md`. Read that
+section in full before touching this wave.
+
+### The wave ships ELEVEN abilities, not twelve — Sea Legs is descoped (CF-12)
+
+Cut per this spec's own stated descope order, but **not for time**: the ability
+as specified does not do what the spec claims. Water in this game has never
+carried colliders, so the park pond, the seaside sea and the Docks canal are
+*already* walk-over surfaces. "Swim — water becomes traversable at reduced
+speed" therefore describes traversal the player already has, minus speed, and
+an earned ability must never be a downgrade.
+
+Making water block instead would give it real value, but three park ducks spawn
+*inside* the pond and the `duck-parade` moment originates there — which would
+put a journal critter behind an ability, violating this spec's own non-goal
+that no ability may gate content reachable today.
+
+`sea-legs` is therefore removed from the `SKILLS` catalog **entirely**, not left
+visible as locked or "coming soon": its feat (`walks.seaside >= 5`) is perfectly
+earnable, so a visible entry would unlock with a celebration and then do
+nothing. The §Traversal row for Sea Legs and its §Risks entry above are
+superseded. Recommended as its own **v19** item — make water real (colliders +
+a swim state), relocate the pond ducks to the shoreline, then reinstate the
+ability that opens it. The Docks was deliberately authored for exactly this.
+
+### Far Call is an ordinary meow that carries far, not a held one (CF-6)
+
+The spec describes Far Call as a **held** V press. `main.js` fires `doMeow()` on
+keydown with no keyup plumbing, so hold detection means new input handling in an
+untested module for no gameplay gain. **The spec text is what is wrong here, not
+the implementation** — and a plain press is simpler for a ten-year-old.
+
+### The Long Zoomies wording was wrong (CF-11)
+
+"Charge runs 2.5s (from 1.5s)" misread 1.5 as a burst duration; it is the
+charge-**up** threshold, so taken literally the ability would have been a 67%
+*nerf*. The two clauses were mapped onto the two knobs that actually exist:
+charge-up 1.5 → **0.9s** ("recharges faster"), and the charge now survives
+**2.5s** of interruption ("runs longer").
+
+### Also worth knowing
+
+- **Gift Paws' feat is 3 gifts, not 5** (Task 4.0). Giving a gift requires the
+  ability, so before you hold it the only source is *receiving* — which needs a
+  best-friend stray (6 greets, or 4 with Charmer) and then a `0.3` roll, at most
+  once per walk. Five of those is a long RNG grind for the target player.
+- **Two ability halves are unimplemented** (CF-9): Spring Paws' "markedly higher
+  pounce jump" (`player.pounce()` has no vertical component at all) and Sure
+  Claws' "props that were scenery become climbable" (shipped perch records carry
+  no per-prop tag). Both abilities work; each is missing its second half.
+- **Spring Paws kept the spec's 2.2 climb budget** (CF-8) — §Traversal and
+  §Risks contradicted each other, and the §Risks wording was ruled imprecise.
+  "Trivialized" means *reachable without climbing at all*, not *in fewer hops*.
+- The §Sequencing baseline of "393 tests" is long stale; the wave finished at
+  **758 passing across 52 files**.

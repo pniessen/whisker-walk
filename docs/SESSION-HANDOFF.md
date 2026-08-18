@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-14 (v11–v17 program + Cats/Accessories tab split shipped) · **Branch:** `main` · **Tests:** 393 passing (44 files) · **Latest commit:** merge `085f61e`
+**Last updated:** 2026-08-18 (v18 "Cat Skills" wave — earned abilities, The Old Docks) · **Branch:** `v18-cat-skills` · **Tests:** 758 passing (52 files)
 
 ---
 
@@ -58,7 +58,7 @@ keeping a cloud-synced save, and getting ghost visits from befriended pets.
 | `src/game/photo.js`, `src/game/composer.js`, `src/game/labels.js`, `src/game/util.js` | Photo mode; the lazy bloom rig + per-frame draw; critter display names; shared pure helpers (`escapeHtml`, `nowSec`, `hashName`) |
 | `src/net.js` | Supabase client (shared memoized dynamic import), realtime transport, fake hub for tests |
 | `src/cloud.js` | `createCloud({rpc,select})` — save/load/profile/greet/friend-code RPC client; `generateSaveCode`, `getOrCreateSecret` |
-| `src/progression.js` | Save state, `sanitizeState` (hostile-payload hardening), `summarizeSaveForPreview`, RANKS, save version **3** |
+| `src/progression.js` | Save state, `sanitizeState` (hostile-payload hardening), `summarizeSaveForPreview`, the RANKS ladder (extended in v18), `recordSkillUnlocks`/`sanitizeSkills`, save version **4** |
 | `src/album.js` | Photo album + `sanitizeAlbumPayload` (drops non-`data:image/` thumbs, caps sizes) |
 | `src/blocklist.js` | Per-device block set for unwanted ghost visitors |
 | `src/settings.js` | `createSettings(storage)` — volume/mute/invertY/leftHanded/reducedMotion |
@@ -73,9 +73,13 @@ keeping a cloud-synced save, and getting ghost visits from befriended pets.
 | `src/journal.js`, `src/goldmice.js`, `src/kitten.js` | v15 collection/story systems |
 | `src/verbs.js`, `src/race.js`, `src/samples.js` | v16 co-walk verbs, daily race, sampled voices |
 | `src/den.js` + `src/world/den.js`, `src/music.js` | v17 den catalog/world + generative lofi |
+| `src/skills.js` | **v18 ability catalog** — the eleven `SKILLS` entries + `SKILL_FAMILIES`, `hasSkill`/`unlockedSkills`/`skillProgress`, and the `friendRungs()` ♡→♥→💕 rung table (THE one copy; Charmer moves it). Deliberately **zero imports** so it is callable from a unit test, the home-base UI, and the render loop alike — and so `progression.js`'s import of `SKILL_IDS` is unconditionally cycle-free. Every predicate takes a hostile payload and never throws |
+| `src/gifts.js` | v18 Gift Paws: gifts stashed at scenic spots, `pickFoundGift`, `NO_GIFTS` |
+| `src/world/docks.js` | v18 fifth area, The Old Docks — crane, crates, plank bridges, canal, perch array |
+| `src/game/celebrate.js` | v18 ability-unlock celebration card (shared by the mid-walk and end-of-walk unlock paths) |
 | `docs/supabase-setup.sql` | **LIVE DB contract** — see §4 |
 
-## 3. Feature waves (all shipped, merged, deployed)
+## 3. Feature waves (all shipped and deployed except v18, which is still on its branch)
 
 The game was built in successive waves via the **superpowers SDD pipeline**
 (brainstorm → spec → plan → fresh implementer subagent per task → per-task
@@ -89,8 +93,8 @@ in `docs/superpowers/`.
 - **v5 "Co-Walks"** — live multiplayer co-walking via Supabase Realtime; pets are *named* (not "players"); occasional ghosts. Family pets added: **Zeetoo** (tabby), **Rosa** (tux), **Robbie** (cow cat), **Hagrid** (a chicken). Two-player boop acceptance test passed live.
 - **v6 "Mobile"** — mobile-friendly: virtual joystick (lower-LEFT thumb), orbit drag (right side), touch engagement model, coarse-pointer perf tuning.
 - **v7 "Always Online"** — cloud saves, persistent friendships, ghost visits, PWA, settings — see §5.
-- **v8 "Say Hi"** (latest) — live in-game chat during co-walks. Curated phrase/emote tray (💬 button), speech bubbles over cats (`src/chatbubble.js` mirrors `nametag.js`), per-player mute + `hideChat` setting. **Safety keystone: only a phrase-ID enum crosses the wire** (`src/chat.js` catalog; `net.js` `chat` broadcast kind) — no free text, so no moderation surface. Files: `src/chat.js`, `src/chatbubble.js`, `src/ui/chatwheel.js`, chat wiring in `src/main.js`. Spec/plan: `docs/superpowers/{specs,plans}/2026-08-11-whisker-walk-v8-chat.md`. **Lesson:** the live Supabase transport must subscribe to every broadcast kind `createNet.handleBroadcast` handles — the final review caught `chat` missing from `createSupabaseTransport.join` (unit tests passed because the fake hub is kind-agnostic). Verify multiplayer wire changes with a live two-client round-trip, not just unit tests.
-- **v9 "Home Base, Tidied"** — the home base became a sticky hero (cat wordmark + rank + Start) over tabs (`src/ui/hometabs.js` + restructured `src/ui/homebase.js`; originally four — Play/Social/Album/Settings — now five, see the tab split entry below). Consolidated the three social blocks into one Friends section. Reorganization only — all handlers/escaping preserved.
+- **v8 "Say Hi"** — live in-game chat during co-walks. Curated phrase/emote tray (💬 button), speech bubbles over cats (`src/chatbubble.js` mirrors `nametag.js`), per-player mute + `hideChat` setting. **Safety keystone: only a phrase-ID enum crosses the wire** (`src/chat.js` catalog; `net.js` `chat` broadcast kind) — no free text, so no moderation surface. Files: `src/chat.js`, `src/chatbubble.js`, `src/ui/chatwheel.js`, chat wiring in `src/main.js`. Spec/plan: `docs/superpowers/{specs,plans}/2026-08-11-whisker-walk-v8-chat.md`. **Lesson:** the live Supabase transport must subscribe to every broadcast kind `createNet.handleBroadcast` handles — the final review caught `chat` missing from `createSupabaseTransport.join` (unit tests passed because the fake hub is kind-agnostic). Verify multiplayer wire changes with a live two-client round-trip, not just unit tests.
+- **v9 "Home Base, Tidied"** — the home base became a sticky hero (cat wordmark + rank + Start) over tabs (`src/ui/hometabs.js` + restructured `src/ui/homebase.js`; originally four — Play/Social/Album/Settings — now six, see the tab split and v18 entries below). Consolidated the three social blocks into one Friends section. Reorganization only — all handlers/escaping preserved.
 - **Logo branding** — B1 refined-face app icon (`public/icon.svg`), C1 wordmark lockup as the home base hero title (`homebase.js`), A2 chibi mascot as a boot splash (`index.html` `#splash` + fade script, fallback timeout so it can't trap the player). Shipped with v10.
 - **v11 "Cat Couture"** — six layered cosmetic slots (head/face/neck/body/back/feet + collar), 12 new items, save v3→4 migration (no data loss), slot-grouped Accessories UI, slot-aware thumbnail framing. Hoodie hood renders up/down by head-slot state; Hagrid gracefully skips what doesn't fit a chicken.
 - **v12 "Juice & Polish"** — WebAudio master bus (gain→compressor→generated-impulse reverb, `src/audio.js`), formant-synthesized meow/purr/trill with per-breed voices (`src/catvoice.js`), tone-mapping/IBL calibration (exposure 1.1, envIntensity 0.45/0.32), FX system (`src/fx.js`: "+N 🐾" popups + particle bursts), collect arpeggio + jackpot fanfare.
@@ -99,8 +103,15 @@ in `docs/superpowers/`.
 - **v15 "Collector's Journal"** — four ADDITIVE save fields (journal/golden/streak/kitten — no version bump; per-field sanitize with size caps), critter journal Album grid (`src/journal.js`), nine golden mice at parkour spots (`src/goldmice.js`), the 3-walk lost-kitten story arc (`src/kitten.js` — E-mash-proofed: encounter guards + plan-kind dispatch), daily streak bonus, dated/framed album photos.
 - **v16 "Together"** — ghosts answer chat in the named-cat voices (Zeetoo/Rosa/Robbie/Hagrid reachable at last); co-walk verbs: pounce-tag (boop-style awardOnce convergence), mutual grooming (local detection from synced poses), duo goal (`goal-progress` events, `noteDuoRemote` never re-broadcasts); daily zoomies race (`src/race.js` — date+area-seeded 5-ring course, identical across devices, local best); sampled pet voices (`src/samples.js` — manifest-driven, synth fallback; `docs/RECORDING-PETS.md` tells the family how to record the real cats). **All new events ride the existing `event` broadcast kind — live-verified with a two-process bot round-trip through the real Supabase relay.**
 - **v17 "Cozy Den"** — walkable furnished den (`src/den.js` catalog + `src/world/den.js` interior; buy/place furniture from the home base; open fourth wall + inward spawn for the follow camera; cattree is a climbable perch; ghosts and stage-3 Mochi visit; fireplace-crackle ambience; `completeWalk(areaId)` so den walks count `walks.den`), seeded generative lofi music (`src/music.js` — pentatonic phrases, mood per walk type, `musicVolume` setting, mute-safe).
-- **Tab split (post-v17, `085f61e`)** — the home base now has **five tabs: Cats 🐱 / Accessories 🎩 / Social / Album / Settings**. The old Play tab was renamed Cats (cat pick, areas, den section); the slot-grouped accessory shop ("Dress up your cat") moved to its own Accessories tab. `resolveTab`'s unknown-id fallback clamps a stale persisted `'play'` id to `'cats'` (test-pinned in `test/hometabs.test.js`).
-- **v10 "Talk to the Cats"** (latest) — message a nearby AI cat with a curated phrase, get a personality-appropriate **canned** reply as a speech bubble (`src/catreplies.js`, pure `(personality,intent)→line`, all 10 voices incl. Hagrid clucks). Greetings count one **capped** friendship greet (shared `awardStrayGreet`, `stray.greeted` guard — never out-farms booping). **Keyboard chat** (`src/chatkeys.js` + `main.js` keydown): number row `1`–`0` sends *under pointer lock* (fixes desktop-unusable chat — the 💬 button was unreachable with the cursor captured), `Enter` opens the tray (releases pointer lock), `Esc` closes; chat now works in **solo** walks too. **Lesson:** the reply seed must be numeric — `session.walkStamp` is the STRING `'walk-<ms>'`, so `string + number` fed `pick()` `NaN>>>0=0` and made every same-breed cat reply identically; fixed with `seedFromCode(walkStamp)+hashName(name)`. Known limitation: named-cat voices (zeetoo/rosa/robbie/hagrid) aren't reachable in-game yet (strays spawn the 6 base breeds; ghost-reply wiring is a future follow-up).
+- **Tab split (post-v17, `085f61e`)** — the home base now has **five tabs: Cats 🐱 / Accessories 🎩 / Social / Album / Settings** (v18 added a sixth, Skills 🐾, between Accessories and Social). The old Play tab was renamed Cats (cat pick, areas, den section); the slot-grouped accessory shop ("Dress up your cat") moved to its own Accessories tab. `resolveTab`'s unknown-id fallback clamps a stale persisted `'play'` id to `'cats'` (test-pinned in `test/hometabs.test.js`).
+- **v18 "Cat Skills"** — the wave that turned lifetime play into **earned abilities**. `src/skills.js` is a pure, zero-import catalog of **eleven** permanent always-on abilities across four families (Traversal 🧗 / Senses 👃 / Social 💕 / Mischief 😼), each gated on a **feat predicate** read straight off the save — no loadout, no respec, no prerequisites. `hasSkill(state, id)` is THE contract every ability gates its effect behind, and it returns the **union** of "the save lists it as earned" and "its predicate is satisfied right now", so an ability is never revoked by a later threshold change and never dead waiting on the UI. New **Skills 🐾** home-base tab (a sixth tab; render helper `renderSkillsHtml` lives in `hometabs.js`, not `homebase.js` — see the gotcha below) shows every ability with its progress bar and its feat.
+  - **The challenge-unlock model.** Four feats originally read a *proxy* counter and were closed by adding a **parallel tally** next to the existing award (`feats.perch`, `feats.race`, `state.duskWalks`) rather than retyping the award. Award types are read by the goals system, so retyping one silently rebalances live gameplay. **If a future feat needs a counter that doesn't exist, add one alongside — never repurpose an award.**
+  - **The Old Docks** (`src/world/docks.js`) — a fifth walk area: gantry crane, crates, plank bridges, a canal, three golden mice, its own dockside-rat critter, and (Task 4.0) its own harbour ambience (water lap + gulls + a rare distant horn). `walks.docks` joins the walk tallies.
+  - **Extended rank ladder** — the ranks run further up (`src/progression.js` RANKS, topping out at Whisker Legend) so a player with lifetime points from eleven ability grinds still has somewhere to climb.
+  - **Unlock celebration** — `src/game/celebrate.js` shows an ability card + `audio.unlockFanfare()` + an FX burst. Routed through one `celebrateNewSkills()` in `walk.js` so both the mid-walk and the end-of-walk unlock paths share it and neither can double-fire.
+  - **Gifts** — `src/gifts.js` + Gift Paws lets you stash a gift at a scenic spot for ghosts and co-walkers to find; `state.gifts` holds at most 8 outstanding.
+  - **Descoped: Sea Legs** (twelfth ability, swimming). Water in this game has never carried colliders, so every water body is *already* a walk-over surface — the ability as specified would have made the cat strictly slower, and making water block would put the pond ducks behind an ability. **Removed from the catalog entirely, not left locked**, because its feat was perfectly earnable and would have celebrated an unlock that did nothing. Full reasoning: **CF-12** in the v18 plan. Reinstating it is a v19 item (make water real, relocate the pond ducks, then open it) — the Docks was deliberately authored for that, with a test pinning that nothing required sits in the canal.
+- **v10 "Talk to the Cats"** — message a nearby AI cat with a curated phrase, get a personality-appropriate **canned** reply as a speech bubble (`src/catreplies.js`, pure `(personality,intent)→line`, all 10 voices incl. Hagrid clucks). Greetings count one **capped** friendship greet (shared `awardStrayGreet`, `stray.greeted` guard — never out-farms booping). **Keyboard chat** (`src/chatkeys.js` + `main.js` keydown): number row `1`–`0` sends *under pointer lock* (fixes desktop-unusable chat — the 💬 button was unreachable with the cursor captured), `Enter` opens the tray (releases pointer lock), `Esc` closes; chat now works in **solo** walks too. **Lesson:** the reply seed must be numeric — `session.walkStamp` is the STRING `'walk-<ms>'`, so `string + number` fed `pick()` `NaN>>>0=0` and made every same-breed cat reply identically; fixed with `seedFromCode(walkStamp)+hashName(name)`. Known limitation: named-cat voices (zeetoo/rosa/robbie/hagrid) aren't reachable in-game yet (strays spawn the 6 base breeds; ghost-reply wiring is a future follow-up).
 
 ## 4. Backend — the LIVE Supabase contract ⚠️
 
@@ -170,8 +181,20 @@ Every fix independently re-probed with hostile payloads.
 
 ## 6. How to work on this repo
 
-- **Run:** `npm run dev` (localhost:5174, pinned `--strictPort`). **Test:** `npx vitest run` (393 green).
+- **Run:** `npm run dev` (localhost:5174, pinned `--strictPort`). **Test:** `npx vitest run --dir test` (758 green).
   **Build:** `npx vite build`. **Preview prod:** `npx vite preview`.
+  - **Always pass `--dir test`.** Agent worktrees live under `.claude/worktrees/`,
+    *inside* the project, so vitest's default glob collects their copied suites
+    and silently multiplies the count.
+  - **`npx`/`node` are not on PATH** in agent sandboxes. The direct shim always
+    works: `/Users/pniessen/.local/share/mise/shims/npx vitest run --dir test`.
+  - **A worktree has no `node_modules`** — resolution walks up to the parent
+    repo's, which is why nesting worktrees inside the project works at all.
+    Do **not** "fix" this by running `npm install` in a worktree.
+  - **Agent worktrees branch from `main`, not from the working branch.** Every
+    task brief must open with a base check (does the branch's newest file
+    exist?) and a `git merge --ff-only <branch>` if not. The tell is a stale
+    baseline test count.
 - **Verify in-browser** with the Browser-pane tools (never Bash for dev
   servers). Reviewers have repeatedly found real defects only visible by
   actually running the flow — do the browser verification, don't just read code.
@@ -192,10 +215,28 @@ Every fix independently re-probed with hostile payloads.
     into a room.
   - Escape every server-derived string at the render site (defense in depth on
     top of sanitize).
+  - **`src/ui/homebase.js` cannot be imported by the test suite** — it calls
+    `document.getElementById` at module scope and there is no jsdom here. Pure
+    render helpers therefore belong in `src/ui/hometabs.js` (the split
+    `journal.js` already uses for `renderJournalHtml`, and `renderSkillsHtml`
+    now uses too). Follow that split rather than adding a DOM shim.
+  - **Derive counts from the catalog, never from a literal.** The Skills tab
+    footer is `${earnedCount}/${SKILLS.length}` and `sanitizeSkills`' cap is
+    `KNOWN_SKILL_IDS.size` — which is exactly why dropping the twelfth ability
+    could not desync either of them.
 
 ## 7. Open threads / next steps
 
-- **No pending build work.** v7–v10 + logos are complete, merged to `main`, deployed.
+- **v18 "Cat Skills" is on the `v18-cat-skills` branch, not yet merged to `main`.**
+  Wave close-out (Task 4.0) is done: Sea Legs removed per CF-12, Gift Paws
+  lowered to 3, Docks ambience added, docs updated. 758 tests green, `vite
+  build` clean, Skills tab browser-verified. **Read the entire Carry-forward
+  section of `docs/superpowers/plans/2026-08-18-whisker-walk-v18-cat-skills.md`
+  before touching this wave** — it holds the rulings (CF-6 held-meow descope,
+  CF-8 Spring Paws budget, CF-11 Long Zoomies wording, CF-12 Sea Legs) and the
+  still-open follow-ups (CF-9's two unimplemented ability halves; CF-7's bare
+  `Math.random()` in the best-friend gift roll, which can desync co-walkers).
+- v7–v10 + logos are complete, merged to `main`, deployed.
 - **Phase 0 renderer upgrade — SHIPPED (2026-08-14, deployed).** PBR
   `MeshStandardMaterial` (`src/render/materials.js` `litMaterial`) under a
   runtime-baked asset-free `RoomEnvironment`+PMREM IBL map (`scene.environment`),
@@ -231,9 +272,16 @@ Every fix independently re-probed with hostile payloads.
   `.claude/launch.json` pins vite to port 5174 `--strictPort` so the preview
   tab and server agree (orphaned vites on 5173 caused port chaos once).
 - **Save format note:** still version 4. v15/v16/v17 fields
-  (journal/golden/streak/kitten/race/den, walks.den) are ADDITIVE — sanitized
-  per-field with defaults, so old payloads load losslessly and old clients
-  ignore the extra keys. Any future SHAPE change still needs a version bump +
+  (journal/golden/streak/kitten/race/den, walks.den) and the v18 fields
+  (**`skills`/`feats`/`duskWalks`/`gifts`**, plus `walks.docks`) are all
+  ADDITIVE — sanitized per-field with defaults, so old payloads load
+  losslessly and old clients ignore the extra keys. **No back-fill:** the v18
+  tallies start at zero on an existing save rather than being reconstructed
+  from history, which is a locked spec decision, not an oversight. `skills`
+  is validated against the live catalog (`SKILL_IDS`) and capped at its
+  length, so an id the catalog no longer knows — e.g. `'sea-legs'` from a v18
+  dev build — is simply dropped and the rest of the save survives intact
+  (test-pinned). Any future SHAPE change still needs a version bump +
   migration + no-data-loss tests (the v11 3→4 migration is the template).
 - **Remaining backlog:** async/offline friend messaging (needs tables + RPCs +
   moderation); relay quests; emote wheel; leaderboards / photo wall;
