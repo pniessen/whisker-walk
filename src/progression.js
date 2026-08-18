@@ -106,12 +106,26 @@ const FEAT_COUNT_MAX = 1_000_000;
 // stopping a hostile cloud payload persisting 1e15 dusk walks.
 const DUSK_WALKS_MAX = 100_000;
 
+// The prestige ladder, gated purely on lifetimePoints. Ranks confer NOTHING
+// mechanical — skills.js is the mechanical axis and this is the prestige one,
+// and keeping the two independent is the point (v18 spec §Rank ladder).
+//
+// Must stay sorted ascending by `at`: rankFor walks the array in order and
+// keeps the last entry it clears. The first five entries are the pre-v18
+// ladder and are FROZEN — changing a title or a threshold would demote a
+// player on update, which is the one thing this table may never do. v18
+// appends four tiers past the old 2000 dead end so the HUD's progress bar has
+// somewhere to go.
 export const RANKS = [
   { at: 0, title: 'House Cat' },
   { at: 150, title: 'Yard Prowler' },
   { at: 400, title: 'Street Smart' },
   { at: 900, title: 'Neighborhood Legend' },
   { at: 2000, title: 'Mythical Feline' },
+  { at: 3500, title: 'Rooftop Royalty' },
+  { at: 5500, title: 'Shadow Prowler' },
+  { at: 8000, title: 'Nine Lives' },
+  { at: 12000, title: 'Whisker Legend' },
 ];
 
 export function rankFor(lifetimePoints) {
