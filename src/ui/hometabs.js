@@ -64,22 +64,36 @@ function skillCard(state, skill) {
   // the catalog — but a missing entry must still not throw on a render path.
   const { have: rawHave, need: rawNeed } = skillProgress(state, skill.id) ?? {};
   const need = safeCount(rawNeed);
-  // `have` is returned RAW by the catalog (it can exceed `need`), so clamp
-  // for display: "27/25" on a locked-looking bar reads as a bug.
+  // `have` is returned RAW by the catalog and may exceed `need`. Today that
+  // can't reach a locked card (have >= need is exactly what makes hasSkill
+  // true, and only locked cards print the fraction), but the clamp stays as
+  // a guard: it costs nothing and it is what stops a future predicate change
+  // from putting "27/25" under a half-full bar.
   const have = Math.min(safeCount(rawHave), need);
   // need === 0 would be a catalog authoring mistake, not a live case; guard
   // anyway so it renders as a full bar instead of a NaN width.
   const pct = need > 0 ? Math.round((have / need) * 100) : 100;
 
+  // The fraction is only shown while the ability is still locked, because
+  // "how far to go" is the only thing it answers. An earned card that also
+  // printed a count could contradict itself — state.skills is authoritative
+  // once written (the spec forbids revoking an earned ability), so a card
+  // can legitimately be earned while its counter reads lower than the
+  // threshold: a later threshold RAISE, or a save whose skills list
+  // outlived a feats reset. "Reach 10 vantage perches — 0/10 · Earned ✅" is
+  // the shape that bug takes, and dropping the fraction removes it outright
+  // rather than papering over it with a clamp that would print a number the
+  // save does not actually hold.
   const status = earned
-    ? `<div class="tag on">Earned ✅</div>`
-    : `<div class="skill-bar" role="progressbar" aria-valuemin="0"
+    ? `<div class="skill-feat">${escapeHtml(skill.feat)}</div>
+       <div class="tag on">Earned ✅</div>`
+    : `<div class="skill-feat">${escapeHtml(skill.feat)} — ${have}/${need}</div>
+       <div class="skill-bar" role="progressbar" aria-valuemin="0"
         aria-valuemax="${need}" aria-valuenow="${have}"><span style="width:${pct}%"></span></div>`;
 
   return `<div class="card skill-card ${earned ? 'selected' : 'locked'}" data-skill="${escapeHtml(skill.id)}">
     <div class="card-name">${escapeHtml(skill.name)}</div>
     <div class="card-sub">${escapeHtml(skill.effect)}</div>
-    <div class="skill-feat">${escapeHtml(skill.feat)} — ${have}/${need}</div>
     ${status}
   </div>`;
 }

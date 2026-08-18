@@ -58,6 +58,20 @@ describe('renderSkillsHtml', () => {
     expect(html.match(/skill-card selected/g)).toHaveLength(SKILLS.length);
     expect(html).not.toContain('skill-card locked');
     expect(html).toContain(`Abilities earned: ${SKILLS.length}/${SKILLS.length}`);
+    // The feat stays visible on an earned card — it's what the player did.
+    for (const s of SKILLS) expect(html).toContain(s.feat);
+  });
+
+  it('drops the fraction on an earned card so it cannot contradict itself', () => {
+    // state.skills is authoritative (an earned ability is never revoked), so
+    // an earned card can outrun its counter. It must not then read
+    // "Reach 10 vantage perches — 0/10 · Earned ✅".
+    const html = renderSkillsHtml({ skills: ['spring-paws'] });
+    expect(html).toContain('Reach 10 vantage perches');
+    expect(html).not.toContain('Reach 10 vantage perches — 0/10');
+    // ...and the still-locked ability on the same counter keeps its bar.
+    expect(html).toContain('Reach 25 vantage perches — 0/25');
+    expect(html.match(/skill-bar/g)).toHaveLength(SKILLS.length - 1);
   });
 
   it('shows the feat in full on locked cards — the challenge is the content', () => {
@@ -78,11 +92,16 @@ describe('renderSkillsHtml', () => {
     expect(html).toContain('Tip over 40 things — 18/40');
   });
 
-  it('clamps an over-target count rather than printing "27/25"', () => {
+  it('never prints an over-target fraction like "27/25"', () => {
+    // 27 tips clears Sure Claws (25) but not Big Swat (40), and both ride
+    // the one mischief counter — so the same number has to read as earned on
+    // one card and as honest partial progress on the other.
     const html = renderSkillsHtml({ feats: { mischief: 27 } });
-    expect(html).toContain('Tip over 25 things — 25/25');
     expect(html).not.toContain('27/25');
     expect(html).not.toContain('width:108%');
+    expect(html).toContain('Tip over 40 things — 27/40');
+    expect(html.match(/Earned ✅/g)).toHaveLength(1);
+    expect(html).toContain('Abilities earned: 1/12');
   });
 
   it('survives a hostile payload without leaking markup or NaN', () => {

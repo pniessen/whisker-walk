@@ -364,6 +364,19 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .hb-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px;
   background: #2b3648; color: #cdd6e4; font-size: 14px; cursor: pointer; }
 .hb-tab.active { background: #3a4a63; color: #fff; }
+/* v18's sixth tab tipped the row's intrinsic width past the 347px a 375px
+   phone leaves (measured 357px, so "Settings" bled into the scroll
+   container's right padding). Trimming the per-tab padding and the gap buys
+   back 18px — enough for six without shrinking the label text or hiding a
+   tab behind a horizontal scroll. Desktop is untouched; the 900px-wide
+   layout has room to spare. This block has to live AFTER the .hb-tab rules
+   above, not up in the main max-width:480px section earlier in the file:
+   equal specificity means source order decides, and from up there it would
+   silently lose. */
+@media (max-width: 480px) {
+  .hb-tabs { gap: 3px; }
+  .hb-tab { padding: 10px 4px; }
+}
 .hb-panel { display: none; }
 .hb-panel.active { display: block; }
 
