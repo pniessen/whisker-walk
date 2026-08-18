@@ -24,15 +24,34 @@ function expectBoundary(id, atCount) {
 const featState = (type) => (n) => ({ feats: { [type]: n } });
 
 describe('skills catalog', () => {
-  it('has the twelve abilities from the spec across four families', () => {
-    expect(SKILLS).toHaveLength(12);
+  it('has the eleven shipped abilities across four families', () => {
+    // Eleven, not the spec's twelve: Sea Legs was descoped (CF-12).
+    expect(SKILLS).toHaveLength(11);
     expect(SKILL_IDS).toEqual([
       'spring-paws', 'long-zoomies', 'fence-runner',
       'twitchy-nose', 'night-eyes', 'whisker-sense',
       'charmer', 'far-call', 'gift-paws',
-      'sure-claws', 'big-swat', 'sea-legs',
+      'sure-claws', 'big-swat',
     ]);
     expect(SKILL_FAMILIES.map((f) => f.id)).toEqual(['traversal', 'senses', 'social', 'mischief']);
+  });
+
+  it('no longer carries Sea Legs in any form', () => {
+    // Removed outright rather than left locked: its feat (5 seaside walks) is
+    // perfectly earnable, so a visible entry would celebrate an unlock and
+    // then do nothing. See CF-12.
+    expect(SKILL_IDS).not.toContain('sea-legs');
+    expect(skillProgress({ walks: { seaside: 99 } }, 'sea-legs')).toBe(null);
+    // Not even 500 seaside walks can conjure it back.
+    expect(hasSkill({ walks: { seaside: 500 } }, 'sea-legs')).toBe(false);
+    expect(unlockedSkills({ walks: { neighborhood: 99, park: 99, seaside: 99, den: 99 } })).toEqual([]);
+  });
+
+  it('leaves mischief with exactly two abilities', () => {
+    // The family the descope shrank — the Skills tab still renders a
+    // two-card section for it.
+    expect(SKILLS.filter((s) => s.family === 'mischief').map((s) => s.id))
+      .toEqual(['sure-claws', 'big-swat']);
   });
 
   it('gives every ability a family, display strings, and a progress function', () => {
@@ -49,9 +68,13 @@ describe('skills catalog', () => {
     }
   });
 
-  it('has three abilities in each family', () => {
+  it('gives every family at least two abilities, three outside mischief', () => {
+    // Three per family was the spec's shape; the Sea Legs descope left
+    // mischief with two, and every family must still be non-degenerate so
+    // the Skills tab never renders a one-card or empty section.
     for (const f of SKILL_FAMILIES) {
-      expect(SKILLS.filter((s) => s.family === f.id)).toHaveLength(3);
+      const members = SKILLS.filter((s) => s.family === f.id);
+      expect(members).toHaveLength(f.id === 'mischief' ? 2 : 3);
     }
   });
 
@@ -159,11 +182,6 @@ describe('feat predicates at their boundaries', () => {
     expect(hasSkill({ feats: { mischief: 25 } }, 'big-swat')).toBe(false);
   });
 
-  it('Sea Legs needs 5 seaside walks (state.walks.seaside)', () => {
-    expectBoundary('sea-legs', (n) => ({ walks: { neighborhood: 99, park: 99, seaside: n, den: 99 } }));
-    // Walks in another area must not count.
-    expect(hasSkill({ walks: { neighborhood: 500, seaside: 0 } }, 'sea-legs')).toBe(false);
-  });
 });
 
 describe('hasSkill / unlockedSkills', () => {
@@ -179,8 +197,8 @@ describe('hasSkill / unlockedSkills', () => {
   it('honours a persisted skill even when its predicate is not satisfied', () => {
     // The spec stores unlocked ids rather than deriving them precisely so a
     // later threshold change can never revoke an ability already earned.
-    expect(hasSkill({ skills: ['sea-legs'] }, 'sea-legs')).toBe(true);
-    expect(unlockedSkills({ skills: ['sea-legs'] })).toEqual(['sea-legs']);
+    expect(hasSkill({ skills: ['big-swat'] }, 'big-swat')).toBe(true);
+    expect(unlockedSkills({ skills: ['big-swat'] })).toEqual(['big-swat']);
   });
 
   it('unlocks from the predicate alone, with no persisted skills array', () => {
@@ -188,8 +206,10 @@ describe('hasSkill / unlockedSkills', () => {
   });
 
   it('unions persisted and predicate-satisfied ids, in catalog order', () => {
-    const state = { skills: ['sea-legs'], feats: { mischief: 25 }, golden: ['gm-park-1', 'gm-park-2', 'gm-park-3'] };
-    expect(unlockedSkills(state)).toEqual(['whisker-sense', 'sure-claws', 'sea-legs']);
+    // The persisted id sorts into the MIDDLE of the derived pair, so this
+    // pins catalog order rather than mere concatenation.
+    const state = { skills: ['far-call'], feats: { mischief: 25 }, golden: ['gm-park-1', 'gm-park-2', 'gm-park-3'] };
+    expect(unlockedSkills(state)).toEqual(['whisker-sense', 'far-call', 'sure-claws']);
   });
 
   it('ignores junk entries inside a persisted skills array', () => {
@@ -217,8 +237,11 @@ describe('hostile and malformed state', () => {
     { race: 'nope' },
     { race: { bestMs: '1000' } },
     { race: { bestMs: -5 } },
-    { skills: 'sea-legs' },
-    { skills: { 'sea-legs': true } },
+    { skills: 'big-swat' },
+    { skills: { 'big-swat': true } },
+    // A stale save still naming the descoped ability: an unknown id must be
+    // inert, never a phantom unlock.
+    { skills: ['sea-legs'] },
     { duskWalks: '9' },
     { duskWalks: NaN },
     { duskWalks: Infinity },
@@ -254,8 +277,6 @@ describe('hostile and malformed state', () => {
     // is on the state object itself rather than on a nested tally bag.
     const state = Object.create({ duskWalks: 999 });
     expect(hasSkill(state, 'night-eyes')).toBe(false);
-    const walks = Object.create({ seaside: 999 });
-    expect(hasSkill({ walks }, 'sea-legs')).toBe(false);
   });
 
   it('handles a JSON-parsed __proto__ payload without unlocking', () => {

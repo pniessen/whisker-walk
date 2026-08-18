@@ -1109,9 +1109,9 @@ describe('v18 skills/feats save fields', () => {
 
   it('keeps known skill ids, drops unknown/non-string ones, and dedupes', () => {
     const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4,
-      skills: ['sea-legs', 'nonexistent-id', 'sea-legs', 7, null, {}, 'big-swat'] }) });
+      skills: ['spring-paws', 'nonexistent-id', 'spring-paws', 7, null, {}, 'big-swat'] }) });
     const p = createProgression(storage);
-    expect(p.state.skills).toEqual(['sea-legs', 'big-swat']);
+    expect(p.state.skills).toEqual(['spring-paws', 'big-swat']);
   });
 
   it('drops a non-array skills field wholesale', () => {
@@ -1280,7 +1280,7 @@ describe('v18 duskWalks save field', () => {
       equipped: { cat: 'black', collar: 'bell' },
       journal: { bird: 4 }, golden: ['gm-park-1'], streak: { last: '2026-08-01', count: 5 },
       kitten: { stage: 2 }, race: { date: '2026-08-01', area: 'park', bestMs: 21000 },
-      den: { owned: ['rug'], placed: {} }, skills: ['sea-legs'], feats: { mischief: 9 },
+      den: { owned: ['rug'], placed: {} }, skills: ['big-swat'], feats: { mischief: 9 },
     }) });
     const p = createProgression(storage);
     expect(p.state.duskWalks).toBe(0);
@@ -1295,8 +1295,40 @@ describe('v18 duskWalks save field', () => {
     expect(p.state.kitten).toEqual({ stage: 2 });
     expect(p.state.race).toEqual({ date: '2026-08-01', area: 'park', bestMs: 21000 });
     expect(p.state.den).toEqual({ owned: ['rug'], placed: {} });
-    expect(p.state.skills).toEqual(['sea-legs']);
+    expect(p.state.skills).toEqual(['big-swat']);
     expect(p.state.feats).toEqual({ mischief: 9 });
+  });
+
+  it('a save that persisted the descoped sea-legs loads losslessly without it', () => {
+    // Sea Legs shipped in no release, but a save written from a v18 dev build
+    // (or a hand-edited/cloud payload) can hold the id. sanitizeSkills
+    // validates against SKILL_IDS, so an id the catalog no longer knows is
+    // dropped like any other unknown one — the save must NOT be rejected, and
+    // the abilities either side of it in catalog order must survive intact.
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 88, lifetimePoints: 1200, bestWalk: 44,
+      walks: { neighborhood: 3, park: 2, seaside: 9, den: 1 },
+      journal: { bird: 2 }, golden: ['gm-park-1'],
+      skills: ['spring-paws', 'sea-legs', 'big-swat'],
+      feats: { mischief: 41, perch: 12 }, duskWalks: 3,
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual(['spring-paws', 'big-swat']);
+    // Everything else on the save is untouched by the drop.
+    expect(p.state.points).toBe(88);
+    expect(p.state.lifetimePoints).toBe(1200);
+    expect(p.state.bestWalk).toBe(44);
+    expect(p.state.feats).toEqual({ mischief: 41, perch: 12 });
+    expect(p.state.duskWalks).toBe(3);
+    expect(p.state.golden).toEqual(['gm-park-1']);
+    // Nine seaside walks used to satisfy the Sea Legs feat; it must not come
+    // back through the predicate half of hasSkill either.
+    expect(p.state.walks.seaside).toBe(9);
+    expect(unlockedSkills(p.state)).not.toContain('sea-legs');
+    // And the drop survives a re-save/reload round trip rather than
+    // reappearing out of the stored blob.
+    p.recordSkillUnlocks(['charmer']);
+    expect(createProgression(storage).state.skills).toEqual(['spring-paws', 'charmer', 'big-swat']);
   });
 
   it('increments only on a dusk walk, never on an ordinary one', () => {
@@ -1365,9 +1397,9 @@ describe('recordSkillUnlocks', () => {
     // Task 2.7's unlock celebration fires on the return value, so a repeat
     // call must report nothing new — otherwise it double-fires every walk.
     const p = createProgression(fakeStorage());
-    p.recordSkillUnlocks(['sure-claws', 'sea-legs']);
-    expect(p.recordSkillUnlocks(['sure-claws', 'sea-legs'])).toEqual([]);
-    expect(p.state.skills).toEqual(['sure-claws', 'sea-legs']);
+    p.recordSkillUnlocks(['sure-claws', 'charmer']);
+    expect(p.recordSkillUnlocks(['sure-claws', 'charmer'])).toEqual([]);
+    expect(p.state.skills).toEqual(['charmer', 'sure-claws']);
   });
 
   it('returns only the ids added by THIS call, not everything held', () => {
@@ -1379,15 +1411,15 @@ describe('recordSkillUnlocks', () => {
 
   it('dedupes within a single call', () => {
     const p = createProgression(fakeStorage());
-    expect(p.recordSkillUnlocks(['sea-legs', 'sea-legs', 'sea-legs'])).toEqual(['sea-legs']);
-    expect(p.state.skills).toEqual(['sea-legs']);
+    expect(p.recordSkillUnlocks(['far-call', 'far-call', 'far-call'])).toEqual(['far-call']);
+    expect(p.state.skills).toEqual(['far-call']);
   });
 
   it('stores and returns in catalog order regardless of the caller order', () => {
     const p = createProgression(fakeStorage());
-    const added = p.recordSkillUnlocks(['sea-legs', 'spring-paws', 'charmer']);
-    expect(added).toEqual(['spring-paws', 'charmer', 'sea-legs']);
-    expect(p.state.skills).toEqual(['spring-paws', 'charmer', 'sea-legs']);
+    const added = p.recordSkillUnlocks(['big-swat', 'spring-paws', 'charmer']);
+    expect(added).toEqual(['spring-paws', 'charmer', 'big-swat']);
+    expect(p.state.skills).toEqual(['spring-paws', 'charmer', 'big-swat']);
   });
 
   it('drops unknown and non-string ids without throwing', () => {
@@ -1399,7 +1431,7 @@ describe('recordSkillUnlocks', () => {
 
   it('tolerates a non-array argument', () => {
     const p = createProgression(fakeStorage());
-    for (const bad of [undefined, null, 'sea-legs', 42, { 'sea-legs': true }]) {
+    for (const bad of [undefined, null, 'big-swat', 42, { 'big-swat': true }]) {
       expect(p.recordSkillUnlocks(bad)).toEqual([]);
     }
     expect(p.state.skills).toEqual([]);
@@ -1423,9 +1455,9 @@ describe('recordSkillUnlocks', () => {
   it('does not write to storage when nothing was added', () => {
     const storage = fakeStorage();
     const p = createProgression(storage);
-    p.recordSkillUnlocks(['sea-legs']);
+    p.recordSkillUnlocks(['big-swat']);
     const before = storage.dump()['whisker-walk-save'];
-    expect(p.recordSkillUnlocks(['sea-legs'])).toEqual([]);
+    expect(p.recordSkillUnlocks(['big-swat'])).toEqual([]);
     expect(storage.dump()['whisker-walk-save']).toBe(before);
   });
 

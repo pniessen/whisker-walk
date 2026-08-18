@@ -101,7 +101,8 @@ describe('renderSkillsHtml', () => {
     expect(html).not.toContain('width:108%');
     expect(html).toContain('Tip over 40 things — 27/40');
     expect(html.match(/Earned ✅/g)).toHaveLength(1);
-    expect(html).toContain('Abilities earned: 1/12');
+    // Denominator is SKILLS.length, not a literal — eleven since CF-12.
+    expect(html).toContain('Abilities earned: 1/11');
   });
 
   it('survives a hostile payload without leaking markup or NaN', () => {
