@@ -337,12 +337,6 @@ export function createInteractions({
     s.lastPromptKind = promptKind;
   }
 
-  // Shared greet-award body for a stray cat: friend-points award, progression
-  // ladder toast, and marking the stray greeted (so nearest(...,
-  // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
-  // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
-  // there is exactly one path that can ever pay out a stray friendship
-  // award — talking never awards more than booping.
   // One cat's lifetime greet count off the live save. recordGreet's return
   // value names only the BASE 1/3/6 rungs, so Charmer — which moves the
   // rungs and never the count — has to read the raw number to know which rung
@@ -353,6 +347,12 @@ export function createInteractions({
     return typeof g === 'number' && Number.isFinite(g) && g >= 0 ? g : 0;
   }
 
+  // Shared greet-award body for a stray cat: friend-points award, progression
+  // ladder toast, and marking the stray greeted (so nearest(...,
+  // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
+  // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
+  // there is exactly one path that can ever pay out a stray friendship
+  // award — talking never awards more than booping.
   function awardStrayGreet(s, stray) {
     s.strayCats.greet(stray, s.cat.position);
     log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
