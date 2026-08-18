@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-18 (v18 "Cat Skills" wave — earned abilities, The Old Docks) · **Branch:** `v18-cat-skills` · **Tests:** 758 passing (52 files)
+**Last updated:** 2026-08-18 (v18 "Cat Skills" wave — earned abilities, The Old Docks) · **Branch:** `v18-cat-skills` · **Tests:** 764 passing (52 files)
 
 ---
 
@@ -181,7 +181,7 @@ Every fix independently re-probed with hostile payloads.
 
 ## 6. How to work on this repo
 
-- **Run:** `npm run dev` (localhost:5174, pinned `--strictPort`). **Test:** `npx vitest run --dir test` (758 green).
+- **Run:** `npm run dev` (localhost:5174, pinned `--strictPort`). **Test:** `npx vitest run --dir test` (764 green).
   **Build:** `npx vite build`. **Preview prod:** `npx vite preview`.
   - **Always pass `--dir test`.** Agent worktrees live under `.claude/worktrees/`,
     *inside* the project, so vitest's default glob collects their copied suites
@@ -229,13 +229,17 @@ Every fix independently re-probed with hostile payloads.
 
 - **v18 "Cat Skills" is on the `v18-cat-skills` branch, not yet merged to `main`.**
   Wave close-out (Task 4.0) is done: Sea Legs removed per CF-12, Gift Paws
-  lowered to 3, Docks ambience added, docs updated. 758 tests green, `vite
+  lowered to 3, Docks ambience added, docs updated. 764 tests green, `vite
   build` clean, Skills tab browser-verified. **Read the entire Carry-forward
   section of `docs/superpowers/plans/2026-08-18-whisker-walk-v18-cat-skills.md`
   before touching this wave** — it holds the rulings (CF-6 held-meow descope,
   CF-8 Spring Paws budget, CF-11 Long Zoomies wording, CF-12 Sea Legs) and the
-  still-open follow-ups (CF-9's two unimplemented ability halves; CF-7's bare
-  `Math.random()` in the best-friend gift roll, which can desync co-walkers).
+  one still-open follow-up (CF-9's two unimplemented ability halves). CF-7's
+  bare `Math.random()` gift roll is **fixed** — `src/game/walk.js:489` draws
+  from `walkRng()`. The final whole-branch review then found and fixed two real
+  bugs, both recorded in the spec's "Status as shipped" section: `feats.perch`
+  was farmable by re-taking one perch, and Big Swat's doubled reach shadowed
+  the greet/quest/scratch/boop/dig prompts.
 - v7–v10 + logos are complete, merged to `main`, deployed.
 - **Phase 0 renderer upgrade — SHIPPED (2026-08-14, deployed).** PBR
   `MeshStandardMaterial` (`src/render/materials.js` `litMaterial`) under a

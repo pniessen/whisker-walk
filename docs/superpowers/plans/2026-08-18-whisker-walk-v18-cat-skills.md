@@ -182,11 +182,13 @@ handling in an untested module for no gameplay gain. **Ruling: Far Call makes th
 ordinary V press carry far.** The spec text is the thing that is wrong here, not
 the implementation. Simpler for a 10-year-old, and it avoids editing `main.js`.
 
-### CF-7 — Observation, not scheduled
-`src/game/walk.js:350` rolls the best-friend gift with a bare `Math.random()`.
-Harmless solo (solo `walkRng` *is* `Math.random`), but in a room walk two
-co-walkers can disagree about whether a stray carries a gift. Pre-existing, not
-introduced by v18. Logged so it is a decision on record rather than an oversight.
+### CF-7 — RESOLVED: the best-friend gift roll names `walkRng`
+Raised as an observation: the best-friend gift was rolled with a bare
+`Math.random()`. Harmless as written — that block is already solo-only, where
+`walkRng` *is* `Math.random` — but the guard and the roll were two separate
+facts a future edit could separate, so the roll now names the walk's stream
+explicitly. Fixed in `src/game/walk.js:489` (`walkRng() < 0.3`), with the
+reasoning in a comment at the call site. **Closed — nothing outstanding here.**
 
 ---
 

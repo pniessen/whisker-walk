@@ -121,9 +121,20 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
       greeted: false,
       // Best-friend (greets >= 6) ghosts have a 30% chance of carrying a
       // gift, rolled once at spawn — mirrors the identical stray mechanic
-      // in main.js's startWalk (`stray.hasGift = Math.random() < 0.3` for
-      // friendLevel 'best'), just keyed off the cross-walk greets count
-      // instead of the local friend ladder.
+      // in game/walk.js's startWalk (`walkRng() < 0.3` for friendLevel
+      // 'best'), just keyed off the cross-walk greets count instead of the
+      // local friend ladder.
+      //
+      // The 6 is DELIBERATELY a literal and deliberately NOT the shared rung
+      // table v18 CF-4 unified (straycats.js's friendRungs, which Charmer
+      // shortens to 1/2/4). This is the only reader that did not move, so it
+      // is the one a future "consistency fix" would break: `profile.greets`
+      // is a CROSS-WALK count published in the cloud profile, and Charmer is
+      // a local unlock the cloud carries no field for. Making this
+      // Charmer-aware would mean one player's skill silently changing which
+      // of OTHER players' cats appear as best friends — and, since the roll
+      // is per-viewer, two people looking at the same ghost would disagree
+      // about whether it carries a gift. Leave the literal.
       hasGift: profile.greets >= 6 && rng() < 0.3,
       // v18 Gift Paws — the gift THIS player left, which this ghost found.
       // Cleared by game/interactions.js the moment it is handed over.

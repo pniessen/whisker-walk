@@ -332,4 +332,4 @@ inherits nothing and must gate itself.**
   §Risks contradicted each other, and the §Risks wording was ruled imprecise.
   "Trivialized" means *reachable without climbing at all*, not *in fewer hops*.
 - The §Sequencing baseline of "393 tests" is long stale; the wave finished at
-  **758 passing across 52 files**.
+  **758 passing across 52 files**; the final whole-branch review added six more, for **764**.

@@ -263,6 +263,28 @@ export function createWalkLifecycle({
       override: settings.get('quality'),
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.pixelRatioCap));
+    // The shared per-walk stream. In a room walk every client seeds it from
+    // the same roomSeed, so co-walkers agree about the world only as long as
+    // they take the SAME DRAWS IN THE SAME ORDER. Solo it is Math.random and
+    // draw order does not matter at all, which is exactly why an ordering
+    // mistake here is invisible until two people walk together.
+    //
+    // WARNING — do not give this stream a lazy or conditional consumer.
+    // Everything below draws from it during startWalk, unconditionally and in
+    // a fixed order. One system does draw AFTER the walk has begun: v18's
+    // Twitchy Nose lays scent trails through createScent's rng (see
+    // scent.js's trailTo, called from game/interactions.js's updateSenses),
+    // and it draws only when that skill is unlocked and only when the player
+    // moves. That is safe TODAY for one reason and one reason only — the
+    // scent module is the sole post-startWalk consumer of walkRng, so its
+    // draws can never fall between two other systems' draws and shift them.
+    //
+    // The moment a second per-walk system draws from walkRng after startWalk
+    // returns, a Twitchy Nose player and a co-walker without the skill would
+    // pull different values for it and the two worlds would silently
+    // diverge. If you need mid-walk randomness, give the new system its own
+    // seeded stream (sky life already does this — see the note further down)
+    // rather than adding a second lazy consumer here.
     const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
     const state = progression.state;
     // areaOverride: a joiner who hasn't unlocked the host's area still walks

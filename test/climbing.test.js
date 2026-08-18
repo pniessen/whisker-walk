@@ -287,27 +287,34 @@ const AREAS = {
   seaside: buildSeaside(new THREE.Scene()),
   docks: buildDocks(new THREE.Scene()),
 };
-const YARN_ROOF = AREAS.neighborhood.collectibles.find((c) => c.id === 'yarn-roof');
-// The Docks' own high collectible, on W1's parapet four hops up (v18 Task 2.6).
-const SHIPS_BELL = AREAS.docks.collectibles.find((c) => c.id === 'tin-5');
+// Every ELEVATED collectible in the game (y > 0), each named explicitly.
+//
+// The last two are here because of a review finding, not because they are
+// interesting: `feather-5` sits on the exact coordinates of `gm-park-2` and
+// `fish-5` on those of `gm-sea-2`, so before this they were "covered" only by
+// the golden mice happening to stand in the same spot. Nudge either
+// collectible by a metre and the coverage would have vanished silently while
+// this file stayed green. Explicit entries, the way `tin-5` already had, mean
+// a moved collectible fails HERE instead of shipping unreachable.
+const ELEVATED = [
+  ['yarn-roof', 'neighborhood'], // the legendary silver yarn ball, on the ridge
+  ['tin-5', 'docks'],            // the legendary ship's bell, on W1's parapet (v18 Task 2.6)
+  ['feather-5', 'park'],
+  ['fish-5', 'seaside'],
+].map(([id, area]) => {
+  const c = AREAS[area].collectibles.find((x) => x.id === id);
+  if (!c) throw new Error(`no collectible ${id} in ${area}`); // renamed or removed
+  return { id, area, x: c.x, z: c.z, y: c.y };
+});
 
 function hopTable(budget, fenceRun = false) {
   const out = {};
   for (const [area, mice] of Object.entries(GOLD_MICE)) {
     for (const m of mice) out[m.id] = minHops(m, AREAS[area].perches, budget, fenceRun);
   }
-  out['yarn-roof'] = minHops(
-    { x: YARN_ROOF.x, z: YARN_ROOF.z, y: YARN_ROOF.y },
-    AREAS.neighborhood.perches,
-    budget,
-    fenceRun,
-  );
-  out['tin-5'] = minHops(
-    { x: SHIPS_BELL.x, z: SHIPS_BELL.z, y: SHIPS_BELL.y },
-    AREAS.docks.perches,
-    budget,
-    fenceRun,
-  );
+  for (const c of ELEVATED) {
+    out[c.id] = minHops({ x: c.x, z: c.z, y: c.y }, AREAS[c.area].perches, budget, fenceRun);
+  }
   return out;
 }
 
@@ -330,9 +337,21 @@ const SHIPPED_HOPS = {
   'gm-docks-3': 0, // hidden at ground level in the alley between the west warehouses
   'yarn-roof': 3,  // the legendary silver yarn ball, on the ridge with gm-neigh-1
   'tin-5': 4,      // the legendary ship's bell, on the docks warehouse parapet
+  'feather-5': 2,  // shares the oak branch with gm-park-2 — same chain, same count
+  'fish-5': 2,     // shares the dune ledge with gm-sea-2 — same chain, same count
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
+  it('covers EVERY elevated collectible in the game, not just the ones we listed', () => {
+    // The guard on the guard. ELEVATED is hand-written, so a fifth rooftop
+    // collectible added to any area would otherwise get no reachability
+    // coverage at all and nobody would notice. Derived from the shipped world
+    // data so it cannot be satisfied by editing the list alone.
+    const shipped = Object.entries(AREAS)
+      .flatMap(([area, a]) => a.collectibles.filter((c) => (c.y ?? 0) > 0).map((c) => `${area}:${c.id}`));
+    expect(shipped.sort()).toEqual(ELEVATED.map((c) => `${c.area}:${c.id}`).sort());
+  });
+
   it('every one is still reachable, at exactly the hop count it takes today', () => {
     expect(hopTable(climbBudget({}))).toEqual(SHIPPED_HOPS);
   });
@@ -386,6 +405,9 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
     // The Docks' crane chain (gm-docks-2) is deliberately built out of
     // 1.3-1.4 rungs, so no budget under 2.6 can skip one of its steps — it
     // stays four hops in every skill state.
+    // feather-5 and fish-5 stand on gm-park-2 / gm-sea-2 exactly, so they
+    // shorten with them — listed rather than folded in, so a future
+    // divergence between a mouse and its co-located collectible shows up.
     expect(hopTable(SPRING)).toEqual({
       ...SHIPPED_HOPS,
       'gm-neigh-2': 2,
@@ -393,6 +415,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       'gm-sea-2': 1,
       'gm-docks-1': 4,
       'tin-5': 3,
+      'feather-5': 1,
+      'fish-5': 1,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
