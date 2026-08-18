@@ -449,6 +449,35 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       const notes = [523, 659, 784, 1047];
       notes.forEach((f, i) => tone(f, i === 3 ? 0.35 : 0.12, { type: 'triangle', gain: 0.09, delay: i * 0.11 }));
     },
+    // v18 Task 2.7 — the in-walk skill-unlock celebration.
+    //
+    // Deliberately fanfare()'s shape rather than a new sound: the jackpot
+    // fanfare is already the game's "you did the big thing" noise, and
+    // earning an ability should land in the same emotional register a player
+    // has learnt. Same C-major triangle arpeggio, same 0.09 gain, extended
+    // one scale step to E6 and held longer on the top note, then a two-note
+    // sine sparkle over the tail so it is recognisably the fanfare's bigger
+    // sibling rather than a second, unrelated jingle.
+    unlockFanfare() {
+      const notes = [523, 659, 784, 1047, 1319];
+      const last = notes.length - 1;
+      notes.forEach((f, i) => tone(f, i === last ? 0.5 : 0.12, { type: 'triangle', gain: 0.09, delay: i * 0.1 }));
+      tone(2093, 0.3, { type: 'sine', gain: 0.05, delay: 0.52 });
+      tone(1568, 0.32, { type: 'sine', gain: 0.04, delay: 0.6 });
+    },
+    // v18 Whisker Sense ('whisker-sense') — the "ping" half of the ability's
+    // shimmer/ping. Two short high sines, quiet enough (0.035 / 0.028) to sit
+    // under ambience the way bell() does, because this repeats on a timer
+    // while a golden mouse is near rather than firing once on an action.
+    //
+    // `closeness` runs 0 (at the edge of Whisker Sense's range) to 1 (right
+    // on top of the mouse) and lifts the pitch by up to a fifth, so the
+    // player can hear themselves getting warmer without reading a number.
+    whiskerPing(closeness = 0) {
+      const k = 1 + Math.max(0, Math.min(1, closeness)) * 0.5;
+      tone(1500 * k, 0.06, { type: 'sine', gain: 0.035 });
+      tone(2200 * k, 0.09, { type: 'sine', gain: 0.028, delay: 0.06 });
+    },
     startAmbient(areaKey, { dusk = false, rain = false } = {}) {
       api.stopAmbient();
       if (muted) return;

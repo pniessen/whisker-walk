@@ -48,7 +48,9 @@ import { replyFor, countsAsGreet } from '../catreplies.js';
 import { litMaterial } from '../render/materials.js';
 import { resolveQuality } from '../render/quality.js';
 import { mulberry32, seedFromCode } from '../rng.js';
-import { unlockedSkills } from '../skills.js';
+import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
+import { bus } from '../events.js';
+import { createUnlockCelebration } from './celebrate.js';
 import { nowSec, escapeHtml, hashName } from './util.js';
 
 const AREAS = { neighborhood, park, seaside, den };
@@ -56,6 +58,14 @@ const AREAS = { neighborhood, park, seaside, den };
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
 const NO_GHOSTS = { list: [], nearest: () => null, update() {}, dispose() {} };
+// Same idea for an area with no golden mice (the den today, a future area
+// before its three are placed): every goldMice method the walk calls, inert.
+// nearestUnfound is here because v18's Whisker Sense asks for it every frame.
+const NO_GOLD_MICE = {
+  list: [], update() {}, checkFind: () => null, nearestUnfound: () => null,
+  remove() {}, dispose() {},
+};
+const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
@@ -65,6 +75,73 @@ export function createWalkLifecycle({
   getPendingRoom, clearPendingRoom, pushProfileNow,
   awardStrayGreet, applyRemoteEvent, cloudToast,
 }) {
+  // ------------------------------------------------------------------
+  // v18 Task 2.7 — the in-walk skill-unlock celebration.
+  //
+  // ONE card owner for the whole app: createWalkLifecycle runs once from
+  // main.js's init(), so this and the bus subscription below are created
+  // once, not per walk.
+  // ------------------------------------------------------------------
+  const celebration = createUnlockCelebration(document.body);
+
+  // celebrateNewSkills() → the ids celebrated just now.
+  //
+  // SINGLE-FIRE, and the mechanism is progression.recordSkillUnlocks itself
+  // rather than any bookkeeping here: it is the only writer of state.skills,
+  // and it returns *what it added*, so the second call with the same ids
+  // returns []. That one property gives all three guarantees at once —
+  //
+  //   * celebrates once: the ability is in state.skills by the time any
+  //     later call asks, so it can never be "added" twice;
+  //   * persists once: the same call that celebrates is the call that
+  //     stores, and save() only runs when something actually changed;
+  //   * never celebrates again next walk: state.skills is persisted, and
+  //     hasSkill's union means a restored save reports it as already earned.
+  //
+  // — which is also why endWalk now routes its (previously discarded)
+  // recordSkillUnlocks call through here instead of calling it directly.
+  // Doing both is safe by construction, and it is what catches the two
+  // abilities that CANNOT complete mid-walk: Night Eyes and Sea Legs are
+  // unlocked by completeWalk's own tallies, which do not exist until the
+  // walk is over.
+  function celebrateNewSkills() {
+    const added = progression.recordSkillUnlocks(unlockedSkills(progression.state));
+    if (!added.length) return added;
+    const session = getSession();
+    // The burst is scene FX and needs a live walk; the card and the fanfare
+    // do not, so an ability that only completes as the walk ends still gets
+    // its moment.
+    if (session?.fx) session.fx.burst(session.cat.position, 0xf2c14e, 26);
+    audio.unlockFanfare();
+    for (const id of added) celebration.show(SKILL_BY_ID.get(id));
+    return added;
+  }
+
+  // The hook Stage 1 built for this: discoveries.js's pay() bumps the feat
+  // tally and THEN emits 'discovery', so a listener here sees the fresh count.
+  //
+  // The check is deferred to a microtask, which is the difference between
+  // catching most unlocks and catching all of them. Several feats are fed by
+  // a tally recorded *alongside* the award rather than by the award itself
+  // (feats.perch in game/interactions.js, feats.race in main.js,
+  // progression.recordGreet for the two social feats), and at those sites the
+  // award — and therefore this event — fires first. A microtask runs once the
+  // whole synchronous award handler has unwound, by which point every one of
+  // those siblings has landed too. It still resolves long before the next
+  // frame, so the card is on screen in the same beat as the action.
+  //
+  // Coalesced: one cascade (Big Swat flattening three bins) emits three
+  // discoveries and schedules exactly one check.
+  let unlockCheckQueued = false;
+  bus.on('discovery', () => {
+    if (unlockCheckQueued) return;
+    unlockCheckQueued = true;
+    queueMicrotask(() => {
+      unlockCheckQueued = false;
+      celebrateNewSkills();
+    });
+  });
+
   // Ghost visits (Task 4): fetch this player's cross-walk friendships +
   // their public profiles, roll which (if any) show up via rollGhosts, and
   // spawn them into `mySession`'s scene. Called fire-and-forget from
@@ -181,7 +258,9 @@ export function createWalkLifecycle({
     const walkStamp = 'walk-' + Date.now();
     const scene = new THREE.Scene();
     scene.environment = envMap;
-    scene.environmentIntensity = tier.envIntensity;
+    // scene.environmentIntensity is set a little further down, by
+    // composerRig.applyLighting — it depends on duskActive, which is not
+    // resolved until after the dusk block below.
     if (tier.postFx) {
       composerRig.ensure();
       composerRig.attachScene(scene); // point the composer's RenderPass at this walk's scene
@@ -254,6 +333,25 @@ export function createWalkLifecycle({
         }
       });
     }
+
+    // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
+    // to run AFTER duskActive is resolved above (a solo dusk walk only counts
+    // as dusk with the glow collar on) and after the dusk block has finished
+    // recolouring the sky, because it is the frame's EXPOSURE that changes,
+    // not the scene.
+    //
+    // Called unconditionally on every walk, skill or no skill:
+    // renderer.toneMappingExposure is global renderer state, so a walk that
+    // does not want a boost must actively be handed the base value back —
+    // otherwise a Night Eyes dusk walk would leave the next daytime walk
+    // over-exposed. composerRig.applyLighting therefore also subsumes the
+    // `scene.environmentIntensity = tier.envIntensity` assignment that used
+    // to sit up beside scene.environment.
+    composerRig.applyLighting(scene, {
+      dusk: duskActive,
+      nightEyes: hasSkill(progression.state, 'night-eyes'),
+      envIntensity: tier.envIntensity,
+    });
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
     if (!duskActive && !isDen) {
@@ -493,7 +591,7 @@ export function createWalkLifecycle({
     // areas like the den) get an inert stub instead of a lookup throw.
     session.goldMice = areaId in GOLD_MICE
       ? createGoldMice(scene, areaId, new Set(progression.state.golden))
-      : { list: [], update() {}, checkFind: () => null, remove() {}, dispose() {} };
+      : NO_GOLD_MICE;
 
     // lost-kitten quest chain: solo walks only (roomSeed === undefined) — a
     // co-walk kitten would desync the shared canon since it's driven by
@@ -729,12 +827,20 @@ export function createWalkLifecycle({
     // v18 Task 1.4: persist whatever this walk earned. Ordered AFTER
     // completeWalk on purpose — completeWalk is what bumps duskWalks, so the
     // fifth dusk walk unlocks Night Eyes at the end of that same walk rather
-    // than the next one. recordSkillUnlocks returns only the ids added just
-    // now, which is what Task 2.7's in-walk unlock celebration will consume;
-    // until then the return value is intentionally unused and this call
-    // exists so an earned ability is stored and can never be revoked by a
-    // later threshold change.
-    progression.recordSkillUnlocks(unlockedSkills(progression.state));
+    // than the next one.
+    //
+    // v18 Task 2.7: the return value is no longer discarded. This is the same
+    // recordSkillUnlocks(unlockedSkills(state)) call it always was, now routed
+    // through celebrateNewSkills so anything that completed here — Night Eyes
+    // and Sea Legs can ONLY complete here, since their tallies are
+    // completeWalk's — gets the card and the fanfare rather than being stored
+    // in silence. Placed before the teardown below, while session.fx and
+    // session.cat are still live, so the burst has somewhere to land.
+    //
+    // It cannot double-fire against a mid-walk celebration: an ability
+    // already celebrated is already in state.skills, so recordSkillUnlocks
+    // returns [] for it here.
+    celebrateNewSkills();
     // Daily streak: recorded (and any bonus added) BEFORE `earned` below is
     // computed, so the streak bonus is folded into this walk's own "whisker
     // points" total rather than silently landing in the next walk's earned
@@ -786,6 +892,10 @@ export function createWalkLifecycle({
       Promise.resolve(net.leave()).catch(() => {});
     }
 
+    // v18 Night Eyes: hand the renderer its calibrated base exposure back.
+    // startWalk sets it every walk anyway, so this is belt-and-braces against
+    // anything that renders between walks inheriting a dusk boost.
+    composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
     session.scene.traverse((obj) => {
