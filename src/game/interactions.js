@@ -35,15 +35,19 @@ export function createInteractions({
   function doMeow() {
     const session = getSession();
     catVoice();
-    // v18 Far Call ('far-call'): the same meow, carried farther — strays in
-    // the outer band walk over to see who shouted (movement only; see
-    // straycats.reactToMeow). The skill is read locally and the broadcast
-    // below is unchanged with or without it — no new event kind, no new
-    // field — so a co-walker who has not earned it sees exactly today's meow.
-    // Critters are not drawn in yet: that half lives in critters.js, which
-    // this task does not own.
+    // v18 Far Call ('far-call'): the same meow, carried farther — strays AND
+    // curious critters in the outer band come over to see who shouted
+    // (movement only; see straycats.reactToMeow and critters.reactToMeow).
+    // The critter half is CF-5, added once critters.js came into scope.
+    //
+    // The skill is read locally and the broadcast below is unchanged with or
+    // without it — no new event kind, no new field — so a co-walker who has
+    // not earned it sees exactly today's meow. The remote path
+    // (game/netevents.js) deliberately keeps calling reactToMeow with `far`
+    // off, because the wire event carries no skill information and inventing
+    // one would be the protocol change the spec's non-goals rule out.
     const farCall = hasSkill(progression.state, 'far-call');
-    session.critters.reactToMeow(session.cat.position);
+    session.critters.reactToMeow(session.cat.position, { far: farCall });
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
       setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
     }

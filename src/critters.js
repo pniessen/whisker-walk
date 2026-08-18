@@ -9,6 +9,26 @@ const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', '
 // grounded skittish critters that participate in stalk-and-pounce tag
 // (bird included per spec even though it flies once fleeing — see markStalked/pounceCatch)
 const STALKABLE = new Set(['squirrel', 'bird', 'mouse']);
+// v18 Far Call ('far-call') — critters curious enough to come and look when a
+// meow carries. Derived from CHASEABLE rather than listed fresh: everything a
+// cat can chase, MINUS the two types whose existing meow reaction is to bolt
+// (bird and seagull, see reactToMeow). Drawing a critter that the same meow
+// scatters would be the game contradicting itself in one frame. Dogs and
+// villagers are excluded because they are not chaseable: a summoned dog would
+// fire critter:scare at the caller, and villagers already answer a meow with
+// a wave.
+const CURIOUS = new Set([...CHASEABLE].filter((t) => t !== 'bird' && t !== 'seagull'));
+// The outer band Far Call reaches, the same 22m straycats.js uses so one meow
+// draws one consistent neighbourhood. STANDOFF is how far short of the caller
+// a critter settles, and DRAW_TIME is the budget it gets to make the trip —
+// the "give up on an unreachable target eventually" role.
+const FAR_CALL_RADIUS = 22;
+const FAR_CALL_STANDOFF = 2.2;
+const FAR_CALL_DRAW_TIME = 12;
+// How fast a called critter's IDLE ANCHOR glides (see spawn/update). Slow on
+// purpose: the anchor carries the critter's whole patrol pattern with it, so
+// this is the speed the pattern drifts over, not a dash.
+const ANCHOR_SPEED = 2.2;
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -113,6 +133,25 @@ export function createCritters(scene, spawns, opts = {}) {
       cooldown: 0,
       waved: false,
       meowWaveT: 0,
+      // v18 Far Call. Every idle pattern below (the squirrel's patrol line,
+      // the duck's circle, the crab's shuffle, the butterfly's hover) is an
+      // absolute function of a CENTRE POINT, which used to be def.x/def.z
+      // directly. It is now this anchor, which starts on the spawn definition
+      // and — with no far call in play — never moves, so every no-skill path
+      // is the same motion as before, to the last decimal.
+      //
+      // A far call retargets the anchor at the caller and update() eases it
+      // there and, once the call lapses, home again. Moving the ANCHOR rather
+      // than the critter is what keeps this from teleporting: the pattern
+      // glides over and glides back, and there is no frame where the idle
+      // formula snaps the critter to a position it was never at.
+      anchor: new THREE.Vector3(def.x, 0, def.z),
+      anchorHome: new THREE.Vector3(def.x, 0, def.z),
+      anchorTo: null, // far-call destination while a call is live
+      drawT: 0,       // seconds of call left
+      // The squirrel/mouse patrol runs from the anchor to anchor+span, so the
+      // patrol keeps its own length and heading wherever the anchor goes.
+      patrolSpan: new THREE.Vector3((def.x2 ?? def.x + 6) - def.x, 0, (def.z2 ?? def.z) - def.z),
     };
     list.push(c);
     return c;
@@ -170,15 +209,52 @@ export function createCritters(scene, spawns, opts = {}) {
         if (c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
       }
     },
-    reactToMeow(pos) {
+    // reactToMeow(pos, { far }) — someone meowed at `pos`. The villager wave
+    // and the bird/seagull startle are unchanged and unconditional, so with
+    // `far` off (every caller that has not earned Far Call, plus every remote
+    // meow arriving over the wire, which carries no skill information and must
+    // not) this loop is byte-for-byte the old one.
+    //
+    // v18 CF-5: the spec says the call draws "strays and critters" and only
+    // the stray half shipped. `far` adds the critter half — curious critters
+    // out to FAR_CALL_RADIUS come over to see who shouted, mirroring
+    // straycats.reactToMeow's outer band.
+    //
+    // MOVEMENT ONLY. It retargets an idle anchor and nothing else: no
+    // spottable flag, no journal sighting, no award, no catch cooldown. That
+    // matters — critters.nearest feeds the chase prompt and catchAt/pounceCatch
+    // pay out, so a meow that could mark a critter would turn Far Call into a
+    // scoring vector that out-farms walking over to one.
+    //
+    // Every number is derived from POSITIONS (the bearing from caller to
+    // critter, its own distance). Nothing here rolls: critters.js takes an
+    // injected opts.rng precisely so two co-walkers on one room seed agree,
+    // and a bare Math.random() in the draw would reintroduce that divergence.
+    // Returns how many critters heard the call.
+    reactToMeow(pos, { far = false } = {}) {
+      let count = 0;
       for (const c of list) {
-        if (c.type === 'villager' && c.group.position.distanceTo(pos) < 6) c.meowWaveT = 1.5;
-        if ((c.type === 'bird' || c.type === 'seagull') && !c.fleeing &&
-            c.group.position.distanceTo(pos) < 5) {
+        const d = c.group.position.distanceTo(pos);
+        if (c.type === 'villager' && d < 6) c.meowWaveT = 1.5;
+        if ((c.type === 'bird' || c.type === 'seagull') && !c.fleeing && d < 5) {
           c.fleeing = true;
           c.cooldown = 18;
         }
+        if (!far || !CURIOUS.has(c.type) || d >= FAR_CALL_RADIUS) continue;
+        // A fleeing critter is busy getting away, a scripted `moment` runner
+        // is on rails, and a trail butterfly already orbits the cat — none of
+        // the three has an idle anchor worth retargeting.
+        if (c.fleeing || c.moment || c.trail) continue;
+        // Approach along the critter's own bearing and stop a body length
+        // short, so a called-in group fans out around the caller instead of
+        // stacking on one point (the same shape straycats.js uses).
+        const away = c.group.position.clone().sub(pos).setY(0);
+        if (away.lengthSq() < 0.0001) away.set(0, 0, 1);
+        c.anchorTo = pos.clone().setY(0).addScaledVector(away.normalize(), FAR_CALL_STANDOFF);
+        c.drawT = FAR_CALL_DRAW_TIME;
+        count += 1;
       }
+      return count;
     },
     dispose() {
       for (const c of [...list]) remove(c);
@@ -224,11 +300,27 @@ export function createCritters(scene, spawns, opts = {}) {
         const dCat = p.distanceTo(catPos);
         const threat = Math.min(dPlayer, dCat);
 
+        // v18 Far Call: ease the idle anchor toward wherever it is currently
+        // aimed — the caller while a call is live, home once it lapses. With
+        // no call in play anchorTo is null and the anchor is already home, so
+        // this is a single Vector3 equality check and nothing moves.
+        if (c.drawT > 0) {
+          c.drawT -= dt;
+          if (c.drawT <= 0) c.anchorTo = null;
+        }
+        const anchorGoal = c.anchorTo ?? c.anchorHome;
+        if (!c.anchor.equals(anchorGoal)) {
+          const step = ANCHOR_SPEED * dt;
+          const toGoal = anchorGoal.clone().sub(c.anchor);
+          if (toGoal.length() <= step) c.anchor.copy(anchorGoal);
+          else c.anchor.addScaledVector(toGoal.normalize(), step);
+        }
+
         if (c.moment) {
           // scripted dash: out 3s, back 3s, then despawn
           c.moment.t += dt;
           const target = c.moment.t < 3 ? c.moment.target
-            : new THREE.Vector3(c.def.x, 0, c.def.z);
+            : c.anchor.clone();
           const dir = target.clone().sub(p).setY(0);
           if (dir.length() > 0.2) p.addScaledVector(dir.normalize(), dt * 5);
           if (c.moment.t > 6) remove(c);
@@ -242,7 +334,7 @@ export function createCritters(scene, spawns, opts = {}) {
             p.z += Math.cos(c.phase) * dt * 4;
             c.cooldown -= dt;
             if (c.cooldown <= 0) {
-              p.set(c.def.x, 0, c.def.z);
+              p.set(c.anchor.x, 0, c.anchor.z);
               c.fleeing = false;
             }
           } else {
@@ -263,24 +355,24 @@ export function createCritters(scene, spawns, opts = {}) {
             c.cooldown -= dt;
             if (c.cooldown <= 0) c.fleeing = false;
           } else {
-            const a = new THREE.Vector3(c.def.x, 0, c.def.z);
-            const bPt = new THREE.Vector3(c.def.x2 ?? c.def.x + 6, 0, c.def.z2 ?? c.def.z);
+            const a = c.anchor;
+            const bPt = a.clone().add(c.patrolSpan);
             const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
             p.lerpVectors(a, bPt, k);
           }
         } else if (c.type === 'butterfly' || c.type === 'firefly') {
-          const cx = c.trail ? catPos.x : c.def.x;
-          const cz = c.trail ? catPos.z : c.def.z;
+          const cx = c.trail ? catPos.x : c.anchor.x;
+          const cz = c.trail ? catPos.z : c.anchor.z;
           p.x = cx + Math.sin(t * 0.8 + c.phase) * 1.5;
           p.z = cz + Math.cos(t * 0.6 + c.phase) * 1.5;
           p.y = 0.8 + Math.sin(t * 2 + c.phase) * 0.3;
         } else if (c.type === 'duck') {
           const r = 2;
-          p.x = c.def.x + Math.cos(t * 0.3 + c.phase) * r;
-          p.z = c.def.z + Math.sin(t * 0.3 + c.phase) * r;
+          p.x = c.anchor.x + Math.cos(t * 0.3 + c.phase) * r;
+          p.z = c.anchor.z + Math.sin(t * 0.3 + c.phase) * r;
           c.group.rotation.y = -(t * 0.3 + c.phase);
         } else if (c.type === 'crab') {
-          p.x = c.def.x + Math.sin(t * 1.5 + c.phase) * 1.2;
+          p.x = c.anchor.x + Math.sin(t * 1.5 + c.phase) * 1.2;
         } else if (c.type === 'dog') {
           c.cooldown -= dt;
           if (dCat < 8 && c.cooldown <= 0) {
