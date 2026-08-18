@@ -49,6 +49,7 @@ import { createChatWheel } from './ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from './chat.js';
 import { replyFor, countsAsGreet, intentFor } from './catreplies.js';
 import { phraseIdForDigit } from './chatkeys.js';
+import { labelFor } from './game/labels.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
 import { resolveQuality } from './render/quality.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -2405,15 +2406,6 @@ function init() {
     hud.toast(`📸 ${subject.label}`);
     if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);
     else noteGoal('photo');
-  }
-
-  function labelFor(type) {
-    return {
-      bird: 'a songbird', squirrel: 'a busy squirrel', butterfly: 'a butterfly',
-      duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
-      dog: 'the neighbor’s dog', villager: 'a friendly neighbor',
-      firefly: 'a glowing firefly', mouse: 'a quick little mouse',
-    }[type] ?? 'something interesting';
   }
 
   renderer.setAnimationLoop(() => {
