@@ -265,3 +265,34 @@ charge-**up** threshold, so taken literally the ability would be a 67% nerf.
 Task 2.2 mapped the spec's two clauses onto the two knobs that exist: charge-up
 1.5 → **0.9s** ("recharges faster") and the charge now survives **2.5s** of
 interruption ("runs longer"). Accepted — the spec sentence is what was wrong.
+
+### CF-12 — RULING: Sea Legs is DESCOPED from v18
+Cut per the spec's stated descope order. **Not for time — the ability as specified
+does not do what the spec claims.**
+
+**Finding: water in this game has never carried colliders.** The park pond, the
+seaside sea (bounds reach x 36; the sea plane starts at x 25) and the Docks canal
+are all walk-over surfaces *today*. "Swim — water becomes traversable at reduced
+speed" therefore describes traversal the player already has, minus speed. Earning
+it would make the cat strictly slower. An ability must never be a downgrade —
+the same principle that made CF-2 a defect.
+
+**Why the obvious fix is worse.** Making water block, with Sea Legs opening it,
+would give the ability real value — but three park ducks spawn INSIDE the pond
+(`(-14,2)`, `(-12,0)`, `(-16,4)`) and the `duck-parade` moment originates there.
+Blocking the pond puts a journal critter behind an ability, violating the
+non-goal that **no ability may gate content reachable today**. Honouring that
+means relocating shipped content and auditing every water body per area — a
+different and larger piece of work than "add a swim state", and one that should
+be designed deliberately rather than bolted on at the end of a wave.
+
+**Consequence:** v18 ships **eleven** abilities, not twelve. Sea Legs is removed
+from the catalog entirely rather than left visible — its feat (`walks.seaside >= 5`)
+is perfectly earnable, so leaving it in would hand the player an ability that
+unlocks with fanfare and then does nothing. That is worse than its absence.
+
+**Recommended as its own v19 item:** make water real (colliders + a swim state),
+relocate the pond ducks to the shoreline, and reinstate Sea Legs as the ability
+that opens it. The Docks was deliberately authored for this — two dry crossings
+and a test pinning that nothing required sits in the canal — so the district is
+already prepared for water to start blocking.
