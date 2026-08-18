@@ -388,10 +388,36 @@ export function createInteractions({
       s.fx.burst(s.cat.position, 0xf2c14e, 12);
       if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'collect', collectibleId: c.id });
     } else if (s.prompt.kind === 'tip') {
-      if (s.tippables.tip(s.prompt.data)) {
-        log.awardOnce('mischief', `tip-${s.prompt.data.id}`, 'a gravity check 🐾');
-        s.critters.dismayNear(s.prompt.data.group.position, 8);
-        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: s.prompt.data.id });
+      const target = s.prompt.data;
+      // v18 CF-2. Big Swat's cascade takes neighbouring props down with the
+      // one you swatted, and EVERY prop that actually goes over pays its own
+      // awardOnce('mischief', `tip-<id>`).
+      //
+      // This is not a rebalance: one tipped prop has always paid exactly one
+      // mischief award. Before this, only the directly-swatted prop paid, so
+      // flattening three in one cascade scored 1 point and moved the "Tip 3
+      // things over" goal by 1 where three separate taps scored 3 and moved
+      // it by 3 — an ability earned by tipping 40 things made tipping goals
+      // slower. An earned ability must never be a downgrade.
+      //
+      // Which props went over is read back off tippables.list rather than
+      // returned by tip(), so nothing about the tippables contract changes —
+      // and neither does the wire event, which still names only the swatted
+      // prop (a cascade is deliberately local spectacle; the spec's non-goals
+      // forbid a new broadcast kind).
+      //
+      // Farming stays bounded exactly as before: awardOnce is keyed per prop
+      // id per walk, and a prop that is down cannot be tipped again this
+      // walk, so no prop can pay twice and the per-walk ceiling is still the
+      // number of props the area has.
+      const standing = s.tippables.list.filter((e) => !e.tipped && e !== target);
+      if (s.tippables.tip(target)) {
+        log.awardOnce('mischief', `tip-${target.id}`, 'a gravity check 🐾');
+        for (const e of standing) {
+          if (e.tipped) log.awardOnce('mischief', `tip-${e.id}`, 'a gravity check 🐾');
+        }
+        s.critters.dismayNear(target.group.position, 8);
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: target.id });
       }
     } else if (s.prompt.kind === 'tip-gnome') {
       const gnome = s.prompt.data;
