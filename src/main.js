@@ -51,6 +51,7 @@ import { phraseIdForDigit } from './chatkeys.js';
 import { labelFor } from './game/labels.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
 import { createNetEvents } from './game/netevents.js';
+import { createPhotoMode } from './game/photo.js';
 import { nowSec, escapeHtml, hashName } from './game/util.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
 import { resolveQuality } from './render/quality.js';
@@ -287,6 +288,14 @@ function init() {
   } = createNetEvents({
     MP, getCloud, getPsecret, log, hud, audio, samples, catVoice,
     applyGoalResult: (s, res) => applyGoalResult(s, res),
+  });
+
+  // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
+  // function declarations, so passing them straight through is safe here.
+  const { snapPhoto } = createPhotoMode({
+    renderer, camera, player, album, hud, log, audio,
+    renderFrame: () => renderFrame(),
+    noteGoal: (type) => noteGoal(type),
   });
 
   // Room state lives OUTSIDE the walk session — a room can be formed on the
@@ -1982,54 +1991,6 @@ function init() {
       }
       if (s.activeMoment.timeLeft <= 0) s.activeMoment = null;
     }
-  }
-
-  function findPhotoSubject(s) {
-    const candidates = [];
-    for (const c of s.critters.list) {
-      if (c.spottable && !c.fleeing) candidates.push({ key: `critter-${c.type}`, label: labelFor(c.type), pos: c.group.position });
-    }
-    for (const st of s.strayCats.strays) candidates.push({ key: 'stray', label: 'a stray cat', pos: st.group.position });
-    for (const r of s.remotes.list) candidates.push({ key: 'friend-pet', label: r.petName, pos: r.group.position });
-    for (const g of s.ghosts.list) candidates.push({ key: 'friend-pet', label: g.petName, pos: g.group.position });
-    for (const sec of s.secrets?.list ?? []) {
-      if (sec.group.visible) candidates.push({ key: sec.key, label: sec.label, pos: sec.group.position });
-    }
-    if (s.activeMoment) {
-      candidates.push({ key: `moment-${s.activeMoment.m.id}`, label: s.activeMoment.m.label, pos: new THREE.Vector3(s.activeMoment.m.x, 0, s.activeMoment.m.z) });
-    }
-    for (const sc of s.areaData.scenics) candidates.push({ key: `scenic-${sc.id}`, label: sc.label, pos: new THREE.Vector3(sc.x, 0, sc.z) });
-    let best = null;
-    let bestDot = 0.75;
-    for (const c of candidates) {
-      const to = c.pos.clone().sub(camera.position).setY(0);
-      if (to.length() > 12) continue;
-      const dot = to.normalize().dot(player.forward());
-      if (dot > bestDot) { bestDot = dot; best = c; }
-    }
-    return best;
-  }
-
-  function snapPhoto(s) {
-    audio.shutter();
-    const subject = findPhotoSubject(s);
-    if (!subject) {
-      hud.toast('Just scenery… get closer to something!');
-      return;
-    }
-    renderFrame();
-    const thumbCanvas = document.createElement('canvas');
-    thumbCanvas.width = 160;
-    thumbCanvas.height = 120;
-    thumbCanvas.getContext('2d').drawImage(renderer.domElement, 0, 0, 160, 120);
-    const first = album.add({
-      key: subject.key, label: subject.label, area: s.areaData.name,
-      thumb: thumbCanvas.toDataURL('image/jpeg', 0.6),
-      date: new Date().toISOString().slice(0, 10),
-    });
-    hud.toast(`📸 ${subject.label}`);
-    if (first) log.awardOnce('photo', `photo-${subject.key}`, `your first photo of ${subject.label}`);
-    else noteGoal('photo');
   }
 
   renderer.setAnimationLoop(() => {
