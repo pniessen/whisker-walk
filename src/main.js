@@ -38,7 +38,6 @@ import { raceCourse, createRace } from './race.js';
 import { puddle as puddleProp } from './world/builder.js';
 import { cameraOffset } from './catcam.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { createNet, createSupabaseTransport, generateRoomCode, validPetName } from './net.js';
 import { createBlockList } from './blocklist.js';
 import { createChatBubbles } from './chatbubble.js';
 import { createChatWheel } from './ui/chatwheel.js';
@@ -50,6 +49,7 @@ import { createNetEvents } from './game/netevents.js';
 import { createPhotoMode } from './game/photo.js';
 import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
+import { createRooms } from './game/rooms.js';
 import { nowSec, escapeHtml, hashName } from './game/util.js';
 import { litMaterial, buildEnvMap } from './render/materials.js';
 import { resolveQuality } from './render/quality.js';
@@ -314,73 +314,20 @@ function init() {
     petNameFor, completeTag, noteBat,
   });
 
-  // Room state lives OUTSIDE the walk session — a room can be formed on the
-  // home base screen (host/join) before anyone has clicked Start, and
-  // survives across walks only until endWalk explicitly leaves it.
-  let pendingRoom = null; // { net, code, roster }
-  // host()/join() both check `pendingRoom` before doing anything async, but
-  // pendingRoom itself is only set AFTER the await — a double-click (or
-  // host+join fired back to back) would pass that guard twice and open two
-  // concurrent room connections, with the loser's net silently orphaned.
-  // This flag closes that window: it's set synchronously before the first
-  // await, so a concurrent call sees it immediately, not just eventually.
-  let roomOpInFlight = false;
-  const roomChangeHandlers = [];
-  function notifyRoomChange() {
-    for (const fn of roomChangeHandlers) fn();
-  }
-
-  function roomProfile() {
-    const st = progression.state;
-    return {
-      playerId: pid,
-      petName: st.petName,
-      breed: st.equipped.cat,
-      accessories: {
-        collar: st.equipped.collar,
-        head: st.equipped.head,
-        face: st.equipped.face,
-        neck: st.equipped.neck,
-        body: st.equipped.body,
-        back: st.equipped.back,
-        feet: st.equipped.feet,
-      },
-    };
-  }
-
-  // Cloud profile push (Task 3): publishes what's currently equipped under
-  // this device's playerId/secret. Guarded on MP and on having a pet name —
-  // an unnamed pet was never walk-together-visible either, so there's
-  // nothing meaningful to publish yet. Fire-and-forget with a console-only
-  // catch, same pattern as sync.autoSync: profile visibility lagging by one
-  // push is fine, but it must never block or throw into a caller.
-  // Returns the push's promise (resolved even on failure, since the catch
-  // below handles it) rather than nothing — most callers still fire-and-forget
-  // it, but homebaseCloud.addFriendByCode below awaits it so a just-named
-  // pet's profile row exists before the friend-code flow's recordGreet call.
-  function pushProfileNow() {
-    if (!MP) return Promise.resolve();
-    const st = progression.state;
-    if (!st.petName) return Promise.resolve();
-    const cloud = getCloud();
-    if (!cloud) return Promise.resolve();
-    return cloud.pushProfile({
-      playerId: pid,
-      secret: getPsecret(),
-      petName: st.petName,
-      breed: st.equipped.cat,
-      accessories: {
-        collar: st.equipped.collar,
-        head: st.equipped.head,
-        face: st.equipped.face,
-        neck: st.equipped.neck,
-        body: st.equipped.body,
-        back: st.equipped.back,
-        feet: st.equipped.feet,
-      },
-      rankTitle: rankFor(st.lifetimePoints).title,
-    }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
-  }
+  // Co-walk room lobby + profile push (src/game/rooms.js). It owns
+  // pendingRoom; the walk lifecycle reads it back through getPendingRoom /
+  // clearPendingRoom below. startWalk is passed as a thunk because it is
+  // declared further down — nothing can reach it before init() returns.
+  const {
+    rooms, pushProfileNow, getPendingRoom, clearPendingRoom,
+  } = createRooms({
+    MP, pid,
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+    supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    progression, getCloud, getPsecret,
+    getSession: () => session,
+    startWalk: (opts) => startWalk(opts),
+  });
 
   // Ghost visits (Task 4): fetch this player's cross-walk friendships +
   // their public profiles, roll which (if any) show up via rollGhosts, and
@@ -432,116 +379,13 @@ function init() {
     }
   }
 
-  // The host broadcasts walk-config once (on Start); every other member of
-  // the room is idle on the home base screen with this handler wired up via
-  // setupRoomNet, so receiving it is what actually launches their walk —
-  // there's no separate "join the walk" click.
-  function handleLobbyEvent(ev) {
-    if (!pendingRoom || ev.type !== 'walk-config') return;
-    if (session) return; // already mid-walk — a stray/duplicate/replayed walk-config can't re-enter startWalk
-    // only the host may launch the room's walk — roster is sorted by
-    // createNet, so the smallest playerId (roster[0]) is always the host;
-    // anyone else's walk-config is either spoofed or stale and must be
-    // ignored rather than hijacking every member's walk.
-    if (ev.id !== pendingRoom.roster[0]?.playerId) return;
-    if (progression.isUnlocked('areas', ev.area)) {
-      progression.setArea(ev.area);
-      startWalk({ duskMode: ev.dusk, roomSeed: ev.seed });
-    } else {
-      // don't force an unlocked-area change onto their save — just render
-      // the host's area for this one walk via the override.
-      startWalk({ duskMode: ev.dusk, roomSeed: ev.seed, areaOverride: ev.area });
-    }
-  }
-
-  function setupRoomNet(net, code) {
-    pendingRoom = { net, code, roster: [] };
-    net.onRoster((roster) => {
-      if (!pendingRoom) return; // left/torn down between the send and this callback
-      pendingRoom.roster = roster;
-      notifyRoomChange();
-    });
-    net.onEvent(handleLobbyEvent);
-  }
-
-  const rooms = {
-    available: MP,
-    getState() {
-      if (!pendingRoom) return null;
-      return { code: pendingRoom.code, roster: pendingRoom.roster, isHost: pendingRoom.net.isHost() };
-    },
-    async host() {
-      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
-      roomOpInFlight = true;
-      const code = generateRoomCode();
-      const net = createNet(createSupabaseTransport(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
-      ));
-      try {
-        await net.join(code, roomProfile());
-      } catch (err) {
-        console.warn('Whisker Walk: failed to host a room', err);
-        roomOpInFlight = false;
-        return { ok: false };
-      }
-      // defensive: shouldn't be reachable given the flag above, but if some
-      // other path claimed pendingRoom while we awaited, don't clobber it —
-      // leave the room we just joined instead of leaking it.
-      if (pendingRoom) {
-        roomOpInFlight = false;
-        await net.leave().catch(() => {});
-        return { ok: false };
-      }
-      setupRoomNet(net, code);
-      roomOpInFlight = false;
-      notifyRoomChange();
-      pushProfileNow(); // fire-and-forget — the room roster already carries petName/breed live
-      return { ok: true, code };
-    },
-    async join(code) {
-      if (!MP || pendingRoom || roomOpInFlight) return { ok: false };
-      roomOpInFlight = true;
-      const net = createNet(createSupabaseTransport(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
-      ));
-      try {
-        await net.join(code, roomProfile());
-      } catch (err) {
-        console.warn('Whisker Walk: failed to join room', err);
-        roomOpInFlight = false;
-        return { ok: false };
-      }
-      if (pendingRoom) {
-        roomOpInFlight = false;
-        await net.leave().catch(() => {});
-        return { ok: false };
-      }
-      setupRoomNet(net, code);
-      roomOpInFlight = false;
-      notifyRoomChange();
-      pushProfileNow(); // fire-and-forget — same as host() above
-      return { ok: true, code };
-    },
-    async leave() {
-      if (!pendingRoom) return;
-      const net = pendingRoom.net;
-      pendingRoom = null;
-      notifyRoomChange();
-      await net.leave();
-    },
-    onChange(fn) {
-      roomChangeHandlers.push(fn);
-    },
-  };
-
   // homebase's Start button always calls this; solo play (no room, or a
   // joiner who — thanks to the disabled "Waiting for host…" button — never
   // gets a click through) is unaffected. Only the host actually reaches the
   // room branch, and it's the host who owns the shared seed: it's computed
   // once here and carried to everyone (including the host) via walk-config.
   function beginWalkFromHomebase({ duskMode }) {
+    const pendingRoom = getPendingRoom();
     if (pendingRoom) {
       if (pendingRoom.net.isHost()) {
         const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
@@ -1131,6 +975,7 @@ function init() {
     // its net/playerId/petName into the session here; solo walks never set
     // pendingRoom at all, so session.net stays undefined and every co-walk
     // branch below is a no-op.
+    const pendingRoom = getPendingRoom();
     if (pendingRoom) {
       session.net = pendingRoom.net;
       session.playerId = pid;
@@ -1348,8 +1193,7 @@ function init() {
     // the scene synchronously regardless of how the network leave resolves.
     if (session.net) {
       const net = session.net;
-      pendingRoom = null;
-      notifyRoomChange();
+      clearPendingRoom();
       Promise.resolve(net.leave()).catch(() => {});
     }
 
