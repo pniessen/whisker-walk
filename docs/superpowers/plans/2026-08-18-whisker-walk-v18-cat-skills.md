@@ -187,3 +187,31 @@ the implementation. Simpler for a 10-year-old, and it avoids editing `main.js`.
 Harmless solo (solo `walkRng` *is* `Math.random`), but in a room walk two
 co-walkers can disagree about whether a stray carries a gift. Pre-existing, not
 introduced by v18. Logged so it is a decision on record rather than an oversight.
+
+---
+
+## Agent environment notes (learned the hard way — put these in every brief)
+
+1. **Worktrees branch from `main`, not from the working branch.** Three of four
+   Stage 2 agents hit this. Every brief must open with: verify `src/skills.js`
+   exists and HEAD descends from `v18-cat-skills`; if not, fast-forward first.
+   The tell is a 403/45 baseline instead of the current count.
+2. **`npx`/`node` are not on PATH.** `eval "$(/opt/homebrew/bin/mise activate bash)" && mise exec -- npx …`
+   works in most sandboxes, but at least one agent's Bash sandbox rejected the
+   `eval` form as too complex. The direct shim always works:
+   `/Users/pniessen/.local/share/mise/shims/npx vitest run --dir test`
+3. **Always pass `--dir test`.** Agent worktrees live under `.claude/worktrees/`,
+   *inside* the project, so vitest's default glob collects their copied suites
+   and silently multiplies the count (806/90 was observed for a 403/45 suite).
+4. **A worktree has no `node_modules`** — resolution walks up to the parent
+   repo's, which is precisely why nesting the worktrees inside the project works
+   at all. Do not "fix" this by running `npm install` in a worktree.
+5. **`preview_start` cannot launch a worktree's dev server.** It resolves
+   `.claude/launch.json` from the main repo root, so a config added inside a
+   worktree is invisible to it. Worktree agents should run vite via Bash on a
+   port other than 5174 and leave `.claude/launch.json` alone.
+6. **`src/ui/homebase.js` cannot be imported by the test suite** — it calls
+   `document.getElementById` at module scope and there is no jsdom in this
+   project. Pure render helpers therefore belong in `hometabs.js` (the split
+   `journal.js` already uses for `renderJournalHtml`). This is what makes UI
+   rendering testable at all; follow it rather than adding a DOM shim.
