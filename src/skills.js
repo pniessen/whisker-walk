@@ -345,8 +345,16 @@ export const SKILLS = [
     id: 'big-swat',
     family: 'mischief',
     name: 'Big Swat',
-    effect: 'Your knock-over reach doubles, and tipping cascades into neighbours.',
+    effect: 'One swat topples a whole cluster — knocked props take their neighbours down with them.',
     feat: 'Tip over 40 things',
+    // The effect line used to promise a doubled knock-over REACH as well.
+    // That was implemented as a x2 on tippables.nearest(), which is the same
+    // call game/interactions.js drives the prompt from, so it pushed the tip
+    // prompt out over greet/quest/scratch/boop/dig and left a Big Swat player
+    // unable to greet a cat standing near a crate. The spec's "knock-over
+    // radius doubles" is now read as the CASCADE radius only (v18 final
+    // review), so the reach clause was dropped from the copy rather than left
+    // describing behaviour the ability no longer has.
     progress: (state) => ({ have: featTally(state, 'mischief'), need: 40 }),
   },
 

@@ -273,6 +273,25 @@ charge-**up** threshold, so taken literally the ability would have been a 67%
 charge-up 1.5 → **0.9s** ("recharges faster"), and the charge now survives
 **2.5s** of interruption ("runs longer").
 
+### Big Swat's "radius doubles" is the CASCADE radius, not the reach
+
+§Mischief's Big Swat row reads "Knock-over radius doubles; tipping cascades
+into neighbouring tippables". Shipped as a x2 on `tippables.nearest()`, which
+is the same call `game/interactions.js` drives the **prompt** from — and the
+tip branch sits second in the prompt chain. A 2.6m tip reach therefore
+outranked stray greet (2.5), quest-accept (2.5), scratch (2.2), boop (1.5) and
+dig (1.2). At the Docks, deliberately authored as both the densest tippable
+field and the largest stray population, a Big Swat player standing near a
+crate saw "E — paw it over" and **could not greet the cat in front of them**
+without walking away from the crate. CF-2's failure shape a third time: an
+ability earned by tipping 40 things making non-tipping play worse.
+
+**Ruling (final review): "radius" means the cascade radius only.** The
+prompt/target reach stays at the base 1.3m in every skill state; the cascade
+keeps its doubled 2.6m and its `CASCADE_MAX_HOPS` bound. Chosen over
+reordering the prompt chain, which would have changed shipped priorities to
+fix one ability. The catalog's effect line dropped its reach clause to match.
+
 ### §Risks was wrong about farmability — two tallies do NOT ride `discovery`
 
 §Risks says feat counters "ride the same `discovery` events that already carry

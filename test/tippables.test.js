@@ -49,10 +49,17 @@ describe('createTippables', () => {
   });
 });
 
-// v18 Task 2.5 — Big Swat: knock-over radius doubles, tipping cascades.
+// v18 Task 2.5 — Big Swat: tipping cascades into neighbours.
+//
+// "Knock-over radius doubles" is read as the CASCADE radius and NOT the reach
+// to the prop you swat (v18 final review). The old x2 on nearest() also moved
+// the PROMPT, because game/interactions.js drives the prompt off this same
+// call, so a Big Swat player got "E — paw it over" at 2.6m and could not
+// greet a stray (2.5), take a quest (2.5), scratch (2.2), boop (1.5) or dig
+// (1.2) while a prop was anywhere near. nearest() is therefore skill-blind
+// now, and these tests pin that both ways round.
 describe('createTippables — Big Swat', () => {
-  // The reach interactions.js actually prompts at, so the doubled figures
-  // below (2.6) are the ones the live game sees.
+  // The reach interactions.js actually prompts at.
   const REACH = 1.3;
   // Two states that BOTH satisfy hasSkill(state, 'big-swat') by its two
   // different routes — the persisted list and the live feat predicate (tip
@@ -67,8 +74,8 @@ describe('createTippables — Big Swat', () => {
   const at = (x) => new THREE.Vector3(x, 0, 0);
 
   describe('no skill — must play exactly as it does today', () => {
-    // 2.0m is out of the 1.3m reach but inside the doubled 2.6m one, so it
-    // separates the two states rather than passing under both.
+    // 2.0m is out of the 1.3m reach and inside the 2.6m cascade radius, so it
+    // separates reach from cascade rather than passing under both.
     it('leaves the knock-over radius at the caller\'s own maxDist', () => {
       for (const tp of [
         createTippables(scene, row(2.0)),                        // no opts at all
@@ -89,20 +96,35 @@ describe('createTippables — Big Swat', () => {
   });
 
   describe('with the skill', () => {
-    it('doubles the knock-over radius, by either unlock route', () => {
+    // v18 final review. The reach is the ability's shadowing surface: it is
+    // the number game/interactions.js prompts on, and every prompt below the
+    // tip branch loses to it. Asserted at 2.0m — the exact distance the old
+    // x2 reach turned into a tip prompt and this one does not — by BOTH
+    // unlock routes, so neither the persisted list nor the live feat
+    // predicate can widen it.
+    it('does NOT change the reach to the target, by either unlock route', () => {
       for (const state of [persisted(), earned()]) {
         const tp = withSkill(row(2.0), state);
-        expect(tp.nearest(at(0), REACH)).toBe(tp.list[0]);
+        expect(tp.nearest(at(0), REACH)).toBe(null);
       }
     });
 
-    it('still respects the doubled radius as a limit, not as unlimited reach', () => {
-      const tp = withSkill(row(3.0), persisted()); // 3.0 > 2 * 1.3
-      expect(tp.nearest(at(0), REACH)).toBe(null);
+    it('matches the no-skill reach exactly, prop for prop', () => {
+      // The strongest form of "the prompt is unchanged": same spots, same
+      // query, and the answer must be the same entry index in both states.
+      const spots = row(0.9, 2.0, 3.0);
+      const plain = createTippables(scene, spots);
+      const swat = withSkill(spots, persisted());
+      for (const x of [0, 1.5, 2.5, 4.0]) {
+        const a = plain.nearest(at(x), REACH);
+        const b = swat.nearest(at(x), REACH);
+        expect(b === null ? null : swat.list.indexOf(b))
+          .toBe(a === null ? null : plain.list.indexOf(a));
+      }
     });
 
     it('still ignores already-tipped props when finding the nearest', () => {
-      const tp = withSkill(row(2.0), persisted());
+      const tp = withSkill(row(1.0), persisted());
       tp.tip(tp.list[0]);
       expect(tp.nearest(at(0), REACH)).toBe(null);
     });
@@ -157,13 +179,15 @@ describe('createTippables — Big Swat', () => {
     });
 
     it('reads the state live, so unlocking mid-walk takes effect at once', () => {
+      // Observed through the cascade, which is now the ability's only
+      // effect — nearest() answers the same in both states by design.
       const state = { feats: { mischief: 39 } };
-      const tp = createTippables(scene, row(2.0, 4.0, 6.0), { getState: () => state });
-      expect(tp.nearest(at(0), REACH)).toBe(null); // one tip short
-      state.feats.mischief = 40;                   // the 40th tip lands
-      expect(tp.nearest(at(0), REACH)).toBe(tp.list[0]);
-      tp.tip(tp.list[0]);
-      expect(tp.list.map((e) => e.tipped)).toEqual([true, true, true]);
+      const tp = createTippables(scene, row(0, 2.0, 4.0, 20, 22), { getState: () => state });
+      expect(tp.tip(tp.list[0])).toBe(true);        // one tip short: no chain
+      expect(tp.list.map((e) => e.tipped)).toEqual([true, false, false, false, false]);
+      state.feats.mischief = 40;                    // the 40th tip lands
+      expect(tp.tip(tp.list[3])).toBe(true);
+      expect(tp.list.map((e) => e.tipped)).toEqual([true, false, false, true, true]);
     });
   });
 });

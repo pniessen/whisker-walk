@@ -317,6 +317,95 @@ describe('doPounceOrClimb — the perch tally is not farmable', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// v18 final review — Big Swat must not shadow the prompt chain.
+//
+// tippables.nearest() is the same call the PROMPT scan uses, and the tip
+// branch sits second in the chain. Doubling that reach to 2.6m therefore put
+// "E — paw it over" ahead of stray greet (2.5), quest-accept (2.5), scratch
+// (2.2), boop (1.5) and dig (1.2). At the Docks — the densest tippable field
+// and the largest stray population in the game — a Big Swat player standing
+// near a crate could not greet the cat in front of them.
+//
+// The ruling: "knock-over radius doubles" means the cascade radius only, so
+// the prompt reach stays at the base 1.3m in every skill state. These drive
+// the real updateInteractions against real tippables from both states.
+// ---------------------------------------------------------------------------
+
+describe('updateInteractions — Big Swat does not shadow other prompts', () => {
+  // A crate 2.0m away: outside the 1.3m tip reach, inside the old doubled
+  // 2.6m one. The stray stands at the same spot, well inside its own 2.5m
+  // greet range, which is the exact Docks collision the review described.
+  function promptHarness({ skills = [], feats = {} } = {}) {
+    const progression = createProgression(fakeStorage());
+    progression.replaceFromPayload({ version: 4, skills, feats });
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const tippables = createTippables(scene, [{ x: 0, z: 2.0, kind: 'bin' }],
+      { getState: () => progression.state });
+    const stray = { name: 'Pickles', greeted: false };
+    const prompts = [];
+    const session = {
+      areaId: 'park',
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: [] },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats: { strays: [], nearest: () => stray },
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables,
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts: null,
+      perched: null,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const { updateInteractions } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0 },
+      progression, log,
+      hud: { toast() {}, setPrompt: (t) => prompts.push(t) },
+      audio: { trill() {}, meow() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    const walkTo = (x, z) => { session.cat.position.set(x, 0, z); updateInteractions(session); };
+    return { session, prompts, walkTo };
+  }
+
+  it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
+    for (const state of [
+      {},                                        // no skills at all
+      { skills: ['big-swat'] },                  // persisted unlock
+      { feats: { mischief: 40 } },               // live feat predicate
+    ]) {
+      const h = promptHarness(state);
+      h.walkTo(0, 0);
+      expect(h.session.prompt.kind).toBe('stray');
+      expect(h.prompts.at(-1)).toBe('E — touch noses with Pickles');
+    }
+  });
+
+  it('still offers the tip prompt inside the base reach in every skill state', () => {
+    // The ability must not make tipping harder either — 1.0m from the crate
+    // is inside 1.3m and stays a tip prompt for everyone.
+    for (const state of [{}, { skills: ['big-swat'] }]) {
+      const h = promptHarness(state);
+      h.walkTo(0, 1.0);
+      expect(h.session.prompt.kind).toBe('tip');
+      expect(h.prompts.at(-1)).toBe('E — paw it over');
+    }
+  });
+});
+
 // ===========================================================================
 // v18 Task 2.3 — the two passive senses abilities, driven through the exact
 // function updateInteractions calls every frame. Every case is asserted in

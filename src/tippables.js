@@ -10,10 +10,25 @@ import { hasSkill } from './skills.js';
 // tipById below). Without the skill every number here is inert and the module
 // behaves exactly as it did pre-v18.
 const BIG_SWAT_ID = 'big-swat';
-// "Knock-over radius doubles" — applied inside nearest() rather than at the
-// interactions.js call site, because that file belongs to another v18 task.
-// The caller keeps passing its own reach and simply gets twice as much of it.
-const SWAT_REACH_MULT = 2;
+// "Knock-over radius doubles" means the CASCADE radius — how far a falling
+// prop reaches to take its neighbours down — and NOT the reach to the prop
+// you swat. nearest() therefore honours the caller's maxDist in every skill
+// state (v18 final review).
+//
+// It was originally a x2 multiplier inside nearest(), which broke a system
+// two modules away: game/interactions.js uses that same nearest() call for
+// the PROMPT, and the tip branch sits second in the prompt chain, so a 2.6m
+// tip reach outranked stray greet (2.5), quest-accept (2.5), scratch (2.2),
+// boop (1.5), dig (1.2), race and kitten. At the Docks — authored as both
+// the densest tippable field and the largest stray population — a Big Swat
+// player standing near a crate got "E — paw it over" and could not greet the
+// cat in front of them without walking away. That is the CF-2 failure again:
+// an ability earned by tipping 40 things making non-tipping play worse.
+//
+// Fixing it here rather than by reordering the prompt chain keeps shipped
+// prompt priorities untouched, and the ability keeps its real payload (a
+// bigger chain reaction).
+//
 // How far a toppling prop reaches to take its neighbours down with it. Fixed
 // in world units rather than derived from nearest()'s maxDist, because tip()
 // is also reachable without a preceding nearest() call. 2.6 is the doubled
@@ -121,9 +136,14 @@ export function createTippables(scene, spots, opts = {}) {
 
   return {
     list,
+    // Skill-INDEPENDENT by design: the caller's maxDist is honoured exactly,
+    // with or without Big Swat. game/interactions.js drives the prompt off
+    // this call, so widening it here silently re-prioritises the whole prompt
+    // chain (see the CASCADE_RADIUS note above). Big Swat's reach lives in
+    // cascadeFrom, where it cannot shadow another interaction.
     nearest(pos, maxDist) {
       let best = null;
-      let bestD = bigSwat() ? maxDist * SWAT_REACH_MULT : maxDist;
+      let bestD = maxDist;
       for (const e of list) {
         if (e.tipped) continue;
         const d = e.group.position.distanceTo(pos);
