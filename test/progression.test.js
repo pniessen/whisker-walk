@@ -206,9 +206,63 @@ describe('createProgression', () => {
     expect(rankFor(0).title).toBe('House Cat');
     expect(rankFor(151).title).toBe('Yard Prowler');
     expect(rankFor(2500).title).toBe('Mythical Feline');
-    expect(rankFor(2500).next).toBe(null);
     expect(rankFor(160).next.title).toBe('Street Smart');
-    expect(RANKS).toHaveLength(5);
+  });
+
+  // The pre-v18 ladder is frozen: a title or threshold change here would
+  // demote a live player on update. Pinned literally rather than derived
+  // from RANKS so an accidental edit fails the test instead of following it.
+  it('never demotes: the five pre-v18 tiers keep their exact thresholds', () => {
+    expect(RANKS.slice(0, 5)).toEqual([
+      { at: 0, title: 'House Cat' },
+      { at: 150, title: 'Yard Prowler' },
+      { at: 400, title: 'Street Smart' },
+      { at: 900, title: 'Neighborhood Legend' },
+      { at: 2000, title: 'Mythical Feline' },
+    ]);
+  });
+
+  it('extends to nine tiers, sorted ascending, with no duplicate titles', () => {
+    expect(RANKS).toHaveLength(9);
+    expect(RANKS.map((r) => r.at)).toEqual([0, 150, 400, 900, 2000, 3500, 5500, 8000, 12000]);
+    expect(RANKS.map((r) => r.title)).toEqual([
+      'House Cat', 'Yard Prowler', 'Street Smart', 'Neighborhood Legend',
+      'Mythical Feline', 'Rooftop Royalty', 'Shadow Prowler', 'Nine Lives',
+      'Whisker Legend',
+    ]);
+    expect(new Set(RANKS.map((r) => r.title)).size).toBe(RANKS.length);
+    for (let i = 1; i < RANKS.length; i++) {
+      expect(RANKS[i].at).toBeGreaterThan(RANKS[i - 1].at); // rankFor assumes ascending
+    }
+  });
+
+  // Every boundary at need-1 / need / need+1: one point short still reads as
+  // the tier below, and the threshold itself already promotes.
+  it('promotes exactly at each threshold, not one point early or late', () => {
+    for (let i = 1; i < RANKS.length; i++) {
+      const { at, title } = RANKS[i];
+      const below = RANKS[i - 1].title;
+      expect(rankFor(at - 1).title).toBe(below);
+      expect(rankFor(at).title).toBe(title);
+      expect(rankFor(at + 1).title).toBe(title);
+    }
+  });
+
+  it('points at the next tier below the top and at null on the top tier', () => {
+    expect(rankFor(2000).next.title).toBe('Rooftop Royalty');
+    expect(rankFor(2500).next.title).toBe('Rooftop Royalty'); // no longer the ceiling
+    expect(rankFor(3499).next.title).toBe('Rooftop Royalty');
+    expect(rankFor(8000).next.title).toBe('Whisker Legend');
+    // Top tier: `next` is null rather than pointing past the end of the array.
+    expect(rankFor(12000).title).toBe('Whisker Legend');
+    expect(rankFor(12000).next).toBe(null);
+    expect(rankFor(999999).next).toBe(null);
+  });
+
+  it('floors at House Cat for zero and for below-zero lifetime points', () => {
+    expect(rankFor(0)).toEqual({ title: 'House Cat', next: RANKS[1] });
+    expect(rankFor(-1).title).toBe('House Cat'); // current stays RANKS[0] seed
+    expect(rankFor(-1).next.title).toBe('Yard Prowler');
   });
 
   describe('replaceFromPayload', () => {
