@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
+import { friendRungs } from './skills.js';
 
 const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
 const WANDER_SPEED = 1.4;
@@ -33,17 +34,16 @@ const FAR_CALL_WALK_TIME = 12;
 // must never be able to move the count, so the skill is wired to the table
 // below and has no reach into recordGreet at all.
 //
-// Base rungs are progression.friendLevel's 1/3/6. Charmer shortens the two
-// upper rungs — a charming cat is called a friend on its second nose-touch
-// and a best friend on its fourth — but 'met' stays at the first greet,
-// because there is no shorter first greet than one.
+// The rung TABLE itself is not here. v18 CF-4: this module used to own its
+// own copy of the base 1/3/6 and the Charmer 1/2/4 rungs while
+// progression.friendLevel owned a hardcoded second copy, and the two drifted
+// — a Charmer player was toasted "BEST friend 💕" at four greets for a cat
+// the home-base roster still drew as ♥. The single table now lives in
+// skills.js (pure, zero-import, already imported by progression.js, so no
+// cycle) and is re-exported here so this module's existing callers —
+// game/interactions.js and test/straycats.test.js — keep their import path.
 // ---------------------------------------------------------------------------
-const FRIEND_RUNGS = { met: 1, friend: 3, best: 6 };
-const CHARMER_RUNGS = { met: 1, friend: 2, best: 4 };
-
-export function friendRungs(charmer = false) {
-  return charmer ? CHARMER_RUNGS : FRIEND_RUNGS;
-}
+export { friendRungs };
 
 // friendRungCrossed(before, after, { charmer }) → 'met' | 'friend' | 'best' |
 // null. `before`/`after` are one cat's lifetime greet count either side of a

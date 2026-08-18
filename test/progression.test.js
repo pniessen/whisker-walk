@@ -163,6 +163,76 @@ describe('createProgression', () => {
     expect(p.friendLevel('Nobody')).toBe('none');
   });
 
+  // v18 CF-4. friendLevel hardcoded the base 1/3/6 while Charmer moved the
+  // rungs to 1/2/4 inside straycats.js, so a Charmer player was toasted
+  // "BEST friend 💕" at four greets for a cat the home-base roster still drew
+  // as ♥ and the best-friend gift roll still treated as an ordinary friend.
+  // Both now read one table (skills.js's friendRungs).
+  describe('friendLevel and the Charmer rungs', () => {
+    // Sets one cat's lifetime count directly. Nothing here goes through
+    // recordGreet on purpose: these cases are about the RUNG a count lands
+    // on, and the accrual path is pinned separately below.
+    const at = (prog, n) => {
+      prog.state.friends.Pickles = { breed: 'tabby', greets: n, lastWalk: null };
+      return prog.friendLevel('Pickles');
+    };
+
+    it('walks the base 1/3/6 ladder at every rung without Charmer', () => {
+      expect(hasSkill(p.state, 'charmer')).toBe(false);
+      expect([0, 1, 2, 3, 4, 5, 6, 7].map((n) => at(p, n))).toEqual(
+        ['none', 'met', 'met', 'friend', 'friend', 'friend', 'best', 'best']
+      );
+    });
+
+    it('walks the shortened 1/2/4 ladder at every rung with Charmer', () => {
+      p.recordSkillUnlocks(['charmer']);
+      expect(hasSkill(p.state, 'charmer')).toBe(true);
+      expect([0, 1, 2, 3, 4, 5].map((n) => at(p, n))).toEqual(
+        ['none', 'met', 'friend', 'friend', 'best', 'best']
+      );
+    });
+
+    it('agrees with recordGreet\'s own rung names in both states', () => {
+      // The two used to be independent copies of the table; a disagreement
+      // here is exactly the CF-4 defect.
+      for (const charmer of [false, true]) {
+        const q = createProgression(fakeStorage());
+        if (charmer) q.recordSkillUnlocks(['charmer']);
+        for (let w = 1; w <= 6; w++) {
+          const named = q.recordGreet('Pickles', 'tabby', `w${w}`);
+          if (named) expect(q.friendLevel('Pickles')).toBe(named);
+        }
+      }
+    });
+
+    it('never lets Charmer change how greets accrue', () => {
+      // The load-bearing invariant: Charmer moves rungs, never the count.
+      // Same greet script with and without the skill must leave the same
+      // number on the save, including the per-walk dedup rejections.
+      const script = ['w1', 'w1', 'w1', 'w2', 'w3', 'w3', 'w4', 'w5', 'w6', 'w6'];
+      const counts = [false, true].map((charmer) => {
+        const q = createProgression(fakeStorage());
+        if (charmer) q.recordSkillUnlocks(['charmer']);
+        for (const w of script) q.recordGreet('Pickles', 'tabby', w);
+        return q.state.friends.Pickles.greets;
+      });
+      expect(counts[0]).toBe(6); // six distinct walks out of ten greet attempts
+      expect(counts[1]).toBe(counts[0]);
+    });
+
+    it('does not let Charmer bootstrap its own unlock predicate', () => {
+      // Charmer is earned by befriending 5 cats at the BASE ♥ rung. If its
+      // predicate read the Charmer table the bar would drop to two greets
+      // the instant it went true, and earned abilities are never revoked.
+      for (let i = 0; i < 5; i++) {
+        p.state.friends[`Cat${i}`] = { breed: 'tabby', greets: 2, lastWalk: null };
+      }
+      expect(hasSkill(p.state, 'charmer')).toBe(false); // 2 greets is not ♥
+      for (let i = 0; i < 5; i++) p.state.friends[`Cat${i}`].greets = 3;
+      expect(hasSkill(p.state, 'charmer')).toBe(true);
+    });
+  });
+
   it('records best walk scores', () => {
     expect(p.recordWalkScore(30)).toBe(true);
     expect(p.recordWalkScore(20)).toBe(false);

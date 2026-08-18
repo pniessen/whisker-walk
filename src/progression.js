@@ -1,6 +1,6 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { AWARDS } from './discoveries.js';
-import { SKILL_IDS } from './skills.js';
+import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -663,20 +663,40 @@ export function createProgression(storage) {
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
       save();
     },
+    // recordGreet(name, breed, walkStamp) — the ONLY place a greet count ever
+    // moves. The lastWalk guard below is once-per-cat-per-walk and it is
+    // load-bearing: this path persists to a backend whose record_friend_greet
+    // validates the caller's identity and nothing else, so the client-side
+    // cap is what stops greet farming. v18's Charmer moves the RUNGS a count
+    // lands on and has no reach in here — the accrual lines are untouched.
     recordGreet(name, breed, walkStamp) {
       const f = state.friends[name] ?? (state.friends[name] = { breed, greets: 0, lastWalk: null });
       if (f.lastWalk === walkStamp) return null;
       f.lastWalk = walkStamp;
       f.greets += 1;
       save();
-      if (f.greets === 1) return 'met';
-      if (f.greets === 3) return 'friend';
-      if (f.greets === 6) return 'best';
+      // Named off the shared rung table rather than the literals 1/3/6 this
+      // used to carry, so it can never disagree with friendLevel below. Still
+      // exact equality, i.e. still "this greet landed exactly on a rung";
+      // the in-walk toast does not read this return, it uses straycats.js's
+      // friendRungCrossed(before, after), which reports the highest rung a
+      // step crossed and so also copes with a mid-ladder Charmer unlock.
+      const rungs = friendRungs(hasSkill(state, 'charmer'));
+      if (f.greets === rungs.met) return 'met';
+      if (f.greets === rungs.friend) return 'friend';
+      if (f.greets === rungs.best) return 'best';
       return null;
     },
+    // friendLevel(name) → 'none' | 'met' | 'friend' | 'best'. v18 CF-4: this
+    // hardcoded the base 1/3/6, so a Charmer player got the "BEST friend 💕"
+    // toast at four greets while this — and therefore the home-base roster
+    // icon (ui/homebase.js) and the best-friend gift roll (game/walk.js) —
+    // still said ♥ for the same cat. It now reads the same rung table the
+    // toast does.
     friendLevel(name) {
       const g = state.friends[name]?.greets ?? 0;
-      return g >= 6 ? 'best' : g >= 3 ? 'friend' : g >= 1 ? 'met' : 'none';
+      const rungs = friendRungs(hasSkill(state, 'charmer'));
+      return g >= rungs.best ? 'best' : g >= rungs.friend ? 'friend' : g >= rungs.met ? 'met' : 'none';
     },
     recordWalkScore(points) {
       if (points > state.bestWalk) {
