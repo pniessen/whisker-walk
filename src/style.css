@@ -431,7 +431,13 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .skill-unlock-inner { animation: none; }
 }
 @media (max-width: 480px) {
-  .skill-unlock { top: 12%; }
+  /* Browser-verified on a 375px viewport: at 12% the card landed on top of
+     the .hud-goals list in the top-left. Drop it clear of the whole HUD
+     header, and tighten the kicker so "NEW ABILITY UNLOCKED" stops wrapping
+     to two lines at this width. */
+  .skill-unlock { top: 26%; }
+  .skill-unlock-inner { padding: 12px 18px; }
+  .skill-unlock-kicker { font-size: 0.64rem; letter-spacing: 0.1em; }
   .skill-unlock-name { font-size: 1.2rem; }
   .skill-unlock-effect { font-size: 0.82rem; }
 }
