@@ -1,5 +1,38 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { hasSkill } from './skills.js';
+
+// v18 "Big Swat" (skills.js id 'big-swat', unlocked by tipping 40 things).
+//
+// Two effects, both gated on hasSkill(state, 'big-swat') and both LOCAL: the
+// spec's non-goals forbid a new broadcast kind, so a cascade is spectacle on
+// the swatting player's own screen and is never mirrored to peers (see
+// tipById below). Without the skill every number here is inert and the module
+// behaves exactly as it did pre-v18.
+const BIG_SWAT_ID = 'big-swat';
+// "Knock-over radius doubles" — applied inside nearest() rather than at the
+// interactions.js call site, because that file belongs to another v18 task.
+// The caller keeps passing its own reach and simply gets twice as much of it.
+const SWAT_REACH_MULT = 2;
+// How far a toppling prop reaches to take its neighbours down with it. Fixed
+// in world units rather than derived from nearest()'s maxDist, because tip()
+// is also reachable without a preceding nearest() call. 2.6 is the doubled
+// form of the 1.3m reach interactions.js prompts at, so the cascade covers
+// exactly the neighbourhood a Big Swat player could already have swatted.
+const CASCADE_RADIUS = 2.6;
+// Hop budget for the chain. Two mechanisms bound the cascade and both are
+// load-bearing:
+//
+//  1. tipEntry() refuses an already-tipped entry, so nothing is ever enqueued
+//     twice — that alone terminates the walk (it is a BFS over a finite list
+//     with each node consumed at most once) even when two props sit inside
+//     each other's radius and would otherwise topple each other forever.
+//  2. This cap, which is a DESIGN bound rather than a safety one: without it
+//     a dense row of bins would flatten a whole street from one tap, which
+//     overshoots "cascades into neighbouring tippables".
+//
+// The walk is iterative, so a long chain costs queue entries, not stack.
+const CASCADE_MAX_HOPS = 2;
 
 const mat = (color) => litMaterial(color);
 let nextId = 1;
@@ -45,7 +78,15 @@ function tipEntry(e) {
   return true;
 }
 
-export function createTippables(scene, spots) {
+// opts.getState is a GETTER, not a state snapshot, for two reasons: the walk
+// session is built before the ability is ever queried, and hasSkill reads the
+// live feat tally, so a player who crosses 40 tip-overs mid-walk gets Big Swat
+// on the very next swat instead of after a reload. Omitting it (the current
+// walk.js call, which another v18 task owns) leaves state null, hasSkill false
+// and every path below on its exact pre-v18 behaviour.
+export function createTippables(scene, spots, opts = {}) {
+  const getState = typeof opts.getState === 'function' ? opts.getState : () => null;
+  const bigSwat = () => hasSkill(getState(), BIG_SWAT_ID);
   const list = [];
   for (const spot of spots) {
     const group = buildTippable(spot.kind);
@@ -55,11 +96,34 @@ export function createTippables(scene, spots) {
     list.push({ id: `tip-${nextId++}`, kind: spot.kind, group, tipped: false, anim: 0 });
   }
 
+  // Breadth-first topple outward from an already-tipped entry, bounded by
+  // CASCADE_MAX_HOPS (see the constant for why the two bounds differ). Each
+  // frontier is fully resolved before the next, so an entry reachable from
+  // two directions is tipped once, at its shortest hop distance, and the
+  // `tipEntry` guard drops the duplicate rather than re-animating it. Two
+  // props sitting inside each other's CASCADE_RADIUS therefore settle instead
+  // of bouncing the chain back and forth — the failure mode this shape exists
+  // to prevent.
+  function cascadeFrom(origin) {
+    let frontier = [origin];
+    for (let hop = 0; hop < CASCADE_MAX_HOPS && frontier.length; hop++) {
+      const next = [];
+      for (const from of frontier) {
+        for (const e of list) {
+          if (e.tipped) continue; // already down (or already queued this hop)
+          if (e.group.position.distanceTo(from.group.position) > CASCADE_RADIUS) continue;
+          if (tipEntry(e)) next.push(e);
+        }
+      }
+      frontier = next;
+    }
+  }
+
   return {
     list,
     nearest(pos, maxDist) {
       let best = null;
-      let bestD = maxDist;
+      let bestD = bigSwat() ? maxDist * SWAT_REACH_MULT : maxDist;
       for (const e of list) {
         if (e.tipped) continue;
         const d = e.group.position.distanceTo(pos);
@@ -70,9 +134,20 @@ export function createTippables(scene, spots) {
       }
       return best;
     },
+    // Returns whether THIS entry went over, unchanged from pre-v18 — the
+    // caller awards the mischief point off that boolean and must keep seeing
+    // exactly one award per deliberate swat. Anything the cascade knocks down
+    // is scenery: no award, no net event, no second return value.
     tip(e) {
-      return tipEntry(e);
+      if (!tipEntry(e)) return false;
+      if (bigSwat()) cascadeFrom(e);
+      return true;
     },
+    // Remote tips deliberately do NOT cascade, even when the local player has
+    // Big Swat: the wire event says "this one id went over" and nothing else,
+    // so cascading here would knock down props the sender still sees standing
+    // and can still swat. Whether the SENDER had the ability is unknowable
+    // without a protocol change, which the spec's non-goals rule out.
     tipById(id) {
       const e = list.find((x) => x.id === id);
       return e ? tipEntry(e) : false;
