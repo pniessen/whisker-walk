@@ -6,7 +6,7 @@
 > look next. Specs and plans live in `docs/superpowers/{specs,plans}/`; this
 > doc is the map to all of it.
 
-**Last updated:** 2026-08-18 (v18 "Cat Skills" wave — earned abilities, The Old Docks) · **Branch:** `v18-cat-skills` · **Tests:** 764 passing (52 files)
+**Last updated:** 2026-08-27 (v18 CF-9 closed; v20 "Ruffled Fur" built) · **Branch:** `main`, with v19-prep + v20 work UNCOMMITTED in the tree · **Tests:** 984 passing (56 files)
 
 ---
 
@@ -79,7 +79,7 @@ keeping a cloud-synced save, and getting ghost visits from befriended pets.
 | `src/game/celebrate.js` | v18 ability-unlock celebration card (shared by the mid-walk and end-of-walk unlock paths) |
 | `docs/supabase-setup.sql` | **LIVE DB contract** — see §4 |
 
-## 3. Feature waves (all shipped and deployed except v18, which is still on its branch)
+## 3. Feature waves (all shipped and deployed)
 
 The game was built in successive waves via the **superpowers SDD pipeline**
 (brainstorm → spec → plan → fresh implementer subagent per task → per-task
@@ -227,14 +227,55 @@ Every fix independently re-probed with hostile payloads.
 
 ## 7. Open threads / next steps
 
-- **v18 "Cat Skills" is on the `v18-cat-skills` branch, not yet merged to `main`.**
-  Wave close-out (Task 4.0) is done: Sea Legs removed per CF-12, Gift Paws
+- **UNCOMMITTED WORK IN THE TREE (2026-08-27).** Four pieces of work are built,
+  green (984 tests, 56 files) and `vite build`-clean, but **not committed** —
+  `git status` will show a large diff on a clean-looking `main`. Commit or
+  branch before starting anything new. In order:
+  1. **v18 CF-9 closed** — Spring Paws' pounce arc (`player.js` `pounceArc`/
+     `hopOffset`, plus a paws-projection fix in `game/avatar.js`) and Sure Claws'
+     per-prop climbability (`climbing.js` `PERCH_KINDS`/`climbKinds`, 49 gated
+     `requires: 'sure-claws'` scenery perches across the five world files). The
+     activating one-liner is in `game/interactions.js` and is test-guarded.
+  2. **Stray RNG, fully seeded** — `createStrayCats` drew position/facing/timer
+     from bare `Math.random()` despite taking an injected rng, so co-walkers saw
+     the same cats in different places. Fixed; the wander FSM then got per-stray
+     `mulberry32` streams (`seedFromCode(name)`-derived, salted) so idle wander
+     is deterministic too, without adding a second lazy `walkRng` consumer.
+  3. **v20 "Ruffled Fur"** — the enemy/grudge system. Spec:
+     `docs/superpowers/specs/2026-08-27-whisker-walk-v20-ruffled-fur.md`, whose
+     §2 (locked decisions D1–D7) and §7 (status as shipped) are the things to
+     read before touching it. **Not yet seen on screen** — see that §7.
+  4. Doc updates: this file, and the v18 plan's CF-9 entry annotated closed.
+
+- **v19 "make water real" is SPECCED-BY-RECON but BLOCKED on a content pass.**
+  Reinstating Sea Legs needs water to carry colliders, and a recon of every
+  water body found this must come first:
+  - `src/world/park.js:89` has a POI at **(-14, 2) — the pond's exact centre**.
+    It feeds daily race waypoints and quest targets, and `clearSpot` cannot push
+    it out because the pond has no collider for it to see. With solid water,
+    ~5-in-8 park races would contain an unreachable ring, and `race.js` checks
+    only the *current* ring with no skip or timeout, so **one bad ring stalls the
+    whole daily race**. ~25% of park walks also scatter a dig-treat into the pond.
+  - `test/spots.test.js:80` passes today and would keep passing — it measures
+    gap-to-nearest-collider, and water is not one. False confidence, not coverage.
+  - Seaside `fish-1` (33,-14) and the `pier-end` scenic (34,-18) sit 2.5m and
+    6.5m off the pier deck in open water; both become permanently unobtainable,
+    and because `pier-end` is a valid gift-stash spot, **gifts already saved
+    there become unreachable forever** — that is live save data.
+  - The Docks is clean and already test-pinned (`test/docks.test.js`), as
+    designed in v18.
+
+- **v18 "Cat Skills" is MERGED to `main` and deployed** (merge `16cef66`,
+  2026-08-18; Pages deploy green, `origin/main` in sync).
+  Wave close-out (Task 4.0) was done: Sea Legs removed per CF-12, Gift Paws
   lowered to 3, Docks ambience added, docs updated. 764 tests green, `vite
   build` clean, Skills tab browser-verified. **Read the entire Carry-forward
   section of `docs/superpowers/plans/2026-08-18-whisker-walk-v18-cat-skills.md`
   before touching this wave** — it holds the rulings (CF-6 held-meow descope,
-  CF-8 Spring Paws budget, CF-11 Long Zoomies wording, CF-12 Sea Legs) and the
-  one still-open follow-up (CF-9's two unimplemented ability halves). CF-7's
+  CF-8 Spring Paws budget, CF-11 Long Zoomies wording, CF-12 Sea Legs). Its
+  CF-9 — two unimplemented ability halves — is now CLOSED (2026-08-27 —
+  Spring Paws got a real ballistic pounce arc, Sure Claws got per-prop perch
+  kinds plus 49 gated scenery props; see the annotated CF-9 entry). CF-7's
   bare `Math.random()` gift roll is **fixed** — `src/game/walk.js:489` draws
   from `walkRng()`. The final whole-branch review then found and fixed two real
   bugs, both recorded in the spec's "Status as shipped" section: `feats.perch`

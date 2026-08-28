@@ -245,15 +245,57 @@ become trivially skippable". At 2.2 the two-step chains under `gm-park-2`
 "reachable in fewer hops". Task 2.2's pinned test recording the collapse stays
 as a deliberate record; it is documenting intended behaviour, not a defect.
 
-### CF-9 — Two ability halves not implemented (owner: a later task)
+### CF-9 — Two ability halves not implemented — **CLOSED 2026-08-27**
+Both halves are now built. The original text is kept below for the record, each
+item annotated with how it was closed.
+
 - **Spring Paws' "markedly higher pounce jump"** exists only as the climb
   budget. `player.pounce()` is a horizontal velocity lunge with no vertical
   component at all, so there is no jump height to raise without new movement
   code.
+  - **CLOSED (CF-9a).** `player.js` gained a ballistic hop arc: `pounceArc(state)`
+    + `hopOffset(elapsed, arc)`, baseline 0.35 (the cat's own half-width, so an
+    unskilled pounce tops none of the shipped perches) rising to 0.9 with Spring
+    Paws, over the existing 0.3s pounce-pose window so the paws land on the frame
+    the landing thump plays. The lift is a RENDER offset added to `api.perchY` and
+    never written into it — storing it in `perchY` would have disabled the collider
+    push (the cat would pounce through walls) and shifted which golden mice
+    `checkFind` matches. A hop therefore can never acquire a perch: `climbBudget`
+    stays the sole authority on what a cat can stand on.
+    - Two defects were found and fixed while closing it. (1) Several proximity
+      checks in `game/avatar.js` measured 3D distance against `cat.position`, and
+      `critters.pounceCatch`'s radius is 0.9 — exactly the Spring Paws arc height
+      — so a skilled cat at apex was out of range of a critter directly beneath
+      it, making the ability sabotage its own signature move (the CF-2 "an ability
+      must never be a downgrade" failure). Fixed by projecting to the paws, a
+      no-op outside the hop window. (2) The hop's exit condition tested the
+      offset, but `hopOffset` returns 0 at *both* ends of the arc, so any frame
+      with `dt === 0` cancelled the hop on the frame it began — reachable, since
+      `THREE.Clock.getDelta()` yields 0 when two renders land in one clock tick
+      and browsers clamp timer resolution for Spectre mitigation. Now clears on
+      the window expiring; regression-pinned in `test/pounce.test.js`.
 - **Sure Claws' "props that were scenery become climbable"** is world-data work.
   Shipped perch records are bare `{x, z, y, label?, vantage?}` with no tree or
   fence tag, so the height lift cannot be made per-prop from `climbing.js`.
   Both abilities are real and working today; each is missing its second half.
+  - **CLOSED (CF-9b).** Perch records now carry a closed `kind` vocabulary
+    (`PERCH_KINDS`: tree/fence/roof/crate/car/stone/furniture, defaulting to
+    `prop` for an absent *or unrecognised* tag, so an untagged or typo'd perch
+    climbs by exactly today's rule). The blanket `SURE_CLAWS_CLIMB = 1.85` lift is
+    **deleted**; the budget gained a `climbKinds` table lifting `tree` and `fence`
+    to 2.0 only — bounded by the park oak branch at y 2.1, which is the top step of
+    the game's only tree chain and holds both `gm-park-2` and `feather-5`, so 2.1
+    would have deleted that chain off the grass. 49 scenery props (tree forks,
+    fence tops, market-stall awnings, benches, den furniture) were opened behind
+    `requires: 'sure-claws'`. None carries a `label` or `vantage`, keeping them out
+    of the discovery log and out of `feats.perch` — a Mischief ability must not buy
+    the two Traversal ones.
+  - **The wiring**, applied in `game/interactions.js`: `bestPerch` now receives
+    `state: progression.state`. Without it all 49 gated perches are filtered out
+    for every player and the half ships dead — the exact CF-10 failure, one wave
+    later. It is pinned by a pair of tests in `test/interactions.test.js` that
+    fail if and only if that argument goes missing, because `climbing.js`'s own
+    suite structurally cannot catch an omission in a different file.
 
 ### CF-10 — Traversal abilities are inert until wired (owner: Task 2.8)
 Two one-line edits, in files Task 2.2 did not own:
