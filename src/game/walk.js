@@ -41,6 +41,7 @@ import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
+import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
 import { createChatBubbles } from '../chatbubble.js';
@@ -492,7 +493,32 @@ export function createWalkLifecycle({
       scene.add(questObject);
     }
 
-    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng);
+    // v20 Ruffled Fur (D1): the grudges this save is carrying, handed to the
+    // strays at spawn so a cat that took against you on an earlier walk is
+    // born cross — cross tag, cross pose, no greet prompt — rather than
+    // popping into a grudge a frame later. Keyed on the NAME, which is the
+    // only identity a stray has across walks, so it re-attaches to whichever
+    // of this walk's 22-of-48 names it matches.
+    //
+    // Read off the save, never off the wire: hostility is a private per-device
+    // relationship fact (D4), so this is the same shape as state.friends and
+    // adds no broadcast kind. Two co-walkers may disagree about which cats are
+    // cross — accepted, and already true of every friendship fact in the game.
+    // It draws nothing from walkRng, so the shared stream is untouched.
+    //
+    // roomSeed is handed over as well, and is NOT a second walkRng consumer:
+    // straycats uses it only to seed one private mulberry32 per cat for that
+    // cat's own wander draws, so co-walkers' strays keep wandering in step
+    // rather than only spawning in step. It draws nothing from walkRng, and
+    // the per-cat streams are order-independent — which is precisely why the
+    // wander FSM must not be given walkRng itself (see the warning at the
+    // top of startWalk: a per-frame consumer of the shared stream is the
+    // worst case of the lazy-consumer bug). Solo, roomSeed is undefined and
+    // straycats falls back to a random base, exactly as sky life does below.
+    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng, {
+      grudges: progression.grudgeNames?.() ?? [],
+      roomSeed,
+    });
     const remotes = createRemoteCats(scene);
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
@@ -626,6 +652,16 @@ export function createWalkLifecycle({
       secrets,
       tippables,
       gifts,
+      // v20 Ruffled Fur — the enemy system's per-walk, in-memory scratch
+      // state: which cross cats have already had their one swat (and the
+      // three-per-walk ceiling), and which have been forgiven this walk. A
+      // factory per walk, for the same reason goals and the discovery log are
+      // — two sessions must never share one, and a walk that ends simply
+      // drops it. Nothing here is persisted; both facts are true only for the
+      // walk in progress. game/interactions.js reads it as s.enemies, and
+      // optional-calls it so a stand-in session in a test simply never
+      // scuffles rather than crashing.
+      enemies: createEnemyWalkLog(),
       scent,
       quest, questGiver, questObject,
       walk: { carried: 0, carryCap: equipped.back === 'backpack' ? 3 : 2 },

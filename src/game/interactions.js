@@ -17,10 +17,41 @@
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
 import { hasSkill } from '../skills.js';
+import { pounceArc } from '../player.js';
 import { GIFT_LEAVE_RANGE } from '../gifts.js';
-import { friendRungCrossed } from '../straycats.js';
+import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
+import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
+
+// ---------------------------------------------------------------------------
+// v20 "Ruffled Fur" — the constants this module owns.
+//
+// STRAY_PROMPT_RANGE is the shipped 2.5m greet reach, named rather than
+// retyped because v20 gives the same slot a second prompt (the reconciliation)
+// and the two must not drift apart — a treat you can only offer from closer
+// than you can greet would be a bug nobody would find.
+//
+// SCUFFLE_RANGE is where a cross cat swats. Deliberately well inside
+// STRAY_PROMPT_RANGE: the swat is the price of CROWDING a cross cat, so the
+// reconciliation prompt has to be reachable from outside it — otherwise the
+// only way to offer the treat would be to get swatted first, which inverts the
+// whole beat. (Pressing E while frozen does work — main.js's KeyE handler has
+// no freeze guard, unlike Space — so a player who gets it wrong is not locked
+// out either.) The cost and the freeze are enemies.js's, not ours.
+//
+// TREAT_COST is the reconciliation price, and it is a decision, not a
+// derivation: the user resolved the spec's open question by making the "gift"
+// a TREAT BOUGHT WITH WHISKER POINTS at 10 points, deliberately the same 10
+// AWARDS.gift pays for a gift found — you hand back exactly what a gift is
+// worth. It is written as its own constant rather than read off AWARDS
+// because AWARDS.gift is what a discovery PAYS and this is what a treat
+// COSTS; test/interactions.test.js asserts the two are equal so the
+// deliberate match cannot silently become a mismatch.
+// ---------------------------------------------------------------------------
+const STRAY_PROMPT_RANGE = 2.5;
+const SCUFFLE_RANGE = 1.4;
+export const TREAT_COST = 10;
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -129,7 +160,14 @@ export function createInteractions({
     const next = bestPerch(
       session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
       budget,
-      { fenceRun: fenceRunning(progression.state) },
+      // v18 CF-9b: `state` is what makes the 49 gated `requires: 'sure-claws'`
+      // perches visible — the scenery props (tree forks, fence tops, market
+      // awnings, benches) that Sure Claws opens. Without it bestPerch filters
+      // every one of them out and that half of the ability ships DEAD, which
+      // is precisely the CF-10 failure this wave exists to finish cleaning up.
+      // Read live off the save, same as the budget and the fence-run flag
+      // above, so the 25th tip-over opens the trees on the very next press.
+      { fenceRun: fenceRunning(progression.state), state: progression.state },
     );
     if (next) {
       // Did the wall-run pay for this hop? Asked exactly — "the ordinary
@@ -182,8 +220,29 @@ export function createInteractions({
       player.perchY = 0;
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else if (session.pounceCooldown <= 0) {
-      player.pounce();
+      // v18 CF-9a: Spring Paws' OTHER half — "your pounce jump goes markedly
+      // higher". Until now that clause described nothing: pounce() was a
+      // purely horizontal lunge and the cat's Y was pinned to perchY, so
+      // only the climb-budget half of the ability existed. player.pounceArc
+      // supplies the hop height; player.js owns the arc itself (and the
+      // argument for why it is a render offset rather than a perch height).
+      //
+      // Read HERE, per press, off the live save — the same discipline as
+      // `budget` above rather than a value captured at walk start, so Spring
+      // Paws earned mid-walk lifts the very next pounce.
+      //
+      // session.reducedMotion is walk.js's once-per-walk snapshot of
+      // settings.reducedMotion; main.js's zoomies sparkle trail reads the
+      // same field. Going through the session (rather than injecting
+      // `settings` into this module) keeps the setting read off the 60Hz
+      // path and out of this factory's dependency list, and a stand-in
+      // session without the field simply reads as "motion allowed".
+      player.pounce(pounceArc(progression.state, { reducedMotion: session.reducedMotion }));
       audio.pounceWhoosh();
+      // 0.3s is also the hop's duration (POUNCE_HOP_TIME) — the arc is tied
+      // to this pose window on purpose, so the paws touch down on the frame
+      // game/avatar.js plays the landing thump. Changing one means changing
+      // the other.
       session.pounceTime = 0.3;
       session.pounceCooldown = 1.2;
     }
@@ -378,6 +437,67 @@ export function createInteractions({
     s.fx?.burst(holder.group.position, 0xe05a7a, 14);
   }
 
+  // -------------------------------------------------------------------
+  // v20 Ruffled Fur — the scuffle. Crowd a cross cat and it swats you.
+  //
+  // D6: built from the ONE hostile mechanic the game already has, the dog
+  // scare (critters.js's 'critter:scare' → main.js:407-414) — freezeTime =
+  // 1.5, player.halt(), the `scared` pose and a toast. Note the pose is not
+  // played here: avatar.js derives it from s.freezeTime (`if (s.freezeTime >
+  // 0) pose = 'scared'`), so setting the timer IS playing the pose, exactly
+  // as it is for the dog. There are no hit points, no health bar and no way
+  // to lose a walk. Everything genuinely new is the point cost (D3) and the
+  // rate limit, both of which are enemies.js's.
+  //
+  // Called once per stray per frame out of updateInteractions' existing
+  // stray loop, so it adds no second pass over 22 cats.
+  // -------------------------------------------------------------------
+  function maybeScuffle(s, stray, catP) {
+    if (!stray.cross) return;
+    // GUARD ONE, which enemies.js explicitly leaves to the call site because
+    // it is a session read that module has no handle on: never fire while
+    // the player is already frozen. Without it, a cross cat you happen to be
+    // standing next to would swat again the instant each 1.5s freeze expired
+    // — a freeze-lock, and a drain on a player who is merely walking past.
+    if (s.freezeTime > 0) return;
+    if (stray.group.position.distanceTo(catP) >= SCUFFLE_RANGE) return;
+    // GUARD TWO, and the ONLY thing permitted to authorise a deduction:
+    // at most once per cat and at most SCUFFLE_MAX_PER_WALK (3) times per
+    // walk. allowScuffle mutates on success — enemies.js models it on
+    // walk.js's sendGate.allow for exactly this reason — so the rate limit
+    // cannot be forgotten by a later edit at this site. A session with no
+    // enemy log (a stand-in in a test) never scuffles at all.
+    if (!s.enemies?.allowScuffle(stray.name)) return;
+
+    audio.hiss();
+    s.fx?.burst(stray.group.position, 0xd8cdb8, 10);   // a dust-puff scuffle
+    // D3, and the one place this wave is allowed to subtract. deductPoints
+    // touches state.points ONLY and floors at zero — state.lifetimePoints,
+    // the sole input to the rank ladder, is never touched, so a bad walk can
+    // never demote a hard-won title. It returns what was ACTUALLY taken, so
+    // a player already at zero gets the hiss and the freeze but no phantom
+    // "-5", and the HUD counter is refreshed off the live save (main.js only
+    // repaints it on a 'discovery' event, and a deduction is not one).
+    const lost = progression.deductPoints?.(SCUFFLE_COST) ?? 0;
+    if (lost > 0) hud.setPoints?.(progression.state.points);
+    // The dog scare's breed rule, verbatim: 'fearless' and 'steady' cats are
+    // not cowed, so they skip the freeze/halt/toast block. What sits OUTSIDE
+    // that block is deliberately the same shape too — the bark plays for
+    // everyone, and so do the hiss, the dust and the cost. The special
+    // governs the player's NERVE, which is precisely what the freeze models;
+    // it is not a discount on the swat, and letting two breeds walk through
+    // the feature for free would delete the sting D3 exists to deliver.
+    const special = PERSONALITIES[s.cat.userData.breed]?.special;
+    const paid = lost > 0 ? ` −${lost} 🐾` : '';
+    if (special !== 'fearless' && special !== 'steady') {
+      s.freezeTime = SCUFFLE_FREEZE;
+      player.halt();                 // frozen means frozen — no sliding
+      hud.toast(`${stray.name} swats you! You freeze.${paid} 🙀`);
+    } else {
+      hud.toast(`${stray.name} takes a swipe — you hold your ground.${paid}`);
+    }
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
@@ -413,6 +533,10 @@ export function createInteractions({
       if (stray.foundGift && stray.group.position.distanceTo(catP) < 3) {
         claimFoundGift(s, stray, stray.name);
       }
+      // v20 Ruffled Fur — last in the body on purpose: a cross cat can still
+      // be spotted and can still hand over a gift; the swat is what it does
+      // once you crowd it, after everything friendly has had its turn.
+      maybeScuffle(s, stray, catP);
     }
     // best-friend ghosts (greets >= 6) may be carrying a gift, rolled once
     // at spawn by createGhosts — same "close enough" proximity grant as the
@@ -479,8 +603,38 @@ export function createInteractions({
       }
     }
     if (!s.prompt) {
-      const stray = s.strayCats.nearest(catP, 2.5, { ungreetedOnly: true });
-      if (stray) {
+      // v20 Ruffled Fur. ONE branch, in the exact slot the greet prompt has
+      // always occupied, offering one of two mutually exclusive things to the
+      // same cat: an ungreeted stray gets the greet, a cross one gets the
+      // chance to make up. `promptable` is a single scan returning the
+      // NEAREST cat with either offer (see straycats.nearest), so a cross cat
+      // can never shadow a friendly one standing closer, nor the reverse —
+      // which is what a second branch elsewhere in the chain would have done.
+      //
+      // The placement is the point. A cross cat offers no greet, so for a
+      // save with no grudges this branch is byte-identical to today's, and
+      // for one with grudges the reconciliation inherits the greet's own
+      // position in the ladder rather than claiming a new one:
+      //
+      //   * everything ABOVE it (collect / tip / dig / quest) still wins, so
+      //     nothing the player walked over to do is shadowed;
+      //   * everything BELOW it (ghost, kitten, race, scratch, boop and —
+      //     critically — 'gift-leave', which is deliberately last) still
+      //     loses. That last one is load-bearing: a cross cat sitting on a
+      //     scenic spot must not have "leave a gift here" shadow the one
+      //     prompt that can un-cross it, which is the payoff beat of the
+      //     entire feature.
+      //
+      // The affordability message lives in the PROMPT, not only in the press,
+      // mirroring the 'collect' branch's "Paws full!" — the player finds out
+      // before committing. handleInteract re-checks it regardless.
+      const stray = s.strayCats.nearest(catP, STRAY_PROMPT_RANGE, { promptable: true });
+      if (stray && stray.cross) {
+        s.prompt = { kind: 'stray-gift', data: stray };
+        setPrompt(spendablePoints() >= TREAT_COST
+          ? `E — offer ${stray.name} a treat (${TREAT_COST} 🐾)`
+          : `${stray.name} is cross — a treat costs ${TREAT_COST} 🐾`);
+      } else if (stray) {
         s.prompt = { kind: 'stray', data: stray };
         setPrompt(`E — touch noses with ${stray.name}`);
       }
@@ -574,6 +728,16 @@ export function createInteractions({
     return typeof g === 'number' && Number.isFinite(g) && g >= 0 ? g : 0;
   }
 
+  // The save's SPENDABLE balance (state.points, the currency buy() already
+  // deducts) — never state.lifetimePoints, which is monotonic and drives the
+  // rank ladder. Coerced rather than trusted for the same reason greetsFor
+  // above is: the save round-trips through a cloud payload the server stores
+  // as opaque jsonb.
+  function spendablePoints() {
+    const p = progression.state?.points;
+    return typeof p === 'number' && Number.isFinite(p) && p >= 0 ? p : 0;
+  }
+
   // Shared greet-award body for a stray cat: friend-points award, progression
   // ladder toast, and marking the stray greeted (so nearest(...,
   // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
@@ -581,6 +745,61 @@ export function createInteractions({
   // there is exactly one path that can ever pay out a stray friendship
   // award — talking never awards more than booping.
   function awardStrayGreet(s, stray) {
+    // -------------------------------------------------------------------
+    // v20 Ruffled Fur — D2 IS ENFORCED HERE, not in enemies.js.
+    //
+    // enemies.js is pure rules over (save, name, walkStamp) and says plainly
+    // that it cannot tell a stray from a family pet or a ghost visitor. This
+    // is the guard. It is structural in two independent ways — see
+    // straycats.isGrudgeableStray: the cat must be an object out of THIS
+    // walk's stray array (no ghost, no co-walker's remote pet and no player
+    // avatar ever is), AND its name must come from CAT_NAMES, which contains
+    // none of the four family pets. Asked once, up front, and consulted by
+    // every enemy branch below, so there is no path into the enemy system
+    // that skips it.
+    // -------------------------------------------------------------------
+    const grudgeable = isGrudgeableStray(s.strayCats, stray);
+
+    // THE GRUDGE. A cross cat is not greetable by ANY path. The prompt scan
+    // already refuses to offer one (see updateInteractions), so this covers
+    // the OTHER door into this function: greet-by-chat (walk.js's sendPhrase
+    // → greetStrayByChat), which finds its target with a plain nearest() and
+    // would otherwise pay a friendship award to a cat that has been cross
+    // since a previous walk. This function is the single path that can ever
+    // pay out a stray friendship award, so it is the right place to say no.
+    if (grudgeable && progression.hasGrudge?.(stray.name)) return;
+
+    // THE RUPTURE. shouldTurnHostile owns every rule (D5's friend immunity,
+    // the Charmer modifier, the derived per-(walk, cat) seed); nothing about
+    // the roll is re-decided here. `forgivenThisWalk` is what stops a cat you
+    // just made up with from rolling hostile again on the very next greet —
+    // the roll is a pure function of (walkStamp, name), so without it the
+    // reconciliation would eat itself.
+    //
+    // recordGrudge is inside the condition, not after it, so the whole beat
+    // is GATED ON THE SAVE WRITE ACTUALLY LANDING (the v18 feats.perch
+    // lesson). It returns false for an unusable name, a cat already cross, or
+    // a full grudge table — and in that last case the `&&` short-circuits
+    // into the ordinary greet below, so a player who has somehow fallen out
+    // with all 48 cats gets a normal greet rather than a silent dead end
+    // that pays nothing and remembers nothing.
+    if (grudgeable
+        && shouldTurnHostile(progression.state, stray.name, s.walkStamp, {
+          forgivenThisWalk: s.enemies?.wasForgiven(stray.name) ?? false,
+        })
+        && progression.recordGrudge?.(stray.name)) {
+      // turnHostile sets stray.greeted itself, so the prompt stops re-offering
+      // the cat and the player moves on rather than mashing E at it.
+      s.strayCats.turnHostile(stray, s.cat.position);
+      audio.hiss();
+      s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
+      hud.toast(`${stray.name} hisses and backs away… 😾`);
+      // No friendship award and NO recordGreet: it did not go well. That is
+      // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's
+      // immunity — cannot be advanced by a greet that ruptured.
+      return;
+    }
+
     s.strayCats.greet(stray, s.cat.position);
     log.awardOnce('friend', `friend-${stray.name}`, 'a new cat friend');
     s.catsGreeted += 1;
@@ -666,6 +885,67 @@ export function createInteractions({
       }
     } else if (s.prompt.kind === 'stray') {
       awardStrayGreet(s, s.prompt.data);
+    } else if (s.prompt.kind === 'stray-gift') {
+      // -----------------------------------------------------------------
+      // v20 Ruffled Fur — THE RECONCILIATION. Resolved by the user, so the
+      // spec's open question ("what is a gift here?") is answered rather
+      // than re-opened:
+      //
+      //   * it is a TREAT BOUGHT WITH WHISKER POINTS, 10 of them. state.gifts
+      //     is a list of world locations already stashed, not an inventory,
+      //     and s.walk.carried is a count of collectibles in paw capped at
+      //     2 — the game has no carried-gift concept, and inventing one is
+      //     what the spec told us not to do. Whisker points are the one
+      //     inventory the game actually has, and buy()/deductPoints are the
+      //     one spending verb it already understands.
+      //   * it is DETERMINISTIC. There is no roll. The grudge has already
+      //     cost the player a friendship award and up to three scuffles; an
+      //     offer that could fail and still eat the price is a slot machine.
+      //
+      // Ordered so nothing is consumed unless everything can succeed:
+      //   1. is this really a stray (D2) with a grudge left to clear;
+      //   2. can it be paid for — checked BEFORE deducting, because
+      //      deductPoints floors at zero and would otherwise happily take a
+      //      player's last 4 points for a 10-point treat and hand back
+      //      nothing. This is the "if they cannot afford it, nothing is
+      //      consumed and no grudge is cleared" clause, and it is why the
+      //      check is not simply `deductPoints(TREAT_COST) > 0`;
+      //   3. only then deduct, and only then forgive.
+      // -----------------------------------------------------------------
+      const stray = s.prompt.data;
+      if (!isGrudgeableStray(s.strayCats, stray) || !progression.hasGrudge?.(stray.name)) return;
+      if (spendablePoints() < TREAT_COST) {
+        hud.toast(`A treat costs ${TREAT_COST} 🐾 — go and find a few first`);
+        return;
+      }
+      if ((progression.deductPoints?.(TREAT_COST) ?? 0) <= 0) return;
+      hud.setPoints?.(progression.state.points);
+      // forgiveGrudge is the SINGLE gate on everything below, exactly as
+      // leaveGift/claimGift are for Gift Paws: it returns false when there
+      // was nothing to forgive, so a second E-press cannot repaint the tag,
+      // re-toast, or hand out a second re-greet. The hasGrudge check above
+      // means it cannot fail here — but riding the return value rather than
+      // assuming it is what stops the two from ever drifting apart.
+      if (!progression.forgiveGrudge?.(stray.name)) return;
+      // LOAD-BEARING, and called only now that the forgive actually paid.
+      // The hostility roll is a pure function of (walkStamp, name), so the
+      // cat just forgiven would roll hostile again on the very next greet and
+      // the reconciliation would eat itself. This exemption is what lets the
+      // spec's "the greet then proceeds normally" actually be normal. Gating
+      // it on the return value is what stops a no-op forgive from quietly
+      // granting a free re-roll exemption.
+      s.enemies?.markForgiven(stray.name);
+      // The payoff beat, on the spot: the name tag repaints in place (the
+      // entire reason nametag.setNameTagMood exists) and the cat turns to
+      // you in the greeting pose. forgive() also clears stray.greeted, so the
+      // greet prompt is back on the very next frame — capped as ever by
+      // recordGreet's per-walk dedup and awardOnce's per-walk `friend-<name>`
+      // key, so the round trip costs 10 and pays 6 at most once. Nothing to
+      // farm: it is a net loss by design.
+      s.strayCats.forgive(stray, s.cat.position);
+      s.fx?.burst(stray.group.position, 0xe05a7a, 14);
+      hud.toast(`${stray.name} takes the treat… and forgives you ♡`);
+      catVoice();
     } else if (s.prompt.kind === 'ghost') {
       const ghost = s.prompt.data;
       s.ghosts.greet(ghost, s.cat.position);

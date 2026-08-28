@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { createInteractions } from '../src/game/interactions.js';
+import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { createGoals } from '../src/goals.js';
 import { createGifts } from '../src/gifts.js';
+import { createStrayCats } from '../src/straycats.js';
+import { createEnemyWalkLog, rollHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../src/enemies.js';
+import { PERSONALITIES } from '../src/cat/brain.js';
+import { mulberry32 } from '../src/rng.js';
 import { bus } from '../src/events.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
@@ -179,12 +183,21 @@ describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
   // Paws' 2.2m one. It separates the two states instead of passing under both.
   const HIGH = { x: 0, z: 0, y: 2.0, label: 'ledge', vantage: true };
 
-  function climbHarness(state) {
+  // v18 CF-9b. A gated scenery perch — one of the 49 tree forks, fence tops,
+  // market awnings and benches Sure Claws opens. Its height (1.2) is inside
+  // the BASELINE 1.6 climb budget on purpose: that isolates the `requires`
+  // gate as the only thing keeping an unskilled cat off it, so this pair of
+  // tests fails if and only if `state` stops reaching bestPerch. Untagged, so
+  // it never touches feats.perch — a Mischief ability must not buy the two
+  // Traversal ones.
+  const GATED = { x: 0, z: 0, y: 1.2, kind: 'tree', requires: 'sure-claws' };
+
+  function climbHarness(state, perches = [HIGH]) {
     const progression = { state, recordFeat() {}, addPoints() {} };
     const log = createDiscoveryLog(progression);
     log.startWalk();
     const session = {
-      areaData: { perches: [HIGH] },
+      areaData: { perches },
       cat: { position: new THREE.Vector3(0, 0, 0) },
       perched: null,
       pounceCooldown: 0,
@@ -226,6 +239,28 @@ describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
     state.feats.perch = 10;
     h.doPounceOrClimb();
     expect(h.session.perched).toBe(HIGH);
+  });
+
+  // v18 CF-9b — the SECOND half of the same wiring, and the same failure
+  // shape one wave later. climbBudget was threaded by CF-10a, but the gated
+  // scenery perches need the save itself to reach bestPerch. Without the
+  // `state` argument all 49 of them are filtered out for every player and the
+  // "props that used to be scenery" half of Sure Claws ships dead — exactly
+  // what CF-10 did to Spring Paws and Long Zoomies. These two tests are the
+  // guard: the climbing module's own suite cannot catch it, because the
+  // omission is in this file.
+  it('keeps a gated scenery perch invisible without Sure Claws', () => {
+    const h = climbHarness({ skills: [], feats: {} }, [GATED]);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(null);
+    expect(h.pounced()).toBe(true); // fell through to an ordinary pounce
+  });
+
+  it('opens the same perch once Sure Claws is earned', () => {
+    const h = climbHarness({ skills: ['sure-claws'] }, [GATED]);
+    h.doPounceOrClimb();
+    expect(h.session.perched).toBe(GATED);
+    expect(h.player.perchY).toBe(1.2);
   });
 
   it('survives a garbage save by falling back to the baseline budget', () => {
@@ -1010,6 +1045,534 @@ describe('Gift Paws (v18 Task 3.2)', () => {
       expect(() => h.walkTo(3, 23)).not.toThrow();
       expect(() => h.pressE()).not.toThrow();
       expect(h.gifts.list).toHaveLength(0);
+    }
+  });
+});
+
+// ===========================================================================
+// v20 "Ruffled Fur" — the enemy system, wired into the running game.
+//
+// src/enemies.js (the rules) and src/nametag.js (the indicator) each have
+// their own suite. Neither can catch the failure this block exists for: a
+// fully-built system that no call site ever activates. That is CF-1 (Big
+// Swat), CF-9b (Sure Claws), CF-10a (Spring Paws) and CF-10b (Long Zoomies)
+// — four shipped-dead abilities in one wave — so every test below drives the
+// REAL updateInteractions / handleInteract / awardStrayGreet against a REAL
+// progression over fake storage and a REAL stray population.
+//
+// The roll is a pure function of (walkStamp, name), which is what makes it
+// testable at all: `stampFor` searches for a walk stamp that makes a named
+// cat roll a chosen way, so both outcomes are pinned by construction rather
+// than by stubbing out the very function under test.
+// ===========================================================================
+describe('Ruffled Fur — the enemy system (v20)', () => {
+  const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 } };
+  const HERE = new THREE.Vector3(0, 0, 0);
+
+  // A walk stamp on which `name` rolls the way we want. At the 5% base rate a
+  // hostile stamp turns up within ~20 tries; the loop is generous.
+  function stampFor(name, hostile, { charmer = false } = {}) {
+    for (let i = 0; i < 20000; i++) {
+      const stamp = `walk-${i}`;
+      if (rollHostile(stamp, name, { charmer }) === hostile) return stamp;
+    }
+    throw new Error(`no ${hostile ? 'hostile' : 'friendly'} stamp found for ${name}`);
+  }
+
+  function enemyHarness({
+    skills = [], grudges = [], points = 0, friends = {}, breed = 'tabby', count = 1,
+    scenics = [], gifts = null,
+  } = {}) {
+    const progression = createProgression(fakeStorage());
+    progression.replaceFromPayload({ version: 4, skills, grudges, points, friends });
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const strayCats = createStrayCats(scene, AREA, count, mulberry32(11), { grudges });
+    const toasts = [];
+    const prompts = [];
+    const hisses = [];
+    let halted = 0;
+    const session = {
+      areaId: 'park',
+      // walkStamp is set per test by `on()` below, once the stray names are
+      // known — the roll is keyed on it.
+      walkStamp: 'walk-0',
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed } },
+      areaData: { collectibles: [], scenics },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats,
+      // The per-walk enemy scratch state, exactly as game/walk.js builds it.
+      enemies: createEnemyWalkLog(),
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts,
+      perched: null,
+      freezeTime: 0,
+      catsGreeted: 0,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const api = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      // forward points at -z so the strays parked at +z below are BEHIND the
+      // cat and never trip updateInteractions' spot-a-stray award. That keeps
+      // the points ledger in these tests about this feature and nothing else.
+      player: {
+        forward: () => new THREE.Vector3(0, 0, -1),
+        perchY: 0,
+        halt() { halted += 1; },
+      },
+      progression, log,
+      hud: {
+        toast: (t) => toasts.push(t),
+        setPrompt: (t) => prompts.push(t),
+        setPoints() {},
+      },
+      audio: { trill() {}, meow() {}, hiss: (v) => hisses.push(v ?? 1) },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    // Park a stray `d` metres in front of the cat and hand it back.
+    const park = (i, d) => {
+      const s = strayCats.strays[i];
+      s.personality = 'bold';           // the shy scurry is a different feature
+      s.group.position.set(0, 0, d);
+      return s;
+    };
+    return {
+      progression, log, session, strayCats, toasts, prompts, hisses,
+      halted: () => halted, park,
+      walkTo: (x, z) => { session.cat.position.set(x, 0, z); api.updateInteractions(session); },
+      scan: () => api.updateInteractions(session),
+      pressE: () => api.handleInteract(session),
+      greet: (s) => api.awardStrayGreet(session, s),
+      ...api,
+    };
+  }
+
+  // --- the price tag ------------------------------------------------------
+
+  it('prices the reconciliation treat at exactly what a gift is worth', () => {
+    // A deliberate match (see TREAT_COST's comment), asserted so it cannot
+    // become an accidental mismatch.
+    expect(TREAT_COST).toBe(AWARDS.gift);
+    expect(AWARDS.gift).toBe(10);
+  });
+
+  // --- 1. the rupture -----------------------------------------------------
+
+  describe('the rupture', () => {
+    it('leaves an ordinary greet completely unchanged on a friendly roll', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, false);
+      h.greet(s);
+      expect(h.progression.state.points).toBe(AWARDS.friend);
+      expect(h.progression.state.friends[s.name].greets).toBe(1);
+      expect(h.progression.state.grudges).toEqual([]);
+      expect(s.cross).toBe(false);
+      expect(s.greeted).toBe(true);
+      expect(h.session.catsGreeted).toBe(1);
+    });
+
+    it('pays nothing, records no greet, and remembers the grudge on a hostile roll', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, true);
+      h.greet(s);
+      expect(h.progression.state.points).toBe(0);          // no friendship award
+      expect(h.progression.state.friends[s.name]).toBeUndefined(); // no greet recorded
+      expect(h.progression.state.grudges).toEqual([s.name]);
+      expect(s.cross).toBe(true);
+      expect(s.greeted).toBe(true);   // …but the player still moves on
+      expect(h.session.catsGreeted).toBe(0);
+      expect(h.hisses).toHaveLength(1);
+      expect(h.toasts.at(-1)).toContain(s.name);
+    });
+
+    it('cannot be re-rolled by mashing E: one stamp, one answer, one grudge', () => {
+      // The anti-farm property, and the reason the roll is seeded on
+      // (walkStamp, name) rather than drawn fresh. 100 attempts, and the
+      // greet-award ledger must agree with the grudge table at the end.
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, true);
+      for (let i = 0; i < 100; i++) h.greet(s);
+      expect(h.progression.state.grudges).toEqual([s.name]);
+      expect(h.progression.state.points).toBe(0);
+      expect(h.progression.state.friends[s.name]).toBeUndefined();
+    });
+
+    it('never turns a cat that is already a friend (D5)', () => {
+      const h = enemyHarness();
+      const first = createStrayCats(scene, AREA, 1, mulberry32(11));
+      const name = first.strays[0].name;
+      const friendly = enemyHarness({ friends: { [name]: { greets: 3, breed: 'tabby', lastWalk: 'old' } } });
+      const s = friendly.park(0, 1);
+      expect(s.name).toBe(name);
+      friendly.session.walkStamp = stampFor(name, true);   // the roll SAYS hostile…
+      friendly.greet(s);
+      expect(friendly.progression.state.grudges).toEqual([]); // …and D5 refuses it
+      expect(friendly.progression.state.points).toBe(AWARDS.friend);
+      void h;
+    });
+
+    it('does not advance the friendship ladder, so a rupture cannot buy immunity', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, true);
+      h.greet(s);
+      expect(h.progression.friendLevel(s.name)).toBe('none');
+    });
+  });
+
+  // --- 2. D2: strays only -------------------------------------------------
+
+  describe('D2 — never a family pet, never a ghost', () => {
+    it('refuses to turn a ghost visitor that happens to share a stray name', () => {
+      // enemies.js cannot tell these apart and says so; the guard is the call
+      // site's. A ghost/remote pet is a different object in a different list,
+      // and its petName is player-chosen, so this collision is reachable.
+      const h = enemyHarness();
+      const real = h.park(0, 1);
+      h.session.walkStamp = stampFor(real.name, true);
+      const ghost = {
+        name: real.name, petName: real.name, breed: 'tabby',
+        group: { position: new THREE.Vector3(0, 0, 1), rotation: { y: 0 } },
+        greeted: false,
+      };
+      h.greet(ghost);
+      expect(h.progression.state.grudges).toEqual([]);
+      expect(ghost.cross).toBeUndefined();
+      // It was greeted like anything else — the guard suppresses HOSTILITY,
+      // not the greet.
+      expect(h.progression.state.points).toBe(AWARDS.friend);
+    });
+
+    it('refuses to turn a family pet even smuggled into the stray list', () => {
+      const h = enemyHarness();
+      for (const name of ['Zeetoo', 'Rosa', 'Robbie', 'Hagrid']) {
+        const pet = {
+          name, breed: 'tabby', greeted: false,
+          group: { position: new THREE.Vector3(0, 0, 1), rotation: { y: 0 } },
+        };
+        h.strayCats.strays.push(pet);
+        h.session.walkStamp = stampFor(name, true);
+        h.greet(pet);
+        h.strayCats.strays.pop();
+        expect(h.progression.state.grudges).toEqual([]);
+        expect(pet.cross).toBeUndefined();
+      }
+    });
+  });
+
+  // --- 3. the grudge, and the prompt it replaces --------------------------
+
+  describe('the grudge', () => {
+    it('offers the treat instead of the greet, and never both', () => {
+      const h = enemyHarness({ points: 40 });
+      const s = h.park(0, 1);
+      h.strayCats.turnHostile(s, HERE);
+      s.group.position.set(0, 0, 1);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray-gift');
+      expect(h.session.prompt.data).toBe(s);
+      expect(h.prompts.at(-1)).toContain(`offer ${s.name} a treat`);
+    });
+
+    it('says so in the prompt when the player cannot afford the treat', () => {
+      const h = enemyHarness({ points: 3 });
+      const s = h.park(0, 1);
+      h.strayCats.turnHostile(s, HERE);
+      s.group.position.set(0, 0, 1);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray-gift');
+      expect(h.prompts.at(-1)).toContain(`${TREAT_COST} 🐾`);
+      expect(h.prompts.at(-1)).not.toContain('E —');
+    });
+
+    it('leaves the prompt ladder byte-identical for a save with no grudges', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray');
+      expect(h.prompts.at(-1)).toBe(`E — touch noses with ${s.name}`);
+    });
+
+    it('is not greetable by CHAT either, which is the other door in', () => {
+      // walk.js's sendPhrase finds its target with a plain nearest() and calls
+      // straight into awardStrayGreet. Without the hasGrudge check in there,
+      // a cat cross since a previous walk would pay a full friendship award
+      // to anyone who said hello to it.
+      const first = createStrayCats(scene, AREA, 1, mulberry32(11));
+      const name = first.strays[0].name;
+      const h = enemyHarness({ grudges: [name] });
+      const s = h.park(0, 1);
+      expect(s.cross).toBe(true);         // carried in from the save
+      h.session.walkStamp = stampFor(name, false);
+      h.greet(s);
+      expect(h.progression.state.points).toBe(0);
+      expect(h.progression.state.friends[name]).toBeUndefined();
+      expect(h.progression.state.grudges).toEqual([name]);
+    });
+
+    it('is not shadowed by the gift-leave prompt while standing on a scenic spot', () => {
+      // The placement claim, asserted. 'gift-leave' is deliberately LAST in
+      // the chain and covers a 3m-wide target; a cross cat sitting on a
+      // scenic spot must not have "leave a gift here" hide the one prompt
+      // that can un-cross it.
+      const SCENICS = [{ id: 'fountain', x: 0, z: 1, label: 'the old fountain' }];
+      const h = enemyHarness({
+        skills: ['gift-paws'], points: 40, scenics: SCENICS,
+        gifts: createGifts(scene, SCENICS, []),
+      });
+      const s = h.park(0, 1);
+      h.strayCats.turnHostile(s, HERE);
+      s.group.position.set(0, 0, 1);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray-gift');
+    });
+  });
+
+  // --- 4. the scuffle -----------------------------------------------------
+
+  describe('the scuffle', () => {
+    function crowded(opts = {}) {
+      const h = enemyHarness({ points: 100, count: 4, ...opts });
+      const s = h.park(0, 0.6);           // well inside the 1.4m swat radius
+      h.strayCats.turnHostile(s, new THREE.Vector3(0, 0, 4)); // recoil AWAY from the cat
+      s.group.position.set(0, 0, 0.6);
+      return { h, s };
+    }
+
+    it('swats you: the dog scare, plus a spendable-point cost', () => {
+      const { h, s } = crowded();
+      h.scan();
+      expect(h.session.freezeTime).toBe(SCUFFLE_FREEZE);
+      expect(h.halted()).toBe(1);
+      expect(h.hisses).toHaveLength(1);
+      expect(h.progression.state.points).toBe(100 - SCUFFLE_COST);
+      expect(h.toasts.at(-1)).toContain(s.name);
+    });
+
+    it('never touches lifetimePoints, so a rank can never go backwards (D3)', () => {
+      const { h } = crowded();
+      const before = h.progression.state.lifetimePoints;
+      h.scan();
+      expect(h.progression.state.lifetimePoints).toBe(before);
+    });
+
+    it('never fires while the player is already frozen', () => {
+      // The guard enemies.js explicitly leaves to the call site: without it a
+      // cross cat you are standing beside re-swats the instant each freeze
+      // expires, which is a freeze-lock.
+      const { h } = crowded();
+      h.session.freezeTime = 1.0;
+      for (let i = 0; i < 50; i++) h.scan();
+      expect(h.progression.state.points).toBe(100);
+      expect(h.hisses).toHaveLength(0);
+    });
+
+    it('swats at most once per cat, however many frames you stand there', () => {
+      const { h, s } = crowded();
+      for (let i = 0; i < 200; i++) {
+        h.session.freezeTime = 0;         // pretend every freeze has expired
+        h.scan();
+      }
+      expect(h.progression.state.points).toBe(100 - SCUFFLE_COST);
+      expect(h.hisses).toHaveLength(1);
+      void s;
+    });
+
+    it('caps a whole walk at three scuffles however many cats are cross', () => {
+      // Grudges persist and accumulate; a player with fifteen of them
+      // crossing a map of 22 strays must not be taxed fifteen times for a
+      // feature they are actively trying to fix.
+      const h = enemyHarness({ points: 100, count: 4 });
+      for (let i = 0; i < 4; i++) {
+        const s = h.park(i, 0.6);
+        h.strayCats.turnHostile(s, new THREE.Vector3(0, 0, 4));
+        s.group.position.set(0, 0, 0.6);
+      }
+      for (let i = 0; i < 50; i++) {
+        h.session.freezeTime = 0;
+        h.scan();
+      }
+      expect(h.progression.state.points).toBe(100 - 3 * SCUFFLE_COST);
+      expect(h.hisses).toHaveLength(3);
+    });
+
+    it('never swats for a cat that is not cross', () => {
+      const h = enemyHarness({ points: 100 });
+      h.park(0, 0.6);
+      for (let i = 0; i < 20; i++) { h.session.freezeTime = 0; h.scan(); }
+      expect(h.progression.state.points).toBe(100);
+      expect(h.hisses).toHaveLength(0);
+    });
+
+    it('stays out of reach: no swat from the far edge of the greet prompt', () => {
+      const { h, s } = crowded();
+      s.group.position.set(0, 0, 2.3);   // promptable, but not crowded
+      h.scan();
+      expect(h.session.freezeTime).toBe(0);
+      expect(h.progression.state.points).toBe(100);
+      // …and the reconciliation is still on offer from out here, which is the
+      // whole reason the swat radius is smaller than the prompt reach.
+      expect(h.session.prompt.kind).toBe('stray-gift');
+    });
+
+    it('does not cow a fearless or steady cat — but still costs them (D3)', () => {
+      // The dog scare's own rule: the special governs the player's NERVE, so
+      // it skips exactly what the dog scare skips (freeze, halt, toast text)
+      // and nothing else. Letting two breeds walk the feature for free would
+      // delete the sting D3 exists to deliver.
+      for (const breed of ['black', 'mainecoon']) {
+        // Asserted, not assumed: if either breed's special is ever renamed
+        // this fails here rather than quietly testing nothing.
+        expect(['fearless', 'steady']).toContain(PERSONALITIES[breed].special);
+        const { h } = crowded({ breed });
+        h.scan();
+        expect(h.session.freezeTime).toBe(0);
+        expect(h.halted()).toBe(0);
+        expect(h.hisses).toHaveLength(1);
+        expect(h.progression.state.points).toBe(100 - SCUFFLE_COST);
+      }
+      // The control: an ordinary breed IS cowed by the same swat.
+      const tabby = crowded({ breed: 'tabby' });
+      tabby.h.scan();
+      expect(tabby.h.session.freezeTime).toBe(SCUFFLE_FREEZE);
+      expect(tabby.h.halted()).toBe(1);
+    });
+
+    it('floors at zero: a broke player gets the hiss and the freeze, no phantom cost', () => {
+      const { h } = crowded({ points: 0 });
+      h.scan();
+      expect(h.progression.state.points).toBe(0);
+      expect(h.session.freezeTime).toBe(SCUFFLE_FREEZE);
+      expect(h.hisses).toHaveLength(1);
+      expect(h.toasts.at(-1)).not.toContain('−');
+    });
+  });
+
+  // --- 5. the reconciliation ---------------------------------------------
+
+  describe('the reconciliation', () => {
+    // A cross cat, standing where the prompt reaches but the swat does not.
+    // The grudge is written to the SAVE as well as flagged on the stray,
+    // because that is what the rupture does and what the reconciliation
+    // reads — a world flag with no persisted grudge behind it must (and
+    // does, see 'charges nothing for a cat that is not actually cross')
+    // charge nothing.
+    function crossAndClose(opts = {}) {
+      const h = enemyHarness({ points: 40, ...opts });
+      const s = h.park(0, 2.0);
+      h.progression.recordGrudge(s.name);
+      h.strayCats.turnHostile(s, new THREE.Vector3(0, 0, 5));
+      s.group.position.set(0, 0, 2.0);
+      h.scan();
+      return { h, s };
+    }
+
+    it('always works — no roll — and costs exactly the treat', () => {
+      const { h, s } = crossAndClose();
+      h.pressE();
+      expect(h.progression.state.points).toBe(40 - TREAT_COST);
+      expect(h.progression.state.grudges).toEqual([]);
+      expect(h.progression.hasGrudge(s.name)).toBe(false);
+      expect(s.cross).toBe(false);
+      expect(s.greeted).toBe(false);      // greetable again, immediately
+      expect(h.toasts.at(-1)).toContain(s.name);
+    });
+
+    it('consumes nothing and clears nothing when the player cannot afford it', () => {
+      const { h, s } = crossAndClose({ points: TREAT_COST - 1 });
+      h.pressE();
+      expect(h.progression.state.points).toBe(TREAT_COST - 1);
+      expect(h.progression.state.grudges).toEqual([s.name]);
+      expect(s.cross).toBe(true);
+      expect(h.toasts.at(-1)).toContain('costs');
+    });
+
+    it('cannot be double-charged by mashing E', () => {
+      // forgiveGrudge is the single gate; the second press finds no grudge
+      // and returns before the deduction.
+      const { h } = crossAndClose();
+      for (let i = 0; i < 10; i++) h.pressE();
+      expect(h.progression.state.points).toBe(40 - TREAT_COST);
+    });
+
+    it('charges nothing for a cat that is not actually cross', () => {
+      // A forged prompt: nothing to forgive means nothing to pay.
+      const h = enemyHarness({ points: 40 });
+      const s = h.park(0, 1);
+      h.session.prompt = { kind: 'stray-gift', data: s };
+      h.pressE();
+      expect(h.progression.state.points).toBe(40);
+    });
+
+    it('does NOT re-rupture on the greet that follows — the beat cannot eat itself', () => {
+      // THE load-bearing one. The roll is a pure function of (walkStamp,
+      // name), so without markForgiven the cat you just paid to make up with
+      // rolls hostile again on the very next greet and the reconciliation
+      // pays for its own undoing.
+      const h = enemyHarness({ points: 40 });
+      const s = h.park(0, 2.0);
+      h.session.walkStamp = stampFor(s.name, true);   // a hostile walk for this cat
+      h.greet(s);                                     // the rupture
+      expect(h.progression.state.grudges).toEqual([s.name]);
+      s.group.position.set(0, 0, 2.0);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray-gift');
+      h.pressE();                                     // the reconciliation
+      expect(h.progression.state.grudges).toEqual([]);
+      s.group.position.set(0, 0, 2.0);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray');    // greetable again
+      h.pressE();                                     // …and the greet is normal
+      expect(h.progression.state.grudges).toEqual([]);
+      expect(h.progression.state.friends[s.name].greets).toBe(1);
+      expect(h.progression.state.points).toBe(40 - TREAT_COST + AWARDS.friend);
+    });
+
+    it('is a net loss, so the loop can never be farmed for points', () => {
+      // 10 out, 6 back, and both halves are capped per walk anyway
+      // (recordGreet's per-walk dedup, awardOnce's per-walk key).
+      const h = enemyHarness({ points: 40 });
+      const s = h.park(0, 2.0);
+      h.session.walkStamp = stampFor(s.name, true);
+      h.greet(s);
+      s.group.position.set(0, 0, 2.0);
+      h.scan();
+      for (let i = 0; i < 30; i++) { h.pressE(); h.scan(); }
+      expect(h.progression.state.points).toBeLessThan(40);
+      expect(h.progression.state.points).toBe(40 - TREAT_COST + AWARDS.friend);
+      expect(h.progression.state.friends[s.name].greets).toBe(1);
+    });
+  });
+
+  // --- 6. survival --------------------------------------------------------
+
+  it('never throws on a hostile or missing save', () => {
+    for (const state of [null, undefined, 'nope', { grudges: 'x', points: '9e99', friends: 7 }]) {
+      const h = enemyHarness({ points: 40 });
+      const s = h.park(0, 1);
+      // Swap in a save the cloud could plausibly have handed back. The
+      // progression METHODS still exist (they are total over garbage); it is
+      // the state they read that is hostile.
+      Object.defineProperty(h.progression, 'state', { get: () => state, configurable: true });
+      expect(() => h.scan()).not.toThrow();
+      expect(() => h.greet(s)).not.toThrow();
+      expect(() => h.pressE()).not.toThrow();
     }
   });
 });
