@@ -4,3 +4,9 @@ dist/
 * 2.*
 .env.local
 .claude/worktrees/
+
+# Throwaway visual-check harnesses (verify-docks.html etc). Render a real area
+# through the real renderer settings so a change can be looked at, not just
+# tested. Kept out of the repo because they are scratch, but kept ON DISK
+# because the visual pass has caught defects the suite structurally cannot.
+verify-*.html

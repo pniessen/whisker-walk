@@ -1,9 +1,55 @@
 import * as b from './builder.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
-export function build(scene) {
+// -----------------------------------------------------------------------------
+// SURFACES AND WIND (v20). The Docks pilot set the brief and it governs here
+// too: materials.js opens with "cozy low-poly art direction stays flat/matte",
+// every tile is capped at a 13% value range, and a prop that reads fine flat
+// stays flat. What gets a surface here is what the street is literally made of
+// — lawn, road grit, paving slabs, brick and painted boards, crate timber.
+// Everything else in this file is a SHARED builder prop (mailboxes, cars,
+// benches, lamp posts, the bike, the billboard, the rocks, the fences, the
+// cardboard boxes, the leaf litter, the puddles), and every one of those had
+// its surface decided once in builder.js — including the ones deliberately
+// left flat there, which is where their reasons live rather than here.
+//
+// `opts.wind` is the per-walk sway registry walk.js threads in, and unlike the
+// Docks — which registers nothing at all, because the district has neither a
+// tree nor a fence — THIS is the area the rig was built for: twelve trees, ten
+// bushes and twelve flower patches, 34 registrations, each one planted and
+// registered from the same line so the two lists cannot drift apart.
+//
+// The five FENCE RUNS are deliberately still, and that is worth saying out
+// loud because wind.js's own docstring lists fenceRun as a candidate. Two
+// reasons, and they agree: builder.fenceRun's note says a fence is posts
+// driven into the ground and does not sway; and four of the runs here carry a
+// perch at y 0.85 (two Sure Claws front-fence tops, the dog yard's shipped
+// pair plus its CF-9b east run), so a visibly leaning rail would be the one
+// piece of sway in the game a cat is asked to stand on.
+//
+// `opts.water` is accepted and DELIBERATELY UNUSED. The neighborhood declares
+// no `waters` — test/spots.test.js's clearance case names it as the area with
+// none — and its two puddles are builder.puddle's static discs, which that
+// function's docstring says must NOT become a createWater rig. The key is in
+// the signature anyway so all five areas take the same options object and
+// walk.js never has to know which of them has water; a pond added here later
+// picks up the tier and reduced-motion pair without touching the call site.
+//
+// Both keys default, so a bare build(scene) — which every world test does —
+// still builds the full surface set rather than throwing.
+// -----------------------------------------------------------------------------
+export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
-  scene.add(b.ground(120, 0x7cb860));
+  // The lawn, at last literally. 'grass' is a mottle-only tile at 3m, so at
+  // 120m the derived repeat is 40x40 — coarse enough that a single patch is
+  // still bigger than the cat and never reads as a pattern, which is exactly
+  // what the preset's docstring asks for.
+  //
+  // The hex below is the one a human picked and is left ALONE: builder.ground
+  // applies grass's luminance compensation (mean 0.955) itself, so the plane
+  // lands back on 0x7cb860 rather than 4.5% under it. That compensation lives
+  // in the builder precisely so this line does not have to know about it.
+  scene.add(b.ground(120, 0x7cb860, { surface: 'grass' }));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -26,25 +72,70 @@ export function build(scene) {
   const clawPerches = [];
 
   // main street running north-south, side street east-west
-  scene.add(b.path(0, -50, 0, 50, 5));
-  scene.add(b.path(-50, 0, 50, 0, 5));
+  //
+  // 'sand', which is the fine-speckle tile and NOT a beach — builder.path's
+  // own note says it is "what a gravel walk actually looks like", and that is
+  // the read these two want. The colour is builder.path's fixed 0xcbb8a0, a
+  // pale warm tan: no tarmac is that colour, so a quiet unmetalled lane is
+  // what the road already was and the aggregate speckle is what it was
+  // missing. Nothing to compensate — sand's mean is 0.998 by design, because
+  // its whole read is per-texel variance rather than a shift in value.
+  //
+  // The repeat is derived, 5m x 100m over a 0.8m tile => [6, 125]. Deriving
+  // matters more here than almost anywhere: this is a 100m strip, and a
+  // hand-picked number would stretch the grain along the street.
+  scene.add(b.path(0, -50, 0, 50, 5, { surface: 'sand' }));
+  scene.add(b.path(-50, 0, 50, 0, 5, { surface: 'sand' }));
 
   // sidewalks flanking both streets
-  scene.add(b.sidewalk(-3.2, -50, -3.2, 50));
-  scene.add(b.sidewalk(3.2, -50, 3.2, 50));
-  scene.add(b.sidewalk(-50, -3.2, 50, -3.2));
-  scene.add(b.sidewalk(-50, 3.2, 50, 3.2));
+  //
+  // 'cobble' — the sett grid is the closest thing in the vocabulary to paving
+  // slabs, and builder.sidewalk's docstring names it as the obvious pick while
+  // refusing to default it on. It is right HERE and was wrong at the Docks for
+  // one reason: the Docks' pavements run over a ground plane already carrying
+  // the same cobble tile, and two grids at different densities stacked on each
+  // other is the one way to make a tiled surface look like a mistake. Here the
+  // ground is grass and the neighbours are the sand-grit roads, so nothing is
+  // stacked and nothing repeats a rhythm.
+  //
+  // The derived repeat is [1, 83]: exactly one 1.2m tile across the walk's
+  // 1.2m width, i.e. four 30cm slabs kerb to kerb, which is a pavement. This
+  // is the one place on this pass where the thin-member rule was checked and
+  // came out fine — the strip is a full tile wide, not a fraction of one.
+  scene.add(b.sidewalk(-3.2, -50, -3.2, 50, undefined, { surface: 'cobble' }));
+  scene.add(b.sidewalk(3.2, -50, 3.2, 50, undefined, { surface: 'cobble' }));
+  scene.add(b.sidewalk(-50, -3.2, 50, -3.2, undefined, { surface: 'cobble' }));
+  scene.add(b.sidewalk(-50, 3.2, 50, 3.2, undefined, { surface: 'cobble' }));
 
   // houses along the streets
+  //
+  // The fourth column is house()'s `bodySurface`, and it is a COLOUR reading
+  // rather than a spread: brick is fired clay, and fired clay comes out of the
+  // kiln in a narrow band of warm earths. Three of these eight are buff/straw
+  // (0xe8d8b0, 0xf2e0c0, 0xe8e0b8) — yellow stock brick, which is an entirely
+  // ordinary way for a street to be built — so they get the bond. The other
+  // five are lilac, mint, lavender, pale green and peach: nobody has ever
+  // fired a mint brick, those are paint colours, and painted lap boards is
+  // what house() defaults to. Leaving them on the default is the decision, not
+  // the absence of one.
+  //
+  // The hexes are untouched. house() applies brick's luminance compensation
+  // (mean 0.948) itself, exactly as warehouse() does, so a brick body still
+  // lands on the colour typed here rather than 5% under it.
+  //
+  // The three bricks are also spread one per stretch of street rather than
+  // adjacent, so the run reads as a mixed street and not as two terraces.
   const lots = [
-    [-12, -30, 0xe8d8b0], [-12, -15, 0xd8c8e8], [-12, 15, 0xf2e0c0], [-12, 30, 0xc8e0d0],
-    [12, -30, 0xf0d8c8], [12, -15, 0xe0e8c8], [12, 15, 0xd8d0f0], [12, 30, 0xe8e0b8],
+    [-12, -30, 0xe8d8b0, 'brick'], [-12, -15, 0xd8c8e8], [-12, 15, 0xf2e0c0, 'brick'], [-12, 30, 0xc8e0d0],
+    [12, -30, 0xf0d8c8], [12, -15, 0xe0e8c8], [12, 15, 0xd8d0f0], [12, 30, 0xe8e0b8, 'brick'],
   ];
-  for (const [x, z, color] of lots) {
-    scene.add(b.house(x, z, color));
+  for (const [x, z, color, bodySurface] of lots) {
+    // `undefined` for the roof colour keeps house()'s default while still
+    // reaching the body-surface argument behind it.
+    scene.add(b.house(x, z, color, undefined, bodySurface));
     addC(x, z, 3.4);
     scene.add(b.mailbox(x + (x < 0 ? 4 : -4), z + 2));
-    scene.add(b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2));
+    scene.add(b.flowerPatch(x + (x < 0 ? 5 : -5), z - 2, { wind }));
   }
 
   // trees, bushes, parked cars, lamps
@@ -54,11 +145,21 @@ export function build(scene) {
     // builder.js's 2-unit trunk), and a fork authored from a hand-copied
     // scale is exactly how world data drifts from the model it sits on.
     const scale = 0.9 + ((x * z) % 5) * 0.08;
-    scene.add(b.tree(x, z, scale));
+    // The wind registry goes in on the same line that plants the tree, which
+    // is the whole design: no second list to fall out of step with this one.
+    // builder.tree registers the GROUP and sways it by rotation only, so
+    // `g.position.x/z` never moves and the collider added on the next line —
+    // and the Sure Claws fork perch derived from `scale` on the line after —
+    // stay exactly where this area declared them.
+    scene.add(b.tree(x, z, scale, { wind }));
     addC(x, z, 0.6);
     clawPerches.push(sureClawsTreePerch(x, z, scale));
   }
-  for (const [x, z] of [[-4, -12], [5, 25], [18, 4], [-18, -4]]) scene.add(b.bush(x, z));
+  // A bush comes back as a GROUP rather than a Mesh once it is handed a wind
+  // (builder.bush makes the hinge itself so the sway pivots at the soil rather
+  // than at the bush's belly). The bush is in the same place either way; the
+  // difference is invisible to everything in this file, which only adds it.
+  for (const [x, z] of [[-4, -12], [5, 25], [18, 4], [-18, -4]]) scene.add(b.bush(x, z, { wind }));
 
   // low front fences along two west-side lots (curbside, just outside the house footprint)
   // Scenery until CF-9b: both runs now carry a mid-run fence-top perch at
@@ -77,7 +178,7 @@ export function build(scene) {
   // extra scatter trees in the open lawn corners (with colliders) + leaves swept beneath
   const scatterTrees = [[-30, -12], [30, 12], [-32, 38], [32, -38]];
   for (const [x, z] of scatterTrees) {
-    scene.add(b.tree(x, z, 1.0));
+    scene.add(b.tree(x, z, 1.0, { wind }));
     addC(x, z, 0.6);
     clawPerches.push(sureClawsTreePerch(x, z, 1.0));
   }
@@ -85,10 +186,11 @@ export function build(scene) {
   for (const [x, z, seed] of leafSpots) scene.add(b.leafLitter(x, z, seed));
 
   // scatter bushes near lot frontages
-  for (const [x, z] of [[-6, -22], [-6, 22], [9, -24], [9, 22], [-24, 5], [24, -30]]) scene.add(b.bush(x, z));
+  for (const [x, z] of [[-6, -22], [-6, 22], [9, -24], [9, 22], [-24, 5], [24, -30]]) scene.add(b.bush(x, z, { wind }));
 
-  // flowerbeds beside houses
-  for (const [x, z] of [[-16, -28], [16, -28], [-17, 29], [16, 32]]) scene.add(b.flowerPatch(x, z));
+  // flowerbeds beside houses. The quickest sway in the area and the smallest:
+  // thin stems in the slowest air there is, which is builder.js's own reading.
+  for (const [x, z] of [[-16, -28], [16, -28], [-17, 29], [16, 32]]) scene.add(b.flowerPatch(x, z, { wind }));
 
   // a bike left leaning in a side yard
   scene.add(b.bike(-14, 8, 0.9));
@@ -109,13 +211,26 @@ export function build(scene) {
   // crate stack beside the billboard — a two-tier step up onto its top,
   // clear of the billboard's own collider (2.4 from its center, just
   // outside the 2.3 radius) but still within climbing reach of it.
-  scene.add(b.platform(9.4, -14, 1.1, 0, 1.0));
-  scene.add(b.platform(9.4, -14, 2.0, 1.1, 0.8));
+  // Crate timber, the same call the Docks' crate stacks take: the plank tile
+  // is four boards across its 1.0m, so a 1.0 and a 0.8 crate come out as four
+  // ~25cm and four ~20cm boards, which is a packing crate. `undefined` for the
+  // colour keeps builder.platform's shipped 0xc8a678 while still reaching the
+  // options object behind it — these are the same crates, with grain on them.
+  scene.add(b.platform(9.4, -14, 1.1, 0, 1.0, undefined, { surface: 'wood' }));
+  scene.add(b.platform(9.4, -14, 2.0, 1.1, 0.8, undefined, { surface: 'wood' }));
   addC(9.4, -14, 0.5);
 
   // a lean-to porch roof against the fence corner by the (-12,15) house —
   // first step of the rooftop climb chain up to its ridge.
-  scene.add(b.platform(-9, 17.5, 1.3, 0, 1.6, 0xa8846a));
+  // 'wood' rather than 'shingle', which is the tempting answer for anything
+  // called a roof and is wrong for this shape. builder.platform is a BOX and a
+  // box maps 0..1 per face, so one surface serves all six: shingle would hang
+  // roof tabs down the porch's two side walls and its front, where a passing
+  // cat sees them from 30cm away. Board it instead — the 1.6 x 1.3 body is
+  // [2, 1] of the plank tile either way, and a lean-to porch is timber before
+  // it is anything else. Its 0xa8846a is the shipped colour, untouched: plank's
+  // 0.980 mean is inside the noise and needs no compensation.
+  scene.add(b.platform(-9, 17.5, 1.3, 0, 1.6, 0xa8846a, { surface: 'wood' }));
   addC(-9, 17.5, 0.9);
 
   // small playground: slide-ish ramp + swing frame

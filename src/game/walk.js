@@ -337,8 +337,13 @@ export function createWalkLifecycle({
     // inventing a second convention. Both keys default inside each area, so an
     // area that has not been threaded yet still builds from a bare
     // build(scene) — which is what every world test does.
+    // The den gets `wind` too, and not as a formality: its build draws a strip
+    // of OUTDOORS through the window — two trees, two bushes, a lawn and a
+    // fence run at z ~ -18 — and that garden is the one thing in the room a
+    // breeze should reach. It gets no `water` because it has none. Passing an
+    // extra key is inert until den.js asks for it.
     const areaData = isDen
-      ? AREAS.den.build(scene, { placed: progression.state.den.placed })
+      ? AREAS.den.build(scene, { placed: progression.state.den.placed, wind })
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
     // POIs are authored as "interesting spots" and several sit dead-center
     // on scenery (the park fountain, the parked car) — fine as vibes, but
@@ -425,7 +430,17 @@ export function createWalkLifecycle({
     if (!duskActive && !isDen) {
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion);
       if (weather.condition === 'rain') {
-        // extra puddles
+        // Extra puddles. These are the only props in the game that EVERY area
+        // gets whether it authored them or not, which is why their surface is
+        // not decided here: world/builder.js's puddle() now carries the
+        // 'water' preset itself (roughness 0.12, no map — materials.js's table
+        // names puddles in that preset's own docstring), so an area's authored
+        // puddles and these rain ones cannot end up looking like two different
+        // materials. Deliberately NOT render/water.js's createWater: that rig
+        // is an animated normal map, a depth ramp and a foam band, all of them
+        // for a body of water with a shoreline. A 0.8m disc has no shoreline,
+        // and three of them per rainy walk would be three more animated
+        // materials on the per-frame update list for no visible gain.
         const extra = [];
         for (let i = 0; i < 3; i++) {
           const px = areaData.bounds.minX / 2 + walkRng() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;

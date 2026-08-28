@@ -93,16 +93,21 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // What that costs a call site: a textured material reads slightly darker on
 // average than the same colour untextured, because a tile's mean is below 1.
 // Measured on the finished pixels, post-clamp:
-//     min texel / mean, per surface
-//     brick   236  0.948      siding  222  0.988
-//     shingle 225  0.963      plank   222  0.980
-//     cobble  228  0.961      sand    238  0.998
-//     grass   222  0.955
-// Brick and grass are the two worth compensating for — lighten the base
-// colour by about 5% if a wall or a lawn needs to land on exactly the colour
-// it ships today. Sand is deliberately at 0.998: sand's read is entirely
-// per-texel VARIANCE and none of it is a shift in overall value, because a
-// beach that goes darker when you texture it just looks wet.
+//     min texel / mean / pixel sigma, per surface
+//     brick   236  0.948  4.3      siding  222  0.983  6.0
+//     shingle 225  0.963  5.8      plank   222  0.980  5.9
+//     cobble  228  0.961 12.6      sand    228  0.969  6.2
+//     grass   238  0.987  2.4
+// Brick is the one worth compensating for — lighten the base colour by about
+// 5% if a wall needs to land on exactly the colour it ships today; cobble,
+// shingle and sand are 3-4% and only matter if a prop is colour-matched to a
+// neighbour that is untextured.
+//
+// Sigma is in 8-bit steps and is the number to look at when asking "will
+// anyone see this". Anything at or above ~2 reads on a real screen. Sand
+// originally shipped at sigma 0.5 — under one value step — and was measured
+// on the real renderer as literally invisible across three areas; see
+// paintSand for the reasoning error that produced it.
 //
 // The fourth mechanism is free: mipmapping. At 20m a tile is under a pixel
 // and trilinear filtering resolves it to its mean — flat colour, which is
@@ -493,8 +498,11 @@ const PLANK_GRAIN = 0.05; // grain streaks, max
 const COBBLE_GROUT = 0.12; // the channel between setts
 const COBBLE_JITTER = 0.02; // +/- per-stone, on the stones only
 
-const SAND_FINE = 0.04; // one grain, max
-const SAND_COARSE = 0.025; // the 2px pass, max
+// Sand is per-texel rather than per-dot; see paintSand for why the scattered
+// version it replaced was invisible.
+const SAND_GRAIN = 0.09; // the 2px grain octave, max
+const SAND_CLUMP = 0.035; // the 8px clumping octave, max
+const SAND_SKEW = 2.5; // pow() bias: most texels near clean, a tail of dark grains
 
 const GRASS_BLOB = 0.028; // one mottle patch at its centre, max
 const GRASS_FLECK = 0.028; // a blade fleck, max
@@ -730,27 +738,110 @@ function paintCobble(ctx, S, rand) {
 }
 
 // --- sand ------------------------------------------------------------------
-// Pure speckle at two scales. No structure at all: the moment sand acquires a
-// pattern it stops being sand. The two scales exist because a single-pixel
-// speckle disappears entirely by mip level 2, and the 2px pass is what keeps
-// a hint of tooth on the beach at mid distance.
+// Two octaves of per-texel grain: a 2px "grain" octave that gives the surface
+// its tooth, and an 8px "clump" octave that keeps the beach from reading as
+// uniform static. Every texel carries some grain — this is a value field, not
+// a scatter of dots.
 //
-// Worst-case stack is statistical rather than structural — dots land where
-// they land. At 2600 fine dots over 65536 texels the mean is 0.04 dots per
-// texel, so a triple hit (0.04 ∘ 0.04 ∘ 0.04 ∘ coarse = 0.14) is expected on
-// well under one texel per tile. That tail is precisely what the clamp is
-// for, and it is why sand's per-dot alphas are the smallest in the set.
+// WHY IT IS BUILT THIS WAY, because the first version was a measured failure.
+// It scattered ~2600 one-pixel dots at alpha <= 0.04, which covered about 2%
+// of the tile and landed the mean at 0.998. On the real renderer that is a
+// pixel sigma of roughly half a value step: two people measuring three
+// different areas independently reported the same thing, which is that the
+// beach, the gravel walks and the street strips were all paying ~350KB for a
+// tile that rendered as nothing at all.
+//
+// The reasoning behind that 0.998 was wrong in a specific and instructive
+// way. It held sand's mean near 1.0 on the grounds that a beach which darkens
+// when textured looks wet. That is true of a LARGE shift and false of a small
+// one — brick sits at 0.948, a 5% darkening, and reads as brick rather than
+// as wet brick. Worse, it asked for something the pipeline cannot provide: a
+// colour map MULTIPLIES, so it can only darken. "Variance with no change in
+// mean" is not on the menu. Some mean reduction is the price of any visible
+// grain at all, and sand was the only surface in the vocabulary held to a
+// standard that made it invisible.
+//
+// So sand now sits with everything else, around 0.96.
+//
+// ALIASING, which sand is the surface most at risk of. Its features are the
+// smallest in the set, and at the default 0.8m tile one texel is 3.1mm of
+// world — at cat height (0.6m eye) that is roughly one screen pixel on the
+// near ground, exactly where per-texel white noise shimmers as the camera
+// moves. Hence the 2px block rather than 1px: the finest feature is two
+// texels wide, ~6mm of world, which the trilinear mip chain can actually
+// resolve instead of flickering between levels. The trade is that a grain is
+// twice the size it could be — coarse sand rather than fine — and that is the
+// right side to err on, because a shimmering beach is a bug and a slightly
+// chunky one is a style.
+//
+// The 8px octave's block edges are hard, which is a grid risk. It is capped
+// at 0.035 so the largest step across an edge is a 3.5% value change — under
+// the ~5% where a hard edge starts reading as a line rather than as a change
+// of tone. Do not raise it without checking that on a real screen.
+//
+// Worst-case stack: grain ∘ clump = 1 - (0.91)(0.965) = 0.122.
 function paintSand(ctx, S, rand) {
   fillWhite(ctx, S);
-  for (let n = 0; n < 2600; n++) {
-    ctx.fillStyle = ink(SAND_FINE * (0.3 + rand() * 0.7));
-    ctx.fillRect(Math.floor(rand() * S), Math.floor(rand() * S), 1, 1);
+  grainPass(ctx, S, rand, [
+    { block: 8, amp: SAND_CLUMP, skew: SAND_SKEW },
+    { block: 2, amp: SAND_GRAIN, skew: SAND_SKEW },
+  ]);
+}
+
+// Lays one or more octaves of per-texel value noise over whatever is already
+// painted, via a single ImageData round trip.
+//
+// Per-texel rather than per-fillRect for two reasons. Coverage: a grain field
+// that touches every texel is 65536 draw calls as fillRects and one pass as
+// pixels. And control: the alpha of each texel is known exactly here, so an
+// octave's worst case is its amp and not a statistical tail.
+//
+// `block` must divide `size` — the field is laid on a size/block grid and
+// every texel in a block takes its cell's value, which is what keeps the tile
+// seamless (the grid wraps exactly) and what sets the octave's frequency.
+//
+// The noise is skewed by pow(rand(), skew): with skew 2.5 most texels come
+// out near clean and a minority are properly dark, which is what granular
+// material looks like. A flat distribution reads as television static.
+//
+// Guarded like everything else that touches real pixels: with no readback
+// (the headless recording contexts in the tests) this is a no-op and the
+// surface keeps whatever the fillRect layers drew. It draws no random numbers
+// in that case, so it must stay LAST in a painter or the two paths' rng
+// streams would diverge.
+function grainPass(ctx, size, rand, octaves) {
+  if (typeof ctx.getImageData !== 'function' || typeof ctx.putImageData !== 'function') {
+    return false;
   }
-  for (let n = 0; n < 700; n++) {
-    ctx.fillStyle = ink(SAND_COARSE * (0.3 + rand() * 0.7));
-    // Modulo keeps the 2x2 block inside the tile, so no wrapped copy needed.
-    ctx.fillRect(Math.floor(rand() * S) % (S - 1), Math.floor(rand() * S) % (S - 1), 2, 2);
+  // Every field is drawn up front, in a fixed order, so the values do not
+  // depend on how the pixels are subsequently walked.
+  const fields = octaves.map(({ block, amp, skew }) => {
+    const cells = Math.round(size / block);
+    const f = new Float32Array(cells * cells);
+    for (let i = 0; i < f.length; i++) f[i] = amp * Math.pow(rand(), skew);
+    return { block, cells, f };
+  });
+
+  const img = ctx.getImageData(0, 0, size, size);
+  const d = img.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let a = 0;
+      // Octaves composite against each other exactly as overlapping strokes
+      // would, so the worst case is the same product the painters quote.
+      for (const { block, cells, f } of fields) {
+        const v = f[((y / block) | 0) * cells + ((x / block) | 0)];
+        a = a + v - a * v;
+      }
+      if (a <= 0) continue;
+      const i = (y * size + x) * 4;
+      d[i] = d[i] * (1 - a) + INK[0] * a;
+      d[i + 1] = d[i + 1] * (1 - a) + INK[1] * a;
+      d[i + 2] = d[i + 2] * (1 - a) + INK[2] * a;
+    }
   }
+  ctx.putImageData(img, 0, 0);
+  return true;
 }
 
 // --- grass -----------------------------------------------------------------

@@ -397,13 +397,24 @@ describe('the subtlety budget — composited pixels', () => {
     let min = 1;
     let max = 0;
     let minAlpha = 1;
+    let sum = 0;
+    let touched = 0;
+    const vals = new Float64Array(d.length / 4);
     for (let i = 0; i < d.length; i += 4) {
       const L = luminance(d[i], d[i + 1], d[i + 2]);
       if (L < min) min = L;
       if (L > max) max = L;
       if (d[i + 3] < minAlpha) minAlpha = d[i + 3]; // buffer alpha is 0..1
+      if (L < 0.999) touched++;
+      vals[i / 4] = L;
+      sum += L;
     }
-    return { min, max, range: max - min, minAlpha };
+    const mean = sum / vals.length;
+    let sq = 0;
+    for (const v of vals) sq += (v - mean) * (v - mean);
+    // Sigma in 8-bit steps: the honest answer to "will anyone see this".
+    const sigma = Math.sqrt(sq / vals.length) * 255;
+    return { min, max, range: max - min, minAlpha, mean, sigma, coverage: touched / vals.length, vals };
   }
 
   it('leaves no texel below the floor, in any surface', () => {
@@ -430,6 +441,49 @@ describe('the subtlety budget — composited pixels', () => {
     for (const name of SURFACE_NAMES) {
       expect(measure(name).minAlpha, name).toBe(1);
     }
+  });
+
+  it('is actually visible — every surface clears one 8-bit value step', () => {
+    // THE REGRESSION TEST FOR SAND. Sand shipped at sigma 0.5/255 — under a
+    // single value step — because its mean was pinned at 0.998 to avoid
+    // looking "wet". A colour map multiplies, so it can only darken; asking
+    // for variance with no mean shift asks for something the pipeline cannot
+    // give, and the result was a ~350KB tile that rendered as nothing on
+    // three separate areas. Range and floor assertions both passed
+    // throughout: a cap says nothing about whether there is anything to cap.
+    //
+    // 1.5 is set below grass (2.4), which is the softest surface that is
+    // legitimately meant to be barely-there, and far above the 0.5 that was
+    // measured as invisible on the real renderer.
+    for (const name of SURFACE_NAMES) {
+      const m = measure(name);
+      expect(m.sigma, `${name} sigma ${m.sigma.toFixed(2)}/255`).toBeGreaterThan(1.5);
+    }
+  });
+
+  it('keeps every mean in one neighbourhood, so no surface is an outlier', () => {
+    // The other half of the same lesson. Sand was held to a standard nothing
+    // else was held to, which is how it ended up invisible while passing.
+    for (const name of SURFACE_NAMES) {
+      const m = measure(name);
+      expect(m.mean, `${name} mean ${m.mean.toFixed(4)}`).toBeGreaterThan(0.93);
+      expect(m.mean, `${name} mean ${m.mean.toFixed(4)}`).toBeLessThan(0.99);
+    }
+  });
+
+  it('gives sand dense grain rather than sparse dots', () => {
+    // The scattered version touched ~2-4% of texels. Grain has to be dense
+    // and fine to read as a granular material at cat height.
+    const m = measure('sand');
+    expect(m.coverage).toBeGreaterThan(0.8);
+  });
+
+  it('paints identical pixels on every boot, including the ImageData pass', () => {
+    // The recording-ctx determinism test cannot see grainPass, because that
+    // fake has no readback. This one can.
+    const a = measure('sand').vals;
+    const b = measure('sand').vals;
+    expect(Array.from(a)).toEqual(Array.from(b));
   });
 
   it('still has visible structure — the point is subtle, not absent', () => {
@@ -520,8 +574,13 @@ describe('painter discipline (a proxy, not the guarantee)', () => {
     return out;
   }
 
+  // sand lays no ink through the 2D context at all: both its octaves are a
+  // per-texel ImageData pass (grainPass), which the recording ctx cannot see.
+  // Its budget is enforced entirely by the composited-pixels block above.
+  const STROKE_PAINTERS = SURFACE_NAMES.filter((n) => n !== 'sand');
+
   it('paints white plus low-alpha ink, and nothing else', () => {
-    for (const name of SURFACE_NAMES) {
+    for (const name of STROKE_PAINTERS) {
       __resetSurfaceTextures();
       installFakeDocument();
       surfaceTexture(name);
@@ -545,7 +604,7 @@ describe('painter discipline (a proxy, not the guarantee)', () => {
   });
 
   it('spends most of its budget well under the cap', () => {
-    for (const name of SURFACE_NAMES) {
+    for (const name of STROKE_PAINTERS) {
       __resetSurfaceTextures();
       installFakeDocument();
       surfaceTexture(name);

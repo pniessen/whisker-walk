@@ -87,7 +87,7 @@ const SILL_DEPTH = 1.15;
 // slab painted sky-blue (which is what v17 did — the wall WAS the "window").
 // The opening is a hole: what you see through it is the neighbourhood built
 // beyond it by outsideView() below.
-function northWall(scene) {
+function northWall(scene, wind) {
   const side = WALL - WIN_HALF; // width of each pier beside the opening
   for (const sx of [-1, 1]) {
     const pier = box(side, WALL_H, 0.2, WALL_COLOR);
@@ -141,11 +141,13 @@ function northWall(scene) {
 
   // A flower box on the far side of the glass, hung at sill height. flowerPatch
   // is the neighbourhood's own builder — the den's window looks out on the
-  // same world the cat walks in, so it is furnished from the same shelf.
+  // same world the cat walks in, so it is furnished from the same shelf, wind
+  // included: a flower box that stirs while the trees behind it sway is one
+  // more layer of the same cue rather than a mismatched still life.
   const planter = box(1.8, 0.24, 0.35, 0x8a5a4a);
   planter.position.set(0, SILL_Y - 0.02, -WALL - 0.3);
   scene.add(planter);
-  const blooms = b.flowerPatch(0, -WALL - 0.3);
+  const blooms = b.flowerPatch(0, -WALL - 0.3, { wind });
   blooms.position.y = SILL_Y - 0.04;
   blooms.scale.set(1.4, 0.7, 0.5);
   scene.add(blooms);
@@ -156,19 +158,27 @@ function northWall(scene) {
 // so the ray through the bottom of the window only reaches the ground a good
 // twelve metres out. Anything nearer than that is below the frame and would
 // never be seen; anything at this distance reads as "the street".
-function outsideView(scene) {
-  const lawn = b.ground(70, 0x6aa04e);
+//
+// `wind` is the per-walk sway rig walk.js threads through build() — see the
+// header there. Trees swaying just past the glass is the cue that a static
+// window view is missing: it is the one piece of motion available to an
+// interior, and it is what makes the garden read as a place rather than a
+// backdrop painted onto the far wall. The lawn takes `surface: 'grass'` for
+// the same reason the outdoor areas' lawns do (ground() applies the
+// luminance compensation itself, so the authored hex is untouched here).
+function outsideView(scene, wind) {
+  const lawn = b.ground(70, 0x6aa04e, { surface: 'grass' });
   lawn.position.set(0, -0.02, -30);
   scene.add(lawn);
   scene.add(b.sidewalk(-16, -14.5, 16, -14.5, 1.6));
   scene.add(b.fenceRun(-13, -16, 13, -16));
   scene.add(b.house(1.5, -22));
   scene.add(b.house(-9.5, -26, 0xd8c8a8, 0x8a5a4a));
-  scene.add(b.tree(-5.5, -18, 1.1));
-  scene.add(b.tree(7.5, -20, 0.9));
+  scene.add(b.tree(-5.5, -18, 1.1, { wind }));
+  scene.add(b.tree(7.5, -20, 0.9, { wind }));
   scene.add(b.lampPost(5, -16.6));
-  scene.add(b.bush(-2.4, -17));
-  scene.add(b.bush(3.2, -17.4));
+  scene.add(b.bush(-2.4, -17, { wind }));
+  scene.add(b.bush(3.2, -17.4, { wind }));
 }
 
 // The fireplace. v17's hearth and embers, plus the things a hearth has: a
@@ -577,9 +587,12 @@ const BUILDERS = {
   dresser: buildDresser,
 };
 
-export function build(scene, { placed = {} } = {}) {
+export function build(scene, { placed = {}, wind } = {}) {
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
 
+  // Flat, deliberately: floorSeams (below) already draws the floorboards as
+  // real geometry, so a plank surface tile underneath would be two rhythms
+  // — drawn seams and a tiled grain — disagreeing with each other.
   const floor = b.ground(18, 0x9a7048);
   scene.add(floor);
   // 30 seams across 18 units — 0.6m boards, about a cat and a half long, which
@@ -606,8 +619,8 @@ export function build(scene, { placed = {} } = {}) {
   //
   // The density pass adds the second half of that rule: the VOLUME in front
   // of the open wall stays clear too. See DEN_CAMERA_WEDGE in src/den.js.
-  northWall(scene);
-  outsideView(scene);
+  northWall(scene, wind);
+  outsideView(scene, wind);
   const south = box(18, RAIL_H, 0.2, 0xe8d8c0);
   south.position.set(0, RAIL_H / 2, WALL);
   scene.add(south);

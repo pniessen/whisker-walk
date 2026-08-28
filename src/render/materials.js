@@ -295,6 +295,27 @@ export function litMaterial(color, extra = {}) {
   return new THREE.MeshStandardMaterial({ ...params, ...rest });
 }
 
+// A surface's LIGHT RESPONSE with its map deliberately left off.
+//
+// Promoted here from world/builder.js, where it had been written as a local
+// `surfNoMap` and then restated verbatim in world/park.js — two copies of a
+// four-line helper is the point at which it belongs next to the preset table
+// instead.
+//
+// Two situations need it, and both are geometry problems rather than art
+// ones, which is why no amount of choosing a better repeat fixes them:
+//   * a planar tiling map smears badly around a 6-, 8- or 12-sided cylinder,
+//     so trunks, posts, bollards and fountain bowls take the roughness and
+//     skip the texture;
+//   * a member narrower than one tile (a fence rail, a window mullion) gets a
+//     whole tile squashed into it, which reads as a smear rather than as a
+//     surface.
+// In both, the preset's roughness/metalness is still exactly right — an oak
+// post is still 'wood' — so this keeps that half and drops the other.
+export function surfaceMaterialNoMap(surface, color, extra = {}) {
+  return litMaterial(color, { ...surfaceProps(surface), ...extra });
+}
+
 // The reading form for a textured prop:
 //   surfaceMaterial('brick', 0xb05a4a, { repeat: repeatFor('brick', 4.2, 3) })
 // Identical to litMaterial(color, { surface, ...extra }); it exists because

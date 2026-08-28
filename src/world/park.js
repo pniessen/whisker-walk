@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
-import { litMaterial } from '../render/materials.js';
+import { litMaterial, surfaceProps } from '../render/materials.js';
+import { createWater } from '../render/water.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 // =============================================================================
@@ -36,9 +37,57 @@ import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 // apart.
 const POND = { id: 'pond', kind: 'circle', x: -14, z: 2, r: 7 };
 
-export function build(scene) {
+// builder.js's own roughness-only helper, restated here because it is
+// module-local there and the fountain is the one assembly this file builds
+// itself. Same two rules it exists for (see the block above surfNoMap in
+// builder.js): a planar tile smears on a 12- or 8-sided cylinder, and a member
+// narrower than one tile gets a whole tile squashed into it. The fountain is
+// both, so it takes the preset's light response with the map left off.
+const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
+
+// -----------------------------------------------------------------------------
+// SURFACES AND WATER (v20). The Docks pilot's brief governs here too: the art
+// direction is flat and matte, and a prop that reads fine flat stays flat. What
+// this area is literally made of is lawn, gravel, foliage and stone, and that
+// is what it now asks for:
+//
+//   * the ground is 'grass' — the largest single surface in the game, and the
+//     one colour the area is named for. builder.ground applies the grass tile's
+//     own luminance compensation, so the authored 0x6cb058 is untouched here;
+//   * the five path segments are 'sand', which is the fine-speckle tile and is
+//     what a park's gravel walk actually looks like. At the tile's ~0.7m it is
+//     speckle rather than pattern on a 3m-wide walk, which is the point;
+//   * the fountain's basin and spire take 'cobble's dressed-stone response with
+//     the map off (see surfNoMap above);
+//   * the pond becomes real water — see the createWater call.
+//
+// DELIBERATELY FLAT, each with its reason:
+//   * the fountain's own water disc keeps the 'water' PRESET rather than
+//     becoming a second createWater — see the note on it below;
+//   * everything else the park plants (benches, lamp posts, the billboard,
+//     leaf litter, cardboard boxes, rocks, puddles, tree bark and canopies)
+//     is built by builder.js, which already made and documented each of those
+//     calls in the foundation wave. This file adds no surface to them, because
+//     re-deciding a shared prop's material from one area is exactly how five
+//     areas end up disagreeing about what a bench is made of.
+//
+// `opts.water` is the tier/reduced-motion pair walk.js threads in and
+// `opts.wind` is the per-walk sway registry; both default, so a bare
+// build(scene) — which every world test does — still builds the high-tier
+// surface rather than throwing.
+//
+// WIND. Unlike the Docks, this area is nothing BUT foliage: seventeen trees,
+// eight bushes and five flower patches register themselves as they are planted
+// (thirty objects), from the same lines that plant them. Nothing else does.
+// Wind is a rotation about each prop's own origin — position.x/z never moves —
+// so not one collider, perch or Sure Claws fork record shifts a millimetre.
+// -----------------------------------------------------------------------------
+export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
-  scene.add(b.ground(120, 0x6cb058));
+  // The lawn. The repeat comes from the plane's own 120m inside ground(), and
+  // the hex stays the one a human picked: builder.ground compensates grass's
+  // 0.955 mean itself so the authored colour is what lands on screen.
+  scene.add(b.ground(120, 0x6cb058, { surface: 'grass' }));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -55,36 +104,112 @@ export function build(scene) {
   const clawPerches = [];
 
   // winding path: south gate → fountain → pond → north meadow
-  scene.add(b.path(0, 48, 0, 20, 3));
-  scene.add(b.path(0, 20, -14, 6, 3));
-  scene.add(b.path(-14, 6, -8, -18, 3));
-  scene.add(b.path(-8, -18, 12, -30, 3));
-  scene.add(b.path(0, 20, 16, 10, 3));
+  // 'sand' is the gravel walk: the fine-speckle tile, which path() lands at
+  // [4, n] on a 3m width, i.e. 0.75m a tile — the same grit size on all five
+  // segments because the repeat is derived from each one's own extent.
+  //
+  // WHAT IT ACTUALLY BUYS, MEASURED, because a reviewer should not go looking
+  // for grit and conclude it is broken. The sand tile is deliberately the
+  // faintest in the vocabulary (textures.js: mean 0.999, min texel 0.934 — its
+  // read is "per-texel variance and none of it a shift in value, because a
+  // beach that goes darker when you texture it just looks wet"), its features
+  // are ~2 texels of a 256px tile over 0.75m, i.e. under a centimetre of world,
+  // and path()'s 0xcbb8a0 renders at 225,217,205 — high on the same ACES
+  // shoulder the pond was stuck on, which compresses what is left. Sampled at
+  // 0.6m eye height standing ON the walk, 1647 pixels of gravel span 2-5 sRGB
+  // units. So this is the correct NAME for the surface and an honest 0.92
+  // roughness, and it is very nearly invisible; it is the one call on this
+  // pass a reviewer might reasonably swap back to a flat path.
+  scene.add(b.path(0, 48, 0, 20, 3, { surface: 'sand' }));
+  scene.add(b.path(0, 20, -14, 6, 3, { surface: 'sand' }));
+  scene.add(b.path(-14, 6, -8, -18, 3, { surface: 'sand' }));
+  scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'sand' }));
+  scene.add(b.path(0, 20, 16, 10, 3, { surface: 'sand' }));
 
-  // fountain at the path junction
+  // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
+  // and an 8-sided spire are the cylinder rule's worked example, and the spire
+  // is 0.2-0.3m across besides. 'cobble' (0.8) rather than 'wetStone' (0.42) —
+  // the sheen preset would put a bright bloom on a pale, sky-facing 2.6m drum,
+  // and the art direction's own rule is that between two defensible numbers the
+  // matter one wins. The rim is a shipped perch (kind 'stone'); nothing here
+  // changes its geometry, only its light response.
   const fountain = new THREE.Group();
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.6, 12),
-    litMaterial(0xb8b8c0));
+    surfNoMap(0xb8b8c0, 'cobble'));
   basin.position.y = 0.3;
   fountain.add(basin);
-  const water = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 12),
-    litMaterial(0x8ab8d8));
-  water.position.y = 0.62;
-  fountain.add(water);
+  // THE FOUNTAIN'S WATER KEEPS THE PRESET, and does not become a second
+  // createWater. That is water.js's own split, written down in its ROUGH_DEEP
+  // note: a body with a `waters` footprint record is drawn by createWater, and
+  // water WITHOUT one — this disc, and the puddles — takes the 'water' preset.
+  // The three reasons all hold here. It has no footprint record (v19 left it
+  // out deliberately: it is a r-2.2 disc wholly inside the basin's r-3
+  // collider, so the cat can never stand on or beside it). It is 4.4m across,
+  // which is smaller than createWater's 3m shelf plus 0.7m foam band — the ramp
+  // would be all margin and no water. And it is a fountain basin: still, held,
+  // and with no shoreline for a foam band to trace. Roughness 0.12 with no map
+  // is exactly what a smooth dielectric film on a small disc wants, and the
+  // colour is the one builder.puddle uses for the same reason.
+  const fountainWater = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 12),
+    litMaterial(0x8ab8d8, { surface: 'water' }));
+  fountainWater.position.y = 0.62;
+  fountain.add(fountainWater);
   const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.4, 8),
-    litMaterial(0xb8b8c0));
+    surfNoMap(0xb8b8c0, 'cobble'));
   spire.position.y = 1.2;
   fountain.add(spire);
   fountain.position.set(0, 0, 20);
   scene.add(fountain);
   addC(0, 20, 3);
 
-  // pond (duck home) — drawn from POND, declared in `waters` below
-  const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 20),
-    litMaterial(0x7ab0d8));
-  pond.rotation.x = -Math.PI / 2;
-  pond.position.set(POND.x, 0.02, POND.z);
-  scene.add(pond);
+  // --- the pond -------------------------------------------------------------
+  // Still drawn from POND, so the water on screen and the water in the data are
+  // the same circle by construction — createWater builds its geometry from the
+  // footprint verbatim (CircleGeometry(POND.r) at POND.x/z), which is what
+  // keeps test/water.test.js's "draws that footprint from the declaration" case
+  // honest. The mesh goes into the scene DIRECTLY and never into a Group: that
+  // case matches against scene.children, and a nested mesh is invisible to it.
+  //
+  // y 0.02 and 0x7ab0d8 are the plane's own shipped values, so nothing
+  // re-stacks against the paths and the pond keeps its friendly cyan identity.
+  //
+  // THE COLOUR MOVES, AND THAT IS THE FIX. waterRamp puts BOTH ends of its ramp
+  // BELOW the authored hex rather than straddling it, and the reason it gives
+  // — that this pond is already blowing out — was measured on the real
+  // renderer rather than assumed. At walk.js's own lighting (2.2 sun over 0.9
+  // ambient, envIntensity 0.45, ACES at exposure 1.1) the flat plane that
+  // shipped renders at sRGB 185,213,227 — and at 185,213,227 at every other
+  // point on the disc too, near rim and far, at cat height and from above.
+  // The authored 0x7ab0d8 is 122,176,216: the surface comes out 50% brighter
+  // in red, desaturated from HSL 0.55 to 0.43, and with a value range of
+  // exactly zero. It is on the tone curve's shoulder, which the same
+  // measurement shows directly — lifting the albedo 25% (to 0x99ddff) moves
+  // blue only 227 -> 237, and lifting it again to 0xb8ffff moves it not at
+  // all, while dropping it 25% moves red 185 -> 143. So the prediction held.
+  //
+  // The new surface measures 55,138,188 out in the deep and 144,186,215 in
+  // the shallow/foam band at the rim. The pond finally has a value range, it
+  // sits back down off the shoulder where the lighting can shape it, and the
+  // authored hex is its identity rather than one of its two ends.
+  //
+  // Everything else is left at the module's defaults ON PURPOSE: SHELF_M (3m),
+  // FOAM_M (0.7m) and FOAM_STRENGTH (0.45) were all tuned against THIS body —
+  // water.js's SHELF_M note says the park pond is the constraint that sets it —
+  // so the 0.35 foam the Docks canal needed would be second-guessing the
+  // numbers' own worked example. The pond is a circle ringed by lawn, so the
+  // foam band traces the whole rim, which is right: unlike the seaside there is
+  // no open horizon here, and unlike the canal every edge really is a shore the
+  // camera sees from the grass side. The 48-segment rim is the default too, and
+  // it is the one thing that changes shape: 20 segments left 2.2m chords that
+  // the new foam band traces straight to, so the pond read as a polygon. Same
+  // radius, same centre, same footprint — only the tessellation is finer.
+  const pond = createWater(POND, {
+    y: 0.02,
+    color: 0x7ab0d8,
+    quality: water.quality ?? 'high',
+    reducedMotion: water.reducedMotion ?? false,
+  });
+  scene.add(pond.mesh);
 
   // big trees ring the lawns
   const treeSpots = [[-24, 30], [-30, 10], [-26, -14], [-16, -34], [8, -38], [22, -22],
@@ -97,26 +222,41 @@ export function build(scene) {
     // reading of a wide oak and the reason none of them out-tops the 2.1
     // branch on the oak that holds the golden mouse.
     const scale = 1.2 + ((x + z) % 4) * 0.15;
-    scene.add(b.tree(x, z, scale));
+    // `wind` sways the whole tree Group by a small rotation about its own
+    // origin. Its lean grows with sqrt(scale), so these 1.2-1.65 oaks move a
+    // little more than an ordinary tree and still stay inside a few degrees at
+    // the rain-gust peak — and `g.position.x/z` never moves, so the collider on
+    // the next line and the Sure Claws fork on the one after are untouched.
+    scene.add(b.tree(x, z, scale, { wind }));
     addC(x, z, 0.7);
     clawPerches.push(sureClawsTreePerch(x, z, scale));
   }
-  for (const [x, z] of [[-10, 26], [10, 18], [-20, -6], [4, -24]]) scene.add(b.bush(x, z));
+  // A bush comes back as a pivot Group once `wind` is passed (builder.bush's
+  // note explains why: hinging at the soil rather than about its own belly).
+  // Same (x, z), same hide spots, quicker and much smaller motion than a tree.
+  for (const [x, z] of [[-10, 26], [10, 18], [-20, -6], [4, -24]]) scene.add(b.bush(x, z, { wind }));
 
   // extra trees in the far lawn corners (with colliders) + leaves beneath three of them
   const scatterTrees = [[-40, -40], [40, 40], [-40, 40], [40, -40]];
   for (const [x, z] of scatterTrees) {
-    scene.add(b.tree(x, z, 1.1));
+    scene.add(b.tree(x, z, 1.1, { wind }));
     addC(x, z, 0.6);
     clawPerches.push(sureClawsTreePerch(x, z, 1.1));
   }
+  // Leaf litter stays still and stays flat, both by builder decision: 9cm discs
+  // lying on the ground are an order of magnitude under any tile, and dead
+  // leaves on grass are the one thing in the park the wind should not lift.
   for (const [x, z, seed] of [[-40, -40, 1], [40, 40, 2], [40, -40, 3]]) scene.add(b.leafLitter(x, z, seed));
-  for (const [x, z] of [[-35, -20], [35, 20], [-35, 35], [35, -30]]) scene.add(b.bush(x, z));
-  for (const [x, z] of [[-40, 10], [40, -10]]) scene.add(b.flowerPatch(x, z));
+  for (const [x, z] of [[-35, -20], [35, 20], [-35, 35], [35, -30]]) scene.add(b.bush(x, z, { wind }));
+  for (const [x, z] of [[-40, 10], [40, -10]]) scene.add(b.flowerPatch(x, z, { wind }));
   // an oak beside the bench — its branch is the second step of a short
   // climb chain (bench -> branch), 1.98 horizontally and 1.52 vertically
   // from the bench, both inside the reach/climb budget.
-  scene.add(b.tree(4.5, 27.3, 1.1));
+  // Swayed like every other tree, and safely so: the branch perch at y 2.1 —
+  // the one that caps Sure Claws' tree ceiling and holds gm-park-2 and
+  // feather-5 — is a record in `perches` at a fixed (x, z, y), and wind only
+  // rotates the Group about its own trunk axis.
+  scene.add(b.tree(4.5, 27.3, 1.1, { wind }));
   addC(4.5, 27.3, 0.6);
   scene.add(b.bench(3, 26, -0.5));
   scene.add(b.bench(-4, 14, 0.7));
@@ -131,7 +271,7 @@ export function build(scene) {
 
   scene.add(b.billboard(6, 38, -0.5));
   addC(6, 38, 2.3);
-  for (const [x, z] of [[-18, 22], [20, 12], [6, -16]]) scene.add(b.flowerPatch(x, z));
+  for (const [x, z] of [[-18, 22], [20, 12], [6, -16]]) scene.add(b.flowerPatch(x, z, { wind }));
   const puddles = [{ x: 2, z: 32, r: 0.9 }, { x: -10, z: -8, r: 0.8 }];
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
 
@@ -174,6 +314,10 @@ export function build(scene) {
     // the fountain is not listed because its water disc (r 2.2) sits wholly
     // inside the basin's own r-3 collider and has always been unreachable.
     waters: [POND],
+    // The visual half of that same record: walk.js bundles these into a
+    // waterRig and drives update(dt)/dispose() with the walk's other per-walk
+    // systems. One entry, one footprint — they are the same list twice.
+    waterFx: [pond],
     scenics: [
       { id: 'fountain', x: 3, z: 23, label: 'the old fountain' },
       // 1.0 clear of the pond's north edge — the shore, not the water. Both

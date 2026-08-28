@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {
   litMaterial,
   surfaceMaterial,
+  surfaceMaterialNoMap,
   surfaceProps,
   repeatFor,
   tileMetres,
@@ -254,6 +255,32 @@ describe('repeatFor / tileMetres speak the PRESET vocabulary', () => {
     const a = litMaterial(0xb05a4a, { surface: 'brick', repeat: repeatFor('bark', 4, 3) });
     const b = litMaterial(0xb05a4a, { surface: 'brick' });
     expect(a.map).toBe(b.map);
+  });
+});
+
+describe('surfaceMaterialNoMap', () => {
+  it('keeps the preset light response and drops the map', () => {
+    installFakeDocument();
+    setTextureTier('high');
+    const flat = surfaceMaterialNoMap('wood', 0xc8b088);
+    expect(flat.map).toBeNull();
+    expect(flat.roughness).toBe(SURFACE_PRESETS.wood.roughness);
+    expect(flat.metalness).toBe(SURFACE_PRESETS.wood.metalness);
+    // …and the mapped form of the same surface really does differ, so this
+    // test cannot pass by the texture path being broken.
+    expect(surfaceMaterial('wood', 0xc8b088).map).not.toBeNull();
+  });
+
+  it('matches the local helper it replaces in two world files', () => {
+    const mine = surfaceMaterialNoMap('bark', 0x7a5230, { side: THREE.DoubleSide });
+    const theirs = litMaterial(0x7a5230, { ...surfaceProps('bark'), side: THREE.DoubleSide });
+    expect(shape(mine)).toEqual(shape(theirs));
+  });
+
+  it('is a no-op difference for a preset that has no map anyway', () => {
+    expect(shape(surfaceMaterialNoMap('glass', 0xa8d8e8))).toEqual(
+      shape(surfaceMaterial('glass', 0xa8d8e8))
+    );
   });
 });
 
