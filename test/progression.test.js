@@ -406,7 +406,7 @@ describe('createProgression', () => {
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
-        skills: [], feats: {}, duskWalks: 0, gifts: [],
+        skills: [], feats: {}, duskWalks: 0, gifts: [], grudges: [],
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1635,5 +1635,217 @@ describe('v18 gifts save field', () => {
     p.leaveGift('park', 'fountain');
     p.reset();
     expect(p.state.gifts).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// v20 Ruffled Fur — the persisted grudge, and the one permitted deduction.
+//
+// state.grudges is ADDITIVE, exactly like skills/feats/duskWalks/gifts before
+// it: SAVE_VERSION stays 4, an old payload loads losslessly with the default,
+// and the field is sanitized independently against a hostile payload.
+//
+// It follows sanitizeGolden/sanitizeGifts (an array validated per entry and
+// capped) rather than sanitizeFeats (an object over a known key vocabulary),
+// because the vocabulary here is cat NAMES — 48 of them in straycats.js, and
+// not importable from this module without dragging THREE and the cat model
+// in. A parallel table rather than a fourth field on state.friends: the
+// friends entry shape is asserted with toEqual just above, and a grudge is
+// not a friendship.
+// ===========================================================================
+describe('v20 grudges save field', () => {
+  it('a fresh save starts empty and stays version 4', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.grudges).toEqual([]);
+    expect(p.state.version).toBe(4); // additive — no version bump
+  });
+
+  it('a v4 payload predating grudges loads losslessly with the default', () => {
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 300, lifetimePoints: 1200,
+      walks: { neighborhood: 4, park: 4, seaside: 2, den: 1, docks: 1 },
+      skills: ['gift-paws'], feats: { gift: 6 }, duskWalks: 5,
+      gifts: [{ area: 'park', spot: 'fountain' }],
+      friends: { Pickles: { breed: 'tabby', greets: 3, lastWalk: 'walk-1' } },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.grudges).toEqual([]);
+    expect(p.state.points).toBe(300);
+    expect(p.state.lifetimePoints).toBe(1200);
+    expect(p.state.feats.gift).toBe(6);
+    expect(p.state.gifts).toEqual([{ area: 'park', spot: 'fountain' }]);
+    expect(p.state.friends.Pickles).toEqual({ breed: 'tabby', greets: 3, lastWalk: 'walk-1' });
+  });
+
+  it('round-trips a real grudge through storage', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.recordGrudge('Pickles')).toBe(true);
+    expect(createProgression(storage).state.grudges).toEqual(['Pickles']);
+  });
+
+  it('leaves the friends table alone — a grudge is not a friendship', () => {
+    const p = createProgression(fakeStorage());
+    p.recordGreet('Pickles', 'tabby', 'walk-1');
+    p.recordGrudge('Pickles');
+    // The exact three-field shape progression.test.js:480 pins, unwidened.
+    expect(p.state.friends.Pickles).toEqual({ breed: 'tabby', greets: 1, lastWalk: 'walk-1' });
+    // …and a cat you have never greeted can still be cross with you.
+    expect(p.recordGrudge('Waffles')).toBe(true);
+    expect(p.state.friends.Waffles).toBeUndefined();
+  });
+
+  // --- the three save methods -------------------------------------------
+
+  it('recordGrudge / hasGrudge / forgiveGrudge report whether the save changed', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.hasGrudge('Pickles')).toBe(false);
+    expect(p.recordGrudge('Pickles')).toBe(true);
+    expect(p.hasGrudge('Pickles')).toBe(true);
+    expect(p.recordGrudge('Pickles')).toBe(false); // already cross — no double rupture
+    expect(p.forgiveGrudge('Pickles')).toBe(true);
+    expect(p.forgiveGrudge('Pickles')).toBe(false); // nothing left to forgive
+    expect(p.hasGrudge('Pickles')).toBe(false);
+    // persisted, not just in memory
+    expect(createProgression(storage).state.grudges).toEqual([]);
+  });
+
+  it('refuses a name a grudge could never be keyed on', () => {
+    const p = createProgression(fakeStorage());
+    for (const bad of ['', null, undefined, 7, {}, [], true, 'x'.repeat(25)]) {
+      expect(p.recordGrudge(bad)).toBe(false);
+      expect(p.hasGrudge(bad)).toBe(false);
+      expect(p.forgiveGrudge(bad)).toBe(false);
+    }
+    expect(p.state.grudges).toEqual([]);
+  });
+
+  it('grudgeNames hands back a fresh array', () => {
+    const p = createProgression(fakeStorage());
+    p.recordGrudge('Pickles');
+    const names = p.grudgeNames();
+    names.push('Mochi');
+    expect(p.state.grudges).toEqual(['Pickles']);
+    expect(p.grudgeNames()).toEqual(['Pickles']);
+  });
+
+  it('caps the table so it can never outgrow the shipped name list', () => {
+    const p = createProgression(fakeStorage());
+    for (let i = 0; i < 100; i++) p.recordGrudge(`Cat${i}`);
+    expect(p.state.grudges).toHaveLength(64);
+    expect(p.recordGrudge('OneMore')).toBe(false);
+  });
+
+  it('reset() clears every grudge', () => {
+    const p = createProgression(fakeStorage());
+    p.recordGrudge('Pickles');
+    p.reset();
+    expect(p.state.grudges).toEqual([]);
+  });
+
+  // --- hostile payloads --------------------------------------------------
+
+  it('drops a grudges field that is not an array', () => {
+    for (const grudges of ['<script>alert(1)</script>', 5, true, null, { Pickles: true }]) {
+      const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, grudges }) });
+      expect(createProgression(storage).state.grudges).toEqual([]);
+    }
+  });
+
+  it('drops entries with the wrong type, empty or oversized names, and duplicates', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, grudges: [
+      'Pickles', 7, null, true, {}, ['Mochi'], '', 'x'.repeat(25), 'Pickles', 'Mochi',
+    ] });
+    expect(p.state.grudges).toEqual(['Pickles', 'Mochi']);
+  });
+
+  it('caps a hostile payload that pads the list', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, grudges: Array.from({ length: 5000 }, (_, i) => `Cat${i}`) });
+    expect(p.state.grudges).toHaveLength(64);
+  });
+
+  it('never lets a __proto__ entry pollute anything', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, grudges: ['__proto__', 'constructor', 'toString', 'Pickles'] });
+    // Stored inertly as plain strings in an ARRAY — nothing from the payload
+    // is ever used as an object key, which is what makes this safe by
+    // construction rather than by filtering (same rule as sanitizeGifts).
+    expect(p.state.grudges).toEqual(['__proto__', 'constructor', 'toString', 'Pickles']);
+    expect(Object.prototype.hasOwnProperty.call({}, 'polluted')).toBe(false);
+    expect({}.grudges).toBeUndefined();
+    // …and they match no shipped stray name, so nothing in the world reads them.
+    expect(p.hasGrudge('__proto__')).toBe(true); // it IS in the list, inertly
+    expect(p.hasGrudge('polluted')).toBe(false);
+  });
+});
+
+// ===========================================================================
+// D3 — the one place in the codebase permitted to subtract outside buy().
+//
+// A scuffle deducts state.points ONLY, floored at zero. state.lifetimePoints
+// is monotonic and is the sole input to rankFor; three tests above pin
+// non-demotion (:147, :285, :789) and a rank must never go backwards.
+// ===========================================================================
+describe('deductPoints', () => {
+  it('takes spendable points and never touches lifetime points', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(50);
+    expect(p.deductPoints(5)).toBe(5);
+    expect(p.state.points).toBe(45);
+    expect(p.state.lifetimePoints).toBe(50); // untouched
+  });
+
+  it('floors at zero and reports what it actually took', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(3);
+    expect(p.deductPoints(5)).toBe(3); // only 3 were there to take
+    expect(p.state.points).toBe(0);
+    expect(p.deductPoints(5)).toBe(0); // nothing left — caller skips its toast
+    expect(p.state.points).toBe(0);
+    expect(p.state.lifetimePoints).toBe(3);
+  });
+
+  it('can never demote a rank, however many scuffles a walk holds', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(2000); // 'Mythical Feline'
+    const before = rankFor(p.state.lifetimePoints).title;
+    for (let i = 0; i < 500; i++) p.deductPoints(5);
+    expect(p.state.points).toBe(0);
+    expect(p.state.lifetimePoints).toBe(2000);
+    expect(rankFor(p.state.lifetimePoints).title).toBe(before);
+    expect(rankFor(p.state.lifetimePoints).title).toBe('Mythical Feline');
+  });
+
+  it('is a no-op for a zero, negative, or non-numeric amount', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(20);
+    for (const bad of [0, -5, -1e9, NaN, Infinity, '5', null, undefined, {}, []]) {
+      expect(p.deductPoints(bad)).toBe(0);
+    }
+    // It is the ONLY method allowed to subtract; it must not be a way to ADD.
+    expect(p.state.points).toBe(20);
+    expect(p.state.lifetimePoints).toBe(20);
+  });
+
+  it('survives a hostile payload that mistyped points', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, points: '9e99', lifetimePoints: 900 });
+    expect(p.state.points).toBe(0); // sanitized on load
+    expect(p.deductPoints(5)).toBe(0);
+    expect(p.state.points).toBe(0);
+    expect(rankFor(p.state.lifetimePoints).title).toBe('Neighborhood Legend');
+  });
+
+  it('persists the deduction', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.addPoints(50);
+    p.deductPoints(5);
+    const reloaded = createProgression(storage);
+    expect(reloaded.state.points).toBe(45);
+    expect(reloaded.state.lifetimePoints).toBe(50);
   });
 });

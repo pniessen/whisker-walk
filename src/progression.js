@@ -1,6 +1,12 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { AWARDS } from './discoveries.js';
 import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
+// v20 Ruffled Fur. enemies.js owns the RULES half of the enemy system and is
+// pure (its only import is skills.js, which is zero-import), so this edge is
+// cycle-free — exactly like the SKILL_IDS import above it. Importing rather
+// than re-deriving means there is exactly one definition of "is this cat
+// cross with me" and one of "is that a name a grudge may be keyed on".
+import { bearsGrudge, isGrudgeName } from './enemies.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -8,6 +14,7 @@ const SAVE_KEY = 'whisker-walk-save';
 // v15's journal/golden/streak/kitten, so a payload predating them loads
 // losslessly and an older client simply ignores the extra keys. Bumping the
 // version here would strand every save written by a deployed older client.
+// STILL 4 in v20: `grudges` joins them on the same terms (D1).
 const SAVE_VERSION = 4;
 
 // v15 Collector's Journal critter types — the fixed vocabulary state.journal
@@ -116,6 +123,16 @@ const DUSK_WALKS_MAX = 100_000;
 // bound. A hostile payload claiming 10,000 stashed gifts must not turn a
 // walk into ten thousand meshes.
 const GIFTS_MAX = 8;
+// Ceiling on state.grudges' length (v20 Ruffled Fur). Same job as
+// GOLD_MAX_COUNT and GIFTS_MAX above. straycats.js ships 48 stray names
+// (CAT_NAMES) and a grudge is keyed on the name, so 48 is the real-world
+// bound and no honest save can exceed it; 64 leaves headroom for future
+// names while stopping a hostile cloud payload padding the field with
+// thousands of valid-shaped names and bloating the save past the
+// localStorage quota. The number is NOT imported from straycats.js — that
+// module pulls in THREE and the cat model, which need a DOM canvas, and
+// progression.js must stay loadable without one.
+const GRUDGES_MAX = 64;
 
 // The prestige ladder, gated purely on lifetimePoints. Ranks confer NOTHING
 // mechanical — skills.js is the mechanical axis and this is the prestige one,
@@ -316,6 +333,31 @@ function defaultState() {
     // against the live area data at walk start (an id that no longer exists
     // simply renders nothing, rather than dropping a present in a wall).
     gifts: [],
+    // v20 Ruffled Fur: the cats that are cross with you. An array of stray
+    // NAMES (D1 — the only identity a stray has across walks; state.friends
+    // is keyed the same way and straycats.js derives breed from the name, so
+    // a given name is always the same cat when it is redrawn into a later
+    // walk's 22-of-48 shuffle). Additive, so SAVE_VERSION stays 4 like
+    // skills/feats/duskWalks/gifts before it.
+    //
+    // A PARALLEL TABLE, not a fourth field on state.friends[name], for two
+    // reasons. The narrow one: progression.test.js:480 asserts the friends
+    // entry shape with toEqual, so widening it is a breaking change. The
+    // real one: a grudge is not a friendship. state.friends is the greet
+    // ledger the ♡→♥→💕 ladder, Charmer and Far Call all read; hanging an
+    // unrelated boolean off it would mean every one of those readers has to
+    // start caring about a field none of them use, and a cat you have never
+    // greeted could not be cross with you without first being given a
+    // zero-greet friends entry.
+    //
+    // An ARRAY of names rather than an object keyed by name, following
+    // sanitizeGolden/sanitizeGifts rather than sanitizeFeats: the key
+    // vocabulary here is cat names, which is not a fixed vocabulary this
+    // module can iterate (importing CAT_NAMES would drag THREE and the cat
+    // model in — see GRUDGES_MAX). An array validated per entry never uses a
+    // payload value as an object KEY at all, which is what makes a
+    // '__proto__' entry inert by construction rather than by filtering.
+    grudges: [],
   };
 }
 
@@ -497,6 +539,35 @@ function sanitizeGifts(v) {
   return out;
 }
 
+// v20 Ruffled Fur: the names this save is cross with. Structurally identical
+// to sanitizeGolden above — an array of validated strings, deduped while
+// capping — because that is the pattern that fits: validate each ENTRY,
+// never trust a payload key.
+//
+// The shape rule is enemies.isGrudgeName (a non-empty string of at most 24
+// characters), imported rather than restated so it cannot drift from
+// sanitizeFriends' identical key rule; the two tables are keyed on the same
+// thing and a name that could live in one but not the other would be a cat
+// that can be your friend but never cross with you.
+//
+// Iterating the payload's own entries is safe here for exactly the reason
+// sanitizeGifts records: nothing from the payload is ever used as a KEY. The
+// output is a fresh array of plain strings, so a '__proto__' entry can only
+// ever be stored inertly as a string that matches no stray name — the same
+// treatment a '__proto__' spot id gets.
+function sanitizeGrudges(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const name of v) {
+    if (out.length >= GRUDGES_MAX) break;
+    if (!isGrudgeName(name) || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
 function ymdToUTCms(ymd) {
   const [y, m, d] = ymd.split('-').map(Number);
   return Date.UTC(y, m - 1, d);
@@ -590,6 +661,7 @@ function sanitizeState(parsed) {
     feats: sanitizeFeats(parsed.feats),
     duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
     gifts: sanitizeGifts(parsed.gifts),
+    grudges: sanitizeGrudges(parsed.grudges),
   };
 }
 
@@ -655,6 +727,48 @@ export function createProgression(storage) {
       state.points += n;
       state.lifetimePoints += n;
       save();
+    },
+    // -------------------------------------------------------------------
+    // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).
+    //
+    // v20 Ruffled Fur, D3, and read this before reusing it: THIS IS THE ONLY
+    // PLACE IN THE CODEBASE PERMITTED TO SUBTRACT OUTSIDE buy(). It exists
+    // for exactly one caller — the scuffle a cross cat starts when you crowd
+    // it (see SCUFFLE_COST in src/enemies.js) — which the user explicitly
+    // asked to carry a real point cost, the first negative award in
+    // nineteen waves. A second caller is a spec decision, not a refactor.
+    //
+    // It touches state.points ONLY, floored at zero, and NEVER
+    // state.lifetimePoints. That split is the whole reason a negative award
+    // can exist here at all:
+    //
+    //   * state.points is spendable and already goes down — buy() and
+    //     buyDenItem() deduct it for cats, hats and den furniture. Taking
+    //     some away means fewer hats this week, which is the sting that was
+    //     asked for.
+    //   * state.lifetimePoints is MONOTONIC and is the sole input to
+    //     rankFor. A rank must never go backwards: a title a child earned
+    //     cannot be taken away by a bad roll, and a cloud save must never
+    //     appear to regress. Three tests pin non-demotion
+    //     (progression.test.js:147, :285, :789).
+    //
+    // Returns the amount actually taken so the caller can gate its toast and
+    // its FX on a deduction having really happened — a player already at
+    // zero points gets the hiss and the freeze but no phantom "-5" message.
+    // `n` is coerced rather than trusted (a NaN would poison state.points
+    // permanently, exactly like the state.walks.docks NaN trap), and a
+    // negative or zero n is a no-op rather than a sneaky way to ADD points
+    // through the one method allowed to subtract.
+    // -------------------------------------------------------------------
+    deductPoints(n) {
+      const amount = asFiniteNonNegInt(n, 0);
+      if (amount <= 0) return 0;
+      const before = asFiniteNonNeg(state.points, 0);
+      const after = Math.max(0, before - amount);
+      if (after === before) return 0;
+      state.points = after;
+      save();
+      return before - after;
     },
     isUnlocked(kind, id) {
       return state.unlocked[kind].includes(id);
@@ -931,6 +1045,70 @@ export function createProgression(storage) {
       const i = state.gifts.findIndex((g) => g?.area === area && g?.spot === spot);
       if (i < 0) return false;
       state.gifts.splice(i, 1);
+      save();
+      return true;
+    },
+    // ---------------------------------------------------------------------
+    // v20 Ruffled Fur — the persisted grudge. Three tiny methods over
+    // state.grudges, shaped exactly like the giftsIn/leaveGift/claimGift
+    // trio above and here for the same reason: this module owns `state` and
+    // is the only thing that calls save(). enemies.js is the rules half and
+    // never writes.
+    //
+    // Every one of them returns a boolean that means "the save actually
+    // changed", so the call site can gate its toast, its award and its
+    // name-tag repaint on a real transition. That is the v18 feats.perch
+    // lesson (interactions.test.js:255): a tally sitting NEXT TO an award
+    // rather than BEHIND it is farmable. Nothing here pays points, but the
+    // reconciliation beat does, and it must gate on forgiveGrudge's return.
+    // ---------------------------------------------------------------------
+
+    // hasGrudge(name) → bool. Delegates to enemies.bearsGrudge so the live
+    // save and a loose payload answer the same question the same way.
+    hasGrudge(name) {
+      return bearsGrudge(state, name);
+    },
+
+    // grudgeNames() → a fresh array of the names this save is cross with,
+    // for the home-base roster. Fresh (like giftsIn) so a caller may sort or
+    // splice it without reaching into the save.
+    grudgeNames() {
+      return Array.isArray(state.grudges) ? state.grudges.slice() : [];
+    },
+
+    // recordGrudge(name) → bool — this cat is now cross with you. False (and
+    // no write) for an unusable name, a cat that is ALREADY cross, or a full
+    // table, so a second call for the same cat is a no-op and the rupture
+    // beat cannot double-fire.
+    //
+    // The same validation as sanitizeGrudges, applied on the way IN as well
+    // as on the way out: a field that is only cleaned at load time spends
+    // the rest of the session dirty.
+    //
+    // No eligibility rules live here. D2 (strays only, never the family pets
+    // or ghost visitors) and D5 (a `friend`/`best` cat is immune) are
+    // decided by enemies.shouldTurnHostile at the greet site; this method is
+    // the writer, not the judge.
+    recordGrudge(name) {
+      if (!isGrudgeName(name)) return false;
+      if (!Array.isArray(state.grudges)) state.grudges = [];
+      if (state.grudges.length >= GRUDGES_MAX) return false;
+      if (state.grudges.includes(name)) return false;
+      state.grudges.push(name);
+      save();
+      return true;
+    },
+
+    // forgiveGrudge(name) → bool — the gift landed; the grudge is gone. False
+    // when there was nothing to forgive, so the reconciliation award cannot
+    // pay twice (two frames inside the offer radius, or a second gift to a
+    // cat that already softened) and the caller knows whether to repaint the
+    // name tag.
+    forgiveGrudge(name) {
+      if (!Array.isArray(state.grudges)) return false;
+      const i = state.grudges.indexOf(name);
+      if (i < 0) return false;
+      state.grudges.splice(i, 1);
       save();
       return true;
     },

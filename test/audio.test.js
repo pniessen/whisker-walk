@@ -264,3 +264,92 @@ describe('v18 cues', () => {
     expect(ctx.created.oscs).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// v20 "Ruffled Fur" — hiss(). The game had no hostile cat sound at all; bark()
+// was the nearest thing and belongs to the dog. What is worth pinning is that
+// it is NOISE rather than a note (a pitched hiss is a cartoon growl), that it
+// stays on the shared bus, and that it keeps the deliberately un-frightening
+// shape: no low end, soft attack, short, quieter than the dog.
+// ---------------------------------------------------------------------------
+describe('hiss', () => {
+  // The master and reverb-send gains are built with a plain .value, so the
+  // only gain node with scheduled points is the hiss's amplitude envelope.
+  const envelopeGain = (ctx) => ctx.created.gains.find((g) => g.gain.scheduled.length > 0);
+
+  const probe = (fn) => {
+    const ctx = fakeCtx();
+    const filters = [];
+    const sources = [];
+    const origFilter = ctx.createBiquadFilter;
+    const origSource = ctx.createBufferSource;
+    ctx.createBiquadFilter = () => { const n = origFilter(); filters.push(n); return n; };
+    ctx.createBufferSource = () => { const n = origSource(); sources.push(n); return n; };
+    const audio = createAudio({ contextFactory: () => ctx });
+    fn(audio);
+    return { ctx, audio, filters, sources };
+  };
+
+  it('is filtered noise, not an oscillator — a pitched hiss would be a growl', () => {
+    const { ctx, sources, filters } = probe((a) => a.hiss());
+    expect(ctx.created.oscs).toHaveLength(0);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].loop).toBe(false); // one-shot, not an ambient layer
+    expect(filters).toHaveLength(2);
+  });
+
+  it('strips the low end, which is where a frightening growl would live', () => {
+    const { filters } = probe((a) => a.hiss());
+    const hp = filters.find((f) => f.type === 'highpass');
+    expect(hp).toBeTruthy();
+    expect(hp.frequency.value).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('swells in rather than cracking in, and is quieter than the dog', () => {
+    const { ctx } = probe((a) => a.hiss());
+    // ensure() builds the master gain and the reverb-send gain with no
+    // scheduling on either, so the one gain carrying an envelope is the
+    // hiss's own.
+    const env = envelopeGain(ctx);
+    expect(env).toBeTruthy();
+    // Starts near silence and is ramped up — never set to full at t0.
+    expect(env.gain.scheduled[0]).toBeLessThan(0.001);
+    const peak = Math.max(...env.gain.scheduled);
+    // loopedNoiseSource pre-scales its buffer to +/-0.3, so the audible peak
+    // is peak * 0.3 — well under bark()'s 0.09 oscillator gain.
+    expect(peak * 0.3).toBeLessThan(0.09);
+  });
+
+  it('routes through the master bus like every other sound', () => {
+    const { ctx, sources, filters } = probe((a) => a.hiss());
+    for (const node of [...sources, ...filters, ...ctx.created.gains]) {
+      expect(node.connections).not.toContain(ctx.destination);
+    }
+    expect(ctx.created.compressors[0].connections).toContain(ctx.destination);
+  });
+
+  it('scales with the volume argument and clamps a nonsense one', () => {
+    const peakFor = (v) => {
+      const { ctx } = probe((a) => a.hiss(v));
+      return Math.max(...envelopeGain(ctx).gain.scheduled);
+    };
+    expect(peakFor(0.5)).toBeLessThan(peakFor(1));
+    expect(peakFor(99)).toBeCloseTo(peakFor(1), 6);
+    expect(peakFor(-1)).toBeCloseTo(peakFor(0), 6);
+  });
+
+  it('respects mute, and setVolume reaches it through the master gain', () => {
+    const { ctx, sources } = probe((a) => { a.setMuted(true); a.hiss(); });
+    expect(sources).toHaveLength(0);
+    // ...and unmuted, the master factor still governs it.
+    const live = probe((a) => { a.setVolume(0.25); a.hiss(); });
+    expect(live.ctx.created.gains[0].gain.value).toBeCloseTo(0.25);
+  });
+
+  it('is safe to call before any other sound has built the context', () => {
+    const ctx = fakeCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    expect(() => audio.hiss()).not.toThrow(); // ensure() builds the bus lazily
+    expect(ctx.created.compressors).toHaveLength(1);
+  });
+});

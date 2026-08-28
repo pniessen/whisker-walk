@@ -432,6 +432,71 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(230, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 140 });
       tone(210, 0.12, { type: 'sawtooth', gain: 0.09, slideTo: 120, delay: 0.18 });
     },
+    // v20 "Ruffled Fur" — a cross cat's hiss.
+    //
+    // Pure noise, no oscillator. A hiss is turbulent air, not a pitched
+    // voice: bark() and meow() both start from an oscillator and would give
+    // this a note, which is exactly what makes a cartoon "grrr" instead of a
+    // cat. So it reuses loopedNoiseSource (the module's one noise generator,
+    // already the source of the rain wash's hiss) and shapes it with filters,
+    // the same way rainLayer does — band-limited white noise IS the sound.
+    // `loop` is switched off because this is a one-shot; the source is stopped
+    // at `dur` regardless, but leaving loop on would be a lie about intent.
+    //
+    // WHY IT IS NOT FRIGHTENING — this is a cosy game for ten-to-twelve-year-
+    // olds, and a cross cat has to land as "back off" rather than as a jump
+    // scare. Four deliberate choices, all of them costing tension on purpose:
+    //
+    //   * NO LOW END. The highpass at 1.6kHz strips everything a growl lives
+    //     in. Low frequencies are what make an animal sound big and close;
+    //     without them this reads as air, not as threat. It is the single
+    //     most important number here.
+    //   * SOFT ATTACK. 60ms of ramp-in rather than an instant transient. A
+    //     sharp onset is what makes a sound startle; a swell cannot.
+    //   * SHORT. 0.36s, in the same range as pounceWhoosh (0.18) and zoomWind
+    //     (0.25) — over before it can build dread, and short enough to be
+    //     retriggered by the scuffle without turning into a drone.
+    //   * QUIET. The gain reads 0.11, but loopedNoiseSource pre-scales its
+    //     buffer to +/-0.3, so the effective peak is ~0.033 — between
+    //     zoomWind (0.02) and pounceWhoosh (0.04), and a third of bark()'s
+    //     0.09. The dog stays the loud hostile sound in this game.
+    //
+    // The bandpass falls 3.4kHz → 2.3kHz across the sound, which is simply
+    // what breath running out does; a rising sweep would read as a kettle.
+    //
+    // `volume` matches the cluck/meow signature (0..1, default 1 = full) so
+    // a caller can scale a distant cat's hiss down. Muted and setVolume are
+    // both honoured for free: the early return covers mute, and the whole
+    // graph terminates at the shared master bus like every other sound.
+    hiss(volume = 1) {
+      if (muted) return;
+      const ac = ensure();
+      const dur = 0.36;
+      const src = loopedNoiseSource(dur);
+      src.loop = false;
+      const hp = ac.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1600;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      // A broad Q: a narrow one whistles, and a whistling cat is a kettle.
+      bp.Q.value = 0.8;
+      const t0 = ac.currentTime;
+      bp.frequency.setValueAtTime(3400, t0);
+      bp.frequency.linearRampToValueAtTime(2300, t0 + dur);
+      const g = ac.createGain();
+      // Linear ramps throughout (not exponential): the gentle swell in and
+      // the fade out are the whole point, and exponential curves would put
+      // the energy at the edges where a startle lives.
+      const amp = 0.11 * Math.min(1, Math.max(0, volume));
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(amp, t0 + 0.06);
+      g.gain.setValueAtTime(amp, t0 + dur * 0.45);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(hp).connect(bp).connect(g).connect(master);
+      src.start(t0);
+      src.stop(t0 + dur);
+    },
     shutter() {
       tone(1300, 0.03, { type: 'square', gain: 0.09 });
       tone(700, 0.04, { type: 'square', gain: 0.07, delay: 0.05 });
