@@ -57,8 +57,9 @@ const STREAK_COUNT_MAX = 3650;
 // rejecting a hostile/corrupted cloud payload's implausible number rather
 // than persisting (and later displaying) it.
 const RACE_MS_MAX = 24 * 60 * 60 * 1000;
-// Ceiling on state.den.owned's length. There are only 6 real den items (see
-// DEN_ITEMS in src/den.js), so 32 is generous headroom for future additions —
+// Ceiling on state.den.owned's length. There are 12 real den items (see
+// DEN_ITEMS in src/den.js — six from v17, six more from the v20 density pass),
+// so 32 is still generous headroom for future additions —
 // its real job, same as GOLD_MAX_COUNT above, is capping the array so a
 // hostile cloud payload can't pad state.den.owned with thousands of
 // known-shaped ids and bloat the save past the localStorage quota.
