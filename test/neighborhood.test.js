@@ -30,7 +30,7 @@ vi.stubGlobal('document', {
 });
 
 const { build } = await import('../src/world/neighborhood.js');
-const { surfaceProps } = await import('../src/render/materials.js');
+const { surfaceProps, tileMetres } = await import('../src/render/materials.js');
 const { setTextureTier, getTextureTier } = await import('../src/render/textures.js');
 const { createWind } = await import('../src/render/wind.js');
 
@@ -100,9 +100,17 @@ describe('the Cozy Neighborhood — surfaces', () => {
     const roads = planesOfWidth(built(), 5);
     expect(roads).toHaveLength(2);
     for (const r of roads) {
-      expect(r.material.map?.name).toBe('surface:sand'); // the fine-speckle tile
-      expect(r.material.roughness).toBe(surfaceProps('sand').roughness);
-      expect([r.material.map.repeat.x, r.material.map.repeat.y]).toEqual([6, 125]); // 5m x 100m / 0.8m
+      expect(r.material.map?.name).toBe('surface:gravel'); // road aggregate
+      expect(r.material.roughness).toBe(surfaceProps('gravel').roughness);
+      // 5m x 100m over gravel's 1.4m tile. These numbers CHANGED when the
+      // streets moved off 'sand' (0.8m tile, [6, 125]) — a deliberate
+      // consequence of a coarser tile, not a fit to whatever came out:
+      // 5/1.4 = 3.57 -> 4 across, 100/1.4 = 71.4 -> 71 along.
+      expect([r.material.map.repeat.x, r.material.map.repeat.y]).toEqual([4, 71]);
+      // Derived, not typed — the same assertion in the form that the old
+      // repeatFor namespace bug could not have passed.
+      expect(r.material.map.repeat.x).toBe(Math.round(5 / tileMetres('gravel')));
+      expect(r.material.map.repeat.y).toBe(Math.round(100 / tileMetres('gravel')));
     }
   });
 

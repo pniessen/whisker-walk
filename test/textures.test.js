@@ -5,7 +5,7 @@ import {
   setTextureTier,
   getTextureTier,
   clampToFloor,
-  textureTileMetres,
+  textureTileMetres as tileMetresOf,
   isTextureName,
   FLOOR_LUM,
   SURFACE_NAMES,
@@ -242,7 +242,7 @@ describe('headless safety', () => {
   });
 
   it('still answers the pure queries with no document', () => {
-    expect(textureTileMetres('brick')).toBeGreaterThan(0);
+    expect(tileMetresOf('brick')).toBeGreaterThan(0);
     expect(isTextureName('brick')).toBe(true);
   });
 });
@@ -471,6 +471,33 @@ describe('the subtlety budget — composited pixels', () => {
     }
   });
 
+  it('makes gravel coarser and higher-contrast than sand, as designed', () => {
+    // Gravel exists because two areas were borrowing sand for roads and
+    // inheriting the wrong SCALE. If it is not measurably coarser than the
+    // tile it replaced, it has no reason to exist — and the first cut of
+    // paintGravel was in fact FLATTER than sand (sigma 5.64 vs 6.15), because
+    // it spent its budget on smooth octaves instead of on chips.
+    const g = measure('gravel');
+    const s = measure('sand');
+    expect(g.sigma).toBeGreaterThan(s.sigma);
+    // …and coarser in world terms, not just in texels.
+    expect(tileMetresOf('gravel')).toBeGreaterThan(tileMetresOf('sand'));
+  });
+
+  it('merges overlapping gravel chips instead of stacking them', () => {
+    // chipField uses max(), not source-over. With ~1200 chips at ~40%
+    // coverage, overlaps are constant rather than a rare tail, and stacking
+    // two 0.095 chips would blow straight through STACK_MAX. The floor
+    // assertion above would catch the consequence; this pins the cause, so a
+    // future edit that swaps max() for a composite is named rather than just
+    // failing somewhere else.
+    const m = measure('gravel');
+    // The darkest texel is the full three-layer stack and no more:
+    // 1 - (1-0.095)(1-0.015)(1-0.035) = 0.140 of ink over white.
+    const deepest = (1 - m.min) / 0.863; // back out the composited alpha
+    expect(deepest).toBeLessThanOrEqual(__BUDGET.STACK_MAX + 0.005);
+  });
+
   it('gives sand dense grain rather than sparse dots', () => {
     // The scattered version touched ~2-4% of texels. Grain has to be dense
     // and fine to read as a granular material at cat height.
@@ -574,10 +601,13 @@ describe('painter discipline (a proxy, not the guarantee)', () => {
     return out;
   }
 
-  // sand lays no ink through the 2D context at all: both its octaves are a
-  // per-texel ImageData pass (grainPass), which the recording ctx cannot see.
-  // Its budget is enforced entirely by the composited-pixels block above.
-  const STROKE_PAINTERS = SURFACE_NAMES.filter((n) => n !== 'sand');
+  // sand and gravel lay no ink through the 2D context at all: every layer
+  // they have is a per-texel ImageData pass (grainPass, and gravel's
+  // chipField), which the recording ctx cannot see. Their budgets are
+  // enforced entirely by the composited-pixels block above — which is the
+  // stronger assertion anyway, and the reason it exists.
+  const PIXEL_PAINTERS = ['sand', 'gravel'];
+  const STROKE_PAINTERS = SURFACE_NAMES.filter((n) => !PIXEL_PAINTERS.includes(n));
 
   it('paints white plus low-alpha ink, and nothing else', () => {
     for (const name of STROKE_PAINTERS) {
@@ -628,7 +658,7 @@ describe('the texture namespace', () => {
   // assertion that every preset now resolves.
   it('reports a tile scale for every painted surface', () => {
     for (const name of SURFACE_NAMES) {
-      expect(textureTileMetres(name), name).toBeGreaterThan(0);
+      expect(tileMetresOf(name), name).toBeGreaterThan(0);
       expect(isTextureName(name), name).toBe(true);
     }
   });
@@ -637,7 +667,7 @@ describe('the texture namespace', () => {
     // Including 'wetStone' and 'wood', which ARE valid surfaces — just not
     // texture names. This module is not the place to ask.
     for (const name of ['marble', 'wetStone', 'wood', 'glass']) {
-      expect(textureTileMetres(name), name).toBeNull();
+      expect(tileMetresOf(name), name).toBeNull();
       expect(isTextureName(name), name).toBe(false);
     }
   });

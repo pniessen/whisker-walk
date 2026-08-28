@@ -73,19 +73,25 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
 
   // main street running north-south, side street east-west
   //
-  // 'sand', which is the fine-speckle tile and NOT a beach — builder.path's
-  // own note says it is "what a gravel walk actually looks like", and that is
-  // the read these two want. The colour is builder.path's fixed 0xcbb8a0, a
-  // pale warm tan: no tarmac is that colour, so a quiet unmetalled lane is
-  // what the road already was and the aggregate speckle is what it was
-  // missing. Nothing to compensate — sand's mean is 0.998 by design, because
-  // its whole read is per-texel variance rather than a shift in value.
+  // 'gravel' — the road-aggregate tile. The colour is builder.path's fixed
+  // 0xcbb8a0, a pale warm tan: no tarmac is that colour, so what these two
+  // strips have always been is a quiet unmetalled lane, and 22-33mm chippings
+  // are exactly what an unmetalled lane is surfaced with.
   //
-  // The repeat is derived, 5m x 100m over a 0.8m tile => [6, 125]. Deriving
-  // matters more here than almost anywhere: this is a 100m strip, and a
-  // hand-picked number would stretch the grain along the street.
-  scene.add(b.path(0, -50, 0, 50, 5, { surface: 'sand' }));
-  scene.add(b.path(-50, 0, 50, 0, 5, { surface: 'sand' }));
+  // They were 'sand' before gravel existed, which was the closest the
+  // vocabulary could get and was wrong on SCALE rather than on name: sand's
+  // grains are ~11mm at its 0.8m tile, which is beach fines, not road metal.
+  // Gravel also carries more contrast where a road needs it (sigma 7.9
+  // against sand's 6.2). Nothing to compensate on the colour — path()'s tan
+  // is fixed and no call site passes one, so gravel's 0.961 mean applies
+  // uniformly to every path in the game with no untextured neighbour to
+  // match.
+  //
+  // The repeat is derived, 5m x 100m over gravel's 1.4m tile => [4, 71].
+  // Deriving matters more here than almost anywhere: this is a 100m strip,
+  // and a hand-picked number would stretch the chippings along the street.
+  scene.add(b.path(0, -50, 0, 50, 5, { surface: 'gravel' }));
+  scene.add(b.path(-50, 0, 50, 0, 5, { surface: 'gravel' }));
 
   // sidewalks flanking both streets
   //
@@ -95,7 +101,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   // one reason: the Docks' pavements run over a ground plane already carrying
   // the same cobble tile, and two grids at different densities stacked on each
   // other is the one way to make a tiled surface look like a mistake. Here the
-  // ground is grass and the neighbours are the sand-grit roads, so nothing is
+  // ground is grass and the neighbours are the gravel roads, so nothing is
   // stacked and nothing repeats a rhythm.
   //
   // The derived repeat is [1, 83]: exactly one 1.2m tile across the walk's

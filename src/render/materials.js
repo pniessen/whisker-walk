@@ -20,7 +20,7 @@ import { surfaceTexture, textureTileMetres, isTextureName } from './textures.js'
 // path below is byte-for-byte the material this function has always returned,
 // and 39 existing call sites depend on that.
 //
-// TWO NAMESPACES. The 16 PRESET names here are not the 7 TEXTURE names in
+// TWO NAMESPACES. The 17 PRESET names here are not the 8 TEXTURE names in
 // textures.js, and the mapping between them is many-to-one with gaps:
 // 'wood' uses the plank texture, 'cobble' and 'wetStone' share the cobble
 // texture, and eight presets carry no texture at all. A world file should
@@ -110,6 +110,17 @@ export const SURFACE_PRESETS = Object.freeze({
   // sand is a different material with a different colour, not a shinier
   // version of this one.
   sand: { roughness: 0.92, metalness: 0.0, texture: 'sand' },
+
+  // Road aggregate — a gravel walk, an unmetalled lane, a chip-sealed street.
+  // 0.88, and the number is fixed by its two neighbours rather than picked:
+  //   * rougher than cobble (0.80), because a sett is polished smooth along
+  //     the walking line by decades of feet while crushed aggregate presents
+  //     freshly fractured faces pointing in every direction;
+  //   * smoother than sand (0.92), because a chip is a flat facet large
+  //     enough to hold a coherent highlight, and a sand grain is not.
+  // It shares 0.88 with brick, which is a coincidence of two different
+  // arguments landing on the same number, not a shared reason.
+  gravel: { roughness: 0.88, metalness: 0.0, texture: 'gravel' },
 
   // Dry cobble / stone setts. 0.8: stone is rougher than brick's fired skin
   // but is polished smooth on the walking line by decades of feet, and 0.8 is

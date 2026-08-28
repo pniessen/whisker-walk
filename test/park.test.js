@@ -142,12 +142,17 @@ describe('City Park — the v20 visual pass', () => {
         .filter((m) => m.geometry.parameters.width === 3);
       expect(paths).toHaveLength(5);
       for (const p of paths) {
-        expect(p.material.roughness).toBe(surfaceProps('sand').roughness);
+        expect(p.material.map?.name).toBe('surface:gravel');
+        expect(p.material.roughness).toBe(surfaceProps('gravel').roughness);
         // Across the 3m width: derived from the path's own extent, never
-        // typed, so every segment gets the same size of speckle.
-        expect(p.material.map.repeat.x).toBe(Math.round(3 / tileMetres('sand')));
+        // typed, so every segment gets the same size of chipping. The walks
+        // moved from 'sand' (0.8m tile, 4 across) to 'gravel' (1.4m tile, 2
+        // across) — a deliberate consequence of the coarser tile, since these
+        // are gravel walks and sand's 11mm grain was beach fines.
+        expect(p.material.map.repeat.x).toBe(2);
+        expect(p.material.map.repeat.x).toBe(Math.round(3 / tileMetres('gravel')));
         expect(p.material.map.repeat.y)
-          .toBe(Math.round(p.geometry.parameters.height / tileMetres('sand')));
+          .toBe(Math.round(p.geometry.parameters.height / tileMetres('gravel')));
       }
     });
 

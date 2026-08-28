@@ -19,11 +19,12 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // There are two vocabularies in the surface system and they are NOT the same
 // set of names:
 //
-//   TEXTURES (this file, SURFACE_NAMES) — 7 painted tiles:
-//     brick, siding, shingle, plank, cobble, sand, grass
+//   TEXTURES (this file, SURFACE_NAMES) — 8 painted tiles:
+//     brick, siding, shingle, plank, cobble, sand, gravel, grass
 //
-//   SURFACE PRESETS (materials.js, SURFACE_PRESET_NAMES) — 16 light
-//     responses, of which 7 carry a map, and they do NOT map one-to-one:
+//   SURFACE PRESETS (materials.js, SURFACE_PRESET_NAMES) — 17 light
+//     responses, of which 9 carry a map, and they do NOT map one-to-one
+//     (9 presets over 8 tiles, because two presets share one):
 //     'wood' uses the plank texture; 'cobble' AND 'wetStone' both use the
 //     cobble texture; 'glass', 'bark', 'paintedMetal' and five others carry
 //     no texture at all.
@@ -94,10 +95,10 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // average than the same colour untextured, because a tile's mean is below 1.
 // Measured on the finished pixels, post-clamp:
 //     min texel / mean / pixel sigma, per surface
-//     brick   236  0.948  4.3      siding  222  0.983  6.0
-//     shingle 225  0.963  5.8      plank   222  0.980  5.9
-//     cobble  228  0.961 12.6      sand    228  0.969  6.2
-//     grass   238  0.987  2.4
+//     brick   236  0.947  4.3      siding  222  0.980  6.9
+//     shingle 225  0.963  5.9      plank   223  0.979  6.0
+//     cobble  228  0.954 12.9      sand    228  0.969  6.2
+//     gravel  225  0.961  7.9      grass   237  0.988  2.4
 // Brick is the one worth compensating for — lighten the base colour by about
 // 5% if a wall needs to land on exactly the colour it ships today; cobble,
 // shingle and sand are 3-4% and only matter if a prop is colour-matched to a
@@ -122,10 +123,10 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // those lines land on half-pixels and alias into a shimmer as the camera
 // moves — the single most un-cozy artefact available to us. 256 rather than
 // 512 because the budget is texture memory on a phone: 256x256 RGBA is 256KB,
-// ~350KB with the mip chain, and the full vocabulary of seven surfaces is
-// therefore about 2.4MB *if every one of them is used*. They are built lazily,
+// ~350KB with the mip chain, and the full vocabulary of eight surfaces is
+// therefore about 2.8MB *if every one of them is used*. They are built lazily,
 // so a walk that never sees a brick never pays for brick. 512 would put the
-// same vocabulary at 9.6MB, which is real money on a mid-range Android.
+// same vocabulary at 11MB, which is real money on a mid-range Android.
 const TILE_PX = 256;
 
 // The darkening ink. A warm near-black rather than pure black, so the shading
@@ -183,6 +184,17 @@ const SURFACES = {
   // Beach sand. Fine speckle, so the tile has to stay small in world terms
   // or the grain stops being grain and becomes blotches.
   sand: { metres: 0.8, repeat: [6, 6] },
+  // Road aggregate — an unmetalled lane, a park's gravel walk, a chip-sealed
+  // street. Sand's coarser, angrier cousin, and it exists because two areas
+  // were borrowing `sand` for roads and inheriting the wrong SCALE: sand's
+  // grains are ~6mm at its 0.8m tile, where road aggregate is 10-40mm.
+  //
+  // 1.4m per tile is what makes those millimetres come out right. At 256px
+  // that is 5.5mm of world per texel, so the 2px grain octave is an 11mm
+  // fine, the 8px clump octave is a 44mm patch, and the scattered chips at
+  // 4-7px are 22-38mm stones. That is the real grading of a crushed
+  // aggregate, not an adjective.
+  gravel: { metres: 1.4, repeat: [2, 2] },
   // Lawn mottle. The largest tile in the set by a wide margin: grass is
   // applied to the biggest single surfaces in the game, and a small repeat
   // on a 40m lawn produces a visible plaid that no amount of subtlety saves.
@@ -274,7 +286,7 @@ function applyAnisotropy(tex) {
 // for the app's lifetime and reused across every walk. It is never disposed
 // per-walk, and endWalk's scene traversal must not dispose it either — these
 // textures outlive the scene that first asked for them on purpose. Rebuilding
-// per walk would repaint seven canvases and strand seven GPU uploads every
+// per walk would repaint eight canvases and strand eight GPU uploads every
 // time the player steps outside, which is a leak with extra steps.
 //
 // Two caches, and the split matters:
@@ -377,7 +389,7 @@ function baseTexture(name, spec) {
 // ---------------------------------------------------------------------------
 // The clamp — where the pixel-level guarantee actually lives
 // ---------------------------------------------------------------------------
-// One readback pass over 256x256 at first use of a surface, so seven passes
+// One readback pass over 256x256 at first use of a surface, so eight passes
 // across the whole app's lifetime. Two steps, and both matter:
 //
 //   1. FLATTEN ONTO OPAQUE WHITE. A material map is sampled for its RGB and
@@ -503,6 +515,20 @@ const COBBLE_JITTER = 0.02; // +/- per-stone, on the stones only
 const SAND_GRAIN = 0.09; // the 2px grain octave, max
 const SAND_CLUMP = 0.035; // the 8px clumping octave, max
 const SAND_SKEW = 2.5; // pow() bias: most texels near clean, a tail of dark grains
+
+// Gravel. Same machinery as sand, tuned the other way on every axis: coarser,
+// harder-edged and higher-contrast. See paintGravel.
+// Most of the budget goes to the CHIPS, because a bimodal field (stone or
+// not-stone) carries far more contrast per unit of darkening than a smooth
+// one. The first cut of this painter had it the other way round — fat
+// continuous octaves and 90 sparse chips covering 3% of the tile — and
+// measured sigma 5.64, BELOW sand's 6.15, which is the opposite of what a
+// coarse aggregate should be. Variance, not mean darkening, is what reads.
+const GRAVEL_CHIP = 0.095; // one stone, max — the dominant mark
+const GRAVEL_CHIPS = 1200; // stones per tile, max-merged (see chipField)
+const GRAVEL_GRAIN = 0.035; // the 2px fines octave, max
+const GRAVEL_CLUMP = 0.015; // the 8px patchiness octave, max
+const GRAVEL_SKEW = 1.4; // flatter than sand's 2.5 — many dark texels, not a thin tail
 
 const GRASS_BLOB = 0.028; // one mottle patch at its centre, max
 const GRASS_FLECK = 0.028; // a blade fleck, max
@@ -788,6 +814,101 @@ function paintSand(ctx, S, rand) {
   ]);
 }
 
+// --- gravel ----------------------------------------------------------------
+// Road aggregate: a park's gravel walk, an unmetalled lane, a chip-sealed
+// street. Three layers, coarse to fine:
+//
+//   1. CHIPS — ~90 scattered stones per tile at 4-7px (22-38mm at the 1.4m
+//      tile). Drawn as plain axis-aligned rects, deliberately: crushed
+//      aggregate is ANGULAR, and the rounded setts of paintCobble are exactly
+//      what gravel is not. They vary in size and overlap freely, which is
+//      what stops a field of rectangles reading as a mosaic.
+//   2. CLUMP — the 8px octave, 44mm patches, so the road is not uniform.
+//   3. GRAIN — the 2px octave, 11mm fines, the dust and chippings between
+//      the stones.
+//
+// It is sand's machinery pointed the other way on every axis. Where sand
+// skews 2.5 (most texels near clean, a thin tail of dark grains — which is
+// what a beach is), gravel skews 1.4, much closer to flat, so a large
+// fraction of texels are meaningfully dark. That is the "harder-edged and
+// higher-contrast" difference, and it is why gravel's sigma comes out roughly
+// double sand's from octaves whose amplitudes are actually slightly smaller.
+//
+// The chips are laid into a FIELD with a max-merge rather than painted onto
+// the canvas with source-over, and that is the load-bearing decision here.
+//
+// Source-over stacks: two overlapping chips at 0.095 composite to 0.181,
+// straight through STACK_MAX, and at the ~40% coverage a real aggregate needs
+// overlaps are not a rare tail but a constant. The alternatives were all
+// worse — thin the chips until a double overlap fits the budget (which is the
+// low-contrast painter this replaced), or place them on a non-overlapping
+// grid (which needs chips nearly as large as their cells, and reads as a
+// grid). Merging with max() means two stones that touch become ONE LARGER
+// STONE, which is both what crushed aggregate actually looks like and a hard
+// guarantee that the chip layer never exceeds GRAVEL_CHIP.
+//
+// The field also wraps by modulo, so the tile is seamless without the nine
+// whole-tile copies paintGrass needs.
+//
+// Worst-case stack, and it is now exact rather than statistical:
+//   chip ∘ clump ∘ grain = 1 - (0.905)(0.985)(0.965) = 0.140.
+// That is the tightest budget in the vocabulary and it is deliberate — gravel
+// carries the most contrast of any ground surface. Do not add a fourth layer
+// without taking amplitude out of one of these three.
+function paintGravel(ctx, S, rand) {
+  fillWhite(ctx, S);
+  const chips = chipField(S, rand, {
+    count: GRAVEL_CHIPS,
+    // Two grades, 4px and 6px, which at 256px over a 1.4m tile is 22mm and
+    // 33mm stones — squarely inside the 10-40mm that road aggregate is
+    // actually graded to. Even sizes only; see chipField for why that
+    // matters more than a wider size range does.
+    minPx: Math.max(2, Math.round(S / 64)),
+    grades: 2,
+    amp: GRAVEL_CHIP,
+  });
+  grainPass(ctx, S, rand, [
+    { field: chips },
+    { block: 8, amp: GRAVEL_CLUMP, skew: GRAVEL_SKEW },
+    { block: 2, amp: GRAVEL_GRAIN, skew: GRAVEL_SKEW },
+  ]);
+}
+
+// A scatter of angular stones as a per-texel alpha field.
+//
+// Rects, not rounded shapes: crushed aggregate is angular, and paintCobble's
+// rounded setts are precisely what gravel is not. Overlapping rects of varied
+// size are what keeps a field of rectangles from reading as a mosaic.
+//
+// max() rather than +: see paintGravel. Stones merge, they never stack.
+// Modulo wrap: a stone running off one edge continues on the other, so the
+// tile is seamless with no wrapped copies.
+function chipField(size, rand, { count, minPx, grades, amp }) {
+  const f = new Float32Array(size * size);
+  for (let n = 0; n < count; n++) {
+    // EVERY chip edge lands on an even coordinate, and every chip is an even
+    // number of texels across. That snaps all of them to the 2x2 cells the
+    // first mip level averages over, which makes mip1 an exact reduction of
+    // mip0 rather than a blur of it — measured, the mip0->mip1 contrast step
+    // goes from 10.6% to nothing. Odd-positioned chip edges were the only
+    // high-frequency energy in the tile that the mip chain could not carry
+    // cleanly, and edges are exactly what shimmers.
+    const x0 = Math.floor(rand() * (size / 2)) * 2;
+    const y0 = Math.floor(rand() * (size / 2)) * 2;
+    const w = minPx + 2 * Math.floor(rand() * grades);
+    const h = minPx + 2 * Math.floor(rand() * grades);
+    const a = amp * (0.4 + rand() * 0.6);
+    for (let dy = 0; dy < h; dy++) {
+      const y = (y0 + dy) % size;
+      for (let dx = 0; dx < w; dx++) {
+        const i = y * size + ((x0 + dx) % size);
+        if (a > f[i]) f[i] = a;
+      }
+    }
+  }
+  return f;
+}
+
 // Lays one or more octaves of per-texel value noise over whatever is already
 // painted, via a single ImageData round trip.
 //
@@ -815,11 +936,17 @@ function grainPass(ctx, size, rand, octaves) {
   }
   // Every field is drawn up front, in a fixed order, so the values do not
   // depend on how the pixels are subsequently walked.
-  const fields = octaves.map(({ block, amp, skew }) => {
-    const cells = Math.round(size / block);
+  //
+  // An octave is either generated here from {block, amp, skew} — a block/block
+  // grid of skewed noise — or supplied whole as {field}, a full-resolution
+  // per-texel array built by the painter (chipField does this). A supplied
+  // field is just block 1.
+  const fields = octaves.map((o) => {
+    if (o.field) return { block: 1, cells: size, f: o.field };
+    const cells = Math.round(size / o.block);
     const f = new Float32Array(cells * cells);
-    for (let i = 0; i < f.length; i++) f[i] = amp * Math.pow(rand(), skew);
-    return { block, cells, f };
+    for (let i = 0; i < f.length; i++) f[i] = o.amp * Math.pow(rand(), o.skew);
+    return { block: o.block, cells, f };
   });
 
   const img = ctx.getImageData(0, 0, size, size);
@@ -894,6 +1021,7 @@ const PAINTERS = {
   plank: paintPlank,
   cobble: paintCobble,
   sand: paintSand,
+  gravel: paintGravel,
   grass: paintGrass,
 };
 

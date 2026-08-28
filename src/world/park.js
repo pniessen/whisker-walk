@@ -54,9 +54,10 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 //   * the ground is 'grass' — the largest single surface in the game, and the
 //     one colour the area is named for. builder.ground applies the grass tile's
 //     own luminance compensation, so the authored 0x6cb058 is untouched here;
-//   * the five path segments are 'sand', which is the fine-speckle tile and is
-//     what a park's gravel walk actually looks like. At the tile's ~0.7m it is
-//     speckle rather than pattern on a 3m-wide walk, which is the point;
+//   * the five path segments are 'gravel' — the road-aggregate tile, whose
+//     22-33mm stones are what a park walk is actually made of. They were
+//     'sand' before gravel existed, and at sand's 11mm grain the walks
+//     measured 2-5 sRGB units of variation and were nearly invisible;
 //   * the fountain's basin and spire take 'cobble's dressed-stone response with
 //     the map off (see surfNoMap above);
 //   * the pond becomes real water — see the createWater call.
@@ -104,27 +105,31 @@ export function build(scene, { water = {}, wind } = {}) {
   const clawPerches = [];
 
   // winding path: south gate → fountain → pond → north meadow
-  // 'sand' is the gravel walk: the fine-speckle tile, which path() lands at
-  // [4, n] on a 3m width, i.e. 0.75m a tile — the same grit size on all five
-  // segments because the repeat is derived from each one's own extent.
   //
-  // WHAT IT ACTUALLY BUYS, MEASURED, because a reviewer should not go looking
-  // for grit and conclude it is broken. The sand tile is deliberately the
-  // faintest in the vocabulary (textures.js: mean 0.999, min texel 0.934 — its
-  // read is "per-texel variance and none of it a shift in value, because a
-  // beach that goes darker when you texture it just looks wet"), its features
-  // are ~2 texels of a 256px tile over 0.75m, i.e. under a centimetre of world,
-  // and path()'s 0xcbb8a0 renders at 225,217,205 — high on the same ACES
-  // shoulder the pond was stuck on, which compresses what is left. Sampled at
-  // 0.6m eye height standing ON the walk, 1647 pixels of gravel span 2-5 sRGB
-  // units. So this is the correct NAME for the surface and an honest 0.92
-  // roughness, and it is very nearly invisible; it is the one call on this
-  // pass a reviewer might reasonably swap back to a flat path.
-  scene.add(b.path(0, 48, 0, 20, 3, { surface: 'sand' }));
-  scene.add(b.path(0, 20, -14, 6, 3, { surface: 'sand' }));
-  scene.add(b.path(-14, 6, -8, -18, 3, { surface: 'sand' }));
-  scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'sand' }));
-  scene.add(b.path(0, 20, 16, 10, 3, { surface: 'sand' }));
+  // 'gravel' — the tile built for exactly this, and the walks are literally
+  // described as gravel a few lines up. path() lands it at [2, n] on a 3m
+  // width, i.e. 1.5m a tile, the same grit size on all five segments because
+  // the repeat is derived from each one's own extent rather than typed.
+  //
+  // This was 'sand' until gravel existed, and the swap is a measured fix, not
+  // a rename. Sand is the beach tile: its grains are ~11mm at its 0.8m tile,
+  // and it originally shipped at a mean of 0.998 with a pixel sigma of half a
+  // value step. Sampled here at 0.6m eye height standing ON the walk, 1647
+  // pixels of gravel spanned 2-5 sRGB units — the surface was very nearly
+  // invisible, and this was flagged as the one call on that pass a reviewer
+  // might reasonably swap back to a flat path.
+  //
+  // Gravel is sigma 7.9 against sand's 6.2, and — the part that actually
+  // matters here — its stones are 22-33mm rather than 11mm, which is what a
+  // walk you can hear underfoot is made of. Nothing to compensate on the
+  // colour: gravel's mean is 0.961, and path()'s 0xcbb8a0 is a fixed pale
+  // warm tan that no call site passes, so the ~4% is uniform across every
+  // path in the game and there is no untextured neighbour to match.
+  scene.add(b.path(0, 48, 0, 20, 3, { surface: 'gravel' }));
+  scene.add(b.path(0, 20, -14, 6, 3, { surface: 'gravel' }));
+  scene.add(b.path(-14, 6, -8, -18, 3, { surface: 'gravel' }));
+  scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'gravel' }));
+  scene.add(b.path(0, 20, 16, 10, 3, { surface: 'gravel' }));
 
   // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
   // and an 8-sided spire are the cylinder rule's worked example, and the spire
