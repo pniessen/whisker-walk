@@ -4,6 +4,8 @@ import {
   setNameTagMood,
   NAME_TAG_RANGE,
   CROSS_NAME_TAG_RANGE,
+  TAG_Y,
+  CROSS_TAG_Y,
 } from '../src/nametag.js';
 
 // nametag.js runs in a plain node test environment (no jsdom), so its
@@ -215,6 +217,73 @@ describe('setNameTagMood', () => {
       expect(map.version).toBeGreaterThan(before);
       expect(forgiven.userData.cross).toBe(false);
       expect(forgiven.userData.revealRange).toBe(NAME_TAG_RANGE);
+    });
+  });
+
+  // Found by a visual pass, not by these tests: shrink-to-fit originally ran
+  // on the cross path ONLY, on the reasoning that just the emoji prefix could
+  // overflow a pill. The neutral tag had in fact always overflowed for long
+  // names — the pre-v20 builder never measured either — and every test above
+  // used 'Marmalade', which fits at 34px and so could never show it.
+  //
+  // 'Baron von Fluff' is the longest of the 48 shipped CAT_NAMES, and this
+  // builder is also shared with remote co-walk pets whose names players type
+  // themselves and which no list bounds.
+  it('shrinks a long name to fit on BOTH moods, not only the cross one', () => {
+    withFakeDocument(() => {
+      const long = makeNameTag('Baron von Fluff');
+      const short = makeNameTag('Fig');
+
+      // Asserted as "it shrank", not as an absolute pixel budget: this fake
+      // context estimates ~0.55em per character, which is wider than a real
+      // bold sans face (it makes this name ~280px where the browser measures
+      // 242px), so against the real font it lands inside the pill while here
+      // it bottoms out on the deliberate MIN_FONT_PX floor. The floor is the
+      // design — an unreadable tag is worse than a slightly clipped one — so
+      // pinning a width would pin the fake font's error, not the behaviour.
+      const px = (tag) => parseInt(labelFontOf(opsOf(tag)).replace(/^bold /, ''), 10);
+      expect(px(long)).toBeLessThan(34);
+
+      // A name that already fits is untouched, so no shipped tag that was
+      // never broken changes.
+      expect(labelFontOf(opsOf(short))).toBe('bold 34px Avenir, sans-serif');
+    });
+  });
+
+  it('repaints a LONG name back to a tag identical to one that was never cross', () => {
+    withFakeDocument(() => {
+      // The same round-trip the test above does for 'Marmalade', but with the
+      // name that actually exercises the shrink. When only the cross path
+      // measured, this reconciled at a shrunk size and then repainted neutral
+      // at an unmeasured 34px — bursting the pill at the exact moment the
+      // game means to say everything is fine again.
+      const never = makeNameTag('Baron von Fluff');
+      const forgiven = makeNameTag('Baron von Fluff');
+      setNameTagMood(forgiven, { cross: true });
+      forgiven.userData.tagCtx.ops.length = 0;
+      setNameTagMood(forgiven, { cross: false });
+
+      const fresh = opsOf(never).filter((o) => o[0] !== 'clearRect');
+      const repainted = opsOf(forgiven).filter((o) => o[0] !== 'clearRect');
+      expect(repainted).toEqual(fresh);
+    });
+  });
+
+  // Also found by looking rather than by testing: the cross pose raises the
+  // tail straight through the tag sprite, from behind the cat — the angle a
+  // player chasing one spends nearly all their time at, and the tag whose
+  // entire job is being readable from across the park.
+  it('lifts a cross tag clear of the raised tail, and lowers it again when forgiven', () => {
+    withFakeDocument(() => {
+      expect(makeNameTag('Pickles').position.y).toBe(TAG_Y);
+      expect(makeNameTag('Pickles', { cross: true }).position.y).toBe(CROSS_TAG_Y);
+      expect(CROSS_TAG_Y).toBeGreaterThan(TAG_Y);
+
+      const tag = makeNameTag('Pickles');
+      setNameTagMood(tag, { cross: true });
+      expect(tag.position.y).toBe(CROSS_TAG_Y);
+      setNameTagMood(tag, { cross: false });
+      expect(tag.position.y).toBe(TAG_Y); // settles back, not stuck up high
     });
   });
 
