@@ -45,9 +45,31 @@ const mat = (color) => litMaterial(color);
 //
 // THE CANAL runs east-west across the full map at z in [-3.5, 3.5]. North of
 // it is the warehouse row; south of it is the night market and the crane yard.
+//
+// v19 amendment: the footprint above, and the two bridges that cross it, are
+// now DECLARED as data in `waters` below rather than living only in this
+// comment and in test/docks.test.js's CANAL_HALF literal. The park pond and
+// the seaside sea gained the same declaration, so the future water-collider
+// wave has one shape to read for all three instead of three sets of mesh
+// literals to re-derive. Nothing about the district's content changed: it was
+// already clean, and test/docks.test.js already proved it.
 // =============================================================================
 
 const CANAL_HALF = 3.5;
+// The canal footprint. A band is just a rect that spans the whole map, so it
+// needs no third geometry kind. The two `decks` are the dry crossings — the
+// hole a future water collider has to leave in itself, which is the same
+// property the Sea Legs note above has always claimed and test/docks.test.js
+// has always walked. Their extents are the bridgeDeck() calls below read back
+// as rectangles: the main bridge is 5 wide at x 0 spanning z -6.5..6.5, and
+// the plank bridge is 2.2 wide at x -24 spanning z -5.5..5.5.
+const CANAL = {
+  id: 'canal', kind: 'rect', minX: -45, maxX: 45, minZ: -CANAL_HALF, maxZ: CANAL_HALF,
+  decks: [
+    { minX: -2.5, maxX: 2.5, minZ: -6.5, maxZ: 6.5 },
+    { minX: -25.1, maxX: -22.9, minZ: -5.5, maxZ: 5.5 },
+  ],
+};
 
 export function build(scene) {
   // Overcast harbour daylight — muted rather than cheerful, so the area reads
@@ -82,9 +104,12 @@ export function build(scene) {
   };
 
   // --- the canal ------------------------------------------------------------
-  const canal = new THREE.Mesh(new THREE.PlaneGeometry(90, CANAL_HALF * 2), mat(0x24445e));
+  // drawn from CANAL, so the water on screen and the water in the data are
+  // the same rectangle by construction
+  const canal = new THREE.Mesh(
+    new THREE.PlaneGeometry(CANAL.maxX - CANAL.minX, CANAL.maxZ - CANAL.minZ), mat(0x24445e));
   canal.rotation.x = -Math.PI / 2;
-  canal.position.set(0, 0.04, 0);
+  canal.position.set((CANAL.minX + CANAL.maxX) / 2, 0.04, (CANAL.minZ + CANAL.maxZ) / 2);
   scene.add(canal);
   // stone quay edging on both banks (visual only — see the header note: no
   // collider may ever be added here, or the bridges stop being the crossing
@@ -250,6 +275,8 @@ export function build(scene) {
     // area, without needing a per-area stray count.
     bounds: { minX: -38, maxX: 38, minZ: -40, maxZ: 40 },
     spawn: { x: 0, z: -34 },
+    // The canal and its two dry crossings. See the header.
+    waters: [CANAL],
     boxes: [{ x: -19, z: 6.8 }, { x: 9, z: -18.5 }, { x: 26, z: 8.5 }],
     // Four POIs a side, all at |z| >= 6 — clear of the canal, so the daily
     // race course (five waypoints derived from these) and every quest target

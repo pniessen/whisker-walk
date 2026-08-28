@@ -5,6 +5,46 @@ import { SURE_CLAWS_ID } from '../climbing.js';
 
 const mat = (color) => litMaterial(color);
 
+// =============================================================================
+// Seaside.
+//
+// THE SEA — v19 "make water real".
+//
+// The sea is a 80 x 140 plane covering everything east of x = 25. The walkable
+// bounds run to x = 36, so ELEVEN METRES of this map are already out over open
+// water — more standable-but-wet ground than any other area has. Water carries
+// no collider today, so the cat currently strolls out onto it; a later wave
+// makes it solid, and this file is authored so that nothing breaks when it
+// does. The footprint is declared as data in `waters` below (see the WATER
+// note at the bottom of builder.js), and:
+//
+//   * THE PIER IS THE CROSSING. It is the seaside's equivalent of the Docks'
+//     two bridges: the one dry structure standing over the water, running from
+//     the sand at x 22 out to x 46 on a 3m deck centred on z -10. It is
+//     declared as a `deck` of the sea, which is how this area says "a future
+//     water collider must leave this hole in itself". Everything the player is
+//     asked to reach east of x 25 is ON that deck.
+//   * No collectible, golden mouse, scenic, POI, tippable, perch, box, puddle
+//     or spawn point sits in open water. Three things did before v19 and all
+//     three moved — the `fish-1` collectible, the `pier-end` scenic and the
+//     third cardboard box; each carries a note at its new coordinates.
+//   * Gulls still wheel over the sea and the gull-heist moment still comes in
+//     off it. A critterSpawn or a moment's `from` is a bird's starting point,
+//     never a place the cat is asked to stand.
+//
+// test/water.test.js pins all of that, the same way test/docks.test.js has
+// pinned the canal since v18.
+// =============================================================================
+
+// The pier deck, as data. Declared before the sea because the sea carries it.
+const PIER = { minX: 22, maxX: 46, minZ: -11.5, maxZ: -8.5 };
+// The sea footprint. Both meshes below are BUILT from these records rather
+// than standing beside them, so the drawn water and the declared water — and
+// the drawn pier and the declared deck — cannot drift apart.
+const SEA = {
+  id: 'sea', kind: 'rect', minX: 25, maxX: 105, minZ: -70, maxZ: 70, decks: [PIER],
+};
+
 export function build(scene) {
   b.applySky(scene, 0x9fc8e8, 0xe8e0d0);
   scene.add(b.ground(140, 0xe0d0a0)); // sand
@@ -12,10 +52,11 @@ export function build(scene) {
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
 
-  // the sea: everything east of x = 25
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(80, 140), mat(0x4a90c0));
+  // the sea: everything east of x = 25, drawn from SEA
+  const sea = new THREE.Mesh(
+    new THREE.PlaneGeometry(SEA.maxX - SEA.minX, SEA.maxZ - SEA.minZ), mat(0x4a90c0));
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(65, 0.05, 0);
+  sea.position.set((SEA.minX + SEA.maxX) / 2, 0.05, (SEA.minZ + SEA.maxZ) / 2);
   scene.add(sea);
 
   // boardwalk running north-south along the shore
@@ -23,11 +64,14 @@ export function build(scene) {
   walk.rotation.x = -Math.PI / 2;
   walk.position.set(20, 0.03, 0);
   scene.add(walk);
-  // pier heading out over the water
-  const pier = new THREE.Mesh(new THREE.PlaneGeometry(3, 24), mat(0xa08050));
+  // pier heading out over the water — the area's dry crossing, drawn from
+  // PIER. The two rotations put the plane's WIDTH along world z and its
+  // LENGTH along world x, which is why the geometry arguments look swapped.
+  const pier = new THREE.Mesh(
+    new THREE.PlaneGeometry(PIER.maxZ - PIER.minZ, PIER.maxX - PIER.minX), mat(0xa08050));
   pier.rotation.x = -Math.PI / 2;
   pier.rotation.z = Math.PI / 2;
-  pier.position.set(34, 0.25, -10);
+  pier.position.set((PIER.minX + PIER.maxX) / 2, 0.25, (PIER.minZ + PIER.maxZ) / 2);
   scene.add(pier);
 
   // fishing boats bobbing offshore
@@ -82,29 +126,61 @@ export function build(scene) {
   driftwood.rotation.y = 0.4;
   scene.add(driftwood);
 
-  // cardboard boxes
-  for (const b2 of [[19, 24], [-14, 4], [30, -6]]) scene.add(b.cardboardBox(b2[0], b2[1]));
+  // cardboard boxes. The third one WAS at (30, -6) — five metres out to sea
+  // and not on the pier, which is a box no cat can ever sit in: avatar.js's
+  // "if I fits, I sits" award needs the cat within 0.35 of the box, i.e.
+  // standing on it. It is now on the sand at (23, -6), 2.0 clear of the
+  // waterline and a couple of metres east of the boardwalk.
+  const boxes = [[19, 24], [-14, 4], [23, -6]];
+  for (const b2 of boxes) scene.add(b.cardboardBox(b2[0], b2[1]));
 
   return {
     name: 'Seaside',
     colliders,
     bounds: { minX: -48, maxX: 36, minZ: -34, maxZ: 48 },
     spawn: { x: 18, z: 42 },
-    boxes: [{ x: 19, z: 24 }, { x: -14, z: 4 }, { x: 30, z: -6 }],
+    boxes: boxes.map(([x, z]) => ({ x, z })),
+    // The sea, and the pier that crosses it. See this file's header.
+    waters: [SEA],
     pois: [
-      { x: 20, z: 14 }, { x: 34, z: -10 }, { x: -8, z: 10 }, { x: -20, z: -2 },
+      { x: 20, z: 14 },
+      // Dead on the pier's centreline, 1.5 in from either deck edge — the one
+      // POI east of the waterline, and dry because the deck is dry.
+      { x: 34, z: -10 },
+      { x: -8, z: 10 }, { x: -20, z: -2 },
       { x: 4, z: 24 }, { x: -28, z: 18 }, { x: 18, z: -18 }, { x: -2, z: -14 },
     ],
     collectibles: [
-      { id: 'fish-1', x: 33, z: -14, label: 'a shiny little fish' },
+      // v19: WAS (33, -14), two and a half metres off the pier in open water.
+      // The pickup gate is 1.6 horizontal, so it needed a cat standing on the
+      // sea. Now on the deck itself, 0.9 in from its south edge (z -11.5) —
+      // once the water is solid the cat is pushed no further north than
+      // z -11.15, so it can stand directly on top of this.
+      { id: 'fish-1', x: 33, z: -10.6, label: 'a shiny little fish' },
       { id: 'fish-2', x: -9, z: 8.5, label: 'a striped shell-fish' },
       { id: 'fish-3', x: -29, z: 16.5, label: 'a silver sardine' },
       { id: 'fish-4', x: 19, z: -31, label: 'a lost lure-fish' },
       { id: 'fish-5', x: -29, z: 19, y: 1.9, label: 'a gull-dropped fish' },
     ],
     scenics: [
-      { id: 'pier-end', x: 34, z: -18, label: 'the end of the pier' },
+      // v19: WAS (34, -18), six and a half metres off the side of the pier in
+      // open water — outside the 4m visit award and well outside Gift Paws'
+      // 3m leave range from anywhere dry. Now at the seaward end of the
+      // WALKABLE pier: the deck is drawn out to x 46, but bounds.maxX is 36,
+      // so x 35.5 is as far out as a cat can ever get, on the centreline.
+      // Both gates are satisfied standing on the spot itself.
+      //
+      // THE ID IS LOAD-BEARING AND MUST NOT CHANGE. state.gifts persists
+      // { area, spot } where `spot` is this id, and gifts.js's resolveGifts
+      // joins those records back onto this array at the start of every walk,
+      // SKIPPING any id it cannot find. Moving the coordinates under a stable
+      // id relocates every gift a player has already stashed here to the new,
+      // reachable position; renaming or dropping the id would delete them
+      // silently instead.
+      { id: 'pier-end', x: 35.5, z: -10, label: 'the end of the pier' },
       { id: 'overlook', x: -33, z: -32, label: 'the cliffside overlook' },
+      // 1.0 clear of the waterline at x 25 — the sand the surf breaks on,
+      // not the surf.
       { id: 'shoreline', x: 24, z: 20, label: 'the crashing shoreline' },
     ],
     critterSpawns: [

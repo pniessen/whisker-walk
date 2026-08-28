@@ -3,6 +3,39 @@ import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
+// =============================================================================
+// City Park.
+//
+// THE POND — v19 "make water real".
+//
+// The duck pond is a 7m circle at (-14, 2) and, like every other body of water
+// in the game, it carries no collider today: the cat walks straight across it.
+// A later wave makes water solid, so this file declares the footprint as data
+// (see `waters` in the returned object, and the WATER note at the bottom of
+// builder.js) and keeps everything the player has to REACH out of it:
+//
+//   * No collectible, golden mouse, scenic, POI, tippable, perch, box, puddle
+//     or spawn point sits inside the circle. The POI that used to sit on the
+//     pond's exact centre moved to the north shore in v19 — see the note on it
+//     below; it was by far the worst of these, because `pois` is what the
+//     daily race's five rings and every quest target are derived from, and
+//     race.js checks only the CURRENT ring, with no skip and no timeout.
+//   * The pond is an island of water in the middle of open lawn, so it cannot
+//     cut the map in two the way the Docks canal could; there is dry grass all
+//     the way round it and test/water.test.js walks it.
+//   * The ducks still swim in it, and the duckling-parade moment still starts
+//     from the middle of it — a moment's `from` is a critter's starting point,
+//     not somewhere the cat is ever asked to stand.
+//
+// test/water.test.js pins all of that, for this area and for the seaside,
+// exactly the way test/docks.test.js has pinned the canal since v18.
+// =============================================================================
+
+// The pond footprint. The mesh below is BUILT from this record rather than
+// standing beside it, so the drawn water and the declared water cannot drift
+// apart.
+const POND = { id: 'pond', kind: 'circle', x: -14, z: 2, r: 7 };
+
 export function build(scene) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
   scene.add(b.ground(120, 0x6cb058));
@@ -46,11 +79,11 @@ export function build(scene) {
   scene.add(fountain);
   addC(0, 20, 3);
 
-  // pond (duck home)
-  const pond = new THREE.Mesh(new THREE.CircleGeometry(7, 20),
+  // pond (duck home) — drawn from POND, declared in `waters` below
+  const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 20),
     litMaterial(0x7ab0d8));
   pond.rotation.x = -Math.PI / 2;
-  pond.position.set(-14, 0.02, 2);
+  pond.position.set(POND.x, 0.02, POND.z);
   scene.add(pond);
 
   // big trees ring the lawns
@@ -112,7 +145,22 @@ export function build(scene) {
     spawn: { x: 0, z: 45 },
     boxes: [{ x: 5, z: 33 }, { x: -12, z: -14 }],
     pois: [
-      { x: 0, z: 20 }, { x: -14, z: 2 }, { x: 3, z: 26 }, { x: -10, z: -20 },
+      { x: 0, z: 20 },
+      // v19: WAS (-14, 2) — the pond's exact centre, and the single worst
+      // number in this file once water goes solid. clearSpot could not save
+      // it (the pond carries no collider for it to see), race.js picks five
+      // of these eight and stalls forever on a ring it cannot cross, and
+      // quest completion wants the cat within 2m of it.
+      //
+      // Now on the north shore beside the `pond-shore` scenic at (-14, 10),
+      // which is the convention this area already authored for "at the pond,
+      // not in it". 9m from the pond centre, so 2.0 clear of the water edge,
+      // which covers all three consumers off dry grass the cat stands on
+      // directly: the race ring-cross at 1.2, quest completion at 2.0, and
+      // secrets.js's gnome, which hides at a random POI +/- 1.5 and so would
+      // otherwise still paddle.
+      { x: -14, z: 11 },
+      { x: 3, z: 26 }, { x: -10, z: -20 },
       { x: 12, z: -30 }, { x: 22, z: -22 }, { x: -18, z: 22 }, { x: 16, z: 10 },
     ],
     collectibles: [
@@ -122,8 +170,15 @@ export function build(scene) {
       { id: 'feather-4', x: 11, z: 35, label: 'a tiny down feather' },
       { id: 'feather-5', x: 4.5, z: 27.3, y: 2.1, label: 'a downy feather from way up high' },
     ],
+    // The park's one body of water. See the POND note in this file's header;
+    // the fountain is not listed because its water disc (r 2.2) sits wholly
+    // inside the basin's own r-3 collider and has always been unreachable.
+    waters: [POND],
     scenics: [
       { id: 'fountain', x: 3, z: 23, label: 'the old fountain' },
+      // 1.0 clear of the pond's north edge — the shore, not the water. Both
+      // gates that consume a scenic are satisfied standing on the spot
+      // itself: the 4m visit award and Gift Paws' 3m leave range.
       { id: 'pond-shore', x: -14, z: 10, label: 'the duck pond' },
       { id: 'meadow', x: 12, z: -30, label: 'the quiet meadow' },
     ],

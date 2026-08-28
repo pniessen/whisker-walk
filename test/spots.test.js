@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { clearSpot } from '../src/world/spots.js';
+import { waterClearance } from '../src/world/builder.js';
 import * as neighborhood from '../src/world/neighborhood.js';
 import * as park from '../src/world/park.js';
 import * as seaside from '../src/world/seaside.js';
@@ -77,6 +78,16 @@ describe('clearSpot', () => {
 // ring-cross check needs < 1.2, quest completion needs < 2. A POI authored
 // dead-center on the park fountain (r=3) or the neighborhood car made that
 // day's race unwinnable before clearing.
+//
+// v19: AND >= 1.2 outside every water edge, which is the half of this test
+// that used not to exist. The fountain bug above was found and fixed; its
+// identical twin — a POI on the exact centre of the park POND — sat here
+// invisible for four waves and passed this suite every single run, because
+// water carries no collider for `minGap` to measure against. The obstacle
+// the cat cannot cross is not always in `colliders`; from v19 the areas
+// declare their water in `waters`, and clearSpot cannot push a spot out of
+// something it is never shown, so the authored coordinate has to be right in
+// the first place. That is what this now checks.
 describe('cleared area POIs are reachable', () => {
   const stubScene = () => ({ add() {}, background: null, fog: null });
   const areas = { neighborhood, park, seaside, docks };
@@ -92,5 +103,41 @@ describe('cleared area POIs are reachable', () => {
           .toBeGreaterThanOrEqual(1.2);
       }
     });
+
+    it(`${name}: every cleared POI sits >= 1.2 outside every water edge too`, () => {
+      const area = mod.build(stubScene());
+      // Infinity for an area with no water (the neighborhood) and for a spot
+      // standing on a dry deck (the seaside pier), both of which pass.
+      for (const poi of area.pois) {
+        const cleared = clearSpot(poi, area.colliders, area.bounds);
+        expect(waterClearance(area.waters, cleared.x, cleared.z), `${name} poi (${poi.x},${poi.z})`)
+          .toBeGreaterThanOrEqual(1.2);
+      }
+    });
   }
+});
+
+// The guard on the guard. The check above is only worth anything while the
+// areas actually declare their water: if `waters` were dropped or renamed,
+// waterClearance would return Infinity for everything and the whole thing
+// would go quietly vacuous again — which is exactly the failure mode this
+// suite already shipped once.
+describe('the water check above is not vacuous', () => {
+  const stubScene = () => ({ add() {}, background: null, fog: null });
+
+  it('the three areas with water declare it, and it is where the POIs are not', () => {
+    for (const mod of [park, seaside, docks]) {
+      const area = mod.build(stubScene());
+      expect(area.waters.length).toBeGreaterThan(0);
+      // some point of each footprint really does read as "in the water"
+      for (const w of area.waters) {
+        // a rect's centre may be a deck (the Docks canal's is the main
+        // bridge), so probe 8m along it; a circle has no decks
+        const [x, z] = w.kind === 'circle'
+          ? [w.x, w.z]
+          : [(w.minX + w.maxX) / 2 + 8, (w.minZ + w.maxZ) / 2];
+        expect(waterClearance(area.waters, x, z), `${area.name} ${w.id}`).toBeLessThan(0);
+      }
+    }
+  });
 });

@@ -616,3 +616,134 @@ export function cardboardBox(x, z, rotY = 0) {
   g.rotation.y = rotY;
   return g;
 }
+
+// =============================================================================
+// WATER FOOTPRINTS — v19.
+//
+// Water in this game has never carried a collider: the park pond, the seaside
+// sea and the Docks canal are all walk-over surfaces as shipped. A later wave
+// makes them solid (and reinstates Sea Legs with them), and the one thing that
+// wave must not have to do is re-derive three footprints from the mesh
+// literals that draw them — a PlaneGeometry nudged half a metre would silently
+// move the water out from under every invariant that depends on it.
+//
+// So every area that has water returns `waters`, and everything that needs to
+// know where the water is reads THAT: the invariant tests in
+// test/water.test.js, scent.js's buried-treat placement, and eventually the
+// collider wave itself. In all three areas the mesh is now BUILT FROM the
+// declaration rather than sitting beside it, so the two cannot disagree.
+//
+// Two footprint kinds, which between them cover all three bodies of water:
+//
+//   { id, kind: 'circle', x, z, r }                the park pond
+//   { id, kind: 'rect', minX, maxX, minZ, maxZ }   the seaside sea — and the
+//                                                  Docks canal, which is just
+//                                                  a rect that happens to span
+//                                                  the whole map width, i.e. a
+//                                                  band
+//
+// A footprint may also carry `decks`: axis-aligned rectangles of DRY structure
+// standing over the water — the seaside pier, the Docks' two bridges. A deck
+// is how an area says "content may stand here, and a future water collider
+// must leave this hole in itself". Every function below treats a point on a
+// deck as dry land.
+//
+// All of this is plain data and pure geometry: no THREE, no renderer, so the
+// world files stay unit-testable headless.
+// =============================================================================
+
+// Signed distance from (x, z) to a footprint's edge: negative inside the
+// water, positive on dry land. For a rect the inside case reports the
+// SHALLOWEST penetration (the nearest way out), which is what makes the
+// push-out below take the short route to shore.
+export function waterGap(w, x, z) {
+  if (w.kind === 'circle') return Math.hypot(x - w.x, z - w.z) - w.r;
+  const dx = Math.max(w.minX - x, x - w.maxX);
+  const dz = Math.max(w.minZ - z, z - w.maxZ);
+  if (dx > 0 || dz > 0) return Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
+  return Math.max(dx, dz);
+}
+
+// Is (x, z) standing on one of this footprint's dry decks?
+export function onDeck(w, x, z) {
+  return (w.decks ?? []).some(
+    (d) => x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ,
+  );
+}
+
+// waterClearance(waters, x, z) — how far the point is from the nearest water's
+// edge: positive on dry land, negative in the water, Infinity where there is
+// no water to be near (an area with none, or a point standing on a deck).
+export function waterClearance(waters, x, z) {
+  let min = Infinity;
+  for (const w of waters ?? []) {
+    if (onDeck(w, x, z)) continue;
+    min = Math.min(min, waterGap(w, x, z));
+  }
+  return min;
+}
+
+export function inWater(waters, x, z) {
+  return waterClearance(waters, x, z) < 0;
+}
+
+function pushOutOf(w, x, z, margin) {
+  if (w.kind === 'circle') {
+    let dx = x - w.x, dz = z - w.z;
+    let d = Math.hypot(dx, dz);
+    if (d < 1e-6) { dx = 1; dz = 0; d = 1; } // dead-centre: fixed +x push
+    const need = w.r + margin;
+    return { x: w.x + (dx / d) * need, z: w.z + (dz / d) * need };
+  }
+  return nearestOf(x, z, [
+    { x: w.minX - margin, z }, { x: w.maxX + margin, z },
+    { x, z: w.minZ - margin }, { x, z: w.maxZ + margin },
+  ]);
+}
+
+function clampInto(d, x, z, margin) {
+  const cl = (v, lo, hi) => (lo + margin >= hi - margin
+    ? (lo + hi) / 2
+    : Math.min(hi - margin, Math.max(lo + margin, v)));
+  return { x: cl(x, d.minX, d.maxX), z: cl(z, d.minZ, d.maxZ) };
+}
+
+function nearestOf(x, z, cands) {
+  let best = cands[0];
+  let bestD = Math.hypot(best.x - x, best.z - z);
+  for (const c of cands) {
+    const d = Math.hypot(c.x - x, c.z - z);
+    if (d < bestD) { best = c; bestD = d; }
+  }
+  return best;
+}
+
+/**
+ * nearestDry(waters, x, z, margin) — the closest point to (x, z) that is out
+ * of every water by at least `margin`, or the point itself when it already is.
+ * Pure and deterministic (no rng), because its one caller places buried treats
+ * for a co-walk both clients must agree on.
+ *
+ * Two candidate escapes per footprint, because over a long pier the short way
+ * out is not the shore:
+ *   * straight out over the nearest edge of the footprint;
+ *   * onto the nearest of its decks.
+ * The closer candidate wins, so a treat that rolled off the seaside's pier POI
+ * climbs back onto the pier instead of being flung 11m west to the sand.
+ */
+export function nearestDry(waters, x, z, margin = 0.6) {
+  let p = { x, z };
+  const list = waters ?? [];
+  // A push out of one footprint can only land inside another where two bodies
+  // of water touch — no area does that today, but the relaxation is two lines
+  // and stops the function from silently returning a wet point if one ever does.
+  for (let pass = 0; pass < 3; pass++) {
+    const w = list.find((wt) => !onDeck(wt, p.x, p.z) && waterGap(wt, p.x, p.z) < margin);
+    if (!w) break;
+    p = nearestOf(x, z, [
+      pushOutOf(w, p.x, p.z, margin),
+      ...(w.decks ?? []).map((d) => clampInto(d, p.x, p.z, margin)),
+    ]);
+  }
+  return p;
+}

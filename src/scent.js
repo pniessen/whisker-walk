@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { nearestDry } from './world/builder.js';
 
 export function rollTreats(rng, pois, count = 2) {
   const treats = [];
@@ -30,30 +31,60 @@ export function trailPoints(from, to, rng, steps = 7) {
   return pts;
 }
 
-// rollTreats scatters treats around POIs with no awareness of colliders or
-// bounds — nudge any treat that landed inside a collider's push-out zone (or
-// too near the world edge) so it stays diggable.
+// How far clear of a waterline a buried treat has to end up. Reachability is
+// not what sets this: once water is solid the cat is stopped 0.35 short of the
+// edge and digAt's range is 1.2, so ANY dry treat is diggable. 0.6 is a
+// cosmetic floor — it keeps the mound on visible sand rather than half in the
+// surf, and leaves room for the dug-up fish that pops out of it.
+const SHORE_MARGIN = 0.6;
+
+// rollTreats scatters treats around POIs with no awareness of colliders,
+// water or bounds — nudge any treat that landed in the water, inside a
+// collider's push-out zone, or too near the world edge so it stays diggable.
+//
+// The water pass is v19. It is not cosmetic: rollTreats offsets a treat by up
+// to +/-4 in x and z INDEPENDENTLY of the POI it picked, which is a radius of
+// up to 5.66 — bigger than the gap between several POIs and the nearest
+// waterline. Two areas would strand treats outright once water goes solid:
+// roughly a third of the draws off the park's pond-shore POI land in the pond
+// even after v19 moved that POI to the shore (the pond's radius is 7 and the
+// scatter reaches 5.66), and the seaside's pier POI sits on a 3m deck in the
+// middle of the sea, so most of its draws land in open water. nearestDry
+// knows about the pier deck, so a treat rolled off that POI walks back onto
+// the pier rather than being flung to the sand 11m west.
 function keepReachable(tr, area) {
   const colliders = area.colliders ?? [];
-  for (const c of colliders) {
-    const dx = tr.x - c.x;
-    const dz = tr.z - c.z;
-    const d = Math.hypot(dx, dz);
-    if (d < c.r + 1.55) {
-      const dist = c.r + 1.7;
-      if (d > 0.0001) {
-        tr.x = c.x + (dx / d) * dist;
-        tr.z = c.z + (dz / d) * dist;
-      } else {
-        tr.x = c.x + dist;
-        tr.z = c.z;
+  const waters = area.waters ?? [];
+  const bounds = area.bounds;
+  // Three relaxation passes, the same shape spots.js's clearSpot uses: a push
+  // out of the water can land inside a collider, a push out of a collider can
+  // land back in the water, and the bounds clamp near a map edge can do
+  // either. Every step below is idempotent, so a treat that was already fine
+  // comes out of this untouched — which is what keeps the pre-v19 behaviour
+  // of every area WITHOUT water exactly as it was.
+  for (let pass = 0; pass < 3; pass++) {
+    const dry = nearestDry(waters, tr.x, tr.z, SHORE_MARGIN);
+    tr.x = dry.x;
+    tr.z = dry.z;
+    for (const c of colliders) {
+      const dx = tr.x - c.x;
+      const dz = tr.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d < c.r + 1.55) {
+        const dist = c.r + 1.7;
+        if (d > 0.0001) {
+          tr.x = c.x + (dx / d) * dist;
+          tr.z = c.z + (dz / d) * dist;
+        } else {
+          tr.x = c.x + dist;
+          tr.z = c.z;
+        }
       }
     }
-  }
-  const bounds = area.bounds;
-  if (bounds) {
-    tr.x = THREE.MathUtils.clamp(tr.x, bounds.minX + 1.5, bounds.maxX - 1.5);
-    tr.z = THREE.MathUtils.clamp(tr.z, bounds.minZ + 1.5, bounds.maxZ - 1.5);
+    if (bounds) {
+      tr.x = THREE.MathUtils.clamp(tr.x, bounds.minX + 1.5, bounds.maxX - 1.5);
+      tr.z = THREE.MathUtils.clamp(tr.z, bounds.minZ + 1.5, bounds.maxZ - 1.5);
+    }
   }
   return tr;
 }
