@@ -26,6 +26,7 @@ import { createComposerRig } from './game/composer.js';
 import { createWalkLifecycle } from './game/walk.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
+import { waterClearance, nearestDry } from './world/builder.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -495,7 +496,10 @@ function init() {
     const t = clock.elapsedTime;
     if (!session) return;
     if (player.engaged) {
-      player.update(dt, session.areaData.colliders, session.areaData.bounds);
+      // `waters` is v20's fourth argument: the area's water footprints, which
+      // player.update blocks the cat out of unless Sea Legs is on. The den has
+      // none and passes undefined, which the default handles.
+      player.update(dt, session.areaData.colliders, session.areaData.bounds, session.areaData.waters);
 
       // Zoomies FOV kick: ease toward a wider field of view while sprinting,
       // back to normal otherwise. updateProjectionMatrix is comparatively
@@ -546,6 +550,47 @@ function init() {
         toy: session.toy,
       });
       session.toy.update(dt, session.areaData.bounds);
+      // THE YARN BALL FLOATS — v20.
+      //
+      // The toy is bounds-only (deliberately: it is not the player, and giving
+      // it a collider pass would change how it bounces off everything). Once
+      // water blocks, a ball thrown into the pond is unreachable to a cat that
+      // cannot swim, and unreachable here is a soft-lock rather than a
+      // nuisance: interactions.js's doYarn refuses to throw a second ball
+      // while one is active ("Go grab your yarn ball first!"), so the player
+      // has no yarn at all until avatar.js's 25-second idle auto-retrieve
+      // fires. Clamping the throw out of the water instead would break the
+      // thing that makes the Docks fun, which is hurling the ball over the
+      // canal. So the ball floats ashore.
+      //
+      // Only while it is ON the surface: toy.js rests it at its own 0.13
+      // radius, so anything above 0.2 is still in flight and a ball sailing
+      // over the canal is untouched. It drifts at 2.2 m/s — a slow current,
+      // slower than a cat and slower than a rolling ball, so a ball skipping
+      // across the water still goes where it was thrown and only the settled
+      // one gets carried in. It aims at the same nearestDry the cat is pushed
+      // out by, which beaches it exactly where the cat can reach it, and puts
+      // it on the pier or a bridge deck when that is nearer than the shore.
+      //
+      // 0.5 is where the drift stops, measured the same way the cat's own
+      // stand-off is: the cat is held 0.35 back from the waterline and bats
+      // its ball from 0.5 (game/avatar.js), so a ball beached at 0.5 is
+      // playable rather than parked in the surf just out of reach. Stopping at
+      // the waterline itself would leave it half in the water and exactly on
+      // the edge of the bat range.
+      const toyPos = session.toy.mesh.position;
+      if (session.toy.active && toyPos.y <= 0.2 &&
+          waterClearance(session.areaData.waters, toyPos.x, toyPos.z) < 0.5) {
+        const dry = nearestDry(session.areaData.waters, toyPos.x, toyPos.z, 0.5);
+        const dx = dry.x - toyPos.x;
+        const dz = dry.z - toyPos.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 1e-4) {
+          const step = Math.min(d, 2.2 * dt);
+          toyPos.x += (dx / d) * step;
+          toyPos.z += (dz / d) * step;
+        }
+      }
       session.weather.update(dt, camera.position);
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.goldMice.update(t);

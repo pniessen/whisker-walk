@@ -2,8 +2,19 @@
 
 **Date:** 2026-08-17
 **Status:** Implemented, with corrections — see **§Status as shipped** at the
-end of this document before trusting any detail above it (notably: Sea Legs is
-descoped, so the wave ships eleven abilities, not twelve).
+end of this document before trusting any detail above it.
+
+> **Sea Legs update (2026-08-28).** v18 shipped ELEVEN abilities: Sea Legs was
+> descoped (CF-12 in the plan) because water carried no colliders anywhere in
+> the game, so "swim at reduced speed" described traversal the player already
+> had, minus speed. The **v19 collider wave made water solid**, which made that
+> premise false, and Sea Legs was reinstated — so the catalog now holds
+> **twelve**. It also moved family, Mischief → Traversal: the spec put it in
+> Mischief to make the families three apiece, and that arithmetic died with the
+> descope. Its feat is unchanged ("Complete 5 seaside walks"), and because
+> `walks.seaside` is a lifetime tally predating v18, existing players hold the
+> ability the moment their save loads. See CF-12 in the plan for the full
+> reversal, and `src/skills.js`'s `sea-legs` entry for the reasoning.
 **Base:** deployed game at v17 + post-v17 tab split, plus the in-flight
 `src/main.js` module carve-out (see §Sequencing).
 

@@ -1299,12 +1299,19 @@ describe('v18 duskWalks save field', () => {
     expect(p.state.feats).toEqual({ mischief: 9 });
   });
 
-  it('a save that persisted the descoped sea-legs loads losslessly without it', () => {
-    // Sea Legs shipped in no release, but a save written from a v18 dev build
-    // (or a hand-edited/cloud payload) can hold the id. sanitizeSkills
-    // validates against SKILL_IDS, so an id the catalog no longer knows is
-    // dropped like any other unknown one — the save must NOT be rejected, and
-    // the abilities either side of it in catalog order must survive intact.
+  it('a save that persisted sea-legs now KEEPS it — the v20 reinstatement', () => {
+    // BEHAVIOURAL CHANGE, deliberate. Under v18 this exact payload had
+    // 'sea-legs' silently dropped by sanitizeSkills, because the id was not
+    // in SKILL_IDS; the ability was descoped (CF-12). v20 put it back in the
+    // catalog, so the same save now loads with the id intact and the
+    // ability really held. Nobody loses anything: the id was written by a
+    // v18 dev build in the first place, and this is the outcome such a save
+    // was always going to want.
+    //
+    // It would also have come back through the predicate half of hasSkill
+    // anyway — nine seaside walks clears the feat — so the two halves of the
+    // union agree here, which is what makes this a lossless upgrade rather
+    // than a regrant of something unearned.
     const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
       version: 4, points: 88, lifetimePoints: 1200, bestWalk: 44,
       walks: { neighborhood: 3, park: 2, seaside: 9, den: 1 },
@@ -1313,22 +1320,66 @@ describe('v18 duskWalks save field', () => {
       feats: { mischief: 41, perch: 12 }, duskWalks: 3,
     }) });
     const p = createProgression(storage);
-    expect(p.state.skills).toEqual(['spring-paws', 'big-swat']);
-    // Everything else on the save is untouched by the drop.
+    // Catalog order, and sea-legs sorts between spring-paws and big-swat
+    // exactly where it was written.
+    expect(p.state.skills).toEqual(['spring-paws', 'sea-legs', 'big-swat']);
+    // Everything else on the save is untouched.
     expect(p.state.points).toBe(88);
     expect(p.state.lifetimePoints).toBe(1200);
     expect(p.state.bestWalk).toBe(44);
     expect(p.state.feats).toEqual({ mischief: 41, perch: 12 });
     expect(p.state.duskWalks).toBe(3);
     expect(p.state.golden).toEqual(['gm-park-1']);
-    // Nine seaside walks used to satisfy the Sea Legs feat; it must not come
-    // back through the predicate half of hasSkill either.
     expect(p.state.walks.seaside).toBe(9);
-    expect(unlockedSkills(p.state)).not.toContain('sea-legs');
-    // And the drop survives a re-save/reload round trip rather than
-    // reappearing out of the stored blob.
+    expect(unlockedSkills(p.state)).toContain('sea-legs');
+    // And it survives a re-save/reload round trip.
     p.recordSkillUnlocks(['charmer']);
-    expect(createProgression(storage).state.skills).toEqual(['spring-paws', 'charmer', 'big-swat']);
+    expect(createProgression(storage).state.skills)
+      .toEqual(['spring-paws', 'sea-legs', 'charmer', 'big-swat']);
+  });
+
+  it('unlocks Sea Legs at the END of the fifth seaside walk, like Night Eyes', () => {
+    // Sea Legs' counter is walks.seaside, which completeWalk owns — so, like
+    // Night Eyes' duskWalks, it can ONLY complete as a walk ends, never
+    // mid-walk. walk.js's endWalk already orders completeWalk BEFORE
+    // celebrateNewSkills for exactly that reason, so the fifth seaside walk
+    // celebrates at its own end rather than the next one. (The ability
+    // itself takes effect from the next walk, because player.setSwim is read
+    // once at walk start — the same boundary Long Zoomies sits behind.)
+    const p = createProgression(fakeStorage());
+    for (let i = 0; i < 4; i++) p.completeWalk('seaside');
+    expect(unlockedSkills(p.state)).toEqual([]);
+    p.completeWalk('park');   // a different area does not count
+    expect(unlockedSkills(p.state)).toEqual([]);
+    p.completeWalk('seaside');
+    expect(p.state.walks.seaside).toBe(5);
+    expect(p.recordSkillUnlocks(unlockedSkills(p.state))).toEqual(['sea-legs']);
+  });
+
+  it('unlocks Sea Legs on load for a pre-v18 save that never heard of skills', () => {
+    // The retroactive path, end to end through the real loader: a payload
+    // with no `skills` field at all — every save written before v18 — whose
+    // lifetime walks.seaside tally already clears the feat. The ability is
+    // live the instant createProgression returns, with nothing written to
+    // state.skills yet, and recordSkillUnlocks is then what persists it and
+    // reports it as newly earned (which is what fires the celebration).
+    const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, points: 10, walks: { neighborhood: 12, park: 6, seaside: 5, den: 1 },
+    }) });
+    const p = createProgression(storage);
+    expect(p.state.skills).toEqual([]);            // nothing persisted yet
+    expect(hasSkill(p.state, 'sea-legs')).toBe(true); // ...but already earned
+    expect(unlockedSkills(p.state)).toEqual(['sea-legs']);
+    // The celebration path: recordSkillUnlocks reports it as NEWLY added
+    // once, then never again, and it is stored across a reload.
+    expect(p.recordSkillUnlocks(unlockedSkills(p.state))).toEqual(['sea-legs']);
+    expect(p.recordSkillUnlocks(unlockedSkills(p.state))).toEqual([]);
+    expect(createProgression(storage).state.skills).toEqual(['sea-legs']);
+    // Four seaside walks does not: the feat is a real bar, not a giveaway.
+    const four = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify({
+      version: 4, walks: { neighborhood: 12, park: 6, seaside: 4, den: 1 },
+    }) }));
+    expect(unlockedSkills(four.state)).toEqual([]);
   });
 
   it('increments only on a dusk walk, never on an ordinary one', () => {

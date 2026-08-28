@@ -3,6 +3,7 @@ import { bus } from './events.js';
 import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
+import { inWater, waterClearance, nearestDry } from './world/builder.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
@@ -226,6 +227,94 @@ export function hopOffset(elapsed, arc) {
   return height * 4 * u * (1 - u);
 }
 
+// =============================================================================
+// WATER IS SOLID — v20.
+//
+// Water in this game never carried a collider: the park pond, the seaside sea
+// and the Docks canal were walk-over surfaces, which is why v18's CF-12 ruling
+// descoped Sea Legs ("water becomes traversable at reduced speed" described
+// traversal the player already had, minus speed — an ability that is a
+// downgrade). v19 made the flip safe: every water body is declared as data in
+// its area's `waters`, the content that sat in the drink was relocated, and
+// test/water.test.js pins that nothing the player must reach is wet and that
+// the dry land is one connected piece. This is the pass that makes CF-12's
+// premise false.
+//
+// WHY ITS OWN PASS, NOT AN ENTRY IN `colliders`. That array is circles only
+// ({x, z, r}) and is consumed by this loop and by world/spots.js. The seaside
+// sea is an 80x140 rect; approximating it with circles would be dozens of
+// them, wrong at the corners, and would drag world/spots.js along with it.
+// Water also has semantics a collider does not: a swim capability makes it
+// passable-but-slow, and `decks` (the seaside pier, the Docks' two bridges)
+// punch dry holes straight through it. So it gets its own pass, reading the
+// same footprint helpers scent.js already reads — waterGap/onDeck/inWater/
+// nearestDry in world/builder.js. There is exactly one copy of that geometry.
+//
+// ONLY THE PLAYER CONSULTS THIS. Critters, stray cats, ghosts, remote co-walk
+// pets and the thrown toy are bounds-only and stay that way: the park and
+// Docks ducks paddle INSIDE the footprints deliberately and the seaside gulls
+// spawn over the sea. Water going solid must not touch them. (main.js floats a
+// SETTLED yarn ball ashore, which is a fetchability fix — the ball still has
+// no collision and still flies over the canal — see the note at that call.)
+// =============================================================================
+
+// How far clear of the waterline a blocked cat is held. CAT_RADIUS is the same
+// number the collider push uses (it stops the cat at c.r + CAT_RADIUS), so the
+// cat's body stops at the water's edge rather than half in it, and the rule
+// reads identically at a wall and at a shoreline. It is also what makes the
+// push invisible in normal play: a cat walks ~5cm per frame, so the correction
+// on the frame it reaches the edge is smaller than that.
+const WATER_MARGIN = CAT_RADIUS;
+
+// Fraction of the cat's pace it keeps while swimming.
+//
+// The binding constraint is CF-12's own principle: an ability must never be a
+// downgrade, so swimming must always beat the dry detour it replaces. The
+// worst detour in the game sets the ceiling — the Docks canal is 7m wide and
+// spans the whole map, and from the east end of a bank the nearest bridge is
+// 38m away, i.e. up to 76m of walking against 7m of water. At 0.55 that
+// crossing costs the equivalent of 12.7 walked metres, so even the cheapest
+// swim in the game wins by a factor of six; the number is therefore set by
+// FEEL rather than by arithmetic. 0.55 is slow enough that water reads as
+// water (the park pond's 14m takes ~8s at a mid breed's pace) and fast enough
+// that no crossing outlasts a child's patience.
+export const SWIM_SPEED = 0.55;
+
+// canSwim(state) → may this save cross water?
+//
+// WIRED LIVE, NOT STUBBED. 'sea-legs' is not in src/skills.js's catalog yet —
+// a second agent reinstates it — and hasSkill is total over any input, so an
+// unknown id returns false and every save today is a non-swimmer. Reading it
+// through hasSkill anyway is the CF-10 lesson: this project has twice shipped
+// an ability fully built and inert because an activating argument was never
+// passed. The moment the catalog gains the entry, this lights up with no edit
+// here.
+export function canSwim(state) {
+  return hasSkill(state, 'sea-legs');
+}
+
+// Push `pos` (a THREE.Vector3, mutated in place) out to WATER_MARGIN clear of
+// every water; returns whether it had to.
+//
+// The test is the MARGIN, not the waterline — clearance < 0.35, not < 0 —
+// which is the same continuous stand-off the collider push maintains (it fires
+// at d < c.r + CAT_RADIUS, not on overlap). Ejecting only on penetration would
+// make the shoreline buzz: a cat walking into the pond steps 5cm in, is thrown
+// 35cm out, walks back in, four times a second. Holding it 0.35 clear instead
+// means it arrives at the edge once and stops there, dead still.
+//
+// Module-level and mutating so the per-frame path allocates nothing:
+// waterClearance is pure arithmetic over the footprints, and nearestDry —
+// which does allocate its handful of escape candidates — runs ONLY on a frame
+// where the cat is at the water's edge or in it.
+function pushOutOfWater(pos, waters) {
+  if (waterClearance(waters, pos.x, pos.z) >= WATER_MARGIN) return false;
+  const dry = nearestDry(waters, pos.x, pos.z, WATER_MARGIN);
+  pos.x = dry.x;
+  pos.z = dry.z;
+  return true;
+}
+
 export function createPlayer(camera, canvas) {
   let yaw = 0;
   let pitch = 0.18;
@@ -250,11 +339,21 @@ export function createPlayer(camera, canvas) {
   // setAvatar, disable and halt.
   let hopArc = null;
   let hopTime = 0;
+  // Sea Legs. Like zoomTune this is a PERMANENT ability's capability, not
+  // per-walk state, so setAvatar and disable deliberately leave it alone —
+  // walk.js sets it once per walk from the save.
+  let swim = false;
 
   const api = {
     locked: false,
     speedFactor: 1, // 0 while frozen by a scare; 1 normally
     perchY: 0,
+    // True on the frames the cat is actually swimming (in water, with Sea
+    // Legs). Written by update, read by nothing in the game today — it exists
+    // so a test can watch the state without a scene, and so the HUD/pose work
+    // the Sea Legs agent may want has an honest flag to hang off instead of
+    // re-deriving one from the area's footprints.
+    swimming: false,
     setAvatar(cat, catPace) {
       avatar = cat;
       pace = catPace;
@@ -301,6 +400,14 @@ export function createPlayer(camera, canvas) {
     // — both get exactly today's 1.5s-charge / instant-reset zoomies.
     setZoomTuning(tuning) {
       zoomTune = tuning && typeof tuning === 'object' ? tuning : BASE_ZOOM_TUNING;
+    },
+    // v20 Sea Legs. Call with the raw save state at walk start:
+    //   player.setSwim(canSwim(progression.state))
+    // Passing nothing leaves the cat unable to swim, which is the shipped
+    // behaviour for every save today — an un-threaded call site gets solid
+    // water, never accidental swimming.
+    setSwim(v) {
+      swim = !!v;
     },
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
@@ -362,8 +469,35 @@ export function createPlayer(camera, canvas) {
       hopTime = 0;
       if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
-    update(dt, colliders = [], bounds = null) {
+    update(dt, colliders = [], bounds = null, waters = []) {
       if (!enabled || !avatar) return;
+      // Water rules only apply to a cat with its paws on the ground, and only
+      // in an area that has water — every other area takes the `wet` read as
+      // one length check and is byte-identical to before this existed.
+      //
+      // PERCHED CATS ARE EXEMPT, for exactly the reason they skip the collider
+      // push below: a perched cat is standing ON something, snapped to that
+      // object's own centre, and a push is what would shove it back off. The
+      // exemption is safe because no perch in the game stands in water —
+      // test/water.test.js asserts it for every area, alongside the
+      // collectibles and the spawn — so this can never leave a cat marooned
+      // over the drink. A cat that hops down INTO water lands with perchY back
+      // at 0 and is pushed out on that same frame.
+      const watered = api.perchY === 0 && (waters?.length ?? 0) > 0;
+      // Two different questions, deliberately asked with two different tests.
+      //
+      // BLOCKED is the CAPABILITY, not the position: a cat with Sea Legs is
+      // never pushed, anywhere, or the stand-off below would hold it 0.35
+      // clear of the shore and it could never get IN. A cat without it is
+      // pushed whether or not it is currently wet, because the push is what
+      // keeps it dry.
+      //
+      // SWIMMING is the position: the speed penalty applies only while the cat
+      // is actually in the drink, read from where it stands at the top of the
+      // frame so the penalty and this frame's movement agree.
+      const blocked = watered && !swim;
+      const swimming = watered && swim && inWater(waters, avatar.position.x, avatar.position.z);
+      api.swimming = swimming;
       const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
       // speedRatio must be read from velocity BEFORE the lerp below moves it
       // toward this frame's target — it reflects how close last frame's
@@ -379,7 +513,13 @@ export function createPlayer(camera, canvas) {
         chargeTime: zoomTune.chargeTime,
         holdTime: zoomTune.holdTime,
       });
-      const zoomPace = zoom.zooming ? pace * 1.55 : pace;
+      // Swimming scales the TARGET speed, not speedFactor, so it composes with
+      // the scare freeze (speedFactor 0) instead of fighting it. Note what it
+      // does to the zoomies for free: speedRatio is measured against the dry
+      // pace, so a swimming cat tops out at 0.55 and never crosses the 0.85
+      // "full-speed running" line — no zoomies charge in the water, which is
+      // the right answer and needed no extra rule.
+      const zoomPace = (zoom.zooming ? pace * 1.55 : pace) * (swimming ? SWIM_SPEED : 1);
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied
@@ -437,9 +577,41 @@ export function createPlayer(camera, canvas) {
           }
         }
       }
+      // The water pass. AFTER the collider push, so a cat shoved off a crate
+      // into the pond by a collider is pulled straight back out on the same
+      // frame rather than a frame later; BEFORE the bounds clamp, because
+      // leaving the cat outside the map is worse than leaving it wet.
+      //
+      // Blocked by default, skipped entirely for a cat that can swim.
+      // nearestDry does the work, which is what makes the stuck cases fall out:
+      // it is a fixed point on dry ground, so a cat that is ALREADY in the
+      // water when a walk starts, that lands there from a perch hop-down, or
+      // that is pushed there by a collider, is out again on its first grounded
+      // frame — no input required and no way to hold it under. A cat frozen in
+      // a pond is worse than water that does not block.
+      //
+      // A POUNCING cat is grounded as far as this is concerned, because the
+      // hop is a render offset that never touches perchY — the same rule the
+      // collider push states one block up ("a pouncing cat cannot pass through
+      // a wall"), and the right one here too: a lunge covers ~2.7m against a
+      // 7m canal, so it could never clear water anyway. All an exemption would
+      // buy is the cat landing in the middle of it.
+      if (blocked) pushOutOfWater(avatar.position, waters);
       if (bounds) {
         avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
         avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
+        // The clamp can itself put the cat back in the water where a footprint
+        // overlaps the map edge — the seaside sea covers the whole eastern 11m
+        // of the walkable bounds — so re-run the pass and re-clamp. Both
+        // guards are cheap arithmetic and the allocating half only runs on a
+        // frame that was BOTH clamped and wet, which no shipped area produces
+        // (test/water.test.js sweeps every cell of all three maps). It is here
+        // so a future area that puts water against its own edge cannot
+        // reintroduce a trap.
+        if (blocked && pushOutOfWater(avatar.position, waters)) {
+          avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
+          avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
+        }
       }
       if (velocity.length() > 0.15) {
         avatar.rotation.y = Math.atan2(velocity.x, velocity.z) + Math.PI;

@@ -24,17 +24,23 @@ const mat = (color) => litMaterial(color);
 //   Sea Legs   a canal cuts the district in two.
 //
 // -----------------------------------------------------------------------------
-// SEA LEGS MAY NEVER SHIP — and nothing here depends on it.
+// SEA LEGS SHIPPED (v19 collider wave) — and nothing here depends on it.
 //
-// Sea Legs is a Stage 3 descope candidate. Everything in this area is
-// therefore authored to be completable with no swimming at all:
+// This block used to open "SEA LEGS MAY NEVER SHIP", because the ability was a
+// Stage 3 descope candidate and was in fact cut (v18 CF-12). It shipped in the
+// v19 collider wave once water became solid. The authoring rule below did NOT
+// change and is now load-bearing in the other direction: it is what makes the
+// ability a shortcut rather than a key. Everything here stays completable with
+// no swimming at all:
 //
-//   * The canal is scenery. Water in this game has never carried colliders
-//     (the park pond and the seaside sea are both walk-over surfaces today),
-//     so the canal does not block anything as shipped.
+//   * The canal WAS scenery — water carried no colliders anywhere in the game,
+//     so it blocked nothing. It blocks now: a cat without Sea Legs is held out
+//     of the footprint, and a cat with it swims at 0.55x pace.
 //   * Both banks are joined by TWO dry crossings — the main bridge at x 0 and
-//     the plank bridge at x -24 — so if a future Sea Legs task adds water
-//     colliders, the district stays fully connected without swimming.
+//     the plank bridge at x -24 — which is what kept the district fully
+//     connected when the water-collider task landed. test/waterblock.test.js
+//     now drives both crossings at 0.25m steps, and test/water.test.js
+//     flood-fills the dry land as one component joined to spawn on foot.
 //   * No collectible, golden mouse, scenic, POI (and therefore no race
 //     checkpoint or quest target, both of which derive from `pois`), tippable
 //     or perch sits inside the canal footprint |z| <= 3.5. The two moored

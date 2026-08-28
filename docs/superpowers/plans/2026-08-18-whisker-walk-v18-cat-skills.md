@@ -310,7 +310,64 @@ Task 2.2 mapped the spec's two clauses onto the two knobs that exist: charge-up
 1.5 → **0.9s** ("recharges faster") and the charge now survives **2.5s** of
 interruption ("runs longer"). Accepted — the spec sentence is what was wrong.
 
-### CF-12 — RULING: Sea Legs is DESCOPED from v18
+### CF-12 — RULING: Sea Legs is DESCOPED from v18 — **REVERSED 2026-08-28**
+
+> **REVERSED (v20).** The ruling below was correct for v18 and its premise is
+> now false, so Sea Legs is back in the catalog and the wave ships the spec's
+> full **twelve** abilities. The ruling is kept, not deleted: the reasoning is
+> the reason the reinstatement had to wait, and it is the standing constraint
+> on anyone who authors water in future.
+>
+> **What made the premise false.** The finding was "water in this game has
+> never carried colliders". Two waves fixed exactly that, in the order this
+> ruling recommended:
+> - **v19 — water became data.** Every water body is declared in its area's
+>   `waters` (park pond, seaside sea, Docks canal); the content that sat in
+>   the drink was relocated (`fish-1` onto the pier deck, a cardboard box onto
+>   the sand, the pond's centre POI off the water) with ids preserved so
+>   stashed gifts survived; and `test/water.test.js` pins per area that no
+>   collectible, golden mouse, scenic, POI, tippable, perch, box, puddle or
+>   spawn is wet, that every one of them is reachable from dry land once
+>   cleared, and that the dry land is **one connected piece joined to the
+>   spawn on foot**.
+> - **v20 — water went solid.** `player.update` gained a water pass (its own
+>   pass, not an entry in `colliders`, which is circles-only): a grounded cat
+>   without the ability is held `CAT_RADIUS` clear of every waterline, and
+>   `decks` punch dry holes through the water for the seaside pier and the
+>   Docks' two bridges.
+>
+> **The ruling's own two objections, answered.** The *downgrade* objection is
+> gone — water now blocks, so the ability is strictly additive rather than a
+> 0.55x tax on traversal the player already had. The *gating* objection is
+> answered by construction rather than by promise: the ducks were left in the
+> pond deliberately (water blocks the **player only**; critters, strays,
+> ghosts, remote pets and the thrown toy stay bounds-only), and
+> `test/water.test.js`'s reachability sweep is what makes "no ability gates
+> content reachable today" a test rather than a claim. **Sea Legs is a
+> shortcut, never a key.**
+>
+> **What changed from the ruling's own description of the ability.** Two
+> things, both deliberate. The **family** moved from Mischief to **Traversal**
+> — it changes where the cat can go and how fast, which is what the other
+> three traversal abilities do; the spec only put it in Mischief to make the
+> families three apiece, and that arithmetic died with this descope. The
+> **effect copy** was rewritten, because the spec's wording described
+> behaviour that was never true. The **feat is unchanged** —
+> `walks.seaside >= 5`, re-examined and kept: a walk is the coarsest unit of
+> progress in the game, it prices identically to Night Eyes' "Complete 5 dusk
+> walks", and, being a lifetime tally that predates v18, it needs no back-fill
+> — a save that already has five seaside walks holds the ability the instant
+> it loads, via `hasSkill`'s predicate half.
+>
+> **Save-format consequence, worth stating plainly.** A save written by a v18
+> **dev** build could persist `'sea-legs'`, and `sanitizeSkills` silently
+> dropped it as an unknown id. From v20 it is a known id, so such a save now
+> **keeps** it and really holds the ability. Save stays version 4; the only
+> other change is that `sanitizeSkills`' cap (the catalog length) goes 11 → 12.
+> No shipped release ever wrote the id, so no live player is affected either way.
+>
+> The original ruling follows unchanged.
+
 Cut per the spec's stated descope order. **Not for time — the ability as specified
 does not do what the spec claims.**
 

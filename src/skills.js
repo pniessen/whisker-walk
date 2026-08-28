@@ -1,4 +1,4 @@
-// v18 "Cat Skills" — the static catalog of the eleven earned abilities and
+// v18 "Cat Skills" — the static catalog of the twelve earned abilities and
 // the feat predicates that unlock them.
 //
 // This module is deliberately PURE and has ZERO imports: no THREE, no DOM,
@@ -14,8 +14,10 @@
 //     unconditionally cycle-free.
 //
 // Abilities are permanent and always-on: no loadout, no respec, no
-// prerequisites. Eleven flat unlocks across four families (the spec listed
-// twelve; Sea Legs was descoped — see the note at the end of SKILLS).
+// prerequisites. Twelve flat unlocks across four families — the spec's full
+// twelve. Sea Legs shipped one wave late: v18 descoped it (CF-12) and v20
+// reinstated it once water became solid; the history is on its entry below,
+// with a pointer at the end of SKILLS where the descope note used to sit.
 
 // ---------------------------------------------------------------------------
 // Hostile-state coercion
@@ -61,6 +63,17 @@ function topLevelTally(state, key) {
   if (!isPlainObject(state)) return 0;
   if (!Object.prototype.hasOwnProperty.call(state, key)) return 0;
   return countOf(state[key]);
+}
+
+// One lifetime per-area walk count out of state.walks (e.g. walks.seaside).
+// Structurally identical to featTally above and own-property-guarded for the
+// same reason: `walks` may be an object whose PROTOTYPE carries a 'seaside'
+// key, and an inherited tally must not buy an ability.
+function walkTally(state, area) {
+  const walks = state?.walks;
+  if (!isPlainObject(walks)) return 0;
+  if (!Object.prototype.hasOwnProperty.call(walks, area)) return 0;
+  return countOf(walks[area]);
 }
 
 // state.golden is an array of golden-mouse ids; a non-array (or a payload
@@ -119,7 +132,7 @@ export function friendRungs(charmer = false) {
 // `need`) so the UI can decide whether to show "27/25" or clamp it, and so
 // tests can distinguish need-1 / need / need+1.
 //
-// FEAT SOURCE MAPPING. Every one of the eleven feats now reads a counter
+// FEAT SOURCE MAPPING. Every one of the twelve feats now reads a counter
 // that faithfully means what the feat says, and the note on each entry says
 // which counter and why. Four of them (Spring Paws, Long Zoomies, Fence
 // Runner, Night Eyes) originally shipped reading a PROXY, because the action
@@ -218,6 +231,75 @@ export const SKILLS = [
     // counter. The displayed feat says "vantage perches" rather than
     // "climbs" so the player is told what actually advances the bar.
     progress: (state) => ({ have: featTally(state, 'perch'), need: 25 }),
+  },
+  {
+    id: 'sea-legs',
+    family: 'traversal',
+    name: 'Sea Legs',
+    effect: 'Ponds, canals and the sea stop being walls — you wade in and swim across at a little over half your walking pace.',
+    feat: 'Complete 5 seaside walks',
+    // ---------------------------------------------------------------------
+    // REINSTATED in v20. This is the spec's twelfth ability, descoped by v18's
+    // CF-12 and brought back once the ruling's premise stopped being true.
+    //
+    // WHY IT WAS CUT. CF-12: "water in this game has never carried colliders,
+    // so every water body is already a walk-over surface". An ability whose
+    // whole content is "water becomes traversable at reduced speed" was
+    // therefore a pure DOWNGRADE — it would have taken traversal the player
+    // already had and charged 0.55x for it. It was removed from the catalog
+    // outright rather than shown locked, because its feat was perfectly
+    // earnable and a visible entry would have fired the unlock celebration
+    // and then done nothing.
+    //
+    // WHAT CHANGED. v19 declared every water body as data in its area's
+    // `waters`, relocated the content that sat in the drink, and pinned with
+    // test/water.test.js that nothing the player must reach is wet and that
+    // the dry land of each area is one connected piece. v20 then made water
+    // solid in player.update's water pass. Water now BLOCKS, so this ability
+    // is the thing that opens it: strictly additive, never a downgrade.
+    //
+    // STILL A SHORTCUT, NEVER A KEY. Nothing in the game is gated behind it —
+    // test/water.test.js's reachability sweep proves every collectible,
+    // golden mouse, scenic, POI, perch and spawn is reachable dry in all
+    // three watered areas, and test/docks.test.js pins the same for the canal
+    // that splits the Docks. A player who never earns this loses distance,
+    // not content. That is the constraint any future water authoring inherits.
+    //
+    // THE FEAT: walks.seaside >= 5, unchanged from the spec, and the only
+    // predicate in the catalog that is retroactive off a PRE-v18 tally other
+    // than golden/friends. Three areas now hold water (park pond, seaside
+    // sea, Docks canal), so summing their walk counts was the obvious
+    // alternative and was rejected: park walks are far and away the most
+    // common, so the sum would hand this out almost incidentally; "walk 5
+    // times in areas that happen to have water" is a rule rather than an
+    // errand a child can read off the card and go do; and Sea Legs is named
+    // for the sea, which is the seaside and nowhere else.
+    //
+    // NEED 5, also unchanged. It was set when the ability was worth nothing,
+    // so re-examining it was the point — but a WALK is the coarsest unit of
+    // progress in this game (one whole session), which makes five of them in
+    // one specific area already among the longest errands in the catalog,
+    // and it keeps the two walk-counting feats (Night Eyes' "Complete 5 dusk
+    // walks") priced identically. The ability is a shortcut, not a key, so
+    // there is no content for a higher bar to protect.
+    //
+    // FAMILY: traversal, moved from the spec's mischief. The families group
+    // by what an ability DOES, and this one changes where the cat can go and
+    // how fast it moves there — the exact thing Spring Paws (reach), Long
+    // Zoomies (speed) and Fence Runner (chaining) share. Nothing about
+    // swimming is mischief; the v18 grid only put it there to make the
+    // families three apiece, and that arithmetic died with the descope
+    // (the catalog shipped 3/3/3/2). Traversal now holds four and mischief
+    // still holds two, which is the honest grouping and is also where a
+    // player wondering how to get across the canal will look.
+    //
+    // RETROACTIVE, deliberately: an existing save with five seaside walks
+    // holds this the instant it loads, via hasSkill's predicate half, before
+    // anything writes state.skills. See the union note on hasSkill below —
+    // the ability is live from load, and the celebration lands at the first
+    // discovery of the next walk (or at its end), exactly like the other
+    // retroactive abilities Whisker Sense, Charmer and Far Call.
+    progress: (state) => ({ have: walkTally(state, 'seaside'), need: 5 }),
   },
 
   // --- Senses ------------------------------------------------------------
@@ -358,16 +440,12 @@ export const SKILLS = [
     progress: (state) => ({ have: featTally(state, 'mischief'), need: 40 }),
   },
 
-  // DESCOPED: 'sea-legs' (mischief, "Complete 5 seaside walks") lived here and
-  // was removed outright — see CF-12 in the v18 plan. Water in this game has
-  // never carried colliders, so every water body is already a walk-over
-  // surface; "swim at reduced speed" would have made the cat strictly slower.
-  // It is removed rather than shown locked because its feat is perfectly
-  // earnable: leaving it in would fire the unlock celebration and then do
-  // nothing. Reinstating it is a v19 item, gated on water becoming real.
-  // A save that already persisted 'sea-legs' still loads: sanitizeSkills
-  // validates against SKILL_IDS and silently drops ids the catalog no longer
-  // knows, so the id disappears and every other earned ability survives.
+  // MOVED, not missing: 'sea-legs' was authored here by the spec (mischief),
+  // was DESCOPED from this spot in v18 by CF-12, and was REINSTATED in v20
+  // under Traversal once water went solid. Its entry above carries the whole
+  // history — why it was cut, what made the ruling's premise false, and why
+  // it changed family. This line exists so anyone who comes looking at the
+  // end of SKILLS (where the descope note used to live) finds the trail.
 ];
 
 // Catalog ids in catalog order. progression.js's sanitizeSkills imports this

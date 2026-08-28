@@ -103,7 +103,8 @@ function skillCard(state, skill) {
 // `state` may be anything at all — a brand-new save with no `skills`/`feats`
 // keys, or a hostile cloud payload — because every read goes through
 // skills.js, which never throws and coerces a missing counter to 0. A new
-// save therefore renders all eleven abilities locked at 0, which is the
+// save therefore renders every ability in the catalog locked at 0 (eleven as
+// v18 shipped, twelve since Sea Legs came back in v20), which is the
 // correct first-run screen, not an error case.
 export function renderSkillsHtml(state) {
   const earnedCount = SKILLS.filter((s) => hasSkill(state, s.id)).length;

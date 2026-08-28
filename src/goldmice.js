@@ -39,8 +39,11 @@ export const GOLD_MICE = {
   // that file's `perches`, and test/climbing.test.js BFSes the real array to
   // prove the hop counts.
   //
-  // None of the three is in or across the canal: the Docks must stay fully
-  // playable if Sea Legs is descoped (see docks.js's header).
+  // None of the three is in or across the canal: the Docks stays fully
+  // playable WITHOUT Sea Legs (see docks.js's header). Sea Legs shipped in the
+  // v19 collider wave, but the invariant is unchanged and still load-bearing —
+  // the ability is a shortcut, never a key, so no golden mouse may sit behind
+  // water.
   docks: [
     // top of the warehouse roof chain — "the high roof tank", y 6.2, the
     // highest standable point in the game and five hops from the ground

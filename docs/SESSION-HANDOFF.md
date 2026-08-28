@@ -104,13 +104,13 @@ in `docs/superpowers/`.
 - **v16 "Together"** — ghosts answer chat in the named-cat voices (Zeetoo/Rosa/Robbie/Hagrid reachable at last); co-walk verbs: pounce-tag (boop-style awardOnce convergence), mutual grooming (local detection from synced poses), duo goal (`goal-progress` events, `noteDuoRemote` never re-broadcasts); daily zoomies race (`src/race.js` — date+area-seeded 5-ring course, identical across devices, local best); sampled pet voices (`src/samples.js` — manifest-driven, synth fallback; `docs/RECORDING-PETS.md` tells the family how to record the real cats). **All new events ride the existing `event` broadcast kind — live-verified with a two-process bot round-trip through the real Supabase relay.**
 - **v17 "Cozy Den"** (density pass 2026-08-27 — the room went from ~15 meshes to ~263: floorboard seams, skirting and picture rail, framed pictures and a clock, a real north window with curtains and a built view of the neighbourhood beyond it, an upgraded fireplace, a reading corner, rugs, bowls, scattered toys, the den's first tippables, plus six MORE purchasable items on the same 15–60 ladder for twelve total and twelve anchor spots. New perches: windowsill, wall ledge, bookcase top — the last above the 1.6 climb budget, making ground → ledge → top the den's first real chain — plus a Sure Claws-gated mantelpiece. `DEN_CAMERA_WEDGE` in `den.js` now writes down the volume the follow camera occupies at spawn, and tests check every fixture and anchor spot against it) — walkable furnished den (`src/den.js` catalog + `src/world/den.js` interior; buy/place furniture from the home base; open fourth wall + inward spawn for the follow camera; cattree is a climbable perch; ghosts and stage-3 Mochi visit; fireplace-crackle ambience; `completeWalk(areaId)` so den walks count `walks.den`), seeded generative lofi music (`src/music.js` — pentatonic phrases, mood per walk type, `musicVolume` setting, mute-safe).
 - **Tab split (post-v17, `085f61e`)** — the home base now has **five tabs: Cats 🐱 / Accessories 🎩 / Social / Album / Settings** (v18 added a sixth, Skills 🐾, between Accessories and Social). The old Play tab was renamed Cats (cat pick, areas, den section); the slot-grouped accessory shop ("Dress up your cat") moved to its own Accessories tab. `resolveTab`'s unknown-id fallback clamps a stale persisted `'play'` id to `'cats'` (test-pinned in `test/hometabs.test.js`).
-- **v18 "Cat Skills"** — the wave that turned lifetime play into **earned abilities**. `src/skills.js` is a pure, zero-import catalog of **eleven** permanent always-on abilities across four families (Traversal 🧗 / Senses 👃 / Social 💕 / Mischief 😼), each gated on a **feat predicate** read straight off the save — no loadout, no respec, no prerequisites. `hasSkill(state, id)` is THE contract every ability gates its effect behind, and it returns the **union** of "the save lists it as earned" and "its predicate is satisfied right now", so an ability is never revoked by a later threshold change and never dead waiting on the UI. New **Skills 🐾** home-base tab (a sixth tab; render helper `renderSkillsHtml` lives in `hometabs.js`, not `homebase.js` — see the gotcha below) shows every ability with its progress bar and its feat.
+- **v18 "Cat Skills"** — the wave that turned lifetime play into **earned abilities**. `src/skills.js` is a pure, zero-import catalog of permanent always-on abilities across four families (**eleven** as v18 shipped; **twelve** since v20 reinstated Sea Legs — see the entry below) (Traversal 🧗 / Senses 👃 / Social 💕 / Mischief 😼), each gated on a **feat predicate** read straight off the save — no loadout, no respec, no prerequisites. `hasSkill(state, id)` is THE contract every ability gates its effect behind, and it returns the **union** of "the save lists it as earned" and "its predicate is satisfied right now", so an ability is never revoked by a later threshold change and never dead waiting on the UI. New **Skills 🐾** home-base tab (a sixth tab; render helper `renderSkillsHtml` lives in `hometabs.js`, not `homebase.js` — see the gotcha below) shows every ability with its progress bar and its feat.
   - **The challenge-unlock model.** Four feats originally read a *proxy* counter and were closed by adding a **parallel tally** next to the existing award (`feats.perch`, `feats.race`, `state.duskWalks`) rather than retyping the award. Award types are read by the goals system, so retyping one silently rebalances live gameplay. **If a future feat needs a counter that doesn't exist, add one alongside — never repurpose an award.**
   - **The Old Docks** (`src/world/docks.js`) — a fifth walk area: gantry crane, crates, plank bridges, a canal, three golden mice, its own dockside-rat critter, and (Task 4.0) its own harbour ambience (water lap + gulls + a rare distant horn). `walks.docks` joins the walk tallies.
   - **Extended rank ladder** — the ranks run further up (`src/progression.js` RANKS, topping out at Whisker Legend) so a player with lifetime points from eleven ability grinds still has somewhere to climb.
   - **Unlock celebration** — `src/game/celebrate.js` shows an ability card + `audio.unlockFanfare()` + an FX burst. Routed through one `celebrateNewSkills()` in `walk.js` so both the mid-walk and the end-of-walk unlock paths share it and neither can double-fire.
   - **Gifts** — `src/gifts.js` + Gift Paws lets you stash a gift at a scenic spot for ghosts and co-walkers to find; `state.gifts` holds at most 8 outstanding.
-  - **Descoped: Sea Legs** (twelfth ability, swimming). Water in this game has never carried colliders, so every water body is *already* a walk-over surface — the ability as specified would have made the cat strictly slower, and making water block would put the pond ducks behind an ability. **Removed from the catalog entirely, not left locked**, because its feat was perfectly earnable and would have celebrated an unlock that did nothing. Full reasoning: **CF-12** in the v18 plan. Reinstating it is a v19 item (make water real, relocate the pond ducks, then open it) — the Docks was deliberately authored for that, with a test pinning that nothing required sits in the canal.
+  - **Descoped in v18, REINSTATED in v20: Sea Legs** (the twelfth ability, swimming). *v18's ruling:* water in this game had never carried colliders, so every water body was *already* a walk-over surface — the ability as specified would have made the cat strictly slower — and it was **removed from the catalog entirely, not left locked**, because its feat was perfectly earnable and would have celebrated an unlock that did nothing. Full reasoning: **CF-12** in the v18 plan (now annotated **REVERSED**, the way CF-9 was annotated closed). *What reversed it:* v19 declared every water body as data and relocated the content sitting in it; v20 made water solid in `player.update`'s water pass. Water blocks now, so the ability opens something. **The catalog is twelve again**, and Sea Legs sits in **Traversal**, not the spec's Mischief — it changes where the cat can go and how fast, which is what the other three traversal abilities do. Feat unchanged (`walks.seaside >= 5`) and therefore **retroactive**: a save with five seaside walks holds it the instant it loads, via `hasSkill`'s predicate half, with the celebration landing at the first discovery of the next walk (or its end) exactly like Whisker Sense / Charmer / Far Call. **It is a shortcut, never a key** — `test/water.test.js`'s per-area reachability sweep pins that everything is reachable dry.
 - **v10 "Talk to the Cats"** — message a nearby AI cat with a curated phrase, get a personality-appropriate **canned** reply as a speech bubble (`src/catreplies.js`, pure `(personality,intent)→line`, all 10 voices incl. Hagrid clucks). Greetings count one **capped** friendship greet (shared `awardStrayGreet`, `stray.greeted` guard — never out-farms booping). **Keyboard chat** (`src/chatkeys.js` + `main.js` keydown): number row `1`–`0` sends *under pointer lock* (fixes desktop-unusable chat — the 💬 button was unreachable with the cursor captured), `Enter` opens the tray (releases pointer lock), `Esc` closes; chat now works in **solo** walks too. **Lesson:** the reply seed must be numeric — `session.walkStamp` is the STRING `'walk-<ms>'`, so `string + number` fed `pick()` `NaN>>>0=0` and made every same-breed cat reply identically; fixed with `seedFromCode(walkStamp)+hashName(name)`. Known limitation: named-cat voices (zeetoo/rosa/robbie/hagrid) aren't reachable in-game yet (strays spawn the 6 base breeds; ghost-reply wiring is a future follow-up).
 
 ## 4. Backend — the LIVE Supabase contract ⚠️
@@ -256,13 +256,21 @@ Every fix independently re-probed with hostile payloads.
   water, and `test/water.test.js` pins the invariants for every area — including
   a flood-fill proving the dry land is one connected component reachable from
   spawn on foot.
-  **The next wave is: turn `waters` into actual colliders (honouring `decks`),
-  relocate nothing further, then reinstate Sea Legs** (`src/skills.js`'s descope
-  note and CF-12 in the v18 plan are the context). Two things to carry in:
-  the park path has a vertex inside the pond so it will read as running into a
-  lake once water is solid (cosmetic, `park.js:26-27`); and the collision system
-  is circles-only (`{x,z,r}` in `player.js` and `world/spots.js`), so a rect
-  footprint needs either several circles or a format extension.
+  **DONE — the collider wave shipped in v20, and Sea Legs is reinstated with
+  it.** `player.update` gained its own water pass rather than entries in
+  `colliders` (that array is circles-only and the seaside sea is an 80x140
+  rect, so a rect footprint got a pass instead of a format extension — the
+  open question this entry used to carry). A grounded cat without the ability
+  is held `CAT_RADIUS` clear of every waterline; `decks` punch dry holes for
+  the pier and the two bridges; **only the player consults it** — critters,
+  strays, ghosts, remote pets and the thrown toy stay bounds-only, which is
+  what keeps the pond ducks paddling and answers CF-12's gating objection.
+  `sea-legs` is back in `src/skills.js` (Traversal, `walks.seaside >= 5`), and
+  `canSwim`/`setSwim`/`SWIM_SPEED = 0.55` in `player.js` were already wired
+  live through `hasSkill`, so the catalog entry was the only edit needed to
+  activate the whole path. Still open from this entry: the park path has a
+  vertex inside the pond, so it reads as running into a lake now that water is
+  solid (cosmetic, `park.js:26-27`).
 
 - **Superseded — kept for the reasoning.** v19 was previously BLOCKED on a content pass:
   Reinstating Sea Legs needs water to carry colliders, and a recon of every
@@ -341,9 +349,14 @@ Every fix independently re-probed with hostile payloads.
   tallies start at zero on an existing save rather than being reconstructed
   from history, which is a locked spec decision, not an oversight. `skills`
   is validated against the live catalog (`SKILL_IDS`) and capped at its
-  length, so an id the catalog no longer knows — e.g. `'sea-legs'` from a v18
-  dev build — is simply dropped and the rest of the save survives intact
-  (test-pinned). Any future SHAPE change still needs a version bump +
+  length, so an id the catalog does not know is simply dropped and the rest of
+  the save survives intact (test-pinned). **v20 changed one case of that
+  deliberately:** `'sea-legs'` used to be such an id and is a real catalog
+  entry again, so a save written by a v18 **dev** build carrying it now
+  **keeps** it and really holds the ability (the feat that would have earned
+  it — `walks.seaside >= 5` — is retroactive anyway, so the two halves of
+  `hasSkill`'s union agree). No shipped release ever wrote the id. The cap
+  moved 11 → 12 with the catalog; save stays **version 4**. Any future SHAPE change still needs a version bump +
   migration + no-data-loss tests (the v11 3→4 migration is the template).
 - **Remaining backlog:** async/offline friend messaging (needs tables + RPCs +
   moderation); relay quests; emote wheel; leaderboards / photo wall;

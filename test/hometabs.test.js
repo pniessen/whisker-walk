@@ -101,8 +101,11 @@ describe('renderSkillsHtml', () => {
     expect(html).not.toContain('width:108%');
     expect(html).toContain('Tip over 40 things — 27/40');
     expect(html.match(/Earned ✅/g)).toHaveLength(1);
-    // Denominator is SKILLS.length, not a literal — eleven since CF-12.
-    expect(html).toContain('Abilities earned: 1/11');
+    // Denominator is SKILLS.length in the renderer, not a literal — the
+    // literal here is the point of the assertion, so it moves with the
+    // catalog: eleven from the CF-12 descope, twelve since the v20 Sea Legs
+    // reinstatement put the spec's full set back.
+    expect(html).toContain('Abilities earned: 1/12');
   });
 
   it('survives a hostile payload without leaking markup or NaN', () => {

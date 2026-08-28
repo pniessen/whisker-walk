@@ -35,7 +35,7 @@ import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { createGoals } from '../goals.js';
 import { rankFor } from '../progression.js';
-import { zoomTuning } from '../player.js';
+import { zoomTuning, canSwim } from '../player.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
@@ -113,9 +113,14 @@ export function createWalkLifecycle({
   // — which is also why endWalk now routes its (previously discarded)
   // recordSkillUnlocks call through here instead of calling it directly.
   // Doing both is safe by construction, and it is what catches the two
-  // ability that CANNOT complete mid-walk: Night Eyes is unlocked by
-  // completeWalk's own duskWalks tally, which does not exist until the walk
-  // is over. (Sea Legs was the other; it was descoped — see skills.js.)
+  // TWO abilities that CANNOT complete mid-walk, both unlocked by a tally
+  // completeWalk itself owns and which does not exist until the walk is over:
+  // Night Eyes (duskWalks) and — as of the v19 collider wave — Sea Legs
+  // (walks.seaside). Sea Legs was descoped in v18 and reinstated once water
+  // became solid, so it is now genuinely the second case this guards, not the
+  // hypothetical one the comment used to describe. completeWalk runs BEFORE
+  // celebrateNewSkills in endWalk, which is what makes the fifth seaside walk
+  // celebrate on the walk that earns it rather than the one after.
   function celebrateNewSkills() {
     const added = progression.recordSkillUnlocks(unlockedSkills(progression.state));
     if (!added.length) return added;
@@ -352,7 +357,13 @@ export function createWalkLifecycle({
     // cross check needs < 1.2 and quest completion < 2. clearSpot is
     // deterministic, so the shared-seed race course stays identical across
     // devices (it derives from static area data only).
-    const walkPois = areaData.pois.map((p) => clearSpot(p, areaData.colliders, areaData.bounds));
+    //
+    // `waters` joins that list in v20, now that water blocks: a ring in the
+    // pond is exactly as uncrossable as a ring inside the fountain, and race.js
+    // checks ONLY the current ring with no skip and no timeout, so either
+    // stalls the whole daily race. No shipped POI moves because of it (v19
+    // relocated the one that would have) — it is the guard rail, not a fix.
+    const walkPois = areaData.pois.map((p) => clearSpot(p, areaData.colliders, areaData.bounds, areaData.waters));
 
     const cat = buildCat(state.equipped.cat, {
       collar: state.equipped.collar,
@@ -378,6 +389,14 @@ export function createWalkLifecycle({
     // takes effect on the next walk, which is the same "next walk" boundary
     // the ability's own feat (finishing the daily race) already sits behind.
     player.setZoomTuning(zoomTuning(progression.state));
+    // v20 Sea Legs, wired the same way and for the same reason. 'sea-legs' is
+    // not in the skills catalog yet — hasSkill returns false for an unknown
+    // id, so every save today is a non-swimmer and water is simply solid — but
+    // the call is live rather than a stubbed constant, so the wave that adds
+    // the catalog entry activates swimming here with no edit. Read once per
+    // walk, the same granularity (and the same "next walk" boundary) as the
+    // zoom tuning above.
+    player.setSwim(canSwim(progression.state));
     camera.position.copy(cat.position).add(cameraOffset(0, 0.18));
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 

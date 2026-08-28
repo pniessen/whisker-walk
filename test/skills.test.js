@@ -24,11 +24,15 @@ function expectBoundary(id, atCount) {
 const featState = (type) => (n) => ({ feats: { [type]: n } });
 
 describe('skills catalog', () => {
-  it('has the eleven shipped abilities across four families', () => {
-    // Eleven, not the spec's twelve: Sea Legs was descoped (CF-12).
-    expect(SKILLS).toHaveLength(11);
+  it('has the twelve shipped abilities across four families', () => {
+    // Twelve — the spec's full set. Sea Legs was descoped in v18 (CF-12,
+    // "water is already a walk-over surface, so swimming is a downgrade")
+    // and reinstated in v20 once water went solid. It sits in TRAVERSAL, not
+    // the spec's mischief: it changes where the cat can go and how fast it
+    // gets there, which is what the other three traversal abilities do.
+    expect(SKILLS).toHaveLength(12);
     expect(SKILL_IDS).toEqual([
-      'spring-paws', 'long-zoomies', 'fence-runner',
+      'spring-paws', 'long-zoomies', 'fence-runner', 'sea-legs',
       'twitchy-nose', 'night-eyes', 'whisker-sense',
       'charmer', 'far-call', 'gift-paws',
       'sure-claws', 'big-swat',
@@ -36,20 +40,25 @@ describe('skills catalog', () => {
     expect(SKILL_FAMILIES.map((f) => f.id)).toEqual(['traversal', 'senses', 'social', 'mischief']);
   });
 
-  it('no longer carries Sea Legs in any form', () => {
-    // Removed outright rather than left locked: its feat (5 seaside walks) is
-    // perfectly earnable, so a visible entry would celebrate an unlock and
-    // then do nothing. See CF-12.
-    expect(SKILL_IDS).not.toContain('sea-legs');
-    expect(skillProgress({ walks: { seaside: 99 } }, 'sea-legs')).toBe(null);
-    // Not even 500 seaside walks can conjure it back.
-    expect(hasSkill({ walks: { seaside: 500 } }, 'sea-legs')).toBe(false);
-    expect(unlockedSkills({ walks: { neighborhood: 99, park: 99, seaside: 99, den: 99 } })).toEqual([]);
+  it('carries Sea Legs as a real, reachable traversal ability', () => {
+    // The reinstatement, asserted as the exact inverse of the descope
+    // assertions it replaces: the id is in the catalog, skillProgress
+    // answers for it instead of returning null, and seaside walks unlock it.
+    const entry = SKILLS.find((s) => s.id === 'sea-legs');
+    expect(entry.family).toBe('traversal');
+    expect(entry.name).toBe('Sea Legs');
+    expect(skillProgress({ walks: { seaside: 99 } }, 'sea-legs')).toEqual({ have: 99, need: 5 });
+    expect(hasSkill({ walks: { seaside: 500 } }, 'sea-legs')).toBe(true);
+    // ...and it is the ONLY thing a pile of walk counts unlocks: no other
+    // predicate in the catalog reads state.walks.
+    expect(unlockedSkills({ walks: { neighborhood: 99, park: 99, seaside: 99, den: 99, docks: 99 } }))
+      .toEqual(['sea-legs']);
   });
 
   it('leaves mischief with exactly two abilities', () => {
-    // The family the descope shrank — the Skills tab still renders a
-    // two-card section for it.
+    // Mischief shipped at two in v18 because Sea Legs was cut from it, and
+    // stays at two now that it came back under Traversal instead. The Skills
+    // tab still renders a two-card section for it.
     expect(SKILLS.filter((s) => s.family === 'mischief').map((s) => s.id))
       .toEqual(['sure-claws', 'big-swat']);
   });
@@ -68,14 +77,16 @@ describe('skills catalog', () => {
     }
   });
 
-  it('gives every family at least two abilities, three outside mischief', () => {
-    // Three per family was the spec's shape; the Sea Legs descope left
-    // mischief with two, and every family must still be non-degenerate so
-    // the Skills tab never renders a one-card or empty section.
-    for (const f of SKILL_FAMILIES) {
-      const members = SKILLS.filter((s) => s.family === f.id);
-      expect(members).toHaveLength(f.id === 'mischief' ? 2 : 3);
-    }
+  it('gives every family at least two abilities, and none is degenerate', () => {
+    // Three per family was the spec's shape. The v18 Sea Legs descope left
+    // mischief with two, and the v20 reinstatement put Sea Legs back under
+    // traversal rather than mischief, so the catalog is 4/3/3/2. What the
+    // Skills tab actually needs is only that no section is empty or a lone
+    // card, so that is what is asserted, alongside the exact shape.
+    const sizes = SKILL_FAMILIES.map((f) => SKILLS.filter((s) => s.family === f.id).length);
+    expect(sizes).toEqual([4, 3, 3, 2]);
+    for (const n of sizes) expect(n).toBeGreaterThanOrEqual(2);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(SKILLS.length); // no orphan family
   });
 
   it('uses unique ids', () => {
@@ -101,6 +112,24 @@ describe('feat predicates at their boundaries', () => {
     expect(hasSkill({ feats: { scenic: 999 } }, 'spring-paws')).toBe(false);
     expect(hasSkill({ feats: { scenic: 999 } }, 'fence-runner')).toBe(false);
     expect(skillProgress({ feats: { scenic: 999, perch: 3 } }, 'spring-paws')).toEqual({ have: 3, need: 10 });
+  });
+
+  it('Sea Legs needs 5 seaside walks (walks.seaside)', () => {
+    expectBoundary('sea-legs', (n) => ({ walks: { seaside: n } }));
+    // Pinned as literals too, not just via expectBoundary's self-read: both
+    // the counter and the threshold were re-examined at the v20
+    // reinstatement and deliberately kept at the spec's originals.
+    expect(skillProgress({}, 'sea-legs')).toEqual({ have: 0, need: 5 });
+    expect(SKILLS.find((s) => s.id === 'sea-legs').feat).toBe('Complete 5 seaside walks');
+  });
+
+  // The feat is SEASIDE walks, not "walks in an area that has water" —
+  // three areas hold water now (park pond, seaside sea, Docks canal) and
+  // summing them was the rejected alternative, so no other area's tally may
+  // advance this bar, alone or in combination.
+  it('does not let park, docks or den walks unlock Sea Legs', () => {
+    expect(hasSkill({ walks: { park: 999, docks: 999, den: 999, neighborhood: 999 } }, 'sea-legs')).toBe(false);
+    expect(skillProgress({ walks: { park: 99, seaside: 2, docks: 99 } }, 'sea-legs')).toEqual({ have: 2, need: 5 });
   });
 
   it('Long Zoomies needs 3 race finishes (feats.race)', () => {
@@ -217,6 +246,31 @@ describe('hasSkill / unlockedSkills', () => {
     expect(unlockedSkills({ feats: { mischief: 40 } })).toEqual(['sure-claws', 'big-swat']);
   });
 
+  it('a persisted sea-legs is a genuine unlock again, not an inert id', () => {
+    // The exact inverse of the v18 assertion this replaces. A save written
+    // by a v18 dev build carrying 'sea-legs' had the id silently dropped by
+    // sanitizeSkills; from v20 it is a known id, so it survives the load and
+    // the ability it names is really held.
+    expect(hasSkill({ skills: ['sea-legs'] }, 'sea-legs')).toBe(true);
+    expect(unlockedSkills({ skills: ['sea-legs'] })).toEqual(['sea-legs']);
+  });
+
+  it('hands Sea Legs to an existing 5-seaside-walk save the instant it loads', () => {
+    // THE point of keeping walks.seaside as the counter: it is a lifetime
+    // tally that predates v18, so no back-fill is needed and no new walk is
+    // required. hasSkill's predicate half fires before anything has written
+    // state.skills — this is a save straight out of localStorage, `skills`
+    // absent entirely, exactly as a pre-v18 payload looks.
+    const oldSave = { walks: { neighborhood: 12, park: 6, seaside: 5, den: 1 }, feats: {}, golden: [] };
+    expect(oldSave.skills).toBe(undefined);
+    expect(hasSkill(oldSave, 'sea-legs')).toBe(true);
+    // ...and it is the only thing that save unlocks, so the celebration it
+    // eventually fires names exactly one ability.
+    expect(unlockedSkills(oldSave)).toEqual(['sea-legs']);
+    // Four seaside walks is still four seaside walks.
+    expect(hasSkill({ walks: { seaside: 4 } }, 'sea-legs')).toBe(false);
+  });
+
   it('unions persisted and predicate-satisfied ids, in catalog order', () => {
     // The persisted id sorts into the MIDDLE of the derived pair, so this
     // pins catalog order rather than mere concatenation.
@@ -251,9 +305,11 @@ describe('hostile and malformed state', () => {
     { race: { bestMs: -5 } },
     { skills: 'big-swat' },
     { skills: { 'big-swat': true } },
-    // A stale save still naming the descoped ability: an unknown id must be
-    // inert, never a phantom unlock.
-    { skills: ['sea-legs'] },
+    // NOTE: `{ skills: ['sea-legs'] }` used to live here, asserting that the
+    // descoped id was inert. It is a REAL catalog id again (v20), so it is
+    // now a legitimate unlock and belongs nowhere near a junk list — see
+    // "a persisted sea-legs is a genuine unlock again" below, which asserts
+    // the new behaviour explicitly rather than leaving the case deleted.
     { duskWalks: '9' },
     { duskWalks: NaN },
     { duskWalks: Infinity },
@@ -289,6 +345,11 @@ describe('hostile and malformed state', () => {
     // is on the state object itself rather than on a nested tally bag.
     const state = Object.create({ duskWalks: 999 });
     expect(hasSkill(state, 'night-eyes')).toBe(false);
+    // state.walks is a nested tally bag like feats, so Sea Legs takes the
+    // same guard.
+    const walks = Object.create({ seaside: 999 });
+    expect(hasSkill({ walks }, 'sea-legs')).toBe(false);
+    expect(skillProgress({ walks }, 'sea-legs')).toEqual({ have: 0, need: 5 });
   });
 
   it('handles a JSON-parsed __proto__ payload without unlocking', () => {
