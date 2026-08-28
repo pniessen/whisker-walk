@@ -247,7 +247,24 @@ Every fix independently re-probed with hostile payloads.
      read before touching it. **Not yet seen on screen** — see that §7.
   4. Doc updates: this file, and the v18 plan's CF-9 entry annotated closed.
 
-- **v19 "make water real" is SPECCED-BY-RECON but BLOCKED on a content pass.**
+- **v19 water: the CONTENT PASS IS DONE (commit `a4a9cec`); the COLLIDER WAVE
+  is what remains.** Areas now declare their water as data (`waters`, in
+  `builder.js` — `{kind:'circle'|'rect'}` plus optional `decks` for dry
+  structure standing over water: the seaside pier, the Docks' two bridges).
+  Water meshes are built FROM those records, so mesh and data cannot drift.
+  Four stranded items were relocated, `scent.js` now keeps dig treats out of
+  water, and `test/water.test.js` pins the invariants for every area — including
+  a flood-fill proving the dry land is one connected component reachable from
+  spawn on foot.
+  **The next wave is: turn `waters` into actual colliders (honouring `decks`),
+  relocate nothing further, then reinstate Sea Legs** (`src/skills.js`'s descope
+  note and CF-12 in the v18 plan are the context). Two things to carry in:
+  the park path has a vertex inside the pond so it will read as running into a
+  lake once water is solid (cosmetic, `park.js:26-27`); and the collision system
+  is circles-only (`{x,z,r}` in `player.js` and `world/spots.js`), so a rect
+  footprint needs either several circles or a format extension.
+
+- **Superseded — kept for the reasoning.** v19 was previously BLOCKED on a content pass:
   Reinstating Sea Legs needs water to carry colliders, and a recon of every
   water body found this must come first:
   - `src/world/park.js:89` has a POI at **(-14, 2) — the pond's exact centre**.
