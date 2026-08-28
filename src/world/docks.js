@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
+import { SURE_CLAWS_ID } from '../climbing.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -57,6 +58,17 @@ export function build(scene) {
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
+
+  // v18 CF-9b — Sure Claws' gated perches (see the same block in
+  // neighborhood.js for why they carry no label and no vantage).
+  //
+  // THE CANAL RULE APPLIES TO THESE TOO. Every record pushed here must sit at
+  // |z| > CANAL_HALF, exactly like a shipped perch: test/docks.test.js walks
+  // `perches` in full and does not care whether a perch is gated, because a
+  // future water-collider wave will not care either. The market stalls sit at
+  // |z| >= 9 and the two quayside benches at |z| = 8.6, so the nearest gated
+  // perch is five metres clear of the water.
+  const clawPerches = [];
   // The collision system is circles only, so a rectangular building is
   // approximated by two circles laid along its long axis. Each radius is
   // chosen to cover the SHORT axis fully (the same generous, slightly
@@ -151,6 +163,13 @@ export function build(scene) {
   for (const [x, z, rot, color] of stalls) {
     scene.add(b.marketStall(x, z, rot, color));
     addC(x, z, 1.2);
+    // CF-9b: the awnings were the largest block of pure scenery in the game —
+    // eight canvas roofs at builder.js's STALL_AWNING, standing over the
+    // densest tippable field in the game, and not one of them climbable. A
+    // 1.3 hop is inside even the baseline climb, so what gates them is the
+    // ability, not the height; the stall's own 1.2 collider stops the cat at
+    // 1.55, comfortably inside the 2.6 reachHigh a perch above y 1 gets.
+    clawPerches.push({ x, z, y: b.STALL_AWNING, kind: 'roof', requires: SURE_CLAWS_ID });
   }
 
   // the fish market shed — a LOW warehouse (h 1.8, parapet top y 2.1). Its
@@ -199,8 +218,16 @@ export function build(scene) {
     scene.add(b.barrel(x, z, c));
   }
   for (const [x, z] of [[-31, -26], [29, -31], [-32, 27], [24, 34], [8, -30], [-8, 32]]) scene.add(b.rock(x, z));
+  // The two quay benches, one a side. Scenery until CF-9b, and the only
+  // gated perches on the north bank — without them a Sure Claws cat would
+  // find eight new things to climb in the market and nothing at all among the
+  // warehouses. Both are 5.1 clear of the canal edge.
   scene.add(b.bench(-2.4, 8.6, Math.PI / 2));
   scene.add(b.bench(2.4, -8.6, Math.PI / 2));
+  clawPerches.push(
+    { x: -2.4, z: 8.6, y: 0.58, kind: 'furniture', requires: SURE_CLAWS_ID },
+    { x: 2.4, z: -8.6, y: 0.58, kind: 'furniture', requires: SURE_CLAWS_ID },
+  );
   scene.add(b.billboard(-4, -30, 0, 'FRESH CATCH', 'the old docks fish market · open late'));
   addC(-4, -30, 2.3);
   scene.add(b.bike(9.5, 7.6, 1.2));
@@ -292,8 +319,10 @@ export function build(scene) {
     // without re-deriving the geometry.
     //
     // The rule (src/climbing.js): one hop may gain at most `budget.climb` of
-    // height (1.6 with no skills, 2.2 with Spring Paws, 1.85 with Sure
-    // Claws), and the target must be within `reachHigh` (2.6 / 3.2) if it
+    // height (1.6 with no skills, 2.2 with Spring Paws; Sure Claws lifts
+    // that only on 'tree' and 'fence' perches, of which the Docks has none,
+    // so every chain below is climbed on 1.6 or 2.2 and nothing else), and
+    // the target must be within `reachHigh` (2.6 / 3.2) if it
     // sits above y 1, or `reachLow` (1.2 / 1.7) if it does not. On the ground
     // the cat can walk to any (x, z), so a ground -> perch hop is measured
     // straight up; while perched it is snapped to the perch's own
@@ -312,8 +341,9 @@ export function build(scene) {
     //   reaches landing 1 and landing 1 reaches landing 2, which is the one
     //   place the ability shortens this chain — five hops become four. It
     //   never becomes one; the tank is out of ground reach under every
-    //   budget. Sure Claws' 1.85 sits deliberately just under the 1.9
-    //   landing, exactly as it sits just under the seaside dune ledge.
+    //   budget. The y 1.9 landing used to sit just above Sure Claws' old
+    //   global 1.85 lift; since CF-9b made that lift per-kind, the landing is
+    //   a 'roof' and Sure Claws does not reach it off the cobbles at all.
     //
     // B — FISH MARKET ROOF (south bank). Two hops, one with Spring Paws.
     //   ground -> crate      ( 4.0,-20.2, 1.10)  climb 1.10
@@ -327,33 +357,41 @@ export function build(scene) {
     //          -> crane deck (-18.4,-13.6, 4.00)  climb 1.40, horiz 2.22
     //          -> crane cab  (-17.0,-13.0, 5.40)  climb 1.40, horiz 1.52
     //   Every rung is a 1.3-1.4 climb, i.e. inside the baseline budget and
-    //   outside every double of it, so neither Spring Paws (2.2) nor Sure
-    //   Claws (1.85) can skip a step. This is the chain that stays honest.
+    //   outside every double of it, so no budget under 2.6 can skip a step —
+    //   not Spring Paws (2.2), and not Sure Claws, which does not lift
+    //   anything on this chain's kinds at all. This chain stays honest.
     //
     // Six vantage perches — more than any other area, and the reason the
     // Docks is where Spring Paws ("reach 10 vantage perches") and Fence
     // Runner ("reach 25") actually get finished.
     // =======================================================================
+    // `kind` (v18 CF-9b) names the prop under each perch. The Docks is all
+    // 'crate' and 'roof': there is not a tree or a fence in the district, so
+    // Sure Claws' height lift is inert here BY CONTENT and every chain above
+    // is climbed on the same numbers it shipped with. What the ability does
+    // in this area is open the market awnings and the quay benches.
     perches: [
       // chain A
-      { x: 16.2, z: 9.2, y: 1.15 },
-      { x: 16.2, z: 9.2, y: 2.4 },
-      { x: 18.0, z: 10.4, y: 1.9 },
-      { x: 18.0, z: 10.4, y: 3.9 },
-      { x: 17.0, z: 12.1, y: 5.3, label: 'warehouse parapet', vantage: true },
-      { x: 18.6, z: 13.6, y: 6.2, label: 'the high roof tank', vantage: true },
+      { x: 16.2, z: 9.2, y: 1.15, kind: 'crate' },
+      { x: 16.2, z: 9.2, y: 2.4, kind: 'crate' },
+      { x: 18.0, z: 10.4, y: 1.9, kind: 'roof' },
+      { x: 18.0, z: 10.4, y: 3.9, kind: 'roof' },
+      { x: 17.0, z: 12.1, y: 5.3, kind: 'roof', label: 'warehouse parapet', vantage: true },
+      { x: 18.6, z: 13.6, y: 6.2, kind: 'roof', label: 'the high roof tank', vantage: true },
       // chain B
-      { x: 4.0, z: -20.2, y: 1.1 },
-      { x: 5.2, z: -21.1, y: 2.1, label: 'fish-market roof', vantage: true },
+      { x: 4.0, z: -20.2, y: 1.1, kind: 'crate' },
+      { x: 5.2, z: -21.1, y: 2.1, kind: 'roof', label: 'fish-market roof', vantage: true },
       // chain C
-      { x: -19.6, z: -16.6, y: 1.3 },
-      { x: -20.2, z: -14.9, y: 2.6, label: 'stacked container', vantage: true },
-      { x: -18.4, z: -13.6, y: 4.0, label: 'crane deck', vantage: true },
-      { x: -17.0, z: -13.0, y: 5.4, label: 'crane cab', vantage: true },
+      { x: -19.6, z: -16.6, y: 1.3, kind: 'crate' },
+      { x: -20.2, z: -14.9, y: 2.6, kind: 'crate', label: 'stacked container', vantage: true },
+      { x: -18.4, z: -13.6, y: 4.0, kind: 'roof', label: 'crane deck', vantage: true },
+      { x: -17.0, z: -13.0, y: 5.4, kind: 'roof', label: 'crane cab', vantage: true },
       // quayside bollards — standalone low perches (3.5 clear of the water,
       // so none of them is a stepping stone into the canal)
-      { x: -18, z: 4.2, y: 0.55 }, { x: 6, z: 4.2, y: 0.55 },
-      { x: -6, z: -4.2, y: 0.55 }, { x: 18, z: -4.2, y: 0.55 },
+      { x: -18, z: 4.2, y: 0.55, kind: 'furniture' }, { x: 6, z: 4.2, y: 0.55, kind: 'furniture' },
+      { x: -6, z: -4.2, y: 0.55, kind: 'furniture' }, { x: 18, z: -4.2, y: 0.55, kind: 'furniture' },
+      // Sure Claws only: eight market awnings and the two quay benches.
+      ...clawPerches,
     ],
   };
 }

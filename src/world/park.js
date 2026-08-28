@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
+import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 export function build(scene) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
@@ -8,6 +9,17 @@ export function build(scene) {
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
+
+  // v18 CF-9b — Sure Claws' "props that were scenery become climbable".
+  // Gated by `requires`, unlabelled and non-vantage; see the same block in
+  // neighborhood.js for why all three of those matter.
+  //
+  // The park is the area where the height half of the ability is decided:
+  // sixteen scenery trees open here, and the one tree that ALREADY carries a
+  // perch — the oak at (4.5, 27.3), branch y 2.1, holding gm-park-2 and
+  // feather-5 — is exactly what caps climbing.js's 'tree' ceiling at 2.0. It
+  // is not in this list: it is a chain, not scenery, and it stays a chain.
+  const clawPerches = [];
 
   // winding path: south gate → fountain → pond → north meadow
   scene.add(b.path(0, 48, 0, 20, 3));
@@ -45,8 +57,16 @@ export function build(scene) {
   const treeSpots = [[-24, 30], [-30, 10], [-26, -14], [-16, -34], [8, -38], [22, -22],
     [28, 0], [24, 24], [12, 36], [-6, 34], [6, -8], [16, -6]];
   for (const [x, z] of treeSpots) {
-    scene.add(b.tree(x, z, 1.2 + ((x + z) % 4) * 0.15));
+    // Local, then passed to both the model and the fork perch — see the same
+    // note in neighborhood.js. Every park tree is scale 1.2 or more, so all
+    // sixteen forks land on TREE_FORK_MAX (1.9) rather than on trunk-top
+    // minus 0.1: a big park tree gets a LOW fork, which is both the honest
+    // reading of a wide oak and the reason none of them out-tops the 2.1
+    // branch on the oak that holds the golden mouse.
+    const scale = 1.2 + ((x + z) % 4) * 0.15;
+    scene.add(b.tree(x, z, scale));
     addC(x, z, 0.7);
+    clawPerches.push(sureClawsTreePerch(x, z, scale));
   }
   for (const [x, z] of [[-10, 26], [10, 18], [-20, -6], [4, -24]]) scene.add(b.bush(x, z));
 
@@ -55,6 +75,7 @@ export function build(scene) {
   for (const [x, z] of scatterTrees) {
     scene.add(b.tree(x, z, 1.1));
     addC(x, z, 0.6);
+    clawPerches.push(sureClawsTreePerch(x, z, 1.1));
   }
   for (const [x, z, seed] of [[-40, -40, 1], [40, 40, 2], [40, -40, 3]]) scene.add(b.leafLitter(x, z, seed));
   for (const [x, z] of [[-35, -20], [35, 20], [-35, 35], [35, -30]]) scene.add(b.bush(x, z));
@@ -67,7 +88,12 @@ export function build(scene) {
   scene.add(b.bench(3, 26, -0.5));
   scene.add(b.bench(-4, 14, 0.7));
   scene.add(b.bench(-10, -20, 2.2));
+  // The meadow bench — the one bench in the park that never got a perch,
+  // 24m from the nearest perched bench and so out of every reach and every
+  // fence-run dash. Opened by CF-9b at the same 0.58 seat height the other
+  // three ship at.
   scene.add(b.bench(14, -28, -2.4));
+  clawPerches.push({ x: 14, z: -28, y: 0.58, kind: 'furniture', requires: SURE_CLAWS_ID });
   for (const [x, z] of [[2, 40], [-12, 10], [-4, -14], [10, -32]]) scene.add(b.lampPost(x, z));
 
   scene.add(b.billboard(6, 38, -0.5));
@@ -122,10 +148,17 @@ export function build(scene) {
       { x: 7, z: 29, kind: 'can' }, { x: -3, z: 15, kind: 'pot' },
       { x: -9, z: -21, kind: 'bin' }, { x: 15, z: -27, kind: 'pot' },
     ],
+    // `kind` (v18 CF-9b): the fountain rim is 'stone' and the oak branch is
+    // the game's one shipped 'tree' — the perch that caps Sure Claws' tree
+    // ceiling at 2.0, one tenth below it, so this chain can never be taken
+    // in a single hop off the grass.
     perches: [
-      { x: 3, z: 26, y: 0.58 }, { x: -4, z: 14, y: 0.58 }, { x: -10, z: -20, y: 0.58 },
-      { x: 2.8, z: 22.2, y: 0.75, label: 'fountain-edge lookout', vantage: true },
-      { x: 4.5, z: 27.3, y: 2.1, label: 'oak branch lookout', vantage: true },
+      { x: 3, z: 26, y: 0.58, kind: 'furniture' }, { x: -4, z: 14, y: 0.58, kind: 'furniture' },
+      { x: -10, z: -20, y: 0.58, kind: 'furniture' },
+      { x: 2.8, z: 22.2, y: 0.75, kind: 'stone', label: 'fountain-edge lookout', vantage: true },
+      { x: 4.5, z: 27.3, y: 2.1, kind: 'tree', label: 'oak branch lookout', vantage: true },
+      // Sure Claws only: sixteen tree forks and the meadow bench.
+      ...clawPerches,
     ],
   };
 }

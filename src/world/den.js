@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { DEN_SPOTS } from '../den.js';
+import { SURE_CLAWS_ID } from '../climbing.js';
 
 const mat = (color, extra) => litMaterial(color, extra);
 const box = (w, h, d, color, extra) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, extra));
@@ -41,7 +42,14 @@ function buildCatTree(spot) {
   return {
     mesh: g,
     collider: { x: spot.x, z: spot.z, r: 0.5 },
-    perch: { x: spot.x, z: spot.z, y: 1.6, label: 'top of the cat tree', vantage: true },
+    // kind 'furniture' (v18 CF-9b): free-standing, not part of a structure,
+    // and pointedly NOT 'tree' despite the name — Sure Claws' height lift is
+    // for bark, and tagging a carpeted post 'tree' would hand the den's one
+    // shipped perch a 2.0 ceiling for a pun.
+    perch: {
+      x: spot.x, z: spot.z, y: 1.6, kind: 'furniture',
+      label: 'top of the cat tree', vantage: true,
+    },
   };
 }
 
@@ -60,7 +68,17 @@ function buildFishTank(spot) {
     g.add(fish);
   }
   g.position.set(spot.x, 0, spot.z);
-  return { mesh: g, collider: { x: spot.x, z: spot.z, r: 0.5 } };
+  return {
+    mesh: g,
+    collider: { x: spot.x, z: spot.z, r: 0.5 },
+    // v18 CF-9b, Sure Claws. The tank's lid is at y 0.9 (stand 0.4 + tank
+    // 0.5 above it) and has been a solid surface the cat could not get onto
+    // since v17 — the den's own "prop that was scenery". Gated by `requires`,
+    // so a den without the ability looks and plays exactly as it does today,
+    // and unlabelled/non-vantage like every other gated perch: sitting on
+    // your own furniture is not a discovery.
+    perch: { x: spot.x, z: spot.z, y: 0.9, kind: 'furniture', requires: SURE_CLAWS_ID },
+  };
 }
 
 function buildBed(spot) {
@@ -94,7 +112,14 @@ function buildScratcher(spot) {
   base.position.y = 0.04;
   g.add(base);
   g.position.set(spot.x, 0, spot.z);
-  return { mesh: g, collider: { x: spot.x, z: spot.z, r: 0.3 } };
+  return {
+    mesh: g,
+    collider: { x: spot.x, z: spot.z, r: 0.3 },
+    // v18 CF-9b, Sure Claws — the scratching post's flat top at y 1.1. The
+    // one piece of den furniture whose whole purpose is claws, so it is the
+    // one the ability was always going to open.
+    perch: { x: spot.x, z: spot.z, y: 1.1, kind: 'furniture', requires: SURE_CLAWS_ID },
+  };
 }
 
 const BUILDERS = {

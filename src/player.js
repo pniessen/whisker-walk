@@ -121,6 +121,111 @@ export function zoomState(prev, dt, { active, stalking, speedRatio, speedFactor 
   return { charging: !zooming, zooming, time, idle: 0, banked: false };
 }
 
+// ---------------------------------------------------------------------------
+// v18 CF-9a — the pounce hop arc, and Spring Paws' half of it.
+//
+// WHAT WAS MISSING. Spring Paws ships as two promises: "your pounce jump goes
+// markedly higher" and "you can reach perches a longer hop away". Only the
+// second one existed — climbing.js's SPRING_PAWS_CLIMB (1.6 -> 2.2) is the
+// perch budget and it works. The first one had nothing behind it at all:
+// pounce() below was a purely horizontal velocity lunge (dir.setY(0)), and
+// avatar.position.y was pinned to api.perchY every single frame, so the game
+// had no vertical movement of any kind for an ability to make "higher".
+//
+// WHY THIS IS FEEL AND NOT RULE. The hop is a RENDER offset added on top of
+// api.perchY; it never writes perchY and nothing reads it back. That is not
+// tidiness, it is the only safe shape:
+//
+//   * player.js's collider push is skipped whenever perchY !== 0 (a perched
+//     cat stands on the very collider that would shove it off). A hop stored
+//     in perchY would switch the push off for its whole duration and let a
+//     pouncing cat sail through buildings.
+//   * main.js feeds perchY to goldMice.checkFind, which matches within 0.9
+//     vertically — a 0.9m hop stored in perchY would silently change which
+//     golden mice a pounce can find.
+//   * game/interactions.js reads perchY as "the height I am climbing FROM"
+//     for the entire perch-chain rule (bestPerch/canReach).
+//
+// So a hop can never acquire a perch, can never find a mouse, and can never
+// unlock a chain step. The arc is what a pounce LOOKS like; climbBudget stays
+// the sole authority on what a cat can get on top of.
+//
+// THE TWO NUMBERS.
+//
+// POUNCE_HOP_TIME = 0.3 is not a new timeline: it is exactly the pounce pose
+// window that already exists (game/interactions.js sets session.pounceTime =
+// 0.3 on the same press, and game/avatar.js fires the landing dust-poof,
+// audio.landThump() and the 0.12s 'land' pose on the frame that timer
+// expires). Both are driven off the same dt stream from the same press, so
+// the paws touch down on the frame the thump plays. A hop that outlived the
+// pose would land the cat after its own landing sound.
+//
+// BASE_POUNCE_HOP = 0.35 is CAT_RADIUS — the cat lifts by its own body's
+// half-width. It is deliberately small because there is no jump today, so
+// ANY baseline arc is a new feel for every existing player, and it is bounded
+// by content rather than by taste: the lowest perch that ships anywhere in
+// the game is the seaside overlook boulder at y 0.72, so a no-skill pounce
+// visually tops nothing at all. The drama belongs to the earned ability.
+//
+// SPRING_PAWS_HOP = 0.9 is 2.6x the baseline, which is what makes "markedly
+// higher" legible without a side-by-side comparison. Its ceiling comes from
+// the same content argument, run the other way: 0.9 clears the only two
+// ground-tier perches in the game (the 0.72 overlook boulder and the 0.75
+// low perch) and stops well short of the next tier at 1.35. Those two are
+// reachable from the ground under EVERY budget including the unskilled 1.6,
+// so the taller arc never shows the cat sailing over something it is not
+// allowed to stand on — and 0.9 is itself under 1.6, so even a baseline
+// cat's climb rule out-promises the skilled cat's arc. The arc can never
+// look like it should have landed on something canReach refused.
+export const POUNCE_HOP_TIME = 0.3;
+export const BASE_POUNCE_HOP = CAT_RADIUS; // 0.35 — the cat's own half-width
+export const SPRING_PAWS_HOP = 0.9;
+
+export const BASE_POUNCE_ARC = Object.freeze({ height: BASE_POUNCE_HOP, time: POUNCE_HOP_TIME });
+const SPRING_POUNCE_ARC = Object.freeze({ height: SPRING_PAWS_HOP, time: POUNCE_HOP_TIME });
+// A flat arc — reducedMotion, and the explicit "no hop" any caller can ask
+// for. Kept as a real arc object rather than null so every path through
+// pounce() takes the same shape.
+export const FLAT_POUNCE_ARC = Object.freeze({ height: 0, time: POUNCE_HOP_TIME });
+
+// pounceArc(state, { reducedMotion }) → the arc for one press.
+//
+// `state` is the raw save object and the only read goes through hasSkill,
+// which is total over any input (see src/skills.js's hostile-state preamble),
+// so a null/garbage state yields the baseline arc rather than throwing —
+// exactly like zoomTuning above and climbBudget in climbing.js.
+//
+// reducedMotion flattens the arc entirely rather than shrinking it, which is
+// the same treatment the setting already gets elsewhere: animator.js drops
+// the walk body-bob outright and fx.js's burst returns without emitting. The
+// hop is decoration on top of a pounce that is otherwise byte-identical —
+// same lunge, same speed, same cooldown, same landing thump, same mid-air
+// catch window — so removing it costs the player nothing but the bounce.
+export function pounceArc(state, { reducedMotion = false } = {}) {
+  if (reducedMotion) return FLAT_POUNCE_ARC;
+  return hasSkill(state, 'spring-paws') ? SPRING_POUNCE_ARC : BASE_POUNCE_ARC;
+}
+
+// hopOffset(elapsed, arc) → metres to add to the rendered Y at `elapsed`
+// seconds into the hop. Pure, so the whole arc is testable without a scene.
+//
+// The shape is the ballistic parabola 4u(1-u) rather than sin(pi*u): both
+// peak at exactly `height` halfway through, but the parabola leaves and
+// meets the ground at full vertical speed, which reads as a cat launching
+// and landing. The sine eases out at both ends and reads as floating.
+//
+// It returns EXACTLY 0 (not an epsilon) at and past the end of the window,
+// which is what lets update() below put the cat back on api.perchY with no
+// drift — a hop always ends at the height it started.
+export function hopOffset(elapsed, arc) {
+  const height = tuningField(arc?.height, 0);
+  const time = tuningField(arc?.time, POUNCE_HOP_TIME);
+  if (height <= 0 || time <= 0) return 0;
+  const u = elapsed / time;
+  if (u <= 0 || u >= 1) return 0;
+  return height * 4 * u * (1 - u);
+}
+
 export function createPlayer(camera, canvas) {
   let yaw = 0;
   let pitch = 0.18;
@@ -138,6 +243,13 @@ export function createPlayer(camera, canvas) {
   // save (see setZoomTuning); NOT reset by setAvatar/disable, because the
   // ability is permanent and always-on — only the charge STATE resets.
   let zoomTune = BASE_ZOOM_TUNING;
+  // v18 CF-9a hop state. `hopArc` non-null means "airborne"; `hopTime` is
+  // seconds into that arc. Deliberately NOT folded into api.perchY — see the
+  // pounceArc header. Unlike zoomTune (a permanent ability's tuning) this is
+  // per-press STATE, so it resets everywhere the other per-walk state does:
+  // setAvatar, disable and halt.
+  let hopArc = null;
+  let hopTime = 0;
 
   const api = {
     locked: false,
@@ -153,6 +265,8 @@ export function createPlayer(camera, canvas) {
       touchMove = null;
       touchEngaged = false;
       zoom = { charging: false, zooming: false, time: 0 };
+      hopArc = null;
+      hopTime = 0;
     },
     forward() {
       return viewForward(yaw);
@@ -205,12 +319,35 @@ export function createPlayer(camera, canvas) {
     setTouchMode(mode) {
       touchMode = !!mode;
     },
+    // Metres the cat is currently rendered ABOVE api.perchY. 0 whenever the
+    // paws are down. Read-only, and read by nothing in the game — it exists
+    // so a test can watch the arc without a scene, and so a future camera or
+    // shadow effect has an honest number to hang off instead of re-deriving
+    // one from the pose timers.
+    get hopY() {
+      return hopOffset(hopTime, hopArc);
+    },
     halt() {
       velocity.set(0, 0, 0);
+      // "Stop" means stop in all three axes. This is what guarantees no
+      // stuck-in-air state: every call site that yanks the cat somewhere
+      // else mid-pounce already calls halt() — game/interactions.js's perch
+      // branch (which teleports the cat onto a perch and sets perchY) and
+      // main.js's scare freeze — so neither can leave a live arc lifting the
+      // cat off the perch it just landed on.
+      hopArc = null;
+      hopTime = 0;
     },
-    pounce() {
+    // arc defaults to the no-skill hop rather than to a flat lunge: an
+    // un-threaded call site should get the shipped FEEL and merely miss the
+    // ability, never silently lose the feature the way CF-10a's four-argument
+    // bestPerch call silently lost Spring Paws. Pass FLAT_POUNCE_ARC to opt
+    // out on purpose.
+    pounce(arc = BASE_POUNCE_ARC) {
       const dir = velocity.length() > 0.5 ? velocity.clone().setY(0).normalize() : viewForward(yaw);
       velocity.copy(dir.multiplyScalar(9));
+      hopArc = arc && typeof arc === 'object' ? arc : BASE_POUNCE_ARC;
+      hopTime = 0;
     },
     enable() {
       enabled = true;
@@ -221,6 +358,8 @@ export function createPlayer(camera, canvas) {
       touchMove = null;
       api.setTouchEngaged(false);
       zoom = { charging: false, zooming: false, time: 0 };
+      hopArc = null;
+      hopTime = 0;
       if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
     update(dt, colliders = [], bounds = null) {
@@ -243,14 +382,49 @@ export function createPlayer(camera, canvas) {
       const zoomPace = zoom.zooming ? pace * 1.55 : pace;
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
+      // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied
+      // this frame is this frame's. hopOffset returns exactly 0 once the
+      // window has passed, and clearing the arc on that same frame is what
+      // makes the landing exact: the cat's rendered Y goes back to
+      // api.perchY + 0, never to perchY + epsilon, and never accumulates
+      // drift across repeated pounces.
+      //
+      // The Y write is the ONLY thing the hop touches. api.perchY is
+      // untouched above and below, so the collider push, goldMice.checkFind
+      // and the whole perch-chain rule all see exactly the height they saw
+      // before this existed.
+      let lift = 0;
+      if (hopArc) {
+        hopTime += Math.max(dt, 0);
+        lift = hopOffset(hopTime, hopArc);
+        // Clear on the WINDOW expiring — not on the offset reaching 0.
+        // hopOffset is legitimately 0 at BOTH ends of the arc (it returns 0
+        // for u <= 0 as well as u >= 1), so testing the offset cancels the
+        // hop on any frame where hopTime is still 0 — which is exactly what
+        // a dt of 0 leaves behind on the frame the hop began. dt comes from
+        // THREE.Clock.getDelta(), and browsers clamp timer resolution for
+        // Spectre mitigation (Firefox to 1ms by default), so two renders
+        // inside one clock tick genuinely yield 0 and would have silently
+        // eaten the pounce's bounce. Reading the duration through
+        // tuningField keeps a garbage arc.time on the same fallback
+        // hopOffset itself uses, so the two can never disagree about when
+        // the window ends.
+        if (hopTime >= tuningField(hopArc.time, POUNCE_HOP_TIME)) {
+          hopArc = null;
+          hopTime = 0;
+          lift = 0;
+        }
+      }
       avatar.position.addScaledVector(velocity, dt);
-      avatar.position.y = api.perchY;
+      avatar.position.y = api.perchY + lift;
 
       // Skip collider push while perched (perchY > 0): a perched cat is
       // standing ON the object (car roof, crate, rooftop…), often snapped to
       // that very collider's own center, so this push is exactly what would
       // fight the perch and shove the cat back off it. Grounded cats
-      // (perchY === 0) still get pushed out of every collider as before.
+      // (perchY === 0) still get pushed out of every collider as before —
+      // INCLUDING mid-hop, because the hop is a render offset and never
+      // reaches perchY. A pouncing cat cannot pass through a wall.
       if (api.perchY === 0) {
         for (const c of colliders) {
           const dx = avatar.position.x - c.x;

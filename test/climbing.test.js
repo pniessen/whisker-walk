@@ -10,9 +10,19 @@ import {
   FENCE_RUN_LEVEL,
   BASE_CLIMB_BUDGET,
   SPRING_PAWS_CLIMB,
-  SURE_CLAWS_CLIMB,
+  SURE_CLAWS_KIND_CLIMB,
+  SURE_CLAWS_CLIMB_KINDS,
   SURE_CLAWS_REACH_HIGH,
   SURE_CLAWS_REACH_LOW,
+  SURE_CLAWS_ID,
+  TREE_FORK_MAX,
+  PERCH_KINDS,
+  PERCH_KIND_DEFAULT,
+  perchKind,
+  perchAllowed,
+  perchRequirement,
+  visiblePerches,
+  sureClawsTreePerch,
 } from '../src/climbing.js';
 
 // The area builders run headless here (no jsdom dep): the only DOM they
@@ -173,7 +183,7 @@ describe('canReach budget parameter', () => {
 
 describe('climbBudget', () => {
   it('returns the exact shipped baseline for a save with no skills', () => {
-    expect(climbBudget({})).toEqual({ climb: 1.6, reachHigh: 2.6, reachLow: 1.2 });
+    expect(climbBudget({})).toEqual({ climb: 1.6, reachHigh: 2.6, reachLow: 1.2, climbKinds: {} });
     expect(climbBudget({})).toBe(BASE_CLIMB_BUDGET);
   });
 
@@ -193,18 +203,49 @@ describe('climbBudget', () => {
     expect(b.reachLow).toBe(BASE_CLIMB_BUDGET.reachLow);
   });
 
-  it('lifts both reaches and the climb height for Sure Claws', () => {
+  it('lifts both reaches for Sure Claws, and the climb height ONLY per kind', () => {
+    // v18 CF-9b: the blanket 1.6 -> 1.85 lift is gone. A Sure Claws cat
+    // climbs a crate, a car, a parapet and a bollard on exactly the baseline
+    // 1.6 every other cat uses; what it gets instead is the kind table.
     const b = climbBudget({ skills: ['sure-claws'] });
-    expect(b.climb).toBe(SURE_CLAWS_CLIMB);
+    expect(b.climb).toBe(BASE_CLIMB_BUDGET.climb);
     expect(b.reachHigh).toBe(SURE_CLAWS_REACH_HIGH);
     expect(b.reachLow).toBe(SURE_CLAWS_REACH_LOW);
+    expect(b.climbKinds).toBe(SURE_CLAWS_CLIMB_KINDS);
+    expect(b.climbKinds).toEqual({ tree: 2.0, fence: 2.0 });
   });
 
-  it('keeps the Sure Claws climb lift under the y 1.9 seaside dune ledge', () => {
-    // Load-bearing: gm-sea-2 sits on the dune ledge at y 1.9, the second step
-    // of the overlook-boulder chain. A Sure Claws climb budget of 1.9+ would
-    // let a player take it straight off the ground, deleting the chain.
-    expect(SURE_CLAWS_CLIMB).toBeLessThan(1.9);
+  it('lifts the climb height on trees and fences and on nothing else', () => {
+    const b = climbBudget({ skills: ['sure-claws'] });
+    const lifted = PERCH_KINDS.filter((k) => canReach({ x: 0, z: 0, y: 1.9, kind: k }, { x: 0, z: 0 }, 0, b));
+    expect(lifted.sort()).toEqual(['fence', 'tree']);
+    // ...and an untagged perch is one of the ones that is NOT lifted, which
+    // is what makes the tag optional and its absence safe.
+    expect(canReach({ x: 0, z: 0, y: 1.9 }, { x: 0, z: 0 }, 0, b)).toBe(false);
+  });
+
+  it('keeps the Sure Claws tree ceiling under the y 2.1 park oak branch', () => {
+    // Load-bearing, and the direct successor to the old dune-ledge bound:
+    // gm-park-2 AND feather-5 both sit on the oak branch at y 2.1, the top
+    // step of the ground -> bench 0.58 -> branch chain and the only tree
+    // chain in the game. A tree ceiling of 2.1 would let a Sure Claws cat
+    // take it straight off the grass, deleting the chain.
+    expect(SURE_CLAWS_KIND_CLIMB).toBeLessThan(2.1);
+    // The seaside dune ledge is safe for a different and stronger reason
+    // now: it is 'stone', so it is not in the kind table at all.
+    expect(SURE_CLAWS_CLIMB_KINDS).not.toHaveProperty('stone');
+  });
+
+  it('is not a decorative table — every opened tree fork needs the lift to be reachable', () => {
+    // The counter-test to the bound above. TREE_FORK_MAX sits ABOVE the 1.6
+    // baseline, so the tree ceiling fires the first time a Sure Claws cat
+    // walks up to an opened tree; a ceiling that only ever equalled the
+    // baseline would be a number that could never do anything.
+    expect(TREE_FORK_MAX).toBeGreaterThan(BASE_CLIMB_BUDGET.climb);
+    expect(TREE_FORK_MAX).toBeLessThan(SURE_CLAWS_KIND_CLIMB);
+    const fork = { x: 0, z: 0, y: TREE_FORK_MAX, kind: 'tree' };
+    expect(canReach(fork, { x: 0, z: 0 }, 0, BASE_CLIMB_BUDGET)).toBe(false);
+    expect(canReach(fork, { x: 0, z: 0 }, 0, climbBudget({ skills: [SURE_CLAWS_ID] }))).toBe(true);
   });
 
   it('composes the two abilities by MAX, never by sum', () => {
@@ -215,12 +256,173 @@ describe('climbBudget', () => {
     expect(b.climb).toBe(SPRING_PAWS_CLIMB);
     expect(b.reachHigh).toBe(SURE_CLAWS_REACH_HIGH);
     expect(b.reachLow).toBe(SURE_CLAWS_REACH_LOW);
+    // The per-kind table composes by max with the flat budget too, in
+    // canReach: a player holding both climbs a tree on Spring Paws' 2.2, not
+    // down at the 2.0 tree ceiling. Holding a second skill is never worse.
+    const tallTree = { x: 0, z: 0, y: 2.15, kind: 'tree' };
+    expect(canReach(tallTree, { x: 0, z: 0 }, 0, climbBudget({ skills: ['sure-claws'] }))).toBe(false);
+    expect(canReach(tallTree, { x: 0, z: 0 }, 0, b)).toBe(true);
   });
 
   it('honours a persisted skill id and a satisfied feat predicate alike', () => {
     // hasSkill is (persisted OR predicate) — Sure Claws' feat is 25 tip-overs.
     expect(climbBudget({ feats: { mischief: 24 } })).toBe(BASE_CLIMB_BUDGET);
-    expect(climbBudget({ feats: { mischief: 25 } }).climb).toBe(SURE_CLAWS_CLIMB);
+    expect(climbBudget({ feats: { mischief: 25 } }).climbKinds).toBe(SURE_CLAWS_CLIMB_KINDS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v18 CF-9b — perch kinds and the per-prop climb ceiling.
+// ---------------------------------------------------------------------------
+
+describe('perchKind', () => {
+  it('reads the tag when it is one of the closed vocabulary', () => {
+    for (const k of PERCH_KINDS) expect(perchKind({ kind: k })).toBe(k);
+  });
+
+  it('falls back to the neutral default for an absent, unknown or hostile tag', () => {
+    // THE property that makes the tag optional: an untagged perch — a test
+    // fixture, a future area, a hand-written record — must behave exactly as
+    // it did before kinds existed, and 'prop' is in no kind table.
+    for (const p of [{}, undefined, null, 0, 'tree', [], { kind: 'trees' }, { kind: 'TREE' },
+      { kind: 42 }, { kind: null }, { kind: 'constructor' }, { kind: '__proto__' }]) {
+      expect(perchKind(p)).toBe(PERCH_KIND_DEFAULT);
+    }
+  });
+});
+
+describe('canReach — the per-kind climb ceiling', () => {
+  const CLAWS = climbBudget({ skills: [SURE_CLAWS_ID] });
+
+  it('never LOWERS the flat budget, whatever the kind table says', () => {
+    // A malformed or hostile climbKinds may fail to help; it may never make
+    // a hop the game already allowed illegal. Same posture as budgetField.
+    const perch = { x: 0, z: 0, y: 1.5, kind: 'tree' };
+    for (const kinds of [{ tree: 0 }, { tree: -5 }, { tree: NaN }, { tree: '9e99' },
+      { tree: null }, 'nope', 7, null, undefined]) {
+      expect(canReach(perch, { x: 0, z: 0 }, 0, { ...BASE_CLIMB_BUDGET, climbKinds: kinds })).toBe(true);
+    }
+  });
+
+  it('ignores an INHERITED kind entry', () => {
+    // skills.js's own-property discipline, for the same reason: a budget can
+    // be rebuilt by a partially-threaded call site from an object whose
+    // prototype carries a 'tree' key, and an inherited entry must not lift.
+    const kinds = Object.create({ tree: 99 });
+    const perch = { x: 0, z: 0, y: 1.9, kind: 'tree' };
+    expect(canReach(perch, { x: 0, z: 0 }, 0, { ...BASE_CLIMB_BUDGET, climbKinds: kinds })).toBe(false);
+  });
+
+  it('lifts the ceiling without touching either horizontal reach', () => {
+    // The lift is a HEIGHT rule. A tree fork 3.5 out is still out of reach
+    // with Sure Claws' widened 3.2 reachHigh, tag or no tag.
+    expect(canReach({ x: 3.5, z: 0, y: 1.9, kind: 'tree' }, { x: 0, z: 0 }, 0, CLAWS)).toBe(false);
+    expect(canReach({ x: 3.0, z: 0, y: 1.9, kind: 'tree' }, { x: 0, z: 0 }, 0, CLAWS)).toBe(true);
+  });
+});
+
+describe('sureClawsTreePerch', () => {
+  it('reproduces the shipped oak convention — trunk top (2 * scale) less 0.1', () => {
+    expect(sureClawsTreePerch(1, 2, 0.9).y).toBe(1.7);
+    expect(sureClawsTreePerch(1, 2, 0.58).y).toBe(1.06); // no float tail in shipped data
+  });
+
+  it('caps at TREE_FORK_MAX, so a big tree gets a LOW fork rather than an unreachable one', () => {
+    // Every park tree is scale 1.2+ (trunk top 2.4+). Uncapped, its fork
+    // would sit above the 2.0 tree ceiling and the perch would be dead
+    // content: gated, visible to the ability, and unreachable by it.
+    for (const scale of [1.05, 1.1, 1.2, 1.5, 3]) {
+      expect(sureClawsTreePerch(0, 0, scale).y).toBe(TREE_FORK_MAX);
+    }
+    expect(sureClawsTreePerch(0, 0, 1.1).y).toBeLessThan(2.1); // under the shipped oak branch
+  });
+
+  it('tags and gates every perch it makes', () => {
+    const p = sureClawsTreePerch(4, -5, 1);
+    expect(p).toEqual({ x: 4, z: -5, y: 1.9, kind: 'tree', requires: SURE_CLAWS_ID });
+  });
+
+  it('degrades a garbage scale to 1 rather than producing a NaN perch', () => {
+    for (const bad of [undefined, null, NaN, -1, 0, 'big', {}]) {
+      expect(sureClawsTreePerch(0, 0, bad).y).toBe(TREE_FORK_MAX);
+    }
+  });
+});
+
+describe('perchAllowed / visiblePerches', () => {
+  const open = { x: 0, z: 0, y: 1 };
+  const gated = { x: 1, z: 0, y: 1, requires: SURE_CLAWS_ID };
+
+  it('shows an ungated perch to everyone, including a save that is not an object', () => {
+    for (const s of [undefined, null, 0, 'x', [], {}, { skills: [SURE_CLAWS_ID] }]) {
+      expect(perchAllowed(open, s)).toBe(true);
+    }
+  });
+
+  it('hides a gated perch until the save holds the named skill', () => {
+    expect(perchAllowed(gated, {})).toBe(false);
+    expect(perchAllowed(gated, { skills: [SURE_CLAWS_ID] })).toBe(true);
+    expect(perchAllowed(gated, { feats: { mischief: 24 } })).toBe(false);
+    expect(perchAllowed(gated, { feats: { mischief: 25 } })).toBe(true); // the feat route
+  });
+
+  it('FAILS CLOSED on an unknown or malformed requirement', () => {
+    // A renamed skill or a typo must hide the perch from everyone, not open
+    // it for everyone: an unreachable prop is a missing feature, an
+    // accidentally-open one is a broken chain.
+    for (const bad of ['no-such-skill', '', 0, 42, [], {}, null]) {
+      const p = { x: 0, z: 0, y: 1, requires: bad };
+      const allowed = perchAllowed(p, { skills: [SURE_CLAWS_ID] });
+      expect(allowed).toBe(perchRequirement(p) === null); // only a non-string is "ungated"
+      if (typeof bad === 'string' && bad) expect(allowed).toBe(false);
+    }
+  });
+
+  it('filters an array without mutating it, and tolerates a missing one', () => {
+    const perches = [open, gated];
+    expect(visiblePerches(perches, {})).toEqual([open]);
+    expect(visiblePerches(perches, { skills: [SURE_CLAWS_ID] })).toEqual([open, gated]);
+    expect(perches).toHaveLength(2);
+    expect(visiblePerches(undefined, {})).toEqual([]);
+    expect(visiblePerches(null, { skills: [SURE_CLAWS_ID] })).toEqual([]);
+  });
+});
+
+describe('bestPerch — gated perches are invisible, not merely out of reach', () => {
+  const chainStep = { x: 0, z: 0, y: 1.3, label: 'porch roof' };
+  const gatedHigher = { x: 0.5, z: 0, y: 1.5, kind: 'tree', requires: SURE_CLAWS_ID };
+  const perches = [chainStep, gatedHigher];
+
+  it('does not pick — or even consider — a gated perch without the skill', () => {
+    // The failure this prevents: bestPerch prefers the HIGHEST reachable
+    // candidate, so a gated perch left in the array and merely made tall
+    // would shadow the chain step below it the moment it came into reach.
+    expect(bestPerch(perches, { x: 0, z: 0 }, 0, null)).toBe(chainStep);                       // un-threaded
+    expect(bestPerch(perches, { x: 0, z: 0 }, 0, null, BASE_CLIMB_BUDGET, {})).toBe(chainStep); // no state
+    expect(bestPerch(perches, { x: 0, z: 0 }, 0, null, BASE_CLIMB_BUDGET, { state: {} })).toBe(chainStep);
+  });
+
+  it('picks it once the save holds the skill', () => {
+    const state = { skills: [SURE_CLAWS_ID] };
+    expect(bestPerch(perches, { x: 0, z: 0 }, 0, null, climbBudget(state), { state })).toBe(gatedHigher);
+  });
+
+  it('hides gated perches from the fence-run path too, not just the climb path', () => {
+    // Fence Runner is a SECOND reachability path (canFenceRun). The gate is
+    // applied before either, so an unearned perch cannot be dashed to.
+    const fenceA = { x: 22, z: -28, y: 0.85, kind: 'fence' };
+    const gatedB = { x: 26, z: -24, y: 0.85, kind: 'fence', requires: SURE_CLAWS_ID };
+    const opts = { fenceRun: true };
+    expect(bestPerch([fenceA, gatedB], { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET, opts))
+      .toBeNull();
+    expect(bestPerch([fenceA, gatedB], { x: fenceA.x, z: fenceA.z }, fenceA.y, fenceA, BASE_CLIMB_BUDGET,
+      { ...opts, state: { skills: [SURE_CLAWS_ID] } })).toBe(gatedB);
+  });
+
+  it('tolerates a garbage state in opts, hiding gated perches rather than throwing', () => {
+    for (const bad of [null, 0, 'yes', [], NaN]) {
+      expect(bestPerch(perches, { x: 0, z: 0 }, 0, null, BASE_CLIMB_BUDGET, { state: bad })).toBe(chainStep);
+    }
   });
 });
 
@@ -254,7 +456,11 @@ describe('climbBudget', () => {
 // only, never to the ground pass — which is exactly the rule bestPerch
 // enforces via `currentPerch`, and the reason the ability can never turn
 // anything into a walk-up.
-function minHops(target, perches, budget, fenceRun = false) {
+// hopsFromGround(perches, budget, fenceRun) -> Map<perch, hops>. Extracted
+// from minHops by CF-9b because the gated-perch proofs below need the whole
+// map, not one lookup out of it: "is every perch this ability opens actually
+// reachable BY it" is a question about every node in the graph.
+function hopsFromGround(perches, budget, fenceRun = false) {
   const dist = new Map();
   const queue = [];
   for (const p of perches) {
@@ -274,11 +480,24 @@ function minHops(target, perches, budget, fenceRun = false) {
       }
     }
   }
+  return dist;
+}
+
+function minHops(target, perches, budget, fenceRun = false) {
+  const dist = hopsFromGround(perches, budget, fenceRun);
   if (target.y === 0) return 0; // ground mice need no perch at all
-  const stand = perches.find(
-    (p) => Math.hypot(p.x - target.x, p.z - target.z) < 1.0 && Math.abs(p.y - target.y) < 0.9,
-  );
-  return stand ? dist.get(stand) ?? Infinity : Infinity;
+  // The MINIMUM over every perch inside the pickup window, not the first one
+  // in declaration order. Before CF-9b there was exactly one perch per window
+  // so the two were the same; now that world files append gated records, a
+  // first-match lookup would silently depend on gated perches being declared
+  // last — a proof resting on array order is not a proof.
+  let best = Infinity;
+  for (const p of perches) {
+    if (Math.hypot(p.x - target.x, p.z - target.z) < 1.0 && Math.abs(p.y - target.y) < 0.9) {
+      best = Math.min(best, dist.get(p) ?? Infinity);
+    }
+  }
+  return best;
 }
 
 const AREAS = {
@@ -307,13 +526,31 @@ const ELEVATED = [
   return { id, area, x: c.x, z: c.z, y: c.y };
 });
 
-function hopTable(budget, fenceRun = false) {
+// The four traversal saves — as SAVES, not as budgets.
+//
+// v18 CF-9b changed what this proof has to model. Before it, a save affected
+// only the three budget numbers, so a table computed from a budget was a
+// complete description of a player. Now the save ALSO decides which perches
+// exist (gated `requires` records), so a budget-keyed table would describe a
+// player who has Sure Claws' geometry but none of its props — a state no real
+// player is ever in, and precisely the state in which a placement bug would
+// hide. Everything below is keyed on a save and derives both halves from it.
+const STATES = {
+  none: {},
+  spring: { skills: ['spring-paws'] },
+  claws: { skills: [SURE_CLAWS_ID] },
+  both: { skills: ['spring-paws', SURE_CLAWS_ID] },
+};
+
+function hopTable(state, fenceRun = false) {
+  const budget = climbBudget(state);
   const out = {};
+  const seen = (area) => visiblePerches(AREAS[area].perches, state);
   for (const [area, mice] of Object.entries(GOLD_MICE)) {
-    for (const m of mice) out[m.id] = minHops(m, AREAS[area].perches, budget, fenceRun);
+    for (const m of mice) out[m.id] = minHops(m, seen(area), budget, fenceRun);
   }
   for (const c of ELEVATED) {
-    out[c.id] = minHops({ x: c.x, z: c.z, y: c.y }, AREAS[c.area].perches, budget, fenceRun);
+    out[c.id] = minHops({ x: c.x, z: c.z, y: c.y }, seen(c.area), budget, fenceRun);
   }
   return out;
 }
@@ -353,11 +590,11 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   });
 
   it('every one is still reachable, at exactly the hop count it takes today', () => {
-    expect(hopTable(climbBudget({}))).toEqual(SHIPPED_HOPS);
+    expect(hopTable(STATES.none)).toEqual(SHIPPED_HOPS);
   });
 
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
-    const table = hopTable(climbBudget({}));
+    const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
     expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
@@ -365,9 +602,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
 });
 
 describe('shipped golden mice and rooftop collectible — with the v18 traversal skills', () => {
-  const SPRING = climbBudget({ skills: ['spring-paws'] });
-  const CLAWS = climbBudget({ skills: ['sure-claws'] });
-  const BOTH = climbBudget({ skills: ['spring-paws', 'sure-claws'] });
+  const { spring: SPRING, claws: CLAWS, both: BOTH } = STATES;
 
   it('Sure Claws changes NOTHING about the shipped placements', () => {
     // The 1.85 climb ceiling sits under every shipped chain's next step, and
@@ -377,8 +612,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
   });
 
   it('nothing becomes UNREACHABLE under any skill combination', () => {
-    for (const budget of [SPRING, CLAWS, BOTH]) {
-      for (const hops of Object.values(hopTable(budget))) expect(hops).toBeLessThan(Infinity);
+    for (const state of [SPRING, CLAWS, BOTH]) {
+      for (const hops of Object.values(hopTable(state))) expect(hops).toBeLessThan(Infinity);
     }
   });
 
@@ -422,8 +657,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
   });
 
   it('never collapses the two TALL chains — the ridge and the billboard stay multi-hop', () => {
-    for (const budget of [SPRING, CLAWS, BOTH]) {
-      const table = hopTable(budget);
+    for (const state of [SPRING, CLAWS, BOTH]) {
+      const table = hopTable(state);
       expect(table['gm-neigh-1']).toBe(3); // y 4.1 ridge — unchanged, 3 hops
       expect(table['yarn-roof']).toBe(3);  // same ridge, the rooftop collectible
       expect(table['gm-neigh-2']).toBeGreaterThan(1); // y 3.3 lookout — never one hop
@@ -437,7 +672,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
   it('leaves the y 2.9 rooftop and the y 4.1 ridge out of one-hop ground range', () => {
     const roof = { x: -9.5, z: 15.5, y: 2.9 };
     const ridge = { x: -11.5, z: 15.5, y: 4.1 };
-    for (const budget of [SPRING, CLAWS, BOTH]) {
+    for (const state of [SPRING, CLAWS, BOTH]) {
+      const budget = climbBudget(state);
       expect(canReach(roof, { x: roof.x, z: roof.z }, 0, budget)).toBe(false);
       expect(canReach(ridge, { x: ridge.x, z: ridge.z }, 0, budget)).toBe(false);
     }
@@ -558,35 +794,30 @@ describe('bestPerch — the Fence Runner option', () => {
 });
 
 describe('Fence Runner — the shipped-content pin', () => {
-  const BUDGETS = {
-    none: climbBudget({}),
-    spring: climbBudget({ skills: ['spring-paws'] }),
-    claws: climbBudget({ skills: ['sure-claws'] }),
-    both: climbBudget({ skills: ['spring-paws', 'sure-claws'] }),
-  };
+
 
   it('leaves every golden mouse and rooftop collectible at EXACTLY its shipped hop count', () => {
     // The whole reachability BFS, re-run over the real perch arrays with the
     // wall-run edge switched on, in every traversal-skill state. Not one
     // number may move: the fence-run edge is level-only, and every chain step
     // in the game is a climb of 0.9 or more.
-    for (const budget of Object.values(BUDGETS)) {
-      expect(hopTable(budget, true)).toEqual(hopTable(budget, false));
+    for (const state of Object.values(STATES)) {
+      expect(hopTable(state, true)).toEqual(hopTable(state, false));
     }
-    expect(hopTable(BUDGETS.none, true)).toEqual(SHIPPED_HOPS);
+    expect(hopTable(STATES.none, true)).toEqual(SHIPPED_HOPS);
   });
 
   it('keeps the Docks crane chain (chain C) at four hops with the wall-run on', () => {
     // The chain built out of deliberate 1.3-1.4 rungs so no skill can skip a
     // step. Fence Runner must not be the exception.
-    for (const budget of Object.values(BUDGETS)) {
-      expect(hopTable(budget, true)['gm-docks-2']).toBe(4);
+    for (const state of Object.values(STATES)) {
+      expect(hopTable(state, true)['gm-docks-2']).toBe(4);
     }
   });
 
   it('never makes anything a walk-up or unreachable', () => {
-    for (const budget of Object.values(BUDGETS)) {
-      const table = hopTable(budget, true);
+    for (const state of Object.values(STATES)) {
+      const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
       expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
@@ -609,6 +840,266 @@ describe('Fence Runner — the shipped-content pin', () => {
       expect(pa && pb).toBeTruthy(); // the coordinates still ship
       expect(canReach(pb, { x: pa.x, z: pa.z }, pa.y)).toBe(false);
       expect(canFenceRun(pb, { x: pa.x, z: pa.z }, pa.y)).toBe(true);
+    }
+  });
+});
+
+// ===========================================================================
+// v18 CF-9b — Sure Claws' "props that were scenery become climbable".
+//
+// Two halves, both proved against the perch arrays that actually ship:
+//
+//   1. TAGS. Every shipped perch names the prop it sits on, out of a closed
+//      vocabulary, so the height lift can be per-prop instead of global.
+//   2. GATED PERCHES. New records on props that carried none, visible only to
+//      a save holding the ability.
+//
+// The safety argument is the same shape as Fence Runner's, and is checked the
+// same way: with no skills the reachability graph must be byte-identical to
+// the one that shipped, and WITH the ability no golden-mouse chain may get
+// shorter. The tests above already re-run the whole BFS in all four traversal
+// states with the gated records present in the arrays; what follows is the
+// world-data side of it.
+// ===========================================================================
+
+const GATED = Object.fromEntries(
+  Object.entries(AREAS).map(([id, a]) => [id, a.perches.filter((p) => p.requires)]),
+);
+const UNGATED = Object.fromEntries(
+  Object.entries(AREAS).map(([id, a]) => [id, a.perches.filter((p) => !p.requires)]),
+);
+
+describe('CF-9b — perch kind tags on shipped world data', () => {
+  it('tags EVERY perch in every area, out of the closed vocabulary', () => {
+    for (const [id, a] of Object.entries(AREAS)) {
+      for (const p of a.perches) {
+        expect(PERCH_KINDS, `${id} perch ${p.x},${p.z},${p.y}`).toContain(p.kind);
+        expect(perchKind(p)).toBe(p.kind); // i.e. no typo silently reading as 'prop'
+      }
+    }
+  });
+
+  it('keeps the vocabulary small and closed, and keeps the default out of world data', () => {
+    // A vocabulary that grows per prop model would answer the only question
+    // it exists to answer — "does the claw lift apply?" — differently for the
+    // crate and the shipping container.
+    expect(PERCH_KINDS).toHaveLength(8);
+    const used = new Set(Object.values(AREAS).flatMap((a) => a.perches.map((p) => p.kind)));
+    expect([...used].sort()).toEqual(['car', 'crate', 'fence', 'furniture', 'roof', 'stone', 'tree']);
+    // 'prop' is the fallback for an UNTAGGED record, not a tag to write down.
+    expect(used.has(PERCH_KIND_DEFAULT)).toBe(false);
+  });
+
+  it('tags the two perches the budget numbers are pinned against', () => {
+    // The park oak branch is the perch that caps SURE_CLAWS_KIND_CLIMB, and
+    // the seaside dune ledge is the one that used to cap the old global lift.
+    // If either is ever re-tagged, the ceiling argument in climbing.js stops
+    // holding, so the tags are pinned here rather than left to inspection.
+    const oak = AREAS.park.perches.find((p) => p.label === 'oak branch lookout');
+    expect(oak).toMatchObject({ y: 2.1, kind: 'tree' });
+    expect(oak.y).toBeGreaterThan(SURE_CLAWS_KIND_CLIMB);
+    const ledge = AREAS.seaside.perches.find((p) => p.label === 'dune ledge');
+    expect(ledge).toMatchObject({ y: 1.9, kind: 'stone' });
+    expect(SURE_CLAWS_CLIMB_KINDS[ledge.kind]).toBeUndefined();
+  });
+});
+
+describe('CF-9b — the gated perches themselves', () => {
+  it('opens real props in every walkable area', () => {
+    // Counts, so that deleting a block of world data fails here rather than
+    // quietly making the ability thinner. Neighborhood: 12 tree forks + 3
+    // fence tops. Park: 16 tree forks + the meadow bench. Seaside: 5 boulders
+    // (no tree or fence exists in the area). Docks: 8 market awnings + 2 quay
+    // benches.
+    expect(GATED.neighborhood).toHaveLength(15);
+    expect(GATED.park).toHaveLength(17);
+    expect(GATED.seaside).toHaveLength(5);
+    expect(GATED.docks).toHaveLength(10);
+  });
+
+  it('gates every one of them on Sure Claws and nothing else', () => {
+    for (const [id, list] of Object.entries(GATED)) {
+      for (const p of list) expect(p.requires, `${id} ${p.x},${p.z}`).toBe(SURE_CLAWS_ID);
+    }
+  });
+
+  it('leaves every SHIPPED perch ungated — the pre-CF-9b world is intact', () => {
+    // The counts the four areas shipped with. A gate accidentally added to a
+    // chain step would make that chain vanish for every player without the
+    // ability, which is the worst thing this change could do.
+    expect(UNGATED.neighborhood).toHaveLength(12);
+    expect(UNGATED.park).toHaveLength(5);
+    expect(UNGATED.seaside).toHaveLength(5);
+    expect(UNGATED.docks).toHaveLength(16);
+    for (const [area, mice] of Object.entries(GOLD_MICE)) {
+      for (const m of mice.filter((x) => x.y > 0)) {
+        const stand = UNGATED[area].find(
+          (p) => Math.hypot(p.x - m.x, p.z - m.z) < 1.0 && Math.abs(p.y - m.y) < 0.9,
+        );
+        expect(stand, `${m.id} lost its ungated stand-on perch`).toBeTruthy();
+      }
+    }
+  });
+
+  it('gives no gated perch a label or a vantage flag', () => {
+    // Three consequences at once, all of them wanted: no discovery-log line,
+    // no feats.perch tally (so a Mischief ability cannot buy the two
+    // Traversal ones), and no effect on the "the Docks has the most vantage
+    // perches" invariant test/docks.test.js pins.
+    for (const list of Object.values(GATED)) {
+      for (const p of list) {
+        expect(p.label).toBeUndefined();
+        expect(p.vantage).toBeUndefined();
+      }
+    }
+  });
+
+  it('is invisible to a player without the skill, in every area', () => {
+    for (const [id, a] of Object.entries(AREAS)) {
+      expect(visiblePerches(a.perches, STATES.none)).toEqual(UNGATED[id]);
+      expect(visiblePerches(a.perches, STATES.spring)).toEqual(UNGATED[id]);
+      expect(visiblePerches(a.perches, STATES.claws)).toEqual(a.perches);
+      expect(visiblePerches(a.perches, STATES.both)).toEqual(a.perches);
+      // ...and bestPerch never picks one, standing right on top of it.
+      for (const g of GATED[id]) {
+        const chosen = bestPerch(a.perches, { x: g.x, z: g.z }, 0, null,
+          climbBudget(STATES.spring), { state: STATES.spring, fenceRun: true });
+        expect(chosen === g, `${id} gated perch at ${g.x},${g.z} was picked without the skill`).toBe(false);
+      }
+    }
+  });
+
+  it('is not dead content — Sure Claws can actually reach every perch it opens', () => {
+    // The other half of "gated". A perch nobody can climb to is worse than no
+    // perch at all: it is a promise in the ability's copy with nothing behind
+    // it. Every gated record must be in the reachability graph of a cat that
+    // holds the ability, off the ground and with no other skill.
+    const budget = climbBudget(STATES.claws);
+    for (const [id, a] of Object.entries(AREAS)) {
+      const dist = hopsFromGround(visiblePerches(a.perches, STATES.claws), budget);
+      for (const g of GATED[id]) {
+        expect(dist.get(g), `${id} gated perch at ${g.x},${g.z},${g.y} is unreachable`).toBeLessThan(Infinity);
+      }
+    }
+  });
+
+  it('can be taken from a spot the cat can physically stand on', () => {
+    // The BFS above measures a ground hop from directly UNDER the perch,
+    // which is not where a cat can stand: player.update pushes a grounded cat
+    // out to collider.r + 0.35, and a tree perch sits at the trunk centre
+    // inside a 0.6-0.7 collider. So a fork could pass the reachability proof
+    // and still be untakeable in the running game. Same check
+    // test/docks.test.js applies to that area's chains, run here over every
+    // gated perch in every area. (The tightest margin in the set is the
+    // neighborhood's front-fence tops: the house collider holds the cat 0.75
+    // away, against the 1.2 baseline reachLow.)
+    const CAT_RADIUS = 0.35;
+    for (const [id, a] of Object.entries(AREAS)) {
+      const standable = (x, z) => x >= a.bounds.minX && x <= a.bounds.maxX
+        && z >= a.bounds.minZ && z <= a.bounds.maxZ
+        && a.colliders.every((c) => Math.hypot(x - c.x, z - c.z) >= c.r + CAT_RADIUS);
+      for (const g of GATED[id]) {
+        const reach = (g.y > 1 ? SURE_CLAWS_REACH_HIGH : SURE_CLAWS_REACH_LOW) - 0.05;
+        let found = false;
+        for (let r = 0; r <= reach && !found; r += 0.05) {
+          for (let t = 0; t < 64 && !found; t++) {
+            const th = (t / 64) * Math.PI * 2;
+            if (standable(g.x + Math.cos(th) * r, g.z + Math.sin(th) * r)) found = true;
+          }
+        }
+        expect(found, `${id} gated perch at ${g.x},${g.z} has nowhere to jump from`).toBe(true);
+      }
+    }
+  });
+
+  it('opens the props the ability names — trees and fences — using the height lift', () => {
+    // The lift is live, not declarative: these forks are above the 1.6
+    // baseline and are reached off the ground only because their kind is
+    // 'tree'. Checked on the shipped coordinates, not on a fixture.
+    const forks = GATED.neighborhood.concat(GATED.park).filter((p) => p.kind === 'tree' && p.y > 1.6);
+    expect(forks.length).toBeGreaterThan(20);
+    for (const f of forks) {
+      expect(canReach(f, { x: f.x, z: f.z }, 0, BASE_CLIMB_BUDGET)).toBe(false);
+      expect(canReach(f, { x: f.x, z: f.z }, 0, climbBudget(STATES.claws))).toBe(true);
+      expect(f.y).toBeLessThanOrEqual(TREE_FORK_MAX);
+    }
+    const fences = GATED.neighborhood.filter((p) => p.kind === 'fence');
+    expect(fences).toHaveLength(3);
+    for (const f of fences) expect(f.y).toBe(0.85); // the shipped fence-top height
+  });
+
+  it('completes the dog-yard fence line for a Sure Claws + Fence Runner cat', () => {
+    // The single best sentence in this feature, pinned: the east run's new
+    // top is 5.66 from the shipped south-east top — inside Fence Runner's 6.0
+    // level dash and outside every climb reach — so the yard's whole fence
+    // becomes one walkable line, over the dog's head.
+    const shipped = AREAS.neighborhood.perches.find((p) => p.x === 22 && p.z === -28);
+    const opened = GATED.neighborhood.find((p) => p.x === 26 && p.z === -24);
+    expect(opened).toBeTruthy();
+    expect(canReach(opened, { x: shipped.x, z: shipped.z }, shipped.y)).toBe(false);
+    expect(canFenceRun(opened, { x: shipped.x, z: shipped.z }, shipped.y)).toBe(true);
+  });
+
+  it('keeps every gated Docks perch out of the canal', () => {
+    // test/docks.test.js owns this invariant and checks the whole array; it
+    // is restated here because THIS file is where new perches get authored,
+    // and a water-collider wave is what depends on it.
+    for (const p of GATED.docks) expect(Math.abs(p.z)).toBeGreaterThan(3.5);
+  });
+});
+
+describe('CF-9b — the gated perches short-circuit nothing', () => {
+  it('leaves every golden mouse and rooftop collectible at its shipped hop count, gated or not', () => {
+    // THE proof. For every traversal state, and with the wall-run edge on and
+    // off, the hop table computed over the FULL array (gated records included
+    // when the state can see them) equals the one computed with every gated
+    // record stripped out. A new perch that shortened any chain — by being a
+    // step, or by being a fence-run launch point next to one — moves a number
+    // here and fails.
+    const stripped = (state, fenceRun) => {
+      const budget = climbBudget(state);
+      const out = {};
+      for (const [area, mice] of Object.entries(GOLD_MICE)) {
+        for (const m of mice) out[m.id] = minHops(m, UNGATED[area], budget, fenceRun);
+      }
+      for (const c of ELEVATED) {
+        out[c.id] = minHops({ x: c.x, z: c.z, y: c.y }, UNGATED[c.area], budget, fenceRun);
+      }
+      return out;
+    };
+    for (const state of Object.values(STATES)) {
+      for (const fenceRun of [false, true]) {
+        expect(hopTable(state, fenceRun)).toEqual(stripped(state, fenceRun));
+      }
+    }
+    // ...and the no-skills table is still the one that shipped.
+    expect(hopTable(STATES.none)).toEqual(SHIPPED_HOPS);
+    expect(hopTable(STATES.claws)).toEqual(SHIPPED_HOPS);
+  });
+
+  it('never puts a gated perch inside a golden mouse or collectible pickup window', () => {
+    // Belt and braces on the hop table: a gated perch standing where a chain
+    // top stands would not change the hop COUNT, but it would let the ability
+    // hand the player a mouse that the chain is supposed to be the price of.
+    const targets = Object.entries(GOLD_MICE).flatMap(([area, mice]) =>
+      mice.filter((m) => m.y > 0).map((m) => ({ area, ...m })))
+      .concat(ELEVATED.map((c) => ({ area: c.area, id: c.id, x: c.x, z: c.z, y: c.y })));
+    for (const t of targets) {
+      for (const g of GATED[t.area]) {
+        const inWindow = Math.hypot(g.x - t.x, g.z - t.z) < 1.0 && Math.abs(g.y - t.y) < 0.9;
+        expect(inWindow, `gated perch at ${g.x},${g.z},${g.y} sits on ${t.id}`).toBe(false);
+      }
+    }
+  });
+
+  it('never makes anything a walk-up, in any state', () => {
+    for (const state of Object.values(STATES)) {
+      for (const fenceRun of [false, true]) {
+        const table = hopTable(state, fenceRun);
+        const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+        for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
+      }
     }
   });
 });

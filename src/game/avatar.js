@@ -25,6 +25,39 @@ export function createAvatarUpdater({
     const { cat } = s;
     const p = PERSONALITIES[cat.userData.breed];
 
+    // v18 CF-9a — where the PAWS are, as opposed to where the cat is drawn.
+    //
+    // The pounce now arcs: player.js renders the cat at perchY + a hop offset
+    // that peaks 0.35m up for an unskilled cat and 0.9m up with Spring Paws
+    // (see player.js's pounceArc header). That offset is deliberately a
+    // render offset — it never reaches player.perchY, so the climb rule, the
+    // collider push and goldMice.checkFind are all untouched by it.
+    //
+    // But several proximity checks in this function measure in 3D against
+    // cat.position, and those WOULD read the lift as distance: the pounce
+    // hunt catch has a 0.9 radius, pounce-tag 1.3, the yarn bat 0.5. Left
+    // alone, a Spring Paws cat at the top of its arc is 0.9m from a squirrel
+    // standing right under it and the hunt simply fails — an earned ability
+    // making its own signature action harder, the same "an ability must never
+    // be a downgrade" failure CF-2 fixed for Big Swat. The yarn bat is worse
+    // still: its radius is 0.5 and the ball rolls at y 0.2, so a Spring Paws
+    // apex is out of range on the vertical term ALONE, before the ball is
+    // even offset horizontally — a cat could not bat a ball it was pouncing
+    // directly onto. (The 0.35 baseline arc is harmless there by luck rather
+    // than by design: it happens to land nearer the ball's own height than
+    // the ground does. Relying on that would make the numbers above load-
+    // bearing for a system that has nothing to do with them.)
+    //
+    // So those checks measure from the paws' ground plane instead. This is
+    // exactly the trick the mid-air critter catch below already uses with its
+    // fixed .setY(0.8), and it is a NO-OP whenever the cat is not mid-hop:
+    // outside the 0.3s window player.js sets cat.position.y to precisely
+    // player.perchY, so `paws` is then the same point cat.position is.
+    // Computed BEFORE the perch release just below, so it describes the frame
+    // that has already been rendered (player.update ran first, off the perchY
+    // this line reads) rather than the one about to be.
+    const paws = cat.position.clone().setY(player.perchY);
+
     if (s.perched && player.inputActive) {
       s.perched = null;
       player.perchY = 0;
@@ -52,7 +85,7 @@ export function createAvatarUpdater({
         let nearest = null;
         let nearestDist = 1.3;
         for (const r of s.remotes.list) {
-          const d = r.group.position.distanceTo(cat.position);
+          const d = r.group.position.distanceTo(paws);
           if (d < nearestDist) { nearestDist = d; nearest = r; }
         }
         if (nearest) {
@@ -177,7 +210,7 @@ export function createAvatarUpdater({
 
     // yarn play: run into your ball to bat it; a good play session earns points
     if (s.toy.active) {
-      const dist = cat.position.distanceTo(s.toy.mesh.position);
+      const dist = paws.distanceTo(s.toy.mesh.position);
       if (dist < 0.5 && s.batReady) {
         s.toy.bat(cat.position);
         s.batCount += 1;
@@ -194,7 +227,7 @@ export function createAvatarUpdater({
       // yarn rally: batting a REMOTE-owned ghost ball requests authority
       // over it — the actual handoff happens once the owner's client
       // receives our 'bat' event (see applyRemoteEvent).
-      const dist = cat.position.distanceTo(s.toyGhost.position);
+      const dist = paws.distanceTo(s.toyGhost.position);
       if (dist < 0.5 && s.batReady) {
         s.batReady = false;
         noteBat(s, s.playerId); // "in or out" — our own outgoing bat counts toward the rally too
@@ -212,7 +245,11 @@ export function createAvatarUpdater({
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
         progression.recordSighting(caught.type);
       }
-      const hunted = s.critters.pounceCatch(cat.position);
+      // From the paws, not the drawn body: this runs on every frame of the
+      // 0.3s hop, and its radius (0.9) is the same size as the Spring Paws
+      // arc, so measuring from the lifted body would make the taller jump
+      // miss the very critter it is jumping at.
+      const hunted = s.critters.pounceCatch(paws);
       if (hunted) {
         const bonus = hunted.wasStalked ? ' — a perfect sneak!' : '';
         log.award('hunt', `hunt-${hunted.type}`, `you pounce-tagged ${labelFor(hunted.type)}!${bonus}`);

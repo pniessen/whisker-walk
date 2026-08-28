@@ -1,4 +1,5 @@
 import * as b from './builder.js';
+import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 
 export function build(scene) {
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
@@ -6,6 +7,23 @@ export function build(scene) {
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
+
+  // v18 CF-9b — "props that were scenery become climbable" (Sure Claws).
+  //
+  // Every record pushed here carries `requires: SURE_CLAWS_ID`, which
+  // climbing.js's perchAllowed filters on BEFORE any geometry is considered:
+  // a cat without the ability walks the exact perch graph that shipped, and a
+  // cat with it finds the trees and fences it has been walking past for
+  // eleven abilities suddenly climbable.
+  //
+  // None of them carries a `label` or `vantage`. That is deliberate and it is
+  // three things at once: a labelled perch pays awardOnce('scenic', …) and
+  // tallies feats.perch (game/interactions.js), so labelling these would let
+  // a Mischief ability quietly buy the two Traversal ones; the discovery log
+  // would fill with "an oak tree" a dozen times per walk; and test/docks.test
+  // pins the Docks as the area with the most vantage perches, an invariant a
+  // handful of labelled trees in the neighborhood would silently break.
+  const clawPerches = [];
 
   // main street running north-south, side street east-west
   scene.add(b.path(0, -50, 0, 50, 5));
@@ -31,20 +49,37 @@ export function build(scene) {
 
   // trees, bushes, parked cars, lamps
   for (const [x, z] of [[-6, -40], [7, -22], [-8, 8], [6, 40], [-20, 22], [20, -8], [24, 18], [-24, -18]]) {
-    scene.add(b.tree(x, z, 0.9 + ((x * z) % 5) * 0.08));
+    // The scale expression is lifted into a local because the tree's fork
+    // perch is derived from it (climbing.js's sureClawsTreePerch reads
+    // builder.js's 2-unit trunk), and a fork authored from a hand-copied
+    // scale is exactly how world data drifts from the model it sits on.
+    const scale = 0.9 + ((x * z) % 5) * 0.08;
+    scene.add(b.tree(x, z, scale));
     addC(x, z, 0.6);
+    clawPerches.push(sureClawsTreePerch(x, z, scale));
   }
   for (const [x, z] of [[-4, -12], [5, 25], [18, 4], [-18, -4]]) scene.add(b.bush(x, z));
 
   // low front fences along two west-side lots (curbside, just outside the house footprint)
+  // Scenery until CF-9b: both runs now carry a mid-run fence-top perch at
+  // 0.85, the same height the dog-yard tops already ship at (builder.js's
+  // fenceRun is a 1m paling with its rail at 0.8). The cat cannot stand at
+  // x -9 — the house collider at (-12, z) pushes it out to x -8.25 — but
+  // 0.75 of that is well inside the 1.2 baseline reachLow, so the hop is
+  // taken from the curb side, which is where a cat would jump a front fence.
   scene.add(b.fenceRun(-9, -17, -9, -13));
   scene.add(b.fenceRun(-9, 13, -9, 17));
+  clawPerches.push(
+    { x: -9, z: -15, y: 0.85, kind: 'fence', requires: SURE_CLAWS_ID },
+    { x: -9, z: 15, y: 0.85, kind: 'fence', requires: SURE_CLAWS_ID },
+  );
 
   // extra scatter trees in the open lawn corners (with colliders) + leaves swept beneath
   const scatterTrees = [[-30, -12], [30, 12], [-32, 38], [32, -38]];
   for (const [x, z] of scatterTrees) {
     scene.add(b.tree(x, z, 1.0));
     addC(x, z, 0.6);
+    clawPerches.push(sureClawsTreePerch(x, z, 1.0));
   }
   const leafSpots = [[-30, -12, 1], [30, 12, 2], [-32, 38, 3], [32, -38, 4], [-8, 8, 5]];
   for (const [x, z, seed] of leafSpots) scene.add(b.leafLitter(x, z, seed));
@@ -89,10 +124,16 @@ export function build(scene) {
   const puddles = [{ x: -7, z: -8, r: 0.9 }, { x: 9, z: 12, r: 0.8 }];
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
 
-  // fenced yard with the dog (scare event source)
+  // fenced yard with the dog (scare event source). Two of its three runs
+  // have carried a fence-top perch since v11; the east run never did, so
+  // CF-9b opens it — and that completes the U, because (26,-24) is 5.66 from
+  // the shipped (22,-28) top, inside Fence Runner's 6.0 level dash. A Sure
+  // Claws + Fence Runner cat can now run the dog yard's whole fence line
+  // over the dog's head, which is the single best sentence in this feature.
   scene.add(b.fenceRun(18, -28, 26, -28));
   scene.add(b.fenceRun(18, -28, 18, -20));
   scene.add(b.fenceRun(26, -28, 26, -20));
+  clawPerches.push({ x: 26, z: -24, y: 0.85, kind: 'fence', requires: SURE_CLAWS_ID });
 
   // cardboard boxes
   for (const b2 of [[-6, -24], [16, 21], [-18, 8]]) scene.add(b.cardboardBox(b2[0], b2[1], b2[0] * 0.7));
@@ -139,19 +180,30 @@ export function build(scene) {
       { x: -17, z: 19, kind: 'can' }, { x: 15, z: 32, kind: 'pot' },
       { x: 5, z: 22, kind: 'bin' },
     ],
+    // `kind` (v18 CF-9b) names the prop each perch sits on, from
+    // climbing.js's closed PERCH_KINDS vocabulary. It is what makes Sure
+    // Claws' height lift per-prop instead of global; an untagged perch reads
+    // as 'prop' and climbs by exactly the baseline rule.
     perches: [
-      { x: 28, z: 28, y: 0.58 }, { x: 32, z: 24, y: 0.58 },
-      { x: 4, z: -35, y: 1.35, label: 'king of the car roof', vantage: true },
-      { x: -4, z: 20, y: 1.35 },
+      { x: 28, z: 28, y: 0.58, kind: 'furniture' }, { x: 32, z: 24, y: 0.58, kind: 'furniture' },
+      { x: 4, z: -35, y: 1.35, kind: 'car', label: 'king of the car roof', vantage: true },
+      { x: -4, z: 20, y: 1.35, kind: 'car' },
       // dog-yard fence tops
-      { x: 22, z: -28, y: 0.85 }, { x: 18, z: -24, y: 0.85 },
+      { x: 22, z: -28, y: 0.85, kind: 'fence' }, { x: 18, z: -24, y: 0.85, kind: 'fence' },
       // billboard crate-stack chain: ground -> crate -> crate top -> billboard
-      { x: 9.4, z: -14, y: 1.1 }, { x: 9.4, z: -14, y: 2.0 },
-      { x: 7, z: -14, y: 3.3, label: 'billboard lookout', vantage: true },
+      { x: 9.4, z: -14, y: 1.1, kind: 'crate' }, { x: 9.4, z: -14, y: 2.0, kind: 'crate' },
+      { x: 7, z: -14, y: 3.3, kind: 'roof', label: 'billboard lookout', vantage: true },
       // rooftop chain: ground -> porch roof -> rooftop -> ridge
-      { x: -9, z: 17.5, y: 1.3 },
-      { x: -9.5, z: 15.5, y: 2.9, label: 'rooftop scout', vantage: true },
-      { x: -11.5, z: 15.5, y: 4.1, label: 'king of the roof', vantage: true },
+      { x: -9, z: 17.5, y: 1.3, kind: 'roof' },
+      { x: -9.5, z: 15.5, y: 2.9, kind: 'roof', label: 'rooftop scout', vantage: true },
+      { x: -11.5, z: 15.5, y: 4.1, kind: 'roof', label: 'king of the roof', vantage: true },
+      // Sure Claws only: twelve tree forks and three fence tops. Last in the
+      // array on purpose — bestPerch keeps the FIRST of two equally high
+      // candidates (`pp.y > best.y` is strict), so declaring the shipped
+      // chain steps ahead of the gated records means a gated perch can never
+      // displace one on a tie. It also keeps the array readable as "the
+      // world, and then the ability".
+      ...clawPerches,
     ],
   };
 }

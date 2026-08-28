@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
+import { SURE_CLAWS_ID } from '../climbing.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -52,7 +53,9 @@ export function build(scene) {
   scene.add(overlook);
   addC(-40, -40, 6);
 
-  // beach props
+  // beach props. Two of these four boulders have carried perches since v11
+  // ((-8,10) and the "overlook boulder" at (-28,18)); the rest of the sand is
+  // scenery, and CF-9b opens it — see clawPerches below.
   for (const [x, z] of [[-8, 10], [-20, -2], [4, 24], [-28, 18]]) scene.add(b.rock(x, z));
 
   // a dune ledge beside the overlook boulder — second step of a short climb
@@ -123,10 +126,30 @@ export function build(scene) {
       { x: 17, z: 15, kind: 'pot' }, { x: 17, z: -17, kind: 'can' },
       { x: 21, z: 29, kind: 'bin' }, { x: -7, z: 9, kind: 'pot' },
     ],
+    // `kind` (v18 CF-9b). The dune ledge is 'stone', NOT 'tree' or 'fence' —
+    // which is the whole point of tagging: the ledge at y 1.9 used to be the
+    // number that held Sure Claws' global climb lift down to 1.85, and now it
+    // simply sits outside the lifted kinds and cannot be reached off the sand
+    // at all. The boulder → ledge chain that holds gm-sea-2 and fish-5 is
+    // untouched by the ability in either direction.
     perches: [
-      { x: 18, z: 14, y: 0.58 }, { x: 18, z: -18, y: 0.58 }, { x: -8, z: 10, y: 0.72 },
-      { x: -28, z: 18, y: 0.72, label: 'overlook boulder', vantage: true },
-      { x: -29, z: 19, y: 1.9, label: 'dune ledge', vantage: true },
+      { x: 18, z: 14, y: 0.58, kind: 'furniture' }, { x: 18, z: -18, y: 0.58, kind: 'furniture' },
+      { x: -8, z: 10, y: 0.72, kind: 'stone' },
+      { x: -28, z: 18, y: 0.72, kind: 'stone', label: 'overlook boulder', vantage: true },
+      { x: -29, z: 19, y: 1.9, kind: 'stone', label: 'dune ledge', vantage: true },
+      // Sure Claws only: the five scenery boulders. The seaside has neither
+      // a tree nor a fence, so the ability's height lift never fires in this
+      // area — what it opens here is the sand itself, five standing stones
+      // scattered from the north dunes to the far south beach, each already
+      // inside the baseline climb at the 0.72 the two shipped boulders use.
+      //
+      // (-32, -10) is deliberately included even though gm-sea-3 hides on the
+      // sand beside it: a ground mouse needs no perch, so the boulder cannot
+      // shorten anything — it just means a Sure Claws cat can spot the mouse
+      // from on top of the rock as well as from beside it.
+      ...[[-20, -2], [4, 24], [-32, 30], [12, -10], [-32, -10]].map(([x, z]) => (
+        { x, z, y: 0.72, kind: 'stone', requires: SURE_CLAWS_ID }
+      )),
     ],
   };
 }

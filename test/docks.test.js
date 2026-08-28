@@ -209,6 +209,24 @@ describe('The Old Docks — nothing requires Sea Legs', () => {
       expect(Math.abs(p.z), `perch at ${p.x},${p.z}`).toBeGreaterThan(CANAL_HALF);
     }
   });
+
+  it('holds the same line for the SKILL-GATED perches (v18 CF-9b)', () => {
+    // The loop above already walks the whole array, gated records included —
+    // this names them so the coverage cannot go vacuous. Sure Claws' "props
+    // that were scenery become climbable" added ten perches to this area (the
+    // eight market awnings and the two quay benches); a water-collider wave
+    // will not ask whether a perch was gated before it drowns the cat
+    // standing on it, so the canal rule binds them exactly as hard.
+    const gated = area.perches.filter((p) => p.requires);
+    expect(gated.length).toBe(10);
+    for (const p of gated) {
+      expect(p.requires).toBe('sure-claws');
+      expect(Math.abs(p.z), `gated perch at ${p.x},${p.z}`).toBeGreaterThan(CANAL_HALF);
+      // and each is takeable from dry land the cat can actually stand on
+      const reach = (p.y > 1 ? 2.6 : 1.2) - 0.05;
+      expect(standableWithin(p.x, p.z, reach), `gated perch at ${p.x},${p.z}`).toBe(true);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
