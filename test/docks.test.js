@@ -12,7 +12,28 @@ vi.stubGlobal('document', {
   createElement: () => ({
     width: 0,
     height: 0,
-    getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+    // A blanket no-op Proxy is enough for the billboard's canvas, but not for
+    // render/textures.js's surface tiles, which the world builders now ask
+    // for. Two of their calls need a real answer rather than undefined:
+    //   * createLinear/RadialGradient — the painters add colour stops to
+    //     whatever comes back;
+    //   * getImageData — every tile ends with a getImageData/putImageData
+    //     readback (clampToFloor, the pass that GUARANTEES no texel falls
+    //     below the luminance floor). clampToFloor does guard the headless
+    //     path, but it guards it by asking whether getImageData is a
+    //     function, which a blanket Proxy always answers yes to.
+    // A zeroed buffer is the truthful answer here: nothing was ever actually
+    // rasterised into this canvas.
+    getContext: () => new Proxy({}, {
+      get: (_target, key) => {
+        if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+          return () => ({ addColorStop: () => {} });
+        }
+        return () => {};
+      },
+      set: () => true,
+    }),
   }),
 });
 
@@ -21,6 +42,8 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { GOLD_MICE, GOLD_TOTAL } = await import('../src/goldmice.js');
+const { surfaceProps } = await import('../src/render/materials.js');
+const { setTextureTier, getTextureTier } = await import('../src/render/textures.js');
 
 const area = build(new THREE.Scene());
 // The canal runs east-west at |z| <= CANAL_HALF. Kept as a literal here on
@@ -420,5 +443,168 @@ describe('The Old Docks — actually registered', () => {
     for (const id of Object.keys(CATALOG.areas)) {
       expect(map, `area '${id}' is in the catalog but not in walk.js's AREAS`).toContain(id);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v20 — the surface/water/wind pilot.
+//
+// The Docks went first because it had the strongest case: its ground is
+// literally commented "wet cobbles" and it has a canal. These cases pin the
+// two things that can silently go wrong in a materials pass and look like an
+// art decision rather than a bug:
+//
+//   * TILE DENSITY. repeatFor() used to live in textures.js keyed on TEXTURE
+//     names, so repeatFor('wetStone', w, h) fell through to a plausible
+//     [1, 1] and rendered cobbles at three times their intended size, with no
+//     error. The repeat below is asserted as a NUMBER OF TILES against the
+//     surface's own tile size, which is the only form of that assertion the
+//     bug could not have passed.
+//   * TIER AND REDUCED MOTION. Both are threaded from walk.js through
+//     build(scene, opts) and both have to survive the trip: on the low tier
+//     the tiles are never built at all and the water drops to its baked ramp,
+//     and reduced motion has to freeze the water independently of the tier.
+// ---------------------------------------------------------------------------
+describe('The Old Docks — surfaces', () => {
+  const groundOf = (scene) => scene.children.find(
+    (o) => o.isMesh && o.geometry?.type === 'PlaneGeometry' && o.geometry.parameters.width === 120,
+  );
+
+  it('lays the ground in wet cobbles — the sheen preset, not the dry one', () => {
+    const scene = new THREE.Scene();
+    build(scene);
+    const g = groundOf(scene);
+    expect(g).toBeTruthy();
+    // 'wetStone' and 'cobble' share one tile and differ ONLY in roughness, so
+    // roughness is the whole assertion: 0.42 is the damp read the area is
+    // named for, 0.8 would be a dry street.
+    expect(g.material.roughness).toBe(surfaceProps('wetStone').roughness);
+    expect(g.material.metalness).toBe(0);
+    expect(g.material.map?.name).toBe('surface:cobble');
+  });
+
+  it('derives the ground repeat from the plane’s real size, so setts are 0.3m', () => {
+    const scene = new THREE.Scene();
+    build(scene);
+    const map = groundOf(scene).material.map;
+    // 120m of ground at the cobble tile's 1.2m => 100 tiles, i.e. 4x4 setts of
+    // 0.3m each. A hand-picked repeat is what this number exists to forbid.
+    expect([map.repeat.x, map.repeat.y]).toEqual([100, 100]);
+  });
+
+  it('names its shared tiles so endWalk’s teardown leaves them alone', () => {
+    // render/textures.js memoises its tiles for the app's lifetime, while
+    // endWalk traverses the scene disposing every material's `.map`. walk.js
+    // tells the two apart by the 'surface:' name the painter sets — if that
+    // prefix ever changes, the shared tiles start being freed once per walk
+    // and this is the case that says so.
+    const scene = new THREE.Scene();
+    build(scene);
+    expect(groundOf(scene).material.map.name.startsWith('surface:')).toBe(true);
+  });
+
+  it('builds no tiles at all on the low tier, keeping the light response', () => {
+    const before = getTextureTier();
+    try {
+      setTextureTier('low');
+      const scene = new THREE.Scene();
+      build(scene);
+      const g = groundOf(scene);
+      expect(g.material.map).toBeNull();          // zero texture bytes on a phone
+      expect(g.material.roughness).toBe(surfaceProps('wetStone').roughness); // two floats are free
+    } finally {
+      setTextureTier(before);
+    }
+  });
+});
+
+describe('The Old Docks — the canal is a water surface', () => {
+  it('hands back one water handle for the one declared footprint', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    expect(area.waterFx).toHaveLength(1);
+    expect(area.waterFx.length).toBe(area.waters.length);
+    expect(area.waterFx[0].mesh.name).toBe('water:canal');
+    expect(area.waterFx[0].mesh.position.y).toBe(0.04); // the plane's shipped height
+  });
+
+  it('adds the mesh straight to the scene, never inside a Group', () => {
+    // test/water.test.js's "draws that footprint from the declaration" case
+    // matches against scene.children; a nested water mesh is invisible to it
+    // and that case fails with "no mesh matches the declared footprint".
+    const scene = new THREE.Scene();
+    const area = build(scene);
+    expect(scene.children).toContain(area.waterFx[0].mesh);
+  });
+
+  it('threads the quality tier through, so a phone gets the baked ramp only', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene, { water: { quality: 'low' } });
+    const w = area.waterFx[0];
+    expect(w.tier).toBe('low');
+    expect(w.animated).toBe(false);        // update() is a no-op: no per-frame cost
+    expect(w.textures.normal).toBeNull();
+    expect(w.textures.roughness).toBeNull();
+    expect(w.textures.color).toBeTruthy(); // the half of the effect that is free
+  });
+
+  it('threads reducedMotion through independently of the tier', () => {
+    const scene = new THREE.Scene();
+    const area = build(scene, { water: { quality: 'high', reducedMotion: true } });
+    const w = area.waterFx[0];
+    expect(w.tier).toBe('high');   // still the full surface...
+    expect(w.animated).toBe(false); // ...but it does not move
+  });
+
+  it('still builds at the high tier when nothing is passed', () => {
+    const area = build(new THREE.Scene());
+    expect(area.waterFx[0].tier).toBe('high');
+    expect(area.waterFx[0].animated).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ...and the same "a fully-built thing that nothing calls" guard the block
+// above applies to the area itself, applied to the four render modules this
+// wave wired in. walk.js and main.js cannot be imported here (they pull in the
+// whole render stack), so it is asserted against the source text — the same
+// technique, for the same reason.
+// ---------------------------------------------------------------------------
+describe('the surface wave is actually wired up', () => {
+  const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+  const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+
+  it('sets the texture tier before any world geometry is built', () => {
+    const setTier = walkSrc.indexOf('setTextureTier(');
+    const buildArea = walkSrc.indexOf('.build(scene');
+    expect(setTier).toBeGreaterThan(-1);
+    expect(buildArea).toBeGreaterThan(-1);
+    // The tiles are memoised for the app's lifetime, so whatever tier is in
+    // force when the FIRST one is built is the tier every later walk inherits.
+    expect(setTier).toBeLessThan(buildArea);
+  });
+
+  it('threads the tier and reducedMotion into the area builders', () => {
+    expect(walkSrc).toMatch(/build\(scene, \{ water: \{ quality: tier, reducedMotion \}, wind \}\)/);
+  });
+
+  it('drives the water and the wind on REAL time, never the slow-mo clock', () => {
+    // `wdt` slows critters for a pounce beat. Slowing the canal or the trees
+    // with them reads as the whole world lurching, which is why skyLife and
+    // weather sit on real dt too.
+    expect(mainSrc).toContain('session.water.update(dt)');
+    expect(mainSrc).not.toContain('session.water.update(wdt)');
+    // Wind takes ABSOLUTE elapsed time, not a delta, and takes its intensity
+    // as a hint from weather rather than importing weather itself.
+    expect(mainSrc).toMatch(/session\.wind\.update\(t, session\.weather\.condition === 'rain' \? 1\.7 : 1\)/);
+  });
+
+  it('disposes both alongside the other per-walk systems', () => {
+    expect(walkSrc).toContain('session.water.dispose()');
+    expect(walkSrc).toContain('session.wind.dispose()');
+  });
+
+  it('keeps the app-lifetime surface tiles out of endWalk’s texture sweep', () => {
+    expect(walkSrc).toMatch(/if \(m\.map && !m\.map\.name\?\.startsWith\('surface:'\)\) m\.map\.dispose\(\);/);
   });
 });

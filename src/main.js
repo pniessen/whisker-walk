@@ -25,6 +25,7 @@ import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createWalkLifecycle } from './game/walk.js';
 import { nowSec } from './game/util.js';
+import { setTextureAnisotropy } from './render/textures.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -94,6 +95,15 @@ function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
+  // Grazing-angle sharpness for the tiled surface maps. Set once from the
+  // renderer's real cap, because textures.js has no renderer and the tiles are
+  // shared app-wide — a world file setting map.anisotropy would mutate every
+  // other area's tiles too. Capped at 4: the cost is per-sample and the only
+  // surfaces that need it are large ground planes (the Docks' 120m cobbles at
+  // 100x100 tiles, seen from a 2.2m camera, are almost all grazing angle),
+  // where 4 removes the crawl and 8 or 16 buys nothing visible for the extra
+  // bandwidth on a phone.
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
   // Baked once from a procedural RoomEnvironment (no network/HDRI fetch) and
   // reused across every walk — never disposed per-walk.
   const envMap = buildEnvMap(renderer);
@@ -603,6 +613,18 @@ function init() {
       session.scent.update(dt);
       session.fx.update(dt);
       session.skyLife.update(dt);
+      // Water and wind both stay on REAL dt/t, never the slow-mo `wdt` above.
+      // The slow-mo beat exists to slow CRITTERS for a pounce; dragging the
+      // canal and the foliage down with them reads as the whole world
+      // lurching, which is the same reason skyLife and weather sit here.
+      session.water.update(dt);
+      // Wind takes ABSOLUTE elapsed time (the same `t` goldMice.update gets),
+      // not a delta: every rotation is recomputed as a pure function of `t`,
+      // so there is no running total to drift. Intensity is the only place
+      // weather touches it — the module never imports weather.js itself, it
+      // just takes the hint. 1.7 is "noticeably windier" and well under the
+      // module's storm ceiling of 2.
+      session.wind.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);

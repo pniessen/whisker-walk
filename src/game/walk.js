@@ -49,6 +49,9 @@ import { createChatWheel } from '../ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../chat.js';
 import { replyFor, countsAsGreet } from '../catreplies.js';
 import { litMaterial } from '../render/materials.js';
+import { setTextureTier } from '../render/textures.js';
+import { waterRig } from '../render/water.js';
+import { createWind } from '../render/wind.js';
 import { resolveQuality } from '../render/quality.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
@@ -258,11 +261,23 @@ export function createWalkLifecycle({
 
 
   function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
+    // Read ONCE per walk, here, and passed down from this one place. Every
+    // system below that cares (fx, skyLife, weather, and now the water and the
+    // wind) wants the same answer, and the two new ones are on the 60Hz path —
+    // re-querying a setting per frame is exactly what this snapshot exists to
+    // prevent.
+    const reducedMotion = settings.get('reducedMotion');
     const tier = resolveQuality({
       coarse,
-      reducedMotion: settings.get('reducedMotion'),
+      reducedMotion,
       override: settings.get('quality'),
     });
+    // BEFORE ANY WORLD GEOMETRY EXISTS. render/textures.js builds its tiles
+    // lazily at first use and memoises them for the app's lifetime, so the
+    // tier that is set when the first textured prop is built is the tier that
+    // walk gets and every later walk inherits. Setting it after the build
+    // would give the first walk of a session the wrong one, permanently.
+    setTextureTier(tier);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.pixelRatioCap));
     // The shared per-walk stream. In a room walk every client seeds it from
     // the same roomSeed, so co-walkers agree about the world only as long as
@@ -311,9 +326,20 @@ export function createWalkLifecycle({
     sun.position.set(30, 50, 20);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 0.9));
 
+    // The sway registry for this walk's foliage. Created BEFORE the build so
+    // an area can register its trees and bushes as it plants them; areas that
+    // have not been through the surface wave simply never call add(), and an
+    // empty rig's update()/dispose() are no-ops. reducedMotion kills the sway
+    // outright inside the module — same rule as the body-bob and the
+    // particles, and independent of the quality tier.
+    const wind = createWind({ reducedMotion });
+    // Widened the way den.build(scene, { placed }) already was, rather than
+    // inventing a second convention. Both keys default inside each area, so an
+    // area that has not been threaded yet still builds from a bare
+    // build(scene) — which is what every world test does.
     const areaData = isDen
       ? AREAS.den.build(scene, { placed: progression.state.den.placed })
-      : AREAS[areaId].build(scene);
+      : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
     // POIs are authored as "interesting spots" and several sit dead-center
     // on scenery (the park fountain, the parked car) — fine as vibes, but
     // race rings and quest objects placed there are unreachable: player
@@ -397,7 +423,7 @@ export function createWalkLifecycle({
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
     if (!duskActive && !isDen) {
-      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, settings.get('reducedMotion'));
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion);
       if (weather.condition === 'rain') {
         // extra puddles
         const extra = [];
@@ -629,7 +655,7 @@ export function createWalkLifecycle({
       netSendAccum: 0,
       // read once per walk (not per frame) so the zoomies trail's reducedMotion
       // gate doesn't re-query settings 60x/sec in the render loop.
-      reducedMotion: settings.get('reducedMotion'),
+      reducedMotion,
       zoomTrailAccum: 0,
       wasZooming: false,
       goals,
@@ -638,7 +664,14 @@ export function createWalkLifecycle({
       catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
-      fx: createFx(scene, { reducedMotion: settings.get('reducedMotion') }),
+      fx: createFx(scene, { reducedMotion }),
+      // The area's water surfaces, bundled into the one { update, dispose }
+      // shape the session already uses. Safe on an area with no water at all
+      // (the neighborhood, the den), which is why the render loop and endWalk
+      // can each call it unconditionally.
+      water: waterRig(areaData.waterFx),
+      // Built above, before the world, so the area could register into it.
+      wind,
       // dedicated rng stream (never walkRng): sky life must not perturb the
       // shared determinism stream that co-walk clients rely on staying in
       // sync — see Global Constraints. Seeding off roomSeed (when present)
@@ -647,7 +680,7 @@ export function createWalkLifecycle({
       // unconditional session.skyLife.update()/dispose() calls safe.
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
-        reducedMotion: settings.get('reducedMotion'),
+        reducedMotion,
       }),
       secrets,
       tippables,
@@ -1005,11 +1038,27 @@ export function createWalkLifecycle({
     composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
+    // Water frees the normal and roughness maps the traversal below cannot
+    // reach (it only looks at `m.map`); wind puts every swayed object back on
+    // the rotation — and under the parent — it had before it was registered.
+    // Both are idempotent, and the water material would free its own textures
+    // off the traversal's dispose() anyway; wiring them explicitly means
+    // neither depends on a subtlety of that sweep.
+    session.water.dispose();
+    session.wind.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
         for (const m of Array.isArray(obj.material) ? obj.material : [obj.material]) {
-          if (m.map) m.map.dispose(); // Material.dispose() doesn't cascade to textures
+          // Material.dispose() doesn't cascade to textures, so per-walk maps
+          // (nametags, the billboard canvas, a water ramp) are freed here.
+          // The surface tiles from render/textures.js are NOT: they are
+          // memoised for the app's lifetime and shared by every walk after
+          // this one, and that module's header is explicit that this
+          // traversal must leave them alone. They are named 'surface:<name>'
+          // by the painter, and THREE.Texture.copy carries that name onto the
+          // per-density clones, so the one check covers both.
+          if (m.map && !m.map.name?.startsWith('surface:')) m.map.dispose();
           m.dispose();
         }
       }

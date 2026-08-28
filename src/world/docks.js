@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
+import { createWater } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 
 const mat = (color) => litMaterial(color);
@@ -71,12 +72,56 @@ const CANAL = {
   ],
 };
 
-export function build(scene) {
+// -----------------------------------------------------------------------------
+// SURFACES AND WATER (v20). The district is the pilot for both, and the whole
+// brief is SUBTLETY: materials.js opens with "cozy low-poly art direction
+// stays flat/matte", every tile is under a 14% value range, and a prop that
+// reads fine flat stays flat. What got a surface here is what the area is
+// literally described as being made of — wet cobbles underfoot, brick and
+// painted-timber warehouse walls, roofing felt, dock timber, yard-painted
+// steel, glass. What did NOT: the quay edging, the paths and sidewalks, the
+// bollard ropes, the barrels, the roof tank, the awning canvas, the bridge
+// decks (their planking is already geometry, and the plank tile's boards run
+// along the deck where the raised strips run across it — two rhythms
+// disagreeing is worse than none) and the puddles (the `water` preset is
+// right for them, but walk.js builds rain puddles for every area from one
+// shared call, so they belong to the global pass, not to this pilot).
+//
+// `opts.water` is the tier/reduced-motion pair walk.js threads in, widened
+// the way den.js's build(scene, { placed }) already does it. Both keys
+// default, so a bare build(scene) — which every world test does — still
+// produces the high-tier surface rather than throwing.
+//
+// walk.js also passes `opts.wind`, the per-walk sway registry, and THE OLD
+// DOCKS DELIBERATELY REGISTERS NOTHING WITH IT — not an omission. Wind sways
+// foliage, and there is no foliage here: the perch-chain note at the bottom of
+// this file already says it in as many words ("there is not a tree or a fence
+// in the district"), which is why Sure Claws' height lift is inert in this
+// area. So the rig is created, driven and torn down for every walk, and the
+// content that will actually move lands with the other three areas.
+//
+// The one candidate a reviewer might want to overrule that with is the eight
+// market awnings — canvas over a night market is the most wind-shaped thing in
+// the district. It is left alone here because sway leans the WHOLE stall, and
+// every stall carries a 1.2 collider and a CF-9b gated perch at its awning:
+// the lean is ~3cm at that height and the records do not move, but "rock the
+// prop the cat is standing on" is a judgement about content, not materials,
+// and this pass is not the place to make it unasked.
+// -----------------------------------------------------------------------------
+export function build(scene, { water = {} } = {}) {
   // Overcast harbour daylight — muted rather than cheerful, so the area reads
   // as "the old docks" even before dusk. skyDusk (returned below) drops it to
   // near-black, which is the Night Eyes showcase.
   b.applySky(scene, 0x5e7290, 0x8e9aae);
-  scene.add(b.ground(120, 0x4e4e58)); // wet cobbles
+  // Wet cobbles, at last literally: 'wetStone' is the cobble tile at roughness
+  // 0.42, the one preset in the table that is a sheen rather than a matte, and
+  // its own docstring names this exact surface. The repeat is derived from the
+  // plane's real 120m (100 tiles of 1.2m, i.e. 0.3m setts) rather than picked
+  // — a picked number on a plane this size is a visible plaid. The colour is
+  // NOT lifted for the cobble tile's 0.961 mean: four percent darker is the
+  // right direction for an overcast harbour, and this is the one surface the
+  // area's name is about.
+  scene.add(b.ground(120, 0x4e4e58, { surface: 'wetStone' }));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -97,20 +142,43 @@ export function build(scene) {
   // over-covering convention house() + addC(x, z, 3.4) uses in
   // neighborhood.js) — the cat is stopped a little off the wall rather than
   // being able to clip a corner.
-  const warehouseAt = (x, z, w, d, h, bodyColor, roofColor, r, spread) => {
-    scene.add(b.warehouse(x, z, w, d, h, bodyColor, roofColor));
+  // `bodySurface` picks masonry or painted lap boards per building — the warm
+  // bodies are brick, the two cool grey-blue ones are painted siding, which is
+  // the read their colours already implied and now have a light response to
+  // match. builder.warehouse compensates brick's 0.948 mean itself, so the
+  // hexes below are still the shipped ones.
+  const warehouseAt = (x, z, w, d, h, bodyColor, roofColor, r, spread, bodySurface) => {
+    scene.add(b.warehouse(x, z, w, d, h, bodyColor, roofColor, bodySurface));
     addC(x - spread, z, r);
     addC(x + spread, z, r);
   };
 
   // --- the canal ------------------------------------------------------------
-  // drawn from CANAL, so the water on screen and the water in the data are
-  // the same rectangle by construction
-  const canal = new THREE.Mesh(
-    new THREE.PlaneGeometry(CANAL.maxX - CANAL.minX, CANAL.maxZ - CANAL.minZ), mat(0x24445e));
-  canal.rotation.x = -Math.PI / 2;
-  canal.position.set((CANAL.minX + CANAL.maxX) / 2, 0.04, (CANAL.minZ + CANAL.maxZ) / 2);
-  scene.add(canal);
+  // Still drawn from CANAL, so the water on screen and the water in the data
+  // are the same rectangle by construction — createWater builds its geometry
+  // from the footprint verbatim, which is what keeps test/water.test.js's
+  // "draws that footprint from the declaration" case honest. The mesh goes
+  // into the scene DIRECTLY and never into a Group: that case matches against
+  // scene.children, and a nested mesh is invisible to it.
+  //
+  // y 0.04 and 0x24445e are the plane's own shipped values, so nothing
+  // re-stacks against the quays and the canal keeps the dour dark-slate
+  // identity the overcast palette needs (createWater derives its shallow,
+  // deep and foam ends from that one hex).
+  //
+  // foamStrength 0.35 rather than the 0.45 default, on the module's own
+  // advice for this body: the canal is 7m across, so its two foam bands are a
+  // large fraction of the whole surface, and at a grazing camera a band that
+  // measures modestly in metres reads as a wide halo. All four edges are land
+  // here — unlike the seaside, the canal really is walled on every side.
+  const canal = createWater(CANAL, {
+    y: 0.04,
+    color: 0x24445e,
+    foamStrength: 0.35,
+    quality: water.quality ?? 'high',
+    reducedMotion: water.reducedMotion ?? false,
+  });
+  scene.add(canal.mesh);
   // stone quay edging on both banks (visual only — see the header note: no
   // collider may ever be added here, or the bridges stop being the crossing
   // and the canal becomes a Sea Legs dependency)
@@ -137,16 +205,19 @@ export function build(scene) {
   // W1 is the tall one. Its flat roof (deck y 5.0, parapet top y 5.3) is the
   // top of the game's longest perch chain — see the chain table at the bottom
   // of this file before moving it a single metre.
-  warehouseAt(20, 16, 10, 8, 5.0, 0x8a6a5a, 0x44404a, 4.2, 2.8);
-  warehouseAt(-6, 20, 12, 9, 4.2, 0x7a7a86, 0x3e3a46, 4.6, 3.0);
-  warehouseAt(-26, 15, 9, 8, 3.6, 0x86766a, 0x44404a, 4.3, 2.2);
-  warehouseAt(12, 32, 11, 8, 4.6, 0x74707e, 0x3e3a46, 4.3, 2.6);
+  warehouseAt(20, 16, 10, 8, 5.0, 0x8a6a5a, 0x44404a, 4.2, 2.8, 'brick');
+  warehouseAt(-6, 20, 12, 9, 4.2, 0x7a7a86, 0x3e3a46, 4.6, 3.0, 'siding');
+  warehouseAt(-26, 15, 9, 8, 3.6, 0x86766a, 0x44404a, 4.3, 2.2, 'brick');
+  warehouseAt(12, 32, 11, 8, 4.6, 0x74707e, 0x3e3a46, 4.3, 2.6, 'siding');
 
   // crate stack against W1's south-west corner: two tiers, tops at y 1.15 and
   // y 2.4. Tier 1 is the only thing on this whole chain a grounded cat can
   // reach (1.15 <= the 1.6 baseline climb budget).
-  scene.add(b.platform(16.2, 9.2, 1.15, 0, 1.1));
-  scene.add(b.platform(16.2, 9.2, 2.4, 1.15, 0.9));
+  // Dock timber. `undefined` for the colour keeps builder.platform's default
+  // while still reaching the options object — the crates are the same crates,
+  // with the plank tile's grain and seams on them.
+  scene.add(b.platform(16.2, 9.2, 1.15, 0, 1.1, undefined, { surface: 'wood' }));
+  scene.add(b.platform(16.2, 9.2, 2.4, 1.15, 0.9, undefined, { surface: 'wood' }));
   addC(16.2, 9.2, 0.6);
   // fire escape hung off W1's south wall (the wall is at z 12; this stands
   // 1.6 clear of it so a grounded cat can get directly underneath — W1's
@@ -201,9 +272,10 @@ export function build(scene) {
   // roof is deliberately just above the 1.6 baseline climb budget and just
   // under Spring Paws' 2.2, so it is the one chain in the area that visibly
   // collapses from two hops to one the moment that ability is earned.
-  scene.add(b.warehouse(6.5, -23.5, 6, 5, 1.8, 0x7a6a5a, 0x44404a));
+  // painted timber rather than brick: it is a shed, not a warehouse
+  scene.add(b.warehouse(6.5, -23.5, 6, 5, 1.8, 0x7a6a5a, 0x44404a, 'siding'));
   addC(6.5, -23.5, 3.2);
-  scene.add(b.platform(4.0, -20.2, 1.1, 0, 1.0));
+  scene.add(b.platform(4.0, -20.2, 1.1, 0, 1.0, undefined, { surface: 'wood' }));
   addC(4.0, -20.2, 0.55);
 
   // the dock crane. Its four legs get small colliders rather than one big
@@ -220,7 +292,7 @@ export function build(scene) {
   // chain C step 1: a crate stack south of the container's east end. Small
   // enough (0.55 collider) to sit in the gap between the container and the
   // crane leg, which a market stall's 1.2 collider could not.
-  scene.add(b.platform(-19.6, -16.6, 1.3, 0, 1.0));
+  scene.add(b.platform(-19.6, -16.6, 1.3, 0, 1.0, undefined, { surface: 'wood' }));
   addC(-19.6, -16.6, 0.55);
 
   // --- quayside dressing ----------------------------------------------------
@@ -277,6 +349,10 @@ export function build(scene) {
     spawn: { x: 0, z: -34 },
     // The canal and its two dry crossings. See the header.
     waters: [CANAL],
+    // The visual half of that same record: walk.js bundles these into a
+    // waterRig and drives update(dt)/dispose() with the walk's other per-walk
+    // systems. One entry, one footprint — they are the same list twice.
+    waterFx: [canal],
     boxes: [{ x: -19, z: 6.8 }, { x: 9, z: -18.5 }, { x: 26, z: 8.5 }],
     // Four POIs a side, all at |z| >= 6 — clear of the canal, so the daily
     // race course (five waypoints derived from these) and every quest target

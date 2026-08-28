@@ -219,6 +219,49 @@ export function getTextureTier() {
   return tierName;
 }
 
+// --- Anisotropy -------------------------------------------------------
+// Sharpness of a tile viewed at a grazing angle. Trilinear mipmapping alone
+// picks a blurry level for a surface raked away from the camera, and on a
+// large tiled ground plane that reads as a crawling shimmer as the cat walks.
+//
+// The Docks ground is the case that forced this: a 120m plane at 100x100
+// cobble tiles, seen from a 2.2m-high camera, is almost entirely grazing
+// angle. Static frames looked clean; the risk is only visible in motion.
+//
+// It lives HERE and not in a world file for the reason the two-namespace note
+// above gives about shared state: the base tiles are memoised for the app's
+// lifetime and shared by every area, so a world file setting `map.anisotropy`
+// would silently mutate every other area's tiles too.
+//
+// The cap is the renderer's (`renderer.capabilities.getMaxAnisotropy()`), and
+// this module has no renderer — so main.js passes it in, once, next to
+// setTextureTier. Until it does, 1 is three.js's own default and nothing
+// changes. Applied to already-built textures as well as future ones, so the
+// call order between this and the first walk does not matter.
+let anisotropy = 1;
+
+export function setTextureAnisotropy(max) {
+  const n = Math.floor(Number(max));
+  if (!Number.isFinite(n) || n < 1) return anisotropy;
+  anisotropy = n;
+  for (const tex of bases.values()) applyAnisotropy(tex);
+  for (const tex of variants.values()) applyAnisotropy(tex);
+  return anisotropy;
+}
+
+export function getTextureAnisotropy() {
+  return anisotropy;
+}
+
+function applyAnisotropy(tex) {
+  if (!tex || tex.anisotropy === anisotropy) return;
+  tex.anisotropy = anisotropy;
+  // Anisotropy is a sampler parameter, so the GPU-side texture has to be told
+  // to re-read its parameters. Clones share one Source, and every clone
+  // carries the same value, so they cannot disagree about it.
+  tex.needsUpdate = true;
+}
+
 // ---------------------------------------------------------------------------
 // Memoisation
 // ---------------------------------------------------------------------------
@@ -281,6 +324,7 @@ export function surfaceTexture(name, { repeat } = {}) {
   if (!variant) {
     variant = base.clone();
     variant.repeat.set(rx, ry);
+    applyAnisotropy(variant);
     // A clone starts life with needsUpdate already set by the CanvasTexture
     // constructor, so the shared Source uploads once and the clone binds it.
     variants.set(key, variant);
@@ -315,6 +359,12 @@ function baseTexture(name, spec) {
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(spec.repeat[0], spec.repeat[1]);
   tex.name = `surface:${name}`;
+  // Load-bearing beyond identification: endWalk's teardown traversal disposes
+  // `m.map` on every material it finds, and these tiles are memoised for the
+  // app's lifetime and shared by every later walk. walk.js keys its skip on
+  // this `surface:` prefix, and THREE.Texture.copy carries the name onto the
+  // repeat-variant clones, so one check covers bases and variants alike.
+  applyAnisotropy(tex);
   bases.set(name, tex);
   return tex;
 }
@@ -349,8 +399,16 @@ export function clampToFloor(ctx, size) {
   if (!ctx || typeof ctx.getImageData !== 'function' || typeof ctx.putImageData !== 'function') {
     return false;
   }
+  // `img` is dereferenced before `d` is checked, so it has to be guarded on
+  // its own. A blanket Proxy stub — which six world test files use as their
+  // fake canvas — answers `typeof ctx.getImageData === 'function'` with true
+  // and then returns undefined, so the typeof guard above passes and
+  // `img.data` throws. That crashed every world test the moment an area
+  // builder asked for a texture, and the first integrator hit it immediately.
+  // Guarding here rather than in each test's stub is what stops the next four
+  // area integrators from each rediscovering it and patching it their own way.
   const img = ctx.getImageData(0, 0, size, size);
-  const d = img.data;
+  const d = img?.data;
   if (!d || d.length < size * size * 4) return false;
 
   let minL = 1;

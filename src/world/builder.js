@@ -1,16 +1,58 @@
 import * as THREE from 'three';
-import { litMaterial } from '../render/materials.js';
+import { litMaterial, repeatFor } from '../render/materials.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
+
+// ---------------------------------------------------------------------------
+// Surfaces (v20 surface-foundation wave).
+//
+// `mat`/`box` above are unchanged and still the default for every prop: the
+// art direction is flat and matte, and a prop that reads fine flat stays
+// flat. These two are the opt-in, used by the props the wave has actually
+// been through — today that is the Docks' own builders plus the two shared
+// ones (ground, platform) that take a surface only when a caller asks.
+//
+// The repeat is always DERIVED from the face's real size via repeatFor(),
+// never typed: repeatFor speaks the 16-preset vocabulary of materials.js
+// (NOT the 7 texture names of textures.js — see the two-namespaces note in
+// both headers) and returns null for a preset that carries no map, which
+// litMaterial reads as "take the surface's own default density".
+//
+// A BoxGeometry maps 0..1 per FACE, so one repeat serves all six: pass the
+// dimensions of the face that matters (a wall's w x h) and accept that the
+// end faces tile at a slightly different density. On the side faces v runs
+// up +y, which is what puts brick courses and siding laps horizontal and
+// plank grain vertical without any per-face bookkeeping.
+const surfMat = (color, surface, w, h) =>
+  litMaterial(color, { surface, repeat: repeatFor(surface, w, h) });
+// `fw`/`fh` default to the box's own width/height — override them when the
+// face that should drive the tiling is not the front one.
+const surfBox = (w, h, d, color, surface, fw = w, fh = h) =>
+  new THREE.Mesh(new THREE.BoxGeometry(w, h, d), surfMat(color, surface, fw, fh));
+
+// Per-channel multiply, clamped. The one use is colour compensation against a
+// texture's mean luminance (render/textures.js's header carries the table);
+// `factor` is 1/mean, so the textured prop lands back on its authored colour.
+function lift(hex, factor) {
+  const ch = (shift) => Math.min(255, Math.round(((hex >> shift) & 0xff) * factor));
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
 
 export function applySky(scene, top, horizon) {
   scene.background = new THREE.Color(top);
   scene.fog = new THREE.Fog(horizon, 40, 130);
 }
 
-export function ground(size, color) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat(color));
+// `surface` is opt-in and defaults to nothing at all, so every area that does
+// not ask keeps the flat colour plane it ships with. The repeat comes from the
+// ground's own size, which is the only sane density for a plane this big — a
+// hand-picked number here is a plaid at 40m.
+export function ground(size, color, { surface } = {}) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    surface ? surfMat(color, surface, size, size) : mat(color),
+  );
   m.rotation.x = -Math.PI / 2;
   return m;
 }
@@ -257,9 +299,14 @@ export function bike(x, z, rotY = 0) {
 // A flat-topped box the cat can stand on — crate stacks, porch/shed roofs,
 // dune ledges. Spans y `yBottom`..`yTop` so several calls at the same x/z
 // with increasing yBottom stack into a tiered climbing platform.
-export function platform(x, z, yTop, yBottom = 0, size = 1.2, color = 0xc8a678) {
-  const m = box(size, yTop - yBottom, size, color);
-  m.position.set(x, yBottom + (yTop - yBottom) / 2, z);
+// `surface` is opt-in for the same reason ground()'s is: the Docks' crates are
+// dock timber, the neighborhood's and the seaside's are whatever they already
+// were, and neither should have to change for the other. Pass `undefined` for
+// `color` to keep the default while still reaching the options object.
+export function platform(x, z, yTop, yBottom = 0, size = 1.2, color = 0xc8a678, { surface } = {}) {
+  const h = yTop - yBottom;
+  const m = surface ? surfBox(size, h, size, color, surface) : box(size, h, size, color);
+  m.position.set(x, yBottom + h / 2, z);
   return m;
 }
 
@@ -280,13 +327,24 @@ export function platform(x, z, yTop, yBottom = 0, size = 1.2, color = 0xc8a678) 
 // docks.js perches sit on the parapet lip, not on the deck.
 export const PARAPET = 0.3;
 
-export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4650) {
+// `bodySurface` is 'brick' or 'siding' — fired masonry or painted lap boards.
+// Both are warehouse walls; which one a building wants is a colour decision
+// the caller has already made (docks.js's warm bodies are brick, its two cool
+// grey-blue ones are painted siding), so it is passed rather than guessed.
+export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4650, bodySurface = 'brick') {
   const g = new THREE.Group();
-  const body = box(w, h, d, bodyColor);
+  // Colour compensation, per the luminance table in render/textures.js's
+  // header: a map multiplies the base colour and the brick tile's mean is
+  // 0.948, so a textured wall lands ~5% darker than the hex it ships with.
+  // Lifting the brick bodies by 1/0.948 puts them back on their authored
+  // colour. Siding's mean is 0.988 — inside the noise, left alone.
+  const body = surfBox(w, h, d, bodySurface === 'brick' ? lift(bodyColor, 1 / 0.948) : bodyColor, bodySurface);
   body.position.y = h / 2;
   g.add(body);
-  // flat roof deck, then a parapet lip on all four sides
-  const deck = box(w, 0.12, d, roofColor);
+  // flat roof deck, then a parapet lip on all four sides. The deck is the only
+  // part that carries the shingle map: the lips are 0.3 tall and a tile
+  // squashed into them would read as a stripe rather than as a roof.
+  const deck = surfBox(w, 0.12, d, roofColor, 'shingle', w, d);
   deck.position.y = h + 0.06;
   g.add(deck);
   for (const [lw, ld, lx, lz] of [
@@ -300,11 +358,15 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
   // Two rows of windows on the long (x) faces. userData.window is what
   // walk.js's dusk pass looks for when it swaps in the warm emissive glow —
   // the same hook house() uses, so the Docks lights up at dusk for free.
+  // 'glass' is the only sub-0.3-roughness preset used anywhere in this file,
+  // and a pane is what it is for: small, vertical, and the one thing on a
+  // warehouse elevation that should catch a highlight. The dusk pass replaces
+  // the material outright, so the two never fight.
   const cols = Math.max(2, Math.floor(w / 2.6));
   for (const face of [1, -1]) {
     for (let i = 0; i < cols; i++) {
       for (const wy of h > 3.4 ? [1.1, 2.7] : [1.1]) {
-        const win = box(0.8, 0.7, 0.08, 0xa8d8e8);
+        const win = surfBox(0.8, 0.7, 0.08, 0xa8d8e8, 'glass');
         win.userData.window = true;
         win.position.set(-w / 2 + (i + 0.5) * (w / cols), wy, face * (d / 2 + 0.02));
         g.add(win);
@@ -315,13 +377,13 @@ export function warehouse(x, z, w, d, h, bodyColor = 0x8a7c74, roofColor = 0x4a4
   // the building reads as a blank slab
   for (const face of [1, -1]) {
     for (const wy of h > 3.4 ? [1.1, 2.7] : [1.1]) {
-      const win = box(0.08, 0.7, 0.8, 0xa8d8e8);
+      const win = surfBox(0.08, 0.7, 0.8, 0xa8d8e8, 'glass');
       win.userData.window = true;
       win.position.set(face * (w / 2 + 0.02), wy, 0);
       g.add(win);
     }
   }
-  const door = box(1.6, 2.2, 0.12, 0x53433a);
+  const door = surfBox(1.6, 2.2, 0.12, 0x53433a, 'wood');
   door.position.set(0, 1.1, d / 2 + 0.03);
   g.add(door);
   const lintel = box(2.0, 0.16, 0.2, 0x5e5450);
@@ -352,15 +414,20 @@ export const CONTAINER_H = 2.6;
 
 export function shippingContainer(x, z, rotY = 0, color = 0xb05a4a) {
   const g = new THREE.Group();
-  const body = box(6, CONTAINER_H, 2.5, color);
+  // 'paintedMetal', not 'bareMetal': a container is a painted box, the metal
+  // is under the paint, and metalness > 0 would tint the highlight with the
+  // body colour and take the red and the blue out of the yard. No map — the
+  // corrugation is already geometry, and a tile on top of it is two rhythms.
+  const body = surfBox(6, CONTAINER_H, 2.5, color, 'paintedMetal');
   body.position.y = CONTAINER_H / 2;
   g.add(body);
   for (let i = 0; i < 7; i++) { // corrugated ribs
-    const rib = box(0.1, CONTAINER_H - 0.3, 2.56, color === 0xb05a4a ? 0x9a4a3a : 0x3a5a78);
+    const ribColor = color === 0xb05a4a ? 0x9a4a3a : 0x3a5a78;
+    const rib = surfBox(0.1, CONTAINER_H - 0.3, 2.56, ribColor, 'paintedMetal');
     rib.position.set(-2.6 + i * 0.87, CONTAINER_H / 2, 0);
     g.add(rib);
   }
-  const lid = box(6.05, 0.1, 2.55, 0x6a6a72);
+  const lid = surfBox(6.05, 0.1, 2.55, 0x6a6a72, 'paintedMetal');
   lid.position.y = CONTAINER_H;
   g.add(lid);
   g.position.set(x, 0, z);
@@ -374,7 +441,7 @@ export const STALL_AWNING = 1.3;
 
 export function marketStall(x, z, rotY = 0, awningColor = 0xc85a5a) {
   const g = new THREE.Group();
-  const counter = box(1.9, 0.75, 1.0, 0x9a7048);
+  const counter = surfBox(1.9, 0.75, 1.0, 0x9a7048, 'wood');
   counter.position.y = 0.375;
   g.add(counter);
   for (const [px, pz] of [[-0.9, -0.5], [0.9, -0.5], [-0.9, 0.5], [0.9, 0.5]]) {
@@ -382,7 +449,11 @@ export function marketStall(x, z, rotY = 0, awningColor = 0xc85a5a) {
     post.position.set(px, STALL_AWNING / 2, pz);
     g.add(post);
   }
-  const awning = box(2.2, 0.1, 1.3, awningColor);
+  // The awning stays FLAT, and 'matte' says so out loud rather than leaving a
+  // reviewer to wonder whether it was missed: it is canvas, there is no cloth
+  // tile in the vocabulary, and the nearest ones (siding, plank) would make a
+  // striped awning read as a striped plank. The stripes are already geometry.
+  const awning = surfBox(2.2, 0.1, 1.3, awningColor, 'matte');
   awning.position.y = STALL_AWNING;
   g.add(awning);
   for (let i = 0; i < 3; i++) { // stripes, so two stalls side by side read apart
@@ -410,34 +481,49 @@ export function marketStall(x, z, rotY = 0, awningColor = 0xc85a5a) {
 // where the cat should stand and sizes `depth` to meet the wall behind it.
 // Without that the landings float in open air, which is exactly how the first
 // draft of this looked in the browser.
+//
+// 'paintedMetal', and NOT 'bareMetal' — which is what this was built with
+// first, and the swap is recorded because the reasoning applies to every dark
+// metal prop in the game. bareMetal is metalness 0.85, i.e. ~85% of the
+// diffuse term is thrown away and the prop shows mostly the environment; the
+// environment here is a baked RoomEnvironment at envIntensity 0.32-0.45, which
+// is dim. Against this assembly's authored greys (0x3e3e46, 0x4a4a52) that
+// flattened the whole fire escape to one near-black shape at the range a cat
+// actually climbs it — the landings, the stiles and the wall plate stopped
+// being separable at all, which is a real change to how a load-bearing perch
+// chain reads rather than a material nicety. paintedMetal keeps metalness at 0
+// so the greys survive and each member keeps its own value, and its roughness
+// 0.35 still tells the steelwork apart from the matte brick behind it.
+// bareMetal wants a LIGHT colour and a bright probe; this game has neither.
 export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9], depth = 2.2) {
   const g = new THREE.Group();
+  const steel = (w, h, d, color) => surfBox(w, h, d, color, 'paintedMetal');
   const back = depth - 0.55; // local z of the wall face
   let prev = 0;
   for (const h of heights) {
-    const landing = box(1.7, 0.1, depth, 0x4a4a52);
+    const landing = steel(1.7, 0.1, depth, 0x4a4a52);
     landing.position.set(0, h - 0.05, depth / 2 - 0.55);
     g.add(landing);
     for (const rx of [-0.85, 0.85]) { // side handrails
-      const rail = box(0.06, 0.55, depth, 0x5a5a62);
+      const rail = steel(0.06, 0.55, depth, 0x5a5a62);
       rail.position.set(rx, h + 0.25, depth / 2 - 0.55);
       g.add(rail);
-      const top = box(0.1, 0.08, depth, 0x6a6a72);
+      const top = steel(0.1, 0.08, depth, 0x6a6a72);
       top.position.set(rx, h + 0.55, depth / 2 - 0.55);
       g.add(top);
     }
-    const front = box(1.7, 0.55, 0.06, 0x5a5a62); // front rail
+    const front = steel(1.7, 0.55, 0.06, 0x5a5a62); // front rail
     front.position.set(0, h + 0.25, -0.55);
     g.add(front);
     // ladder up from the previous landing, on the front edge, with rungs
     for (const lx of [-0.28, 0.28]) {
-      const stile = box(0.06, h - prev, 0.06, 0x6a6a72);
+      const stile = steel(0.06, h - prev, 0.06, 0x6a6a72);
       stile.position.set(lx, prev + (h - prev) / 2, -0.52);
       g.add(stile);
     }
     const rungs = Math.max(2, Math.round((h - prev) / 0.32));
     for (let i = 1; i < rungs; i++) {
-      const rung = box(0.56, 0.045, 0.045, 0x6a6a72);
+      const rung = steel(0.56, 0.045, 0.045, 0x6a6a72);
       rung.position.set(0, prev + (i / rungs) * (h - prev), -0.52);
       g.add(rung);
     }
@@ -445,7 +531,7 @@ export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9], depth = 2.2) {
   }
   // the bracket plate bolted flat to the wall, so the whole thing reads as
   // hung off the building rather than standing in front of it
-  const plate = box(1.9, heights[heights.length - 1] + 0.4, 0.1, 0x3e3e46);
+  const plate = steel(1.9, heights[heights.length - 1] + 0.4, 0.1, 0x3e3e46);
   plate.position.set(0, (heights[heights.length - 1] + 0.4) / 2, back);
   g.add(plate);
   g.position.set(x, 0, z);
@@ -459,36 +545,43 @@ export function fireEscape(x, z, rotY = 0, heights = [1.9, 3.9], depth = 2.2) {
 export const CRANE_DECK = 4.0;
 export const CRANE_CAB = 5.4;
 
+// The crane is the area's one big piece of MACHINERY: yard-painted steel, so
+// 'paintedMetal' throughout — the paint is what you see, which is why that
+// preset keeps metalness at 0 and the crane stays the colour it ships. The
+// cable and hook are painted rather than bare for the reason recorded on
+// fireEscape above: against this dim baked probe, bareMetal's 0.85 metalness
+// takes a dark prop to near-black rather than to steel.
 export function dockCrane(x, z, rotY = 0) {
   const g = new THREE.Group();
+  const painted = (w, h, d, color) => surfBox(w, h, d, color, 'paintedMetal');
   for (const [lx, lz] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]]) {
-    const leg = box(0.34, CRANE_DECK, 0.34, 0xb0742a);
+    const leg = painted(0.34, CRANE_DECK, 0.34, 0xb0742a);
     leg.position.set(lx, CRANE_DECK / 2, lz);
     g.add(leg);
-    const brace = box(0.18, 0.18, 4.4, 0x8a5a20);
+    const brace = painted(0.18, 0.18, 4.4, 0x8a5a20);
     brace.position.set(lx, CRANE_DECK * 0.55, 0);
     g.add(brace);
   }
-  const deck = box(5.4, 0.25, 5.4, 0x8a5a20);
+  const deck = painted(5.4, 0.25, 5.4, 0x8a5a20);
   deck.position.y = CRANE_DECK - 0.125;
   g.add(deck);
   // The operator cab stands on the deck at local (-1, -1) and its roof top is
   // CRANE_CAB. docks.js's crane chain places its last perch on that roof, so
   // the offset is part of the contract, not a styling choice.
-  const cab = box(2.0, CRANE_CAB - CRANE_DECK, 2.0, 0xc8862a);
+  const cab = painted(2.0, CRANE_CAB - CRANE_DECK, 2.0, 0xc8862a);
   cab.position.set(-1.0, (CRANE_DECK + CRANE_CAB) / 2, -1.0);
   g.add(cab);
-  const cabRoof = box(2.2, 0.12, 2.2, 0x8a5a20);
+  const cabRoof = painted(2.2, 0.12, 2.2, 0x8a5a20);
   cabRoof.position.set(-1.0, CRANE_CAB, -1.0);
   g.add(cabRoof);
   // jib reaching out over the water on the cab's far side, with a hook block
-  const jib = box(0.3, 0.3, 7, 0xb0742a);
+  const jib = painted(0.3, 0.3, 7, 0xb0742a);
   jib.position.set(1.4, CRANE_DECK + 0.9, 3.2);
   g.add(jib);
-  const cable = box(0.05, 2.4, 0.05, 0x3a3a42);
+  const cable = painted(0.05, 2.4, 0.05, 0x3a3a42);
   cable.position.set(1.4, CRANE_DECK - 0.3, 6.2);
   g.add(cable);
-  const hook = box(0.35, 0.35, 0.35, 0x5a5a62);
+  const hook = painted(0.35, 0.35, 0.35, 0x5a5a62);
   hook.position.set(1.4, CRANE_DECK - 1.6, 6.2);
   g.add(hook);
   g.position.set(x, 0, z);
@@ -502,10 +595,14 @@ export const BOLLARD_H = 0.55;
 
 export function bollard(x, z) {
   const g = new THREE.Group();
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, BOLLARD_H, 8), mat(0x3a3a42));
+  // Painted cast iron, and painted rather than bare for the same reason the
+  // containers are: at 0.85 metalness an 8-sided cylinder this dark would go
+  // to a row of near-black pins with a chrome rim. The rope coil stays flat —
+  // there is no rope tile, and hemp is matte anyway.
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, BOLLARD_H, 8), surfMat(0x3a3a42, 'paintedMetal'));
   post.position.y = BOLLARD_H / 2;
   g.add(post);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), mat(0x4a4a52));
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), surfMat(0x4a4a52, 'paintedMetal'));
   cap.position.y = BOLLARD_H;
   g.add(cap);
   const rope = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.05, 5, 10), mat(0xc8b088));
@@ -538,7 +635,10 @@ export function barrel(x, z, color = 0x4a6a5a) {
 // ship, so nothing may depend on swimming).
 export function barge(x, z, rotY = 0, color = 0x3a5a78) {
   const g = new THREE.Group();
-  const hull = box(3.2, 0.7, 9, color);
+  // Painted steel hull; the cabin and gunwale stay flat (a 2.2m cabin is too
+  // small for a siding tile to read as anything but stripes), and the deck
+  // cargo is the same dock timber as the crates ashore.
+  const hull = surfBox(3.2, 0.7, 9, color, 'paintedMetal');
   hull.position.y = 0.3;
   g.add(hull);
   const gunwale = box(3.3, 0.14, 9.1, 0x2a3a4e);
@@ -551,7 +651,7 @@ export function barge(x, z, rotY = 0, color = 0x3a5a78) {
   stack.position.set(0, 2.2, -2.8);
   g.add(stack);
   for (let i = 0; i < 3; i++) { // deck cargo
-    const crate = box(0.9, 0.7, 0.9, 0xc8a678);
+    const crate = surfBox(0.9, 0.7, 0.9, 0xc8a678, 'wood');
     crate.position.set(0, 1.0, 1.4 + i * 1.1);
     g.add(crate);
   }
