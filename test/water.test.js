@@ -469,6 +469,81 @@ describe('pier-end keeps its id, so gifts already stashed there survive the move
 // ---------------------------------------------------------------------------
 // The geometry itself.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Paths must not run through water.
+//
+// Paths carry no collider and are not content, so nothing here ever checked
+// where they ran — and the park's winding walk had its bend three metres
+// INSIDE the duck pond from the day it was authored. That was invisible for
+// as long as water was a walk-over surface, and became a gravel path running
+// into a lake the moment the v19 collider wave made water solid.
+//
+// Found by looking at it, not by this suite, which is why the suite now looks.
+//
+// It samples the built MESHES rather than a list of vertices the world files
+// would have to publish, so it covers every area and every future path with
+// no per-area bookkeeping: builder.path tags each one `name === 'path'`, and
+// a grid over the mesh's own local bounds, pushed through its world matrix,
+// is the actual quad on the ground.
+// ---------------------------------------------------------------------------
+describe('no path runs through water', () => {
+  for (const [name, { scene, area }] of Object.entries(WATERED)) {
+    const waters = area.waters ?? [];
+
+    it(`${name} keeps every path clear of every water body`, () => {
+      const paths = [];
+      scene.traverse((o) => { if (o.name === 'path') paths.push(o); });
+      // NOT asserted per-area: the seaside builds its pier and boardwalk
+      // locally rather than through b.path, so it legitimately has none. The
+      // guard-on-the-guard that stops this suite passing vacuously if
+      // builder.path ever drops its tag lives in its own test below.
+      expect(waters.length, `${name} declares no water`).toBeGreaterThan(0);
+
+      const wet = [];
+      for (const m of paths) {
+        m.updateMatrixWorld(true);
+        m.geometry.computeBoundingBox();
+        const bb = m.geometry.boundingBox;
+        const N = 24; // ~12cm along a 3m width, finer than any waterline detail
+        for (let i = 0; i <= N; i++) {
+          for (let j = 0; j <= N; j++) {
+            const p = new THREE.Vector3(
+              bb.min.x + (bb.max.x - bb.min.x) * (i / N),
+              bb.min.y + (bb.max.y - bb.min.y) * (j / N),
+              0,
+            ).applyMatrix4(m.matrixWorld);
+            if (inWater(waters, p.x, p.z) && !waters.some((w) => onDeck(w, p.x, p.z))) {
+              // Name the mesh, not just the point: a bare coordinate leaves
+              // the next reader hunting for which call site put it there.
+              wet.push(`path@(${m.position.x.toFixed(1)},${m.position.z.toFixed(1)}) wet at (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+            }
+          }
+        }
+      }
+      expect(wet.slice(0, 8), `${name} path samples in open water`).toEqual([]);
+    });
+  }
+
+  // The guard on the guard, once rather than per-area: if builder.path stops
+  // tagging its mesh, every sweep above silently finds nothing to check.
+  it('builder.path tags its mesh, or the sweep above is vacuous', () => {
+    const tagged = [];
+    WATERED.park.scene.traverse((o) => { if (o.name === 'path') tagged.push(o); });
+    expect(tagged.length).toBeGreaterThan(0);
+  });
+
+  // The specific regression, stated as itself so a future reader sees the
+  // number rather than inferring it from a generic sweep.
+  it('the park bend is east of the pond, not inside it', () => {
+    const pond = (WATERED.park.area.waters ?? []).find((w) => w.id === 'pond');
+    expect(pond).toBeTruthy();
+    const dist = Math.hypot(-4 - pond.x, 4 - pond.z);
+    expect(dist).toBeGreaterThan(pond.r + 1.5); // pond edge + half the 3m path
+    // and the vertex it replaced would fail that, by a wide margin
+    expect(Math.hypot(-14 - pond.x, 6 - pond.z)).toBeLessThan(pond.r);
+  });
+});
+
 describe('water footprint geometry', () => {
   const circle = { id: 'c', kind: 'circle', x: 0, z: 0, r: 5 };
   const band = {

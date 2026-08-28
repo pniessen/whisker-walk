@@ -171,8 +171,27 @@ export function path(x1, z1, x2, z2, w = 2, { surface } = {}) {
     surface ? surfMat(0xcbb8a0, surface, w, len) : mat(0xcbb8a0),
   );
   m.rotation.x = -Math.PI / 2;
-  m.rotation.z = -Math.atan2(x2 - x1, z2 - z1);
+  // atan2 of the NEGATED delta, not the negated atan2 — they are not the same
+  // thing, and the difference is a bug this drew for as long as the park has
+  // existed. After rotation.x = -PI/2 the plane's local +Y (its length axis)
+  // maps to world (-sin0, 0, -cos0), so matching the segment direction
+  // (dx, dz) needs 0 = atan2(-dx, -dz). The old `-atan2(dx, dz)` agrees with
+  // that ONLY when the segment is axis-aligned, where the two differ by pi and
+  // a rectangle is symmetric under it — which is why every path in the
+  // neighbourhood, the Docks and the den looked right and nobody noticed. On a
+  // diagonal they differ by up to 90 degrees, and the strip was drawn along
+  // the WRONG DIAGONAL of its own bounding box: park's (0,20)->(-14,6) walk
+  // was rendered running (-14,20)->(0,6) instead.
+  m.rotation.z = Math.atan2(-(x2 - x1), -(z2 - z1));
   m.position.set((x1 + x2) / 2, 0.01, (z1 + z2) / 2);
+  // Tagged so a test can find every path in every area without the world
+  // files having to publish their vertices as data. It exists for the water
+  // invariant: paths carry no collider and are not content, so nothing ever
+  // checked where they ran, and the park's winding walk had a vertex three
+  // metres INSIDE the duck pond from the day it was authored. That was
+  // invisible while water was a walk-over surface and became a path running
+  // into a lake the moment the v19 collider wave landed.
+  m.name = 'path';
   return m;
 }
 
@@ -531,7 +550,18 @@ export function sidewalk(x1, z1, x2, z2, w = 1.2, { surface } = {}) {
     surface ? surfMat(0xd8d0c0, surface, w, len) : mat(0xd8d0c0),
   );
   m.rotation.x = -Math.PI / 2;
-  m.rotation.z = -Math.atan2(x2 - x1, z2 - z1);
+  // atan2 of the NEGATED delta, not the negated atan2 — they are not the same
+  // thing, and the difference is a bug this drew for as long as the park has
+  // existed. After rotation.x = -PI/2 the plane's local +Y (its length axis)
+  // maps to world (-sin0, 0, -cos0), so matching the segment direction
+  // (dx, dz) needs 0 = atan2(-dx, -dz). The old `-atan2(dx, dz)` agrees with
+  // that ONLY when the segment is axis-aligned, where the two differ by pi and
+  // a rectangle is symmetric under it — which is why every path in the
+  // neighbourhood, the Docks and the den looked right and nobody noticed. On a
+  // diagonal they differ by up to 90 degrees, and the strip was drawn along
+  // the WRONG DIAGONAL of its own bounding box: park's (0,20)->(-14,6) walk
+  // was rendered running (-14,20)->(0,6) instead.
+  m.rotation.z = Math.atan2(-(x2 - x1), -(z2 - z1));
   m.position.set((x1 + x2) / 2, 0.008, (z1 + z2) / 2);
   return m;
 }

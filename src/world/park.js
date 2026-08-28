@@ -126,8 +126,25 @@ export function build(scene, { water = {}, wind } = {}) {
   // warm tan that no call site passes, so the ~4% is uniform across every
   // path in the game and there is no untextured neighbour to match.
   scene.add(b.path(0, 48, 0, 20, 3, { surface: 'gravel' }));
-  scene.add(b.path(0, 20, -14, 6, 3, { surface: 'gravel' }));
-  scene.add(b.path(-14, 6, -8, -18, 3, { surface: 'gravel' }));
+  // The bend at (-4, 4) used to be at (-14, 6) — 4m from the pond's centre,
+  // i.e. THREE METRES INSIDE a 7m pond, and shared by both segments, so the
+  // walk ran through open water on both legs (measured against the corrected
+  // geometry: 3.88m and 6.94m of it). Harmless while water was a walk-over
+  // surface; a gravel path into a lake once v19 made water solid.
+  //
+  // It had to move EAST, not north. Sliding it up the shore keeps the first
+  // segment dry and makes the second one worse — that leg still has to reach
+  // (-8, -18), so from anywhere north of the pond it cuts through the middle.
+  // Going east threads the walk down the eastern shore instead, which is what
+  // "south gate -> fountain -> pond" wanted in the first place.
+  //
+  // (-4, 4) leaves the gravel 1.87m clear of the waterline on the approach and
+  // 0.98m at the closest point heading south — near enough to still read as
+  // walking beside the pond, which is the point of the path. Measured through
+  // the real builder, not estimated; test/water.test.js samples the built
+  // meshes and fails if any path ever enters water again.
+  scene.add(b.path(0, 20, -4, 4, 3, { surface: 'gravel' }));
+  scene.add(b.path(-4, 4, -8, -18, 3, { surface: 'gravel' }));
   scene.add(b.path(-8, -18, 12, -30, 3, { surface: 'gravel' }));
   scene.add(b.path(0, 20, 16, 10, 3, { surface: 'gravel' }));
 
