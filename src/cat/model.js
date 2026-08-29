@@ -427,6 +427,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // bird frame — every item in those slots is skipped here rather than
   // rendered floating or mis-anchored.
 
+  // Never merged. render/mergeprops.js welds a top-level child's leaves into
+  // one mesh per material, and animator.js drives THIS rig by the references
+  // in userData.parts — a merged leg is a leg the animator still holds a
+  // pointer to and the scene no longer contains. walk.js already runs the
+  // merge before any cat exists, so this flag is belt-and-braces for a harness
+  // or a future caller that does not.
+  g.userData.noMerge = true;
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
   g.userData.base = { bodyY: 0.42, bodyScale: [0.9, 0.85, 1.1], headPos: [0, 0.78, -0.28], tailRotX: -0.6 };
@@ -916,6 +923,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   }
 
   g.scale.setScalar(s.scale);
+  // Never merged. render/mergeprops.js welds a top-level child's leaves into
+  // one mesh per material, and animator.js drives THIS rig by the references
+  // in userData.parts — a merged leg is a leg the animator still holds a
+  // pointer to and the scene no longer contains. walk.js already runs the
+  // merge before any cat exists, so this flag is belt-and-braces for a harness
+  // or a future caller that does not.
+  g.userData.noMerge = true;
   g.userData.breed = breed;
   g.userData.parts = {
     body, head, tail, tailPivots, legs,

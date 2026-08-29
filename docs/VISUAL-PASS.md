@@ -634,3 +634,102 @@ instead of a raking line; the frame keeps ~8 draw calls. No budget ceiling in
   be re-made against an in-game number rather than a harness one.
 - **`verify-{park,docks,seaside,neighborhood}.html` still carry the old rig**
   and still never set `castShadow` — they have never shown shadows.
+
+---
+
+# Waves 3.1 / 3.2 — done (branch `feat/draw-call-reclaim`)
+
+Deferred twice, then taken up once an in-game measurement showed the harnesses
+were understating frame cost by ~2x. **73 test files / 1668 tests passing.**
+
+## The move that made it safe
+
+The drafted design was "merge per (30m spatial cell, material)" — merging
+ACROSS top-level scene children. That is what carried the whole hazard list:
+the contact-decal scan, the caster-trim rule, the dusk window swap, the wind
+registry, and a convention four files state verbatim ("the mesh goes into the
+scene DIRECTLY and never into a Group").
+
+The eligible fraction was measured BEFORE anything was built, and it settled the
+design: cross-child merging versus same-child-only differs by **+0.0 to +13.3
+percentage points**, because almost all the available win is *inside* a single
+prop, not between props.
+
+| area | cross-child | same-child only | hazard list buys |
+|---|---|---|---|
+| neighborhood | 24.1% | 20.7% | +3.4 pp |
+| park | 14.0% | 14.0% | **+0.0 pp** |
+| docks | 53.3% | 40.0% | +13.3 pp |
+| seaside | 29.2% | 26.2% | +3.0 pp |
+| den | 47.5% | 44.4% | +3.1 pp |
+
+So only the same-child half was built. That single restriction **discharges the
+entire hazard list by construction rather than by vigilance**: `scene.children`
+keeps its count, order and identity, every top-level bbox is unchanged to the
+float, and every consumer sees exactly what it saw. Tests pin all three.
+
+The general lesson: when a change needs a long list of things to be careful
+about, look for the restricted version where the list cannot apply. Here it cost
+almost nothing.
+
+## Results
+
+Build-time, deterministic, pinned in `test/budget.test.js`:
+
+| area | meshes | casters | triangles |
+|---|---|---|---|
+| neighborhood | 381 → **218** | 314 → **169** | identical |
+| park | 172 → **113** | 134 → **89** | identical |
+| docks | 520 → **312** | 424 → **233** | identical |
+| seaside | 65 → **48** | 33 → **28** | identical |
+| den | 284 → **151** | 173 → **86** | identical |
+
+−42% meshes, −45% casters, **zero triangles moved** — merging re-parents
+existing geometry, it does not create any.
+
+In-game, seeded so both runs build the same world: **1293 → 1110 draw calls
+(−14.2%)**. Triangles +2.7%, from coarser culling granularity (a merged prop is
+culled whole).
+
+Pixel A/B across 24 views per area: 0.0004–0.0117% of pixels moved, all
+one-pixel runs on silhouette edges — the signature of a vertex transform moving
+from GPU-multiply to CPU-baked float32, not of anything drawn in the wrong place.
+
+**3.2 (instancing) was deliberately not done, and the reasoning is sound:**
+inside a group an InstancedMesh and a merged mesh are both exactly one draw
+call, and merging needs no per-leaf geometry identity. Instancing *across* props
+is the thing the hazard list forbids — one scene child for eight mailboxes is
+one contact decal for eight mailboxes.
+
+## A measurement caveat worth carrying
+
+The report claimed the doc's 1050 baseline was "1293 in this tree because
+density commits landed since". **That is not the reason** — no commits landed
+between the two measurements. The difference is per-walk randomness: strays,
+critters, secrets, collectibles, sky life and weather all vary, and unseeded
+walks differ by ~250 draw calls. An unseeded in-game number is therefore only
+comparable to itself. The seeded A/B is the valid one, and any future in-game
+perf comparison must seed the world the same way.
+
+## Two silent bugs found while building it
+
+1. Rejecting meshes on `geometry.groups.length > 1` excluded nearly every
+   indexed primitive — *every* THREE primitive emits groups (a box has six) and
+   the renderer only reads them for array materials. Cost 55 merges in the den
+   alone before it was caught in a diff of two key variants.
+2. Merging a Mesh parented to another Mesh: `traverse()` finds both, and
+   `removeFromParent()` on the parent takes the child with it. Surfaced as
+   **504 triangles missing from a cat** in the first pixel A/B. Fixed with a
+   leaves-only rule plus `userData.noMerge` on the cat group, so a future caller
+   running the merge at the wrong moment degrades to "no merge" rather than to a
+   cat with welded legs.
+
+## Also fixed here
+
+`vite.config.js` gains `testTimeout: 30000`. The suite outgrew vitest's 5s
+default — `textures.test.js` (~24s, Sobel derivation plus seam-wrap
+equivariance) and `mergeprops.test.js` (~21s, builds whole areas) now do real
+work, and under parallel load the heavy files intermittently tripped the limit.
+That produced "Test timed out in 5000ms" on tests that pass alone, which is a
+false negative, and a suite that fails at random is one people stop believing.
+30s is a hang guard, not a budget for slow tests.

@@ -29,6 +29,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDen } = await import('../src/world/den.js');
+const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 
 // ---------------------------------------------------------------------------
 // Wave 3.4 (docs/VISUAL-PASS.md): lock the draw-call budget in with a test, so
@@ -41,11 +42,14 @@ const { build: buildDen } = await import('../src/world/den.js');
 //
 //   * MESH COUNT is the real budget, and its ceiling is the tightest one.
 //     Section 0's measurement is unambiguous: this scene is draw-call bound,
-//     not triangle bound, and (absent the merging/instancing of Wave 3.1/3.2,
-//     which are out of scope for this pass) one mesh is still roughly one
-//     draw call in the main pass. A future prop pass that wants to add
-//     meshes should have to make a conscious budget decision, not sail past
-//     an assertion nobody wrote.
+//     not triangle bound, and one mesh is still roughly one draw call in the
+//     main pass. A future prop pass that wants to add meshes should have to
+//     make a conscious budget decision, not sail past an assertion nobody
+//     wrote. Wave 3.1's merge (see the second describe block at the bottom of
+//     this file) then folds a share of these away again — but it can only
+//     merge what SHARES a material inside one prop, so authoring a prop out of
+//     ten differently-tinted panels still costs ten draws and still has to
+//     clear this ceiling.
 //   * SHADOW-CASTER COUNT is the thing Wave 3.3 just reduced (see
 //     applyShadowCasting-equivalent predicate below, mirroring
 //     src/game/walk.js), and it gets a ceiling with a little more headroom
@@ -148,6 +152,61 @@ const AREAS = [
   ['seaside', buildSeaside, 85, 45, 30000],
   ['den', buildDen, 340, 220, 40000],
 ];
+
+// ---------------------------------------------------------------------------
+// WAVE 3.1's half of the same budget.
+//
+// The ceilings above measure `build(scene)`, which is what the area builders
+// author and what a density pass edits — and merging is deliberately NOT part
+// of that: game/walk.js runs render/mergeprops.js over the built scene, after
+// the contact-decal scan and before anything animated joins it. So the numbers
+// above did not move when 3.1 landed, and should not.
+//
+// What DID move is what the renderer is actually handed, and that needs its
+// own ceiling or the win is unprotected: a future prop that merges badly (a
+// per-prop material tint where a shared colour would do, say) would cost draw
+// calls while sailing under the build-time ceilings. Measured post-merge:
+//
+//   area          meshes  casters   (from, unmerged)
+//   neighborhood     218      169    381 / 314
+//   park             113       89    172 / 134
+//   docks            312      233    520 / 424
+//   seaside           48       28     65 /  33
+//   den              151       86    284 / 173
+//
+// Same +15-20% headroom rule as above. Note casters fall at least as fast as
+// meshes everywhere, which is the point: a merged mesh that was a caster is
+// one shadow-pass draw instead of several.
+// ---------------------------------------------------------------------------
+
+const MERGED_AREAS = [
+  // name, builder, [meshCeiling, casterCeiling]
+  ['neighborhood', buildNeighborhood, 260, 205],
+  ['park', buildPark, 140, 110],
+  ['docks', buildDocks, 370, 280],
+  ['seaside', buildSeaside, 60, 40],
+  ['den', buildDen, 185, 110],
+];
+
+describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
+  for (const [name, build, meshCeiling, casterCeiling] of MERGED_AREAS) {
+    it(`${name}: merged, stays under ${meshCeiling} meshes and ${casterCeiling} casters`, () => {
+      const scene = new THREE.Scene();
+      build(scene);
+      const before = budgetStats(scene);
+      mergeStaticProps(scene);
+      const after = budgetStats(scene);
+      expect(after.meshes).toBeLessThan(before.meshes);
+      expect(after.casters).toBeLessThan(before.casters);
+      expect(after.meshes).toBeLessThanOrEqual(meshCeiling);
+      expect(after.casters).toBeLessThanOrEqual(casterCeiling);
+      // Merging moves geometry between meshes; it never adds or drops a
+      // triangle. Restated here as well as in test/mergeprops.test.js because
+      // this is the file a density pass will be reading.
+      expect(after.triangles).toBe(before.triangles);
+    });
+  }
+});
 
 describe('Wave 3.4 — per-area draw-call budget', () => {
   for (const [name, build, meshCeiling, casterCeiling, triangleCeiling] of AREAS) {

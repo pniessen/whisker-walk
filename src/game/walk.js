@@ -55,6 +55,7 @@ import { waterRig } from '../render/water.js';
 import { createWind } from '../render/wind.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
+import { mergeStaticProps } from '../render/mergeprops.js';
 import { resolveQuality } from '../render/quality.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
@@ -561,6 +562,23 @@ export function createWalkLifecycle({
     // sharp ones. A grounding pass that switches off on the hardware least
     // able to ground things by other means would be exactly backwards.
     const decals = createContactShadows(scene);
+    // Wave 3.1 — merge each top-level prop's own leaves down to one mesh per
+    // material. See render/mergeprops.js for why it never crosses a top-level
+    // child, which is what makes it safe next to everything above and below it.
+    //
+    // AFTER createContactShadows AND NOT BEFORE, and that ordering is the one
+    // subtle thing about this call. Merging bakes each leaf's matrix into
+    // vertices, which is exact in real arithmetic and carries ~1e-6m of float
+    // noise in practice. A micrometre of bounding box is nothing to the caster
+    // rule (its thresholds are 0.12, 1.3 and 1.0), but contactshadows.js's per-prop
+    // size jitter is a sin() hash of the footprint CENTRE, and a sin hash is
+    // chaotic by construction — 1e-6 of drift in x re-rolls the jitter and
+    // resizes that decal by up to 8%. Measured: 61 decals before and 61 after
+    // either way, but scanning first makes every footprint BYTE-IDENTICAL
+    // instead of merely correct. The scan's own requirement — that the scene
+    // holds the area's props and nothing else — is unaffected, because merging
+    // adds and removes nothing the scan would have looked at.
+    mergeStaticProps(scene);
     // POIs are authored as "interesting spots" and several sit dead-center
     // on scenery (the park fountain, the parked car) — fine as vibes, but
     // race rings and quest objects placed there are unreachable: player
