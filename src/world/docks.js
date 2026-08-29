@@ -129,6 +129,39 @@ export function build(scene, { water = {} } = {}) {
   // area's name is about.
   scene.add(b.ground(120, 0x4e4e58, { surface: 'wetStone' }));
 
+  // The horizon band (VISUAL-PASS.md Wave 4.3) — see builder.horizonBand's own
+  // block for the geometry and for why it carries no collider, no perch and no
+  // record. Purely what is on the far side of the water.
+  //
+  // 'skyline', and it is the only area that gets it. The other three look out
+  // at land; the Docks look out at MORE DOCKS. This district is the industrial
+  // edge of somewhere much bigger — its own header calls it the most compact
+  // bounds in the game — and the thing that sells that is a rank of warehouse
+  // gables and chimneys standing along the far quay, not a hill. The kind
+  // flattens the ring surface to a gentle swell and puts the height into 52
+  // merged rooftop blocks instead, half of them carrying a chimney or a tank
+  // so the roofline never runs level for long. All of it merges into the SAME
+  // single mesh as the ring: 52 buildings, one draw call.
+  //
+  // 9m roofs against the area's own 3.4m warehouses is deliberate and is the
+  // only depth cue available at this distance — the far bank has to read as
+  // bigger than the near one or the two collapse into one plane. The ring
+  // itself is a 1.8m swell (kind 'skyline' derives that; see horizonBand) so
+  // the town stands on flat ground the way a town does.
+  //
+  // 56/112: the inner rim is buried four metres inside the 120m quay plane and
+  // the outer one stops well inside the fog's 130m — which matters more here
+  // than anywhere, because this is the darkest palette in the game and its
+  // horizon stop (0x8e9aae) is a pale overcast grey. The silhouette IS the
+  // fog gradient. The colour is the quay's own 0x4e4e58 carried a bit over a
+  // third of the way to that stop, which is more lift than the green areas get
+  // for the same reason: an overcast sky puts more haze between you and a
+  // building than a clear one does.
+  scene.add(b.horizonBand({
+    kind: 'skyline', inner: 56, outer: 112, height: 9,
+    wavelength: 46, blocks: 52, color: 0x646976, salt: 41,
+  }));
+
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
 
@@ -409,6 +442,11 @@ export function build(scene, { water = {} } = {}) {
     ],
     puddles,
     // The darkest dusk in the game — the Night Eyes showcase.
+    // The hemisphere fill's ground term (game/walk.js) — the wet stone hex
+    // from b.ground() above. Dark and near-neutral, so the Docks get almost no
+    // upward bounce at all: undersides here stay cold and unlit, which is the
+    // read this area has always been going for.
+    groundBounce: 0x4e4e58,
     skyDusk: { top: 0x101828, horizon: 0x2e2842 },
     // Twelve, against four or five in every other area: the densest tippable
     // field in the game, which is what makes the Docks the place to grind

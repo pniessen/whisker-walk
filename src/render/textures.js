@@ -114,6 +114,48 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // and trilinear filtering resolves it to its mean — flat colour, which is
 // what the silhouette-driven look wants at that distance. So do NOT disable
 // generateMipmaps here to "keep it crisp"; the blur at distance is the point.
+//
+// ---------------------------------------------------------------------------
+// THE SECOND CHANNEL: derived normal maps (VISUAL-PASS.md 5.1)
+// ---------------------------------------------------------------------------
+// Everything above is about the COLOUR map and none of it has changed. The
+// normal map is a second, derived channel over the same finished pixels:
+// luminance is read back as a height field, Sobel gives its gradient, and the
+// gradient is packed as a tangent-space normal. See deriveNormalPixels.
+//
+// Three properties of that arrangement are the whole reason it is allowed to
+// exist next to the rules above:
+//
+//   * IT ADDS NOTHING TO THE COLOUR TILE. The painters are untouched, the
+//     floor is untouched, the clamp is untouched and the stacked-alpha budget
+//     is untouched. The derivation runs AFTER clampToFloor, on a separate
+//     canvas, and never writes to the colour one. If you are here to make a
+//     surface louder, this is not the lever — see VISUAL-PASS.md section 2.
+//
+//   * THE PAINTERS ARE ALREADY HEIGHT FIELDS, for free, because they are
+//     darken-only over white. Ink depth IS depth: a mortar joint at 0.065
+//     alpha is literally deeper than a brick face at 0.075 minus its jitter,
+//     and a cobble grout channel at 0.12 is the deepest thing in the
+//     vocabulary. So the RELATIVE relief across all eight surfaces is already
+//     art-directed and a single shared gain preserves it. What the per-surface
+//     `normalScale` in materials.js then dials is not "how bumpy is this
+//     material" — the painter answered that — but "how much does the LIGHT
+//     amplify it", which is a property of viewing geometry, not of the tile.
+//
+//   * IT IS HIGH-TIER ONLY, gated on the same switch the colour tiles use.
+//
+// One warning that is easy to miss and expensive to learn. The luminance floor
+// caps the colour map's total contrast at 13%, and the eye reads that as a
+// hint. It does NOT cap the normal map's effect, because a normal map does not
+// multiply the surface — it steers a nonlinear lighting term. Under the 19.1
+// degree sun this game now has, a ground plane's diffuse response is
+// sin(19.1 deg) = 0.33, and tilting a facet by theta changes it to
+// sin(19.1 + theta): +67% at 14 degrees of tilt. The same 14 degrees on a
+// VERTICAL wall, where the sun is nearly perpendicular, changes N.L by about
+// 0.33 * theta — five percent. That factor of roughly ten between a ground
+// surface and a wall surface under this specific sun is why the normalScale
+// table in materials.js is not one number, and why it is not the number your
+// intuition from a noon sun would give you.
 
 // ---------------------------------------------------------------------------
 // Tile resolution
@@ -223,17 +265,40 @@ export const SURFACE_NAMES = Object.freeze(Object.keys(SURFACES));
 // gate set before geometry exists.
 let tierName = 'high';
 
-// Accepts either a tier object from resolveQuality ({ name: 'high' | 'low' })
+// The normal-map half of the same gate, tracked separately because
+// quality.js tracks it separately (`tier.normalMaps`). Two flags rather than
+// one because they answer two different questions — "does this device get
+// painted tiles at all" and "does it get the second, derived channel" — and
+// the plan's per-tier budget table lists them as two rows. A future tier that
+// wants colour tiles without normals has somewhere to say so.
+let normalMapsEnabled = true;
+
+// Accepts either a tier object from resolveQuality ({ name, normalMaps, … })
 // or the bare string. Anything unrecognised leaves the tier alone rather than
 // silently disabling textures — a typo should not quietly cost the look.
+//
+// A bare string carries no `normalMaps`, so it falls back to the answer the
+// named tier would have given ('high' yes, 'low' no). That keeps
+// setTextureTier('high') meaning the same thing it means in every test and
+// harness that already says it, while a real resolveQuality tier stays the
+// authority when one is passed.
 export function setTextureTier(tier) {
   const name = typeof tier === 'string' ? tier : tier && tier.name;
-  if (name === 'high' || name === 'low') tierName = name;
+  if (name !== 'high' && name !== 'low') return tierName;
+  tierName = name;
+  normalMapsEnabled =
+    tier && typeof tier === 'object' && typeof tier.normalMaps === 'boolean'
+      ? tier.normalMaps
+      : name === 'high';
   return tierName;
 }
 
 export function getTextureTier() {
   return tierName;
+}
+
+export function getNormalMapsEnabled() {
+  return normalMapsEnabled;
 }
 
 // --- Anisotropy -------------------------------------------------------
@@ -263,6 +328,12 @@ export function setTextureAnisotropy(max) {
   anisotropy = n;
   for (const tex of bases.values()) applyAnisotropy(tex);
   for (const tex of variants.values()) applyAnisotropy(tex);
+  // The normal maps too, and for exactly the argument above rather than as a
+  // formality: the Docks ground is the case that forced anisotropy, and a
+  // normal map raked to the horizon aliases harder than the colour map does,
+  // because it drives a nonlinear lighting term rather than a multiply.
+  for (const tex of normals.values()) applyAnisotropy(tex);
+  for (const tex of normalVariants.values()) applyAnisotropy(tex);
   return anisotropy;
 }
 
@@ -304,13 +375,34 @@ function applyAnisotropy(tex) {
 const bases = new Map();
 const variants = new Map();
 
+// The normal channel, cached the same way and for the same reasons:
+//   `normals`        name -> the master normal Texture, at the default repeat.
+//   `normalVariants` "name|rx|ry" -> a clone with its own repeat.
+//
+// The one extra cache is `sourceCtx`: name -> the 2D context of the COLOUR
+// tile's canvas, kept so the derivation can read the finished pixels back
+// without repainting. It holds nothing the `bases` texture is not already
+// holding — a CanvasTexture keeps its canvas alive as `tex.image` — so this
+// is a reference, not a second allocation.
+//
+// Populated by baseTexture, never by the normal path, which is what makes the
+// dependency one-directional: a normal map cannot exist without its colour
+// tile, and a colour tile never triggers a normal build.
+const normals = new Map();
+const normalVariants = new Map();
+const sourceCtx = new Map();
+
 // Test-only. The caches are app-lifetime by design, so nothing in the game
 // should ever call this; it exists so a test file can assert memoisation from
 // a known-empty state without depending on which test ran first.
 export function __resetSurfaceTextures() {
   bases.clear();
   variants.clear();
+  normals.clear();
+  normalVariants.clear();
+  sourceCtx.clear();
   tierName = 'high';
+  normalMapsEnabled = true;
 }
 
 // Returns the tiling texture for a surface, or null when there isn't one to
@@ -349,6 +441,269 @@ export function surfaceTexture(name, { repeat } = {}) {
   return variant;
 }
 
+// ---------------------------------------------------------------------------
+// surfaceMaps — the ONLY way to get a normal map, and why
+// ---------------------------------------------------------------------------
+// Returns { map, normalMap } for a surface. Both may be null (headless, low
+// tier, unknown name); normalMap alone may be null (normal maps off for the
+// tier, or a context with no readback).
+//
+// THIS IS THE ONLY EXPORTED PATH TO A NORMAL MAP, deliberately. A colour map
+// and a normal map that disagree about `repeat` do not fail — they render, and
+// the relief slides across the colour it is supposed to belong to, at a beat
+// frequency set by the ratio of the two repeats. On a 120m ground plane at
+// 100x100 tiles that is a slow crawling moire that looks like a shader bug and
+// is very hard to trace back to a number in a world file.
+//
+// So the caller never gets to state the normal map's repeat at all. The
+// normal's density is read off the COLOUR TEXTURE THAT WAS ACTUALLY RESOLVED,
+// after the surface default, the variant cache and the "asked for the default,
+// got the base" shortcut have all had their say. There is no argument to pass
+// wrongly and nothing for a call site to remember.
+export function surfaceMaps(name, opts) {
+  const map = surfaceTexture(name, opts);
+  if (!map) return { map: null, normalMap: null };
+  return { map, normalMap: normalFor(name, map.repeat.x, map.repeat.y) };
+}
+
+function normalFor(name, rx, ry) {
+  if (!normalMapsEnabled) return null;
+  const spec = SURFACES[name];
+  if (!spec) return null;
+  const base = normalBase(name, spec);
+  if (!base) return null;
+  if (rx === spec.repeat[0] && ry === spec.repeat[1]) return base;
+
+  const key = `${name}|${rx}|${ry}`;
+  let variant = normalVariants.get(key);
+  if (!variant) {
+    // Same clone-shares-one-Source economics as the colour variants: N
+    // densities of one surface are one texture in VRAM.
+    variant = base.clone();
+    variant.repeat.set(rx, ry);
+    applyAnisotropy(variant);
+    normalVariants.set(key, variant);
+  }
+  return variant;
+}
+
+function normalBase(name, spec) {
+  // `has`, not a truthy check: a FAILED derivation is cached as null too.
+  // Every reason it can fail — no readback on the context, no createImageData
+  // — is a property of the environment and will not change during the app's
+  // life, so re-attempting means allocating a fresh canvas for every material
+  // built from that surface. That is the cheapest possible leak and the
+  // hardest to notice.
+  if (normals.has(name)) return normals.get(name);
+
+  // The colour tile is built first, unconditionally — the height field IS the
+  // finished colour tile, post-clamp. Ordering matters: derived before the
+  // clamp, a surface that the clamp scales down would carry relief that
+  // disagrees with the colour it ships with.
+  const ctx = sourceCtx.get(name);
+  if (!ctx || typeof ctx.getImageData !== 'function') return fail(name);
+  const src = ctx.getImageData(0, 0, TILE_PX, TILE_PX);
+  const sd = src?.data;
+  if (!sd || sd.length < TILE_PX * TILE_PX * 4) return fail(name);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = TILE_PX;
+  canvas.height = TILE_PX;
+  const nctx = canvas.getContext('2d');
+  // createImageData/putImageData rather than any drawing call: the packed
+  // normal bytes are DATA, and anything that goes through the 2D paint path
+  // (a fillRect per texel, drawImage of a scaled canvas) would be resampled,
+  // premultiplied or colour-managed on the way. The same guard the clamp uses,
+  // for the same headless contexts.
+  if (!nctx || typeof nctx.createImageData !== 'function' || typeof nctx.putImageData !== 'function') {
+    return fail(name);
+  }
+  const img = nctx.createImageData(TILE_PX, TILE_PX);
+  if (!img?.data || img.data.length < TILE_PX * TILE_PX * 4) return fail(name);
+  img.data.set(deriveNormalPixels(sd, TILE_PX));
+  nctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  // NOT sRGB, and this is the one line in the file where getting the colour
+  // space wrong is silent rather than obvious. A normal map is data: three
+  // would de-gamma an sRGB-tagged one before unpacking, which pulls every
+  // channel toward zero and tilts the whole surface toward (-1, -1, +) — a
+  // uniform lighting bias that reads as "the material got darker on one side"
+  // rather than as a broken texture. NoColorSpace is already Texture's
+  // default; it is stated because the line above it states the opposite.
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(spec.repeat[0], spec.repeat[1]);
+  // The `surface:` prefix is load-bearing: endWalk's teardown traversal skips
+  // disposing maps whose name starts with it, and these are memoised for the
+  // app's lifetime exactly as the colour tiles are. Today that traversal only
+  // reaches `m.map`, so a normal map is safe either way — the prefix is what
+  // keeps it safe on the day someone extends the traversal to `m.normalMap`,
+  // which is the obvious next thing to do and would otherwise strand a GPU
+  // upload per surface per walk.
+  tex.name = `surface:${name}:normal`;
+  applyAnisotropy(tex);
+  normals.set(name, tex);
+  return tex;
+}
+
+function fail(name) {
+  normals.set(name, null);
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// The derivation
+// ---------------------------------------------------------------------------
+// How steep the map is allowed to get, expressed as tangent-space slope
+// (dh/du) before normalisation and before materials.js's per-surface
+// normalScale.
+//
+// NORMAL_GAIN converts "luminance units per texel" into that slope. The Sobel
+// below is scaled to approximate a central difference, so a clean one-texel
+// cliff of depth dL comes out at dL/2 per texel. The deepest mark any painter
+// is allowed to lay is STACK_MAX = 0.14 of ink, which over white is a 12.1%
+// drop in luminance, so the steepest edge the vocabulary can contain is
+// g = 0.0604. At gain 8 that is a slope of 0.484, a 25.8-degree face.
+//
+// So: GAIN 8 MEANS "THE DEEPEST MARK THE BUDGET ALLOWS BECOMES A 26-DEGREE
+// FACE AT normalScale 1". That is the sentence the number exists to make true,
+// and it is what lets the normalScale table in materials.js be read as a
+// fraction of a known maximum rather than as eight unrelated magic numbers.
+//
+// One shared gain across all eight surfaces, NOT a per-surface
+// self-normalisation like water.js's buildRippleTexture. water.js normalises
+// because its one field's peak is an accident of which wave trains happen to
+// be summed. Here the peaks are not accidents: the painters are argued
+// darken-only height fields, so cobble grout really is deeper than a plank
+// seam and grass's mottle really is almost flat. Self-normalising would
+// throw that away and amplify grass — the flattest surface in the set, on the
+// largest and most grazing-angle geometry in the game — to the same peak as
+// cobble.
+const NORMAL_GAIN = 8;
+
+// A guard, not a tuning knob: no texel may encode a face steeper than this
+// (0.75 slope = 36.9 degrees). Nothing in the current vocabulary comes near —
+// the budget caps the honest maximum at 0.484 — so this never fires today. It
+// exists because the failure it prevents is nasty and silent: a single
+// pathological texel (a future painter's hard 1px line, or a clamp interacting
+// badly with a new stroke) would encode a near-vertical face, and a
+// near-vertical tangent normal on a surface lit by a 19-degree sun flips
+// between fully lit and fully dark across one texel, which is a hard white
+// speck that crawls.
+const MAX_SLOPE = 0.75;
+
+// deriveNormalPixels(rgba, size) -> Uint8ClampedArray of packed RGBA normals.
+//
+// Pure: no canvas, no THREE, no module state. That is what lets the seam-wrap
+// property be asserted directly in a unit test rather than inferred from a
+// screenshot, and it is the property most likely to be subtly wrong while
+// looking perfect in the middle of a tile.
+//
+// HEIGHT = LUMINANCE, sRGB-ENCODED, NOT LINEARISED. This looks like the
+// classic colour-space mistake and is the opposite of one. What the height
+// field is meant to represent is INK DEPTH: every painter composites ink over
+// white through the canvas 2D pipeline, which composites in the encoded space,
+// so encoded luminance is exactly linear in the alpha the painter laid
+// (L = 1 - 0.863a). Linearising would bend that relationship and make the
+// deeper marks disproportionately deeper for no reason anyone chose.
+//
+// ONE CONSEQUENCE OF "DARKER IS LOWER" WORTH KNOWING ABOUT, because it is a
+// deliberate choice rather than an oversight. For seven of the eight surfaces
+// the rule is simply true: cobble grout, plank seams, shingle course shadows,
+// siding lap shadows, gravel's inter-chip shade and sand's grain are all both
+// darker AND lower, so the derivation gets the direction of relief right for
+// free. BRICK is the exception, because mortar is the one recessed element in
+// the vocabulary that is LIGHTER than what surrounds it. Its joints therefore
+// come out proud rather than raked. It was left that way on purpose:
+//   * At the ~9 degrees of tilt brick actually ships with, what the eye reads
+//     at 2-4m is "there is a step at the course line", and both signs deliver
+//     that. Measured on the real renderer the difference between the two is
+//     about 11 of 255 at the joint, on a mark that is 4 texels wide.
+//   * The alternative is a per-surface height inversion, which is a knob only
+//     brick would ever set, justified by a fact about brick's COLOUR rather
+//     than by anything in the derivation. That is a worse thing to own than a
+//     documented quirk.
+// If Wave 5.2 revisits this, inverting brick means negating BOTH gradients
+// (h -> 1 - h), not flipping the green channel — flipping green inverts the
+// vertical relief and leaves the perpends pointing the old way, which looks
+// like a bug rather than like a decision.
+//
+// SEAMLESS BY CONSTRUCTION. Every neighbour fetch below wraps with modulo, so
+// the kernel at column 0 reads column size-1 exactly as the tile's own
+// repetition will present it. This is not a nicety: the colour tiles are
+// seamless, so an edge column whose gradient was computed against a clamped
+// (repeated or zeroed) neighbour would put a one-texel line of wrong normals
+// down every tile boundary — on a 100x100-tile ground plane that is 200 hard
+// lines ruled across the road, which is worse than shipping no normal map at
+// all. The unit test asserts it as translation equivariance (deriving from a
+// rolled tile equals rolling the derived tile), which is the strongest
+// available statement of "the edges are not special".
+export function deriveNormalPixels(rgba, size, gain = NORMAL_GAIN) {
+  const S = size;
+  const h = new Float32Array(S * S);
+  for (let i = 0, p = 0; i < h.length; i++, p += 4) {
+    h[i] = lum(rgba[p], rgba[p + 1], rgba[p + 2]);
+  }
+
+  const out = new Uint8ClampedArray(S * S * 4);
+  for (let y = 0; y < S; y++) {
+    const rowUp = ((y - 1 + S) % S) * S;
+    const row = y * S;
+    const rowDn = ((y + 1) % S) * S;
+    for (let x = 0; x < S; x++) {
+      const xl = (x - 1 + S) % S;
+      const xr = (x + 1) % S;
+      const tl = h[rowUp + xl];
+      const tm = h[rowUp + x];
+      const tr = h[rowUp + xr];
+      const ml = h[row + xl];
+      const mr = h[row + xr];
+      const bl = h[rowDn + xl];
+      const bm = h[rowDn + x];
+      const br = h[rowDn + xr];
+      // Sobel, divided by 8 so it approximates dh per texel rather than the
+      // raw kernel sum. 3x3 Sobel rather than a bare central difference
+      // because the two-texel vertical/horizontal smoothing is what stops a
+      // single-texel grain (sand, gravel fines, grass flecks) from encoding a
+      // face as steep as a structural edge — the surfaces that are noise get
+      // damped relative to the surfaces that are structure, which is the
+      // whole art-direction problem, solved by the operator rather than by a
+      // per-surface fudge.
+      const gx = (tr + 2 * mr + br - (tl + 2 * ml + bl)) / 8;
+      const gy = (bl + 2 * bm + br - (tl + 2 * tm + tr)) / 8;
+      // Tangent-space normal of a height field: (-dh/du, -dh/dv, 1).
+      //
+      // THE GREEN CHANNEL'S SIGN, which is the one thing here that cannot be
+      // reasoned out from the maths alone. A CanvasTexture has flipY = true,
+      // so texture v runs UP the canvas while the pixel row index y runs DOWN
+      // it: dh/dv = -gy. Therefore n.y = -dh/dv = +gy, where n.x = -gx keeps
+      // its minus because u and x agree. Getting this backwards does not look
+      // broken, it looks INVERTED — mortar courses read as raised ribs and
+      // cobbles read as dimples — which is exactly the class of bug that ships.
+      // Verified on the real renderer against a raking sun, not derived and
+      // hoped for. (water.js's ripple map uses -gv for the same slot because a
+      // DataTexture sets flipY = false; the two are consistent, not in
+      // conflict.)
+      let nx = -gain * gx;
+      let ny = gain * gy;
+      const slope = Math.hypot(nx, ny);
+      if (slope > MAX_SLOPE) {
+        nx = (nx / slope) * MAX_SLOPE;
+        ny = (ny / slope) * MAX_SLOPE;
+      }
+      const len = Math.hypot(nx, ny, 1);
+      const o = (row + x) * 4;
+      out[o] = Math.round(((nx / len) * 0.5 + 0.5) * 255);
+      out[o + 1] = Math.round(((ny / len) * 0.5 + 0.5) * 255);
+      out[o + 2] = Math.round((1 / len) * 0.5 * 255 + 0.5 * 255);
+      out[o + 3] = 255;
+    }
+  }
+  return out;
+}
+
 function baseTexture(name, spec) {
   let tex = bases.get(name);
   if (tex) return tex;
@@ -383,6 +738,11 @@ function baseTexture(name, spec) {
   // repeat-variant clones, so one check covers bases and variants alike.
   applyAnisotropy(tex);
   bases.set(name, tex);
+  // Kept so the normal derivation can read these finished pixels back later
+  // without repainting, and stored HERE rather than in the normal path so the
+  // normal path can never build a height field from anything but the exact
+  // tile that shipped — post-painter, post-clamp, no second rng draw.
+  sourceCtx.set(name, ctx);
   return tex;
 }
 
@@ -1027,4 +1387,14 @@ const PAINTERS = {
 
 // Exposed for the pixel-level test, which needs to know what "in budget"
 // means without re-deriving it. Not used by the game.
-export const __BUDGET = Object.freeze({ FLOOR_LUM, STACK_MAX, INK: Object.freeze([...INK]) });
+export const __BUDGET = Object.freeze({
+  FLOOR_LUM,
+  STACK_MAX,
+  INK: Object.freeze([...INK]),
+  // The normal channel's two constants, exposed on the same terms: a test
+  // asserting "the steepest face the budget can produce" should not have to
+  // restate the arithmetic that produced them.
+  NORMAL_GAIN,
+  MAX_SLOPE,
+  TILE_PX,
+});

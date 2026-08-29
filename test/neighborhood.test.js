@@ -171,6 +171,19 @@ describe('the Cozy Neighborhood — surfaces', () => {
 // fence), so this is the first area that actually exercises the rig, and the
 // count below is the one number that says the plumbing reached every loop.
 // ---------------------------------------------------------------------------
+// v1.2: the hemisphere fill's ground term (game/walk.js) — the down-facing
+// half of every object in the area picks this colour up. It is the LAWN's hex,
+// because the neighbourhood is grass wall to wall, and it is asserted as a
+// literal rather than read off the ground mesh on purpose: ground() lifts grass
+// by 1/0.955 to compensate for its map, so the mesh's material colour is
+// deliberately NOT the number a human typed, and the bounce should track what
+// was typed.
+describe('the Cozy Neighborhood — the hemisphere fill’s bounce', () => {
+  it('returns the lawn’s own colour as its ground bounce', () => {
+    expect(build(new THREE.Scene()).groundBounce).toBe(0x7cb860);
+  });
+});
+
 describe('the Cozy Neighborhood — wind', () => {
   const counting = () => {
     const registered = [];

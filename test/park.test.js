@@ -230,3 +230,14 @@ describe('City Park — the v20 visual pass', () => {
     });
   });
 });
+
+// v1.2: the hemisphere fill's ground term (game/walk.js). The lawn's own hex,
+// a literal for the same reason the neighbourhood's is — ground() lifts grass
+// to compensate for its map, so the mesh's material colour is deliberately not
+// the number authored here, and the bounce tracks what was authored.
+describe('City Park — the hemisphere fill’s bounce', () => {
+  it('bounces the park’s own, deeper green', () => {
+    const { area } = built();
+    expect(area.groundBounce).toBe(0x6cb058);
+  });
+});

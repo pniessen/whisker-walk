@@ -663,6 +663,13 @@ function init() {
       // canal and the foliage down with them reads as the whole world
       // lurching, which is the same reason skyLife and weather sit here.
       session.water.update(dt);
+      // Re-fits the sun's shadow frustum around the view. Takes no dt: it is a
+      // pure function of where the camera ended up this frame, which is why it
+      // has to sit AFTER player.update above (which is what moves the camera)
+      // and before renderFrame() below. It is inside the `player.engaged`
+      // block for the same reason: when the player is not engaged the camera
+      // is not moving, so there is nothing to re-fit.
+      session.shadows.update();
       // Wind takes ABSOLUTE elapsed time (the same `t` goldMice.update gets),
       // not a delta: every rotation is recomputed as a pure function of `t`,
       // so there is no running total to drift. Intensity is the only place
@@ -673,6 +680,15 @@ function init() {
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
+      // Wave 2.1's contact decals. Takes no dt — like session.shadows.update()
+      // it is a pure function of where things ENDED UP this frame, so its only
+      // requirement is ordering: it must run after everything that owns a
+      // decal has already moved. That is player.update (the cat), the
+      // critters/strays updates near the top of this block, and ghosts.update
+      // immediately above — hence its position here at the end of the movers
+      // rather than beside session.shadows.update(). Only the mover mesh is
+      // touched; the static props' matrices were written once at build.
+      session.decals.update();
       // ghost ball is only shown (and batable) while I don't already have my
       // own active toy out, and its last report is fresh — a remote who went
       // quiet (despawned, dropped) shouldn't leave a phantom ball behind.

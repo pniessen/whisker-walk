@@ -57,7 +57,19 @@ export function createComposerRig(renderer, camera) {
   // a device that only ever runs low tier never allocates the composer or
   // its render targets.
   let composer = null, renderPass = null, bloomPass = null;
-  function ensure() {
+  // samples: the walk's tier.msaaSamples (quality.js), 4 on high / 0 on low.
+  // Defaulted to 0 — the low tier's own value — so an argument-less ensure()
+  // (several tests call it that way, and postFx-less low-tier code paths
+  // never call it at all) still constructs a valid target.
+  //
+  // ensure() is memoised (the guard right below), so whichever value the
+  // FIRST high-tier walk of the session passes in is the value every later
+  // walk's composer keeps — the same "first walk wins" rule setTextureTier
+  // already lives by (see the comment at walk.js's startWalk, on
+  // setTextureTier). A mid-session quality-setting change takes effect on
+  // shadow map size and pixel ratio immediately but not on MSAA; that is an
+  // existing, accepted asymmetry, not a new one introduced here.
+  function ensure(samples = 0) {
     if (composer) return;
     renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
     bloomPass = new UnrealBloomPass(
@@ -70,7 +82,19 @@ export function createComposerRig(renderer, camera) {
       // fireflies) glow. At 0.85 white cats read as light sources.
       1.1
     );
-    composer = new EffectComposer(renderer);
+    // Explicit render target: three r185's EffectComposer, left to build its
+    // own target, allocates `new WebGLRenderTarget(w, h, { type:
+    // HalfFloatType })` with no `samples` — the canvas's own multisampled
+    // buffer (main.js constructs it with antialias:true) never gets drawn
+    // into on this path, so a high-tier walk rendered with zero AA (see
+    // docs/VISUAL-PASS.md 1.1). Passing our own target with `samples` set
+    // fixes that; HalfFloatType matches what EffectComposer would have
+    // picked itself, so the HDR bloom pass keeps the headroom it needs.
+    const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+      type: THREE.HalfFloatType,
+      samples,
+    });
+    composer = new EffectComposer(renderer, renderTarget);
     composer.addPass(renderPass);
     composer.addPass(bloomPass);
     composer.addPass(new OutputPass()); // applies renderer.toneMapping + sRGB at the end
@@ -94,6 +118,16 @@ export function createComposerRig(renderer, camera) {
 
   // window resize: only meaningful once the composer actually exists, which
   // is the same `if (composer)` guard main.js's resize handler applied.
+  //
+  // No extra resize call is needed for the explicit target `ensure()` now
+  // constructs. Read from three's source (core/RenderTarget.js,
+  // postprocessing/EffectComposer.js in node_modules/three): EffectComposer
+  // keeps our target as renderTarget1 and a `.clone()` of it as
+  // renderTarget2; RenderTarget.clone() copies `this.samples` from the
+  // source, and RenderTarget.setSize() only ever touches width/height/depth,
+  // never `samples`. So composer.setSize() below — which just calls
+  // renderTarget1.setSize()/renderTarget2.setSize() — resizes both buffers
+  // without ever touching the sample count we set at construction.
   function resize(width, height) {
     if (composer) {
       composer.setSize(width, height);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 
 const STYLE = {
@@ -46,10 +47,143 @@ const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on p
 
 const mat = (color) => litMaterial(color);
 
-function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = 10, hSeg = 8) {
+// Wave 6. The default segment counts for the LARGE forms only — every small
+// part (eyes, studs, pompoms, charms) passes its own explicit, lower counts, so
+// raising the default here lands exactly on the four spheres that define the
+// cat's outline (body, belly, skull, muzzle, and the chicken's equivalents) and
+// on nothing else.
+//
+// Affordable because docs/VISUAL-PASS.md section 0 measured this scene as
+// draw-call bound and nowhere near triangle bound: 10x8 -> 16x12 is +212
+// triangles per sphere, about +850 on the whole cat, against a scene that
+// renders ~26,000. It buys a body whose silhouette stops showing straight
+// segments in a close-up, for no extra mesh and no extra draw call.
+const BALL_W = 16;
+const BALL_H = 12;
+
+function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
+}
+
+// Same shape as ball(), but with the non-uniform scale BAKED INTO THE GEOMETRY
+// and mesh.scale left at 1. Used for the paws, and only for the paws, because
+// the `feet` accessories reach in and write `paw.scale` directly — three of the
+// four call `scale.set(...)`, which would wipe a shape carried in mesh.scale and
+// hand a boot back its old round ball. Carrying the paw's shape in the geometry
+// instead means every existing accessory multiplier composes on top of it
+// unchanged.
+function shapedBall(r, color, sx, sy, sz, wSeg = BALL_W, hSeg = BALL_H) {
+  const geo = new THREE.SphereGeometry(r, wSeg, hSeg);
+  geo.scale(sx, sy, sz);
+  return new THREE.Mesh(geo, mat(color));
+}
+
+// -----------------------------------------------------------------------------
+// MARKINGS — Wave 6.
+//
+// A stripe or a patch is a region of FUR, so the one thing it must never do is
+// leave the animal's surface. Before this, each marking was a separate squashed
+// ellipsoid parked at a point on the body and sized by eye: a tabby's three
+// stripes were `ball(0.16, accent, 1.4, 0.16, 0.32)` sitting at y 0.55 on a body
+// whose top is at y 0.58 — so at the spine they were just buried, and 20cm out
+// to either side, where the body has already curved away to y 0.50, they stood
+// 6cm PROUD of it. Measured, not guessed; the same arithmetic explains the cow
+// cat's patches reading as flat black polygons lying on the back.
+//
+// Waves 1 and 2 made this worse rather than better, which is why it is the
+// headline item of this wave. Under the old 54-degree sun a marking that stuck
+// out 6cm was flat-lit and merely looked slightly wrong. Under the current
+// 19.1-degree raking sun it catches a rim of light on its upper edge AND casts
+// its own hard shadow onto the fur underneath, so a tabby reads as a stegosaur
+// with three dorsal plates. The defect is geometric; the lighting only stopped
+// hiding it.
+//
+// The fix builds each marking as a PATCH OF THE HOST SPHERE — the same sphere
+// the body or skull mesh is made of, at the same radius plus a hair — and
+// parents it to that mesh. Two consequences fall out for free:
+//
+//   * The host's non-uniform scale (the body's 0.85/0.75/1.35 plush ellipsoid)
+//     is applied to the patch by the scene graph, so the patch deforms exactly
+//     as the surface under it deforms. It cannot lift off, at any point, on any
+//     breed, because it is generated from the surface rather than fitted to it.
+//   * The ANIMATOR's squash and stretch comes along too. `animateCat` writes
+//     body.scale (nap 1.12/0.73/0.89, pounce 0.94/0.83/1.15, land 1.14/0.78/1.05)
+//     and body.rotation.y (the 'cross' torso yaw). Markings used to be siblings
+//     of the body under the cat group and stayed put while the torso squashed
+//     under them; as children of the body they now move with it.
+//
+// The 0.8% radial lift is deliberately tiny. It is far larger than the depth
+// buffer's precision at chase range (~0.01mm at 4.4m against this near/far
+// pair) so it never z-fights, and far SMALLER than the shadow rig's depth bias
+// (sun.shadow.bias -0.00015 over the fitted frustum is centimetres) so a patch
+// can never cast the self-shadow that gave the old blobs their stuck-on rim.
+const PATCH_LIFT = 1.008;
+const PATCH_UP = new THREE.Vector3(0, 1, 0);
+
+// One elliptical patch on a sphere of radius `r`, centred on direction `dir`.
+// halfX/halfZ are TANGENT half-extents at the pole, in units of the sphere
+// radius, so 1.0 is a patch that reaches 45 degrees from its centre — a stripe
+// wrapping well down the flank — and 0.2 is a small spot.
+function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
+  const pos = [0, r * PATCH_LIFT, 0]; // centre vertex at the pole
+  const nor = [0, 1, 0];
+  const idx = [];
+  const v = new THREE.Vector3();
+  for (let i = 1; i <= rings; i++) {
+    const f = i / rings;
+    for (let j = 0; j < seg; j++) {
+      const a = (j / seg) * Math.PI * 2;
+      // Offset in the pole's tangent plane, then re-normalised: the patch is a
+      // spherical cap section, so it follows the curvature instead of chording
+      // across it.
+      v.set(Math.cos(a) * f * halfX, 1, Math.sin(a) * f * halfZ).normalize();
+      nor.push(v.x, v.y, v.z);
+      pos.push(v.x * r * PATCH_LIFT, v.y * r * PATCH_LIFT, v.z * r * PATCH_LIFT);
+    }
+  }
+  for (let j = 0; j < seg; j++) idx.push(0, 1 + ((j + 1) % seg), 1 + j); // centre fan
+  for (let i = 1; i < rings; i++) {
+    const a0 = 1 + (i - 1) * seg;
+    const b0 = 1 + i * seg;
+    for (let j = 0; j < seg; j++) {
+      const jn = (j + 1) % seg;
+      idx.push(a0 + j, b0 + jn, b0 + j, a0 + j, a0 + jn, b0 + jn);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setIndex(idx);
+  // Built centred on +Y so halfX/halfZ mean what they say; swung onto `dir`
+  // afterwards. applyQuaternion goes through applyMatrix4, which carries the
+  // normal attribute with it.
+  geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(
+    PATCH_UP, new THREE.Vector3(...dir).normalize()));
+  return geo;
+}
+
+// Every patch of one colour on one host, as ONE mesh. This is the reason the
+// wave's mesh delta is negative rather than zero: a tabby's stripes were three
+// meshes and are now one, and the cow cat's two body patches are now one.
+// Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
+function addMarking(host, r, color, patches) {
+  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ));
+  const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
+  host.add(new THREE.Mesh(geo, mat(color)));
+}
+
+// A patch's centre is authored the way the old blobs were — as a point in the
+// PARENT's space — and converted here into a direction on the host sphere.
+// Dividing out the host's own scale first is what makes (0.12, 0.54, -0.08) on
+// the body land in the same visual place it used to.
+function dirOn(point, centre, scale) {
+  return [
+    (point[0] - centre[0]) / scale[0],
+    (point[1] - centre[1]) / scale[1],
+    (point[2] - centre[2]) / scale[2],
+  ];
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -142,7 +276,11 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     leg.add(shank);
     const foot = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.05, 4), mat(0xf2a04e));
     foot.rotation.y = Math.PI / 4;
-    foot.position.set(0, -0.3, -0.04);
+    // -0.3 put the cone's underside at world y -0.025, i.e. Hagrid stood 2.5cm
+    // into the ground — the same defect the cat's paws had, measured the same
+    // way (Box3 over the built model). Hagrid is a playable avatar and gets the
+    // same fix.
+    foot.position.set(0, -0.2745, -0.04);
     leg.add(foot);
     leg.userData.paw = foot;
     leg.position.set(side * 0.1, 0.3, 0.02);
@@ -302,7 +440,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const pointColor = s.points ? s.accent : s.base;
 
   // body: plush ellipsoid + belly + chest
-  const body = ball(0.32, s.base, 0.85, 0.75, 1.35);
+  const BODY_R = 0.32;
+  const BODY_SCALE = [0.85, 0.75, 1.35];
+  const BODY_CENTRE = [0, 0.34, 0];
+  const body = ball(BODY_R, s.base, ...BODY_SCALE);
   body.position.y = 0.34;
   g.add(body);
   const belly = ball(0.26, s.belly, 0.78, 0.6, 1.15);
@@ -310,8 +451,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.add(belly);
 
   // head
+  const SKULL_R = 0.21;
+  const SKULL_SCALE = [1, 0.92, 0.95];
   const head = new THREE.Group();
-  const skull = ball(0.21, pointColor, 1, 0.92, 0.95);
+  const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
   head.add(skull);
   const muzzle = ball(0.09, s.belly, 1.25, 0.75, 0.9);
   muzzle.position.set(0, -0.06, -0.16);
@@ -385,11 +528,28 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   ];
   for (const [x, z] of legSpots) {
     const leg = new THREE.Group();
-    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.26, 6), mat(pointColor));
+    // 6 -> 12 radial segments. At 5cm across and a metre and a half from the
+    // camera in the close-up shots, a 6-sided prism shows its flats; 12 costs
+    // 24 triangles a leg and reads as a limb.
+    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.058, 0.26, 12), mat(pointColor));
     limb.position.y = -0.13;
     leg.add(limb);
-    const paw = ball(0.062, s.points ? s.accent : s.belly, 1, 0.8, 1.1, 8, 6);
-    paw.position.y = -0.27;
+    // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
+    // read as a knob on the end of a peg rather than as a foot; and it was
+    // parked at -0.27, which put its underside at world y -0.0196 — the cat
+    // stood 2cm INTO the ground on every surface in the game, measured off the
+    // model's own bounding box. It is now flatter, wider, longer front-to-back
+    // and pushed a little forward (-z is the cat's facing direction), and sits
+    // AT y = 0 rather than through it.
+    //
+    // The shape lives in the geometry, not in mesh.scale — see shapedBall() for
+    // why the `feet` accessories require that.
+    // The width is deliberately held near the limb's own 0.058 bottom radius:
+    // flaring it wider turns a pale paw into a clog. The read comes from the
+    // depth (1.42, so it reaches forward under the leg) and the flatness (0.62),
+    // not from the width.
+    const paw = shapedBall(0.062, s.points ? s.accent : s.belly, 1.02, 0.62, 1.42, 12, 9);
+    paw.position.set(0, -0.2585, -0.012);
     leg.add(paw);
     leg.userData.paw = paw;
     leg.position.set(x, 0.3, z);
@@ -397,57 +557,126 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     legs.push(leg);
   }
 
-  // tail: 5 tapered segments on nested pivots
+  // -------------------------------------------------------------------------
+  // TAIL — 5 tapered segments on nested pivots. Wave 6 reshapes the segments
+  // and re-places the pivots; the CHAIN ITSELF is untouched, because the
+  // animator owns it: `animateCat` resets every pivot's ROTATION to zero each
+  // frame and then writes rotation.y (the lagged sway, the 'cross' lash) and
+  // tail.rotation.x (the raise). It never writes a pivot POSITION and never
+  // touches the segment meshes, so the shape below is expressed entirely in
+  // pivot positions and per-segment transforms and survives every pose.
+  //
+  // Three things were wrong with the old tail, all visible in the chase frame:
+  //
+  //  1. It did not taper to anything. Radii ran 0.048 -> 0.018 and stopped, so
+  //     the tip was a 3.6cm flat disc — clearly visible end-on as a bright
+  //     circular cap in the raking sun.
+  //  2. The base was as thin as the tip was thick. A cat's tail is thickest
+  //     where it leaves the body; this one was a uniform 4-5cm rod, which reads
+  //     as wire, not fur.
+  //  3. It was dead straight. Nothing about a resting cat is dead straight, and
+  //     a straight line is the one shape the eye reads as manufactured.
+  //
+  // The taper now runs 13.2cm across at the root down to 1.2cm at the tip,
+  // ending in a hemispherical cap MERGED INTO THE LAST SEGMENT'S GEOMETRY rather
+  // than added as a sixth mesh — mesh count is the budget, so a rounded tip has
+  // to be free or it does not happen. The arc is a gentle 17 degrees over the
+  // whole length, on top of the -0.6 rad the tail group is already held at.
+  const TAIL_LINK = 0.132;   // link length; 5 links ~ 0.66, a touch under body length
+  const TAIL_ARC = 0.075;    // radians of upward curve per link (4 x 0.075 = 17 deg at the tip)
+  const tailR = (u) => 0.060 * Math.pow(1 - u, 0.62) + 0.006; // 0.066 root -> 0.006 tip
   const tail = new THREE.Group();
   const tailPivots = [];
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
-    pivot.position.z = i === 0 ? 0 : 0.13;
-    const seg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.042 - i * 0.006, 0.048 - i * 0.006, 0.14, 6),
-      mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base)
-    );
-    seg.rotation.x = Math.PI / 2;
-    seg.position.z = 0.065;
+    // Each pivot sits at the END of the previous link. Pivot rotations are
+    // zeroed by the animator every frame, so a parent carries no rotation and
+    // these offsets can all be expressed in the same (tail-local) frame using
+    // the ABSOLUTE tilt of the preceding link.
+    if (i > 0) {
+      const prev = (i - 1) * TAIL_ARC;
+      pivot.position.set(0, Math.sin(prev) * TAIL_LINK, Math.cos(prev) * TAIL_LINK);
+    }
+    const far = tailR((i + 1) / 5);
+    const near = tailR(i / 5);
+    // 6 -> 10 radial segments: at the root this is now a 13cm-diameter tube and
+    // a hexagon reads as a hexagon.
+    let geo = new THREE.CylinderGeometry(far, near, TAIL_LINK, 10, 1, true);
+    if (i === 4) {
+      // The rounded tip, merged in. openEnded above so the two pieces do not
+      // leave a disc buried inside the cap.
+      const cap = new THREE.SphereGeometry(far, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+      cap.translate(0, TAIL_LINK / 2, 0);
+      geo = mergeGeometries([geo, cap]);
+    } else if (i === 0) {
+      // Every other link butts into the next one, so only the ROOT end is ever
+      // open to the air — and only on link 0, which is buried in the rump
+      // anyway. Capped for the sake of the poses that lift the tail clear.
+      const root = new THREE.SphereGeometry(near, 10, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+      root.translate(0, -TAIL_LINK / 2, 0);
+      geo = mergeGeometries([geo, root]);
+    }
+    const seg = new THREE.Mesh(geo, mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
+    // Cylinder's axis is +Y; rotation.x = PI/2 maps +Y onto +Z (straight back).
+    // Subtracting this link's tilt swings it up into the arc.
+    const tilt = i * TAIL_ARC;
+    seg.rotation.x = Math.PI / 2 - tilt;
+    seg.position.set(0, Math.sin(tilt) * TAIL_LINK / 2, Math.cos(tilt) * TAIL_LINK / 2);
     pivot.add(seg);
     parent.add(pivot);
     tailPivots.push(pivot);
     parent = pivot;
   }
-  tail.position.set(0, 0.44, 0.42);
+  // Root moved in and down from (0, 0.44, 0.42). The body's surface at z = 0.42
+  // is only y = 0.396, so the OLD root floated 4cm clear of the rump — invisible
+  // on a 4.8cm rod, obvious on a 6.6cm one. At z = 0.38 the surface is at 0.454,
+  // which buries the thicker root inside the body where it belongs.
+  tail.position.set(0, 0.42, 0.38);
   tail.rotation.x = -0.6;
   g.add(tail);
 
-  // breed markings
+  // -------------------------------------------------------------------------
+  // BREED MARKINGS. Every one of these is now a patch of the surface it sits on
+  // — see the block comment on patchGeometry() for what was wrong before and
+  // why the raking sun of Wave 1 made it the loudest defect on the cat. The
+  // centres below are the SAME authored points the old blobs used, converted to
+  // directions on the host sphere by dirOn(), so nothing moves; only the
+  // geometry stops floating.
+  //
+  // `onBody` / `onSkull` parent to the mesh, not to the group, which is what
+  // makes a marking follow the animator's squash and stretch.
+  const onBody = (colour, pts) => addMarking(body, BODY_R, colour,
+    pts.map((p) => ({ ...p, dir: dirOn(p.at, BODY_CENTRE, BODY_SCALE) })));
+  const onSkull = (colour, pts) => addMarking(skull, SKULL_R, colour,
+    pts.map((p) => ({ ...p, dir: dirOn(p.at, [0, 0, 0], SKULL_SCALE) })));
+
   if (s.stripes) {
-    for (let i = 0; i < 3; i++) {
-      const stripe = ball(0.16, s.accent, 1.4, 0.16, 0.32, 8, 6);
-      stripe.position.set(0, 0.55, -0.2 + i * 0.2);
-      g.add(stripe);
-    }
+    // Four bands rather than three. They were three because each was a mesh;
+    // merged into one they are free, and four is the count at which a wrapped
+    // band pattern stops reading as "some marks on its back" and starts reading
+    // as a tabby. halfX 1.5 carries each band ~56 degrees down the flank —
+    // over the spine and well past the shoulder, the way a real tabby's do.
+    onBody(s.accent, [
+      { at: [0, 0.58, -0.30], halfX: 1.42, halfZ: 0.15 },
+      { at: [0, 0.58, -0.10], halfX: 1.50, halfZ: 0.16 },
+      { at: [0, 0.58, 0.11], halfX: 1.50, halfZ: 0.16 },
+      { at: [0, 0.58, 0.30], halfX: 1.38, halfZ: 0.14 },
+    ]);
   }
   if (s.patches) {
-    const p1 = ball(0.14, s.accent, 1.1, 0.35, 1.1, 8, 6);
-    p1.position.set(0.12, 0.54, -0.08);
-    g.add(p1);
-    const p2 = ball(0.12, 0x333333, 1.1, 0.35, 1.0, 8, 6);
-    p2.position.set(-0.12, 0.54, 0.14);
-    g.add(p2);
-    const p3 = ball(0.07, 0xd88030, 1, 0.8, 1, 6, 5);
-    p3.position.set(0.09, 0.14, -0.05);
-    head.add(p3);
+    onBody(s.accent, [{ at: [0.12, 0.54, -0.08], halfX: 0.62, halfZ: 0.72 }]);
+    onBody(0x333333, [{ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64 }]);
+    onSkull(0xd88030, [{ at: [0.09, 0.14, -0.05], halfX: 0.50, halfZ: 0.56 }]);
   }
   if (s.cow) {
-    const c1 = ball(0.18, s.accent, 1.2, 0.4, 1.1, 8, 6);
-    c1.position.set(0.1, 0.5, 0.12);
-    g.add(c1);
-    const c2 = ball(0.15, s.accent, 1.1, 0.42, 1.0, 8, 6);
-    c2.position.set(-0.12, 0.5, -0.18);
-    g.add(c2);
-    const headPatch = ball(0.09, s.accent, 1, 0.9, 0.9, 8, 6);
-    headPatch.position.set(-0.09, 0.1, 0.02); // splash over one ear
-    head.add(headPatch);
+    // Both body splashes are the same colour, so they merge into one mesh —
+    // where the old version paid two.
+    onBody(s.accent, [
+      { at: [0.1, 0.5, 0.12], halfX: 0.86, halfZ: 1.00 },
+      { at: [-0.12, 0.5, -0.18], halfX: 0.70, halfZ: 0.84 },
+    ]);
+    onSkull(s.accent, [{ at: [-0.09, 0.1, 0.02], halfX: 0.76, halfZ: 0.80 }]); // splash over one ear
   }
 
   // accessories — head/g-parented so they track poses; every item here is
