@@ -259,6 +259,16 @@ describe('the den world — the room', () => {
     expect(area.waters).toBeUndefined();
   });
 
+  // v1.2: the hemisphere fill's ground term (game/walk.js). Indoors it is
+  // doing something slightly different from the outdoor areas — there is no
+  // sky over the den — so what it really buys is warm timber light under the
+  // furniture, which is most of what makes a room read as a room. The den is
+  // also the one area walk.js builds down a different code path, so a missing
+  // bounce here would fall through to the default and go unnoticed.
+  it('bounces its own floorboards', () => {
+    expect(area.groundBounce).toBe(0x9a7048);
+  });
+
   it('has no POIs, collectibles or scenics — the den is not a walk area', () => {
     expect(area.pois).toEqual([]);
     expect(area.collectibles).toEqual([]);

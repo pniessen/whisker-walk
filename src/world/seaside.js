@@ -121,6 +121,54 @@ export function build(scene, { water = {}, wind } = {}) {
   // lifted the way a lawn's is.
   scene.add(b.ground(140, 0xe0d0a0, { surface: 'sand' }));
 
+  // The horizon band (VISUAL-PASS.md Wave 4.3) — dunes and a headland. See
+  // builder.horizonBand's own block for the geometry; it carries no collider,
+  // no perch, no POI and no record, and sits entirely beyond `bounds`.
+  //
+  // 66/126 rather than the other areas' 56/116, because this ground plane is
+  // 140m rather than 120m: the inner rim still lands four metres inside the
+  // plane's own edge (70) so the seam is buried under it.
+  //
+  // `avoid: [SEA]` IS THE WHOLE DIFFERENCE HERE, and it is the same record the
+  // sea itself is drawn from and that test/water.test.js reads — so the dunes
+  // stop at the declared waterline by construction and cannot drift from it
+  // the way a hand-typed keep-out rectangle would. It carves the band into
+  // exactly what a bay looks like: sand dunes running north, west and south,
+  // open water east, and — because SEA's own footprint stops at x 105 while
+  // the band reaches 126 — a low far shore standing across the mouth of the
+  // bay where the water ends. That last piece is a free consequence of two
+  // numbers that were already authored, and it is the correct one: the sea has
+  // to end somewhere, and "at a coastline 70m past the pier" is a better
+  // answer than "at the fog".
+  //
+  // The headland sits off the NORTH-WEST, which is where the cliff already is
+  // (it stands at z -46 running x -40..20). Reading the two together, the bluff
+  // the beach runs up into carries on out to sea and finishes in a promontory
+  // — one landform, drawn twice at two distances, which is the cheapest depth
+  // cue there is.
+  //
+  // 7m dunes at 26m spacing: the CLOSEST-SPACED band of the four, because
+  // dunes are small and a beach whose backing dunes read as hills is a valley
+  // with sand in it.
+  //
+  // THE COLOUR GOES THE OTHER WAY HERE, and this is the one place the band's
+  // usual rule is inverted. The other three areas lift their band toward their
+  // own horizon stop to stand in for the aerial perspective fog does not
+  // supply inside 40m. This palette will not take that: 0xe8e0d0 is nearly
+  // white by authorship (Wave 1.4's own note flags these near-white horizon
+  // hexes), the beach under it is 0xe0d0a0, and lifting pale sand toward pale
+  // haze produced dunes that measured correct and were invisible — sand on
+  // sand on sky, three values inside a few percent of each other. So they are
+  // DARKENED instead, to a duller khaki: real backing dunes are packed, damp
+  // at depth and held together with marram grass, and they are visibly duller
+  // than the dry beach in front of them. The silhouette needs a value step and
+  // this is the physically honest direction to find one in.
+  scene.add(b.horizonBand({
+    kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
+    color: 0xc9ba90, salt: 59, avoid: [SEA],
+    headland: { x: -92, z: -84, r: 46, h: 0.9 },
+  }));
+
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
 
@@ -353,6 +401,11 @@ export function build(scene, { water = {}, wind } = {}) {
       { id: 'crab-race', label: 'two crabs racing across the boardwalk', x: 20, z: 0, from: { x: -6, z: 14 } },
     ],
     puddles: [],
+    // The hemisphere fill's ground term (game/walk.js) — the sand hex from
+    // b.ground() above. The brightest bounce of any area by a distance, which
+    // is physically right for pale dry sand and is what will put warm light
+    // under the pier and the boat hulls.
+    groundBounce: 0xe0d0a0,
     skyDusk: { top: 0x22304e, horizon: 0x7a5a6e },
     tippables: [
       { x: 17, z: 15, kind: 'pot' }, { x: 17, z: -17, kind: 'can' },

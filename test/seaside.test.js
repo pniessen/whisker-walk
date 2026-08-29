@@ -257,3 +257,13 @@ describe('Seaside — wind', () => {
     expect(without.colliders).toEqual(withWind.colliders);
   });
 });
+
+// v1.2: the hemisphere fill's ground term (game/walk.js). Sand is the
+// brightest bounce in the game by a distance, which is physically right and is
+// what puts warm light under the pier and the boat hulls — see the
+// cross-area ordering case in test/docks.test.js.
+describe('Seaside — the hemisphere fill’s bounce', () => {
+  it('bounces the beach’s own sand', () => {
+    expect(build(new THREE.Scene()).groundBounce).toBe(0xe0d0a0);
+  });
+});

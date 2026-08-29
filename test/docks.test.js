@@ -158,6 +158,25 @@ describe('The Old Docks — the area contract', () => {
     }
   });
 
+  // v1.2: the hemisphere fill's ground term (game/walk.js). Every area returns
+  // its own, taken from its own b.ground() hex, and the ordering is the whole
+  // reason it is per-area rather than one global constant: the Docks bounce the
+  // least light back up of anywhere in the game, Seaside the most.
+  it('has the darkest ground bounce of any area, and Seaside the brightest', () => {
+    const lum = (hex) => ((hex >> 16) & 255) * 0.299 + ((hex >> 8) & 255) * 0.587 + (hex & 255) * 0.114;
+    const others = [buildNeighborhood(new THREE.Scene()), buildPark(new THREE.Scene()), buildSeaside(new THREE.Scene())];
+    for (const o of others) {
+      expect(o.groundBounce, 'every area must return a groundBounce').toEqual(expect.any(Number));
+      expect(lum(area.groundBounce)).toBeLessThan(lum(o.groundBounce));
+    }
+    const seaside = buildSeaside(new THREE.Scene());
+    for (const o of [area, ...others.slice(0, 2)]) expect(lum(seaside.groundBounce)).toBeGreaterThan(lum(o.groundBounce));
+  });
+
+  it('bounces its own wet stone — the hex b.ground() lays the quay in', () => {
+    expect(area.groundBounce).toBe(0x4e4e58);
+  });
+
   it('spawns the new rat critter, and every critter type it spawns is a known one', () => {
     const types = new Set(area.critterSpawns.map((c) => c.type));
     expect(types.has('rat')).toBe(true);

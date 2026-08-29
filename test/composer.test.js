@@ -1,8 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import * as THREE from 'three';
 import {
   createComposerRig, nightEyesLighting,
   NIGHT_EYES_EXPOSURE_GAIN, NIGHT_EYES_ENV_GAIN,
 } from '../src/game/composer.js';
+
+// three's exported namespace is non-configurable in ESM (Vitest cannot
+// vi.spyOn it directly), so the MSAA suite at the bottom of this file
+// intercepts WebGLRenderTarget construction by mocking the module: every
+// other export passes through untouched via importOriginal, and this one
+// class just records its constructor args before delegating to the real
+// thing. rtCalls is declared through vi.hoisted because vi.mock's factory
+// runs before this file's own top-level code.
+const { rtCalls } = vi.hoisted(() => ({ rtCalls: [] }));
+vi.mock('three', async (importOriginal) => {
+  const actual = await importOriginal();
+  class RecordingRenderTarget extends actual.WebGLRenderTarget {
+    constructor(...args) {
+      super(...args);
+      rtCalls.push(args);
+    }
+  }
+  return { ...actual, WebGLRenderTarget: RecordingRenderTarget };
+});
 
 // src/game/composer.js imports the three postprocessing passes but does not
 // touch WebGL until ensure() is called, so the rig itself constructs fine
@@ -107,5 +127,64 @@ describe('createComposerRig lighting', () => {
       expect(renderer.toneMappingExposure).toBe(1.1);      // main.js:96
       expect(scene.environmentIntensity).toBe(HIGH_ENV);   // tier.envIntensity
     }
+  });
+});
+
+// v1.1: ensure() now builds an explicit render target and hands it to
+// EffectComposer, instead of letting the composer allocate its own
+// no-`samples` one (see the comment above ensure() and docs/VISUAL-PASS.md
+// 1.1). Unlike the lighting suite above, this touches real THREE
+// constructors (RenderPass/UnrealBloomPass/EffectComposer/OutputPass), none
+// of which call into WebGL at construction time — only render() does — so
+// they build fine against a minimal fake renderer. ensure() also reads
+// window.innerWidth/innerHeight directly (unchanged, pre-existing
+// behaviour), which is why this block — and only this block — stubs
+// `window`; every other describe in this file constructs the rig without it
+// on purpose, to prove the lighting half needs no DOM at all.
+describe('createComposerRig MSAA target (v1.1)', () => {
+  const fakeGlRenderer = () => ({ toneMappingExposure: 1.1, getPixelRatio: () => 1 });
+
+  // EffectComposer.reset()/its internal renderTarget.clone() also constructs
+  // WebGLRenderTargets (with no options at all), and UnrealBloomPass's own
+  // constructor builds three more internally (each `{ type: HalfFloatType }`,
+  // no `samples` key) — both land in rtCalls too since the mock above is
+  // file-wide. Ours is the one call whose options object actually carries a
+  // `samples` key, so that is what every assertion below filters for rather
+  // than assuming a calls[0]/length shape.
+  function oursCalls() {
+    return rtCalls.filter(([, , options]) => options && 'samples' in options);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    rtCalls.length = 0;
+  });
+
+  function stubWindow() {
+    vi.stubGlobal('window', { innerWidth: 800, innerHeight: 600 });
+  }
+
+  it('constructs the render target with the samples ensure() was handed', () => {
+    stubWindow();
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    rig.ensure(4); // tier.msaaSamples for the high tier (quality.js)
+    const calls = oursCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][2]).toMatchObject({ type: THREE.HalfFloatType, samples: 4 });
+  });
+
+  it('defaults samples to 0 (the low tier’s own value) so an argument-less ensure() still works', () => {
+    stubWindow();
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    expect(() => rig.ensure()).not.toThrow();
+    expect(oursCalls()[0][2].samples).toBe(0);
+  });
+
+  it('is memoised — the samples of the FIRST ensure() call win for the rest of the session', () => {
+    stubWindow();
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    rig.ensure(4);
+    rig.ensure(0); // a later walk on a different tier — ignored, same as setTextureTier
+    expect(oursCalls()).toHaveLength(1); // second call short-circuited on `if (composer) return`
   });
 });

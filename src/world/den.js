@@ -690,6 +690,12 @@ export function build(scene, { placed = {}, wind } = {}) {
     critterSpawns: [],
     moments: [],
     puddles: [],
+    // The hemisphere fill's ground term (game/walk.js) — the floorboards' hex
+    // from b.ground() in build. Indoors the term is doing something slightly
+    // different from the outdoor areas: there is no sky over the den, so what
+    // this really buys is warm timber light under the furniture, which is most
+    // of what makes a room read as a room.
+    groundBounce: 0x9a7048,
     skyDusk: SKY_DUSK,
     // Three things to knock over — the den's first tippables. All indoor
     // kinds (a wastepaper bin, a plant pot, a watering can), all placed at

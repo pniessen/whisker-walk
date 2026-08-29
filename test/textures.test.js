@@ -2,8 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import {
   surfaceTexture,
+  surfaceMaps,
+  deriveNormalPixels,
   setTextureTier,
   getTextureTier,
+  getNormalMapsEnabled,
   clampToFloor,
   textureTileMetres as tileMetresOf,
   isTextureName,
@@ -157,6 +160,11 @@ function rasterCtx(S) {
         },
       };
     },
+    // Wave 5.1. The normal derivation writes its packed bytes through
+    // createImageData + putImageData rather than through any drawing call, so
+    // a fake canvas has to offer this much for that path to run at all. Real
+    // ImageData is zero-filled and opaque only where written; this matches.
+    createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
     // The internal buffer keeps alpha as 0..1 (it is what source-over wants),
     // but ImageData is 0..255 on all four channels. Scaling only three of
     // them makes every texel read back as ~0.4% opaque, which quietly turns
@@ -678,5 +686,339 @@ describe('the texture namespace', () => {
     const mod = await import('../src/render/textures.js');
     expect(mod.repeatFor).toBeUndefined();
     expect(mod.tileMetres).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// Wave 5.1 — derived normal maps
+// ===========================================================================
+// The derivation is exported as a pure function, and almost everything worth
+// asserting about it is asserted here rather than through a canvas. That is
+// not laziness about integration: the one property most likely to be subtly
+// wrong — the seam wrap — is invisible in the middle of a tile and invisible
+// in a screenshot of one tile, and only shows up as 200 hard lines ruled
+// across a 100x100-tile ground plane. A pure function can be asked directly.
+
+// A greyscale height field as RGBA, so a test can state a shape instead of a
+// texture. `f(x, y)` returns 0..1 luminance.
+function heightRGBA(S, f) {
+  const d = new Uint8ClampedArray(S * S * 4);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const v = Math.round(Math.max(0, Math.min(1, f(x, y))) * 255);
+      const i = (y * S + x) * 4;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+  }
+  return d;
+}
+
+// Torus shift: what "the tile repeats" means, expressed as an operation.
+function roll(rgba, S, dx, dy) {
+  const out = new Uint8ClampedArray(rgba.length);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const src = ((((y - dy) % S + S) % S) * S + (((x - dx) % S + S) % S)) * 4;
+      const dst = (y * S + x) * 4;
+      for (let c = 0; c < 4; c++) out[dst + c] = rgba[src + c];
+    }
+  }
+  return out;
+}
+
+const unpack = (d, S, x, y) => {
+  const i = (y * S + x) * 4;
+  return {
+    x: (d[i] / 255) * 2 - 1,
+    y: (d[i + 1] / 255) * 2 - 1,
+    z: (d[i + 2] / 255) * 2 - 1,
+    a: d[i + 3],
+  };
+};
+const tiltOf = (n) => Math.atan2(Math.hypot(n.x, n.y), n.z);
+
+describe('deriveNormalPixels — packing', () => {
+  const S = 16;
+
+  it('encodes a flat height field as flat normals', () => {
+    const d = deriveNormalPixels(heightRGBA(S, () => 0.93), S);
+    for (let i = 0; i < d.length; i += 4) {
+      expect(d[i]).toBe(128);      // 0.5 rounds up through Uint8Clamped
+      expect(d[i + 1]).toBe(128);
+      expect(d[i + 2]).toBe(255);
+      expect(d[i + 3]).toBe(255);
+    }
+  });
+
+  it('leaves every texel opaque and every normal pointing out of the surface', () => {
+    // z < 0 would be a normal pointing INTO the surface, which the shader
+    // will happily use and which reads as a black hole.
+    const d = deriveNormalPixels(heightRGBA(S, (x, y) => 0.87 + 0.13 * ((x * 7 + y * 13) % 5) / 4), S);
+    for (let x = 0; x < S; x++) {
+      for (let y = 0; y < S; y++) {
+        const n = unpack(d, S, x, y);
+        expect(n.a).toBe(255);
+        expect(n.z).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('never encodes a face steeper than MAX_SLOPE, whatever it is fed', () => {
+    // A full black/white checker is far outside anything a painter can lay —
+    // the point is that the clamp is a guarantee and not an average.
+    const d = deriveNormalPixels(heightRGBA(S, (x, y) => ((x + y) % 2 ? 0 : 1)), S);
+    const limit = Math.atan(__BUDGET.MAX_SLOPE) + 1e-6;
+    for (let x = 0; x < S; x++) {
+      for (let y = 0; y < S; y++) {
+        expect(tiltOf(unpack(d, S, x, y))).toBeLessThanOrEqual(limit);
+      }
+    }
+  });
+
+  it('turns the budget’s deepest legal mark into the face the gain promises', () => {
+    // NORMAL_GAIN's whole job is to make one sentence true: the deepest mark
+    // STACK_MAX allows becomes a ~26-degree face at normalScale 1. A clean
+    // one-texel cliff of that depth is the test of it.
+    const drop = 0.863 * __BUDGET.STACK_MAX;      // ink over white, in luminance
+    const d = deriveNormalPixels(heightRGBA(S, (x) => (x < S / 2 ? 1 : 1 - drop)), S);
+    let steepest = 0;
+    for (let x = 0; x < S; x++) steepest = Math.max(steepest, tiltOf(unpack(d, S, x, 3)));
+    expect(steepest * 180 / Math.PI).toBeGreaterThan(24);
+    expect(steepest * 180 / Math.PI).toBeLessThan(28);
+  });
+
+  it('points the normal away from the descending side, on both axes', () => {
+    // The sign convention, stated as behaviour rather than as arithmetic.
+    // Darker is lower, so a field that darkens to the RIGHT slopes down to the
+    // right and its normal must lean LEFT-to-right positive in x (+red); one
+    // that darkens DOWN THE CANVAS must come out negative in y (-green),
+    // because a CanvasTexture's flipY makes texture v run up the canvas.
+    const rightDark = deriveNormalPixels(heightRGBA(S, (x) => 1 - 0.1 * x / S), S);
+    const downDark = deriveNormalPixels(heightRGBA(S, (x, y) => 1 - 0.1 * y / S), S);
+    const a = unpack(rightDark, S, 8, 8);
+    const b = unpack(downDark, S, 8, 8);
+    expect(a.x).toBeGreaterThan(0.01);
+    expect(Math.abs(a.y)).toBeLessThan(1e-2);
+    expect(b.y).toBeLessThan(-0.01);
+    expect(Math.abs(b.x)).toBeLessThan(1e-2);
+  });
+});
+
+describe('deriveNormalPixels — the seam', () => {
+  // THE property. A tile whose gradient is computed with clamped or zeroed
+  // edges looks perfect on its own and rules a hard line down every tile
+  // boundary once it is repeated — which on the Docks' 120m ground at 100x100
+  // tiles is 200 lines across the road, worse than shipping no relief at all.
+  const S = 32;
+  // Deterministic pseudo-noise with real content hard against all four edges.
+  const noisy = heightRGBA(S, (x, y) => 0.87 + 0.13 * (((x * 71 + y * 131) ^ (x * 17)) % 251) / 250);
+
+  it('is translation-equivariant, which is what "seamless" means', () => {
+    // derive(roll(H)) === roll(derive(H)) for every shift. Nothing about a
+    // texel's position can matter if the tile is to wrap, and a shift-by-one
+    // moves every texel across the seam in turn, so this single property
+    // covers all four edges and both corners at once.
+    const base = deriveNormalPixels(noisy, S);
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [7, 13], [S - 1, S - 1]]) {
+      const shifted = deriveNormalPixels(roll(noisy, S, dx, dy), S);
+      expect(Array.from(shifted), `shift ${dx},${dy}`).toEqual(Array.from(roll(base, S, dx, dy)));
+    }
+  });
+
+  it('reads the far edge as the near neighbour it will actually be', () => {
+    // The direct statement of the same thing, and the one that fails loudly
+    // for the specific bug: a lone dark column at x=0 must tilt the normals in
+    // column S-1 (its left neighbour once the tile repeats) just as strongly
+    // as those in column 1. Clamped edges leave column S-1 dead flat.
+    const stripe = heightRGBA(S, (x) => (x === 0 ? 0.87 : 1));
+    const d = deriveNormalPixels(stripe, S);
+    const left = unpack(d, S, S - 1, 5);
+    const right = unpack(d, S, 1, 5);
+    expect(Math.abs(left.x)).toBeGreaterThan(0.05);          // not flat
+    expect(left.x).toBeCloseTo(-right.x, 6);                 // and exactly mirrored
+    // A row is uniform, so nothing may tilt vertically anywhere. Asserted on
+    // the raw byte, because the encoded "no tilt" is 128 — which unpacks to
+    // 1/255, not to 0.
+    for (let x = 0; x < S; x++) expect(d[(5 * S + x) * 4 + 1], `x=${x}`).toBe(128);
+  });
+
+  it('wraps top-to-bottom as well, not only left-to-right', () => {
+    // The asymmetric mistake: wrapping x (which the inner loop makes obvious)
+    // and clamping y (which the row-index arithmetic makes easy to forget).
+    const stripe = heightRGBA(S, (_x, y) => (y === 0 ? 0.87 : 1));
+    const d = deriveNormalPixels(stripe, S);
+    expect(Math.abs(unpack(d, S, 5, S - 1).y)).toBeGreaterThan(0.05);
+    expect(unpack(d, S, 5, S - 1).y).toBeCloseTo(-unpack(d, S, 5, 1).y, 6);
+  });
+});
+
+describe('normal maps — the texture', () => {
+  // A document whose canvases really composite, so the whole chain runs:
+  // paint -> clamp -> readback -> derive -> putImageData -> CanvasTexture.
+  // Returns the contexts in creation order; [0] is a surface's colour tile and
+  // [1] is its normal tile.
+  function installRasterDocument() {
+    const ctxs = [];
+    globalThis.document = {
+      createElement() {
+        return {
+          width: 0,
+          height: 0,
+          getContext() {
+            lastCtx = rasterCtx(this.width || 256);
+            ctxs.push(lastCtx);
+            return lastCtx;
+          },
+        };
+      },
+    };
+    return ctxs;
+  }
+
+  it('returns a matched pair, and both tile', () => {
+    installRasterDocument();
+    const { map, normalMap } = surfaceMaps('brick');
+    expect(map).toBeInstanceOf(THREE.CanvasTexture);
+    expect(normalMap).toBeInstanceOf(THREE.CanvasTexture);
+    expect(normalMap.wrapS).toBe(THREE.RepeatWrapping);
+    expect(normalMap.wrapT).toBe(THREE.RepeatWrapping);
+    expect(normalMap.generateMipmaps).toBe(true);
+    expect(normalMap.name).toBe('surface:brick:normal');
+    // The `surface:` prefix is what endWalk's teardown keys its skip on, and
+    // these are app-lifetime textures like the colour tiles.
+    expect(normalMap.name.startsWith('surface:')).toBe(true);
+  });
+
+  it('is NOT sRGB — a normal map is data, not colour', () => {
+    // The silent one. An sRGB-tagged normal map gets de-gammaed before
+    // unpacking, which pulls every channel toward zero and tilts the whole
+    // surface uniformly; it reads as a lighting bias, not as a broken map.
+    installRasterDocument();
+    const { map, normalMap } = surfaceMaps('cobble');
+    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(normalMap.colorSpace).toBe(THREE.NoColorSpace);
+  });
+
+  it('cannot disagree with its colour map about repeat', () => {
+    // The structural guarantee. There is no argument for the normal's repeat
+    // to get wrong: it is read off the colour texture that was actually
+    // resolved. Two maps at different densities do not fail, they SLIDE.
+    installRasterDocument();
+    for (const repeat of [undefined, [6, 4], [2, 2], [100, 100]]) {
+      const { map, normalMap } = surfaceMaps('cobble', repeat ? { repeat } : undefined);
+      expect(normalMap.repeat.x, String(repeat)).toBe(map.repeat.x);
+      expect(normalMap.repeat.y, String(repeat)).toBe(map.repeat.y);
+    }
+  });
+
+  it('memoises the master and shares one Source across every density', () => {
+    installRasterDocument();
+    const a = surfaceMaps('gravel');
+    const b = surfaceMaps('gravel');
+    expect(b.normalMap).toBe(a.normalMap);
+    const wide = surfaceMaps('gravel', { repeat: [9, 5] });
+    expect(wide.normalMap).not.toBe(a.normalMap);
+    expect(surfaceMaps('gravel', { repeat: [9, 5] }).normalMap).toBe(wide.normalMap);
+    // One texture in VRAM for every density, exactly as the colour variants.
+    expect(wide.normalMap.source).toBe(a.normalMap.source);
+  });
+
+  it('derives each surface exactly once, from the finished colour tile', () => {
+    const ctxs = installRasterDocument();
+    surfaceMaps('plank');
+    expect(ctxs.length).toBe(2);                 // one colour canvas, one normal canvas
+    surfaceMaps('plank');
+    surfaceMaps('plank', { repeat: [8, 8] });
+    expect(ctxs.length).toBe(2);                 // and never a third
+  });
+
+  it('really derives from the tile — a flat normal map would be a silent no-op', () => {
+    const ctxs = installRasterDocument();
+    surfaceMaps('cobble');
+    const d = ctxs[1].__pixels();
+    let tilted = 0;
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 128) > 2 || Math.abs(d[i + 1] - 128) > 2) tilted++;
+    expect(tilted).toBeGreaterThan(0.02 * (d.length / 4));
+  });
+
+  it('gives every derived tile back with no seam, on the real painters', () => {
+    // The unit tests above prove the operator wraps. This proves the operator
+    // is what the surfaces actually get, on the tile they actually ship.
+    for (const name of SURFACE_NAMES) {
+      __resetSurfaceTextures();
+      const ctxs = installRasterDocument();
+      surfaceMaps(name);
+      const colour = ctxs[0].__pixels();
+      const S = 256;
+      const src = new Uint8ClampedArray(S * S * 4);
+      for (let i = 0; i < src.length; i++) src[i] = Math.round(colour[i]);
+      const direct = deriveNormalPixels(src, S);
+      const shifted = deriveNormalPixels(roll(src, S, 1, 1), S);
+      expect(Array.from(shifted), name).toEqual(Array.from(roll(direct, S, 1, 1)));
+    }
+  });
+
+  it('builds nothing at all when the tier says no normal maps', () => {
+    const ctxs = installRasterDocument();
+    setTextureTier({ name: 'high', normalMaps: false });
+    expect(getNormalMapsEnabled()).toBe(false);
+    const { map, normalMap } = surfaceMaps('brick');
+    expect(map).not.toBeNull();       // colour tiles are a separate decision
+    expect(normalMap).toBeNull();
+    expect(ctxs.length).toBe(1);      // the second canvas was never asked for
+  });
+
+  it('gives the low tier neither channel', () => {
+    installRasterDocument();
+    setTextureTier({ name: 'low', normalMaps: false });
+    expect(surfaceMaps('brick')).toEqual({ map: null, normalMap: null });
+  });
+
+  it('takes normalMaps from a resolveQuality tier and defaults it from a bare name', () => {
+    // A bare string carries no flag, so it must fall back to what the named
+    // tier means — otherwise every harness and test that already says
+    // setTextureTier('high') would silently lose the channel.
+    setTextureTier('high');
+    expect(getNormalMapsEnabled()).toBe(true);
+    setTextureTier('low');
+    expect(getNormalMapsEnabled()).toBe(false);
+    setTextureTier({ name: 'high', normalMaps: false });
+    expect(getNormalMapsEnabled()).toBe(false);
+    setTextureTier({ name: 'high', normalMaps: true });
+    expect(getNormalMapsEnabled()).toBe(true);
+    // An unrecognised tier leaves both halves alone, as it always has.
+    setTextureTier('ultra');
+    expect(getTextureTier()).toBe('high');
+    expect(getNormalMapsEnabled()).toBe(true);
+  });
+
+  it('answers the null cases the same way the colour path does', () => {
+    expect(typeof document).toBe('undefined');
+    expect(surfaceMaps('brick')).toEqual({ map: null, normalMap: null });
+    installRasterDocument();
+    expect(surfaceMaps('marble')).toEqual({ map: null, normalMap: null });
+  });
+
+  it('degrades to colour-only against a context with no readback', () => {
+    // Six world test files use a blanket stub as their canvas. It answers
+    // `typeof ctx.getImageData === 'function'` and then returns undefined —
+    // the same trap clampToFloor guards against — so the normal path must
+    // fail to null rather than throw.
+    installFakeDocument();                       // the recording ctx: no readback at all
+    const { map, normalMap } = surfaceMaps('brick');
+    expect(map).not.toBeNull();
+    expect(normalMap).toBeNull();
+  });
+
+  it('is reset by __resetSurfaceTextures, both channels and both flags', () => {
+    installRasterDocument();
+    const first = surfaceMaps('sand');
+    setTextureTier({ name: 'high', normalMaps: false });
+    __resetSurfaceTextures();
+    expect(getTextureTier()).toBe('high');
+    expect(getNormalMapsEnabled()).toBe(true);
+    installRasterDocument();
+    expect(surfaceMaps('sand').normalMap).not.toBe(first.normalMap);
   });
 });

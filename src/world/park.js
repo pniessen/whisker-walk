@@ -90,6 +90,27 @@ export function build(scene, { water = {}, wind } = {}) {
   // 0.955 mean itself so the authored colour is what lands on screen.
   scene.add(b.ground(120, 0x6cb058, { surface: 'grass' }));
 
+  // The horizon band (VISUAL-PASS.md Wave 4.3) — see builder.horizonBand's own
+  // block for the geometry, and neighborhood.js's call for the reasoning
+  // behind `inner`/`outer` (56 buries the seam four metres inside the 120m
+  // lawn's edge; 116 keeps the far rim inside the fog's 130m).
+  //
+  // The park's hills are the TALLEST and the WIDEST-SPACED of the four bands,
+  // and that is the one place this area's copy differs from the suburb's. A
+  // town park is a piece of countryside that a town grew around; what is over
+  // its wall should read as more countryside, and further away, rather than as
+  // more streets. 8m crests at 40m spacing gives two or three big rolling
+  // masses per side instead of the suburb's five or six low swells.
+  //
+  // The colour is the lawn's 0x6cb058 carried a third of the way to this
+  // area's own horizon stop (0xd8f0e0, from applySky above) — aerial
+  // perspective painted in, because fog does not begin until 40m and the near
+  // corner of the band sits inside that.
+  scene.add(b.horizonBand({
+    kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40,
+    color: 0x8ac27e, salt: 23,
+  }));
+
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
 
@@ -364,6 +385,11 @@ export function build(scene, { water = {}, wind } = {}) {
       { id: 'picnic-thief', label: 'a squirrel making off with a picnic sandwich', x: 3, z: 26, from: { x: -30, z: 10 } },
     ],
     puddles,
+    // The hemisphere fill's ground term (game/walk.js) — the lawn hex from
+    // b.ground() above. Marginally deeper than the neighbourhood's, which is
+    // the point: the park should feel like the greener of the two from below
+    // as well as from above.
+    groundBounce: 0x6cb058,
     skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
     tippables: [
       { x: 7, z: 29, kind: 'can' }, { x: -3, z: 15, kind: 'pot' },

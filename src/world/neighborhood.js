@@ -51,6 +51,35 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   // in the builder precisely so this line does not have to know about it.
   scene.add(b.ground(120, 0x7cb860, { surface: 'grass' }));
 
+  // The horizon band (VISUAL-PASS.md Wave 4.3) — low hills out past the end of
+  // the lawn, purely decorative: no collider, no perch, no POI, no record of
+  // any kind returned below. See builder.horizonBand's own block for the
+  // geometry and for why it is not terrain.
+  //
+  // 56 puts the ring's inner rim four metres INSIDE the 120m lawn's own edge,
+  // so the seam is buried under an opaque plane rather than butted against it;
+  // 116 puts the outer rim 116m from the middle of the area, inside the fog's
+  // 130m far distance, so the far side fades out rather than being cut off.
+  // The default FLAT keeps the first hill ~35m beyond the furthest a cat can
+  // walk (`bounds` stop at 55), which is what makes these a ridge rather than
+  // a wall.
+  //
+  // 7m crests at 34m spacing: the gentlest of the four areas on purpose. This
+  // is a suburb on flat ground — the joke of the place is that nothing much
+  // happens here — so what belongs past the last garden fence is farmland
+  // rolling away, not a mountain range.
+  //
+  // The colour is the lawn's own 0x7cb860 carried about a third of the way to
+  // the sky's horizon stop (0xcfe8f0, the same hex applySky above hands the
+  // fog). Distance does two things to a colour — it desaturates it and it
+  // lifts it toward the sky — and fog only starts doing that at 40m, so the
+  // near corner of the band would otherwise arrive at full lawn-green with no
+  // aerial perspective at all. This is that perspective, painted in.
+  scene.add(b.horizonBand({
+    kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
+    color: 0x94bd84, salt: 11,
+  }));
+
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
 
@@ -295,6 +324,13 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
       { id: 'mail-nap', label: 'a delivery drone bothering the mailbox birds', x: 12, z: 32, from: { x: 6, z: 40 } },
     ],
     puddles,
+    // The colour the hemisphere fill bounces up off this area's floor
+    // (game/walk.js). It is the LAWN's own hex from the b.ground() call at the
+    // top of build — the raw albedo, not a pre-darkened "bounce" value, because
+    // walk.js's HEMI_INTENSITY is the single dial for how much of it lands and
+    // splitting that decision across five area files would guarantee they
+    // drifted. The neighbourhood is grass wall to wall, so the choice is easy.
+    groundBounce: 0x7cb860,
     skyDusk: { top: 0x2a3a5e, horizon: 0x6a5a7e },
     tippables: [
       { x: -8, z: -32, kind: 'pot' }, { x: 10.5, z: -9.5, kind: 'pot' },
