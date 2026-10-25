@@ -22,6 +22,7 @@ import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
+import { questTrailStep } from '../questscent.js';
 import { nowSec } from './util.js';
 
 // ---------------------------------------------------------------------------
@@ -352,6 +353,18 @@ export function createInteractions({
       }
     }
 
+    // --- Quest scent trail --------------------------------------------
+    // Not skill-gated and not stalking-gated: it is how the objective is
+    // findable at all. Reduced motion halves the prints, never removes them.
+    // updateInteractions carries no dt, so `since` is read off the same
+    // wall clock the other sense throttles use.
+    const sinceLay = now - (s.questTrailAt ?? -Infinity);
+    const qt = questTrailStep({
+      quest: s.quest, scent: s.scent, catPos: catP,
+      since: sinceLay, reducedMotion: !!getSession?.()?.reducedMotion,
+    });
+    if (qt.laid) s.questTrailAt = now;
+
     // --- Whisker Sense ------------------------------------------------
     if (hasSkill(state, 'whisker-sense') && s.goldMice) {
       if (now >= (s.whiskerNextAt ?? 0)) {
@@ -500,11 +513,6 @@ export function createInteractions({
 
   function updateInteractions(s) {
     const catP = s.cat.position;
-    if (s.quest?.state === 'active' && s.quest.type === 'glasses' && s.questObject) {
-      s.questObject.visible = Math.hypot(
-        s.quest.target.x - catP.x, s.quest.target.z - catP.z
-      ) < 10;
-    }
     const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
     for (const [id, m] of s.collectibleMeshes) {
       const c = s.areaData.collectibles.find((x) => x.id === id);

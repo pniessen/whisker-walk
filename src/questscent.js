@@ -35,3 +35,25 @@ export function objectiveDistance(dist) {
   if (d < 2) return 'here';
   return `${Math.round(d)} m`;
 }
+
+// Per-frame decision: lay a quest trail toward the active objective?
+// `since` is seconds since the last lay (owned by the caller). The trail gets
+// denser and bolder as the cat closes in (that gradient is the warmer/colder
+// signal). Reduced motion halves the prints but never removes the trail.
+// `scent` is passed in, not imported, to keep this module a leaf.
+export function questTrailStep({ quest, scent, catPos, since, reducedMotion = false } = {}) {
+  const none = { laid: false, endpoint: null };
+  if (!quest || quest.state !== 'active' || typeof scent?.trailTo !== 'function') return none;
+  if (!quest.target || !catPos) return none;
+  const dist = Math.hypot(quest.target.x - catPos.x, quest.target.z - catPos.z);
+  if (!Number.isFinite(dist) || dist < 0.5) return none;
+  if (!(since >= trailCadence(dist))) return none;
+  const w = scentWarmth(dist);
+  let steps = Math.round(2 + 5 * w);
+  if (reducedMotion) steps = Math.max(1, Math.ceil(steps / 2));
+  const peak = 0.35 + 0.4 * w;
+  const endpoint = scent.trailTo(catPos, quest.target, {
+    maxDist: 6, steps, peak, color: QUEST_TRAIL_COLOR,
+  });
+  return { laid: !!endpoint, endpoint: endpoint ?? null };
+}

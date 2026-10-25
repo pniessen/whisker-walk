@@ -156,4 +156,16 @@ describe('createScent.trailTo (v18 Twitchy Nose)', () => {
     expect(noseDecals.length).toBeGreaterThan(0);
     for (const d of noseDecals) expect(d.material.opacity).toBeLessThan(0.85);
   });
+
+  it('trailTo passes a custom colour through to its decals and defaults to nose yellow', () => {
+    const added = [];
+    const sc = { add: (o) => added.push(o), remove() {} };
+    const scent = createScent(sc, AREA, () => 0.4);
+    added.length = 0;
+    scent.trailTo({ x: 0, z: 0 }, { x: 5, z: 0 }, { color: 0x7fd4ff });
+    expect(added.some((o) => o.material?.color?.getHex?.() === 0x7fd4ff)).toBe(true);
+    added.length = 0;
+    scent.trailTo({ x: 0, z: 0 }, { x: 5, z: 0 });
+    expect(added.some((o) => o.material?.color?.getHex?.() === 0xf2e04e)).toBe(true);
+  });
 });
