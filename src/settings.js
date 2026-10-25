@@ -13,9 +13,10 @@ const DEFAULTS = {
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
-// 'auto' defers to device signals (coarse pointer / prefers-reduced-motion),
-// 'high'/'low' force a tier. Applied at walk start, so a change here takes
-// effect on the next walk, not live.
+// 'auto' starts every device on the high rung and adapts to its frame times
+// (game/adaptquality.js; prefers-reduced-motion stays low), 'high'/'low'
+// force a tier and turn adaptation off. Applied at walk start, so a change
+// here takes effect on the next walk, not live.
 const QUALITY = ['auto', 'high', 'low'];
 
 function isPlainObject(v) {

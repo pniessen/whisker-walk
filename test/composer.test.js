@@ -2,8 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import {
   createComposerRig, nightEyesLighting,
-  NIGHT_EYES_EXPOSURE_GAIN, NIGHT_EYES_ENV_GAIN,
+  NIGHT_EYES_EXPOSURE_GAIN, NIGHT_EYES_ENV_GAIN, BLOOM_STRENGTH,
 } from '../src/game/composer.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 // three's exported namespace is non-configurable in ESM (Vitest cannot
 // vi.spyOn it directly), so the MSAA suite at the bottom of this file
@@ -186,5 +188,56 @@ describe('createComposerRig MSAA target (v1.1)', () => {
     rig.ensure(4);
     rig.ensure(0); // a later walk on a different tier — ignored, same as setTextureTier
     expect(oursCalls()).toHaveLength(1); // second call short-circuited on `if (composer) return`
+  });
+});
+
+// v21 Stream 4: the adaptive adapter (game/adaptquality.js) changes pixel
+// ratio and fades bloom mid-walk through these two hooks.
+describe('createComposerRig adaptive hooks (v21)', () => {
+  const fakeGlRenderer = () => ({ toneMappingExposure: 1.1, getPixelRatio: () => 1 });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    rtCalls.length = 0;
+  });
+
+  function bloomOf(addPass) {
+    return addPass.mock.calls.map(([p]) => p).find((p) => p instanceof UnrealBloomPass);
+  }
+
+  it('exports the bloom strength ensure() builds with', () => {
+    vi.stubGlobal('window', { innerWidth: 800, innerHeight: 600 });
+    const addPass = vi.spyOn(EffectComposer.prototype, 'addPass');
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    rig.ensure(4);
+    expect(BLOOM_STRENGTH).toBe(0.35);
+    expect(bloomOf(addPass).strength).toBe(BLOOM_STRENGTH);
+  });
+
+  it('setPixelRatio and setBloomStrength are no-ops before ensure()', () => {
+    const spy = vi.spyOn(EffectComposer.prototype, 'setPixelRatio');
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    expect(() => rig.setPixelRatio(1.5)).not.toThrow();
+    expect(() => rig.setBloomStrength(0)).not.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('setPixelRatio forwards to the EffectComposer once it exists', () => {
+    vi.stubGlobal('window', { innerWidth: 800, innerHeight: 600 });
+    const spy = vi.spyOn(EffectComposer.prototype, 'setPixelRatio');
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    rig.ensure(4);
+    rig.setPixelRatio(1.5);
+    expect(spy).toHaveBeenCalledWith(1.5);
+  });
+
+  it('setBloomStrength sets the bloom pass strength', () => {
+    vi.stubGlobal('window', { innerWidth: 800, innerHeight: 600 });
+    const addPass = vi.spyOn(EffectComposer.prototype, 'addPass');
+    const rig = createComposerRig(fakeGlRenderer(), {});
+    rig.ensure(4);
+    rig.setBloomStrength(0.1);
+    expect(bloomOf(addPass).strength).toBe(0.1);
   });
 });

@@ -955,7 +955,7 @@ describe('createStrayCats — colony cats (v21 Stream 2)', () => {
 });
 
 // The walkRng guard. shuffled(CAT_NAMES, rng) consumes CAT_NAMES.length - 1
-// draws; changing this number shifts gifts, weather, secrets and goals.
+// draws; changing this number shifts the stray stream (every stray's spot after it).
 describe('reserved kit names', () => {
   it('CAT_NAMES is still exactly 48 names', () => {
     expect(CAT_NAMES.length).toBe(48);
