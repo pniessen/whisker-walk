@@ -457,3 +457,78 @@ describe('trades and rewards', () => {
     expect(rewardsDue(feed(emptyColony(), boldName, ME, 1).colony, [])).toEqual([]);
   });
 });
+
+import { sanitizeSnapshot } from '../src/colony.js';
+describe('sanitizeSnapshot', () => {
+  const opts = { me: ME, knownItems: ITEMS };
+  const paired = (extra = {}) => ({ status: 'paired', colony_id: 'c0ffee00c0ffee00',
+    members: [{ player_id: ME, pet_name: 'Mo', wardrobe: [] }, { player_id: SIB, pet_name: 'Robin', wardrobe: ['crown', 'laser'] }],
+    cats: [], feeds: [], trades: [], ...extra });
+  it('maps a paired snapshot and picks out the partner', () => {
+    const s = sanitizeSnapshot({ status: 'paired', colony_id: 'c0ffee00c0ffee00',
+      members: [{ player_id: ME, pet_name: 'Mo', wardrobe: [] }, { player_id: SIB, pet_name: 'Robin', wardrobe: ['crown', 'laser'] }],
+      cats: [{ name: 'Pickles', finder_id: SIB, area: 'park', x: 1, z: 2, wear: null, tamed_by: null, tamed_walk: null }],
+      feeds: [{ cat: 'Pickles', by_id: SIB, walk: 'walk-1', head: 0 }], trades: [] }, opts);
+    expect(s.status).toBe('paired');
+    expect(s.remote.partner).toEqual({ playerId: SIB, petName: 'Robin', wardrobe: ['crown'] });
+    expect(s.remote.cats[0].finder).toBe(SIB);
+  });
+  it('escape-proofs a hostile pet name and survives any shape', () => {
+    const s = sanitizeSnapshot({ status: 'paired', colony_id: 'x', members: [{ player_id: SIB, pet_name: '<script>' }] }, opts);
+    expect(s.remote.partner.petName).toBe('your partner');
+    for (const bad of [null, 'paired', [], 7, undefined, { status: 'paired', members: 'x', cats: {} }, { status: 'paired', colony_id: 'x', members: [null, 3] }]) {
+      expect(() => sanitizeSnapshot(bad, opts)).not.toThrow();
+    }
+  });
+  it('maps every snake_case field and keeps the colony id', () => {
+    const s = sanitizeSnapshot(paired({
+      cats: [{ name: 'Pickles', finder_id: SIB, area: 'park', x: 1, z: 2, wear: 'crown', tamed_by: ME, tamed_walk: 'walk-5' }],
+      feeds: [{ cat: 'Pickles', by_id: ME, walk: 'walk-5', head: 2 }],
+      trades: [{ id: 3, from_id: SIB, to_id: ME, give: 'crown', want: 'heart', status: 'offered' }] }), opts);
+    expect(s.remote.id).toBe('c0ffee00c0ffee00');
+    expect(s.remote.cats[0]).toEqual({ name: 'Pickles', finder: SIB, area: 'park', x: 1, z: 2, wear: 'crown', tamedBy: ME, tamedWalk: 'walk-5' });
+    expect(s.remote.feeds).toEqual([{ cat: 'Pickles', by: ME, walk: 'walk-5', head: 2 }]);
+    expect(s.remote.trades).toEqual([{ id: 3, from: SIB, to: ME, give: 'crown', want: 'heart', status: 'offered' }]);
+  });
+  it('reuses the colony sanitizer: bad entries, caps, hostile coordinates', () => {
+    const cat = (name, extra = {}) => ({ name, finder_id: SIB, area: 'park', x: 1, z: 2, wear: null, tamed_by: null, tamed_walk: null, ...extra });
+    const s = sanitizeSnapshot(paired({
+      cats: [cat('Pickles', { x: 'NaN', z: 1e9 }), cat('Zeetoo'), cat('Mochi', { wear: 'laser' }), cat('Mochi', { x: 9 })],
+      feeds: [{ cat: 'Zeetoo', by_id: SIB, walk: 'walk-1', head: 0 }, { cat: 'Pickles', by_id: SIB, walk: 'junk', head: 0 }],
+      trades: [{ id: 1, from_id: SIB, to_id: SIB, give: 'crown', want: 'heart', status: 'offered' }] }), opts);
+    expect(s.remote.cats.map((c) => c.name)).toEqual(['Pickles', 'Mochi']);
+    expect(s.remote.cats[0].x).toBe(0);
+    expect(s.remote.cats[0].z).toBe(200);
+    expect(s.remote.cats[1].wear).toBe(null);
+    expect(s.remote.feeds).toEqual([]);
+    expect(s.remote.trades).toEqual([]);
+  });
+  it('caps the partner wardrobe at 40 known items', () => {
+    const many = Array.from({ length: 100 }, (_, i) => (i % 2 ? 'crown' : 'heart'));
+    const s = sanitizeSnapshot(paired({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: many }] }), opts);
+    expect(s.remote.partner.wardrobe).toEqual(['heart', 'crown']);
+  });
+  it('passes denied through and rejects unknown or malformed statuses', () => {
+    expect(sanitizeSnapshot({ status: 'denied' }, opts)).toEqual({ status: 'denied' });
+    for (const bad of [{ status: 'weird' }, {}, { status: 7 }, { status: '__proto__' }]) expect(sanitizeSnapshot(bad, opts)).toEqual({ status: 'bad' });
+  });
+  it('is bad when paired has no usable colony id or partner', () => {
+    expect(sanitizeSnapshot(paired({ colony_id: null }), opts)).toEqual({ status: 'bad' });
+    expect(sanitizeSnapshot(paired({ colony_id: '<img>' }), opts)).toEqual({ status: 'bad' });
+    expect(sanitizeSnapshot(paired({ members: [{ player_id: ME, pet_name: 'Mo' }] }), opts)).toEqual({ status: 'bad' });
+    expect(sanitizeSnapshot(paired({ members: [{ player_id: 'x!', pet_name: 'Robin' }, { player_id: ME }] }), opts)).toEqual({ status: 'bad' });
+  });
+  it('maps an unpaired snapshot: invite and joining, camelCased and sanitized', () => {
+    const u = (extra) => sanitizeSnapshot({ status: 'unpaired', invite: null, joining: null, ...extra }, opts);
+    expect(u({})).toEqual({ status: 'unpaired', invite: null, joining: null });
+    expect(u({ invite: { code: 'K7P2QM', expires_at: '2026-10-24T10:00:00Z', joiner_pet_name: 'Robin' }, joining: { inviter_pet_name: 'Mo' } }))
+      .toEqual({ status: 'unpaired', invite: { code: 'K7P2QM', expiresAt: '2026-10-24T10:00:00Z', joinerPetName: 'Robin' }, joining: { inviterPetName: 'Mo' } });
+    expect(u({ invite: { code: 'K7P2QM', expires_at: 5, joiner_pet_name: null } }).invite).toEqual({ code: 'K7P2QM', expiresAt: null, joinerPetName: null });
+    expect(u({ invite: { code: 'K7P2QM', expires_at: 'x', joiner_pet_name: '<b>' } }).invite.joinerPetName).toBe('your partner');
+    expect(u({ joining: { inviter_pet_name: '<b>' } }).joining).toEqual({ inviterPetName: 'your partner' });
+    for (const code of ['k7p2qm', 'K7P2Q', 'K7P2QMX', 'K7P2Q0', 'K7P2QI', '<script>', 7, null]) {
+      expect(u({ invite: { code, expires_at: null } }).invite).toBe(null);
+    }
+    expect(u({ invite: 'x', joining: 7 })).toEqual({ status: 'unpaired', invite: null, joining: null });
+  });
+});

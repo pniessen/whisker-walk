@@ -262,3 +262,32 @@ describe('addFriendByCode (idempotent-per-pair friend-code add)', () => {
     expect(calls).toEqual([]);
   });
 });
+
+import { RPCS } from './fixtures/colonyrpcs.js';
+describe('colony wrappers', () => {
+  it('every colony wrapper sends exactly the SQL contract arguments', async () => {
+    const calls = [];
+    const cloud = createCloud({ rpc: async (name, args) => { calls.push({ name, args }); return 'ok'; }, select: async () => [] });
+    await cloud.colonyInviteOpen('id', 's'); await cloud.colonyInviteJoin('id', 's', 'K7P2QM');
+    await cloud.colonyInviteAnswer('id', 's', true); await cloud.colonySync('id', 's', ['crown']);
+    await cloud.colonyFeed('id', 's', { cat: 'Pickles', walk: 'walk-1', area: 'park', x: 1, z: 2, head: 1, tamed: false });
+    await cloud.colonyDress('id', 's', 'Pickles', 'crown'); await cloud.colonyTradeOffer('id', 's', 'crown', 'tophat');
+    await cloud.colonyTradeAnswer('id', 's', 4, true); await cloud.colonyTradeCancel('id', 's', 4);
+    for (const { name, args } of calls) expect(Object.keys(args)).toEqual(RPCS[name]);
+    expect(calls).toHaveLength(Object.keys(RPCS).length);
+    expect(new Set(calls.map((c) => c.name))).toEqual(new Set(Object.keys(RPCS)));
+  });
+
+  it('maps values to the right p_ args and passes results through unchanged', async () => {
+    const result = { status: 'paired' };
+    const calls = [];
+    const cloud = createCloud({ rpc: async (name, args) => { calls.push({ name, args }); return result; }, select: async () => [] });
+    expect(await cloud.colonyFeed('me', 'sek', { cat: 'Pickles', walk: 'walk-9', area: 'docks', x: 1.5, z: -2, head: 2, tamed: true })).toBe(result);
+    expect(calls[0]).toEqual({ name: 'colony_feed', args: {
+      p_player_id: 'me', p_secret: 'sek', p_cat: 'Pickles', p_walk: 'walk-9', p_area: 'docks', p_x: 1.5, p_z: -2, p_head: 2, p_tamed: true } });
+    await cloud.colonyTradeAnswer('me', 'sek', 4, false);
+    expect(calls[1].args).toEqual({ p_player_id: 'me', p_secret: 'sek', p_trade_id: 4, p_accept: false });
+    await cloud.colonySync('me', 'sek', ['crown']);
+    expect(calls[2].args.p_wardrobe).toEqual(['crown']);
+  });
+});

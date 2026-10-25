@@ -343,6 +343,73 @@ function sanitizeColonyUnsafe(v, knownItems) {
   };
 }
 
+// sanitizeSnapshot(raw, { me, knownItems }) -> { status, remote?, invite?, joining? }
+// The inbound side of colony_sync (docs/supabase-colony.sql). `raw` is the
+// server's JSON, snake_case, and is untrusted. Never throws. status is
+//   'denied'   the server refused our id/secret
+//   'unpaired' no colony yet (or a lone member): `invite` is our open sharing
+//              code or null, `joining` is the invite we answered or null
+//   'paired'   `remote` = { id, partner, cats, feeds, trades } in client shape
+//   'bad'      anything else, including a paired snapshot with no usable
+//              colony id or no partner other than `me`
+// A paired snapshot is mapped to the shared field names (finder_id -> finder,
+// by_id -> by, from_id -> from, ...) and run through sanitizeColony, so the
+// per-entry rules, caps and the knownItems filter are the one set in this file.
+const INVITE_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+const SAFE_PET_NAME = 'your partner';
+
+const mapEach = (list, f) => asArray(list).map((x) => (isPlainObject(x) ? f(x) : x));
+
+export function sanitizeSnapshot(raw, { me, knownItems } = {}) {
+  try {
+    return sanitizeSnapshotUnsafe(raw, me, knownItems instanceof Set ? knownItems : new Set());
+  } catch {
+    return { status: 'bad' };
+  }
+}
+
+function sanitizeSnapshotUnsafe(raw, me, knownItems) {
+  if (!isPlainObject(raw)) return { status: 'bad' };
+  if (raw.status === 'denied') return { status: 'denied' };
+
+  if (raw.status === 'unpaired') {
+    const inv = raw.invite;
+    const joi = raw.joining;
+    const invite = isPlainObject(inv) && typeof inv.code === 'string' && INVITE_CODE.test(inv.code)
+      ? {
+          code: inv.code,
+          expiresAt: typeof inv.expires_at === 'string' ? inv.expires_at : null,
+          joinerPetName: validPetName(inv.joiner_pet_name) ? inv.joiner_pet_name
+            : typeof inv.joiner_pet_name === 'string' ? SAFE_PET_NAME : null,
+        }
+      : null;
+    const joining = isPlainObject(joi)
+      ? { inviterPetName: validPetName(joi.inviter_pet_name) ? joi.inviter_pet_name : SAFE_PET_NAME }
+      : null;
+    return { status: 'unpaired', invite, joining };
+  }
+
+  if (raw.status !== 'paired') return { status: 'bad' };
+  if (typeof raw.colony_id !== 'string' || !COLONY_ID.test(raw.colony_id)) return { status: 'bad' };
+
+  // The partner is the first member who is not me and has a usable player id.
+  const member = asArray(raw.members).find((m) => isPlainObject(m) && isPlayerId(m.player_id) && m.player_id !== me);
+  if (!member) return { status: 'bad' };
+
+  const c = sanitizeColony({
+    id: raw.colony_id,
+    partner: { playerId: member.player_id, petName: member.pet_name, wardrobe: member.wardrobe },
+    cats: mapEach(raw.cats, (x) => ({
+      name: x.name, finder: x.finder_id, area: x.area, x: x.x, z: x.z,
+      wear: x.wear, tamedBy: x.tamed_by, tamedWalk: x.tamed_walk,
+    })),
+    feeds: mapEach(raw.feeds, (x) => ({ cat: x.cat, by: x.by_id, walk: x.walk, head: x.head })),
+    trades: mapEach(raw.trades, (x) => ({ id: x.id, from: x.from_id, to: x.to_id, give: x.give, want: x.want, status: x.status })),
+  }, { knownItems });
+  if (!c.partner || c.id === null) return { status: 'bad' };
+  return { status: 'paired', remote: { id: c.id, partner: c.partner, cats: c.cats, feeds: c.feeds, trades: c.trades } };
+}
+
 // mergeColony(local, remote, { knownItems }) -> Colony. `remote` is the
 // server's snapshot, { id, partner, cats, feeds, trades }, in client shape.
 // The conflict policy (spec Stream 2 decision 1), which is what keeps the

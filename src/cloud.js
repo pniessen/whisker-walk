@@ -4,8 +4,11 @@
 // The client/server contract is FIXED and already live — see
 // docs/supabase-setup.sql for the `saves`/`profiles`/`friendships` tables
 // and the `upsert_save`/`load_save`/`upsert_profile`/`record_friend_greet`
-// RPCs. Every RPC arg name below (the `p_`-prefixed keys) must match that
-// SQL exactly.
+// RPCs. The colony RPCs (colony_invite_*, colony_sync, colony_feed,
+// colony_dress, colony_trade_*) are defined in docs/supabase-colony.sql.
+// Every RPC arg name below (the `p_`-prefixed keys) must match its SQL
+// exactly: docs/supabase-setup.sql for the save/profile/friend RPCs and
+// docs/supabase-colony.sql for the colony ones.
 //
 // createCloud({rpc, select}) takes injectable adapters so unit tests can
 // exercise the arg-mapping/result-passthrough logic with fakes, with no
@@ -177,9 +180,44 @@ export function createCloud({ rpc, select }) {
     return { status: 'added' };
   }
 
+  // Colony RPCs (docs/supabase-colony.sql). Pure arg mapping, results passed
+  // through unchanged: colonySync's snapshot is untrusted and goes through
+  // colony.js's sanitizeSnapshot before the game looks at it.
+  async function colonyInviteOpen(id, secret) {
+    return rpc('colony_invite_open', { p_player_id: id, p_secret: secret });
+  }
+  async function colonyInviteJoin(id, secret, code) {
+    return rpc('colony_invite_join', { p_player_id: id, p_secret: secret, p_code: code });
+  }
+  async function colonyInviteAnswer(id, secret, accept) {
+    return rpc('colony_invite_answer', { p_player_id: id, p_secret: secret, p_accept: accept });
+  }
+  async function colonySync(id, secret, wardrobe) {
+    return rpc('colony_sync', { p_player_id: id, p_secret: secret, p_wardrobe: wardrobe });
+  }
+  async function colonyFeed(id, secret, { cat, walk, area, x, z, head, tamed }) {
+    return rpc('colony_feed', {
+      p_player_id: id, p_secret: secret, p_cat: cat, p_walk: walk, p_area: area, p_x: x, p_z: z, p_head: head, p_tamed: tamed,
+    });
+  }
+  async function colonyDress(id, secret, cat, item) {
+    return rpc('colony_dress', { p_player_id: id, p_secret: secret, p_cat: cat, p_item: item });
+  }
+  async function colonyTradeOffer(id, secret, give, want) {
+    return rpc('colony_trade_offer', { p_player_id: id, p_secret: secret, p_give: give, p_want: want });
+  }
+  async function colonyTradeAnswer(id, secret, tradeId, accept) {
+    return rpc('colony_trade_answer', { p_player_id: id, p_secret: secret, p_trade_id: tradeId, p_accept: accept });
+  }
+  async function colonyTradeCancel(id, secret, tradeId) {
+    return rpc('colony_trade_cancel', { p_player_id: id, p_secret: secret, p_trade_id: tradeId });
+  }
+
   return {
     saveToCloud, loadFromCloud, pushProfile, recordGreet, fetchProfiles, findByFriendCode, fetchFriendships,
     addFriendByCode,
+    colonyInviteOpen, colonyInviteJoin, colonyInviteAnswer, colonySync, colonyFeed, colonyDress,
+    colonyTradeOffer, colonyTradeAnswer, colonyTradeCancel,
   };
 }
 
