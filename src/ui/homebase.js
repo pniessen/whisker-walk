@@ -1,7 +1,8 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
-import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
+import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from './hometabs.js';
+import { candidateStarNames } from '../clannames.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
   theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
@@ -273,6 +274,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <button id="wt-petname-save">Save</button>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
+      ${renderStarNamePicker(candidateStarNames(myId), name)}
       <div class="wt-actions">
         <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
@@ -843,6 +845,19 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         album.clear();
         render();
       }
+      return;
+    }
+    // A picked star name goes through the same validated path as the text
+    // field: the chosen name IS state.petName (no new field, spec §6.1).
+    const starPick = e.target.dataset?.starName;
+    if (starPick !== undefined) {
+      if (validPetName(starPick)) {
+        progression.setPetName(starPick);
+        petNameError = null;
+      } else {
+        petNameError = 'Pet names are 2–16 letters, spaces, or hyphens.';
+      }
+      render();
       return;
     }
     if (e.target.id === 'wt-petname-save') {

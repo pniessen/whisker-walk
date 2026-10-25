@@ -18,7 +18,8 @@
 // the known-name gate (straynames.js, which imports nothing). No DOM, no THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX } from './clanwords.js';
+import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from './clanwords.js';
+import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
 import { isStrayName } from './straynames.js';
 
@@ -82,4 +83,22 @@ export function clanNameOf(storedName, progress) {
 export function clanTitleFor(seed) {
   // An unusable seed still gets a real title, never "nullClan".
   return (prefixFor(seed) ?? PREFIXES[0]) + CLAN_SUFFIX;
+}
+
+// The names a player may pick for their OWN cat: prefix + the top-rank suffix
+// (Mossstar). The chosen name is stored as the plain pet name, so nothing new
+// is saved or sent (spec §6.1). Closed pool only: no free text is offered.
+// Deterministic: the walk starts at a seed-derived offset and steps through
+// PREFIXES in order, skipping anything that would not be a usable pet name or
+// is a published character name, until n are found or the pool runs out.
+// A non-string seed is treated as '' (seedFromCode throws on non-strings).
+export function candidateStarNames(seed, n = 3) {
+  const start = seedFromCode(typeof seed === 'string' ? seed : '') % PREFIXES.length;
+  const want = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  const out = [];
+  for (let i = 0; i < PREFIXES.length && out.length < want; i++) {
+    const name = PREFIXES[(start + i) % PREFIXES.length] + RANK_SUFFIX.leader;
+    if (validPetName(name) && !DENIED_NAMES.has(name)) out.push(name);
+  }
+  return out;
 }

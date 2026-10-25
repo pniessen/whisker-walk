@@ -123,3 +123,28 @@ export function renderSkillsHtml(state) {
   return `${sections}
     <div class="skills-footer">🐾 Abilities earned: ${earnedCount}/${SKILLS.length}</div>`;
 }
+
+// ---------------------------------------------------------------------------
+// Star-name picker (Social tab, beside the free-text pet-name field)
+//
+// Offers a few closed-pool names from clannames.js's candidateStarNames. The
+// chosen name IS state.petName (set through the existing setPetName path), so
+// there is no new save field, wire change or schema change (spec §6.1). The
+// free-text field is untouched; a legacy name like "Noodle" is shown as-is.
+// Rank is a label: picking one of these gates nothing.
+// Every interpolated value is escaped; junk input renders nothing, never throws.
+// ---------------------------------------------------------------------------
+export function renderStarNamePicker(candidates, current) {
+  const options = Array.isArray(candidates)
+    ? candidates.filter((c) => typeof c === 'string' && c !== '')
+    : [];
+  if (options.length === 0) return '';
+  const chosen = typeof current === 'string' ? current : '';
+  const buttons = options.map((c) =>
+    `<button type="button" class="star-name-pick${c === chosen ? ' chosen' : ''}" data-star-name="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+  ).join('');
+  return `<div class="star-name-picker">
+    <div class="tag">Or pick a star name${chosen ? ` (now: ${escapeHtml(chosen)})` : ''}</div>
+    ${buttons}
+  </div>`;
+}

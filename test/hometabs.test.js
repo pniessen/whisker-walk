@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { HOME_TABS, resolveTab, renderSkillsHtml } from '../src/ui/hometabs.js';
+import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from '../src/ui/hometabs.js';
+import { candidateStarNames } from '../src/clannames.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
 
 describe('home base tabs', () => {
@@ -131,5 +132,27 @@ describe('renderSkillsHtml', () => {
     const before = JSON.stringify(state);
     renderSkillsHtml(state);
     expect(JSON.stringify(state)).toBe(before);
+  });
+});
+
+// Review Focus 5 - a legacy free-text pet name, and no pet name at all.
+describe('star name picker', () => {
+  it.each(['Noodle', null])('shows a legacy pet name unchanged: %p', (cur) => {
+    const html = renderStarNamePicker(candidateStarNames('player-abc12345'), cur);
+    expect(typeof html).toBe('string');
+    if (cur) expect(html).toContain(cur);
+  });
+  it('escapes a hostile current name', () => {
+    const html = renderStarNamePicker(candidateStarNames('seed'), '<img src=x>');
+    expect(html).not.toContain('<img');
+  });
+  it('escapes hostile candidates and never throws on junk', () => {
+    expect(renderStarNamePicker(['<b>x</b>'], null)).not.toContain('<b>');
+    expect(() => renderStarNamePicker(null, undefined)).not.toThrow();
+  });
+  it('offers one button per candidate', () => {
+    const c = candidateStarNames('player-abc12345');
+    const html = renderStarNamePicker(c, null);
+    for (const n of c) expect(html).toContain(`data-star-name="${n}"`);
   });
 });
