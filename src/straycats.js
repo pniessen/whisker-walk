@@ -4,8 +4,8 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, setNameTagMood, NAME_TAG_RANGE } from './nametag.js';
 import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { CAT_NAMES, strayBreed } from './straynames.js';
 
-const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon'];
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
 const GOLDEN = 0.6180339887498949; // spreads personality rolls evenly across strays even with a seeded/constant rng
@@ -125,15 +125,9 @@ export function friendRungCrossed(before, after, { charmer = false } = {}) {
   return null;
 }
 
-export const CAT_NAMES = [
-  'Pickles', 'Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine',
-  'Noodle', 'Pumpkin', 'Sardine', 'Waffles', 'Miso', 'Turnip', 'Gadget',
-  'Petunia', 'Sir Pounce', 'Dumpling', 'Olive', 'Paprika', 'Crumpet', 'Zucchini',
-  'Maple', 'Tofu', 'Wasabi', 'Pretzel', 'Nimbus', 'Pepper', 'Butterscotch',
-  'Fig', 'Tangerine', 'Cocoa', 'Sprout', 'Juniper', 'Meatball', 'Parsnip',
-  'Ziggy', 'Bean', 'Churro', 'Anchovy', 'Popcorn', 'Gnocchi', 'Beignet',
-  'Truffle', 'Ramen', 'Custard', 'Peaches', 'Static', 'Doppler', 'Comet',
-];
+// CAT_NAMES lives in straynames.js (a leaf module the colony rules share) and
+// is re-exported here so every existing importer keeps its path.
+export { CAT_NAMES };
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur", D2 — "strays only, never the named family pets (Zeetoo,
@@ -222,7 +216,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
     const name = names[i % names.length];
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
     // is always the same breed across walks
-    const breed = BREEDS[[...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % BREEDS.length];
+    const breed = strayBreed(name);
     const group = buildCat(breed, undefined, { simple: true });
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     // Position, facing and the personality roll below are drawn from `rng` in
