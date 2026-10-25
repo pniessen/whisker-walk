@@ -766,7 +766,12 @@ was cross-checked against a raw count of every `gl.drawElements` /
 |---|---|---|---|---|---|---|
 | high (desktop) | 1220, all 30 ticks | 1220 | 379 | 827 | 14 | 1 |
 | low (desktop, forced) | 1121, all 10 ticks | 1121 | 229 | 892 | 0 | 1 |
-| low (375×812, touch) | — | 552–616 | 179–203 | 373–413 | 0 | 1 |
+| low (375×812, touch) | — | 552–616 | 155–203 | 373–413 | 0–6 | 1 |
+
+The phone row is pane emulation at 375×812, three unseeded walks: 567 =
+shadow 155 + scene 412 + other 6 (first walk), 552 = 179 + 373 + 0, and
+616 = 203 + 413 + 0. The single "other 6" frame came on the first walk of a
+page load, was not seen again, and is unexplained.
 
 The two counts agree to the call. "Scene passes 1" means `renderer.render` is
 handed the walk's scene exactly once per frame, so nothing in the game or in
@@ -774,17 +779,18 @@ the capture path renders it twice. The raw count needs no help from three: it
 counts what reaches the GPU.
 
 On the high tier, "other" is the composer's full-screen passes: the bloom
-mip chain plus the output pass. That is 14–20 quads, and they cost fill rate,
+mip chain plus the output pass. That is 14 quads, as measured (bloom's 5-mip
+chain plus composite and output), and they cost fill rate,
 not draw-call overhead. The low tier has no composer, so "other" is 0.
 
 Rows from different walks are **not** comparable with each other. Each walk
 re-rolls strays, critters, secrets, collectibles and sky life, which moves the
 total by ~250 calls (see "A measurement caveat worth carrying" above).
-1050 → 1220 is that variance plus content landed since, not a counting
-change. The phone row is smaller mainly because a touch device gets 14 strays
-instead of 22, and its narrower view culls more.
+1050 → 1220 is most likely that variance plus content landed since, not a
+counting change. The phone row is smaller mainly because a touch device gets
+14 strays instead of 22, and its narrower view culls more.
 
-## Why the old reading was in doubt — the `autoReset` trap
+## A trap for anyone reading `renderer.info` — `autoReset`
 
 three resets `renderer.info` at the top of **every** `renderer.render()` call
 (`info.autoReset` defaults to true). On the high tier, a frame is
@@ -803,9 +809,10 @@ Shadow draws happen inside the scene's `renderer.render` (three calls
 
 ## What the numbers say, before any fps reading
 
-- The shadow pass is 25–30% of the draws on both tiers (229–379 calls). It is
-  the biggest single lever left, and casters are what Wave 3.3 already trims.
-- The high tier's composer adds only 14–20 draws; its cost is fill rate on a
+- The shadow pass is about 31% of the draws on high (379/1220) and 20% on low
+  (229/1121). It is the biggest single lever left, and casters are what Wave 3.3 already trims.
+- The high tier's composer adds only 14 draws (bloom's 5-mip chain plus
+  composite and output); its cost is fill rate on a
   2× pixel-ratio buffer. Whether that matters is exactly what the owner's
   desktop fps reading will say.
 - **No fps figure in this section, deliberately.** Under automation the pane

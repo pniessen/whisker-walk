@@ -22,14 +22,16 @@ keeps it on even when the box is unticked, so drop `?perf` too.)
 
 ## What the readout says
 
+This is the layout, not a reading: `N` marks where your numbers appear.
+
 ```
-58 fps · 17.2 ms · worst 41.0 ms (3 s)
-cpu 6.1 ms
+NN fps · NN.N ms · worst NN.N ms (3 s)
+cpu N.N ms
 tier high · setting auto · touch no
 shadow 2048 · postFx on · normals on
 px ratio 2 · 2560×1440 · strays 22
-draws 1110 · shadow 412 · scene 690 · other 8
-tris 109,402 · scene passes 1
+draws NNNN · shadow NNN · scene NNN · other NN
+tris NNN,NNN · scene passes 1
 ```
 
 - **Line 1:** frames per second (smoothed), the average time per frame, and the
@@ -64,9 +66,10 @@ otherwise. Auto is what the girls get.
    record, walk for 10 seconds in the Neighborhood, and stop. Hover the
    **Frames** row and screenshot it. Then open the **Summary** tab and screenshot
    that too. This tells us whether the time goes to scripting or to rendering.
-7. **Optional but useful:** Settings → Graphics quality → **Low**, then repeat
-   step 3 only. This shows what the low tier costs on the same machine. Set it
-   back to **Auto** afterwards.
+7. **Optional but useful:** set Settings → Graphics quality to **Low**, start a
+   new **Neighborhood** walk (quality applies on the next walk), then do step 3.
+   This shows what the low tier costs on the same machine. Set it back to
+   **Auto** afterwards.
 
 ## On the iPhone 18 (Safari)
 
