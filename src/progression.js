@@ -425,6 +425,12 @@ const acceptedClanName = (n) => typeof n === 'string' && ACCEPTED_CLAN_NAMES.has
 
 // Total over any payload; own-property reads only, so a prototype cannot leak
 // a name in.
+//
+// WARNING: this accepts only titles built from the CURRENT PREFIXES. Editing or
+// removing a PREFIXES entry in clanwords.js after ship renames every saved
+// clan built from that word AND un-adopts it: the stored "<Word>Clan" fails
+// here, loads as { name: null, adopted: false }, and ensureClanName re-mints
+// from the player's own id. Only append to PREFIXES once names have shipped.
 export function sanitizeClan(v) {
   const out = { name: null, adopted: false };
   if (!isPlainObject(v)) return out;
