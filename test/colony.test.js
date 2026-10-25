@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
+import { CAT_NAMES, KIT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, SOLO_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
   canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
@@ -1126,5 +1126,44 @@ describe('colonyNews', () => {
     expect(news(colonyWith({ seen: NOSEEN }), { rewards: ['nope', 7, null], accessories: ACC }).lines).toEqual([]);
     expect(news(colonyWith({ seen: NOSEEN }), { rewards: ['__proto__', 'toString'], accessories: ACC }).lines).toEqual([]);
     expect(() => colonyNews({ cats: 'x', feeds: 4, seen: 3 }, { me: ME, ymd: DAY })).not.toThrow();
+  });
+});
+
+// A kit in the den is fed the ordinary way. It has no area of its own: the den
+// is not a COLONY_AREA, so the feed carries its MOTHER's area and spot ("born
+// where its mother was found") — the den would be refused as 'bad'.
+describe('feeding a den kit', () => {
+  const MOM = { area: 'park', x: 3, z: -4 };
+  const kitFeed = (c, kit, by = ME, n = 0) => feedCat(c, { name: kit, by, walk: `walk-${2000 + n}`, head: 0, ...MOM });
+
+  it('can be fed, and is then an ordinary colony cat', () => {
+    const kit = KIT_NAMES[0];
+    expect(canFeed(emptyColony(), kit, ME, 'walk-2000')).toBe('ok');
+    const r = kitFeed(emptyColony(), kit);
+    expect(r.result).toBe('ok');
+    expect(r.colony.cats.map((x) => x.name)).toContain(kit);
+    expect(catOf(r.colony, kit)).toMatchObject(MOM);
+    expect(tamingProgress(r.colony, kit).have).toBe(1);
+  });
+
+  it('is refused when fed in the den: the den is not a colony area', () => {
+    const r = feedCat(emptyColony(), { name: KIT_NAMES[0], by: ME, walk: 'walk-2000', area: 'den', x: 0, z: 0, head: 0 });
+    expect(r.result).toBe('bad');
+    expect(r.colony.cats).toEqual([]);
+  });
+
+  it('leaves the caps unchanged and counts against them like any cat', () => {
+    expect(COLONY_MAX).toBe(24);
+    expect(SOLO_MAX).toBe(12);
+    let c = emptyColony();
+    CAT_NAMES.slice(0, SOLO_MAX).forEach((n, i) => { c = feed(c, n, ME, i + 10).colony; });
+    expect(canFeed(c, KIT_NAMES[0], ME, 'walk-3000')).toBe('full');
+  });
+
+  it('survives a save round trip and a merge', () => {
+    const kit = KIT_NAMES[0];
+    const c = kitFeed(emptyColony(), kit).colony;
+    expect(sanitizeColony(c).cats.map((x) => x.name)).toContain(kit);
+    expect(mergeColony(c, emptyColony()).cats.map((x) => x.name)).toContain(kit);
   });
 });

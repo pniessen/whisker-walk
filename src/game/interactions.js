@@ -739,7 +739,38 @@ export function createInteractions({
     if (!s.prompt && s.denCats) {
       // v21 Stream 2: a tamed colony cat at home in the den.
       const dc = s.denCats.nearest(catP, DEN_CAT_PET_RANGE);
-      if (dc) {
+      // A queen's little one sitting beside her, if I can feed it. Little ones
+      // are not in denCats.list, so nearest() above never sees them; they are
+      // scanned here, and ONLY offered when canFeed (the same single source of
+      // truth the stray path uses) says 'ok' — a full colony, a kit already
+      // fed this walk, or a tamed one shows nothing at all.
+      //
+      // Ordering against the pet prompt: whichever the player is actually
+      // standing nearer to wins. A little one sits right beside its mother, so
+      // "always feed first" would hide the pet prompt for a mother who has a
+      // feedable little one at her side, and "always pet first" would make
+      // the little one unreachable. Nearest-wins lets the player choose by
+      // where they stand. Ties go to petting (the shipped behaviour).
+      const colony = progression.state?.colony;
+      let little = null;
+      if (colony && progression.feedColonyCat && s.denCats.littles?.length) {
+        const members = progression.colonyMembers?.() ?? 1;
+        const now = Date.now();
+        let best = DEN_CAT_PET_RANGE;
+        for (const e of s.denCats.littles) {
+          if (e.fed || !e.group.visible) continue;
+          const d = e.group.position.distanceTo(catP);
+          if (d >= best) continue;
+          if (canFeed(colony, e.name, pid, s.walkStamp, { members, now }) !== 'ok') continue;
+          little = e;
+          best = d;
+        }
+        if (little && dc && dc.group.position.distanceTo(catP) <= best) little = null;
+      }
+      if (little) {
+        s.prompt = { kind: 'den-little-feed', data: little };
+        setPrompt(`E — feed ${little.name} 🐟`);
+      } else if (dc) {
         s.prompt = { kind: 'den-cat', data: dc };
         setPrompt(`E — pet ${dc.name}`);
       }
@@ -1000,6 +1031,36 @@ export function createInteractions({
     }
   }
 
+  // A queen's little one, fed in the den. The den is NOT a colony area, so the
+  // cat cannot be recorded "in the den": client feedCat, sanitizeCat and the
+  // server's feed RPC all refuse it. It is recorded where its MOTHER was found
+  // — her own colony.cats record's area and spot ("born where its mother was
+  // found"). That also gives it a spot every later walk can stand it at. If
+  // her record is somehow missing, do nothing rather than guess an area.
+  //
+  // No whisker points (spec §4), same as feedStray. The den is built once per
+  // visit and only drops a fed little one on the NEXT build, so it is hidden
+  // here at once and flagged so the prompt scan never offers it again.
+  function feedDenLittle(s, little) {
+    if (!progression.feedColonyCat || little.fed) return;
+    const mother = progression.state.colony.cats.find((c) => c.name === little.queen);
+    if (!mother) return;
+    const name = little.name;
+    const r = progression.feedColonyCat({
+      name, by: pid, walk: s.walkStamp, area: mother.area, x: mother.x, z: mother.z,
+    });
+    if (r.result !== 'ok') return;
+
+    little.fed = true;
+    little.group.visible = false;
+    s.fx?.burst(little.group.position, 0xf2c14e, 12);
+    audio.trill(0.8);
+    const { have, need } = r.progress;
+    hud.toast(`You fed ${name} 🐟 — ${have}/${need}`);
+    colonySync?.pushFeed({ cat: name, walk: s.walkStamp });
+    if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
+  }
+
   function handleInteract(s) {
     if (!s.prompt) return;
     if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
@@ -1064,6 +1125,8 @@ export function createInteractions({
       awardStrayGreet(s, s.prompt.data);
     } else if (s.prompt.kind === 'stray-feed') {
       feedStray(s, s.prompt.data);
+    } else if (s.prompt.kind === 'den-little-feed') {
+      feedDenLittle(s, s.prompt.data);
     } else if (s.prompt.kind === 'stray-gift') {
       // -----------------------------------------------------------------
       // v20 Ruffled Fur — THE RECONCILIATION. Resolved by the user, so the
