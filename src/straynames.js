@@ -15,7 +15,10 @@
 // an ordinary colony cat and its name must pass this gate. The server needs no
 // change: colony_cats.name is plain text, and the feed RPC only requires
 // ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).
-// Kit names also avoid the clan-vocabulary words (see src/clanwords.js).
+// Tests pin that no kit name is itself a clan PREFIXES word, that the 12 kits
+// derive 12 distinct clan prefixes (so siblings never share a displayed name at
+// any rank), and that no kit's prefix equals another kit's stored name. They do
+// NOT pin the rest of the clan vocabulary; that is src/clanwords.js's own test.
 
 export const CAT_NAMES = [
   'Pickles', 'Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine',
@@ -37,8 +40,8 @@ export function strayBreed(name) {
 }
 
 export const KIT_NAMES = [
-  'Thistle', 'Bramble', 'Nutmeg', 'Pebble', 'Clover', 'Button',
-  'Sparrow', 'Acorn', 'Fennel', 'Cricket', 'Willow', 'Bumble',
+  'Bramble', 'Pebble', 'Button', 'Fennel', 'Bumble', 'Pip',
+  'Peanut', 'Muffin', 'Puddle', 'Tumble', 'Toffee', 'Ember',
 ];
 
 // A Set (one union of both blocks), so '__proto__' and other inherited keys read as plain strangers, and

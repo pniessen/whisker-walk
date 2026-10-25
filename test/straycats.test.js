@@ -7,6 +7,8 @@ import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
 import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
+import { PREFIXES } from '../src/clanwords.js';
+import { prefixFor } from '../src/clannames.js';
 import { KIT_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
 
 function fakeScene() {
@@ -935,6 +937,16 @@ describe('reserved kit names', () => {
   it('every cat and kit name obeys the feed RPC name regex', () => {
     const RPC_NAME = /^[A-Za-z][A-Za-z ]{0,23}$/;
     for (const n of [...CAT_NAMES, ...KIT_NAMES]) expect(n).toMatch(RPC_NAME);
+  });
+
+  // The clan layer shows prefix + rank suffix, derived from the stored name.
+  // Distinct prefixes keep siblings distinct at kit, paw and warrior rank; a
+  // kit that is itself a prefix word, or whose prefix is another kit's stored
+  // name, would shadow or echo another cat on screen.
+  it('kit names derive distinct, non-colliding clan prefixes', () => {
+    expect(new Set(KIT_NAMES.map(prefixFor)).size).toBe(12);
+    for (const n of KIT_NAMES) expect(PREFIXES).not.toContain(n);
+    for (const n of KIT_NAMES) expect(KIT_NAMES).not.toContain(prefixFor(n));
   });
 
   it('isStrayName accepts a kit name and still rejects a stranger', () => {
