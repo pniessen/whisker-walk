@@ -635,3 +635,177 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 @media (max-height: 500px) {
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
 }
+
+/* ---- dressing room (v21 Stream 5) ----
+   Ported from the signed-off verify-dressingroom-mockup.html, re-laid for
+   Controller Ruling 1: every region is a direct child of .dr and renders
+   once; CSS places it. Desktop: a grid (hero left; wearing / abilities /
+   start / extras right; then places; then the quiet row). Phone (<=600px):
+   one column in DOM order, pills pick the panel, the dock (current place +
+   Start) is pinned to the bottom, and the More pill also shows the stats
+   and the extras (dusk, den). The canvas catstage.js inserts into #dr-stage
+   sits absolutely behind the hero text; #dr-stage has a fixed height so the
+   canvas's 100% height can never feed back into its ResizeObserver. */
+.dr {
+  --navy: #1c2431; --frame: #223047; --panel: #2c3d58; --line: #33425e; --cream: #f1e0c2;
+  --pink: #e7a9a0; --muted: #8c9bb4; --lock: #3a4a66; --gold: #f2c14e;
+  max-width: 1000px; margin: 0 auto; padding: 18px 20px 24px; color: var(--cream);
+  font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
+  display: grid; column-gap: 16px; row-gap: 12px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto 1fr auto auto;
+  grid-template-areas:
+    "header header"
+    "hero wearing"
+    "hero abilities"
+    "hero dock"
+    "hero extras"
+    "where where"
+    "more more";
+}
+/* #homebase gives every section a bottom margin; the grid gap spaces these */
+.dr > section, #homebase .dr > section { margin: 0; min-width: 0; }
+.dr button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.dr button:disabled { cursor: default; }
+.dr img { display: block; }
+
+/* header: the owner's header, then the stats chips inline */
+.dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+.dr-chip { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.dr-chip.gold { color: var(--gold); font-weight: 700; }
+.dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.dr-stats:empty { display: none; }
+
+/* hero: the live cat (or its still picture) and the portrait strip */
+.dr-hero { grid-area: hero; align-self: start; min-width: 0; }
+.dr-stage { position: relative; border-radius: 14px; height: 340px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 85%, #3d5680 0, #30456a 35%, #223047 75%); }
+.dr-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
+.dr-stage canvas:active { cursor: grabbing; }
+.dr-stage .dr-hero-img { position: absolute; left: 12px; right: 12px; top: 12px; bottom: 64px;
+  width: calc(100% - 24px); height: calc(100% - 76px); object-fit: contain; }
+.dr-hero-text { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 10px;
+  text-shadow: 0 1px 3px rgba(20, 28, 42, .7); }
+.dr-hero-name { font-weight: 700; font-size: 22px; }
+.dr-hero-blurb { font-size: 13px; opacity: .8; }
+.dr .dr-hero-buy { pointer-events: auto; margin-top: 6px; background: var(--pink); color: var(--navy);
+  border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
+.dr-hero-price { margin-top: 6px; background: rgba(20, 28, 42, .6); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.dr-spin-hint { position: absolute; top: 10px; right: 12px; font-size: 11px; opacity: .45; pointer-events: none; }
+.dr-strip { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin;
+  overscroll-behavior-x: contain; }
+.dr .dr-portrait { flex: none; width: 52px; height: 52px; border-radius: 12px; background: var(--cream);
+  position: relative; padding: 0; overflow: hidden; }
+.dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.dr-portrait.sel { outline: 3px solid var(--pink); outline-offset: 1px; }
+.dr .dr-portrait.locked { background: var(--lock); }
+.dr-portrait.locked img { opacity: .45; filter: grayscale(.6); }
+.dr-portrait.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
+
+/* wearing: slot tiles and the picker that opens under them */
+.dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .6; margin: 0 0 6px; }
+.dr-wearing { grid-area: wearing; }
+.dr-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.dr .dr-slot { background: var(--panel); border-radius: 10px; min-height: 44px; display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; font-size: 13px; text-align: left; min-width: 0; }
+.dr-slot img { width: 34px; height: 34px; border-radius: 8px; background: var(--cream); flex: none; }
+.dr-slot span { min-width: 0; overflow-wrap: anywhere; }
+.dr-slot small { display: block; font-size: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
+.dr .dr-slot.empty { background: transparent; border: 1px dashed #5b6c88; opacity: .65; }
+.dr-slot.open { outline: 2px solid var(--pink); }
+.dr .dr-slot.open { opacity: 1; }
+.dr .dr-slot.trying { border: 1px dashed var(--pink); }
+.dr-picker { grid-column: 1 / -1; background: #1f2b40; border-radius: 10px; padding: 8px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.dr .dr-pick { background: var(--panel); border-radius: 9px; padding: 6px; font-size: 11px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; min-height: 44px; }
+.dr-pick img { width: 54px; height: 54px; border-radius: 8px; background: var(--cream); margin: 0 auto 4px; }
+.dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--pink); }
+.dr-pick small { display: block; font-size: 10px; opacity: .6; }
+.dr-pick.on { outline: 2px solid var(--pink); }
+.dr-pick.locked { gap: 4px; }
+.dr-pick.locked .act { color: var(--muted); font-weight: 400; }
+.dr-pick.trying { outline: 2px dashed var(--pink); }
+.dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
+.dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }
+.dr .dr-pick-buy { background: var(--pink); color: var(--navy); border-radius: 999px; padding: 4px 8px;
+  min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; }
+
+.dr-abilities { grid-area: abilities; display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* the dock: Start (and, on a phone, where you're walking) */
+.dr-dock { grid-area: dock; }
+.dr-dock .where { display: none; }
+.dr .dr-dock #btn-start, .dr .dr-dock .primary { background: var(--pink); color: var(--navy); border-radius: 999px;
+  padding: 13px 22px; font-weight: 700; font-size: 17px; width: 100%; min-height: 48px; }
+.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: #6a6250; color: #a89e88; }
+
+/* extras: the dusk toggle and the den, quiet ghost buttons under Start */
+.dr-extras { grid-area: extras; display: flex; gap: 8px; justify-content: center; align-content: flex-start; flex-wrap: wrap; }
+.dr-extras:empty { display: none; }
+.dr .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label {
+  border: 1.5px solid #5b6c88; border-radius: 999px; padding: 8px 14px; font-size: 13px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.dr .dr-extras > label { color: #c8b8f0; }
+
+/* places: one row of picture cards with a gradient caption */
+.dr-where { grid-area: where; }
+.dr-places { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.dr .dr-place { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10; text-align: left; padding: 0;
+  background: linear-gradient(165deg, #c3d9a8, #7fa87c); min-height: 44px; }
+.dr-place img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.dr-place .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 9px 7px; font-weight: 700; font-size: 13px;
+  background: linear-gradient(transparent, rgba(20, 28, 42, .85)); color: #fff; }
+.dr-place .cap small { display: block; font-weight: 400; font-size: 11px; opacity: .9; }
+.dr-place.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+.dr-place.locked img { filter: grayscale(.85) brightness(.6); }
+.dr-place.locked .cap::before { content: '🔒 '; }
+
+/* the quiet row of sheets */
+.dr-more { grid-area: more; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+.dr-more .dr-ghost { opacity: .85; }
+
+.dr-pills { display: none; }
+
+/* ===== phone ===== */
+@media (max-width: 600px) {
+  /* A wrapping row: the header's own pieces flow inline at the top (the
+     header box itself is display: contents), every region below takes a
+     full line, and `order` moves the stats down into the More panel. */
+  .dr { display: flex; flex-flow: row wrap; align-items: center; align-content: flex-start; gap: 8px 6px;
+    padding: 10px 14px 0; min-height: 100%; }
+  .dr > * { flex: 0 0 100%; min-width: 0; }
+  .dr-header { display: contents; }
+  .dr-header > :not(.dr-stats) { flex: 0 1 auto; min-width: 0; }
+  .dr-title { font-size: 16px; margin-right: 0; }
+  .dr-chip { font-size: 12px; padding: 5px 8px; }
+  .dr-hero { order: 1; }
+  .dr-stage { height: min(38vh, 300px); }
+  .dr-hero-name { font-size: 18px; }
+  .dr .dr-portrait { width: 46px; height: 46px; }
+  .dr-pills { order: 2; display: flex; gap: 6px; }
+  .dr .dr-pills button { flex: 1; background: var(--panel); border-radius: 999px; min-height: 44px; font-size: 14px; }
+  .dr .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }
+  .dr-wearing, .dr-where { order: 3; }
+  .dr-stats { order: 4; flex: 0 0 100%; gap: 2px 14px; }
+  .dr .dr-stats .dr-chip { background: none; padding: 2px 0; font-size: 13px; opacity: .8; }
+  .dr-more { order: 5; }
+  .dr-extras { order: 6; }
+  .dr-dock { order: 9; }
+  .dr [data-panel], .dr .dr-abilities, .dr .dr-stats, .dr .dr-extras { display: none; }
+  .dr[data-pill="wearing"] .dr-wearing, .dr[data-pill="where"] .dr-where { display: block; }
+  .dr[data-pill="more"] .dr-stats:not(:empty) { display: flex; }
+  .dr[data-pill="more"] .dr-extras:not(:empty) { display: flex; }
+  .dr[data-pill="more"] .dr-more { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dr-places { grid-auto-flow: row; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dr-more { border: 0; padding: 0; }
+  .dr .dr-more .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label { min-height: 48px; font-size: 14px; }
+  .dr .dr-extras > button, .dr .dr-extras > label { flex: 1 1 140px; }
+  .dr-dock { position: sticky; bottom: 0; z-index: 2; flex-basis: calc(100% + 28px); margin: 4px -14px 0;
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: rgba(28, 36, 49, .96); border-top: 1px solid var(--line); backdrop-filter: blur(6px); }
+  .dr .dr-dock .where { font-size: 12px; opacity: .75; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .dr-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
+}
