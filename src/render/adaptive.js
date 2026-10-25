@@ -18,6 +18,10 @@ export const ADAPT = Object.freeze({
   maxGapMs: 250,   // longer gaps are a background tab or throttled rAF
   minSamples: 30,  // at least 7.5 fps of kept frames before deciding
   settleMs: 1000,  // after a step-down, skip the buffer reallocation
+  // Live steps that leave the mean frame time within 10% of where the walk
+  // first tripped are a frame-rate cap (Low Power Mode, a 30 Hz display),
+  // not a slow GPU, so the floor is not taken and nothing is remembered.
+  minGain: 0.1,
 });
 
 const CAPACITY = 1024;
@@ -28,30 +32,37 @@ export function createFrameGovernor(opts = ADAPT) {
   const { windowMs, slowMs, maxGapMs, minSamples } = opts;
   const stamps = new Float64Array(CAPACITY);
   const slow = new Uint8Array(CAPACITY);
+  const dts = new Float64Array(CAPACITY);
   let head = 0;         // oldest kept sample
   let count = 0;
   let slowCount = 0;
+  let dtSum = 0;        // sum of the kept dts, for the window mean
   let last = 0;         // previous nowMs
   let hasLast = false;  // false right after restart: the next call only records
   let armedAt = 0;
   let firstKeptAt = -1; // -1: nothing kept since the last restart or clear
   let lastFraction = 0;
+  let lastMean = 0;
+  let wasJudged = false; // a full window was evaluated since the last restart
 
   function clear() {
     head = 0;
     count = 0;
     slowCount = 0;
+    dtSum = 0;
     firstKeptAt = -1;
   }
 
   function restart(nowMs, delayMs) {
     clear();
     hasLast = false;
+    wasJudged = false;
     armedAt = nowMs + delayMs;
   }
 
   function evictOldest() {
     slowCount -= slow[head];
+    dtSum -= dts[head];
     head = (head + 1) % CAPACITY;
     count--;
   }
@@ -76,13 +87,19 @@ export function createFrameGovernor(opts = ADAPT) {
     const isSlow = dt > slowMs ? 1 : 0;
     stamps[i] = nowMs;
     slow[i] = isSlow;
+    dts[i] = dt;
     count++;
     slowCount += isSlow;
+    dtSum += dt;
 
-    if (nowMs - firstKeptAt >= windowMs && count >= minSamples && slowCount * 2 > count) {
-      lastFraction = slowCount / count;
-      clear();
-      return true;
+    if (nowMs - firstKeptAt >= windowMs && count >= minSamples) {
+      wasJudged = true;
+      if (slowCount * 2 > count) {
+        lastFraction = slowCount / count;
+        lastMean = dtSum / count;
+        clear();
+        return true;
+      }
     }
     return false;
   }
@@ -91,6 +108,11 @@ export function createFrameGovernor(opts = ADAPT) {
     restart,
     sample,
     lastSlowFraction() { return lastFraction; },
+    // The window's mean frame time at the most recent trigger.
+    lastMeanMs() { return lastMean; },
+    // True once a full window has been evaluated since the last restart,
+    // whether or not it triggered.
+    judged() { return wasJudged; },
   };
 }
 
@@ -143,10 +165,15 @@ export function writeMemory(storage, mem) {
 // Which rung this walk starts on, and the memory to write back.
 export function planWalkStart(mem, nowMs) {
   const next = { ...mem };
-  // Still retrying at the next walk start: the last walk held the higher rung.
+  // A clock that went backwards (or a hand-edited value) must not stretch the
+  // wait: the wait starts now.
+  if (next.steppedAt > nowMs) next.steppedAt = nowMs;
+  // Still retrying at the next walk start: the retry walk ended before a full
+  // window judged it (a held retry is cleared by noteRetryHeld mid-walk). Try
+  // the same rung again rather than call it a success.
   if (next.retrying) {
-    next.waitDays = MIN_WAIT_DAYS;
-    next.retrying = false;
+    next.walks += 1;
+    return { rung: next.rung, reason: 'retry', mem: next };
   }
   let reason = next.rung === 0 ? 'top' : 'remembered';
   if (
@@ -164,6 +191,11 @@ export function planWalkStart(mem, nowMs) {
   }
   next.walks += 1;
   return { rung: next.rung, reason, mem: next };
+}
+
+// A retry walk ran a full judged window without stepping down: it held.
+export function noteRetryHeld(mem) {
+  return { ...mem, retrying: false, waitDays: MIN_WAIT_DAYS };
 }
 
 export function noteStepDown(mem, newRung, nowMs) {

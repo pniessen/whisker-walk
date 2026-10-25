@@ -855,7 +855,15 @@ make a device worse than it was.
   settle** after each step, so steps are at least 5 s apart.
 - **Gaps over 250 ms are discarded**: a background tab, a debugger or a
   throttled automation pane is not a slow device, and never steps down.
-- **At least 30 kept frames** before any decision.
+- **At least 30 kept frames** before any decision. The 5 s warm-up starts at
+  the walk's first frame, not before the (slow, synchronous) area build.
+- **A frame-rate cap is not a slow device.** Low Power Mode, battery saver or
+  a 30 Hz display pin every frame at ~33 ms. When the floor step comes due,
+  the live steps are judged together: if the mean frame time is not at least
+  10% (`ADAPT.minGain`) better than at the walk's first trigger, the floor is
+  skipped, the start-of-walk memory is written back, and the walk stops
+  adapting (live changes stay; nothing pops back). A walk that started on
+  rung 2 has nothing to judge and steps as before.
 
 ## Desktop
 
@@ -874,4 +882,7 @@ lower next time, and the retry below lets a cooled phone climb back.
 At walk start, if the remembered rung is above 0, at least 5 walks have
 started since the last step-down and `waitDays` (starting at 7) have passed,
 the walk starts one rung higher. If it steps down again, `waitDays` doubles
-(cap 56); if it doesn't, `waitDays` resets to 7. One rung at a time.
+(cap 56); if it runs a full judged 4 s window without stepping down, the
+retry has held and `waitDays` resets to 7. A retry walk too short to judge
+proves nothing, so the next walk retries the same rung. A `steppedAt` in the
+future (clock change) is clamped to now. One rung at a time.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ADAPT, createFrameGovernor,
-  DEFAULT_MEMORY, MEMORY_KEY, readMemory, writeMemory, planWalkStart, noteStepDown,
+  DEFAULT_MEMORY, MEMORY_KEY, readMemory, writeMemory, planWalkStart, noteStepDown, noteRetryHeld,
 } from '../src/render/adaptive.js';
 
 const DAY = 86_400_000;
@@ -23,6 +23,7 @@ describe('frame governor', () => {
   it('ADAPT holds the agreed numbers and is frozen', () => {
     expect(ADAPT).toEqual({
       warmupMs: 5000, windowMs: 4000, slowMs: 20, maxGapMs: 250, minSamples: 30, settleMs: 1000,
+      minGain: 0.1,
     });
     expect(Object.isFrozen(ADAPT)).toBe(true);
   });
@@ -97,6 +98,35 @@ describe('frame governor', () => {
     gov.restart(0, ADAPT.warmupMs);
     expect(feed(gov, 0, 100, 60_000)).toBeGreaterThan(0);
     expect(gov.lastSlowFraction()).toBe(1);
+  });
+
+  it('lastMeanMs is the window mean dt at the most recent trigger', () => {
+    const gov = createFrameGovernor();
+    gov.restart(0, ADAPT.warmupMs);
+    expect(feed(gov, 0, 30, 60_000)).toBeGreaterThan(0);
+    expect(gov.lastMeanMs()).toBeCloseTo(30, 6);
+    gov.restart(10_000, ADAPT.settleMs);
+    expect(feed(gov, 10_000, 40, 60_000)).toBeGreaterThan(0);
+    expect(gov.lastMeanMs()).toBeCloseTo(40, 6);
+  });
+
+  it('judged() turns true after a full window without a trigger, and restart clears it', () => {
+    const gov = createFrameGovernor();
+    gov.restart(0, ADAPT.warmupMs);
+    expect(gov.judged()).toBe(false);
+    feed(gov, 0, 16, 8000); // warm-up plus 3 s: not a full window yet
+    expect(gov.judged()).toBe(false);
+    feed(gov, 8000, 16, 2000);
+    expect(gov.judged()).toBe(true);
+    gov.restart(10_000, ADAPT.settleMs);
+    expect(gov.judged()).toBe(false);
+  });
+
+  it('judged() is also true on the sample that triggers', () => {
+    const gov = createFrameGovernor();
+    gov.restart(0, ADAPT.warmupMs);
+    expect(feed(gov, 0, 30, 60_000)).toBeGreaterThan(0);
+    expect(gov.judged()).toBe(true);
   });
 
   it('non-positive gaps are ignored', () => {
@@ -210,21 +240,46 @@ describe('planWalkStart', () => {
     expect(planWalkStart({ ...mem, steppedAt: now - 14 * DAY }, now).rung).toBe(1);
   });
 
-  it('retrying on entry means the retry held: waitDays back to 7, not retrying', () => {
+  it('retrying on entry means the retry was never judged: retry the same rung again', () => {
     const mem = { rung: 1, steppedAt: now - DAY, walks: 1, waitDays: 28, retrying: true };
     const out = planWalkStart(mem, now);
     expect(out.rung).toBe(1);
-    expect(out.mem.waitDays).toBe(7);
-    expect(out.mem.retrying).toBe(false);
+    expect(out.reason).toBe('retry');
+    expect(out.mem).toEqual({ rung: 1, steppedAt: now - DAY, walks: 2, waitDays: 28, retrying: true });
+    expect(mem.walks).toBe(1); // pure
+  });
+
+  it('an unjudged retry walk does not climb a second rung either', () => {
+    const mem = { rung: 2, steppedAt: now - 30 * DAY, walks: 9, waitDays: 7, retrying: true };
+    const out = planWalkStart(mem, now);
+    expect(out.rung).toBe(2);
+    expect(out.reason).toBe('retry');
   });
 
   it('a held retry does not climb again straight away', () => {
     let mem = { ...DEFAULT_MEMORY, rung: 3, walks: 5, steppedAt: now - 8 * DAY };
     let out = planWalkStart(mem, now);
     expect(out.rung).toBe(2);
-    out = planWalkStart(out.mem, now + DAY);
+    out = planWalkStart(noteRetryHeld(out.mem), now + DAY);
     expect(out.rung).toBe(2);
     expect(out.reason).toBe('remembered');
+  });
+
+  it('a steppedAt in the future is clamped to now, so the wait starts now', () => {
+    const mem = { ...DEFAULT_MEMORY, rung: 2, walks: 5, steppedAt: now + 30 * DAY };
+    const out = planWalkStart(mem, now);
+    expect(out.rung).toBe(2);
+    expect(out.reason).toBe('remembered');
+    expect(out.mem.steppedAt).toBe(now);
+    expect(mem.steppedAt).toBe(now + 30 * DAY); // pure
+  });
+});
+
+describe('noteRetryHeld', () => {
+  it('ends the retry and resets waitDays to 7', () => {
+    const mem = { rung: 1, steppedAt: 5, walks: 1, waitDays: 28, retrying: true };
+    expect(noteRetryHeld(mem)).toEqual({ rung: 1, steppedAt: 5, walks: 1, waitDays: 7, retrying: false });
+    expect(mem.retrying).toBe(true); // pure
   });
 });
 

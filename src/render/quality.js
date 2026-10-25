@@ -75,8 +75,9 @@ const LOW = Object.freeze({
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
-// MSAA, then today's LOW as the floor): see the "Rung order" table in
-// .superpowers/sdd/2026-10-25-whisker-walk-v21-stream4-adaptive/constraints.md.
+// MSAA, then today's LOW as the floor): see "Rung order" in
+// docs/superpowers/plans/2026-10-25-whisker-walk-v21-stream4-adaptive.md and
+// "The rungs — fill rate first" in docs/VISUAL-PASS.md (Adaptive Auto).
 // `name` stays 'high' for rungs 0-2 because render/textures.js and
 // render/water.js read it.
 const RUNG1 = Object.freeze({ ...HIGH, rung: 1, pixelRatioCap: 1.5 });
