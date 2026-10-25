@@ -25,7 +25,7 @@ export function formatPerfLines(s) {
     `cpu ${s.workMs.toFixed(1)} ms`,
     `tier ${s.tierName} · setting ${s.quality} · touch ${s.coarse ? 'yes' : 'no'}`,
     `shadow ${s.shadowMapSize} · postFx ${onOff(s.postFx)} · normals ${onOff(s.normalMaps)}`,
-    `px ratio ${s.pixelRatio} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
+    `px ratio ${+s.pixelRatio.toFixed(2)} · ${s.bufferW}×${s.bufferH} · strays ${s.strays}`,
     `draws ${f.calls} · shadow ${f.shadowCalls} · scene ${f.sceneCalls} · other ${f.otherCalls}`,
     `tris ${f.triangles.toLocaleString('en-US')} · scene passes ${f.sceneRenders}`,
   ];

@@ -592,8 +592,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
    it can never eat a touch. */
 #perf-readout {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 8px);
-  left: calc(env(safe-area-inset-left) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  top: 50%;
+  transform: translateY(-50%);
   white-space: pre;
   font: 11px/1.35 ui-monospace, Menlo, monospace;
   color: #fff;
@@ -602,4 +603,8 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   border-radius: 6px;
   pointer-events: none;
   z-index: 60;
+}
+/* right edge, mid-height: clear of the top HUD (points, goals, pills) */
+@media (max-width: 500px) {
+  #perf-readout { font-size: 10px; }
 }

@@ -194,6 +194,7 @@ function init() {
     music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
+    // With ?perf the readout stays on even if the Settings box is unchecked, by design.
     perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
   }
   applySettings();
