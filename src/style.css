@@ -586,3 +586,20 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .colony-news-card h2 { font-size: 1.3rem; }
   .colony-news-list li { font-size: 1rem; }
 }
+
+/* Opt-in performance readout (Settings, or ?perf). z-index sits above the
+   splash (50) so it is never hidden behind anything; pointer-events none so
+   it can never eat a touch. */
+#perf-readout {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: calc(env(safe-area-inset-left) + 8px);
+  white-space: pre;
+  font: 11px/1.35 ui-monospace, Menlo, monospace;
+  color: #fff;
+  background: rgba(0, 0, 0, .6);
+  padding: 4px 6px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 60;
+}

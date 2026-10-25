@@ -8,6 +8,7 @@ import { renderNewsHtml } from './ui/colonypanel.js';
 import { buildEnvMap } from './render/materials.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
+import { createPerfHud } from './ui/perfhud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
@@ -93,6 +94,8 @@ function init() {
   // matches the shadow/stray-count tuning in startWalk below, all in service
   // of keeping frame time down on weaker mobile GPUs.
   const coarse = matchMedia('(pointer: coarse)').matches;
+  // ?perf forces the readout on for this page load only; it is never saved.
+  const perfFlag = new URLSearchParams(location.search).has('perf');
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -133,6 +136,7 @@ function init() {
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
+  const perfHud = createPerfHud({ renderer, settings, coarse });
   const log = createDiscoveryLog(progression);
 
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
@@ -190,6 +194,7 @@ function init() {
     music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
+    perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
   }
   applySettings();
   // routed through handleTouchAction('interact') rather than calling
@@ -550,9 +555,10 @@ function init() {
   });
 
   renderer.setAnimationLoop(() => {
+    perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
-    if (!session) return;
+    if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     if (player.engaged) {
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
@@ -788,5 +794,6 @@ function init() {
       }
     }
     renderFrame();
+    perfHud.frameEnd(session, performance.now());
   });
 }

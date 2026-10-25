@@ -8,6 +8,7 @@ const DEFAULTS = {
   leftHanded: false,
   reducedMotion: false,
   hideChat: false,
+  perfReadout: false,
   quality: 'auto',
 };
 
@@ -44,6 +45,7 @@ function sanitize(raw) {
     leftHanded: typeof raw.leftHanded === 'boolean' ? raw.leftHanded : DEFAULTS.leftHanded,
     reducedMotion: typeof raw.reducedMotion === 'boolean' ? raw.reducedMotion : DEFAULTS.reducedMotion,
     hideChat: typeof raw.hideChat === 'boolean' ? raw.hideChat : DEFAULTS.hideChat,
+    perfReadout: typeof raw.perfReadout === 'boolean' ? raw.perfReadout : DEFAULTS.perfReadout,
     quality: clampEnum(raw.quality, QUALITY, DEFAULTS.quality),
   };
 }

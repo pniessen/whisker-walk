@@ -1201,6 +1201,7 @@ export function createWalkLifecycle({
       // duskMode alone would credit a dusk walk the player never got.
       duskActive,
       useComposer: tier.postFx,
+      tier,
       ghosts: NO_GHOSTS,
       denCats,
       walkStamp,
