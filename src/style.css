@@ -513,6 +513,33 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 }
 .colony-pair-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
 
+/* --- v21 Colony trading (Task 11). Same card look as pairing; every button is
+   at least 44px tall and every row wraps, so it fits a phone. --- */
+.colony-trades {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; max-width: 60ch;
+}
+.colony-trades h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.colony-trades h4 { margin: 8px 0 0; font-size: 0.95rem; color: #c0ccdd; }
+.colony-trade-offer { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: rgba(242,193,78,0.12); }
+.colony-trade-text { font-size: 0.95rem; color: #e8eef8; margin: 0 0 6px; overflow-wrap: anywhere; }
+.colony-trade-note { font-size: 0.9rem; color: #a8c0e0; margin: 6px 0; overflow-wrap: anywhere; }
+.colony-trade-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.colony-trade-label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #c0ccdd; min-width: 9em; flex: 1 1 9em; }
+.colony-trade-label select {
+  min-height: 44px; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; width: 100%;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); color: #fff; font: inherit; font-size: 16px;
+}
+.colony-trade-label select option { color: #111; }
+.colony-trade-btn {
+  min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 0; font: inherit; font-weight: 700;
+  background: #f2c14e; color: #1c2431; cursor: pointer;
+}
+.colony-trade-btn.secondary { background: rgba(255,255,255,0.15); color: #fff; }
+.colony-trade-btn:disabled { opacity: 0.5; cursor: default; }
+.colony-trade-forever { font-size: 0.85rem; color: #f2c14e; margin: 10px 0 0; }
+.colony-trade-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
+
 /* --- v21 "While you were out" (Task 10). A modal over the home base: it sits
    outside #homebase (render() rebuilds that), above it and below the
    pause/summary overlay (z 10) and toasts (z 11). The card scrolls inside

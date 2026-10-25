@@ -13,6 +13,7 @@
 // them, and this renderer escapes them again rather than trusting that.
 import { tamingProgress, COLONY_MAX } from '../colony.js';
 import { strayBreed } from '../straynames.js';
+import { STARTER_ACCESSORIES } from '../progression.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
 // helper module for six lines).
@@ -225,10 +226,11 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 
 // renderColonyHtml({ colony, me, members, status, owned, catalog }) -> HTML
 // string for the Colony panel body. Safe to call with anything; never throws.
+// `trades` ({ give, want, confirmId, busy, error }) feeds renderTradesHtml.
 // `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
 // pairing area sits right under the header so it is never buried under a long
 // list of cats. With nothing to show it is still the same empty placeholder.
-export function renderColonyHtml({ colony, me, members = 1, status, owned, catalog, pairing } = {}) {
+export function renderColonyHtml({ colony, me, members = 1, status, owned, catalog, pairing, trades } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -250,7 +252,10 @@ export function renderColonyHtml({ colony, me, members = 1, status, owned, catal
     ? `<p class="colony-full">The colony is full — ${COLONY_MAX} cats call it home 🏠</p>` : '';
 
   const pair = renderPairingHtml(status, pairing || {});
-  return `${header}<div id="colony-pairing">${pair}</div>${list}${full}`;
+  // Trading is only for a live pair: the offer RPCs need the partner on the server.
+  const trading = mode === 'paired'
+    ? `<div id="colony-trading">${renderTradesHtml({ colony: safeColony, me, owned, catalog, state: trades })}</div>` : '';
+  return `${header}<div id="colony-pairing">${pair}</div>${trading}${list}${full}`;
 }
 
 // ---- "While you were out" (Task 10) -----------------------------------------
@@ -268,4 +273,114 @@ export function renderNewsHtml(news, partnerName) {
     <ul class="colony-news-list">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
     <button type="button" id="colony-news-ok" class="colony-news-btn">Let's go!</button>
   </div>`;
+}
+
+// ---- Trading (Task 11) -------------------------------------------------------
+// A one-for-one accessory swap between the two siblings. The binding rule: a
+// completed swap is FINAL — neither side can take it back — so the UI says so
+// plainly and the accepting side must click twice: "Swap!" only reveals a
+// "Yes — swap forever" button; nothing is answered until that second click.
+// homebase.js owns the state (the chosen items, which offer awaits its second
+// click, busy, error) and the delegated click handler; every button here
+// carries data-trade-action (offer | cancel | accept | decline | confirm |
+// back) and, for a specific offer, data-trade-id.
+
+// A plain line for each way a trade step can fail; null when it did not.
+export function tradeErrorLine(word) {
+  switch (word) {
+    case 'ok': case 'accepted': case 'declined': case 'cancelled': return null;
+    case 'not-owned': return "You don't have that one any more.";
+    case 'gone': return "That swap isn't there any more.";
+    default: return 'Something went wrong — try again.';
+  }
+}
+
+const NO_TAKE_BACKS = 'Swaps are forever — no take-backs!';
+
+// An item's display name, or null when the catalog doesn't know it (a hostile
+// or newer-version id): such items are never offered or shown.
+function itemName(catalog, id) {
+  const acc = catalog && catalog.accessories;
+  return typeof id === 'string' && own(acc, id) && acc[id] && typeof acc[id].name === 'string' ? acc[id].name : null;
+}
+
+function itemSelect(attr, label, ids, catalog, chosen, off) {
+  const picked = ids.includes(chosen) ? chosen : ids[0];
+  const opts = ids.map((id) =>
+    `<option value="${escapeHtml(id)}"${id === picked ? ' selected' : ''}>${escapeHtml(itemName(catalog, id))}</option>`);
+  return `<label class="colony-trade-label">${escapeHtml(label)}
+      <select ${attr} aria-label="${escapeHtml(label)}"${off}>${opts.join('')}</select></label>`;
+}
+
+// renderTradesHtml({ colony, me, owned, catalog, state }) -> HTML string, or ''
+// unless the colony is paired. `state` = { give, want, confirmId, busy, error }.
+export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
+  const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
+  if (!partner || !colony.id) return '';
+  const st = state && typeof state === 'object' ? state : {};
+  const off = st.busy ? ' disabled' : '';
+  const pname = escapeHtml(partner.petName ? String(partner.petName) : 'your partner');
+  const mine = new Set(Array.isArray(owned) ? owned : []);
+  const err = st.error ? `<p class="colony-trade-error" role="alert">${escapeHtml(st.error)}</p>` : '';
+  const open = (Array.isArray(colony.trades) ? colony.trades : []).filter((t) => t && t.status === 'offered'
+    && itemName(catalog, t.give) !== null && itemName(catalog, t.want) !== null);
+  const sent = open.find((t) => t.from === me && t.to === partner.playerId);
+  const got = open.find((t) => t.to === me && t.from === partner.playerId);
+
+  let body = '';
+
+  if (got) {
+    const give = escapeHtml(itemName(catalog, got.give));
+    const want = escapeHtml(itemName(catalog, got.want));
+    const id = escapeHtml(got.id);
+    const have = mine.has(got.want);
+    if (st.confirmId === got.id && have) {
+      body += `<div class="colony-trade-offer" data-trade="confirm">
+        <p class="colony-trade-text">Swap your <strong>${want}</strong> for ${pname}'s <strong>${give}</strong>?
+          <strong>This is forever</strong> — it can't be undone, not by you and not by ${pname}.</p>
+        <div class="colony-trade-row">
+          <button type="button" class="colony-trade-btn" data-trade-action="confirm" data-trade-id="${id}"${off}>Yes — swap forever</button>
+          <button type="button" class="colony-trade-btn secondary" data-trade-action="back"${off}>Not yet</button>
+        </div></div>`;
+    } else {
+      body += `<div class="colony-trade-offer" data-trade="incoming">
+        <p class="colony-trade-text">${pname} offers ${give} for your ${want}</p>
+        ${have ? '' : `<p class="colony-trade-note">You don't have your ${want} any more, so you can't swap.</p>`}
+        <div class="colony-trade-row">
+          ${have ? `<button type="button" class="colony-trade-btn" data-trade-action="accept" data-trade-id="${id}"${off}>Swap!</button>` : ''}
+          <button type="button" class="colony-trade-btn secondary" data-trade-action="decline" data-trade-id="${id}"${off}>No thanks</button>
+        </div></div>`;
+    }
+  }
+
+  if (sent) {
+    body += `<div class="colony-trade-offer" data-trade="outgoing">
+      <p class="colony-trade-text">You offered ${escapeHtml(itemName(catalog, sent.give))} for ${escapeHtml(itemName(catalog, sent.want))}</p>
+      <div class="colony-trade-row">
+        <button type="button" class="colony-trade-btn secondary" data-trade-action="cancel" data-trade-id="${escapeHtml(sent.id)}"${off}>Cancel</button>
+      </div></div>`;
+  } else if (!(got && st.confirmId === got.id)) {
+    // Make a swap: my tradeable items for the partner's I don't own. Starters
+    // are never offered, and an id the catalog doesn't know is never listed.
+    const ok = (id) => itemName(catalog, id) !== null && !STARTER_ACCESSORIES.includes(id);
+    const giveIds = [...new Set(Array.isArray(owned) ? owned : [])].filter(ok);
+    const wanted = Array.isArray(partner.wardrobe) ? partner.wardrobe : [];
+    const wantIds = [...new Set(wanted)].filter((id) => ok(id) && !mine.has(id));
+    let form;
+    if (giveIds.length === 0) form = '<p class="colony-trade-note">Unlock some accessories to trade 🎩</p>';
+    else if (wantIds.length === 0) form = `<p class="colony-trade-note">${pname} has nothing you don't already have</p>`;
+    else {
+      form = `<div class="colony-trade-row">
+        ${itemSelect('data-trade-give', 'You give', giveIds, catalog, st.give, off)}
+        ${itemSelect('data-trade-want', `${partner.petName ? String(partner.petName) : 'Your partner'} gives`, wantIds, catalog, st.want, off)}
+        <button type="button" class="colony-trade-btn" data-trade-action="offer"${off}>Offer swap</button>
+      </div>`;
+    }
+    body += `<div class="colony-trade-make" data-trade="make"><h4>Make a swap</h4>${form}</div>`;
+  }
+
+  return `<section class="colony-trades" data-trades>
+    <h3>Swap accessories 🔄</h3>${body}
+    <p class="colony-trade-forever">${NO_TAKE_BACKS}</p>${err}
+  </section>`;
 }

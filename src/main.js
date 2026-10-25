@@ -3,7 +3,7 @@ import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
-import { colonyNews } from './colony.js';
+import { colonyNews, tradeEffect } from './colony.js';
 import { renderNewsHtml } from './ui/colonypanel.js';
 import { buildEnvMap } from './render/materials.js';
 import { createDiscoveryLog } from './discoveries.js';
@@ -259,6 +259,16 @@ function init() {
     MP, pid, getCloud, getPsecret, progression,
     pushProfileNow: () => pushProfileNow(),
     onChange: () => homebase.refresh(),
+    // Each applied swap is announced here, once (colonysync reports it once,
+    // whichever pull applied it). A toast, not a news line: the news card is
+    // for what happened while you were away, and a swap is something you did.
+    onTradesApplied: (trades) => {
+      for (const t of trades) {
+        const item = tradeEffect(t, pid)?.add;
+        const name = typeof item === 'string' && Object.hasOwn(CATALOG.accessories, item) ? CATALOG.accessories[item].name : null;
+        if (name) cloudToast(`Swapped! You got ${name} 🎁`);
+      }
+    },
   });
 
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).

@@ -4,7 +4,7 @@ import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
-  theySaidNo, PAIR_DECLINED_LINE,
+  theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
@@ -116,6 +116,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let pairingWasPending = false; // a pairing was waiting when we last looked
   let lastPairStatus = null;     // the status noteColonyPairing last saw (for "they said no")
   let pairTimer = null;          // THE single poll handle; null when not polling
+
+  // Colony trading (Task 11). Kept here for the same reason as the draft code:
+  // render() rebuilds the panel, which would reset the two selects and, worse,
+  // forget that "Swap!" was clicked once and is waiting for its second click.
+  let tradeBusy = false;
+  let tradeError = null;
+  let tradeGive = null;          // the selected items, remembered across renders
+  let tradeWant = null;
+  let tradeConfirmId = null;     // the incoming offer whose first click was made
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
@@ -539,6 +548,27 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     render();
   }
 
+  // One trade step: show busy, run it, show the plain-English outcome. The
+  // "Swapped! You got …" toast is NOT raised here: colonySync reports each
+  // applied trade once (onTradesApplied, wired in main.js), whichever pull
+  // applied it.
+  async function runTrade(step) {
+    if (!colonySync || tradeBusy) return;
+    tradeBusy = true;
+    tradeError = null;
+    render();
+    let res;
+    try {
+      res = await step();
+    } catch {
+      res = { ok: false, status: 'error' };
+    }
+    tradeBusy = false;
+    tradeConfirmId = null; // whatever happened, the next accept starts from its first click
+    tradeError = tradeErrorLine(res && res.ok ? 'ok' : res && res.status);
+    render();
+  }
+
   // ---- "While you were out" (Task 10) ---------------------------------------
   // The card lives OUTSIDE #homebase: render() rebuilds root.innerHTML on every
   // roster change and sync, which would wipe a card mounted inside it.
@@ -692,6 +722,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                   busy: pairBusy, error: pairError, code: pairCode,
                   hasPetName: validPetName(s.petName ?? ''),
                 },
+                trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
               })}
             </section>
           </div>
@@ -756,6 +787,38 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'colony-pair-yes' || e.target.id === 'colony-pair-no') {
       const accept = e.target.id === 'colony-pair-yes';
       await runPairing(() => colonySync.pairing.answer(accept));
+      return;
+    }
+    // Trading. Every button carries data-trade-action. "accept" (the Swap!
+    // button) only asks "are you sure?": it must NOT answer. The swap is final,
+    // so the answer goes out only from "confirm" (Yes — swap forever).
+    const tradeBtn = e.target.closest('[data-trade-action]');
+    if (tradeBtn && colonySync) {
+      const action = tradeBtn.dataset.tradeAction;
+      const id = Number(tradeBtn.dataset.tradeId);
+      const hasId = Number.isSafeInteger(id) && id > 0;
+      if (tradeBusy) return;
+      if (action === 'offer') {
+        const give = root.querySelector('[data-trade-give]');
+        const want = root.querySelector('[data-trade-want]');
+        if (!give || !want) return;
+        tradeGive = give.value;
+        tradeWant = want.value;
+        await runTrade(() => colonySync.trade.offer(tradeGive, tradeWant));
+      } else if (action === 'cancel' && hasId) {
+        await runTrade(() => colonySync.trade.cancel(id));
+      } else if (action === 'decline' && hasId) {
+        await runTrade(() => colonySync.trade.answer(id, false));
+      } else if (action === 'accept' && hasId) {
+        tradeConfirmId = id;
+        tradeError = null;
+        render();
+      } else if (action === 'back') {
+        tradeConfirmId = null;
+        render();
+      } else if (action === 'confirm' && hasId) {
+        await runTrade(() => colonySync.trade.answer(id, true));
+      }
       return;
     }
     if (e.target.id === 'btn-start') {
@@ -1045,6 +1108,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
+    // Trade pickers: remember the choice so a re-render (a poll, a sync) keeps it.
+    if (e.target.matches && e.target.matches('[data-trade-give]')) { tradeGive = e.target.value; return; }
+    if (e.target.matches && e.target.matches('[data-trade-want]')) { tradeWant = e.target.value; return; }
     // Colony dressing: a finder gives one of their cats an accessory they own
     // ("" = nothing). colonySync.dress does the save and, when paired, the
     // push; its onChange re-renders the home base (main.js wires that to

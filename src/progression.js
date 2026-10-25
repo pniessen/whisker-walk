@@ -1297,13 +1297,16 @@ export function createProgression(storage) {
     // into colony.tradesApplied, which is persisted and survives a reload.
     // For each one: the outgoing item leaves unlocked.accessories unless it is
     // a starter (STARTER_ACCESSORIES can never be traded away), any equipped
-    // slot holding it is cleared, and the incoming item is added if it is a
-    // known accessory. All of it lands in one save(); nothing to do, no write.
+    // slot holding it is cleared, so is the `wear` of any colony cat I found,
+    // and the incoming item is added if it is a known accessory. All of it lands in one save(); nothing to do, no write.
     applyColonyTrades(me) {
       const done = new Set(state.colony.tradesApplied);
       const applied = [];
       let owned = state.unlocked.accessories.slice();
       const equipped = { ...state.equipped };
+      // Colony cats of mine dressed in an item I trade away: they take it off
+      // (the partner must not see my cat wearing what I no longer own).
+      let cats = state.colony.cats;
       for (const t of [...state.colony.trades].sort((a, b) => a.id - b.id)) {
         if (done.has(t.id)) continue;
         const eff = tradeEffect(t, me);
@@ -1313,6 +1316,9 @@ export function createProgression(storage) {
           for (const slot of Object.keys(equipped)) {
             if (slot !== 'cat' && equipped[slot] === eff.remove) equipped[slot] = null;
           }
+          if (cats.some((c) => c.finder === me && c.wear === eff.remove)) {
+            cats = cats.map((c) => (c.finder === me && c.wear === eff.remove ? { ...c, wear: null } : c));
+          }
         }
         if (KNOWN_ACCESSORY_IDS.has(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
         done.add(t.id);
@@ -1321,7 +1327,7 @@ export function createProgression(storage) {
       if (applied.length === 0) return [];
       state.unlocked.accessories = owned;
       state.equipped = equipped;
-      state.colony = sanitizeColony({ ...state.colony,
+      state.colony = sanitizeColony({ ...state.colony, cats,
         tradesApplied: [...state.colony.tradesApplied, ...applied.map((t) => t.id)] },
       { knownItems: KNOWN_ACCESSORY_IDS });
       save();

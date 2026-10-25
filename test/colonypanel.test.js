@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderColonyHtml, renderPairingHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine,
+  renderTradesHtml, tradeErrorLine,
 } from '../src/ui/colonypanel.js';
 import { emptyColony, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
@@ -420,5 +421,171 @@ describe('theySaidNo', () => {
     expect(theySaidNo({ ...idle, invite: { code: 'K7P2QM' } }, idle)).toBe(false);
     expect(theySaidNo(null, idle)).toBe(false);
     expect(theySaidNo(waiting, undefined)).toBe(false);
+  });
+});
+
+// ---- Trading (Task 11) -------------------------------------------------------
+describe('renderTradesHtml', () => {
+  const pairedColony = (over = {}) => ({
+    ...emptyColony(), id: 'col-1',
+    partner: { playerId: PARTNER, petName: 'Robin', wardrobe: ['crown', 'wizard', 'bell', 'tophat'] },
+    ...over,
+  });
+  const trades = (colony, extra = {}, state = {}) =>
+    renderTradesHtml({ colony, me: ME, owned: ['bell', 'bandana', 'tophat', 'glow'], catalog: CATALOG, ...extra, state });
+  const options = (html, attr) => {
+    const m = html.match(new RegExp(`<select[^>]*${attr}[^>]*>([\\s\\S]*?)</select>`));
+    return m ? [...m[1].matchAll(/<option value="([^"]*)"/g)].map((x) => x[1]) : null;
+  };
+  const trade = (extra = {}) => ({ id: 5, from: ME, to: PARTNER, give: 'tophat', want: 'crown', status: 'offered', ...extra });
+
+  it('renders nothing unless the colony is paired', () => {
+    expect(trades({ ...emptyColony() })).toBe('');
+    expect(trades(pairedColony({ partner: null }))).toBe('');
+    expect(renderTradesHtml({})).toBe('');
+    expect(renderTradesHtml()).toBe('');
+  });
+
+  it('offers my tradeable items, never the starters', () => {
+    const html = trades(pairedColony());
+    expect(options(html, 'data-trade-give')).toEqual(['tophat', 'glow']);
+  });
+
+  it('wants only partner items I do not own, and never starters', () => {
+    const html = trades(pairedColony());
+    // partner has crown, wizard, bell, tophat; I own bell and tophat
+    expect(options(html, 'data-trade-want')).toEqual(['crown', 'wizard']);
+  });
+
+  it('shows the offer button and the plain no-take-backs line', () => {
+    const html = trades(pairedColony());
+    expect(html).toContain('data-trade-action="offer"');
+    expect(html).toContain('Swaps are forever — no take-backs!');
+  });
+
+  it('explains an empty list instead of showing a dead form', () => {
+    const none = trades(pairedColony(), { owned: ['bell', 'bandana'] });
+    expect(none).toContain('Unlock some accessories to trade');
+    expect(none).not.toContain('data-trade-action="offer"');
+    const same = trades(pairedColony({ partner: { playerId: PARTNER, petName: 'Robin', wardrobe: ['bell', 'tophat'] } }));
+    expect(same).toContain('Robin has nothing you don\'t already have');
+    expect(same).not.toContain('data-trade-action="offer"');
+  });
+
+  it('keeps the selected give/want when they are still valid, else the first', () => {
+    const html = trades(pairedColony(), {}, { give: 'glow', want: 'wizard' });
+    expect(html).toMatch(/<option value="glow" selected>/);
+    expect(html).toMatch(/<option value="wizard" selected>/);
+    const stale = trades(pairedColony(), {}, { give: 'bell', want: 'nope' });
+    expect(stale).toMatch(/<option value="tophat" selected>/);
+    expect(stale).toMatch(/<option value="crown" selected>/);
+  });
+
+  it('shows my open offer with a Cancel, and no new-offer form', () => {
+    const html = trades(pairedColony({ trades: [trade()] }));
+    expect(html).toContain('You offered Top Hat for Flower Crown');
+    expect(html).toMatch(/data-trade-action="cancel"[^>]*data-trade-id="5"|data-trade-id="5"[^>]*data-trade-action="cancel"/);
+    expect(html).not.toContain('data-trade-give');
+  });
+
+  it('shows an offer to me with Swap! and No thanks, and Swap! does NOT answer, it asks first', () => {
+    const t = trade({ from: PARTNER, to: ME, give: 'crown', want: 'tophat' });
+    const html = trades(pairedColony({ trades: [t] }));
+    expect(html).toContain('Robin offers Flower Crown for your Top Hat');
+    expect(html).toMatch(/data-trade-action="accept"/);
+    expect(html).toMatch(/data-trade-action="decline"/);
+    expect(html).not.toMatch(/data-trade-action="confirm"/);
+    expect(html).not.toContain('Yes — swap forever');
+  });
+
+  it('after the first click it says plainly the swap is final and needs a second, explicit click', () => {
+    const t = trade({ from: PARTNER, to: ME, give: 'crown', want: 'tophat' });
+    const html = trades(pairedColony({ trades: [t] }), {}, { confirmId: 5 });
+    expect(html).toContain('Yes — swap forever');
+    expect(html).toMatch(/data-trade-action="confirm"[^>]*data-trade-id="5"|data-trade-id="5"[^>]*data-trade-action="confirm"/);
+    expect(html).toMatch(/data-trade-action="back"/);
+    expect(html).toMatch(/forever/i);
+    expect(html).toMatch(/can.t be undone|no take-backs/i);
+    expect(html).not.toMatch(/data-trade-action="accept"/);
+    // a confirm for some other trade shows the normal first step
+    expect(trades(pairedColony({ trades: [t] }), {}, { confirmId: 99 })).not.toContain('Yes — swap forever');
+  });
+
+  it('cannot swap for an item I no longer own: only No thanks', () => {
+    const t = trade({ from: PARTNER, to: ME, give: 'crown', want: 'wizard' });
+    const html = trades(pairedColony({ trades: [t] }));
+    expect(html).not.toMatch(/data-trade-action="accept"/);
+    expect(html).toMatch(/data-trade-action="decline"/);
+  });
+
+  it('ignores finished trades and offers between other players', () => {
+    const done = [trade({ id: 1, status: 'accepted' }), trade({ id: 2, status: 'declined' }),
+      trade({ id: 3, status: 'cancelled' }), trade({ id: 4, from: 'zzzz-other-9999', to: 'yyyy-other-9999' })];
+    const html = trades(pairedColony({ trades: done }));
+    expect(html).not.toContain('You offered');
+    expect(html).not.toContain('offers');
+    expect(html).toContain('data-trade-give');
+  });
+
+  it('disables every button while busy, and shows an error as an alert', () => {
+    const t = trade({ from: PARTNER, to: ME, give: 'crown', want: 'tophat' });
+    const html = trades(pairedColony({ trades: [t] }), {}, { busy: true, error: 'Oops <b>' });
+    expect(html).toMatch(/data-trade-action="accept"[^>]*disabled/);
+    expect(html).toMatch(/role="alert"/);
+    expect(html).toContain('Oops &lt;b&gt;');
+    const form = trades(pairedColony(), {}, { busy: true });
+    expect(form).toMatch(/data-trade-action="offer"[^>]*disabled/);
+  });
+
+  it('escapes the partner name, ids and catalog names everywhere', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const catalog = { accessories: {
+      tophat: { name: '<b>Hat</b>' }, glow: { name: 'Glow' }, crown: { name: 'Cr"own' }, wizard: { name: 'Wiz' },
+    } };
+    const colony = pairedColony({
+      partner: { playerId: PARTNER, petName: evil, wardrobe: ['crown', 'wizard'] },
+      trades: [trade({ from: PARTNER, to: ME, give: 'crown', want: 'tophat' })],
+    });
+    for (const state of [{}, { confirmId: 5 }]) {
+      const html = renderTradesHtml({ colony, me: ME, owned: ['bell', 'tophat', 'glow'], catalog, state });
+      expect(html).not.toContain('<img');
+      expect(html).not.toContain('<b>Hat');
+      expect(html).toContain('&lt;img');
+      expect(html).toContain('Cr&quot;own');
+    }
+    const form = renderTradesHtml({ colony: { ...colony, trades: [] }, me: ME, owned: ['bell', 'tophat', 'glow'], catalog });
+    expect(form).not.toContain('<img');
+    expect(form).toContain('&lt;b&gt;Hat&lt;/b&gt;');
+    const empty = renderTradesHtml({ colony: { ...colony, trades: [] }, me: ME, owned: ['bell'], catalog });
+    expect(empty).not.toContain('<img');
+  });
+
+  it('skips items the catalog does not know (hostile wardrobe entries)', () => {
+    const colony = pairedColony({ partner: { playerId: PARTNER, petName: 'Robin', wardrobe: ['crown', '<script>', 'constructor', '__proto__'] } });
+    const html = trades(colony, { owned: ['bell', 'tophat', '<x>'] });
+    expect(options(html, 'data-trade-want')).toEqual(['crown']);
+    expect(options(html, 'data-trade-give')).toEqual(['tophat']);
+  });
+
+  it('is part of the Colony panel only when paired', () => {
+    const colony = pairedColony();
+    const on = renderColonyHtml({ colony, me: ME, members: 2, status: { mode: 'paired' }, owned: ['bell', 'tophat'], catalog: CATALOG });
+    expect(on).toContain('id="colony-trading"');
+    expect(on).toContain('data-trade-give');
+    for (const mode of ['local', 'unpaired', 'offline', 'not-set-up', 'needs-name']) {
+      const off = renderColonyHtml({ colony, me: ME, members: 2, status: { mode }, owned: ['bell', 'tophat'], catalog: CATALOG });
+      expect(off).not.toContain('colony-trading');
+    }
+  });
+});
+
+describe('tradeErrorLine', () => {
+  it('is quiet on success and plain on every failure', () => {
+    for (const w of ['ok', 'accepted', 'declined', 'cancelled']) expect(tradeErrorLine(w)).toBe(null);
+    expect(tradeErrorLine('not-owned')).toMatch(/don.t have/);
+    expect(tradeErrorLine('gone')).toMatch(/not there|isn.t there/);
+    expect(tradeErrorLine('error')).toMatch(/try again/);
+    expect(tradeErrorLine('whatever')).toMatch(/try again/);
+    expect(tradeErrorLine(undefined)).toMatch(/try again/);
   });
 });

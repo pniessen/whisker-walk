@@ -2168,6 +2168,33 @@ describe('the colony save key', () => {
     expect(storage.setItem.mock.calls.length).toBe(writes + 1); // nothing to do: no write
   });
 
+  // Folded-in (Task 11): a cat of mine wearing an item I traded away must not
+  // keep wearing something I no longer own.
+  it('applyColonyTrades takes a traded-away item off my cats, and only mine', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(200);
+    p.buy('accessories', 'tophat');
+    p.buy('accessories', 'crown');
+    const BOLD_NAMES = CAT_NAMES.filter((n) => !isShy(n));
+    const [A1, A2, A3] = BOLD_NAMES;
+    tameOne(p, A1);
+    tameOne(p, A2);
+    tameOne(p, A3);
+    expect(p.dressColonyCat(A1, 'tophat', ME)).toBe(true);
+    expect(p.dressColonyCat(A2, 'crown', ME)).toBe(true);
+    // a cat my sibling found, wearing a tophat on their side
+    const theirs = { name: BOLD_NAMES[3], finder: SIB, area: 'park', x: 1, z: 2, wear: 'tophat', tamedBy: null, tamedWalk: null };
+    const snap = paired([theirs], [], []);
+    p.mergeColonySnapshot(snap);
+    const trade = { id: 4, from: ME, to: SIB, give: 'tophat', want: 'wizard', status: 'accepted' };
+    p.mergeColonySnapshot({ ...snap, trades: [trade] });
+    expect(p.applyColonyTrades(ME)).toEqual([trade]);
+    const wear = (n) => p.state.colony.cats.find((c) => c.name === n).wear;
+    expect(wear(A1)).toBe(null);          // traded away -> undressed
+    expect(wear(A2)).toBe('crown');       // a different item stays
+    expect(wear(BOLD_NAMES[3])).toBe('tophat'); // not my cat: not mine to clear
+  });
+
   it('grantColonyRewards unlocks once per milestone and returns the items', () => {
     const storage = fakeStorage();
     const p = createProgression(storage);

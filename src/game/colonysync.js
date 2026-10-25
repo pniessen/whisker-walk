@@ -16,6 +16,13 @@
 // a caller, toasts, or touches the DOM/HUD: results come back as return
 // values, and `onChange` tells the home base to re-render.
 //
+// Trades: an accepted trade is applied by the pull (progression.
+// applyColonyTrades, once per trade id, ever), and that pull reports it to the
+// optional `onTradesApplied(trades)` hook — the one place a swap can be
+// announced exactly once, whoever called pull() (the home base, a room join,
+// a poll, the end of a walk, or an action's own closing pull). The hook is
+// the caller's to turn into a toast; nothing here touches the HUD.
+//
 // Merging always goes through progression.mergeColonySnapshot (it carries the
 // known-accessory list and refuses a snapshot without a valid colony id), and
 // the inbound snapshot always goes through colony.sanitizeSnapshot first.
@@ -57,7 +64,7 @@ function statusWord(r) {
 const isTradeId = (v) => Number.isSafeInteger(v) && v > 0;
 const isTradeable = (v) => typeof v === 'string' && KNOWN_ITEMS.has(v) && !STARTER_ACCESSORIES.includes(v);
 
-export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow, progression, onChange }) {
+export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow, progression, onChange, onTradesApplied }) {
   // What the last pull found: 'unpaired' | 'paired' | 'offline' | 'not-set-up',
   // or null before the first one (status() then reads the local link).
   let netMode = null;
@@ -299,6 +306,24 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     return settled;
   }
 
+  // Take `names` (cats of mine whose accessory just left the wardrobe) off on
+  // the server. Only when this session is paired; any failure is left to the
+  // wear catch-up (repushWear) on a later pull.
+  async function pushUndressed(names) {
+    if (names.length === 0 || netMode !== 'paired') return;
+    const cloud = getCloud();
+    if (!cloud) return;
+    const secret = getPsecret();
+    for (const name of names) {
+      try {
+        await cloud.colonyDress(pid, secret, name, null);
+      } catch (err) {
+        warnOnce('dress push failed', err);
+        return;
+      }
+    }
+  }
+
   async function doPull() {
     let settled = [];
     if (MP && hasName()) {
@@ -318,10 +343,26 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     let rewards = [];
     try {
       settled = [...settled, ...progression.settleColonyTaming(pid)];
+      const wearBefore = new Map(progression.state.colony.cats.filter((c) => c.finder === pid && c.wear).map((c) => [c.name, c.wear]));
       appliedTrades = progression.applyColonyTrades(pid);
       rewards = progression.grantColonyRewards();
+      if (appliedTrades.length > 0) {
+        // A swap can take an item off a cat of mine: tell the server now, so my
+        // partner doesn't see it wearing what I no longer own. (If this push
+        // fails, the next paired pull's wear catch-up sends it.)
+        const undressed = progression.state.colony.cats
+          .filter((c) => wearBefore.has(c.name) && c.wear === null).map((c) => c.name);
+        await pushUndressed(undressed);
+      }
     } catch (err) {
       console.warn('Whisker Walk: colony bookkeeping failed', err);
+    }
+    if (appliedTrades.length > 0) {
+      try {
+        onTradesApplied?.(appliedTrades.map((t) => ({ ...t })));
+      } catch (err) {
+        console.warn('Whisker Walk: colony onTradesApplied failed', err);
+      }
     }
     notifyIfChanged();
     return { appliedTrades, rewards, settled };

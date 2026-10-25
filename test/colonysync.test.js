@@ -48,8 +48,9 @@ function setup({ MP = true, petName = 'Mittens', script = {} } = {}) {
   const getPsecret = vi.fn(() => (MP ? SECRET : null));
   const pushProfileNow = vi.fn(() => Promise.resolve());
   const onChange = vi.fn();
-  const cs = createColonySync({ MP, pid: ME, getCloud, getPsecret, pushProfileNow, progression, onChange });
-  return { cs, cloud, getCloud, getPsecret, progression, pushProfileNow, onChange, script };
+  const onTradesApplied = vi.fn();
+  const cs = createColonySync({ MP, pid: ME, getCloud, getPsecret, pushProfileNow, progression, onChange, onTradesApplied });
+  return { cs, cloud, getCloud, getPsecret, progression, pushProfileNow, onChange, onTradesApplied, script };
 }
 
 // Server-shaped (snake_case) colony_sync results, as docs/supabase-colony.sql returns them.
@@ -300,6 +301,59 @@ describe('createColonySync — pull', () => {
     const second = await cs.pull();
     expect(second.appliedTrades).toHaveLength(0);
     expect(progression.state.colony.tradesApplied).toEqual([7]);
+  });
+
+  // Task 11: colonysync never toasts. It reports each applied trade, once, to
+  // an optional onTradesApplied hook; main.js turns that into the toast.
+  it('reports each applied trade to onTradesApplied exactly once, whichever caller pulled', async () => {
+    const { cs, onTradesApplied, progression } = setup({ script: { colonySync: () => pairedSnap({
+      members: [{ player_id: ME, pet_name: 'Mittens', wardrobe: ['heart'] }, { player_id: SIB, pet_name: 'Robin', wardrobe: ['heart'] }],
+      trades: [{ id: 7, from_id: SIB, to_id: ME, give: 'crown', want: 'heart', status: 'accepted' }] }) } });
+    progression.addPoints(100);
+    progression.buy('accessories', 'heart');
+    // two callers sharing one in-flight pull: one report
+    await Promise.all([cs.pull(), cs.pull()]);
+    expect(onTradesApplied).toHaveBeenCalledTimes(1);
+    expect(onTradesApplied.mock.calls[0][0]).toHaveLength(1);
+    expect(onTradesApplied.mock.calls[0][0][0]).toMatchObject({ id: 7, give: 'crown', want: 'heart' });
+    await cs.pull();
+    expect(onTradesApplied).toHaveBeenCalledTimes(1);
+  });
+
+  it('a throwing onTradesApplied never breaks the pull', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, onTradesApplied, progression } = setup({ script: { colonySync: () => pairedSnap({
+      trades: [{ id: 7, from_id: SIB, to_id: ME, give: 'crown', want: 'heart', status: 'accepted' }] }) } });
+    onTradesApplied.mockImplementation(() => { throw new Error('toast broke'); });
+    progression.addPoints(100);
+    progression.buy('accessories', 'heart');
+    const r = await cs.pull();
+    expect(r.appliedTrades).toHaveLength(1);
+  });
+
+  it('a trade that takes an item off my dressed cat un-dresses it on the server in the same pull', async () => {
+    let serverWear = 'tophat';
+    const { cs, cloud, progression, script } = setup({ script: {
+      colonyFeed: 'ok', colonyDress: (id, secret, cat, item) => { serverWear = item; return 'ok'; } } });
+    progression.addPoints(100);
+    progression.buy('accessories', 'tophat');
+    feedLocal(progression, CAT, 'walk-1');
+    expect(progression.dressColonyCat(CAT, 'tophat', ME)).toBe(true);
+    const trades = [];
+    script.colonySync = () => pairedSnap({
+      cats: [serverCat(CAT, { wear: serverWear })], feeds: [serverFeed(CAT, 'walk-1')], trades });
+    await cs.pull();
+    expect(cloud.colonyDress).not.toHaveBeenCalled();
+    trades.push({ id: 9, from_id: ME, to_id: SIB, give: 'tophat', want: 'crown', status: 'accepted' });
+    const r = await cs.pull();
+    expect(r.appliedTrades).toHaveLength(1);
+    expect(progression.state.colony.cats[0].wear).toBe(null);
+    expect(cloud.colonyDress).toHaveBeenCalledWith(ME, SECRET, CAT, null);
+    expect(serverWear).toBe(null);
+    // nothing further to push on the next pull
+    const calls = cloud.colonyDress.mock.calls.length;
+    await cs.pull();
+    expect(cloud.colonyDress.mock.calls.length).toBe(calls);
   });
 
   it('grants colony rewards from the pull, once', async () => {
