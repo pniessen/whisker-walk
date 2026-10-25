@@ -105,6 +105,15 @@ describe('queens and their kits in the real den', () => {
   }));
   const kits = placedKits(residents, []);
   const kitCount = kits.reduce((n, p) => n + p.kits.length, 0);
+  // A kit must read as its own mother's: nearer to her than to ANY other adult
+  // (a white kitten between two white cats once read as the wrong cat's).
+  const worst = { bare: 0, furnished: 0 };
+  const expectNearestIsMother = (dc, k) => {
+    const p = k.group.position;
+    const d = (e) => Math.hypot(p.x - e.group.position.x, p.z - e.group.position.z);
+    const mother = dc.list.find((e) => e.name === k.queen);
+    for (const e of dc.list) if (e !== mother) expect(d(mother), `${k.name} vs ${e.name}`).toBeLessThan(d(e));
+  };
 
   it('every kit is placed beside its mother, clear of her, each other, furniture and walls, over 20 days', () => {
     const items = Object.keys(DEN_ITEMS);
@@ -120,10 +129,8 @@ describe('queens and their kits in the real den', () => {
         for (const k of dc.littles) {
           const p = k.group.position;
           const mother = dc.list.find((e) => e.name === k.queen).group.position;
-          // Beside her, not across the room. The bare den keeps them well under
-          // 2 m; a den with every spot furnished (worst case, measured 2.64)
-          // pushes them a little further around the furniture.
-          expect(Math.hypot(p.x - mother.x, p.z - mother.z)).toBeLessThan(3);
+          worst[Object.keys(placed).length ? 'furnished' : 'bare'] = Math.max(worst[Object.keys(placed).length ? 'furnished' : 'bare'], Math.hypot(p.x - mother.x, p.z - mother.z));
+          expectNearestIsMother(dc, k);
           expect(Math.hypot(p.x - mother.x, p.z - mother.z)).toBeGreaterThanOrEqual(0.69);
           for (const o of all) {
             if (o.group === k.group) continue;
@@ -139,6 +146,30 @@ describe('queens and their kits in the real den', () => {
         dc.dispose();
       }
     }
+    // Measured worst cases: 1.5 m bare, 1.8 m furnished (a box mother's rings
+    // start at 1.1 m and the search stops at 2.1 m, so this is a regression
+    // guard on the tight rings, not a theoretical limit).
+    expect(worst.bare).toBeLessThanOrEqual(1.5 + 1e-6);
+    expect(worst.furnished).toBeLessThanOrEqual(1.8 + 1e-6);
+  });
+
+  // The Olive case: a queen in a box with another adult only ~1.2 m off, and a
+  // crowded den around them. Her kits must still read as hers.
+  it('a kit sits nearer its mother than the neighbour that stands 1.2 m from her', () => {
+    const h = DEN_HOMES[0];
+    const adults = [
+      { name: QUEENS[0], breed: strayBreed(QUEENS[0]), wear: null, home: { x: h.x, z: h.z }, moment: { act: 'box', spot: 'home' } },
+      { name: 'Olive', breed: strayBreed('Olive'), wear: null, home: { x: h.x + 1.2, z: h.z }, moment: { act: 'nap', spot: 'home' } },
+      ...CAT_NAMES.filter((n) => n !== QUEENS[0] && n !== 'Olive').slice(0, 6).map((name, i) => ({
+        name, breed: strayBreed(name), wear: null, home: { x: DEN_HOMES[i + 1].x, z: DEN_HOMES[i + 1].z }, moment: { act: 'nap', spot: 'home' },
+      })),
+    ];
+    const dc = createDenCats(scene, adults, { kits: placedKits([{ cat: { name: QUEENS[0] }, home: h }], []) });
+    const gap = (a, b) => Math.hypot(a.group.position.x - b.group.position.x, a.group.position.z - b.group.position.z);
+    expect(gap(dc.list[0], dc.list[1])).toBeLessThan(2); // the neighbour really is close (adults keep >= 1.15 apart)
+    expect(dc.littles.length).toBeGreaterThan(0);
+    for (const k of dc.littles) expectNearestIsMother(dc, k);
+    dc.dispose();
   });
 
   it("a kit's coat is its own stored-name breed, never its mother's", () => {

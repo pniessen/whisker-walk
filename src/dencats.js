@@ -221,9 +221,60 @@ const LITTLE_SCALE = 0.5;
 const LITTLE_HEAD = 1.35;
 const LITTLE_R = 0.25;       // floor footprint, for furniture
 const LITTLE_APART = 0.7;    // to its mother, siblings and other cats
-const LITTLE_STEP = 0.6;     // sideways step when the near spot is taken
 const LITTLE_TAG_Y = 0.62;   // the adult tag floats at 1.05, far above a small cat
-const KNOCKED_R = 0.22;      // a knocked-over cup or pot, so a little one never sits in it
+const LITTLE_ANGLES = 16;    // directions tried round the mother
+const LITTLE_MARGIN = 0.2;   // a little one is this much nearer its mother than any other adult
+
+// placeLittle: where a little one sits so it reads as ITS mother's. A kitten
+// placed merely "near her" can end up between two adults, and a child then
+// reads it as the other cat's baby. So candidates are taken all the way round
+// the mother, on tight rings (starting just outside her footprint: a box is
+// wider than a cat), and must (1) be free in the same sense as findPlace (room,
+// camera wedge, furniture, other cats and little ones), and (2) be nearer the
+// mother than ANY other adult by LITTLE_MARGIN. Among those, the nearest to her
+// wins, ties leaning away from her neighbours. If the den is so crowded that
+// none passes (2), the nearest free spot to her is used; if none is free at
+// all, the roomiest one, as findPlace degrades. Never stacks, never fails.
+function placeLittle(mp, footprint, others, placed, obstacles) {
+  const s = footprint + 0.35;
+  let ruled = null;
+  let ruledScore = Infinity;
+  let free = null;
+  let freeDist = Infinity;
+  let snug = null;
+  let snugSlack = -Infinity;
+  for (const ring of [s, s + 0.2, s + 0.4, s + 0.7, s + 1.0]) {
+    for (let a = 0; a < LITTLE_ANGLES; a++) {
+      const ang = (a / LITTLE_ANGLES) * Math.PI * 2;
+      const x = mp.x + Math.cos(ang) * ring;
+      const z = mp.z + Math.sin(ang) * ring;
+      if (Math.abs(x) > ROOM_LIMIT || Math.abs(z) > ROOM_LIMIT) continue;
+      if (!clearsCamera(x, z, 0.5, 0.8)) continue;
+      let slack = Infinity;
+      for (const o of placed) slack = Math.min(slack, Math.hypot(o.group.position.x - x, o.group.position.z - z) - LITTLE_APART);
+      for (const o of obstacles) slack = Math.min(slack, Math.hypot(o.x - x, o.z - z) - (LITTLE_R + o.r));
+      if (slack < 0) {
+        if (slack > snugSlack) { snugSlack = slack; snug = { x, z }; }
+        continue;
+      }
+      const dm = ring;
+      let dOther = Infinity;
+      for (const o of others) dOther = Math.min(dOther, Math.hypot(o.x - x, o.z - z));
+      // Fallback ranking: how far this spot leans toward its mother rather than
+      // toward another adult (smaller is better), then nearer her.
+      const lean = dm - Math.min(dOther, 9) + dm * 0.01;
+      if (lean < freeDist) { freeDist = lean; free = { x, z }; }
+      if (dm + LITTLE_MARGIN <= dOther) {
+        const score = dm - 0.05 * Math.min(dOther, 3);
+        if (score < ruledScore) { ruledScore = score; ruled = { x, z }; }
+      }
+    }
+  }
+  const clamp = (v) => Math.max(-ROOM_LIMIT, Math.min(ROOM_LIMIT, v));
+  return ruled ?? free ?? snug ?? { x: clamp(mp.x + s), z: clamp(mp.z) };
+}
+
+const KNOCKED_R = 0.22;     // a knocked-over cup or pot, so a little one never sits in it
 
 // cats: [{ name, breed, wear: { slot, id } | null, home: { x, z }, moment: { act, spot } }]
 //
@@ -315,13 +366,9 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
     const mother = list.find((e) => e.name === set.queen);
     if (!mother) continue; // no placed mother, nothing to sit beside
     const mp = mother.group.position;
-    const base = standOff({ x: mp.x, z: mp.z });
-    const tangent = { x: -base.d.z, z: base.d.x };
-    // Start just outside her footprint (a box is wider than a cat on the floor).
-    const s = mother.footprint + 0.35;
-    const fit = { rings: [s, s + 0.25, s + 0.5], step: LITTLE_STEP, apart: LITTLE_APART };
+    const others = list.filter((e) => e !== mother).map((e) => e.group.position);
     for (const name of set.kits) {
-      const at = findPlace({ x: mp.x, z: mp.z }, base, tangent, LITTLE_R, littleSpots, [...obstacles, ...propSpots], fit);
+      const at = placeLittle(mp, mother.footprint, others, littleSpots, [...obstacles, ...propSpots]);
       const holder = new THREE.Group();
       holder.position.set(at.x, 0, at.z);
       // Its OWN breed from its own stored name: once fed it becomes a colony
