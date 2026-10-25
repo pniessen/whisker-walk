@@ -11,7 +11,7 @@
 // Every interpolated value goes through escapeHtml. The partner's pet name and
 // the colony's cats ultimately come from a cloud payload; colony.js sanitizes
 // them, and this renderer escapes them again rather than trusting that.
-import { tamingProgress, COLONY_MAX } from '../colony.js';
+import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
 import { STARTER_ACCESSORIES } from '../progression.js';
 
@@ -250,8 +250,11 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   const list = rows.length
     ? `<div class="cards colony-cards">${rows.map((r) => catCard(r.cat, r.p, ctx)).join('')}</div>`
     : `<p class="colony-empty">No colony cats yet — touch noses with a stray, then feed it 🐟</p>`;
-  const full = cats.length >= COLONY_MAX
-    ? `<p class="colony-full">The colony is full — ${COLONY_MAX} cats call it home 🏠</p>` : '';
+  // Full at the same cap canFeed uses: 12 alone, 24 as a pair.
+  const cap = colonyCap(members);
+  const roomTogether = cap < COLONY_MAX ? ` Share it with your brother or sister to make room for ${COLONY_MAX}.` : '';
+  const full = cats.length >= cap
+    ? `<p class="colony-full">The colony is full — ${cap} cats call it home 🏠${roomTogether}</p>` : '';
 
   const pair = renderPairingHtml(status, pairing || {});
   // Trading is only for a live pair: the offer RPCs need the partner on the server.

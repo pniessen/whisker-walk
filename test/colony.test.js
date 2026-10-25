@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
-import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
+import { TAME_FEEDS, COLONY_MAX, SOLO_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
   canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
 import { DEN_SPOTS, DEN_HOMES } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
@@ -76,8 +76,9 @@ describe('the taming ladder', () => {
   });
   it('a full colony refuses a new cat but still feeds existing ones', () => {
     let c = emptyColony();
-    CAT_NAMES.slice(0, COLONY_MAX).forEach((n, i) => { c = feed(c, n, ME, i).colony; });
-    expect(canFeed(c, CAT_NAMES[COLONY_MAX], ME, 'walk-9')).toBe('full');
+    CAT_NAMES.slice(0, COLONY_MAX).forEach((n, i) => { c = feed(c, n, ME, i, { ctx: { members: 2 } }).colony; });
+    expect(c.cats).toHaveLength(COLONY_MAX);
+    expect(canFeed(c, CAT_NAMES[COLONY_MAX], ME, 'walk-9', { members: 2 })).toBe('full');
     expect(canFeed(c, CAT_NAMES[0], ME, 'walk-9')).toBe('ok');
   });
   it('tamed cats leave their area and line up in taming order', () => {
@@ -542,9 +543,10 @@ describe('mergeColony — add-only', () => {
     }
   });
   it('the result is sanitized: an untamed union past COLONY_MAX trims local-only cats first, and items are filtered', () => {
+    // 16 + 16: colonies that grew past SOLO_MAX while paired (or a hostile remote)
     const mk = (names, by) => {
       let c = emptyColony();
-      names.forEach((n, i) => { c = feed(c, n, by, i).colony; });
+      names.forEach((n, i) => { c = feed(c, n, by, i, { ctx: { members: 2 } }).colony; });
       return c;
     };
     const local = mk(CAT_NAMES.slice(0, 16), ME);
@@ -618,7 +620,7 @@ describe('pairing two solo colonies never loses a tamed cat', () => {
   it('past the cap, every tamed cat stays: untamed local-only cats go first, then untamed remote ones', () => {
     // remote: 20 untamed cats. local: 6 tamed + 4 untamed, all local-only.
     let remote = emptyColony();
-    CAT_NAMES.slice(0, 20).forEach((n, i) => { remote = feed(remote, n, SIB, i).colony; });
+    CAT_NAMES.slice(0, 20).forEach((n, i) => { remote = feed(remote, n, SIB, i, { ctx: { members: 2 } }).colony; });
     let local = tameAll(CAT_NAMES.slice(20, 26), ME, 500);
     CAT_NAMES.slice(26, 30).forEach((n, i) => { local = feed(local, n, ME, 900 + i).colony; });
     const m = mergeColony(local, remoteOf(remote));
@@ -641,6 +643,77 @@ describe('pairing two solo colonies never loses a tamed cat', () => {
     // the order of what is kept is the order it came in
     const mixed = sanitizeColony({ cats: [...cats.slice(0, 2), ...cats.slice(2, 4)] });
     expect(mixed.cats.map((k) => k.name)).toEqual(CAT_NAMES.slice(0, 4));
+  });
+});
+
+// Re-review N1: each child holds at most SOLO_MAX (12) cats alone; a pair
+// shares COLONY_MAX (24). So two colonies filled solo always fit when the
+// siblings pair, and nothing is trimmed or refused by the 24 cap.
+describe('the solo cap: 12 alone, 24 together', () => {
+  const remoteOf = (c, partner = SIB) => ({ id: 'col1', partner: { playerId: partner, petName: 'Robin', wardrobe: [] }, cats: c.cats, feeds: c.feeds, trades: [] });
+  // Feed new cats from `names` solo until canFeed says 'full'; every other one
+  // is fed to a full bar, so the colony holds tamed and in-progress cats.
+  function fillSolo(names, by, base) {
+    let c = emptyColony();
+    let k = 0;
+    for (const n of names) {
+      const walk = `walk-${base + k * 10}`;
+      if (canFeed(c, n, by, walk) === 'full') break;
+      const times = k % 2 === 0 ? TAME_FEEDS : 2;
+      for (let i = 0; i < times; i++) c = feed(c, n, by, base - 1000 + k * 10 + i).colony;
+      k++;
+    }
+    return c;
+  }
+
+  it('is 12 alone and 24 together', () => {
+    expect(SOLO_MAX).toBe(12);
+    expect(SOLO_MAX * 2).toBe(COLONY_MAX);
+  });
+  it('solo feeding stops at 12 new cats; the 12 already there can still be fed', () => {
+    const c = fillSolo(CAT_NAMES, ME, 1000);
+    expect(c.cats).toHaveLength(SOLO_MAX);
+    expect(canFeed(c, CAT_NAMES[SOLO_MAX], ME, 'walk-99999')).toBe('full');
+    expect(feedCat(c, { name: CAT_NAMES[SOLO_MAX], by: ME, walk: 'walk-99999', area: 'park', x: 0, z: 0, head: 0 }).result).toBe('full');
+    const untamed = c.cats.find((k) => k.tamedBy === null);
+    expect(canFeed(c, untamed.name, ME, 'walk-99999')).toBe('ok');
+  });
+  it('two colonies filled solo until full pair with every cat kept on both sides', () => {
+    const a = fillSolo(CAT_NAMES.slice(0, 24), ME, 1000);
+    const b = fillSolo(CAT_NAMES.slice(24), SIB, 5000);
+    expect([a.cats.length, b.cats.length]).toEqual([SOLO_MAX, SOLO_MAX]);
+    const all = [...a.cats, ...b.cats].map((k) => k.name).sort();
+    const tamedAll = [...a.cats, ...b.cats].filter((k) => k.tamedBy).map((k) => k.name).sort();
+    // either device may reach the server first; the server never holds more
+    // than the union, which is within its cap of 24
+    const onA = mergeColony(a, remoteOf(b));
+    const onB = mergeColony(b, remoteOf(a, ME));
+    for (const side of [onA, onB]) {
+      expect(side.cats.length).toBeLessThanOrEqual(COLONY_MAX);
+      expect(side.cats.map((k) => k.name).sort()).toEqual(all);
+      expect(side.cats.filter((k) => k.tamedBy).map((k) => k.name).sort()).toEqual(tamedAll);
+      expect(side.feeds).toHaveLength(a.feeds.length + b.feeds.length);
+      expect(sanitizeColony(side)).toEqual(side); // nothing trimmed on a later load
+    }
+  });
+  it('a paired colony can grow to 24, and no further', () => {
+    let c = fillSolo(CAT_NAMES, ME, 1000);
+    for (const n of CAT_NAMES.slice(SOLO_MAX, COLONY_MAX)) {
+      expect(canFeed(c, n, SIB, 'walk-7777', { members: 2 }), n).toBe('ok');
+      c = feed(c, n, SIB, 6777, { ctx: { members: 2 } }).colony;
+    }
+    expect(c.cats).toHaveLength(COLONY_MAX);
+    expect(canFeed(c, CAT_NAMES[COLONY_MAX], SIB, 'walk-8888', { members: 2 })).toBe('full');
+  });
+  it('a lone member left with a bigger colony keeps every cat and can still feed them, but starts no new one', () => {
+    let c = fillSolo(CAT_NAMES, ME, 1000);
+    for (const n of CAT_NAMES.slice(SOLO_MAX, 20)) c = feed(c, n, SIB, 6777, { ctx: { members: 2 } }).colony;
+    // the owner unpairs: members is 1 again
+    const kept = sanitizeColony(c);
+    expect(kept).toEqual(c);
+    expect(kept.cats).toHaveLength(20);
+    expect(canFeed(kept, CAT_NAMES[20], ME, 'walk-9999')).toBe('full');
+    expect(canFeed(kept, CAT_NAMES[19], ME, 'walk-9999')).toBe('ok');
   });
 });
 

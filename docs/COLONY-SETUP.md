@@ -73,7 +73,7 @@ update colony_trades set status = 'cancelled', decided_at = now()
 
 Nothing breaks if the file hasn't been run yet. Each device keeps its own colony, just for that player. The Colony tab says **"Colony sharing isn't switched on yet."** Everything else in the game works as usual. Once you run the file, sharing turns on the next time the game opens.
 
-If both children played before you ran the file, each has a colony of their own. When they pair, the two colonies join into one, and every cat either child has tamed stays in both dens. A shared colony has room for 24 cats, which is two full colonies of 12.
+If both children played before you ran the file, each has a colony of their own. A child playing alone can have at most 12 cats in their colony; after that the game won't let them start feeding a new cat. A shared colony has room for 24, which is exactly two of those. So when the children pair, the two colonies join into one, and every cat from both stays, on both devices. Nothing is removed to make room for this limit: a child left on their own with more than 12 cats (for example after you unpair them) keeps every cat and can keep feeding them, and just can't start a new one.
 
 ## 7. Run the security fix for the original setup
 

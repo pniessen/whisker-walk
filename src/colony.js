@@ -38,6 +38,15 @@ export const HEAD_START_MAX = 3;    // most a past friendship can pre-fill
 // colony SQL, still fit when they pair (final review C1). Tamed cats are never
 // trimmed by it: see sanitizeColony.
 export const COLONY_MAX = 24;
+// ...but a child alone holds at most SOLO_MAX: 12 each alone, 24 together, so
+// two colonies filled solo before pairing always fit in one (re-review N1).
+// It only stops NEW cats (canFeed's 'full'); nothing is ever trimmed for it,
+// so a lone member left with more after the owner unpairs keeps every cat and
+// can go on feeding them.
+export const SOLO_MAX = 12;
+// colonyCap(members) -> how many cats the colony may hold before a new one is
+// refused: COLONY_MAX for a pair, SOLO_MAX for anyone alone.
+export const colonyCap = (members) => (members >= 2 ? COLONY_MAX : SOLO_MAX);
 // Cap for a stored/synced feed list (used by the sanitizers): room for both
 // siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
 export const FEEDS_MAX = 320;
@@ -162,12 +171,13 @@ export function tamingProgress(colony, name, { members = 1, now } = {}) {
 //                   DIFFERENT member, who is still playing (tamingProgress's
 //                   needsSecondFeeder, under `now`). A member who hasn't fed
 //                   it gets 'ok'.
-//   'full'          can't add it: the colony already holds COLONY_MAX cats
+//   'full'          can't add it: the colony already holds colonyCap(members)
+//                   cats (SOLO_MAX alone, COLONY_MAX as a pair)
 //   'ok'
 export function canFeed(colony, name, by, walk, { members = 1, now } = {}) {
   if (!isStrayName(name) || !isPlayerId(by) || !isWalkStamp(walk)) return 'bad';
   const cat = colony.cats.find((c) => c.name === name);
-  if (!cat) return colony.cats.length >= COLONY_MAX ? 'full' : 'ok';
+  if (!cat) return colony.cats.length >= colonyCap(members) ? 'full' : 'ok';
   if (cat.tamedBy != null) return 'tamed';
   let mine = 0;
   for (const f of colony.feeds) {

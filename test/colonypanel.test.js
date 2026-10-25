@@ -4,7 +4,7 @@ import {
   renderTradesHtml, tradeErrorLine, confirmClickAllowed, CONFIRM_DELAY_MS,
   renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from '../src/ui/colonypanel.js';
-import { emptyColony, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
+import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
 
@@ -217,9 +217,16 @@ describe('renderColonyHtml', () => {
     expect(empty).not.toContain('is full');
 
     const names = CAT_NAMES.slice(0, COLONY_MAX);
-    const full = render(colonyOf({ cats: names.map((n) => cat(n)), feeds: names.flatMap((n) => feed(n, ME, 1)) }));
-    expect(full).toContain('The colony is full');
+    const full = render(colonyOf({ partner: PAIR, cats: names.map((n) => cat(n)), feeds: names.flatMap((n) => feed(n, ME, 1)) }));
+    expect(full).toContain(`The colony is full — ${COLONY_MAX} cats call it home`);
     expect(count(full, /class="colony-bar"/g)).toBe(COLONY_MAX);
+    // alone, it is full at SOLO_MAX, and says pairing makes room
+    const solo = CAT_NAMES.slice(0, SOLO_MAX);
+    const soloFull = render(colonyOf({ cats: solo.map((n) => cat(n)), feeds: solo.flatMap((n) => feed(n, ME, 1)) }));
+    expect(soloFull).toContain(`The colony is full — ${SOLO_MAX} cats call it home`);
+    expect(soloFull).toContain(`${COLONY_MAX}`);
+    const notYet = render(colonyOf({ cats: solo.slice(1).map((n) => cat(n)), feeds: [] }));
+    expect(notYet).not.toContain('is full');
   });
 
   it('renders each mode header line', () => {

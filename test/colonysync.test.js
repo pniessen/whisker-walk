@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createColonySync, FEED_PUSH_MAX } from '../src/game/colonysync.js';
 import { createProgression } from '../src/progression.js';
-import { isShy, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
+import { isShy, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
@@ -290,6 +290,30 @@ describe('createColonySync — pull', () => {
     const c = progression.state.colony;
     expect(c.cats.find((k) => k.name === BOLD[0])).toMatchObject({ tamedBy: ME });
     expect(c.cats).toHaveLength(COLONY_MAX);
+  });
+
+  // Re-review N1: 12 alone each, so the second sibling's solo colony always
+  // fits on a server already holding the first one's 12.
+  it('a solo colony filled until full is accepted whole by a server holding the partner\'s 12', async () => {
+    const { cs, cloud, progression, script } = setup();
+    const mine = [];
+    for (const n of CAT_NAMES.slice(24)) {
+      if (feedLocal(progression, n, 'walk-1').result === 'full') break;
+      mine.push(n);
+    }
+    expect(mine).toHaveLength(SOLO_MAX);
+    const theirs = CAT_NAMES.slice(0, SOLO_MAX).map((n) => serverCat(n, { finder_id: SIB }));
+    const server = new Set(theirs.map((c) => c.name));
+    script.colonyFeed = (id, secret, a) => {
+      if (!server.has(a.cat) && server.size >= COLONY_MAX) return 'full';
+      server.add(a.cat);
+      return 'ok';
+    };
+    script.colonySync = () => pairedSnap({ cats: theirs });
+    await cs.pull();
+    expect(cloud.colonyFeed.mock.calls.map((c) => c[2].cat)).toEqual(mine);
+    expect(server.size).toBe(COLONY_MAX);
+    expect(progression.state.colony.cats).toHaveLength(COLONY_MAX);
   });
 
   it('a feed push that throws stops this pull\'s catch-up but still merges', async () => {
