@@ -7,6 +7,8 @@ import {
 import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
+import { clanNameOf } from '../src/clannames.js';
+import { RANK_WORDS } from '../src/clanwords.js';
 
 const ME = 'me-player-0001';
 const PARTNER = 'robin-player-02';
@@ -32,6 +34,39 @@ function render(colony, over = {}) {
 const count = (s, re) => (s.match(re) || []).length;
 
 describe('renderColonyHtml', () => {
+  it('leads each card with the clan name and names the rank in words', () => {
+    const colony = colonyOf({
+      cats: [cat(A), cat(C, { tamedBy: ME, tamedWalk: 'walk-1' })],
+      feeds: [...feed(A, ME, 2), ...feed(C, ME, TAME_FEEDS)],
+    });
+    const html = render(colony);
+    expect(html).toContain(clanNameOf(A, { have: 2, tamed: false }));
+    expect(html).toContain(clanNameOf(C, { have: TAME_FEEDS, tamed: true }));
+    expect(html).toContain(RANK_WORDS.apprentice);
+    expect(html).toContain(RANK_WORDS.warrior);
+  });
+
+  it('still reads the breed off the stored name', () => {
+    const colony = colonyOf({ cats: [cat(A, { tamedBy: ME, tamedWalk: 'walk-1' })] });
+    expect(render(colony)).toContain(strayBreed(A));
+  });
+
+  it('still shows the stored name, so a cat stays findable by it', () => {
+    const colony = colonyOf({ cats: [cat(A, { tamedBy: ME, tamedWalk: 'walk-1' })] });
+    expect(render(colony)).toContain(A);
+  });
+
+  it('still renders exactly one progress bar per cat', () => {
+    const colony = colonyOf({ cats: [cat(A), cat(B), cat(C)] });
+    expect(count(render(colony), /role="progressbar"/g)).toBe(3);
+  });
+
+  it('escapes a hostile stored name rather than trusting the sanitizer', () => {
+    const colony = colonyOf({ cats: [cat('<img src=x>')] });
+    const html = render(colony);
+    expect(html).not.toContain('<img');
+  });
+
   it('renders exactly one progress bar per cat', () => {
     const colony = colonyOf({
       cats: [cat(A), cat(B), cat(C, { tamedBy: ME, tamedWalk: 'walk-1' })],

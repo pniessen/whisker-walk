@@ -13,6 +13,8 @@
 // them, and this renderer escapes them again rather than trusting that.
 import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
+import { clanNameOf, clanRankFor } from '../clannames.js';
+import { RANK_WORDS } from '../clanwords.js';
 import { STARTER_ACCESSORIES } from '../progression.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
@@ -71,6 +73,13 @@ function knewLine(catName, p, { me, partner, partnerName, feeds }) {
 function catCard(cat, p, ctx) {
   const { me, partner, partnerName, catalog, owned } = ctx;
   const name = escapeHtml(cat.name);
+  // The clan name is a pure display layer over the STORED name, which never
+  // changes. clanNameOf passes an unknown non-empty name through verbatim, so a
+  // hostile stored name reaches this template by this path too: escape it.
+  // The rank is a word, never a level; its text comes by reference from
+  // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
+  const clan = escapeHtml(clanNameOf(cat.name, p));
+  const rank = escapeHtml(RANK_WORDS[clanRankFor(p)]);
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;
   const fed = partner ? `you fed ${mine} · ${partnerName} fed ${theirs}` : `you fed ${mine}`;
@@ -93,11 +102,19 @@ function catCard(cat, p, ctx) {
   const head = p.headStart > 0 ? `<span class="colony-head" style="width:${headPct}%"></span>` : '';
 
   const knew = p.headStart > 0 ? `<div class="colony-knew">${escapeHtml(knewLine(cat.name, p, ctx))}</div>` : '';
+  // The stored name stays on the card (a cat stays findable by the name it was
+  // found under) with the breed beside it. Breed hashes the STORED name: hashing
+  // the clan name would change a known cat's coat colour. When the clan name is
+  // just the stored name (unknown name passes through), don't print it twice.
+  const stored = clan === name ? '' : `${name} `;
+  const breed = escapeHtml(typeof cat.name === 'string' ? strayBreed(cat.name) : '');
+  const titleLine = `<div class="colony-title">${stored}<span class="colony-breed">${breed}</span></div>`;
   const dress = cat.finder === me ? dressSelect(cat, owned, catalog) : '';
 
   return `<div class="card colony-card ${p.tamed ? 'selected' : ''}" data-cat="${name}">
-    <div class="card-name">${name} <span class="colony-breed">${escapeHtml(typeof cat.name === 'string' ? strayBreed(cat.name) : '')}</span></div>
-    <div class="colony-bar" role="progressbar" aria-label="${name}'s trust"
+    <div class="card-name">${clan} <span class="colony-rank">${rank}</span></div>
+    ${titleLine}
+    <div class="colony-bar" role="progressbar" aria-label="${clan}'s trust"
       aria-valuemin="0" aria-valuemax="${p.need}" aria-valuenow="${p.have}">${head}<span class="colony-fed" style="width:${fedPct}%"></span></div>
     <div class="colony-count">${p.have} of ${p.need} feeds${p.tamed ? ' · tamed ✅' : ''}</div>
     ${knew}
