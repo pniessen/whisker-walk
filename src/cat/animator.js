@@ -77,6 +77,7 @@ const LONG_LEG_MAX_SWING = 1.0;
 function fitLongLegs(cat) {
   const { body, head, legs } = cat.userData.parts;
   const { legLift: lift, legReach: reach } = cat.userData.base;
+  // Contract with pose(): it may only shrink a leg (scale.y < 1) when it also lowers the body.
   const crouch = legs.some((leg) => leg.scale.y < 1);
   for (const child of cat.children) {
     if (legs.includes(child) || child.userData.liftY === undefined) continue;

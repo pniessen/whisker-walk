@@ -891,7 +891,7 @@ export function createInteractions({
     // straycats.isGrudgeableStray: the cat must be an object out of THIS
     // walk's stray array (no ghost, no co-walker's remote pet and no player
     // avatar ever is), AND its name must come from the closed stray and
-    // little-one name lists, which contain none of the four family pets. Asked once, up front, and consulted by
+    // little-one name lists, which contain none of the family pets. Asked once, up front, and consulted by
     // every enemy branch below, so there is no path into the enemy system
     // that skips it.
     // -------------------------------------------------------------------

@@ -154,6 +154,29 @@ describe("cat model: Robbie's real coat", () => {
     const white = body.children.filter((m) => lum(m.material) > 0.8);
     expect(white.length).toBeGreaterThan(0);
   });
+
+  it('has a white bib on the front of his chest, in the same mesh as his flanks, clear of them', () => {
+    // The eye check against the photo: his chest was black. The bib is a patch
+    // of the body sphere like every marking, so it is found in the body's own
+    // unit-sphere frame — front is -z. It must share the flanks' mesh (the
+    // white body markings stay ONE mesh), and no bib vertex may fall inside a
+    // flank patch: overlapping patches at one lift z-fight.
+    const cat = buildCat('robbie');
+    const white = cat.userData.parts.body.children.filter((m) => lum(m.material) > 0.8);
+    expect(white).toHaveLength(1);
+    const pos = white[0].geometry.attributes.position;
+    const dirs = [];
+    for (let i = 0; i < pos.count; i++) dirs.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize());
+    const front = dirs.filter((d) => d.z < -0.9 && Math.abs(d.x) < 0.1);
+    expect(front.length).toBeGreaterThan(0);
+    // Every vertex is either well forward (the bib, |x| small) or well out to a
+    // side (a flank): nothing in the band between, where the two would meet.
+    const between = dirs.filter((d) => Math.abs(d.x) > 0.5 && Math.abs(d.x) < 0.6 && d.z < -0.5);
+    expect(between).toHaveLength(0);
+    const bibMaxX = Math.max(...dirs.filter((d) => d.z < -0.75).map((d) => Math.abs(d.x)));
+    const flankMinFwd = Math.min(...dirs.filter((d) => Math.abs(d.x) > 0.6).map((d) => Math.atan2(Math.abs(d.x), -d.z)));
+    expect(Math.asin(bibMaxX)).toBeLessThan(flankMinFwd - 0.2); // > ~11 degrees of black between
+  });
 });
 
 describe('cat model: D2 and Digit, from the photos', () => {
@@ -178,7 +201,7 @@ describe('cat model: D2 and Digit, from the photos', () => {
       const paw = new THREE.Box3().setFromObject(cat.userData.parts.legs[0].userData.paw);
       return (body.min.y - paw.min.y) / (body.max.z - body.min.z);
     };
-    expect(legginess('digit')).toBeGreaterThan(legginess('tabby') * 1.1);
+    expect(legginess('digit')).toBeGreaterThan(legginess('tabby') * 1.5);
   });
 
   it('digit rests at ground level in every pose, dressed and bare, like a tabby', () => {
@@ -206,6 +229,40 @@ describe('cat model: D2 and Digit, from the photos', () => {
         expect(Math.abs(digit - tabby), label).toBeLessThan(0.01);
       }
     }
+  });
+
+  it('digit stays as grounded as a tabby through the walk cycle', () => {
+    // The per-pose test above holds still (moveSpeed 0). Walking swings every
+    // leg each frame, and fitLongLegs re-fits each swung leg to land its sole
+    // where a standard leg's would — so over a stride's worth of frames, in
+    // every state that falls through to the gait, Digit's lowest point tracks
+    // the tabby's to within a centimetre (normalised by breed scale).
+    for (const state of ['follow', 'stalk', 'sniff', 'cross']) {
+      for (let t = 0; t <= 3; t += 0.25) {
+        const lowest = (breed, outfit) => {
+          const cat = buildCat(breed, outfit);
+          animateCat(cat, state, t, 1.5, false);
+          return boxOf(cat).min.y / cat.scale.x;
+        };
+        const digit = lowest('digit', {});
+        const tabby = lowest('tabby', { collar: 'tag' });
+        expect(Math.abs(digit - tabby), `${state} t=${t}`).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('digit is narrower for its length than a tabby — slender, not a small stocky cat', () => {
+    // Width over length of the torso as drawn after a pose, so it reads what
+    // the animator actually wrote to body.scale (it rewrites it every frame
+    // from userData.base.bodyScale), not what the model built.
+    const slimness = (breed) => {
+      const cat = buildCat(breed);
+      animateCat(cat, 'follow', 0, 0, false);
+      cat.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(cat.userData.parts.body);
+      return (b.max.x - b.min.x) / (b.max.z - b.min.z);
+    };
+    expect(slimness('digit')).toBeLessThan(slimness('tabby') * 0.85);
   });
 
   it('digit wears its own tag collar, and exactly one collar when it buys a bell', () => {
