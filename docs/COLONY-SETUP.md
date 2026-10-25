@@ -85,3 +85,19 @@ The game's original setup file, `docs/supabase-setup.sql`, has a hole: three of 
 It only replaces those three functions (`upsert_save`, `upsert_profile` and `record_friend_greet`). It doesn't change any table or any saved data, and the game keeps working exactly as before. It's safe to run again.
 
 **If you ever re-run `docs/supabase-setup.sql`, run this fix again afterwards.** Re-running the setup file puts the old versions of the three functions back.
+
+## 8. Keep each child on their own device
+
+The game recognises each child by an id that belongs to the device (the browser on it), not to the save. The colony, though, travels inside the save. So if a child moves their save to a different device with **Load from cloud**, the new device has a different id, and there:
+
+- The colony comes unlinked, and the Colony tab offers a sharing code again.
+- The cats that child found and fed before the move look as if someone else found them, and the child can't dress them. That stays so, even after pairing again.
+
+Nothing is lost. Every cat, feed and tamed cat stays in the colony, on the server and in the save.
+
+**To avoid it, pair each child from the device they actually play on, and keep playing there.** Use **Load from cloud** only to rescue a save from a lost or broken device.
+
+If a child has moved anyway, you can link the new device back to the colony:
+
+1. Unpair the **old** device's player id, as in section 5. Its friend code is the one shown in **Social** on the old device. If that device is gone, look up the sibling's player id the same way: the old id is the other `colony_members` row with the same `colony_id`.
+2. On the sibling's device, tap **Get a sharing code**, and type it in on the new device. The sibling who stayed must be the one who gets the code.
