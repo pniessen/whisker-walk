@@ -62,6 +62,58 @@ describe('createKnockables', () => {
     k.dispose();
   });
 
+  // Ruling R20: nothing this small casts a real shadow (walk.js's castShadow
+  // pass skips it), so a landed thing gets a small, fixed, flat contact decal
+  // under it, and nothing while it stands or falls.
+  test('a landed thing gets a small flat contact decal under it; none while it stands or falls', () => {
+    const scene = new THREE.Scene();
+    const DECK = { ...POT, fallTo: { ...POT.fallTo, y: 0.03 } };
+    const k = createKnockables(scene, [CUP, DECK]);
+    const [cup, pot] = k.list;
+    for (const e of k.list) {
+      expect(e.decal.isMesh).toBe(true);
+      expect(scene.children).toContain(e.decal);
+      expect(e.decal.visible).toBe(false);
+      expect(e.decal.geometry.type).toBe('CircleGeometry');
+      expect(e.decal.material.type).toBe('MeshBasicMaterial');
+      expect(e.decal.material.transparent).toBe(true);
+      expect(e.decal.material.depthWrite).toBe(false);
+      // walk.js's shadow pass leaves a decal alone
+      expect(e.decal.userData.contactDecal).toBe(true);
+      expect(e.decal.castShadow).toBe(false);
+    }
+    k.knock(cup);
+    run(k, 0.25);
+    expect(cup.decal.visible).toBe(false); // mid-fall: no shadow chasing it along
+    run(k, 1);
+    expect(cup.decal.visible).toBe(true);
+    // flat on the ground, just above it, under the landed cup
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(cup.decal.quaternion);
+    expect(normal.y).toBeCloseTo(1, 6);
+    expect(cup.decal.position.y).toBeGreaterThan(0);
+    expect(cup.decal.position.y).toBeLessThan(0.01);
+    const landed = new THREE.Box3().setFromObject(cup.group);
+    const centre = landed.getCenter(new THREE.Vector3());
+    expect(Math.hypot(cup.decal.position.x - centre.x, cup.decal.position.z - centre.z)).toBeLessThan(0.02);
+    const r = cup.decal.geometry.parameters.radius;
+    expect(r).toBeGreaterThan(0.05);
+    expect(r).toBeLessThan(0.25);
+    // and it stays put
+    const at = cup.decal.position.clone();
+    run(k, 10, 0.1);
+    expect(cup.decal.position.equals(at)).toBe(true);
+    expect(cup.decal.visible).toBe(true);
+    // a co-walker's knock lands it the same way, on a deck 3 cm up
+    expect(pot.decal.visible).toBe(false);
+    k.knockById(DECK.id);
+    run(k, 2);
+    expect(pot.decal.visible).toBe(true);
+    expect(pot.decal.position.y).toBeGreaterThan(0.03);
+    expect(pot.decal.position.y).toBeLessThan(0.04);
+    expect(lowestY(pot.group)).toBeCloseTo(0.03, 5);
+    k.dispose();
+  });
+
   test('a book lands flat, face down, on the ground', () => {
     const k = createKnockables(new THREE.Scene(), [BOOK]);
     k.knock(k.list[0]);
@@ -136,7 +188,7 @@ describe('createKnockables', () => {
     const geos = new Map();
     const mats = new Map();
     for (const e of k.list) {
-      e.group.traverse((o) => {
+      for (const root of [e.group, e.decal]) root.traverse((o) => {
         if (o.geometry) geos.set(o.geometry, 0);
         if (o.material) mats.set(o.material, 0);
       });

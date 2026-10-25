@@ -13,11 +13,15 @@ import { litMaterial } from './render/materials.js';
 // devices land it at the same spot in the same pose whatever their frame
 // rates. No randomness of any kind.
 //
-// No contact decal: walk.js does not register these with its contact-shadow
-// rig. A mover decal is a circle on the GROUND under the object, so a cup on
-// a car roof would have a shadow blob on the road beneath the car, and one in
-// mid-fall would have it sliding along under it. The real shadow map already
-// gives each one a shadow (they are created before walk.js's castShadow pass).
+// Shadows. Nothing here casts a real one: walk.js's castShadow pass only
+// lets a mesh cast when it is at least 0.12 m tall AND either 1.3 m tall or
+// 1.0 m across, and a cup is neither. Nor are these registered with walk.js's
+// live contact-decal rig: a mover decal is a circle on the GROUND under its
+// object, so a cup on a car roof would get a blob on the road beneath the car
+// and a falling one would drag it along. Instead each one lays its own small,
+// fixed, flat decal (scent.js's CircleGeometry + MeshBasicMaterial idiom, soft
+// at the rim) under where it lands, shown from the moment it touches down and
+// never while it stands or falls.
 //
 // Each mesh and material is created per item and disposed exactly once in
 // dispose() (the carryables.js pattern), which runs before endWalk's scene
@@ -30,6 +34,9 @@ const DURATION = FALL + SETTLE;
 const HOP = 0.12;    // metres: the little lift a swatted thing gets off the ledge
 const BOUNCE = 0.03; // metres: the settle's bounce
 const LEVEL = 0.3;   // metres: how far the cat's perch may sit from the item's ledge
+const DECAL_ALPHA = 0.4;  // the landed decal's darkness at its centre, fading to 0 at the rim
+const DECAL_LIFT = 0.004; // metres above the ground, so it never fights the ground for depth
+const DECAL_SPREAD = 1.3; // decal radius over the landed thing's half-width
 
 // How far over it ends up, about its own local x axis (so its top swings
 // toward fallTo). A book lying flat lands face down; everything else on its side.
@@ -93,6 +100,29 @@ function liftFor(group, yaw, tip) {
   return Number.isFinite(box.min.y) ? -box.min.y : 0;
 }
 
+// Where it lands: on the ground (y 0) unless the curated fallTo names the
+// height of the deck or kerb it lands on.
+const groundY = (fallTo) => (Number.isFinite(fallTo.y) ? fallTo.y : 0);
+
+// A small dark disc lying flat, darkest at its centre and clear at its rim
+// (per-vertex alpha on a CircleGeometry fan: vertex 0 is the centre). Hidden
+// until the thing lands. userData.contactDecal keeps walk.js's shadow pass off
+// it, as render/contactshadows.js does for its own decals.
+function buildDecal(radius) {
+  const geo = new THREE.CircleGeometry(radius, 16);
+  const rgba = new Float32Array(geo.attributes.position.count * 4); // black, clear
+  rgba[3] = DECAL_ALPHA;
+  geo.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false });
+  const decal = new THREE.Mesh(geo, mat);
+  decal.rotation.x = -Math.PI / 2;
+  decal.castShadow = false;
+  decal.receiveShadow = false;
+  decal.userData.contactDecal = true;
+  decal.visible = false;
+  return decal;
+}
+
 // Every distinct geometry / material under an object, so each is freed once.
 function collect(root, geos, mats) {
   root.traverse((o) => {
@@ -105,8 +135,9 @@ function collect(root, geos, mats) {
 
 // createKnockables(scene, list) — list is propsFor(areaId).knockables:
 // [{ id, kind, x, z, y, fallTo: { x, z } }]. Everything starts standing on its
-// ledge. Entries are { id, kind, group, down, anim }; `anim` is the seconds of
-// fall still to play (0 standing, and 0 again once it has landed).
+// ledge. Entries are { id, kind, group, decal, down, anim }; `anim` is the
+// seconds of fall still to play (0 standing, and 0 again once it has landed);
+// `decal` is the contact decal it lies on once landed.
 export function createKnockables(scene, list) {
   const items = [];
   const motion = new Map(); // entry → its curated fall, kept off the public shape
@@ -123,12 +154,23 @@ export function createKnockables(scene, list) {
     const m = {
       x: k.x, z: k.z, ledgeY: k.y,
       from: new THREE.Vector3(k.x, k.y + standLift, k.z),
-      to: new THREE.Vector3(k.fallTo.x, downLift, k.fallTo.z),
+      to: new THREE.Vector3(k.fallTo.x, groundY(k.fallTo) + downLift, k.fallTo.z),
       yaw, tip,
     };
+    // Measure where it will lie, once, for the decal under it.
+    group.position.copy(m.to);
+    group.rotation.set(tip, yaw, 0, 'YXZ');
+    group.updateMatrixWorld(true);
+    const lying = new THREE.Box3().setFromObject(group);
+    const size = lying.getSize(new THREE.Vector3());
+    const centre = lying.getCenter(new THREE.Vector3());
+    const decal = buildDecal((Math.max(size.x, size.z) / 2) * DECAL_SPREAD);
+    decal.position.set(centre.x, groundY(k.fallTo) + DECAL_LIFT, centre.z);
+    scene.add(decal);
+    group.rotation.set(0, yaw, 0, 'YXZ');
     group.position.copy(m.from);
     scene.add(group);
-    const entry = { id: k.id, kind: k.kind, group, down: false, anim: 0 };
+    const entry = { id: k.id, kind: k.kind, group, decal, down: false, anim: 0 };
     items.push(entry);
     motion.set(entry, m);
   }
@@ -138,6 +180,7 @@ export function createKnockables(scene, list) {
   function pose(entry, t) {
     const m = motion.get(entry);
     const g = entry.group;
+    entry.decal.visible = t >= FALL; // touched down: the settle and after
     if (t >= DURATION) {
       g.position.copy(m.to);
       g.rotation.set(m.tip, m.yaw, 0, 'YXZ');
@@ -211,7 +254,9 @@ export function createKnockables(scene, list) {
       const mats = new Set();
       for (const e of items) {
         scene.remove(e.group);
+        scene.remove(e.decal);
         collect(e.group, geos, mats);
+        collect(e.decal, geos, mats);
       }
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();

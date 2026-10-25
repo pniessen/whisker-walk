@@ -29,6 +29,7 @@ const { DEN_SPOTS } = await import('../src/den.js');
 const { DISCS, patrolPath, borderMarks } = await import('../src/rivalclans.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
+const { createKnockables } = await import('../src/knockables.js');
 const {
   PROP_ID, isPropId, CARRY_KINDS, KNOCK_KINDS, REST_KINDS,
   propsFor, frameColliders, allPropIds,
@@ -39,7 +40,8 @@ const {
 // where a house or a pond actually is.
 const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks };
 const AREAS = Object.keys(BUILD);
-const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](new THREE.Scene())]));
+const scenes = Object.fromEntries(AREAS.map((a) => [a, new THREE.Scene()]));
+const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](scenes[a])]));
 const den = buildDen(new THREE.Scene(), { placed: {} });
 
 const MARGIN = 0.3;     // the brief's extra clearance for anything a cat walks up to
@@ -240,8 +242,16 @@ test.each(AREAS)('%s: each knockable sits on a real perch and falls onto walkabl
   for (const k of s.knockables) {
     // A perch every cat can climb: an ability-gated perch would hide the
     // knock behind Sure Claws.
-    const perch = area.perches.find((p) => !p.requires && dist(p, k) <= 0.6 && Math.abs(p.y - k.y) < 0.05);
+    // Never ON the perch point either: a perched cat snaps to that point, so
+    // a thing nearer than 0.35 m stands inside the cat (Task 10 review).
+    // Perch heights are authored roughly (a bench's sits 4 cm above its seat,
+    // the car roof's 7.5 cm below the cabin top), so the height match is
+    // loose; the raycast test below pins the thing to the real top face.
+    const perch = area.perches.find((p) => !p.requires && dist(p, k) >= 0.35 && dist(p, k) <= 0.6 && Math.abs(p.y - k.y) < 0.1);
     expect(perch, `${k.id} has no perch under it`).toBeDefined();
+    for (const p of area.perches) {
+      if (Math.abs(p.y - k.y) < 0.3) expect(dist(p, k), `${k.id} stands on a perch point`).toBeGreaterThanOrEqual(0.35);
+    }
     expect(k.y).toBeGreaterThan(0);
     expect(isWalkableAt(area, k.fallTo.x, k.fallTo.z), `${k.id} falls onto ${k.fallTo.x},${k.fallTo.z}`).toBe(true);
     const drop = dist(k, k.fallTo);
@@ -254,6 +264,68 @@ test.each(AREAS)('%s: each knockable sits on a real perch and falls onto walkabl
       expect(dist(s.knockables[i].fallTo, s.knockables[j].fallTo)).toBeGreaterThanOrEqual(0.5);
     }
   }
+});
+
+// Task 10 review: a knockable is the real mesh (knockables.js), so it is
+// checked against the real built area by raycasting straight down across its
+// whole footprint. Standing, every ray from half a metre above meets the
+// ledge's top face exactly at y, and a ray up from it meets nothing: nothing
+// hangs in the air, sinks into the ledge, or has something stacked over it. Landed, every ray meets the ground
+// exactly at fallTo.y (0 unless the thing lands on a deck or kerb), so the
+// landed thing neither floats nor sinks.
+test.each(AREAS)('%s: each knockable stands on its ledge\'s real top face and lands on the real ground', (a) => {
+  const scene = scenes[a];
+  scene.updateMatrixWorld(true);
+  const meshes = [];
+  scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  const rc = new THREE.Raycaster();
+  const down = new THREE.Vector3(0, -1, 0);
+  const topAt = (x, z, fromY) => {
+    rc.set(new THREE.Vector3(x, fromY, z), down);
+    rc.far = fromY + 1;
+    return rc.intersectObjects(meshes, false)[0]?.point.y ?? null;
+  };
+  // Points inside the thing's own (oriented) bounding box, seen from above —
+  // not its world-axis box, whose corners overhang a thing turned on a
+  // rotated bench.
+  const footprint = (group) => {
+    group.updateMatrixWorld(true);
+    const toLocal = group.matrixWorld.clone().invert();
+    const b = new THREE.Box3();
+    group.traverse((o) => {
+      if (!o.isMesh) return;
+      o.geometry.computeBoundingBox();
+      b.union(o.geometry.boundingBox.clone().applyMatrix4(toLocal.clone().multiply(o.matrixWorld)));
+    });
+    const pts = [];
+    const f = [0.1, 0.5, 0.9];
+    for (const fx of f) for (const fy of f) for (const fz of f) {
+      const p = new THREE.Vector3(
+        b.min.x + (b.max.x - b.min.x) * fx, b.min.y + (b.max.y - b.min.y) * fy, b.min.z + (b.max.z - b.min.z) * fz,
+      ).applyMatrix4(group.matrixWorld);
+      pts.push([p.x, p.z]);
+    }
+    return pts;
+  };
+  const spots = propsFor(a).knockables;
+  const ks = createKnockables(new THREE.Scene(), spots);
+  for (const e of ks.list) {
+    const k = spots.find((s) => s.id === e.id);
+    for (const [x, z] of footprint(e.group)) {
+      expect(topAt(x, z, k.y + 0.5), `${k.id} standing, at ${x.toFixed(2)},${z.toFixed(2)}`).toBeCloseTo(k.y, 2);
+      // ...and nothing over it (a ray that starts inside a stacked crate
+      // passes out through its top, so look up from the ledge as well)
+      rc.set(new THREE.Vector3(x, k.y + 0.005, z), new THREE.Vector3(0, 1, 0));
+      rc.far = 0.5;
+      expect(rc.intersectObjects(meshes, false), `${k.id}: something over ${x.toFixed(2)},${z.toFixed(2)}`).toEqual([]);
+    }
+    ks.knock(e);
+    ks.update(5);
+    for (const [x, z] of footprint(e.group)) {
+      expect(topAt(x, z, 3), `${k.id} landed, at ${x.toFixed(2)},${z.toFixed(2)}`).toBeCloseTo(k.fallTo.y ?? 0, 2);
+    }
+  }
+  ks.dispose();
 });
 
 test.each(AREAS)('%s: a flap opening is walkable and its frame is not', (a) => {

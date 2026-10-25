@@ -14,7 +14,7 @@
 // retire one by deleting its entry and never handing its id to anything else;
 // add one with the next number for its kind. Ids are `<area>-<kind>-<n>`.
 //
-// ZERO IMPORTS, on purpose. This is data plus two small functions, so every
+// ZERO IMPORTS, on purpose. This is data plus a few small functions, so every
 // consumer (the save sanitizer included) can read it without pulling in THREE
 // or a world builder. Nothing here checks placement: test/propsets.test.js
 // does, against the REAL built areas and src/rivalclans.js — walkable ground,
@@ -23,8 +23,11 @@
 //
 // What each list means, for the tasks that read it:
 //   carryables  on the ground, picked up in the mouth (Tasks 5-9).
-//   knockables  standing at (x, y, z) on an existing, ungated perch; a knock
-//               lands it at fallTo on the ground and it stays there (Task 10).
+//   knockables  standing at (x, y, z) on an existing, ungated perch: y is the
+//               ledge's real top face, (x, z) at least 0.35 m off the perch
+//               point the cat snaps to. A knock lands it at fallTo on the
+//               ground and it stays there (Task 10); fallTo.y is the height
+//               of the deck or kerb it lands on, when that is not 0.
 //   markables   (x, z) is the face of the post, trunk or bollard the claws
 //               reach (Task 11). A colliderless post or bollard is walked
 //               right up to. A tree's (x, z) sits on its trunk, inside its
@@ -56,6 +59,15 @@ export function isPropId(v) {
 
 export const CARRY_KINDS = Object.freeze(['sock', 'toymouse', 'leaf', 'stick', 'pinecone', 'acorn', 'shell', 'driftwood', 'cap', 'rope', 'glove', 'ribbon']);
 export const KNOCK_KINDS = Object.freeze(['cup', 'flowerpot', 'can', 'book', 'bucket']);
+// The word a child would use for each knockable: the knock's award label is
+// `the <noun> go over the edge 😼`, which the HUD shows after "You spotted ".
+const KNOCK_NOUNS = Object.freeze({ cup: 'cup', flowerpot: 'flowerpot', can: 'can', book: 'book', bucket: 'bucket' });
+
+// knockNoun(kind) → that word; anything else (an unknown kind, '__proto__',
+// a number) is 'thing'. Own keys only.
+export function knockNoun(kind) {
+  return typeof kind === 'string' && Object.hasOwn(KNOCK_NOUNS, kind) ? KNOCK_NOUNS[kind] : 'thing';
+}
 export const REST_KINDS = Object.freeze(['drink', 'eat', 'nap']);
 
 const QUARTER = Math.PI / 2;
@@ -69,12 +81,15 @@ const SETS = {
       { id: 'neighborhood-toymouse-2', kind: 'toymouse', x: 30.5, z: 21.8 },  // by the playground benches
     ],
     knockables: [
-      // A coffee cup somebody left on the blue car's roof.
-      { id: 'neighborhood-cup-1', kind: 'cup', x: -3.42, z: 20, y: 1.35, fallTo: { x: -1.84, z: 20.2 } },
+      // A coffee cup somebody left on the blue car's roof (the cabin's top,
+      // y 1.425); it lands on the pavement, 1 cm up.
+      { id: 'neighborhood-cup-1', kind: 'cup', x: -3.42, z: 20, y: 1.425, fallTo: { x: -1.84, z: 20.2, y: 0.01 } },
       // A potted geranium on the lean-to porch roof.
       { id: 'neighborhood-flowerpot-1', kind: 'flowerpot', x: -8.6, z: 17.7, y: 1.3, fallTo: { x: -7.4, z: 18.3 } },
-      // A library book forgotten on the playground bench.
-      { id: 'neighborhood-book-1', kind: 'book', x: 32, z: 24, y: 0.58, fallTo: { x: 32.8, z: 25 } },
+      // A library book forgotten at one end of the playground bench (seat top
+      // y 0.54), clear of the middle where a perched cat sits; it falls off
+      // the front of the seat.
+      { id: 'neighborhood-book-1', kind: 'book', x: 32.37, z: 23.67, y: 0.54, fallTo: { x: 33.2, z: 24.14 } },
     ],
     markables: [
       { id: 'neighborhood-post-1', kind: 'post', x: 26, z: -28, nearBorder: false, mesh: false },   // the dog yard's corner post
@@ -108,11 +123,14 @@ const SETS = {
     ],
     // A picnic left on the bench by the fountain path. It is the only perch in
     // the park every cat can climb that is not already a POI, a gold mouse's
-    // or the fountain scenic's — so all three share it, along the seat.
+    // or the fountain scenic's — so all three share it, along the seat (top
+    // y 0.54). The middle stays clear for the perched cat: the cup at one end,
+    // the book and the can at the other. The cup and the book fall off the
+    // front of the seat, never back through the backrest; the can off the end.
     knockables: [
-      { id: 'park-cup-1', kind: 'cup', x: -4.38, z: 14.32, y: 0.58, fallTo: { x: -5.3, z: 13.6 } },
-      { id: 'park-book-1', kind: 'book', x: -4, z: 14, y: 0.58, fallTo: { x: -4.7, z: 15 } },
-      { id: 'park-can-1', kind: 'can', x: -3.62, z: 13.68, y: 0.58, fallTo: { x: -2.9, z: 12.8 } },
+      { id: 'park-cup-1', kind: 'cup', x: -4.38, z: 14.32, y: 0.54, fallTo: { x: -3.96, z: 15.21 } },
+      { id: 'park-book-1', kind: 'book', x: -3.75, z: 13.68, y: 0.54, fallTo: { x: -3.3, z: 14.6 } },
+      { id: 'park-can-1', kind: 'can', x: -3.5, z: 13.68, y: 0.54, fallTo: { x: -2.9, z: 12.8, y: 0.01 } },
     ],
     markables: [
       { id: 'park-tree-1', kind: 'tree', x: -25.65, z: -14, nearBorder: false, mesh: false }, // west oak, east face
@@ -146,12 +164,16 @@ const SETS = {
     ],
     // A beach picnic left on the north boardwalk bench, along its seat. The
     // bench is the one climbable seaside perch that is not a POI's, a gold
-    // mouse's, or behind Sure Claws; x 17.9 keeps all three 2 m off the POI
-    // at (20, 14).
+    // mouse's, or behind Sure Claws; staying near x 18 keeps all three 2 m off
+    // the POI at (20, 14). The seat's top is y 0.54 and its backrest runs along
+    // x 17.75, so they all fall forward, off the seat's front (+x), onto the
+    // boardwalk (y 0.03). The middle
+    // stays clear for the perched cat: the bucket at one end, the cup and the
+    // book at the other.
     knockables: [
-      { id: 'seaside-bucket-1', kind: 'bucket', x: 17.9, z: 13.5, y: 0.58, fallTo: { x: 16.9, z: 12.9 } },
-      { id: 'seaside-cup-1', kind: 'cup', x: 17.9, z: 14, y: 0.58, fallTo: { x: 16.8, z: 14.3 } },
-      { id: 'seaside-book-1', kind: 'book', x: 17.9, z: 14.5, y: 0.58, fallTo: { x: 19, z: 15.1 } },
+      { id: 'seaside-bucket-1', kind: 'bucket', x: 17.95, z: 13.5, y: 0.54, fallTo: { x: 18.95, z: 13.4, y: 0.03 } },
+      { id: 'seaside-cup-1', kind: 'cup', x: 17.92, z: 14.4, y: 0.54, fallTo: { x: 18.9, z: 14.3, y: 0.03 } },
+      { id: 'seaside-book-1', kind: 'book', x: 18.05, z: 14.59, y: 0.54, fallTo: { x: 18.95, z: 14.85, y: 0.03 } },
     ],
     markables: [
       { id: 'seaside-post-1', kind: 'post', x: 20, z: 30, nearBorder: false, mesh: false },    // the north boardwalk lamp post
@@ -185,9 +207,11 @@ const SETS = {
       { id: 'docks-glove-1', kind: 'glove', x: 14.5, z: 9.8 }, // a work glove by the warehouse crates
     ],
     knockables: [
-      // Somebody's tea, on a quayside bollard.
-      { id: 'docks-cup-1', kind: 'cup', x: 6, z: 4.3, y: 0.55, fallTo: { x: 6.6, z: 5.4 } },
-      // A fish bucket on the crate by the fish market.
+      // Somebody's tea, on the crate by the fish market, beside the fish
+      // bucket. (It used to sit on a quayside bollard, but a bollard's top is
+      // only 0.38 m across, so a perched cat stood right on it.)
+      { id: 'docks-cup-1', kind: 'cup', x: 4.3, z: -19.9, y: 1.1, fallTo: { x: 4.9, z: -19.2 } },
+      // A fish bucket on the same crate.
       { id: 'docks-bucket-1', kind: 'bucket', x: 3.7, z: -19.9, y: 1.1, fallTo: { x: 3, z: -19 } },
       // A paint can on the crate at the foot of the crane.
       { id: 'docks-can-1', kind: 'can', x: -19.6, z: -17, y: 1.3, fallTo: { x: -19.8, z: -18.3 } },

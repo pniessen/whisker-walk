@@ -1007,9 +1007,10 @@ export function createWalkLifecycle({
     // v21 3b Task 10 — the cups, pots and books a perched cat can knock off a
     // ledge. A knocked one stays down for the rest of this walk and nothing is
     // saved. Created after mergeStaticProps, so nothing here is merged; the
-    // den's list is empty. Deliberately NOT given a contact decal below: a
-    // mover decal sits on the ground under its object, so a cup on a car roof
-    // (or in mid-fall) would trail a shadow blob along the road.
+    // den's list is empty. Deliberately NOT registered with the mover decals
+    // below: a mover decal sits on the ground under its object, so a cup on a
+    // car roof (or in mid-fall) would trail a shadow blob along the road.
+    // knockables.js lays its own fixed decal under each one once it lands.
     const knockables = createKnockables(scene, propsFor(areaId).knockables);
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; the outdoor half

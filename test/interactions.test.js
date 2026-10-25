@@ -5,6 +5,7 @@ import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
 import { createKnockables } from '../src/knockables.js';
+import { KNOCK_KINDS } from '../src/propsets.js';
 import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression, CATALOG } from '../src/progression.js';
@@ -838,7 +839,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         h.press();
         expect(h.cup.down).toBe(true);
         expect(h.discoveries).toEqual([{
-          type: 'mischief', key: 'knock-neighborhood-cup-1', label: 'knocked it off the ledge!',
+          type: 'mischief', key: 'knock-neighborhood-cup-1', label: 'the cup go over the edge 😼',
           points: AWARDS.mischief, repeat: false,
         }]);
         expect(h.progression.state.points).toBe(AWARDS.mischief);
@@ -855,6 +856,41 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.discoveries).toHaveLength(1);
       expect(h.progression.state.points).toBe(AWARDS.mischief);
       expect(h.progression.state.feats.mischief).toBe(1);
+    });
+
+    // Ruling R19: the HUD toasts every discovery as "You spotted <label>"
+    // (ui/hud.js), so the label must be a noun phrase like the tip's.
+    it('the knock label reads well after "You spotted ", for every kind', () => {
+      const hud = readFileSync(new URL('../src/ui/hud.js', import.meta.url), 'utf8');
+      expect(hud).toContain("'You spotted '");
+      const said = {};
+      for (const kind of KNOCK_KINDS) {
+        const h = knockHarness({ knockables: [{ ...CUP, id: `docks-${kind}-1`, kind }] });
+        try {
+          h.walkTo(LEDGE.x, LEDGE.z);
+          h.press();
+        } finally {
+          h.off?.();
+        }
+        expect(h.discoveries).toHaveLength(1);
+        expect(h.discoveries[0].key).toBe(`knock-docks-${kind}-1`);
+        said[kind] = `You spotted ${h.discoveries[0].label}`;
+      }
+      expect(said).toEqual({
+        cup: 'You spotted the cup go over the edge 😼',
+        flowerpot: 'You spotted the flowerpot go over the edge 😼',
+        can: 'You spotted the can go over the edge 😼',
+        book: 'You spotted the book go over the edge 😼',
+        bucket: 'You spotted the bucket go over the edge 😼',
+      });
+      // an unknown kind is still a sentence, never "the undefined"
+      for (const kind of ['teapot', '__proto__', 'constructor']) {
+        const h = knockHarness({ knockables: [{ ...CUP, kind }] });
+        h.walkTo(LEDGE.x, LEDGE.z);
+        h.press();
+        h.off?.();
+        expect(`You spotted ${h.discoveries[0].label}`).toBe('You spotted the thing go over the edge 😼');
+      }
     });
 
     it('a knock pays exactly what a tip pays: the same award type, points and feat', () => {

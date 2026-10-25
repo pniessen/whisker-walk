@@ -28,6 +28,7 @@ import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
+import { knockNoun } from '../propsets.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -1219,7 +1220,10 @@ export function createInteractions({
       // have knocked it since the prompt was drawn), so nothing pays twice.
       const target = s.prompt.data;
       if (s.knockables?.knock(target)) {
-        log.awardOnce('mischief', 'knock-' + target.id, 'knocked it off the ledge!');
+        // A noun phrase, like the tip's 'a gravity check 🐾': the HUD toasts
+        // every discovery as "You spotted <label>" (ui/hud.js), so this reads
+        // "You spotted the cup go over the edge 😼".
+        log.awardOnce('mischief', 'knock-' + target.id, `the ${knockNoun(target.kind)} go over the edge 😼`);
         s.critters.dismayNear(target.group.position, 8);
         if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'knock', knockId: target.id });
       }
