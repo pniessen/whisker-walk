@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   renderColonyHtml, renderPairingHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine,
   renderTradesHtml, tradeErrorLine, confirmClickAllowed, CONFIRM_DELAY_MS,
+  renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from '../src/ui/colonypanel.js';
 import { emptyColony, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
@@ -650,5 +651,67 @@ describe('renderTradesHtml — offers I should not accept', () => {
   it('still offers Swap! for a good offer', () => {
     expect(renderTradesHtml({ colony: colonyWith({}), me: ME, owned: ['bell', 'tophat'], catalog: CATALOG, state: {} }))
       .toMatch(/data-trade-action="accept"/);
+  });
+});
+
+// v21 Stream 2, Task 12 — pair walks: no code to type, and either sibling's
+// Start works. homebase.js renders these into the hero and Social's Walk
+// together section.
+describe('walk together with your partner (Task 12)', () => {
+  const paired = { mode: 'paired' };
+  const room = (o = {}) => ({ code: 'ABCD', roster: [], isHost: false, pair: false, starting: false, ...o });
+  const HOSTILE = { playerId: PARTNER, petName: '<img src=x onerror=alert(1)>', wardrobe: [] };
+
+  it('every room member gets the same Start; nobody waits for the host', () => {
+    for (const isHost of [true, false]) {
+      const html = renderStartButtonHtml(room({ isHost }));
+      expect(html).toContain('Start the walk together 🐾');
+      expect(html).not.toContain('disabled');
+      expect(html).not.toMatch(/Waiting for host/);
+    }
+    expect(renderStartButtonHtml(null)).toContain('Start the walk 🐾');
+    expect(renderStartButtonHtml(null)).not.toContain('together');
+    expect(renderStartButtonHtml(null)).toMatch(/id="btn-start"/);
+  });
+
+  it('a Start that is waiting for the host reads "Starting…" and cannot be pressed again', () => {
+    const html = renderStartButtonHtml(room({ starting: true }));
+    expect(html).toContain('Starting…');
+    expect(html).toContain('disabled');
+    expect(html).toMatch(/id="btn-start"/);
+  });
+
+  it('paired: one button, the partner named, nothing to type', () => {
+    const html = renderPartnerWalkHtml({ status: paired, colony: colonyOf({ partner: PAIR }), room: null });
+    expect(html).toContain('🐾 Walk with Robin');
+    expect(html).toMatch(/<button[^>]*id="wt-pair-walk"/);
+    expect(html).not.toMatch(/<input/);
+  });
+
+  it('no button unless paired, and none while already in a room', () => {
+    for (const mode of ['local', 'unpaired', 'needs-name', 'offline', 'not-set-up']) {
+      expect(renderPartnerWalkHtml({ status: { mode }, colony: colonyOf({ partner: PAIR }), room: null })).toBe('');
+    }
+    expect(renderPartnerWalkHtml({ status: paired, colony: colonyOf({ partner: PAIR }), room: room() })).toBe('');
+    expect(renderPartnerWalkHtml({ status: paired, colony: colonyOf(), room: null })).toBe('');
+    expect(renderPartnerWalkHtml({ status: null, colony: null, room: null })).toBe('');
+  });
+
+  it("a pair room reads 'Walking with …' instead of a code to share", () => {
+    const html = renderRoomTitleHtml(room({ pair: true, code: 'P0123456789abcdef' }), colonyOf({ partner: PAIR }));
+    expect(html).toBe('Walking with Robin');
+    expect(html).not.toContain('0123456789abcdef');
+    expect(renderRoomTitleHtml(room({ code: 'ABCD' }), colonyOf({ partner: PAIR }))).toBe('Room ABCD — share this code!');
+    expect(renderRoomTitleHtml(room({ pair: true }), colonyOf())).toBe('Walking with your partner');
+  });
+
+  it("escapes the partner's name everywhere it appears", () => {
+    const colony = colonyOf({ partner: HOSTILE });
+    const btn = renderPartnerWalkHtml({ status: paired, colony, room: null });
+    const title = renderRoomTitleHtml(room({ pair: true }), colony);
+    const code = renderRoomTitleHtml(room({ code: '<b>' }), colony);
+    for (const html of [btn, title, code]) expect(html).not.toMatch(/<img|<b>/);
+    expect(btn).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(title).toContain('&lt;img');
   });
 });

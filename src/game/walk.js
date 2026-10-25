@@ -261,7 +261,9 @@ export function createWalkLifecycle({
   player, progression, settings, hud, audio, music, log, touchUI, catVoice,
   getCloud, getSession, setSession, getIsTouch, getHomebase,
   getPendingRoom, clearPendingRoom, pushProfileNow,
-  awardStrayGreet, applyRemoteEvent, cloudToast,
+  // game/rooms.js: the room branches of the home base's Start (Task 12).
+  hostRoomWalk, requestRoomWalk,
+  awardStrayGreet, applyRemoteEvent,
   // v21 Stream 2: game/colonysync.js. Optional; later colony tasks use it.
   colonySync,
 }) {
@@ -406,37 +408,27 @@ export function createWalkLifecycle({
     }
   }
 
-  // homebase's Start button always calls this; solo play (no room, or a
-  // joiner who — thanks to the disabled "Waiting for host…" button — never
-  // gets a click through) is unaffected. Only the host actually reaches the
-  // room branch, and it's the host who owns the shared seed: it's computed
-  // once here and carried to everyone (including the host) via walk-config.
+  // homebase's Start button always calls this. Solo (no room) it starts the
+  // walk. In a room it never starts a walk alone — a member walking solo
+  // would see a different world from the room it is still in:
+  //   * the host starts everyone (game/rooms.js's hostRoomWalk: one fresh
+  //     seed, carried to everyone, the host included, via walk-config);
+  //   * any other member asks the host for a walk in THEIR area (v21 Stream 2,
+  //     Task 12's walk-request — rooms.js's requestRoomWalk), and the home
+  //     base shows "Starting…" until the host's walk-config arrives or the
+  //     wait runs out. A second press while waiting does nothing.
+  // isHost() is read here, at the click, not from the last render, so a
+  // host flip between the two (the host leaving, or a smaller playerId
+  // joining) just picks the other branch.
   function beginWalkFromHomebase({ duskMode }) {
     const pendingRoom = getPendingRoom();
-    if (pendingRoom) {
-      if (pendingRoom.net.isHost()) {
-        const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
-        pendingRoom.net.sendEvent({
-          v: 1, id: pid, type: 'walk-config',
-          area: progression.state.area, dusk: duskMode, seed,
-        });
-        startWalk({ duskMode, roomSeed: seed });
-      } else {
-        // Host-flip race: the Start button only renders enabled when
-        // rooms.getState().isHost was true as of the LAST render — a
-        // roster change (the host leaving, or a smaller playerId joining)
-        // can flip isHost() false in the window between that render and
-        // this click. Falling through to a solo walk here would spawn
-        // ghosts (see spawnGhosts) into what should still be a room
-        // member's walk, and would leave pendingRoom dangling (never
-        // left) — so stay on the home base screen and let them rejoin
-        // instead of silently downgrading to solo.
-        cloudToast('Host changed — rejoin the room to start.');
-        getHomebase().refresh();
-      }
-    } else {
+    if (!pendingRoom) {
       startWalk({ duskMode });
+      return;
     }
+    const opts = { area: progression.state.area, dusk: !!duskMode };
+    if (pendingRoom.net.isHost()) hostRoomWalk(opts);
+    else requestRoomWalk(opts);
   }
 
   // The den button's variant (Task 7.2): the den never joins a room walk

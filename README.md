@@ -31,8 +31,9 @@ Up to 4 players can share a live walk — one shared seeded world, everyone's
 pet rendered in real time, plus touch-noses, duet meows, yarn rallies, and
 nap piles. From the home base screen: name your pet, then either **Host a
 walk** (get a 4-character room code to share) or **Join** with a code a
-friend sent you. The host picks the area and starts the walk for everyone;
-joiners' Start button reads "Waiting for host…" until then.
+friend sent you. Anyone in the room can press **Start the walk together**:
+the walk starts for everyone, in the area of whoever pressed it. Siblings who
+share a colony get a **Walk with …** button instead — no code to type.
 
 During a co-walk, tap the 💬 button to open a tray of curated phrases and
 emotes — no free text, so chat is always safe to broadcast. Picked phrases

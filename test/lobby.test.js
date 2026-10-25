@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rosterIsPartnerOnly } from '../src/game/lobby.js';
+import { rosterIsPartnerOnly, decideLobbyEvent } from '../src/game/lobby.js';
 
 // v21 Stream 2, Task 6. game/walk.js asks this at walk start: colony cats
 // spawn in a room walk only when everyone else in the room is my colony
@@ -26,5 +26,67 @@ describe('rosterIsPartnerOnly (Review Focus 2)', () => {
     expect(rosterIsPartnerOnly('me,sib', 'me', 'sib')).toBe(false);
     expect(rosterIsPartnerOnly(['me', 'sib'], 'me', '')).toBe(false);
     expect(rosterIsPartnerOnly(['me', null], 'me', 'sib')).toBe(false);
+  });
+});
+
+// v21 Stream 2, Task 12. Either sibling can press Start: a member's Start
+// sends 'walk-request', the host answers with 'walk-config' for the
+// requester's area, and walk-config from the host starts everyone.
+describe('decideLobbyEvent', () => {
+  const R = [{ playerId: 'a-host' }, { playerId: 'b-kid' }];
+  const ctx = (o = {}) => ({
+    roster: R, selfId: 'a-host', inWalk: false,
+    knownAreas: ['neighborhood', 'park', 'seaside', 'docks'], unlockedAreas: ['neighborhood'], ...o,
+  });
+
+  it("the host answers a member's request with a config for THEIR area", () => {
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'park', dusk: 1 }, ctx()))
+      .toEqual({ kind: 'config', area: 'park', dusk: true });
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'docks' }, ctx()))
+      .toEqual({ kind: 'config', area: 'docks', dusk: false });
+  });
+
+  it('only the host answers, and never mid-walk', () => {
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'a-host', area: 'park' }, ctx({ selfId: 'b-kid' }))).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'park' }, ctx({ inWalk: true }))).toBe(null);
+  });
+
+  it('a request must come from someone else in the room', () => {
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'stranger', area: 'park' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'a-host', area: 'park' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', area: 'park' }, ctx())).toBe(null);
+  });
+
+  it('ignores unknown areas and non-host configs', () => {
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'moon' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'den' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'constructor' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'b-kid', area: 'park', seed: 1 }, ctx({ selfId: 'b-kid' }))).toBe(null);
+  });
+
+  it('a host config starts everyone, with an override for a locked area', () => {
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'a-host', area: 'park', dusk: false, seed: 7 }, ctx({ selfId: 'b-kid' })))
+      .toEqual({ kind: 'start', area: 'park', dusk: false, seed: 7, override: true });
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'a-host', area: 'neighborhood', dusk: 1, seed: 0 }, ctx({ selfId: 'b-kid' })))
+      .toEqual({ kind: 'start', area: 'neighborhood', dusk: true, seed: 0, override: false });
+  });
+
+  it('a config with no usable seed or area, or mid-walk, starts nothing', () => {
+    // A missing seed would make startWalk read the walk as solo (roomSeed
+    // undefined), so it must never get that far.
+    const base = { type: 'walk-config', id: 'a-host', area: 'park', dusk: false };
+    expect(decideLobbyEvent(base, ctx({ selfId: 'b-kid' }))).toBe(null);
+    expect(decideLobbyEvent({ ...base, seed: '7' }, ctx({ selfId: 'b-kid' }))).toBe(null);
+    expect(decideLobbyEvent({ ...base, seed: NaN }, ctx({ selfId: 'b-kid' }))).toBe(null);
+    expect(decideLobbyEvent({ ...base, seed: 7, area: 'moon' }, ctx({ selfId: 'b-kid' }))).toBe(null);
+    expect(decideLobbyEvent({ ...base, seed: 7 }, ctx({ selfId: 'b-kid', inWalk: true }))).toBe(null);
+  });
+
+  it('is total over garbage', () => {
+    expect(decideLobbyEvent(null, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'meow', id: 'b-kid' }, ctx())).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'park' }, ctx({ roster: null }))).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'park' }, ctx({ roster: [] }))).toBe(null);
+    expect(decideLobbyEvent({ type: 'walk-request', id: 'b-kid', area: 'park' }, {})).toBe(null);
   });
 });

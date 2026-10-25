@@ -406,3 +406,39 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
     <p class="colony-trade-forever">${NO_TAKE_BACKS}</p>${err}
   </section>`;
 }
+
+// ── Walk together with your partner (Task 12) ──────────────────────────
+// `room` is rooms.getState(): null outside a room, else { code, roster,
+// isHost, pair, starting }. These three go into homebase.js's hero and its
+// Social › Walk together section.
+
+function partnerOf(colony) {
+  const p = colony && colony.partner;
+  return p && typeof p === 'object' ? p : null;
+}
+const partnerNameOf = (partner) => (partner && partner.petName ? String(partner.petName) : 'your partner');
+
+// The home base's Start. In a room every member gets the same button: the
+// host's starts everyone, anyone else's asks the host (game/rooms.js), so
+// nobody is told to wait. While that ask is out it reads "Starting…" and is
+// disabled, so a second press can't send a second ask.
+export function renderStartButtonHtml(room) {
+  if (!room) return '<button id="btn-start" class="primary">Start the walk 🐾</button>';
+  if (room.starting) return '<button id="btn-start" class="primary" disabled>Starting…</button>';
+  return '<button id="btn-start" class="primary">Start the walk together 🐾</button>';
+}
+
+// One button, no code to type: only while paired (status.mode is 'local'
+// whenever multiplayer is off) and not already in a room.
+export function renderPartnerWalkHtml({ status, colony, room } = {}) {
+  const partner = partnerOf(colony);
+  if (!status || status.mode !== 'paired' || !partner || room) return '';
+  return `<button id="wt-pair-walk" class="primary">🐾 Walk with ${escapeHtml(partnerNameOf(partner))}</button>`;
+}
+
+// The room panel's heading. A pair room's code is the colony id, which is
+// never shown: it reads as who you're walking with instead.
+export function renderRoomTitleHtml(room, colony) {
+  if (room && room.pair) return `Walking with ${escapeHtml(partnerNameOf(partnerOf(colony)))}`;
+  return `Room ${escapeHtml(room && room.code)} — share this code!`;
+}

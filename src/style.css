@@ -285,6 +285,7 @@ body.left-handed .tui-pause {
 .settings-section .danger { background: transparent; color: #d08080; }
 .wt-petname, .wt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .wt-petname { margin-bottom: 10px; }
+.wt-pair { margin-bottom: 12px; }
 .wt-petname input, .wt-join-row input {
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
   padding: 8px 10px; color: #fff; font-size: 16px; /* >=16px prevents iOS Safari auto-zoom on focus */

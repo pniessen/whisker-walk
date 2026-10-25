@@ -5,6 +5,7 @@ import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
   theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
+  renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
@@ -245,10 +246,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return `<div class="tag">multiplayer not configured</div>`;
     }
     const st = rooms.getState();
+    const colony = progression.state.colony;
     if (st) {
       return `
         <div class="wt-room">
-          <div class="wt-room-code">Room ${escapeHtml(st.code)} — share this code!</div>
+          <div class="wt-room-code">${renderRoomTitleHtml(st, colony)}</div>
           <div class="wt-roster">
             ${st.roster.length
               ? st.roster.map((p) => `<span class="wt-roster-chip">🟢 ${escapeHtml(p.petName)}</span>`).join('')
@@ -262,7 +264,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // own recordGreet calls are denied server-side), so their greets would
     // silently fail — Join is gated the same as Host, not just Host.
     const hasValidPetName = validPetName(name);
+    // Paired siblings get their own room with nothing to type (Task 12).
+    const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
     return `
+      ${pairWalk ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
@@ -652,7 +657,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const today = new Date().toISOString().slice(0, 10);
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     const roomState = rooms && rooms.available ? rooms.getState() : null;
-    const waitingForHost = !!(roomState && !roomState.isHost);
     root.innerHTML = `
       <div class="homebase-scroll">
         <div class="hb-topbar">
@@ -672,9 +676,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             </header>
             <div class="hb-hero-start">
               ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
-              ${waitingForHost
-                ? `<button id="btn-start" class="primary" disabled>Waiting for host…</button>`
-                : `<button id="btn-start" class="primary">Start the walk 🐾</button>`}
+              ${renderStartButtonHtml(roomState)}
               ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}
             </div>
           </div>
@@ -875,6 +877,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const res = await rooms.join(code);
       if (!res.ok) joinError = 'Could not join that room — check the code and try again.';
       else joinError = null;
+      render();
+      return;
+    }
+    if (e.target.id === 'wt-pair-walk') {
+      joinError = null;
+      e.target.disabled = true;
+      const res = await rooms.walkWithPartner();
+      if (!res.ok) joinError = 'Could not start your walk together — try again.';
       render();
       return;
     }

@@ -238,6 +238,8 @@ function init() {
   } = createNetEvents({
     MP, getCloud, getPsecret, log, hud, audio, samples, catVoice,
     applyGoalResult: (s, res) => applyGoalResult(s, res),
+    // v21 Stream 2: who may show a live 'colony-feed' (display only).
+    getPartner: () => progression.state.colony?.partner ?? null,
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -294,7 +296,7 @@ function init() {
   // clearPendingRoom below. startWalk is passed as a thunk because it is
   // declared further down — nothing can reach it before init() returns.
   const {
-    rooms, pushProfileNow, getPendingRoom, clearPendingRoom,
+    rooms, pushProfileNow, getPendingRoom, clearPendingRoom, hostRoomWalk, requestRoomWalk,
   } = createRooms({
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -302,6 +304,7 @@ function init() {
     progression, getCloud, getPsecret, colonySync,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
+    toast: cloudToast,
   });
 
   // The walk lifecycle (src/game/walk.js). main.js keeps the `session`
@@ -320,8 +323,8 @@ function init() {
     setSession: (next) => { session = next; },
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
-    getPendingRoom, clearPendingRoom, pushProfileNow,
-    awardStrayGreet, applyRemoteEvent, cloudToast, colonySync,
+    getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
+    awardStrayGreet, applyRemoteEvent, colonySync,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the

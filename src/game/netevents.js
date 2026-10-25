@@ -10,8 +10,11 @@ import * as THREE from 'three';
 import { tagState } from '../verbs.js';
 import { voiceFor } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
+import { isStrayName } from '../straynames.js';
 
-export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult }) {
+// getPartner() → my colony partner ({ playerId, petName, wardrobe }) or null
+// (v21 Stream 2). Optional: without it no colony-feed is ever shown.
+export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner }) {
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
   }
@@ -193,7 +196,28 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       if (ev.toId === s.playerId) completeTag(s, ev.id);
     } else if (ev.type === 'goal-progress') {
       if (s.goals) applyGoalResult(s, s.goals.noteDuoRemote(ev.goalId));
+    } else if (ev.type === 'colony-feed') {
+      showPartnerFeed(s, ev);
     }
+  }
+
+  // v21 Stream 2 — my partner fed a colony cat on this walk (sent by
+  // game/interactions.js's feedStray). DISPLAY ONLY: a toast and a burst at
+  // that stray. It never writes the save — the durable feed reaches me
+  // through colonysync's next pull, sanitized there like every cloud value.
+  // Only on a colony walk (everyone else is my partner), only from my
+  // partner's id, and only for a name from CAT_NAMES, so nothing else can put
+  // words on my screen. The toast is textContent (hud.toast), so the
+  // partner's pet name is never markup.
+  function showPartnerFeed(s, ev) {
+    if (!s.colonyWalk) return;
+    const partner = getPartner?.();
+    if (!partner || typeof partner.playerId !== 'string' || ev.id !== partner.playerId) return;
+    if (!isStrayName(ev.cat)) return;
+    const who = partner.petName ? String(partner.petName) : 'Your partner';
+    hud.toast(`${who} fed ${ev.cat} 🐟`);
+    const stray = s.strayCats?.strays?.find((c) => c.name === ev.cat);
+    if (stray) s.fx?.burst(stray.group.position, 0xf2c14e, 12);
   }
 
   return { petNameFor, turnToFace, completeBoop, completeTag, noteBat, maybeSnipeToast, applyRemoteEvent };
