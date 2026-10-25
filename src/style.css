@@ -80,6 +80,22 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
    touchstart (see onFirstTouch in main.js), where the media query never
    matches. */
 body.touch-mode .hud-controls { display: none; }
+/* On touch the toast stack sits ABOVE the yellow prompt pill (bottom 96px) and
+   the 2x2 round action cluster (.tui-actions: bottom 88px + two 56px rows and
+   a 10px gap = 210px), so a toast such as the rain slip is never hidden under
+   them. 224px clears the cluster with a small gap; the width is capped to the
+   screen so a long toast wraps inside it instead of being squeezed into the
+   half-screen left of the toasts' 50% anchor. Desktop keeps 110px above. */
+@media (pointer: coarse) {
+  .hud-toasts {
+    bottom: calc(224px + env(safe-area-inset-bottom));
+    width: max-content; max-width: calc(100vw - 32px);
+  }
+}
+body.touch-mode .hud-toasts {
+  bottom: calc(224px + env(safe-area-inset-bottom));
+  width: max-content; max-width: calc(100vw - 32px);
+}
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   font-size: 1.6rem; opacity: 0.7;

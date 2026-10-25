@@ -185,6 +185,15 @@ describe('isRaining', () => {
     expect(w.isRaining()).toBe(false);
   });
 
+  it('flips exactly at stopAt: rain just before, the rainbow from stopAt on', () => {
+    const before = createWeather(scene(), sun(), 'rain', () => 0, true); // stopAt is exactly 60
+    before.update(59.99, cam());
+    expect(before.isRaining()).toBe(true);
+    const atStop = createWeather(scene(), sun(), 'rain', () => 0, true);
+    atStop.update(60, cam()); // phase(t) is t < stopAt, so 60 itself is the rainbow
+    expect(atStop.isRaining()).toBe(false);
+  });
+
   it('is false on clear and sunset walks, always', () => {
     for (const condition of ['clear', 'sunset']) {
       const w = createWeather(scene(), sun(), condition, () => 0, true);
