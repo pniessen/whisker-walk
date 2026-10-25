@@ -1019,7 +1019,8 @@ export function createInteractions({
     // or unpaired — colonysync re-pushes anything the server lacks on its
     // next pull). The live copy goes to the room only on a colony walk, where
     // everyone else is my partner: it is display-only, never saved, and
-    // carries a CAT_NAMES name and nothing else (no free text on the wire).
+    // carries a stray name (CAT_NAMES or KIT_NAMES, the names feedStray can
+    // feed) and nothing else (no free text on the wire).
     colonySync?.pushFeed({ cat: name, walk: s.walkStamp });
     if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
 

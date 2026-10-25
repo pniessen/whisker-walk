@@ -283,9 +283,11 @@ const KNOCKED_R = 0.22;     // a knocked-over cup or pot, so a little one never 
 // in a box), takes no DEN_HOMES entry and is never in `list`, so nearest() and
 // pet() stay about the adults. The return value's `littles` is the handle for
 // whatever later wants to act on them:
-//   [{ name, queen, breed, group, tag }]
-// where `group` is the world-positioned holder (group.position is where it sits)
-// and `breed` is strayBreed(name), the little one's own stored-name breed.
+//   [{ name, queen, breed, group, body, tag, phase }]
+// where `group` is the world-positioned holder (group.position is where it sits),
+// `body` is the cat model inside it (what is animated), `tag` its name tag (if
+// one was made), `phase` the per-name idle-animation offset, and `breed` is
+// strayBreed(name), the little one's own stored-name breed.
 export function createDenCats(scene, cats, { reducedMotion = false, obstacles = [], kits = [] } = {}) {
   const list = [];
   const props = [];
