@@ -107,9 +107,114 @@ function catCard(cat, p, ctx) {
   </div>`;
 }
 
+// ---- Pairing (Task 9) -------------------------------------------------------
+// Pure too: the home base owns the state (busy, error, the half-typed code)
+// and the timer; everything it decides or prints comes from here so it can be
+// tested without a DOM.
+
+// The characters an invite code can contain (no 0/O, 1/I/L), as the SQL mints.
+export const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const INVITE_CODE_LENGTH = 6;
+export const PAIRING_POLL_MS = 3000;
+
+// What the code box holds: uppercase, only invite characters, at most 6.
+// Spaces and look-alike characters (0, O, 1, I, L) are dropped as typed.
+export function sanitizeInviteCode(raw) {
+  let out = '';
+  for (const ch of String(raw ?? '').toUpperCase()) {
+    if (INVITE_ALPHABET.includes(ch)) out += ch;
+    if (out.length >= INVITE_CODE_LENGTH) break;
+  }
+  return out;
+}
+
+// Is a pairing waiting on the other person: I have an open code, or I typed
+// theirs and await their yes? Only an 'unpaired' status can be pending.
+export function pairingPending(status) {
+  return !!status && status.mode === 'unpaired' && !!(status.invite || status.joining);
+}
+
+// The poll runs only while a pairing is pending, the Colony tab is showing, the
+// home base is on screen and no walk is under way. (Visible already implies no
+// walk; the flag is the belt to that braces.)
+export function shouldPollPairing(status, { tab, visible, inWalk = false } = {}) {
+  return pairingPending(status) && tab === 'colony' && visible === true && inWalk !== true;
+}
+
+// A plain line for each way a pairing step can fail; null when it did not.
+export function pairingErrorLine(word) {
+  switch (word) {
+    case 'ok': case 'pending': case 'paired': case 'declined': return null;
+    case 'bad-code': return "That code didn't work — check it and try again.";
+    case 'already-paired': return 'This player is already sharing a colony.';
+    case 'taken': return 'Someone else is already using that code.';
+    case 'self': return "That's your own code! Give it to them to type in.";
+    case 'no-joiner': return 'Nobody is waiting for a yes right now.';
+    default: return 'Something went wrong — try again.';
+  }
+}
+
+// renderPairingHtml(status, { busy, error, hasPetName, code }) -> HTML string.
+// Every name is escaped once, here. `error` is plain text (see pairingErrorLine).
+export function renderPairingHtml(status, { busy = false, error = null, hasPetName = true, code = '' } = {}) {
+  if (!status) return '';
+  const mode = status.mode;
+  const err = error ? `<p class="colony-pair-error" role="alert">${escapeHtml(error)}</p>` : '';
+  const off = busy ? ' disabled' : '';
+
+  if (mode === 'needs-name') {
+    return `<div class="colony-pair" data-pair="needs-name">
+      <p class="colony-pair-text">Give your pet a name in Social first, then you can share your colony.</p>
+    </div>`;
+  }
+  if (mode !== 'unpaired') return ''; // local, not-set-up, offline, paired
+
+  const invite = status.invite && typeof status.invite === 'object' ? status.invite : null;
+  const joining = status.joining && typeof status.joining === 'object' ? status.joining : null;
+
+  if (invite && invite.joinerPetName) {
+    const who = escapeHtml(invite.joinerPetName);
+    return `<div class="colony-pair" data-pair="confirm">
+      <p class="colony-pair-text"><strong>${who}</strong> wants to share your colony. Is that them?</p>
+      <div class="colony-pair-row">
+        <button type="button" id="colony-pair-yes" class="colony-pair-btn"${off}>Yes, share!</button>
+        <button type="button" id="colony-pair-no" class="colony-pair-btn secondary"${off}>No</button>
+      </div>${err}
+    </div>`;
+  }
+  if (invite) {
+    return `<div class="colony-pair" data-pair="inviting">
+      <p class="colony-pair-text">Your code: <strong class="colony-pair-code">${escapeHtml(invite.code)}</strong> — read it out to them. It works for 20 minutes.</p>
+      <p class="colony-pair-wait">Waiting for them to type it…</p>${err}
+    </div>`;
+  }
+  if (joining) {
+    return `<div class="colony-pair" data-pair="joining">
+      <p class="colony-pair-wait">Waiting for <strong>${escapeHtml(joining.inviterPetName)}</strong> to say yes…</p>${err}
+    </div>`;
+  }
+  const dis = busy || !hasPetName ? ' disabled' : '';
+  return `<div class="colony-pair" data-pair="offer">
+    <p class="colony-pair-text">🐈 Share your colony with your brother or sister</p>
+    <div class="colony-pair-row">
+      <button type="button" id="colony-pair-open" class="colony-pair-btn"${dis}>Get a sharing code</button>
+    </div>
+    <div class="colony-pair-row">
+      <label class="colony-pair-label" for="colony-pair-code">Got a code?</label>
+      <input type="text" id="colony-pair-code" class="colony-pair-input" maxlength="${INVITE_CODE_LENGTH}"
+        autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"
+        placeholder="CODE" value="${escapeHtml(sanitizeInviteCode(code))}" />
+      <button type="button" id="colony-pair-join" class="colony-pair-btn"${dis}>Join</button>
+    </div>${err}
+  </div>`;
+}
+
 // renderColonyHtml({ colony, me, members, status, owned, catalog }) -> HTML
 // string for the Colony panel body. Safe to call with anything; never throws.
-export function renderColonyHtml({ colony, me, members = 1, status, owned, catalog } = {}) {
+// `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
+// pairing area sits right under the header so it is never buried under a long
+// list of cats. With nothing to show it is still the same empty placeholder.
+export function renderColonyHtml({ colony, me, members = 1, status, owned, catalog, pairing } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -130,5 +235,6 @@ export function renderColonyHtml({ colony, me, members = 1, status, owned, catal
   const full = cats.length >= COLONY_MAX
     ? `<p class="colony-full">The colony is full — ${COLONY_MAX} cats call it home 🏠</p>` : '';
 
-  return `${header}${list}${full}<div id="colony-pairing"></div>`;
+  const pair = renderPairingHtml(status, pairing || {});
+  return `${header}<div id="colony-pairing">${pair}</div>${list}${full}`;
 }

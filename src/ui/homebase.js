@@ -2,7 +2,9 @@ import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
-import { renderColonyHtml } from './colonypanel.js';
+import {
+  renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
+} from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
@@ -96,11 +98,22 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // myId is the player id (main.js `pid`), passed explicitly because the cloud
 // adapter above can be absent when multiplayer is off, and the Colony tab
 // must still tell "my" finds and feeds from my partner's.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId) {
+// toast(text) is optional: main.js's cloud toast, used for "You're sharing a
+// colony with …". It is called with plain text and never with markup.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
   let activeTab = 'cats';
+
+  // Colony pairing (Task 9). The draft code lives here, not in the DOM, because
+  // render() rebuilds the panel (a roster change or a poll that found news
+  // would otherwise wipe a half-typed code).
+  let pairBusy = false;
+  let pairError = null;
+  let pairCode = '';
+  let pairingWasPending = false; // a pairing was waiting when we last looked
+  let pairTimer = null;          // THE single poll handle; null when not polling
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
@@ -455,6 +468,65 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
   }
 
+  // ---- Colony pairing ------------------------------------------------------
+  const homeVisible = () => !root.classList.contains('hidden');
+
+  // Exactly one interval: started only when shouldPollPairing says so and none
+  // is running, cleared the moment it no longer holds. Called after every
+  // render, tab change, show and hide, so the timer can never outlive its
+  // reasons (and never doubles).
+  function syncPairingPoll() {
+    const status = colonySync ? colonySync.status() : null;
+    const want = shouldPollPairing(status, { tab: activeTab, visible: homeVisible() });
+    if (want && pairTimer === null) {
+      pairTimer = setInterval(() => {
+        // Re-check on every tick: a tick must never run on stale reasons.
+        if (!shouldPollPairing(colonySync.status(), { tab: activeTab, visible: homeVisible() })) {
+          syncPairingPoll();
+          return;
+        }
+        colonySync.pull(); // single-flight, never rejects; onChange re-renders on news
+      }, PAIRING_POLL_MS);
+    } else if (!want && pairTimer !== null) {
+      clearInterval(pairTimer);
+      pairTimer = null;
+    }
+  }
+
+  // Toast once when a pending pairing turns into a shared colony, whichever
+  // way it got there: my accept, or my join answered on a poll. The flag is
+  // cleared the moment it fires, so a second render cannot repeat it.
+  function noteColonyPairing(status) {
+    if (!colonySync) return;
+    if (status.mode === 'paired' && pairingWasPending) {
+      pairingWasPending = false;
+      const partner = progression.state.colony && progression.state.colony.partner;
+      const name = partner && partner.petName ? String(partner.petName) : 'your partner';
+      try { toast?.(`You're sharing a colony with ${name}! 🐾`); } catch { /* a toast is never worth a crash */ }
+      colonySync.pull(); // uploads both players' earlier local cats (Task 5's catch-up)
+    } else {
+      pairingWasPending = pairingPending(status);
+    }
+  }
+
+  // One pairing step: show busy, run it, show the plain-English outcome.
+  async function runPairing(step, afterOk) {
+    if (!colonySync || pairBusy) return;
+    pairBusy = true;
+    pairError = null;
+    render();
+    let res;
+    try {
+      res = await step();
+    } catch {
+      res = { ok: false, status: 'error' };
+    }
+    pairBusy = false;
+    pairError = pairingErrorLine(res && res.ok ? 'ok' : res && res.status);
+    if (res && res.ok) afterOk?.(res);
+    render();
+  }
+
   function applyActiveTab() {
     for (const btn of root.querySelectorAll('.hb-tab')) {
       btn.classList.toggle('active', btn.dataset.tab === activeTab);
@@ -475,6 +547,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   function render() {
     const s = progression.state;
+    const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
+    noteColonyPairing(colonyStatus);
     const glowReady = s.equipped.collar === 'glow';
     const rank = rankFor(s.lifetimePoints);
     const nextLine = rank.next
@@ -558,8 +632,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <section class="colony-section"><h2>Your colony 🐈</h2>
               ${renderColonyHtml({
                 colony: s.colony, me: myId, members: progression.colonyMembers(),
-                status: colonySync ? colonySync.status() : { mode: 'local' },
+                status: colonyStatus,
                 owned: s.unlocked.accessories, catalog: CATALOG,
+                pairing: {
+                  busy: pairBusy, error: pairError, code: pairCode,
+                  hasPetName: validPetName(s.petName ?? ''),
+                },
               })}
             </section>
           </div>
@@ -599,6 +677,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       </div>`;
     activeTab = resolveTab(activeTab);
     applyActiveTab();
+    syncPairingPoll();
     if (cloud && cloud.available) loadPlayerPets();
   }
 
@@ -607,6 +686,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (tabBtn) {
       activeTab = resolveTab(tabBtn.dataset.tab);
       applyActiveTab();
+      syncPairingPoll();
+      return;
+    }
+    if (e.target.id === 'colony-pair-open') {
+      await runPairing(() => colonySync.pairing.open());
+      return;
+    }
+    if (e.target.id === 'colony-pair-join') {
+      const input = root.querySelector('#colony-pair-code');
+      pairCode = sanitizeInviteCode(input ? input.value : pairCode);
+      await runPairing(() => colonySync.pairing.join(pairCode), () => { pairCode = ''; });
+      return;
+    }
+    if (e.target.id === 'colony-pair-yes' || e.target.id === 'colony-pair-no') {
+      const accept = e.target.id === 'colony-pair-yes';
+      await runPairing(() => colonySync.pairing.answer(accept));
       return;
     }
     if (e.target.id === 'btn-start') {
@@ -856,6 +951,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
+    // The pairing code box: uppercase, invite characters only, 6 at most. The
+    // draft is kept so a re-render does not lose it; the box is only written
+    // to when cleaning changed something, to leave the cursor alone otherwise.
+    if (e.target.id === 'colony-pair-code') {
+      pairCode = sanitizeInviteCode(e.target.value);
+      if (e.target.value !== pairCode) e.target.value = pairCode;
+      return;
+    }
     if (!settings) return;
     if (e.target.id === 'set-volume') {
       const vol = Number(e.target.value) / 100;
@@ -922,9 +1025,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     show() {
       render();
       root.classList.remove('hidden');
+      syncPairingPoll(); // render() ran while still hidden
     },
     hide() {
       root.classList.add('hidden');
+      syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
     },
     // Re-renders only if currently visible — used by main.js's M-key mute
     // handler so a mute toggled from the keyboard while sitting on this

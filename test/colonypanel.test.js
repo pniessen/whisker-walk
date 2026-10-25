@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderColonyHtml } from '../src/ui/colonypanel.js';
+import {
+  renderColonyHtml, renderPairingHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine,
+} from '../src/ui/colonypanel.js';
 import { emptyColony, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
@@ -226,5 +228,147 @@ describe('renderColonyHtml', () => {
   it('survives garbage input without throwing', () => {
     expect(() => renderColonyHtml({})).not.toThrow();
     expect(() => renderColonyHtml({ colony: null, me: null, status: null, owned: null, catalog: null })).not.toThrow();
+  });
+});
+
+describe('renderPairingHtml', () => {
+  const st = (mode, over = {}) => ({ mode, invite: null, joining: null, lastError: null, ...over });
+  const INVITE = { code: 'K7P2QM', expiresAt: '2026-10-24T12:00:00Z', joinerPetName: null };
+
+  it('renders nothing without multiplayer, when paired, or when offline', () => {
+    for (const mode of ['local', 'not-set-up', 'offline', 'paired']) {
+      expect(renderPairingHtml(st(mode))).toBe('');
+    }
+    expect(renderPairingHtml(undefined)).toBe('');
+  });
+
+  it('needs-name says to name the pet in Social first and offers no controls', () => {
+    const html = renderPairingHtml(st('needs-name'), { hasPetName: false });
+    expect(html).toContain('Give your pet a name in Social first, then you can share your colony.');
+    expect(html).not.toContain('<button');
+    expect(html).not.toContain('<input');
+  });
+
+  it('unpaired with no invite offers a code button and a Got-a-code box', () => {
+    const html = renderPairingHtml(st('unpaired'), { hasPetName: true });
+    expect(html).toContain('🐈 Share your colony with your brother or sister');
+    expect(html).toContain('Get a sharing code');
+    expect(html).toContain('Got a code?');
+    expect(html).toContain('id="colony-pair-code"');
+    expect(html).toContain('maxlength="6"');
+    expect(html).toContain('id="colony-pair-join"');
+    expect(html).not.toMatch(/<button[^>]*disabled/);
+  });
+
+  it('disables the buttons without a pet name, and while busy', () => {
+    const noName = renderPairingHtml(st('unpaired'), { hasPetName: false });
+    expect(noName).toMatch(/id="colony-pair-join"[^>]*disabled/);
+    expect(noName).toMatch(/id="colony-pair-open"[^>]*disabled/);
+    const busy = renderPairingHtml(st('unpaired'), { hasPetName: true, busy: true });
+    expect(busy).toMatch(/id="colony-pair-join"[^>]*disabled/);
+  });
+
+  it('keeps a half-typed code, cleaned, in the box', () => {
+    expect(renderPairingHtml(st('unpaired'), { code: 'k7p' })).toContain('value="K7P"');
+    expect(renderPairingHtml(st('unpaired'), { code: '"><script>' })).not.toContain('<script>');
+  });
+
+  it('inviting shows the code and the 20-minute note while waiting', () => {
+    const html = renderPairingHtml(st('unpaired', { invite: INVITE }));
+    expect(html).toContain('K7P2QM');
+    expect(html).toContain('read it out to them. It works for 20 minutes.');
+    expect(html).toContain('Waiting for them to type it…');
+    expect(html).not.toContain('colony-pair-yes');
+  });
+
+  it('inviting with a joiner asks Is that them? with Yes and No', () => {
+    const html = renderPairingHtml(st('unpaired', { invite: { ...INVITE, joinerPetName: 'Robin' } }));
+    expect(html).toContain('wants to share your colony. Is that them?');
+    expect(html).toContain('Robin');
+    expect(html).toContain('id="colony-pair-yes"');
+    expect(html).toContain('Yes, share!');
+    expect(html).toContain('id="colony-pair-no"');
+    expect(html).not.toContain('Waiting for them to type it');
+  });
+
+  it('joining says who it is waiting for', () => {
+    const html = renderPairingHtml(st('unpaired', { joining: { inviterPetName: 'Robin' } }));
+    expect(html).toContain('Waiting for <strong>Robin</strong> to say yes…');
+    expect(html).not.toContain('<button');
+  });
+
+  it('escapes the joiner, the inviter, the code and the error', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const a = renderPairingHtml(st('unpaired', { invite: { ...INVITE, joinerPetName: evil } }));
+    const b = renderPairingHtml(st('unpaired', { joining: { inviterPetName: evil } }));
+    const c = renderPairingHtml(st('unpaired', { invite: { ...INVITE, code: evil } }));
+    const d = renderPairingHtml(st('unpaired'), { error: evil });
+    for (const html of [a, b, c, d]) {
+      expect(html).not.toContain('<img');
+      expect(html).toContain('&lt;img');
+    }
+  });
+
+  it('shows an error line and still shows the controls', () => {
+    const html = renderPairingHtml(st('unpaired'), { error: "That code didn't work — check it and try again." });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('check it and try again');
+    expect(html).toContain('id="colony-pair-join"');
+  });
+
+  it('renderColonyHtml puts the pairing area in the #colony-pairing placeholder', () => {
+    const html = renderColonyHtml({
+      colony: emptyColony(), me: ME, status: st('unpaired'), catalog: CATALOG, owned: [], pairing: { hasPetName: true },
+    });
+    expect(html).toMatch(/<div id="colony-pairing">[\s\S]*Get a sharing code[\s\S]*<\/div>/);
+    expect(count(html, /id="colony-pairing"/g)).toBe(1);
+  });
+});
+
+describe('sanitizeInviteCode', () => {
+  it('uppercases, trims, caps at 6 and drops characters outside the invite alphabet', () => {
+    expect(sanitizeInviteCode('  k7p2qm  ')).toBe('K7P2QM');
+    expect(sanitizeInviteCode('k7p2qmzz')).toBe('K7P2QM');
+    expect(sanitizeInviteCode('o0i1l-!')).toBe('');
+    expect(sanitizeInviteCode('K 7-P2Q')).toBe('K7P2Q');
+    expect(sanitizeInviteCode(null)).toBe('');
+    expect(sanitizeInviteCode(12345)).toBe('2345');
+  });
+});
+
+describe('pairing poll decision', () => {
+  const inviting = { mode: 'unpaired', invite: { code: 'K7P2QM', expiresAt: 'x', joinerPetName: null }, joining: null };
+  const joining = { mode: 'unpaired', invite: null, joining: { inviterPetName: 'Robin' } };
+  const idle = { mode: 'unpaired', invite: null, joining: null };
+  const on = { tab: 'colony', visible: true, inWalk: false };
+
+  it('polls only while pending, on the Colony tab, visible and not in a walk', () => {
+    expect(shouldPollPairing(inviting, on)).toBe(true);
+    expect(shouldPollPairing(joining, on)).toBe(true);
+    expect(shouldPollPairing(idle, on)).toBe(false);
+    expect(shouldPollPairing({ ...inviting, mode: 'paired' }, on)).toBe(false);
+    expect(shouldPollPairing({ ...inviting, mode: 'offline' }, on)).toBe(false);
+    expect(shouldPollPairing(inviting, { ...on, tab: 'cats' })).toBe(false);
+    expect(shouldPollPairing(inviting, { ...on, visible: false })).toBe(false);
+    expect(shouldPollPairing(inviting, { ...on, inWalk: true })).toBe(false);
+    expect(shouldPollPairing(undefined, on)).toBe(false);
+    expect(shouldPollPairing(inviting)).toBe(false);
+  });
+
+  it('pairingPending is true for an open code or a typed one, nothing else', () => {
+    expect(pairingPending(inviting)).toBe(true);
+    expect(pairingPending(joining)).toBe(true);
+    expect(pairingPending(idle)).toBe(false);
+  });
+});
+
+describe('pairingErrorLine', () => {
+  it('maps the failures to plain lines and the successes to none', () => {
+    expect(pairingErrorLine('bad-code')).toBe("That code didn't work — check it and try again.");
+    expect(pairingErrorLine('already-paired')).toBe('This player is already sharing a colony.');
+    expect(pairingErrorLine('taken')).toBe('Someone else is already using that code.');
+    expect(pairingErrorLine('error')).toBe('Something went wrong — try again.');
+    expect(pairingErrorLine('denied')).toBe('Something went wrong — try again.');
+    for (const ok of ['ok', 'pending', 'paired', 'declined']) expect(pairingErrorLine(ok)).toBeNull();
   });
 });
