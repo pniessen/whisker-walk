@@ -14,7 +14,8 @@
 import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
 import { clanNameOf, clanRankFor } from '../clannames.js';
-import { RANK_WORDS } from '../clanwords.js';
+import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
+import { roleFor } from '../clanroles.js';
 import { STARTER_ACCESSORIES } from '../progression.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
@@ -70,6 +71,30 @@ function knewLine(catName, p, { me, partner, partnerName, feeds }) {
   return `You already knew ${catName} ♥`;
 }
 
+// The words under a cat's clan name. A TAMED cat shows its den role in place of
+// the plain warrior word: the stored verdicts it holds (both, when one cat is
+// both), else its derived elder/queen role, else warrior (roleFor's default).
+// An UNTAMED cat keeps its rank word (kit/apprentice), because it has no den
+// yet. Every word is taken by reference from RANK_WORDS; this is a label,
+// never a score or a permission. `verdicts` holds only strings or nulls (see
+// verdictsOf), and a verdict naming a cat that isn't on this card simply never
+// matches, so a stale or hostile one changes nothing.
+function descriptorFor(cat, p, verdicts) {
+  if (!p.tamed) return RANK_WORDS[clanRankFor(p)];
+  const held = [];
+  if (verdicts.medicine === cat.name) held.push(RANK_WORDS[RANK_KEYS.medicine]);
+  if (verdicts.deputy === cat.name) held.push(RANK_WORDS[RANK_KEYS.deputy]);
+  return held.length ? held.join(' · ') : RANK_WORDS[roleFor(cat.name)];
+}
+
+// The stored verdicts, read defensively: a missing, non-object or malformed
+// clanRoles renders as no verdicts and never throws. Own-property reads, so an
+// inherited value cannot appear either.
+function verdictsOf(clanRoles) {
+  const read = (key) => (own(clanRoles, key) && typeof clanRoles[key] === 'string' ? clanRoles[key] : null);
+  return { medicine: read(RANK_KEYS.medicine), deputy: read(RANK_KEYS.deputy) };
+}
+
 function catCard(cat, p, ctx) {
   const { me, partner, partnerName, catalog, owned } = ctx;
   const name = escapeHtml(cat.name);
@@ -79,7 +104,7 @@ function catCard(cat, p, ctx) {
   // The rank is a word, never a level; its text comes by reference from
   // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
   const headline = escapeHtml(clanNameOf(cat.name, p));
-  const rank = escapeHtml(RANK_WORDS[clanRankFor(p)]);
+  const rank = escapeHtml(descriptorFor(cat, p, ctx.verdicts));
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;
   const fed = partner ? `you fed ${mine} · ${partnerName} fed ${theirs}` : `you fed ${mine}`;
@@ -245,11 +270,13 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 // string for the Colony panel body. Safe to call with anything; never throws.
 // `now` (epoch ms, the caller's Date.now()) is the clock for the shy rule,
 // which only waits on a partner who is still playing (colony.tamingProgress).
+// `clanRoles` (progression.state.clanRoles) names the medicine cat and the
+// deputy; it is optional and read defensively.
 // `trades` ({ give, want, confirmId, busy, error }) feeds renderTradesHtml.
 // `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
 // pairing area sits right under the header so it is never buried under a long
 // list of cats. With nothing to show it is still the same empty placeholder.
-export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades } = {}) {
+export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades, clanRoles } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -257,7 +284,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   // placed into the HTML, so nothing is ever escaped twice or not at all.
   const partnerName = partner && partner.petName ? String(partner.petName) : 'your partner';
 
-  const ctx = { me, partner, partnerName, catalog, owned, feeds: safeColony.feeds };
+  const ctx = { me, partner, partnerName, catalog, owned, feeds: safeColony.feeds, verdicts: verdictsOf(clanRoles) };
   const rows = cats.map((cat) => ({ cat, p: tamingProgress(safeColony, cat.name, { members, now }) }));
   rows.sort((a, b) =>
     (b.p.tamed - a.p.tamed) || (b.p.have - a.p.have) || (a.cat.name < b.cat.name ? -1 : a.cat.name > b.cat.name ? 1 : 0));

@@ -8,7 +8,8 @@ import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js'
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
 import { clanNameOf } from '../src/clannames.js';
-import { RANK_WORDS } from '../src/clanwords.js';
+import { RANK_WORDS, RANK_KEYS } from '../src/clanwords.js';
+import { roleFor } from '../src/clanroles.js';
 
 const ME = 'me-player-0001';
 const PARTNER = 'robin-player-02';
@@ -763,5 +764,73 @@ describe('walk together with your partner (Task 12)', () => {
     for (const html of [btn, title, code]) expect(html).not.toMatch(/<img|<b>/);
     expect(btn).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(title).toContain('&lt;img');
+  });
+});
+
+describe('den roles on the card', () => {
+  const tamed = (name) => cat(name, { tamedBy: ME, tamedWalk: 'walk-1' });
+  const withRole = (key) => CAT_NAMES.find((n) => roleFor(n) === key);
+  const plain = withRole(RANK_KEYS.warrior);
+  const elder = withRole(RANK_KEYS.elder);
+  const queen = withRole(RANK_KEYS.queen);
+  // The descriptor span of the card for `name`.
+  const descriptor = (html, name) => {
+    const card = html.split('<div class="card ').find((c) => c.includes(`data-cat="${name}"`));
+    return card.match(/<span class="colony-rank">([^<]*)<\/span>/)[1];
+  };
+  const roles = (medicine, deputy) => ({ medicine, deputy });
+
+  it('shows a tamed medicine cat as the medicine cat', () => {
+    const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: roles(plain, null) });
+    expect(descriptor(html, plain)).toBe(RANK_WORDS.medicine);
+  });
+
+  it('shows a tamed deputy as the deputy', () => {
+    const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: roles(null, plain) });
+    expect(descriptor(html, plain)).toBe(RANK_WORDS.deputy);
+  });
+
+  it('shows both words when one cat holds both', () => {
+    const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: roles(plain, plain) });
+    expect(descriptor(html, plain)).toBe(`${RANK_WORDS.medicine} · ${RANK_WORDS.deputy}`);
+  });
+
+  it('shows a tamed elder and a tamed queen by their derived role', () => {
+    const html = render(colonyOf({ cats: [tamed(elder), tamed(queen)] }), { clanRoles: roles(null, null) });
+    expect(descriptor(html, elder)).toBe(RANK_WORDS.elder);
+    expect(descriptor(html, queen)).toBe(RANK_WORDS.queen);
+  });
+
+  it('shows a plain tamed cat as a warrior', () => {
+    const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: roles(null, null) });
+    expect(descriptor(html, plain)).toBe(RANK_WORDS.warrior);
+  });
+
+  it('keeps an untamed cat on its rank word, even when a verdict names it', () => {
+    const colony = colonyOf({ cats: [cat(plain)], feeds: feed(plain, ME, 1) });
+    const html = render(colony, { clanRoles: roles(plain, plain) });
+    expect(descriptor(html, plain)).toBe(RANK_WORDS.kit);
+  });
+
+  it('lets a verdict take the place of the derived role', () => {
+    const html = render(colonyOf({ cats: [tamed(queen)] }), { clanRoles: roles(queen, null) });
+    expect(descriptor(html, queen)).toBe(RANK_WORDS.medicine);
+  });
+
+  it.each([undefined, null, 42, 'x', [], { medicine: 42, deputy: {} }, Object.create({ medicine: plain })])(
+    'renders a malformed clanRoles (%p) as no verdicts and never throws', (bad) => {
+      const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: bad });
+      expect(descriptor(html, plain)).toBe(RANK_WORDS.warrior);
+    });
+
+  it('ignores a verdict naming a cat that is not in the colony', () => {
+    const html = render(colonyOf({ cats: [tamed(plain)] }), { clanRoles: roles(...CAT_NAMES.filter((n) => n !== plain)) });
+    expect(descriptor(html, plain)).toBe(RANK_WORDS.warrior);
+    expect(html).not.toContain(RANK_WORDS.medicine);
+  });
+
+  it('escapes the descriptor', () => {
+    const html = render(colonyOf({ cats: [tamed('<b>x</b>')] }), { clanRoles: roles('<b>x</b>', null) });
+    expect(html).not.toContain('<b>x');
   });
 });

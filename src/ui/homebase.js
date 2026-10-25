@@ -721,7 +721,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <section class="colony-section"><h2>Your colony 🐈</h2>
               ${renderColonyHtml({
                 colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
-                status: colonyStatus,
+                status: colonyStatus, clanRoles: s.clanRoles,
                 owned: s.unlocked.accessories, catalog: CATALOG,
                 pairing: {
                   busy: pairBusy, error: pairError, code: pairCode,
