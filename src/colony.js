@@ -27,14 +27,20 @@ import { isStrayName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
 // Pure data (no imports of its own), so colony.js stays free of THREE and DOM.
-import { DEN_SPOTS } from './den.js';
+import { DEN_SPOTS, DEN_HOMES } from './den.js';
 // DOM-free: net.js imports only chat.js. One definition of a valid pet name.
 import { validPetName } from './net.js';
 
 export const TAME_FEEDS = 6;        // feeds that fill the bar from nothing
 export const HEAD_START_MAX = 3;    // most a past friendship can pre-fill
-export const COLONY_MAX = 12;       // cats in total, in progress plus tamed (= DEN_SPOTS.length)
-export const FEEDS_MAX = 160;       // cap for a stored/synced feed list (used by the sanitizers)
+// Cats in total, in progress plus tamed (= DEN_HOMES.length). 24, so that two
+// siblings who each filled a 12-cat colony solo, before the owner ran the
+// colony SQL, still fit when they pair (final review C1). Tamed cats are never
+// trimmed by it: see sanitizeColony.
+export const COLONY_MAX = 24;
+// Cap for a stored/synced feed list (used by the sanitizers): room for both
+// siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
+export const FEEDS_MAX = 320;
 export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
 
 const PLAYER_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -245,11 +251,22 @@ export function tamedCats(colony) {
 }
 
 // A tamed cat's den home: its index in taming order, which is also its index
-// into DEN_SPOTS (COLONY_MAX = DEN_SPOTS.length, so there is always a spot).
-// -1 for a cat that is not tamed. Nobody can move it: the order is fixed by
-// the walk stamps, and tamedBy/tamedWalk are never cleared.
+// into DEN_HOMES. null for a cat that is not tamed, and for a tamed cat past
+// the last home: tamed cats are never trimmed, so a colony can hold more of
+// them than COLONY_MAX (= DEN_HOMES.length), and the den then leaves the extra
+// ones out rather than doubling them up. Nobody can move it: the order is
+// fixed by the walk stamps, and tamedBy/tamedWalk are never cleared.
 export function denHome(colony, name) {
-  return tamedCats(colony).findIndex((c) => c.name === name);
+  const i = tamedCats(colony).findIndex((c) => c.name === name);
+  return i >= 0 && i < DEN_HOMES.length ? i : null;
+}
+
+// denResidents(colony) -> [{ cat, home }]: the tamed cats that live in the den,
+// in taming order, each with its DEN_HOMES entry ({ id, x, z }). A tamed cat
+// past the last home is left out (see denHome), so the den never doubles two
+// cats up on one home and never reads past the list.
+export function denResidents(colony) {
+  return tamedCats(colony).slice(0, DEN_HOMES.length).map((cat, i) => ({ cat, home: DEN_HOMES[i] }));
 }
 
 // What a tamed cat is up to in the den today. Same all day, different from day
@@ -347,7 +364,11 @@ function sanitizePartner(v, knownItems) {
 // progression.js's sanitizeGifts/sanitizeGrudges: validate each ENTRY, build
 // fresh objects with literal fields, never use a payload value as an object
 // key (dedupe uses Sets), and dedupe while capping.
-//   cats          at most COLONY_MAX, first valid entry wins by name
+//   cats          first valid entry wins by name. Every TAMED cat is kept,
+//                 always (taming never regresses); untamed cats fill what is
+//                 left of COLONY_MAX in list order, so the untamed cats at the
+//                 END of the list are the ones trimmed. Kept cats stay in
+//                 list order.
 //   feeds         only for a surviving cat, deduped by key, at most
 //                 TAME_FEEDS per (cat, by) and FEEDS_MAX in total
 //   trades        well-formed, deduped by id (first wins), the 20 newest,
@@ -369,12 +390,26 @@ export function sanitizeColony(v, { knownItems } = {}) {
 function sanitizeColonyUnsafe(v, knownItems) {
   if (!isPlainObject(v)) return emptyColony();
 
+  // Bounded without a break: names are unique stray names, so at most
+  // CAT_NAMES.length cats get past the dedupe.
+  const valid = [];
+  const seenNames = new Set();
+  let tamed = 0;
+  for (const raw of asArray(v.cats)) {
+    const c = sanitizeCat(raw, knownItems);
+    if (!c || seenNames.has(c.name)) continue;
+    seenNames.add(c.name);
+    valid.push(c);
+    if (c.tamedBy !== null) tamed++;
+  }
+  let untamedRoom = Math.max(0, COLONY_MAX - tamed);
   const cats = [];
   const names = new Set();
-  for (const raw of asArray(v.cats)) {
-    if (cats.length >= COLONY_MAX) break;
-    const c = sanitizeCat(raw, knownItems);
-    if (!c || names.has(c.name)) continue;
+  for (const c of valid) {
+    if (c.tamedBy === null) {
+      if (untamedRoom === 0) continue;
+      untamedRoom--;
+    }
     names.add(c.name);
     cats.push(c);
   }
@@ -505,8 +540,10 @@ function sanitizeSnapshotUnsafe(raw, me, knownItems) {
 //   * feeds are a union by key.
 // Both sides are sanitized first and the result is sanitized again, so the
 // caps hold and a hostile remote can add at most valid things. Remote entries
-// go first (the server's view wins a cap), local-only ones after; that order
-// is also what makes the merge idempotent.
+// go first, local-only ones after; that order is also what makes the merge
+// idempotent. Past COLONY_MAX the cap never takes a tamed cat (on either
+// side): it trims untamed cats from the end, so local-only untamed cats go
+// before remote untamed ones (final review C1).
 export function mergeColony(local, remote, { knownItems } = {}) {
   const opts = { knownItems };
   const l = sanitizeColony(local, opts);

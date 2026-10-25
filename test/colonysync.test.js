@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createColonySync, FEED_PUSH_MAX } from '../src/game/colonysync.js';
 import { createProgression } from '../src/progression.js';
-import { isShy, TAME_FEEDS } from '../src/colony.js';
+import { isShy, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
@@ -255,6 +255,41 @@ describe('createColonySync — pull', () => {
     expect(new Set(pushed.map((a) => `${a.cat}|${a.walk}`)).size).toBe(48);
     await cs.pull();
     expect(cloud.colonyFeed).toHaveBeenCalledTimes(48);
+  });
+
+  // Final review C1 / Task 5 deferred: the server's 'full' is not retried
+  // every pull, and is never a reason to drop the cat here.
+  it('a cat the server refuses as full is asked about once, then left alone, and kept locally', async () => {
+    const { cs, cloud, progression, script } = setup();
+    const extra = BOLD[0];
+    for (let i = 0; i < TAME_FEEDS; i++) feedLocal(progression, extra, `walk-${10 + i}`);
+    expect(progression.state.colony.cats[0].tamedBy).toBe(ME);
+    // a server with a smaller cap than ours (an old copy of the SQL, say)
+    script.colonySync = () => pairedSnap({ cats: BOLD.slice(1, 13).map((n) => serverCat(n, { finder_id: SIB })) });
+    script.colonyFeed = (id, secret, a) => (a.cat === extra ? 'full' : 'ok');
+    await cs.pull();
+    // one try for that cat, not one per feed
+    expect(cloud.colonyFeed.mock.calls.map((c) => c[2].cat)).toEqual([extra]);
+    await cs.pull();
+    await cs.pull();
+    expect(cloud.colonyFeed).toHaveBeenCalledTimes(1);
+    const mine = progression.state.colony.cats.find((c) => c.name === extra);
+    expect(mine).toMatchObject({ tamedBy: ME, tamedWalk: `walk-${10 + TAME_FEEDS - 1}` });
+    expect(progression.state.colony.feeds.filter((f) => f.cat === extra)).toHaveLength(TAME_FEEDS);
+  });
+  it('sends no new cat at all to a server that already holds COLONY_MAX cats', async () => {
+    const { cs, cloud, progression, script } = setup();
+    const names = CAT_NAMES.filter((n) => n !== BOLD[0]).slice(0, COLONY_MAX);
+    for (let i = 0; i < TAME_FEEDS; i++) feedLocal(progression, BOLD[0], `walk-${10 + i}`);
+    feedLocal(progression, names[0], 'walk-50'); // a cat the server has: still pushed
+    script.colonySync = () => pairedSnap({ cats: names.map((n) => serverCat(n, { finder_id: SIB })) });
+    script.colonyFeed = 'ok';
+    await cs.pull();
+    expect(cloud.colonyFeed.mock.calls.map((c) => c[2].cat)).toEqual([names[0]]);
+    // the tamed local-only cat stays, at the cost of the last untamed server cat
+    const c = progression.state.colony;
+    expect(c.cats.find((k) => k.name === BOLD[0])).toMatchObject({ tamedBy: ME });
+    expect(c.cats).toHaveLength(COLONY_MAX);
   });
 
   it('a feed push that throws stops this pull\'s catch-up but still merges', async () => {

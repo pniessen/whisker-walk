@@ -386,10 +386,13 @@ begin
      or p_head is null or p_head < 0 or p_head > 3 then
     return 'bad';
   end if;
-  -- serialise writers to this colony, so two siblings can't both add a 13th cat
+  -- serialise writers to this colony, so two siblings can't both add a 25th cat
   perform 1 from colonies co where co.id = v_colony for update;
   if not exists (select 1 from colony_cats c where c.colony_id = v_colony and c.name = p_cat) then
-    if (select count(*) from colony_cats c where c.colony_id = v_colony) >= 12 then
+    -- 24 cats (the game's COLONY_MAX): room for two siblings who each filled
+    -- a 12-cat colony on their own before pairing. The game keeps a cat
+    -- refused here on its own device; 'full' never deletes anything.
+    if (select count(*) from colony_cats c where c.colony_id = v_colony) >= 24 then
       return 'full';
     end if;
     -- ADD-ONLY: first finder wins. The cat's finder and fixed spot are

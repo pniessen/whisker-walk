@@ -387,7 +387,10 @@ short:
 - `TAME_FEEDS = 6`. Earlier greets give a 1/2/3 head start on the same bar.
 - About 1 name in 4 is shy and needs both siblings, but only while the colony
   has 2 members.
-- The colony holds at most 12 cats and 2 members.
+- The colony holds at most 24 cats and 2 members. 24 is room for two
+  siblings who each filled a 12-cat colony solo before pairing, and the cap
+  never removes a tamed cat. The den has a home for each of the 24: the 12
+  furniture spots plus 12 spots just for cats.
 - Milestones at 1, 3, 6 and 12 tamed cats each unlock an accessory. They never
   give points.
 - Starters (`bell`, `bandana`) can't be traded.

@@ -26,7 +26,7 @@
 // Merging always goes through progression.mergeColonySnapshot (it carries the
 // known-accessory list and refuses a snapshot without a valid colony id), and
 // the inbound snapshot always goes through colony.sanitizeSnapshot first.
-import { sanitizeSnapshot, unsyncedFeeds } from '../colony.js';
+import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX } from '../colony.js';
 import { CATALOG, STARTER_ACCESSORIES } from '../progression.js';
 import { validPetName } from '../net.js';
 
@@ -80,6 +80,11 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   // pushProfile failure per pull while offline. So: once per session, again
   // after a rename, and again after the server says 'denied'.
   let profileFor = null;
+  // Cats the server answered 'full' to this session (it had no room for a new
+  // cat). Their feeds are not offered again until a reload, so a refused cat
+  // isn't re-sent on every pull. The cat itself stays in the save: 'full' is
+  // never a reason to drop anything locally.
+  const refusedFull = new Set();
 
   const hasName = () => validPetName(progression.state.petName);
 
@@ -174,13 +179,19 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
 
   // Step 6a: re-push my feeds the server lacks, oldest first, at most
   // FEED_PUSH_MAX per pull. A throw stops this pull's catch-up (the next pull
-  // retries); a refusal ('unpaired'/'denied') stops it too. Returns the names
-  // of cats whose taming went up with its feed.
+  // retries); a refusal ('unpaired'/'denied') stops it too. A cat the server
+  // doesn't have yet is skipped while the server is full: when its snapshot
+  // already holds COLONY_MAX cats, or when it answered 'full' for that cat
+  // earlier this session (refusedFull). Returns the names of cats whose
+  // taming went up with its feed.
   async function pushUnsynced(cloud, secret, remote) {
     const tamedSent = new Set();
+    const onServer = new Set(remote.cats.map((c) => c.name));
+    const serverFull = remote.cats.length >= COLONY_MAX;
     let n = 0;
     for (const f of unsyncedFeeds(progression.state.colony, remote, pid)) {
       if (n >= FEED_PUSH_MAX) break;
+      if (!onServer.has(f.cat) && (serverFull || refusedFull.has(f.cat))) continue;
       const args = feedArgs(f);
       if (!args) continue;
       n++;
@@ -192,6 +203,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
         return null;
       }
       if (r === 'unpaired' || r === 'denied') return null;
+      if (r === 'full') refusedFull.add(args.cat);
       if (args.tamed && r === 'ok') tamedSent.add(args.cat);
     }
     return tamedSent;

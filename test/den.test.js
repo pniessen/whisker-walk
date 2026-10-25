@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { DEN_ITEMS, DEN_SPOTS, DEN_CAMERA_WEDGE, clearsCamera } from '../src/den.js';
+import { DEN_ITEMS, DEN_SPOTS, DEN_HOMES, DEN_CAMERA_WEDGE, clearsCamera } from '../src/den.js';
 import {
   BASE_CLIMB_BUDGET, PERCH_KINDS, SURE_CLAWS_ID,
   canReach, perchKind, visiblePerches,
@@ -132,6 +132,57 @@ describe('DEN_SPOTS', () => {
         const b2 = DEN_SPOTS[j];
         expect(Math.hypot(a.x - b2.x, a.z - b2.z)).toBeGreaterThanOrEqual(2);
       }
+    }
+  });
+});
+
+// v21 Stream 2 (final review C1): the colony's tamed cats live at DEN_HOMES,
+// one per cat, 24 of them so two siblings' full solo colonies fit. The first
+// twelve are the furniture anchors; the twelve after them are cat-only.
+describe('DEN_HOMES', () => {
+  const extra = DEN_HOMES.slice(DEN_SPOTS.length);
+  const area = buildDen({});
+  // dencats.js stands a cat 0.9 toward the room centre from its home.
+  const standOff = (h) => {
+    const len = Math.hypot(h.x, h.z);
+    return len < 0.01 ? { x: h.x, z: h.z + 0.9 } : { x: h.x - (h.x / len) * 0.9, z: h.z - (h.z / len) * 0.9 };
+  };
+
+  it('is the twelve anchors, unchanged and in order, then twelve cat-only homes', () => {
+    expect(DEN_HOMES).toHaveLength(24);
+    expect(DEN_HOMES.slice(0, DEN_SPOTS.length)).toEqual(DEN_SPOTS);
+    expect(extra).toHaveLength(12);
+    expect(new Set(DEN_HOMES.map((h) => h.id)).size).toBe(24);
+  });
+  it('a cat-only home can never hold furniture', () => {
+    const p = createProgression({ getItem: () => null, setItem: () => {} });
+    p.state.points = DEN_ITEMS.rug.price;
+    expect(p.buyDenItem('rug')).toBe(true);
+    expect(p.placeDenItem(DEN_SPOTS[0].id, 'rug')).toBe(true);
+    for (const h of extra) expect(p.placeDenItem(h.id, 'rug'), h.id).toBe(false);
+  });
+  it('every cat-only home is inside the room, 1.5 clear of the walls, and 1.8 from every other home', () => {
+    for (const h of extra) {
+      expect(8 - Math.abs(h.x), h.id).toBeGreaterThanOrEqual(1.5);
+      expect(8 - Math.abs(h.z), h.id).toBeGreaterThanOrEqual(1.5);
+      for (const o of DEN_HOMES) {
+        if (o === h) continue;
+        expect(Math.hypot(h.x - o.x, h.z - o.z), `${h.id} vs ${o.id}`).toBeGreaterThanOrEqual(1.8);
+      }
+    }
+  });
+  it('every cat-only home is clear of the den\'s fixed props', () => {
+    for (const h of extra) {
+      for (const c of area.colliders) expect(Math.hypot(h.x - c.x, h.z - c.z) - c.r, `${h.id} vs collider`).toBeGreaterThanOrEqual(1.2);
+      for (const b of area.boxes) expect(Math.hypot(h.x - b.x, h.z - b.z), `${h.id} vs box`).toBeGreaterThanOrEqual(1.8);
+      for (const t of area.tippables) expect(Math.hypot(h.x - t.x, h.z - t.z), `${h.id} vs ${t.kind}`).toBeGreaterThanOrEqual(1.5);
+      for (const f of area.perches) expect(Math.hypot(h.x - f.x, h.z - f.z), `${h.id} vs perch`).toBeGreaterThanOrEqual(1.5);
+    }
+  });
+  it('a cat at any home stands outside the opening shot', () => {
+    for (const h of DEN_HOMES) {
+      const at = standOff(h);
+      expect(clearsCamera(at.x, at.z, 0.5, 0.8), h.id).toBe(true);
     }
   });
 });

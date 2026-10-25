@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, emptyColony, headStartFor, isShy, tamingProgress,
-  canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome } from '../src/colony.js';
-import { DEN_SPOTS } from '../src/den.js';
+  canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
+import { DEN_SPOTS, DEN_HOMES } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
@@ -319,13 +319,13 @@ describe('sanitizeColony', () => {
     const per = new Map();
     for (const f of c.feeds) per.set(`${f.cat}|${f.by}`, (per.get(`${f.cat}|${f.by}`) || 0) + 1);
     expect(Math.max(...per.values())).toBe(TAME_FEEDS);
-    expect(c.feeds.length).toBe(COLONY_MAX * 2 * TAME_FEEDS + 1); // 145 <= FEEDS_MAX (the +1 is the third feeder)
+    expect(c.feeds.length).toBe(COLONY_MAX * 2 * TAME_FEEDS + 1); // 289 <= FEEDS_MAX (the +1 is the third feeder)
     expect(new Set(c.feeds.map((f) => `${f.cat}|${f.by}|${f.walk}`)).size).toBe(c.feeds.length);
     expect(c.feeds.every((f) => f.head >= 0 && f.head <= HEAD_START_MAX && Number.isInteger(f.head))).toBe(true);
     expect(c.feeds[0]).toEqual({ cat: CAT_NAMES[0], by: ME, walk: 'walk-0', head: 0 });
     // a third feeder still fits under the total cap, which holds regardless
     const many = [];
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 60; i++) {
       const by = `player-${String(i).padStart(4, '0')}`;
       for (let w = 0; w < TAME_FEEDS; w++) many.push({ cat: CAT_NAMES[0], by, walk: `walk-${w}`, head: 0 });
     }
@@ -371,11 +371,11 @@ describe('sanitizeColony', () => {
     expect(c.rewarded).toEqual(['tamed-1', 'tamed-6']);
   });
   it('seen: well-formed keys only, feedKeys capped at FEEDS_MAX, day a plain date', () => {
-    const keys = Array.from({ length: 200 }, (_, i) => `${boldName}|${ME}|walk-${i}`);
+    const keys = Array.from({ length: 400 }, (_, i) => `${boldName}|${ME}|walk-${i}`);
     const c = sanitizeColony({ seen: { feedKeys: [...keys, 'nope', `Zeetoo|${ME}|walk-1`, keys[0]],
       tamed: [boldName, boldName, '__proto__'], trades: [4, 4, 'x', 0], day: '2026-10-24' } });
     expect(c.seen.feedKeys).toHaveLength(FEEDS_MAX);
-    expect(c.seen.feedKeys).toEqual(keys.slice(200 - FEEDS_MAX));
+    expect(c.seen.feedKeys).toEqual(keys.slice(400 - FEEDS_MAX));
     expect(c.seen.tamed).toEqual([boldName]);
     expect(c.seen.trades).toEqual([4]);
     expect(c.seen.day).toBe('2026-10-24');
@@ -446,18 +446,20 @@ describe('mergeColony — add-only', () => {
       expect(m.feeds).toEqual(local.feeds);
     }
   });
-  it('the result is sanitized: the union still respects COLONY_MAX and item filtering', () => {
+  it('the result is sanitized: an untamed union past COLONY_MAX trims local-only cats first, and items are filtered', () => {
     const mk = (names, by) => {
       let c = emptyColony();
       names.forEach((n, i) => { c = feed(c, n, by, i).colony; });
       return c;
     };
-    const local = mk(CAT_NAMES.slice(0, 8), ME);
-    const remote = mk(CAT_NAMES.slice(8, 16), SIB);
+    const local = mk(CAT_NAMES.slice(0, 16), ME);
+    const remote = mk(CAT_NAMES.slice(16, 32), SIB);
     remote.cats[0] = { ...remote.cats[0], wear: 'laser' };
     const m = mergeColony(local, remoteOf(remote), { knownItems: ITEMS });
     expect(m.cats).toHaveLength(COLONY_MAX);
-    expect(m.cats.find((k) => k.name === CAT_NAMES[8]).wear).toBe(null);
+    // all 16 remote cats stay; the local-only ones fill what is left
+    expect(m.cats.map((k) => k.name)).toEqual([...CAT_NAMES.slice(16, 32), ...CAT_NAMES.slice(0, COLONY_MAX - 16)]);
+    expect(m.cats.find((k) => k.name === CAT_NAMES[16]).wear).toBe(null);
     expect(m.feeds.every((f) => m.cats.some((k) => k.name === f.cat))).toBe(true);
   });
   it('unsyncedFeeds tolerates a garbage remote and returns copies', () => {
@@ -466,6 +468,84 @@ describe('mergeColony — add-only', () => {
     expect(unsyncedFeeds(local, { feeds: 'x' }, ME)).toEqual(local.feeds);
     expect(unsyncedFeeds(local, remoteOf(local), ME)).toEqual([]);
     expect(unsyncedFeeds(local, null, ME)[0]).not.toBe(local.feeds[0]);
+  });
+});
+
+// Final review C1: each child plays a solo colony before the owner runs the
+// SQL, then they pair. Whichever side's cats reach the server second used to
+// be cut by the 12-cat cap, tamed cats included. A tamed cat must never go.
+describe('pairing two solo colonies never loses a tamed cat', () => {
+  const remoteOf = (c) => ({ id: 'col1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] }, cats: c.cats, feeds: c.feeds, trades: [] });
+  const tameAll = (names, by, base = 0) => {
+    let c = emptyColony();
+    names.forEach((n, k) => {
+      for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, n, by, base + k * 10 + i).colony;
+    });
+    return c;
+  };
+  const tamedNames = (c) => c.cats.filter((k) => k.tamedBy !== null).map((k) => k.name).sort();
+
+  it('the colony holds 24 cats and 320 feeds: two full solo colonies always fit', () => {
+    expect(COLONY_MAX).toBe(24);
+    expect(FEEDS_MAX).toBe(320);
+    expect(COLONY_MAX * 2 * TAME_FEEDS).toBeLessThanOrEqual(FEEDS_MAX);
+  });
+  it('12 tamed on each side: all 24 survive on both devices, through merge and sanitize', () => {
+    const a = tameAll(CAT_NAMES.slice(0, 12), ME);
+    const b = tameAll(CAT_NAMES.slice(12, 24), SIB, 500);
+    const all = CAT_NAMES.slice(0, 24).sort();
+    // A's device: the server has only B's cats so far (B pushed first)
+    const onA = mergeColony(a, remoteOf(b));
+    // B's device: the server has only A's cats so far
+    const onB = mergeColony(b, { ...remoteOf(a), partner: { playerId: ME, petName: 'Mo', wardrobe: [] } });
+    for (const side of [onA, onB]) {
+      expect(side.cats).toHaveLength(24);
+      expect(tamedNames(side)).toEqual(all);
+      expect(tamedNames(sanitizeColony(side))).toEqual(all);
+      expect(side.feeds).toHaveLength(24 * TAME_FEEDS);
+    }
+    // and once the server holds the whole union, a later merge keeps it all
+    expect(tamedNames(mergeColony(onA, remoteOf(onB)))).toEqual(all);
+    expect(mergeColony(onA, remoteOf(onA))).toEqual(mergeColony(onA, remoteOf(onA)));
+  });
+  it('a cat both children tamed merges to one cat, tamed by the server\'s side', () => {
+    const shared = CAT_NAMES[0];
+    const a = tameAll([shared, ...CAT_NAMES.slice(1, 12)], ME);
+    const b = tameAll([shared, ...CAT_NAMES.slice(12, 23)], SIB, 500);
+    const onA = mergeColony(a, remoteOf(b));
+    expect(onA.cats.filter((k) => k.name === shared)).toHaveLength(1);
+    expect(onA.cats).toHaveLength(23);
+    expect(onA.cats.find((k) => k.name === shared)).toMatchObject({ tamedBy: SIB, finder: SIB });
+    expect(tamedNames(onA)).toHaveLength(23);
+    // both children's feeds on the shared cat are kept
+    expect(new Set(onA.feeds.filter((f) => f.cat === shared).map((f) => f.by))).toEqual(new Set([ME, SIB]));
+  });
+  it('past the cap, every tamed cat stays: untamed local-only cats go first, then untamed remote ones', () => {
+    // remote: 20 untamed cats. local: 6 tamed + 4 untamed, all local-only.
+    let remote = emptyColony();
+    CAT_NAMES.slice(0, 20).forEach((n, i) => { remote = feed(remote, n, SIB, i).colony; });
+    let local = tameAll(CAT_NAMES.slice(20, 26), ME, 500);
+    CAT_NAMES.slice(26, 30).forEach((n, i) => { local = feed(local, n, ME, 900 + i).colony; });
+    const m = mergeColony(local, remoteOf(remote));
+    expect(m.cats).toHaveLength(COLONY_MAX);
+    expect(tamedNames(m)).toEqual(CAT_NAMES.slice(20, 26).sort());
+    // 24 - 6 tamed = 18 untamed places, all taken by remote cats in order
+    expect(m.cats.filter((k) => k.tamedBy === null).map((k) => k.name)).toEqual(CAT_NAMES.slice(0, 18));
+    // feeds kept for every kept cat (the tamed ones' too), none for a dropped one
+    for (const k of m.cats) expect(m.feeds.some((f) => f.cat === k.name), k.name).toBe(true);
+    expect(m.feeds.some((f) => CAT_NAMES.slice(26, 30).includes(f.cat))).toBe(false);
+  });
+  it('tamed cats past COLONY_MAX are all kept (they never regress), and only they', () => {
+    const cats = CAT_NAMES.slice(0, 30).map((name, i) => ({ name, finder: ME, area: 'park', x: 0, z: 0,
+      tamedBy: i >= 2 ? ME : null, tamedWalk: i >= 2 ? `walk-${i}` : null }));
+    const c = sanitizeColony({ cats });
+    expect(c.cats).toHaveLength(28);
+    expect(c.cats.every((k) => k.tamedBy === ME)).toBe(true);
+    expect(c.cats.map((k) => k.name)).toEqual(CAT_NAMES.slice(2, 30));
+    expect(sanitizeColony(c)).toEqual(c);
+    // the order of what is kept is the order it came in
+    const mixed = sanitizeColony({ cats: [...cats.slice(0, 2), ...cats.slice(2, 4)] });
+    expect(mixed.cats.map((k) => k.name)).toEqual(CAT_NAMES.slice(0, 4));
   });
 });
 
@@ -654,11 +734,35 @@ describe('the den: a different thing each day', () => {
     for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, b, ME, 20 + i).colony;
     expect(denHome(c, a)).toBe(0);
     expect(denHome(c, b)).toBe(1);
-    expect(denHome(c, 'Zeetoo')).toBe(-1);
+    expect(denHome(c, 'Zeetoo')).toBe(null);
   });
   it('an untamed cat has no den home', () => {
     const c = feed(emptyColony(), boldName, ME, 1).colony;
-    expect(denHome(c, boldName)).toBe(-1);
+    expect(denHome(c, boldName)).toBe(null);
+  });
+  it('there is a den home for every cat a full colony can hold, and none past them', () => {
+    expect(DEN_HOMES).toHaveLength(COLONY_MAX);
+    // the twelve furniture anchors stay the first twelve homes, so no cat moves
+    expect(DEN_HOMES.slice(0, DEN_SPOTS.length).map(({ x, z }) => ({ x, z }))).toEqual(DEN_SPOTS.map(({ x, z }) => ({ x, z })));
+    const cats = CAT_NAMES.slice(0, COLONY_MAX + 3).map((name, i) => ({ name, finder: ME, area: 'park', x: 0, z: 0,
+      tamedBy: ME, tamedWalk: `walk-${i + 1}` }));
+    const c = sanitizeColony({ cats });
+    expect(c.cats).toHaveLength(COLONY_MAX + 3);
+    expect(denHome(c, CAT_NAMES[COLONY_MAX - 1])).toBe(COLONY_MAX - 1);
+    for (const n of CAT_NAMES.slice(COLONY_MAX, COLONY_MAX + 3)) expect(denHome(c, n)).toBe(null);
+  });
+  it('denResidents gives each tamed cat its home, and leaves out the ones past the last home', () => {
+    const cats = CAT_NAMES.slice(0, COLONY_MAX + 3).map((name, i) => ({ name, finder: ME, area: 'park', x: 0, z: 0,
+      tamedBy: i === 1 ? null : ME, tamedWalk: i === 1 ? null : `walk-${100 - i}` }));
+    const c = sanitizeColony({ cats });
+    const r = denResidents(c);
+    expect(r).toHaveLength(COLONY_MAX);
+    expect(r.map((e) => e.home)).toEqual(DEN_HOMES);
+    // taming order (latest walk stamp last), not list order
+    expect(r[0].cat.name).toBe(CAT_NAMES[COLONY_MAX + 2]);
+    expect(r.every((e) => e.cat.name === tamedCats(c)[r.indexOf(e)].name)).toBe(true);
+    expect(r.some((e) => e.cat.name === CAT_NAMES[1])).toBe(false);
+    expect(denResidents(emptyColony())).toEqual([]);
   });
 });
 

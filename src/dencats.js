@@ -1,5 +1,5 @@
 // The tamed cats of the colony, at home in the den. Each one has a fixed home
-// (its taming order picks a DEN_SPOTS entry, see colony.js's denHome) and each
+// (its taming order picks a DEN_HOMES entry, see colony.js's denHome) and each
 // UTC day gets into one thing (colony.js's denMoment): napping, grooming,
 // perched at the window, curled in a cardboard box, or sat beside something it
 // has just knocked over. All of that is decided in colony.js; this module only
@@ -10,9 +10,10 @@
 // stand-off position and only does small idle motions (the pose's own
 // breathing and tail, plus a head-up when you come near).
 //
-// Draw calls: at most 12 simple cats plus 12 small props in an indoor room
-// with no strays. That is below what a 22-stray outdoor walk costs, so nothing
-// here is merged or instanced.
+// Draw calls: at most 24 cats (COLONY_MAX, one per DEN_HOMES entry) plus 24
+// small props, in an indoor room with no strays, so nothing here is merged or
+// instanced. A full 24-cat den is a two-sibling colony that has tamed
+// everything it holds; most dens have far fewer.
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
@@ -205,7 +206,7 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
       : {};
     // The full model, not the simple one: a lying cat in the simple rig reads as
     // a hollow ring from the spawn camera, and the den is indoors with at most
-    // 12 cats and no strays, so the extra meshes are affordable.
+    // 24 cats and no strays, so the extra meshes are affordable.
     const group = buildCat(c.breed, wear);
     const { act, spot } = c.moment;
     const anchor = (spot === 'home' ? c.home : spotXZ(spot)) ?? c.home;

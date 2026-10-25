@@ -37,9 +37,8 @@ import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals } from '../goals.js';
 import { rankFor, CATALOG } from '../progression.js';
-import { catsInArea, colonyWear, tamedCats, denHome, denMoment } from '../colony.js';
+import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
-import { DEN_SPOTS } from '../den.js';
 import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim } from '../player.js';
@@ -903,19 +902,18 @@ export function createWalkLifecycle({
     const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
 
     // v21 Stream 2: the colony's tamed cats live in the den, each at its fixed
-    // home spot (taming order -> DEN_SPOTS index), and each UTC day gets into
+    // home spot (taming order -> DEN_HOMES index), and each UTC day gets into
     // something different. Built from the save, draws nothing from walkRng.
+    // denResidents leaves out a tamed cat past the last home (tamed cats are
+    // never trimmed, so there can be more of them than COLONY_MAX).
     const denCats = isDen && state.colony
-      ? createDenCats(scene, tamedCats(state.colony).map((c) => {
-        const home = DEN_SPOTS[denHome(state.colony, c.name) % DEN_SPOTS.length];
-        return {
-          name: c.name,
-          breed: strayBreed(c.name),
-          wear: colonyWear(c.wear, CATALOG.accessories),
-          home: { x: home.x, z: home.z },
-          moment: denMoment(c.name, new Date().toISOString().slice(0, 10)),
-        };
-      }), {
+      ? createDenCats(scene, denResidents(state.colony).map(({ cat: c, home }) => ({
+        name: c.name,
+        breed: strayBreed(c.name),
+        wear: colonyWear(c.wear, CATALOG.accessories),
+        home: { x: home.x, z: home.z },
+        moment: denMoment(c.name, new Date().toISOString().slice(0, 10)),
+      })), {
         reducedMotion,
         // Keep cats off the den's fixed props and the furniture the player
         // placed: areaData.colliders already holds both (fixtures plus

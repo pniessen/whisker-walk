@@ -94,3 +94,34 @@ export const DEN_SPOTS = [
   { id: 'corner-c', x: -6.5, z: 5.5 },    // fireside, |x| 6.5 — well clear of the camera wedge
   { id: 'corner-d', x: 6.2, z: 5.5 },     // the same on the east side of the open wall
 ];
+
+// v21 Stream 2: where the colony's tamed cats live. A tamed cat's home is
+// DEN_HOMES[its taming order] (colony.js's denHome), and the colony holds at
+// most DEN_HOMES.length cats (colony.js's COLONY_MAX), so that two siblings'
+// full solo colonies (12 each) still all fit once they pair.
+//
+// The first twelve are the furniture anchors above, in the same order, so the
+// cats that already had a home keep it. The twelve after them are cat-only
+// spots: no furniture is ever placed there (they are not DEN_SPOTS, so the
+// home base offers no select for them and state.den.placed can't name them).
+// They follow the anchors' rules: inside the room with 1.5 units to the walls,
+// at least 1.8 from every anchor and from each other, clear of the den's fixed
+// props, and with the cat's stand-off position (dencats.js) outside the camera
+// wedge. test/den.test.js checks all of that.
+export const DEN_HOMES = Object.freeze([
+  ...DEN_SPOTS.map(({ id, x, z }) => Object.freeze({ id, x, z })),
+  ...[
+    { id: 'home-west-mid', x: -3.2, z: -3.2 },   // mirrors 'east-mid'
+    { id: 'home-north-mid', x: 0, z: -3.5 },     // between the window and the centre
+    { id: 'home-bookcase', x: -6, z: -3 },       // in front of the bookcase, off its shelves
+    { id: 'home-east-north', x: 6.3, z: -3 },    // mirrors it on the east wall
+    { id: 'home-west-centre', x: -3.3, z: 0 },   // between 'center' and 'west-wall'
+    { id: 'home-east-centre', x: 3.3, z: 0.6 },  // the same east, clear of the box
+    { id: 'home-rug-west', x: -3.2, z: 3 },      // either side of the rug, short of the opening shot
+    { id: 'home-rug-east', x: 3.2, z: 3 },
+    { id: 'home-hearth', x: -5.1, z: 3 },        // the warm side of the room
+    { id: 'home-plant', x: 5.3, z: 1.6 },        // beside the floor plant
+    { id: 'home-fireside', x: -4.2, z: 6.5 },    // by the fireplace, outside the wedge
+    { id: 'home-south-east', x: 4.4, z: 6.5 },   // the same on the east side
+  ].map(Object.freeze),
+]);
