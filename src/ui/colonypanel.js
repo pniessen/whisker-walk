@@ -295,6 +295,19 @@ export function tradeErrorLine(word) {
   }
 }
 
+// The second click of a swap must be a deliberate one. render() is synchronous,
+// so the "Yes — swap forever" button can appear right under the pointer of a
+// double-tap on "Swap!": a confirm click is honoured only for the offer whose
+// confirm step is showing, not as part of a multi-click (`detail` > 1), and not
+// within CONFIRM_DELAY_MS of the step appearing. Fails closed on anything odd.
+export const CONFIRM_DELAY_MS = 600;
+export function confirmClickAllowed({ confirmId, id, shownAt, now, detail = 1 } = {}) {
+  if (!Number.isSafeInteger(id) || confirmId !== id) return false;
+  if (typeof shownAt !== 'number' || typeof now !== 'number' || !Number.isFinite(shownAt) || !Number.isFinite(now)) return false;
+  if (typeof detail === 'number' && detail > 1) return false;
+  return now - shownAt >= CONFIRM_DELAY_MS;
+}
+
 const NO_TAKE_BACKS = 'Swaps are forever — no take-backs!';
 
 // An item's display name, or null when the catalog doesn't know it (a hostile
@@ -333,7 +346,16 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
     const give = escapeHtml(itemName(catalog, got.give));
     const want = escapeHtml(itemName(catalog, got.want));
     const id = escapeHtml(got.id);
-    const have = mine.has(got.want);
+    // Swap! is offered only for a swap that makes sense: I still own what they
+    // want, I don't already own what they give, and neither is a starter (which
+    // can never be traded). Otherwise the child sees why, and can only say no.
+    const gname = escapeHtml(itemName(catalog, got.give));
+    let block = null;
+    if (STARTER_ACCESSORIES.includes(got.give)) block = `${give} can't be swapped`;
+    else if (STARTER_ACCESSORIES.includes(got.want)) block = `${want} can't be swapped`;
+    else if (mine.has(got.give)) block = `You already have ${gname}`;
+    else if (!mine.has(got.want)) block = `You don't have your ${want} any more, so you can't swap.`;
+    const have = block === null;
     if (st.confirmId === got.id && have) {
       body += `<div class="colony-trade-offer" data-trade="confirm">
         <p class="colony-trade-text">Swap your <strong>${want}</strong> for ${pname}'s <strong>${give}</strong>?
@@ -345,7 +367,7 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
     } else {
       body += `<div class="colony-trade-offer" data-trade="incoming">
         <p class="colony-trade-text">${pname} offers ${give} for your ${want}</p>
-        ${have ? '' : `<p class="colony-trade-note">You don't have your ${want} any more, so you can't swap.</p>`}
+        ${have ? '' : `<p class="colony-trade-note">${block}</p>`}
         <div class="colony-trade-row">
           ${have ? `<button type="button" class="colony-trade-btn" data-trade-action="accept" data-trade-id="${id}"${off}>Swap!</button>` : ''}
           <button type="button" class="colony-trade-btn secondary" data-trade-action="decline" data-trade-id="${id}"${off}>No thanks</button>

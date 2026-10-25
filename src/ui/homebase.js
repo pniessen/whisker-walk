@@ -4,7 +4,7 @@ import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
-  theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine,
+  theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
@@ -125,6 +125,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let tradeGive = null;          // the selected items, remembered across renders
   let tradeWant = null;
   let tradeConfirmId = null;     // the incoming offer whose first click was made
+  let tradeConfirmShownAt = 0;   // when its confirm step appeared (ms): a double-tap must not reach "Yes"
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
   // entire innerHTML on nearly every interaction (buy/equip/room changes),
@@ -811,12 +812,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         await runTrade(() => colonySync.trade.answer(id, false));
       } else if (action === 'accept' && hasId) {
         tradeConfirmId = id;
+        tradeConfirmShownAt = Date.now();
         tradeError = null;
         render();
       } else if (action === 'back') {
         tradeConfirmId = null;
         render();
       } else if (action === 'confirm' && hasId) {
+        // The swap is final: only a deliberate second click counts, never the
+        // tail of a double-tap on Swap! (see confirmClickAllowed).
+        if (!confirmClickAllowed({ confirmId: tradeConfirmId, id, shownAt: tradeConfirmShownAt, now: Date.now(), detail: e.detail })) return;
         await runTrade(() => colonySync.trade.answer(id, true));
       }
       return;

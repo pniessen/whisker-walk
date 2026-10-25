@@ -1296,9 +1296,10 @@ export function createProgression(storage) {
     // An accepted trade naming me is applied exactly once, ever: its id goes
     // into colony.tradesApplied, which is persisted and survives a reload.
     // For each one: the outgoing item leaves unlocked.accessories unless it is
-    // a starter (STARTER_ACCESSORIES can never be traded away), any equipped
-    // slot holding it is cleared, so is the `wear` of any colony cat I found,
-    // and the incoming item is added if it is a known accessory. All of it lands in one save(); nothing to do, no write.
+    // a starter (STARTER_ACCESSORIES can never be traded away). Any equipped
+    // slot holding it is cleared, and so is the `wear` of any colony cat I
+    // found. The incoming item is added if it is a known accessory. All of it
+    // lands in one save(); with nothing to do there is no write.
     applyColonyTrades(me) {
       const done = new Set(state.colony.tradesApplied);
       const applied = [];

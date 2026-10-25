@@ -356,6 +356,49 @@ describe('createColonySync — pull', () => {
     expect(cloud.colonyDress.mock.calls.length).toBe(calls);
   });
 
+  // Fix round 1 (Task 11): the un-dress push is best-effort and paired-only.
+  describe('the un-dress push after a trade', () => {
+    const dressedSetup = (script) => {
+      const t = setup({ script });
+      t.progression.addPoints(100);
+      t.progression.buy('accessories', 'tophat');
+      feedLocal(t.progression, CAT, 'walk-1');
+      expect(t.progression.dressColonyCat(CAT, 'tophat', ME)).toBe(true);
+      return t;
+    };
+    const accepted = { id: 9, from_id: ME, to_id: SIB, give: 'tophat', want: 'crown', status: 'accepted' };
+
+    it('(a) is skipped when not paired: local wear is cleared, no colonyDress call', async () => {
+      // never paired: the server says unpaired, but a trade is already in the save
+      const { cs, cloud, progression } = dressedSetup({ colonySync: unpairedSnap() });
+      progression.mergeColonySnapshot({ id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] }, cats: [], feeds: [],
+        trades: [{ id: 9, from: ME, to: SIB, give: 'tophat', want: 'crown', status: 'accepted' }] });
+      const r = await cs.pull();
+      expect(r.appliedTrades).toHaveLength(1);
+      expect(progression.state.colony.cats[0].wear).toBe(null);
+      expect(cloud.colonyDress).not.toHaveBeenCalled();
+    });
+
+    it('(b) a rejecting colonyDress never breaks the pull: it warns once and wear stays cleared', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { cs, cloud, progression, onTradesApplied } = dressedSetup({
+        colonyFeed: 'ok',
+        colonyDress: () => { throw new TypeError('Failed to fetch'); },
+        colonySync: () => pairedSnap({ cats: [serverCat(CAT, { wear: 'tophat' })], feeds: [serverFeed(CAT, 'walk-1')], trades: [accepted] }),
+      });
+      const r = await cs.pull();
+      expect(r.appliedTrades).toHaveLength(1);
+      expect(onTradesApplied).toHaveBeenCalledTimes(1);
+      expect(progression.state.colony.cats[0].wear).toBe(null);
+      expect(cloud.colonyDress).toHaveBeenCalled();
+      const tradeWarns = warn.mock.calls.filter((c) => /dress push failed/.test(String(c[0])));
+      expect(tradeWarns).toHaveLength(1);
+      // the server still shows the old wear; the next pull's catch-up retries and the stale value does not win the merge
+      await cs.pull();
+      expect(progression.state.colony.cats[0].wear).toBe(null);
+    });
+  });
+
   it('grants colony rewards from the pull, once', async () => {
     const { cs, progression } = setup({ script: { colonySync: () => pairedSnap({
       cats: [serverCat(CAT, { finder_id: SIB, tamed_by: SIB, tamed_walk: 'walk-5' })] }) } });

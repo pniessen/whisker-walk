@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderColonyHtml, renderPairingHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine,
-  renderTradesHtml, tradeErrorLine,
+  renderTradesHtml, tradeErrorLine, confirmClickAllowed, CONFIRM_DELAY_MS,
 } from '../src/ui/colonypanel.js';
 import { emptyColony, TAME_FEEDS, COLONY_MAX } from '../src/colony.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
@@ -587,5 +587,68 @@ describe('tradeErrorLine', () => {
     expect(tradeErrorLine('error')).toMatch(/try again/);
     expect(tradeErrorLine('whatever')).toMatch(/try again/);
     expect(tradeErrorLine(undefined)).toMatch(/try again/);
+  });
+});
+
+describe('confirmClickAllowed', () => {
+  const ok = { confirmId: 5, id: 5, shownAt: 10_000, now: 10_000 + CONFIRM_DELAY_MS, detail: 1 };
+  it('allows a deliberate second click on the confirm button that was shown', () => {
+    expect(CONFIRM_DELAY_MS).toBeGreaterThanOrEqual(600);
+    expect(confirmClickAllowed(ok)).toBe(true);
+    expect(confirmClickAllowed({ ...ok, now: ok.now + 5000, detail: 0 })).toBe(true); // keyboard activation
+  });
+  it('ignores a click that lands too soon after the confirm step appeared (a double-tap)', () => {
+    expect(confirmClickAllowed({ ...ok, now: ok.shownAt + 50 })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, now: ok.shownAt + CONFIRM_DELAY_MS - 1 })).toBe(false);
+  });
+  it('ignores the second half of a double-click, whatever the timing', () => {
+    expect(confirmClickAllowed({ ...ok, detail: 2 })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, detail: 3 })).toBe(false);
+  });
+  it('needs the confirm step to be for this very offer', () => {
+    expect(confirmClickAllowed({ ...ok, confirmId: null })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, confirmId: 4 })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, id: 4 })).toBe(false);
+  });
+  it('fails closed on junk', () => {
+    expect(confirmClickAllowed()).toBe(false);
+    expect(confirmClickAllowed({ ...ok, shownAt: null })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, shownAt: NaN })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, now: undefined })).toBe(false);
+    expect(confirmClickAllowed({ ...ok, now: ok.shownAt - 5000 })).toBe(false); // clock went backwards
+  });
+});
+
+describe('renderTradesHtml — offers I should not accept', () => {
+  const colonyWith = (t) => ({
+    ...emptyColony(), id: 'col-1',
+    partner: { playerId: PARTNER, petName: 'Robin', wardrobe: ['crown', 'wizard'] },
+    trades: [{ id: 5, from: PARTNER, to: ME, give: 'crown', want: 'tophat', status: 'offered', ...t }],
+  });
+  const view = (t, owned = ['bell', 'bandana', 'tophat', 'glow']) =>
+    renderTradesHtml({ colony: colonyWith(t), me: ME, owned, catalog: CATALOG, state: { confirmId: 5 } });
+
+  it('no Swap! (and no confirm) when I already own what they give', () => {
+    const html = view({}, ['bell', 'tophat', 'crown']);
+    expect(html).toContain('You already have Flower Crown');
+    expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
+    expect(html).not.toContain('Yes — swap forever');
+    expect(html).toMatch(/data-trade-action="decline"/);
+  });
+  it('no Swap! when what they give is a starter', () => {
+    const html = view({ give: 'bell' }, ['bandana', 'tophat']);
+    expect(html).toMatch(/Bell Collar can.t be swapped/);
+    expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
+    expect(html).toMatch(/data-trade-action="decline"/);
+  });
+  it('no Swap! when what they want is a starter', () => {
+    const html = view({ want: 'bandana' });
+    expect(html).toMatch(/Bandana can.t be swapped/);
+    expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
+    expect(html).toMatch(/data-trade-action="decline"/);
+  });
+  it('still offers Swap! for a good offer', () => {
+    expect(renderTradesHtml({ colony: colonyWith({}), me: ME, owned: ['bell', 'tophat'], catalog: CATALOG, state: {} }))
+      .toMatch(/data-trade-action="accept"/);
   });
 });

@@ -228,8 +228,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
 
   // Step 6b: the finder is the only one who can dress a cat, so for MY finds
   // the local wear is the truth: re-push it where the server differs (dressed
-  // offline). Returns the remote with each accepted wear patched in, so the
-  // merge (where the remote's wear wins) doesn't undo it for a pull.
+  // offline). Returns the remote with my wear patched in when the push went
+  // through, or could not get through at all, so the merge (where the remote's
+  // wear wins) doesn't undo it. A push the server answers and refuses is not.
   async function repushWear(cloud, secret, remote) {
     const mine = new Map(progression.state.colony.cats.filter((c) => c.finder === pid).map((c) => [c.name, c.wear]));
     const cats = [];
@@ -241,8 +242,15 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
             cats.push({ ...rc, wear });
             continue;
           }
+          // The server answered and refused: its value stands.
         } catch (err) {
           warnOnce('dress push failed', err);
+          // The push never got through (offline, a 5xx): my local wear is
+          // still the truth for my finds, so keep it for this merge. Otherwise
+          // the server's stale value would win it back, e.g. putting a
+          // traded-away item back on the cat. The next pull retries.
+          cats.push({ ...rc, wear });
+          continue;
         }
       }
       cats.push(rc);
