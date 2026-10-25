@@ -2,7 +2,7 @@ import { test, expect } from 'vitest';
 import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
 import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
-import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames } from '../src/clannames.js';
+import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames, colonyRankFor } from '../src/clannames.js';
 import { validPetName } from '../src/net.js';
 
 test('rank is read off the taming bar, not the feed count', () => {
@@ -112,4 +112,18 @@ test('asking for more names than the pools can make returns what it can, all dis
   const c = candidateStarNames('player-abc12345', 9999);
   expect(new Set(c).size).toBe(c.length);
   expect(c.length).toBeGreaterThan(0);
+});
+
+// Spec §6.5: a fed kit is an apprentice. A colony cat with a kit name floors
+// at apprentice; the bare bar-reading rank (used for unfed den kits) does not.
+test('colonyRankFor floors a kit name at apprentice, and leaves strays alone', () => {
+  const kit = KIT_NAMES[0];
+  expect(colonyRankFor(kit, { have: 0, tamed: false })).toBe('apprentice');
+  expect(colonyRankFor(kit, { have: 1, tamed: false })).toBe('apprentice');
+  expect(colonyRankFor(kit, { have: 3, tamed: false })).toBe('apprentice');
+  expect(colonyRankFor(kit, { have: 6, tamed: true })).toBe('warrior');
+  expect(colonyRankFor(CAT_NAMES[0], { have: 1, tamed: false })).toBe('kit');
+  expect(clanRankFor({ have: 1, tamed: false })).toBe('kit');
+  expect(clanNameOf(kit, { have: 1, tamed: false })).toBe(prefixFor(kit) + RANK_SUFFIX.kit);
+  expect(clanNameOf(kit, { have: 1, tamed: false }, colonyRankFor(kit, { have: 1 }))).toBe(prefixFor(kit) + RANK_SUFFIX.apprentice);
 });

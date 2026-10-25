@@ -5,7 +5,7 @@ import {
   renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from '../src/ui/colonypanel.js';
 import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
-import { CAT_NAMES, strayBreed } from '../src/straynames.js';
+import { CAT_NAMES, KIT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
 import { clanNameOf } from '../src/clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../src/clanwords.js';
@@ -818,6 +818,22 @@ describe('den roles on the card', () => {
     const colony = colonyOf({ cats: [cat(plain)], feeds: feed(plain, ME, 1) });
     const html = render(colony, { clanRoles: roles(plain, plain) });
     expect(descriptor(html, plain)).toBe(RANK_WORDS.kit);
+  });
+
+  // Spec §6.5: a kit that is fed becomes an apprentice. A KIT_NAMES cat is in
+  // colony.cats only because it was fed, so its rank floors at apprentice.
+  it('shows a once-fed kit-named colony cat as an apprentice, not a kit', () => {
+    const kit = KIT_NAMES[0];
+    const html = render(colonyOf({ cats: [cat(kit)], feeds: feed(kit, ME, 1) }), { clanRoles: roles(null, null) });
+    expect(descriptor(html, kit)).toBe(RANK_WORDS.apprentice);
+    expect(html).toContain(clanNameOf(kit, { have: 2, tamed: false }));
+    expect(html).not.toContain(clanNameOf(kit, { have: 1, tamed: false }));
+  });
+
+  it('a kit-named cat still rises past apprentice when tamed', () => {
+    const kit = KIT_NAMES[0];
+    const html = render(colonyOf({ cats: [tamed(kit)] }), { clanRoles: roles(null, null) });
+    expect(html).toContain(clanNameOf(kit, { have: TAME_FEEDS, tamed: true }));
   });
 
   it('lets a verdict take the place of the derived role', () => {

@@ -13,7 +13,7 @@
 // them, and this renderer escapes them again rather than trusting that.
 import { tamingProgress, COLONY_MAX, colonyCap } from '../colony.js';
 import { strayBreed } from '../straynames.js';
-import { clanNameOf, clanRankFor } from '../clannames.js';
+import { clanNameOf, colonyRankFor } from '../clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
 import { roleFor } from '../clanroles.js';
 import { STARTER_ACCESSORIES } from '../progression.js';
@@ -75,12 +75,12 @@ function knewLine(catName, p, { me, partner, partnerName, feeds }) {
 // the plain warrior word: the stored verdicts it holds (both, when one cat is
 // both), else its derived elder/queen role, else warrior (roleFor's default).
 // An UNTAMED cat keeps its rank word (kit/apprentice), because it has no den
-// yet. Every word is taken by reference from RANK_WORDS; this is a label,
+// yet; a fed kit (a KIT_NAMES cat) is at least an apprentice (colonyRankFor). Every word is taken by reference from RANK_WORDS; this is a label,
 // never a score or a permission. `verdicts` holds only strings or nulls (see
 // verdictsOf), and a verdict naming a cat that isn't on this card simply never
 // matches, so a stale or hostile one changes nothing.
 function descriptorFor(cat, p, verdicts) {
-  if (!p.tamed) return RANK_WORDS[clanRankFor(p)];
+  if (!p.tamed) return RANK_WORDS[colonyRankFor(cat.name, p)];
   const held = [];
   if (verdicts.medicine === cat.name) held.push(RANK_WORDS[RANK_KEYS.medicine]);
   if (verdicts.deputy === cat.name) held.push(RANK_WORDS[RANK_KEYS.deputy]);
@@ -103,7 +103,7 @@ function catCard(cat, p, ctx) {
   // hostile stored name reaches this template by this path too: escape it.
   // The rank is a word, never a level; its text comes by reference from
   // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
-  const headline = escapeHtml(clanNameOf(cat.name, p));
+  const headline = escapeHtml(clanNameOf(cat.name, p, colonyRankFor(cat.name, p)));
   const rank = escapeHtml(descriptorFor(cat, p, ctx.verdicts));
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;

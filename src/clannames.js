@@ -21,7 +21,7 @@
 import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
-import { isStrayName } from './straynames.js';
+import { isStrayName, KIT_NAMES } from './straynames.js';
 
 // A bar this full is a warrior; this much is an apprentice. The rank is read
 // off the taming bar (`have`), so a cat you already know, which starts with a
@@ -68,14 +68,24 @@ export function clanRankFor(progress) {
   return RANK_KEYS.kit;
 }
 
+// The rank of a cat IN colony.cats. Spec §6.5: a kit that is fed becomes an
+// apprentice, and a KIT_NAMES cat is only ever in colony.cats because it was
+// fed, so its rank floors at apprentice. Display only. An unfed kit in the
+// den is not a colony cat and keeps clanRankFor's plain reading.
+const KIT_SET = new Set(KIT_NAMES);
+export function colonyRankFor(storedName, progress) {
+  const rank = clanRankFor(progress);
+  return rank === RANK_KEYS.kit && KIT_SET.has(storedName) ? RANK_KEYS.apprentice : rank;
+}
+
 // What to show instead of the stored name. The prefix is the cat's for life;
 // only the suffix changes as it rises. A name that is not a known cat is
 // returned unchanged so a cat never becomes nameless (a non-string has
-// nothing to return, nor is an empty one, so those get a plain word).
-export function clanNameOf(storedName, progress) {
+// nothing to return, nor is an empty one, so those get a plain word). `rank`
+// defaults to the bar's reading; the Colony tab passes colonyRankFor's.
+export function clanNameOf(storedName, progress, rank = clanRankFor(progress)) {
   if (typeof storedName !== 'string' || storedName === '') return 'Cat';
   if (!isStrayName(storedName)) return storedName;
-  const rank = clanRankFor(progress);
   const suffix = rank === RANK_KEYS.warrior ? warriorSuffixFor(storedName) : RANK_SUFFIX[rank];
   return prefixFor(storedName) + suffix;
 }
