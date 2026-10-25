@@ -166,9 +166,19 @@ describe('golden mice tally', () => {
     expect(goldenFound(['gm-park-1'], null)).toBe(0);
   });
   it('the tally reads "x of 12" and never more than the total', () => {
+    const text = (h) => h.replace(/<[^>]*>/g, '');
+    expect(text(renderGoldenTallyHtml(3, 12))).toBe('🥇 3 of 12 golden mice');
     expect(renderGoldenTallyHtml(3, 12)).toContain('3 of 12 golden mice');
-    expect(renderGoldenTallyHtml(99, 12)).toContain('12 of 12');
-    expect(renderGoldenTallyHtml(NaN, 12)).toContain('0 of 12');
-    expect(renderGoldenTallyHtml(0, 12)).toBe('<span>🥇 0 of 12 golden mice</span>');
+    expect(text(renderGoldenTallyHtml(99, 12))).toContain('12 of 12');
+    expect(text(renderGoldenTallyHtml(NaN, 12))).toContain('0 of 12');
+    expect(text(renderGoldenTallyHtml(-4, 12))).toContain('0 of 12');
+  });
+  it('keeps the tally on one line and the full phrase available on a phone', () => {
+    const html = renderGoldenTallyHtml(3, 12);
+    expect(html).toContain('class="hb-gold"');
+    expect(html).toContain('<span class="hb-gold-word"> golden mice</span>');
+    expect(html).toContain('title="3 of 12 golden mice"');
+    expect(html).toContain('aria-label="3 of 12 golden mice"');
+    expect(renderGoldenTallyHtml(99, 12)).toContain('title="12 of 12 golden mice"');
   });
 });

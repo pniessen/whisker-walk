@@ -193,6 +193,12 @@ body.left-handed .tui-pause {
 .hb-points { font-size: 1.2rem; color: #f2c14e; }
 .hb-substats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   font-size: 0.85rem; color: #a8c0e0; }
+/* The golden-mice tally stays on one line; on a phone the words drop away
+   (the full phrase stays in its title/aria-label). */
+.hb-gold { white-space: nowrap; }
+@media (max-width: 480px) {
+  .hb-gold-word { display: none; }
+}
 #homebase section { margin-bottom: 22px; }
 #homebase h2 { font-size: 1.1rem; margin-bottom: 10px; color: #a8c0e0; }
 .accessory-slot { margin-bottom: 14px; }
