@@ -11,6 +11,8 @@
 //   rung 3  shadow map, normal maps, env,    next walk: they are baked into
 //           stray count (today's LOW)        materials and the area build
 // Every step is written to storage at once, so the next walk starts there.
+// frame() must run BEFORE the frame's draw: a pixel-ratio change clears the
+// canvas, and after the draw that would present a blank frame.
 // Manual High/Low and reduced motion never adapt and never touch storage.
 
 import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG } from '../render/quality.js';
@@ -36,8 +38,14 @@ export function createQualityAdapter({
   let fadeSession = null; // the session a bloom fade belongs to, or null
   let fadeStart = 0;
 
+  // setPixelRatio reassigns canvas.width, which clears the drawing buffer, so
+  // an unchanged ratio (a dpr-1 desktop stepping to rung 1) touches neither.
+  // The composer is only ever set here, beside the renderer, and is built
+  // from the renderer's ratio, so the two cannot drift apart while skipped.
   function applyPixelRatio(tier) {
-    renderer.setPixelRatio(Math.min(devicePixelRatio(), tier.pixelRatioCap));
+    const pr = Math.min(devicePixelRatio(), tier.pixelRatioCap);
+    if (pr === renderer.getPixelRatio()) return;
+    renderer.setPixelRatio(pr);
     composerRig.setPixelRatio(renderer.getPixelRatio());
   }
 

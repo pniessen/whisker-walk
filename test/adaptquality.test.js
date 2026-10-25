@@ -32,13 +32,13 @@ function stored(storage) {
 const DAY = 86_400_000;
 const WALL = 100 * DAY;
 
-function setup({ memory, storage } = {}) {
+function setup({ memory, storage, dpr = 3 } = {}) {
   const renderer = fakeRenderer();
   const composerRig = fakeRig();
   const store = storage ?? fakeStorage(memory);
   const adapter = createQualityAdapter({
     renderer, composerRig, storage: store,
-    devicePixelRatio: () => 3,
+    devicePixelRatio: () => dpr,
     wallClock: () => WALL,
   });
   return { adapter, renderer, composerRig, storage: store };
@@ -202,6 +202,20 @@ describe('createQualityAdapter', () => {
     }).not.toThrow();
     expect(adapter.status.rung).toBe(1);
     expect(renderer.getPixelRatio()).toBe(1.5);
+  });
+
+  it('a dpr-1 device stepping to rung 1 leaves the canvas alone', () => {
+    // setPixelRatio reassigns canvas.width, which clears the drawing buffer;
+    // min(1, 1.5) is still 1, so there is nothing to change.
+    const { adapter, renderer, composerRig } = setup({ dpr: 1 });
+    adapter.beginWalk({ override: 'auto', reducedMotion: false, nowMs: 0 });
+    expect(renderer.getPixelRatio()).toBe(1);
+    renderer.setPixelRatio.mockClear();
+    composerRig.setPixelRatio.mockClear();
+    run(adapter, { useComposer: true }, 0, 9100, 30);
+    expect(adapter.status.rung).toBe(1);
+    expect(renderer.setPixelRatio).not.toHaveBeenCalled();
+    expect(composerRig.setPixelRatio).not.toHaveBeenCalled();
   });
 
   it('frame without a session is a no-op', () => {
