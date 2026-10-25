@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
-import { createMouth } from '../src/carry.js';
+import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { catsInArea } from '../src/colony.js';
@@ -385,6 +385,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const tippables = createTippables(scene, [{ x: 0, z: 2.0, kind: 'bin' }],
       { getState: () => progression.state });
     const prompts = [];
+    const toasts = [];
     // A real group in a scene, with a head out in front: carryables.update
     // only follows a holder that is in the scene, to its head's mouth.
     const cat = new THREE.Group();
@@ -412,18 +413,19 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       quest: null, questGiver: null, questObject: null,
       gifts: null,
       perched: null,
+      weather: { isRaining: () => false },
       walk: { carried: 0, carryCap: 2 },
       carry: { mouth: createMouth(), items: createCarryables(scene, carryables) },
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
     };
-    const { updateInteractions, handleInteract } = createInteractions({
+    const { updateInteractions, handleInteract, tickCarryRain } = createInteractions({
       MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
       getSession: () => session, getIsTouch: () => false,
       player,
       progression, log,
-      hud: { toast() {}, setPrompt: (t) => prompts.push(t) },
+      hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t) },
       audio: { trill() {}, meow() {} },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
     });
@@ -432,7 +434,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const frame = () => { session.carry.items.update(0); updateInteractions(session); };
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
     const press = () => { frame(); handleInteract(session); };
-    return { session, prompts, walkTo, press, progression, player };
+    return { session, prompts, toasts, walkTo, press, progression, player, tickCarryRain, log };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -629,6 +631,121 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       h.press();
       expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
       expect(h.session.walk.carried).toBe(h.session.walk.carryCap);
+    });
+
+    // v21 3b Task 9 — rain makes the paws slippery. tickCarryRain is what
+    // main.js calls each frame beside carry.items.update.
+    describe('rain slips', () => {
+      const RAINY = () => ({ isRaining: () => true });
+      const snapshot = (h) => JSON.stringify({ p: h.progression.state.points, l: h.progression.state.lifetimePoints,
+        f: h.progression.state.feats, m: h.progression.state.marks });
+      // Carry the stick to the far corner in the rain, ready to tick.
+      const holding = (opts) => {
+        const h = carryHarness(opts);
+        h.walkTo(5, 0.5);
+        h.press();
+        h.walkTo(20, 20);
+        h.session.weather = RAINY();
+        return h;
+      };
+      const rainFor = (h, seconds, step = 0.5) => {
+        for (let t = 0; t < seconds - 1e-9; t += step) { h.tickCarryRain(h.session, step); h.session.carry.items.update(step); }
+      };
+
+      it('drops the item at your paws once the grip gives, pickable again, and costs nothing', () => {
+        const h = holding();
+        const before = snapshot(h);
+        const found = [];
+        const off = bus.on('discovery', (e) => found.push(e));
+        try {
+          rainFor(h, RAIN_GRIP - 0.5);
+          expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+          expect(h.toasts).toEqual([]);
+          rainFor(h, 0.5);
+        } finally {
+          off?.();
+        }
+        const item = h.session.carry.items.list[0];
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(item.onGround).toBe(true);
+        // down in front of the cat (the mouth spot), a step from where it stands
+        expect(Math.hypot(item.mesh.position.x - 20, item.mesh.position.z - 20)).toBeLessThan(1);
+        expect(h.session.carry.mouth.dropped.get('park-stick-1')).toMatchObject({ homeX: 5, homeZ: 0 });
+        expect(h.toasts).toEqual(['Your paws are too slippery — you dropped the stick! 💧']);
+        expect(found).toEqual([]);
+        expect(snapshot(h)).toBe(before);
+        h.walkTo(20, 20);
+        expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+      });
+
+      it('slips again after another RAIN_GRIP seconds once picked straight back up, one toast each', () => {
+        const h = holding();
+        rainFor(h, RAIN_GRIP);
+        h.walkTo(20, 20);
+        h.press(); // pick it straight back up
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        rainFor(h, RAIN_GRIP - 0.5);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        rainFor(h, 0.5);
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(h.toasts).toHaveLength(2);
+      });
+
+      it('toasts exactly once per slip however long the rain goes on', () => {
+        const h = holding();
+        rainFor(h, RAIN_GRIP * 5);
+        expect(h.toasts).toHaveLength(1);
+      });
+
+      it('dry weather, a missing weather object and a stub without isRaining never slip', () => {
+        for (const weather of [{ isRaining: () => false }, undefined, null, {}, { condition: 'clear', update() {} }]) {
+          const h = holding();
+          h.session.weather = weather;
+          expect(() => rainFor(h, RAIN_GRIP * 3)).not.toThrow();
+          expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+          expect(h.toasts).toEqual([]);
+        }
+      });
+
+      it('nothing held, nothing to slip', () => {
+        const h = carryHarness();
+        h.session.weather = RAINY();
+        expect(() => rainFor(h, RAIN_GRIP * 2)).not.toThrow();
+        expect(h.toasts).toEqual([]);
+      });
+
+      it('does not loosen the grip while perched or swimming; the count resumes on the ground', () => {
+        const h = holding();
+        h.session.perched = { y: 1.2 };
+        rainFor(h, RAIN_GRIP * 3);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        h.session.perched = null;
+        h.player.swimming = true;
+        rainFor(h, RAIN_GRIP * 3);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        expect(h.toasts).toEqual([]);
+        h.player.swimming = false;
+        rainFor(h, RAIN_GRIP - 0.5);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        rainFor(h, 0.5);
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(h.toasts).toHaveLength(1);
+      });
+
+      it('in a co-walk the slip sends one carry-drop, like a player drop', () => {
+        const h = holding();
+        const sent = [];
+        h.session.playerId = 'me-player-0001';
+        h.session.net = { sendEvent: (ev) => sent.push(ev) };
+        rainFor(h, RAIN_GRIP * 2);
+        const item = h.session.carry.items.list[0];
+        expect(sent).toEqual([{
+          v: 1, id: 'me-player-0001', type: 'carry-drop', itemId: 'park-stick-1',
+          pos: [item.mesh.position.x, item.mesh.position.z],
+        }]);
+      });
     });
 
     // v21 3b Task 8 — a co-walker sees it: one event per pick and per drop.

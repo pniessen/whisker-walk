@@ -278,7 +278,7 @@ function init() {
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
-    updateInteractions, awardStrayGreet, handleInteract,
+    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
   } = createInteractions({
     MP, pid, getCloud, getPsecret,
     getSession: () => session,
@@ -712,6 +712,7 @@ function init() {
       }
       session.tippables.update(dt);
       session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
+      tickCarryRain(session, dt); // v21 3b: falling rain loosens the grip; the item slips
       session.scent.update(dt);
       session.fx.update(dt);
       session.skyLife.update(dt);

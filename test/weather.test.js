@@ -166,3 +166,40 @@ describe('createWeather — the rainbow is anti-solar', () => {
     expect(w.rainbowPos.z).toBeCloseTo(-70, 4);
   });
 });
+
+// v21 3b: falling rain loosens a carrying cat's grip, so the weather says when
+// it is actually raining: only the rain phase of a rainy walk.
+describe('isRaining', () => {
+  const scene = () => ({ background: new THREE.Color(0x445566), fog: new THREE.Fog(0x123456, 40, 130), add: () => {} });
+  const sun = () => ({ color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) });
+  const cam = () => new THREE.Vector3(0, 0, 0);
+
+  it('is true only in the rain phase of a rainy walk', () => {
+    const w = createWeather(scene(), sun(), 'rain', () => 0, true); // stopAt 60, rainbow until 90
+    expect(w.isRaining()).toBe(true);
+    w.update(59, cam());
+    expect(w.isRaining()).toBe(true);
+    w.update(2, cam()); // 61: the rainbow
+    expect(w.isRaining()).toBe(false);
+    w.update(40, cam()); // 101: after
+    expect(w.isRaining()).toBe(false);
+  });
+
+  it('is false on clear and sunset walks, always', () => {
+    for (const condition of ['clear', 'sunset']) {
+      const w = createWeather(scene(), sun(), condition, () => 0, true);
+      expect(w.isRaining()).toBe(false);
+      w.update(10, cam());
+      expect(w.isRaining()).toBe(false);
+    }
+  });
+
+  it('draws nothing from any rng', () => {
+    let calls = 0;
+    const rng = () => { calls++; return 0.5; };
+    const w = createWeather(scene(), sun(), 'rain', rng, true);
+    const after = calls; // the schedule's one draw happened at creation
+    for (let i = 0; i < 200; i++) { w.isRaining(); if (i % 40 === 0) w.update(1, cam()); }
+    expect(calls).toBe(after);
+  });
+});

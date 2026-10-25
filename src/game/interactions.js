@@ -27,7 +27,7 @@ import { canFeed, outsideTag } from '../colony.js';
 import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
-import { pick as pickUp, drop as putDown, carryLabel } from '../carry.js';
+import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -1132,6 +1132,24 @@ export function createInteractions({
     return released;
   }
 
+  // Falling rain loosens the grip (carry.js's tickRain). When the grip gives
+  // out the item goes through the same putDownCarried the player's E uses, so
+  // the carry-drop event goes out to co-walkers and the walk-end 'drop' mark
+  // follows on its own. Nothing else happens: no points, no feat, no freeze.
+  // While perched or swimming the grip does not loosen at all (the count simply
+  // resumes once the cat is back on the ground): a slip there could set the
+  // item inside a roof or car footprint or on the water bed. A walk without a
+  // weather object (the den) or with a stub that lacks isRaining is dry.
+  function tickCarryRain(s, dt) {
+    const carry = s.carry;
+    if (!carry?.mouth.held) return;
+    if (s.perched || player.swimming) return;
+    const raining = s.weather?.isRaining?.() === true;
+    if (!tickRain(carry.mouth, dt, raining)) return;
+    const released = putDownCarried(s);
+    if (released) hud.toast(`Your paws are too slippery — you dropped the ${carryLabel(released.kind)}! 💧`);
+  }
+
   function handleInteract(s) {
     if (!s.prompt) return;
     if (s.prompt.kind === 'carry') {
@@ -1364,7 +1382,7 @@ export function createInteractions({
 
   return {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
-    setPrompt, updateInteractions, awardStrayGreet, handleInteract,
+    setPrompt, updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
     // Exported for test/interactions.test.js. updateInteractions calls it
     // itself — main.js does not need to, and must not start, or the senses
     // would run twice a frame.

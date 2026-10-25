@@ -27,7 +27,10 @@ const RAINBOW_COLORS = [0xe05050, 0xe09a40, 0xe8d84e, 0x58b858, 0x5878d8, 0x8858
 // mood change and the rainbow payoff still happen, only the falling-particle
 // motion (the part actually implicated in motion discomfort) is dropped.
 export function createWeather(scene, sun, condition, rng, reducedMotion = false) {
-  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {} };
+  // isRaining(): true only while a rainy walk is still in its rain phase (not
+  // the rainbow, not after). Reads the schedule's clock; draws nothing from
+  // any rng. v21 3b: falling rain loosens the grip on whatever the cat carries.
+  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false };
   if (condition === 'clear') return api;
 
   if (condition === 'sunset') {
@@ -90,6 +93,7 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false)
   let elapsed = 0;
   let rainbow = null;
 
+  api.isRaining = () => schedule.phase(elapsed) === 'rain';
   api.update = (dt, cameraPos) => {
     elapsed += dt;
     const phase = schedule.phase(elapsed);
