@@ -1,6 +1,11 @@
 -- Whisker Walk v7 "Always Online" — one-time database setup.
 -- Paste this whole file into Supabase → SQL Editor → New query → Run.
 -- Safe to re-run (idempotent).
+--
+-- SECURITY FIX: after running this file, also run
+-- docs/supabase-v7-secret-fix.sql (and again after any re-run of this file).
+-- It makes upsert_save, upsert_profile and record_friend_greet refuse a NULL
+-- secret; the versions below let one through. See docs/COLONY-SETUP.md.
 
 -- ── Tables ────────────────────────────────────────────────────────────
 

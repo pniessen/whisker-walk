@@ -17,6 +17,8 @@ It's safe to run the file again, for example if you aren't sure the first run fi
 
 If you see the error "**Run docs/supabase-setup.sql first**", the game's original setup file hasn't been run on this project yet, and nothing was changed. Run `docs/supabase-setup.sql` the same way, then run this file again.
 
+Then run the security fix in section 7 as well, if you haven't already. It takes a minute.
+
 ## 3. Check it worked
 
 1. Click **Table Editor** in the left sidebar. Six new tables should be listed: `colonies`, `colony_members`, `colony_invites`, `colony_cats`, `colony_feeds` and `colony_trades`. They will be empty, and that's expected.
@@ -72,3 +74,14 @@ update colony_trades set status = 'cancelled', decided_at = now()
 Nothing breaks if the file hasn't been run yet. Each device keeps its own colony, just for that player. The Colony tab says **"Colony sharing isn't switched on yet."** Everything else in the game works as usual. Once you run the file, sharing turns on the next time the game opens.
 
 If both children played before you ran the file, each has a colony of their own. When they pair, the two colonies join into one, and every cat either child has tamed stays in both dens. A shared colony has room for 24 cats, which is two full colonies of 12.
+
+## 7. Run the security fix for the original setup
+
+The game's original setup file, `docs/supabase-setup.sql`, has a hole: three of its functions don't refuse a request that comes with no secret at all. Because of it, someone who knew a child's save code could overwrite that save, and anyone could record greets as any player. `docs/supabase-v7-secret-fix.sql` closes it.
+
+1. In **SQL Editor**, click **New query**.
+2. Open `docs/supabase-v7-secret-fix.sql`, copy **the whole file**, paste it in, and click **Run**. You should see "Success. No rows returned".
+
+It only replaces those three functions (`upsert_save`, `upsert_profile` and `record_friend_greet`). It doesn't change any table or any saved data, and the game keeps working exactly as before. It's safe to run again.
+
+**If you ever re-run `docs/supabase-setup.sql`, run this fix again afterwards.** Re-running the setup file puts the old versions of the three functions back.
