@@ -59,6 +59,9 @@ export const PREY_STARTLE = 0.5;
 // 1.4-2.0 m/s, a trot at 3.2-4.4, so 0.25 means "stopped": player.js's
 // velocity lerp brings a released cat under it in about 0.4s.
 export const STILL_SPEED = 0.25;
+// Above the fastest the cat really moves (the 9 m/s pounce lunge; zoomies top
+// out near 6.9), so anything faster is a snap, not movement (see update).
+export const CAT_SPEED_CAP = 12;
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -401,9 +404,16 @@ export function createCritters(scene, spawns, opts = {}) {
       // R29: the cat's ground speed from its last two positions. Timed off
       // `t` (real time, like the cat's own movement) rather than `dt`, which
       // the slow-mo after a perfect sneak shrinks; `dt` only if `t` stalls.
+      // A step faster than CAT_SPEED_CAP is not the cat running — it is a
+      // perch snap (interactions.js moves the cat onto a perch in one frame)
+      // or a respawn — so it keeps the last reading rather than scaring a
+      // mouse beside a still touch player who tapped climb.
       if (lastCat) {
         const span = t > lastT ? t - lastT : dt;
-        if (span > 0) catStill = Math.hypot(catPos.x - lastCat.x, catPos.z - lastCat.z) / span < STILL_SPEED;
+        if (span > 0) {
+          const speed = Math.hypot(catPos.x - lastCat.x, catPos.z - lastCat.z) / span;
+          if (speed <= CAT_SPEED_CAP) catStill = speed < STILL_SPEED;
+        }
         lastCat.copy(catPos);
       } else {
         lastCat = catPos.clone();
@@ -422,7 +432,10 @@ export function createCritters(scene, spawns, opts = {}) {
         // this is a single Vector3 equality check and nothing moves.
         if (c.drawT > 0) {
           c.drawT -= dt;
-          if (c.drawT <= 0) c.anchorTo = null;
+          if (c.drawT <= 0) {
+            c.anchorTo = null;
+            c.calm = true; // R32: it came because it was called — see the prey branch
+          }
         }
         const anchorGoal = c.anchorTo ?? c.anchorHome;
         if (!c.anchor.equals(anchorGoal)) {
@@ -465,13 +478,18 @@ export function createCritters(scene, spawns, opts = {}) {
           // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
           // A stalking or still cat is noticed late and startles it first
           // (R27, R29); a critter answering a Far Call came because it was
-          // called, and notices nothing while the call lasts (R28).
+          // called, and notices nothing while the call lasts (R28) — nor after
+          // it (R32), until the cat has once been out past PREY_NOTICE or the
+          // critter is back at its home anchor, whichever comes first.
+          if (c.calm && (dCat > PREY_NOTICE || c.anchor.equals(c.anchorHome))) c.calm = false;
           const sneaky = catStalking || catStill;
-          if (!c.fleeing && !(c.drawT > 0) && dCat < (sneaky ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
+          if (!c.fleeing && !(c.drawT > 0) && !c.calm && dCat < (sneaky ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
             c.fleeing = true;
             c.cooldown = 3;
             c.hideAt = nearestHide(p);
-            c.startleT = sneaky ? PREY_STARTLE : 0;
+            // No freezing on top of its own cover: it is simply in.
+            const atCover = c.hideAt && p.distanceTo(c.hideAt) <= HIDE_REACH;
+            c.startleT = sneaky && !atCover ? PREY_STARTLE : 0;
           }
           if (c.startleT > 0) {
             c.startleT -= dt; // frozen to the spot
@@ -488,7 +506,12 @@ export function createCritters(scene, spawns, opts = {}) {
             away.normalize();
             p.addScaledVector(away, dt * fleeSpeed);
             c.cooldown -= dt;
-            if (c.cooldown <= 0) c.fleeing = false;
+            if (c.cooldown <= 0) {
+              c.fleeing = false;
+              // The catch is over: if it later gets away to cover untouched,
+              // that is an escape like any other, and the walk hears of it.
+              c.tagged = false;
+            }
           } else {
             const a = c.anchor;
             const bPt = a.clone().add(c.patrolSpan);

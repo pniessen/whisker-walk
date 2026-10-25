@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
-  createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED,
+  createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 
@@ -243,9 +243,12 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(mouse.fleeing).toBe(false);
     expect(mouse.group.visible).toBe(true);
 
-    frame(c, V(-3, 0)); // 3m: inside PREY_NOTICE
+    let x = -10;
+    while (!mouse.fleeing && x < -1) { x += 0.06; frame(c, V(x, 0)); } // trotting in, 3.6 m/s
     expect(mouse.fleeing).toBe(true);
-    run(c, 0.3, V(-3, 0));
+    expect(x).toBeGreaterThan(-PREY_NOTICE); // noticed at the trotting distance
+    expect(x).toBeLessThan(-PREY_NOTICE + 0.1);
+    run(c, 0.3, V(x, 0));
     // It runs TOWARD its cover (east), at its dash speed (6.5m/s).
     expect(mouse.group.position.x).toBeGreaterThan(1.5);
     expect(mouse.group.position.x).toBeLessThan(2.5);
@@ -278,9 +281,10 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(rat.hidden).toBe(true);
     expect(rat.group.position.distanceTo(V(0, -4))).toBeLessThanOrEqual(HIDE_REACH);
     // The squirrel's only hide is 16m off: it dashes away instead and comes back.
-    frame(c, V(38, 0));
+    let x = 34; // (one 36m jump from the rat's spot reads as a snap, not a trot)
+    while (!squirrel.fleeing && x < 39) { x += 0.06; frame(c, V(x, 0)); }
     expect(squirrel.fleeing).toBe(true);
-    run(c, 1, V(38, 0));
+    run(c, 1, V(x, 0));
     expect(squirrel.group.position.x).toBeGreaterThan(42); // away from the cat
     run(c, 3, V(-30, 0));
     expect(squirrel.fleeing).toBe(false);
@@ -308,8 +312,9 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
   });
 
   it('a hidden critter cannot be pounced, spotted, meowed at or called', () => {
-    const c = createCritters(scene, [still('squirrel')], { hides: [HIDE] });
+    const c = createCritters(scene, [still('squirrel'), { type: 'villager', x: 9, z: 0 }], { hides: [HIDE] });
     const sq = byType(c, 'squirrel');
+    const villager = byType(c, 'villager');
     frame(c, V(-3, 0));
     run(c, 3, V(-3, 0));
     expect(sq.hidden).toBe(true);
@@ -323,7 +328,11 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(c.catchAt(at)).toBe(null);
     expect(c.reactToMeow(at, { far: true })).toBe(0); // Far Call skips it
     expect(sq.anchorTo).toBe(null);
+    // dismayNear still reaches the neighbour standing 4m from the hide: the
+    // hidden-critter guard skips only the hidden one.
+    villager.meowWaveT = 0;
     c.dismayNear(at, 8);
+    expect(villager.meowWaveT).toBe(1.5);
     run(c, 30, at);                                   // standing right on its hide
     expect(sq.hidden).toBe(true);
     expect(sq.group.visible).toBe(false);
@@ -377,17 +386,22 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
   });
 
   it('birds are untouched', () => {
-    // A fingerprint of every non-prey critter's position at four frames,
-    // recorded off the pre-Task-13 critters.js with exactly this run (which
-    // already passed hides/onHide — the old module ignored them). The run is
-    // seeded end to end: spawn's own phase roll goes through a seeded
+    // A fingerprint of every non-prey critter's position at seven frames,
+    // recorded off the pre-Task-13 critters.js (4687ee5) with exactly this run
+    // (which already passed hides/onHide — the old module ignored them). The
+    // run is seeded end to end: spawn's own phase roll goes through a seeded
     // Math.random, and it takes the cat through the flock, stalks, meows a
-    // Far Call and pounces, so the birds take off, fly and come home.
+    // Far Call and pounces. The first bird is pounce-tagged close in at frame
+    // 20, and the run goes on long past its 18s flight, so all three flyers
+    // take off, fly and land back home (frames 1150 and 1499).
     const GOLDEN = [
-      [[2, 0.073826, 0], [-2.400623, 2.420343, 2.955352], [6, 0.013861, -2], [2.473543, 0.854505, 1.017854], [-7.090357, 0, -4.32336], [1.876299, 0, 5]],
-      [[4.452147, 3.800627, 0.636203], [6.929076, 16.420343, 2.694905], [6, 0.041314, -2], [0.302058, 1.092207, -0.475035], [-7.914072, 0, -5.420062], [4.2, 0, 5]],
-      [[14.131673, 18.800627, 3.147532], [16.925181, 31.420343, 2.415855], [6.325466, 15.041314, -11.994702], [-0.701826, 0.817746, -0.91392], [-3.729943, 0, -3.176495], [2.02629, 0, 5]],
-      [[30.199687, 43.700627, 7.316337], [33.518717, 56.320343, 1.952632], [6.865739, 39.941314, -28.585908], [0.906661, 1.062522, 0.641984], [0.391329, 0, -2.39703], [1.988077, 0, 5]],
+      [[4.581207, 4.058745, 0.669688], [-2.400623, 2.420343, 2.955352], [6, 0.013861, -2], [2.473543, 0.854505, 1.017854], [-7.090357, 0, -4.32336], [1.876299, 0, 5]],
+      [[13.615432, 18.058745, 3.013594], [6.929076, 16.420343, 2.694905], [6, 0.041314, -2], [0.302058, 1.092207, -0.475035], [-7.914072, 0, -5.420062], [4.2, 0, 5]],
+      [[23.294958, 33.058745, 5.524922], [16.925181, 31.420343, 2.415855], [6.325466, 15.041314, -11.994702], [-0.701826, 0.817746, -0.91392], [-3.729943, 0, -3.176495], [2.02629, 0, 5]],
+      [[39.362972, 57.958745, 9.693727], [33.518717, 56.320343, 1.952632], [6.865739, 39.941314, -28.585908], [0.906661, 1.062522, 0.641984], [0.391329, 0, -2.39703], [1.988077, 0, 5]],
+      [[58.786554, 88.058745, 14.733126], [53.577569, 86.420343, 1.392672], [7.51884, 70.041314, -48.641944], [0.788814, 0.667614, -1.828814], [2.127921, 0, -0.285571], [3.274235, 0, 5]],
+      [[2, 0.061317, 0], [-4, 0.044612, 3], [8.061283, 95.041314, -65.299781], [0.172622, 1.099925, 2.491345], [-5.492445, 0, -4.065475], [3.224207, 0, 5]],
+      [[2, 0.06108, 0], [-4, 0.073037, 3], [6, 0.036997, -2], [2.29783, 0.983953, -0.456675], [-7.993217, 0, -5.835427], [3.587733, 0, 5]],
     ];
     const spawns = [
       { type: 'bird', x: 2, z: 0 }, { type: 'bird', x: -4, z: 3 },
@@ -405,17 +419,21 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     }
     const path = (i) => V(-8 + i * 0.05, Math.sin(i / 30) * 2);
     const out = [];
-    for (let i = 0; i < 600; i++) {
+    let tag = null;
+    for (let i = 0; i < 1500; i++) {
       c.update(1 / 60, i / 60, path(i), path(i));
       c.markStalked(path(i), i > 300);
+      if (i === 20) tag = c.pounceCatch(V(2, 0)); // right on the first bird
       if (i === 200) c.reactToMeow(path(i), { far: true });
       if (i % 50 === 0) c.pounceCatch(path(i));
-      if ([60, 200, 350, 599].includes(i)) {
+      if ([60, 200, 350, 599, 900, 1150, 1499].includes(i)) {
         out.push(c.list.filter((x) => !['mouse', 'rat', 'squirrel'].includes(x.type))
           .map((x) => x.group.position.toArray().map((v) => +v.toFixed(6))));
       }
     }
+    expect(tag).toEqual({ type: 'bird', wasStalked: false });
     expect(out).toEqual(GOLDEN);
+    expect(c.list[0].fleeing).toBe(false); // the tagged bird has landed
     expect(byType(c, 'mouse').hidden).toBe(true); // and the mouse did evade, mid-flock
   });
 
@@ -580,5 +598,112 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     frame(t, V(-2 + 0.4 / 60, 0), false);
     expect(m2.fleeing).toBe(true);
     expect(m2.startleT).toBe(0);
+  });
+
+  // ---- Fix round 2 -----------------------------------------------------------
+
+  it('a called critter stays calm after the call, until the cat has been away (R32)', () => {
+    const c = createCritters(scene, [still('squirrel', 10, 0)], { hides: [{ x: 8, z: 0 }] });
+    const sq = byType(c, 'squirrel');
+    expect(c.reactToMeow(V(0, 0), { far: true })).toBe(1);
+    // The cat fidgets on the spot (moving: the trotting 3.5m applies) while
+    // the squirrel comes over, settles 2.2m off, and the call runs out.
+    let i = 0;
+    const fidget = (x) => frame(c, V(x + (i++ % 2) * 0.05, 0));
+    while (sq.drawT > 0) fidget(0);
+    expect(sq.calm).toBe(true);
+    // Trotting 2m from it as it heads home: no bolt, no hide.
+    for (let k = 0; k < 30; k++) fidget(sq.group.position.x - 2);
+    expect(sq.fleeing).toBe(false);
+    expect(sq.hidden).toBeFalsy();
+    // The cat walks off past 3.5m...
+    let x = sq.group.position.x - 2;
+    while (sq.group.position.distanceTo(V(x, 0)) <= PREY_NOTICE + 0.2) { x -= 0.05; frame(c, V(x, 0)); }
+    expect(sq.calm).toBe(false);
+    // ...and comes back at a trot: it bolts as normal.
+    for (let k = 0; k < 600 && !sq.fleeing; k++) { x += 0.07; frame(c, V(x, 0)); }
+    expect(sq.fleeing).toBe(true);
+    run(c, 3, V(x, 0));
+    expect(sq.hidden).toBe(true);
+  });
+
+  it('a called critter is calm only until it is home again (R32)', () => {
+    const c = createCritters(scene, [still('squirrel', 10, 0)], { hides: [{ x: 8, z: 0 }] });
+    const sq = byType(c, 'squirrel');
+    c.reactToMeow(V(0, 0), { far: true });
+    let i = 0;
+    const tag = (x) => frame(c, V(x + (i++ % 2) * 0.05, 0));
+    while (sq.drawT > 0) tag(0);
+    // The cat trots along 2m behind it all the way home.
+    let frames = 0;
+    while (!sq.anchor.equals(sq.anchorHome)) {
+      tag(sq.group.position.x - 2);
+      frames++;
+      if (!sq.anchor.equals(sq.anchorHome)) expect(sq.fleeing).toBe(false);
+    }
+    expect(frames).toBeGreaterThan(60); // a real trip home (7.8m at 2.2 m/s)
+    // Home — on the very frame it arrives, the grace is over, and a cat
+    // trotting 2m off is noticed.
+    expect(sq.calm).toBe(false);
+    expect(sq.fleeing).toBe(true);
+  });
+
+  it('a perch snap is not movement: a still cat that hops up does not scare a mouse', () => {
+    expect(CAT_SPEED_CAP).toBe(12);
+    const c = createCritters(scene, [still()], { hides: [HIDE] });
+    const mouse = byType(c, 'mouse');
+    c.markStalked(V(-6, 0), true);
+    for (let x = -4; x < -2; x += 0.03) frame(c, V(x, 0), true);
+    run(c, 1, V(-2, 0), false); // stopped, thumb off
+    // interactions.js snaps the cat onto a perch in one frame: 0.5m in 1/60s
+    // reads as 30 m/s. It keeps the last reading — still — so 1.5m is safe.
+    frame(c, V(-1.5, 0), false);
+    run(c, 2, V(-1.5, 0), false);
+    expect(mouse.fleeing).toBe(false);
+    // A real step (0.15m in a frame, 9 m/s — the lunge) is movement.
+    frame(c, V(-1.35, 0), false);
+    expect(mouse.fleeing).toBe(true);
+    expect(mouse.startleT).toBe(0); // a moving cat: no startle
+  });
+
+  it('does not freeze on top of its own cover: it is simply in', () => {
+    const hidden = [];
+    const c = createCritters(scene, [still()], { hides: [{ x: 0.3, z: 0 }], onHide: (x) => hidden.push(x) });
+    const mouse = byType(c, 'mouse');
+    c.markStalked(V(-6, 0), true);
+    for (let x = -3; x < -1.25; x += 0.03) frame(c, V(x, 0), true);
+    expect(mouse.fleeing).toBe(false);
+    frame(c, V(-1.1, 0), true); // a stalking cat: would normally startle it
+    expect(mouse.hidden).toBe(true);
+    expect(hidden).toEqual([mouse]);
+  });
+
+  it('a critter caught with no cover in reach, that later gets away to cover, still toasts', () => {
+    // A squirrel patrolling (0,0)..(20,0); its only cover is at (19,0), out of
+    // reach (>15m) from the west end, in reach from most of the line.
+    const hidden = [];
+    const c = createCritters(scene, [{ type: 'squirrel', x: 0, z: 0, x2: 20, z2: 0 }], {
+      hides: [{ x: 19, z: 0 }], onHide: (x) => hidden.push(x),
+    });
+    const sq = byType(c, 'squirrel');
+    sq.phase = -Math.PI / 2; // at t = 0 it stands at the west end
+    let t = 0;
+    const tick = (cat) => { t += 1 / 60; c.update(1 / 60, t, cat, cat); c.markStalked(cat, false); };
+    tick(V(-50, 0));
+    expect(sq.group.position.x).toBeLessThan(0.1);
+    expect(c.pounceCatch(sq.group.position.clone())).toEqual({ type: 'squirrel', wasStalked: false });
+    expect(sq.tagged).toBe(true);
+    expect(sq.hideAt).toBe(null); // no cover from here: the old dash
+    while (sq.fleeing) tick(V(-50, 0));
+    expect(sq.tagged).toBe(false); // the catch is over
+    expect(sq.hidden).toBeFalsy();
+    // Later it is in reach of cover and a trotting cat comes by: it gets away.
+    let k = 0;
+    while (!sq.hidden && k < 600) {
+      const p = sq.group.position;
+      tick(V(p.x - 2 + (k++ % 2) * 0.05, 0));
+    }
+    expect(sq.hidden).toBe(true);
+    expect(hidden).toEqual([sq]);
   });
 });
