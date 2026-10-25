@@ -131,8 +131,10 @@ export function friendRungCrossed(before, after, { charmer = false } = {}) {
 export { CAT_NAMES };
 
 // ---------------------------------------------------------------------------
-// v20 "Ruffled Fur", D2 — "strays only, never the named family pets (Zeetoo,
-// Rosa, Robbie, Hagrid) and never ghost visitors."
+// v20 "Ruffled Fur" — the strays-only rule (v20 spec decision D2): "strays
+// only, never the named family pets and never ghost visitors." The family
+// pets today are Zeetoo, Robbie, D2, Digit and Hagrid; the spec's label is
+// older than the cat, so the code calls it the strays-only rule.
 //
 // src/enemies.js owns the RULES and says plainly that it cannot enforce this:
 // it sees a save, a name and a walk stamp, and has no way to tell one cat
@@ -146,8 +148,8 @@ export { CAT_NAMES };
 //   * the VOCABULARY half — the name must come from a closed, code-owned list:
 //     CAT_NAMES plus KIT_NAMES. A fed den kit is an ordinary colony cat on the
 //     ordinary taming ladder, so it must be feedable on later walks; without
-//     its name here it would be stranded at one feed forever. The four
-//     family pets are CATALOG.cats entries (progression.js:178-181), i.e.
+//     its name here it would be stranded at one feed forever. The family
+//     pets are entries of `CATALOG.cats` in progression.js, i.e.
 //     PLAYER AVATARS, and none of the stray or kit names is one of them.
 //     test/straycats.test.js pins that disjointness against the real CATALOG,
 //     so the guard cannot rot if either list is edited.
@@ -161,7 +163,7 @@ export { CAT_NAMES };
 // D5's friend/best immunity). That is what "ordinary ladder" means.
 const STRAY_NAMES = new Set([...CAT_NAMES, ...KIT_NAMES]);
 
-// isGrudgeableStray(strayCats, cat) → bool. The single D2 gate; every enemy
+// isGrudgeableStray(strayCats, cat) → bool. The single strays-only gate; every enemy
 // path in game/interactions.js asks it before consulting enemies.js at all.
 // Total over garbage: a null strayCats, a nameless object or a plain
 // `{ name }` literal all read as "not a stray" rather than throwing.
@@ -262,7 +264,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   // The cast: colony cats first, then everyone else in shuffle order. Built
   // from data the caller already sanitized (colony.js), but filtered again
   // here because this module owns stray identity: only a CAT_NAMES or
-  // KIT_NAMES name can be a stray (the D2 guard below relies on it), each name once, a spot
+  // KIT_NAMES name can be a stray (the strays-only guard relies on it), each name once, a spot
   // must be finite, and there are never more colony cats than `count`.
   const colony = [];
   const colonyNames = new Set();

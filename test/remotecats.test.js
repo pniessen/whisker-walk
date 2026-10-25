@@ -103,7 +103,7 @@ describe('createRemoteCats', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);
     remotes.upsert(PROFILE, 0);
-    remotes.upsert({ ...PROFILE, playerId: 'bbb', petName: 'Rosa' }, 0);
+    remotes.upsert({ ...PROFILE, playerId: 'bbb', petName: 'Robbie' }, 0);
     remotes.dispose();
     expect(scene.objects.size).toBe(0);
     expect(remotes.list).toHaveLength(0);
@@ -153,6 +153,13 @@ describe('createRemoteCats', () => {
   // tampered client, wire glitch) — upsert must whitelist rather than trust
   // breed/petName wholesale, since an unknown breed key would otherwise
   // reach buildCat and throw.
+  it('upsert normalizes the retired rosa breed to tabby and still builds the cat', () => {
+    const remotes = createRemoteCats(fakeScene());
+    const entry = remotes.upsert({ ...PROFILE, playerId: 'rrr', breed: 'rosa' }, 0);
+    expect(entry.breed).toBe('tabby');
+    expect(remotes.list).toHaveLength(1);
+  });
+
   it('upsert whitelists an unknown breed to tabby and an invalid petName to a fallback', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);

@@ -33,7 +33,7 @@ describe('createNet over a fake hub', () => {
     const a = createNet(hub.transport());
     const b = createNet(hub.transport());
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
     const seenByB = [];
     const seenByA = [];
     b.onState((s) => seenByB.push(s));
@@ -48,7 +48,7 @@ describe('createNet over a fake hub', () => {
     const a = createNet(hub.transport());
     const b = createNet(hub.transport());
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
     const seen = [];
     b.onState((s) => seen.push(s));
     a.sendState({ v: 99, id: 'aaa', pos: [0, 0], yaw: 0, pose: 'follow', speed: 0 });
@@ -61,7 +61,7 @@ describe('createNet over a fake hub', () => {
     const a = createNet(hub.transport());
     const b = createNet(hub.transport());
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
     const seen = [];
     b.onState((s) => seen.push(s));
     a.sendState({ v: 1, id: 'aaa', pos: [NaN, 0], yaw: 0, pose: 'follow', speed: 0 });
@@ -73,7 +73,7 @@ describe('createNet over a fake hub', () => {
     const a = createNet(hub.transport());
     const b = createNet(hub.transport());
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
     await a.leave();
     expect(b.isHost()).toBe(true);
   });
@@ -89,7 +89,7 @@ describe('createNet over a fake hub', () => {
     const a = createNet(hub.transport());
     const b = createNet(hub.transport());
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
 
     // b registers onRoster only now — after both players already joined and
     // the roster already settled, with no further membership change coming.
@@ -107,7 +107,7 @@ describe('createNet over a fake hub', () => {
     const b = createNet(hub.transport());
     // mirrors host()/join() in main.js: join happens in the lobby...
     await a.join('AB23', { playerId: 'aaa', petName: 'A', breed: 'tabby', accessories: {} });
-    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'rosa', accessories: {} });
+    await b.join('AB23', { playerId: 'bbb', petName: 'B', breed: 'robbie', accessories: {} });
 
     // ...and only later, once the walk actually starts, does startWalk wire
     // up its own onRoster subscription on the SAME net instance — nobody

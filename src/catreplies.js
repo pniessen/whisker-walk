@@ -69,14 +69,6 @@ const REPLIES = {
     emote: ['✨', 'Sniff... legendary.'],
     misc: ['The nose senses something...', 'A true adventurer never rests.'],
   },
-  rosa: {
-    greeting: ['Good day to you.', 'Greetings, and well met.', 'Ah, hello there.'],
-    play: ['Very well — a spot of play.', 'I shall play, formally.', 'Splendid. Let us proceed to play.'],
-    compliment: ['You are most kind.', 'I appreciate the compliment, truly.', 'Why, thank you.'],
-    farewell: ['Farewell, until we meet again.', 'Good day to you. Farewell.', 'I bid you adieu.'],
-    emote: ['🎩', 'Composed, as always.'],
-    misc: ['Quite so.', 'Indeed.'],
-  },
   robbie: {
     greeting: ['HIYA!! Chaos time!', 'HEY HEY HEY!', 'Yo!! Let\'s CAUSE something!'],
     play: ['POUNCE CHAMPION incoming!!', 'Let\'s knock stuff over!!', 'Play?? OBVIOUSLY YES!'],
@@ -84,6 +76,22 @@ const REPLIES = {
     farewell: ['Byeee — more chaos elsewhere!', 'Gotta go knock something over. Bye!', 'Later! Stay chaotic!'],
     emote: ['🐮', 'CHAOS!'],
     misc: ['What can I pounce next...', 'Maximum chaos mode: ON.'],
+  },
+  d2: {
+    greeting: ['Oh, hello there. Nice to see you.', 'Hi, friend. No rush.', 'Well, hello. Come sit a while.'],
+    play: ['Let\'s play... nice and slow.', 'I\'ll play. Big paws, gentle taps.', 'A game? Sure, at my pace.'],
+    compliment: ['Aww. That\'s very kind.', 'Thank you, friend. Purrr.', 'You make a big cat happy.'],
+    farewell: ['Take your time. Bye now.', 'See you soon, friend.', 'Bye. I\'ll save you a sunny spot.'],
+    emote: ['💤', 'Purrrr...'],
+    misc: ['Big and fluffy, that\'s me.', 'No hurry. There\'s always time.'],
+  },
+  digit: {
+    greeting: ['Hi hi hi! Who are YOU?', 'Ooh, a new friend!', 'Hello!! Everything is SO cool!'],
+    play: ['Chase! Chase! Can we chase?!', 'Ooh, is that a string?!', 'Let\'s play! I\'ll be super fast!'],
+    compliment: ['Really?! Thank you!!', 'Wow, me? Yay!', 'That makes my ears go up!'],
+    farewell: ['Bye bye! Come back soon!', 'Wait — okay, bye!!', 'See ya! I\'ll find something new!'],
+    emote: ['✨', 'Mew!'],
+    misc: ['What\'s THAT? Ooh!', 'Everything is new and amazing!'],
   },
   hagrid: {
     greeting: ['Bwak?! 🐔', 'Bok bok!', 'Bwak bwak, hello!'],

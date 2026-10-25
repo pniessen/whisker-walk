@@ -12,7 +12,7 @@ import { animateCat } from '../src/cat/animator.js';
 // the numbers on screen, so a test that asserted against hand-copied numbers
 // would reproduce exactly the bug it is meant to catch.
 
-const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'rosa', 'robbie'];
+const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
 const ALL = [...BREEDS, 'hagrid'];
 const FEET = ['booties', 'sneakers', 'rainboots', 'socks'];
 const STATES = ['follow', 'nap', 'stretch', 'groom', 'requestPet', 'perch', 'sniff', 'stalk', 'pounce', 'scared', 'cross', 'land'];
@@ -128,10 +128,148 @@ describe('cat model: markings lie ON the surface they mark', () => {
   });
 
   it('an unmarked breed has no markings at all', () => {
-    for (const breed of ['siamese', 'persian', 'black', 'rosa', 'mainecoon']) {
+    for (const breed of ['siamese', 'persian', 'black', 'mainecoon']) {
       const cat = buildCat(breed);
       expect(cat.userData.parts.body.children).toHaveLength(0);
     }
+  });
+});
+
+describe("cat model: Robbie's real coat", () => {
+  // Robbie was drawn as a white cat with black splashes — the reverse of the
+  // real one, who is black on top (cap, ears, back) with a white blaze, white
+  // muzzle and chest, white legs and paws, and big white patches on his flanks.
+  // Luminance is read off the built material, so this checks what is drawn,
+  // not what the STYLE table says.
+  const lum = (m) => 0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b;
+
+  it('is a dark cat with white legs, white paws and white body markings', () => {
+    const cat = buildCat('robbie');
+    const { body, legs } = cat.userData.parts;
+    expect(lum(body.material)).toBeLessThan(0.2);
+    for (const leg of legs) {
+      expect(lum(leg.children[0].material)).toBeGreaterThan(0.8); // the limb
+      expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
+    }
+    const white = body.children.filter((m) => lum(m.material) > 0.8);
+    expect(white.length).toBeGreaterThan(0);
+  });
+
+  it('has a white bib on the front of his chest, in the same mesh as his flanks, clear of them', () => {
+    // The eye check against the photo: his chest was black. The bib is a patch
+    // of the body sphere like every marking, so it is found in the body's own
+    // unit-sphere frame — front is -z. It must share the flanks' mesh (the
+    // white body markings stay ONE mesh), and no bib vertex may fall inside a
+    // flank patch: overlapping patches at one lift z-fight.
+    const cat = buildCat('robbie');
+    const white = cat.userData.parts.body.children.filter((m) => lum(m.material) > 0.8);
+    expect(white).toHaveLength(1);
+    const pos = white[0].geometry.attributes.position;
+    const dirs = [];
+    for (let i = 0; i < pos.count; i++) dirs.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize());
+    const front = dirs.filter((d) => d.z < -0.9 && Math.abs(d.x) < 0.1);
+    expect(front.length).toBeGreaterThan(0);
+    // Every vertex is either well forward (the bib, |x| small) or well out to a
+    // side (a flank): nothing in the band between, where the two would meet.
+    const between = dirs.filter((d) => Math.abs(d.x) > 0.5 && Math.abs(d.x) < 0.6 && d.z < -0.5);
+    expect(between).toHaveLength(0);
+    const bibMaxX = Math.max(...dirs.filter((d) => d.z < -0.75).map((d) => Math.abs(d.x)));
+    const flankMinFwd = Math.min(...dirs.filter((d) => Math.abs(d.x) > 0.6).map((d) => Math.atan2(Math.abs(d.x), -d.z)));
+    expect(Math.asin(bibMaxX)).toBeLessThan(flankMinFwd - 0.2); // > ~11 degrees of black between
+  });
+});
+
+describe('cat model: D2 and Digit, from the photos', () => {
+  // D2 is a big, fluffy grown-up; Digit is a slender young cat who is all legs
+  // and ears. Both are measured off the built model, never off STYLE.
+  const lengthOf = (cat) => { const b = boxOf(cat); return b.max.z - b.min.z; };
+  const COLLAR = (o) => o.isMesh && o.geometry.type === 'TorusGeometry'
+    && o.geometry.parameters.radius === 0.15 && o.geometry.parameters.tube === 0.028;
+
+  it('digit is smaller than d2', () => {
+    expect(lengthOf(buildCat('digit'))).toBeLessThan(lengthOf(buildCat('d2')));
+  });
+
+  it("digit's legs are longer for its body than a tabby's", () => {
+    // Paw-to-belly height over body length, both in the cat's own frame, so
+    // the breed scale cancels out.
+    const legginess = (breed) => {
+      const cat = buildCat(breed);
+      animateCat(cat, 'follow', 0, 0, false);
+      cat.updateMatrixWorld(true);
+      const body = new THREE.Box3().setFromObject(cat.userData.parts.body);
+      const paw = new THREE.Box3().setFromObject(cat.userData.parts.legs[0].userData.paw);
+      return (body.min.y - paw.min.y) / (body.max.z - body.min.z);
+    };
+    expect(legginess('digit')).toBeGreaterThan(legginess('tabby') * 1.5);
+  });
+
+  it('digit rests at ground level in every pose, dressed and bare, like a tabby', () => {
+    // Digit's longer legs raise its hips. A pose that folds the legs by
+    // scaling them would leave its paws hovering if the model only fixed the
+    // standing pose — so every state is checked against the tabby's own
+    // resting height in that same state (normalised by breed scale), the
+    // tabby wearing Digit's tag collar so both are dressed alike.
+    //
+    // The floor is "no deeper than the tabby", not a flat -0.001: a standard
+    // cat already dips below y = 0 in some poses (the sit, -0.098; the
+    // stretch, -0.027; a collar in the nap, -0.031). Those are the existing
+    // rig's, and Digit is held to matching them, not to beating them.
+    for (const acc of [{}, { body: 'sweater' }, { back: 'cape' }, { back: 'backpack' }]) {
+      for (const state of STATES) {
+        const lowest = (breed, outfit) => {
+          const cat = buildCat(breed, outfit);
+          animateCat(cat, state, 1.3, 0, false);
+          return boxOf(cat).min.y / cat.scale.x;
+        };
+        const digit = lowest('digit', acc);
+        const tabby = lowest('tabby', { collar: 'tag', ...acc });
+        const label = `${state} ${JSON.stringify(acc)}`;
+        expect(digit, label).toBeGreaterThanOrEqual(Math.min(-0.001, tabby - 0.001));
+        expect(Math.abs(digit - tabby), label).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('digit stays as grounded as a tabby through the walk cycle', () => {
+    // The per-pose test above holds still (moveSpeed 0). Walking swings every
+    // leg each frame, and fitLongLegs re-fits each swung leg to land its sole
+    // where a standard leg's would — so over a stride's worth of frames, in
+    // every state that falls through to the gait, Digit's lowest point tracks
+    // the tabby's to within a centimetre (normalised by breed scale).
+    for (const state of ['follow', 'stalk', 'sniff', 'cross']) {
+      for (let t = 0; t <= 3; t += 0.25) {
+        const lowest = (breed, outfit) => {
+          const cat = buildCat(breed, outfit);
+          animateCat(cat, state, t, 1.5, false);
+          return boxOf(cat).min.y / cat.scale.x;
+        };
+        const digit = lowest('digit', {});
+        const tabby = lowest('tabby', { collar: 'tag' });
+        expect(Math.abs(digit - tabby), `${state} t=${t}`).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('digit is narrower for its length than a tabby — slender, not a small stocky cat', () => {
+    // Width over length of the torso as drawn after a pose, so it reads what
+    // the animator actually wrote to body.scale (it rewrites it every frame
+    // from userData.base.bodyScale), not what the model built.
+    const slimness = (breed) => {
+      const cat = buildCat(breed);
+      animateCat(cat, 'follow', 0, 0, false);
+      cat.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(cat.userData.parts.body);
+      return (b.max.x - b.min.x) / (b.max.z - b.min.z);
+    };
+    expect(slimness('digit')).toBeLessThan(slimness('tabby') * 0.85);
+  });
+
+  it('digit wears its own tag collar, and exactly one collar when it buys a bell', () => {
+    const count = (cat) => { let n = 0; cat.traverse((o) => { if (COLLAR(o)) n++; }); return n; };
+    expect(count(buildCat('digit'))).toBe(1);
+    expect(count(buildCat('digit', { collar: 'bell' }))).toBe(1);
+    expect(count(buildCat('d2'))).toBe(0);
   });
 });
 
@@ -170,7 +308,7 @@ describe('cat model: budget and determinism', () => {
   // wave that adds meshes to the hero asset — which is on screen 100% of the
   // time, and is also cloned for every stray, ghost and co-walker — is spending
   // the scarce resource. Wave 6 spent triangles and RECLAIMED meshes.
-  const CEILING = { tabby: 31, siamese: 30, persian: 31, black: 30, calico: 33, mainecoon: 31, zeetoo: 31, rosa: 30, robbie: 32, hagrid: 19 };
+  const CEILING = { tabby: 31, siamese: 30, persian: 31, black: 30, calico: 33, mainecoon: 31, zeetoo: 31, robbie: 32, d2: 34, digit: 35, hagrid: 19 };
 
   for (const breed of ALL) {
     it(`${breed} draws no more meshes than its ceiling (${CEILING[breed]})`, () => {

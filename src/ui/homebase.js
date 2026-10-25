@@ -30,8 +30,9 @@ const CAT_BLURBS = {
   calico: 'Playful — pounces butterflies for points',
   mainecoon: 'Steady — big, calm, unbothered',
   zeetoo: 'Legendary tabby — smells treasure from a block away',
-  rosa: 'Tuxedo — always formal, never afraid',
   robbie: 'Cow cat — maximum chaos, champion pouncer',
+  d2: 'Gentle giant — big, fluffy, never in a hurry',
+  digit: 'Kitten — all legs and ears, chases everything',
   hagrid: 'A chicken?! Birds trust Hagrid completely',
 };
 const ACC_BLURBS = {
@@ -602,7 +603,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // colonyNews's snapshot of what the card shows, marked read on dismiss. Returns
   // whether it was shown.
   function showNews(html, seen) {
-    if (typeof html !== 'string' || !html || newsEl || !homeVisible()) return false;
+    if (typeof html !== 'string' || !html || newsEl || noticeEl || !homeVisible()) return false;
     newsShown = seen && typeof seen === 'object' ? seen : null;
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
@@ -616,6 +617,42 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     });
     root.after(newsEl);
     newsEl.querySelector('#colony-news-ok')?.focus();
+    return true;
+  }
+
+  // showNotice(text): a one-line card (the Rosa farewell) over the home base,
+  // with its own element and handlers. It is not the news, so dismissing it
+  // never marks anything read; showNews yields to it and the news stays unread.
+  let noticeEl = null;
+
+  function closeNotice() {
+    if (!noticeEl) return;
+    noticeEl.remove();
+    noticeEl = null;
+  }
+
+  function showNotice(text) {
+    if (typeof text !== 'string' || !text || noticeEl || !homeVisible()) return false;
+    noticeEl = document.createElement('div');
+    noticeEl.id = 'home-notice';
+    noticeEl.className = 'colony-news';
+    const card = document.createElement('div');
+    card.className = 'colony-news-card';
+    const line = document.createElement('p');
+    line.className = 'colony-notice-line';
+    line.textContent = text;
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'colony-news-btn';
+    ok.textContent = 'OK';
+    ok.addEventListener('click', closeNotice);
+    noticeEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeNotice();
+    });
+    card.append(line, ok);
+    noticeEl.append(card);
+    root.after(noticeEl);
+    ok.focus();
     return true;
   }
 
@@ -1015,6 +1052,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       cloudPreview = null;
       if (!res.ok) cloudError = res.error;
       render();
+      // A pre-update cloud save with Rosa equipped queued her farewell while
+      // loading; say it now, over the freshly drawn home base.
+      if (res.ok) {
+        const farewell = progression.takeFarewell();
+        if (farewell) showNotice(farewell);
+      }
       return;
     }
     if (e.target.id === 'sync-cancel-load') {
@@ -1178,8 +1221,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       syncPairingPoll(); // render() ran while still hidden
     },
     showNews,
+    showNotice,
     hide() {
       closeNews(false); // a walk is starting: leave the news unread for next time
+      closeNotice();
       root.classList.add('hidden');
       syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
     },
