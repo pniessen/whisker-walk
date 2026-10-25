@@ -78,7 +78,7 @@ function catCard(cat, p, ctx) {
   // hostile stored name reaches this template by this path too: escape it.
   // The rank is a word, never a level; its text comes by reference from
   // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
-  const clan = escapeHtml(clanNameOf(cat.name, p));
+  const headline = escapeHtml(clanNameOf(cat.name, p));
   const rank = escapeHtml(RANK_WORDS[clanRankFor(p)]);
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;
@@ -106,15 +106,15 @@ function catCard(cat, p, ctx) {
   // found under) with the breed beside it. Breed hashes the STORED name: hashing
   // the clan name would change a known cat's coat colour. When the clan name is
   // just the stored name (unknown name passes through), don't print it twice.
-  const stored = clan === name ? '' : `${name} `;
+  const stored = headline === name ? '' : `${name} `;
   const breed = escapeHtml(typeof cat.name === 'string' ? strayBreed(cat.name) : '');
   const titleLine = `<div class="colony-title">${stored}<span class="colony-breed">${breed}</span></div>`;
   const dress = cat.finder === me ? dressSelect(cat, owned, catalog) : '';
 
   return `<div class="card colony-card ${p.tamed ? 'selected' : ''}" data-cat="${name}">
-    <div class="card-name">${clan} <span class="colony-rank">${rank}</span></div>
+    <div class="card-name">${headline} <span class="colony-rank">${rank}</span></div>
     ${titleLine}
-    <div class="colony-bar" role="progressbar" aria-label="${clan}'s trust"
+    <div class="colony-bar" role="progressbar" aria-label="${headline}'s trust"
       aria-valuemin="0" aria-valuemax="${p.need}" aria-valuenow="${p.have}">${head}<span class="colony-fed" style="width:${fedPct}%"></span></div>
     <div class="colony-count">${p.have} of ${p.need} feeds${p.tamed ? ' · tamed ✅' : ''}</div>
     ${knew}
