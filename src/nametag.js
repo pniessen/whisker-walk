@@ -7,7 +7,7 @@ import * as THREE from 'three';
 // dusky-red tag instead of the neutral one. Everything about that is opt-in —
 // `makeNameTag(name)` with no opts paints exactly the pixels it painted
 // before this wave, because remote pets and the named family pets must be
-// entirely unaffected (spec D2).
+// entirely unaffected (the strays-only rule).
 
 // --- Canvas geometry --------------------------------------------------
 // Unchanged from the original single-mood tag: a 256x64 canvas with one
@@ -103,7 +103,8 @@ export const CROSS_NAME_TAG_RANGE = 12;
 //
 // Raising the tail instead was rejected: the raised tail IS the pose. Raising
 // EVERY tag was rejected too — it would change how remote co-walk pets and
-// ghost visitors look, which spec D2 says this wave must not touch.
+// ghost visitors look, which the strays-only rule says this wave must not
+// touch.
 //
 // The tag does shift when a cat turns cross and settles back when forgiven.
 // That is deliberate: it happens on the same frame as the colour repaint, so

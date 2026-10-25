@@ -10,6 +10,8 @@ export const VOICES = {
   mainecoon: { pitch: 0.72, rate: 0.85, gain: 1.1 },  // big cat, big voice
   zeetoo:    { pitch: 1.05, rate: 1.2,  gain: 1.0 },
   robbie:    { pitch: 0.85, rate: 1.05, gain: 1.05 },
+  d2:        { pitch: 0.78, rate: 0.85, gain: 1.05 }, // gentle giant: low, unhurried
+  digit:     { pitch: 1.3,  rate: 1.3,  gain: 0.9 },  // kitten: high, quick, small
   hagrid:    { pitch: 1.0,  rate: 1.0,  gain: 1.0 },  // clucks — pitch/rate still honored
 };
 export function voiceFor(breed) {

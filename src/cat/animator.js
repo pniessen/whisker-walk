@@ -54,6 +54,48 @@ const CROSS = {
 // roll below, which is what actually feeds into the camera (camera.position
 // follows avatar.position every frame), leaving the leg gait itself intact.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
+  pose(cat, state, t, moveSpeed, reducedMotion);
+  if (cat.userData.base?.legLift) fitLongLegs(cat);
+}
+
+// A cat built with STYLE.legLen (Digit) stands on longer legs: model.js lifted
+// its hips, body, head and everything else by Δ = base.legLift. Every pose in
+// pose() below is written for a standard leg, and a longer leg scaled or swung about
+// a higher hip puts its paw somewhere else — the cat hovered in a sit, a nap
+// and a stalk. This pass, run after the pose, re-fits the cat to the pose:
+//
+//   * a crouch (any leg folded, scale.y < 1) brings everything but the legs
+//     down by Δ, so the body rests exactly as low as a standard cat's does;
+//   * every leg the pose scaled or swung (up to ~57°, so a raised grooming paw
+//     is left alone) gets the scale that lands its sole where a standard leg's
+//     sole would land: hip + Δ - s'·(R + Δ)·cosθ = hip - s·R·cosθ.
+//
+// A standing cat is untouched; a walking one has its swinging legs re-fit each
+// frame so its paws track a standard cat's. A standard cat never
+// reaches here at all. Deterministic: it reads only the pose just written.
+const LONG_LEG_MAX_SWING = 1.0;
+function fitLongLegs(cat) {
+  const { body, head, legs } = cat.userData.parts;
+  const { legLift: lift, legReach: reach } = cat.userData.base;
+  const crouch = legs.some((leg) => leg.scale.y < 1);
+  for (const child of cat.children) {
+    if (legs.includes(child) || child.userData.liftY === undefined) continue;
+    if (child === body || child === head) {
+      if (crouch) child.position.y -= lift; // the pose wrote these this frame
+    } else {
+      child.position.y = child.userData.liftY - (crouch ? lift : 0);
+    }
+  }
+  for (const leg of legs) {
+    const s = leg.scale.y;
+    const swing = Math.abs(leg.rotation.x);
+    if ((s === 1 && swing === 0) || swing > LONG_LEG_MAX_SWING) continue;
+    const c = Math.cos(swing);
+    leg.scale.y = (s * reach * c + lift) / ((reach + lift) * c);
+  }
+}
+
+function pose(cat, state, t, moveSpeed, reducedMotion) {
   const { body, head, tail, tailPivots, legs, earL, earR } = cat.userData.parts;
   const base = cat.userData.base ?? CAT_BASE;
   const [bsx, bsy, bsz] = base.bodyScale;

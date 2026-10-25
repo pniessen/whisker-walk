@@ -64,7 +64,7 @@ const labelIn = (ops) => ops.find((o) => o[0] === 'fillText')[3];
 const labelFontOf = (ops) => ops.find((o) => o[0] === 'fillText')[1];
 
 describe('makeNameTag defaults', () => {
-  // D2: remote co-walk pets, ghost visitors and the named family pets share
+  // The strays-only rule: remote co-walk pets, ghost visitors and the named family pets share
   // this builder and must be entirely unaffected by the v20 grudge mood.
   it('paints the pre-v20 neutral tag when no opts are passed', () => {
     withFakeDocument((canvases) => {

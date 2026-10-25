@@ -204,6 +204,8 @@ export const CATALOG = {
     mainecoon: { name: 'Maine Coon', price: 60 },
     zeetoo: { name: 'Zeetoo', price: 40 },
     robbie: { name: 'Robbie', price: 40 },
+    d2: { name: 'D2', price: 40 },
+    digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
   },
   accessories: {
@@ -1271,8 +1273,8 @@ export function createProgression(storage) {
     // as on the way out: a field that is only cleaned at load time spends
     // the rest of the session dirty.
     //
-    // No eligibility rules live here. D2 (strays only, never the family pets
-    // or ghost visitors) and D5 (a `friend`/`best` cat is immune) are
+    // No eligibility rules live here. The strays-only rule (never the family
+    // pets or ghost visitors) and D5 (a `friend`/`best` cat is immune) are
     // decided by enemies.shouldTurnHostile at the greet site; this method is
     // the writer, not the judge.
     recordGrudge(name) {

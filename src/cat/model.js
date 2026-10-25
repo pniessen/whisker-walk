@@ -15,6 +15,12 @@ const STYLE = {
   // the reverse. Black cap, ears and back come from `base`; muzzle, chest and
   // paws from `belly`; the `cow` markings below add the white flanks and blaze.
   robbie:    { base: 0x1a1a1e, belly: 0xf5f5f5, accent: 0xf5f5f5, scale: 1.05, cow: true, whiteLegs: true },
+  // D2 is a large tabby-and-white: tabby cap with the "M", white muzzle, chest,
+  // belly and legs, a white band over the shoulders, dark tabby back and tail.
+  d2:        { base: 0x5a4a3a, belly: 0xf5f5f2, accent: 0x2e261e, scale: 1.15, stripes: true, headStripes: true, whiteLegs: true, band: true, fluffy: true },
+  // Digit is young and slender — all legs and ears — with bold stripes, four
+  // white socks, a small white chin and a black collar with a round tag.
+  digit:     { base: 0x7a6248, belly: 0xc8b090, accent: 0x2a2018, scale: 0.82, stripes: true, headStripes: true, socks: true, chin: true, ears: 1.25, legLen: 1.2, tagCollar: true },
 };
 // Optional coat flags, all off unless a row sets them. They exist for the
 // family cats, who are drawn from photos rather than from a breed:
@@ -35,7 +41,7 @@ const STYLE = {
 //                 when no collar accessory is worn (never two collars).
 const INNER_EAR = 0xe8a0a8;
 const WHITE_FUR = 0xf5f5f5;
-const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040 };
+const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048 };
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
 // four re-homed ones, which keep their original colors inline below).
@@ -1025,13 +1031,25 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The animator writes body and head positions from userData.base every
   // frame, so base carries the lift too; it never writes a leg position, so
   // the raised pivots survive every pose.
+  //
+  // Standing is not the only pose, though. The animator folds legs by scaling
+  // them about the hip and swings them by rotating about it, and both of those
+  // move a longer leg's paw further than a standard one's — a long-legged cat
+  // would hover when it sat or crouched. So base also carries `legLift` (Δ)
+  // and `legReach` (a standard leg's hip-to-sole drop), and every lifted child
+  // remembers its lifted height in userData.liftY: animator.js's fitLongLegs
+  // uses them to bring the cat down by Δ in a crouch and re-fit each posed
+  // leg so its sole lands where a standard cat's would.
   const LEG_LEN = s.legLen ?? 1;
   let bodyY = 0.34;
   let headPos = [0, 0.56, -0.44];
+  let legLift = 0;
   if (LEG_LEN !== 1) {
     const dy = 0.26 * (LEG_LEN - 1);
+    legLift = dy;
     for (const child of g.children) {
       child.position.y += dy;
+      child.userData.liftY = child.position.y;
       if (!legs.includes(child)) continue;
       const [limb, ...hung] = child.children;
       limb.geometry.dispose();
@@ -1057,5 +1075,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     earL: head.userData.earL, earR: head.userData.earR, whiskers,
   };
   g.userData.base = { bodyY, bodyScale: [0.85, 0.75, 1.35], headPos, tailRotX: -0.6 };
+  // The sole of a standard paw: hip 0.3, paw centre 0.2585 below it, and the
+  // flattened paw's half-height (0.062 * 0.62) below that.
+  if (legLift) Object.assign(g.userData.base, { legLift, legReach: 0.2585 + 0.062 * 0.62 });
   return g;
 }

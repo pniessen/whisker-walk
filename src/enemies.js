@@ -298,7 +298,7 @@ export function isHostilityImmune(state, name) {
 // createEnemyWalkLog below) and passes that flag here, which is what lets
 // spec §4's "the greet then proceeds normally" actually be normal.
 //
-// Callers are still responsible for D2: strays only, never the named family
+// Callers are still responsible for the strays-only rule: never the named family
 // pets and never ghost visitors. That guard belongs at the call site,
 // because this module has no way to tell one cat object from another.
 export function shouldTurnHostile(state, name, walkStamp, { forgivenThisWalk = false } = {}) {

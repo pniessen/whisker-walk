@@ -31,6 +31,8 @@ const CAT_BLURBS = {
   mainecoon: 'Steady — big, calm, unbothered',
   zeetoo: 'Legendary tabby — smells treasure from a block away',
   robbie: 'Cow cat — maximum chaos, champion pouncer',
+  d2: 'Gentle giant — big, fluffy, never in a hurry',
+  digit: 'Kitten — all legs and ears, chases everything',
   hagrid: 'A chicken?! Birds trust Hagrid completely',
 };
 const ACC_BLURBS = {

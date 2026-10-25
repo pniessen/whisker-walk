@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { voiceFor, VOICES } from '../src/catvoice.js';
 
 describe('voiceFor', () => {
-  it('covers all ten breeds with finite positive params', () => {
-    for (const b of ['tabby','siamese','persian','black','calico','mainecoon','zeetoo','robbie','hagrid']) {
+  it('covers every breed with finite positive params', () => {
+    for (const b of ['tabby','siamese','persian','black','calico','mainecoon','zeetoo','robbie','d2','digit','hagrid']) {
+      expect(VOICES[b], b).toBeDefined(); // its own voice, not the tabby fallback
       const v = voiceFor(b);
       for (const k of ['pitch','rate','gain']) {
         expect(Number.isFinite(v[k]) && v[k] > 0, `${b}.${k}`).toBe(true);

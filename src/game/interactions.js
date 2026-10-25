@@ -883,7 +883,7 @@ export function createInteractions({
   // award — talking never awards more than booping.
   function awardStrayGreet(s, stray) {
     // -------------------------------------------------------------------
-    // v20 Ruffled Fur — D2 IS ENFORCED HERE, not in enemies.js.
+    // v20 Ruffled Fur — THE STRAYS-ONLY RULE IS ENFORCED HERE, not in enemies.js.
     //
     // enemies.js is pure rules over (save, name, walkStamp) and says plainly
     // that it cannot tell a stray from a family pet or a ghost visitor. This
@@ -972,8 +972,8 @@ export function createInteractions({
   // v21 Stream 2 — feeding a stray, the colony's one verb.
   //
   // Ordered so that nothing happens unless the feed actually lands:
-  //   1. re-check what the prompt checked: a real stray of THIS walk (the D2
-  //      identity guard, so a ghost or a co-walker's pet can never be fed into
+  //   1. re-check what the prompt checked: a real stray of THIS walk (the
+  //      strays-only identity guard, so a ghost or a co-walker's pet can never be fed into
   //      the colony), not cross, and greeted this walk. The prompt can be a
   //      frame stale, and a rupture or a forgive can land in between;
   //   2. progression.feedColonyCat is the single gate and the only writer. It
@@ -1150,7 +1150,7 @@ export function createInteractions({
       //     offer that could fail and still eat the price is a slot machine.
       //
       // Ordered so nothing is consumed unless everything can succeed:
-      //   1. is this really a stray (D2) with a grudge left to clear;
+      //   1. is this really a stray (the strays-only rule) with a grudge left to clear;
       //   2. can it be paid for — checked BEFORE deducting, because
       //      deductPoints floors at zero and would otherwise happily take a
       //      player's last 4 points for a 10-point treat and hand back
