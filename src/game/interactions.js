@@ -701,7 +701,8 @@ export function createInteractions({
       const colony = progression.state?.colony;
       if (colony && progression.feedColonyCat) {
         const members = progression.colonyMembers?.() ?? 1;
-        const answer = (st) => canFeed(colony, st.name, pid, s.walkStamp, { members });
+        const now = Date.now();
+        const answer = (st) => canFeed(colony, st.name, pid, s.walkStamp, { members, now });
         const scanFor = (want) => s.strayCats.nearest(catP, STRAY_PROMPT_RANGE, {
           excludeCross: true,
           where: (st) => st.greeted && isGrudgeableStray(s.strayCats, st) && !progression.hasGrudge?.(st.name)

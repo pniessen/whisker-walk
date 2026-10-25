@@ -1595,6 +1595,12 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
   const ME = 'player-me-000001';
   const SIB = 'player-sib-00002';
   const PARTNER = { playerId: SIB, petName: 'Zoomer', wardrobe: [] };
+  // The shy rule holds only while the partner still plays (final review I1):
+  // a cat elsewhere that they fed yesterday, by the real clock.
+  const partnerPlaying = () => ({
+    extraCats: [{ name: 'Mochi', finder: SIB, area: 'docks', x: 0, z: 0, wear: null, tamedBy: null, tamedWalk: null }],
+    extraFeeds: [{ cat: 'Mochi', by: SIB, walk: `walk-${Date.now() - 24 * 60 * 60 * 1000}`, head: 0 }],
+  });
 
   function stampFor(name, hostile, from = 1) {
     for (let i = from; i < from + 20000; i++) {
@@ -1806,7 +1812,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
 
   it('a shy cat waiting for the partner shows a no-op prompt naming them', () => {
     // Pickles is shy (colony.isShy). Paired, and I have filled her bar alone.
-    const h = colonyHarness({ partner: PARTNER, feeds: [[ME, 6]] });
+    const h = colonyHarness({ partner: PARTNER, feeds: [[ME, 6]], ...partnerPlaying() });
     const before = structuredClone(h.progression.state.colony);
     h.press();                                // greet
     h.scan();
@@ -1816,6 +1822,14 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     expect(h.progression.state.colony).toEqual(before);
     expect(h.pushed).toEqual([]);
     expect(h.sent).toEqual([]);
+  });
+
+  it('a shy cat whose partner stopped playing (no feed in 14 days) is fed and tamed by me', () => {
+    const h = colonyHarness({ partner: PARTNER, feeds: [[ME, 5]], extraCats: partnerPlaying().extraCats,
+      extraFeeds: [{ cat: 'Mochi', by: SIB, walk: `walk-${Date.now() - 15 * 24 * 60 * 60 * 1000}`, head: 0 }] });
+    h.press();                                // greet
+    h.press();                                // the sixth feed
+    expect(h.progression.state.colony.cats.find((c) => c.name === 'Pickles')).toMatchObject({ tamedBy: ME });
   });
 
   it('the taming feed toasts, grants the reward and does not spawn the cat again next walk', () => {
@@ -1858,8 +1872,9 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     const sixFeeds = Array.from({ length: 6 }, (_, i) => ({ cat: 'Pickles', by: ME, walk: `walk-${8000 + i}`, head: 0 }));
     const h = colonyHarness({
       name: 'Marmalade', names: ['Pickles', 'Marmalade'], partner: PARTNER,
-      extraCats: [{ name: 'Pickles', finder: ME, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null }],
-      extraFeeds: sixFeeds,
+      extraCats: [{ name: 'Pickles', finder: ME, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null },
+        ...partnerPlaying().extraCats],
+      extraFeeds: [...sixFeeds, ...partnerPlaying().extraFeeds],
     });
     const pickles = h.strayCats.strays.find((s) => s.name === 'Pickles');
     h.session.walkStamp = 'walk-1';            // reroll-proof: find a stamp friendly to both

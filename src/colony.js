@@ -42,6 +42,10 @@ export const COLONY_MAX = 24;
 // siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
 export const FEEDS_MAX = 320;
 export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
+// The shy rule needs a partner who still plays: it holds only while the other
+// member has fed some colony cat within this many days (final review I1).
+export const SHY_PARTNER_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const PLAYER_ID = /^[A-Za-z0-9-]{8,64}$/;
 const WALK_STAMP = /^walk-\d{1,16}$/;
@@ -99,15 +103,36 @@ const spotOf = (v) => Math.max(-SPOT_MAX, Math.min(SPOT_MAX, round1(v))) || 0;
 const headOf = (v) => (Number.isInteger(v) ? Math.max(0, Math.min(HEAD_START_MAX, v)) : 0);
 export const feedKey = (f) => `${f.cat}|${f.by}|${f.walk}`;
 
+// Has anyone other than `feeder` fed any colony cat in the SHY_PARTNER_DAYS
+// before `now` (epoch ms)? A walk stamp is 'walk-<epoch ms>' (game/walk.js).
+// Read defensively, so nothing can hold a shy cat hostage: a stamp that
+// doesn't parse reads as long ago, one from the future (a hostile value, or a
+// clock that runs ahead) as not recent, and without a finite `now` nobody is.
+function partnerPlaying(colony, feeder, now) {
+  if (!Number.isFinite(now)) return false;
+  for (const f of colony.feeds) {
+    if (f.by === feeder) continue;
+    const t = walkMs(f.walk);
+    if (t > 0 && t <= now && now - t <= SHY_PARTNER_DAYS * DAY_MS) return true;
+  }
+  return false;
+}
+
 // Where a cat stands: the bar, who has fed, and whether it is tamed.
 //   have               headStart + feeds, capped at need
 //   headStart          the largest head offset recorded on any of its feeds, so
 //                      it can only grow
 //   byPlayer           [{ by, n }] in first-feed order
 //   needsSecondFeeder  a shy cat with a full bar, in a 2-member colony, that
-//                      only one player has fed. Never true once tamed, so
-//                      pairing later cannot un-tame a cat.
-export function tamingProgress(colony, name, { members = 1 } = {}) {
+//                      only one player has fed, while the OTHER member is
+//                      still playing (has fed any colony cat in the last
+//                      SHY_PARTNER_DAYS before `now`; see partnerPlaying).
+//                      Never true once tamed, so pairing later cannot un-tame
+//                      a cat, and never true for a partner who stopped
+//                      playing, so they cannot strand it either.
+// `now` is epoch ms (callers pass Date.now()); it is a parameter so this stays
+// pure. Without it the shy rule never holds.
+export function tamingProgress(colony, name, { members = 1, now } = {}) {
   const need = TAME_FEEDS;
   const cat = colony.cats.find((c) => c.name === name);
   const feeds = colony.feeds.filter((f) => f.cat === name);
@@ -122,7 +147,8 @@ export function tamingProgress(colony, name, { members = 1 } = {}) {
   const feeders = byPlayer.length;
   const have = Math.min(need, headStart + feeds.length);
   const tamed = !!cat && cat.tamedBy != null;
-  const needsSecondFeeder = !tamed && have >= need && isShy(name) && members >= 2 && feeders < 2;
+  const needsSecondFeeder = !tamed && have >= need && isShy(name) && members >= 2 && feeders === 1
+    && partnerPlaying(colony, byPlayer[0].by, now);
   return { have, need, headStart, byPlayer, feeders, tamed, needsSecondFeeder };
 }
 
@@ -133,10 +159,12 @@ export function tamingProgress(colony, name, { members = 1 } = {}) {
 //   'tamed'         already tamed — nothing left to do
 //   'fed-this-walk' this player already fed it this walk (wins over ok/waiting)
 //   'waiting'       this player has fed a shy cat whose bar is full; it needs a
-//                   DIFFERENT member. A member who hasn't fed it gets 'ok'.
+//                   DIFFERENT member, who is still playing (tamingProgress's
+//                   needsSecondFeeder, under `now`). A member who hasn't fed
+//                   it gets 'ok'.
 //   'full'          can't add it: the colony already holds COLONY_MAX cats
 //   'ok'
-export function canFeed(colony, name, by, walk, { members = 1 } = {}) {
+export function canFeed(colony, name, by, walk, { members = 1, now } = {}) {
   if (!isStrayName(name) || !isPlayerId(by) || !isWalkStamp(walk)) return 'bad';
   const cat = colony.cats.find((c) => c.name === name);
   if (!cat) return colony.cats.length >= COLONY_MAX ? 'full' : 'ok';
@@ -147,13 +175,14 @@ export function canFeed(colony, name, by, walk, { members = 1 } = {}) {
     if (f.walk === walk) return 'fed-this-walk';
     mine++;
   }
-  const { needsSecondFeeder } = tamingProgress(colony, name, { members });
+  const { needsSecondFeeder } = tamingProgress(colony, name, { members, now });
   if (needsSecondFeeder && mine > 0) return 'waiting';
   // No cap on MY feeds here. Once I have TAME_FEEDS feeds the bar is full, so
   // the cat is either waiting for a second feeder (answered just above) or
   // ready to tame, and this feed is the one that tames it. That second case
   // is real: a shy cat I filled alone while paired is left full and untamed
-  // when the owner unpairs us, and answering 'tamed' here would lock it out
+  // when the owner unpairs us or my partner stops playing for
+  // SHY_PARTNER_DAYS, and answering 'tamed' here would lock it out
   // for good (Review Focus 3). The extra feed is the only one past the cap,
   // and the sanitizer's TAME_FEEDS-per-(cat, by) rule trims it on the next
   // load or merge (the server likewise stores at most six), while the stored
@@ -168,10 +197,11 @@ export function canFeed(colony, name, by, walk, { members = 1 } = {}) {
 // clamped to ±200 m) is fixed for good — later feeds never move it. The area
 // and spot are checked on every feed, not just the first, so a malformed call
 // is refused the same way whether or not the cat already exists.
-export function feedCat(colony, { name, by, walk, area, x, z, head }, { members = 1 } = {}) {
-  const refuse = (result) => ({ colony, result, tamedNow: false, progress: tamingProgress(colony, name, { members }) });
+export function feedCat(colony, { name, by, walk, area, x, z, head }, { members = 1, now } = {}) {
+  const ctx = { members, now };
+  const refuse = (result) => ({ colony, result, tamedNow: false, progress: tamingProgress(colony, name, ctx) });
   if (!COLONY_AREAS.includes(area) || !Number.isFinite(x) || !Number.isFinite(z)) return refuse('bad');
-  const result = canFeed(colony, name, by, walk, { members });
+  const result = canFeed(colony, name, by, walk, ctx);
   if (result !== 'ok') return refuse(result);
 
   let cats = colony.cats;
@@ -181,32 +211,33 @@ export function feedCat(colony, { name, by, walk, area, x, z, head }, { members 
   const feeds = [...colony.feeds, { cat: name, by, walk, head: headOf(head) }];
   let next = { ...colony, cats, feeds };
 
-  let progress = tamingProgress(next, name, { members });
+  let progress = tamingProgress(next, name, ctx);
   let tamedNow = false;
   if (!progress.tamed && progress.have >= progress.need && !progress.needsSecondFeeder) {
     next = { ...next, cats: next.cats.map((c) => (c.name === name ? { ...c, tamedBy: by, tamedWalk: walk } : c)) };
-    progress = tamingProgress(next, name, { members });
+    progress = tamingProgress(next, name, ctx);
     tamedNow = true;
   }
   return { colony: next, result: 'ok', tamedNow, progress };
 }
 
-// settleTaming(colony, me, { members }) -> { colony, settled: [{ name, walk }] }.
+// settleTaming(colony, me, { members, now }) -> { colony, settled: [{ name, walk }] }.
 // Tames every cat whose bar is full, that isn't tamed, isn't waiting for a
-// second feeder under `members`, and that `me` has fed at least once. It is
-// tamed by `me` at my latest feed (by walk stamp). Two ways a bar ends up like
-// that: the owner unpaired us after I filled a shy cat's bar alone (the shy
-// rule then no longer applies), or a merge joined feeds both siblings made
-// offline, neither of which filled the bar alone. If both siblings settle the
+// second feeder under `members` and `now`, and that `me` has fed at least
+// once. It is tamed by `me` at my latest feed (by walk stamp). Three ways a
+// bar ends up like that: the owner unpaired us after I filled a shy cat's bar
+// alone (the shy rule then no longer applies), my partner stopped playing for
+// SHY_PARTNER_DAYS while it waited for them (likewise), or a merge joined
+// feeds both siblings made offline, neither of which filled the bar alone. If both siblings settle the
 // same cat, the server keeps whichever tamed_by lands first and the merge
 // adopts it. Pure: `colony` is untouched, and with nothing to settle it is
 // returned as is.
-export function settleTaming(colony, me, { members = 1 } = {}) {
+export function settleTaming(colony, me, { members = 1, now } = {}) {
   if (!isPlayerId(me)) return { colony, settled: [] };
   const settled = [];
   for (const cat of colony.cats) {
     if (cat.tamedBy != null) continue;
-    const p = tamingProgress(colony, cat.name, { members });
+    const p = tamingProgress(colony, cat.name, { members, now });
     if (p.have < p.need || p.needsSecondFeeder) continue;
     let last = null;
     for (const f of colony.feeds) {

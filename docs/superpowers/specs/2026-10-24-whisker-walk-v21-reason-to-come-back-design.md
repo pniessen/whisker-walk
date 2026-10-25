@@ -386,7 +386,8 @@ short:
 
 - `TAME_FEEDS = 6`. Earlier greets give a 1/2/3 head start on the same bar.
 - About 1 name in 4 is shy and needs both siblings, but only while the colony
-  has 2 members.
+  has 2 members and the other sibling has fed a colony cat in the last 14
+  days. A sibling who stops playing can't strand a shy cat.
 - The colony holds at most 24 cats and 2 members. 24 is room for two
   siblings who each filled a 12-cat colony solo before pairing, and the cap
   never removes a tamed cat. The den has a home for each of the 24: the 12
@@ -400,7 +401,8 @@ Things that changed or were added while building:
 - **Tamed is stored and settled.** `tamedBy` and `tamedWalk` are never
   cleared. Every sync also runs a settle step, which tames a cat whose bar is
   full once the shy rule no longer applies, for example after the owner
-  unpairs by hand. Without it, that cat could never come home.
+  unpairs by hand, or once the other sibling hasn't fed any cat for 14 days.
+  Without it, that cat could never come home.
 - **A lone member counts as unpaired.** A colony with fewer than 2 members
   syncs as `unpaired`, so a child left alone after an unpair can pair again.
 - **Colony names leave the ordinary stray pool.** On a colony walk, every

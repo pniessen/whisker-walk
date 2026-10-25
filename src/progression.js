@@ -1226,7 +1226,7 @@ export function createProgression(storage) {
       const greets = asFiniteNonNegInt(f?.greets, 0);
       const prior = Math.max(0, greets - (f && f.lastWalk === walk ? 1 : 0));
       const r = feedCat(state.colony, { name, by, walk, area, x, z, head: headStartFor(prior) },
-        { members: api.colonyMembers() });
+        { members: api.colonyMembers(), now: Date.now() });
       if (r.result === 'ok') {
         state.colony = r.colony;
         save();
@@ -1266,12 +1266,13 @@ export function createProgression(storage) {
     },
 
     // settleColonyTaming(me) → the names tamed by this call. colony.settleTaming
-    // under the current member count: a full, untamed bar that no longer waits
-    // for a second feeder (e.g. after the owner unpaired us) and that `me` has
+    // under the current member count and clock: a full, untamed bar that no
+    // longer waits for a second feeder (after the owner unpaired us, or once
+    // the partner has not fed any cat for SHY_PARTNER_DAYS) and that `me` has
     // fed is tamed by `me`, so no cat is ever stuck full. Saves only when
     // something settled.
     settleColonyTaming(me) {
-      const r = settleTaming(state.colony, me, { members: api.colonyMembers() });
+      const r = settleTaming(state.colony, me, { members: api.colonyMembers(), now: Date.now() });
       if (r.settled.length === 0) return [];
       state.colony = sanitizeColony(r.colony, { knownItems: KNOWN_ACCESSORY_IDS });
       save();

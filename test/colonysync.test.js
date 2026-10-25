@@ -788,12 +788,16 @@ describe('createColonySync — fix round 1', () => {
   it('settles a full shy bar after an unpair, reports it, and tells the server on re-pair', async () => {
     const shy = CAT_NAMES.find(isShy);
     const walks = Array.from({ length: TAME_FEEDS }, (_, i) => `walk-${20 + i}`);
-    const echo = () => ({ cats: [serverCat(shy)], feeds: walks.map((w) => serverFeed(shy, w)) });
+    // the partner still plays: they fed another cat yesterday (final review I1)
+    const sibWalk = `walk-${Date.now() - 24 * 60 * 60 * 1000}`;
+    const echo = () => ({ cats: [serverCat(shy), serverCat(CAT, { finder_id: SIB })],
+      feeds: [...walks.map((w) => serverFeed(shy, w)), serverFeed(CAT, sibWalk, { by_id: SIB })] });
     const { cs, cloud, progression, script } = setup({ script: { colonyFeed: 'ok', colonySync: () => pairedSnap(echo()) } });
     await cs.pull();
     expect(progression.colonyMembers()).toBe(2);
     for (const w of walks) feedLocal(progression, shy, w);
-    expect(progression.state.colony.cats[0].tamedBy).toBe(null);
+    const shyCat = () => progression.state.colony.cats.find((c) => c.name === shy);
+    expect(shyCat().tamedBy).toBe(null);
     // the server already has them all: a paired pull settles nothing
     expect((await cs.pull()).settled).toEqual([]);
     expect(cloud.colonyFeed).not.toHaveBeenCalled();
@@ -802,7 +806,7 @@ describe('createColonySync — fix round 1', () => {
     const r = await cs.pull();
     expect(r.settled).toEqual([shy]);
     expect(r.rewards).toEqual(['heart']); // settling counts toward the milestone
-    expect(progression.state.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: walks.at(-1) });
+    expect(shyCat()).toMatchObject({ tamedBy: ME, tamedWalk: walks.at(-1) });
     expect((await cs.pull()).settled).toEqual([]);
 
     // re-paired: the server still shows it untamed, so the taming is pushed
@@ -811,11 +815,31 @@ describe('createColonySync — fix round 1', () => {
     expect(cloud.colonyFeed).toHaveBeenCalledTimes(1);
     expect(cloud.colonyFeed).toHaveBeenCalledWith(ME, SECRET,
       { cat: shy, walk: walks.at(-1), area: 'park', x: 1, z: 2, head: 0, tamed: true });
-    expect(progression.state.colony.cats[0].tamedBy).toBe(ME);
+    expect(shyCat().tamedBy).toBe(ME);
     // once the server shows it tamed, nothing more is sent
-    script.colonySync = () => pairedSnap({ ...echo(), cats: [serverCat(shy, { tamed_by: ME, tamed_walk: walks.at(-1) })] });
+    script.colonySync = () => pairedSnap({ ...echo(), cats: [serverCat(shy, { tamed_by: ME, tamed_walk: walks.at(-1) }), serverCat(CAT, { finder_id: SIB })] });
     await cs.pull();
     expect(cloud.colonyFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('a paired pull settles a shy bar whose partner stopped playing, and tells the server', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const shy = CAT_NAMES.find(isShy);
+    const walks = Array.from({ length: TAME_FEEDS }, (_, i) => `walk-${Date.now() - (20 - i) * DAY}`);
+    const echo = (sibAgo) => ({ cats: [serverCat(shy), serverCat(CAT, { finder_id: SIB })],
+      feeds: [...walks.map((w) => serverFeed(shy, w)), serverFeed(CAT, `walk-${Date.now() - sibAgo * DAY}`, { by_id: SIB })] });
+    // the partner fed CAT 25 days ago, before my shy feeds: it waited for them then
+    const { cs, cloud, progression } = setup({ script: { colonyFeed: 'ok', colonySync: () => pairedSnap(echo(25)) } });
+    const r = await cs.pull();
+    expect(progression.colonyMembers()).toBe(2);
+    expect(r.settled).toEqual([shy]);
+    expect(progression.state.colony.cats.find((c) => c.name === shy)).toMatchObject({ tamedBy: ME, tamedWalk: walks.at(-1) });
+    expect(cloud.colonyFeed).toHaveBeenCalledWith(ME, SECRET,
+      { cat: shy, walk: walks.at(-1), area: 'park', x: 1, z: 2, head: 0, tamed: true });
+    // a partner who fed yesterday would have kept it waiting
+    const fresh = setup({ script: { colonyFeed: 'ok', colonySync: () => pairedSnap(echo(1)) } });
+    expect((await fresh.cs.pull()).settled).toEqual([]);
+    expect(fresh.progression.state.colony.cats.find((c) => c.name === shy).tamedBy).toBe(null);
   });
 
   it('settles a bar both siblings filled offline once the merge joins them, and pushes it', async () => {

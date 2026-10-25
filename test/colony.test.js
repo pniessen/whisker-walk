@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
-import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, emptyColony, headStartFor, isShy, tamingProgress,
+import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
   canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
 import { DEN_SPOTS, DEN_HOMES } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
@@ -10,6 +10,15 @@ const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
 const feed = (c, name, by, n, extra = {}) =>
   feedCat(c, { name, by, walk: `walk-${1000 + n}`, area: 'park', x: 3, z: -4, head: 0, ...extra }, extra.ctx);
 const shyName = CAT_NAMES.find(isShy), boldName = CAT_NAMES.find((n) => !isShy(n));
+// The shy rule needs a partner who is still playing (final review I1): it
+// holds only while the other member has fed some colony cat within
+// SHY_PARTNER_DAYS of `now`. The stamps below are walk-1000..walk-1100 (ms), so
+// NOW sits just after them, and sibActive() is a colony where SIB fed a bold
+// cat a moment ago.
+const NOW = 5000;
+const PAIRED = { members: 2, now: NOW };
+const sibActive = () => feed(emptyColony(), boldName, SIB, 900, { ctx: PAIRED }).colony;
+const catOf = (c, name) => c.cats.find((k) => k.name === name);
 
 describe('straynames', () => {
   it('is the same list straycats exports, and breed is stable', () => {
@@ -84,11 +93,11 @@ describe('the taming ladder', () => {
   });
   // Review Focus 3
   it('a shy cat with a full bar waits for a SECOND feeder only when paired', () => {
-    let c = emptyColony();
-    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: { members: 2 } }).colony;
-    expect(tamingProgress(c, shyName, { members: 2 })).toMatchObject({ tamed: false, needsSecondFeeder: true });
-    expect(canFeed(c, shyName, ME, 'walk-50', { members: 2 })).toBe('waiting');
-    expect(feed(c, shyName, SIB, 51, { ctx: { members: 2 } }).tamedNow).toBe(true);
+    let c = sibActive();
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: PAIRED }).colony;
+    expect(tamingProgress(c, shyName, PAIRED)).toMatchObject({ tamed: false, needsSecondFeeder: true });
+    expect(canFeed(c, shyName, ME, 'walk-50', PAIRED)).toBe('waiting');
+    expect(feed(c, shyName, SIB, 51, { ctx: PAIRED }).tamedNow).toBe(true);
     let solo = emptyColony();
     for (let i = 0; i < TAME_FEEDS; i++) solo = feed(solo, shyName, ME, i).colony;
     expect(tamingProgress(solo, shyName).tamed).toBe(true);
@@ -96,27 +105,27 @@ describe('the taming ladder', () => {
   });
   // Review Focus 3: the owner unpaired us after I filled a shy cat's bar alone.
   it('a full shy bar left behind by an unpair can still be tamed by its feeder', () => {
-    let c = emptyColony();
-    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: { members: 2 } }).colony;
-    expect(canFeed(c, shyName, ME, 'walk-50', { members: 2 })).toBe('waiting');
+    let c = sibActive();
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: PAIRED }).colony;
+    expect(canFeed(c, shyName, ME, 'walk-50', PAIRED)).toBe('waiting');
     // now a lone member: the shy rule is off, and the cap must not read 'tamed'
     expect(tamingProgress(c, shyName, { members: 1 })).toMatchObject({ tamed: false, needsSecondFeeder: false, have: TAME_FEEDS });
     expect(canFeed(c, shyName, ME, 'walk-50', { members: 1 })).toBe('ok');
     const r = feed(c, shyName, ME, 50, { ctx: { members: 1 } });
     expect(r).toMatchObject({ result: 'ok', tamedNow: true });
-    expect(r.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: 'walk-1050' });
+    expect(catOf(r.colony, shyName)).toMatchObject({ tamedBy: ME, tamedWalk: 'walk-1050' });
     expect(canFeed(r.colony, shyName, ME, 'walk-51', { members: 1 })).toBe('tamed');
   });
   it('settleTaming tames a full, untamed, not-waiting bar that I have fed, at my latest feed', () => {
-    let c = emptyColony();
+    let c = sibActive();
     // fed in walk order 1003, 1001, 1005, ... so "latest" is by stamp, not position
-    for (const n of [3, 1, 5, 0, 2, 4]) c = feed(c, shyName, ME, n, { ctx: { members: 2 } }).colony;
+    for (const n of [3, 1, 5, 0, 2, 4]) c = feed(c, shyName, ME, n, { ctx: PAIRED }).colony;
     const frozen = JSON.stringify(c);
     // still paired: it is waiting for a second feeder, nothing to settle
-    expect(settleTaming(c, ME, { members: 2 })).toEqual({ colony: c, settled: [] });
+    expect(settleTaming(c, ME, PAIRED)).toEqual({ colony: c, settled: [] });
     const s = settleTaming(c, ME, { members: 1 });
     expect(s.settled).toEqual([{ name: shyName, walk: 'walk-1005' }]);
-    expect(s.colony.cats[0]).toMatchObject({ name: shyName, tamedBy: ME, tamedWalk: 'walk-1005' });
+    expect(catOf(s.colony, shyName)).toMatchObject({ name: shyName, tamedBy: ME, tamedWalk: 'walk-1005' });
     expect(s.colony.feeds).toEqual(c.feeds);
     expect(JSON.stringify(c)).toBe(frozen); // pure
     // idempotent
@@ -159,12 +168,12 @@ describe('the taming ladder', () => {
     expect(again.tamedNow).toBe(false);
   });
   it('fed-this-walk beats waiting; on a new walk the waiting player is told waiting, the unfed sibling ok', () => {
-    let c = emptyColony();
-    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: { members: 2 } }).colony;
+    let c = sibActive();
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: PAIRED }).colony;
     // fed-this-walk takes precedence over waiting
-    expect(canFeed(c, shyName, ME, `walk-${1000 + TAME_FEEDS - 1}`, { members: 2 })).toBe('fed-this-walk');
-    expect(canFeed(c, shyName, ME, 'walk-50', { members: 2 })).toBe('waiting');
-    expect(canFeed(c, shyName, SIB, 'walk-50', { members: 2 })).toBe('ok');
+    expect(canFeed(c, shyName, ME, `walk-${1000 + TAME_FEEDS - 1}`, PAIRED)).toBe('fed-this-walk');
+    expect(canFeed(c, shyName, ME, 'walk-50', PAIRED)).toBe('waiting');
+    expect(canFeed(c, shyName, SIB, 'walk-50', PAIRED)).toBe('ok');
   });
   it('a cat only counts as tamed once, tamedBy/tamedWalk are stored and never cleared', () => {
     let c = emptyColony();
@@ -244,6 +253,92 @@ describe('the taming ladder', () => {
 // Task 2: the save key's sanitizer, the add-only merge, trades and rewards.
 // ---------------------------------------------------------------------------
 const ITEMS = new Set(['heart', 'crown', 'tophat', 'bowtie', 'socks', 'wizard']);
+
+// Final review I1: a shy cat must not be stranded by a sibling who stops
+// playing. The shy rule holds only while the partner has fed some colony cat
+// in the last SHY_PARTNER_DAYS days; otherwise the bar's own feeder tames it.
+describe('the shy rule lapses when the partner stops playing', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const T = Date.UTC(2026, 9, 25, 12);
+  const at = (ms) => `walk-${ms}`;
+  const ctx = { members: 2, now: T };
+  // A shy cat I filled alone over the last week, plus the partner's last feed
+  // (on another cat), `partnerAgo` days ago, or none at all.
+  function colonyWith(partnerAgo) {
+    let c = emptyColony();
+    if (partnerAgo !== null) {
+      c = feedCat(c, { name: boldName, by: SIB, walk: at(T - partnerAgo * DAY), area: 'park', x: 0, z: 0, head: 0 }, ctx).colony;
+    }
+    for (let i = 0; i < TAME_FEEDS - 1; i++) {
+      c = feedCat(c, { name: shyName, by: ME, walk: at(T - (7 - i) * DAY), area: 'park', x: 1, z: 1, head: 0 }, { members: 1 }).colony;
+    }
+    // the bar's last feed, made while paired, so feedCat itself applies the rule
+    return feedCat(c, { name: shyName, by: ME, walk: at(T - DAY), area: 'park', x: 1, z: 1, head: 0 }, ctx);
+  }
+
+  it('is two weeks', () => {
+    expect(SHY_PARTNER_DAYS).toBe(14);
+  });
+  it('partner fed 3 days ago: the cat still waits for them', () => {
+    const r = colonyWith(3);
+    expect(r.tamedNow).toBe(false);
+    expect(tamingProgress(r.colony, shyName, ctx)).toMatchObject({ tamed: false, needsSecondFeeder: true });
+    expect(canFeed(r.colony, shyName, ME, at(T), ctx)).toBe('waiting');
+    expect(settleTaming(r.colony, ME, ctx).settled).toEqual([]);
+  });
+  it('exactly 14 days ago still counts as playing', () => {
+    expect(tamingProgress(colonyWith(14).colony, shyName, ctx).needsSecondFeeder).toBe(true);
+  });
+  it('partner last fed 15 days ago: the rule lapses, feeding tames it, and so does the settle step', () => {
+    const r = colonyWith(15);
+    // the bar filled on a lapsed partner: that very feed tamed it
+    expect(r.tamedNow).toBe(true);
+    // a bar that filled while they were still playing, and they have lapsed since
+    const earlier = colonyWith(3).colony;
+    const later = { ...ctx, now: T + 13 * DAY };
+    expect(tamingProgress(earlier, shyName, later)).toMatchObject({ tamed: false, needsSecondFeeder: false });
+    expect(canFeed(earlier, shyName, ME, at(T + 13 * DAY), later)).toBe('ok');
+    const s = settleTaming(earlier, ME, later);
+    expect(s.settled).toEqual([{ name: shyName, walk: at(T - DAY) }]);
+    // tamed is stored: the partner coming back changes nothing
+    const back = feedCat(s.colony, { name: boldName, by: SIB, walk: at(T + 13 * DAY), area: 'park', x: 0, z: 0, head: 0 }, later).colony;
+    expect(catOf(back, shyName)).toMatchObject({ tamedBy: ME, tamedWalk: at(T - DAY) });
+    expect(tamingProgress(back, shyName, later).tamed).toBe(true);
+  });
+  it('a partner who never fed anything holds nothing back', () => {
+    const r = colonyWith(null);
+    expect(r.tamedNow).toBe(true);
+    expect(catOf(r.colony, shyName).tamedBy).toBe(ME);
+  });
+  it('a stamp from the future, or one that does not parse, is not recent', () => {
+    const future = colonyWith(-3); // "fed" three days from now
+    expect(future.tamedNow).toBe(true);
+    let c = colonyWith(3).colony;
+    c = { ...c, feeds: c.feeds.map((f) => (f.by === SIB ? { ...f, walk: 'walk-soon' } : f)) };
+    expect(tamingProgress(c, shyName, ctx).needsSecondFeeder).toBe(false);
+    const huge = { ...c, feeds: c.feeds.map((f) => (f.by === SIB ? { ...f, walk: `walk-${'9'.repeat(16)}` } : f)) };
+    expect(tamingProgress(huge, shyName, ctx).needsSecondFeeder).toBe(false);
+  });
+  it('without a usable now, the rule lapses rather than hold a cat', () => {
+    const c = colonyWith(3).colony;
+    for (const now of [undefined, NaN, Infinity, '5000', null]) {
+      expect(tamingProgress(c, shyName, { members: 2, now }).needsSecondFeeder, String(now)).toBe(false);
+    }
+  });
+  it('only the OTHER member\'s feeds count as the partner playing', () => {
+    // I keep playing (a bold cat fed today), the partner has not fed for 20 days
+    let c = colonyWith(20).colony;
+    c = feedCat(c, { name: CAT_NAMES.filter((n) => !isShy(n))[1], by: ME, walk: at(T), area: 'park', x: 0, z: 0, head: 0 }, ctx).colony;
+    expect(catOf(c, shyName).tamedBy).toBe(ME);
+    // and a shy bar the PARTNER filled alone waits for me while I play
+    let theirs = feedCat(emptyColony(), { name: boldName, by: ME, walk: at(T - DAY), area: 'park', x: 0, z: 0, head: 0 }, ctx).colony;
+    for (let i = 0; i < TAME_FEEDS; i++) {
+      theirs = feedCat(theirs, { name: shyName, by: SIB, walk: at(T - (6 - i) * DAY), area: 'park', x: 0, z: 0, head: 0 }, ctx).colony;
+    }
+    expect(tamingProgress(theirs, shyName, ctx)).toMatchObject({ tamed: false, needsSecondFeeder: true });
+    expect(canFeed(theirs, shyName, ME, at(T), ctx)).toBe('ok');
+  });
+});
 
 describe('sanitizeColony', () => {
   it('returns an empty colony for garbage', () => {

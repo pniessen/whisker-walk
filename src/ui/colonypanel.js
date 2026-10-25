@@ -224,13 +224,15 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
   </div>`;
 }
 
-// renderColonyHtml({ colony, me, members, status, owned, catalog }) -> HTML
+// renderColonyHtml({ colony, me, members, now, status, owned, catalog }) -> HTML
 // string for the Colony panel body. Safe to call with anything; never throws.
+// `now` (epoch ms, the caller's Date.now()) is the clock for the shy rule,
+// which only waits on a partner who is still playing (colony.tamingProgress).
 // `trades` ({ give, want, confirmId, busy, error }) feeds renderTradesHtml.
 // `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
 // pairing area sits right under the header so it is never buried under a long
 // list of cats. With nothing to show it is still the same empty placeholder.
-export function renderColonyHtml({ colony, me, members = 1, status, owned, catalog, pairing, trades } = {}) {
+export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -239,7 +241,7 @@ export function renderColonyHtml({ colony, me, members = 1, status, owned, catal
   const partnerName = partner && partner.petName ? String(partner.petName) : 'your partner';
 
   const ctx = { me, partner, partnerName, catalog, owned, feeds: safeColony.feeds };
-  const rows = cats.map((cat) => ({ cat, p: tamingProgress(safeColony, cat.name, { members }) }));
+  const rows = cats.map((cat) => ({ cat, p: tamingProgress(safeColony, cat.name, { members, now }) }));
   rows.sort((a, b) =>
     (b.p.tamed - a.p.tamed) || (b.p.have - a.p.have) || (a.cat.name < b.cat.name ? -1 : a.cat.name > b.cat.name ? 1 : 0));
 

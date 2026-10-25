@@ -135,7 +135,10 @@ describe('renderColonyHtml', () => {
 
   it('shows a shy cat waiting for the partner', () => {
     // only shy names wait; find one by what the renderer says
-    const waits = (n, feeds) => render(colonyOf({ partner: PAIR, cats: [cat(n)], feeds }));
+    // the partner fed some other cat yesterday, so they still count as playing
+    const NOW = Date.UTC(2026, 9, 25);
+    const playing = { cat: 'Mochi', by: PARTNER, walk: `walk-${NOW - 24 * 60 * 60 * 1000}`, head: 0 };
+    const waits = (n, feeds, now = NOW) => render(colonyOf({ partner: PAIR, cats: [cat(n), cat('Mochi')], feeds: [...feeds, playing] }), { now });
     const shy = CAT_NAMES.find((n) => waits(n, feed(n, ME, TAME_FEEDS)).includes('shy — waiting for Robin 🐾'));
     expect(shy).toBeTruthy();
     // ...and once the partner has fed it too, it is no longer waiting
@@ -145,8 +148,11 @@ describe('renderColonyHtml', () => {
     }));
     expect(done).not.toContain('shy — waiting');
     expect(done).toContain('lives in your den 🏠');
-    // if only the partner has fed it, it is waiting for me
-    expect(waits(shy, feed(shy, PARTNER, TAME_FEEDS))).toContain('shy — waiting for you 🐾');
+    // if only the partner has fed it, it is waiting for me (while I still play too)
+    const mine = { ...playing, by: ME };
+    expect(waits(shy, [...feed(shy, PARTNER, TAME_FEEDS), mine])).toContain('shy — waiting for you 🐾');
+    // a partner who hasn't fed anything for over two weeks no longer holds it
+    expect(waits(shy, feed(shy, ME, TAME_FEEDS), NOW + 15 * 24 * 60 * 60 * 1000)).not.toContain('shy — waiting');
   });
 
   it('puts tamed cats first, then the furthest along', () => {
