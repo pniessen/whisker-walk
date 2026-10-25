@@ -384,15 +384,18 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .hb-tab { padding: 10px 4px; }
 }
 /* v21's seventh tab (Colony) no longer fits 347px even with the trims above
-   (measured scrollWidth 383), so on phones the bar scrolls sideways instead:
-   tabs keep their natural width (no clipping, no shrinking text), the
-   scrollbar is hidden, and homebase.js's applyActiveTab scrolls the active
-   tab into view (a render() rebuild resets scrollLeft). Desktop keeps the
-   flex:1 row. After the block above for the same source-order reason. */
+   (measured scrollWidth 383). A sideways-scrolling bar hid tabs off-screen
+   with no hint they were there: after tapping Settings (the last tab) the
+   Cats tab sat off the left edge, and a player could not find their way back
+   to the cats or the code box. So on phones the tabs wrap onto two rows,
+   each tab at its natural width and each row stretched to fill, so every tab
+   is always visible and no label is clipped. Desktop
+   keeps the flex:1 row. After the block above for the same source-order
+   reason. (homebase.js's applyActiveTab still scrolls the active tab into
+   view if the bar ever overflows; with wrapping it never does.) */
 @media (max-width: 480px) {
-  .hb-tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .hb-tabs::-webkit-scrollbar { display: none; }
-  .hb-tab { flex: 0 0 auto; white-space: nowrap; padding: 10px 10px; }
+  .hb-tabs { flex-wrap: wrap; gap: 4px; }
+  .hb-tab { flex: 1 0 auto; white-space: nowrap; padding: 10px 8px; }
 }
 .hb-panel { display: none; }
 .hb-panel.active { display: block; }
