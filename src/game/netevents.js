@@ -12,6 +12,41 @@ import { voiceFor } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
 import { isStrayName } from '../straynames.js';
 
+// v21 3b Task 8 — a co-walker who disappears takes what she was carrying with
+// her. takeHeldItemsWithRemotes(remotes, items, localCat) wraps the walk's
+// remote cats (remotecats.js) so that after anything that can remove one — a
+// roster drop (remove), a silent despawn (update, after DESPAWN_AFTER), a
+// rejoin with a different pet (upsert, which removes the old mesh) — every
+// item held by a cat that is neither mine nor a remote still in the walk is
+// taken: off the ground, held by nobody, hidden for the rest of the walk. So
+// carryables.update never follows a disposed group. The local cat's item is
+// never touched. Call once per walk, right after both exist.
+export function takeHeldItemsWithRemotes(remotes, items, localCat) {
+  function release() {
+    let live = null;
+    for (const it of items.list) {
+      const h = it.holder;
+      if (!h || h === localCat) continue;
+      live ??= new Set(remotes.list.map((r) => r.group));
+      if (!live.has(h)) items.take(it.id);
+    }
+  }
+  for (const name of ['upsert', 'remove', 'update']) {
+    const inner = remotes[name];
+    remotes[name] = (...args) => {
+      const out = inner(...args);
+      release();
+      return out;
+    };
+  }
+}
+
+// An item a departed co-walker took with her: off the ground and held by
+// nobody (carryables' take). Nothing a later event says brings it back.
+function wentAway(item) {
+  return !item.onGround && !item.holder;
+}
+
 // getPartner() → my colony partner ({ playerId, petName, wardrobe }) or null
 // (v21 Stream 2). Optional: without it no colony-feed is ever shown.
 export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner }) {
@@ -198,7 +233,41 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       if (s.goals) applyGoalResult(s, s.goals.noteDuoRemote(ev.goalId));
     } else if (ev.type === 'colony-feed') {
       showPartnerFeed(s, ev);
+    } else if (ev.type === 'carry-pick' || ev.type === 'carry-drop') {
+      applyRemoteCarry(s, ev);
     }
+  }
+
+  // v21 3b Task 8 — a co-walker picked something up ('carry-pick') or put it
+  // down ('carry-drop', from her E or from rain). Sent by game/interactions.js's
+  // pickUpCarryable and putDownCarried. WORLD STATE ONLY: no toast, no points,
+  // no feat, no mark, no save — and her drop never becomes a mark of mine
+  // (my mouth's bookkeeping is never touched).
+  //
+  // The item must be one of this walk's carryables (found with list.find, so a
+  // '__proto__' id is just an unknown id) and the sender a remote in this walk.
+  // If I am holding it, nothing changes for me: a simultaneous grab has no
+  // loser between two sisters — both cats hold one. A thing that left with a
+  // departed co-walker (takeHeldItemsWithRemotes) stays gone. A drop's pos must
+  // be two finite numbers inside this area's bounds (inclusive: the sender
+  // clamps to them), or it is ignored and the item stays in her mouth.
+  function applyRemoteCarry(s, ev) {
+    const items = s.carry?.items;
+    if (!items || typeof ev.itemId !== 'string') return;
+    const remote = s.remotes?.list.find((r) => r.playerId === ev.id);
+    if (!remote) return;
+    const item = items.list.find((it) => it.id === ev.itemId);
+    if (!item || s.carry.mouth?.held?.id === item.id || wentAway(item)) return;
+    if (ev.type === 'carry-pick') {
+      items.hold(item.id, remote.group);
+      return;
+    }
+    const b = s.areaData?.bounds;
+    if (!b || !Array.isArray(ev.pos) || ev.pos.length !== 2) return;
+    const [x, z] = ev.pos;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+    if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return;
+    items.placeAt(item.id, x, z);
   }
 
   // v21 Stream 2 — my partner fed a colony cat on this walk (sent by

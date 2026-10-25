@@ -28,6 +28,7 @@ import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
 import { createStrayCats } from '../straycats.js';
 import { createRemoteCats } from '../remotecats.js';
+import { takeHeldItemsWithRemotes } from './netevents.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
@@ -998,6 +999,10 @@ export function createWalkLifecycle({
       mouth: createMouth(),
       items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables),
     };
+    // Task 8 — in a co-walk, a remote cat that leaves or goes quiet takes what
+    // she was holding with her (netevents.js). Harmless solo: no remote ever
+    // holds anything there.
+    takeHeldItemsWithRemotes(remotes, carry.items, cat);
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; the outdoor half
     // arrives later, and until then any other area builds nothing. Created

@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { createNetEvents } from '../src/game/netevents.js';
+import { readFileSync } from 'node:fs';
+import { createNetEvents, takeHeldItemsWithRemotes } from '../src/game/netevents.js';
 import { createProgression } from '../src/progression.js';
 import { CAT_NAMES } from '../src/straynames.js';
+import { createCarryables, MOUTH } from '../src/carryables.js';
+import { createMouth } from '../src/carry.js';
+import { createRemoteCats } from '../src/remotecats.js';
 
 // v21 Stream 2, Task 12 — the receiving side of the live 'colony-feed' event
 // (game/interactions.js's feedStray sends it). netevents.js imports THREE but
@@ -127,5 +131,239 @@ describe('applyRemoteEvent: colony-feed', () => {
       audio: {}, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
     });
     expect(() => applyRemoteEvent(h.s, feed())).not.toThrow();
+  });
+});
+
+// ===========================================================================
+// v21 3b Task 8 — carrying in a co-walk. A partner's 'carry-pick' and
+// 'carry-drop' (sent by game/interactions.js's pickUpCarryable and
+// putDownCarried) move the item on my screen, and nothing else: no points, no
+// feat, no mark, no save. Real carryables in a real scene, and the partner is
+// a real remote cat (remotecats.js), so leaving and despawning are the shipped
+// paths.
+// ===========================================================================
+describe('applyRemoteEvent: carry-pick and carry-drop', () => {
+  const STICK = { id: 'park-stick-1', kind: 'stick', x: 5, z: 0 };
+  const LEAF = { id: 'park-leaf-1', kind: 'leaf', x: -4, z: 3 };
+  const BOUNDS = { minX: -30, maxX: 30, minZ: -30, maxZ: 30 };
+  const ROBIN = { playerId: PARTNER, petName: 'Robin', breed: 'tabby', accessories: {} };
+
+  function carryHarness() {
+    const storage = fakeStorage();
+    const progression = createProgression(storage);
+    const toasts = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: { awardOnce: () => { throw new Error('a carry event must never award points'); } },
+      hud: { toast: (text) => toasts.push(text) },
+      audio: {}, samples: { has: () => false }, catVoice() {},
+      applyGoalResult() { throw new Error('a carry event must never touch a goal'); },
+      getPartner: () => null,
+    });
+    const scene = new THREE.Scene();
+    const cat = new THREE.Group();
+    const head = new THREE.Group();
+    head.position.set(0, 0.3, -0.35);
+    cat.add(head);
+    cat.userData = { parts: { head } };
+    scene.add(cat);
+    const items = createCarryables(scene, [STICK, LEAF]);
+    const remotes = createRemoteCats(scene);
+    takeHeldItemsWithRemotes(remotes, items, cat);
+    remotes.upsert(ROBIN, 0);
+    remotes.applyState({ v: 1, id: PARTNER, pos: [10, 10], yaw: 0, pose: 'follow', speed: 0 }, 0);
+    remotes.update(1, 1); // she is standing at (10, 10)
+    const s = {
+      playerId: ME,
+      colonyWalk: false,
+      cat,
+      remotes,
+      areaData: { bounds: BOUNDS },
+      carry: { mouth: createMouth(), items },
+      fx: { burst() { throw new Error('a carry event makes no burst'); } },
+    };
+    const before = JSON.stringify(progression.state);
+    const writesBefore = storage.writes();
+    const item = (id) => items.list.find((it) => it.id === id);
+    const partnerGroup = () => remotes.list.find((r) => r.playerId === PARTNER)?.group;
+    return {
+      s, toasts, applyRemoteEvent, items, remotes, item, partnerGroup,
+      apply: (ev) => applyRemoteEvent(s, ev),
+      // main.js's frame order: the held thing follows its holder, then the remotes move
+      frame: (now = 1) => { items.update(0); remotes.update(0, now); },
+      saveUntouched: () => JSON.stringify(progression.state) === before && storage.writes() === writesBefore,
+    };
+  }
+
+  const pickEv = (o = {}) => ({ v: 1, id: PARTNER, type: 'carry-pick', itemId: STICK.id, ...o });
+  const dropEv = (o = {}) => ({ v: 1, id: PARTNER, type: 'carry-drop', itemId: STICK.id, pos: [12, -7], ...o });
+
+  it('a partner pick takes the item off my ground and into their mouth', () => {
+    const h = carryHarness();
+    h.apply(pickEv());
+    const stick = h.item(STICK.id);
+    expect(stick.onGround).toBe(false);
+    expect(stick.holder).toBe(h.partnerGroup());
+    expect(stick.mesh.visible).toBe(true);
+    // off the ground: I cannot pick up what she is holding
+    expect(h.items.nearest(new THREE.Vector3(5, 0, 0), 1.2)).toBe(null);
+    // and it rides at her mouth, not in mine
+    h.frame();
+    const herMouth = h.partnerGroup().userData.parts.head.localToWorld(MOUTH.clone());
+    expect(stick.mesh.position.distanceTo(herMouth)).toBeLessThan(1e-6);
+    expect(Math.hypot(stick.mesh.position.x - 10, stick.mesh.position.z - 10)).toBeLessThan(1);
+    expect(h.s.carry.mouth.held).toBe(null);
+    expect(h.item(LEAF.id).onGround).toBe(true);
+  });
+
+  it('a partner pick of a thing another cat holds moves it to her mouth', () => {
+    const h = carryHarness();
+    const other = new THREE.Group();
+    h.s.cat.parent.add(other);
+    h.items.hold(STICK.id, other);
+    h.apply(pickEv());
+    expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+    expect(h.item(STICK.id).onGround).toBe(false);
+  });
+
+  it('a partner drop puts it down where they left it', () => {
+    const h = carryHarness();
+    h.apply(pickEv());
+    h.frame();
+    h.apply(dropEv());
+    const stick = h.item(STICK.id);
+    expect(stick.onGround).toBe(true);
+    expect(stick.holder).toBe(null);
+    expect(stick.mesh.visible).toBe(true);
+    expect(stick.mesh.position.x).toBe(12);
+    expect(stick.mesh.position.z).toBe(-7);
+    // now it is on my ground, where she left it, for me to pick up
+    expect(h.items.nearest(new THREE.Vector3(12, 0, -7), 1.2)).toBe(stick);
+    // the very edge of the area is still inside it
+    h.apply(pickEv());
+    h.apply(dropEv({ pos: [30, -30] }));
+    expect(stick.mesh.position.x).toBe(30);
+    expect(stick.mesh.position.z).toBe(-30);
+  });
+
+  it.each([
+    ['unknown id', { itemId: 'park-stick-99' }],
+    ['non-string id', { itemId: 7 }],
+    ['prototype key', { itemId: '__proto__' }],
+    ['non-finite pos', { pos: [NaN, 0] }],
+    ['out of bounds', { pos: [9999, 0] }],
+    ['short pos', { pos: [1] }],
+    ['sender not in this walk', { id: 'stranger-0000' }],
+  ])('%s is ignored without throwing or saving', (_name, bad) => {
+    const h = carryHarness();
+    const stick = h.item(STICK.id);
+    expect(() => h.apply(pickEv(bad))).not.toThrow();
+    if ('pos' in bad) {
+      // a pick carries no pos, so these are well-formed picks and land
+      expect(stick.holder).toBe(h.partnerGroup());
+    } else {
+      expect(stick.onGround).toBe(true);
+      expect(stick.holder).toBe(null);
+      h.apply(pickEv()); // now she really has it
+    }
+    // a drop with the bad field leaves it in her mouth
+    expect(() => h.apply(dropEv(bad))).not.toThrow();
+    expect(stick.onGround).toBe(false);
+    expect(stick.holder).toBe(h.partnerGroup());
+    for (const it of h.items.list) {
+      expect(Number.isFinite(it.mesh.position.x)).toBe(true);
+      expect(Math.abs(it.mesh.position.x)).toBeLessThan(31);
+    }
+    expect(h.toasts).toEqual([]);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
+  it('a pick for the item I am holding leaves mine in my mouth', () => {
+    const h = carryHarness();
+    h.s.carry.mouth.held = { id: STICK.id, kind: 'stick' };
+    h.items.hold(STICK.id, h.s.cat);
+    h.apply(pickEv());
+    const stick = h.item(STICK.id);
+    expect(stick.holder).toBe(h.s.cat);
+    expect(stick.mesh.visible).toBe(true);
+    expect(h.s.carry.mouth.held).toEqual({ id: STICK.id, kind: 'stick' });
+    // and her later drop of hers does not pull mine out of my mouth either
+    h.apply(dropEv());
+    expect(stick.holder).toBe(h.s.cat);
+    expect(stick.onGround).toBe(false);
+    expect(h.s.carry.mouth.held).toEqual({ id: STICK.id, kind: 'stick' });
+  });
+
+  it.each([
+    ['leaves the room', (h) => h.remotes.remove(PARTNER)],
+    ['goes quiet and despawns', (h) => h.frame(60)],
+    ['rejoins with a different pet', (h) => h.remotes.upsert({ ...ROBIN, petName: 'Robbie' }, 1)],
+  ])('a remote that %s while carrying takes the item with it', (_name, leave) => {
+    const h = carryHarness();
+    h.apply(pickEv());
+    h.frame();
+    const stick = h.item(STICK.id);
+    leave(h);
+    expect(stick.holder).toBe(null);
+    expect(stick.onGround).toBe(false);
+    expect(stick.mesh.visible).toBe(false);
+    expect(h.items.nearest(new THREE.Vector3(5, 0, 0), 99)?.id).not.toBe(STICK.id);
+    // the next frame has no removed cat to reach back into
+    expect(() => h.frame(2)).not.toThrow();
+    expect(stick.mesh.visible).toBe(false);
+    // and it stays gone for the rest of the walk, whatever arrives later
+    h.remotes.upsert(ROBIN, 2);
+    h.apply(dropEv());
+    h.apply(pickEv());
+    expect(stick.mesh.visible).toBe(false);
+    expect(stick.onGround).toBe(false);
+    expect(stick.holder).toBe(null);
+    // the leaf on the ground was never hers to take
+    expect(h.item(LEAF.id).onGround).toBe(true);
+    expect(h.item(LEAF.id).mesh.visible).toBe(true);
+  });
+
+  it('my own held item stays mine when a remote leaves', () => {
+    const h = carryHarness();
+    h.s.carry.mouth.held = { id: LEAF.id, kind: 'leaf' };
+    h.items.hold(LEAF.id, h.s.cat);
+    h.apply(pickEv());
+    h.remotes.remove(PARTNER);
+    expect(h.item(LEAF.id).holder).toBe(h.s.cat);
+    expect(h.item(LEAF.id).mesh.visible).toBe(true);
+  });
+
+  it('no carry event pays points or writes the save', () => {
+    const h = carryHarness();
+    h.apply(pickEv());
+    h.apply(dropEv());
+    h.apply(pickEv({ itemId: LEAF.id }));
+    h.apply(dropEv({ itemId: LEAF.id, pos: [0, 0] }));
+    h.apply(pickEv());
+    h.remotes.remove(PARTNER);
+    expect(h.toasts).toEqual([]);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
+  it('a stand-in session without carry, or without bounds, ignores carry events', () => {
+    const h = carryHarness();
+    expect(() => h.applyRemoteEvent({ ...h.s, carry: undefined }, pickEv())).not.toThrow();
+    expect(h.item(STICK.id).onGround).toBe(true);
+    h.apply(pickEv());
+    expect(() => h.applyRemoteEvent({ ...h.s, areaData: {} }, dropEv())).not.toThrow();
+    expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+  });
+
+  it('the walk wires the take-it-with-you rule to its remote cats, outside the rival slice', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const code = src.replace(/\/\/.*$/gm, '');
+    expect(code.match(/takeHeldItemsWithRemotes\(remotes, carry\.items, cat\)/g)).toHaveLength(1);
+    const call = code.indexOf('takeHeldItemsWithRemotes(remotes');
+    expect(call).toBeGreaterThan(code.indexOf('const carry = {'));
+    expect(call).toBeGreaterThan(code.indexOf('const remotes = createRemoteCats('));
+    const rivalA = src.indexOf("The rival's border and its patrol");
+    const rivalB = src.indexOf('session.rival = {', rivalA);
+    const callInSrc = src.indexOf('takeHeldItemsWithRemotes(remotes');
+    expect(callInSrc < rivalA || callInSrc > rivalB).toBe(true);
   });
 });

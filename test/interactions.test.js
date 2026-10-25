@@ -630,6 +630,64 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
       expect(h.session.walk.carried).toBe(h.session.walk.carryCap);
     });
+
+    // v21 3b Task 8 — a co-walker sees it: one event per pick and per drop.
+    describe('in a co-walk', () => {
+      const coWalk = () => {
+        const h = carryHarness();
+        const sent = [];
+        h.session.playerId = 'me-player-0001';
+        h.session.net = { sendEvent: (ev) => sent.push(ev) };
+        return { ...h, sent };
+      };
+
+      it('a local pick sends exactly one carry-pick', () => {
+        const h = coWalk();
+        h.walkTo(5, 0.5);
+        h.press();
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        expect(h.sent).toEqual([{ v: 1, id: 'me-player-0001', type: 'carry-pick', itemId: 'park-stick-1' }]);
+      });
+
+      it('a local drop sends exactly one carry-drop, at where it landed', () => {
+        const h = coWalk();
+        h.session.areaData.bounds = { minX: -30, maxX: 30, minZ: 19.8, maxZ: 30 };
+        h.walkTo(5, 0.5);
+        h.press();
+        h.walkTo(20, 20); // the mouth pokes out past minZ, so the drop is clamped
+        h.sent.length = 0;
+        h.press();
+        const item = h.session.carry.items.list[0];
+        expect(h.sent).toEqual([{
+          v: 1, id: 'me-player-0001', type: 'carry-drop', itemId: 'park-stick-1',
+          pos: [item.mesh.position.x, item.mesh.position.z],
+        }]);
+        expect(h.sent[0].pos[1]).toBe(19.8);
+      });
+
+      it('a whole pick-drop-pick sends one event each, in order', () => {
+        const h = coWalk();
+        h.walkTo(5, 0.5);
+        h.press();
+        h.walkTo(20, 20);
+        h.press();
+        h.walkTo(20, 20);
+        h.press();
+        expect(h.sent.map((e) => e.type)).toEqual(['carry-pick', 'carry-drop', 'carry-pick']);
+      });
+
+      it('solo (no s.net) sends none', () => {
+        const h = carryHarness();
+        expect(h.session.net).toBeUndefined();
+        expect(() => {
+          h.walkTo(5, 0.5);
+          h.press();
+          h.walkTo(20, 20);
+          h.press();
+        }).not.toThrow();
+        expect(h.session.carry.items.list[0].onGround).toBe(true);
+      });
+    });
   });
 });
 

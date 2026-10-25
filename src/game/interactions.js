@@ -1095,11 +1095,14 @@ export function createInteractions({
   // v21 3b — carry. Neither half pays, records a feat or touches the save; the
   // only trace is the mouth's own bookkeeping, which endWalk (walk.js) turns
   // into marks. The item must still be on the ground when E lands: the prompt
-  // is a frame old by then.
+  // is a frame old by then. In a co-walk each half tells the others (Task 8;
+  // netevents.js's applyRemoteCarry), so they see it in my mouth or where I
+  // left it — world state only, never a mark or a point on their side.
   function pickUpCarryable(s, item) {
     if (!item?.onGround) return false;
     if (!pickUp(s.carry.mouth, item)) return false;
     s.carry.items.hold(item.id, s.cat);
+    if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-pick', itemId: item.id });
     return true;
   }
 
@@ -1108,7 +1111,8 @@ export function createInteractions({
   // so it lands in front of the cat and not hidden under its body. Kept inside
   // the area's bounds; if the mesh position is unusable, the cat's own spot.
   // Remembered against the item's home so a walk-end mark can say whether it
-  // moved.
+  // moved. The carry-drop is sent from here, not from the prompt, so a rain
+  // slip reaches co-walkers too.
   function putDownCarried(s) {
     const item = s.carry.items.list.find((it) => it.id === s.carry.mouth.held?.id);
     const at = item?.mesh?.position;
@@ -1121,7 +1125,10 @@ export function createInteractions({
       z = Math.min(b.maxZ, Math.max(b.minZ, z));
     }
     const released = putDown(s.carry.mouth, x, z, item ? { x: item.homeX, z: item.homeZ } : null);
-    if (released) s.carry.items.placeAt(released.id, x, z);
+    if (released) {
+      s.carry.items.placeAt(released.id, x, z);
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'carry-drop', itemId: released.id, pos: [x, z] });
+    }
     return released;
   }
 
