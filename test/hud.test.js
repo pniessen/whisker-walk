@@ -136,4 +136,20 @@ describe('hud.setObjective', () => {
     hud.setObjective('Find it', 1);
     expect(distEl().textContent).toBe('here');
   });
+
+  // Regression guards: these pass against the original implementation.
+  it('removes the distance child when the distance is dropped', () => {
+    const hud = createHud();
+    hud.setObjective('Find it', 23);
+    hud.setObjective('Find it');
+    expect(objEl().textContent).not.toContain('23 m');
+    expect(objEl().children).toHaveLength(0);
+    expect(objEl().textContent).toContain('Find it');
+  });
+
+  it('renders "here" for a distance of exactly zero', () => {
+    const hud = createHud();
+    hud.setObjective('Find it', 0);
+    expect(distEl().textContent).toBe('here');
+  });
 });

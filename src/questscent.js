@@ -2,11 +2,14 @@
 // and what the HUD prints. Pure and leaf-level (imports nothing) so it is
 // unit-testable headless, like skills.js and ui/hometabs.js.
 
-// Quest trail tint. A vivid magenta-pink: it has to contrast with the sky,
-// the grass AND the grey road (a pale blue vanished against all three), and it
-// must stay clearly different from scent.js's 0xf2e04e nose yellow. The same
-// colour tints the objective beacon.
-export const QUEST_TRAIL_COLOR = 0xff4fa3;
+// Quest trail tint. A vivid violet: it has to contrast with the sky, the grass
+// AND the grey road (a pale blue vanished against all three), and it must stay
+// clearly different from BOTH the Twitchy Nose yellow (0xf2e04e) and the
+// collectible orb / balloon pink (0xf25c8a). The pink matters most: with the
+// nose skill the yellow trail leads to pink orbs, so the quest trail must not
+// also be pink or the colour cue inverts. The same colour tints the objective
+// beacon.
+export const QUEST_TRAIL_COLOR = 0xa64dff;
 
 // One guard for every incoming number. Non-numbers (even numeric strings)
 // are rejected, not coerced. Returns null when unusable.

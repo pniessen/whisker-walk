@@ -468,20 +468,25 @@ export function createWalkLifecycle({
     //
     // WARNING — do not give this stream a lazy or conditional consumer.
     // Everything below draws from it during startWalk, unconditionally and in
-    // a fixed order. One system does draw AFTER the walk has begun: v18's
-    // Twitchy Nose lays scent trails through createScent's rng (see
-    // scent.js's trailTo, called from game/interactions.js's updateSenses),
-    // and it draws only when that skill is unlocked and only when the player
-    // moves. That is safe TODAY for one reason and one reason only — the
+    // a fixed order. One system does draw AFTER the walk has begun: the scent
+    // module (createScent's rng). It has TWO callers, both per-frame and both
+    // behaviour-dependent: v18's Twitchy Nose trail (scent.js's trailTo, via
+    // game/interactions.js's updateSenses; only when the skill is unlocked and
+    // the player moves) and v21's quest trail (questscent.js's questTrailStep,
+    // same updateSenses; every 1.2-4 s of an active quest, skill or no skill).
+    // Their draws only jitter local decals, nothing that must agree between
+    // co-walkers. That is safe TODAY for one reason and one reason only — the
     // scent module is the sole post-startWalk consumer of walkRng, so its
-    // draws can never fall between two other systems' draws and shift them.
+    // draws, however irregular, can never fall between two other systems'
+    // draws and shift them. It is NOT safe because the draws are rare.
     //
-    // The moment a second per-walk system draws from walkRng after startWalk
-    // returns, a Twitchy Nose player and a co-walker without the skill would
-    // pull different values for it and the two worlds would silently
-    // diverge. If you need mid-walk randomness, give the new system its own
-    // seeded stream (sky life already does this — see the note further down)
-    // rather than adding a second lazy consumer here.
+    // The moment a second SYSTEM draws from walkRng after startWalk returns,
+    // co-walkers with different draw histories (a Twitchy Nose player vs one
+    // without, a quester vs a bystander) would pull different values for it
+    // and the two worlds would silently diverge. If you need mid-walk
+    // randomness, give the new system its own seeded stream (sky life already
+    // does this — see the note further down) rather than adding a second lazy
+    // consumer here.
     const walkRng = roomSeed !== undefined ? mulberry32(roomSeed) : Math.random;
     const state = progression.state;
     // areaOverride: a joiner who hasn't unlocked the host's area still walks
@@ -783,31 +788,40 @@ export function createWalkLifecycle({
       questObject.position.x = t.x;
       questObject.position.z = t.z;
       // Objective beacon: a glowing column so the target reads from across the
-      // area, not just once you are on top of it. 10m world height — the
-      // tallest props here (house gables, tree crowns) top out near 5.5m, so
-      // the tip clears them from anywhere in the area. 0.35m radius and 0.75
+      // area, not just once you are on top of it. The top is 10m world height —
+      // the tallest props here (house gables, tree crowns) top out near 5.5m,
+      // so the tip clears them from anywhere in the area. 0.35m radius and 0.75
       // opacity because a thinner, fainter column vanished against the pale
       // sky at 50m; fog:false because the day fog (40-130m) would otherwise
       // fade it toward sky colour at exactly the distances it exists for.
+      // The BASE is lifted to 1.6m: every target sits inside the 0.35m radius,
+      // and a column that reaches the ground draws near-solid colour over it,
+      // so a kid at completion range (< 2m) saw a pillar, not the glasses or
+      // kitten they were hunting. Lifted, the target stands in clear air under
+      // the column (the tallest, the letter, tops out ~1.25m) and the column
+      // still reads from afar.
       // It is a CHILD of questObject so accept/complete visibility
       // (interactions.js) covers it, which also means it inherits the parent's
       // scale and y offset (kitten 0.5x, letter at y=1, glasses at y=0.15).
-      // Both are undone below so the column is the same 10m, standing on the
-      // ground, for every quest type.
+      // Both are undone below so the column spans the same 1.6m-10m world
+      // range for every quest type.
       // Translucent on purpose: the shadow-caster sweep below skips transparent
-      // meshes, so a 10m column does not throw a 10m stripe across the lawn.
+      // meshes, so the column does not throw a stripe across the lawn.
       // (The target object itself now casts a small shadow, because the beacon
-      // makes its group tall enough for that sweep — accepted and intended.)
-      const BEACON_HEIGHT = 10;
+      // makes its group tall enough for that sweep — accepted and intended.
+      // The group's box still runs from the target mesh at the ground up to
+      // 10m, so every quest type clears the sweep's 1.3m height gate.)
+      const BEACON_BASE = 1.6;
+      const BEACON_TOP = 10;
       const beacon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.35, 0.35, BEACON_HEIGHT, 8, 1, true),
+        new THREE.CylinderGeometry(0.35, 0.35, BEACON_TOP - BEACON_BASE, 8, 1, true),
         litMaterial(QUEST_TRAIL_COLOR, {
           emissive: QUEST_TRAIL_COLOR, transparent: true, opacity: 0.75, depthWrite: false, fog: false,
         })
       );
       const parentScale = questObject.scale.y;
       beacon.scale.setScalar(1 / parentScale);
-      beacon.position.y = (BEACON_HEIGHT / 2 - questObject.position.y) / parentScale;
+      beacon.position.y = ((BEACON_BASE + BEACON_TOP) / 2 - questObject.position.y) / parentScale;
       questObject.add(beacon);
       questObject.userData.beacon = beacon;
       questObject.visible = false;

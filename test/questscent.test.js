@@ -56,6 +56,9 @@ describe('QUEST_TRAIL_COLOR', () => {
   it('is not the nose-trail yellow', () => {
     expect(QUEST_TRAIL_COLOR).not.toBe(0xf2e04e);
   });
+  it('is not the collectible orb / balloon pink', () => {
+    expect(QUEST_TRAIL_COLOR).not.toBe(0xf25c8a);
+  });
 });
 
 const stubScent = () => {

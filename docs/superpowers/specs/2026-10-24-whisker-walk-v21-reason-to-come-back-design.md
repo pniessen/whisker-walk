@@ -223,6 +223,13 @@ Design notes:
   This is the hook that makes it a skill rather than a map.
 - Deterministic, so both devices in a co-walk see the same trail.
 
+*As built (Stream 1):* the trail is laid from the cat's current position toward
+the target, and re-laid on a warmth-scaled cadence, rather than as a fixed
+giver-to-target path, so a kid who wanders off still gets a trail from where
+they are. The colour is violet (0xa64dff), distinct from the nose yellow and the
+collectible pink. The beacon's base sits 1.6 m up so the target itself stays
+visible beneath it.
+
 **1.2 Objective markers.** Every active objective gets a visible world marker,
 the way the letter quest's sparkle already does. No objective may rely on the
 player sweeping an area.
