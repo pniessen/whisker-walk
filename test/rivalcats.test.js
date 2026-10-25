@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { rivalFor, patrolPath, isTrespassing, borderMarks } from '../src/rivalclans.js';
 import {
-  patrolAt, chaseOutcome, findLanding, createRivalPatrol,
+  patrolAt, chaseOutcome, findLanding, createRivalPatrol, chaseAllowed,
   NOTICE_DIST, LANDING_OFFSET, PATROL_SPEED, SCAMPER_TIME, SCAMPER_TIME_REDUCED, CHASE_COOLDOWN,
 } from '../src/rivalcats.js';
 
@@ -297,6 +297,26 @@ describe('createRivalPatrol', () => {
     const { api, events } = mk({ canChase: () => false });
     api.update(0.016, nearPatrol(1000));
     expect(events).toHaveLength(0);
+  });
+
+  // F12: a child framing a photo of the rival is never scampered out mid-shot.
+  test('chaseAllowed: on the ground and not in photo mode only', () => {
+    expect(chaseAllowed({ perchY: 0 }, { cameraMode: false })).toBe(true);
+    expect(chaseAllowed({ perchY: 0 }, { cameraMode: true })).toBe(false);
+    expect(chaseAllowed({ perchY: 1.2 }, { cameraMode: false })).toBe(false);
+    expect(chaseAllowed({ perchY: 1.2 }, { cameraMode: true })).toBe(false);
+  });
+
+  test('photo mode open means no chase', () => {
+    const session = { cameraMode: true };
+    const { api, events } = mk({ canChase: () => chaseAllowed({ perchY: 0 }, session) });
+    api.update(0.016, nearPatrol(1000));
+    expect(events).toHaveLength(0);
+  });
+
+  test("walk.js gates the chase with chaseAllowed over the walk's own player and session", () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toContain('canChase: () => chaseAllowed(player, session)');
   });
 
   test('an unwalkable landing everywhere means no chase and no toast', () => {

@@ -181,13 +181,18 @@ const smooth = (u) => u * u * (3 - 2 * u);
 const facing = (dx, dz) => Math.atan2(dx, dz) + Math.PI;
 const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; } };
 
+// chaseAllowed(player, session) -> bool: the walk's canChase. No chase while
+// the cat is perched (perchY above the ground) or while photo mode is open, so
+// a child framing a photo of the rival cat is never scampered out mid-shot.
+export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode;
+
 // createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state }
 //
 // opts:
 //   reducedMotion  no dash, a short move.
 //   now()          wall-clock seconds; default Date.now() / 1000.
 //   isWalkable     (x, z) => bool, the walk's own collision check.
-//   canChase()     false while the cat is perched, say.
+//   canChase()     false while the cat is perched or in photo mode (chaseAllowed).
 //   onChase(who)   fires exactly once per chase, with the rival's display name.
 //   onSettled()    fires when the scamper ends.
 //

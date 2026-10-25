@@ -43,7 +43,7 @@ import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
-import { createRivalPatrol } from '../rivalcats.js';
+import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
@@ -1320,7 +1320,7 @@ export function createWalkLifecycle({
       const patrol = createRivalPatrol(scene, areaId, {
         reducedMotion,
         isWalkable,
-        canChase: () => player.perchY === 0,
+        canChase: () => chaseAllowed(player, session),
         onChase: (who) => {
           player.halt();
           session.chasing = true; // avatar.js plays the run gait; interactions.js ignores climb/pounce
