@@ -1541,6 +1541,94 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.rest).toBe(null);
       }
     });
+    // The shipped nap-pile award, pinned through updateAvatar: lying still
+    // beside a napping sister pays it once the idle nap begins (idleTime >
+    // napAt), exactly as before Task 15; a cushion nap pays it at that same
+    // frame and not one frame sooner.
+    it('the nap pile pays when the idle nap would, with or without a cushion, and only once', () => {
+      const napAt = PERSONALITIES.tabby.special === 'napper' ? 8 : 16;
+      const PILE = 'nap pile of 2! 😴';
+      const firstPile = (onCushion) => {
+        const h = restHarness();
+        const r = spot('nap');
+        const at = onCushion ? { x: r.x + 0.5, z: r.z } : { x: r.x + 6, z: r.z + 6 };
+        const sister = { pose: 'nap', group: new THREE.Group() };
+        sister.group.position.set(at.x + 0.3, 0, at.z + 0.3);
+        h.session.remotes.list = [sister];
+        h.walkTo(at.x, at.z);
+        if (onCushion) {
+          h.press();
+          expect(h.session.rest?.kind).toBe('nap');
+        } else {
+          expect(h.session.prompt).toBe(null); // nowhere near a rest
+        }
+        const before = h.progression.state.points;
+        let frame = null;
+        let prevIdle = h.session.idleTime;
+        for (let f = 1; f <= 60 * 20 && frame === null; f++) {
+          h.tick(1 / 60, 1);
+          if (h.toasts.includes(PILE)) {
+            frame = f;
+            // the very frame the idle clock passes napAt
+            expect(prevIdle).toBeLessThanOrEqual(napAt);
+            expect(h.session.idleTime).toBeGreaterThan(napAt);
+            expect(h.session.pose).toBe('nap');
+          } else {
+            expect(h.progression.state.points).toBe(before);
+          }
+          prevIdle = h.session.idleTime;
+        }
+        expect(frame, onCushion ? 'cushion nap' : 'idle nap').not.toBeNull();
+        expect(h.progression.state.points - before).toBe(AWARDS.nappile);
+        h.tick(1 / 60, 60 * 5); // and only once
+        expect(h.progression.state.points - before).toBe(AWARDS.nappile);
+        expect(h.toasts.filter((x) => x === PILE)).toHaveLength(1);
+        return frame;
+      };
+      const idle = firstPile(false);
+      expect(Math.abs(idle - napAt * 60)).toBeLessThanOrEqual(1); // ~16 s in
+      expect(firstPile(true)).toBe(idle);
+    });
+
+    // Fix round 1, item 3: any other E action gets the cat up first.
+    it('pressing E for anything else ends the nap: a sister\'s cat beside the cushion is booped by a cat that is awake', () => {
+      const h = restHarness();
+      const r = spot('nap');
+      h.walkTo(r.x + 0.5, r.z);
+      h.press();
+      expect(h.session.rest?.kind).toBe('nap');
+      h.tick(1 / 60, 60);
+      // A sister's cat pads up while mine sleeps: her prompt shows, and
+      // showing it wakes nothing...
+      const sister = { petName: 'Biscuit', playerId: 'sis-0001' };
+      h.session.remotes.nearest = () => sister;
+      h.tick(1 / 60, 1);
+      expect(h.session.prompt).toEqual({ kind: 'boop', data: sister });
+      expect(h.session.rest?.kind).toBe('nap');
+      expect(h.session.pose).toBe('nap');
+      // ...and E on it gets the cat up, then boops.
+      h.press();
+      expect(h.session.rest).toBe(null);
+      expect(h.session.pendingBoop?.withId).toBe('sis-0001');
+      expect(h.toasts.at(-1)).toBe('waiting for a boop back… 💕');
+      const purred = h.purrs.length;
+      h.tick(1 / 60, 1);
+      expect(h.session.pose).toBe('stretch'); // the wake-up stretch
+      h.tick(1 / 60, 60 * 3);
+      expect(h.purrs).toHaveLength(purred); // and no more purring
+    });
+
+    it('a sip ends the same way when E is pressed for something else', () => {
+      const h = restHarness();
+      const r = spot('drink');
+      h.walkTo(r.x + 0.5, r.z);
+      h.press();
+      expect(h.session.rest?.kind).toBe('drink');
+      h.session.remotes.nearest = () => ({ petName: 'Biscuit', playerId: 'sis-0001' });
+      h.press();
+      expect(h.session.rest).toBe(null);
+      expect(h.session.pendingBoop?.withId).toBe('sis-0001');
+    });
   });
 });
 
@@ -3163,6 +3251,19 @@ describe('endWalk: what the cat carried home', () => {
     for (const bad of ['award', 'addPoints', 'recordFeat', 'log.', 'walk.carried', 'sendEvent', 'net.']) {
       expect(code).not.toContain(bad);
     }
+  });
+
+  // v21 3b Task 15: a nap ends with the walk. The rests are freed before the
+  // scene traversal (which would otherwise free their meshes a second time),
+  // and session.rest is cleared after that, before the session is let go.
+  it('frees the rests, then clears the rest in progress, before the traversal and setSession(null)', () => {
+    const disposeAt = src.indexOf('session.rests.dispose()', end);
+    const clearAt = src.indexOf('session.rest = null', end);
+    expect(disposeAt).toBeGreaterThan(end);
+    expect(clearAt).toBeGreaterThan(disposeAt);
+    expect(clearAt).toBeLessThan(src.indexOf('session.scene.traverse(', end));
+    expect(clearAt).toBeLessThan(src.indexOf('setSession(null)', end));
+    expect(src.indexOf('session.rest = null', clearAt + 1)).toBe(-1); // once
   });
 
   it('the summary names what came home, escaped', () => {

@@ -79,7 +79,8 @@ export function tickRest(rest, dt, { stirred = false } = {}) {
 // Which of a kind's two looks each curated rest wears, and the floor it stands
 // on when that is not the ground. Keyed by the rest's id from propsets.js (ids
 // never change once shipped); an id not listed wears its kind's first look.
-const LOOKS = Object.freeze({
+// test/rests.test.js checks every key here is a real rest id of the right kind.
+export const REST_LOOKS = Object.freeze({
   'neighborhood-drink-1': { look: 'birdbath' },
   'neighborhood-eat-1': { look: 'dish' },
   'neighborhood-nap-1': { look: 'doormat' },
@@ -94,7 +95,16 @@ const LOOKS = Object.freeze({
   'docks-eat-1': { look: 'crate' },
   'docks-nap-1': { look: 'doormat' },
 });
+for (const v of Object.values(REST_LOOKS)) Object.freeze(v);
 const DEFAULT_LOOK = Object.freeze({ drink: 'bowl', eat: 'dish', nap: 'cushion' });
+
+// The looks the cat cannot walk through, as a collider radius about the
+// rest's (x, z). Only the birdbaths: their stone basin is 0.32 m across the
+// rim and stands on open grass. A cat stops at r + CAT_RADIUS (0.65 m), well
+// inside the 1.2 m drink reach, with its head over the rim. Everything else is
+// low enough to stand over (a bowl, a dish, a cushion, a mat) — and the fish
+// crate stays open on purpose: one of them is on the narrow pier.
+const SOLID_R = Object.freeze({ birdbath: 0.3 });
 
 const DECAL_ALPHA = 0.32;  // the contact decal's darkness at its centre, clear at the rim
 const DECAL_LIFT = 0.004;  // metres above the floor, so it never fights it for depth
@@ -206,15 +216,19 @@ function collect(root, geos, mats) {
   });
 }
 
-const lookOf = (r) => (Object.hasOwn(LOOKS, r.id) ? LOOKS[r.id] : { look: DEFAULT_LOOK[r.kind] });
+const lookOf = (r) => (typeof r.id === 'string' && Object.hasOwn(REST_LOOKS, r.id)
+  ? REST_LOOKS[r.id] : { look: DEFAULT_LOOK[r.kind] });
 
 // createRests(scene, rests) — rests is propsFor(areaId).rests:
 // [{ id, kind: 'drink'|'eat'|'nap', x, z, mesh }]. Entries are
-// { id, kind, x, z, group } (group null for a `mesh: false` rest). Anything
+// { id, kind, x, z, group } (group null for a `mesh: false` rest);
+// `colliders` is [{ x, z, r }] for the ones the cat cannot walk through, for
+// walk.js to add to the walk's collider list. Anything
 // that is not an array, and any entry without a rest kind or a finite
 // position, is skipped: never a throw.
 export function createRests(scene, rests) {
   const list = [];
+  const colliders = [];
   const added = []; // everything this put in the scene, to take back out
   let disposed = false;
 
@@ -232,6 +246,7 @@ export function createRests(scene, rests) {
       group.position.set(r.x, floor + lift, r.z);
       scene.add(group);
       added.push(group);
+      if (Object.hasOwn(SOLID_R, look)) colliders.push({ x: r.x, z: r.z, r: SOLID_R[look] });
       if (look !== 'doormat') {
         const size = box.getSize(new THREE.Vector3());
         const decal = buildDecal((Math.max(size.x, size.z) / 2) * DECAL_SPREAD);
@@ -245,6 +260,7 @@ export function createRests(scene, rests) {
 
   return {
     list,
+    colliders,
     // The nearest rest strictly inside maxDist of pos (horizontally), or null.
     nearest(pos, maxDist) {
       if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.z)) return null;
@@ -272,6 +288,7 @@ export function createRests(scene, rests) {
       for (const m of mats) m.dispose();
       added.length = 0;
       list.length = 0;
+      colliders.length = 0;
     },
   };
 }

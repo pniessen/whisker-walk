@@ -1056,10 +1056,13 @@ export function createWalkLifecycle({
     for (const c of pushThroughs.colliders) areaData.colliders.push({ ...c });
     // v21 3b Task 15 — somewhere to drink, eat and nap: a bowl or a birdbath,
     // a dish or a fish crate, a cushion or a doormat. The den's are the bowls
-    // and the hearth rug it already has, so it gets no new mesh. No colliders,
-    // nothing animates, created after mergeStaticProps (nothing merged). Pays
-    // nothing, saves nothing, sends nothing; session.rest is the one in progress.
+    // and the hearth rug it already has, so it gets no new mesh. Only the
+    // birdbaths are solid: their colliders join the list here, after clearSpot
+    // (as the flaps' do). Nothing animates, created after mergeStaticProps
+    // (nothing merged). Pays nothing, saves nothing, sends nothing;
+    // session.rest is the one in progress.
     const rests = createRests(scene, propsFor(areaId).rests);
+    for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the

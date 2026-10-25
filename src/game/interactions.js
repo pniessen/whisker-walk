@@ -1312,6 +1312,11 @@ export function createInteractions({
 
   function handleInteract(s) {
     if (!s.prompt) return;
+    // v21 3b Task 15 — any other E action gets the cat up: pressing E to pet a
+    // den cat or greet a stray beside the cushion ends the nap (or the sip)
+    // first, so nothing is done by a cat still drawn asleep. The 'rest' prompt
+    // itself never shows while a rest is on (restInReach).
+    if (s.rest && s.prompt.kind !== 'rest') s.rest = null;
     if (s.prompt.kind === 'carry') {
       pickUpCarryable(s, s.prompt.data);
     } else if (s.prompt.kind === 'drop') {
