@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
+import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles } from '../src/progression.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 import { STARTER_ACCESSORIES } from '../src/progression.js';
 import { emptyColony, isShy, TAME_FEEDS } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
+import { pickMedicineCat } from '../src/clanroles.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -414,6 +415,7 @@ describe('createProgression', () => {
           id: null, partner: null, cats: [], feeds: [], trades: [], tradesApplied: [], rewarded: [],
           seen: { feedKeys: [], tamed: [], trades: [], day: null },
         },
+        clanRoles: { medicine: null, deputy: null },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1947,7 +1949,8 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, ...rest } = p.state;
+    const { colony, clanRoles, ...rest } = p.state;
+    expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(rest).toEqual(v20);
   });
 
@@ -2313,5 +2316,163 @@ describe('the colony save key', () => {
     expect(p.state.colony).toEqual(emptyColony());
     p.replaceFromPayload({ version: 4, colony: { id: 'c', cats: [{ name: '__proto__' }], feeds: 'x', rewarded: ['tamed-99'] } });
     expect(p.state.colony).toEqual({ ...emptyColony(), id: 'c' });
+  });
+});
+
+// v21 Stream 3a Task 6: the two den-role SELECTION verdicts (medicine cat,
+// deputy), stored once and never moved.
+describe('clan role verdicts', () => {
+  const ME = 'me-player-0001';
+  const SIS = 'sis-player-0002';
+  const SISTER = { playerId: SIS, petName: 'Sis', wardrobe: [] };
+  const A = CAT_NAMES[0];
+  const B = CAT_NAMES[1];
+  const cat = (name, extra = {}) => ({
+    name, finder: ME, area: 'park', x: 1, z: 2, wear: null, tamedBy: null, tamedWalk: null, ...extra,
+  });
+  // One feed per walk stamp so each is distinct; `at` is the first stamp.
+  const feed = (c, by, n, at = 1000) =>
+    Array.from({ length: n }, (_, i) => ({ cat: c, by, walk: `walk-${at + i}`, head: 0 }));
+  // A completes (second feeder) at walk-2000.
+  const colonyWithADeputy = () => ({ ...emptyColony(), cats: [cat(A)],
+    feeds: [...feed(A, ME, 1, 1000), ...feed(A, SIS, 1, 2000)] });
+  // B completes earlier (walk-200), so pickDeputy over this colony would pick B.
+  const colonyWithADifferentEarlierDeputy = () => ({ ...emptyColony(), cats: [cat(A), cat(B)],
+    feeds: [...colonyWithADeputy().feeds, ...feed(B, ME, 1, 100), ...feed(B, SIS, 1, 200)] });
+  // A name whose derived role makes it medicine-eligible.
+  const eligible = CAT_NAMES.find((n) => pickMedicineCat([{ name: n }]) === n);
+
+  let storage, p;
+  beforeEach(() => {
+    storage = fakeStorage();
+    p = createProgression(storage);
+  });
+
+  it('starts with no clan roles', () => {
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
+  it('keeps a settled verdict across a reload', () => {
+    p.settleClanRoles(colonyWithADeputy());
+    const first = p.state.clanRoles.deputy;
+    expect(first).not.toBeNull();
+    expect(createProgression(storage).state.clanRoles.deputy).toBe(first);
+  });
+
+  it.each([null, undefined, 42, 'x', [], { medicine: 42 }, { deputy: {} },
+    { medicine: 'x'.repeat(100) }, Object.create({ medicine: 'Pickles' })])(
+    'sanitizeClanRoles is total over a hostile payload: %p', (bad) => {
+      const out = sanitizeClanRoles(bad);
+      expect(Object.keys(out).sort()).toEqual(['deputy', 'medicine']);
+      for (const v of Object.values(out)) expect(v === null || typeof v === 'string').toBe(true);
+    });
+
+  it('does not leak an inherited verdict', () => {
+    expect(sanitizeClanRoles(Object.create({ medicine: 'Pickles' })).medicine).toBeNull();
+  });
+
+  it('a name that is not a known cat name is not accepted as a verdict', () => {
+    expect(sanitizeClanRoles({ medicine: 'NotACat' }).medicine).toBeNull();
+    expect(sanitizeClanRoles({ medicine: A }).medicine).toBe(A);
+  });
+
+  it('never moves a verdict once it is set', () => {
+    p.settleClanRoles(colonyWithADeputy());
+    const first = p.state.clanRoles.deputy;
+    p.settleClanRoles(colonyWithADifferentEarlierDeputy());
+    expect(first).toBe(A);
+    expect(p.state.clanRoles.deputy).toBe(first);
+  });
+
+  it('writes nothing while no cat yet qualifies', () => {
+    const solo = { ...emptyColony(), cats: [cat(A)], feeds: feed(A, ME, 3) };
+    p.settleClanRoles(solo);
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
+  it('loads a version-4 save that predates clanRoles, and stays version 4', () => {
+    const p2 = createProgression(fakeStorage({
+      'whisker-walk-save': JSON.stringify({ version: 4, points: 10 }),
+    }));
+    expect(p2.state.clanRoles).toEqual({ medicine: null, deputy: null });
+    expect(p2.state.version).toBe(4);
+  });
+
+  it('keeps clanRoles off the cats', () => {
+    p.settleClanRoles(colonyWithADeputy());
+    expect(Object.keys(p.state.colony.cats[0] ?? {})).not.toContain('clanRoles');
+  });
+
+  // --- R12(a): when progression settles for itself -------------------------
+  const tamedEligible = () => ({ ...emptyColony(), cats: [cat(eligible, { tamedBy: ME, tamedWalk: 'walk-5' })],
+    feeds: feed(eligible, ME, TAME_FEEDS, 1) });
+  const feedUntilTamed = (name) => {
+    for (let i = 1; i <= TAME_FEEDS; i++) {
+      p.feedColonyCat({ name, by: ME, walk: `walk-${i}`, area: 'park', x: 1, z: 2 });
+    }
+  };
+
+  it('has a medicine-eligible cat to build the wiring fixtures from', () => {
+    expect(eligible).toBeTruthy();
+  });
+
+  it('a solo feed that tames a cat settles the medicine cat', () => {
+    feedUntilTamed(eligible);
+    expect(p.state.colony.cats[0].tamedBy).toBe(ME);
+    expect(p.state.clanRoles.medicine).toBe(eligible);
+    expect(createProgression(storage).state.clanRoles.medicine).toBe(eligible);
+  });
+
+  it('a paired feed settles nothing: the partner has not seen it yet', () => {
+    p.setColonyLink({ id: 'col-1', partner: SISTER });
+    feedUntilTamed(eligible);
+    expect(p.state.colony.feeds.length).toBeGreaterThan(0);
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
+  it('a merge settles from the shared colony', () => {
+    p.setColonyLink({ id: 'col-1', partner: SISTER });
+    p.mergeColonySnapshot({ id: 'col-1', partner: SISTER,
+      cats: tamedEligible().cats, feeds: tamedEligible().feeds, trades: [] });
+    expect(p.state.clanRoles.medicine).toBe(eligible);
+    expect(createProgression(storage).state.clanRoles.medicine).toBe(eligible);
+  });
+
+  it('settleColonyTaming settles roles too', () => {
+    p.setColonyLink({ id: 'col-1', partner: null });
+    p.state.colony = { ...p.state.colony, ...tamedEligible(), id: 'col-1' };
+    p.settleColonyTaming(ME);
+    expect(p.state.clanRoles.medicine).toBe(eligible);
+  });
+
+  // --- R12(b): a new pairing re-settles ------------------------------------
+  it('a new colony id resets the verdicts, so both devices re-settle', () => {
+    p.settleClanRoles(colonyWithADeputy());
+    expect(p.state.clanRoles.deputy).toBe(A);
+    p.setColonyLink({ id: 'col-9', partner: null });
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+    expect(createProgression(storage).state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
+  it('re-linking to the same id resets nothing', () => {
+    p.setColonyLink({ id: 'col-9', partner: null });
+    p.settleClanRoles(colonyWithADeputy());
+    p.setColonyLink({ id: 'col-9', partner: SISTER });
+    p.setColonyLink({ partner: null });
+    expect(p.state.clanRoles.deputy).toBe(A);
+  });
+
+  it('a settle after the reset fills the verdicts in again', () => {
+    p.settleClanRoles(colonyWithADeputy());
+    p.setColonyLink({ id: 'col-9', partner: null });
+    p.settleClanRoles(colonyWithADifferentEarlierDeputy());
+    expect(p.state.clanRoles.deputy).toBe(B);
+  });
+
+  it('unlinking is not a new pairing and keeps the verdicts', () => {
+    p.setColonyLink({ id: 'col-9', partner: null });
+    p.settleClanRoles(colonyWithADeputy());
+    p.setColonyLink({ id: null, partner: null });
+    expect(p.state.clanRoles.deputy).toBe(A);
   });
 });

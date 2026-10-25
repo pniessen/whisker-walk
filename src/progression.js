@@ -12,8 +12,14 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
 import { emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
-  feedKey, isColonyId, settleTaming } from './colony.js';
+  feedKey, isColonyId, settleTaming, tamedCats } from './colony.js';
 import { isStrayName } from './straynames.js';
+// v21 Stream 3a: the two den-role SELECTION verdicts. clanroles.js is a leaf
+// (clanwords/rng/straynames only), so this edge is cycle-free. RANK_KEYS is the
+// one place the borrowed vocabulary's keys are spelled, so no literal is typed
+// here.
+import { pickMedicineCat, pickDeputy } from './clanroles.js';
+import { RANK_KEYS } from './clanwords.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -383,7 +389,36 @@ function defaultState() {
     // single-player colony here; when paired, mergeColonySnapshot folds the
     // server's snapshot in add-only.
     colony: emptyColony(),
+    // v21 Stream 3a: the two den-role SELECTION verdicts, each a stray name or
+    // null. Additive, so SAVE_VERSION stays 4 like duskWalks/gifts/grudges/
+    // colony before it: a save from before this change has no field, and
+    // sanitize-with-default gives it { medicine: null, deputy: null }.
+    //
+    // STORED, unlike every other role, because a selection is not derivable
+    // twice: "the first eligible tamed cat" and "the earliest cat fed by two
+    // players" can change as the colony grows, and a role that moved would be
+    // a demotion. So each is computed once (settleClanRoles) and kept. A TOP-
+    // LEVEL field, never a property on a colony cat: mergeColony keeps the
+    // remote cat object for a cat both devices hold, so anything hung on a cat
+    // would be discarded at the next sync. Display only: never a score, a
+    // goal, an AWARDS entry or a permission.
+    clanRoles: { [RANK_KEYS.medicine]: null, [RANK_KEYS.deputy]: null },
   };
+}
+
+// Cloud-loaded clanRoles are untrusted: each verdict must be a KNOWN stray
+// name (isStrayName), read with an OWN-property check so an object whose
+// prototype carries a name (Object.create({ medicine: 'Pickles' })) cannot
+// leak one in — the idiom greetsFor in enemies.js explains. Anything else is
+// null; the result always has exactly the two keys, so the field is total over
+// any payload.
+export function sanitizeClanRoles(v) {
+  const out = { [RANK_KEYS.medicine]: null, [RANK_KEYS.deputy]: null };
+  if (!isPlainObject(v)) return out;
+  for (const key of [RANK_KEYS.medicine, RANK_KEYS.deputy]) {
+    if (Object.prototype.hasOwnProperty.call(v, key) && isStrayName(v[key])) out[key] = v[key];
+  }
+  return out;
 }
 
 // Cloud-loaded (or otherwise externally supplied) journal counts are
@@ -688,6 +723,7 @@ function sanitizeState(parsed) {
     gifts: sanitizeGifts(parsed.gifts),
     grudges: sanitizeGrudges(parsed.grudges),
     colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
+    clanRoles: sanitizeClanRoles(parsed.clanRoles),
   };
 }
 
@@ -743,6 +779,24 @@ export function createProgression(storage) {
     } catch (err) {
       console.warn('Whisker Walk: could not write save', err);
     }
+  };
+
+  // Fill any UNSET verdict from `colony`; true when something was written.
+  // Never overwrites a set verdict (a selection that moved would be a
+  // demotion), and a null pick writes nothing. The caller saves, so the
+  // mutators persist once, with the colony change that triggered this.
+  const settleRoles = (colony) => {
+    let changed = false;
+    const roles = state.clanRoles;
+    if (roles[RANK_KEYS.medicine] === null) {
+      const pick = pickMedicineCat(tamedCats(colony));
+      if (pick !== null) { roles[RANK_KEYS.medicine] = pick; changed = true; }
+    }
+    if (roles[RANK_KEYS.deputy] === null) {
+      const pick = pickDeputy(colony.feeds);
+      if (pick !== null) { roles[RANK_KEYS.deputy] = pick; changed = true; }
+    }
+    return changed;
   };
 
   const api = {
@@ -1229,6 +1283,11 @@ export function createProgression(storage) {
         { members: api.colonyMembers(), now: Date.now() });
       if (r.result === 'ok') {
         state.colony = r.colony;
+        // Solo, the local data IS the whole truth, so settle now. Paired, this
+        // device may hold a feed its partner has not seen, and a verdict
+        // written from it could disagree with theirs forever: wait for the
+        // next merge instead.
+        if (api.colonyMembers() === 1) settleRoles(state.colony);
         save();
       }
       return { result: r.result, tamedNow: r.tamedNow, progress: r.progress };
@@ -1247,6 +1306,7 @@ export function createProgression(storage) {
       const next = mergeColony(state.colony, remote, { knownItems: KNOWN_ACCESSORY_IDS });
       if (JSON.stringify(next) === JSON.stringify(state.colony)) return;
       state.colony = next;
+      settleRoles(state.colony);
       save();
     },
 
@@ -1262,6 +1322,17 @@ export function createProgression(storage) {
         id: id === undefined ? c.id : id,
         partner: partner === undefined ? c.partner : partner,
       }, { knownItems: KNOWN_ACCESSORY_IDS });
+      // A NEW pairing (the id becomes a different, real id) forgets the stored
+      // verdicts so both devices re-settle from the merged, shared colony at
+      // the next merge. Otherwise two sisters who each played solo first would
+      // keep two different medicine cats forever, because settleClanRoles
+      // never overwrites a verdict. This mirrors spec §6.6's clan name, which
+      // also changes once, visibly, at pairing. It is a separate event from
+      // settling: re-linking to the SAME id resets nothing, and an unlink
+      // (id -> null) is not a new pairing, so it keeps what was settled.
+      if (state.colony.id !== null && state.colony.id !== c.id) {
+        state.clanRoles = sanitizeClanRoles(null);
+      }
       save();
     },
 
@@ -1273,10 +1344,20 @@ export function createProgression(storage) {
     // something settled.
     settleColonyTaming(me) {
       const r = settleTaming(state.colony, me, { members: api.colonyMembers(), now: Date.now() });
-      if (r.settled.length === 0) return [];
-      state.colony = sanitizeColony(r.colony, { knownItems: KNOWN_ACCESSORY_IDS });
-      save();
+      if (r.settled.length > 0) state.colony = sanitizeColony(r.colony, { knownItems: KNOWN_ACCESSORY_IDS });
+      // Called right after every merge (colonysync), so this is also where a
+      // merged colony's verdicts get a chance even when no cat settled.
+      const rolesChanged = settleRoles(state.colony);
+      if (r.settled.length > 0 || rolesChanged) save();
       return r.settled.map((s) => s.name);
+    },
+
+    // settleClanRoles(colony) — compute any UNSET verdict from `colony` and
+    // write it once. A verdict that is already set is never recomputed, so
+    // adding a cat or a feed later cannot displace the incumbent. Nothing is
+    // written while no cat qualifies. Saves only when something was written.
+    settleClanRoles(colony) {
+      if (settleRoles(colony)) save();
     },
 
     // dressColonyCat(name, item, me) → bool. Only the cat's FINDER may dress
