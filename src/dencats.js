@@ -19,6 +19,7 @@ import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { DEN_SPOTS, clearsCamera } from './den.js';
+import { strayBreed } from './straynames.js';
 
 // How far a cat stands from the spot it is attached to, toward the room
 // centre, so a cat and the furniture on its spot never overlap.
@@ -139,19 +140,26 @@ const SIDES = [0, 1, -1, 2, -2, 3, -3, 4, -4];
 // the most clearance, so a crowded room degrades to "a bit snug", never to a
 // cat in a wall, in the opening shot, or exactly on top of another cat.
 // `obstacles` is [{ x, z, r }] circles on the floor plan.
-function findPlace(anchor, base, tangent, r, placed, obstacles) {
+//
+// `fit` lets a smaller occupant (a little one beside its mother) use its own
+// rings, sideways step and cat-to-cat spacing; the defaults are the adult ones,
+// so every existing call is unchanged.
+function findPlace(anchor, base, tangent, r, placed, obstacles, fit = {}) {
+  const rings = fit.rings ?? RINGS;
+  const step = fit.step ?? NUDGE_STEP;
+  const apart = fit.apart ?? MIN_APART;
   let best = null;
   let bestScore = -Infinity;
-  for (const ring of RINGS) {
+  for (const ring of rings) {
     for (const k of SIDES) {
-      const x = anchor.x + base.d.x * ring + tangent.x * k * NUDGE_STEP;
-      const z = anchor.z + base.d.z * ring + tangent.z * k * NUDGE_STEP;
+      const x = anchor.x + base.d.x * ring + tangent.x * k * step;
+      const z = anchor.z + base.d.z * ring + tangent.z * k * step;
       if (Math.abs(x) > ROOM_LIMIT || Math.abs(z) > ROOM_LIMIT) continue;
       if (!clearsCamera(x, z, 0.5, 0.8)) continue;
       // Worst overlap over everything nearby (negative = overlapping).
       let slack = Infinity;
       for (const o of placed) {
-        slack = Math.min(slack, Math.hypot(o.group.position.x - x, o.group.position.z - z) - MIN_APART);
+        slack = Math.min(slack, Math.hypot(o.group.position.x - x, o.group.position.z - z) - apart);
       }
       for (const o of obstacles) {
         slack = Math.min(slack, Math.hypot(o.x - x, o.z - z) - (r + o.r));
@@ -184,21 +192,54 @@ function sleepyLoaf(group) {
   for (const p of tailPivots) p.rotation.y = 0.12; // tail alongside, not over the face
 }
 
-function disposeTree(root) {
+// `seen` is shared across every root a dispose() walks, so a geometry or
+// material that two meshes (or two roots) hold is disposed exactly once, as
+// goldmice.js documents for its own shared material.
+function disposeTree(root, seen = new Set()) {
+  const once = (x) => {
+    if (x && !seen.has(x)) {
+      seen.add(x);
+      x.dispose?.();
+    }
+  };
   root.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
+    once(o.geometry);
     const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
     for (const m of ms) {
-      m.map?.dispose?.();
-      m.dispose?.();
+      once(m.map);
+      once(m);
     }
   });
 }
 
+// ---- Little ones beside their mothers ---------------------------------------
+// A little one is a real cat (spec §6.5) drawn small: the full model at
+// LITTLE_SCALE, with its head enlarged. A plain shrunk adult reads as a toy
+// cat; a kitten's tell is a big head on a small body, and the animator never
+// resets head.scale, so the enlargement survives every frame.
+const LITTLE_SCALE = 0.5;
+const LITTLE_HEAD = 1.35;
+const LITTLE_R = 0.25;       // floor footprint, for furniture
+const LITTLE_APART = 0.7;    // to its mother, siblings and other cats
+const LITTLE_STEP = 0.6;     // sideways step when the near spot is taken
+const LITTLE_TAG_Y = 0.62;   // the adult tag floats at 1.05, far above a small cat
+const KNOCKED_R = 0.22;      // a knocked-over cup or pot, so a little one never sits in it
+
 // cats: [{ name, breed, wear: { slot, id } | null, home: { x, z }, moment: { act, spot } }]
-export function createDenCats(scene, cats, { reducedMotion = false, obstacles = [] } = {}) {
+//
+// kits: placedKits()'s output, [{ queen, kits: [name], home }]. Each little one
+// is placed beside its mother's ACTUAL place today (she may be at the window or
+// in a box), takes no DEN_HOMES entry and is never in `list`, so nearest() and
+// pet() stay about the adults. The return value's `littles` is the handle for
+// whatever later wants to act on them:
+//   [{ name, queen, breed, group, tag }]
+// where `group` is the world-positioned holder (group.position is where it sits)
+// and `breed` is strayBreed(name), the little one's own stored-name breed.
+export function createDenCats(scene, cats, { reducedMotion = false, obstacles = [], kits = [] } = {}) {
   const list = [];
   const props = [];
+  const propSpots = []; // small floor props (knocked-over things) the little ones avoid
+  const littles = [];
 
   for (const c of cats) {
     const wear = c.wear && typeof c.wear.slot === 'string' && typeof c.wear.id === 'string'
@@ -250,16 +291,58 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
       obj.rotation.y = yaw + (side > 0 ? 0.6 : Math.PI - 0.6);
       scene.add(obj);
       props.push(obj);
+      propSpots.push({ x: obj.position.x, z: obj.position.z, r: KNOCKED_R });
     }
 
     list.push({
       name: c.name,
       group,
+      yaw,
+      footprint: act === 'box' ? BOX_R : CAT_R,
       tag,
       moment: c.moment,
       phase: (h % 628) / 100, // offsets the idle breathing between cats
       purr: 0,                 // seconds of sitting-up left after a pet
     });
+  }
+
+  // The little ones go in after every adult is placed, so they fit around the
+  // finished room instead of pushing an adult out of her place. They register
+  // in `littleSpots` (shaped like `list` entries for findPlace) so they keep
+  // clear of each other too.
+  const littleSpots = [...list];
+  for (const set of kits) {
+    const mother = list.find((e) => e.name === set.queen);
+    if (!mother) continue; // no placed mother, nothing to sit beside
+    const mp = mother.group.position;
+    const base = standOff({ x: mp.x, z: mp.z });
+    const tangent = { x: -base.d.z, z: base.d.x };
+    // Start just outside her footprint (a box is wider than a cat on the floor).
+    const s = mother.footprint + 0.35;
+    const fit = { rings: [s, s + 0.25, s + 0.5], step: LITTLE_STEP, apart: LITTLE_APART };
+    for (const name of set.kits) {
+      const at = findPlace({ x: mp.x, z: mp.z }, base, tangent, LITTLE_R, littleSpots, [...obstacles, ...propSpots], fit);
+      const holder = new THREE.Group();
+      holder.position.set(at.x, 0, at.z);
+      // Its OWN breed from its own stored name: once fed it becomes a colony
+      // cat whose breed is hashed from that name everywhere, so borrowing its
+      // mother's coat would change its colour the moment it is fed.
+      const breed = strayBreed(name);
+      const body = buildCat(breed, {});
+      body.scale.setScalar(LITTLE_SCALE);
+      body.userData.parts.head.scale.setScalar(LITTLE_HEAD);
+      holder.add(body);
+      holder.rotation.y = mother.yaw + ((nameHash(name) % 100) / 100 - 0.5) * 0.8;
+      const tag = makeNameTag(name);
+      if (tag) {
+        tag.position.y = LITTLE_TAG_Y;
+        holder.add(tag);
+      }
+      scene.add(holder);
+      const entry = { name, queen: set.queen, breed, group: holder, body, tag, phase: (nameHash(name) % 628) / 100 };
+      littleSpots.push(entry);
+      littles.push(entry);
+    }
   }
 
   const restPose = (e) => (e.moment.act === 'nap' ? 'nap'
@@ -269,6 +352,7 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
 
   return {
     list,
+    littles,
     // The closest den cat within r metres of pos (ground distance), or null.
     nearest(pos, r) {
       let best = null;
@@ -299,17 +383,32 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
         animateCat(e.group, pose, t + e.phase, 0, reducedMotion);
         if (pose === 'nap') sleepyLoaf(e.group);
       }
+      // The little ones sit up and look about, whatever their mother is doing.
+      for (const e of littles) {
+        const near = catPos
+          ? Math.hypot(e.group.position.x - catPos.x, e.group.position.z - catPos.z)
+          : Infinity;
+        if (e.tag) e.tag.visible = near < NAME_RANGE;
+        animateCat(e.body, 'requestPet', t + e.phase, 0, reducedMotion);
+      }
     },
     dispose() {
+      // One `seen` set across every root, so nothing shared is disposed twice.
+      const seen = new Set();
       for (const e of list) {
         scene.remove(e.group);
-        disposeTree(e.group);
+        disposeTree(e.group, seen);
+      }
+      for (const e of littles) {
+        scene.remove(e.group);
+        disposeTree(e.group, seen);
       }
       for (const p of props) {
         scene.remove(p);
-        disposeTree(p);
+        disposeTree(p, seen);
       }
       list.length = 0;
+      littles.length = 0;
       props.length = 0;
     },
   };

@@ -4,6 +4,7 @@ import { DEN_ITEMS, DEN_SPOTS, DEN_HOMES, clearsCamera } from '../src/den.js';
 import { CAT_NAMES, strayBreed } from '../src/straynames.js';
 import { denMoment } from '../src/colony.js';
 import { createDenCats } from '../src/dencats.js';
+import { roleFor, placedKits } from '../src/clanroles.js';
 
 // Headless document stub, as test/den.test.js: world/den.js's textures ask for a canvas.
 vi.stubGlobal('document', {
@@ -90,5 +91,99 @@ describe('den cats in the real den', () => {
     const items = Object.keys(DEN_ITEMS);
     const placed = Object.fromEntries(DEN_SPOTS.map((s, i) => [s.id, items[(i * 5) % items.length]]));
     expect(simulate(placed, DEN_HOMES.length).bad).toEqual([]);
+  });
+});
+
+// ---- Queens' little ones (Task 8) -------------------------------------------
+// Five shipped queens tamed in name order, each at her own den home, with the
+// kits placedKits gives them. They sit beside their mothers, take no slot.
+describe('queens and their kits in the real den', () => {
+  const QUEENS = CAT_NAMES.filter((n) => roleFor(n) === 'queen');
+  const residents = QUEENS.map((name, i) => ({ cat: { name }, home: DEN_HOMES[i] }));
+  const catsFor = (ymd) => QUEENS.map((name, i) => ({
+    name, breed: strayBreed(name), wear: null, home: { x: DEN_HOMES[i].x, z: DEN_HOMES[i].z }, moment: denMoment(name, ymd),
+  }));
+  const kits = placedKits(residents, []);
+  const kitCount = kits.reduce((n, p) => n + p.kits.length, 0);
+
+  it('every kit is placed beside its mother, clear of her, each other, furniture and walls, over 20 days', () => {
+    const items = Object.keys(DEN_ITEMS);
+    const furnished = Object.fromEntries(DEN_SPOTS.map((s, i) => [s.id, items[(i * 5) % items.length]]));
+    for (const placed of [{}, furnished]) {
+      const area = build(new THREE.Scene(), { placed });
+      const obstacles = obstaclesOf(area);
+      for (let day = 1; day <= 20; day++) {
+        const dc = createDenCats(scene, catsFor(`2026-11-${String(day).padStart(2, '0')}`), { obstacles, kits });
+        expect(dc.list).toHaveLength(QUEENS.length);       // kits are not den cats
+        expect(dc.littles).toHaveLength(kitCount);
+        const all = [...dc.list, ...dc.littles];
+        for (const k of dc.littles) {
+          const p = k.group.position;
+          const mother = dc.list.find((e) => e.name === k.queen).group.position;
+          // Beside her, not across the room. The bare den keeps them well under
+          // 2 m; a den with every spot furnished (worst case, measured 2.64)
+          // pushes them a little further around the furniture.
+          expect(Math.hypot(p.x - mother.x, p.z - mother.z)).toBeLessThan(3);
+          expect(Math.hypot(p.x - mother.x, p.z - mother.z)).toBeGreaterThanOrEqual(0.69);
+          for (const o of all) {
+            if (o.group === k.group) continue;
+            const q = o.group.position;
+            expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeGreaterThanOrEqual(0.69);
+          }
+          const hit = obstacles.find((o) => Math.hypot(o.x - p.x, o.z - p.z) < 0.25 + o.r - 1e-6);
+          expect(hit).toBeUndefined();
+          expect(Math.abs(p.x)).toBeLessThanOrEqual(7.5);
+          expect(Math.abs(p.z)).toBeLessThanOrEqual(7.5);
+          expect(clearsCamera(p.x, p.z, 0.5, 0.8)).toBe(true);
+        }
+        dc.dispose();
+      }
+    }
+  });
+
+  it("a kit's coat is its own stored-name breed, never its mother's", () => {
+    const dc = createDenCats(scene, catsFor('2026-11-03'), { kits });
+    for (const k of dc.littles) {
+      expect(k.breed).toBe(strayBreed(k.name));
+      expect(k.body.userData.breed).toBe(strayBreed(k.name));
+    }
+    dc.dispose();
+  });
+
+  it('exposes each kit by name with a world position, and no kits means none', () => {
+    const dc = createDenCats(scene, catsFor('2026-11-03'), { kits });
+    expect(dc.littles.map((k) => k.name).sort()).toEqual(kits.flatMap((p) => p.kits).sort());
+    for (const k of dc.littles) {
+      expect(Number.isFinite(k.group.position.x)).toBe(true);
+      expect(k.queen).toBeTruthy();
+    }
+    dc.dispose();
+    expect(createDenCats(scene, catsFor('2026-11-03')).littles).toEqual([]);
+  });
+
+  it('update animates kits (reduced motion too) and disposes every geometry and material exactly once', () => {
+    const counts = new Map();
+    const spy = (proto) => {
+      const orig = proto.dispose;
+      proto.dispose = function counted(...a) {
+        counts.set(this, (counts.get(this) ?? 0) + 1);
+        return orig.apply(this, a);
+      };
+      return () => { proto.dispose = orig; };
+    };
+    const restore = [spy(THREE.BufferGeometry.prototype), spy(THREE.Material.prototype), spy(THREE.Texture.prototype)];
+    try {
+      for (const reducedMotion of [false, true]) {
+        counts.clear();
+        const dc = createDenCats(scene, catsFor('2026-11-03'), { kits, reducedMotion });
+        dc.update(0.016, 1.5, { x: 0, z: 0 });
+        dc.update(0.016, 1.6);
+        dc.dispose();
+        expect(counts.size).toBeGreaterThan(0);
+        expect([...counts.values()].filter((n) => n !== 1)).toEqual([]);
+      }
+    } finally {
+      restore.forEach((r) => r());
+    }
   });
 });

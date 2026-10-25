@@ -39,6 +39,7 @@ import { createGoals } from '../goals.js';
 import { rankFor, CATALOG } from '../progression.js';
 import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
+import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim } from '../player.js';
@@ -81,7 +82,7 @@ const AREAS = { neighborhood, park, seaside, den, docks };
 const NO_GHOSTS = { list: [], nearest: () => null, update() {}, dispose() {} };
 // Same idea for the den's tamed cats (v21 Stream 2): off the den walk the
 // render loop, the prompt scan and endWalk still call them unconditionally.
-const NO_DEN_CATS = { list: [], nearest: () => null, pet() {}, update() {}, dispose() {} };
+const NO_DEN_CATS = { list: [], littles: [], nearest: () => null, pet() {}, update() {}, dispose() {} };
 // Same idea for an area with no golden mice (the den today, a future area
 // before its three are placed): every goldMice method the walk calls, inert.
 // nearestUnfound is here because v18's Whisker Sense asks for it every frame.
@@ -915,6 +916,10 @@ export function createWalkLifecycle({
         moment: denMoment(c.name, new Date().toISOString().slice(0, 10)),
       })), {
         reducedMotion,
+        // A queen's little ones sit beside her: derived from the same residents
+        // and the colony's cats (a fed one is a colony cat, so it drops out),
+        // nothing stored and no den slot of their own.
+        kits: placedKits(denResidents(state.colony), state.colony.cats),
         // Keep cats off the den's fixed props and the furniture the player
         // placed: areaData.colliders already holds both (fixtures plus
         // placed pieces); boxes are the cardboard box, the paper bag and any
