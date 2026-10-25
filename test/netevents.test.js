@@ -7,6 +7,7 @@ import { CAT_NAMES } from '../src/straynames.js';
 import { createCarryables, MOUTH } from '../src/carryables.js';
 import { createMouth } from '../src/carry.js';
 import { createRemoteCats } from '../src/remotecats.js';
+import { createKnockables } from '../src/knockables.js';
 
 // v21 Stream 2, Task 12 — the receiving side of the live 'colony-feed' event
 // (game/interactions.js's feedStray sends it). netevents.js imports THREE but
@@ -409,5 +410,92 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     const rivalB = src.indexOf('session.rival = {', rivalA);
     const callInSrc = src.indexOf('takeHeldItemsWithRemotes(remotes');
     expect(callInSrc < rivalA || callInSrc > rivalB).toBe(true);
+  });
+});
+
+// ===========================================================================
+// v21 3b Task 10 — a co-walker knocked something off a ledge ('knock', sent by
+// game/interactions.js). It comes down on my screen too, at the same fallTo,
+// and stays down. No points, no feat, no save: points go to the player who did
+// it. The same "got there first" toast a remote tip shows, when I was close.
+// ===========================================================================
+describe('applyRemoteEvent: knock', () => {
+  const CUP = { id: 'docks-cup-1', kind: 'cup', x: 6, z: 4.3, y: 0.55, fallTo: { x: 6.6, z: 5.4 } };
+  const CAN = { id: 'docks-can-1', kind: 'can', x: -19.6, z: -17, y: 1.3, fallTo: { x: -19.8, z: -18.3 } };
+
+  function knockHarness({ catAt = [6.5, 4.5] } = {}) {
+    const storage = fakeStorage();
+    const progression = createProgression(storage);
+    const toasts = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: { awardOnce: () => { throw new Error('a remote knock must never award points'); } },
+      hud: { toast: (text) => toasts.push(text) },
+      audio: {}, samples: { has: () => false }, catVoice() {},
+      applyGoalResult() { throw new Error('a remote knock must never touch a goal'); },
+      getPartner: () => null,
+    });
+    const knockables = createKnockables(new THREE.Scene(), [CUP, CAN]);
+    const s = {
+      playerId: ME,
+      cat: { position: new THREE.Vector3(catAt[0], 0, catAt[1]) },
+      remotes: { list: [{ playerId: PARTNER, petName: 'Robin' }] },
+      knockables,
+    };
+    const before = JSON.stringify(progression.state);
+    const writesBefore = storage.writes();
+    return {
+      s, toasts, knockables,
+      apply: (ev) => applyRemoteEvent(s, ev),
+      applyTo: (session, ev) => applyRemoteEvent(session, ev),
+      saveUntouched: () => JSON.stringify(progression.state) === before && storage.writes() === writesBefore,
+    };
+  }
+  const knockEv = (o = {}) => ({ v: 1, id: PARTNER, type: 'knock', knockId: CUP.id, ...o });
+
+  it('a remote knock knocks it down here and pays nothing', () => {
+    const h = knockHarness();
+    const [cup, can] = h.knockables.list;
+    h.apply(knockEv());
+    expect(cup.down).toBe(true);
+    expect(can.down).toBe(false);
+    // it falls to the same fallTo the sender's lands at, and stays
+    for (let i = 0; i < 120; i++) h.knockables.update(1 / 60);
+    expect(cup.group.position.x).toBeCloseTo(CUP.fallTo.x, 6);
+    expect(cup.group.position.z).toBeCloseTo(CUP.fallTo.z, 6);
+    // I was right there: the shipped snipe toast, once
+    expect(h.toasts).toEqual(['Robin got there first!']);
+    // a repeat (or an echo) changes nothing and toasts nothing
+    h.apply(knockEv());
+    expect(h.toasts).toHaveLength(1);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
+  it('far away, it still comes down, without a toast', () => {
+    const h = knockHarness({ catAt: [30, 30] });
+    h.apply(knockEv());
+    expect(h.knockables.list[0].down).toBe(true);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it.each([['unknown', 'docks-cup-9'], ['number', 3], ['proto', '__proto__']])('a %s knock id is ignored', (_name, knockId) => {
+    const h = knockHarness();
+    expect(() => h.apply(knockEv({ knockId }))).not.toThrow();
+    expect(h.knockables.list.every((e) => !e.down)).toBe(true);
+    expect(h.toasts).toEqual([]);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
+  it.each([['missing', undefined], ['null', null], ['object', {}], ['constructor', 'constructor']])('a %s knock id is ignored too', (_name, knockId) => {
+    const h = knockHarness();
+    expect(() => h.apply(knockEv({ knockId }))).not.toThrow();
+    expect(h.knockables.list.every((e) => !e.down)).toBe(true);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it('a session without knockables ignores a knock', () => {
+    const h = knockHarness();
+    expect(() => h.applyTo({ ...h.s, knockables: undefined }, knockEv())).not.toThrow();
+    expect(h.toasts).toEqual([]);
   });
 });

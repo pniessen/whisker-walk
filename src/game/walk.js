@@ -33,6 +33,7 @@ import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
+import { createKnockables } from '../knockables.js';
 import { createPlayerMarks } from '../render/playermarks.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
 import { propsFor } from '../propsets.js';
@@ -1003,6 +1004,13 @@ export function createWalkLifecycle({
     // she was holding with her (netevents.js). Harmless solo: no remote ever
     // holds anything there.
     takeHeldItemsWithRemotes(remotes, carry.items, cat);
+    // v21 3b Task 10 — the cups, pots and books a perched cat can knock off a
+    // ledge. A knocked one stays down for the rest of this walk and nothing is
+    // saved. Created after mergeStaticProps, so nothing here is merged; the
+    // den's list is empty. Deliberately NOT given a contact decal below: a
+    // mover decal sits on the ground under its object, so a cup on a car roof
+    // (or in mid-fall) would trail a shadow blob along the road.
+    const knockables = createKnockables(scene, propsFor(areaId).knockables);
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; the outdoor half
     // arrives later, and until then any other area builds nothing. Created
@@ -1276,6 +1284,7 @@ export function createWalkLifecycle({
       }),
       secrets,
       tippables,
+      knockables,
       carry,
       playerMarks,
       gifts,
@@ -1702,6 +1711,7 @@ export function createWalkLifecycle({
     // Before the traversal too: it takes its meshes out of the scene and frees
     // each geometry and material exactly once.
     session.carry.items.dispose();
+    session.knockables.dispose();
     session.playerMarks?.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();

@@ -711,6 +711,7 @@ function init() {
         session.fx.burst(session.cat.position, 0xffe27a, 14);
       }
       session.tippables.update(dt);
+      session.knockables.update(dt); // v21 3b: a knocked thing's fall off its ledge
       session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
       tickCarryRain(session, dt); // v21 3b: falling rain loosens the grip; the item slips
       session.scent.update(dt);

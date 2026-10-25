@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
+import { createKnockables } from '../src/knockables.js';
 import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression, CATALOG } from '../src/progression.js';
@@ -377,7 +378,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // greet range, which is the exact Docks collision the review described.
   // v21 3b: `carryables` puts things on the ground for the carry prompts, and
   // `stray: null` takes Pickles away when a test needs nothing else in range.
-  function promptHarness({ skills = [], feats = {}, carryables = [], stray = { name: 'Pickles', greeted: false } } = {}) {
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false } } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -416,6 +417,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       weather: { isRaining: () => false },
       walk: { carried: 0, carryCap: 2 },
       carry: { mouth: createMouth(), items: createCarryables(scene, carryables) },
+      knockables: createKnockables(scene, knockables),
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
@@ -804,6 +806,146 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         }).not.toThrow();
         expect(h.session.carry.items.list[0].onGround).toBe(true);
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // v21 3b Task 10 — knock it off the ledge. 'knock' sits right after
+  // 'collect' and before 'carry'; it is offered only while perched, beside a
+  // thing still standing on that ledge. It pays exactly what a tip pays.
+  // -------------------------------------------------------------------------
+  describe('knock: off the ledge', () => {
+    // On a ledge 1.3 m up, well clear of the harness crate at (0, 2).
+    const CUP = { id: 'neighborhood-cup-1', kind: 'cup', x: 10, z: 0, y: 1.3, fallTo: { x: 11.2, z: 0.4 } };
+    const LEDGE = { x: 10.6, y: 1.3, z: 0.2 };
+    const knockHarness = (opts = {}) => {
+      const h = promptHarness({ stray: null, knockables: [CUP], ...opts });
+      const dismayed = [];
+      h.session.critters.dismayNear = (pos, r) => dismayed.push({ x: pos.x, z: pos.z, r });
+      h.session.perched = { ...LEDGE };
+      const discoveries = [];
+      const off = bus.on('discovery', (e) => discoveries.push(e));
+      return { ...h, dismayed, discoveries, off, cup: h.session.knockables.list[0] };
+    };
+
+    it('perched beside a cup: "E — knock it off! 😼", and knocking pays the tip award once', () => {
+      const h = knockHarness();
+      try {
+        h.walkTo(LEDGE.x, LEDGE.z);
+        expect(h.session.prompt.kind).toBe('knock');
+        expect(h.session.prompt.data).toBe(h.cup);
+        expect(h.prompts.at(-1)).toBe('E — knock it off! 😼');
+        h.press();
+        expect(h.cup.down).toBe(true);
+        expect(h.discoveries).toEqual([{
+          type: 'mischief', key: 'knock-neighborhood-cup-1', label: 'knocked it off the ledge!',
+          points: AWARDS.mischief, repeat: false,
+        }]);
+        expect(h.progression.state.points).toBe(AWARDS.mischief);
+        expect(h.progression.state.feats.mischief).toBe(1);
+        expect(h.dismayed).toEqual([{ x: CUP.x, z: CUP.z, r: 8 }]);
+        // it is down: no prompt for it, and pressing again pays nothing more
+        h.walkTo(LEDGE.x, LEDGE.z);
+        expect(h.session.prompt).toBe(null);
+        h.press();
+        h.press();
+      } finally {
+        h.off?.();
+      }
+      expect(h.discoveries).toHaveLength(1);
+      expect(h.progression.state.points).toBe(AWARDS.mischief);
+      expect(h.progression.state.feats.mischief).toBe(1);
+    });
+
+    it('a knock pays exactly what a tip pays: the same award type, points and feat', () => {
+      const knock = knockHarness();
+      knock.off?.();
+      knock.walkTo(LEDGE.x, LEDGE.z);
+      knock.press();
+      const tip = promptHarness({ stray: null });
+      tip.walkTo(0, 1.0);
+      expect(tip.session.prompt.kind).toBe('tip');
+      tip.press();
+      expect(knock.progression.state.points).toBe(tip.progression.state.points);
+      expect(knock.progression.state.lifetimePoints).toBe(tip.progression.state.lifetimePoints);
+      expect(knock.progression.state.feats).toEqual(tip.progression.state.feats);
+    });
+
+    it('a stale knock prompt on a cup already down pays nothing and sends nothing', () => {
+      const h = knockHarness();
+      h.off?.();
+      const sent = [];
+      h.session.playerId = 'me-player-0001';
+      h.session.net = { sendEvent: (ev) => sent.push(ev) };
+      h.session.knockables.knockById(CUP.id); // a co-walker got there first
+      const { handleInteract } = createInteractions({
+        MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+        getSession: () => h.session, getIsTouch: () => false,
+        player: {}, progression: h.progression, log: h.log,
+        hud: { toast() {}, setPrompt() {} }, audio: { trill() {}, meow() {} },
+        catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+      });
+      h.session.prompt = { kind: 'knock', data: h.cup };
+      handleInteract(h.session);
+      expect(h.progression.state.points).toBe(0);
+      expect(h.dismayed).toEqual([]);
+      expect(sent).toEqual([]);
+    });
+
+    it('no knock prompt from the ground, or from a perch at another height', () => {
+      const h = knockHarness();
+      h.off?.();
+      h.session.perched = null;
+      h.walkTo(LEDGE.x, LEDGE.z);
+      expect(h.session.prompt).toBe(null);
+      h.session.perched = { ...LEDGE, y: 2.2 };
+      h.walkTo(LEDGE.x, LEDGE.z);
+      expect(h.session.prompt).toBe(null);
+      h.session.perched = { ...LEDGE };
+      h.walkTo(CUP.x + 1.1, CUP.z); // just out of the 1.0 m reach
+      expect(h.session.prompt).toBe(null);
+      h.walkTo(CUP.x + 0.95, CUP.z);
+      expect(h.session.prompt.kind).toBe('knock');
+    });
+
+    it('collect wins over knock, and knock wins over the crate', () => {
+      const h = knockHarness({ knockables: [{ ...CUP, x: 0, z: 1.2 }] });
+      h.off?.();
+      h.session.perched = { x: 0, y: 1.3, z: 1.0 };
+      h.session.areaData.collectibles.push({ id: 'feather', x: 0, z: 0.8, y: 1.3, label: 'a feather' });
+      h.session.collectibleMeshes.set('feather', {});
+      h.walkTo(0, 1.0); // inside collect, knock and tip reach at once
+      expect(h.session.prompt.kind).toBe('collect');
+      h.session.collectibleMeshes.delete('feather');
+      h.walkTo(0, 1.0);
+      expect(h.session.prompt.kind).toBe('knock');
+    });
+
+    it('knock sends one knock event in a room walk and none solo', () => {
+      const solo = knockHarness();
+      solo.off?.();
+      solo.walkTo(LEDGE.x, LEDGE.z);
+      solo.press();
+      expect(solo.cup.down).toBe(true); // solo: knocked, and nothing to send it on
+
+      const room = knockHarness();
+      room.off?.();
+      const sent = [];
+      room.session.playerId = 'me-player-0001';
+      room.session.net = { sendEvent: (ev) => sent.push(ev) };
+      room.walkTo(LEDGE.x, LEDGE.z);
+      room.press();
+      room.walkTo(LEDGE.x, LEDGE.z);
+      room.press(); // nothing left to knock: no second event
+      expect(sent).toEqual([{ v: 1, id: 'me-player-0001', type: 'knock', knockId: 'neighborhood-cup-1' }]);
+    });
+
+    it('a session without knockables never offers a knock (a stand-in, or an old test session)', () => {
+      const h = knockHarness();
+      h.off?.();
+      h.session.knockables = undefined;
+      expect(() => h.walkTo(LEDGE.x, LEDGE.z)).not.toThrow();
+      expect(h.session.prompt).toBe(null);
     });
   });
 });

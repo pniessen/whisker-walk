@@ -158,6 +158,15 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     if (ev.type === 'tip') {
       const e = s.tippables.list.find((x) => x.id === ev.tipId);
       if (e && s.tippables.tipById(ev.tipId)) maybeSnipeToast(s, ev, e.group.position);
+    } else if (ev.type === 'knock') {
+      // v21 3b Task 10 — a co-walker knocked something off a ledge. It comes
+      // down here too, at the same fallTo, and stays down; no points (they
+      // went to her). The id must be a string naming one of this walk's
+      // knockables (found with list.find, never an own-property lookup); an
+      // unknown id or one already down is a no-op.
+      if (typeof ev.knockId !== 'string' || !s.knockables) return;
+      const k = s.knockables.list.find((x) => x.id === ev.knockId);
+      if (k && s.knockables.knockById(ev.knockId)) maybeSnipeToast(s, ev, k.group.position);
     } else if (ev.type === 'tip-gnome') {
       const gnome = s.secrets.list.find((x) => x.key === 'gnome');
       if (gnome && !gnome.group.userData.tipped) {

@@ -61,6 +61,9 @@ const SCUFFLE_RANGE = 1.4;
 export const TREAT_COST = 10;
 // v21 3b: how close a thing on the ground must be to pick it up in the mouth.
 const CARRY_REACH = 1.2;
+// v21 3b Task 10: how close a perched cat must be to something on its ledge
+// to knock it off.
+const KNOCK_REACH = 1.0;
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -594,6 +597,19 @@ export function createInteractions({
         setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
           : `E — pick up ${c.label}`);
+      }
+    }
+    // v21 3b Task 10 — knock it off the ledge. Right after 'collect' and
+    // before 'carry': only while perched, beside a thing still standing on a
+    // ledge at the cat's own height (knockables.nearest checks the height).
+    // Carry is never offered while perched, so the two never compete; what
+    // this outranks is the tip and everything after it. Guarded so a stand-in
+    // test session without knockables simply never offers it.
+    if (!s.prompt && s.perched && s.knockables) {
+      const thing = s.knockables.nearest(catP, s.perched.y, KNOCK_REACH);
+      if (thing) {
+        s.prompt = { kind: 'knock', data: thing };
+        setPrompt('E — knock it off! 😼');
       }
     }
     // v21 3b — carry, picked up in the mouth. Right after 'collect': a thing
@@ -1195,6 +1211,17 @@ export function createInteractions({
         }
         s.critters.dismayNear(target.group.position, 8);
         if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'tip', tipId: target.id });
+      }
+    } else if (s.prompt.kind === 'knock') {
+      // v21 3b Task 10. Pays exactly what a tip pays (ruling P1): the shipped
+      // mischief award, once per thing per walk, and its feat through pay() —
+      // nothing more. knock() refuses a thing already down (a co-walker may
+      // have knocked it since the prompt was drawn), so nothing pays twice.
+      const target = s.prompt.data;
+      if (s.knockables?.knock(target)) {
+        log.awardOnce('mischief', 'knock-' + target.id, 'knocked it off the ledge!');
+        s.critters.dismayNear(target.group.position, 8);
+        if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'knock', knockId: target.id });
       }
     } else if (s.prompt.kind === 'tip-gnome') {
       const gnome = s.prompt.data;
