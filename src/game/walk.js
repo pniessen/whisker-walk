@@ -782,21 +782,27 @@ export function createWalkLifecycle({
       }
       questObject.position.x = t.x;
       questObject.position.z = t.z;
-      // Objective beacon: a thin glowing column so the target reads from across
-      // the area, not just once you are on top of it. 10m world height — the
+      // Objective beacon: a glowing column so the target reads from across the
+      // area, not just once you are on top of it. 10m world height — the
       // tallest props here (house gables, tree crowns) top out near 5.5m, so
-      // the tip clears them from anywhere in the area. It is a CHILD of
-      // questObject so accept/complete visibility (interactions.js) covers it,
-      // which also means it inherits the parent's scale and y offset (kitten
-      // 0.5x, letter at y=1, glasses at y=0.15). Both are undone here so the
-      // column is the same 10m, standing on the ground, for every quest type.
+      // the tip clears them from anywhere in the area. 0.35m radius and 0.75
+      // opacity because a thinner, fainter column vanished against the pale
+      // sky at 50m; fog:false because the day fog (40-130m) would otherwise
+      // fade it toward sky colour at exactly the distances it exists for.
+      // It is a CHILD of questObject so accept/complete visibility
+      // (interactions.js) covers it, which also means it inherits the parent's
+      // scale and y offset (kitten 0.5x, letter at y=1, glasses at y=0.15).
+      // Both are undone below so the column is the same 10m, standing on the
+      // ground, for every quest type.
       // Translucent on purpose: the shadow-caster sweep below skips transparent
       // meshes, so a 10m column does not throw a 10m stripe across the lawn.
+      // (The target object itself now casts a small shadow, because the beacon
+      // makes its group tall enough for that sweep — accepted and intended.)
       const BEACON_HEIGHT = 10;
       const beacon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.2, 0.2, BEACON_HEIGHT, 8, 1, true),
+        new THREE.CylinderGeometry(0.35, 0.35, BEACON_HEIGHT, 8, 1, true),
         litMaterial(QUEST_TRAIL_COLOR, {
-          emissive: QUEST_TRAIL_COLOR, transparent: true, opacity: 0.45, depthWrite: false,
+          emissive: QUEST_TRAIL_COLOR, transparent: true, opacity: 0.75, depthWrite: false, fog: false,
         })
       );
       const parentScale = questObject.scale.y;

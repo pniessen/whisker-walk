@@ -80,6 +80,21 @@ describe('questTrailStep', () => {
     expect(scent.calls).toHaveLength(0);
   });
 
+  it('lays a denser, bolder trail near the target than far from it', () => {
+    const near = stubScent();
+    const far = stubScent();
+    const quest = activeQuest(); // target at x=40
+    expect(questTrailStep({ quest, scent: near, catPos: { x: 37, z: 0 }, since: 99 }).laid).toBe(true); // ~3 m
+    expect(questTrailStep({ quest, scent: far, catPos: { x: -19, z: 0 }, since: 99 }).laid).toBe(true);  // ~59 m
+    const n = near.calls[0].opts;
+    const f = far.calls[0].opts;
+    expect(n.steps).toBeGreaterThan(f.steps);
+    expect(n.peak).toBeGreaterThan(f.peak);
+    expect(f.peak).toBeGreaterThanOrEqual(0.6); // even the coldest trail must read on a grey road
+    expect(n.maxDist).toBe(6);
+    expect(f.maxDist).toBe(6);
+  });
+
   it('no-ops when there is no quest on this walk', () => {
     const scent = stubScent();
     for (const quest of [null, undefined]) {

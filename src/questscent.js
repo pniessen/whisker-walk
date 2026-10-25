@@ -2,8 +2,11 @@
 // and what the HUD prints. Pure and leaf-level (imports nothing) so it is
 // unit-testable headless, like skills.js and ui/hometabs.js.
 
-// Quest trail tint — deliberately not scent.js's 0xf2e04e nose yellow.
-export const QUEST_TRAIL_COLOR = 0x7fd4ff;
+// Quest trail tint. A vivid magenta-pink: it has to contrast with the sky,
+// the grass AND the grey road (a pale blue vanished against all three), and it
+// must stay clearly different from scent.js's 0xf2e04e nose yellow. The same
+// colour tints the objective beacon.
+export const QUEST_TRAIL_COLOR = 0xff4fa3;
 
 // One guard for every incoming number. Non-numbers (even numeric strings)
 // are rejected, not coerced. Returns null when unusable.
@@ -51,7 +54,7 @@ export function questTrailStep({ quest, scent, catPos, since, reducedMotion = fa
   const w = scentWarmth(dist);
   let steps = Math.round(2 + 5 * w);
   if (reducedMotion) steps = Math.max(1, Math.ceil(steps / 2));
-  const peak = 0.35 + 0.4 * w;
+  const peak = 0.6 + 0.3 * w;
   const endpoint = scent.trailTo(catPos, quest.target, {
     maxDist: 6, steps, peak, color: QUEST_TRAIL_COLOR,
   });
