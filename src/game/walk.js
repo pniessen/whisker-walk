@@ -36,7 +36,7 @@ import { createCarryables } from '../carryables.js';
 import { createKnockables } from '../knockables.js';
 import { createPlayerMarks } from '../render/playermarks.js';
 import { borderMarkId } from '../marks.js';
-import { createMarkContest } from './interactions.js';
+import { createMarkContest } from '../markcontest.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
 import { propsFor } from '../propsets.js';
 import { createScent } from '../scent.js';
@@ -1411,15 +1411,18 @@ export function createWalkLifecycle({
 
     // v21 3b Task 12 — the rival clan scents over my marks near its border.
     // Its own block, after the rival slice above, which never touches the
-    // save. A few times a second (interactions.createMarkContest) it reads
-    // where the patrol cat is and flags each scratch, dig or drop of mine it
-    // has reached as contested: never deleted, nothing paid or taken, no
-    // randomness, nothing on any wire. Driven from session.rival.update, the
+    // save. A few times a second (markcontest.js) it reads where the patrol
+    // cat is and flags each scratch, dig or drop of mine it has reached as
+    // contested: never deleted, nothing paid or taken, no randomness, nothing
+    // on any wire. Its one toast waits while a chase is on (session.chasing,
+    // set and cleared by the patrol's onChase / onSettled above), so it never
+    // lands on top of the chase toast. Driven from session.rival.update, the
     // call the render loop already makes every frame; the den has none.
     if (session.rival.borderMarks) {
       const contest = createMarkContest({
         areaId, progression, playerMarks,
         patrolPos: session.rival.patrolPos,
+        isChasing: () => session.chasing === true,
         toast: (text) => hud.toast(text),
       });
       const rivalUpdate = session.rival.update;
