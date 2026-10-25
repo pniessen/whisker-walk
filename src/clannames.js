@@ -21,7 +21,7 @@
 // THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
+import { PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
 import { isStrayName, KIT_NAMES } from './straynames.js';
@@ -33,24 +33,28 @@ import { isStrayName, KIT_NAMES } from './straynames.js';
 const WARRIOR_AT = 6;
 const APPRENTICE_AT = 2;
 
-// 22 prefixes x 14 suffixes = 308 warrior names for 60 stored names (48 strays
-// and 12 kits), so a plain hash would collide. A pure function of ONE name
-// cannot see the others, so it cannot "salt until distinct" at runtime.
-// Instead the salt is a fixed mixing constant, chosen once as the first value
-// for which the 48 strays land on 48 distinct (prefix, suffix) pairs; the kit
-// names were then picked so all 60 stay distinct (the test pins all 60).
-// The test is the contract; if the pools in clanwords.js are ever resized,
+// A cat's PREFIX comes from CAT_PREFIXES (clanwords.js): one hand-fixed,
+// unique word for each of the 60 stored names (48 strays and 12 kits), so no
+// two cats share a name at any rank. The hash cannot guarantee that; a pure
+// function of ONE name cannot see the others, and 22 PREFIXES words cannot
+// cover 60 names. The hash is still used for two things: the warrior SUFFIX
+// (the 14 WARRIOR_SUFFIXES, drawn from a different slice of the hash), and the
+// prefix of any string that is NOT a stored name (clanTitleFor seeds it with a
+// player id). SALT is the fixed mixing constant for both; the tests pin that
+// the 60 warrior names stay distinct, so if the suffix pool is ever resized
 // that test fails and this number is searched for again. It is a parameter of
-// the hash, not a table: a name the game has never seen (a kit's) hashes the
-// same way.
+// the hash, not a table.
 const SALT = 27;
 
 const hashOf = (name) => seedFromCode(`${name}|${SALT}`);
 
 // The first half of a cat's clan name; null for anything that is not a
 // non-empty string (never throws: seedFromCode itself would on a non-string).
+// A stored name reads its own CAT_PREFIXES entry (an own-property read, so
+// '__proto__' is not a cat); any other string hashes over PREFIXES.
 export function prefixFor(storedName) {
   if (typeof storedName !== 'string' || storedName === '') return null;
+  if (Object.hasOwn(CAT_PREFIXES, storedName)) return CAT_PREFIXES[storedName];
   return PREFIXES[hashOf(storedName) % PREFIXES.length];
 }
 

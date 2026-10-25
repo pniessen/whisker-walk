@@ -31,6 +31,90 @@ export const PREFIXES = Object.freeze([
   'Aspen', 'Larch', 'Hawthorn', 'Primrose', 'Sage', 'Tansy',
 ]);
 
+// Each of the 60 stored names (the 48 CAT_NAMES, then the 12 KIT_NAMES) has its
+// OWN prefix here, so no two cats share a clan name at ANY rank (Mosskit,
+// Mosspaw, Mossfur...). The hash over PREFIXES alone could not do it: 22
+// prefixes cannot cover 60 names, and kits and apprentices share one suffix.
+//
+// Generated ONCE by a throwaway script and pasted in as a literal; nothing here
+// is computed at runtime, and a test pins every rule below. The script walked
+// the names in the order they appear here. A name kept the prefix the old hash
+// gave it (PREFIXES[seedFromCode(name + '|27') % 22]) if no earlier name had
+// taken it, so a cat the children have already met keeps its name where it
+// can. Otherwise it took the next unused word from this extra list, in order:
+//   Rowan, Ivy, Poppy, Daisy, Rush, Bluebell, Violet, Crocus,
+//   Lily, Aster, Dew, Breeze, Meadow, Brook, Pine, Spruce,
+//   Elm, Linden, Yarrow, Thyme, Basil, Tulip, Daffodil, Mallow,
+//   Orchid, Cress, Burdock, Snowdrop, Pond, Stream, Sunny, Twig,
+//   Blossom, Skylark, Robin, Finch, Swallow, Plover, Linnet.
+// Every word is 3-8 letters, nature-ish and kid-friendly; is not a stray or
+// kit name, a RIVAL_PREFIXES word or a PREFIXES word; and builds no denied or
+// invalid name with 'kit', 'paw' or any WARRIOR_SUFFIXES entry.
+// Read with Object.hasOwn (see prefixFor): an inherited key ('__proto__') is
+// not a cat. Do not reorder or edit a value once names have shipped.
+export const CAT_PREFIXES = Object.freeze({
+  'Pickles': 'Wren',
+  'Marmalade': 'Lark',
+  'Baron von Fluff': 'Lichen',
+  'Mochi': 'Moss',
+  'Biscuit': 'Primrose',
+  'Clementine': 'Sage',
+  'Noodle': 'Sparrow',
+  'Pumpkin': 'Willow',
+  'Sardine': 'Rowan',
+  'Waffles': 'Ivy',
+  'Miso': 'Poppy',
+  'Turnip': 'Thistle',
+  'Gadget': 'Daisy',
+  'Petunia': 'Briar',
+  'Sir Pounce': 'Acorn',
+  'Dumpling': 'Rush',
+  'Olive': 'Berry',
+  'Paprika': 'Dawn',
+  'Crumpet': 'Bluebell',
+  'Zucchini': 'Birch',
+  'Maple': 'Nettle',
+  'Tofu': 'Violet',
+  'Wasabi': 'Crocus',
+  'Pretzel': 'Aspen',
+  'Nimbus': 'Lily',
+  'Pepper': 'Aster',
+  'Butterscotch': 'Dew',
+  'Fig': 'Breeze',
+  'Tangerine': 'Larch',
+  'Cocoa': 'Fern',
+  'Sprout': 'Meadow',
+  'Juniper': 'Tansy',
+  'Meatball': 'Brook',
+  'Parsnip': 'Pine',
+  'Ziggy': 'Spruce',
+  'Bean': 'Elm',
+  'Churro': 'Linden',
+  'Anchovy': 'Yarrow',
+  'Popcorn': 'Thyme',
+  'Gnocchi': 'Basil',
+  'Beignet': 'Tulip',
+  'Truffle': 'Daffodil',
+  'Ramen': 'Mallow',
+  'Custard': 'Orchid',
+  'Peaches': 'Cress',
+  'Static': 'Burdock',
+  'Doppler': 'Snowdrop',
+  'Comet': 'Pond',
+  'Bramble': 'Stream',
+  'Pebble': 'Sunny',
+  'Wiggle': 'Twig',
+  'Fennel': 'Blossom',
+  'Bumble': 'Marsh',
+  'Pip': 'Skylark',
+  'Peanut': 'Clover',
+  'Cupcake': 'Robin',
+  'Puddle': 'Finch',
+  'Tumble': 'Swallow',
+  'Toffee': 'Plover',
+  'Ember': 'Linnet',
+});
+
 // One hand-authored first half per walk area, for that area's rival clan
 // (spec R18). Deliberately NOT drawn from PREFIXES, so the player's own clan
 // name can never equal a rival's. Each word is nature-ish and fits its area so

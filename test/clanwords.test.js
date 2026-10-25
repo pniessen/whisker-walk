@@ -3,7 +3,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
-import { RIVAL_PREFIXES, PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
+import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
@@ -85,8 +85,8 @@ test('no RIVAL_PREFIXES word is a PREFIXES word, a stray or kit name, or a denie
 
 // A stored name that is also a prefix word would sit beside a clan name built
 // from it (a "Juniperkit" card next to a cat called Juniper).
-test('no stray or kit name is a PREFIXES or RIVAL_PREFIXES word', () => {
-  const words = new Set([...PREFIXES, ...Object.values(RIVAL_PREFIXES)].map((w) => w.toLowerCase()));
+test('no stray or kit name is a PREFIXES, CAT_PREFIXES or RIVAL_PREFIXES word', () => {
+  const words = new Set([...PREFIXES, ...Object.values(CAT_PREFIXES), ...Object.values(RIVAL_PREFIXES)].map((w) => w.toLowerCase()));
   const hits = [...CAT_NAMES, ...KIT_NAMES].filter((n) => words.has(n.toLowerCase()));
   expect(hits).toEqual([]);
 });

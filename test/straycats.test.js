@@ -7,7 +7,7 @@ import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
 import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
-import { PREFIXES } from '../src/clanwords.js';
+import { PREFIXES, CAT_PREFIXES } from '../src/clanwords.js';
 import { prefixFor } from '../src/clannames.js';
 import { emptyColony, feedCat, canFeed, tamingProgress } from '../src/colony.js';
 import { KIT_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
@@ -971,6 +971,7 @@ describe('reserved kit names', () => {
   it('kit names derive distinct, non-colliding clan prefixes', () => {
     expect(new Set(KIT_NAMES.map(prefixFor)).size).toBe(12);
     for (const n of KIT_NAMES) expect(PREFIXES).not.toContain(n);
+    for (const n of [...CAT_NAMES, ...KIT_NAMES]) expect(Object.values(CAT_PREFIXES)).not.toContain(n);
     for (const n of KIT_NAMES) expect(KIT_NAMES).not.toContain(prefixFor(n));
   });
 

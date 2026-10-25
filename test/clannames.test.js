@@ -1,9 +1,10 @@
 import { test, expect } from 'vitest';
 import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
-import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
+import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames, colonyRankFor } from '../src/clannames.js';
 import { validPetName } from '../src/net.js';
+import { seedFromCode } from '../src/rng.js';
 
 test('rank is read off the taming bar, not the feed count', () => {
   expect(clanRankFor({ have: 0, tamed: false })).toBe('kit');
@@ -126,4 +127,83 @@ test('colonyRankFor floors a kit name at apprentice, and leaves strays alone', (
   expect(clanRankFor({ have: 1, tamed: false })).toBe('kit');
   expect(clanNameOf(kit, { have: 1, tamed: false })).toBe(prefixFor(kit) + RANK_SUFFIX.kit);
   expect(clanNameOf(kit, { have: 1, tamed: false }, colonyRankFor(kit, { have: 1 }))).toBe(prefixFor(kit) + RANK_SUFFIX.apprentice);
+});
+
+// ---- CAT_PREFIXES: every stored name has its own prefix ----
+
+const ALL_NAMES = [...CAT_NAMES, ...KIT_NAMES];
+// The pre-table prefix: the hash over the 22-word PREFIXES list (SALT 27).
+const oldPrefix = (n) => PREFIXES[seedFromCode(`${n}|27`) % PREFIXES.length];
+
+test('CAT_PREFIXES has an own entry for every stored name and no other keys', () => {
+  expect(Object.isFrozen(CAT_PREFIXES)).toBe(true);
+  expect(ALL_NAMES).toHaveLength(60);
+  for (const n of ALL_NAMES) expect(Object.hasOwn(CAT_PREFIXES, n)).toBe(true);
+  // Same set, and the literal is written in CAT_NAMES then KIT_NAMES order.
+  expect(Object.keys(CAT_PREFIXES)).toEqual(ALL_NAMES);
+});
+
+test('prefixFor reads the table for every stored name', () => {
+  for (const n of ALL_NAMES) expect(prefixFor(n)).toBe(CAT_PREFIXES[n]);
+});
+
+test('all 60 names give 180 distinct clan names across every name AND rank', () => {
+  const out = [];
+  for (const n of ALL_NAMES) {
+    out.push(clanNameOf(n, { have: 0 }), clanNameOf(n, { have: 2 }), clanNameOf(n, { tamed: true }));
+  }
+  expect(out).toHaveLength(180);
+  expect(new Set(out).size).toBe(180);
+});
+
+test('every CAT_PREFIXES word is short, unique, clean and clear of every other word list', () => {
+  const words = Object.values(CAT_PREFIXES);
+  expect(new Set(words).size).toBe(60);
+  const stored = new Set(ALL_NAMES.map((n) => n.toLowerCase()));
+  const rivals = new Set(Object.values(RIVAL_PREFIXES));
+  for (const w of words) {
+    expect(w).toMatch(/^[A-Z][a-z]{2,7}$/);
+    expect(stored.has(w.toLowerCase())).toBe(false);
+    expect(rivals.has(w)).toBe(false);
+    for (const s of [RANK_SUFFIX.kit, RANK_SUFFIX.apprentice, ...WARRIOR_SUFFIXES]) {
+      expect(DENIED_NAMES.has(w + s)).toBe(false);
+      expect(validPetName(w + s)).toBe(true);
+    }
+  }
+});
+
+test('a cat keeps its old prefix unless an earlier name took it (21 kept)', () => {
+  const taken = new Set();
+  let kept = 0;
+  for (const n of ALL_NAMES) {
+    const old = oldPrefix(n);
+    if (!taken.has(old)) {
+      taken.add(old);
+      kept++;
+      expect(CAT_PREFIXES[n]).toBe(old);
+    } else {
+      expect(CAT_PREFIXES[n]).not.toBe(old);
+    }
+  }
+  expect(kept).toBe(21);
+  expect(CAT_PREFIXES.Pickles).toBe('Wren');
+  expect(CAT_PREFIXES.Mochi).toBe('Moss');
+  expect(CAT_PREFIXES.Peanut).toBe('Clover');
+  // Sardine hashed to Moss, which Mochi had already taken.
+  expect(oldPrefix('Sardine')).toBe('Moss');
+  expect(CAT_PREFIXES.Sardine).not.toBe('Moss');
+});
+
+test('prefixFor falls back to the old hash for a name not in the table', () => {
+  for (const n of ['NotInAnyPool', 'MossClanSeed', 'player-1234']) {
+    expect(Object.hasOwn(CAT_PREFIXES, n)).toBe(false);
+    expect(prefixFor(n)).toBe(oldPrefix(n));
+    expect(PREFIXES).toContain(prefixFor(n));
+  }
+});
+
+test("prefixFor('__proto__') hashes rather than reading an inherited value", () => {
+  expect(prefixFor('__proto__')).toBe(oldPrefix('__proto__'));
+  expect(prefixFor('constructor')).toBe(oldPrefix('constructor'));
+  expect(prefixFor('toString')).toBe(oldPrefix('toString'));
 });
