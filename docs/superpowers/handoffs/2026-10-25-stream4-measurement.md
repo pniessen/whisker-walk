@@ -2,7 +2,7 @@
 
 Stream 4 (the graphics pass) can't start until we have real frame-rate numbers
 from your desktop and your iPhone 18. The game now has a small readout for
-exactly this. It is off unless you turn it on, so the girls won't see it.
+exactly this. It is off unless you turn it on, so the kids won't see it.
 
 This takes about 15 minutes. You'll do two walks on each device and copy a few
 numbers into the table at the bottom.
@@ -48,7 +48,7 @@ tris NNN,NNN · scene passes 1
 - **tris:** triangles drawn this frame.
 
 **Leave "Graphics quality" in Settings on Auto** unless a step below says
-otherwise. Auto is what the girls get.
+otherwise. Auto is what the kids get.
 
 ## On the desktop (Chrome)
 
@@ -76,7 +76,7 @@ otherwise. Auto is what the girls get.
 1. Charge it above 50%, and take it out of a case if it's warm. Turn off Low
    Power Mode, since that caps the frame rate. Close other apps.
 2. Open the game and tick **Performance readout** in Settings.
-3. Hold the phone the way the girls do (portrait is fine).
+3. Hold the phone the way the kids do (portrait is fine).
 4. Do the same two walks as on the desktop: **Neighborhood**, then **Docks**.
    Stand still at the spawn for 10 seconds, then play normally for 60 seconds
    using the joystick, including some zoomies.

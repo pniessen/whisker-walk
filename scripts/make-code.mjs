@@ -13,7 +13,7 @@
 //                  table, so never put the code in it)
 //   --code TEXT    use your own code instead of an invented WORD-WORD-XXXX one
 //
-// The reward must give something. Prints the code for the girls and one line to
+// The reward must give something. Prints the code for the kids and one line to
 // paste into src/redeemcodes.js. Only the hash of the code is ever stored.
 import { pathToFileURL } from 'node:url';
 import { normalizeCode, hashCode } from '../src/redeem.js';
@@ -149,7 +149,7 @@ async function main() {
   const hash = await hashCode(normalizeCode(code));
   const dup = duplicateWarning(hash);
   if (dup) console.error(dup);
-  console.log(`Code for the girls:   ${code}`);
+  console.log(`Code for the kids:    ${code}`);
   console.log('Paste into src/redeemcodes.js:');
   console.log(entryLine(hash, args));
   console.log('');
