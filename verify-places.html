@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Place pictures</title>
+<style>
+  body { margin: 0; background: #1c2431; font: 12px Avenir, sans-serif; color: #f1e0c2; }
+  #hud { padding: 6px 10px; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  // Snaps the destination-card pictures for the dressing room (v21 Stream 5).
+  // One area per load: verify-places.html?area=park. Builds the area with the
+  // game's own rig (walk.js's order: sun, build, fill, shadow fit, casters)
+  // and frames a fixed, flattering view (VIEWS below). window.__snap()
+  // returns the JPEG as a data URL; the pictures are saved to public/places/.
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import * as neighborhood from '/src/world/neighborhood.js';
+  import * as park from '/src/world/park.js';
+  import * as seaside from '/src/world/seaside.js';
+  import * as docks from '/src/world/docks.js';
+
+  const AREAS = { neighborhood, park, seaside, docks };
+  const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
+  const W = 640, H = 360;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  document.body.appendChild(renderer.domElement);
+
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const wind = createWind({ reducedMotion: true });
+  const area = AREAS[id].build(scene, { water: { quality: tier, reducedMotion: true }, wind });
+  scene.add(createFill(area.groundBounce));
+
+  const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  const render = () => { shadows.update(); renderer.render(scene, camera); };
+
+  window.__cam = (px, py, pz, lx, ly, lz) => {
+    camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz); render();
+    const hud = document.getElementById('hud');
+    if (hud) hud.textContent = `${id} · ${[px, py, pz, lx, ly, lz].join(', ')}`;
+    return id;
+  };
+  window.__snap = (q = 0.8) => { render(); return renderer.domElement.toDataURL('image/jpeg', q); };
+  // ?cam=px,py,pz,lx,ly,lz overrides the area's view; ?bare hides the label so a headless screenshot is just the picture.
+  const params = new URLSearchParams(location.search);
+  // The views the shipped pictures were taken from (world coordinates).
+  const VIEWS = {
+    neighborhood: '1,4.5,47,-1,0.5,31',
+    park: '-14,3.4,16,-14,0.2,0',
+    seaside: '6,4.2,22,32,0.4,4',
+    docks: '0,3.6,16,0,0.4,0',
+  };
+  const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
+  if (params.has('bare')) document.getElementById('hud').remove();
+  window.__cam(...c);
+</script>

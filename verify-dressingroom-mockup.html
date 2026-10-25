@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dressing room mockup</title>
+<style>
+  /* Static sign-off mockup for v21 Stream 5 ("the dressing room").
+     Everything counted on this page comes from the live catalog; only the
+     sample save below is made up. Nothing here is wired to the game. */
+  :root { --navy:#1c2431; --frame:#223047; --panel:#2c3d58; --line:#33425e; --cream:#f1e0c2;
+          --pink:#e7a9a0; --muted:#8c9bb4; --lock:#3a4a66; --gold:#f2c14e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: linear-gradient(#2a3550, #1c2431); color: var(--cream); min-height: 100vh;
+         font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  .dr { max-width: 1000px; margin: 0 auto; padding: 18px 20px 24px; }
+
+  /* header */
+  .dr-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .dr-chip { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+  .dr-chip.gold { color: var(--gold); font-weight: 700; }
+
+  /* main two columns */
+  .dr-main { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .dr-stage { position: relative; border-radius: 14px; height: 340px; overflow: hidden;
+              background: radial-gradient(ellipse at 50% 85%, #3d5680 0, #30456a 35%, #223047 75%); }
+  .dr-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; }
+  .dr-hero-text { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; pointer-events: none; }
+  .dr-hero-name { font-weight: 700; font-size: 22px; }
+  .dr-hero-blurb { font-size: 13px; opacity: .8; }
+  .dr-spin-hint { position: absolute; top: 10px; right: 12px; font-size: 11px; opacity: .45; }
+  .dr-strip { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin; }
+  .dr-portrait { flex: none; width: 52px; height: 52px; border-radius: 12px; background: var(--cream); position: relative; padding: 0; overflow: hidden; }
+  .dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
+  .dr-portrait.sel { outline: 3px solid var(--pink); outline-offset: 1px; }
+  .dr-portrait.locked { background: var(--lock); }
+  .dr-portrait.locked img { opacity: .45; filter: grayscale(.6); }
+  .dr-portrait.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
+
+  .dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .6; margin: 0 0 6px; }
+  .dr-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 12px; }
+  .dr-slot { background: var(--panel); border-radius: 10px; min-height: 44px; display: flex; align-items: center; gap: 8px;
+             padding: 4px 10px; font-size: 13px; text-align: left; }
+  .dr-slot img { width: 34px; height: 34px; border-radius: 8px; background: var(--cream); flex: none; }
+  .dr-slot small { display: block; font-size: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
+  .dr-slot.empty { background: transparent; border: 1px dashed #5b6c88; opacity: .65; }
+  .dr-slot.open { outline: 2px solid var(--pink); }
+  .dr-picker { grid-column: 1 / -1; background: #1f2b40; border-radius: 10px; padding: 8px; display: grid;
+               grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+  .dr-pick { background: var(--panel); border-radius: 9px; padding: 6px; font-size: 11px; text-align: center; }
+  .dr-pick img { width: 54px; height: 54px; border-radius: 8px; background: var(--cream); display: block; margin: 0 auto 4px; }
+  .dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--pink); }
+  .dr-pick.locked .act { color: var(--muted); font-weight: 400; }
+  .dr-abilities { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .dr-start { background: var(--pink); color: var(--navy); border-radius: 999px; padding: 13px 22px; font-weight: 700;
+              font-size: 17px; width: 100%; }
+  .dr-ghost { border: 1.5px solid #5b6c88; border-radius: 999px; padding: 8px 14px; font-size: 13px; min-height: 40px; }
+  .dr-start-extras { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  .dr-dusk { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* places */
+  .dr-places { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .dr-place { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10; text-align: left; padding: 0;
+              background: linear-gradient(165deg,#c3d9a8,#7fa87c); }
+  .dr-place img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .dr-place .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 9px 7px; font-weight: 700; font-size: 13px;
+                   background: linear-gradient(transparent, rgba(20,28,42,.85)); color: #fff; }
+  .dr-place .cap small { display: block; font-weight: 400; font-size: 11px; opacity: .9; }
+  .dr-place.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+  .dr-place.locked img { filter: grayscale(.85) brightness(.6); }
+  .dr-place.locked .cap::before { content: '🔒 '; }
+
+  /* quiet row */
+  .dr-more { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+  .dr-more .dr-ghost { opacity: .85; }
+
+  /* phone-only pieces */
+  .dr-pills, .dr-dock { display: none; }
+
+  /* ===== phone ===== */
+  @media (max-width: 600px) {
+    .dr { padding: 10px 14px 0; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+    .dr-header { margin-bottom: 8px; gap: 6px; }
+    .dr-title { font-size: 16px; }
+    .dr-chip { font-size: 12px; padding: 5px 8px; }
+    .dr-chip.wide { display: none; }
+    .dr-main { display: block; margin-bottom: 0; }
+    .dr-stage { height: min(34vh, 290px); }
+    .dr-hero-name { font-size: 18px; }
+    .dr-portrait { width: 46px; height: 46px; }
+    .dr-pills { display: flex; gap: 6px; margin: 4px 0 10px; }
+    .dr-pills button { flex: 1; background: var(--panel); border-radius: 999px; min-height: 40px; font-size: 14px; }
+    .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }
+    .dr-col-right .dr-startbox, .dr-abilities, .dr-col-right > .dr-label.ab { display: none; }
+    [data-panel] { display: none; }
+    .dr[data-pill="wearing"] [data-panel="wearing"],
+    .dr[data-pill="where"] [data-panel="where"],
+    .dr[data-pill="more"] [data-panel="more"] { display: block; }
+    .dr-places { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dr-more { display: none; border: 0; padding: 0; }
+    .dr[data-pill="more"] .dr-more { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dr-more .dr-ghost { min-height: 48px; font-size: 14px; }
+    .dr-panels { flex: 1; padding-bottom: 12px; }
+    .dr-dock { display: block; position: sticky; bottom: 0; margin: 0 -14px; padding: 10px 14px max(12px, env(safe-area-inset-bottom));
+               background: rgba(28,36,49,.96); border-top: 1px solid var(--line); backdrop-filter: blur(6px); }
+    .dr-dock .where { font-size: 12px; opacity: .75; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+    .dr-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
+  }
+</style>
+</head>
+<body>
+<div class="dr" id="dr" data-pill="wearing">
+  <header class="dr-header" id="dr-header"></header>
+  <div class="dr-main">
+    <div class="dr-col-left">
+      <div class="dr-stage" id="dr-stage">
+        <div class="dr-spin-hint">↔ drag to spin</div>
+        <div class="dr-hero-text"><div class="dr-hero-name" id="hero-name"></div><div class="dr-hero-blurb" id="hero-blurb"></div></div>
+      </div>
+      <div class="dr-strip" id="dr-strip"></div>
+      <div class="dr-pills" role="tablist">
+        <button data-pill="wearing" aria-pressed="true" id="pill-wearing"></button>
+        <button data-pill="where" aria-pressed="false">Where to</button>
+        <button data-pill="more" aria-pressed="false">More</button>
+      </div>
+    </div>
+    <div class="dr-col-right dr-panels">
+      <div data-panel="wearing">
+        <p class="dr-label" id="wearing-label"></p>
+        <div class="dr-slots" id="dr-slots"></div>
+      </div>
+      <p class="dr-label ab">Earned abilities</p>
+      <div class="dr-abilities" id="dr-abilities"></div>
+      <div class="dr-startbox">
+        <button class="dr-start">Start the walk 🐾</button>
+        <div class="dr-start-extras">
+          <label class="dr-ghost dr-dusk"><input type="checkbox"> ✨ Dusk walk</label>
+          <button class="dr-ghost">🏠 Visit your den</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dr-panels">
+    <div data-panel="where" class="dr-where-wrap">
+      <p class="dr-label" id="where-label"></p>
+      <div class="dr-places" id="dr-places"></div>
+    </div>
+    <div class="dr-more" data-panel="more" id="dr-more"></div>
+  </div>
+  <div class="dr-dock">
+    <div class="where" id="dock-where"></div>
+    <button class="dr-start">Start the walk 🐾</button>
+  </div>
+</div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { CATALOG, rankFor } from '/src/progression.js';
+  import { SKILLS } from '/src/skills.js';
+  import { GOLD_TOTAL } from '/src/goldmice.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { menuThumbnails } from '/src/thumbnails.js';
+
+  // ---- the sample save (made up; everything else is live) ----
+  const S = {
+    points: 85, lifetimePoints: 230, bestWalk: 42, streak: 3, golden: 3, skillsEarned: 2,
+    owned: { cats: ['tabby', 'black', 'calico', 'zeetoo'], accessories: ['bell', 'bandana', 'glow', 'crown', 'glasses'], areas: ['neighborhood', 'park'] },
+    equipped: { cat: 'calico', collar: 'glow', head: null, face: null, neck: 'bandana', body: null, back: null, feet: null },
+    area: 'park', walks: { neighborhood: 5, park: 1, seaside: 0, docks: 0 }, walksToday: 2,
+  };
+  const SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
+  const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
+  const BLURB = { // homebase.js's CAT_BLURBS (moves to src/ui/catblurbs.js in the build)
+    tabby: 'Curious — sniffs out hidden treasures', siamese: 'Hyper — fast, loud, chases everything',
+    persian: 'Lazy — naps often, loves pets', black: 'Brave — nothing spooks this cat',
+    calico: 'Playful — pounces butterflies for points', mainecoon: 'Steady — big, calm, unbothered',
+    zeetoo: 'Legendary tabby — smells treasure from a block away', robbie: 'Cow cat — maximum chaos, champion pouncer',
+    d2: 'Gentle giant — big, fluffy, never in a hurry', digit: 'Kitten — all legs and ears, chases everything',
+    hagrid: 'A chicken?! Birds trust Hagrid completely',
+  };
+  const $ = (id) => document.getElementById(id);
+  const thumbs = menuThumbnails();
+  const rank = rankFor(S.lifetimePoints);
+  const catIds = Object.keys(CATALOG.cats);
+  const worn = SLOTS.filter((s) => S.equipped[s]);
+
+  // ---- header ----
+  $('dr-header').innerHTML = `
+    <div class="dr-title">🐾 Whisker Walk</div>
+    <div class="dr-chip gold">🐾 ${S.points}</div>
+    <div class="dr-chip">🏆 ${rank.title} → ${rank.next.at - S.lifetimePoints} to ${rank.next.title}</div>
+    <div class="dr-chip wide">🔥 ${S.streak}-day streak</div>
+    <div class="dr-chip wide">best walk ${S.bestWalk}</div>
+    <div class="dr-chip wide">🥇 ${S.golden} of ${GOLD_TOTAL} golden mice</div>`;
+
+  // ---- hero + strip ----
+  $('hero-name').textContent = CATALOG.cats[S.equipped.cat].name;
+  $('hero-blurb').textContent = BLURB[S.equipped.cat];
+  $('dr-strip').innerHTML = catIds.map((id) => {
+    const owned = S.owned.cats.includes(id);
+    return `<button class="dr-portrait ${id === S.equipped.cat ? 'sel' : ''} ${owned ? '' : 'locked'}" title="${CATALOG.cats[id].name}${owned ? '' : ` — ${CATALOG.cats[id].price} 🐾`}">
+      <img src="${thumbs.cats[id] ?? ''}" alt="${CATALOG.cats[id].name}"></button>`;
+  }).join('');
+
+  // ---- slots ----
+  $('pill-wearing').textContent = `Wearing ${worn.length}`;
+  $('wearing-label').textContent = `Wearing · ${worn.length} of ${SLOTS.length} slots · ${S.owned.accessories.length} of ${Object.keys(CATALOG.accessories).length} owned`;
+  let openSlot = matchMedia('(max-width: 600px)').matches ? null : 'head';
+  function renderSlots() {
+    const parts = [];
+    for (const slot of SLOTS) {
+      const id = S.equipped[slot];
+      parts.push(`<button class="dr-slot ${id ? '' : 'empty'} ${openSlot === slot ? 'open' : ''}" data-slot="${slot}">
+        ${id ? `<img src="${thumbs.accessories[id] ?? ''}" alt="">` : ''}
+        <span><small>${SLOT_LABEL[slot]}</small>${id ? CATALOG.accessories[id].name : 'nothing yet'}</span></button>`);
+      if (slot === openSlot) {
+        const items = Object.entries(CATALOG.accessories).filter(([, a]) => a.slot === slot);
+        parts.push(`<div class="dr-picker">${items.map(([aid, a]) => {
+          const own = S.owned.accessories.includes(aid);
+          const on = S.equipped[slot] === aid;
+          const act = on ? 'On ✓' : own ? 'Wear' : S.points >= a.price ? `Unlock ${a.price} 🐾` : `${a.price} 🐾`;
+          return `<div class="dr-pick ${own || S.points >= a.price ? '' : 'locked'}"><img src="${thumbs.accessories[aid] ?? ''}" alt="">${a.name}<span class="act">${act}</span></div>`;
+        }).join('')}</div>`);
+      }
+    }
+    $('dr-slots').innerHTML = parts.join('');
+  }
+  renderSlots();
+  $('dr-slots').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-slot]');
+    if (!b) return;
+    openSlot = openSlot === b.dataset.slot ? null : b.dataset.slot;
+    renderSlots();
+  });
+  $('dr-abilities').innerHTML = `<div class="dr-chip">🐾 ${S.skillsEarned} of ${SKILLS.length} earned</div>`;
+
+  // ---- places ----
+  const pic = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;
+  $('where-label').textContent = `Where to? · walked ${S.walksToday} times today`;
+  $('dr-places').innerHTML = Object.entries(CATALOG.areas).map(([id, a]) => {
+    const owned = S.owned.areas.includes(id);
+    let sub;
+    if (id === S.area) sub = 'today’s walk';
+    else if (owned) sub = 'tap to walk here';
+    else if (a.requires && S.walks[a.requires.area] < a.requires.walks) {
+      sub = `opens after ${a.requires.walks} walks in ${CATALOG.areas[a.requires.area].name} · ${S.walks[a.requires.area]}/${a.requires.walks}`;
+    } else sub = `${a.price} 🐾 to unlock`;
+    const locked = !owned && a.requires && S.walks[a.requires.area] < a.requires.walks;
+    return `<button class="dr-place ${id === S.area ? 'sel' : ''} ${locked ? 'locked' : ''}">
+      <img src="${pic(id)}" alt="" onerror="this.remove()"><span class="cap">${a.name}<small>${sub}</small></span></button>`;
+  }).join('');
+  $('dock-where').innerHTML = `<img src="${pic(S.area)}" alt="" onerror="this.remove()">Walking in <b>${CATALOG.areas[S.area].name}</b>`;
+
+  // ---- quiet row / More ----
+  const SHEETS = ['🐾 Skills', '🐈 Colony', '👥 Social', '📖 Journal', '📸 Album', '☁️ Sync', '⚙️ Settings', '🎁 Secret code'];
+  $('dr-more').innerHTML = `<div class="phone-only dr-stats">🔥 ${S.streak}-day streak · best walk ${S.bestWalk} · 🥇 ${S.golden} of ${GOLD_TOTAL} golden mice</div>`
+    + SHEETS.map((s) => `<button class="dr-ghost">${s}</button>`).join('')
+    + `<button class="dr-ghost phone-only">🏠 Visit your den</button><label class="dr-ghost dr-dusk phone-only"><input type="checkbox"> ✨ Dusk walk</label>`;
+  const style = document.createElement('style');
+  style.textContent = '.phone-only{display:none}@media (max-width:600px){.dr[data-pill="more"] .phone-only{display:inline-flex;justify-content:center;align-items:center}.dr[data-pill="more"] .dr-stats{grid-column:1/-1;font-size:13px;opacity:.8;padding:2px 0 4px}}';
+  document.head.append(style);
+
+  // ---- pills (phone) ----  ?pill=where|more opens that panel first
+  const startPill = new URLSearchParams(location.search).get('pill');
+  if (['wearing', 'where', 'more'].includes(startPill)) {
+    $('dr').dataset.pill = startPill;
+    for (const p of document.querySelectorAll('.dr-pills button')) p.setAttribute('aria-pressed', p.dataset.pill === startPill ? 'true' : 'false');
+  }
+  document.querySelector('.dr-pills').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pill]');
+    if (!b) return;
+    $('dr').dataset.pill = b.dataset.pill;
+    for (const p of document.querySelectorAll('.dr-pills button')) p.setAttribute('aria-pressed', p === b ? 'true' : 'false');
+  });
+
+  // ---- hero: one still render of the real model (the build makes it live and spinnable) ----
+  try {
+    const stage = $('dr-stage');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    stage.prepend(renderer.domElement);
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
+    sun.position.set(2, 4, -3);
+    scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+    const cat = buildCat(S.equipped.cat, { collar: S.equipped.collar, head: S.equipped.head, face: S.equipped.face, neck: S.equipped.neck, body: S.equipped.body, back: S.equipped.back, feet: S.equipped.feet });
+    cat.rotation.y = -0.45;
+    scene.add(cat);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+    const draw = () => {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.position.set(1.85, 1.3, -2.45);
+      camera.lookAt(0, 0.38, 0);
+      camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+    };
+    new ResizeObserver(draw).observe(stage);
+  } catch (err) { console.warn('mockup: no WebGL', err); }
+</script>
+</body>
+</html>
