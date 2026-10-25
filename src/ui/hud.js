@@ -1,4 +1,5 @@
 import { bus } from '../events.js';
+import { objectiveDistance } from '../questscent.js';
 
 export function createHud() {
   const root = document.getElementById('hud');
@@ -27,6 +28,7 @@ export function createHud() {
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
+  let lastObjective = { text: null, dist: null };
 
   const api = {
     show() { root.classList.remove('hidden'); },
@@ -73,10 +75,27 @@ export function createHud() {
       setTimeout(() => el.classList.add('fade'), 2600);
       setTimeout(() => el.remove(), 3400);
     },
-    setObjective(text) {
+    // Called every frame while a quest is active (the metre count follows the
+    // cat), so, like setPrompt, it caches the last value and no-ops when
+    // nothing visible changed. The key is the text plus the RENDERED distance
+    // string, not the raw float: keyed on text alone the number would freeze,
+    // keyed on the float the DOM would rebuild as the cat moved by millimetres.
+    // The distance is a separate child so CSS can make it secondary; both are
+    // textContent, never innerHTML.
+    setObjective(text, meters) {
+      const next = { text: text || null, dist: text ? objectiveDistance(meters) : null };
+      if (lastObjective.text === next.text && lastObjective.dist === next.dist) return;
+      lastObjective = next;
       const el = root.querySelector('#hud-objective');
       el.classList.toggle('hidden', !text);
-      if (text) el.textContent = text;
+      if (!text) return;
+      el.textContent = text; // also drops any previous distance child
+      if (next.dist) {
+        const d = document.createElement('span');
+        d.className = 'hud-objective-dist';
+        d.textContent = next.dist;
+        el.appendChild(d);
+      }
     },
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);

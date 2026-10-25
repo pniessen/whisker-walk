@@ -708,6 +708,17 @@ export function createInteractions({
     // in a running walk rather than merely implemented.
     updateSenses(s, catP);
 
+    // Metre count on the objective, fed once a frame (setObjective caches, so
+    // an unchanged readout touches nothing). Only while the quest is active:
+    // after completion the accept/complete paths own the objective text, and
+    // den walks have no quest at all.
+    if (s.quest?.state === 'active' && s.quest.target) {
+      hud.setObjective(
+        s.quest.texts.objective,
+        Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z),
+      );
+    }
+
     for (const sc of s.areaData.scenics) {
       if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
