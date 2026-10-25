@@ -114,7 +114,7 @@
 **Files:**
 - Create: `src/render/rig.js`
 - Modify: `src/game/walk.js` (constants and the caster sweep move out; their long comments move with them), `test/budget.test.js` (import the predicate instead of its hand copy, and delete the "keep in sync by hand" paragraph)
-- Modify (gitignored, on disk): `verify-park.html`, `verify-docks.html`, `verify-seaside.html`, `verify-neighborhood.html`
+- Modify and START TRACKING (owner's decision): `verify-park.html`, `verify-docks.html`, `verify-seaside.html`, `verify-neighborhood.html`. Add `!verify-park.html` etc. after the `verify-*.html` line in `.gitignore`, with a one-line comment: these four import `src/render/rig.js`, so they are kept in the repo where a rig change cannot leave them behind. The other verify pages stay scratch.
 - Test: `test/rig.test.js`
 
 **Interfaces:**
