@@ -125,3 +125,64 @@ export function createRedeemer({ progression, codes = REDEEM_CODES, hash = hashC
 
   return { redeem, cooldownLeft, busy: () => pending !== null };
 }
+
+// ---------------------------------------------------------------------------
+// Kid-facing copy and markup. Pure and DOM-free (unit-tested); homebase.js
+// only wires it. escapeHtml is duplicated, not imported, for the same reason
+// as in ui/hometabs.js: importing homebase.js would pull in the DOM.
+// ---------------------------------------------------------------------------
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function joinNice(list) {
+  if (list.length <= 1) return list.join('');
+  return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
+
+export function redeemMessage(result, catalog) {
+  if (!result || typeof result !== 'object') return '';
+  switch (result.kind) {
+    case 'gift': {
+      const items = Array.isArray(result.items) ? result.items : [];
+      const nameOf = (it) => {
+        const name = catalog?.[it.kind]?.[it.id]?.name ?? it.name ?? it.id;
+        return it.kind === 'cats' ? String(name) : `the ${name}`;
+      };
+      const fresh = items.filter((it) => !it.owned).map(nameOf);
+      const owned = items.filter((it) => it.owned);
+      const refunds = owned.reduce((n, it) => n + (Number(it.refund) || 0), 0);
+      const giftPoints = Math.max(0, (Number(result.points) || 0) - refunds);
+      const parts = [];
+      if (giftPoints > 0) parts.push(`${giftPoints} 🐾`);
+      parts.push(...fresh);
+      for (const it of owned) parts.push(`${Number(it.refund) || 0} 🐾 for ${nameOf(it)} you already had`);
+      if (!parts.length) return '🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛';
+      return `🎉 Surprise! You got ${joinNice(parts)}!`;
+    }
+    case 'used': return "You already opened this one — it's safe in your collection. 💛";
+    case 'unknown': return "Hmm, that code isn't one we know. Check the letters and try again! 🐾";
+    case 'empty': return 'Type your code in the box first. 😺';
+    case 'resting': {
+      const n = Math.max(1, Math.ceil(Number(result.seconds) || 1));
+      return `The code box is taking a little catnap. Try again in ${n} ${n === 1 ? 'second' : 'seconds'}. 😴`;
+    }
+    case 'unsupported': return 'Codes can’t be opened on this page. Ask a grown-up to open the game the usual way. 🐾';
+    default: return '';
+  }
+}
+
+export function renderRedeemHtml({ text, busy, result, catalog }) {
+  const msg = redeemMessage(result, catalog);
+  const dis = busy ? ' disabled' : '';
+  return `
+    <section class="redeem-section"><h2>🎁 Got a secret code?</h2>
+      <form class="redeem-form">
+        <input id="redeem-input" class="redeem-input" type="text" value="${escapeHtml(text)}" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" aria-label="Secret code"${dis}>
+        <button type="submit" class="redeem-btn"${dis}>${busy ? 'Opening…' : 'Open it!'}</button>
+      </form>
+      <p class="redeem-msg" aria-live="polite">${escapeHtml(msg)}</p>
+    </section>`;
+}

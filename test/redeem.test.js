@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pbkdf2Sync } from 'node:crypto';
-import { normalizeCode, hashCode, REDEEM_SALT, REDEEM_ITERATIONS } from '../src/redeem.js';
+import { normalizeCode, hashCode, REDEEM_SALT, REDEEM_ITERATIONS, redeemMessage, renderRedeemHtml } from '../src/redeem.js';
 
 describe('normalizeCode', () => {
   it('uppercases, strips separators and folds look-alikes', () => {
@@ -188,5 +188,70 @@ describe('createRedeemer', () => {
     const r = createRedeemer({ progression, codes, now: () => 5, storage: memStorage() });
     expect((await r.redeem('real throwaway 1')).kind).toBe('gift');
     expect((await r.redeem('other')).kind).toBe('unknown');
+  });
+});
+
+describe('redeemMessage', () => {
+  const catalog = {
+    cats: { hagrid: { name: 'Hagrid' } },
+    accessories: { wizard: { name: 'Wizard Hat' }, crown: { name: 'Crown' }, tophat: { name: 'Top Hat' } },
+  };
+  const acc = (id, name, owned = false, refund = 0) => ({ kind: 'accessories', id, name, owned, refund });
+  it('words a points-and-hat gift', () => {
+    expect(redeemMessage({ kind: 'gift', points: 50, items: [acc('wizard', 'Wizard Hat')] }, catalog))
+      .toBe('🎉 Surprise! You got 50 🐾 and the Wizard Hat!');
+  });
+  it('words several items with an owned one', () => {
+    const items = [acc('crown', 'Crown'), acc('tophat', 'Top Hat', true, 25)];
+    expect(redeemMessage({ kind: 'gift', points: 25, items }, catalog))
+      .toBe('🎉 Surprise! You got the Crown and 25 🐾 for the Top Hat you already had!');
+    const three = [acc('wizard', 'Wizard Hat'), acc('crown', 'Crown'), acc('tophat', 'Top Hat', true, 25)];
+    expect(redeemMessage({ kind: 'gift', points: 25, items: three }, catalog))
+      .toBe('🎉 Surprise! You got the Wizard Hat, the Crown and 25 🐾 for the Top Hat you already had!');
+  });
+  it('cats take no "the"', () => {
+    expect(redeemMessage({ kind: 'gift', points: 10, items: [{ kind: 'cats', id: 'hagrid', name: 'Hagrid', owned: false, refund: 0 }] }, catalog))
+      .toBe('🎉 Surprise! You got 10 🐾 and Hagrid!');
+  });
+  it('words a gift with nothing', () => {
+    expect(redeemMessage({ kind: 'gift', points: 0, items: [] }, catalog))
+      .toBe('🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛');
+  });
+  it('words the other kinds', () => {
+    expect(redeemMessage({ kind: 'used' }, catalog)).toBe("You already opened this one — it's safe in your collection. 💛");
+    expect(redeemMessage({ kind: 'unknown' }, catalog)).toBe("Hmm, that code isn't one we know. Check the letters and try again! 🐾");
+    expect(redeemMessage({ kind: 'empty' }, catalog)).toBe('Type your code in the box first. 😺');
+    expect(redeemMessage({ kind: 'resting', seconds: 45 }, catalog)).toBe('The code box is taking a little catnap. Try again in 45 seconds. 😴');
+    expect(redeemMessage({ kind: 'resting', seconds: 1 }, catalog)).toBe('The code box is taking a little catnap. Try again in 1 second. 😴');
+    expect(redeemMessage({ kind: 'unsupported' }, catalog)).toBe('Codes can’t be opened on this page. Ask a grown-up to open the game the usual way. 🐾');
+    expect(redeemMessage(null, catalog)).toBe('');
+  });
+});
+
+describe('renderRedeemHtml', () => {
+  const catalog = { cats: {}, accessories: {} };
+  it('renders the form', () => {
+    const h = renderRedeemHtml({ text: '', busy: false, result: null, catalog });
+    expect(h).toContain('🎁 Got a secret code?');
+    expect(h).toContain('<form class="redeem-form"');
+    expect(h).toContain('id="redeem-input"');
+    for (const a of ['autocomplete="off"', 'autocapitalize="characters"', 'spellcheck="false"', 'maxlength="40"']) expect(h).toContain(a);
+    expect(h).toContain('Open it!');
+    expect(h).not.toContain('disabled');
+    expect(h).toContain('aria-live="polite"');
+  });
+  it('disables while busy', () => {
+    const h = renderRedeemHtml({ text: 'x', busy: true, result: null, catalog });
+    expect(h).toContain('Opening…');
+    expect(h).not.toContain('Open it!');
+    expect((h.match(/disabled/g) || []).length).toBe(2);
+  });
+  it('escapes the text and shows the message', () => {
+    const h = renderRedeemHtml({ text: '"><script>', busy: false, result: { kind: 'empty' }, catalog });
+    expect(h).not.toContain('<script>');
+    expect(h).toContain('value="&quot;&gt;&lt;script&gt;"');
+    expect(h).toContain('Type your code in the box first.');
+    const g = renderRedeemHtml({ text: '', busy: false, catalog, result: { kind: 'gift', points: 0, items: [{ kind: 'cats', id: 'z', name: '<b>', owned: false, refund: 0 }] } });
+    expect(g).not.toContain('<b>');
   });
 });

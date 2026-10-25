@@ -522,6 +522,22 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 }
 .colony-pair-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
 
+/* --- v21 secret-code box (Cats tab). Input and button wrap on a phone. --- */
+.redeem-section { margin-top: 16px; max-width: 60ch; }
+.redeem-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.redeem-input {
+  flex: 1 1 12em; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 8px 10px; border-radius: 10px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25); color: #fff;
+  font: inherit; font-size: 16px; /* >=16px: no iOS focus zoom */
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.redeem-btn {
+  min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 0; font: inherit; font-weight: 700;
+  background: #f2c14e; color: #1c2431; cursor: pointer;
+}
+.redeem-btn:disabled, .redeem-input:disabled { opacity: 0.5; cursor: default; }
+.redeem-msg { font-size: 0.95rem; color: #e8eef8; margin: 8px 0 0; min-height: 1.4em; overflow-wrap: anywhere; }
+
 /* --- v21 Colony trading (Task 11). Same card look as pairing; every button is
    at least 44px tall and every row wraps, so it fits a phone. --- */
 .colony-trades {
