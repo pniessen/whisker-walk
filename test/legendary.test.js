@@ -4,6 +4,7 @@ import { LEGENDARY_BY_AREA, isLegendaryName } from '../src/legendary.js';
 import { COLONY_AREAS, TAME_FEEDS, emptyColony, feedCat, isShy } from '../src/colony.js';
 import { isGrudgeableStray } from '../src/straycats.js';
 import { CATALOG } from '../src/progression.js';
+import { DENIED_NAMES, PREFIXES, RIVAL_PREFIXES } from '../src/clanwords.js';
 
 test('four legendary names, one per colony area, in a block of their own', () => {
   expect(LEGENDARY_NAMES).toHaveLength(4);
@@ -17,7 +18,7 @@ test('four legendary names, one per colony area, in a block of their own', () =>
 
 test('the area table is pinned and frozen', () => {
   expect(LEGENDARY_BY_AREA).toEqual({
-    neighborhood: 'Duchess', park: 'Professor Whiskers', seaside: 'Captain Barnacle', docks: 'Lord Midnight',
+    neighborhood: 'Duchess', park: 'Professor Whiskers', seaside: 'Captain Barnacle', docks: 'Lord Lantern',
   });
   expect(Object.isFrozen(LEGENDARY_BY_AREA)).toBe(true);
 });
@@ -37,6 +38,22 @@ test('no legendary name is a family pet, in any case', () => {
   const pets = new Set(Object.values(CATALOG.cats).map((c) => c.name.toLowerCase()));
   for (const extra of ['d2', 'digit', 'rosa']) pets.add(extra);
   for (const n of LEGENDARY_NAMES) expect(pets.has(n.toLowerCase())).toBe(false);
+});
+
+// Ruling R36: a legendary cat must never read as a published character, so no
+// word of its name may be a DENIED_NAMES entry (case-insensitive, whole word),
+// nor a clan prefix word that could sit beside a clan name built from it.
+test('no legendary name contains a denied, prefix or rival word as a whole word', () => {
+  const denied = new Set([...DENIED_NAMES].map((w) => w.toLowerCase()));
+  const prefixes = new Set([...PREFIXES, ...Object.values(RIVAL_PREFIXES)].map((w) => w.toLowerCase()));
+  for (const n of LEGENDARY_NAMES) {
+    for (const w of n.toLowerCase().split(' ')) {
+      expect(denied.has(w)).toBe(false);
+      expect(prefixes.has(w)).toBe(false);
+    }
+  }
+  // Mutation check: the old docks name is caught.
+  expect('Lord Midnight'.toLowerCase().split(' ').some((w) => denied.has(w))).toBe(true);
 });
 
 test('no legendary cat needs a second feeder', () => {

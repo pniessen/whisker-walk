@@ -122,11 +122,11 @@ export const CAT_PREFIXES = Object.freeze({
   // to suit each grand old cat and obeying every rule above: a regal iris for
   // Duchess, a park chestnut for Professor Whiskers (Hazel was refused:
   // Hazeltail is a published name), coral for Captain Barnacle, a night owl
-  // for Lord Midnight.
+  // for Lord Lantern on the lamplit docks.
   'Duchess': 'Iris',
   'Professor Whiskers': 'Chestnut',
   'Captain Barnacle': 'Coral',
-  'Lord Midnight': 'Owl',
+  'Lord Lantern': 'Owl',
 });
 
 // One hand-authored first half per walk area, for that area's rival clan

@@ -56,8 +56,9 @@ export const KIT_NAMES = [
 // ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).
 // None is shy (colony.isShy), so a child walking alone can tame one; none is a
 // family pet's name (CATALOG.cats); each has its own hand-picked CAT_PREFIXES
-// entry in clanwords.js.
-export const LEGENDARY_NAMES = ['Duchess', 'Professor Whiskers', 'Captain Barnacle', 'Lord Midnight'];
+// entry in clanwords.js. No name contains a DENIED_NAMES word (a published
+// Warrior Cats character) as a whole word, so none reads as one (ruling R36).
+export const LEGENDARY_NAMES = ['Duchess', 'Professor Whiskers', 'Captain Barnacle', 'Lord Lantern'];
 
 // A Set (one union of all three blocks), so '__proto__' and other inherited keys read as plain strangers, and
 // anything that is not a string is rejected rather than coerced.

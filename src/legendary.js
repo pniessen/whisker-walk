@@ -14,7 +14,7 @@ export const LEGENDARY_BY_AREA = Object.freeze({
   neighborhood: 'Duchess',
   park: 'Professor Whiskers',
   seaside: 'Captain Barnacle',
-  docks: 'Lord Midnight',
+  docks: 'Lord Lantern',
 });
 
 // A Set, so '__proto__' and other inherited keys read as strangers, and

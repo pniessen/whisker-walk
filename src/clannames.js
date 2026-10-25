@@ -34,14 +34,14 @@ const WARRIOR_AT = 6;
 const APPRENTICE_AT = 2;
 
 // A cat's PREFIX comes from CAT_PREFIXES (clanwords.js): one hand-fixed,
-// unique word for each of the 60 stored names (48 strays and 12 kits), so no
-// two cats share a name at any rank. The hash cannot guarantee that; a pure
-// function of ONE name cannot see the others, and 22 PREFIXES words cannot
-// cover 60 names. The hash is still used for two things: the warrior SUFFIX
+// unique word for each of the 64 stored names (48 strays, 12 kits and 4
+// legendary cats), so no two cats share a name at any rank. The hash cannot
+// guarantee that; a pure function of ONE name cannot see the others, and 22
+// PREFIXES words cannot cover 64 names. The hash is still used for two things: the warrior SUFFIX
 // (the 14 WARRIOR_SUFFIXES, drawn from a different slice of the hash), and the
 // prefix of any string that is NOT a stored name (clanTitleFor seeds it with a
 // player id). SALT is the fixed mixing constant for both; the tests pin that
-// the 60 warrior names stay distinct, so if the suffix pool is ever resized
+// the 64 warrior names stay distinct, so if the suffix pool is ever resized
 // that test fails and this number is searched for again. It is a parameter of
 // the hash, not a table.
 const SALT = 27;
