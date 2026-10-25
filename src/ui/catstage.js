@@ -11,7 +11,20 @@ import { createSpin } from './spin.js';
 const CAM_DIR = new THREE.Vector3(1.85, 1.3, -2.45);
 const CAM_TARGET = new THREE.Vector3(0, 0.38, 0);
 
-export function createCatStage({ buildCat, thumbs }) {
+const defaultCreateRenderer = () => new THREE.WebGLRenderer({ alpha: true, antialias: true });
+
+// The injectables exist so tests can drive the stage without WebGL or a DOM;
+// production passes only { buildCat, thumbs }.
+export function createCatStage({
+  buildCat,
+  thumbs,
+  createRenderer = defaultCreateRenderer,
+  raf: rafFn = (cb) => requestAnimationFrame(cb),
+  caf: cafFn = (id) => cancelAnimationFrame(id),
+  ResizeObserverCtor = globalThis.ResizeObserver,
+  createElement = (tag) => document.createElement(tag),
+  win = globalThis.window,
+}) {
   let renderer = null;
   let canvas = null;
   let scene = null;
@@ -26,6 +39,7 @@ export function createCatStage({ buildCat, thumbs }) {
   let lastFrame = 0;
   let disposed = false;
   let img = null;
+  let activeId = null; // the one pointer currently dragging
   const spin = createSpin();
   const stage = { failed: false };
 
@@ -45,8 +59,9 @@ export function createCatStage({ buildCat, thumbs }) {
   }
 
   function fail(err) {
-    if (stage.failed) return;
+    if (stage.failed || disposed) return;
     stage.failed = true;
+    endDrag();
     console.warn('Whisker Walk: live cat unavailable, using a still picture', err);
     cancel();
     if (ro) { ro.disconnect(); ro = null; }
@@ -63,7 +78,7 @@ export function createCatStage({ buildCat, thumbs }) {
     img = null;
     const src = thumbs && thumbs.cats && thumbs.cats[breed];
     if (!src || !el) return; // the hero name text is already in the stage
-    img = document.createElement('img');
+    img = createElement('img');
     img.className = 'dr-hero-img';
     img.alt = '';
     img.src = src;
@@ -73,21 +88,20 @@ export function createCatStage({ buildCat, thumbs }) {
   function ensureRenderer() {
     if (renderer || stage.failed) return;
     try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer = createRenderer();
+      renderer.setPixelRatio(Math.min((win && win.devicePixelRatio) || 1, 2));
       canvas = renderer.domElement;
       canvas.style.touchAction = 'pan-y'; // vertical swipes still scroll the page
-      canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); fail(new Error('context lost')); });
+      canvas.addEventListener('webglcontextlost', onLost);
       canvas.addEventListener('pointerdown', onDown);
       canvas.addEventListener('pointermove', onMove);
-      canvas.addEventListener('pointerup', onUp);
-      canvas.addEventListener('pointercancel', onUp);
       scene = new THREE.Scene();
       const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
       sun.position.set(2, 4, -3);
       scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
       camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     } catch (err) {
+      if (renderer) { try { renderer.dispose(); } catch { /* ignore */ } }
       renderer = null;
       canvas = null;
       fail(err);
@@ -117,7 +131,7 @@ export function createCatStage({ buildCat, thumbs }) {
   }
 
   function cancel() {
-    if (raf) cancelAnimationFrame(raf);
+    if (raf) cafFn(raf);
     raf = 0;
   }
 
@@ -134,28 +148,53 @@ export function createCatStage({ buildCat, thumbs }) {
 
   function schedule() {
     if (raf || !visible || !renderer) return;
-    raf = requestAnimationFrame(frame);
+    raf = rafFn(frame);
   }
 
   function now() { return performance.now(); }
 
+  function onLost(e) {
+    e.preventDefault();
+    fail(new Error('context lost'));
+  }
+
+  function endDrag() {
+    if (activeId === null) return;
+    const id = activeId;
+    activeId = null;
+    if (win && win.removeEventListener) {
+      win.removeEventListener('pointerup', onUp);
+      win.removeEventListener('pointercancel', onUp);
+    }
+    if (canvas) { try { canvas.releasePointerCapture(id); } catch { /* not captured */ } }
+    spin.release(now());
+    lastFrame = 0;
+    schedule(); // one frame decides whether a coast follows
+  }
+
   function onDown(e) {
+    if (activeId !== null) return; // one finger at a time
     if (e.button !== undefined && e.button > 0) return;
+    activeId = e.pointerId;
     try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+    // window listeners are the safety net: the home re-render drops pointer
+    // capture, and a lift elsewhere must still end the drag
+    if (win && win.addEventListener) {
+      win.addEventListener('pointerup', onUp);
+      win.addEventListener('pointercancel', onUp);
+    }
     spin.grab(e.clientX, now());
     coasting = false;
     lastFrame = 0;
   }
   function onMove(e) {
-    if (!canvas.hasPointerCapture || !canvas.hasPointerCapture(e.pointerId)) return;
+    if (activeId === null || e.pointerId !== activeId || !canvas) return;
     spin.move(e.clientX, now());
     schedule();
   }
   function onUp(e) {
-    try { canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
-    spin.release(now());
-    lastFrame = 0;
-    schedule(); // one frame decides whether a coast follows
+    if (e.pointerId !== activeId) return;
+    endDrag();
   }
 
   stage.mount = function mount(target) {
@@ -166,10 +205,14 @@ export function createCatStage({ buildCat, thumbs }) {
     ensureRenderer();
     if (stage.failed) { placeFallback(); return; }
     if (canvas.parentNode !== el) el.prepend(canvas); // insert, never replace the hero text
+    // a re-render drops pointer capture; take it back so a drag keeps going
+    if (activeId !== null) { try { canvas.setPointerCapture(activeId); } catch { /* pointer gone */ } }
     resize();
-    draw();
-    ro = new ResizeObserver(() => { resize(); draw(); });
-    ro.observe(el);
+    if (visible) draw();
+    if (ResizeObserverCtor) {
+      ro = new ResizeObserverCtor(() => { resize(); if (visible) draw(); });
+      ro.observe(el);
+    }
   };
 
   stage.show = function show(nextBreed, accessories = {}) {
@@ -182,7 +225,7 @@ export function createCatStage({ buildCat, thumbs }) {
     cat = buildCat(breed, accessories);
     cat.rotation.y = spin.angle;
     scene.add(cat);
-    if (el) draw();
+    if (el && visible) draw();
   };
 
   stage.setVisible = function setVisible(v) {
@@ -194,11 +237,15 @@ export function createCatStage({ buildCat, thumbs }) {
     disposed = true;
     cancel();
     if (ro) { ro.disconnect(); ro = null; }
+    activeId = null;
+    if (win && win.removeEventListener) {
+      win.removeEventListener('pointerup', onUp);
+      win.removeEventListener('pointercancel', onUp);
+    }
     if (canvas) {
+      canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
-      canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onUp);
       canvas.remove();
     }
     disposeCat();
