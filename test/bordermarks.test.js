@@ -96,3 +96,13 @@ describe('createBorderMarks', () => {
     expect(cSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("createBorderMarks contested guard", () => {
+  it("a null or non-array contested list is treated as none", () => {
+    for (const bad of [null, undefined, 3, "x", {}]) {
+      const api = createBorderMarks(new THREE.Scene(), "park", { contested: bad });
+      expect(api.list.every((m) => !m.contested)).toBe(true);
+      api.dispose();
+    }
+  });
+});

@@ -42,12 +42,16 @@ import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
-import { zoomTuning, canSwim } from '../player.js';
+import { zoomTuning, canSwim, CAT_RADIUS } from '../player.js';
+import { waterClearance } from '../world/builder.js';
+import { createRivalPatrol } from '../rivalcats.js';
+import { createBorderMarks } from '../render/bordermarks.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
+import { rivalFor } from '../rivalclans.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
@@ -90,6 +94,8 @@ const NO_GOLD_MICE = {
   list: [], update() {}, checkFind: () => null, nearestUnfound: () => null,
   remove() {}, dispose() {},
 };
+// The den has no rival border: every call the render loop makes is inert.
+const NO_RIVAL = { update() {}, dispose() {} };
 const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 // -----------------------------------------------------------------------------
@@ -1296,6 +1302,50 @@ export function createWalkLifecycle({
       ? createGoldMice(scene, areaId, new Set(progression.state.golden))
       : NO_GOLD_MICE;
 
+    // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
+    // goldMice above; the den has no rival, so everything is a no-op there.
+    // Only the LOCAL cat is ever chased: session.cat is passed to update, a
+    // partner's remote cat never is, and the patrol's position comes from the
+    // shared wall clock (rivalcats.patrolAt), so nothing goes over the network.
+    //
+    // THE CHASE TAKES NOTHING. This branch calls no progression, colony,
+    // discoveries or points function: it moves the cat, shows one toast, and
+    // that is all (spec section 10.1; rivalcats.js is pinned the same way).
+    if (isDen || !rivalFor(areaId)) {
+      session.rival = NO_RIVAL;
+    } else {
+      const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8 } : {});
+      // Walkable = the same three rules player.update enforces on the cat:
+      // inside bounds, clear of every collider by c.r + CAT_RADIUS, and at
+      // least CAT_RADIUS from water (pushOutOfWater's WATER_MARGIN).
+      const isWalkable = (x, z) => {
+        const b = areaData.bounds;
+        if (b && (x < b.minX + CAT_RADIUS || x > b.maxX - CAT_RADIUS
+          || z < b.minZ + CAT_RADIUS || z > b.maxZ - CAT_RADIUS)) return false;
+        for (const c of areaData.colliders) {
+          if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
+        }
+        return waterClearance(areaData.waters, x, z) >= CAT_RADIUS;
+      };
+      const patrol = createRivalPatrol(scene, areaId, {
+        reducedMotion,
+        isWalkable,
+        canChase: () => player.perchY === 0,
+        onChase: (who) => {
+          player.halt();
+          hud.toast(`${who} chased you back over their border! 🐾`);
+        },
+        onSettled: () => player.halt(),
+      });
+      session.rival = {
+        update(dt, t, catPos, avatar) {
+          marks.update(t);
+          patrol.update(dt, catPos, avatar);
+        },
+        dispose() { marks.dispose(); patrol.dispose(); },
+      };
+    }
+
     // lost-kitten quest chain: solo walks only (roomSeed === undefined) — a
     // co-walk kitten would desync the shared canon since it's driven by
     // this device's own progression.state.kitten.stage. A no-op stub (same
@@ -1640,6 +1690,7 @@ export function createWalkLifecycle({
     });
     session.critters.dispose();
     session.goldMice.dispose();
+    session.rival.dispose();
     session.kittenEnc.dispose();
     session.race.dispose();
     session.strayCats.dispose();

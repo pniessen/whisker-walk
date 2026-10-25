@@ -52,7 +52,7 @@ export function createBorderMarks(scene, areaId, { contested = [], maxMarks } = 
     list[index].contested = true;
     list[index].mesh.material = contestedMat;
   }
-  for (const i of contested) setContested(i);
+  if (Array.isArray(contested)) for (const i of contested) setContested(i);
 
   let disposed = false;
   return {

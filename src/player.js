@@ -8,7 +8,7 @@ import { inWater, waterClearance, nearestDry } from './world/builder.js';
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
-const CAT_RADIUS = 0.35;
+export const CAT_RADIUS = 0.35;
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
