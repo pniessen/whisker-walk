@@ -47,6 +47,10 @@ export const PREFIXES = Object.freeze([
 //   Elm, Linden, Yarrow, Thyme, Basil, Tulip, Daffodil, Mallow,
 //   Orchid, Cress, Burdock, Snowdrop, Pond, Stream, Sunny, Twig,
 //   Blossom, Skylark, Robin, Finch, Swallow, Plover, Linnet.
+// Seven were then swapped by hand so no name doubles a letter at the join
+// (Larkkit, Brookkit, Burdockkit, Skylarkkit, Tulippaw, Snowdroppaw,
+// Meadowwhisker): Marmalade Amber, Meatball Tawny, Static Heath, Pip Pansy,
+// Beignet Rose, Doppler Myrtle, Sprout Laurel. A test pins "no doubled join".
 // Every word is 3-8 letters, nature-ish and kid-friendly; is not a stray or
 // kit name, a RIVAL_PREFIXES word or a PREFIXES word; and builds no denied or
 // invalid name with 'kit', 'paw' or any WARRIOR_SUFFIXES entry.
@@ -54,7 +58,7 @@ export const PREFIXES = Object.freeze([
 // not a cat. Do not reorder or edit a value once names have shipped.
 export const CAT_PREFIXES = Object.freeze({
   'Pickles': 'Wren',
-  'Marmalade': 'Lark',
+  'Marmalade': 'Amber',
   'Baron von Fluff': 'Lichen',
   'Mochi': 'Moss',
   'Biscuit': 'Primrose',
@@ -83,9 +87,9 @@ export const CAT_PREFIXES = Object.freeze({
   'Fig': 'Breeze',
   'Tangerine': 'Larch',
   'Cocoa': 'Fern',
-  'Sprout': 'Meadow',
+  'Sprout': 'Laurel',
   'Juniper': 'Tansy',
-  'Meatball': 'Brook',
+  'Meatball': 'Tawny',
   'Parsnip': 'Pine',
   'Ziggy': 'Spruce',
   'Bean': 'Elm',
@@ -93,20 +97,20 @@ export const CAT_PREFIXES = Object.freeze({
   'Anchovy': 'Yarrow',
   'Popcorn': 'Thyme',
   'Gnocchi': 'Basil',
-  'Beignet': 'Tulip',
+  'Beignet': 'Rose',
   'Truffle': 'Daffodil',
   'Ramen': 'Mallow',
   'Custard': 'Orchid',
   'Peaches': 'Cress',
-  'Static': 'Burdock',
-  'Doppler': 'Snowdrop',
+  'Static': 'Heath',
+  'Doppler': 'Myrtle',
   'Comet': 'Pond',
   'Bramble': 'Stream',
   'Pebble': 'Sunny',
   'Wiggle': 'Twig',
   'Fennel': 'Blossom',
   'Bumble': 'Marsh',
-  'Pip': 'Skylark',
+  'Pip': 'Pansy',
   'Peanut': 'Clover',
   'Cupcake': 'Robin',
   'Puddle': 'Finch',

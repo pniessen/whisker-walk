@@ -172,12 +172,19 @@ test('every CAT_PREFIXES word is short, unique, clean and clear of every other w
   }
 });
 
-test('a cat keeps its old prefix unless an earlier name took it (21 kept)', () => {
+// Seven prefixes were swapped by hand afterwards so no name doubles a letter at
+// the join; of those, only Marmalade had kept its old prefix (Lark).
+const HAND_SWAPPED = new Set(['Marmalade', 'Meatball', 'Static', 'Pip', 'Beignet', 'Doppler', 'Sprout']);
+
+test('a cat keeps its old prefix unless an earlier name took it (20 kept)', () => {
   const taken = new Set();
   let kept = 0;
   for (const n of ALL_NAMES) {
     const old = oldPrefix(n);
-    if (!taken.has(old)) {
+    if (HAND_SWAPPED.has(n)) {
+      taken.add(old);
+      expect(CAT_PREFIXES[n]).not.toBe(old);
+    } else if (!taken.has(old)) {
       taken.add(old);
       kept++;
       expect(CAT_PREFIXES[n]).toBe(old);
@@ -185,7 +192,7 @@ test('a cat keeps its old prefix unless an earlier name took it (21 kept)', () =
       expect(CAT_PREFIXES[n]).not.toBe(old);
     }
   }
-  expect(kept).toBe(21);
+  expect(kept).toBe(20);
   expect(CAT_PREFIXES.Pickles).toBe('Wren');
   expect(CAT_PREFIXES.Mochi).toBe('Moss');
   expect(CAT_PREFIXES.Peanut).toBe('Clover');
@@ -206,4 +213,16 @@ test("prefixFor('__proto__') hashes rather than reading an inherited value", () 
   expect(prefixFor('__proto__')).toBe(oldPrefix('__proto__'));
   expect(prefixFor('constructor')).toBe(oldPrefix('constructor'));
   expect(prefixFor('toString')).toBe(oldPrefix('toString'));
+});
+
+// No clan name doubles a letter where prefix meets suffix (Larkkit, Tulippaw).
+test('no clan name doubles a letter at the join', () => {
+  for (const n of [...CAT_NAMES, ...KIT_NAMES]) {
+    const p = prefixFor(n);
+    for (const prog of [{ have: 0 }, { have: 2 }, { tamed: true }]) {
+      // A doubled vowel (Primroseear) reads fine; a doubled consonant does not.
+      const join = clanNameOf(n, prog)[p.length];
+      if (!'aeiou'.includes(join)) expect(p.at(-1).toLowerCase()).not.toBe(join);
+    }
+  }
 });
