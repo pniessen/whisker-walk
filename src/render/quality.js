@@ -38,8 +38,9 @@ const HIGH = Object.freeze({
   // anything costing fill rate or texture memory is high only. A normal map is
   // a second 256x256 RGBA tile per surface — it roughly doubles what the
   // surface vocabulary costs in VRAM, and it does it on exactly the devices
-  // (`coarse` pointers) where texture memory is the scarce resource. The
-  // colour tiles are already gated the same way and for the same reason.
+  // (the ones adaptive Auto steps down to the low rung) where texture memory
+  // is the scarce resource. The colour tiles are already gated the same way
+  // and for the same reason.
   //
   // It is a separate flag rather than a read of `name === 'high'` so that a
   // future "high tier, but this GPU is a laptop iGPU" case has somewhere to

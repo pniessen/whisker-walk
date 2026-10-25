@@ -66,7 +66,6 @@ import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '../render/
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
-import { resolveQuality } from '../render/quality.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
@@ -112,6 +111,9 @@ export function createWalkLifecycle({
   awardStrayGreet, applyRemoteEvent,
   // v21 Stream 2: game/colonysync.js. Optional; later colony tasks use it.
   colonySync,
+  // game/adaptquality.js: picks each walk's tier (adaptive Auto) and sets the
+  // renderer + composer pixel ratio for it.
+  qualityAdapter,
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -296,10 +298,10 @@ export function createWalkLifecycle({
     // re-querying a setting per frame is exactly what this snapshot exists to
     // prevent.
     const reducedMotion = settings.get('reducedMotion');
-    const tier = resolveQuality({
-      coarse,
+    const tier = qualityAdapter.beginWalk({
       reducedMotion,
       override: settings.get('quality'),
+      nowMs: performance.now(),
     });
     // BEFORE ANY WORLD GEOMETRY EXISTS. render/textures.js builds its tiles
     // lazily at first use and memoises them for the app's lifetime, so the
@@ -307,7 +309,6 @@ export function createWalkLifecycle({
     // walk gets and every later walk inherits. Setting it after the build
     // would give the first walk of a session the wrong one, permanently.
     setTextureTier(tier);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.pixelRatioCap));
     // The shared per-walk stream. In a room walk every client seeds it from
     // the same roomSeed, so co-walkers agree about the world only as long as
     // they take the SAME DRAWS IN THE SAME ORDER. Solo it is Math.random and
@@ -687,8 +688,9 @@ export function createWalkLifecycle({
     // It draws nothing from walkRng, so the shared stream is untouched.
     //
     // The strays spawn from their own room-seeded stream, strayStream(roomSeed),
-    // not walkRng, so how many a device spawns (14 coarse, 22 otherwise) costs
-    // walkRng nothing and treats and goals land the same everywhere.
+    // not walkRng, so how many a device spawns (tier.strays: 22, or 14 on the
+    // low rung) costs walkRng nothing and treats and goals land the same
+    // everywhere.
     //
     // roomSeed is handed over as well, and is NOT a second walkRng consumer:
     // straycats uses it only to seed one private mulberry32 per cat for that
@@ -734,7 +736,7 @@ export function createWalkLifecycle({
       }))
       : [];
     const excludeNames = colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : [];
-    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), strayStream(roomSeed), {
+    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : tier.strays, strayStream(roomSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
       colonyCats,

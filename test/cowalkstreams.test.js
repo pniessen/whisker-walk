@@ -46,4 +46,11 @@ describe('strays and the shared walkRng', () => {
     expect(args).toContain('strayStream(roomSeed)');
     expect(args).not.toContain('walkRng');
   });
+  it('walk.js takes the stray count from the tier, not the pointer', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const start = src.indexOf('createStrayCats(scene');
+    const args = src.slice(start, src.indexOf('});', start));
+    expect(args).toContain('isDen ? 0 : tier.strays');
+    expect(src).not.toContain('coarse ? 14 : 22');
+  });
 });

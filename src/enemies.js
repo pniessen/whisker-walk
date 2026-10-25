@@ -116,11 +116,12 @@ export function isGrudgeName(name) {
 // type 'friend', target 3) counts awardOnce('friend', …) discoveries, and a
 // hostile greet pays nothing — so the hostile chance is a tax on the supply
 // of friend awards and the 3-friend goal must never be in danger. A walk
-// spawns 22 strays (14 on the coarse/mobile tier — game/walk.js, the createStrayCats call), so:
+// spawns 22 strays (14 on the low tier — tier.strays, game/walk.js's
+// createStrayCats call), so:
 //
 //   * EXPECTED HOSTILE COUNT PER WALK: 22 x 0.05 = 1.1 cross cats, i.e.
-//     about one a walk. On the coarse tier it is 14 x 0.05 = 0.7, and for a
-//     Charmer player it halves to 0.55 (0.35 coarse).
+//     about one a walk. On the low tier it is 14 x 0.05 = 0.7, and for a
+//     Charmer player it halves to 0.55 (0.35 low).
 //   * The goal needs 3 friendly greets out of 22 candidates. It is only
 //     unreachable if 20 or more of the 22 roll hostile, which is
 //     C(22,20) x 0.05^20 x 0.95^2 ≈ 2e-24 — not a risk, a rounding error.

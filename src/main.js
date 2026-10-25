@@ -27,6 +27,7 @@ import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
+import { createQualityAdapter } from './game/adaptquality.js';
 import { createWalkLifecycle } from './game/walk.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
@@ -90,9 +91,10 @@ if (!renderer) {
 }
 
 function init() {
-  // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap —
-  // matches the shadow/stray-count tuning in startWalk below, all in service
-  // of keeping frame time down on weaker mobile GPUs.
+  // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
+  // for the home base only. Walks no longer key off the pointer: each walk's
+  // pixel ratio, shadows and stray count come from its quality rung, which
+  // game/adaptquality.js picks (and sets the pixel ratio for) at walk start.
   const coarse = matchMedia('(pointer: coarse)').matches;
   // ?perf forces the readout on for this page load only; it is never saved.
   const perfFlag = new URLSearchParams(location.search).has('perf');
@@ -136,7 +138,11 @@ function init() {
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
-  const perfHud = createPerfHud({ renderer, settings, coarse });
+  // Adaptive Auto quality: every device starts a walk on the high rung and
+  // steps down live if its frames stay slow; the step is remembered per
+  // device in localStorage['whisker-walk-adapt'] (never the save).
+  const qualityAdapter = createQualityAdapter({ renderer, composerRig, storage: window.localStorage });
+  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
   const log = createDiscoveryLog(progression);
 
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
@@ -332,7 +338,7 @@ function init() {
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
-    awardStrayGreet, applyRemoteEvent, colonySync,
+    awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -796,6 +802,10 @@ function init() {
         session.questGiver.marker.position.y = 2.1 + Math.sin(t * 3) * 0.12;
       }
     }
+    // Before the draw, never after: a pixel-ratio change reassigns
+    // canvas.width, which clears the buffer, so doing it after renderFrame()
+    // would present a blank frame (a visible flash at a step-down).
+    qualityAdapter.frame(session, performance.now());
     renderFrame();
     perfHud.frameEnd(session, performance.now());
   });
