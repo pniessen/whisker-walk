@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles } from '../src/progression.js';
+import { describe, it, test, expect, beforeEach, vi } from 'vitest';
+import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan } from '../src/progression.js';
+import { clanTitleFor } from '../src/clannames.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 import { STARTER_ACCESSORIES } from '../src/progression.js';
@@ -416,6 +417,8 @@ describe('createProgression', () => {
           seen: { feedKeys: [], tamed: [], trades: [], day: null },
         },
         clanRoles: { medicine: null, deputy: null },
+        clan: { name: null, adopted: false },
+        clanJoining: false,
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1949,7 +1952,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, ...rest } = p.state;
+    const { colony, clanRoles, clan, clanJoining, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(rest).toEqual(v20);
   });
@@ -2499,5 +2502,69 @@ describe('clan role verdicts', () => {
     p.settleClanRoles(colonyWithADeputy());
     p.setColonyLink({ id: null, partner: null });
     expect(p.state.clanRoles.deputy).toBe(A);
+  });
+});
+
+describe('the clan name', () => {
+  const ME = 'aaaaaaaa-1111', PARTNER = 'bbbbbbbb-2222';
+  let p;
+  beforeEach(() => { p = createProgression(fakeStorage()); });
+
+  it('starts with no clan name', () => {
+    expect(p.state.clan).toEqual({ name: null, adopted: false });
+    expect(p.state.clanJoining).toBe(false);
+  });
+  it('mints a name for a solo player, with no colony id at all', () => {
+    expect(p.state.colony.id).toBeNull();
+    p.ensureClanName(ME);
+    expect(p.state.clan.name).toBe(clanTitleFor(ME));
+    expect(p.state.clan.adopted).toBe(false);
+  });
+  it('does not change the name when it mints twice', () => {
+    p.ensureClanName(ME);
+    const first = p.state.clan.name;
+    p.ensureClanName(PARTNER);
+    expect(p.state.clan.name).toBe(first);
+  });
+  it("adopts the inviter's name once, and a re-pair cannot change it again", () => {
+    p.ensureClanName(ME);
+    p.adoptClanName(clanTitleFor(PARTNER));
+    expect(p.state.clan).toEqual({ name: clanTitleFor(PARTNER), adopted: true });
+    p.adoptClanName(clanTitleFor('player-cccccccc'));
+    expect(p.state.clan.name).toBe(clanTitleFor(PARTNER));
+  });
+  it('ignores an adopted name that is not a real clan title', () => {
+    p.ensureClanName(ME);
+    p.adoptClanName('NotAClanName');
+    expect(p.state.clan).toEqual({ name: clanTitleFor(ME), adopted: false });
+  });
+  test.each([null, undefined, 42, 'x', [], { name: 42 }, { name: 'NotAClanName' },
+    { name: 'x'.repeat(200) }, Object.create({ name: 'MossClan' })])(
+    'sanitizeClan is total over a hostile payload: %p', (bad) => {
+      const out = sanitizeClan(bad);
+      expect(out.name === null || typeof out.name === 'string').toBe(true);
+      expect(typeof out.adopted).toBe('boolean');
+      expect(out.name).toBeNull();
+    });
+  it('keeps a valid saved name and a strict adopted boolean', () => {
+    expect(sanitizeClan({ name: clanTitleFor(ME), adopted: true })).toEqual({ name: clanTitleFor(ME), adopted: true });
+    expect(sanitizeClan({ name: clanTitleFor(ME), adopted: 'yes' }).adopted).toBe(false);
+  });
+  it('loads a version-4 save that predates clan, and stays version 4', () => {
+    const p2 = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, points: 10 }) }));
+    expect(p2.state.clan).toEqual({ name: null, adopted: false });
+    expect(p2.state.clanJoining).toBe(false);
+    expect(p2.state.version).toBe(4);
+  });
+  it('persists the name and the joining flag, strictly', () => {
+    const st = fakeStorage();
+    const a = createProgression(st);
+    a.ensureClanName(ME);
+    a.setClanJoining(true);
+    const b = createProgression(st);
+    expect(b.state.clan.name).toBe(clanTitleFor(ME));
+    expect(b.state.clanJoining).toBe(true);
+    const c = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, clanJoining: 'true' }) }));
+    expect(c.state.clanJoining).toBe(false);
   });
 });

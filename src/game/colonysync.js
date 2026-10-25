@@ -29,6 +29,7 @@
 import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX } from '../colony.js';
 import { CATALOG, STARTER_ACCESSORIES } from '../progression.js';
 import { validPetName } from '../net.js';
+import { clanTitleFor } from '../clannames.js';
 
 // A kept pending join (see trouble()) has no expiry of its own; give it the
 // invite's window so an offline player isn't polled at forever.
@@ -307,6 +308,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       netMode = 'unpaired';
       invite = snap.invite;
       joining = snap.joining;
+      // Remember (in the save) that this device is the joiner; only a
+      // successful pull gets here, a failed one never touches the flag.
+      progression.setClanJoining(!!snap.joining);
       if (!joining) joiningSince = null;
       else if (joiningSince === null) joiningSince = Date.now();
       return [];
@@ -318,6 +322,12 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     joiningSince = null;
     const { remote } = snap;
     progression.setColonyLink({ id: remote.id, partner: remote.partner });
+    // The inviter keeps the name it minted; the joiner takes the inviter's.
+    progression.ensureClanName(pid);
+    if (progression.state.clanJoining) {
+      if (remote.partner) progression.adoptClanName(clanTitleFor(remote.partner.playerId));
+      progression.setClanJoining(false);
+    }
     const tamedSent = await pushUnsynced(cloud, secret, remote);
     progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
     // The merge can join feeds that fill a bar neither side filled alone.

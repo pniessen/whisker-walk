@@ -464,6 +464,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
    softer shade INSIDE the same bar, never a second track. Cards reuse
    .card / .card-name / .tag. --- */
 .colony-mode { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 12px; }
+.colony-title { font-size: 1rem; margin: 0 0 4px; color: #e8f0ff; }
 .colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0; max-width: 60ch; }
 .colony-full { color: #f2c14e; font-weight: 700; }
 .colony-cards { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }

@@ -8,6 +8,7 @@ import { createColonySync, FEED_PUSH_MAX } from '../src/game/colonysync.js';
 import { createProgression } from '../src/progression.js';
 import { isShy, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
+import { clanTitleFor } from '../src/clannames.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
 const COLONY = 'c0ffee00c0ffee00';
@@ -983,5 +984,47 @@ describe('createColonySync — fix round 1', () => {
       await cs.pull();
       expect(cs.status().mode).toBe('not-set-up');
     });
+  });
+});
+
+describe('createColonySync — the clan name at pairing', () => {
+  const run = (script) => setup({ script: { colonySync: script } });
+
+  it('a joiner who saw joining adopts the partner-derived name when paired', async () => {
+    const queue = [unpairedSnap({ joining: { inviter_pet_name: 'Robin' } }), pairedSnap()];
+    const { cs, progression } = run(() => queue.shift());
+    await cs.pull();
+    expect(progression.state.clanJoining).toBe(true);
+    await cs.pull();
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: true });
+    expect(progression.state.clanJoining).toBe(false);
+  });
+  it('a cold start with clanJoining already saved adopts on the first paired snapshot', async () => {
+    const { cs, progression } = run(() => pairedSnap());
+    progression.setClanJoining(true);
+    await cs.pull();
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: true });
+  });
+  it('an inviter keeps the name minted from its own id', async () => {
+    const queue = [unpairedSnap(), pairedSnap()];
+    const { cs, progression } = run(() => queue.shift());
+    await cs.pull();
+    await cs.pull();
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: false });
+  });
+  it('a second paired pull changes nothing', async () => {
+    const { cs, progression } = run(() => pairedSnap());
+    progression.setClanJoining(true);
+    await cs.pull();
+    const after = JSON.stringify(progression.state.clan);
+    await cs.pull();
+    expect(JSON.stringify(progression.state.clan)).toBe(after);
+    expect(progression.state.clanJoining).toBe(false);
+  });
+  it('a failed pull does not clear the joining flag', async () => {
+    const { cs, progression } = run(() => ({ status: 'denied' }));
+    progression.setClanJoining(true);
+    await cs.pull();
+    expect(progression.state.clanJoining).toBe(true);
   });
 });

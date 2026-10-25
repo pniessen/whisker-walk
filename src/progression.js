@@ -19,7 +19,8 @@ import { isStrayName } from './straynames.js';
 // one place the borrowed vocabulary's keys are spelled, so no literal is typed
 // here.
 import { pickMedicineCat, pickDeputy } from './clanroles.js';
-import { RANK_KEYS } from './clanwords.js';
+import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
+import { clanTitleFor } from './clannames.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -403,7 +404,36 @@ function defaultState() {
     // would be discarded at the next sync. Display only: never a score, a
     // goal, an AWARDS entry or a permission.
     clanRoles: { [RANK_KEYS.medicine]: null, [RANK_KEYS.deputy]: null },
+    // The player's clan name (spec 6.6). It is minted from the player's OWN
+    // id, never from state.colony.id: that id is null when solo, is minted by
+    // the server, is deliberately never displayed, and changes at pairing, so
+    // it cannot give a solo player a name or keep one stable. `adopted` is set
+    // once, when the joiner takes the inviter's name at pairing; after that
+    // the name never changes again. Additive, so SAVE_VERSION stays 4.
+    clan: { name: null, adopted: false },
+    // True once a successful sync showed this device as the one waiting to
+    // join (not the inviter). Persisted because colonysync's in-memory
+    // `joining` is lost if the joiner closes the app while waiting, and the
+    // server cannot tell the two members apart. Kept OUTSIDE `clan` on purpose.
+    clanJoining: false,
   };
+}
+
+// A clan name is acceptable only if it is a title clanTitleFor could have
+// produced (a PREFIXES entry + CLAN_SUFFIX), so no cloud payload can inject
+// an arbitrary string into a displayed name.
+const ACCEPTED_CLAN_NAMES = new Set(PREFIXES.map((x) => x + CLAN_SUFFIX));
+const acceptedClanName = (n) => typeof n === 'string' && ACCEPTED_CLAN_NAMES.has(n);
+
+// Total over any payload; own-property reads only, so a prototype cannot leak
+// a name in.
+export function sanitizeClan(v) {
+  const out = { name: null, adopted: false };
+  if (!isPlainObject(v)) return out;
+  const has = (k) => Object.prototype.hasOwnProperty.call(v, k);
+  if (has('name') && acceptedClanName(v.name)) out.name = v.name;
+  if (has('adopted') && v.adopted === true) out.adopted = true;
+  return out;
 }
 
 // Cloud-loaded clanRoles are untrusted: each verdict must be a KNOWN stray
@@ -724,6 +754,8 @@ function sanitizeState(parsed) {
     grudges: sanitizeGrudges(parsed.grudges),
     colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
+    clan: sanitizeClan(parsed.clan),
+    clanJoining: parsed.clanJoining === true,
   };
 }
 
@@ -1321,6 +1353,32 @@ export function createProgression(storage) {
     // can't drop the id; an explicit null clears it, which is how a pull that
     // finds the owner unpaired us unlinks ({ id: null, partner: null }). The
     // cats and feeds are never touched.
+    // ensureClanName(playerId): mint the name from the player's own id if none
+    // is set. A no-op once a name exists.
+    ensureClanName(playerId) {
+      if (state.clan.name !== null) return;
+      const name = clanTitleFor(playerId);
+      if (!acceptedClanName(name)) return;
+      state.clan = { name, adopted: state.clan.adopted };
+      save();
+    },
+
+    // adoptClanName(name): the joiner takes the inviter's name. Invalid names
+    // are ignored, and it is a no-op once adopted.
+    adoptClanName(name) {
+      if (state.clan.adopted || !acceptedClanName(name)) return;
+      state.clan = { name, adopted: true };
+      save();
+    },
+
+    // setClanJoining(bool): saves only when the value changes.
+    setClanJoining(flag) {
+      const next = flag === true;
+      if (state.clanJoining === next) return;
+      state.clanJoining = next;
+      save();
+    },
+
     setColonyLink({ id, partner } = {}) {
       const c = state.colony;
       state.colony = sanitizeColony({ ...c,

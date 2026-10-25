@@ -257,6 +257,8 @@ function init() {
   // pull is the boot pull after homebase.show() below), so the later `const`
   // bindings are initialised by then. It never creates a cloud when !MP and
   // never rejects, so solo play is unaffected.
+  // A solo player has a clan name too: minted from their own id (spec 6.6).
+  progression.ensureClanName(pid);
   const colonySync = createColonySync({
     MP, pid, getCloud, getPsecret, progression,
     pushProfileNow: () => pushProfileNow(),
