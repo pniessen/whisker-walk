@@ -34,19 +34,34 @@ test('no tamed cats means no medicine cat rather than a crash', () => {
   }
 });
 
-test('adding any later cat never displaces the incumbent medicine cat', () => {
-  // Cats arrive in taming order (not name order); once a medicine cat is
-  // named, no later arrival may take the post, whatever its name sorts as.
+test('adding any later-tamed cat never displaces the incumbent medicine cat', () => {
+  // Cats are tamed in reverse-name order with rising stamps, so every newcomer
+  // sorts BEFORE the incumbent by name; taming order must still hold the post.
   const grown = [];
   let incumbent = null;
-  for (const n of [...CAT_NAMES].reverse()) {
-    grown.push({ name: n });
+  [...CAT_NAMES].reverse().forEach((n, i) => {
+    grown.push({ name: n, tamedWalk: `walk-${1000 + i}` });
     const now = pickMedicineCat(grown);
-    // The incumbent may only change if the newcomer sorts before it
-    // (selection by name); it can never change to an older-sorted rival.
-    if (incumbent !== null && now !== incumbent) expect(now).toBe(n);
+    if (incumbent !== null) expect(now).toBe(incumbent);
     incumbent = now;
-  }
+  });
+});
+
+test('the medicine cat is the earliest-tamed eligible cat, not the first by name', () => {
+  // Tamed in non-alphabetical order: Mochi, then Olive, then Pickles.
+  const base = [
+    { name: 'Pickles', tamedWalk: 'walk-3000' },
+    { name: 'Mochi', tamedWalk: 'walk-1000' },
+    { name: 'Olive', tamedWalk: 'walk-2000' },
+  ];
+  const eligible = base.filter((c) => ['warrior', 'elder'].includes(roleFor(c.name)));
+  const earliest = [...eligible].sort((a, b) => a.tamedWalk.localeCompare(b.tamedWalk))[0].name;
+  expect(pickMedicineCat(base)).toBe(earliest);
+  // A later-tamed cat that sorts first by name does not take the post.
+  const aName = CAT_NAMES.filter((n) => roleFor(n) === 'warrior').sort()[0];
+  expect(aName < 'Mochi').toBe(true);
+  const withA = [...base, { name: aName, tamedWalk: 'walk-9000' }];
+  expect(pickMedicineCat(withA)).toBe(earliest);
 });
 
 const FEEDS = [
@@ -77,6 +92,22 @@ test('every permutation of a feed list gives the same deputy', () => {
   const perms = (xs) => (xs.length < 2 ? [xs]
     : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
   for (const p of perms(FEEDS)) expect(pickDeputy(p)).toBe('Pickles');
+});
+
+test('arrival order is never used: a late second feeder completes a cat late', () => {
+  // X: A@1000, A@2000, B@3000 completes at 3000. Y: A@2100, B@2500 completes at
+  // 2500. An arrival-order walk of the reversed list would complete X at 2000
+  // and wrongly name X. The correct deputy is Y.
+  const feeds = [
+    { cat: 'Mochi', by: 'player-aaaaaaaa', walk: 'walk-1000' },
+    { cat: 'Mochi', by: 'player-aaaaaaaa', walk: 'walk-2000' },
+    { cat: 'Mochi', by: 'player-bbbbbbbb', walk: 'walk-3000' },
+    { cat: 'Pickles', by: 'player-aaaaaaaa', walk: 'walk-2100' },
+    { cat: 'Pickles', by: 'player-bbbbbbbb', walk: 'walk-2500' },
+  ];
+  const perms = (xs) => (xs.length < 2 ? [xs]
+    : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
+  for (const p of perms(feeds)) expect(pickDeputy(p)).toBe('Pickles');
 });
 
 test('the deputy is the cat that BECAME two-fed first, not the one first fed', () => {

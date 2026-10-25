@@ -57,19 +57,23 @@ export function roleFor(storedName) {
 // chosen cat is still shown with its normal role elsewhere.
 const MEDICINE_ELIGIBLE = new Set([RANK_KEYS.warrior, RANK_KEYS.elder]);
 
-// A selection, not a predicate: sort by name and take the first eligible, so
-// adding a later cat can only displace the incumbent if it sorts BEFORE it, and
-// never reshuffles the rest. Tamed cats are never trimmed, so the list can
-// exceed 24; nothing here depends on its length.
+// A selection, not a predicate, in TAMING order (spec §6.4: the lowest-sorting
+// tamed cat whose derived trait is eligible, with tamedCats()'s
+// walkMs(tamedWalk) || byName ordering): take the first eligible cat by
+// tamedWalk stamp, ties by name. A newly tamed cat has a later tamedWalk, so
+// adding a cat never displaces the incumbent. An entry with no or unparseable
+// tamedWalk sorts as stamp 0, exactly as in tamedCats(), so `{ name }` alone
+// falls back to name order and the function stays total. Tamed cats are never
+// trimmed, so the list can exceed 24; nothing here depends on its length.
 export function pickMedicineCat(tamed) {
   if (!Array.isArray(tamed)) return null;
-  const names = [];
+  const cats = [];
   for (const c of tamed) {
-    if (c && isStrayName(c.name)) names.push(c.name);
+    if (c && isStrayName(c.name)) cats.push({ name: c.name, ms: stampMs(c.tamedWalk) ?? 0 });
   }
-  names.sort(byNameStr);
-  for (const n of names) {
-    if (MEDICINE_ELIGIBLE.has(roleFor(n))) return n;
+  cats.sort((a, b) => a.ms - b.ms || byNameStr(a.name, b.name));
+  for (const c of cats) {
+    if (MEDICINE_ELIGIBLE.has(roleFor(c.name))) return c.name;
   }
   return null;
 }
