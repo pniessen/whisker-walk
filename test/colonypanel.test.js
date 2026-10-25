@@ -53,7 +53,9 @@ describe('renderColonyHtml', () => {
 
   it('still shows the stored name, so a cat stays findable by it', () => {
     const colony = colonyOf({ cats: [cat(A, { tamedBy: ME, tamedWalk: 'walk-1' })] });
-    expect(render(colony)).toContain(A);
+    // Match the visible title line, not the whole html: data-cat always holds A.
+    const title = render(colony).match(/class="colony-title">([^]*?)<\/div>/)[1];
+    expect(title.replace(/<[^>]*>/g, '')).toContain(A);
   });
 
   it('still renders exactly one progress bar per cat', () => {
