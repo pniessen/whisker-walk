@@ -1313,6 +1313,7 @@ export function createWalkLifecycle({
     if (isDen || !rivalFor(areaId)) {
       session.rival = NO_RIVAL;
     } else {
+      // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.
       const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8 } : {});
       // Walkable = player.js's own predicate (bounds, colliders, water).
       const isWalkable = (x, z) => isWalkableAt(areaData, x, z);

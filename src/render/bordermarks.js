@@ -13,7 +13,11 @@ import { borderMarks } from '../rivalclans.js';
 // sandy), so dispose() releases each exactly once.
 //
 // maxMarks (optional): the caller may pass a smaller number for the low
-// quality tier; every k-th mark is kept. quality.js has no field for it yet.
+// quality tier; every k-th mark is kept, k = ceil(count / maxMarks). That is
+// an upper bound, not a target: the ring stays evenly spaced only when the
+// kept count divides the full count, so the result is the largest divisor of
+// the count that fits. For the 12 marks rivalclans.js draws, maxMarks 8 gives
+// 6 (a test pins every maxMarks). quality.js has no field for it yet.
 const RADIUS = 0.2; // ~0.4 m across
 const Y = 0.025;
 const BASE_OPACITY = 0.6;

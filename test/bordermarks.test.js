@@ -71,6 +71,21 @@ describe('createBorderMarks', () => {
     expect(api.list.length).toBeLessThan(full);
   });
 
+  // The marks are a closed ring, so an evenly spaced subset has a count that
+  // divides the full count. maxMarks must give the LARGEST such count that
+  // fits: for 12 marks and maxMarks 8 that is 6 (12's divisors <= 8 are 6, 4,
+  // 3, 2, 1), not 8. Checked for every maxMarks, against the real ring.
+  it.each(Array.from({ length: 14 }, (_, i) => i + 1))('maxMarks %i keeps the largest evenly spaced subset that fits', (max) => {
+    const full = createBorderMarks(new THREE.Scene(), 'park').list;
+    const n = full.length;
+    const best = Math.max(...Array.from({ length: n }, (_, i) => i + 1).filter((d) => n % d === 0 && d <= max));
+    const kept = createBorderMarks(new THREE.Scene(), 'park', { maxMarks: max }).list;
+    expect(kept.length).toBe(best);
+    const idx = kept.map((m) => full.findIndex((f) => f.x === m.x && f.z === m.z));
+    const step = n / best;
+    idx.forEach((v, i) => expect(v).toBe(i * step));
+  });
+
   it('update does not throw', () => {
     const api = createBorderMarks(new THREE.Scene(), 'park');
     expect(() => api.update(3.2)).not.toThrow();
