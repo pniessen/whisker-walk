@@ -47,6 +47,18 @@ export const PREY_NOTICE = 3.5;
 export const PREY_NOTICE_STALKED = 1.2;
 export const HIDE_REACH = 0.4;
 const HIDE_SEARCH = 15;
+// Ruling R27 — stalking pays off. A critter that notices a STALKING (or still,
+// R29) cat freezes for PREY_STARTLE seconds before it bolts, the way a real
+// mouse does; a trotting cat gets no startle. A fixed time, never a roll.
+// Tuned against the real lunge (player.js) — see task-13-report.md, Fix round 1.
+export const PREY_STARTLE = 0.5;
+// Ruling R29 — a still cat is not a threat. A cat moving slower than this
+// (horizontal m/s, measured off the positions update() is handed) is noticed
+// at PREY_NOTICE_STALKED, like a stalking one, so a touch player who stops with
+// the thumb off does not scare a mouse 3.5m away. A creeping cat moves at
+// 1.4-2.0 m/s, a trot at 3.2-4.4, so 0.25 means "stopped": player.js's
+// velocity lerp brings a released cat under it in about 0.4s.
+export const STILL_SPEED = 0.25;
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -160,6 +172,11 @@ export function createCritters(scene, spawns, opts = {}) {
   // (main.js, then game/avatar.js), so it reads last frame's — one frame late,
   // and the cat has been stalking for many frames by the time it is close.
   let catStalking = false;
+  // R29: where the cat was on the last update, and whether it has stopped.
+  // Unknown (first frame) counts as moving.
+  let lastCat = null;
+  let lastT = 0;
+  let catStill = false;
   let fleeModifier = 1;
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
@@ -374,12 +391,24 @@ export function createCritters(scene, spawns, opts = {}) {
       // A scripted moment runner is on rails and despawns on its own.
       if (PREY.has(best.type) && !best.moment) {
         best.tagged = true;
+        best.startleT = 0; // caught mid-startle: it is off at once
         best.hideAt = best.hideAt ?? nearestHide(best.group.position);
       }
       return { type: best.type, wasStalked };
     },
     update(dt, t, playerPos, catPos) {
       clock = t;
+      // R29: the cat's ground speed from its last two positions. Timed off
+      // `t` (real time, like the cat's own movement) rather than `dt`, which
+      // the slow-mo after a perfect sneak shrinks; `dt` only if `t` stalls.
+      if (lastCat) {
+        const span = t > lastT ? t - lastT : dt;
+        if (span > 0) catStill = Math.hypot(catPos.x - lastCat.x, catPos.z - lastCat.z) / span < STILL_SPEED;
+        lastCat.copy(catPos);
+      } else {
+        lastCat = catPos.clone();
+      }
+      lastT = t;
       for (const c of [...list]) {
         if (c.hidden) continue; // Task 13: in cover for the rest of the walk
         const p = c.group.position;
@@ -434,12 +463,19 @@ export function createCritters(scene, spawns, opts = {}) {
         } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat') {
           const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rat' ? 5.5 : 4.5;
           // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
-          if (!c.fleeing && dCat < (catStalking ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
+          // A stalking or still cat is noticed late and startles it first
+          // (R27, R29); a critter answering a Far Call came because it was
+          // called, and notices nothing while the call lasts (R28).
+          const sneaky = catStalking || catStill;
+          if (!c.fleeing && !(c.drawT > 0) && dCat < (sneaky ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
             c.fleeing = true;
             c.cooldown = 3;
             c.hideAt = nearestHide(p);
+            c.startleT = sneaky ? PREY_STARTLE : 0;
           }
-          if (c.fleeing && c.hideAt) {
+          if (c.startleT > 0) {
+            c.startleT -= dt; // frozen to the spot
+          } else if (c.fleeing && c.hideAt) {
             // running for cover: straight there, at the dash speed, until it is in
             const to = c.hideAt.clone().sub(p).setY(0);
             const d = to.length();

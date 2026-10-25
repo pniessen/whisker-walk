@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH } from '../src/critters.js';
+import {
+  createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED,
+} from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 
 // A scene stand-in — createCritters only ever add()s and remove()s groups, so
@@ -425,6 +427,7 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
       rng, hides: [HIDE, { x: 24, z: 0 }],
     });
     let rolls = 0; // spawn's own phase roll predates Task 13 and is not under test
+    let sawDash = false;
     Math.random = () => { rolls++; return real(); };
     try {
       frame(c, V(-3, 0));          // the mouse bolts for cover
@@ -432,7 +435,13 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
       c.markStalked(V(19.5, 0), true);
       c.pounceCatch(V(19.5, 0));   // the rat is caught and hides
       run(c, 2, V(19.5, 0), true);
-      run(c, 4, V(-18, 0));        // the squirrel has no cover in reach: the dash
+      // The squirrel has no cover in reach: a trotting cat sends it on the dash.
+      for (let i = 0; i < 120; i++) {
+        frame(c, V(-26 + i * 0.05, 0));
+        if (byType(c, 'squirrel').fleeing) sawDash = true;
+      }
+      c.markStalked(V(-3, 0), true);
+      frame(c, V(-3, 0.5), true); // a stalked startle on the way, too
       c.reactToMeow(V(0, 0), { far: true });
       run(c, 1, V(0, 0));
     } finally {
@@ -441,7 +450,135 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(byType(c, 'mouse').hidden).toBe(true);
     expect(byType(c, 'rat').hidden).toBe(true);
     expect(byType(c, 'squirrel').hidden).toBeFalsy();
+    expect(sawDash).toBe(true);
     expect(draws).toBe(0);
     expect(rolls).toBe(0);
+  });
+
+  // ---- Fix round 1: rulings R27 (startle), R28 (Far Call), R29 (still cat) --
+
+  it('a stalking cat startles the mouse: it freezes before it bolts (R27)', () => {
+    expect(PREY_STARTLE).toBe(0.5);
+    const c = createCritters(scene, [still()], { hides: [HIDE] });
+    const mouse = byType(c, 'mouse');
+    c.markStalked(V(-6, 0), true);
+    for (let x = -3; x < -1.25; x += 0.03) frame(c, V(x, 0), true); // creeping in
+    expect(mouse.fleeing).toBe(false);
+    frame(c, V(-1.1, 0), true);
+    expect(mouse.fleeing).toBe(true); // noticed...
+    run(c, PREY_STARTLE - 0.05, V(-1.1, 0), true);
+    expect(mouse.group.position.x).toBe(0); // ...and frozen to the spot
+    run(c, 0.3, V(-1.1, 0), true);
+    expect(mouse.group.position.x).toBeGreaterThan(0.5); // then off to its cover
+
+    // A trotting cat gets no startle: it is moving on the frame it notices.
+    const t = createCritters(scene, [still()], { hides: [HIDE] });
+    frame(t, V(-10, 0));
+    frame(t, V(-3, 0));
+    expect(byType(t, 'mouse').fleeing).toBe(true);
+    expect(byType(t, 'mouse').group.position.x).toBeGreaterThan(0.1);
+  });
+
+  it('a mouse caught mid-startle is off to its cover at once', () => {
+    const c = createCritters(scene, [still()], { hides: [HIDE] });
+    const mouse = byType(c, 'mouse');
+    c.markStalked(V(-6, 0), true);
+    for (let x = -3; x <= -1.1; x += 0.03) frame(c, V(x, 0), true);
+    expect(mouse.startleT).toBeGreaterThan(0);
+    expect(c.pounceCatch(V(-0.3, 0))).toEqual({ type: 'mouse', wasStalked: true });
+    frame(c, V(-0.3, 0), true);
+    expect(mouse.group.position.x).toBeGreaterThan(0.05);
+  });
+
+  // The lunge as player.js runs it (9 m/s, lerped 1-0.001^dt back toward the
+  // pace, hop 0.35m over 0.3s), in avatar.js's frame order: player.update ->
+  // critters.update -> markStalked -> pounceTime -= dt -> pounceCatch from the
+  // paws. The cat creeps (or trots) straight at the mouse and pounces
+  // `reaction` seconds after the frame the mouse notices it. One pounce.
+  function approach({ hideDeg, stalking, reaction }) {
+    const pace = 3.8; // tabby / black cat
+    const target = stalking ? pace * 0.45 : pace;
+    const a = (hideDeg * Math.PI) / 180; // 0 = cover straight behind the mouse
+    const c = createCritters(scene, [still()], { hides: [{ x: 5 * Math.cos(a), z: 5 * Math.sin(a) }] });
+    const mouse = byType(c, 'mouse');
+    c.markStalked(V(-8, 0), stalking);
+    let x = -8, v = target, pounceT = 0, hopT = -1, t = 0, pounceAt = -1;
+    for (let f = 0; f < 600; f++) {
+      t += 1 / 60;
+      if (f === pounceAt) { v = 9; pounceT = 0.3; hopT = 0; }
+      v += (target - v) * (1 - Math.pow(0.001, 1 / 60));
+      x += v / 60;
+      let y = 0;
+      if (hopT >= 0) { hopT += 1 / 60; const u = hopT / 0.3; y = u < 1 ? 0.35 * 4 * u * (1 - u) : 0; }
+      const cat = new THREE.Vector3(x, y, 0);
+      const was = mouse.fleeing;
+      c.update(1 / 60, t, cat, cat);
+      if (!was && mouse.fleeing) pounceAt = f + 1 + Math.round(reaction * 60);
+      c.markStalked(cat, stalking);
+      if (pounceT > 0) {
+        pounceT -= 1 / 60;
+        if (pounceT > 0 && c.pounceCatch(V(x, 0))) return true;
+        if (pounceT <= 0) return false;
+      }
+      if (mouse.hidden) return false;
+    }
+    return false;
+  }
+
+  it('stalk straight in and pounce when it notices: caught at least 4 times in 5 (R27)', () => {
+    const fiveWays = [0, 45, 90, 135, 180]; // where its cover lies
+    const caught = (stalking, reaction) =>
+      fiveWays.filter((hideDeg) => approach({ hideDeg, stalking, reaction })).length;
+    // A child's reaction, from instant to half a second.
+    for (const reaction of [0, 0.3, 0.5]) expect(caught(true, reaction)).toBeGreaterThanOrEqual(4);
+    // Trotting in almost never works — only when its cover is behind the cat.
+    for (const reaction of [0, 0.3]) expect(caught(false, reaction)).toBeLessThanOrEqual(1);
+  });
+
+  it('a critter answering a Far Call does not notice the cat while the call lasts (R28)', () => {
+    const c = createCritters(scene, [still('squirrel', 10, 0)], { hides: [{ x: 8, z: 0 }] });
+    const sq = byType(c, 'squirrel');
+    expect(c.reactToMeow(V(0, 0), { far: true })).toBe(1);
+    // The cat fidgets on the spot (moving, so the trotting 3.5m applies) while
+    // the squirrel comes over and settles 2.2m off.
+    let i = 0;
+    const fidget = () => frame(c, V((i++ % 2) * 0.1, 0));
+    while (sq.drawT > 0.1) fidget();
+    expect(sq.group.position.distanceTo(V(0, 0))).toBeLessThan(PREY_NOTICE);
+    expect(sq.fleeing).toBe(false);
+    // The call lapses: now it notices, and heads for cover.
+    for (let k = 0; k < 300; k++) fidget();
+    expect(sq.hidden).toBe(true);
+  });
+
+  it('a still cat is not a threat: noticed at the stalking distance (R29)', () => {
+    expect(STILL_SPEED).toBe(0.25);
+    const c = createCritters(scene, [still()], { hides: [HIDE] });
+    const mouse = byType(c, 'mouse');
+    // A touch player creeps up, then lets go of the stick 2m short: no stalk
+    // flag, but no movement either.
+    c.markStalked(V(-6, 0), true);
+    for (let x = -4; x < -2; x += 0.03) frame(c, V(x, 0), true);
+    run(c, 3, V(-2, 0), false);
+    expect(mouse.fleeing).toBe(false);
+    // Edging in at 0.2 m/s is still "stopped": noticed only at 1.2m, and
+    // treated like a stalking cat all the way, startle included.
+    let x = -2;
+    while (!mouse.fleeing && x < -0.5) { x += 0.2 / 60; frame(c, V(x, 0), false); }
+    expect(x).toBeGreaterThan(-1.25);
+    expect(x).toBeLessThan(-1.15);
+    expect(mouse.startleT).toBeGreaterThan(0);
+
+    // The same spot, but the cat walks on (0.4 m/s, unstalked): that is
+    // movement, so the trotting 3.5m applies — noticed at once, no startle.
+    const t = createCritters(scene, [still()], { hides: [HIDE] });
+    const m2 = byType(t, 'mouse');
+    t.markStalked(V(-6, 0), true);
+    for (let x2 = -4; x2 < -2; x2 += 0.03) frame(t, V(x2, 0), true);
+    run(t, 1, V(-2, 0), false);
+    expect(m2.fleeing).toBe(false);
+    frame(t, V(-2 + 0.4 / 60, 0), false);
+    expect(m2.fleeing).toBe(true);
+    expect(m2.startleT).toBe(0);
   });
 });
