@@ -26,7 +26,7 @@ import { buildCat } from '../cat/model.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
-import { createStrayCats } from '../straycats.js';
+import { createStrayCats, strayStream } from '../straycats.js';
 import { createRemoteCats } from '../remotecats.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
@@ -686,6 +686,10 @@ export function createWalkLifecycle({
     // cross — accepted, and already true of every friendship fact in the game.
     // It draws nothing from walkRng, so the shared stream is untouched.
     //
+    // The strays spawn from their own room-seeded stream, strayStream(roomSeed),
+    // not walkRng, so how many a device spawns (14 coarse, 22 otherwise) costs
+    // walkRng nothing and treats and goals land the same everywhere.
+    //
     // roomSeed is handed over as well, and is NOT a second walkRng consumer:
     // straycats uses it only to seed one private mulberry32 per cat for that
     // cat's own wander draws, so co-walkers' strays keep wandering in step
@@ -708,9 +712,9 @@ export function createWalkLifecycle({
     //
     // Neither of these touches walkRng. colonyWalk is pure over the roster
     // and the save, and the colony cats consume exactly the draws the strays
-    // they replace would have (see the createStrayCats header) — so this is
-    // not a new walkRng consumer of any kind, lazy or eager, and the WARNING
-    // at the top of startWalk is untouched. The den gets no strays at all, so
+    // they replace would have, from the strays' own stream (see the
+    // createStrayCats header) — so a colony difference never shifts that
+    // stream, and this is not a walkRng consumer of any kind, lazy or eager. The den gets no strays at all, so
     // it gets no colony cats either (its tamed cats are Task 7's).
     const roomAtStart = roomSeed !== undefined ? getPendingRoom() : null;
     const colonyWalk = roomSeed === undefined || (!!roomAtStart && rosterIsPartnerOnly(
@@ -723,14 +727,14 @@ export function createWalkLifecycle({
     // found in another area lives at its spot THERE — neither may wander in
     // here at a random spot. Off a colony walk the list is empty, so the cast
     // is byte-for-byte what a non-partner co-walker computes. Excluding names
-    // filters the already-drawn shuffle, so it costs walkRng nothing either.
+    // filters the already-drawn shuffle, so it costs no draws from any stream either.
     const colonyCats = colonyWalk && !isDen && state.colony
       ? catsInArea(state.colony, areaId).map((c) => ({
         name: c.name, x: c.x, z: c.z, wear: colonyWear(c.wear, CATALOG.accessories),
       }))
       : [];
     const excludeNames = colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : [];
-    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng, {
+    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), strayStream(roomSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
       colonyCats,
