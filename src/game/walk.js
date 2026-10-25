@@ -32,6 +32,7 @@ import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
+import { createPlayerMarks } from '../render/playermarks.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
 import { propsFor } from '../propsets.js';
 import { createScent } from '../scent.js';
@@ -997,6 +998,13 @@ export function createWalkLifecycle({
       mouth: createMouth(),
       items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables),
     };
+    // v21 3b — the things this player has left behind. In the den that is what
+    // they carried home, laid out in front of the hearth; the outdoor half
+    // arrives later, and until then any other area builds nothing. Created
+    // after mergeStaticProps, so nothing here is merged.
+    const playerMarks = createPlayerMarks(scene, areaId, progression.marksIn(areaId), {
+      keepSlots: propsFor(areaId).keepSlots,
+    });
     const scent = createScent(scene, areaData, walkRng);
 
     // Live contact decals for everything that moves, registered now that the
@@ -1264,6 +1272,7 @@ export function createWalkLifecycle({
       secrets,
       tippables,
       carry,
+      playerMarks,
       gifts,
       // v20 Ruffled Fur — the enemy system's per-walk, in-memory scratch
       // state: which cross cats have already had their one swat (and the
@@ -1688,6 +1697,7 @@ export function createWalkLifecycle({
     // Before the traversal too: it takes its meshes out of the scene and frees
     // each geometry and material exactly once.
     session.carry.items.dispose();
+    session.playerMarks?.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
