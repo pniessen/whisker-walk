@@ -2,7 +2,7 @@ import { test, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
-import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
+import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
 import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
@@ -73,7 +73,7 @@ test('RIVAL_PREFIXES: four distinct short words, frozen, one per area', () => {
 });
 
 test('no RIVAL_PREFIXES word is a PREFIXES word, a stray or kit name, or a denied clan', () => {
-  const strays = new Set([...CAT_NAMES, ...KIT_NAMES].map((n) => n.toLowerCase()));
+  const strays = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES].map((n) => n.toLowerCase()));
   for (const w of Object.values(RIVAL_PREFIXES)) {
     expect(PREFIXES).not.toContain(w);
     expect(strays.has(w.toLowerCase())).toBe(false);
@@ -85,9 +85,9 @@ test('no RIVAL_PREFIXES word is a PREFIXES word, a stray or kit name, or a denie
 
 // A stored name that is also a prefix word would sit beside a clan name built
 // from it (a "Juniperkit" card next to a cat called Juniper).
-test('no stray or kit name is a PREFIXES, CAT_PREFIXES or RIVAL_PREFIXES word', () => {
+test('no stray, kit or legendary name is a PREFIXES, CAT_PREFIXES or RIVAL_PREFIXES word', () => {
   const words = new Set([...PREFIXES, ...Object.values(CAT_PREFIXES), ...Object.values(RIVAL_PREFIXES)].map((w) => w.toLowerCase()));
-  const hits = [...CAT_NAMES, ...KIT_NAMES].filter((n) => words.has(n.toLowerCase()));
+  const hits = [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES].filter((n) => words.has(n.toLowerCase()));
   expect(hits).toEqual([]);
 });
 

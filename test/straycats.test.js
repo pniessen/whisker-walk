@@ -10,7 +10,7 @@ import { mulberry32 } from '../src/rng.js';
 import { PREFIXES, CAT_PREFIXES } from '../src/clanwords.js';
 import { prefixFor } from '../src/clannames.js';
 import { emptyColony, feedCat, canFeed, tamingProgress } from '../src/colony.js';
-import { KIT_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
+import { KIT_NAMES, LEGENDARY_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
 
 function fakeScene() {
   const objects = new Set();
@@ -509,8 +509,10 @@ describe('D2 — only strays can ever bear a grudge', () => {
     expect(avatarNames).toContain('Zeetoo');   // the list really is the family pets
     expect(avatarNames).toContain('Hagrid');
     for (const name of avatarNames) expect(CAT_NAMES).not.toContain(name);
-    // The gate also admits KIT_NAMES, so they must be disjoint from avatars too.
+    // The gate also admits KIT_NAMES and LEGENDARY_NAMES, so they must be
+    // disjoint from avatars too.
     for (const name of avatarNames) expect(KIT_NAMES).not.toContain(name);
+    for (const name of avatarNames) expect(LEGENDARY_NAMES).not.toContain(name);
   });
 
   it('admits a kit-named colony cat cast onto a walk', () => {
@@ -959,9 +961,10 @@ describe('reserved kit names', () => {
   // ^[A-Za-z][A-Za-z ]{0,23}$ (a letter first, then letters/spaces, 24 max: no
   // hyphens, apostrophes or digits). A name the server would refuse must fail
   // here, not silently on a child's device.
-  it('every cat and kit name obeys the feed RPC name regex', () => {
+  it('every cat, kit and legendary name obeys the feed RPC name regex', () => {
     const RPC_NAME = /^[A-Za-z][A-Za-z ]{0,23}$/;
-    for (const n of [...CAT_NAMES, ...KIT_NAMES]) expect(n).toMatch(RPC_NAME);
+    expect(LEGENDARY_NAMES).toHaveLength(4);
+    for (const n of [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES]) expect(n).toMatch(RPC_NAME);
   });
 
   // The clan layer shows prefix + rank suffix, derived from the stored name.

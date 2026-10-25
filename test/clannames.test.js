@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
+import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
 import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames, colonyRankFor } from '../src/clannames.js';
@@ -24,11 +24,12 @@ test('a cat with a full head start is already an apprentice', () => {
   expect(clanRankFor({ have: HEAD_START_MAX, tamed: false })).toBe('apprentice');
 });
 
-// Every stored name, strays AND kits (a fed kit grows up into a colony cat),
-// must give a distinct warrior name, or two tamed cards would share a name.
-test('all 60 stored names give 60 distinct warrior clan names', () => {
-  const all = [...CAT_NAMES, ...KIT_NAMES];
-  expect(all).toHaveLength(60);
+// Every stored name, strays, kits AND legendary cats (a fed kit grows up into
+// a colony cat, and a legendary cat joins like any stray), must give a
+// distinct warrior name, or two tamed cards would share a name.
+test('all 64 stored names give 64 distinct warrior clan names', () => {
+  const all = [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES];
+  expect(all).toHaveLength(64);
   const tamed = all.map((n) => clanNameOf(n, { have: 6, tamed: true }));
   expect(new Set(tamed).size).toBe(all.length);
 });
@@ -131,15 +132,16 @@ test('colonyRankFor floors a kit name at apprentice, and leaves strays alone', (
 
 // ---- CAT_PREFIXES: every stored name has its own prefix ----
 
-const ALL_NAMES = [...CAT_NAMES, ...KIT_NAMES];
+const ALL_NAMES = [...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES];
 // The pre-table prefix: the hash over the 22-word PREFIXES list (SALT 27).
 const oldPrefix = (n) => PREFIXES[seedFromCode(`${n}|27`) % PREFIXES.length];
 
 test('CAT_PREFIXES has an own entry for every stored name and no other keys', () => {
   expect(Object.isFrozen(CAT_PREFIXES)).toBe(true);
-  expect(ALL_NAMES).toHaveLength(60);
+  expect(ALL_NAMES).toHaveLength(64);
   for (const n of ALL_NAMES) expect(Object.hasOwn(CAT_PREFIXES, n)).toBe(true);
-  // Same set, and the literal is written in CAT_NAMES then KIT_NAMES order.
+  // Same set, and the literal is written in CAT_NAMES, then KIT_NAMES, then
+  // LEGENDARY_NAMES order.
   expect(Object.keys(CAT_PREFIXES)).toEqual(ALL_NAMES);
 });
 
@@ -147,18 +149,18 @@ test('prefixFor reads the table for every stored name', () => {
   for (const n of ALL_NAMES) expect(prefixFor(n)).toBe(CAT_PREFIXES[n]);
 });
 
-test('all 60 names give 180 distinct clan names across every name AND rank', () => {
+test('all 64 names give 192 distinct clan names across every name AND rank', () => {
   const out = [];
   for (const n of ALL_NAMES) {
     out.push(clanNameOf(n, { have: 0 }), clanNameOf(n, { have: 2 }), clanNameOf(n, { tamed: true }));
   }
-  expect(out).toHaveLength(180);
-  expect(new Set(out).size).toBe(180);
+  expect(out).toHaveLength(192);
+  expect(new Set(out).size).toBe(192);
 });
 
 test('every CAT_PREFIXES word is short, unique, clean and clear of every other word list', () => {
   const words = Object.values(CAT_PREFIXES);
-  expect(new Set(words).size).toBe(60);
+  expect(new Set(words).size).toBe(64);
   const stored = new Set(ALL_NAMES.map((n) => n.toLowerCase()));
   const rivals = new Set(Object.values(RIVAL_PREFIXES));
   for (const w of words) {
@@ -176,10 +178,14 @@ test('every CAT_PREFIXES word is short, unique, clean and clear of every other w
 // the join; of those, only Marmalade had kept its old prefix (Lark).
 const HAND_SWAPPED = new Set(['Marmalade', 'Meatball', 'Static', 'Pip', 'Beignet', 'Doppler', 'Sprout']);
 
+// The legendary prefixes were hand-picked, not walked by the script (see
+// clanwords.js), so only the first 60 names are walked here.
 test('a cat keeps its old prefix unless an earlier name took it (20 kept)', () => {
   const taken = new Set();
   let kept = 0;
-  for (const n of ALL_NAMES) {
+  const scripted = ALL_NAMES.slice(0, 60);
+  expect(scripted).toEqual([...CAT_NAMES, ...KIT_NAMES]);
+  for (const n of scripted) {
     const old = oldPrefix(n);
     if (HAND_SWAPPED.has(n)) {
       taken.add(old);
@@ -217,7 +223,7 @@ test("prefixFor('__proto__') hashes rather than reading an inherited value", () 
 
 // No clan name doubles a letter where prefix meets suffix (Larkkit, Tulippaw).
 test('no clan name doubles a letter at the join', () => {
-  for (const n of [...CAT_NAMES, ...KIT_NAMES]) {
+  for (const n of ALL_NAMES) {
     const p = prefixFor(n);
     for (const prog of [{ have: 0 }, { have: 2 }, { tamed: true }]) {
       // A doubled vowel (Primroseear) reads fine; a doubled consonant does not.

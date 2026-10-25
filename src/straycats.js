@@ -4,7 +4,7 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, setNameTagMood, NAME_TAG_RANGE } from './nametag.js';
 import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { CAT_NAMES, KIT_NAMES, strayBreed, isStrayName } from './straynames.js';
+import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName } from './straynames.js';
 import { isShy } from './colony.js';
 
 const WANDER_SPEED = 1.4;
@@ -159,7 +159,7 @@ export { CAT_NAMES };
 // ---------------------------------------------------------------------------
 // Accepted consequence: a grown kit can turn cross like any stray (still under
 // D5's friend/best immunity). That is what "ordinary ladder" means.
-const STRAY_NAMES = new Set([...CAT_NAMES, ...KIT_NAMES]);
+const STRAY_NAMES = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES]);
 
 // isGrudgeableStray(strayCats, cat) → bool. The single D2 gate; every enemy
 // path in game/interactions.js asks it before consulting enemies.js at all.

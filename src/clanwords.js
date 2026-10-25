@@ -31,10 +31,11 @@ export const PREFIXES = Object.freeze([
   'Aspen', 'Larch', 'Hawthorn', 'Primrose', 'Sage', 'Tansy',
 ]);
 
-// Each of the 60 stored names (the 48 CAT_NAMES, then the 12 KIT_NAMES) has its
-// OWN prefix here, so no two cats share a clan name at ANY rank (Mosskit,
-// Mosspaw, Mossfur...). The hash over PREFIXES alone could not do it: 22
-// prefixes cannot cover 60 names, and kits and apprentices share one suffix.
+// Each of the 64 stored names (the 48 CAT_NAMES, the 12 KIT_NAMES, then the 4
+// LEGENDARY_NAMES) has its OWN prefix here, so no two cats share a clan name
+// at ANY rank (Mosskit, Mosspaw, Mossfur...). The hash over PREFIXES alone
+// could not do it: 22 prefixes cannot cover 64 names, and kits and
+// apprentices share one suffix.
 //
 // Generated ONCE by a throwaway script and pasted in as a literal; nothing here
 // is computed at runtime, and a test pins every rule below. The script walked
@@ -117,6 +118,15 @@ export const CAT_PREFIXES = Object.freeze({
   'Tumble': 'Swallow',
   'Toffee': 'Plover',
   'Ember': 'Linnet',
+  // The four LEGENDARY_NAMES, hand-picked (not walked by the script above), one
+  // to suit each grand old cat and obeying every rule above: a regal iris for
+  // Duchess, a park chestnut for Professor Whiskers (Hazel was refused:
+  // Hazeltail is a published name), coral for Captain Barnacle, a night owl
+  // for Lord Midnight.
+  'Duchess': 'Iris',
+  'Professor Whiskers': 'Chestnut',
+  'Captain Barnacle': 'Coral',
+  'Lord Midnight': 'Owl',
 });
 
 // One hand-authored first half per walk area, for that area's rival clan

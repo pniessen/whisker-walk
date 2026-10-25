@@ -45,9 +45,23 @@ export const KIT_NAMES = [
   'Peanut', 'Cupcake', 'Puddle', 'Tumble', 'Toffee', 'Ember',
 ];
 
-// A Set (one union of both blocks), so '__proto__' and other inherited keys read as plain strangers, and
+// LEGENDARY_NAMES is a THIRD separate block, for the same reason KIT_NAMES is:
+// appending to CAT_NAMES would shift the walk's seeded shuffle (and every draw
+// after it), so CAT_NAMES and walkRng stay untouched. One grand old cat per
+// colony area (legendary.js holds which lives where). isStrayName() accepts
+// them, and so does straycats.js's D2 vocabulary gate (isGrudgeableStray): a
+// legendary cat that joins the colony walks as a stray and must stay feedable,
+// through the ordinary feed path and nothing else. The server needs no change:
+// colony_cats.name is plain text, and the feed RPC only requires
+// ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).
+// None is shy (colony.isShy), so a child walking alone can tame one; none is a
+// family pet's name (CATALOG.cats); each has its own hand-picked CAT_PREFIXES
+// entry in clanwords.js.
+export const LEGENDARY_NAMES = ['Duchess', 'Professor Whiskers', 'Captain Barnacle', 'Lord Midnight'];
+
+// A Set (one union of all three blocks), so '__proto__' and other inherited keys read as plain strangers, and
 // anything that is not a string is rejected rather than coerced.
-const NAME_SET = new Set([...CAT_NAMES, ...KIT_NAMES]);
+const NAME_SET = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES]);
 export function isStrayName(v) {
   return typeof v === 'string' && NAME_SET.has(v);
 }
