@@ -54,6 +54,38 @@ describe('renderColonyHtml', () => {
     expect(count(html, /colony-bar/g)).toBe(1);
   });
 
+  it('names whoever actually knew the cat', () => {
+    const both = (head) => (n, by) => feed(n, by, 1, head);
+    const mineOnly = render(colonyOf({ partner: PAIR, cats: [cat(A)],
+      feeds: [...both(3)(A, ME), ...both(0)(A, PARTNER)] }));
+    expect(mineOnly).toContain(`You already knew ${A} ♥`);
+    const theirsOnly = render(colonyOf({ partner: PAIR, cats: [cat(A)],
+      feeds: [...both(0)(A, ME), ...both(3)(A, PARTNER)] }));
+    expect(theirsOnly).toContain(`Robin already knew ${A} ♥`);
+    expect(theirsOnly).not.toContain('You already knew');
+    expect(theirsOnly).not.toContain('You both');
+    const bothKnew = render(colonyOf({ partner: PAIR, cats: [cat(A)],
+      feeds: [...both(3)(A, ME), ...both(3)(A, PARTNER)] }));
+    expect(bothKnew).toContain(`You both already knew ${A} ♥`);
+    // a smaller head start than the max doesn't count as "knowing" it
+    const lesser = render(colonyOf({ partner: PAIR, cats: [cat(A)],
+      feeds: [...both(1)(A, ME), ...both(3)(A, PARTNER)] }));
+    expect(lesser).toContain(`Robin already knew ${A} ♥`);
+  });
+
+  it('escapes the partner name in the head-start line', () => {
+    const html = render(colonyOf({
+      partner: { playerId: PARTNER, petName: '<b>x</b>', wardrobe: [] }, cats: [cat(A)],
+      feeds: [...feed(A, PARTNER, 1, 3)],
+    }));
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt; already knew');
+    expect(html).not.toContain('<b>');
+  });
+
+  it('does not throw on a cat with a non-string name', () => {
+    expect(() => render(colonyOf({ cats: [cat(42), cat(null)] }))).not.toThrow();
+  });
+
   it('says nothing about a head start when there is none', () => {
     const html = render(colonyOf({ cats: [cat(A)], feeds: feed(A, ME, 2) }));
     expect(html).not.toContain('You already knew');

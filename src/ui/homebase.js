@@ -463,6 +463,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     for (const panel of root.querySelectorAll('.hb-panel')) {
       panel.classList.toggle('active', panel.dataset.panel === activeTab);
     }
+    // On phones the tab bar scrolls sideways (style.css); keep the active
+    // tab visible, since render() rebuilds the bar at scrollLeft 0. Plain
+    // scrollLeft math, so the page itself never scrolls.
+    const bar = root.querySelector('.hb-tabs');
+    const on = bar && bar.querySelector('.hb-tab.active');
+    if (on && bar.scrollWidth > bar.clientWidth) {
+      bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
+    }
   }
 
   function render() {

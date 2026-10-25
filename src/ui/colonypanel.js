@@ -52,6 +52,21 @@ function dressSelect(cat, owned, catalog) {
       </select></label>`;
 }
 
+// Who already knew this cat? The head start is the largest `head` on any feed
+// for it, so name whoever's feeds carry that value: me, the partner, or both.
+function knewLine(catName, p, { me, partner, partnerName, feeds }) {
+  let mine = false;
+  let theirs = false;
+  for (const f of feeds) {
+    if (f.cat !== catName || f.head !== p.headStart) continue;
+    if (f.by === me) mine = true;
+    else if (partner && f.by === partner.playerId) theirs = true;
+  }
+  if (mine && theirs) return `You both already knew ${catName} ♥`;
+  if (theirs) return `${partnerName} already knew ${catName} ♥`;
+  return `You already knew ${catName} ♥`;
+}
+
 function catCard(cat, p, ctx) {
   const { me, partner, partnerName, catalog, owned } = ctx;
   const name = escapeHtml(cat.name);
@@ -76,11 +91,11 @@ function catCard(cat, p, ctx) {
   const fedPct = Math.round(((p.have - p.headStart) / need) * 100);
   const head = p.headStart > 0 ? `<span class="colony-head" style="width:${headPct}%"></span>` : '';
 
-  const knew = p.headStart > 0 ? `<div class="colony-knew">You already knew ${name} ♥</div>` : '';
+  const knew = p.headStart > 0 ? `<div class="colony-knew">${escapeHtml(knewLine(cat.name, p, ctx))}</div>` : '';
   const dress = cat.finder === me ? dressSelect(cat, owned, catalog) : '';
 
   return `<div class="card colony-card ${p.tamed ? 'selected' : ''}" data-cat="${name}">
-    <div class="card-name">${name} <span class="colony-breed">${escapeHtml(strayBreed(cat.name))}</span></div>
+    <div class="card-name">${name} <span class="colony-breed">${escapeHtml(typeof cat.name === 'string' ? strayBreed(cat.name) : '')}</span></div>
     <div class="colony-bar" role="progressbar" aria-label="${name}'s trust"
       aria-valuemin="0" aria-valuemax="${p.need}" aria-valuenow="${p.have}">${head}<span class="colony-fed" style="width:${fedPct}%"></span></div>
     <div class="colony-count">${p.have} of ${p.need} feeds${p.tamed ? ' · tamed ✅' : ''}</div>
@@ -102,7 +117,7 @@ export function renderColonyHtml({ colony, me, members = 1, status, owned, catal
   // placed into the HTML, so nothing is ever escaped twice or not at all.
   const partnerName = partner && partner.petName ? String(partner.petName) : 'your partner';
 
-  const ctx = { me, partner, partnerName, catalog, owned };
+  const ctx = { me, partner, partnerName, catalog, owned, feeds: safeColony.feeds };
   const rows = cats.map((cat) => ({ cat, p: tamingProgress(safeColony, cat.name, { members }) }));
   rows.sort((a, b) =>
     (b.p.tamed - a.p.tamed) || (b.p.have - a.p.have) || (a.cat.name < b.cat.name ? -1 : a.cat.name > b.cat.name ? 1 : 0));
