@@ -408,14 +408,11 @@ function defaultState() {
     // id, never from state.colony.id: that id is null when solo, is minted by
     // the server, is deliberately never displayed, and changes at pairing, so
     // it cannot give a solo player a name or keep one stable. `adopted` is set
-    // once, when the joiner takes the inviter's name at pairing; after that
-    // the name never changes again. Additive, so SAVE_VERSION stays 4.
+    // once, at the first successful paired sync, when both devices take the
+    // name minted from the smaller of the two player ids (R23; colonysync
+    // explains why it is not the inviter's); after that the name never
+    // changes again. Additive, so SAVE_VERSION stays 4.
     clan: { name: null, adopted: false },
-    // True once a successful sync showed this device as the one waiting to
-    // join (not the inviter). Persisted because colonysync's in-memory
-    // `joining` is lost if the joiner closes the app while waiting, and the
-    // server cannot tell the two members apart. Kept OUTSIDE `clan` on purpose.
-    clanJoining: false,
   };
 }
 
@@ -756,7 +753,6 @@ function sanitizeState(parsed) {
     colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
     clan: sanitizeClan(parsed.clan),
-    clanJoining: parsed.clanJoining === true,
   };
 }
 
@@ -1361,19 +1357,13 @@ export function createProgression(storage) {
       save();
     },
 
-    // adoptClanName(name): the joiner takes the inviter's name. Invalid names
-    // are ignored, and it is a no-op once adopted.
+    // adoptClanName(name): take the pair's shared name, the one minted from
+    // the smaller of the two player ids (R23). Both devices call it on every
+    // successful paired sync; the device whose own id is smaller adopts its
+    // own name. Invalid names are ignored, and it is a no-op once adopted.
     adoptClanName(name) {
       if (state.clan.adopted || !acceptedClanName(name)) return;
       state.clan = { name, adopted: true };
-      save();
-    },
-
-    // setClanJoining(bool): saves only when the value changes.
-    setClanJoining(flag) {
-      const next = flag === true;
-      if (state.clanJoining === next) return;
-      state.clanJoining = next;
       save();
     },
 

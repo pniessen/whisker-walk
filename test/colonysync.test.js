@@ -41,7 +41,7 @@ function fakeCloud(script = {}) {
 }
 const totalCalls = (cloud) => CLOUD_METHODS.reduce((n, m) => n + cloud[m].mock.calls.length, 0);
 
-function setup({ MP = true, petName = 'Mittens', script = {} } = {}) {
+function setup({ MP = true, petName = 'Mittens', script = {}, pid = ME } = {}) {
   const progression = createProgression(fakeStorage());
   if (petName !== null) progression.setPetName(petName);
   const cloud = fakeCloud(script);
@@ -50,7 +50,7 @@ function setup({ MP = true, petName = 'Mittens', script = {} } = {}) {
   const pushProfileNow = vi.fn(() => Promise.resolve());
   const onChange = vi.fn();
   const onTradesApplied = vi.fn();
-  const cs = createColonySync({ MP, pid: ME, getCloud, getPsecret, pushProfileNow, progression, onChange, onTradesApplied });
+  const cs = createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow, progression, onChange, onTradesApplied });
   return { cs, cloud, getCloud, getPsecret, progression, pushProfileNow, onChange, onTradesApplied, script };
 }
 
@@ -987,57 +987,65 @@ describe('createColonySync — fix round 1', () => {
   });
 });
 
-describe('createColonySync — the clan name at pairing', () => {
-  const run = (script) => setup({ script: { colonySync: script } });
+describe('createColonySync — the clan name at pairing (R23)', () => {
+  // Both devices of a pair, each with its own id, both paired to the other.
+  const device = (pid, other, extra = {}) => setup({ pid, script: { colonySync: () => pairedSnap({
+    members: [{ player_id: pid, pet_name: 'Mittens', wardrobe: [] }, { player_id: other, pet_name: 'Robin', wardrobe: [] }],
+    ...extra }) } });
+  const minId = (a, b) => (a < b ? a : b);
 
-  it('a joiner who saw joining adopts the partner-derived name when paired', async () => {
-    const queue = [unpairedSnap({ joining: { inviter_pet_name: 'Robin' } }), pairedSnap()];
-    const { cs, progression } = run(() => queue.shift());
-    await cs.pull();
-    expect(progression.state.clanJoining).toBe(true);
-    await cs.pull();
-    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: true });
-    expect(progression.state.clanJoining).toBe(false);
+  it.each([[ME, SIB], [SIB, ME]])('both devices end on the same name, whichever id is smaller (%s first)', async (a, b) => {
+    const A = device(a, b), B = device(b, a);
+    await A.cs.pull();
+    await B.cs.pull();
+    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(minId(a, b)), adopted: true });
+    expect(B.progression.state.clan).toEqual(A.progression.state.clan);
   });
-  it('a cold start with clanJoining already saved adopts on the first paired snapshot', async () => {
-    const { cs, progression } = run(() => pairedSnap());
-    progression.setClanJoining(true);
-    await cs.pull();
-    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: true });
+  it('the device with the smaller id keeps its own minted name, now adopted', async () => {
+    const small = device(ME, SIB);
+    small.progression.ensureClanName(ME);
+    await small.cs.pull();
+    expect(ME < SIB).toBe(true);
+    expect(small.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
   });
-  it('an inviter keeps the name minted from its own id', async () => {
-    const queue = [unpairedSnap(), pairedSnap()];
-    const { cs, progression } = run(() => queue.shift());
-    await cs.pull();
-    await cs.pull();
-    expect(progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: false });
+  it('an already-paired cold start (each name minted at boot) converges', async () => {
+    const A = device(ME, SIB), B = device(SIB, ME);
+    A.progression.ensureClanName(ME);
+    B.progression.ensureClanName(SIB);
+    expect(A.progression.state.clan.name).not.toBe(B.progression.state.clan.name);
+    await B.cs.pull();
+    await A.cs.pull();
+    expect(A.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
+    expect(B.progression.state.clan).toEqual({ name: clanTitleFor(ME), adopted: true });
   });
   it('a second paired pull changes nothing', async () => {
-    const { cs, progression } = run(() => pairedSnap());
-    progression.setClanJoining(true);
+    const { cs, progression } = device(SIB, ME);
     await cs.pull();
     const after = JSON.stringify(progression.state.clan);
     await cs.pull();
     expect(JSON.stringify(progression.state.clan)).toBe(after);
-    expect(progression.state.clanJoining).toBe(false);
   });
-  it('a failed pull does not clear the joining flag', async () => {
-    const { cs, progression } = run(() => ({ status: 'denied' }));
-    progression.setClanJoining(true);
+  it('a rejected paired snapshot adopts nothing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, progression } = setup({ pid: SIB, script: { colonySync: () => pairedSnap({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: [] }] }) } });
+    progression.ensureClanName(SIB);
     await cs.pull();
-    expect(progression.state.clanJoining).toBe(true);
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: false });
   });
-  it('a stale clanJoining is cleared by a successful unpaired snapshot without joining', async () => {
-    const { cs, progression } = run(() => unpairedSnap());
-    progression.setClanJoining(true);
+  it('a failed or unpaired pull adopts nothing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const queue = [{ status: 'denied' }, unpairedSnap({ joining: { inviter_pet_name: 'Robin' } })];
+    const { cs, progression } = setup({ pid: SIB, script: { colonySync: () => queue.shift() ?? { status: 'denied' } } });
+    progression.ensureClanName(SIB);
     await cs.pull();
-    expect(progression.state.clanJoining).toBe(false);
+    await cs.pull();
+    expect(progression.state.clan).toEqual({ name: clanTitleFor(SIB), adopted: false });
   });
-  it('a paired snapshot with no usable partner leaves the flag set and the name unadopted', async () => {
-    const { cs, progression } = run(() => pairedSnap({ members: [{ player_id: ME, pet_name: 'Mittens', wardrobe: [] }] }));
-    progression.setClanJoining(true);
-    await cs.pull();
-    expect(progression.state.clanJoining).toBe(true);
-    expect(progression.state.clan.adopted).toBe(false);
+  it('a stale clanJoining key in a saved JSON is ignored', () => {
+    const storage = fakeStorage();
+    storage.setItem('whisker-walk-save', JSON.stringify({ version: 4, clanJoining: true }));
+    const p = createProgression(storage);
+    expect('clanJoining' in p.state).toBe(false);
+    expect(typeof p.setClanJoining).toBe('undefined');
   });
 });

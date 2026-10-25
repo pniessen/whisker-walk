@@ -308,9 +308,6 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       netMode = 'unpaired';
       invite = snap.invite;
       joining = snap.joining;
-      // Remember (in the save) that this device is the joiner; only a
-      // successful pull gets here, a failed one never touches the flag.
-      progression.setClanJoining(!!snap.joining);
       if (!joining) joiningSince = null;
       else if (joiningSince === null) joiningSince = Date.now();
       return [];
@@ -322,11 +319,19 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     joiningSince = null;
     const { remote } = snap;
     progression.setColonyLink({ id: remote.id, partner: remote.partner });
-    // The inviter keeps the name it minted; the joiner takes the inviter's.
+    // R23: one clan for the pair. Both devices adopt the name minted from the
+    // SMALLER of the two player ids, so the device with the smaller id keeps
+    // its own name (now adopted) and the other takes it. A rule over the two
+    // ids, not over who invited: the inviter is unobservable (the server does
+    // not tell the members apart), and a pair that existed before the clan
+    // never sees a joining snapshot at all. Both ids are in every validated
+    // paired snapshot, so both devices compute the same name on their first
+    // successful paired pull, including a cold start. adoptClanName is a no-op
+    // once adopted, so later pulls change nothing.
     progression.ensureClanName(pid);
-    if (progression.state.clanJoining) {
-      if (remote.partner) progression.adoptClanName(clanTitleFor(remote.partner.playerId));
-      progression.setClanJoining(false);
+    if (remote.partner) {
+      const other = remote.partner.playerId;
+      progression.adoptClanName(clanTitleFor(pid < other ? pid : other));
     }
     const tamedSent = await pushUnsynced(cloud, secret, remote);
     progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
