@@ -2445,6 +2445,31 @@ describe('clan role verdicts', () => {
     expect(p.state.clanRoles.medicine).toBe(eligible);
   });
 
+  it('settleColonyTaming on a paired device with no merge settles no roles', () => {
+    p.setColonyLink({ id: 'col-1', partner: SISTER });
+    feedUntilTamed(eligible);
+    p.settleColonyTaming(ME);
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
+  it('a no-op merge on a paired device re-fills reset verdicts', () => {
+    const snap = { id: 'col-1', partner: SISTER, cats: tamedEligible().cats, feeds: tamedEligible().feeds, trades: [] };
+    p.setColonyLink({ id: 'col-1', partner: SISTER });
+    p.mergeColonySnapshot(snap);
+    expect(p.state.clanRoles.medicine).toBe(eligible);
+    p.setColonyLink({ id: 'col-2', partner: SISTER });
+    expect(p.state.clanRoles.medicine).toBeNull();
+    p.mergeColonySnapshot({ ...snap, id: 'col-2' }); // colony already holds everything
+    expect(p.state.clanRoles.medicine).toBe(eligible);
+    expect(createProgression(storage).state.clanRoles.medicine).toBe(eligible);
+  });
+
+  it('a merge with an invalid remote settles nothing', () => {
+    p.state.colony = { ...p.state.colony, ...tamedEligible() };
+    for (const bad of [null, [], { id: 5, cats: [] }, 'x']) p.mergeColonySnapshot(bad);
+    expect(p.state.clanRoles).toEqual({ medicine: null, deputy: null });
+  });
+
   // --- R12(b): a new pairing re-settles ------------------------------------
   it('a new colony id resets the verdicts, so both devices re-settle', () => {
     p.settleClanRoles(colonyWithADeputy());

@@ -1304,10 +1304,15 @@ export function createProgression(storage) {
     mergeColonySnapshot(remote) {
       if (!remote || typeof remote !== 'object' || Array.isArray(remote) || !isColonyId(remote.id)) return;
       const next = mergeColony(state.colony, remote, { knownItems: KNOWN_ACCESSORY_IDS });
-      if (JSON.stringify(next) === JSON.stringify(state.colony)) return;
-      state.colony = next;
-      settleRoles(state.colony);
-      save();
+      // A paired device's only trustworthy moment to settle is right after
+      // absorbing the partner's data, so settle on EVERY validated merge,
+      // even one that changes nothing: a device whose verdicts were just reset
+      // at pairing must not wait for an unrelated colony change. A remote that
+      // failed validation returned above and settles nothing.
+      const unchanged = JSON.stringify(next) === JSON.stringify(state.colony);
+      if (!unchanged) state.colony = next;
+      const rolesChanged = settleRoles(state.colony);
+      if (!unchanged || rolesChanged) save();
     },
 
     // setColonyLink({ id, partner }) — record the colony id and partner
@@ -1345,9 +1350,12 @@ export function createProgression(storage) {
     settleColonyTaming(me) {
       const r = settleTaming(state.colony, me, { members: api.colonyMembers(), now: Date.now() });
       if (r.settled.length > 0) state.colony = sanitizeColony(r.colony, { knownItems: KNOWN_ACCESSORY_IDS });
-      // Called right after every merge (colonysync), so this is also where a
-      // merged colony's verdicts get a chance even when no cat settled.
-      const rolesChanged = settleRoles(state.colony);
+      // Solo only. colonysync calls this on EVERY sync cycle, including after
+      // a pull that failed or went offline, and those paths never unlink, so
+      // a paired device here may hold feeds its partner has not seen. A paired
+      // device settles roles only inside mergeColonySnapshot, right after
+      // absorbing the partner's data.
+      const rolesChanged = api.colonyMembers() === 1 && settleRoles(state.colony);
       if (r.settled.length > 0 || rolesChanged) save();
       return r.settled.map((s) => s.name);
     },
