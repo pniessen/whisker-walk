@@ -1255,6 +1255,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   return {
     show() {
+      redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       render();
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden

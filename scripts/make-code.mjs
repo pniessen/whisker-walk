@@ -17,6 +17,7 @@
 import { pathToFileURL } from 'node:url';
 import { normalizeCode, hashCode } from '../src/redeem.js';
 import { CATALOG } from '../src/progression.js';
+import { REDEEM_CODES } from '../src/redeemcodes.js';
 
 export const WORDS = [
   'TUNA', 'MOON', 'WHISKER', 'PAW', 'MITTEN', 'KITTEN', 'PURR', 'MEOW',
@@ -52,6 +53,7 @@ export function inventCode(rng = defaultRng) {
 }
 
 const MIN_CODE_LENGTH = 8;
+const MIN_HARD_LENGTH = 4;
 const MAX_LABEL_LENGTH = 60;
 
 export function parseArgs(argv) {
@@ -97,10 +99,20 @@ export function validateReward(reward) {
   if ((reward.label ?? '').length > MAX_LABEL_LENGTH) {
     messages.push(`The label is too long (max ${MAX_LABEL_LENGTH} characters).`);
   }
-  if (reward.code !== undefined && normalizeCode(reward.code).length < MIN_CODE_LENGTH) {
+  const codeLength = reward.code !== undefined ? normalizeCode(reward.code).length : null;
+  if (codeLength !== null && codeLength < MIN_HARD_LENGTH) {
+    messages.push(`That code is too short: it needs at least ${MIN_HARD_LENGTH} letters or digits (spaces, dashes and emoji don't count).`);
+  } else if (codeLength !== null && codeLength < MIN_CODE_LENGTH) {
     messages.push(`Warning: that code is short (under ${MIN_CODE_LENGTH} letters and digits), so it is easier to guess.`);
   }
   return messages;
+}
+
+// Advice only: pasting the same hash twice would silently replace the old entry.
+export function duplicateWarning(hash, table = REDEEM_CODES) {
+  return Object.hasOwn(table, hash)
+    ? 'Warning: This code is already in src/redeemcodes.js — pasting it again would replace the old one.'
+    : null;
 }
 
 export function entryLine(hash, reward) {
@@ -126,6 +138,8 @@ async function main() {
   }
   const code = args.code ?? inventCode();
   const hash = await hashCode(normalizeCode(code));
+  const dup = duplicateWarning(hash);
+  if (dup) console.error(dup);
   console.log(`Code for the girls:   ${code}`);
   console.log('Paste into src/redeemcodes.js:');
   console.log(entryLine(hash, args));

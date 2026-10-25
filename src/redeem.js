@@ -142,6 +142,9 @@ function joinNice(list) {
   return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
 }
 
+// Breed cats are things ("the Black Cat"); named cats are people (Hagrid).
+const BREED_IDS = new Set(['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon']);
+
 export function redeemMessage(result, catalog) {
   if (!result || typeof result !== 'object') return '';
   switch (result.kind) {
@@ -149,7 +152,7 @@ export function redeemMessage(result, catalog) {
       const items = Array.isArray(result.items) ? result.items : [];
       const nameOf = (it) => {
         const name = catalog?.[it.kind]?.[it.id]?.name ?? it.name ?? it.id;
-        return it.kind === 'cats' ? String(name) : `the ${name}`;
+        return it.kind === 'cats' && !BREED_IDS.has(it.id) ? String(name) : `the ${name}`;
       };
       const fresh = items.filter((it) => !it.owned).map(nameOf);
       const owned = items.filter((it) => it.owned);

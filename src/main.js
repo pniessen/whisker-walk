@@ -501,6 +501,9 @@ function init() {
     }
   });
   document.addEventListener('keydown', (e) => {
+    // Typing in a home-base box (code, pet name, friend code) must never fire
+    // hotkeys like M, which would also rebuild the panel and steal focus.
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
     if (e.code === 'KeyE' && session && player.engaged && !e.repeat) {
       if (session.prompt) handleInteract(session);
       else {
@@ -513,7 +516,7 @@ function init() {
     if (e.code === 'KeyV' && session && player.engaged && !e.repeat) {
       doMeow();
     }
-    if (e.code === 'KeyM') {
+    if (e.code === 'KeyM' && !typing) {
       // settings.muted is the single source of truth (see applySettings) —
       // M just flips it, same as the homebase checkbox does; audio only
       // ever reads it back via applySettings()'s audio.setMuted() call.
@@ -535,7 +538,6 @@ function init() {
     }
     // chat keys — only during an active engaged walk, never while typing
     // (guards home-base pet-name/friend-code/room-code inputs).
-    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
     if (session && player.engaged && !typing) {
       const digitPhrase = phraseIdForDigit(e.code);
       if (digitPhrase) { session.sendPhrase(digitPhrase); return; }

@@ -209,7 +209,14 @@ describe('redeemMessage', () => {
     expect(redeemMessage({ kind: 'gift', points: 25, items: three }, catalog))
       .toBe('🎉 Surprise! You got the Wizard Hat, the Crown and 25 🐾 for the Top Hat you already had!');
   });
-  it('cats take no "the"', () => {
+  it('breed cats take "the", named cats do not', () => {
+    const cat = (id, name) => ({ kind: 'cats', id, name, owned: false, refund: 0 });
+    expect(redeemMessage({ kind: 'gift', points: 0, items: [cat('black', 'Black Cat')] }, { cats: {} }))
+      .toBe('🎉 Surprise! You got the Black Cat!');
+    expect(redeemMessage({ kind: 'gift', points: 5, items: [cat('mainecoon', 'Maine Coon')] }, { cats: {} }))
+      .toBe('🎉 Surprise! You got 5 🐾 and the Maine Coon!');
+  });
+  it('named cats take no "the"', () => {
     expect(redeemMessage({ kind: 'gift', points: 10, items: [{ kind: 'cats', id: 'hagrid', name: 'Hagrid', owned: false, refund: 0 }] }, catalog))
       .toBe('🎉 Surprise! You got 10 🐾 and Hagrid!');
   });

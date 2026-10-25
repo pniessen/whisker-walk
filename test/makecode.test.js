@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, inventCode, validateReward, entryLine, WORDS } from '../scripts/make-code.mjs';
+import { parseArgs, inventCode, validateReward, entryLine, duplicateWarning, WORDS } from '../scripts/make-code.mjs';
 import { normalizeCode, hashCode } from '../src/redeem.js';
 import { CATALOG } from '../src/progression.js';
 
@@ -46,6 +46,22 @@ describe('make-code script helpers', () => {
     expect(short.join('|')).toMatch(/short/);
     expect(short.every((m) => m.startsWith('Warning:'))).toBe(true);
     expect(validateReward({ points: 5, accessories: [], cats: [], label: 'x'.repeat(61) }).join('|')).toMatch(/label/);
+  });
+
+  it('a code that normalises to under 4 characters is an error, not a warning', () => {
+    for (const code of ['', '--', '🐾', 'a-b']) {
+      const msgs = validateReward({ code, points: 5, accessories: [], cats: [], label: '' });
+      expect(msgs.length).toBe(1);
+      expect(msgs[0]).toMatch(/too short/);
+      expect(msgs[0].startsWith('Warning:')).toBe(false);
+    }
+    const four = validateReward({ code: 'abcd', points: 5, accessories: [], cats: [], label: '' });
+    expect(four.every((m) => m.startsWith('Warning:'))).toBe(true);
+  });
+
+  it('warns when the hash is already in the table', () => {
+    expect(duplicateWarning('abc', { abc: {} })).toMatch(/^Warning:.*already in src\/redeemcodes\.js/);
+    expect(duplicateWarning('xyz', { abc: {} })).toBe(null);
   });
 
   it('entryLine is a valid property that round-trips and matches the hash', async () => {
