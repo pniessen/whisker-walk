@@ -10,3 +10,6 @@ dist/
 # tested. Kept out of the repo because they are scratch, but kept ON DISK
 # because the visual pass has caught defects the suite structurally cannot.
 verify-*.html
+
+# Brainstorming visual-companion scratch (mockups, server state)
+.superpowers/
