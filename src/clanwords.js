@@ -28,7 +28,7 @@
 export const PREFIXES = Object.freeze([
   'Moss', 'Fern', 'Willow', 'Berry', 'Dawn', 'Birch', 'Briar', 'Sparrow',
   'Lark', 'Wren', 'Thistle', 'Clover', 'Lichen', 'Nettle', 'Acorn', 'Marsh',
-  'Aspen', 'Juniper', 'Hawthorn', 'Primrose', 'Sage', 'Tansy',
+  'Aspen', 'Larch', 'Hawthorn', 'Primrose', 'Sage', 'Tansy',
 ]);
 
 // One hand-authored first half per walk area, for that area's rival clan

@@ -30,11 +30,12 @@ import { isStrayName } from './straynames.js';
 const WARRIOR_AT = 6;
 const APPRENTICE_AT = 2;
 
-// 22 prefixes x 14 suffixes = 308 warrior names for 48 cats, so a plain hash
-// would collide (birthday bound: about a 97% chance). A pure function of ONE
-// name cannot see the other 47, so it cannot "salt until distinct" at runtime.
+// 22 prefixes x 14 suffixes = 308 warrior names for 60 stored names (48 strays
+// and 12 kits), so a plain hash would collide. A pure function of ONE name
+// cannot see the others, so it cannot "salt until distinct" at runtime.
 // Instead the salt is a fixed mixing constant, chosen once as the first value
-// for which the 48 shipped names land on 48 distinct (prefix, suffix) pairs.
+// for which the 48 strays land on 48 distinct (prefix, suffix) pairs; the kit
+// names were then picked so all 60 stay distinct (the test pins all 60).
 // The test is the contract; if the pools in clanwords.js are ever resized,
 // that test fails and this number is searched for again. It is a parameter of
 // the hash, not a table: a name the game has never seen (a kit's) hashes the

@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { CAT_NAMES } from '../src/straynames.js';
+import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
 import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames } from '../src/clannames.js';
@@ -23,9 +23,13 @@ test('a cat with a full head start is already an apprentice', () => {
   expect(clanRankFor({ have: HEAD_START_MAX, tamed: false })).toBe('apprentice');
 });
 
-test('the 48 shipped names give 48 distinct clan names', () => {
-  const tamed = CAT_NAMES.map((n) => clanNameOf(n, { have: 6, tamed: true }));
-  expect(new Set(tamed).size).toBe(CAT_NAMES.length);
+// Every stored name, strays AND kits (a fed kit grows up into a colony cat),
+// must give a distinct warrior name, or two tamed cards would share a name.
+test('all 60 stored names give 60 distinct warrior clan names', () => {
+  const all = [...CAT_NAMES, ...KIT_NAMES];
+  expect(all).toHaveLength(60);
+  const tamed = all.map((n) => clanNameOf(n, { have: 6, tamed: true }));
+  expect(new Set(tamed).size).toBe(all.length);
 });
 
 test('no warrior name is a published character name', () => {

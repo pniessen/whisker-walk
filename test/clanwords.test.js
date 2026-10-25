@@ -75,6 +75,14 @@ test('no RIVAL_PREFIXES word is a PREFIXES word, a stray or kit name, or a denie
   }
 });
 
+// A stored name that is also a prefix word would sit beside a clan name built
+// from it (a "Juniperkit" card next to a cat called Juniper).
+test('no stray or kit name is a PREFIXES or RIVAL_PREFIXES word', () => {
+  const words = new Set([...PREFIXES, ...Object.values(RIVAL_PREFIXES)].map((w) => w.toLowerCase()));
+  const hits = [...CAT_NAMES, ...KIT_NAMES].filter((n) => words.has(n.toLowerCase()));
+  expect(hits).toEqual([]);
+});
+
 test('RIVAL_PREFIXES has only its own keys', () => {
   for (const k of ['__proto__', 'constructor', 'toString']) {
     expect(Object.hasOwn(RIVAL_PREFIXES, k)).toBe(false);

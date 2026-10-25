@@ -41,8 +41,8 @@ export function strayBreed(name) {
 }
 
 export const KIT_NAMES = [
-  'Bramble', 'Pebble', 'Button', 'Fennel', 'Bumble', 'Pip',
-  'Peanut', 'Muffin', 'Puddle', 'Tumble', 'Toffee', 'Ember',
+  'Bramble', 'Pebble', 'Thimble', 'Fennel', 'Bumble', 'Pip',
+  'Peanut', 'Cupcake', 'Puddle', 'Tumble', 'Toffee', 'Ember',
 ];
 
 // A Set (one union of both blocks), so '__proto__' and other inherited keys read as plain strangers, and
