@@ -432,7 +432,8 @@ export function sanitizeClan(v) {
   if (!isPlainObject(v)) return out;
   const has = (k) => Object.prototype.hasOwnProperty.call(v, k);
   if (has('name') && acceptedClanName(v.name)) out.name = v.name;
-  if (has('adopted') && v.adopted === true) out.adopted = true;
+  // adopted only means something next to a real name.
+  if (out.name !== null && has('adopted') && v.adopted === true) out.adopted = true;
   return out;
 }
 
@@ -1347,16 +1348,13 @@ export function createProgression(storage) {
       if (!unchanged || rolesChanged) save();
     },
 
-    // setColonyLink({ id, partner }) — record the colony id and partner
-    // after pairing or a pull, sanitized like everything else. An OMITTED
-    // field (undefined) keeps its current value, so updating just the partner
-    // can't drop the id; an explicit null clears it, which is how a pull that
-    // finds the owner unpaired us unlinks ({ id: null, partner: null }). The
-    // cats and feeds are never touched.
     // ensureClanName(playerId): mint the name from the player's own id if none
     // is set. A no-op once a name exists.
     ensureClanName(playerId) {
       if (state.clan.name !== null) return;
+      // clanTitleFor falls back to a default title for an unusable seed; here
+      // that would mint a name from nothing, so refuse non-string/empty ids.
+      if (typeof playerId !== 'string' || playerId === '') return;
       const name = clanTitleFor(playerId);
       if (!acceptedClanName(name)) return;
       state.clan = { name, adopted: state.clan.adopted };
@@ -1379,6 +1377,12 @@ export function createProgression(storage) {
       save();
     },
 
+    // setColonyLink({ id, partner }) — record the colony id and partner
+    // after pairing or a pull, sanitized like everything else. An OMITTED
+    // field (undefined) keeps its current value, so updating just the partner
+    // can't drop the id; an explicit null clears it, which is how a pull that
+    // finds the owner unpaired us unlinks ({ id: null, partner: null }). The
+    // cats and feeds are never touched.
     setColonyLink({ id, partner } = {}) {
       const c = state.colony;
       state.colony = sanitizeColony({ ...c,

@@ -1027,4 +1027,17 @@ describe('createColonySync — the clan name at pairing', () => {
     await cs.pull();
     expect(progression.state.clanJoining).toBe(true);
   });
+  it('a stale clanJoining is cleared by a successful unpaired snapshot without joining', async () => {
+    const { cs, progression } = run(() => unpairedSnap());
+    progression.setClanJoining(true);
+    await cs.pull();
+    expect(progression.state.clanJoining).toBe(false);
+  });
+  it('a paired snapshot with no usable partner leaves the flag set and the name unadopted', async () => {
+    const { cs, progression } = run(() => pairedSnap({ members: [{ player_id: ME, pet_name: 'Mittens', wardrobe: [] }] }));
+    progression.setClanJoining(true);
+    await cs.pull();
+    expect(progression.state.clanJoining).toBe(true);
+    expect(progression.state.clan.adopted).toBe(false);
+  });
 });

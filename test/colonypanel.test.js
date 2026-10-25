@@ -284,6 +284,14 @@ describe('renderColonyHtml', () => {
   });
 });
 
+describe('renderColonyHtml banner', () => {
+  it('shows the escaped name in a colony-banner heading, and nothing without one', () => {
+    const html = renderColonyHtml({ colony: emptyColony(), me: 'aaaaaaaa-1111', now: 0, clanName: '<b>x' });
+    expect(html).toContain('<h3 class="colony-banner">&lt;b&gt;x</h3>');
+    expect(renderColonyHtml({ colony: emptyColony(), me: 'aaaaaaaa-1111', now: 0 })).not.toContain('colony-banner');
+  });
+});
+
 describe('renderPairingHtml', () => {
   const st = (mode, over = {}) => ({ mode, invite: null, joining: null, lastError: null, ...over });
   const INVITE = { code: 'K7P2QM', expiresAt: '2026-10-24T12:00:00Z', joinerPetName: null };

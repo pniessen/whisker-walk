@@ -2546,6 +2546,13 @@ describe('the clan name', () => {
       expect(typeof out.adopted).toBe('boolean');
       expect(out.name).toBeNull();
     });
+  it('never keeps adopted:true without a valid name', () => {
+    expect(sanitizeClan({ name: 'bogus', adopted: true })).toEqual({ name: null, adopted: false });
+  });
+  it.each([undefined, 42, '', null])('ensureClanName(%p) neither throws nor mints', (id) => {
+    expect(() => p.ensureClanName(id)).not.toThrow();
+    expect(p.state.clan.name).toBeNull();
+  });
   it('keeps a valid saved name and a strict adopted boolean', () => {
     expect(sanitizeClan({ name: clanTitleFor(ME), adopted: true })).toEqual({ name: clanTitleFor(ME), adopted: true });
     expect(sanitizeClan({ name: clanTitleFor(ME), adopted: 'yes' }).adopted).toBe(false);

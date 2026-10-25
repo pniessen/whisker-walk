@@ -305,7 +305,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   const trading = mode === 'paired'
     ? `<div id="colony-trading">${renderTradesHtml({ colony: safeColony, me, owned, catalog, state: trades })}</div>` : '';
   const title = typeof clanName === 'string' && clanName ? escapeHtml(clanName) : '';
-  const heading = title ? `<h3 class="colony-title">${title}</h3>` : '';
+  const heading = title ? `<h3 class="colony-banner">${title}</h3>` : '';
   return `${heading}${header}<div id="colony-pairing">${pair}</div>${trading}${list}${full}`;
 }
 
