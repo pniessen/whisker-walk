@@ -91,43 +91,68 @@ test('RIVAL_PREFIXES has only its own keys', () => {
 
 // ---- Task 14: no borrowed word is hard-coded outside clanwords.js ----
 
-// Blank out // and /* */ comments but leave string/template literals intact,
-// so a URL like 'https://x' keeps its //. Newlines are kept for line numbers.
-function stripComments(src) {
-  let out = '';
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i], n = src[i + 1];
-    if (c === '"' || c === "'" || c === '`') {
-      let j = i + 1;
-      while (j < src.length && src[j] !== c) {
-        if (src[j] === '\\') j++;
-        else if (c !== '`' && src[j] === '\n') break;
-        j++;
+const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), CLAN_SUFFIX];
+
+// The contents of every string and template literal in a source text, with
+// comments skipped. A template's text is kept across its lines, and each
+// `${...}` expression is blanked in it (scanned as code instead, so a literal
+// nested inside the expression is collected on its own). That way a word on
+// the 2nd line of a multi-line template is seen, and code between two literals
+// never is.
+function literalsIn(src) {
+  const out = [];
+  const code = (i, inExpr) => {
+    let depth = 0;
+    while (i < src.length) {
+      const c = src[i], n = src[i + 1];
+      if (c === '/' && n === '/') {
+        while (i < src.length && src[i] !== '\n') i++;
+      } else if (c === '/' && n === '*') {
+        const end = src.indexOf('*/', i + 2);
+        i = end < 0 ? src.length : end + 2;
+      } else if (c === '"' || c === "'") {
+        let j = i + 1, buf = '';
+        while (j < src.length && src[j] !== c && src[j] !== '\n') {
+          if (src[j] === '\\') { buf += src.slice(j, j + 2); j += 2; } else buf += src[j++];
+        }
+        out.push(buf);
+        i = j + 1;
+      } else if (c === '`') {
+        i = template(i + 1);
+      } else if (c === '{') {
+        depth++; i++;
+      } else if (c === '}') {
+        if (inExpr && depth === 0) return i + 1;
+        depth--; i++;
+      } else {
+        i++;
       }
-      out += src.slice(i, j + 1);
-      i = j + 1;
-    } else if (c === '/' && n === '/') {
-      while (i < src.length && src[i] !== '\n') i++;
-    } else if (c === '/' && n === '*') {
-      const end = src.indexOf('*/', i + 2);
-      const stop = end < 0 ? src.length : end + 2;
-      out += src.slice(i, stop).replace(/[^\n]/g, '');
-      i = stop;
-    } else {
-      out += c;
-      i++;
     }
-  }
+    return i;
+  };
+  const template = (i) => {
+    let buf = '';
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\\') { buf += src.slice(i, i + 2); i += 2; }
+      else if (c === '`') { out.push(buf); return i + 1; }
+      else if (c === '$' && src[i + 1] === '{') { buf += ' '; i = code(i + 2, true); }
+      else { buf += c; i++; }
+    }
+    out.push(buf);
+    return i;
+  };
+  code(0, false);
   return out;
 }
 
-const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), CLAN_SUFFIX];
-
 // Borrowed words found inside a string literal of a source text.
 function borrowedIn(src) {
-  const code = stripComments(src);
-  return BORROWED.filter((w) => new RegExp(`['\`"][^'\`"\\n]*\\b${w}\\b`, 'i').test(code));
+  const lits = literalsIn(src);
+  return BORROWED.filter((w) => {
+    const re = new RegExp(`\\b${w}\\b`, 'i');
+    return lits.some((l) => re.test(l));
+  });
 }
 
 // Pre-existing literals where the word means something unrelated to the clan.
@@ -150,6 +175,15 @@ test('the scanner flags a literal and ignores a comment (mutation check)', () =>
   expect(borrowedIn(`// the loner sat\nconst a = 1;`)).toEqual([]);
   expect(borrowedIn(`/* a rogue\n here */ const a = 1;`)).toEqual([]);
   expect(borrowedIn(`const u = 'http://x.y'; const b = "rogue";`)).toContain('rogue');
+  // A word on the 2nd or a later line of a multi-line template literal.
+  expect(borrowedIn('return `<div>\n  warrior\n</div>`;')).toContain('warrior');
+  expect(borrowedIn('const t = `<p>\n  ${x}\n  <b>a\n  loner</b>\n</p>`;')).toContain('loner');
+  // An expression is code, not text: an identifier there is not a word...
+  expect(borrowedIn('const t = `<p>\n  ${warrior}\n</p>`;')).toEqual([]);
+  // ...but a literal nested inside the expression is still scanned.
+  expect(borrowedIn('const t = `<p>\n  ${ok ? `the\n rogue` : \'\'}\n</p>`;')).toContain('rogue');
+  // Code between two literals is not a literal.
+  expect(borrowedIn(`const a = 'x'; const warrior = 1; const b = 'y';`)).toEqual([]);
 });
 
 test('the rung ladder itself has not moved', () => {
