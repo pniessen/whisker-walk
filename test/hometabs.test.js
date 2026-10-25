@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from '../src/ui/hometabs.js';
+import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from '../src/ui/hometabs.js';
 import { candidateStarNames } from '../src/clannames.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
 
@@ -154,5 +154,21 @@ describe('star name picker', () => {
     const c = candidateStarNames('player-abc12345');
     const html = renderStarNamePicker(c, null);
     for (const n of c) expect(html).toContain(`data-star-name="${n}"`);
+  });
+});
+
+describe('golden mice tally', () => {
+  it('goldenFound counts distinct known ids only', () => {
+    const known = new Set(['gm-park-1', 'gm-park-2']);
+    expect(goldenFound(['gm-park-1', 'gm-park-1', 'gm-fake-9', 3], known)).toBe(1);
+    expect(goldenFound(null, known)).toBe(0);
+    expect(goldenFound({ 0: 'gm-park-1', length: 1 }, known)).toBe(0);
+    expect(goldenFound(['gm-park-1'], null)).toBe(0);
+  });
+  it('the tally reads "x of 12" and never more than the total', () => {
+    expect(renderGoldenTallyHtml(3, 12)).toContain('3 of 12 golden mice');
+    expect(renderGoldenTallyHtml(99, 12)).toContain('12 of 12');
+    expect(renderGoldenTallyHtml(NaN, 12)).toContain('0 of 12');
+    expect(renderGoldenTallyHtml(0, 12)).toBe('<span>🥇 0 of 12 golden mice</span>');
   });
 });

@@ -125,6 +125,28 @@ export function renderSkillsHtml(state) {
 }
 
 // ---------------------------------------------------------------------------
+// Golden mice tally (home base header)
+//
+// `known` is passed IN (homebase.js hands over goldmice.js's KNOWN_GOLD)
+// rather than imported, because goldmice.js imports THREE and this module
+// has to stay headless. Counting only known ids means a shape-valid fake id
+// in a hostile save can never push the tally past the total.
+// ---------------------------------------------------------------------------
+
+export function goldenFound(golden, known) {
+  if (!Array.isArray(golden) || !known || typeof known.has !== 'function') return 0;
+  const seen = new Set();
+  for (const id of golden) if (typeof id === 'string' && known.has(id)) seen.add(id);
+  return seen.size;
+}
+
+export function renderGoldenTallyHtml(found, total) {
+  const t = safeCount(total);
+  const f = Math.min(safeCount(found), t);
+  return `<span>🥇 ${f} of ${t} golden mice</span>`;
+}
+
+// ---------------------------------------------------------------------------
 // Star-name picker (Social tab, beside the free-text pet-name field)
 //
 // Offers a few closed-pool names from clannames.js's candidateStarNames. The

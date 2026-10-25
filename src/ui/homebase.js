@@ -1,7 +1,7 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
-import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from './hometabs.js';
+import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { candidateStarNames } from '../clannames.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
@@ -9,7 +9,7 @@ import {
   renderStartButtonHtml, renderPartnerWalkHtml, renderRoomTitleHtml,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
-import { GOLD_TOTAL } from '../goldmice.js';
+import { GOLD_TOTAL, KNOWN_GOLD } from '../goldmice.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -671,6 +671,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                   <span>🏆 ${rank.title} — ${nextLine}</span>
                   ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
                   <span>best walk: ${s.bestWalk} 🐾</span>
+                  ${renderGoldenTallyHtml(goldenFound(s.golden, KNOWN_GOLD), GOLD_TOTAL)}
                   ${raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : ''}
                   ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
                 </div>
@@ -743,7 +744,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           </div>
           <div class="hb-panel" data-panel="album">
             <section class="journal-section"><h2>Critter Journal 📖</h2>
-              ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, GOLD_TOTAL)}
+              ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, KNOWN_GOLD), GOLD_TOTAL)}
             </section>
             <section><h2>Photo album 📸</h2><div class="photos">
               ${album.photos.length
