@@ -7,6 +7,13 @@ import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
 // than re-deriving means there is exactly one definition of "is this cat
 // cross with me" and one of "is that a name a grudge may be keyed on".
 import { bearsGrudge, isGrudgeName } from './enemies.js';
+// v21 Stream 2: the shared colony. colony.js is the pure rules half (no THREE,
+// no DOM; its imports are straynames/skills/rng/net, none of which imports
+// this module), so the edge is cycle-free like the two above. Every colony
+// write still happens here — colony.js computes, this module saves.
+import { emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
+  feedKey } from './colony.js';
+import { isStrayName } from './straynames.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -15,6 +22,7 @@ const SAVE_KEY = 'whisker-walk-save';
 // losslessly and an older client simply ignores the extra keys. Bumping the
 // version here would strand every save written by a deployed older client.
 // STILL 4 in v20: `grudges` joins them on the same terms (D1).
+// STILL 4 in v21: `colony` (the shared colony, colony.js) likewise.
 const SAVE_VERSION = 4;
 
 // v15 Collector's Journal critter types — the fixed vocabulary state.journal
@@ -234,6 +242,15 @@ export const CATALOG = {
 // initializer runs.
 const KNOWN_AREA_IDS = new Set(Object.keys(CATALOG.areas));
 
+// v21 Stream 2. Accessory ids, for the colony sanitizer (a cat's `wear`, the
+// partner's wardrobe, a trade's give/want) and for the colony methods below.
+const KNOWN_ACCESSORY_IDS = new Set(Object.keys(CATALOG.accessories));
+
+// The accessories every save starts with. They can never be traded away
+// (decisions.md, "Trading"): applyColonyTrades refuses to remove one, and the
+// wardrobe pushed to the colony leaves them out. defaultState copies this.
+export const STARTER_ACCESSORIES = ['bell', 'bandana'];
+
 // summarizeSaveForPreview(s) — reduces a save object down to the four fields
 // the cloud-sync "Load from cloud" preview card displays (main.js's
 // previewLoad, rendered by ui/homebase.js's renderSync). `s` may be a
@@ -289,7 +306,8 @@ function defaultState() {
     // walks loop iterates the keys of THIS object, so a loaded save that
     // predates v18 picks the key up here with a 0 default.
     walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
-    unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+    // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
+    unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
     area: 'neighborhood',
     lifetimePoints: 0,
@@ -359,6 +377,12 @@ function defaultState() {
     // payload value as an object KEY at all, which is what makes a
     // '__proto__' entry inert by construction rather than by filtering.
     grudges: [],
+    // v21 Stream 2: the shared colony of tamed strays (colony.js has the
+    // model and the shape). Additive, so SAVE_VERSION stays 4: a v20 save
+    // loads unchanged plus an empty colony. Solo play keeps a local
+    // single-player colony here; when paired, mergeColonySnapshot folds the
+    // server's snapshot in add-only.
+    colony: emptyColony(),
   };
 }
 
@@ -663,6 +687,7 @@ function sanitizeState(parsed) {
     duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
     gifts: sanitizeGifts(parsed.gifts),
     grudges: sanitizeGrudges(parsed.grudges),
+    colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
   };
 }
 
@@ -1171,6 +1196,145 @@ export function createProgression(storage) {
       state.race = { date: dateStr, area: areaId, bestMs: ms };
       save();
       return { isBest: true };
+    },
+    // ---------------------------------------------------------------------
+    // v21 Stream 2 — the shared colony. colony.js holds the rules and the
+    // sanitizer; these are its writers, here because this module owns `state`
+    // and is the only thing that calls save(). Every one of them leaves
+    // state.colony in sanitized shape, and none pays points (spec §4 anti-goal:
+    // no whisker points for any colony action).
+    // ---------------------------------------------------------------------
+
+    // colonyMembers() → 1 | 2. Two only while linked to a partner (both the
+    // colony id and the partner present). It is what switches the shy rule
+    // on, so a solo player is never stuck waiting for a second feeder.
+    colonyMembers() {
+      return state.colony.id !== null && state.colony.partner !== null ? 2 : 1;
+    },
+
+    // feedColonyCat({ name, by, walk, area, x, z }) → { result, tamedNow,
+    // progress }. The head start counts greets from BEFORE this walk: the
+    // greet that made feeding possible on this walk has already been recorded
+    // (state.friends[name].lastWalk === walk), so it is taken back out —
+    // otherwise meeting a cat for the first time would already be a head
+    // start. Saves only when feedCat says 'ok'; any refusal ('bad' for a
+    // non-stray name, unknown area, bad id/stamp or spot) writes nothing.
+    // `friends` is read with an own-property check, so '__proto__' and other
+    // inherited keys read as strangers (and are refused as 'bad' anyway).
+    feedColonyCat({ name, by, walk, area, x, z } = {}) {
+      const f = isStrayName(name) && Object.hasOwn(state.friends, name) ? state.friends[name] : null;
+      const greets = asFiniteNonNegInt(f?.greets, 0);
+      const prior = Math.max(0, greets - (f && f.lastWalk === walk ? 1 : 0));
+      const r = feedCat(state.colony, { name, by, walk, area, x, z, head: headStartFor(prior) },
+        { members: api.colonyMembers() });
+      if (r.result === 'ok') {
+        state.colony = r.colony;
+        save();
+      }
+      return { result: r.result, tamedNow: r.tamedNow, progress: r.progress };
+    },
+
+    // mergeColonySnapshot(remote) — fold the server's snapshot ({ id,
+    // partner, cats, feeds, trades }) into the local colony, add-only (see
+    // colony.mergeColony for the conflict policy). The remote is sanitized
+    // inside the merge, so a hostile snapshot can add only valid things and
+    // can remove or un-tame nothing. No write when nothing changed.
+    mergeColonySnapshot(remote) {
+      const next = mergeColony(state.colony, remote, { knownItems: KNOWN_ACCESSORY_IDS });
+      if (JSON.stringify(next) === JSON.stringify(state.colony)) return;
+      state.colony = next;
+      save();
+    },
+
+    // setColonyLink({ id, partner }) — record the colony id and partner
+    // after pairing or a pull, sanitized like everything else.
+    setColonyLink({ id, partner } = {}) {
+      state.colony = sanitizeColony({ ...state.colony, id, partner }, { knownItems: KNOWN_ACCESSORY_IDS });
+      save();
+    },
+
+    // dressColonyCat(name, item, me) → bool. Only the cat's FINDER may dress
+    // it, and only with an accessory they own; null takes the accessory off.
+    // The item stays in the wardrobe (dressing is showing, not giving away).
+    dressColonyCat(name, item, me) {
+      if (!isStrayName(name)) return false;
+      const cat = state.colony.cats.find((c) => c.name === name);
+      if (!cat || typeof me !== 'string' || cat.finder !== me) return false;
+      if (item !== null && (typeof item !== 'string' || !KNOWN_ACCESSORY_IDS.has(item)
+        || !state.unlocked.accessories.includes(item))) return false;
+      state.colony = { ...state.colony, cats: state.colony.cats.map((c) => (c.name === name ? { ...c, wear: item } : c)) };
+      save();
+      return true;
+    },
+
+    // applyColonyTrades(me) → the trades applied by THIS call, in id order.
+    // An accepted trade naming me is applied exactly once, ever: its id goes
+    // into colony.tradesApplied, which is persisted and survives a reload.
+    // For each one: the outgoing item leaves unlocked.accessories unless it is
+    // a starter (STARTER_ACCESSORIES can never be traded away), any equipped
+    // slot holding it is cleared, and the incoming item is added if it is a
+    // known accessory. All of it lands in one save(); nothing to do, no write.
+    applyColonyTrades(me) {
+      const done = new Set(state.colony.tradesApplied);
+      const applied = [];
+      let owned = state.unlocked.accessories.slice();
+      const equipped = { ...state.equipped };
+      for (const t of [...state.colony.trades].sort((a, b) => a.id - b.id)) {
+        if (done.has(t.id)) continue;
+        const eff = tradeEffect(t, me);
+        if (!eff) continue;
+        if (!STARTER_ACCESSORIES.includes(eff.remove) && owned.includes(eff.remove)) {
+          owned = owned.filter((id) => id !== eff.remove);
+          for (const slot of Object.keys(equipped)) {
+            if (slot !== 'cat' && equipped[slot] === eff.remove) equipped[slot] = null;
+          }
+        }
+        if (KNOWN_ACCESSORY_IDS.has(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
+        done.add(t.id);
+        applied.push({ ...t });
+      }
+      if (applied.length === 0) return [];
+      state.unlocked.accessories = owned;
+      state.equipped = equipped;
+      state.colony = sanitizeColony({ ...state.colony,
+        tradesApplied: [...state.colony.tradesApplied, ...applied.map((t) => t.id)] },
+      { knownItems: KNOWN_ACCESSORY_IDS });
+      save();
+      return applied;
+    },
+
+    // grantColonyRewards() → the accessory ids newly unlocked by this call.
+    // Each due milestone (colony.rewardsDue) is recorded in colony.rewarded
+    // even when its item is null (all three already owned), so it never
+    // fires again — the reward toast cannot repeat.
+    grantColonyRewards() {
+      const due = rewardsDue(state.colony, state.unlocked.accessories);
+      if (due.length === 0) return [];
+      const items = [];
+      for (const { item } of due) {
+        if (item && KNOWN_ACCESSORY_IDS.has(item) && !state.unlocked.accessories.includes(item)) {
+          state.unlocked.accessories.push(item);
+          items.push(item);
+        }
+      }
+      state.colony = sanitizeColony({ ...state.colony, rewarded: [...state.colony.rewarded, ...due.map((d) => d.id)] },
+        { knownItems: KNOWN_ACCESSORY_IDS });
+      save();
+      return items;
+    },
+
+    // markColonySeen(ymd) — the "while you were out" card was read: record
+    // every current feed key, tamed cat and trade id, plus the day (a
+    // YYYY-MM-DD string; anything else leaves the stored day alone).
+    markColonySeen(ymd) {
+      const c = state.colony;
+      state.colony = sanitizeColony({ ...c, seen: {
+        feedKeys: c.feeds.map(feedKey),
+        tamed: c.cats.filter((k) => k.tamedBy !== null).map((k) => k.name),
+        trades: c.trades.map((t) => t.id),
+        day: typeof ymd === 'string' && YMD_PATTERN.test(ymd) ? ymd : c.seen.day,
+      } }, { knownItems: KNOWN_ACCESSORY_IDS });
+      save();
     },
     // replaceFromPayload(rawSaveObject) — used by cloud "Load from cloud":
     // writes the raw object straight to storage under the save key, then

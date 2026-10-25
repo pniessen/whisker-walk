@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES } from '../src/progression.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
+import { STARTER_ACCESSORIES } from '../src/progression.js';
+import { emptyColony, isShy, TAME_FEEDS } from '../src/colony.js';
+import { CAT_NAMES } from '../src/straynames.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -407,6 +410,10 @@ describe('createProgression', () => {
         race: { date: null, area: null, bestMs: null },
         den: { owned: [], placed: {} },
         skills: [], feats: {}, duskWalks: 0, gifts: [], grudges: [],
+        colony: {
+          id: null, partner: null, cats: [], feeds: [], trades: [], tradesApplied: [], rewarded: [],
+          seen: { feedKeys: [], tamed: [], trades: [], day: null },
+        },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1898,5 +1905,266 @@ describe('deductPoints', () => {
     const reloaded = createProgression(storage);
     expect(reloaded.state.points).toBe(45);
     expect(reloaded.state.lifetimePoints).toBe(50);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v21 Stream 2 — the shared colony's save key (Task 2).
+// ---------------------------------------------------------------------------
+describe('the colony save key', () => {
+  const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
+  const SAVE = 'whisker-walk-save';
+  const boldName = CAT_NAMES.find((n) => !isShy(n));
+  // A storage whose setItem is a spy, so "without writing" can be asserted.
+  function spyStorage(initial) {
+    const s = fakeStorage(initial);
+    const setItem = vi.fn(s.setItem);
+    return { ...s, setItem };
+  }
+  const tameOne = (p, name = boldName, by = ME) => {
+    let last;
+    for (let i = 0; i < TAME_FEEDS; i++) last = p.feedColonyCat({ name, by, walk: `walk-${100 + i}`, area: 'park', x: 1, z: 2 });
+    return last;
+  };
+  const paired = (cats = [], feeds = [], trades = []) => ({
+    id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] }, cats, feeds, trades,
+  });
+
+  it('a v20 save loads with an empty colony and SAVE_VERSION 4', () => {
+    // A v20-shaped payload: every field v20 wrote, and no `colony` key.
+    const v20 = {
+      version: 4, points: 42, lifetimePoints: 300, bestWalk: 17,
+      walks: { neighborhood: 3, park: 2, seaside: 0, den: 1, docks: 0 },
+      unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana', 'tophat'], areas: ['neighborhood', 'park'] },
+      equipped: { cat: 'siamese', collar: 'bell', head: 'tophat', face: null, neck: null, body: null, back: null, feet: null },
+      area: 'park', friends: { Pickles: { breed: 'tabby', greets: 2, lastWalk: 'walk-9' } }, petName: 'Mittens',
+      journal: { bird: 3 }, golden: [], streak: { last: '2026-10-01', count: 2 }, kitten: { stage: 1 },
+      race: { date: null, area: null, bestMs: null }, den: { owned: [], placed: {} },
+      skills: [], feats: {}, duskWalks: 0, gifts: [], grudges: ['Mochi'],
+    };
+    const storage = fakeStorage({ [SAVE]: JSON.stringify(v20) });
+    const p = createProgression(storage);
+    expect(p.state.version).toBe(4);
+    expect(p.state.colony).toEqual(emptyColony());
+    // ...and everything else came through untouched
+    const { colony, ...rest } = p.state;
+    expect(rest).toEqual(v20);
+  });
+
+  it('a fresh save starts with the starter accessories and an empty colony', () => {
+    expect(STARTER_ACCESSORIES).toEqual(['bell', 'bandana']);
+    const p = createProgression(fakeStorage());
+    expect(p.state.unlocked.accessories).toEqual(STARTER_ACCESSORIES);
+    expect(p.state.unlocked.accessories).not.toBe(STARTER_ACCESSORIES); // a buy() must not grow the constant
+    expect(p.state.colony).toEqual(emptyColony());
+    expect(p.colonyMembers()).toBe(1);
+  });
+
+  it('feedColonyCat uses greets from BEFORE this walk as the head start', () => {
+    const p = createProgression(fakeStorage());
+    for (let w = 1; w <= 6; w++) p.recordGreet('Pickles', 'tabby', `walk-${w}`);
+    p.recordGreet('Pickles', 'tabby', 'walk-9');
+    expect(p.state.friends.Pickles.greets).toBe(7);
+    const r = p.feedColonyCat({ name: 'Pickles', by: ME, walk: 'walk-9', area: 'park', x: 0, z: 0 });
+    expect(r.result).toBe('ok');
+    expect(r.progress.headStart).toBe(3); // six prior greets
+    expect(r.tamedNow).toBe(false);
+    expect(p.state.colony.feeds).toEqual([{ cat: 'Pickles', by: ME, walk: 'walk-9', head: 3 }]);
+    // Where the two readings differ: 2 greets before + 1 on this walk is a
+    // head start of 1 (from 2), not 2 (from 3).
+    const q = createProgression(fakeStorage());
+    for (const w of ['walk-1', 'walk-2', 'walk-9']) q.recordGreet('Mochi', 'tabby', w);
+    expect(q.feedColonyCat({ name: 'Mochi', by: ME, walk: 'walk-9', area: 'park', x: 0, z: 0 }).progress.headStart).toBe(1);
+    // A cat first met on this very walk is a stranger.
+    q.recordGreet('Bean', 'tabby', 'walk-9');
+    expect(q.feedColonyCat({ name: 'Bean', by: ME, walk: 'walk-9', area: 'park', x: 0, z: 0 }).progress.headStart).toBe(0);
+    // Greets from a past walk, none on this one: all of them count.
+    q.recordGreet('Fig', 'tabby', 'walk-1');
+    expect(q.feedColonyCat({ name: 'Fig', by: ME, walk: 'walk-9', area: 'park', x: 0, z: 0 }).progress.headStart).toBe(1);
+  });
+
+  it('feedColonyCat refuses an unknown name or area without writing', () => {
+    const storage = spyStorage();
+    const p = createProgression(storage);
+    const ok = { name: 'Pickles', by: ME, walk: 'walk-9', area: 'park', x: 0, z: 0 };
+    for (const bad of [{ name: 'Zeetoo' }, { name: '__proto__' }, { area: 'moon' }, { area: 'den' },
+      { by: '<img>' }, { walk: 'today' }, { x: NaN }]) {
+      const r = p.feedColonyCat({ ...ok, ...bad });
+      expect(r.result, JSON.stringify(bad)).not.toBe('ok');
+      expect(r.tamedNow).toBe(false);
+    }
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(p.state.colony).toEqual(emptyColony());
+    // a refusal for game reasons doesn't write either
+    expect(p.feedColonyCat(ok).result).toBe('ok');
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    expect(p.feedColonyCat(ok).result).toBe('fed-this-walk');
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('a fed and tamed cat persists across a reload, with tamedNow reported once', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    const r = tameOne(p);
+    expect(r).toMatchObject({ result: 'ok', tamedNow: true });
+    expect(r.progress.tamed).toBe(true);
+    const again = createProgression(storage);
+    expect(again.state.colony).toEqual(p.state.colony);
+    expect(again.state.colony.cats[0]).toMatchObject({ name: boldName, finder: ME, area: 'park', x: 1, z: 2, tamedBy: ME });
+    expect(again.feedColonyCat({ name: boldName, by: ME, walk: 'walk-999', area: 'park', x: 0, z: 0 }).result).toBe('tamed');
+  });
+
+  it('a paired colony counts two members, and the shy rule applies', () => {
+    const p = createProgression(fakeStorage());
+    p.setColonyLink({ id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] } });
+    expect(p.colonyMembers()).toBe(2);
+    expect(p.state.colony).toMatchObject({ id: 'col-1', partner: { playerId: SIB, petName: 'Robin' } });
+    const shy = CAT_NAMES.find(isShy);
+    const r = tameOne(p, shy);
+    expect(r.tamedNow).toBe(false);
+    expect(r.progress.needsSecondFeeder).toBe(true);
+    // a hostile link is sanitized on the way in
+    p.setColonyLink({ id: '<x>', partner: { playerId: SIB, petName: '<b>', wardrobe: ['laser', 'crown'] } });
+    expect(p.state.colony.id).toBe(null);
+    expect(p.state.colony.partner).toEqual({ playerId: SIB, petName: 'your partner', wardrobe: ['crown'] });
+    expect(p.colonyMembers()).toBe(1);
+  });
+
+  it('mergeColonySnapshot merges add-only, sanitizes the remote and persists', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    tameOne(p);
+    const remoteCat = { name: boldName, finder: SIB, area: 'park', x: 9, z: 9, wear: 'laser', tamedBy: null, tamedWalk: null };
+    p.mergeColonySnapshot(paired([remoteCat, { name: '__proto__', finder: SIB, area: 'park', x: 0, z: 0 }],
+      [{ cat: boldName, by: SIB, walk: 'walk-500', head: 0 }, { cat: 'Ghost', by: SIB, walk: 'walk-1', head: 0 }]));
+    const c = p.state.colony;
+    expect(c.id).toBe('col-1');
+    expect(c.cats).toHaveLength(1);
+    expect(c.cats[0]).toMatchObject({ finder: SIB, x: 9, z: 9, wear: null, tamedBy: ME });
+    expect(c.feeds).toHaveLength(TAME_FEEDS + 1);
+    expect(createProgression(storage).state.colony).toEqual(c);
+    // garbage changes nothing local
+    p.mergeColonySnapshot(paired('no', 7, null));
+    expect(p.state.colony.cats).toEqual(c.cats);
+    expect(p.state.colony.feeds).toEqual(c.feeds);
+  });
+
+  // Review Focus 5
+  it('applyColonyTrades applies an accepted trade exactly once, unequips, and never removes a starter', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.addPoints(100);
+    expect(p.buy('accessories', 'tophat')).toBe(true);
+    p.equipAccessory('tophat');
+    expect(p.state.equipped.head).toBe('tophat');
+    const trade = { id: 4, from: ME, to: SIB, give: 'tophat', want: 'crown', status: 'accepted' };
+    p.mergeColonySnapshot(paired([], [], [trade]));
+    expect(p.applyColonyTrades(ME)).toEqual([trade]);
+    expect(p.state.unlocked.accessories).not.toContain('tophat');
+    expect(p.state.unlocked.accessories).toContain('crown');
+    expect(p.state.equipped.head).toBe(null);
+    expect(p.state.colony.tradesApplied).toEqual([4]);
+    // a second call is a no-op
+    expect(p.applyColonyTrades(ME)).toEqual([]);
+    expect(p.state.unlocked.accessories.filter((a) => a === 'crown')).toHaveLength(1);
+    // ...and so is a reload
+    const reloaded = createProgression(storage);
+    expect(reloaded.applyColonyTrades(ME)).toEqual([]);
+    expect(reloaded.state.unlocked.accessories).toContain('crown');
+    expect(reloaded.state.unlocked.accessories).not.toContain('tophat');
+    // a trade giving a starter: the starter stays, and stays equipped
+    reloaded.equipAccessory('bell');
+    const bellTrade = { id: 5, from: ME, to: SIB, give: 'bell', want: 'wizard', status: 'accepted' };
+    reloaded.mergeColonySnapshot(paired([], [], [trade, bellTrade]));
+    expect(reloaded.applyColonyTrades(ME)).toEqual([bellTrade]);
+    expect(reloaded.state.unlocked.accessories).toContain('bell');
+    expect(reloaded.state.equipped.collar).toBe('bell');
+    expect(reloaded.state.unlocked.accessories).toContain('wizard');
+  });
+
+  it('applyColonyTrades reads the other side of a swap, and skips trades that are not accepted or not mine', () => {
+    const storage = spyStorage();
+    const p = createProgression(storage);
+    p.addPoints(100);
+    p.buy('accessories', 'crown');
+    const mine = { id: 7, from: SIB, to: ME, give: 'tophat', want: 'crown', status: 'accepted' };
+    const offered = { id: 8, from: SIB, to: ME, give: 'wizard', want: 'crown', status: 'offered' };
+    const others = { id: 9, from: SIB, to: 'cccccccc-3333', give: 'heart', want: 'crown', status: 'accepted' };
+    p.mergeColonySnapshot(paired([], [], [others, offered, mine]));
+    const writes = storage.setItem.mock.calls.length;
+    expect(p.applyColonyTrades(ME)).toEqual([mine]);
+    expect(storage.setItem.mock.calls.length).toBe(writes + 1); // all of it in one save
+    expect(p.state.unlocked.accessories).toContain('tophat');
+    expect(p.state.unlocked.accessories).not.toContain('crown');
+    expect(p.state.unlocked.accessories).not.toContain('wizard');
+    expect(p.state.colony.tradesApplied).toEqual([7]);
+    expect(p.applyColonyTrades(ME)).toEqual([]);
+    expect(storage.setItem.mock.calls.length).toBe(writes + 1); // nothing to do: no write
+  });
+
+  it('grantColonyRewards unlocks once per milestone and returns the items', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.grantColonyRewards()).toEqual([]);
+    tameOne(p);
+    expect(p.grantColonyRewards()).toEqual(['heart']);
+    expect(p.state.unlocked.accessories).toContain('heart');
+    expect(p.state.colony.rewarded).toEqual(['tamed-1']);
+    expect(p.grantColonyRewards()).toEqual([]);
+    expect(createProgression(storage).grantColonyRewards()).toEqual([]);
+  });
+
+  it('grantColonyRewards gives the next unowned item, and marks a milestone even when nothing is left to give', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(500);
+    for (const id of ['heart', 'bowtie', 'socks', 'crown']) expect(p.buy('accessories', id)).toBe(true);
+    const cats = CAT_NAMES.slice(0, 3).map((name, i) => ({ name, finder: SIB, area: 'park', x: 0, z: 0, wear: null, tamedBy: SIB, tamedWalk: `walk-${i + 1}` }));
+    p.mergeColonySnapshot(paired(cats));
+    expect(p.grantColonyRewards()).toEqual(['wizard']);
+    expect(p.state.colony.rewarded).toEqual(['tamed-1', 'tamed-3']);
+    expect(p.grantColonyRewards()).toEqual([]);
+  });
+
+  it('dressColonyCat only lets the finder dress, and only with an owned item', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.feedColonyCat({ name: boldName, by: ME, walk: 'walk-1', area: 'park', x: 0, z: 0 });
+    p.addPoints(100);
+    p.buy('accessories', 'tophat');
+    expect(p.dressColonyCat(boldName, 'tophat', ME)).toBe(true);
+    expect(p.state.colony.cats[0].wear).toBe('tophat');
+    expect(createProgression(storage).state.colony.cats[0].wear).toBe('tophat');
+    expect(p.dressColonyCat(boldName, 'bell', SIB)).toBe(false); // not the finder
+    expect(p.dressColonyCat(boldName, 'crown', ME)).toBe(false); // not owned
+    expect(p.dressColonyCat(boldName, 'laser', ME)).toBe(false); // not an item
+    expect(p.dressColonyCat('Zeetoo', 'bell', ME)).toBe(false); // not a colony cat
+    expect(p.state.colony.cats[0].wear).toBe('tophat');
+    expect(p.dressColonyCat(boldName, null, ME)).toBe(true); // null clears
+    expect(p.state.colony.cats[0].wear).toBe(null);
+  });
+
+  it('markColonySeen records every feed key, tamed name and trade id, plus the day', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    tameOne(p);
+    const trade = { id: 3, from: SIB, to: ME, give: 'crown', want: 'tophat', status: 'offered' };
+    p.mergeColonySnapshot(paired([], [], [trade]));
+    p.markColonySeen('2026-10-24');
+    expect(p.state.colony.seen).toEqual({
+      feedKeys: p.state.colony.feeds.map((f) => `${f.cat}|${f.by}|${f.walk}`),
+      tamed: [boldName], trades: [3], day: '2026-10-24',
+    });
+    expect(createProgression(storage).state.colony.seen).toEqual(p.state.colony.seen);
+    p.markColonySeen('not a day');
+    expect(p.state.colony.seen.day).toBe('2026-10-24');
+  });
+
+  it('reset() empties the colony and a hostile colony payload is sanitized on load', () => {
+    const p = createProgression(fakeStorage());
+    tameOne(p);
+    p.reset();
+    expect(p.state.colony).toEqual(emptyColony());
+    p.replaceFromPayload({ version: 4, colony: { id: 'c', cats: [{ name: '__proto__' }], feeds: 'x', rewarded: ['tamed-99'] } });
+    expect(p.state.colony).toEqual({ ...emptyColony(), id: 'c' });
   });
 });
