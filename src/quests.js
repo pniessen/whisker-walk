@@ -9,7 +9,7 @@ const TEXTS = {
   },
   letter: {
     offer: '"Could you deliver this letter to the sparkly drop-off for me?"',
-    objective: 'Deliver the letter 📨 (look for the sparkle)',
+    objective: 'Deliver the letter 📨',
     prompt: 'E — deliver the letter',
     done: 'Letter delivered! The neighbor will be thrilled.',
   },

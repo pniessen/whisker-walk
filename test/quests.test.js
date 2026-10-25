@@ -35,4 +35,13 @@ describe('createQuest', () => {
       expect(q.texts.done.length).toBeGreaterThan(0);
     }
   });
+
+  it('no objective text tells the player how to find the target', () => {
+    // Every quest now carries a beacon and a scent trail, so per-quest
+    // "look for the sparkle" hints are both redundant and inconsistent.
+    for (let i = 0; i < QUEST_TYPES.length; i++) {
+      const q = createQuest(rngQueue(i / QUEST_TYPES.length + 0.01, 0), SPOTS);
+      expect(q.texts.objective).not.toMatch(/sparkle|look for/i);
+    }
+  });
 });

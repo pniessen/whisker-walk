@@ -34,6 +34,7 @@ import { createTippables } from '../tippables.js';
 import { createScent } from '../scent.js';
 import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
+import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals } from '../goals.js';
 import { rankFor } from '../progression.js';
 import { zoomTuning, canSwim } from '../player.js';
@@ -781,6 +782,28 @@ export function createWalkLifecycle({
       }
       questObject.position.x = t.x;
       questObject.position.z = t.z;
+      // Objective beacon: a thin glowing column so the target reads from across
+      // the area, not just once you are on top of it. 10m world height — the
+      // tallest props here (house gables, tree crowns) top out near 5.5m, so
+      // the tip clears them from anywhere in the area. It is a CHILD of
+      // questObject so accept/complete visibility (interactions.js) covers it,
+      // which also means it inherits the parent's scale and y offset (kitten
+      // 0.5x, letter at y=1, glasses at y=0.15). Both are undone here so the
+      // column is the same 10m, standing on the ground, for every quest type.
+      // Translucent on purpose: the shadow-caster sweep below skips transparent
+      // meshes, so a 10m column does not throw a 10m stripe across the lawn.
+      const BEACON_HEIGHT = 10;
+      const beacon = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, BEACON_HEIGHT, 8, 1, true),
+        litMaterial(QUEST_TRAIL_COLOR, {
+          emissive: QUEST_TRAIL_COLOR, transparent: true, opacity: 0.45, depthWrite: false,
+        })
+      );
+      const parentScale = questObject.scale.y;
+      beacon.scale.setScalar(1 / parentScale);
+      beacon.position.y = (BEACON_HEIGHT / 2 - questObject.position.y) / parentScale;
+      questObject.add(beacon);
+      questObject.userData.beacon = beacon;
       questObject.visible = false;
       scene.add(questObject);
     }
