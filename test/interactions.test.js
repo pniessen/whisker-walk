@@ -385,9 +385,18 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const tippables = createTippables(scene, [{ x: 0, z: 2.0, kind: 'bin' }],
       { getState: () => progression.state });
     const prompts = [];
+    // A real group in a scene, with a head out in front: carryables.update
+    // only follows a holder that is in the scene, to its head's mouth.
+    const cat = new THREE.Group();
+    const head = new THREE.Group();
+    head.position.set(0, 0.3, -0.35);
+    cat.add(head);
+    cat.userData = { breed: 'tabby', parts: { head } };
+    new THREE.Scene().add(cat);
+    const player = { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false };
     const session = {
       areaId: 'park',
-      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      cat,
       areaData: { collectibles: [], scenics: [] },
       collectibleMeshes: new Map(),
       critters: { list: [], dismayNear() {} },
@@ -412,15 +421,18 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const { updateInteractions, handleInteract } = createInteractions({
       MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
       getSession: () => session, getIsTouch: () => false,
-      player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0 },
+      player,
       progression, log,
       hud: { toast() {}, setPrompt: (t) => prompts.push(t) },
       audio: { trill() {}, meow() {} },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
     });
-    const walkTo = (x, z) => { session.cat.position.set(x, 0, z); updateInteractions(session); };
-    const press = () => { updateInteractions(session); handleInteract(session); };
-    return { session, prompts, walkTo, press, progression };
+    // A frame, in main.js's order: the carried item follows the mouth, then the
+    // prompt scan.
+    const frame = () => { session.carry.items.update(0); updateInteractions(session); };
+    const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
+    const press = () => { frame(); handleInteract(session); };
+    return { session, prompts, walkTo, press, progression, player };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -481,12 +493,69 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       h.press();
       expect(h.session.carry.mouth.held).toBe(null);
       expect(item.onGround).toBe(true);
-      expect([item.mesh.position.x, item.mesh.position.z]).toEqual([20, 20]);
       // it went down somewhere new, so a walk-end drop mark is pending
-      expect(h.session.carry.mouth.dropped.get('park-stick-1')).toMatchObject({ x: 20, z: 20, homeX: 5, homeZ: 0 });
+      expect(h.session.carry.mouth.dropped.get('park-stick-1')).toMatchObject({ homeX: 5, homeZ: 0 });
       // and it can be picked straight back up
       h.walkTo(20, 20);
       expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+    });
+
+    it('a put-down lands below the mouth, in front of the cat, not under it', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      h.walkTo(20, 20);
+      const item = h.session.carry.items.list[0];
+      const mouth = { x: item.mesh.position.x, z: item.mesh.position.z }; // where the mouth was
+      expect(Math.hypot(mouth.x - 20, mouth.z - 20)).toBeGreaterThan(0.3);
+      h.press();
+      expect(item.onGround).toBe(true);
+      expect(item.mesh.position.x).toBeCloseTo(mouth.x, 6);
+      expect(item.mesh.position.z).toBeCloseTo(mouth.z, 6);
+      expect(item.mesh.position.z).not.toBeCloseTo(h.session.cat.position.z, 1);
+      const pending = h.session.carry.mouth.dropped.get('park-stick-1');
+      expect(pending.x).toBeCloseTo(mouth.x, 6);
+      expect(pending.z).toBeCloseTo(mouth.z, 6);
+    });
+
+    it('a put-down at the edge of the area stays inside its bounds', () => {
+      const h = carryHarness();
+      h.session.areaData.bounds = { minX: -30, maxX: 30, minZ: 19.8, maxZ: 30 };
+      h.walkTo(5, 0.5);
+      h.press();
+      h.walkTo(20, 20); // the mouth pokes out past minZ
+      expect(h.session.carry.items.list[0].mesh.position.z).toBeLessThan(19.8);
+      h.press();
+      expect(h.session.carry.items.list[0].mesh.position.z).toBe(19.8);
+      expect(h.session.carry.mouth.dropped.get('park-stick-1').z).toBe(19.8);
+    });
+
+    it('no drop prompt while perched: the cat keeps holding it', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      h.session.perched = { y: 1.2 };
+      h.walkTo(20, 20);
+      expect(h.session.prompt).toBe(null);
+      h.press();
+      expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+      h.session.perched = null;
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — put the stick down');
+    });
+
+    it('no drop prompt while swimming: the cat keeps holding it', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      h.player.swimming = true;
+      h.walkTo(20, 20);
+      expect(h.session.prompt).toBe(null);
+      h.press();
+      expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+      h.player.swimming = false;
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — put the stick down');
     });
 
     it('a stray in range still wins over drop', () => {
@@ -2159,6 +2228,6 @@ describe('endWalk: what the cat carried home', () => {
 
   it('the summary names what came home, escaped', () => {
     const tail = src.slice(b, src.indexOf('<button id="btn-summary-continue"', b));
-    expect(tail).toMatch(/You brought the \$\{escapeHtml\(carryLabel\([^`]*\)\)\} home\. It's in the den now\. 🏠/);
+    expect(tail).toMatch(/You brought the \$\{escapeHtml\(carryLabel\([^`]*\)\)\} home\. It's in the den now\.&nbsp;🏠<\/div>/);
   });
 });

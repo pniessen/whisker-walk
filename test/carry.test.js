@@ -109,7 +109,7 @@ describe('carryLabel', () => {
   it('names every carry kind in plain English', () => {
     expect(CARRY_KINDS.map(carryLabel)).toEqual([
       'sock', 'toy mouse', 'leaf', 'stick', 'pine cone', 'acorn',
-      'shell', 'bit of driftwood', 'bottle cap', 'bit of rope', 'glove', 'ribbon',
+      'shell', 'bit of driftwood', "sailor's cap", 'bit of rope', 'glove', 'ribbon',
     ]);
   });
 

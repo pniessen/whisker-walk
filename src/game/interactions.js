@@ -837,8 +837,10 @@ export function createInteractions({
       }
     }
     // v21 3b — after even 'gift-leave': holding something must never hide a
-    // prompt the player walked over for. Put it down wherever nothing else is.
-    if (!s.prompt && carry?.mouth.held) {
+    // prompt the player walked over for. Put it down wherever nothing else is,
+    // but only from the ground: dropped from a roof or a car, or in water, it
+    // could land somewhere the cat cannot reach. The cat just keeps holding it.
+    if (!s.prompt && carry?.mouth.held && !s.perched && !player.swimming) {
       s.prompt = { kind: 'drop' };
       setPrompt(`E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
@@ -1101,12 +1103,23 @@ export function createInteractions({
     return true;
   }
 
-  // The one drop path: set down at the cat's feet (always somewhere the cat
-  // can stand), remembered against the item's home so a walk-end mark can say
-  // whether it moved.
+  // The one local drop path, whoever lets go (the player, or rain): set down
+  // straight below the mouth, where carryables.update last put the held mesh,
+  // so it lands in front of the cat and not hidden under its body. Kept inside
+  // the area's bounds; if the mesh position is unusable, the cat's own spot.
+  // Remembered against the item's home so a walk-end mark can say whether it
+  // moved.
   function putDownCarried(s) {
     const item = s.carry.items.list.find((it) => it.id === s.carry.mouth.held?.id);
-    const { x, z } = s.cat.position;
+    const at = item?.mesh?.position;
+    const fromMouth = Number.isFinite(at?.x) && Number.isFinite(at?.z);
+    let x = fromMouth ? at.x : s.cat.position.x;
+    let z = fromMouth ? at.z : s.cat.position.z;
+    const b = s.areaData?.bounds;
+    if (b) {
+      x = Math.min(b.maxX, Math.max(b.minX, x));
+      z = Math.min(b.maxZ, Math.max(b.minZ, z));
+    }
     const released = putDown(s.carry.mouth, x, z, item ? { x: item.homeX, z: item.homeZ } : null);
     if (released) s.carry.items.placeAt(released.id, x, z);
     return released;

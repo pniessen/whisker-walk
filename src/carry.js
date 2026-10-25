@@ -88,7 +88,7 @@ const LABELS = Object.freeze({
   acorn: 'acorn',
   shell: 'shell',
   driftwood: 'bit of driftwood',
-  cap: 'bottle cap',
+  cap: "sailor's cap",
   rope: 'bit of rope',
   glove: 'glove',
   ribbon: 'ribbon',
