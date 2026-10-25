@@ -17,6 +17,7 @@ describe('createSettings', () => {
       leftHanded: false,
       reducedMotion: false,
       hideChat: false,
+      perfReadout: false,
       quality: 'auto',
     });
     expect(settings.get('volume')).toBe(0.8);
@@ -46,6 +47,7 @@ describe('createSettings', () => {
       leftHanded: true,
       reducedMotion: false,
       hideChat: false,
+      perfReadout: false,
       quality: 'auto',
     });
   });
@@ -61,6 +63,7 @@ describe('createSettings', () => {
       leftHanded: false,
       reducedMotion: false,
       hideChat: false,
+      perfReadout: false,
       quality: 'auto',
     });
     expect(warn).toHaveBeenCalled();
@@ -115,5 +118,14 @@ describe('createSettings', () => {
 
     const reloaded = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ musicVolume: 'loud' }) }));
     expect(reloaded.get('musicVolume')).toBe(0.5);
+  });
+
+  it('defaults perfReadout to false, rejects a non-boolean, persists a set', () => {
+    expect(createSettings(fakeStorage()).get('perfReadout')).toBe(false);
+    const bad = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ perfReadout: 'yes' }) }));
+    expect(bad.get('perfReadout')).toBe(false);
+    const storage = fakeStorage();
+    createSettings(storage).set('perfReadout', true);
+    expect(createSettings(storage).get('perfReadout')).toBe(true);
   });
 });

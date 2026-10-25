@@ -621,6 +621,10 @@ instead of a raking line; the frame keeps ~8 draw calls. No budget ceiling in
   capture mechanism forces a second render per tick, which would put the true
   figure near 525. The stability argues against it but does not disprove it.
 
+  **Resolved (Stream 4 step 1, 2026-10-25): it is ~1050-class, not ~525.** The
+  scene is drawn once per frame. See "Stream 4 step 1 — the draw-call answer"
+  at the end of this document.
+
   **Why this matters more than the number itself:** every harness measures
   ~360-580 calls, because a harness builds only `world/<area>.js` plus a cat.
   The real walk also carries critters, strays, remotes, secrets, collectibles,
@@ -634,6 +638,18 @@ instead of a raking line; the frame keeps ~8 draw calls. No budget ceiling in
   be re-made against an in-game number rather than a harness one.
 - **`verify-{park,docks,seaside,neighborhood}.html` still carry the old rig**
   and still never set `castShadow` — they have never shown shadows.
+
+  **Closed (Stream 4 step 1).** The game's rig now lives in
+  `src/render/rig.js`: sun, hemisphere fill, shadow bias, and the caster rule
+  with its thresholds. `walk.js`, `test/budget.test.js` and these four pages
+  all import it, so they cannot drift apart again. The four pages are now
+  tracked in git, while the other `verify-*.html` stay scratch. Each one wires
+  `createShadowFit` the way `verify-lighting.html` does, and now shows real
+  shadows. Their HUDs print caster counts that equal this document's
+  unmerged build-time figures: park 134, docks 424, seaside 33,
+  neighborhood 314. The pages do not run `mergeStaticProps`, so harness draw
+  counts are still the unmerged ones. As before, never size a budget from a
+  harness number.
 
 ---
 
@@ -733,3 +749,73 @@ work, and under parallel load the heavy files intermittently tripped the limit.
 That produced "Test timed out in 5000ms" on tests that pass alone, which is a
 false negative, and a suite that fails at random is one people stop believing.
 30s is a hang guard, not a budget for slow tests.
+
+---
+
+# Stream 4 step 1 — the draw-call answer (branch `worktree-v21-stream4-perf`)
+
+## The answer
+
+**The true per-frame figure is ~1050-class, not ~525. The scene is drawn once
+per frame.** Measured 2026-10-25 on the "Ready?" screen of a real walk, Cozy
+Neighborhood, solo and unseeded, in the in-game readout (`?perf`). The readout
+was cross-checked against a raw count of every `gl.drawElements` /
+`drawArrays` / instanced draw issued between two consecutive rAF callbacks:
+
+| tier | raw gl draws per tick | readout total | shadow pass | scene | other | scene passes |
+|---|---|---|---|---|---|---|
+| high (desktop) | 1220, all 30 ticks | 1220 | 379 | 827 | 14 | 1 |
+| low (desktop, forced) | 1121, all 10 ticks | 1121 | 229 | 892 | 0 | 1 |
+| low (375×812, touch) | — | 552–616 | 155–203 | 373–413 | 0–6 | 1 |
+
+The phone row is pane emulation at 375×812, three unseeded walks: 567 =
+shadow 155 + scene 412 + other 6 (first walk), 552 = 179 + 373 + 0, and
+616 = 203 + 413 + 0. The single "other 6" frame came on the first walk of a
+page load, was not seen again, and is unexplained.
+
+The two counts agree to the call. "Scene passes 1" means `renderer.render` is
+handed the walk's scene exactly once per frame, so nothing in the game or in
+the capture path renders it twice. The raw count needs no help from three: it
+counts what reaches the GPU.
+
+On the high tier, "other" is the composer's full-screen passes: the bloom
+mip chain plus the output pass. That is 14 quads, as measured (bloom's 5-mip
+chain plus composite and output), and they cost fill rate,
+not draw-call overhead. The low tier has no composer, so "other" is 0.
+
+Rows from different walks are **not** comparable with each other. Each walk
+re-rolls strays, critters, secrets, collectibles and sky life, which moves the
+total by ~250 calls (see "A measurement caveat worth carrying" above).
+1050 → 1220 is most likely that variance plus content landed since, not a
+counting change. The phone row is smaller mainly because a touch device gets
+14 strays instead of 22, and its narrower view culls more.
+
+## A trap for anyone reading `renderer.info` — `autoReset`
+
+three resets `renderer.info` at the top of **every** `renderer.render()` call
+(`info.autoReset` defaults to true). On the high tier, a frame is
+`composer.render()`. The scene pass is followed by the bloom and output passes,
+and each of those is its own `renderer.render(fullScreenQuad)`. So anything that
+reads `renderer.info.render.calls` after a high-tier frame sees **only the last
+full-screen pass**, about one call, not half or double the frame. A per-frame
+total therefore needs `info.autoReset = false` and one `info.reset()` per frame.
+That is what `src/render/perfstats.js` does, and only while the readout is on.
+It wraps `renderer.render` and `renderer.shadowMap.render` to split the total
+into shadow / scene / other.
+
+Shadow draws happen inside the scene's `renderer.render` (three calls
+`shadowMap.render` before drawing the scene), so they were always part of the
+1050. They are not a second pass that could be double-counted.
+
+## What the numbers say, before any fps reading
+
+- The shadow pass is about 31% of the draws on high (379/1220) and 20% on low
+  (229/1121). It is the biggest single lever left, and casters are what Wave 3.3 already trims.
+- The high tier's composer adds only 14 draws (bloom's 5-mip chain plus
+  composite and output); its cost is fill rate on a
+  2× pixel-ratio buffer. Whether that matters is exactly what the owner's
+  desktop fps reading will say.
+- **No fps figure in this section, deliberately.** Under automation the pane
+  throttles rAF to about 10 ticks, so the readout's fps and frame-time lines
+  are meaningless there. The owner takes those readings on the desktop and the
+  iPhone 18 (`docs/superpowers/handoffs/2026-10-25-stream4-measurement.md`).
