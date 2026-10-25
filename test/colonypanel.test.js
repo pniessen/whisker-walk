@@ -372,3 +372,53 @@ describe('pairingErrorLine', () => {
     for (const ok of ['ok', 'pending', 'paired', 'declined']) expect(pairingErrorLine(ok)).toBeNull();
   });
 });
+
+// v21 Stream 2, Task 10: the "While you were out" card, and the "they said no" line.
+import { renderNewsHtml, theySaidNo, PAIR_DECLINED_LINE } from '../src/ui/colonypanel.js';
+
+describe('renderNewsHtml', () => {
+  it('is a titled card with the lines and a Let\'s go! button', () => {
+    const html = renderNewsHtml({ lines: ['Robin fed Pickles 🐟', 'Pickles came home to the den! 🏠'], any: true }, 'Robin');
+    expect(html).toContain('While you were out 🐾');
+    expect(html).toContain("Let's go!");
+    expect(html).toContain('id="colony-news-ok"');
+    expect(count(html, /<li/g)).toBe(2);
+    expect(html).toContain('Robin fed Pickles 🐟');
+  });
+
+  it('escapes every line', () => {
+    const evil = '<img src=x onerror=alert(1)> & "q" \'s\'';
+    const html = renderNewsHtml({ lines: [evil, '<script>1</script>'], any: true }, '<b>Robin</b>');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<b>');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt; &amp; &quot;q&quot; &#39;s&#39;');
+    expect(html).toContain('&lt;script&gt;1&lt;/script&gt;');
+  });
+
+  it('renders nothing when there is nothing to say, and survives bad input', () => {
+    expect(renderNewsHtml({ lines: [], any: false }, 'Robin')).toBe('');
+    expect(renderNewsHtml(null, 'Robin')).toBe('');
+    expect(renderNewsHtml({ lines: 'x' }, 'Robin')).toBe('');
+    expect(renderNewsHtml({ lines: [7, null, 'ok'], any: true })).toContain('<li>ok</li>');
+  });
+});
+
+describe('theySaidNo', () => {
+  const waiting = { mode: 'unpaired', invite: null, joining: { inviterPetName: 'Robin' }, lastError: null };
+  const idle = { mode: 'unpaired', invite: null, joining: null, lastError: null };
+  it('fires when a pending join vanishes on a good sync', () => {
+    expect(theySaidNo(waiting, idle)).toBe(true);
+    expect(PAIR_DECLINED_LINE).toBe('They said no — ask them for a new code.');
+  });
+  it('does not fire for yes, trouble, a still-pending join or no earlier join', () => {
+    expect(theySaidNo(waiting, { ...idle, mode: 'paired' })).toBe(false);
+    expect(theySaidNo(waiting, { ...idle, mode: 'offline', lastError: 'offline' })).toBe(false);
+    expect(theySaidNo(waiting, { ...idle, lastError: 'offline' })).toBe(false);
+    expect(theySaidNo(waiting, waiting)).toBe(false);
+    expect(theySaidNo(idle, idle)).toBe(false);
+    expect(theySaidNo({ ...idle, invite: { code: 'K7P2QM' } }, idle)).toBe(false);
+    expect(theySaidNo(null, idle)).toBe(false);
+    expect(theySaidNo(waiting, undefined)).toBe(false);
+  });
+});

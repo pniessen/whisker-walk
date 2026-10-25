@@ -702,21 +702,76 @@ describe('createColonySync — fix round 1', () => {
     expect(sent).toEqual([['walk-30', false], ['walk-31', false], ['walk-32', false], ['walk-32', true]]);
   });
 
-  // Fix 4
-  it('trouble clears a stale invite and joining state', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { cs, script } = setup({ script: { colonySync: unpairedSnap({
-      invite: { code: 'K7P2QM', expires_at: null }, joining: { inviter_pet_name: 'Robin' } }) } });
-    await cs.pull();
-    expect(cs.status().invite).toMatchObject({ code: 'K7P2QM' });
-    expect(cs.status().joining).toEqual({ inviterPetName: 'Robin' });
-    for (const fail of [() => { throw new TypeError('Failed to fetch'); }, () => { throw { code: 'PGRST202' }; }, { status: 'weird' }]) {
-      script.colonySync = unpairedSnap({ invite: { code: 'K7P2QM', expires_at: null }, joining: { inviter_pet_name: 'Robin' } });
+  // Task 10 (controller ruling B): one failed tick must not wipe the sibling's on-screen code.
+  describe('trouble keeps a pairing that can still be live', () => {
+    const FAILS = [() => { throw new TypeError('Failed to fetch'); }, () => { throw { code: 'PGRST202' }; }, { status: 'weird' }];
+    const future = () => new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const past = () => new Date(Date.now() - 60 * 1000).toISOString();
+
+    it('keeps an unexpired invite (and its unpaired mode, so the UI and poll carry on)', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const exp = future();
+      const { cs, script } = setup({ script: { colonySync: unpairedSnap({ invite: { code: 'K7P2QM', expires_at: exp } }) } });
       await cs.pull();
-      expect(cs.status().invite).not.toBe(null);
-      script.colonySync = fail;
+      for (const fail of [FAILS[0], FAILS[2]]) {
+        script.colonySync = fail;
+        await cs.pull();
+        expect(cs.status()).toMatchObject({ mode: 'unpaired', invite: { code: 'K7P2QM', expiresAt: exp }, joining: null, lastError: expect.any(String) });
+        script.colonySync = unpairedSnap({ invite: { code: 'K7P2QM', expires_at: exp } });
+        await cs.pull();
+        expect(cs.status().lastError).toBe(null);
+      }
+    });
+
+    it('clears an expired invite, and one with no parseable expiry', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      for (const expires_at of [past(), null, 'soon']) {
+        const { cs, script } = setup({ script: { colonySync: unpairedSnap({ invite: { code: 'K7P2QM', expires_at } }) } });
+        await cs.pull();
+        expect(cs.status().invite).not.toBe(null);
+        for (const fail of FAILS) {
+          script.colonySync = fail;
+          await cs.pull();
+          expect(cs.status().invite).toBe(null);
+          expect(cs.status().mode).not.toBe('unpaired');
+          script.colonySync = unpairedSnap({ invite: { code: 'K7P2QM', expires_at } });
+          await cs.pull();
+        }
+      }
+    });
+
+    it('keeps a pending join until a successful sync says otherwise', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { cs, script } = setup({ script: { colonySync: unpairedSnap({ joining: { inviter_pet_name: 'Robin' } }) } });
       await cs.pull();
-      expect(cs.status()).toMatchObject({ invite: null, joining: null });
-    }
+      for (const fail of FAILS) {
+        script.colonySync = fail;
+        await cs.pull();
+        expect(cs.status()).toMatchObject({ mode: 'unpaired', joining: { inviterPetName: 'Robin' }, invite: null });
+      }
+      script.colonySync = unpairedSnap();
+      await cs.pull();
+      expect(cs.status()).toEqual({ mode: 'unpaired', invite: null, joining: null, lastError: null });
+    });
+
+    it('an expired invite goes but a kept join stays', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { cs, script } = setup({ script: { colonySync: unpairedSnap({
+        invite: { code: 'K7P2QM', expires_at: past() }, joining: { inviter_pet_name: 'Robin' } }) } });
+      await cs.pull();
+      script.colonySync = FAILS[0];
+      await cs.pull();
+      expect(cs.status()).toMatchObject({ mode: 'unpaired', invite: null, joining: { inviterPetName: 'Robin' } });
+    });
+
+    it('nothing pending: trouble still reads offline / not-set-up', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { cs, script } = setup({ script: { colonySync: FAILS[0] } });
+      await cs.pull();
+      expect(cs.status().mode).toBe('offline');
+      script.colonySync = FAILS[1];
+      await cs.pull();
+      expect(cs.status().mode).toBe('not-set-up');
+    });
   });
 });

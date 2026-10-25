@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
 import { PERSONALITIES } from './cat/brain.js';
-import { createProgression, rankFor } from './progression.js';
+import { createProgression, rankFor, CATALOG } from './progression.js';
+import { colonyNews } from './colony.js';
+import { renderNewsHtml } from './ui/colonypanel.js';
 import { buildEnvMap } from './render/materials.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
@@ -364,7 +366,28 @@ function init() {
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast);
   homebase.show();
-  colonySync.pull(); // fire-and-forget; never rejects, and makes no network call when solo
+
+  // "While you were out" (Task 10): the first thing a kid sees on open is what
+  // their sibling did. Runs after the boot pull and after each walk's
+  // summary-continue pull. Never over a walk in progress (`session`): the pull
+  // is async and a walk can start before it lands. Nothing is lost then, since
+  // the news is derived from the save and stays unread until dismissed, and the
+  // rewards that pull granted wait in pendingRewards for the next card.
+  let pendingRewards = [];
+  function showColonyNews(rewards) {
+    pendingRewards.push(...(rewards || []));
+    if (session) return;
+    const colony = progression.state.colony;
+    const news = colonyNews(colony, {
+      me: pid, ymd: new Date().toISOString().slice(0, 10),
+      rewards: pendingRewards, accessories: CATALOG.accessories,
+    });
+    if (!news.any) { pendingRewards = []; return; }
+    const partner = colony.partner && colony.partner.petName ? colony.partner.petName : '';
+    if (homebase.showNews(renderNewsHtml(news, partner))) pendingRewards = [];
+  }
+  const pullThenNews = () => colonySync.pull().then((r) => showColonyNews(r && r.rewards), () => {});
+  pullThenNews(); // fire-and-forget; never rejects, and makes no network call when solo
 
   // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
   // result into awards + HUD refresh + fx, regardless of whether the
@@ -455,7 +478,7 @@ function init() {
       overlay.classList.add('hidden');
       homebase.show();
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
-      colonySync.pull(); // fire-and-forget; catches up feeds made on this walk
+      pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }
   });
   document.addEventListener('keydown', (e) => {

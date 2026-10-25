@@ -4,6 +4,7 @@ import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
+  theySaidNo, PAIR_DECLINED_LINE,
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
@@ -113,6 +114,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let pairError = null;
   let pairCode = '';
   let pairingWasPending = false; // a pairing was waiting when we last looked
+  let lastPairStatus = null;     // the status noteColonyPairing last saw (for "they said no")
   let pairTimer = null;          // THE single poll handle; null when not polling
 
   // Player pets 🐾🐾 (Task 3) — render() is synchronous and re-runs its
@@ -498,12 +500,22 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // cleared the moment it fires, so a second render cannot repeat it.
   function noteColonyPairing(status) {
     if (!colonySync) return;
+    // My typed code's join vanished on a good sync and I'm still unpaired: the
+    // inviter said No. Set once, here, on the transition; the next pairing
+    // step clears it (runPairing).
+    if (theySaidNo(lastPairStatus, status)) pairError = PAIR_DECLINED_LINE;
+    lastPairStatus = status;
     if (status.mode === 'paired' && pairingWasPending) {
       pairingWasPending = false;
       const partner = progression.state.colony && progression.state.colony.partner;
       const name = partner && partner.petName ? String(partner.petName) : 'your partner';
       try { toast?.(`You're sharing a colony with ${name}! 🐾`); } catch { /* a toast is never worth a crash */ }
-      colonySync.pull(); // uploads both players' earlier local cats (Task 5's catch-up)
+      // Deferred one tick: this runs inside render(), which runs inside the
+      // in-flight pull's onChange, so a pull() right now is single-flight and
+      // would just return the running promise. After the tick the inviter
+      // really fetches the joiner's cats. It cannot loop: onChange re-renders
+      // only on a real change.
+      setTimeout(() => colonySync.pull(), 0); // uploads both players' earlier local cats (Task 5's catch-up)
     } else {
       pairingWasPending = pairingPending(status);
     }
@@ -525,6 +537,42 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     pairError = pairingErrorLine(res && res.ok ? 'ok' : res && res.status);
     if (res && res.ok) afterOk?.(res);
     render();
+  }
+
+  // ---- "While you were out" (Task 10) ---------------------------------------
+  // The card lives OUTSIDE #homebase: render() rebuilds root.innerHTML on every
+  // roster change and sync, which would wipe a card mounted inside it.
+  const utcToday = () => new Date().toISOString().slice(0, 10);
+  let newsEl = null;
+
+  function closeNews(markSeen) {
+    if (!newsEl) return;
+    newsEl.remove();
+    newsEl = null;
+    // Dismissing is what marks it read; closing because a walk began is not.
+    if (markSeen) {
+      try { progression.markColonySeen(utcToday()); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+    }
+  }
+
+  // showNews(html): put the card over the home base. html is renderNewsHtml's
+  // output (already escaped); '' or a card already up shows nothing. Returns
+  // whether it was shown.
+  function showNews(html) {
+    if (typeof html !== 'string' || !html || newsEl || !homeVisible()) return false;
+    newsEl = document.createElement('div');
+    newsEl.id = 'colony-news';
+    newsEl.className = 'colony-news';
+    newsEl.innerHTML = html;
+    newsEl.addEventListener('click', (e) => {
+      if (e.target.id === 'colony-news-ok') closeNews(true);
+    });
+    newsEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeNews(true);
+    });
+    root.after(newsEl);
+    newsEl.querySelector('#colony-news-ok')?.focus();
+    return true;
   }
 
   function applyActiveTab() {
@@ -1027,7 +1075,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden
     },
+    showNews,
     hide() {
+      closeNews(false); // a walk is starting: leave the news unread for next time
       root.classList.add('hidden');
       syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
     },

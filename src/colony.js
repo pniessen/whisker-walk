@@ -572,3 +572,91 @@ export function rewardsDue(colony, owned) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// "While you were out" (Task 10): what the card shows on open.
+// ---------------------------------------------------------------------------
+
+const DEN_NEWS = {
+  box: 'is stuck in a box',
+  knocked: 'knocked something over',
+  window: 'is napping on the windowsill',
+  groom: 'is having a wash',
+  nap: 'is curled up asleep',
+};
+const DEN_NEWS_MAX = 3;
+
+// colonyNews(colony, { me, ymd, rewards = [], accessories }) -> { lines, any }.
+// Plain text only; the renderer escapes it. What counts as "since last time"
+// is `colony.seen` (progression.markColonySeen records it when the card is
+// dismissed). Lines, in this order:
+//   1  the partner's unseen feeds, per cat, repeats collapsed ("×3"). My own
+//      feeds are never news to me.
+//   2  cats tamed since last seen
+//   3  a cat the partner found that none of whose feeds I have seen yet
+//   4  an open swap offer to me that I have not seen
+//   5  one line per reward granted by THIS pull. `rewards` are accessory ids;
+//      `accessories` is CATALOG.accessories (passed in: this module must not
+//      import progression.js). An id the catalog does not know is skipped.
+//   6  when the day has changed and a cat is tamed, up to three den moments,
+//      drawn per day (a different trio tomorrow) from the tamed cats.
+// Never throws: bad input reads as nothing to say.
+export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) {
+  const lines = [];
+  try {
+    const cats = asArray(colony?.cats).filter(isPlainObject);
+    const feeds = asArray(colony?.feeds).filter(isPlainObject);
+    const trades = asArray(colony?.trades).filter(isPlainObject);
+    const s = isPlainObject(colony?.seen) ? colony.seen : {};
+    const seenKeys = new Set(asArray(s.feedKeys));
+    const seenTamed = new Set(asArray(s.tamed));
+    const seenTrades = new Set(asArray(s.trades));
+    const partner = isPlainObject(colony?.partner) ? colony.partner : null;
+    const pid = partner && isPlayerId(partner.playerId) && partner.playerId !== me ? partner.playerId : null;
+    const pname = partner && typeof partner.petName === 'string' && partner.petName ? partner.petName : 'your partner';
+
+    if (pid) {
+      const counts = new Map();
+      for (const f of feeds) {
+        if (f.by !== pid || seenKeys.has(feedKey(f))) continue;
+        counts.set(f.cat, (counts.get(f.cat) || 0) + 1);
+      }
+      for (const [name, n] of counts) lines.push(`${pname} fed ${name} 🐟${n > 1 ? ` ×${n}` : ''}`);
+    }
+
+    for (const c of cats) {
+      if (c.tamedBy != null && !seenTamed.has(c.name)) lines.push(`${c.name} came home to the den! 🏠`);
+    }
+
+    if (pid) {
+      for (const c of cats) {
+        if (c.finder !== pid || seenTamed.has(c.name)) continue;
+        if (feeds.some((f) => f.cat === c.name && seenKeys.has(feedKey(f)))) continue;
+        lines.push(`${pname} found a new cat: ${c.name}`);
+      }
+      for (const t of trades) {
+        if (t.status === 'offered' && t.to === me && t.from === pid && !seenTrades.has(t.id)) {
+          lines.push(`${pname} wants to swap — have a look in Colony`);
+        }
+      }
+    }
+
+    for (const id of asArray(rewards)) {
+      if (typeof id !== 'string' || !isPlainObject(accessories) || !Object.hasOwn(accessories, id)) continue;
+      const name = accessories[id]?.name;
+      if (typeof name === 'string' && name) lines.push(`🎁 New for your wardrobe: ${name}`);
+    }
+
+    if (typeof ymd === 'string' && YMD.test(ymd) && s.day !== ymd) {
+      const homed = cats.filter((c) => c.tamedBy != null && isStrayName(c.name));
+      homed.sort((a, b) => seedFromCode(`news|${a.name}|${ymd}`) - seedFromCode(`news|${b.name}|${ymd}`) || byName(a, b));
+      for (const c of homed.slice(0, DEN_NEWS_MAX)) {
+        const act = denMoment(c.name, ymd).act;
+        lines.push(`In the den: ${c.name} ${DEN_NEWS[act]}`);
+      }
+    }
+  } catch {
+    return { lines: [], any: false };
+  }
+  return { lines, any: lines.length > 0 };
+}

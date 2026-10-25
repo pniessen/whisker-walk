@@ -85,14 +85,18 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     warned = key;
     console.warn(`Whisker Walk: colony sync — ${key}`, detail);
   }
-  // A pull that couldn't sync. The local colony (and its link) is left alone;
-  // the invite and joining state are dropped, since a code we can't confirm
-  // is still open must not be shown.
+  // A pull that couldn't sync. The local colony (and its link) is left alone.
+  // One failed poll tick must not wipe the sibling's on-screen code and stop
+  // the poll, so a pairing that can still be live is KEPT: an invite whose
+  // expiresAt parses to a future time, and a pending join (it has no expiry,
+  // so it stays until a successful sync says otherwise). The mode then stays
+  // 'unpaired' so the pairing UI keeps showing and keeps polling; lastError
+  // still says the sync failed. An expired (or undated) invite is dropped.
   function trouble(mode, reason, detail) {
-    netMode = mode;
+    const expires = invite && typeof invite.expiresAt === 'string' ? Date.parse(invite.expiresAt) : NaN;
+    if (!(Number.isFinite(expires) && expires > Date.now())) invite = null;
+    netMode = netMode === 'unpaired' && (invite || joining) ? 'unpaired' : mode;
     lastError = reason;
-    invite = null;
-    joining = null;
     warnOnce(reason, detail);
   }
 

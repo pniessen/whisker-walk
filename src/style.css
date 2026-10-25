@@ -512,3 +512,40 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.15em; text-transform: uppercase;
 }
 .colony-pair-error { font-size: 0.9rem; color: #f28080; margin: 8px 0 0; overflow-wrap: anywhere; }
+
+/* --- v21 "While you were out" (Task 10). A modal over the home base: it sits
+   outside #homebase (render() rebuilds that), above it and below the
+   pause/summary overlay (z 10) and toasts (z 11). The card scrolls inside
+   itself if a long list meets a short phone, so the button is always reachable. --- */
+.colony-news {
+  position: absolute; inset: 0; z-index: 5;
+  display: grid; place-items: center; padding: 16px;
+  padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right));
+  background: rgba(14, 19, 29, 0.78);
+}
+.colony-news.hidden { display: none; }
+.colony-news-card {
+  width: 100%; max-width: 440px; max-height: 100%; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  background: #2a3550; border: 2px solid #f2c14e; border-radius: 16px; padding: 18px 18px 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+}
+.colony-news-card h2 { font-size: 1.5rem; color: #f2c14e; margin: 0; }
+.colony-news-sub { font-size: 0.9rem; color: #a8c0e0; margin: 0; overflow-wrap: anywhere; }
+.colony-news-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 4px 0 6px; padding: 0; }
+.colony-news-list li {
+  font-size: 1.05rem; line-height: 1.35; color: #fff; overflow-wrap: anywhere;
+  background: rgba(255,255,255,0.08); border-radius: 10px; padding: 9px 12px;
+}
+.colony-news-btn {
+  min-height: 48px; padding: 10px 18px; border: 0; border-radius: 12px; cursor: pointer;
+  font: inherit; font-size: 1.1rem; font-weight: 700; background: #f2c14e; color: #1c2431;
+}
+.colony-news-btn:hover { filter: brightness(1.08); }
+.colony-news-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+@media (max-width: 480px) {
+  .colony-news { padding: 12px; }
+  .colony-news-card { padding: 14px 14px 12px; border-radius: 14px; }
+  .colony-news-card h2 { font-size: 1.3rem; }
+  .colony-news-list li { font-size: 1rem; }
+}

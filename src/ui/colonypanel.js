@@ -154,6 +154,20 @@ export function pairingErrorLine(word) {
   }
 }
 
+// Shown once when a join we typed is gone on a successful sync while we are
+// still unpaired: the inviter said No (or the invite was removed).
+export const PAIR_DECLINED_LINE = 'They said no — ask them for a new code.';
+
+// theySaidNo(prev, next): did my pending join just vanish without a yes? Both
+// are colonySync.status() results. A failed sync (lastError) proves nothing,
+// and a 'paired' next is a yes, so only a clean, still-unpaired status with no
+// join left counts.
+export function theySaidNo(prev, next) {
+  return !!prev && !!next
+    && prev.mode === 'unpaired' && !!prev.joining
+    && next.mode === 'unpaired' && !next.joining && !next.lastError;
+}
+
 // renderPairingHtml(status, { busy, error, hasPetName, code }) -> HTML string.
 // Every name is escaped once, here. `error` is plain text (see pairingErrorLine).
 export function renderPairingHtml(status, { busy = false, error = null, hasPetName = true, code = '' } = {}) {
@@ -237,4 +251,21 @@ export function renderColonyHtml({ colony, me, members = 1, status, owned, catal
 
   const pair = renderPairingHtml(status, pairing || {});
   return `${header}<div id="colony-pairing">${pair}</div>${list}${full}`;
+}
+
+// ---- "While you were out" (Task 10) -----------------------------------------
+// renderNewsHtml(news, partnerName) -> HTML for the card that overlays the home
+// base on open. `news` is colony.colonyNews's { lines, any }: plain text, escaped
+// here, one list item each. '' when there is nothing to say. The button id
+// (colony-news-ok) is what homebase.js listens for.
+export function renderNewsHtml(news, partnerName) {
+  const lines = news && Array.isArray(news.lines) ? news.lines.filter((l) => typeof l === 'string' && l) : [];
+  if (lines.length === 0) return '';
+  const sub = partnerName ? `What's new with you and ${escapeHtml(partnerName)}` : "What's new in your colony";
+  return `<div class="colony-news-card" role="dialog" aria-modal="true" aria-labelledby="colony-news-title">
+    <h2 id="colony-news-title">While you were out 🐾</h2>
+    <p class="colony-news-sub">${sub}</p>
+    <ul class="colony-news-list">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
+    <button type="button" id="colony-news-ok" class="colony-news-btn">Let's go!</button>
+  </div>`;
 }
