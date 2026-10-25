@@ -175,7 +175,7 @@ function shuffled(arr, rng) {
   return a;
 }
 
-// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats })
+// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
 // seeds walkRng from. It is used for ONE thing: seeding each stray's private
@@ -238,7 +238,16 @@ function shuffled(arr, rng) {
 // through different worlds without either of them knowing why. Spending the
 // draws keeps the stream position after spawn a function of `count` alone
 // (test/straycats.test.js pins it with a counting rng).
-export function createStrayCats(scene, area, count = 3, rng = Math.random, { grudges = [], roomSeed, colonyCats = [] } = {}) {
+//
+// `excludeNames` is every OTHER colony cat game/walk.js knows about on a
+// colony walk — tamed ones (they live in the den now) and ones whose fixed
+// spot is in another area. They are dropped from the ordinary shuffle tail so
+// none of them can turn up here at a random spot. It filters the list the
+// shuffle already drew, so it costs no draws either; off a colony walk it is
+// empty and the cast is exactly the pre-colony one.
+export function createStrayCats(scene, area, count = 3, rng = Math.random, {
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [],
+} = {}) {
   const strays = [];
   const b = area.bounds;
   const names = shuffled(CAT_NAMES, rng);
@@ -259,7 +268,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
     colonyNames.add(c.name);
     colony.push(c);
   }
-  const cast = [...colony, ...names.filter((n) => !colonyNames.has(n))];
+  const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
+  const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
 
   for (let i = 0; i < count; i++) {
     const fixed = i < colony.length ? colony[i] : null;

@@ -596,3 +596,31 @@ describe('sanitizeSnapshot', () => {
     expect(u({ invite: 'x', joining: 7 })).toEqual({ status: 'unpaired', invite: null, joining: null });
   });
 });
+
+// v21 Stream 2, Task 6 fix round 1: the one wear lookup, shared by the area
+// strays (game/walk.js) and the den's tamed cats (Task 7). The catalog is
+// passed in because colony.js must not import progression.js.
+import { colonyWear } from '../src/colony.js';
+describe('colonyWear', () => {
+  const CAT = { bell: { name: 'Bell Collar', slot: 'collar' }, crown: { name: 'Flower Crown', slot: 'head' } };
+  it('resolves a known id to its slot', () => {
+    expect(colonyWear('crown', CAT)).toEqual({ slot: 'head', id: 'crown' });
+    expect(colonyWear('bell', CAT)).toEqual({ slot: 'collar', id: 'bell' });
+  });
+  it('is null for no item, an unknown id, an inherited key or garbage', () => {
+    for (const bad of [null, undefined, '', 'jetpack', '__proto__', 'toString', 'constructor', 7, {}]) {
+      expect(colonyWear(bad, CAT)).toBe(null);
+    }
+  });
+  it('is null for a broken catalog or a catalog entry without a slot', () => {
+    expect(colonyWear('bell', null)).toBe(null);
+    expect(colonyWear('bell', undefined)).toBe(null);
+    expect(colonyWear('odd', { odd: { name: 'Odd' } })).toBe(null);
+  });
+  it('agrees with the real CATALOG for every accessory', async () => {
+    const { CATALOG } = await import('../src/progression.js');
+    for (const [id, a] of Object.entries(CATALOG.accessories)) {
+      expect(colonyWear(id, CATALOG.accessories)).toEqual({ slot: a.slot, id });
+    }
+  });
+});

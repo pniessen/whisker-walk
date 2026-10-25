@@ -1609,7 +1609,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
   // a friendly roll is found within a handful of tries).
   function colonyHarness({
     name = 'Pickles', names = [name], grudges = [], points = 0, feeds = [], partner = null,
-    net = true, colonyWalk = true, sync = true,
+    net = true, colonyWalk = true, sync = true, catArea = 'park', extraCats = [], extraFeeds = [],
   } = {}) {
     const progression = createProgression(fakeStorage());
     const prior = [];
@@ -1618,8 +1618,11 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     const colony = {
       id: partner ? 'colony-1' : null,
       partner,
-      cats: prior.length ? [{ name, finder: prior[0].by, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null }] : [],
-      feeds: prior,
+      cats: [
+        ...(prior.length ? [{ name, finder: prior[0].by, area: catArea, x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null }] : []),
+        ...extraCats,
+      ],
+      feeds: [...prior, ...extraFeeds],
     };
     progression.replaceFromPayload({ version: 4, points, grudges, colony });
     const log = createDiscoveryLog(progression);
@@ -1831,6 +1834,55 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     // ...and nothing more to do with her this walk.
     h.scan();
     expect(h.kind()).toBe(null);
+  });
+
+  // Fix round 1: a colony cat whose fixed spot is in ANOTHER area (it can
+  // only be here off a colony walk, as an ordinary stray) is never fed here —
+  // feeding it would move nothing (first insert wins) and would tame a cat
+  // somewhere the player is not.
+  it('never offers or takes food for a colony cat that lives in another area', () => {
+    const h = colonyHarness({ name: 'Marmalade', catArea: 'docks', feeds: [[ME, 2]], colonyWalk: false });
+    h.press();                                // greet works as ever
+    expect(h.stray.greeted).toBe(true);
+    h.scan();
+    expect(h.kind()).toBe(null);
+    const before = structuredClone(h.progression.state.colony);
+    h.session.prompt = { kind: 'stray-feed', data: h.stray };   // a stale prompt
+    h.pressE();
+    expect(h.progression.state.colony).toEqual(before);
+    expect(h.pushed).toEqual([]);
+  });
+
+  it('a shy cat waiting for the partner never hides a feedable cat in range', () => {
+    // Pickles (shy, bar full, waiting) stands NEARER than Marmalade (feedable).
+    const sixFeeds = Array.from({ length: 6 }, (_, i) => ({ cat: 'Pickles', by: ME, walk: `walk-${8000 + i}`, head: 0 }));
+    const h = colonyHarness({
+      name: 'Marmalade', names: ['Pickles', 'Marmalade'], partner: PARTNER,
+      extraCats: [{ name: 'Pickles', finder: ME, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null }],
+      extraFeeds: sixFeeds,
+    });
+    const pickles = h.strayCats.strays.find((s) => s.name === 'Pickles');
+    h.session.walkStamp = 'walk-1';            // reroll-proof: find a stamp friendly to both
+    for (let i = 1; i < 20000; i++) {
+      const st = `walk-${i}`;
+      if (!rollHostile(st, 'Pickles', { charmer: false }) && !rollHostile(st, 'Marmalade', { charmer: false })) {
+        h.session.walkStamp = st;
+        break;
+      }
+    }
+    pickles.group.position.set(0, 0, 1);
+    h.stray.group.position.set(0, 0, 1.5);
+    h.press();                                // greets Pickles
+    h.press();                                // greets Marmalade
+    expect(pickles.greeted && h.stray.greeted).toBe(true);
+    h.scan();
+    expect(h.kind()).toBe('stray-feed');
+    expect(h.session.prompt.data).toBe(h.stray);
+    // ...and with Marmalade gone out of range, the waiting line shows.
+    h.stray.group.position.set(0, 0, 40);
+    h.scan();
+    expect(h.kind()).toBe('stray-wait');
+    expect(h.prompts.at(-1)).toBe('Pickles is shy — waiting for Zoomer 🐾');
   });
 
   it('a feed without a colony sync (it is an optional dep) still records', () => {

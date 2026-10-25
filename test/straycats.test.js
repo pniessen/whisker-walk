@@ -865,6 +865,43 @@ describe('createStrayCats — colony cats (v21 Stream 2)', () => {
     expect(s.strays.filter((x) => x.colony).map((x) => x.name)).toEqual(['Pickles']);
   });
 
+  // Fix round 1: on a colony walk EVERY colony name (tamed, or found in
+  // another area) is kept out of the ordinary shuffle tail, so a cat waiting
+  // in the den, or one whose fixed spot is in another area, never wanders in
+  // here at a random spot. game/walk.js passes `excludeNames` only on a
+  // colony walk; off one the cast is exactly as before.
+  it('excluded names never appear in the cast, at any count or seed', () => {
+    const tamed = 'Marmalade', elsewhere = 'Noodle';
+    for (const seed of [1, 2, 3, 4, 5]) {
+      for (const count of [14, 22, 30]) {   // real walks spawn 14 or 22
+        const s = createStrayCats(scene, AREA, count, mulberry32(seed), {
+          colonyCats: [{ name: 'Pickles', x: 5, z: 6, wear: null }],
+          excludeNames: [tamed, elsewhere, 'Pickles'],
+        });
+        const names = s.strays.map((x) => x.name);
+        expect(names).not.toContain(tamed);
+        expect(names).not.toContain(elsewhere);
+        expect(names.filter((n) => n === 'Pickles')).toHaveLength(1);   // the colony cat itself still comes
+      }
+    }
+  });
+
+  it('excluding names does not change how many walkRng values a spawn draws', () => {
+    const many = CAT_NAMES.slice(0, 12);
+    for (const count of [0, 14, 22]) {
+      const a = counting(), b = counting();
+      createStrayCats(scene, AREA, count, a);
+      createStrayCats(scene, AREA, count, b, { colonyCats: [{ name: many[0], x: 1, z: 1, wear: null }], excludeNames: many });
+      expect(b.count()).toBe(a.count());
+    }
+  });
+
+  it('without excludeNames the ordinary cast is exactly as before (a non-partner room)', () => {
+    const a = createStrayCats(scene, AREA, 22, mulberry32(8));
+    const b = createStrayCats(scene, AREA, 22, mulberry32(8), { excludeNames: [] });
+    expect(b.strays.map((x) => x.name)).toEqual(a.strays.map((x) => x.name));
+  });
+
   it('nearest honours a where filter', () => {
     const s = createStrayCats(scene, AREA, 2, mulberry32(4));
     const [near, far] = s.strays;

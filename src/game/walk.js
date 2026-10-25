@@ -37,7 +37,7 @@ import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals } from '../goals.js';
 import { rankFor, CATALOG } from '../progression.js';
-import { catsInArea } from '../colony.js';
+import { catsInArea, colonyWear } from '../colony.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim } from '../player.js';
 import { createFx } from '../fx.js';
@@ -248,19 +248,6 @@ const HEMI_INTENSITY = 0.45;
 // it is what an un-threaded area's fill degrades TO, so it must not smuggle a
 // green cast into a stone courtyard or a sand cast into a lawn.
 const DEFAULT_GROUND_BOUNCE = 0x9a9086;
-
-// resolveColonyWear(id) → { slot, id } | null. A colony cat's `wear` is
-// stored as a bare accessory id (colony.js, the shared Cat type); the model
-// builder wants it by slot. The ONE lookup for it — the area strays (Task 6)
-// and the den's tamed cats (Task 7) both go through here, so the two can
-// never disagree about what a cat is wearing. null for no item, and for an id
-// this build does not know (a newer client's accessory synced in from the
-// partner's device draws as no accessory rather than throwing).
-export function resolveColonyWear(id) {
-  if (typeof id !== 'string' || !Object.hasOwn(CATALOG.accessories, id)) return null;
-  const slot = CATALOG.accessories[id].slot;
-  return typeof slot === 'string' ? { slot, id } : null;
-}
 
 export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
@@ -889,13 +876,24 @@ export function createWalkLifecycle({
       (Array.isArray(roomAtStart.roster) ? roomAtStart.roster : []).map((p) => p?.playerId),
       pid, state.colony?.partner?.playerId,
     ));
+    //
+    // On a colony walk EVERY colony name is also kept out of the ordinary
+    // strays (excludeNames): a tamed cat is waiting in the den, and a cat
+    // found in another area lives at its spot THERE — neither may wander in
+    // here at a random spot. Off a colony walk the list is empty, so the cast
+    // is byte-for-byte what a non-partner co-walker computes. Excluding names
+    // filters the already-drawn shuffle, so it costs walkRng nothing either.
     const colonyCats = colonyWalk && !isDen && state.colony
-      ? catsInArea(state.colony, areaId).map((c) => ({ name: c.name, x: c.x, z: c.z, wear: resolveColonyWear(c.wear) }))
+      ? catsInArea(state.colony, areaId).map((c) => ({
+        name: c.name, x: c.x, z: c.z, wear: colonyWear(c.wear, CATALOG.accessories),
+      }))
       : [];
+    const excludeNames = colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : [];
     const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng, {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
       colonyCats,
+      excludeNames,
     });
     const remotes = createRemoteCats(scene);
 

@@ -217,6 +217,22 @@ export function catsInArea(colony, area) {
   return colony.cats.filter((c) => c.area === area && c.tamedBy == null).sort(byName);
 }
 
+// colonyWear(id, accessories) → { slot, id } | null. A cat's `wear` is stored
+// as a bare accessory id; the cat model wants it by slot. `accessories` is
+// CATALOG.accessories, passed in because this module must not import
+// progression.js. The ONE lookup for it: the area strays (game/walk.js) and
+// the den's tamed cats both use it, so they cannot disagree about what a cat
+// is wearing. null for no item, for an id this build does not know (a newer
+// client's accessory synced from the partner draws as none rather than
+// throwing), for an inherited key like '__proto__' (own-property check) and
+// for an entry without a string slot.
+export function colonyWear(id, accessories) {
+  if (typeof id !== 'string' || !accessories || typeof accessories !== 'object') return null;
+  if (!Object.hasOwn(accessories, id)) return null;
+  const slot = accessories[id]?.slot;
+  return typeof slot === 'string' ? { slot, id } : null;
+}
+
 // Tamed cats in the order they were tamed (walk stamp, which is a millisecond
 // clock), ties by name. This order fixes each cat's den home, so it must be
 // stable across devices.

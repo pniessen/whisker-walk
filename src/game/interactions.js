@@ -686,16 +686,28 @@ export function createInteractions({
       //
       // Guarded on the colony existing so a stand-in progression in a test
       // (which has no colony at all) behaves exactly as before this wave.
+      //
+      // Two scans, 'ok' first: a shy cat that is only waiting must never hide
+      // a cat I CAN feed standing a little further off. The waiting line is
+      // the fallback when nothing in range is feedable.
+      //
+      // A cat whose colony entry lives in another area is not fed here
+      // (livesElsewhere). On a colony walk it cannot be here at all (walk.js
+      // excludes it from the cast); off one — a room with a non-partner — it
+      // can be, as an ordinary stray, and feeding it would tame a cat whose
+      // fixed spot is somewhere the player is not.
       const colony = progression.state?.colony;
       if (colony && progression.feedColonyCat) {
         const members = progression.colonyMembers?.() ?? 1;
         const answer = (st) => canFeed(colony, st.name, pid, s.walkStamp, { members });
-        const stray = s.strayCats.nearest(catP, STRAY_PROMPT_RANGE, {
+        const scanFor = (want) => s.strayCats.nearest(catP, STRAY_PROMPT_RANGE, {
           excludeCross: true,
           where: (st) => st.greeted && isGrudgeableStray(s.strayCats, st) && !progression.hasGrudge?.(st.name)
-            && ['ok', 'waiting'].includes(answer(st)),
+            && !livesElsewhere(colony, st.name, s.areaId) && answer(st) === want,
         });
-        if (stray && answer(stray) === 'ok') {
+        const feedable = scanFor('ok');
+        const stray = feedable ?? scanFor('waiting');
+        if (feedable) {
           s.prompt = { kind: 'stray-feed', data: stray };
           setPrompt(`E — feed ${stray.name} 🐟`);
         } else if (stray) {
@@ -902,6 +914,14 @@ export function createInteractions({
     catVoice();
   }
 
+  // livesElsewhere(colony, name, areaId) → bool. This name is already a
+  // colony cat with its fixed spot in a DIFFERENT area. Shared by the prompt
+  // scan and feedStray so the two cannot disagree.
+  function livesElsewhere(colony, name, areaId) {
+    const entry = Array.isArray(colony?.cats) ? colony.cats.find((c) => c.name === name) : null;
+    return !!entry && entry.area !== areaId;
+  }
+
   // -------------------------------------------------------------------
   // v21 Stream 2 — feeding a stray, the colony's one verb.
   //
@@ -929,6 +949,7 @@ export function createInteractions({
   function feedStray(s, stray) {
     if (!isGrudgeableStray(s.strayCats, stray) || stray.cross || !stray.greeted) return;
     if (progression.hasGrudge?.(stray.name) || !progression.feedColonyCat) return;
+    if (livesElsewhere(progression.state.colony, stray.name, s.areaId)) return;
     const name = stray.name;
     const r = progression.feedColonyCat({
       name, by: pid, walk: s.walkStamp, area: s.areaId, x: stray.home.x, z: stray.home.z,
