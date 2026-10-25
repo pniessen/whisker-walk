@@ -135,6 +135,27 @@ describe('cat model: markings lie ON the surface they mark', () => {
   });
 });
 
+describe("cat model: Robbie's real coat", () => {
+  // Robbie was drawn as a white cat with black splashes — the reverse of the
+  // real one, who is black on top (cap, ears, back) with a white blaze, white
+  // muzzle and chest, white legs and paws, and big white patches on his flanks.
+  // Luminance is read off the built material, so this checks what is drawn,
+  // not what the STYLE table says.
+  const lum = (m) => 0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b;
+
+  it('is a dark cat with white legs, white paws and white body markings', () => {
+    const cat = buildCat('robbie');
+    const { body, legs } = cat.userData.parts;
+    expect(lum(body.material)).toBeLessThan(0.2);
+    for (const leg of legs) {
+      expect(lum(leg.children[0].material)).toBeGreaterThan(0.8); // the limb
+      expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
+    }
+    const white = body.children.filter((m) => lum(m.material) > 0.8);
+    expect(white.length).toBeGreaterThan(0);
+  });
+});
+
 describe('cat model: the cat stands on the ground', () => {
   // Every breed used to sink ~2cm into whatever it was standing on (measured
   // off the model's own bounding box: tabby -0.0196, maine coon -0.0255). With
