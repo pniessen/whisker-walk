@@ -9,6 +9,9 @@ test('rank is read off the taming bar, not the feed count', () => {
   expect(clanRankFor({ have: 1, tamed: false })).toBe('kit');
   expect(clanRankFor({ have: 2, tamed: false })).toBe('apprentice');
   expect(clanRankFor({ have: 5, tamed: false })).toBe('apprentice');
+  // One below a full bar is still an apprentice: together with the next line
+  // this pins the mirrored WARRIOR_AT to TAME_FEEDS in both directions.
+  expect(clanRankFor({ have: TAME_FEEDS - 1, tamed: false })).toBe('apprentice');
   expect(clanRankFor({ have: TAME_FEEDS, tamed: false })).toBe('warrior');
   expect(clanRankFor({ have: TAME_FEEDS, tamed: true })).toBe('warrior');
 });
