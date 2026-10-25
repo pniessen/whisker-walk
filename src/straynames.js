@@ -3,8 +3,19 @@
 // A leaf module (imports nothing) so the colony rules in colony.js can share the
 // name list with straycats.js without pulling THREE into pure logic.
 //
-// Names only ever come from this list: no free text crosses the wire, and
+// Names only ever come from these lists: no free text crosses the wire, and
 // isStrayName() is the one test a cloud-supplied name has to pass.
+//
+// KIT_NAMES is a SEPARATE block, deliberately not appended to CAT_NAMES.
+// straycats.js runs shuffled(CAT_NAMES, rng), which consumes
+// CAT_NAMES.length - 1 draws from the walk's seeded rng; growing or reordering
+// CAT_NAMES would shift every draw after it (gifts, weather, secrets, goals) and
+// change what a co-walk with a non-partner looks like. Kits are not strays and
+// never join a walk, so only isStrayName() learns about them: a fed kit becomes
+// an ordinary colony cat and its name must pass this gate. The server needs no
+// change: colony_cats.name is plain text, and the feed RPC only requires
+// ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).
+// Kit names also avoid the clan-vocabulary words (see src/clanwords.js).
 
 export const CAT_NAMES = [
   'Pickles', 'Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine',
@@ -25,9 +36,14 @@ export function strayBreed(name) {
   return STRAY_BREEDS[[...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % STRAY_BREEDS.length];
 }
 
-// A Set, so '__proto__' and other inherited keys read as plain strangers, and
+export const KIT_NAMES = [
+  'Thistle', 'Bramble', 'Nutmeg', 'Pebble', 'Clover', 'Button',
+  'Sparrow', 'Acorn', 'Fennel', 'Cricket', 'Willow', 'Bumble',
+];
+
+// A Set (one union of both blocks), so '__proto__' and other inherited keys read as plain strangers, and
 // anything that is not a string is rejected rather than coerced.
-const NAME_SET = new Set(CAT_NAMES);
+const NAME_SET = new Set([...CAT_NAMES, ...KIT_NAMES]);
 export function isStrayName(v) {
   return typeof v === 'string' && NAME_SET.has(v);
 }

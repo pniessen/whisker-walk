@@ -7,6 +7,7 @@ import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
 import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
+import { KIT_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
 
 function fakeScene() {
   const objects = new Set();
@@ -911,5 +912,45 @@ describe('createStrayCats — colony cats (v21 Stream 2)', () => {
     expect(s.nearest(here, 5)).toBe(near);
     expect(s.nearest(here, 5, { where: (x) => x !== near })).toBe(far);
     expect(s.nearest(here, 5, { where: () => false })).toBe(null);
+  });
+});
+
+// The walkRng guard. shuffled(CAT_NAMES, rng) consumes CAT_NAMES.length - 1
+// draws; changing this number shifts gifts, weather, secrets and goals.
+describe('reserved kit names', () => {
+  it('CAT_NAMES is still exactly 48 names', () => {
+    expect(CAT_NAMES.length).toBe(48);
+  });
+
+  it('kit names are a separate, disjoint, validated block', () => {
+    expect(KIT_NAMES.length).toBe(12);
+    expect(new Set(KIT_NAMES).size).toBe(12);
+    for (const n of KIT_NAMES) expect(CAT_NAMES).not.toContain(n);
+  });
+
+  // docs/supabase-colony.sql's feed RPC rejects any name not matching
+  // ^[A-Za-z][A-Za-z ]{0,23}$ (a letter first, then letters/spaces, 24 max: no
+  // hyphens, apostrophes or digits). A name the server would refuse must fail
+  // here, not silently on a child's device.
+  it('every cat and kit name obeys the feed RPC name regex', () => {
+    const RPC_NAME = /^[A-Za-z][A-Za-z ]{0,23}$/;
+    for (const n of [...CAT_NAMES, ...KIT_NAMES]) expect(n).toMatch(RPC_NAME);
+  });
+
+  it('isStrayName accepts a kit name and still rejects a stranger', () => {
+    for (const n of KIT_NAMES) expect(isStrayName(n)).toBe(true);
+    for (const bad of ['Stranger', '__proto__', '', null, 42, {}]) expect(isStrayName(bad)).toBe(false);
+  });
+
+  it('strayBreed is total over kit names', () => {
+    for (const n of KIT_NAMES) expect(STRAY_BREEDS).toContain(strayBreed(n));
+  });
+
+  it('a kit name never joins a walk as an ordinary stray', () => {
+    const kits = new Set(KIT_NAMES);
+    for (const seed of [1, 7, 22, 99]) {
+      const { strays } = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed));
+      for (const s of strays) expect(kits.has(s.name)).toBe(false);
+    }
   });
 });
