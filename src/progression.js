@@ -820,9 +820,12 @@ export function createProgression(storage) {
   // Settle each verdict from `colony`; true when something was written.
   // A stored verdict is kept unless the new pick is STRICTLY earlier than it,
   // by the same ordering pickMedicineCat / pickDeputy use (taming stamp, or
-  // two-feeder completion stamp; ties by name). A newly tamed or newly
-  // completed cat always sorts later, so it can never displace the incumbent
-  // (spec §6.4). A verdict moves only when earlier history first arrives,
+  // two-feeder completion stamp; ties by name). A newly tamed cat USUALLY
+  // sorts later, but not always: when the partner's feeds fill a bar,
+  // settleTaming stamps it with this device's last feed on that cat, which can
+  // predate the incumbent, so the role can move once at that taming (final
+  // review N1, accepted: both devices still agree, so it never diverges).
+  // A verdict otherwise moves only when earlier history first arrives,
   // which is the partner's solo history in the window after pairing: the
   // first device to merge has not seen it yet. So both devices end on the same
   // global-earliest cat, and a verdict can only ever move earlier, never back.

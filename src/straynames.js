@@ -41,7 +41,7 @@ export function strayBreed(name) {
 }
 
 export const KIT_NAMES = [
-  'Bramble', 'Pebble', 'Thimble', 'Fennel', 'Bumble', 'Pip',
+  'Bramble', 'Pebble', 'Wiggle', 'Fennel', 'Bumble', 'Pip',
   'Peanut', 'Cupcake', 'Puddle', 'Tumble', 'Toffee', 'Ember',
 ];
 

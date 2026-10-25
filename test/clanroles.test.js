@@ -259,3 +259,9 @@ test('a queen past the last den home has no kits placed', () => {
   expect(denHome(colony, extra)).toBeNull();
   expect(placed(colony)).not.toContainEqual(expect.objectContaining({ queen: extra }));
 });
+
+// A kit the child fed and raised must never be labelled an elder once tamed
+// (final re-review N2: 'Thimble' derived elder and was swapped for 'Wiggle').
+test('no kit name derives the elder role', () => {
+  for (const n of KIT_NAMES) expect(roleFor(n)).not.toBe('elder');
+});
