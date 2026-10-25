@@ -28,7 +28,8 @@ import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
-import { knockNoun } from '../propsets.js';
+import { knockNoun, propsFor } from '../propsets.js';
+import { markKey } from '../marks.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -65,6 +66,10 @@ const CARRY_REACH = 1.2;
 // v21 3b Task 10: how close a perched cat must be to something on its ledge
 // to knock it off.
 const KNOCK_REACH = 1.0;
+// v21 3b Task 11: how close the cat must be to a post, trunk or bollard to
+// scratch its mark into it (test/propsets.test.js places every markable's
+// standing spot inside this).
+const MARK_REACH = 1.2;
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -531,6 +536,40 @@ export function createInteractions({
     }
   }
 
+  // The nearest markable within MARK_REACH that has no uncontested scratch of
+  // mine on it, or null.
+  function markableToScratch(s, catP) {
+    const mine = progression.marksIn(s.areaId);
+    let best = null;
+    let bestD = MARK_REACH;
+    for (const m of propsFor(s.areaId).markables) {
+      const d = Math.hypot(m.x - catP.x, m.z - catP.z);
+      if (d >= bestD) continue;
+      if (mine.some((k) => k.kind === 'scratch' && k.id === m.id && !k.contested)) continue;
+      best = m;
+      bestD = d;
+    }
+    return best;
+  }
+
+  // A mark's `at`: now, or one past the same-key mark already in the save if
+  // that one is newer (the clock stepped back). marks.js keeps the newer of two
+  // same-key marks, so a re-mark stamped earlier would be dropped silently.
+  function markStamp(s, key) {
+    const prior = progression.marksIn(s.areaId).find((m) => markKey(m) === key);
+    const now = Date.now();
+    return prior && Number.isFinite(prior.at) ? Math.max(now, prior.at + 1) : now;
+  }
+
+  // Write one private mark and redraw this area's marks. Marks pay nothing,
+  // record no feat, and never go on any wire.
+  function leaveMark(s, mark) {
+    const full = { contested: false, item: null, ...mark, at: markStamp(s, markKey(mark)) };
+    if (!progression.addMark(s.areaId, full)) return false;
+    s.playerMarks?.sync(progression.marksIn(s.areaId));
+    return true;
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
@@ -833,6 +872,19 @@ export function createInteractions({
     }
     for (const c of s.critters.list) {
       if (c.type === 'villager' && c.scratched && c.group.position.distanceTo(catP) > 4) c.scratched = false;
+    }
+    // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. Right
+    // after the head scratches (a person you walked up to wins). Only one with
+    // no scratch of mine on it, or one a rival has scented over (contested):
+    // re-marking takes it back. From the ground only, never swimming. Guarded
+    // on the session's marks renderer, so a stand-in test session without one
+    // never offers it. The den has no markables.
+    if (!s.prompt && s.playerMarks && !s.perched && !player.swimming) {
+      const target = markableToScratch(s, catP);
+      if (target) {
+        s.prompt = { kind: 'mark', data: target };
+        setPrompt('E — scratch your mark into it');
+      }
     }
     if (!s.prompt) {
       const remote = s.remotes.nearest(catP, 1.5);
@@ -1388,6 +1440,16 @@ export function createInteractions({
         log.awardOnce('treasure', treat.id, 'a buried treasure!');
         s.fx.burst(s.cat.position, 0xf2c14e, 12);
         if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'dig', treatId: treat.id });
+        // v21 3b Task 11 — the hole, filled back in, stays as a private mark.
+        leaveMark(s, { kind: 'dig', id: null, x: treat.x, z: treat.z });
+      }
+    } else if (s.prompt.kind === 'mark') {
+      // v21 3b Task 11 — pays nothing. A re-mark refreshes the one mark (same
+      // key) and clears contested. A puff of bark so the press shows even when
+      // the cat's own body hides the patch at the foot of the post.
+      const m = s.prompt.data;
+      if (leaveMark(s, { kind: 'scratch', id: m.id, x: m.x, z: m.z })) {
+        s.fx?.burst({ x: m.x, y: 0.3, z: m.z }, 0x9c7a55, 8);
       }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;

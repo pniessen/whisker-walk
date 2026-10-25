@@ -5,7 +5,9 @@ import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
 import { createKnockables } from '../src/knockables.js';
-import { KNOCK_KINDS } from '../src/propsets.js';
+import { createPlayerMarks } from '../src/render/playermarks.js';
+import { markKey } from '../src/marks.js';
+import { KNOCK_KINDS, propsFor } from '../src/propsets.js';
 import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression, CATALOG } from '../src/progression.js';
@@ -379,7 +381,9 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // greet range, which is the exact Docks collision the review described.
   // v21 3b: `carryables` puts things on the ground for the carry prompts, and
   // `stray: null` takes Pickles away when a test needs nothing else in range.
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false } } = {}) {
+  // v21 3b Task 11: `areaId` picks the area (and its markables), and `marks`
+  // gives the session a real marks renderer (the mark prompt needs one).
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -398,7 +402,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     new THREE.Scene().add(cat);
     const player = { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false };
     const session = {
-      areaId: 'park',
+      areaId,
       cat,
       areaData: { collectibles: [], scenics: [] },
       collectibleMeshes: new Map(),
@@ -419,6 +423,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       walk: { carried: 0, carryCap: 2 },
       carry: { mouth: createMouth(), items: createCarryables(scene, carryables) },
       knockables: createKnockables(scene, knockables),
+      playerMarks: marks ? createPlayerMarks(new THREE.Scene(), areaId, progression.marksIn(areaId)) : undefined,
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
@@ -982,6 +987,157 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       h.session.knockables = undefined;
       expect(() => h.walkTo(LEDGE.x, LEDGE.z)).not.toThrow();
       expect(h.session.prompt).toBe(null);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // v21 3b Task 11 — your marks in the world. 'mark' sits right after the
+  // head scratches; a mark pays nothing, records no feat and sends nothing.
+  // -------------------------------------------------------------------------
+  describe('mark: scratch your mark into it', () => {
+    // The dog yard's corner fence post, which is already in the world.
+    const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
+    const KEY = markKey({ kind: 'scratch', id: POST.id });
+    const markHarness = (opts = {}) => {
+      const h = promptHarness({ stray: null, areaId: 'neighborhood', marks: true, ...opts });
+      const discoveries = [];
+      const off = bus.on('discovery', (e) => discoveries.push(e));
+      const sent = [];
+      return { ...h, discoveries, off, sent, room: () => {
+        h.session.playerId = 'me-player-0001';
+        h.session.net = { sendEvent: (ev) => sent.push(ev) };
+      } };
+    };
+    // Everything in the save but the marks, to show a mark changes nothing else.
+    const allButMarks = (p) => JSON.stringify({ ...p.state, marks: undefined });
+
+    it('beside a fence post: "E — scratch your mark into it"; scratching pays nothing and writes one mark', () => {
+      const h = markHarness();
+      try {
+        h.room(); // in a room walk too: nothing about a mark goes on the wire
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt).toEqual({ kind: 'mark', data: POST });
+        expect(h.prompts.at(-1)).toBe('E — scratch your mark into it');
+        const before = allButMarks(h.progression);
+        const t0 = Date.now();
+        h.press();
+        expect(allButMarks(h.progression)).toBe(before); // no points, no feat, nothing
+        expect(h.discoveries).toEqual([]);
+        expect(h.sent).toEqual([]);
+        expect(h.toasts).toEqual([]);
+        const marks = h.progression.marksIn('neighborhood');
+        expect(marks).toHaveLength(1);
+        expect(marks[0]).toMatchObject({ kind: 'scratch', id: POST.id, x: POST.x, z: POST.z, contested: false, item: null });
+        expect(marks[0].at).toBeGreaterThanOrEqual(t0);
+        // and it is drawn straight away
+        expect(h.session.playerMarks.list.map((e) => e.key)).toEqual([KEY]);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('no mark prompt on a post already marked, uncontested', () => {
+      const h = markHarness();
+      try {
+        h.walkTo(POST.x + 0.6, POST.z);
+        h.press();
+        h.walkTo(POST.x + 0.5, POST.z + 0.2);
+        expect(h.session.prompt).toBe(null);
+        // pressing E on a stale prompt is harmless too: still one mark
+        h.session.prompt = { kind: 'mark', data: POST };
+        h.press();
+        expect(h.progression.marksIn('neighborhood')).toHaveLength(1);
+        // and out of reach, nothing either
+        h.walkTo(POST.x + 1.3, POST.z);
+        expect(h.session.prompt).toBe(null);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('a contested mark offers the prompt again, and re-marking clears contested', () => {
+      const h = markHarness();
+      try {
+        h.walkTo(POST.x + 0.6, POST.z);
+        h.press();
+        const first = h.progression.marksIn('neighborhood')[0];
+        expect(h.progression.contestMark('neighborhood', KEY)).toBe(true);
+        h.session.playerMarks.setContested(KEY);
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt?.kind).toBe('mark');
+        const before = allButMarks(h.progression);
+        h.press();
+        expect(allButMarks(h.progression)).toBe(before);
+        const marks = h.progression.marksIn('neighborhood');
+        expect(marks).toHaveLength(1);
+        expect(marks[0].contested).toBe(false);
+        expect(marks[0].at).toBeGreaterThan(first.at);
+        expect(h.session.playerMarks.list[0].contested).toBe(false);
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt).toBe(null);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('a re-mark after the clock stepped back still lands, one past the old mark', () => {
+      const h = markHarness();
+      try {
+        const future = Date.now() + 10 * 60 * 1000;
+        h.progression.addMark('neighborhood', { kind: 'scratch', id: POST.id, x: POST.x, z: POST.z, at: future, contested: false, item: null });
+        h.progression.contestMark('neighborhood', KEY);
+        h.walkTo(POST.x + 0.6, POST.z);
+        h.press();
+        const [m] = h.progression.marksIn('neighborhood');
+        expect(m.contested).toBe(false);
+        expect(m.at).toBe(future + 1);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('digging a treasure also leaves a dig mark', () => {
+      const h = markHarness();
+      try {
+        h.room();
+        const treat = { id: 'treat-1', x: 4.2, z: -3.6 };
+        h.session.scent = { nearestMound: () => ({ revealed: true }), digAt: () => treat };
+        h.walkTo(4, -3.5);
+        expect(h.session.prompt.kind).toBe('dig');
+        h.press();
+        // the dig itself is unchanged: its one award, its one event
+        expect(h.discoveries.map((d) => d.key)).toEqual(['treat-1']);
+        expect(h.sent).toEqual([{ v: 1, id: 'me-player-0001', type: 'dig', treatId: 'treat-1' }]);
+        const marks = h.progression.marksIn('neighborhood');
+        expect(marks).toHaveLength(1);
+        expect(marks[0]).toMatchObject({ kind: 'dig', id: null, x: 4.2, z: -3.6, contested: false, item: null });
+        expect(h.session.playerMarks.list.map((e) => e.kind)).toEqual(['dig']);
+        // a dig that finds nothing leaves nothing
+        h.session.scent.digAt = () => null;
+        h.press();
+        expect(h.progression.marksIn('neighborhood')).toHaveLength(1);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('never from a perch or while swimming, and never without a marks renderer', () => {
+      const h = markHarness();
+      try {
+        h.session.perched = { x: POST.x + 0.6, y: 0.85, z: POST.z };
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt).toBe(null);
+        h.session.perched = null;
+        h.player.swimming = true;
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt).toBe(null);
+        h.player.swimming = false;
+        h.session.playerMarks = undefined;
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt).toBe(null);
+      } finally {
+        h.off();
+      }
     });
   });
 });

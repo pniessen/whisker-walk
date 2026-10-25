@@ -1013,11 +1013,18 @@ export function createWalkLifecycle({
     // knockables.js lays its own fixed decal under each one once it lands.
     const knockables = createKnockables(scene, propsFor(areaId).knockables);
     // v21 3b — the things this player has left behind. In the den that is what
-    // they carried home, laid out in front of the hearth; the outdoor half
-    // arrives later, and until then any other area builds nothing. Created
-    // after mergeStaticProps, so nothing here is merged.
+    // they carried home, laid out in front of the hearth; outdoors, the posts
+    // they scratched, the holes they dug, the things they set down somewhere
+    // new, and (Task 12) the paws they left on a rival's border — plus a post
+    // at each markable that has nothing standing there. The colliders, the
+    // walkable test and the spawn tell a scratch which side of its post to
+    // face. Created after mergeStaticProps, so nothing here is merged. Nothing
+    // here animates (no render-loop update). Private: never on any wire.
     const playerMarks = createPlayerMarks(scene, areaId, progression.marksIn(areaId), {
       keepSlots: propsFor(areaId).keepSlots,
+      colliders: areaData.colliders,
+      isWalkable: (x, z) => isWalkableAt(areaData, x, z),
+      spawn: areaData.spawn,
     });
     const scent = createScent(scene, areaData, walkRng);
 
