@@ -381,6 +381,10 @@ function init() {
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast);
   homebase.show();
+  // Rosa's one-time farewell goes up synchronously, before the async news pull
+  // below can land, so it is always first (showNews yields while it is up).
+  const farewell = progression.takeFarewell();
+  if (farewell) homebase.showNotice(farewell);
 
   // "While you were out" (Task 10): the first thing a kid sees on open is what
   // their sibling did. Runs after the boot pull and after each walk's
