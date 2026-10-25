@@ -8,4 +8,5 @@
 
 export const REDEEM_CODES = {
   '77cba3f680fe2e4fffed131671d9b7f36f9bd7b2d6334f692eb0407f2f79b59f': { label: "Welcome gift", points: 25, accessories: ["beanie"], cats: [] },
+  'f3d416fa7f98d49ac9bcb4704017862e94277f1230687da3e4c0b84f05479482': { label: "Owner: unlock the Docks for the perf test", points: 350, accessories: [], cats: [] },
 };
