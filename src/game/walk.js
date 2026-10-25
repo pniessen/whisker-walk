@@ -34,6 +34,7 @@ import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
 import { createKnockables } from '../knockables.js';
+import { createPushThroughs } from '../pushthrough.js';
 import { createPlayerMarks } from '../render/playermarks.js';
 import { borderMarkId } from '../marks.js';
 import { createMarkContest } from '../markcontest.js';
@@ -1041,6 +1042,17 @@ export function createWalkLifecycle({
     // player.update every frame. Added AFTER the scent is laid, so the buried
     // treats land exactly where they always did.
     for (const p of playerMarks.posts) areaData.colliders.push({ ...p.collider });
+    // v21 3b Task 14 — the cat flaps in garden gates and the gaps in hedges. A
+    // cat that walks through one swings it the way it went, and it keeps a
+    // gentle sway for the rest of the walk. Its frame is solid and its opening
+    // is not: the frame circles join this walk's collider list here, AFTER
+    // clearSpot moved the POIs (so no race ring or quest spot shifts for them)
+    // and before the player's first update. Created after mergeStaticProps,
+    // so nothing here is merged; the den has none. Pays nothing, saves
+    // nothing, and sends nothing: main.js hands it every cat on my screen, so
+    // a partner's push swings it here too.
+    const pushThroughs = createPushThroughs(scene, propsFor(areaId).flaps, { reducedMotion });
+    for (const c of pushThroughs.colliders) areaData.colliders.push({ ...c });
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1307,6 +1319,7 @@ export function createWalkLifecycle({
       secrets,
       tippables,
       knockables,
+      pushThroughs,
       carry,
       playerMarks,
       gifts,
@@ -1775,6 +1788,7 @@ export function createWalkLifecycle({
     // each geometry and material exactly once.
     session.carry.items.dispose();
     session.knockables.dispose();
+    session.pushThroughs.dispose();
     session.playerMarks?.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();

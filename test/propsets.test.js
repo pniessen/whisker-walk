@@ -356,6 +356,33 @@ test.each(AREAS)('%s: a flap opening is walkable and its frame is not', (a) => {
   }
 });
 
+// Task 14: a flap's frame (the gate or hedge, end to end, and the opening in
+// it) keeps a clear metre from everything a cat walks up to, so no carryable,
+// rest, scratch post, landed knockable or prey cover is crowded against or
+// inside the gate. Measured from the frame's whole line, out to the end of its
+// colliders (width / 2 + 1.5), less the colliders' 0.3 m half-depth.
+const FLAP_CLEAR = 1;
+test.each(AREAS)('%s: every flap frame keeps a clear metre from the props around it', (a) => {
+  const s = propsFor(a);
+  const others = [
+    ...s.carryables, ...s.rests, ...s.markables,
+    ...s.knockables.map((k) => ({ ...k.fallTo, id: `${k.id} (landed)` })),
+    ...s.hides.map((h, i) => ({ ...h, id: `hide ${i}` })),
+  ];
+  for (const f of s.flaps) {
+    const ax = Math.cos(f.rotY);
+    const az = -Math.sin(f.rotY);
+    const reach = f.width / 2 + 1.5;
+    for (const p of others) {
+      const dx = p.x - f.x;
+      const dz = p.z - f.z;
+      const along = Math.max(-reach, Math.min(reach, dx * ax + dz * az));
+      const gap = Math.hypot(dx - along * ax, dz - along * az) - 0.3;
+      expect(gap, `${p.id} at ${p.x},${p.z} crowds ${f.id}`).toBeGreaterThanOrEqual(FLAP_CLEAR);
+    }
+  }
+});
+
 test.each(AREAS)('%s: the dog yard holds no other prop, POI, collectible, scenic, gold mouse or spawn, and is clear of the rival disc by 2 m', (a) => {
   const s = propsFor(a);
   const y = s.dogYard;

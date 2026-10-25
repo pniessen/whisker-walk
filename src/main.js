@@ -545,6 +545,9 @@ function init() {
     if (session && player.engaged && session.cameraMode) snapPhoto(session);
   });
 
+  // The cats that push the flaps and gaps this frame (refilled every frame,
+  // never reallocated).
+  const pushMovers = [];
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
@@ -737,6 +740,16 @@ function init() {
       // module's storm ceiling of 2.
       session.wind.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
       session.remotes.update(dt, nowSec());
+      // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
+      // first, then my co-walkers' as remotecats.js has just placed them — so
+      // a partner's push swings them here with no wire event. Only my own push
+      // makes a sound: a flap's soft thunk, a hedge's rustle.
+      pushMovers.length = 0;
+      pushMovers.push(session.cat.position);
+      for (const r of session.remotes.list) pushMovers.push(r.group.position);
+      for (const push of session.pushThroughs.update(dt, pushMovers)) {
+        if (push.by === 0) (push.kind === 'gap' ? audio.zoomWind() : audio.landThump());
+      }
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
       session.denCats.update(dt, t, session.cat.position);
