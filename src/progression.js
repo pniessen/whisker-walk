@@ -933,12 +933,14 @@ export function createProgression(storage) {
     // redeemCode(hash, reward): once per hash per save. Pays points and refunds
     // to state.points ONLY (never lifetimePoints, like the Rosa refund). Items
     // are unlocked, not equipped; ones already owned are refunded at price.
+    // An area from a code skips its walk and price gates (the owner's way to
+    // open an area directly, e.g. the Docks for a performance check).
     redeemCode(hash, reward) {
       if (typeof hash !== 'string' || !REDEEM_HASH_RE.test(hash)) return { ok: false, reason: 'bad-hash' };
       if (state.redeemed.includes(hash)) return { ok: false, reason: 'used' };
       let points = asFiniteNonNegInt(reward?.points, 0);
       const items = [];
-      for (const kind of ['cats', 'accessories']) {
+      for (const kind of ['cats', 'accessories', 'areas']) {
         const ids = Array.isArray(reward?.[kind]) ? reward[kind] : [];
         for (const id of new Set(ids)) {
           if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;

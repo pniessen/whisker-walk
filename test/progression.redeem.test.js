@@ -115,3 +115,29 @@ describe('redeemCode', () => {
     expect(q.state.redeemed[499]).toBe(hex(9999));
   });
 });
+
+describe('redeemCode areas', () => {
+  it('unlocks an area outright, skipping its walk and price gates, without equipping it', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.isUnlocked('areas', 'docks')).toBe(false);
+    const r = p.redeemCode(hex(0xd0c), { points: 0, areas: ['docks'] });
+    expect(r.ok).toBe(true);
+    expect(p.isUnlocked('areas', 'docks')).toBe(true);
+    expect(p.state.area).not.toBe('docks');
+    expect(r.items).toEqual([{ kind: 'areas', id: 'docks', name: CATALOG.areas.docks.name, owned: false, refund: 0 }]);
+    p.setArea('docks');
+    expect(p.state.area).toBe('docks');
+  });
+
+  it('refunds an area already owned, and skips unknown area ids', () => {
+    const p = createProgression(fakeStorage());
+    const r = p.redeemCode(hex(0xd0d), { areas: ['neighborhood', 'moon-base'] });
+    expect(r.items).toEqual([{ kind: 'areas', id: 'neighborhood', name: CATALOG.areas.neighborhood.name, owned: true, refund: CATALOG.areas.neighborhood.price }]);
+  });
+
+  it('an unlocked area survives a reload', () => {
+    const storage = fakeStorage();
+    createProgression(storage).redeemCode(hex(0xd0e), { areas: ['docks'] });
+    expect(createProgression(storage).isUnlocked('areas', 'docks')).toBe(true);
+  });
+});

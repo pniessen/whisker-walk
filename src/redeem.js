@@ -152,7 +152,9 @@ export function redeemMessage(result, catalog) {
       const items = Array.isArray(result.items) ? result.items : [];
       const nameOf = (it) => {
         const name = catalog?.[it.kind]?.[it.id]?.name ?? it.name ?? it.id;
-        return it.kind === 'cats' && !BREED_IDS.has(it.id) ? String(name) : `the ${name}`;
+        // Named cats and areas ("The Old Docks", "City Park") read as names.
+        if (it.kind === 'areas' || (it.kind === 'cats' && !BREED_IDS.has(it.id))) return String(name);
+        return `the ${name}`;
       };
       const fresh = items.filter((it) => !it.owned).map(nameOf);
       const owned = items.filter((it) => it.owned);

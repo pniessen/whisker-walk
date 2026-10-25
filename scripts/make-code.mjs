@@ -8,6 +8,7 @@
 //   --points N     points the code gives (optional; 0 if left out)
 //   --acc ID       an accessory id from CATALOG (repeatable)
 //   --cat ID       a cat id from CATALOG (repeatable)
+//   --area ID      an area id from CATALOG, unlocked outright (repeatable)
 //   --label TEXT   your private note about the code (optional; it ships in the
 //                  table, so never put the code in it)
 //   --code TEXT    use your own code instead of an invented WORD-WORD-XXXX one
@@ -57,11 +58,11 @@ const MIN_HARD_LENGTH = 4;
 const MAX_LABEL_LENGTH = 60;
 
 export function parseArgs(argv) {
-  const out = { points: 0, accessories: [], cats: [], label: '' };
+  const out = { points: 0, accessories: [], cats: [], areas: [], label: '' };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
-    if (!['--points', '--acc', '--cat', '--label', '--code'].includes(flag)) {
-      throw new Error(`Unknown option "${flag}". Try --points, --acc, --cat, --label or --code.`);
+    if (!['--points', '--acc', '--cat', '--area', '--label', '--code'].includes(flag)) {
+      throw new Error(`Unknown option "${flag}". Try --points, --acc, --cat, --area, --label or --code.`);
     }
     const value = argv[++i];
     if (value === undefined) throw new Error(`${flag} needs a value.`);
@@ -70,6 +71,7 @@ export function parseArgs(argv) {
       out.points = Number(value);
     } else if (flag === '--acc') out.accessories.push(value);
     else if (flag === '--cat') out.cats.push(value);
+    else if (flag === '--area') out.areas.push(value);
     else if (flag === '--label') out.label = value;
     else out.code = value;
   }
@@ -82,6 +84,7 @@ export function validateReward(reward) {
   const messages = [];
   const accessories = reward.accessories ?? [];
   const cats = reward.cats ?? [];
+  const areas = reward.areas ?? [];
   const points = reward.points ?? 0;
   for (const id of accessories) {
     if (!Object.hasOwn(CATALOG.accessories, id)) {
@@ -93,8 +96,13 @@ export function validateReward(reward) {
       messages.push(`Unknown cat "${id}". Known: ${Object.keys(CATALOG.cats).join(', ')}`);
     }
   }
-  if (!(points > 0 || accessories.length || cats.length)) {
-    messages.push('This code gives nothing. Add --points, --acc or --cat.');
+  for (const id of areas) {
+    if (!Object.hasOwn(CATALOG.areas, id)) {
+      messages.push(`Unknown area "${id}". Known: ${Object.keys(CATALOG.areas).join(', ')}`);
+    }
+  }
+  if (!(points > 0 || accessories.length || cats.length || areas.length)) {
+    messages.push('This code gives nothing. Add --points, --acc, --cat or --area.');
   }
   if ((reward.label ?? '').length > MAX_LABEL_LENGTH) {
     messages.push(`The label is too long (max ${MAX_LABEL_LENGTH} characters).`);
@@ -118,7 +126,8 @@ export function duplicateWarning(hash, table = REDEEM_CODES) {
 export function entryLine(hash, reward) {
   const list = (ids) => `[${ids.map((id) => JSON.stringify(id)).join(', ')}]`;
   return `  '${hash}': { label: ${JSON.stringify(reward.label ?? '')}, points: ${reward.points ?? 0}, `
-    + `accessories: ${list(reward.accessories ?? [])}, cats: ${list(reward.cats ?? [])} },`;
+    + `accessories: ${list(reward.accessories ?? [])}, cats: ${list(reward.cats ?? [])}`
+    + `${(reward.areas ?? []).length ? `, areas: ${list(reward.areas)}` : ''} },`;
 }
 
 async function main() {

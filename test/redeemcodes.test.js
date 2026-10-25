@@ -10,7 +10,9 @@ async function guardProblems(table, hash = hashCode) {
     if (!/^[0-9a-f]{64}$/.test(key)) problems.push(`bad key ${key.slice(0, 8)}`);
     const cats = entry.cats ?? [];
     const accessories = entry.accessories ?? [];
-    if (!((entry.points > 0) || cats.length || accessories.length)) problems.push(`${key.slice(0, 8)} gives nothing`);
+    const areas = entry.areas ?? [];
+    if (!((entry.points > 0) || cats.length || accessories.length || areas.length)) problems.push(`${key.slice(0, 8)} gives nothing`);
+    for (const id of areas) if (!Object.hasOwn(CATALOG.areas, id)) problems.push(`unknown area ${id}`);
     for (const id of cats) if (!Object.hasOwn(CATALOG.cats, id)) problems.push(`unknown cat ${id}`);
     for (const id of accessories) if (!Object.hasOwn(CATALOG.accessories, id)) problems.push(`unknown accessory ${id}`);
     if (typeof entry.label !== 'string' || entry.label.length > 60) problems.push(`bad label on ${key.slice(0, 8)}`);

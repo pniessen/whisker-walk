@@ -267,3 +267,13 @@ describe('renderRedeemHtml', () => {
     expect(g).not.toContain('<b>');
   });
 });
+
+describe('redeemMessage for areas', () => {
+  const catalog = { areas: { docks: { name: 'The Old Docks' }, park: { name: 'City Park' } } };
+  it('names an area plainly, never "the The Old Docks"', () => {
+    const msg = redeemMessage({ kind: 'gift', points: 0, items: [{ kind: 'areas', id: 'docks', owned: false, refund: 0 }] }, catalog);
+    expect(msg).toBe('🎉 Surprise! You got The Old Docks!');
+    const two = redeemMessage({ kind: 'gift', points: 0, items: [{ kind: 'areas', id: 'park', owned: false, refund: 0 }] }, catalog);
+    expect(two).toBe('🎉 Surprise! You got City Park!');
+  });
+});

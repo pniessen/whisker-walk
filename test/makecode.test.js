@@ -6,8 +6,8 @@ import { CATALOG } from '../src/progression.js';
 describe('make-code script helpers', () => {
   it('parses flags', () => {
     expect(parseArgs(['--points', '50', '--acc', 'wizard', '--acc', 'crown', '--cat', 'hagrid', '--label', 'Hi']))
-      .toEqual({ points: 50, accessories: ['wizard', 'crown'], cats: ['hagrid'], label: 'Hi' });
-    expect(parseArgs(['--acc', 'wizard'])).toEqual({ points: 0, accessories: ['wizard'], cats: [], label: '' });
+      .toEqual({ points: 50, accessories: ['wizard', 'crown'], cats: ['hagrid'], areas: [], label: 'Hi' });
+    expect(parseArgs(['--acc', 'wizard'])).toEqual({ points: 0, accessories: ['wizard'], cats: [], areas: [], label: '' });
     expect(parseArgs(['--code', 'a b', '--points', '1']).code).toBe('a b');
   });
 
@@ -73,5 +73,16 @@ describe('make-code script helpers', () => {
     const obj = eval(`({ ${line} })`);
     expect(Object.keys(obj)).toEqual([hash]);
     expect(obj[hash]).toEqual(reward);
+  });
+});
+
+describe('make-code areas', () => {
+  it('accepts --area, rejects an unknown area, and writes areas only when given', () => {
+    const a = parseArgs(['--area', 'docks']);
+    expect(a.areas).toEqual(['docks']);
+    expect(validateReward(a)).toEqual([]);
+    expect(validateReward(parseArgs(['--area', 'moon'])).join('|')).toMatch(/Unknown area "moon"/);
+    expect(entryLine('a'.repeat(64), a)).toContain('areas: ["docks"]');
+    expect(entryLine('a'.repeat(64), parseArgs(['--points', '5']))).not.toContain('areas');
   });
 });
