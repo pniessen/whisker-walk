@@ -1,4 +1,6 @@
 import { test, expect } from 'vitest';
+import { readFileSync, globSync } from 'node:fs';
+import { FRIEND_RUNGS } from '../src/skills.js';
 import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
 import { RIVAL_PREFIXES, PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
@@ -76,4 +78,71 @@ test('RIVAL_PREFIXES has only its own keys', () => {
   for (const k of ['__proto__', 'constructor', 'toString']) {
     expect(Object.hasOwn(RIVAL_PREFIXES, k)).toBe(false);
   }
+});
+
+// ---- Task 14: no borrowed word is hard-coded outside clanwords.js ----
+
+// Blank out // and /* */ comments but leave string/template literals intact,
+// so a URL like 'https://x' keeps its //. Newlines are kept for line numbers.
+function stripComments(src) {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i], n = src[i + 1];
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) {
+        if (src[j] === '\\') j++;
+        else if (c !== '`' && src[j] === '\n') break;
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '/' && n === '/') {
+      while (i < src.length && src[i] !== '\n') i++;
+    } else if (c === '/' && n === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end < 0 ? src.length : end + 2;
+      out += src.slice(i, stop).replace(/[^\n]/g, '');
+      i = stop;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), CLAN_SUFFIX];
+
+// Borrowed words found inside a string literal of a source text.
+function borrowedIn(src) {
+  const code = stripComments(src);
+  return BORROWED.filter((w) => new RegExp(`['\`"][^'\`"\\n]*\\b${w}\\b`, 'i').test(code));
+}
+
+// Pre-existing literals where the word means something unrelated to the clan.
+const ALLOW = [];
+
+test('no borrowed word is hard-coded anywhere but clanwords.js', () => {
+  const files = globSync('src/**/*.js').filter((f) => !f.endsWith('clanwords.js'));
+  const offenders = [];
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    for (const w of borrowedIn(src)) {
+      if (!ALLOW.some((a) => f.endsWith(a.file) && a.words.includes(w))) offenders.push(`${f}: ${w}`);
+    }
+  }
+  expect(offenders).toEqual([]);
+});
+
+test('the scanner flags a literal and ignores a comment (mutation check)', () => {
+  expect(borrowedIn(`const a = 'the loner sat';`)).toContain('loner');
+  expect(borrowedIn(`// the loner sat\nconst a = 1;`)).toEqual([]);
+  expect(borrowedIn(`/* a rogue\n here */ const a = 1;`)).toEqual([]);
+  expect(borrowedIn(`const u = 'http://x.y'; const b = "rogue";`)).toContain('rogue');
+});
+
+test('the rung ladder itself has not moved', () => {
+  expect(FRIEND_RUNGS).toEqual({ met: 1, friend: 3, best: 6 });
 });
