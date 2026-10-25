@@ -4,7 +4,7 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, setNameTagMood, NAME_TAG_RANGE } from './nametag.js';
 import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { CAT_NAMES, strayBreed, isStrayName } from './straynames.js';
+import { CAT_NAMES, KIT_NAMES, strayBreed, isStrayName } from './straynames.js';
 import { isShy } from './colony.js';
 
 const WANDER_SPEED = 1.4;
@@ -143,9 +143,12 @@ export { CAT_NAMES };
 //     array. A ghost visitor (ghosts.js), a co-walker's remote pet
 //     (remotecats.js) and the player's own avatar are all different objects in
 //     different lists and can never be in it, whatever they are called;
-//   * the VOCABULARY half — the name must come from CAT_NAMES. The four
+//   * the VOCABULARY half — the name must come from a closed, code-owned list:
+//     CAT_NAMES plus KIT_NAMES. A fed den kit is an ordinary colony cat on the
+//     ordinary taming ladder, so it must be feedable on later walks; without
+//     its name here it would be stranded at one feed forever. The four
 //     family pets are CATALOG.cats entries (progression.js:178-181), i.e.
-//     PLAYER AVATARS, and none of the 48 stray names is one of them.
+//     PLAYER AVATARS, and none of the stray or kit names is one of them.
 //     test/straycats.test.js pins that disjointness against the real CATALOG,
 //     so the guard cannot rot if either list is edited.
 //
@@ -154,7 +157,9 @@ export { CAT_NAMES };
 // them, which is what "structural, not incidental" has to mean for a rule
 // nobody will remember to re-check.
 // ---------------------------------------------------------------------------
-const STRAY_NAMES = new Set(CAT_NAMES);
+// Accepted consequence: a grown kit can turn cross like any stray (still under
+// D5's friend/best immunity). That is what "ordinary ladder" means.
+const STRAY_NAMES = new Set([...CAT_NAMES, ...KIT_NAMES]);
 
 // isGrudgeableStray(strayCats, cat) → bool. The single D2 gate; every enemy
 // path in game/interactions.js asks it before consulting enemies.js at all.
@@ -256,8 +261,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
 
   // The cast: colony cats first, then everyone else in shuffle order. Built
   // from data the caller already sanitized (colony.js), but filtered again
-  // here because this module owns stray identity: only a CAT_NAMES name can
-  // be a stray (the D2 guard below relies on it), each name once, a spot
+  // here because this module owns stray identity: only a CAT_NAMES or
+  // KIT_NAMES name can be a stray (the D2 guard below relies on it), each name once, a spot
   // must be finite, and there are never more colony cats than `count`.
   const colony = [];
   const colonyNames = new Set();

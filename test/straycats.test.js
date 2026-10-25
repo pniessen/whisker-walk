@@ -9,6 +9,7 @@ import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
 import { PREFIXES } from '../src/clanwords.js';
 import { prefixFor } from '../src/clannames.js';
+import { emptyColony, feedCat, canFeed, tamingProgress } from '../src/colony.js';
 import { KIT_NAMES, isStrayName, strayBreed, STRAY_BREEDS } from '../src/straynames.js';
 
 function fakeScene() {
@@ -508,6 +509,30 @@ describe('D2 — only strays can ever bear a grudge', () => {
     expect(avatarNames).toContain('Zeetoo');   // the list really is the family pets
     expect(avatarNames).toContain('Hagrid');
     for (const name of avatarNames) expect(CAT_NAMES).not.toContain(name);
+    // The gate also admits KIT_NAMES, so they must be disjoint from avatars too.
+    for (const name of avatarNames) expect(KIT_NAMES).not.toContain(name);
+  });
+
+  it('admits a kit-named colony cat cast onto a walk', () => {
+    const kit = KIT_NAMES[0];
+    const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(7), { colonyCats: [{ name: kit, x: 5, z: 6, wear: null }] });
+    const cast = cats.strays.find((s) => s.name === kit);
+    expect(cast).toBeTruthy();
+    expect(isGrudgeableStray(cats, cast)).toBe(true);
+  });
+
+  it('lets a kit be fed past its first feed on a later walk', () => {
+    const kit = KIT_NAMES[0];
+    const mom = { area: 'park', x: 5, z: 6 };
+    let colony = feedCat(emptyColony(), { name: kit, by: 'aaaaaaaa-1111', walk: 'walk-1000', head: 0, ...mom }).colony;
+    expect(tamingProgress(colony, kit).have).toBe(1);
+    const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(7), { colonyCats: colony.cats });
+    const cast = cats.strays.find((s) => s.name === kit);
+    // The walk's feed scan requires both of these.
+    expect(isGrudgeableStray(cats, cast)).toBe(true);
+    expect(canFeed(colony, kit, 'aaaaaaaa-1111', 'walk-2000')).toBe('ok');
+    colony = feedCat(colony, { name: kit, by: 'aaaaaaaa-1111', walk: 'walk-2000', head: 0, ...mom }).colony;
+    expect(tamingProgress(colony, kit).have).toBe(2);
   });
 
   it('accepts a real stray out of this walk', () => {
