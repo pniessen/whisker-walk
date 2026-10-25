@@ -2,7 +2,7 @@ import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { renderSkillsHtml, renderStarNamePicker } from './hometabs.js';
-import { HOME_SHEETS, resolveSheet } from './dressingroom.js';
+import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
@@ -543,12 +543,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (!newsEl) return;
     newsEl.remove();
     newsEl = null;
-    const shown = newsShown;
+    const seen = newsShown;
     newsShown = null;
     // Dismissing is what marks it read; closing because a walk began is not.
     // Only what the card showed is marked, not what merged while it was up.
     if (markSeen) {
-      try { progression.markColonySeen(utcToday(), shown || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+      try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
     }
   }
 
@@ -704,18 +704,30 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
     noteColonyPairing(colonyStatus);
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
+    const glowReady = s.equipped.collar === 'glow';
+    const roomState = rooms && rooms.available ? rooms.getState() : null;
+    // The dusk toggle renders once: in the room's extras, or in a sheet's dock.
+    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${duskWanted ? 'checked' : ''} /> Dusk walk ✨</label>` : '';
     if (openSheet) {
+      // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
+      // room flow presses "Start the walk together" from Social). The room
+      // isn't rendered here, so this is still the only #btn-start.
+      const areaId = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
       root.innerHTML = `
       <div class="homebase-scroll hb-sheet" data-sheet="${escapeHtml(openSheet)}">
         <button id="hb-back" class="hb-back">← Back to my cat</button>
         ${renderSheetBody(openSheet, s, colonyStatus)}
+        <footer class="hb-sheet-dock">
+          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(CATALOG.areas[areaId].name)}</b></div>
+          ${duskHtml}
+          ${renderStartButtonHtml(roomState)}
+        </footer>
       </div>`;
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
       if (cloud && cloud.available && openSheet === 'social') loadPlayerPets();
       return;
     }
-    const glowReady = s.equipped.collar === 'glow';
     const rank = rankFor(s.lifetimePoints);
     const nextLine = rank.next
       ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
@@ -732,7 +744,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // coerced again through asFiniteNonNeg rather than trusted wholesale.
     const today = new Date().toISOString().slice(0, 10);
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
-    const roomState = rooms && rooms.available ? rooms.getState() : null;
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
     const headerHtml = '<h1 class="dr-title">🐾 Whisker Walk</h1>'
@@ -747,7 +758,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                   ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
     `;
     const extrasHtml = `
-      ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${duskWanted ? 'checked' : ''} /> Dusk walk ✨</label>` : ''}
+      ${duskHtml}
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
     root.innerHTML = room.html({
@@ -821,8 +832,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
+      const duskMode = !!(dusk && dusk.checked);
       dressing?.clearPreview();
-      onStartWalk({ duskMode: !!(dusk && dusk.checked) });
+      // Redraw without the preview, so "(trying)" can't linger if this start
+      // doesn't leave home (a room start that fails).
+      render();
+      onStartWalk({ duskMode });
       return;
     }
     if (e.target.id === 'btn-visit-den') {
@@ -833,7 +848,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (window.confirm('Erase all progress and start over?')) {
         progression.reset();
         album.clear();
+        dressing?.clearPreview(); // a preview of the old save means nothing now
+        openSheet = null; // back to the (fresh) cat
         render();
+        root.scrollTop = 0;
       }
       return;
     }
