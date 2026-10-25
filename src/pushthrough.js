@@ -45,6 +45,7 @@ const MAX_DT = 0.25;      // s: a long frame (a tab coming back) is clamped to t
 const MAX_STEP = 1.5;     // m: a mover that jumped further than this in a frame teleported
 const LINE = 0.01;        // m: closer than this to the panel's line is on neither side
 const NEAR = 1;           // m: a side flip only counts this close to the line
+const QUIET = 0.35;       // s: a push this soon after the last one on the same flap still swings it, but makes no sound
 
 // A cat stands up to 0.89 m (its ears 0.83, its raised tail 0.89), so both
 // openings are clear to 1 m: nothing solid over the cat as it goes through,
@@ -57,6 +58,8 @@ const HEDGE_H = 1.2;      // m: the hedge's height
 const HEDGE_D = 0.56;     // m: the hedge's depth (the colliders' is 0.6)
 const ARCH_Y = 1.0;       // m: the underside of the leaves grown over a gap
 const SPRIGS = 5;
+const PLANTER_H = 0.3;    // m: the planter boxes along a gate's wings (they show 5 cm above the pier deck)
+const PLANTER_D = 0.56;   // m: their depth, inside the colliders' 0.6
 
 function mesh(geo, mat, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(geo, mat);
@@ -70,13 +73,19 @@ function slab(w, y0, y1, d, mat, x = 0, z = 0) {
 }
 
 // The garden gate: an end post at each end, a jamb either side of the opening,
-// palings between them on two rails, a top rail right across, a lintel over the
-// opening with a short panel above it, and the flap leaf hanging from the
-// lintel on its hinge (`swinger`, rotation.x).
+// palings between them on two rails, a planter box along the foot of each
+// wing, a top rail right across, a lintel over the opening with a short panel
+// above it, and the flap leaf (wood, a shade lighter than the palings, with a
+// dark hinge bar along its top) hanging from the lintel on its hinge
+// (`swinger`, rotation.x).
 function buildGate(group, half, end) {
   const wood = litMaterial(0xa9845a);
   const post = litMaterial(0x6e5235);
-  const leafMat = litMaterial(0xd9cfb4);
+  const leafMat = litMaterial(0xc29d70); // a shade lighter than the palings
+  const hinge = litMaterial(0x3a2c1e);
+  const box = litMaterial(0x8a6a42);
+  const green = litMaterial(0x5a9444);
+  const plant = new THREE.IcosahedronGeometry(0.13, 0);
   for (const side of [-1, 1]) {
     group.add(slab(0.14, BURY, POST_H, 0.14, post, side * (end - 0.07)));
     group.add(slab(0.1, BURY, GATE_H, 0.1, post, side * (half + 0.05)));
@@ -93,6 +102,15 @@ function buildGate(group, half, end) {
     for (const y of [0.3, 1.05]) {
       group.add(mesh(new THREE.BoxGeometry(run, 0.07, 0.04), post, side * (x0 + run / 2), y, 0.035));
     }
+    // A planter box along the foot of each wing, as deep as the colliders, so
+    // a cat walking square into the gate stops with its paws at the box
+    // rather than a quarter-metre short of the palings.
+    group.add(slab(run, 0, PLANTER_H, PLANTER_D, box, side * (x0 + run / 2)));
+    const plants = Math.max(1, Math.round(run / 0.32));
+    for (let i = 0; i < plants; i++) {
+      const z = (i % 2 ? -1 : 1) * 0.13;
+      group.add(mesh(plant, green, side * (x0 + ((i + 0.5) * run) / plants), PLANTER_H + 0.05, z));
+    }
   }
   group.add(slab(2 * (end - 0.14), GATE_H - 0.02, GATE_H + 0.06, 0.06, post));
   group.add(slab(2 * half, OPEN_H, OPEN_H + 0.08, 0.08, post));
@@ -102,6 +120,8 @@ function buildGate(group, half, end) {
   leaf.position.y = OPEN_H;
   const h = OPEN_H - 0.08;
   leaf.add(mesh(new THREE.BoxGeometry(2 * half - 0.08, h, 0.025), leafMat, 0, -h / 2, 0));
+  // the hinge bar along its top edge, so it reads as a flap and not a sheet
+  leaf.add(mesh(new THREE.BoxGeometry(2 * half - 0.04, 0.05, 0.045), hinge, 0, -0.025, 0));
   group.add(leaf);
   return { swingers: [leaf], hedges: [], spin: [] };
 }
@@ -152,9 +172,11 @@ function buildHedge(group, half, end, id) {
 // `colliders` is every frame's circles, for walk.js to make solid.
 //
 // update(dt, movers) — movers are THREE.Vector3 positions (mine first, then
-// my co-walkers'). Returns the pushes it saw this frame, as
-// [{ id, kind, by }] with `by` the mover's index (the same array each call,
-// valid until the next one).
+// my co-walkers'). Every push swings it; update returns the ones worth a
+// sound, as [{ id, kind, by }] with `by` the mover's index (the same array
+// each call, valid until the next one). A push within QUIET seconds of the
+// last push on the same flap is not returned, so a cat rocking back and forth
+// in the opening thunks once, not on every crossing.
 //
 // With reducedMotion a push still swings it (that is the answer to what the
 // cat did), but it then comes to rest instead of swaying for good: the same
@@ -166,6 +188,7 @@ export function createPushThroughs(scene, flaps, { reducedMotion = false } = {})
   const pushes = [];
   const seen = new Map(); // mover → { x, z, frame, sides } (last definite side per entry)
   let frame = 0;
+  let clock = 0; // s: this walk's push-through time, for the sound cooldown
   let disposed = false;
 
   for (const f of flaps ?? []) {
@@ -187,6 +210,7 @@ export function createPushThroughs(scene, flaps, { reducedMotion = false } = {})
     rigs.set(entry, {
       ...parts,
       x: f.x, z: f.z, half,
+      lastPush: -Infinity,
       ax, az, nx: Math.sin(f.rotY), nz: Math.cos(f.rotY),
     });
   }
@@ -253,7 +277,8 @@ export function createPushThroughs(scene, flaps, { reducedMotion = false } = {})
         if (Math.abs(dx * r.ax + dz * r.az) > r.half) return;
         e.vel += side * IMPULSE;
         e.pushed = true;
-        pushes.push({ id: e.id, kind: e.kind, by });
+        if (clock - r.lastPush >= QUIET) pushes.push({ id: e.id, kind: e.kind, by });
+        r.lastPush = clock;
       });
     });
     // a mover missing this frame (a partner who left) starts afresh if she returns
@@ -266,8 +291,9 @@ export function createPushThroughs(scene, flaps, { reducedMotion = false } = {})
     update(dt, movers) {
       pushes.length = 0;
       if (disposed || !(dt > 0)) return pushes;
-      if (Array.isArray(movers)) detect(movers);
       const left = Math.min(dt, MAX_DT);
+      clock += left;
+      if (Array.isArray(movers)) detect(movers);
       for (const e of items) {
         if (!e.pushed) continue;
         for (let t = left; t > 1e-9; t -= STEP) step(e, Math.min(STEP, t));

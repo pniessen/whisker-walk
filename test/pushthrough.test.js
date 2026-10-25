@@ -158,10 +158,11 @@ describe('createPushThroughs', () => {
       }
     }
     // a teleport across the opening (a respawn, a chase setting the cat down)
-    // is not a push
-    cat.copy(at(FLAP, -3));
+    // is not a push — even one that lands inside the opening, within NEAR of
+    // the line, so only the teleport guard (a > 1.5 m jump) refuses it
+    cat.copy(at(FLAP, -1.2, 1.0));
     p.update(FRAME, [cat]);
-    cat.copy(at(FLAP, 3));
+    cat.copy(at(FLAP, 0.3));
     p.update(FRAME, [cat]);
     for (const e of p.list) {
       expect(e.pushed, e.id).toBe(false);
@@ -252,6 +253,77 @@ describe('createPushThroughs', () => {
     expect(e.swing).not.toBe(0);
     // ...and update says who pushed (so only my own push makes a sound)
     expect(by).toEqual({ id: FLAP.id, kind: 'flap', by: 1 });
+    p.dispose();
+  });
+
+  test('rocking back and forth in the opening swings it every time but sounds once per 0.35 s', () => {
+    const p = createPushThroughs(new THREE.Scene(), [FLAP]);
+    const [e] = p.list;
+    const cat = at(FLAP, -0.2);
+    let sounded = 0;
+    let crossings = 0;
+    let lastVel = e.vel;
+    // across and back every 0.1 s, for 1 s
+    for (let i = 0; i < 60; i++) {
+      cat.copy(at(FLAP, Math.floor(i / 6) % 2 ? 0.2 : -0.2));
+      sounded += p.update(FRAME, [cat]).length;
+      if (i % 6 === 0 && i > 0) {
+        crossings++;
+        expect(e.vel, `crossing ${crossings} still kicks the leaf`).not.toBeCloseTo(lastVel, 3);
+      }
+      lastVel = e.vel;
+    }
+    expect(crossings).toBe(9);
+    expect(sounded).toBe(1);
+    // left alone past the cooldown, the next push sounds again
+    run(p, 0.4, [cat]);
+    cat.copy(at(FLAP, cat.z > FLAP.z ? -0.2 : 0.2));
+    expect(p.update(FRAME, [cat])).toHaveLength(1);
+    p.dispose();
+  });
+
+  test('the flap leaf is wood with a dark hinge bar, and the wings stand in planters as deep as the colliders', () => {
+    const p = createPushThroughs(new THREE.Scene(), [{ ...FLAP, x: 0, z: 0 }]);
+    const [e] = p.list;
+    const leaf = e.group.getObjectByName('leaf');
+    const parts = leaf.children.filter((o) => o.isMesh);
+    expect(parts).toHaveLength(2);
+    const [sheet, hinge] = parts;
+    const lum = (m) => m.material.color.getHSL({}).l;
+    // the palings are the gate's most common mesh outside the leaf
+    const counts = new Map();
+    e.group.traverse((o) => {
+      if (o.isMesh && !leaf.getObjectById(o.id)) counts.set(o.material, (counts.get(o.material) ?? 0) + 1);
+    });
+    const boards = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    expect(sheet.material.color.getHSL({}).s).toBeGreaterThan(0.2); // a wood tone, not grey
+    expect(lum(sheet)).toBeGreaterThan(boards.color.getHSL({}).l);
+    expect(lum(sheet) - boards.color.getHSL({}).l).toBeLessThan(0.15); // a shade, not white
+    expect(lum(hinge)).toBeLessThan(lum(sheet) - 0.2);
+    // the hinge runs along the leaf's top edge
+    e.group.updateMatrixWorld(true);
+    const hb = new THREE.Box3().setFromObject(hinge);
+    const sb = new THREE.Box3().setFromObject(sheet);
+    expect(hb.max.y).toBeCloseTo(sb.max.y, 2);
+    expect(hb.max.x - hb.min.x).toBeGreaterThanOrEqual(sb.max.x - sb.min.x);
+    // along each wing, at a cat's paw height, something solid reaches out to
+    // within 5 cm of the colliders' 0.3 m half-depth, on both faces
+    const rc = new THREE.Raycaster();
+    const solid = [];
+    e.group.traverse((o) => { if (o.isMesh && !leaf.getObjectById(o.id)) solid.push(o); });
+    const half = FLAP.width / 2;
+    for (const side of [-1, 1]) {
+      for (let s = half + 0.2; s <= half + 1.3; s += 0.1) {
+        for (const face of [-1, 1]) {
+          rc.set(new THREE.Vector3(side * s, 0.15, face * 1), new THREE.Vector3(0, 0, -face));
+          rc.far = 1;
+          const hit = rc.intersectObjects(solid, false)[0];
+          expect(hit, `wing at ${side * s} face ${face}`).toBeDefined();
+          expect(Math.abs(hit.point.z), `wing at ${side * s} face ${face}`).toBeGreaterThan(0.25);
+          expect(Math.abs(hit.point.z)).toBeLessThanOrEqual(0.3 + 1e-6);
+        }
+      }
+    }
     p.dispose();
   });
 
