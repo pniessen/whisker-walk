@@ -373,18 +373,18 @@ function init() {
   // is async and a walk can start before it lands. Nothing is lost then, since
   // the news is derived from the save and stays unread until dismissed, and the
   // rewards that pull granted wait in pendingRewards for the next card.
-  let pendingRewards = [];
+  let pendingRewards = new Set(); // a Set: two callers can share one in-flight pull and both hand over its rewards
   function showColonyNews(rewards) {
-    pendingRewards.push(...(rewards || []));
+    for (const r of rewards || []) pendingRewards.add(r);
     if (session) return;
     const colony = progression.state.colony;
     const news = colonyNews(colony, {
       me: pid, ymd: new Date().toISOString().slice(0, 10),
-      rewards: pendingRewards, accessories: CATALOG.accessories,
+      rewards: [...pendingRewards], accessories: CATALOG.accessories,
     });
-    if (!news.any) { pendingRewards = []; return; }
+    if (!news.any) { pendingRewards.clear(); return; }
     const partner = colony.partner && colony.partner.petName ? colony.partner.petName : '';
-    if (homebase.showNews(renderNewsHtml(news, partner))) pendingRewards = [];
+    if (homebase.showNews(renderNewsHtml(news, partner), news.seen)) pendingRewards.clear();
   }
   const pullThenNews = () => colonySync.pull().then((r) => showColonyNews(r && r.rewards), () => {});
   pullThenNews(); // fire-and-forget; never rejects, and makes no network call when solo

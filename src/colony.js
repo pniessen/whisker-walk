@@ -585,24 +585,37 @@ const DEN_NEWS = {
   nap: 'is curled up asleep',
 };
 const DEN_NEWS_MAX = 3;
+export const NEWS_LINES_MAX = 8;   // the card never shows more than this many lines
 
-// colonyNews(colony, { me, ymd, rewards = [], accessories }) -> { lines, any }.
+// colonyNews(colony, { me, ymd, rewards = [], accessories })
+//   -> { lines, any, seen }
 // Plain text only; the renderer escapes it. What counts as "since last time"
 // is `colony.seen` (progression.markColonySeen records it when the card is
-// dismissed). Lines, in this order:
-//   1  the partner's unseen feeds, per cat, repeats collapsed ("×3"). My own
-//      feeds are never news to me.
-//   2  cats tamed since last seen
-//   3  a cat the partner found that none of whose feeds I have seen yet
+// dismissed). ONE line per cat for the partner's doings, the biggest first,
+// because a 9-year-old will not read eleven lines:
+//   1  cats the PARTNER tamed since last seen: "X came home to the den! 🏠".
+//      A cat I tamed myself is excluded (I was there; the walk celebrated it).
+//   2  the partner's new cats (found by them, none of its feeds seen yet),
+//      with the feed count merged in: "R found a new cat: X (fed ×3 🐟)".
+//      A cat that is both new and came home shows only the came-home line.
+//   3  the partner's feeds on cats that are not new: "R fed X 🐟 ×3".
+//      My own feeds are never news to me.
 //   4  an open swap offer to me that I have not seen
 //   5  one line per reward granted by THIS pull. `rewards` are accessory ids;
 //      `accessories` is CATALOG.accessories (passed in: this module must not
 //      import progression.js). An id the catalog does not know is skipped.
 //   6  when the day has changed and a cat is tamed, up to three den moments,
 //      drawn per day (a different trio tomorrow) from the tamed cats.
-// Never throws: bad input reads as nothing to say.
+// Past NEWS_LINES_MAX the first seven are kept and the last line says how many
+// more there are.
+//
+// `seen` is the snapshot of what the card actually SHOWED, in the shape of
+// colony.seen ({ feedKeys, tamed, trades, day }), for markColonySeen to merge
+// on dismiss: anything that arrived while the card sat open, or fell under
+// "…and k more", stays unread. Cats I tamed are included (they are excluded
+// by rule, not hidden). Never throws: bad input reads as nothing to say.
 export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) {
-  const lines = [];
+  const nothing = () => ({ lines: [], any: false, seen: { feedKeys: [], tamed: [], trades: [], day: null } });
   try {
     const cats = asArray(colony?.cats).filter(isPlainObject);
     const feeds = asArray(colony?.feeds).filter(isPlainObject);
@@ -615,28 +628,47 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
     const pid = partner && isPlayerId(partner.playerId) && partner.playerId !== me ? partner.playerId : null;
     const pname = partner && typeof partner.petName === 'string' && partner.petName ? partner.petName : 'your partner';
 
+    // Each entry is one line plus what showing it marks as read.
+    const entries = [];
+    const add = (line, marks = {}) => entries.push({ line, feedKeys: [], tamed: [], trades: [], den: false, ...marks });
+
+    // The partner's unseen feeds, per cat: count and keys.
+    const fedBy = new Map();
     if (pid) {
-      const counts = new Map();
       for (const f of feeds) {
-        if (f.by !== pid || seenKeys.has(feedKey(f))) continue;
-        counts.set(f.cat, (counts.get(f.cat) || 0) + 1);
+        if (f.by !== pid) continue;
+        const k = feedKey(f);
+        if (seenKeys.has(k)) continue;
+        const e = fedBy.get(f.cat) || { n: 0, keys: [] };
+        e.n++;
+        e.keys.push(k);
+        fedBy.set(f.cat, e);
       }
-      for (const [name, n] of counts) lines.push(`${pname} fed ${name} 🐟${n > 1 ? ` ×${n}` : ''}`);
     }
+    const mineTamed = me ? cats.filter((c) => c.tamedBy === me && !seenTamed.has(c.name)).map((c) => c.name) : [];
 
-    for (const c of cats) {
-      if (c.tamedBy != null && !seenTamed.has(c.name)) lines.push(`${c.name} came home to the den! 🏠`);
-    }
-
+    const handled = new Set();   // cats already given their one line
     if (pid) {
       for (const c of cats) {
-        if (c.finder !== pid || seenTamed.has(c.name)) continue;
+        if (c.tamedBy !== pid || seenTamed.has(c.name)) continue;
+        handled.add(c.name);
+        add(`${c.name} came home to the den! 🏠`, { tamed: [c.name], feedKeys: fedBy.get(c.name)?.keys || [] });
+      }
+      for (const c of cats) {
+        if (handled.has(c.name) || c.finder !== pid || seenTamed.has(c.name)) continue;
         if (feeds.some((f) => f.cat === c.name && seenKeys.has(feedKey(f)))) continue;
-        lines.push(`${pname} found a new cat: ${c.name}`);
+        handled.add(c.name);
+        const fe = fedBy.get(c.name);
+        const fed = !fe ? '' : fe.n > 1 ? ` (fed ×${fe.n} 🐟)` : ' (fed 🐟)';
+        add(`${pname} found a new cat: ${c.name}${fed}`, { feedKeys: fe?.keys || [] });
+      }
+      for (const [name, fe] of fedBy) {
+        if (handled.has(name)) continue;
+        add(`${pname} fed ${name} 🐟${fe.n > 1 ? ` ×${fe.n}` : ''}`, { feedKeys: fe.keys });
       }
       for (const t of trades) {
         if (t.status === 'offered' && t.to === me && t.from === pid && !seenTrades.has(t.id)) {
-          lines.push(`${pname} wants to swap — have a look in Colony`);
+          add(`${pname} wants to swap — have a look in Colony`, { trades: [t.id] });
         }
       }
     }
@@ -644,19 +676,37 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
     for (const id of asArray(rewards)) {
       if (typeof id !== 'string' || !isPlainObject(accessories) || !Object.hasOwn(accessories, id)) continue;
       const name = accessories[id]?.name;
-      if (typeof name === 'string' && name) lines.push(`🎁 New for your wardrobe: ${name}`);
+      if (typeof name === 'string' && name) add(`🎁 New for your wardrobe: ${name}`);
     }
 
-    if (typeof ymd === 'string' && YMD.test(ymd) && s.day !== ymd) {
+    const dayDue = typeof ymd === 'string' && YMD.test(ymd) && s.day !== ymd;
+    if (dayDue) {
       const homed = cats.filter((c) => c.tamedBy != null && isStrayName(c.name));
       homed.sort((a, b) => seedFromCode(`news|${a.name}|${ymd}`) - seedFromCode(`news|${b.name}|${ymd}`) || byName(a, b));
       for (const c of homed.slice(0, DEN_NEWS_MAX)) {
-        const act = denMoment(c.name, ymd).act;
-        lines.push(`In the den: ${c.name} ${DEN_NEWS[act]}`);
+        add(`In the den: ${c.name} ${DEN_NEWS[denMoment(c.name, ymd).act]}`, { den: true });
       }
     }
+
+    // Cap: keep the first seven and say how many more.
+    let shown = entries;
+    let more = 0;
+    if (entries.length > NEWS_LINES_MAX) {
+      shown = entries.slice(0, NEWS_LINES_MAX - 1);
+      more = entries.length - shown.length;
+    }
+    const lines = shown.map((e) => e.line);
+    if (more > 0) lines.push(`…and ${more} more — have a look in Colony`);
+
+    const denDropped = entries.slice(shown.length).some((e) => e.den);
+    const seen = {
+      feedKeys: shown.flatMap((e) => e.feedKeys),
+      tamed: [...shown.flatMap((e) => e.tamed), ...mineTamed],
+      trades: shown.flatMap((e) => e.trades),
+      day: dayDue && !denDropped ? ymd : (typeof s.day === 'string' ? s.day : null),
+    };
+    return { lines, any: lines.length > 0, seen };
   } catch {
-    return { lines: [], any: false };
+    return nothing();
   }
-  return { lines, any: lines.length > 0 };
 }

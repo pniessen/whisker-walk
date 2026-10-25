@@ -754,6 +754,36 @@ describe('createColonySync — fix round 1', () => {
       expect(cs.status()).toEqual({ mode: 'unpaired', invite: null, joining: null, lastError: null });
     });
 
+    it('a kept join is dropped about 20 minutes after it was first seen', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(new Date('2026-10-24T10:00:00Z'));
+        const { cs, script } = setup({ script: { colonySync: unpairedSnap({ joining: { inviter_pet_name: 'Robin' } }) } });
+        await cs.pull();
+        // still pending on a later good sync: the clock does not restart
+        vi.setSystemTime(new Date('2026-10-24T10:10:00Z'));
+        await cs.pull();
+        script.colonySync = FAILS[0];
+        vi.setSystemTime(new Date('2026-10-24T10:19:00Z'));
+        await cs.pull();
+        expect(cs.status()).toMatchObject({ mode: 'unpaired', joining: { inviterPetName: 'Robin' } });
+        vi.setSystemTime(new Date('2026-10-24T10:21:00Z'));
+        await cs.pull();
+        expect(cs.status()).toMatchObject({ mode: 'offline', joining: null, invite: null });
+        // a later successful sync can still show a join again, freshly timed
+        script.colonySync = unpairedSnap({ joining: { inviter_pet_name: 'Robin' } });
+        await cs.pull();
+        expect(cs.status().joining).not.toBe(null);
+        script.colonySync = FAILS[0];
+        vi.setSystemTime(new Date('2026-10-24T10:30:00Z'));
+        await cs.pull();
+        expect(cs.status().joining).not.toBe(null);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('an expired invite goes but a kept join stays', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const { cs, script } = setup({ script: { colonySync: unpairedSnap({

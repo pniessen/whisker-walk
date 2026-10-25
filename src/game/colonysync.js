@@ -23,6 +23,9 @@ import { sanitizeSnapshot, unsyncedFeeds } from '../colony.js';
 import { CATALOG, STARTER_ACCESSORIES } from '../progression.js';
 import { validPetName } from '../net.js';
 
+// A kept pending join (see trouble()) has no expiry of its own; give it the
+// invite's window so an offline player isn't polled at forever.
+export const JOIN_KEEP_MS = 20 * 60 * 1000;
 export const FEED_PUSH_MAX = 40;     // most catch-up feeds pushed by one pull
 const WARDROBE_MAX = 40;             // colony_sync stores at most 40 items
 const KNOWN_ITEMS = new Set(Object.keys(CATALOG.accessories));
@@ -60,6 +63,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   let netMode = null;
   let invite = null;
   let joining = null;
+  let joiningSince = null; // when a sync first reported the current pending join
   let lastError = null;
   let warned = null;      // the trouble last logged, so each change logs once
   let inflight = null;    // the single in-flight pull
@@ -95,6 +99,13 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   function trouble(mode, reason, detail) {
     const expires = invite && typeof invite.expiresAt === 'string' ? Date.parse(invite.expiresAt) : NaN;
     if (!(Number.isFinite(expires) && expires > Date.now())) invite = null;
+    // A join has no expiry: keep it for the invite's window, counted from when
+    // a successful sync first saw it, then drop it so an offline player does
+    // not poll every 3 s forever.
+    if (joining && !(joiningSince !== null && Date.now() - joiningSince < JOIN_KEEP_MS)) {
+      joining = null;
+      joiningSince = null;
+    }
     netMode = netMode === 'unpaired' && (invite || joining) ? 'unpaired' : mode;
     lastError = reason;
     warnOnce(reason, detail);
@@ -269,12 +280,15 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       netMode = 'unpaired';
       invite = snap.invite;
       joining = snap.joining;
+      if (!joining) joiningSince = null;
+      else if (joiningSince === null) joiningSince = Date.now();
       return [];
     }
 
     netMode = 'paired';
     invite = null;
     joining = null;
+    joiningSince = null;
     const { remote } = snap;
     progression.setColonyLink({ id: remote.id, partner: remote.partner });
     const tamedSent = await pushUnsynced(cloud, secret, remote);

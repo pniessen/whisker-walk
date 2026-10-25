@@ -2225,6 +2225,29 @@ describe('the colony save key', () => {
     expect(p.state.colony.seen.day).toBe('2026-10-24');
   });
 
+  it('markColonySeen(ymd, shown) marks only what the card showed, merged into what was seen', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    tameOne(p);
+    const keys = p.state.colony.feeds.map((f) => `${f.cat}|${f.by}|${f.walk}`);
+    p.markColonySeen('2026-10-23', { feedKeys: [keys[0]], tamed: [], trades: [], day: '2026-10-23' });
+    expect(p.state.colony.seen).toEqual({ feedKeys: [keys[0]], tamed: [], trades: [], day: '2026-10-23' });
+    // a second dismiss adds to it (and dedupes); the rest stays unread
+    p.markColonySeen('2026-10-24', { feedKeys: [keys[0], keys[1]], tamed: [boldName], trades: [9], day: '2026-10-24' });
+    expect(p.state.colony.seen).toEqual({ feedKeys: [keys[0], keys[1]], tamed: [boldName], trades: [9], day: '2026-10-24' });
+    expect(p.state.colony.seen.feedKeys).not.toContain(keys[keys.length - 1]);
+    expect(createProgression(storage).state.colony.seen).toEqual(p.state.colony.seen);
+    // a null day keeps the stored one; hostile entries are dropped by the sanitizer
+    p.markColonySeen('2026-10-25', { feedKeys: ['junk', 7, keys[2]], tamed: ['__proto__', 'Zeetoo'], trades: [-1, 'x'], day: null });
+    expect(p.state.colony.seen.day).toBe('2026-10-24');
+    expect(p.state.colony.seen.feedKeys).toEqual([keys[0], keys[1], keys[2]]);
+    expect(p.state.colony.seen.tamed).toEqual([boldName]);
+    expect(p.state.colony.seen.trades).toEqual([9]);
+    // a non-object `shown` falls back to marking everything
+    p.markColonySeen('2026-10-26', 'nope');
+    expect(p.state.colony.seen.feedKeys).toEqual(keys);
+  });
+
   it('reset() empties the colony and a hostile colony payload is sanitized on load', () => {
     const p = createProgression(fakeStorage());
     tameOne(p);

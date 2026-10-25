@@ -663,9 +663,10 @@ describe('the den: a different thing each day', () => {
 });
 
 // v21 Stream 2, Task 10: the "while you were out" lines.
-import { colonyNews } from '../src/colony.js';
+import { colonyNews, NEWS_LINES_MAX } from '../src/colony.js';
 describe('colonyNews', () => {
-  const [N1, N2, N3, N4] = CAT_NAMES.filter((n) => !isShy(n));
+  const BOLD = CAT_NAMES.filter((n) => !isShy(n));
+  const [N1, N2, N3, N4] = BOLD;
   const PARTNER = { playerId: SIB, petName: 'Robin', wardrobe: [] };
   const ACC = { crown: { name: 'Flower Crown', slot: 'head' } };
   const DAY = '2026-10-24';
@@ -674,119 +675,184 @@ describe('colonyNews', () => {
   const key = (f) => `${f.cat}|${f.by}|${f.walk}`;
   const colonyWith = (over = {}) => ({ ...emptyColony(), id: 'col-1', partner: PARTNER, ...over });
   const news = (c, extra = {}) => colonyNews(c, { me: ME, ymd: DAY, ...extra });
+  const NOSEEN = { feedKeys: [], tamed: [], trades: [], day: DAY }; // today's den already shown
 
-  it('lists the partner\'s feeds, collapsing repeats, and never my own', () => {
+  it('lists the partner\'s feeds on a cat that is not new, collapsing repeats, and never my own', () => {
     const c = colonyWith({
-      cats: [cat(N1), cat(N2, { finder: SIB })],
+      cats: [cat(N1), cat(N2)],
       feeds: [fed(N1, SIB, 'walk-1'), fed(N1, SIB, 'walk-2'), fed(N1, SIB, 'walk-3'),
         fed(N2, SIB, 'walk-4'), fed(N1, ME, 'walk-5'), fed(N2, ME, 'walk-6')],
+      seen: NOSEEN,
     });
     const n = news(c);
-    expect(n.lines).toContain(`Robin fed ${N1} 🐟 ×3`);
-    expect(n.lines).toContain(`Robin fed ${N2} 🐟`);
-    // only the partner's feeds are lines; none mention me or count mine
-    expect(n.lines.filter((l) => l.includes(' fed '))).toHaveLength(2);
-    expect(n.lines.some((l) => l.includes('Mittens') || l.includes('×4'))).toBe(false);
-    // a feed line comes before any other kind
-    expect(n.lines[0]).toMatch(/ fed /);
+    expect(n.lines).toEqual([`Robin fed ${N1} 🐟 ×3`, `Robin fed ${N2} 🐟`]);
     expect(n.any).toBe(true);
     // my own feeds alone say nothing
-    expect(news(colonyWith({ cats: [cat(N1)], feeds: [fed(N1, ME, 'walk-1')] })).lines).toEqual([]);
+    expect(news(colonyWith({ cats: [cat(N1)], feeds: [fed(N1, ME, 'walk-1')], seen: NOSEEN })).lines).toEqual([]);
   });
 
-  it('is empty after markSeen, and the den lines come back the next day', () => {
-    let c = colonyWith({
-      cats: [cat(N1, { tamedBy: ME, tamedWalk: 'walk-1' }), cat(N2, { finder: SIB })],
-      feeds: [fed(N1, SIB, 'walk-1'), fed(N2, SIB, 'walk-2')],
+  it('a partner-found cat is ONE line with the feed count merged in, and no separate fed line', () => {
+    const c = colonyWith({
+      cats: [cat(N1, { finder: SIB }), cat(N2, { finder: SIB })],
+      feeds: [fed(N1, SIB, 'walk-1'), fed(N1, SIB, 'walk-2'), fed(N1, SIB, 'walk-3'), fed(N2, SIB, 'walk-4')],
+      seen: NOSEEN,
+    });
+    expect(news(c).lines).toEqual([
+      `Robin found a new cat: ${N1} (fed ×3 🐟)`,
+      `Robin found a new cat: ${N2} (fed 🐟)`,
+    ]);
+    // a cat I found is never announced as the partner's find
+    expect(news(colonyWith({ cats: [cat(N1)], feeds: [fed(N1, SIB, 'walk-1')], seen: NOSEEN })).lines.some((l) => l.includes('found a new cat'))).toBe(false);
+  });
+
+  it('a cat is only "new" while none of its feeds were seen', () => {
+    const c = colonyWith({ cats: [cat(N1, { finder: SIB })], feeds: [fed(N1, SIB, 'walk-1'), fed(N1, SIB, 'walk-2')], seen: NOSEEN });
+    expect(news({ ...c, seen: { ...NOSEEN, feedKeys: [key(c.feeds[0])] } }).lines).toEqual([`Robin fed ${N1} 🐟`]);
+    expect(news({ ...c, seen: { ...NOSEEN, feedKeys: c.feeds.map(key) } }).lines).toEqual([]);
+  });
+
+  it('came-home is the partner\'s taming only; my own is excluded', () => {
+    const c = colonyWith({
+      cats: [cat(N1, { tamedBy: SIB, tamedWalk: 'walk-9' }), cat(N2, { tamedBy: ME, tamedWalk: 'walk-8' })],
+      feeds: [fed(N1, SIB, 'walk-1'), fed(N2, ME, 'walk-2')],
+      seen: NOSEEN,
+    });
+    expect(news(c).lines).toEqual([`${N1} came home to the den! 🏠`]);
+    // seen tamed names are not repeated
+    expect(news({ ...c, seen: { ...NOSEEN, tamed: [N1], feedKeys: [key(c.feeds[0])] } }).lines).toEqual([]);
+  });
+
+  it('a cat both new and tamed by the partner shows only the came-home line', () => {
+    const c = colonyWith({
+      cats: [cat(N1, { finder: SIB, tamedBy: SIB, tamedWalk: 'walk-9' })],
+      feeds: [fed(N1, SIB, 'walk-1'), fed(N1, SIB, 'walk-2')],
+      seen: NOSEEN,
+    });
+    expect(news(c).lines).toEqual([`${N1} came home to the den! 🏠`]);
+  });
+
+  it('is empty after dismissing what was shown, and the den lines come back the next day', () => {
+    const c = colonyWith({
+      cats: [cat(N1, { tamedBy: SIB, tamedWalk: 'walk-1' }), cat(N2, { finder: SIB }), cat(N3)],
+      feeds: [fed(N1, SIB, 'walk-1'), fed(N2, SIB, 'walk-2'), fed(N3, SIB, 'walk-3')],
       trades: [{ id: 3, from: SIB, to: ME, give: 'crown', want: 'tophat', status: 'offered' }],
     });
     const before = news(c);
     expect(before.lines).toContain(`${N1} came home to the den! 🏠`);
-    expect(before.lines).toContain(`Robin found a new cat: ${N2}`);
+    expect(before.lines).toContain(`Robin found a new cat: ${N2} (fed 🐟)`);
+    expect(before.lines).toContain(`Robin fed ${N3} 🐟`);
     expect(before.lines).toContain('Robin wants to swap — have a look in Colony');
     expect(before.lines.some((l) => l.startsWith('In the den: '))).toBe(true);
-    // what markColonySeen records
-    c = { ...c, seen: {
-      feedKeys: c.feeds.map(key), tamed: c.cats.filter((k) => k.tamedBy).map((k) => k.name),
-      trades: c.trades.map((t) => t.id), day: DAY } };
-    expect(news(c)).toEqual({ lines: [], any: false });
-    // same day, nothing new; the next day, the den is back (and only that)
-    const next = news(c, { ymd: '2026-10-25' });
+    const read = { ...c, seen: before.seen };
+    expect(news(read)).toMatchObject({ lines: [], any: false });
+    const next = news(read, { ymd: '2026-10-25' });
     expect(next.any).toBe(true);
-    expect(next.lines.length).toBeGreaterThan(0);
     expect(next.lines.every((l) => l.startsWith('In the den: '))).toBe(true);
   });
 
   it('says nothing on a brand-new save', () => {
-    expect(colonyNews(emptyColony(), { me: ME, ymd: DAY })).toEqual({ lines: [], any: false });
-    expect(colonyNews(null, { me: ME, ymd: DAY })).toEqual({ lines: [], any: false });
-    expect(colonyNews(undefined)).toEqual({ lines: [], any: false });
+    expect(colonyNews(emptyColony(), { me: ME, ymd: DAY })).toMatchObject({ lines: [], any: false });
+    expect(colonyNews(null, { me: ME, ymd: DAY })).toMatchObject({ lines: [], any: false });
+    expect(colonyNews(undefined)).toMatchObject({ lines: [], any: false });
   });
 
-  it('orders the lines: feeds, came home, new cat, offer, rewards, den', () => {
+  it('orders the lines: came home, new cat, fed, offer, rewards, den', () => {
     const c = colonyWith({
-      cats: [cat(N1, { tamedBy: SIB, tamedWalk: 'walk-9' }), cat(N2, { finder: SIB })],
-      feeds: [fed(N1, SIB, 'walk-1'), fed(N2, SIB, 'walk-2')],
+      cats: [cat(N3), cat(N1, { finder: SIB, tamedBy: SIB, tamedWalk: 'walk-9' }), cat(N2, { finder: SIB })],
+      feeds: [fed(N3, SIB, 'walk-1'), fed(N2, SIB, 'walk-2')],
       trades: [{ id: 5, from: SIB, to: ME, give: 'crown', want: 'tophat', status: 'offered' }],
     });
     const lines = news(c, { rewards: ['crown'], accessories: ACC }).lines;
     const idx = (re) => lines.findIndex((l) => re.test(l));
-    const order = [idx(/ fed /), idx(/came home/), idx(/found a new cat/), idx(/wants to swap/), idx(/New for your wardrobe/), idx(/^In the den/)];
+    const order = [idx(/came home/), idx(/found a new cat/), idx(/ fed /), idx(/wants to swap/), idx(/New for your wardrobe/), idx(/^In the den/)];
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(lines).toContain('🎁 New for your wardrobe: Flower Crown');
   });
 
-  it('a cat the partner found is only "new" while none of its feeds were seen', () => {
-    const c = colonyWith({ cats: [cat(N1, { finder: SIB })], feeds: [fed(N1, SIB, 'walk-1')] });
-    expect(news(c).lines).toContain(`Robin found a new cat: ${N1}`);
-    const seen = { feedKeys: [key(c.feeds[0])], tamed: [], trades: [], day: DAY };
-    expect(news({ ...c, seen }).lines).toEqual([]);
-    // a cat I found is never announced as the partner's find
-    expect(news(colonyWith({ cats: [cat(N1)], feeds: [fed(N1, SIB, 'walk-1')] })).lines.some((l) => l.includes('found a new cat'))).toBe(false);
-  });
-
   it('offers: only an open one to me, from them, not yet seen', () => {
     const t = (over) => ({ id: 7, from: SIB, to: ME, give: 'crown', want: 'tophat', status: 'offered', ...over });
-    const has = (trade, extra) => news(colonyWith({ trades: [trade], ...extra }), { ymd: null }).lines.some((l) => l.includes('wants to swap'));
+    const has = (trade, extra) => news(colonyWith({ trades: [trade], seen: NOSEEN, ...extra })).lines.some((l) => l.includes('wants to swap'));
     expect(has(t())).toBe(true);
     expect(has(t({ status: 'accepted' }))).toBe(false);
     expect(has(t({ status: 'declined' }))).toBe(false);
     expect(has(t({ from: ME, to: SIB }))).toBe(false);
-    expect(has(t(), { seen: { feedKeys: [], tamed: [], trades: [7], day: null } })).toBe(false);
+    expect(has(t(), { seen: { ...NOSEEN, trades: [7] } })).toBe(false);
   });
 
   it('den lines: at most three, one per cat, only with a tamed cat, phrased per act', () => {
-    const names = [N1, N2, N3, N4, ...CAT_NAMES.filter((n) => !isShy(n)).slice(4, 6)];
+    const names = BOLD.slice(0, 6);
     const cats = names.map((n, i) => cat(n, { tamedBy: ME, tamedWalk: `walk-${i + 1}` }));
     const seen = { feedKeys: [], tamed: names, trades: [], day: null };
     const lines = news(colonyWith({ cats, seen })).lines;
     expect(lines).toHaveLength(3);
-    const phrases = ['is stuck in a box', 'knocked something over', 'is napping on the windowsill', 'is having a wash', 'is curled up asleep'];
+    const actPhrase = { box: 'is stuck in a box', knocked: 'knocked something over', window: 'is napping on the windowsill', groom: 'is having a wash', nap: 'is curled up asleep' };
     const named = new Set();
     for (const l of lines) {
       const m = l.match(/^In the den: (\S+) (.+)$/);
       expect(m).not.toBeNull();
       expect(names).toContain(m[1]);
-      expect(phrases).toContain(m[2]);
+      expect(m[2]).toBe(actPhrase[denMoment(m[1], DAY).act]);
       named.add(m[1]);
     }
     expect(named.size).toBe(3);
-    // each phrase matches that cat's denMoment for the day
-    const actPhrase = { box: 'is stuck in a box', knocked: 'knocked something over', window: 'is napping on the windowsill', groom: 'is having a wash', nap: 'is curled up asleep' };
-    for (const l of lines) {
-      const [, who, what] = l.match(/^In the den: (\S+) (.+)$/);
-      expect(what).toBe(actPhrase[denMoment(who, DAY).act]);
-    }
-    // same lines on a repeat call (deterministic) and none without a tamed cat
     expect(news(colonyWith({ cats, seen })).lines).toEqual(lines);
     expect(news(colonyWith({ cats: [cat(N1)], seen })).lines).toEqual([]);
   });
 
+  it('caps the card at 8 lines: the first 7, then "…and k more"', () => {
+    const names = BOLD.slice(0, 11);
+    const cats = names.map((n) => cat(n));
+    const feeds = names.map((n, i) => fed(n, SIB, `walk-${i + 1}`));
+    const c = colonyWith({ cats, feeds, seen: NOSEEN });
+    const n = news(c);
+    expect(NEWS_LINES_MAX).toBe(8);
+    expect(n.lines).toHaveLength(8);
+    expect(n.lines.slice(0, 7).every((l) => l.startsWith('Robin fed '))).toBe(true);
+    expect(n.lines[7]).toBe('…and 4 more — have a look in Colony');
+    // exactly 8 is not capped
+    const eight = news(colonyWith({ cats: cats.slice(0, 8), feeds: feeds.slice(0, 8), seen: NOSEEN }));
+    expect(eight.lines).toHaveLength(8);
+    expect(eight.lines.some((l) => l.includes('more'))).toBe(false);
+  });
+
+  it('seen is only what the card showed: the hidden cats stay unread', () => {
+    const names = BOLD.slice(0, 10);
+    const cats = names.map((n) => cat(n));
+    const feeds = names.map((n, i) => fed(n, SIB, `walk-${i + 1}`));
+    const n = news(colonyWith({ cats, feeds, seen: NOSEEN }));
+    expect(n.seen.feedKeys).toEqual(feeds.slice(0, 7).map(key));
+    // dismissing leaves the three under "…and k more" for next time
+    const next = news(colonyWith({ cats, feeds, seen: n.seen }));
+    expect(next.lines).toEqual(names.slice(7).map((nm) => `Robin fed ${nm} 🐟`));
+  });
+
+  it('seen leaves out feeds, trades and cats that arrived after the card was built', () => {
+    const c = colonyWith({ cats: [cat(N1), cat(N2, { tamedBy: ME, tamedWalk: 'walk-3' })], feeds: [fed(N1, SIB, 'walk-1')], seen: NOSEEN });
+    const n = news(c);
+    expect(n.seen).toEqual({ feedKeys: [`${N1}|${SIB}|walk-1`], tamed: [N2], trades: [], day: DAY });
+    // a feed merged in later is not in the snapshot, so it is still news
+    const later = { ...c, feeds: [...c.feeds, fed(N1, SIB, 'walk-9')], seen: n.seen };
+    expect(news(later).lines).toEqual([`Robin fed ${N1} 🐟`]);
+  });
+
+  it('the day is only marked when the den lines were shown', () => {
+    const names = BOLD.slice(0, 9);
+    const cats = names.map((n) => cat(n, { tamedBy: ME, tamedWalk: 'walk-1' }));
+    const seen0 = { feedKeys: [], tamed: names, trades: [], day: '2026-10-01' };
+    expect(news(colonyWith({ cats, seen: seen0 })).seen.day).toBe(DAY);
+    // the den lines fell under the cap: the day stays as it was
+    const fedCats = BOLD.slice(9, 18).map((n) => cat(n));
+    const busy = colonyWith({ cats: [...cats, ...fedCats], feeds: fedCats.map((c2, i) => fed(c2.name, SIB, `walk-${i + 50}`)), seen: seen0 });
+    const n = news(busy);
+    expect(n.lines.some((l) => l.startsWith('In the den: '))).toBe(false);
+    expect(n.seen.day).toBe('2026-10-01');
+  });
+
   it('is safe with a missing partner, bad input and unknown reward ids', () => {
-    expect(news(colonyWith({ partner: null, cats: [cat(N1)], feeds: [fed(N1, SIB, 'walk-1')] })).lines).toEqual([]);
-    expect(news(colonyWith(), { rewards: ['nope', 7, null], accessories: ACC }).lines).toEqual([]);
-    expect(news(colonyWith(), { rewards: ['__proto__', 'toString'], accessories: ACC }).lines).toEqual([]);
+    expect(news(colonyWith({ partner: null, cats: [cat(N1)], feeds: [fed(N1, SIB, 'walk-1')], seen: NOSEEN })).lines).toEqual([]);
+    expect(news(colonyWith({ seen: NOSEEN }), { rewards: ['nope', 7, null], accessories: ACC }).lines).toEqual([]);
+    expect(news(colonyWith({ seen: NOSEEN }), { rewards: ['__proto__', 'toString'], accessories: ACC }).lines).toEqual([]);
     expect(() => colonyNews({ cats: 'x', feeds: 4, seen: 3 }, { me: ME, ymd: DAY })).not.toThrow();
   });
 });

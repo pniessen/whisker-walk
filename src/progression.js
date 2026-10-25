@@ -1348,17 +1348,34 @@ export function createProgression(storage) {
       return items;
     },
 
-    // markColonySeen(ymd) — the "while you were out" card was read: record
-    // every current feed key, tamed cat and trade id, plus the day (a
-    // YYYY-MM-DD string; anything else leaves the stored day alone).
-    markColonySeen(ymd) {
+    // markColonySeen(ymd, shown?) — the "while you were out" card was read.
+    // Without `shown`: record every current feed key, tamed cat and trade id,
+    // plus the day (a YYYY-MM-DD string; anything else leaves the stored day
+    // alone). With `shown` ({ feedKeys, tamed, trades, day }, as colonyNews
+    // returns it as `seen`): record ONLY what the card displayed, merged into
+    // what was already seen (the sanitizer dedupes and applies the caps), so
+    // anything that arrived while the card sat open stays unread.
+    markColonySeen(ymd, shown) {
       const c = state.colony;
-      state.colony = sanitizeColony({ ...c, seen: {
-        feedKeys: c.feeds.map(feedKey),
-        tamed: c.cats.filter((k) => k.tamedBy !== null).map((k) => k.name),
-        trades: c.trades.map((t) => t.id),
-        day: typeof ymd === 'string' && YMD_PATTERN.test(ymd) ? ymd : c.seen.day,
-      } }, { knownItems: KNOWN_ACCESSORY_IDS });
+      const okDay = (d) => typeof d === 'string' && YMD_PATTERN.test(d);
+      let seen;
+      if (shown && typeof shown === 'object' && !Array.isArray(shown)) {
+        const list = (v) => (Array.isArray(v) ? v : []);
+        seen = {
+          feedKeys: [...c.seen.feedKeys, ...list(shown.feedKeys)],
+          tamed: [...c.seen.tamed, ...list(shown.tamed)],
+          trades: [...c.seen.trades, ...list(shown.trades)],
+          day: okDay(shown.day) ? shown.day : c.seen.day,
+        };
+      } else {
+        seen = {
+          feedKeys: c.feeds.map(feedKey),
+          tamed: c.cats.filter((k) => k.tamedBy !== null).map((k) => k.name),
+          trades: c.trades.map((t) => t.id),
+          day: okDay(ymd) ? ymd : c.seen.day,
+        };
+      }
+      state.colony = sanitizeColony({ ...c, seen }, { knownItems: KNOWN_ACCESSORY_IDS });
       save();
     },
     // replaceFromPayload(rawSaveObject) — used by cloud "Load from cloud":

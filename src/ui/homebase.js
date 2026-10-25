@@ -544,22 +544,28 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // roster change and sync, which would wipe a card mounted inside it.
   const utcToday = () => new Date().toISOString().slice(0, 10);
   let newsEl = null;
+  let newsShown = null; // what the card displayed, for markColonySeen on dismiss
 
   function closeNews(markSeen) {
     if (!newsEl) return;
     newsEl.remove();
     newsEl = null;
+    const shown = newsShown;
+    newsShown = null;
     // Dismissing is what marks it read; closing because a walk began is not.
+    // Only what the card showed is marked, not what merged while it was up.
     if (markSeen) {
-      try { progression.markColonySeen(utcToday()); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+      try { progression.markColonySeen(utcToday(), shown || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
     }
   }
 
-  // showNews(html): put the card over the home base. html is renderNewsHtml's
-  // output (already escaped); '' or a card already up shows nothing. Returns
+  // showNews(html, seen): put the card over the home base. html is renderNewsHtml's
+  // output (already escaped); '' or a card already up shows nothing. `seen` is
+  // colonyNews's snapshot of what the card shows, marked read on dismiss. Returns
   // whether it was shown.
-  function showNews(html) {
+  function showNews(html, seen) {
     if (typeof html !== 'string' || !html || newsEl || !homeVisible()) return false;
+    newsShown = seen && typeof seen === 'object' ? seen : null;
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
     newsEl.className = 'colony-news';
