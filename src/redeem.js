@@ -16,10 +16,8 @@ export function normalizeCode(input) {
 }
 
 // PBKDF2-SHA256 of the normalised code -> 64 lowercase hex chars.
-// An explicitly passed second argument (even undefined) is used as-is, so tests can
-// simulate a missing crypto.subtle; omitting it falls back to the global.
-export async function hashCode(normalized, ...rest) {
-  const subtle = rest.length ? rest[0] : globalThis.crypto?.subtle;
+// Pass null to simulate a page with no crypto.subtle.
+export async function hashCode(normalized, subtle = globalThis.crypto?.subtle) {
   if (!subtle) throw new Error('crypto.subtle is not available here');
   const enc = new TextEncoder();
   const key = await subtle.importKey('raw', enc.encode(String(normalized)), 'PBKDF2', false, ['deriveBits']);

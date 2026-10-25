@@ -32,7 +32,7 @@ describe('hashCode', () => {
     expect(await hashCode('THROWAWAY123')).toBe(want);
   });
   it('rejects kindly when crypto.subtle is missing', async () => {
-    await expect(hashCode('X', undefined)).rejects.toThrow(/crypto/);
-    await expect(hashCode('X', undefined)).rejects.toBeInstanceOf(Error);
+    await expect(hashCode('X', null)).rejects.toThrow(/crypto/);
+    await expect(hashCode('X', null)).rejects.toBeInstanceOf(Error);
   });
 });
