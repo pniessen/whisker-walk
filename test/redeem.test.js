@@ -213,13 +213,18 @@ describe('redeemMessage', () => {
     expect(redeemMessage({ kind: 'gift', points: 10, items: [{ kind: 'cats', id: 'hagrid', name: 'Hagrid', owned: false, refund: 0 }] }, catalog))
       .toBe('🎉 Surprise! You got 10 🐾 and Hagrid!');
   });
+  it('an owned free item does not print 0 points', () => {
+    const items = [{ kind: 'cats', id: 'hagrid', name: 'Hagrid', owned: true, refund: 0 }];
+    expect(redeemMessage({ kind: 'gift', points: 10, items }, catalog))
+      .toBe('🎉 Surprise! You got 10 🐾 and Hagrid you already had!');
+  });
   it('words a gift with nothing', () => {
     expect(redeemMessage({ kind: 'gift', points: 0, items: [] }, catalog))
       .toBe('🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛');
   });
   it('words the other kinds', () => {
-    expect(redeemMessage({ kind: 'used' }, catalog)).toBe("You already opened this one — it's safe in your collection. 💛");
-    expect(redeemMessage({ kind: 'unknown' }, catalog)).toBe("Hmm, that code isn't one we know. Check the letters and try again! 🐾");
+    expect(redeemMessage({ kind: 'used' }, catalog)).toBe('You already opened this one — it’s safe in your collection. 💛');
+    expect(redeemMessage({ kind: 'unknown' }, catalog)).toBe('Hmm, that code isn’t one we know. Check the letters and try again! 🐾');
     expect(redeemMessage({ kind: 'empty' }, catalog)).toBe('Type your code in the box first. 😺');
     expect(redeemMessage({ kind: 'resting', seconds: 45 }, catalog)).toBe('The code box is taking a little catnap. Try again in 45 seconds. 😴');
     expect(redeemMessage({ kind: 'resting', seconds: 1 }, catalog)).toBe('The code box is taking a little catnap. Try again in 1 second. 😴');

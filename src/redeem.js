@@ -158,12 +158,15 @@ export function redeemMessage(result, catalog) {
       const parts = [];
       if (giftPoints > 0) parts.push(`${giftPoints} 🐾`);
       parts.push(...fresh);
-      for (const it of owned) parts.push(`${Number(it.refund) || 0} 🐾 for ${nameOf(it)} you already had`);
+      for (const it of owned) {
+        const back = Number(it.refund) || 0;
+        parts.push(back > 0 ? `${back} 🐾 for ${nameOf(it)} you already had` : `${nameOf(it)} you already had`);
+      }
       if (!parts.length) return '🎉 You opened it! There was nothing new inside this time — but thanks for trying it! 💛';
       return `🎉 Surprise! You got ${joinNice(parts)}!`;
     }
-    case 'used': return "You already opened this one — it's safe in your collection. 💛";
-    case 'unknown': return "Hmm, that code isn't one we know. Check the letters and try again! 🐾";
+    case 'used': return 'You already opened this one — it’s safe in your collection. 💛';
+    case 'unknown': return 'Hmm, that code isn’t one we know. Check the letters and try again! 🐾';
     case 'empty': return 'Type your code in the box first. 😺';
     case 'resting': {
       const n = Math.max(1, Math.ceil(Number(result.seconds) || 1));

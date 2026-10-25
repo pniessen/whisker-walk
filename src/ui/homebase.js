@@ -1144,11 +1144,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     render();
   });
 
-  // Volume slider: a dedicated 'input' listener (fires continuously while
-  // dragging) rather than the delegated click handler above — applying live
-  // + patching just the % label keeps the drag smooth. A full render() here
-  // would tear down and recreate the <input type="range"> element on every
-  // tick, which fights native drag handling.
   // The secret-code form (delegated: render() rebuilds it). While hashing the
   // box and button are disabled, so a second submit cannot return the first
   // result. A thrown error reads as the kind 'unsupported' line.
@@ -1175,6 +1170,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (res.kind !== 'gift') root.querySelector('#redeem-input')?.focus();
   });
 
+  // Volume slider: a dedicated 'input' listener (fires continuously while
+  // dragging) rather than the delegated click handler above — applying live
+  // + patching just the % label keeps the drag smooth. A full render() here
+  // would tear down and recreate the <input type="range"> element on every
+  // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
     if (e.target.id === 'redeem-input') {
       redeemText = e.target.value;
