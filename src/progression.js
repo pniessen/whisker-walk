@@ -183,6 +183,17 @@ export function rankFor(lifetimePoints) {
   return { title: current.title, next };
 }
 
+// Cats taken out of the shop for good. Rosa was a real family cat who died, so
+// she is not for sale any more; anyone who bought her gets her price back once
+// (the one-time refund in retireCats below). Her id stays here, not in
+// CATALOG, so the refund knows what she cost after the catalog forgot her.
+const RETIRED_CATS = { rosa: { name: 'Rosa', price: 40 } };
+
+// DRAFT wording, the owner signs it off. Kept in this one place so the line can
+// change without touching the logic; catName is the cat who takes over.
+export const ROSA_FAREWELL = (catName) =>
+  `We'll always love Rosa. 💛 Your 40 points are back, and ${catName} will walk with you today.`;
+
 export const CATALOG = {
   cats: {
     tabby: { name: 'Tabby', price: 0 },
@@ -192,7 +203,6 @@ export const CATALOG = {
     calico: { name: 'Calico', price: 45 },
     mainecoon: { name: 'Maine Coon', price: 60 },
     zeetoo: { name: 'Zeetoo', price: 40 },
-    rosa: { name: 'Rosa', price: 40 },
     robbie: { name: 'Robbie', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
   },
@@ -414,6 +424,11 @@ function defaultState() {
     // explains why it is not the inviter's); after that the name never
     // changes again. Additive, so SAVE_VERSION stays 4.
     clan: { name: null, adopted: false },
+    // Ids of retired cats whose one-time refund has been settled (see
+    // RETIRED_CATS). Additive, so SAVE_VERSION stays 4: a save without it is
+    // simply one that has not been through retireCats yet. A new save starts
+    // with every id marked, so nobody is refunded for a cat they never owned.
+    retired: Object.keys(RETIRED_CATS),
   };
 }
 
@@ -760,6 +775,8 @@ function sanitizeState(parsed) {
     colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
     clan: sanitizeClan(parsed.clan),
+    // Only ids we retired, once each; anything else in a cloud payload is junk.
+    retired: [...new Set(asStringArray(parsed.retired).filter((id) => id in RETIRED_CATS))],
   };
 }
 
@@ -782,32 +799,63 @@ function migrateV3ToV4(parsed) {
   });
 }
 
+// Pure, runs on the RAW parsed save before any version branch, so a v2/v3 save
+// is refunded too. For each retired cat not yet marked in `retired`: if the save
+// owns it, its price goes back into `points` (never `lifetimePoints`, which is
+// a record of points earned, not of points held), and if it was the equipped
+// cat, `farewell` names it. Every retired id is marked afterwards, so this
+// happens once; sanitizeState then drops the id from `unlocked.cats` (it is no
+// longer in CATALOG) and falls the equipped cat back to Tabby.
+function retireCats(parsed) {
+  if (!isPlainObject(parsed)) return { parsed, farewell: null };
+  const done = asStringArray(parsed.retired);
+  let points = asFiniteNonNeg(parsed.points, 0);
+  let farewell = null;
+  const retired = [...done];
+  for (const [id, { price }] of Object.entries(RETIRED_CATS)) {
+    if (done.includes(id)) continue;
+    if (asStringArray(parsed.unlocked?.cats).includes(id)) points += price;
+    if (parsed.equipped?.cat === id) farewell = id;
+    retired.push(id);
+  }
+  return { parsed: { ...parsed, points, retired }, farewell };
+}
+
 // Shared by createProgression's initial load AND replaceFromPayload below —
 // a cloud-loaded (or otherwise externally supplied) save must go through
 // the exact same parse/version-migration/sanitize path as a normal boot,
 // so there's only one place that knows how to read whisker-walk-save.
+// Returns { state, changed, farewell }: `changed` means retireCats rewrote the
+// save, so the caller must persist it now (the marker only protects against a
+// second refund once it is on disk); `farewell` is the retired cat id the
+// player had equipped, if any.
 function loadState(storage) {
   try {
     const raw = storage.getItem(SAVE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.version === SAVE_VERSION) return sanitizeState(parsed);
+      const first = JSON.parse(raw);
+      const { parsed, farewell } = retireCats(first);
+      const changed = isPlainObject(first) && parsed !== first
+        && Object.keys(RETIRED_CATS).some((id) => !asStringArray(first.retired).includes(id));
+      if (parsed && parsed.version === SAVE_VERSION) return { state: sanitizeState(parsed), changed, farewell };
       if (parsed && parsed.version === 3) {
-        return migrateV3ToV4(parsed);
+        return { state: migrateV3ToV4(parsed), changed, farewell };
       }
       if (parsed && parsed.version === 2) {
-        return migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null });
+        return { state: migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null }), changed, farewell };
       }
       console.warn('Whisker Walk: incompatible save, starting fresh');
     }
   } catch (err) {
     console.warn('Whisker Walk: could not read save, starting fresh', err);
   }
-  return defaultState();
+  return { state: defaultState(), changed: false, farewell: null };
 }
 
 export function createProgression(storage) {
-  let state = loadState(storage);
+  let state;
+  // The farewell line waits here until the UI asks for it (takeFarewell).
+  let pendingFarewell = null;
 
   const save = () => {
     try {
@@ -816,6 +864,15 @@ export function createProgression(storage) {
       console.warn('Whisker Walk: could not write save', err);
     }
   };
+
+  // One place for both load paths: adopt the loaded state, persist at once if
+  // retirement rewrote it, and queue the farewell if the equipped cat was retired.
+  const adopt = (loaded) => {
+    state = loaded.state;
+    if (loaded.changed) save();
+    if (loaded.farewell) pendingFarewell = ROSA_FAREWELL(CATALOG.cats[state.equipped.cat].name);
+  };
+  adopt(loadState(storage));
 
   // Settle each verdict from `colony`; true when something was written.
   // A stored verdict is kept unless the new pick is STRICTLY earlier than it,
@@ -1562,7 +1619,13 @@ export function createProgression(storage) {
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud save', err);
       }
-      state = loadState(storage);
+      adopt(loadState(storage));
+    },
+    // The one-time gentle line after a retired cat was equipped, then null.
+    takeFarewell() {
+      const line = pendingFarewell;
+      pendingFarewell = null;
+      return line;
     },
   };
   return api;
