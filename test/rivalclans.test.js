@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
-import { rivalFor, isTrespassing, borderMarks, patrolPath } from '../src/rivalclans.js';
-import { CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
+import { DISCS, rivalFor, isTrespassing, borderMarks, patrolPath } from '../src/rivalclans.js';
+import { CLAN_SUFFIX, DENIED_NAMES, RIVAL_PREFIXES, PREFIXES } from '../src/clanwords.js';
 import { GOLD_MICE } from '../src/goldmice.js';
 import { SPAWN as NEIGH_SPAWN } from '../src/world/neighborhood.js';
 import { SPAWN as PARK_SPAWN } from '../src/world/park.js';
@@ -104,13 +104,45 @@ test('marks and the patrol are non-empty ordered rings of finite points', () => 
 
 test('results are fresh: mutating one call cannot corrupt the next', () => {
   for (const a of AREAS) {
-    const r0 = rivalFor(a); const m0 = borderMarks(a); const p0 = patrolPath(a);
-    const r = rivalFor(a); r.cx = 999; r.name = 'x';
-    const m = borderMarks(a); m[0].x = 999; m.length = 0;
-    const p = patrolPath(a); p[0].z = 999; p.length = 0;
-    expect(rivalFor(a)).toEqual(r0);
-    expect(borderMarks(a)).toEqual(m0);
-    expect(patrolPath(a)).toEqual(p0);
+    for (const fn of [rivalFor, borderMarks, patrolPath]) {
+      const first = fn(a);
+      const second = fn(a);
+      expect(first).not.toBe(second);
+      if (Array.isArray(first)) {
+        first.forEach((pt, i) => expect(pt).not.toBe(second[i]));
+      }
+      const snapshot = structuredClone(first);
+      if (Array.isArray(first)) {
+        first.forEach((pt) => { pt.x = 999; pt.z = 999; });
+        first.length = 0;
+      } else {
+        first.cx = 999; first.r = 999; first.name = 'x';
+      }
+      expect(fn(a)).toEqual(snapshot);
+    }
+  }
+});
+
+test('the rival name is RIVAL_PREFIXES + the suffix, never a PREFIXES word', () => {
+  for (const a of AREAS) {
+    expect(rivalFor(a).name).toBe(RIVAL_PREFIXES[a] + CLAN_SUFFIX);
+    expect(PREFIXES).not.toContain(RIVAL_PREFIXES[a]);
+  }
+});
+
+test('DISCS and RIVAL_PREFIXES cover the same areas', () => {
+  expect(Object.keys(DISCS).sort()).toEqual(Object.keys(RIVAL_PREFIXES).sort());
+  expect(Object.keys(DISCS).sort()).toEqual([...AREAS].sort());
+});
+
+test('border marks are evenly spaced round the circle', () => {
+  for (const a of AREAS) {
+    const m = borderMarks(a);
+    const chords = m.map((p, i) => {
+      const q = m[(i + 1) % m.length];
+      return Math.hypot(q.x - p.x, q.z - p.z);
+    });
+    for (const c of chords) expect(Math.abs(c - chords[0])).toBeLessThan(1e-6);
   }
 });
 

@@ -27,11 +27,14 @@ import { seedFromCode } from './rng.js';
 //     (19,24)/(-14,4) are all clear.
 //   docks (-31,-14) r 6.5: the west container yard, round the container
 //     (-30,-9). Spawn (0,-34), both bridges (0, and -24 which ends at
-//     z -5.5), the quays (|z| 6.5; the disc stops 7.5m south of the south
-//     quay), the crane chain (-16..-22.5,-9.8..-16.6) and its gold mouse
-//     (-17,-13), and the tins (-30,-26) are all outside. Nothing the
-//     Docks needs, with or without Sea Legs, is inside.
-const DISCS = Object.freeze({
+//     z -5.5), the crane chain (-16..-22.5,-9.8..-16.6) and its gold mouse
+//     (-17,-13), and the tins (-30,-26) are all outside. The disc does clip
+//     about 1m of the south quay's southern edge and sidewalk (it reaches
+//     z -7.5; the quay is z -8.5..-4.5, sidewalk at z -9), but the quay
+//     centreline (z -6.5) and every required spot stay outside, and a
+//     territory is not a wall. Nothing the Docks needs, with or without
+//     Sea Legs, is inside.
+export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
   seaside: Object.freeze({ cx: -34, cz: 36, r: 7 }),
@@ -49,7 +52,7 @@ const discOf = (areaId) => (
 
 export function rivalFor(areaId) {
   const d = discOf(areaId);
-  if (!d) return null;
+  if (!d || typeof RIVAL_PREFIXES[areaId] !== 'string') return null;
   return { name: RIVAL_PREFIXES[areaId] + CLAN_SUFFIX, cx: d.cx, cz: d.cz, r: d.r };
 }
 
