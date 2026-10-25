@@ -1434,7 +1434,9 @@ export function createProgression(storage) {
     // rule as settleRoles: a set verdict moves only to a strictly earlier
     // pick, so adding a cat or a feed later cannot displace the incumbent.
     // Nothing is written while no cat qualifies. Saves only when something
-    // was written.
+    // was written. TEST-ONLY: no src/ module calls it (src settles inside
+    // mergeColonySnapshot and settleColonyTaming, per R12a′); the role tests
+    // use it to settle from a hand-built colony.
     settleClanRoles(colony) {
       if (settleRoles(colony)) save();
     },

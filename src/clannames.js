@@ -14,8 +14,11 @@
 // The player's points ladder is progression.js's rankFor; this file's
 // clanRankFor is a different thing and the two must never be merged.
 //
-// A leaf module: it imports vocabulary (clanwords.js), the hash (rng.js) and
-// the known-name gate (straynames.js, which imports nothing). No DOM, no THREE.
+// Pure logic: it imports vocabulary (clanwords.js), the pet-name check
+// (validPetName from net.js, which imports only chat.js), the hash (rng.js)
+// and the known-name gate and kit names (straynames.js, which imports
+// nothing). None of those imports this file, so there is no cycle. No DOM, no
+// THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
 import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
