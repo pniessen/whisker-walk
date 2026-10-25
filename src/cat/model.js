@@ -11,11 +11,10 @@ const STYLE = {
   mainecoon: { base: 0x7a5b3a, belly: 0xb99a72, accent: 0x5a4028, scale: 1.3, fluffy: true, tufts: true },
   // the family pets
   zeetoo:    { base: 0xa8825a, belly: 0xe0ccA0, accent: 0x74582f, scale: 1.0, stripes: true },
-  rosa:      { base: 0x24242c, belly: 0xf5f5f5, accent: 0x1a1a20, scale: 0.95 },            // tuxedo: white bib/paws fall out of belly color
   robbie:    { base: 0xf2f2f2, belly: 0xfafafa, accent: 0x1a1a1e, scale: 1.05, cow: true }, // cow cat: big black patches
 };
 const INNER_EAR = 0xe8a0a8;
-const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, rosa: 0xd8b830, zeetoo: 0x4e9440 };
+const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440 };
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
 // four re-homed ones, which keep their original colors inline below).

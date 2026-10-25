@@ -30,7 +30,6 @@ const CAT_BLURBS = {
   calico: 'Playful — pounces butterflies for points',
   mainecoon: 'Steady — big, calm, unbothered',
   zeetoo: 'Legendary tabby — smells treasure from a block away',
-  rosa: 'Tuxedo — always formal, never afraid',
   robbie: 'Cow cat — maximum chaos, champion pouncer',
   hagrid: 'A chicken?! Birds trust Hagrid completely',
 };

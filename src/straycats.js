@@ -132,7 +132,7 @@ export { CAT_NAMES };
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur", D2 — "strays only, never the named family pets (Zeetoo,
-// Rosa, Robbie, Hagrid) and never ghost visitors."
+// Robbie, Hagrid) and never ghost visitors."
 //
 // src/enemies.js owns the RULES and says plainly that it cannot enforce this:
 // it sees a save, a name and a walk stamp, and has no way to tell one cat

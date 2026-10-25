@@ -69,14 +69,6 @@ const REPLIES = {
     emote: ['✨', 'Sniff... legendary.'],
     misc: ['The nose senses something...', 'A true adventurer never rests.'],
   },
-  rosa: {
-    greeting: ['Good day to you.', 'Greetings, and well met.', 'Ah, hello there.'],
-    play: ['Very well — a spot of play.', 'I shall play, formally.', 'Splendid. Let us proceed to play.'],
-    compliment: ['You are most kind.', 'I appreciate the compliment, truly.', 'Why, thank you.'],
-    farewell: ['Farewell, until we meet again.', 'Good day to you. Farewell.', 'I bid you adieu.'],
-    emote: ['🎩', 'Composed, as always.'],
-    misc: ['Quite so.', 'Indeed.'],
-  },
   robbie: {
     greeting: ['HIYA!! Chaos time!', 'HEY HEY HEY!', 'Yo!! Let\'s CAUSE something!'],
     play: ['POUNCE CHAMPION incoming!!', 'Let\'s knock stuff over!!', 'Play?? OBVIOUSLY YES!'],

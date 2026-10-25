@@ -1262,7 +1262,7 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
 
     it('refuses to turn a family pet even smuggled into the stray list', () => {
       const h = enemyHarness();
-      for (const name of ['Zeetoo', 'Rosa', 'Robbie', 'Hagrid']) {
+      for (const name of Object.values(CATALOG.cats).map((c) => c.name)) {
         const pet = {
           name, breed: 'tabby', greeted: false,
           group: { position: new THREE.Vector3(0, 0, 1), rotation: { y: 0 } },

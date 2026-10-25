@@ -12,7 +12,7 @@ import { animateCat } from '../src/cat/animator.js';
 // the numbers on screen, so a test that asserted against hand-copied numbers
 // would reproduce exactly the bug it is meant to catch.
 
-const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'rosa', 'robbie'];
+const BREEDS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie'];
 const ALL = [...BREEDS, 'hagrid'];
 const FEET = ['booties', 'sneakers', 'rainboots', 'socks'];
 const STATES = ['follow', 'nap', 'stretch', 'groom', 'requestPet', 'perch', 'sniff', 'stalk', 'pounce', 'scared', 'cross', 'land'];
@@ -128,7 +128,7 @@ describe('cat model: markings lie ON the surface they mark', () => {
   });
 
   it('an unmarked breed has no markings at all', () => {
-    for (const breed of ['siamese', 'persian', 'black', 'rosa', 'mainecoon']) {
+    for (const breed of ['siamese', 'persian', 'black', 'mainecoon']) {
       const cat = buildCat(breed);
       expect(cat.userData.parts.body.children).toHaveLength(0);
     }
@@ -170,7 +170,7 @@ describe('cat model: budget and determinism', () => {
   // wave that adds meshes to the hero asset — which is on screen 100% of the
   // time, and is also cloned for every stray, ghost and co-walker — is spending
   // the scarce resource. Wave 6 spent triangles and RECLAIMED meshes.
-  const CEILING = { tabby: 31, siamese: 30, persian: 31, black: 30, calico: 33, mainecoon: 31, zeetoo: 31, rosa: 30, robbie: 32, hagrid: 19 };
+  const CEILING = { tabby: 31, siamese: 30, persian: 31, black: 30, calico: 33, mainecoon: 31, zeetoo: 31, robbie: 32, hagrid: 19 };
 
   for (const breed of ALL) {
     it(`${breed} draws no more meshes than its ceiling (${CEILING[breed]})`, () => {

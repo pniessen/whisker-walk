@@ -501,8 +501,8 @@ function withFakeDocument(fn) {
 describe('D2 — only strays can ever bear a grudge', () => {
   it('shares not one name with any player avatar, so no family pet is a stray', () => {
     // THE vocabulary half of the guard, pinned against the REAL catalog
-    // rather than a hand-copied list of four names, so it cannot rot: adding
-    // 'Rosa' to CAT_NAMES, or a new family pet whose name is already a stray
+    // rather than a hand-copied list of names, so it cannot rot: adding
+    // a stray name to the family catalog, or a new family pet whose name is already a stray
     // name, fails here rather than shipping a cat that can scratch its own
     // child.
     const avatarNames = Object.values(CATALOG.cats).map((c) => c.name);
@@ -557,7 +557,7 @@ describe('D2 — only strays can ever bear a grudge', () => {
     // Belt to the braces: the two halves are independent, so smuggling a
     // family pet past the identity half still fails the vocabulary half.
     const cats = createStrayCats(fakeScene(), AREA, 1);
-    for (const name of ['Zeetoo', 'Rosa', 'Robbie', 'Hagrid']) {
+    for (const name of Object.values(CATALOG.cats).map((c) => c.name)) {
       const pet = { name, group: cats.strays[0].group };
       cats.strays.push(pet);
       expect(isGrudgeableStray(cats, pet)).toBe(false);
