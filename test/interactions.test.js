@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
-import { createProgression } from '../src/progression.js';
+import { createProgression, CATALOG } from '../src/progression.js';
+import { catsInArea } from '../src/colony.js';
 import { createGoals } from '../src/goals.js';
 import { createGifts } from '../src/gifts.js';
 import { createStrayCats } from '../src/straycats.js';
@@ -1574,5 +1575,277 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
       expect(() => h.greet(s)).not.toThrow();
       expect(() => h.pressE()).not.toThrow();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v21 Stream 2, Task 6 — the feed verb.
+//
+// Touch noses with a stray and the prompt in the same slot turns into "feed".
+// Each feed moves the cat along its one taming bar (src/colony.js); the feed
+// that fills it tames the cat, who moves to the den. Feeding is free and pays
+// no whisker points (spec §4 anti-goal). Driven through the real
+// createProgression, the real createStrayCats (with colonyCats, so the cat is
+// standing at its fixed spot) and the real interactions module — only the
+// HUD, audio, net and colony sync are stand-ins that record what they saw.
+// ---------------------------------------------------------------------------
+describe('Colony — the feed verb (v21 Stream 2)', () => {
+  const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 } };
+  // Valid player ids (colony.js refuses anything else as 'bad').
+  const ME = 'player-me-000001';
+  const SIB = 'player-sib-00002';
+  const PARTNER = { playerId: SIB, petName: 'Zoomer', wardrobe: [] };
+
+  function stampFor(name, hostile, from = 1) {
+    for (let i = from; i < from + 20000; i++) {
+      const stamp = `walk-${i}`;
+      if (rollHostile(stamp, name, { charmer: false }) === hostile) return stamp;
+    }
+    throw new Error(`no ${hostile ? 'hostile' : 'friendly'} stamp found for ${name}`);
+  }
+
+  // `feeds` are earlier-walk feeds as [by, n] pairs, stamped walk-9000.. so
+  // they can never collide with this walk's stamp (stampFor starts at 1 and
+  // a friendly roll is found within a handful of tries).
+  function colonyHarness({
+    name = 'Pickles', names = [name], grudges = [], points = 0, feeds = [], partner = null,
+    net = true, colonyWalk = true, sync = true,
+  } = {}) {
+    const progression = createProgression(fakeStorage());
+    const prior = [];
+    let w = 9000;
+    for (const [by, n] of feeds) for (let i = 0; i < n; i++) prior.push({ cat: name, by, walk: `walk-${w++}`, head: 0 });
+    const colony = {
+      id: partner ? 'colony-1' : null,
+      partner,
+      cats: prior.length ? [{ name, finder: prior[0].by, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null }] : [],
+      feeds: prior,
+    };
+    progression.replaceFromPayload({ version: 4, points, grudges, colony });
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const strayCats = createStrayCats(scene, AREA, names.length, mulberry32(11), {
+      grudges,
+      colonyCats: names.map((n, i) => ({ name: n, x: 0, z: 1 + i, wear: null })),
+    });
+    const toasts = [];
+    const prompts = [];
+    const pushed = [];
+    const sent = [];
+    const sounds = [];
+    let granted = 0;
+    const realGrant = progression.grantColonyRewards;
+    progression.grantColonyRewards = () => { granted += 1; return realGrant(); };
+    const session = {
+      areaId: 'park',
+      walkStamp: stampFor(name, false),
+      playerId: ME,
+      colonyWalk,
+      net: net ? { sendEvent: (ev) => sent.push(ev) } : undefined,
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: [] },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats,
+      enemies: createEnemyWalkLog(),
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts: null,
+      perched: null,
+      freezeTime: 0,
+      catsGreeted: 0,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst: () => sounds.push('burst') },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const api = createInteractions({
+      MP: 1, pid: ME, getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      // forward at -z: the strays parked at +z are behind the cat, so the
+      // spot-a-stray award never muddies the points ledger.
+      player: { forward: () => new THREE.Vector3(0, 0, -1), perchY: 0, halt() {} },
+      progression, log,
+      hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t), setPoints() {} },
+      audio: {
+        trill: () => sounds.push('trill'), meow() {}, hiss: () => sounds.push('hiss'),
+        fanfare: () => sounds.push('fanfare'),
+      },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+      colonySync: sync ? { pushFeed: (f) => pushed.push(f) } : undefined,
+    });
+    const stray = strayCats.strays.find((s) => s.name === name);
+    return {
+      progression, session, strayCats, stray, toasts, prompts, pushed, sent, sounds,
+      granted: () => granted,
+      scan: () => api.updateInteractions(session),
+      pressE: () => api.handleInteract(session),
+      // scan, then press whatever the scan offered — what a player does.
+      press: () => { api.updateInteractions(session); api.handleInteract(session); },
+      kind: () => session.prompt?.kind ?? null,
+    };
+  }
+
+  it('offers the feed prompt only after the cat was greeted this walk', () => {
+    const h = colonyHarness();
+    h.scan();
+    expect(h.kind()).toBe('stray');
+    expect(h.prompts.at(-1)).toBe('E — touch noses with Pickles');
+    h.pressE();                               // touch noses
+    expect(h.stray.greeted).toBe(true);
+    h.scan();
+    expect(h.kind()).toBe('stray-feed');
+    expect(h.session.prompt.data).toBe(h.stray);
+    expect(h.prompts.at(-1)).toBe('E — feed Pickles 🐟');
+  });
+
+  it('the greet still wins the slot over a feed', () => {
+    // Two cats: the nearer one greeted (feedable), the farther one not. The
+    // greet is the scarcer offer and the feed waits behind it.
+    const h = colonyHarness({ names: ['Pickles', 'Marmalade'] });
+    h.press();                                // greets Pickles, the nearer
+    const marm = h.strayCats.strays.find((s) => s.name === 'Marmalade');
+    marm.group.position.set(0, 0, 1.5);
+    h.scan();
+    expect(h.kind()).toBe('stray');
+    expect(h.session.prompt.data).toBe(marm);
+  });
+
+  it('a feed writes once per walk and pushes it to the colony sync', () => {
+    const h = colonyHarness();
+    h.press();                                // greet
+    h.press();                                // feed
+    expect(h.progression.state.colony.feeds).toEqual([{ cat: 'Pickles', by: ME, walk: h.session.walkStamp, head: 0 }]);
+    // The cat is founded where it stands: its fixed spot, my find.
+    expect(h.progression.state.colony.cats).toEqual([
+      { name: 'Pickles', finder: ME, area: 'park', x: 0, z: 1, wear: null, tamedBy: null, tamedWalk: null },
+    ]);
+    expect(h.toasts.at(-1)).toBe('You fed Pickles 🐟 — 1/6');
+    expect(h.sounds).toContain('trill');
+    // The prompt is gone for the rest of the walk...
+    h.scan();
+    expect(h.kind()).toBe(null);
+    // ...and a forced second press (a stale prompt) feeds nothing.
+    h.session.prompt = { kind: 'stray-feed', data: h.stray };
+    h.pressE();
+    expect(h.progression.state.colony.feeds).toHaveLength(1);
+    expect(h.pushed).toEqual([{ cat: 'Pickles', walk: h.session.walkStamp }]);
+    // The live display event for my partner, once, with no free text.
+    expect(h.sent).toEqual([{ v: 1, id: ME, type: 'colony-feed', cat: 'Pickles' }]);
+  });
+
+  it('sends no colony-feed event on a walk with a non-partner, but still syncs the feed', () => {
+    const h = colonyHarness({ colonyWalk: false });
+    h.press();
+    h.press();
+    expect(h.progression.state.colony.feeds).toHaveLength(1);
+    expect(h.pushed).toHaveLength(1);
+    expect(h.sent).toEqual([]);
+  });
+
+  it('shows both feeders in the toast when paired', () => {
+    const h = colonyHarness({ name: 'Marmalade', partner: PARTNER, feeds: [[ME, 2], [SIB, 1]] });
+    h.press();
+    h.press();
+    expect(h.toasts.at(-1)).toBe('You fed Marmalade 🐟 — 4/6 (you 3 · Zoomer 1)');
+  });
+
+  it('never pays whisker points for feeding', () => {
+    const h = colonyHarness({ name: 'Marmalade', feeds: [[ME, 4]] });
+    h.press();                                // greet: the one ordinary award
+    expect(h.progression.state.points).toBe(AWARDS.friend);
+    const feedPays = () => {
+      const { points, lifetimePoints } = h.progression.state;
+      const fed = h.progression.state.colony.feeds.length;
+      h.press();
+      expect(h.progression.state.colony.feeds.length).toBe(fed + 1);   // it really fed
+      return [h.progression.state.points - points, h.progression.state.lifetimePoints - lifetimePoints];
+    };
+    expect(feedPays()).toEqual([0, 0]);       // feed 5/6
+    // The next walk: touch noses again, then the feed that tames.
+    h.session.walkStamp = stampFor('Marmalade', false, Number(h.session.walkStamp.slice(5)) + 1);
+    h.stray.greeted = false;
+    h.press();
+    expect(feedPays()).toEqual([0, 0]);       // feed 6/6, the taming one
+    expect(h.progression.state.colony.cats[0].tamedBy).toBe(ME);
+  });
+
+  it('a cross cat is never offered food', () => {
+    const h = colonyHarness({ grudges: ['Pickles'], points: 40 });
+    h.stray.greeted = true;                   // even if it somehow was greeted
+    h.scan();
+    expect(h.kind()).toBe('stray-gift');
+    // A stale feed prompt on a cross cat is refused by the handler too.
+    h.session.prompt = { kind: 'stray-feed', data: h.stray };
+    h.pressE();
+    expect(h.progression.state.colony.feeds).toEqual([]);
+    expect(h.pushed).toEqual([]);
+  });
+
+  it('a rupture never touches the colony (spec §9.2: annoyed at one player, nobody loses progress)', () => {
+    const h = colonyHarness({ feeds: [[ME, 3]] });
+    h.session.walkStamp = stampFor('Pickles', true);
+    const before = structuredClone(h.progression.state.colony);
+    h.press();                                // the greet ruptures
+    expect(h.progression.state.grudges).toEqual(['Pickles']);
+    expect(h.progression.state.colony).toEqual(before);
+    h.scan();
+    expect(h.kind()).toBe('stray-gift');      // a treat, never food
+    expect(h.pushed).toEqual([]);
+  });
+
+  it('a shy cat waiting for the partner shows a no-op prompt naming them', () => {
+    // Pickles is shy (colony.isShy). Paired, and I have filled her bar alone.
+    const h = colonyHarness({ partner: PARTNER, feeds: [[ME, 6]] });
+    const before = structuredClone(h.progression.state.colony);
+    h.press();                                // greet
+    h.scan();
+    expect(h.kind()).not.toBe('stray-feed');
+    expect(h.prompts.at(-1)).toBe('Pickles is shy — waiting for Zoomer 🐾');
+    h.pressE();
+    expect(h.progression.state.colony).toEqual(before);
+    expect(h.pushed).toEqual([]);
+    expect(h.sent).toEqual([]);
+  });
+
+  it('the taming feed toasts, grants the reward and does not spawn the cat again next walk', () => {
+    const h = colonyHarness({ name: 'Marmalade', feeds: [[ME, 5]] });
+    h.press();                                // greet
+    h.press();                                // the sixth feed
+    expect(h.progression.state.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: h.session.walkStamp });
+    expect(h.toasts).toContain('You fed Marmalade 🐟 — 6/6');
+    expect(h.toasts).toContain("Marmalade trusts you! She'll be waiting in the den 🏠");
+    expect(h.sounds).toContain('fanfare');
+    expect(h.granted()).toBe(1);
+    // First milestone: the first of its items not already owned.
+    expect(h.progression.state.unlocked.accessories).toContain('heart');
+    expect(h.toasts.at(-1)).toBe(`🎁 New for your wardrobe: ${CATALOG.accessories.heart.name}`);
+    expect(catsInArea(h.progression.state.colony, 'park').map((c) => c.name)).not.toContain('Marmalade');
+    // ...and nothing more to do with her this walk.
+    h.scan();
+    expect(h.kind()).toBe(null);
+  });
+
+  it('a feed without a colony sync (it is an optional dep) still records', () => {
+    const h = colonyHarness({ sync: false });
+    h.press();
+    expect(() => h.press()).not.toThrow();
+    expect(h.progression.state.colony.feeds).toHaveLength(1);
+  });
+
+  it('feeds nothing in a session with no valid player id or walk stamp', () => {
+    // canFeed answers 'bad', so the feed prompt is never offered at all.
+    const h = colonyHarness();
+    h.press();
+    h.session.walkStamp = 'not-a-stamp';
+    h.scan();
+    expect(h.kind()).toBe(null);
   });
 });

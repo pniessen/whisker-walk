@@ -23,6 +23,8 @@ import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
+import { canFeed } from '../colony.js';
+import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
 
 // ---------------------------------------------------------------------------
@@ -60,8 +62,9 @@ export function createInteractions({
   MP, pid, getCloud, getPsecret, getSession, getIsTouch,
   player, progression, log, hud, audio, catVoice, snapPhoto,
   petNameFor, completeBoop,
-  // v21 Stream 2: game/colonysync.js. Optional (tests omit it); the feed
-  // prompt (Task 6) calls colonySync?.pushFeed.
+  // v21 Stream 2: game/colonysync.js. Optional (tests and a bare boot omit
+  // it); the feed handler (feedStray) calls colonySync?.pushFeed, which is
+  // fire-and-forget and a no-op while unpaired or offline.
   colonySync,
 }) {
   // Bodies extracted out of the keydown handlers below (pure move — same
@@ -651,6 +654,60 @@ export function createInteractions({
       }
     }
     if (!s.prompt) {
+      // v21 Stream 2 — THE FEED VERB, and the second half of the same slot.
+      // Touching noses is what earns the chance to feed: once a cat has been
+      // greeted this walk, `promptable` stops offering it above, and this
+      // branch picks the same cat up and offers food instead. So the slot
+      // reads, per cat, "touch noses" → "feed" → nothing, and the greet and the
+      // treat (the two offers above) always win it first:
+      //
+      //   * the greet must, because it is what makes the feed possible at all
+      //     (decisions.md: "only after you have greeted that cat on this
+      //     walk"), and because a greeted cat that could be fed must never
+      //     hide an ungreeted one standing a little further off;
+      //   * the treat must, because a cross cat is never fed — food is for a
+      //     cat that trusts you, and spec §9.2 keeps the grudge (one player's
+      //     private fact) and the colony (shared progress) apart. The filter
+      //     below excludes cross cats as well, so a cross cat cannot surface
+      //     here even when it is the only cat in range.
+      //
+      // It sits ABOVE ghost/kitten/race/scratch/boop/gift-leave for the
+      // same reason the greet does: the player walked up to this cat.
+      //
+      // canFeed is the one source of truth for "can I feed it now" — the same
+      // answer feedColonyCat will give on the press, because both run the same
+      // rules over the same save. 'ok' gets the prompt. 'waiting' (a shy cat
+      // whose bar I have filled alone, waiting for my partner — decisions.md,
+      // "Two-feeder cat") gets a line that names the partner and has no
+      // action: there is nothing for E to do, and saying why beats a cat that
+      // silently stops offering anything. Every other answer ('fed-this-walk',
+      // 'tamed', 'full', and 'bad' for malformed input) shows nothing, so the
+      // slot falls through to the prompts below.
+      //
+      // Guarded on the colony existing so a stand-in progression in a test
+      // (which has no colony at all) behaves exactly as before this wave.
+      const colony = progression.state?.colony;
+      if (colony && progression.feedColonyCat) {
+        const members = progression.colonyMembers?.() ?? 1;
+        const answer = (st) => canFeed(colony, st.name, pid, s.walkStamp, { members });
+        const stray = s.strayCats.nearest(catP, STRAY_PROMPT_RANGE, {
+          excludeCross: true,
+          where: (st) => st.greeted && isGrudgeableStray(s.strayCats, st) && !progression.hasGrudge?.(st.name)
+            && ['ok', 'waiting'].includes(answer(st)),
+        });
+        if (stray && answer(stray) === 'ok') {
+          s.prompt = { kind: 'stray-feed', data: stray };
+          setPrompt(`E — feed ${stray.name} 🐟`);
+        } else if (stray) {
+          // Holds the slot (so nothing below claims it) and does nothing on E:
+          // handleInteract has no 'stray-wait' branch. No "E — " prefix, so
+          // the line does not pretend to be an action.
+          s.prompt = { kind: 'stray-wait', data: stray };
+          setPrompt(`${stray.name} is shy — waiting for ${colony.partner?.petName ?? 'your partner'} 🐾`);
+        }
+      }
+    }
+    if (!s.prompt) {
       const ghost = s.ghosts.nearest(catP, 2.5);
       if (ghost) {
         s.prompt = { kind: 'ghost', data: ghost };
@@ -845,6 +902,72 @@ export function createInteractions({
     catVoice();
   }
 
+  // -------------------------------------------------------------------
+  // v21 Stream 2 — feeding a stray, the colony's one verb.
+  //
+  // Ordered so that nothing happens unless the feed actually lands:
+  //   1. re-check what the prompt checked: a real stray of THIS walk (the D2
+  //      identity guard, so a ghost or a co-walker's pet can never be fed into
+  //      the colony), not cross, and greeted this walk. The prompt can be a
+  //      frame stale, and a rupture or a forgive can land in between;
+  //   2. progression.feedColonyCat is the single gate and the only writer. It
+  //      runs colony.canFeed again, so a second press on the same walk, a
+  //      tamed cat or a full colony come back as something other than 'ok'
+  //      and NOTHING below runs — no toast, no push, no event;
+  //   3. only then the beat, the sync push, the live event and the taming.
+  //
+  // The cat is recorded at its HOME, never at where it happens to be standing
+  // as the player presses E. home is its spawn point (or, for a colony cat,
+  // the fixed spot it already has), so a stray first fed mid-wander is founded
+  // at a spot that is inside the area and that every later walk can stand it
+  // at. feedCat ignores the spot for a cat that already exists — first insert
+  // wins — so this can never move a colony cat.
+  //
+  // No whisker points, ever (spec §4 anti-goal): no log.award, no awardOnce.
+  // The friendship award was paid by the greet that unlocked this prompt.
+  // -------------------------------------------------------------------
+  function feedStray(s, stray) {
+    if (!isGrudgeableStray(s.strayCats, stray) || stray.cross || !stray.greeted) return;
+    if (progression.hasGrudge?.(stray.name) || !progression.feedColonyCat) return;
+    const name = stray.name;
+    const r = progression.feedColonyCat({
+      name, by: pid, walk: s.walkStamp, area: s.areaId, x: stray.home.x, z: stray.home.z,
+    });
+    if (r.result !== 'ok') return;
+
+    s.fx?.burst(stray.group.position, 0xf2c14e, 12);
+    audio.trill(0.8);
+    // The bar after this feed. With a partner, who fed how much — the bar is
+    // shared, and seeing your sibling's share is the point of sharing it.
+    const { have, need, byPlayer } = r.progress;
+    const partner = progression.colonyMembers?.() === 2 ? progression.state.colony.partner : null;
+    let text = `You fed ${name} 🐟 — ${have}/${need}`;
+    if (partner) {
+      const fedBy = (id) => byPlayer.find((p) => p.by === id)?.n ?? 0;
+      text += ` (you ${fedBy(pid)} · ${partner.petName} ${fedBy(partner.playerId)})`;
+    }
+    hud.toast(text);
+
+    // The durable copy goes to the server (fire-and-forget; a no-op offline
+    // or unpaired — colonysync re-pushes anything the server lacks on its
+    // next pull). The live copy goes to the room only on a colony walk, where
+    // everyone else is my partner: it is display-only, never saved, and
+    // carries a CAT_NAMES name and nothing else (no free text on the wire).
+    colonySync?.pushFeed({ cat: name, walk: s.walkStamp });
+    if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
+
+    if (r.tamedNow) {
+      hud.toast(`${name} trusts you! She'll be waiting in the den 🏠`);
+      audio.fanfare?.();
+      // Cosmetic milestones (1/3/6/12 tamed). grantColonyRewards records each
+      // milestone as it pays, so this toast can never repeat.
+      for (const item of progression.grantColonyRewards?.() ?? []) {
+        const label = CATALOG.accessories[item]?.name;
+        if (label) hud.toast(`🎁 New for your wardrobe: ${label}`);
+      }
+    }
+  }
+
   function handleInteract(s) {
     if (!s.prompt) return;
     if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
@@ -907,6 +1030,8 @@ export function createInteractions({
       }
     } else if (s.prompt.kind === 'stray') {
       awardStrayGreet(s, s.prompt.data);
+    } else if (s.prompt.kind === 'stray-feed') {
+      feedStray(s, s.prompt.data);
     } else if (s.prompt.kind === 'stray-gift') {
       // -----------------------------------------------------------------
       // v20 Ruffled Fur — THE RECONCILIATION. Resolved by the user, so the

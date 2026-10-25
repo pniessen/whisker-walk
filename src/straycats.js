@@ -4,7 +4,8 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, setNameTagMood, NAME_TAG_RANGE } from './nametag.js';
 import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { CAT_NAMES, strayBreed } from './straynames.js';
+import { CAT_NAMES, strayBreed, isStrayName } from './straynames.js';
+import { isShy } from './colony.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -174,7 +175,7 @@ function shuffled(arr, rng) {
   return a;
 }
 
-// createStrayCats(scene, area, count, rng, { grudges, roomSeed })
+// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
 // seeds walkRng from. It is used for ONE thing: seeding each stray's private
@@ -205,19 +206,71 @@ function shuffled(arr, rng) {
 // hostility is a private per-device fact (D4) and two co-walkers may disagree
 // about which cats are cross without their worlds diverging by so much as one
 // draw.
-export function createStrayCats(scene, area, count = 3, rng = Math.random, { grudges = [], roomSeed } = {}) {
+//
+// `colonyCats` (v21 Stream 2) is the shared colony's untamed cats in THIS area,
+// `[{ name, x, z, wear: { slot, id } | null }]`, read off the save by
+// game/walk.js (colony.catsInArea; empty on a walk with a non-partner, so a
+// world shared with somebody else is the same world they see). A colony cat is
+// a stray the siblings are taming: it has to be standing at the spot where it
+// was first fed, every walk, or "go back and feed Pickles" means nothing. So:
+//
+//   * the cat LIST is the colony cats first (up to `count`), then the
+//     shuffled names that are not in the colony, so a colony cat always
+//     appears, exactly once, and never as a second, ordinary stray;
+//   * a colony cat's position and `home` are its fixed spot, clamped into the
+//     area's bounds (a spot recorded in another area's frame, or a hostile
+//     save, cannot put a cat inside a wall of this one);
+//   * its personality is 'shy' when its NAME is shy (colony.isShy — the same
+//     cat that waits for a second feeder is the one that runs from you), and
+//     otherwise the rolled one with 'shy' turned into 'bold', so a cat you
+//     are taming never bolts from you for a reason its name does not give;
+//   * it wears the one accessory its finder gave it.
+//
+// THE DRAWS ARE THE SAME. It still takes the full `shuffled(CAT_NAMES, rng)`
+// and all five per-index draws (x, z, facing, personality roll, first timer)
+// for every i < count, and simply throws away the ones a colony cat does not
+// use. That waste is the point. On a room walk `rng` is walkRng, the one
+// order-sensitive shared stream (see game/walk.js's WARNING at startWalk), and
+// everything spawned after the strays — gifts, weather, secrets, goals — reads
+// its values off the same stream. If a colony cat skipped its position draws,
+// every one of those systems would read different values from then on, and
+// two co-walkers whose colonies differ by one offline feed would be walking
+// through different worlds without either of them knowing why. Spending the
+// draws keeps the stream position after spawn a function of `count` alone
+// (test/straycats.test.js pins it with a counting rng).
+export function createStrayCats(scene, area, count = 3, rng = Math.random, { grudges = [], roomSeed, colonyCats = [] } = {}) {
   const strays = [];
   const b = area.bounds;
   const names = shuffled(CAT_NAMES, rng);
   const crossNames = new Set(Array.isArray(grudges) ? grudges : []);
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
 
+  // The cast: colony cats first, then everyone else in shuffle order. Built
+  // from data the caller already sanitized (colony.js), but filtered again
+  // here because this module owns stray identity: only a CAT_NAMES name can
+  // be a stray (the D2 guard below relies on it), each name once, a spot
+  // must be finite, and there are never more colony cats than `count`.
+  const colony = [];
+  const colonyNames = new Set();
+  for (const c of Array.isArray(colonyCats) ? colonyCats : []) {
+    if (colony.length >= count) break;
+    if (!c || !isStrayName(c.name) || colonyNames.has(c.name)) continue;
+    if (!Number.isFinite(c.x) || !Number.isFinite(c.z)) continue;
+    colonyNames.add(c.name);
+    colony.push(c);
+  }
+  const cast = [...colony, ...names.filter((n) => !colonyNames.has(n))];
+
   for (let i = 0; i < count; i++) {
-    const name = names[i % names.length];
+    const fixed = i < colony.length ? colony[i] : null;
+    const name = fixed ? fixed.name : cast[i % cast.length];
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
     // is always the same breed across walks
     const breed = strayBreed(name);
-    const group = buildCat(breed, undefined, { simple: true });
+    const wear = fixed?.wear && typeof fixed.wear.slot === 'string' && typeof fixed.wear.id === 'string'
+      ? { [fixed.wear.slot]: fixed.wear.id }
+      : undefined;
+    const group = buildCat(breed, wear, { simple: true });
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     // Position, facing and the personality roll below are drawn from `rng` in
     // this fixed order — x, then z, then facing, then personality — for every
@@ -229,13 +282,20 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
     // differently. Same failure family as CF-7 (walk.js:507) and the firefly
     // desync (walk.js:429) — a placed/derived value quietly left off the
     // shared stream.
-    const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
-    const z = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
+    //
+    // A colony cat takes all four of these draws too and discards the two
+    // position values (see the header: the draw count must not depend on the
+    // colony).
+    const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
+    const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
+    const x = fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX;
+    const z = fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ;
     group.position.set(x, 0, z);
     group.rotation.y = rng() * Math.PI * 2;
 
     const roll = (rng() + i * GOLDEN) % 1;
-    const personality = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
+    const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
+    const personality = !fixed ? rolled : isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
 
     const cross = crossNames.has(name);
     const tag = makeNameTag(name, { cross });
@@ -256,6 +316,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
       // and by the prompt scan, so neither has to touch the save 22 times a
       // frame to ask a question that changes twice a walk at most.
       cross,
+      // v21 Stream 2: one of the colony's cats, standing at its fixed spot.
+      // Read by nothing that changes the world — only by what the prompt and
+      // the name tag say about it.
+      colony: !!fixed,
       // This cat's own wander stream. Derived from (wanderBase, name) — never
       // drawn from `rng` — so it costs the shared walk stream nothing, and no
       // cat's draws can shift another's. update() below uses it for every
@@ -299,7 +363,13 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
     //     mutually exclusive per cat, and a single scan returns the NEAREST
     //     cat with either, so a cross cat can never shadow a friendly one
     //     standing closer, nor the reverse.
-    nearest(pos, maxDist, { ungreetedOnly = false, crossOnly = false, excludeCross = false, promptable = false } = {}) {
+    //   * where — v21 Stream 2: any extra `(stray) => boolean` test. The feed
+    //     prompt uses it to ask the colony rules "can I feed this one?". It is
+    //     asked LAST, only of a cat that is in range and nearer than the best
+    //     so far, so a rule that reads the save is not run 22 times a frame
+    //     for cats across the map. Same answer as asking it first, because it
+    //     only ever removes a cat.
+    nearest(pos, maxDist, { ungreetedOnly = false, crossOnly = false, excludeCross = false, promptable = false, where = null } = {}) {
       let best = null;
       let bestD = maxDist;
       for (const s of strays) {
@@ -308,7 +378,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, { gru
         if (excludeCross && s.cross) continue;
         if (promptable && !s.cross && s.greeted) continue;
         const d = s.group.position.distanceTo(pos);
-        if (d < bestD) {
+        if (d < bestD && (!where || where(s))) {
           bestD = d;
           best = s;
         }

@@ -769,3 +769,110 @@ describe('the grudge in the running world', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// v21 Stream 2, Task 6 — colony cats at fixed spots (Review Focus 2).
+//
+// A colony cat is a stray the siblings are taming: it must be standing at the
+// spot where it was first fed, every walk, and it must cost the shared walkRng
+// stream exactly what an ordinary stray costs, or a co-walk with colony cats
+// would desync every system drawn after the strays.
+// ---------------------------------------------------------------------------
+describe('createStrayCats — colony cats (v21 Stream 2)', () => {
+  const scene = fakeScene();
+  const counting = () => { let n = 0; const f = () => { n++; return ((n * 0.6180339887) % 1); }; f.count = () => n; return f; };
+
+  it('colony cats do not change how many walkRng values a spawn draws', () => {
+    const a = counting(), b = counting();
+    createStrayCats(scene, AREA, 22, a);
+    createStrayCats(scene, AREA, 22, b, { colonyCats: [{ name: 'Pickles', x: 5, z: 6, wear: null }] });
+    expect(b.count()).toBe(a.count());
+  });
+
+  it('...not even with a full colony, a worn item and a smaller count', () => {
+    const many = CAT_NAMES.slice(0, 12).map((name, i) => ({ name, x: i, z: -i, wear: i % 2 ? { slot: 'collar', id: 'bell' } : null }));
+    for (const count of [0, 5, 14, 22]) {
+      const a = counting(), b = counting();
+      createStrayCats(scene, AREA, count, a);
+      createStrayCats(scene, AREA, count, b, { colonyCats: many });
+      expect(b.count()).toBe(a.count());
+    }
+  });
+
+  it('leaves every downstream draw where it was: the stream position after spawn is identical', () => {
+    const a = mulberry32(42), b = mulberry32(42);
+    createStrayCats(scene, AREA, 22, a);
+    createStrayCats(scene, AREA, 22, b, { colonyCats: [{ name: 'Pickles', x: 5, z: 6, wear: null }] });
+    expect(b()).toBe(a());
+  });
+
+  it('a colony cat stands at its fixed spot, once, and keeps its name', () => {
+    const s = createStrayCats(scene, AREA, 22, () => 0.42, { colonyCats: [{ name: 'Pickles', x: 5, z: 6, wear: null }] });
+    const p = s.strays.filter((x) => x.name === 'Pickles');
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatchObject({ colony: true });
+    expect([p[0].home.x, p[0].home.z]).toEqual([5, 6]);
+    expect([p[0].group.position.x, p[0].group.position.z]).toEqual([5, 6]);
+    // Every other stray is an ordinary one, and no name appears twice.
+    expect(s.strays.filter((x) => x.colony)).toHaveLength(1);
+    expect(new Set(s.strays.map((x) => x.name)).size).toBe(22);
+  });
+
+  it('is at the same spot whatever the walk stream says', () => {
+    for (const seed of [1, 2, 3]) {
+      const s = createStrayCats(scene, AREA, 14, mulberry32(seed), { colonyCats: [{ name: 'Pickles', x: -7.5, z: 3.2, wear: null }] });
+      const p = s.strays.find((x) => x.name === 'Pickles');
+      expect([p.home.x, p.home.z]).toEqual([-7.5, 3.2]);
+    }
+  });
+
+  it('clamps a spot outside the area into its bounds', () => {
+    const s = createStrayCats(scene, AREA, 3, mulberry32(1), { colonyCats: [{ name: 'Pickles', x: 180, z: -180, wear: null }] });
+    const p = s.strays.find((x) => x.name === 'Pickles');
+    expect(p.home.x).toBeLessThanOrEqual(AREA.bounds.maxX);
+    expect(p.home.z).toBeGreaterThanOrEqual(AREA.bounds.minZ);
+    expect(p.group.position.x).toBe(p.home.x);
+  });
+
+  it('ordinary strays are never colony cats', () => {
+    const s = createStrayCats(scene, AREA, 5, mulberry32(9));
+    expect(s.strays.every((x) => x.colony === false)).toBe(true);
+  });
+
+  it('more colony cats than the count are truncated, never overflowing', () => {
+    const many = CAT_NAMES.slice(0, 20).map((name) => ({ name, x: 0, z: 0, wear: null }));
+    expect(createStrayCats(scene, AREA, 14, () => 0.3, { colonyCats: many }).strays).toHaveLength(14);
+  });
+
+  it('a shy name is shy, and any other colony cat is never shy', async () => {
+    const { isShy } = await import('../src/colony.js');
+    const shy = CAT_NAMES.find((n) => isShy(n));
+    const bold = CAT_NAMES.filter((n) => !isShy(n)).slice(0, 8);
+    // The shy cat is shy by NAME, whatever it rolls; every other colony cat
+    // has a rolled 'shy' mapped to 'bold', so it never runs from you.
+    const s = createStrayCats(scene, AREA, 9, () => 0, {
+      colonyCats: [shy, ...bold].map((name) => ({ name, x: 1, z: 1, wear: null })),
+    });
+    expect(s.strays.find((x) => x.name === shy).personality).toBe('shy');
+    for (const name of bold) expect(s.strays.find((x) => x.name === name).personality).not.toBe('shy');
+  });
+
+  it('drops a colony entry whose name is not a stray name', () => {
+    const s = createStrayCats(scene, AREA, 4, mulberry32(2), {
+      colonyCats: [{ name: 'Zeetoo', x: 1, z: 1, wear: null }, { name: 'Pickles', x: 2, z: 2, wear: null }],
+    });
+    expect(s.strays.map((x) => x.name)).not.toContain('Zeetoo');
+    expect(s.strays.filter((x) => x.colony).map((x) => x.name)).toEqual(['Pickles']);
+  });
+
+  it('nearest honours a where filter', () => {
+    const s = createStrayCats(scene, AREA, 2, mulberry32(4));
+    const [near, far] = s.strays;
+    near.group.position.set(0, 0, 1);
+    far.group.position.set(0, 0, 2);
+    const here = new THREE.Vector3(0, 0, 0);
+    expect(s.nearest(here, 5)).toBe(near);
+    expect(s.nearest(here, 5, { where: (x) => x !== near })).toBe(far);
+    expect(s.nearest(here, 5, { where: () => false })).toBe(null);
+  });
+});

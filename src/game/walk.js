@@ -36,7 +36,9 @@ import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals } from '../goals.js';
-import { rankFor } from '../progression.js';
+import { rankFor, CATALOG } from '../progression.js';
+import { catsInArea } from '../colony.js';
+import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim } from '../player.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
@@ -246,6 +248,19 @@ const HEMI_INTENSITY = 0.45;
 // it is what an un-threaded area's fill degrades TO, so it must not smuggle a
 // green cast into a stone courtyard or a sand cast into a lawn.
 const DEFAULT_GROUND_BOUNCE = 0x9a9086;
+
+// resolveColonyWear(id) → { slot, id } | null. A colony cat's `wear` is
+// stored as a bare accessory id (colony.js, the shared Cat type); the model
+// builder wants it by slot. The ONE lookup for it — the area strays (Task 6)
+// and the den's tamed cats (Task 7) both go through here, so the two can
+// never disagree about what a cat is wearing. null for no item, and for an id
+// this build does not know (a newer client's accessory synced in from the
+// partner's device draws as no accessory rather than throwing).
+export function resolveColonyWear(id) {
+  if (typeof id !== 'string' || !Object.hasOwn(CATALOG.accessories, id)) return null;
+  const slot = CATALOG.accessories[id].slot;
+  return typeof slot === 'string' ? { slot, id } : null;
+}
 
 export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
@@ -852,9 +867,35 @@ export function createWalkLifecycle({
     // top of startWalk: a per-frame consumer of the shared stream is the
     // worst case of the lazy-consumer bug). Solo, roomSeed is undefined and
     // straycats falls back to a random base, exactly as sky life does below.
+    //
+    // v21 Stream 2 — the colony's cats, at their fixed spots. colonyWalk is
+    // "every other member of this walk is my colony partner": always true
+    // solo, and in a room walk only when the roster (read off the pending
+    // room, as it stands right now at startWalk) holds nobody but me and my
+    // partner. Off a colony walk the colony list is EMPTY, so a room with a
+    // non-partner gets exactly the strays it got before the colony existed,
+    // and both co-walkers see the same cats (decisions.md, "Live co-walk").
+    // A room walk whose pending room has gone missing reads as NOT a colony
+    // walk: no roster, no proof that everyone is my partner.
+    //
+    // Neither of these touches walkRng. colonyWalk is pure over the roster
+    // and the save, and the colony cats consume exactly the draws the strays
+    // they replace would have (see the createStrayCats header) — so this is
+    // not a new walkRng consumer of any kind, lazy or eager, and the WARNING
+    // at the top of startWalk is untouched. The den gets no strays at all, so
+    // it gets no colony cats either (its tamed cats are Task 7's).
+    const roomAtStart = roomSeed !== undefined ? getPendingRoom() : null;
+    const colonyWalk = roomSeed === undefined || (!!roomAtStart && rosterIsPartnerOnly(
+      (Array.isArray(roomAtStart.roster) ? roomAtStart.roster : []).map((p) => p?.playerId),
+      pid, state.colony?.partner?.playerId,
+    ));
+    const colonyCats = colonyWalk && !isDen && state.colony
+      ? catsInArea(state.colony, areaId).map((c) => ({ name: c.name, x: c.x, z: c.z, wear: resolveColonyWear(c.wear) }))
+      : [];
     const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng, {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
+      colonyCats,
     });
     const remotes = createRemoteCats(scene);
 
@@ -1131,6 +1172,10 @@ export function createWalkLifecycle({
       useComposer: tier.postFx,
       ghosts: NO_GHOSTS,
       walkStamp,
+      // v21 Stream 2: solo, or a room whose every other member is my colony
+      // partner (computed beside createStrayCats). Gates the live
+      // 'colony-feed' event in game/interactions.js's feedStray.
+      colonyWalk,
       netSendAccum: 0,
       // read once per walk (not per frame) so the zoomies trail's reducedMotion
       // gate doesn't re-query settings 60x/sec in the render loop.
