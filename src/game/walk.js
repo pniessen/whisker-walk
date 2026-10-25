@@ -35,6 +35,7 @@ import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
 import { createKnockables } from '../knockables.js';
 import { createPushThroughs } from '../pushthrough.js';
+import { createRests } from '../rests.js';
 import { createPlayerMarks } from '../render/playermarks.js';
 import { borderMarkId } from '../marks.js';
 import { createMarkContest } from '../markcontest.js';
@@ -1053,6 +1054,12 @@ export function createWalkLifecycle({
     // a partner's push swings it here too.
     const pushThroughs = createPushThroughs(scene, propsFor(areaId).flaps, { reducedMotion });
     for (const c of pushThroughs.colliders) areaData.colliders.push({ ...c });
+    // v21 3b Task 15 — somewhere to drink, eat and nap: a bowl or a birdbath,
+    // a dish or a fish crate, a cushion or a doormat. The den's are the bowls
+    // and the hearth rug it already has, so it gets no new mesh. No colliders,
+    // nothing animates, created after mergeStaticProps (nothing merged). Pays
+    // nothing, saves nothing, sends nothing; session.rest is the one in progress.
+    const rests = createRests(scene, propsFor(areaId).rests);
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the
@@ -1320,6 +1327,8 @@ export function createWalkLifecycle({
       tippables,
       knockables,
       pushThroughs,
+      rests,
+      rest: null,
       carry,
       playerMarks,
       gifts,
@@ -1789,6 +1798,8 @@ export function createWalkLifecycle({
     session.carry.items.dispose();
     session.knockables.dispose();
     session.pushThroughs.dispose();
+    session.rests.dispose();
+    session.rest = null; // and a nap ends with the walk: no tick, no purr
     session.playerMarks?.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();

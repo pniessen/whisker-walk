@@ -16,6 +16,7 @@ import { animateCat } from '../cat/animator.js';
 import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
+import { tickRest, NAP_PURR_LEN } from '../rests.js';
 
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
 export const CHASE_GAIT_SPEED = 6;
@@ -128,6 +129,17 @@ export function createAvatarUpdater({
 
     if (s.stretchTime > 0) s.stretchTime -= dt;
     if (s.sniffTime > 0) s.sniffTime -= dt;
+    // v21 3b Task 15 — a drink, a nibble or a nap (game/interactions.js starts
+    // it). Anything that moves the cat ends it, so a nap can never trap one:
+    // the arrow keys or the joystick (inputActive), a pounce, a climb, a scare
+    // or a chase. A nap keeps purring until then, and not a moment after —
+    // no session, no tick, no purr. Pays nothing.
+    if (s.rest) {
+      const stirred = player.inputActive || s.pounceTime > 0 || !!s.perched || s.freezeTime > 0 || !!s.chasing;
+      const next = tickRest(s.rest, dt, { stirred });
+      s.rest = next.rest;
+      if (next.purr) audio.purr(NAP_PURR_LEN);
+    }
     const wasNapping = s.pose === 'nap';
     let pose = 'follow';
     if (s.freezeTime > 0) pose = 'scared';
@@ -137,6 +149,7 @@ export function createAvatarUpdater({
     else if (s.boxTime > 1) pose = 'requestPet';
     else if (s.stretchTime > 0) pose = 'stretch';
     else if (s.sniffTime > 0) pose = 'sniff';
+    else if (s.rest) pose = s.rest.kind === 'nap' ? 'nap' : 'sniff'; // head down to drink or eat
     else if (speed > 0.3 && (player.stalking ?? false)) pose = 'stalk';
     else if (s.idleTime > napAt) pose = 'nap';
     else if (s.idleTime > sitAt) pose = 'requestPet';
@@ -151,7 +164,11 @@ export function createAvatarUpdater({
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)
-    if (pose === 'nap') {
+    //
+    // v21 3b Task 15: only once the cat has lain still as long as an idle nap
+    // takes. A nap on a cushion pays nothing (ruling P1), so it must not be a
+    // quicker way to the pile than lying still is; it takes nothing away either.
+    if (pose === 'nap' && (!s.rest || s.idleTime > napAt)) {
       const n = s.remotes.list.filter(
         (r) => r.pose === 'nap' && r.group.position.distanceTo(cat.position) < 1.2
       ).length;

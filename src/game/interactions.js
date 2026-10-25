@@ -30,6 +30,7 @@ import { nowSec } from './util.js';
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
+import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -73,6 +74,9 @@ const MARK_REACH = 1.2;
 // v21 3b Task 12: how close the cat must be to one of a rival's border decals
 // to scent over it.
 const BORDER_MARK_REACH = 1.0;
+// v21 3b Task 15: how close the cat must be to a bowl, a dish or a cushion to
+// drink, eat or nap there.
+const REST_REACH = 1.2;
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -613,6 +617,15 @@ export function createInteractions({
     return true;
   }
 
+  // The nearest drink / eat / nap spot within REST_REACH, or null: only from
+  // the ground (never perched, never swimming), never while a rest is already
+  // on (no "curl up for a nap" over a sleeping cat), and only with the walk's
+  // rests (a stand-in test session without them never offers one).
+  function restInReach(s, catP) {
+    if (!s.rests || s.rest || s.perched || player.swimming) return null;
+    return s.rests.nearest(catP, REST_REACH);
+  }
+
   function updateInteractions(s) {
     const catP = s.cat.position;
     const reveal = PERSONALITIES[s.cat.userData.breed].special === 'keenNose' ? 14 : 7;
@@ -888,7 +901,18 @@ export function createInteractions({
         }
         if (little && dc && dc.group.position.distanceTo(catP) <= best) little = null;
       }
-      if (little) {
+      // v21 3b Task 15 — the bowls and the hearth rug. Tamed cats can live
+      // within the pet reach of both (corner-c, corner-d, home-fireside,
+      // home-south-east), and this slot is far above the rest's, so it would
+      // hide them for good in a full den. The same rule as the little one:
+      // whichever the cat stands nearer wins, ties to petting. Nearer the bowl,
+      // the slot is left to the 'rest' prompt below.
+      const offer = little ?? dc;
+      const rest = offer ? restInReach(s, catP) : null;
+      const restNearer = !!rest && Math.hypot(rest.x - catP.x, rest.z - catP.z) < offer.group.position.distanceTo(catP);
+      if (restNearer) {
+        // Nothing here: the 'rest' branch below takes the slot.
+      } else if (little) {
         s.prompt = { kind: 'den-little-feed', data: little };
         setPrompt(`E — feed ${little.name} 🐟`);
       } else if (dc) {
@@ -947,6 +971,17 @@ export function createInteractions({
       if (target) {
         s.prompt = { kind: 'border-mark', data: target };
         setPrompt('E — scent over their mark');
+      }
+    }
+    // v21 3b Task 15 — have a drink, a nibble or a nap. Right after the border
+    // mark: anyone the cat walked up to, and its own marks, come first. Above
+    // gift-leave and drop, so holding something never hides a bowl. From the
+    // ground only (restInReach), and never over a rest already on.
+    if (!s.prompt) {
+      const spot = restInReach(s, catP);
+      if (spot) {
+        s.prompt = { kind: 'rest', data: spot };
+        setPrompt(REST_PROMPTS[spot.kind]);
       }
     }
     // v18 Gift Paws. LAST in the chain on purpose: every prompt above it is
@@ -1516,6 +1551,17 @@ export function createInteractions({
         s.rival?.borderMarks?.setContested(d.index);
         s.fx?.burst({ x: d.x, y: 0.2, z: d.z }, 0xe0782f, 8);
       }
+    } else if (s.prompt.kind === 'rest') {
+      // v21 3b Task 15 — for nothing but the fun of it: no award, no feat, no
+      // goal, no discovery, nothing saved, nothing on the wire (ruling P1).
+      // avatar.js holds the pose and ends it: a drink or a nibble after three
+      // seconds, a nap the moment the cat moves. A nap purrs from the start.
+      if (s.rest) return;
+      const rest = startRest(s.prompt.data?.kind);
+      if (!rest) return;
+      s.rest = rest;
+      hud.toast(REST_TOASTS[rest.kind]);
+      if (rest.kind === 'nap') audio.purr?.(NAP_PURR_LEN);
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;
       log.award('pet', 'pet', 'blissful head scratches');

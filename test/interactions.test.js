@@ -5,6 +5,9 @@ import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
 import { createKnockables } from '../src/knockables.js';
+import { createRests } from '../src/rests.js';
+import { createAvatarUpdater } from '../src/game/avatar.js';
+import { createPlayer } from '../src/player.js';
 import { createPlayerMarks } from '../src/render/playermarks.js';
 import { createBorderMarks } from '../src/render/bordermarks.js';
 import { markKey } from '../src/marks.js';
@@ -386,7 +389,9 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // gives the session a real marks renderer (the mark prompt needs one).
   // Task 12: `rival` is the walk's session.rival stand-in (its border decals
   // and where the patrol is).
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null } = {}) {
+  // Task 15: `rests` gives the session its drink / eat / nap spots, and
+  // `player` swaps in a real player (the nap's wake-up reads inputActive).
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -403,7 +408,8 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     cat.add(head);
     cat.userData = { breed: 'tabby', parts: { head } };
     new THREE.Scene().add(cat);
-    const player = { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false };
+    const player = realPlayer ?? { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false };
+    const purrs = [];
     const session = {
       areaId,
       cat,
@@ -428,6 +434,8 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       knockables: createKnockables(scene, knockables),
       playerMarks: marks ? createPlayerMarks(new THREE.Scene(), areaId, progression.marksIn(areaId)) : undefined,
       rival: rival ?? undefined,
+      rests: rests ? createRests(scene, rests) : undefined,
+      rest: null,
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
@@ -438,7 +446,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       player,
       progression, log,
       hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t) },
-      audio: { trill() {}, meow() {} },
+      audio: { trill() {}, meow() {}, purr: (d) => purrs.push(d) },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
     });
     // A frame, in main.js's order: the carried item follows the mouth, then the
@@ -446,7 +454,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const frame = () => { session.carry.items.update(0); updateInteractions(session); };
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
     const press = () => { frame(); handleInteract(session); };
-    return { session, prompts, toasts, walkTo, press, progression, player, tickCarryRain, log };
+    return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, log, purrs };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -1281,6 +1289,256 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt).toBe(null);
       } finally {
         h.off();
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // v21 3b Task 15 — drink, eat and nap, for nothing but the fun of it.
+  // 'rest' sits right after 'border-mark'; it pays nothing, ever.
+  // -------------------------------------------------------------------------
+  describe('rest: drink, eat and nap', () => {
+    const PARK = propsFor('park').rests;
+    const spot = (kind) => PARK.find((r) => r.kind === kind);
+    const COPY = {
+      drink: ['E — have a drink', 'Slurp, slurp. 💧'],
+      eat: ['E — have a nibble', 'Nom nom. 🐟'],
+      nap: ['E — curl up for a nap', 'Zzz… 💤'],
+    };
+    const part = () => new THREE.Object3D();
+    // A document that hands its key listeners back, so a real player can be
+    // driven by the arrow keys (the pounce.test.js withFakeDocument idiom).
+    let restoreDoc;
+    let keyListeners;
+    beforeEach(() => {
+      const prev = globalThis.document;
+      keyListeners = { keydown: [], keyup: [] };
+      globalThis.document = {
+        addEventListener: (type, fn) => keyListeners[type]?.push(fn),
+        pointerLockElement: null,
+        exitPointerLock() {},
+      };
+      restoreDoc = () => {
+        if (prev === undefined) delete globalThis.document;
+        else globalThis.document = prev;
+      };
+    });
+    afterEach(() => restoreDoc());
+    const key = (type, code) => { for (const fn of keyListeners[type]) fn({ code, preventDefault() {} }); };
+
+    // The prompt harness with the park's rests, a real player, and the real
+    // updateAvatar ticking the same session (the pose, the nap, the purr).
+    function restHarness(opts = {}) {
+      const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
+      const h = promptHarness({ stray: null, rests: PARK, player, ...opts });
+      player.setAvatar(h.session.cat, 3.5);
+      player.enable();
+      const s = h.session;
+      s.cat.userData.parts = {
+        body: part(), head: s.cat.userData.parts.head, tail: part(),
+        tailPivots: [part(), part()], legs: [part(), part(), part(), part()],
+        earL: part(), earR: part(),
+      };
+      Object.assign(s, {
+        freezeTime: 0, pounceTime: 0, pounceCooldown: 0, landTime: 0, idleTime: 0,
+        stepPhase: 0, stretchTime: 0, sniffTime: 0, boxTime: 0, pose: 'follow', net: null,
+        balkedPuddles: new Set(), toy: { active: false }, toyGhost: { visible: false },
+        groomTimers: new Map(),
+      });
+      s.areaData.puddles = [];
+      s.areaData.boxes = [];
+      Object.assign(s.critters, { setFleeModifier() {}, markStalked() {}, catchAt: () => null, pounceCatch: () => null });
+      s.remotes.list = [];
+      const { updateAvatar } = createAvatarUpdater({
+        player, progression: h.progression, settings: { get: () => false }, log: h.log,
+        hud: { toast: (t) => h.toasts.push(t) },
+        audio: { landThump() {}, step() {}, bell() {}, fanfare() {}, purr: (d) => h.purrs.push(d) },
+        petNameFor: () => 'x', completeTag() {}, noteBat() {},
+      });
+      let t = 0;
+      // A frame in main.js's order: the player moves the cat, then the
+      // avatar, then the prompt scan.
+      const tick = (dt = 1 / 60, n = 1) => {
+        for (let i = 0; i < n; i++) {
+          t += dt;
+          player.update(dt, [], null);
+          updateAvatar(s, dt, t);
+          h.frame();
+        }
+      };
+      return { ...h, player, tick };
+    }
+
+    it('each rest kind gets its own prompt', () => {
+      const h = restHarness();
+      for (const kind of ['drink', 'eat', 'nap']) {
+        const r = spot(kind);
+        h.walkTo(r.x + 0.6, r.z);
+        expect(h.session.prompt).toMatchObject({ kind: 'rest', data: { id: r.id, kind } });
+        expect(h.prompts.at(-1)).toBe(COPY[kind][0]);
+        h.walkTo(r.x + 1.25, r.z); // just past the 1.2 m reach
+        expect(h.session.prompt).toBe(null);
+      }
+      // grounded only: never from a perch, never swimming
+      const r = spot('drink');
+      h.session.perched = { x: r.x, y: 0.6, z: r.z };
+      h.walkTo(r.x + 0.5, r.z);
+      expect(h.session.prompt).toBe(null);
+      h.session.perched = null;
+      h.player.swimming = true;
+      h.walkTo(r.x + 0.5, r.z);
+      expect(h.session.prompt).toBe(null);
+      h.player.swimming = false;
+      // and a session without rests (a stand-in) never offers it
+      h.session.rests = undefined;
+      expect(() => h.walkTo(r.x + 0.5, r.z)).not.toThrow();
+      expect(h.session.prompt).toBe(null);
+    });
+
+    it('comes after the mark and before the drop: a post beside the bowl is scratched first, and holding a sock never hides it', () => {
+      const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
+      const bowl = { id: 'neighborhood-drink-9', kind: 'drink', x: POST.x + 0.9, z: POST.z, mesh: false };
+      const h = restHarness({ areaId: 'neighborhood', marks: true, rests: [bowl],
+        carryables: [{ id: 'neighborhood-sock-1', kind: 'sock', x: POST.x + 0.6, z: POST.z + 3 }] });
+      const at = { x: POST.x + 0.6, z: POST.z };
+      h.walkTo(at.x, at.z);
+      expect(h.session.prompt.kind).toBe('mark');
+      h.press();
+      h.walkTo(at.x, at.z);
+      expect(h.session.prompt.kind).toBe('rest');
+      // pick up the sock, come back: the drink still wins over "put it down"
+      h.walkTo(at.x, at.z + 3);
+      h.press();
+      expect(h.session.carry.mouth.held?.kind).toBe('sock');
+      h.walkTo(at.x, at.z);
+      expect(h.session.prompt.kind).toBe('rest');
+    });
+
+    it('drinking, eating and napping pay nothing, record no feat and move no goal', () => {
+      const h = restHarness();
+      // Every way the game could pay, watched.
+      const goals = createGoals(() => 0);
+      const found = [];
+      const offs = [
+        bus.on('discovery', (e) => found.push(e)),
+        bus.on('discovery', ({ type }) => goals.note(type)),
+      ];
+      const awards = [];
+      for (const m of Object.keys(h.log)) {
+        if (!m.startsWith('award') || typeof h.log[m] !== 'function') continue;
+        const real = h.log[m];
+        h.log[m] = (...a) => { awards.push([m, ...a]); return real(...a); };
+      }
+      const feats = [];
+      const realFeat = h.progression.recordFeat;
+      h.progression.recordFeat = (...a) => { feats.push(a); return realFeat(...a); };
+      const sent = [];
+      h.session.playerId = 'me-player-0001';
+      h.session.net = { sendEvent: (ev) => sent.push(ev) }; // a room walk: still nothing on the wire
+      // A sister's cat napping right beside the cushion: the nap pile is the
+      // idle nap's award, never the rest's.
+      const sister = { pose: 'nap', group: new THREE.Group() };
+      const save = () => JSON.stringify(h.progression.state);
+      const before = save();
+      try {
+        for (const kind of ['drink', 'eat', 'nap']) {
+          const r = spot(kind);
+          sister.group.position.set(r.x + 0.3, 0, r.z + 0.3);
+          h.session.remotes.list = kind === 'nap' ? [sister] : [];
+          h.walkTo(r.x + 0.5, r.z);
+          h.press();
+          expect(h.session.rest).toEqual({ kind, t: 0 });
+          expect(h.toasts.at(-1)).toBe(COPY[kind][1]);
+          h.tick(1 / 60, 60 * 4); // four seconds of it
+          h.player.setTouchMove({ x: 0, z: -1, mag: 0.6 });
+          h.tick(1 / 60, 1);
+          h.player.setTouchMove(null);
+          expect(h.session.rest).toBe(null);
+        }
+      } finally {
+        for (const off of offs) off?.();
+        h.progression.recordFeat = realFeat;
+      }
+      expect(awards).toEqual([]);
+      expect(feats).toEqual([]);
+      expect(found).toEqual([]);
+      expect(goals.goals.map((g) => g.progress)).toEqual([0, 0, 0]);
+      expect(sent).toEqual([]);
+      expect(save()).toBe(before); // no points, no lifetime points, no feat, no mark, nothing
+    });
+
+    it('a sip lasts three seconds, head down in the sniff pose, and ends early if you move', () => {
+      const h = restHarness();
+      for (const kind of ['drink', 'eat']) {
+        const r = spot(kind);
+        h.walkTo(r.x + 0.5, r.z);
+        h.press();
+        h.tick(1 / 60, 174); // 2.9 s
+        expect(h.session.pose).toBe('sniff');
+        expect(h.session.rest?.kind).toBe(kind);
+        expect(h.session.prompt).toBe(null); // no second "have a drink" mid-sip
+        h.tick(1 / 60, 12);
+        expect(h.session.rest).toBe(null);
+        expect(h.session.pose).not.toBe('sniff');
+        expect(h.session.prompt?.kind).toBe('rest'); // and you can have another
+      }
+      expect(h.purrs).toEqual([]); // a sip is quiet
+      const r = spot('drink');
+      h.walkTo(r.x + 0.5, r.z);
+      h.press();
+      h.tick(1 / 60, 30);
+      key('keydown', 'ArrowUp');
+      h.tick(1 / 60, 1);
+      key('keyup', 'ArrowUp');
+      expect(h.session.rest).toBe(null);
+    });
+
+    it('a nap lasts until you move', () => {
+      const h = restHarness();
+      const r = spot('nap');
+      h.walkTo(r.x + 0.5, r.z);
+      expect(h.prompts.at(-1)).toBe('E — curl up for a nap');
+      h.press();
+      expect(h.session.rest).toEqual({ kind: 'nap', t: 0 });
+      expect(h.toasts.at(-1)).toBe('Zzz… 💤');
+      expect(h.purrs).toHaveLength(1); // straight away
+      // A long nap: it never ends on its own, and the purr keeps going.
+      h.tick(1 / 60, 60 * 40);
+      expect(h.session.rest?.kind).toBe('nap');
+      expect(h.session.pose).toBe('nap');
+      expect(h.session.prompt).toBe(null); // no "curl up for a nap" while asleep
+      expect(h.purrs.length).toBeGreaterThan(40);
+      // The joystick wakes it: a touch player is never stuck.
+      h.player.setTouchMove({ x: 0.2, z: -1, mag: 0.4 });
+      h.tick(1 / 60, 1);
+      expect(h.session.rest).toBe(null);
+      expect(h.session.pose).toBe('stretch'); // the wake-up stretch
+      h.player.setTouchMove(null);
+      const purred = h.purrs.length;
+      h.tick(1 / 60, 60 * 5);
+      expect(h.purrs).toHaveLength(purred); // the purr stops with the nap
+      // The arrow keys wake it too.
+      h.walkTo(r.x + 0.5, r.z);
+      h.press();
+      h.tick(1 / 60, 60);
+      key('keydown', 'ArrowLeft');
+      h.tick(1 / 60, 1);
+      key('keyup', 'ArrowLeft');
+      expect(h.session.rest).toBe(null);
+      // So does a pounce, a perch, a scare or a chase: nothing traps the cat.
+      for (const stir of [
+        (s) => { s.pounceTime = 0.3; },
+        (s) => { s.perched = { x: r.x, y: 0.6, z: r.z }; },
+        (s) => { s.freezeTime = 0.8; },
+        (s) => { s.chasing = true; },
+      ]) {
+        Object.assign(h.session, { perched: null, chasing: false, freezeTime: 0, pounceTime: 0 });
+        h.walkTo(r.x + 0.5, r.z);
+        h.press();
+        expect(h.session.rest?.kind).toBe('nap');
+        stir(h.session);
+        h.tick(1 / 60, 1);
+        expect(h.session.rest).toBe(null);
       }
     });
   });
@@ -2763,7 +3021,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
 
 describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () => {
   const AREA = { bounds: { minX: -8, maxX: 8, minZ: -8, maxZ: 8 } };
-  function denHarness({ cats = [{ name: 'Pickles', x: 0, z: -1 }] } = {}) {
+  function denHarness({ cats = [{ name: 'Pickles', x: 0, z: -1 }], rests = null } = {}) {
     const progression = createProgression(fakeStorage());
     const log = createDiscoveryLog(progression);
     log.startWalk();
@@ -2798,6 +3056,8 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
       quest: null, questGiver: null, questObject: null,
       gifts: null, perched: null, freezeTime: 0, catsGreeted: 0,
       walk: { carried: 0, carryCap: 2 },
+      rests: rests ? createRests(scene, rests) : undefined,
+      rest: null,
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
@@ -2813,6 +3073,7 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
     });
     return {
       session, progression, prompts, petted, voices: () => voices,
+      at: (x, z) => { session.cat.position.set(x, 0, z); session.prompt = null; api.updateInteractions(session); },
       scan: () => api.updateInteractions(session),
       press: () => { api.updateInteractions(session); api.handleInteract(session); },
     };
@@ -2846,6 +3107,31 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
     h.press();
     expect(h.progression.state.points - before).toBe(gained * 2);
     expect(h.petted.at(-1)).toBe('Mochi');
+  });
+
+  // v21 3b Task 15. The bowls and the hearth rug are where tamed cats can
+  // live too (corner-c, corner-d, home-fireside and home-south-east all stand
+  // within the 2.2 m pet reach of one of them), and the pet prompt comes far
+  // above the rest's in the chain. So whichever the cat stands nearer wins,
+  // as with a queen's little one; a tie goes to petting.
+  it('a cat at home beside the bowls or the rug never hides them: whichever you stand nearer wins', () => {
+    const den = propsFor('den').rests;
+    const water = den.find((r) => r.kind === 'drink');
+    const rug = den.find((r) => r.kind === 'nap');
+    const h = denHarness({ rests: den, cats: [
+      { name: 'Pickles', x: water.x - 1.0, z: water.z - 0.9 }, // where home-south-east's cat stands
+      { name: 'Mochi', x: rug.x - 0.2, z: rug.z - 1.5 },       // and corner-c's
+    ] });
+    h.at(water.x, water.z + 0.3);
+    expect(h.session.prompt).toMatchObject({ kind: 'rest', data: { id: 'den-drink-1' } });
+    expect(h.prompts.at(-1)).toBe('E — have a drink');
+    h.at(water.x - 0.8, water.z - 0.7); // right up to Pickles
+    expect(h.session.prompt).toMatchObject({ kind: 'den-cat', data: { name: 'Pickles' } });
+    h.at(rug.x, rug.z + 0.2);
+    expect(h.session.prompt).toMatchObject({ kind: 'rest', data: { id: 'den-nap-1' } });
+    expect(h.prompts.at(-1)).toBe('E — curl up for a nap');
+    h.at(rug.x - 0.2, rug.z - 1.2);
+    expect(h.session.prompt).toMatchObject({ kind: 'den-cat', data: { name: 'Mochi' } });
   });
 });
 
