@@ -291,15 +291,17 @@ describe('createShadowFit', () => {
 describe('the shadow fit and the hemisphere fill are actually wired up', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  // The key light and the fill are built in render/rig.js, which walk.js calls.
+  const rigSrc = readFileSync(new URL('../src/render/rig.js', import.meta.url), 'utf8');
 
-  // THE KEY LIGHT'S TWO TUNED NUMBERS, pinned against walk.js's own source.
+  // THE KEY LIGHT'S TWO TUNED NUMBERS, pinned against render/rig.js's source.
   //
   // Elevation and intensity were calibrated together in Wave 1.3 and are the
   // pair the whole surface table (materials.js) and the normal-map strengths
   // (textures.js's normalScale) are calibrated AGAINST — materials.test.js
   // argues its gloss band from sin(19.1) vs cos(19.1) by name. AZIMUTH is not
   // pinned here and deliberately so: it was retuned after Wave 1 (see the
-  // block above SUN_POSITION in walk.js) and is the one of the three that is
+  // block above SUN_POSITION in render/rig.js) and is the one of the three that is
   // free to move, because nothing else in the renderer is calibrated against
   // a compass bearing.
   //
@@ -308,12 +310,12 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
   // it is one line of arithmetic to check and impossible to eyeball from three
   // signed integers.
   it('keeps the sun on its calibrated cone — 19.1 degrees elevation, intensity 3.0', () => {
-    const position = walkSrc.match(/^const SUN_POSITION = \[(-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\];$/m);
+    const position = rigSrc.match(/^export const SUN_POSITION = \[(-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\];$/m);
     expect(position).not.toBeNull();
     const [x, y, z] = position.slice(1, 4).map(Number);
     const elevation = (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
     expect(elevation).toBeCloseTo(19.12, 2);
-    expect(walkSrc).toMatch(/^const SUN_INTENSITY = 3\.0;$/m);
+    expect(rigSrc).toMatch(/^export const SUN_INTENSITY = 3\.0;$/m);
   });
 
   it('builds the rig from the tier’s own knobs, not from literals', () => {
@@ -343,12 +345,14 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     // hemisphere light explains at length what an AmbientLight was doing wrong,
     // and that explanation should survive.
     expect(walkSrc).not.toMatch(/new THREE\.AmbientLight\(/);
-    expect(walkSrc).toMatch(/new THREE\.HemisphereLight\(\s*HEMI_SKY,\s*areaData\.groundBounce \?\? DEFAULT_GROUND_BOUNCE,\s*HEMI_INTENSITY,\s*\)/);
+    expect(rigSrc).not.toMatch(/new THREE\.AmbientLight\(/);
+    expect(rigSrc).toMatch(/new THREE\.HemisphereLight\(\s*HEMI_SKY,\s*groundBounce \?\? DEFAULT_GROUND_BOUNCE,\s*HEMI_INTENSITY,\s*\)/);
+    expect(walkSrc).toContain('scene.add(createFill(areaData.groundBounce));');
   });
 
   it('adds the fill AFTER the world is built, because only areaData knows the bounce', () => {
     const build = walkSrc.indexOf('.build(scene, { water:');
-    const hemi = walkSrc.indexOf('new THREE.HemisphereLight(');
+    const hemi = walkSrc.indexOf('createFill(areaData.groundBounce)');
     expect(build).toBeGreaterThan(-1);
     expect(hemi).toBeGreaterThan(build);
   });

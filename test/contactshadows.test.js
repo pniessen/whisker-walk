@@ -467,9 +467,12 @@ describe('dispose', () => {
 describe('wiring', () => {
   const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  // The cast/receive sweep lives in render/rig.js; walk.js calls it.
+  const rigSrc = readFileSync(new URL('../src/render/rig.js', import.meta.url), 'utf8');
 
   it('walk.js excludes the decals from the cast/receive traversal', () => {
-    expect(walkSrc).toMatch(/obj\.isMesh\s*&&\s*!obj\.userData\.contactDecal/);
+    expect(rigSrc).toMatch(/obj\.isMesh\s*&&\s*!obj\.userData\.contactDecal/);
+    expect(walkSrc).toContain('assignShadowCasters(scene);');
   });
 
   it('walk.js builds the rig before the cat is added to the scene', () => {

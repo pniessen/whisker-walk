@@ -30,6 +30,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
 // Wave 3.4 (docs/VISUAL-PASS.md): lock the draw-call budget in with a test, so
@@ -51,8 +52,8 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 //     ten differently-tinted panels still costs ten draws and still has to
 //     clear this ceiling.
 //   * SHADOW-CASTER COUNT is the thing Wave 3.3 just reduced (see
-//     applyShadowCasting-equivalent predicate below, mirroring
-//     src/game/walk.js), and it gets a ceiling with a little more headroom
+//     castsFromBox and isTransparentMat, imported from
+//     src/render/rig.js), and it gets a ceiling with a little more headroom
 //     than the mesh ceiling but is still meant to bite: it exists so a future
 //     pass that adds large, opaque, standing props (which DO legitimately
 //     keep casting) can't silently regress the whole area back to
@@ -65,21 +66,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 //     scarce resource and triangles are not. A tight triangle ceiling here
 //     would fight the next wave for no measured benefit.
 //
-// WHY THIS DUPLICATES THE PREDICATE INSTEAD OF IMPORTING WALK.JS. Every
-// existing wiring test that pins something inside src/game/walk.js
-// (test/shadowfit.test.js, test/contactshadows.test.js) reads walk.js's
-// SOURCE TEXT with readFileSync rather than importing it, because walk.js's
-// import graph pulls in the chat UI, audio and the rest of the live game —
-// far more than a headless area-build test wants to bootstrap. This file
-// follows that same convention for its own reason: it needs the caster rule
-// evaluated against a bare `build(scene)` (world props only — no cat, no
-// critters, no strays, no contact decals, all of which are wired up later in
-// startWalk, not by the area builder), which is a different call shape than
-// anything walk.js exports. The predicate below is a literal copy of the one
-// in src/game/walk.js's shadow-casting sweep (same three constants, same
-// per-top-level-child bounding-box logic, same transparency check) — if the
-// two drift, this test is measuring the wrong rule, so keep them in sync by
-// hand when either changes.
+// The caster predicate is imported from src/render/rig.js, the rule walk.js runs.
 //
 // WHY THE NUMBERS ARE WHAT THEY ARE. Measured directly off `build(scene)` for
 // each area (no walk.js session, matching what test/neighborhood.test.js,
@@ -106,15 +93,7 @@ const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 // horizon band — and none of it should have to renegotiate this ceiling.
 // ---------------------------------------------------------------------------
 
-const CAST_FLAT_HEIGHT = 0.12;
-const CAST_TALL_HEIGHT = 1.3;
-const CAST_WIDE_SPAN = 1.0;
-
-function isTransparentMat(material) {
-  return Array.isArray(material) ? material.some(isTransparentMat) : !!material?.transparent;
-}
-
-// Mirrors src/game/walk.js's shadow-casting sweep exactly, minus the
+// Counts what render/rig.js's assignShadowCasters would set, minus the
 // userData.contactDecal exclusion (a bare area build never contains the
 // contact-shadow InstancedMeshes — those are added later, by
 // render/contactshadows.js, from within startWalk, not by the area builder).
@@ -125,13 +104,7 @@ function budgetStats(scene) {
   const box = new THREE.Box3();
   for (const child of scene.children) {
     box.setFromObject(child);
-    let eligible = false;
-    if (!box.isEmpty()) {
-      const height = box.max.y - box.min.y;
-      const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
-      eligible = height >= CAST_FLAT_HEIGHT
-        && (height >= CAST_TALL_HEIGHT || span >= CAST_WIDE_SPAN);
-    }
+    const eligible = castsFromBox(box);
     child.traverse((obj) => {
       if (!obj.isMesh) return;
       meshes++;

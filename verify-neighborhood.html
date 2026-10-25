@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Neighborhood visual pass</title>
+<style>
+  body { margin: 0; background: #7cb860; font: 12px Avenir, sans-serif; }
+  #hud { position: fixed; bottom: 8px; left: 8px; color: #fff; background: rgba(0,0,0,.6);
+         padding: 6px 10px; border-radius: 8px; z-index: 5; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { build } from '/src/world/neighborhood.js';
+
+  const W = 1000, H = 580;
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;                 // main.js
+  const aniso = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  setTextureAnisotropy(aniso);
+  document.body.appendChild(renderer.domElement);
+
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  // The game's rig, from render/rig.js, in walk.js's order: the sun before the
+  // build, the fill after it (it takes the area's own groundBounce), then the
+  // shadow fit, the bias and the caster sweep once the scene is complete.
+  const sun = createSun();
+  scene.add(sun);
+
+  const wind = createWind({ reducedMotion: false });
+  const area = build(scene, { wind });
+  scene.add(createFill(area.groundBounce));
+
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  // The shadow fit as the game runs it on the high tier; shadows.update()
+  // runs before every render, as main.js does each frame.
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  const casters = assignShadowCasters(scene);
+  let t = 0;
+  const draw = (label) => {
+    shadows.update();
+    renderer.render(scene, camera);
+    document.getElementById('hud').textContent = `${label} · high tier · aniso ${aniso} · t=${t.toFixed(1)} · casters ${casters.casters}/${casters.meshes}`;
+  };
+  window.__cam = (px, py, pz, lx, ly, lz, label = 'free') => {
+    camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz); draw(label); return label;
+  };
+  // Advance wind so sway is visible between two captures.
+  window.__step = (n = 60, intensity = 1) => {
+    for (let i = 0; i < n; i++) { t += 1 / 60; wind.update(t, intensity); }
+    draw('stepped'); return t.toFixed(2);
+  };
+  // Sample the rotation of every wind-registered root, to prove sway numerically.
+  window.__sway = () => {
+    const r = [];
+    scene.children.forEach((o) => {
+      if (o.rotation && (Math.abs(o.rotation.x) > 1e-6 || Math.abs(o.rotation.z) > 1e-6)) {
+        r.push(+(Math.max(Math.abs(o.rotation.x), Math.abs(o.rotation.z)) * 180 / Math.PI).toFixed(3));
+      }
+    });
+    r.sort((a, b) => b - a);
+    return JSON.stringify({ swaying: r.length, maxDeg: r[0] ?? 0, sample: r.slice(0, 6) });
+  };
+  window.__scene = scene; window.__area = area;
+  // Standing on the pavement looking down the street — the everyday view.
+  __cam(2, 2.2, 24, 2, 0.6, 0, 'street, cat height');
+</script>
