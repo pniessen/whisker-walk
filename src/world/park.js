@@ -83,6 +83,9 @@ const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 // Wind is a rotation about each prop's own origin — position.x/z never moves —
 // so not one collider, perch or Sure Claws fork record shifts a millimetre.
 // -----------------------------------------------------------------------------
+// Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
+export const SPAWN = Object.freeze({ x: 0, z: 45 });
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xaee0d0, 0xd8f0e0);
   // The lawn. The repeat comes from the plane's own 120m inside ground(), and
@@ -325,7 +328,7 @@ export function build(scene, { water = {}, wind } = {}) {
     name: 'City Park',
     colliders,
     bounds: { minX: -45, maxX: 45, minZ: -50, maxZ: 52 },
-    spawn: { x: 0, z: 45 },
+    spawn: { x: SPAWN.x, z: SPAWN.z },
     boxes: [{ x: 5, z: 33 }, { x: -12, z: -14 }],
     pois: [
       { x: 0, z: 20 },

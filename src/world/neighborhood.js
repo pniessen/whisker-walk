@@ -38,6 +38,9 @@ import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 // Both keys default, so a bare build(scene) — which every world test does —
 // still builds the full surface set rather than throwing.
 // -----------------------------------------------------------------------------
+// Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
+export const SPAWN = Object.freeze({ x: 0, z: 45 });
+
 export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
   // The lawn, at last literally. 'grass' is a mottle-only tile at 3m, so at
@@ -292,7 +295,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
     name: 'Cozy Neighborhood',
     colliders,
     bounds: { minX: -55, maxX: 55, minZ: -55, maxZ: 55 },
-    spawn: { x: 0, z: 45 },
+    spawn: { x: SPAWN.x, z: SPAWN.z },
     boxes: [{ x: -6, z: -24 }, { x: 16, z: 21 }, { x: -18, z: 8 }],
     pois: [
       { x: -8, z: 4 }, { x: 4, z: -35 }, { x: 16, z: 2 }, { x: -12, z: 32 },

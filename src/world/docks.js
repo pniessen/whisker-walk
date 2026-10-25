@@ -114,6 +114,9 @@ const CANAL = {
 // prop the cat is standing on" is a judgement about content, not materials,
 // and this pass is not the place to make it unasked.
 // -----------------------------------------------------------------------------
+// Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
+export const SPAWN = Object.freeze({ x: 0, z: -34 });
+
 export function build(scene, { water = {} } = {}) {
   // Overcast harbour daylight — muted rather than cheerful, so the area reads
   // as "the old docks" even before dusk. skyDusk (returned below) drops it to
@@ -385,7 +388,7 @@ export function build(scene, { water = {} } = {}) {
     // strays here as everywhere else, over roughly half the neighborhood's
     // area, without needing a per-area stray count.
     bounds: { minX: -38, maxX: 38, minZ: -40, maxZ: 40 },
-    spawn: { x: 0, z: -34 },
+    spawn: { x: SPAWN.x, z: SPAWN.z },
     // The canal and its two dry crossings. See the header.
     waters: [CANAL],
     // The visual half of that same record: walk.js bundles these into a

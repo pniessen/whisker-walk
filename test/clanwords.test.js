@@ -1,5 +1,6 @@
 import { test, expect } from 'vitest';
-import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
+import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
+import { RIVAL_PREFIXES, PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
@@ -48,4 +49,31 @@ test('every RANK_WORDS key has a RANK_KEYS entry whose value is that key', () =>
   expect(Object.isFrozen(RANK_KEYS)).toBe(true);
   for (const k of Object.keys(RANK_WORDS)) expect(RANK_KEYS[k]).toBe(k);
   expect(Object.keys(RANK_KEYS).sort()).toEqual(Object.keys(RANK_WORDS).sort());
+});
+
+// R18: the rival clans have their own hand-authored words, so a player's own
+// clan (drawn from PREFIXES) can never share a rival's name.
+test('RIVAL_PREFIXES: four distinct short words, frozen, one per area', () => {
+  expect(Object.isFrozen(RIVAL_PREFIXES)).toBe(true);
+  expect(Object.keys(RIVAL_PREFIXES).sort()).toEqual(['docks', 'neighborhood', 'park', 'seaside']);
+  const words = Object.values(RIVAL_PREFIXES);
+  expect(new Set(words).size).toBe(4);
+  for (const w of words) expect(w.length).toBeLessThanOrEqual(8);
+});
+
+test('no RIVAL_PREFIXES word is a PREFIXES word, a stray or kit name, or a denied clan', () => {
+  const strays = new Set([...CAT_NAMES, ...KIT_NAMES].map((n) => n.toLowerCase()));
+  for (const w of Object.values(RIVAL_PREFIXES)) {
+    expect(PREFIXES).not.toContain(w);
+    expect(strays.has(w.toLowerCase())).toBe(false);
+    expect(DENIED_NAMES.has(w + CLAN_SUFFIX)).toBe(false);
+    expect(DENIED_NAMES.has(w)).toBe(false);
+    expect(validPetName(w + CLAN_SUFFIX)).toBe(true);
+  }
+});
+
+test('RIVAL_PREFIXES has only its own keys', () => {
+  for (const k of ['__proto__', 'constructor', 'toString']) {
+    expect(Object.hasOwn(RIVAL_PREFIXES, k)).toBe(false);
+  }
 });

@@ -113,6 +113,9 @@ const SEA = {
 // one: wind.js sways a rigid body about its own origin, which for a hull
 // sitting at y 0 would swing the mast and drive the keel through the water.
 // -----------------------------------------------------------------------------
+// Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
+export const SPAWN = Object.freeze({ x: 18, z: 42 });
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9fc8e8, 0xe8e0d0);
   // Dry beach sand at roughness 0.92 — a step drier than the game's default,
@@ -338,7 +341,7 @@ export function build(scene, { water = {}, wind } = {}) {
     name: 'Seaside',
     colliders,
     bounds: { minX: -48, maxX: 36, minZ: -34, maxZ: 48 },
-    spawn: { x: 18, z: 42 },
+    spawn: { x: SPAWN.x, z: SPAWN.z },
     boxes: boxes.map(([x, z]) => ({ x, z })),
     // The sea, and the pier that crosses it. See this file's header.
     waters: [SEA],

@@ -31,6 +31,19 @@ export const PREFIXES = Object.freeze([
   'Aspen', 'Juniper', 'Hawthorn', 'Primrose', 'Sage', 'Tansy',
 ]);
 
+// One hand-authored first half per walk area, for that area's rival clan
+// (spec R18). Deliberately NOT drawn from PREFIXES, so the player's own clan
+// name can never equal a rival's. Each word is nature-ish and fits its area so
+// a child can tell the four apart: a hedge in the neighborhood, an alder in the
+// park, a dune by the sea, a heron on the canal. None is a stray or kit name.
+// Read with Object.hasOwn: an inherited key ('__proto__') is not an area.
+export const RIVAL_PREFIXES = Object.freeze({
+  neighborhood: 'Hedge',
+  park: 'Alder',
+  seaside: 'Dune',
+  docks: 'Heron',
+});
+
 // Lowercase second halves for an ordinary (warrior-rung) cat.
 export const WARRIOR_SUFFIXES = Object.freeze([
   'fur', 'tail', 'whisker', 'heart', 'foot', 'stripe',
