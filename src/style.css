@@ -98,14 +98,14 @@ body.touch-mode .hud-toasts {
 }
 /* Short (landscape) touch screens: the action cluster sits at the right edge,
    horizontally clear of the centred toasts, so they only need to clear the
-   prompt pill. 150px keeps a single toast's top at ~186px on a 375px-tall
-   screen, under the goals panel (bottom 142px), with room for a second
-   stacked toast. Portrait and desktop are unaffected. */
+   prompt pill. 165px keeps a single toast's top at ~171px on a 375px-tall
+   screen, under the goals panel (bottom 142px); the 60px touch prompt pill tops
+   out at 219px, which the lowest toast clears. Portrait and desktop unchanged. */
 @media (pointer: coarse) and (max-height: 500px) {
-  .hud-toasts { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
 }
 @media (max-height: 500px) {
-  body.touch-mode .hud-toasts { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  body.touch-mode .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
 }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
