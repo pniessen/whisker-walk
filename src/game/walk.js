@@ -394,9 +394,9 @@ export function createWalkLifecycle({
     // why the technique reads as "grounded" rather than just "less flat".
     //
     // `groundBounce` is threaded back the same way `spawn`, `pois`, `colliders`,
-    // `bounds` and `waters` already are, and defaulted here so an area that has
-    // not been threaded (or a test's bare build(scene)) still lights correctly
-    // rather than throwing.
+    // `bounds` and `waters` already are. createFill (src/render/rig.js) falls
+    // back to DEFAULT_GROUND_BOUNCE, so an area that has not been threaded (or
+    // a test's bare build(scene)) still lights correctly rather than throwing.
     scene.add(createFill(areaData.groundBounce));
     // Wave 2.1 — contact shadows. HERE, and nowhere later, because the rig
     // scans scene.children for its static footprints and this is the exact

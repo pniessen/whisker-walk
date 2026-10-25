@@ -17,6 +17,13 @@
 // shadowMap.render lets us split them back out. Nothing on a per-frame path
 // here allocates: typed arrays, one preallocated frame object, and wrappers
 // built once with explicit parameters (no rest args).
+//
+// A WebGL context loss and restore (iOS Safari does this under memory
+// pressure) runs three's initGLContext(), which builds a NEW renderer.info and
+// a NEW renderer.shadowMap. beginFrame notices either swap with two identity
+// compares and re-attaches to the live objects; uninstall only puts back what
+// is still ours, so it never writes a dead closure onto a live object or
+// clobbers a wrapper someone installed after us.
 
 // Frame timing. tick(now) once per animation frame, work(ms) with the CPU
 // time of the tick body.
@@ -84,7 +91,7 @@ export function createFrameStats({
 // Per-frame draw-call counting. Call beginFrame(scene) before the frame's
 // first render and endFrame() after its last; read `frame` afterwards.
 export function createRenderCounter(renderer) {
-  const info = renderer.info;
+  let info = renderer.info;
   const frame = {
     calls: 0,
     triangles: 0,
@@ -138,6 +145,7 @@ export function createRenderCounter(renderer) {
       installed = true;
       origRender = renderer.render;
       origShadowRender = renderer.shadowMap.render;
+      info = renderer.info;
       info.autoReset = false;
       renderer.render = wrappedRender;
       renderer.shadowMap.render = wrappedShadow;
@@ -145,11 +153,26 @@ export function createRenderCounter(renderer) {
     uninstall() {
       if (!installed) return;
       installed = false;
-      renderer.render = origRender;
-      renderer.shadowMap.render = origShadowRender;
-      info.autoReset = true;
+      // Put back only what is still ours: a later wrapper stays, and a
+      // shadowMap rebuilt by a context restore keeps its own render.
+      if (renderer.render === wrappedRender) renderer.render = origRender;
+      if (renderer.shadowMap.render === wrappedShadow) {
+        renderer.shadowMap.render = origShadowRender;
+      }
+      renderer.info.autoReset = true;
     },
     beginFrame(scene) {
+      if (installed) {
+        // After a context restore, info and shadowMap are new objects.
+        if (renderer.info !== info) {
+          info = renderer.info;
+          info.autoReset = false;
+        }
+        if (renderer.shadowMap.render !== wrappedShadow) {
+          origShadowRender = renderer.shadowMap.render;
+          renderer.shadowMap.render = wrappedShadow;
+        }
+      }
       info.reset();
       walkScene = scene;
       shadowTotal = 0;

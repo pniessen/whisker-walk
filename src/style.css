@@ -608,3 +608,11 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 @media (max-width: 500px) {
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 170px); transform: none; }
 }
+/* A landscape phone (or any short window) is wider than 500px, so the rules
+   above would centre it vertically, right over the action buttons (they fill
+   roughly 165–287px of an 812×375 screen), and 170px from the top lands there
+   too. The only clear right-hand strip is the top, so it sits there, over the
+   area/rank pill, which matters less during a reading than the buttons. */
+@media (max-height: 500px) {
+  #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
+}

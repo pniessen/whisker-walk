@@ -78,22 +78,37 @@ describe('frame stats', () => {
   });
 });
 
-function fakeRenderer() {
-  const info = {
-    autoReset: true,
+function fakeInfo(autoReset = true) {
+  return {
+    autoReset,
     render: { calls: 0, triangles: 0 },
     reset() { this.render.calls = 0; this.render.triangles = 0; },
   };
+}
+// Reads r.info and r.shadowMap live, as three does, so a test can swap them.
+function fakeShadowMap(r, perPass = 3) {
+  return { render() { r.info.render.calls += perPass; } };
+}
+function fakeRenderer() {
   const r = {
-    info,
-    shadowMap: { render() { info.render.calls += 3; } },
+    info: fakeInfo(),
+    shadowMap: null,
     render(scene, cam) {
       if (scene.isScene) this.shadowMap.render([], scene, cam);
-      info.render.calls += scene.drawCalls;
-      info.render.triangles += scene.drawCalls * 100;
+      this.info.render.calls += scene.drawCalls;
+      this.info.render.triangles += scene.drawCalls * 100;
     },
   };
+  r.shadowMap = fakeShadowMap(r);
   return r;
+}
+// What three r185's onContextRestore does: initGLContext() builds a new info
+// and a new shadowMap, then copies autoReset across from the old info.
+function contextRestore(r, perPass = 5) {
+  const autoReset = r.info.autoReset;
+  r.info = fakeInfo(autoReset);
+  r.shadowMap = fakeShadowMap(r, perPass);
+  return r.shadowMap.render;
 }
 const scene = { isScene: true, drawCalls: 10 };
 const quad = { isMesh: true, drawCalls: 1 };
@@ -180,5 +195,59 @@ describe('render counter', () => {
     const cam = {};
     expect(r.render(quad, cam)).toBe('ok');
     expect(seen).toEqual([r, quad, cam]);
+  });
+
+  it('after a context restore the next frame counts on the new info and shadowMap', () => {
+    const r = fakeRenderer();
+    const c = createRenderCounter(r);
+    c.install();
+    c.beginFrame(scene); r.render(scene, {}); c.endFrame();
+    expect(c.frame.shadowCalls).toBe(3);
+    contextRestore(r, 5);
+    c.beginFrame(scene);
+    r.render(scene, {});
+    r.render(quad, {});
+    c.endFrame();
+    expect(c.frame).toMatchObject({
+      calls: 16, shadowCalls: 5, sceneCalls: 10, otherCalls: 1, sceneRenders: 1, renders: 2,
+    });
+    expect(r.info.autoReset).toBe(false);
+  });
+
+  it('after a context restore uninstall leaves the new shadowMap its own render', () => {
+    const r = fakeRenderer();
+    const origRender = r.render;
+    const c = createRenderCounter(r);
+    c.install();
+    c.beginFrame(scene); r.render(scene, {}); c.endFrame();
+    const newShadowRender = contextRestore(r);
+    c.beginFrame(scene); r.render(scene, {}); c.endFrame(); // re-wraps
+    expect(r.shadowMap.render).not.toBe(newShadowRender);
+    c.uninstall();
+    expect(r.shadowMap.render).toBe(newShadowRender);
+    expect(r.render).toBe(origRender);
+    expect(r.info.autoReset).toBe(true);
+  });
+
+  it('a restore with no frame in between: uninstall still leaves the new shadowMap alone', () => {
+    const r = fakeRenderer();
+    const c = createRenderCounter(r);
+    c.install();
+    const newShadowRender = contextRestore(r);
+    c.uninstall();
+    expect(r.shadowMap.render).toBe(newShadowRender);
+    expect(r.info.autoReset).toBe(true);
+  });
+
+  it('a later wrapper of renderer.render survives uninstall', () => {
+    const r = fakeRenderer();
+    const c = createRenderCounter(r);
+    c.install();
+    const ours = r.render;
+    const later = function (s, cam) { return ours.call(this, s, cam); };
+    r.render = later;
+    c.uninstall();
+    expect(r.render).toBe(later);
+    expect(r.info.autoReset).toBe(true);
   });
 });
