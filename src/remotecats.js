@@ -126,6 +126,12 @@ export function createRemoteCats(scene) {
     entry.lastSeenAt = now;
   }
 
+  // Every way a remote leaves the scene runs through remove(), and callers
+  // reach it only through upsert/remove/update. In a walk those three are
+  // wrapped by game/netevents.js's takeHeldItemsWithRemotes, which hides
+  // whatever the departed cat was carrying so carryables never follows a
+  // disposed group. A new public path that removes a remote must be added to
+  // that wrapper too. dispose() is walk teardown, after carryables is gone.
   function remove(playerId) {
     const entry = remotes.get(playerId);
     if (!entry) return;

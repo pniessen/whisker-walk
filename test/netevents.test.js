@@ -253,7 +253,12 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     ['non-finite pos', { pos: [NaN, 0] }],
     ['out of bounds', { pos: [9999, 0] }],
     ['short pos', { pos: [1] }],
+    ['string pos', { pos: ['5', '0'] }],
+    ['3-entry pos', { pos: [1, 2, 3] }],
+    ['array-like object pos', { pos: { 0: 1, 1: 2, length: 2 } }],
     ['sender not in this walk', { id: 'stranger-0000' }],
+    ['non-string sender id', { id: 7 }],
+    ['prototype-key sender id', { id: '__proto__' }],
   ])('%s is ignored without throwing or saving', (_name, bad) => {
     const h = carryHarness();
     const stick = h.item(STICK.id);
@@ -294,33 +299,72 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     expect(h.s.carry.mouth.held).toEqual({ id: STICK.id, kind: 'stick' });
   });
 
-  it.each([
+  const LEAVES = [
     ['leaves the room', (h) => h.remotes.remove(PARTNER)],
     ['goes quiet and despawns', (h) => h.frame(60)],
     ['rejoins with a different pet', (h) => h.remotes.upsert({ ...ROBIN, petName: 'Robbie' }, 1)],
-  ])('a remote that %s while carrying takes the item with it', (_name, leave) => {
+  ];
+  // she picks the stick up, then vanishes in one of the three ways
+  const carriedOff = (leave) => {
     const h = carryHarness();
     h.apply(pickEv());
     h.frame();
-    const stick = h.item(STICK.id);
     leave(h);
+    return h;
+  };
+
+  it.each(LEAVES)('a remote that %s while carrying takes the item with it', (_name, leave) => {
+    const h = carriedOff(leave);
+    const stick = h.item(STICK.id);
     expect(stick.holder).toBe(null);
     expect(stick.onGround).toBe(false);
     expect(stick.mesh.visible).toBe(false);
+    expect(stick.gone).toBe(true);
     expect(h.items.nearest(new THREE.Vector3(5, 0, 0), 99)?.id).not.toBe(STICK.id);
     // the next frame has no removed cat to reach back into
     expect(() => h.frame(2)).not.toThrow();
     expect(stick.mesh.visible).toBe(false);
-    // and it stays gone for the rest of the walk, whatever arrives later
-    h.remotes.upsert(ROBIN, 2);
-    h.apply(dropEv());
-    h.apply(pickEv());
-    expect(stick.mesh.visible).toBe(false);
-    expect(stick.onGround).toBe(false);
-    expect(stick.holder).toBe(null);
     // the leaf on the ground was never hers to take
     expect(h.item(LEAF.id).onGround).toBe(true);
     expect(h.item(LEAF.id).mesh.visible).toBe(true);
+    expect(h.item(LEAF.id).gone).toBeFalsy();
+  });
+
+  it.each(LEAVES)('after she %s and comes back, her drop puts it down where she left it', (_name, leave) => {
+    const h = carriedOff(leave);
+    const stick = h.item(STICK.id);
+    h.remotes.upsert(ROBIN, 2);
+    h.apply(dropEv());
+    expect(stick.onGround).toBe(true);
+    expect(stick.holder).toBe(null);
+    expect(stick.mesh.visible).toBe(true);
+    expect(stick.gone).toBe(false);
+    expect(stick.mesh.position.x).toBe(12);
+    expect(stick.mesh.position.z).toBe(-7);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
+  it.each(LEAVES)('after she %s and comes back, her pick puts it back in her mouth', (_name, leave) => {
+    const h = carriedOff(leave);
+    const stick = h.item(STICK.id);
+    h.remotes.upsert(ROBIN, 2);
+    h.apply(pickEv());
+    expect(stick.holder).toBe(h.partnerGroup());
+    expect(stick.onGround).toBe(false);
+    expect(stick.mesh.visible).toBe(true);
+    expect(stick.gone).toBe(false);
+    h.frame(2);
+    expect(stick.mesh.visible).toBe(true);
+  });
+
+  it('a gone item ignores a bad drop and stays hidden', () => {
+    const h = carriedOff(LEAVES[0][1]);
+    const stick = h.item(STICK.id);
+    h.remotes.upsert(ROBIN, 2);
+    h.apply(dropEv({ pos: [9999, 0] }));
+    h.apply(dropEv({ id: STRANGER }));
+    expect(stick.mesh.visible).toBe(false);
+    expect(stick.gone).toBe(true);
   });
 
   it('my own held item stays mine when a remote leaves', () => {
