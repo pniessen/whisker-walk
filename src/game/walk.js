@@ -747,6 +747,11 @@ export function createWalkLifecycle({
       // used a bare Math.random(), which put two co-walkers on the same
       // room seed in visibly different firefly fields.
       rng: walkRng,
+      // v21 3b Task 13: a mouse, rat or squirrel that notices the cat bolts
+      // for this cover and stays hidden for the walk (the den has none). Local
+      // to this device like every critter position; nothing rides the wire.
+      hides: propsFor(areaId).hides,
+      onHide: (c) => hud.toast(`The ${c.type} dived under cover! 🐭`),
     });
 
     const collectibleMeshes = new Map();

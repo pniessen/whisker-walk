@@ -33,6 +33,20 @@ const FAR_CALL_DRAW_TIME = 12;
 // purpose: the anchor carries the critter's whole patrol pattern with it, so
 // this is the speed the pattern drifts over, not a dash.
 const ANCHOR_SPEED = 2.2;
+// v21 3b Task 13 — prey that evades. The three grounded runners notice a cat
+// that comes close and bolt for cover: the nearest of the area's hides
+// (propsets.js) within HIDE_SEARCH, at their own dash speed. A trotting cat is
+// noticed at PREY_NOTICE; a stalking one gets to PREY_NOTICE_STALKED, which is
+// the whole point of stalking. Once within HIDE_REACH of its cover the critter
+// is hidden for the rest of the walk: invisible, unspottable, and skipped by
+// every way the cat can reach a critter. With no cover in reach it dashes away
+// and comes back, exactly as a pounce-tag sends it. Positions only — nothing
+// here rolls, so it never touches the injected rng or Math.random.
+const PREY = new Set(['mouse', 'rat', 'squirrel']);
+export const PREY_NOTICE = 3.5;
+export const PREY_NOTICE_STALKED = 1.2;
+export const HIDE_REACH = 0.4;
+const HIDE_SEARCH = 15;
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -137,6 +151,15 @@ export function createCritters(scene, spawns, opts = {}) {
   // Math.random so a caller that passes no rng (and a solo walk, whose
   // walkRng *is* Math.random) behaves precisely as before.
   const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+  // Task 13: the area's cover, and who to tell when a critter gets away.
+  const hides = (Array.isArray(opts.hides) ? opts.hides : [])
+    .filter((h) => h && Number.isFinite(h.x) && Number.isFinite(h.z))
+    .map((h) => new THREE.Vector3(h.x, 0, h.z));
+  const onHide = typeof opts.onHide === 'function' ? opts.onHide : null;
+  // markStalked's latest isStalking. update() runs before it in the frame
+  // (main.js, then game/avatar.js), so it reads last frame's — one frame late,
+  // and the cat has been stalking for many frames by the time it is close.
+  let catStalking = false;
   let fleeModifier = 1;
   let clock = 0; // tracks critters.update's own `t` so pounceCatch can time the 20s catch cooldown without a caller-supplied clock
   const list = [];
@@ -198,13 +221,39 @@ export function createCritters(scene, spawns, opts = {}) {
     list.splice(list.indexOf(c), 1);
   }
 
+  // The nearest cover within HIDE_SEARCH of `p`, or null.
+  function nearestHide(p) {
+    let best = null;
+    let bestD = Infinity;
+    for (const h of hides) {
+      const d = Math.hypot(h.x - p.x, h.z - p.z);
+      if (d <= HIDE_SEARCH && d < bestD) {
+        bestD = d;
+        best = h;
+      }
+    }
+    return best;
+  }
+
+  // Into cover, for good. A caught critter was already paid for, so only one
+  // that got away untouched tells the walk.
+  function hide(c) {
+    c.hidden = true;
+    c.fleeing = false;
+    c.hideAt = null;
+    c.spottable = false;
+    c.stalkClose = false;
+    c.group.visible = false; // contactshadows.js collapses a hidden mover's decal
+    if (!c.tagged && onHide) onHide(c);
+  }
+
   const api = {
     list,
     nearest(pos, maxDist) {
       let best = null;
       let bestD = maxDist;
       for (const c of list) {
-        if (!CHASEABLE.has(c.type) || c.fleeing) continue;
+        if (!CHASEABLE.has(c.type) || c.fleeing || c.hidden) continue;
         const d = c.group.position.distanceTo(pos);
         if (d < bestD) {
           bestD = d;
@@ -215,7 +264,7 @@ export function createCritters(scene, spawns, opts = {}) {
     },
     catchAt(pos) {
       for (const c of list) {
-        if ((c.type === 'butterfly' || c.type === 'firefly') &&
+        if (!c.hidden && (c.type === 'butterfly' || c.type === 'firefly') &&
             c.group.position.distanceTo(pos) < 0.8) {
           remove(c);
           return c;
@@ -234,7 +283,7 @@ export function createCritters(scene, spawns, opts = {}) {
     },
     dismayNear(pos, range) {
       for (const c of list) {
-        if (c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
+        if (!c.hidden && c.type === 'villager' && c.group.position.distanceTo(pos) < range) c.meowWaveT = 1.5;
       }
     },
     // reactToMeow(pos, { far }) — someone meowed at `pos`. The villager wave
@@ -262,6 +311,7 @@ export function createCritters(scene, spawns, opts = {}) {
     reactToMeow(pos, { far = false } = {}) {
       let count = 0;
       for (const c of list) {
+        if (c.hidden) continue; // in cover for the walk: it hears nothing
         const d = c.group.position.distanceTo(pos);
         if (c.type === 'villager' && d < 6) c.meowWaveT = 1.5;
         if ((c.type === 'bird' || c.type === 'seagull') && !c.fleeing && d < 5) {
@@ -291,20 +341,23 @@ export function createCritters(scene, spawns, opts = {}) {
       fleeModifier = m;
     },
     markStalked(catPos, isStalking) {
+      catStalking = !!isStalking;
       for (const c of list) {
-        if (!STALKABLE.has(c.type)) continue;
+        if (!STALKABLE.has(c.type) || c.hidden) continue;
         const d = c.group.position.distanceTo(catPos);
         if (isStalking && d < 3) c.stalkClose = true;
         else if (!isStalking && d > 6) c.stalkClose = false;
       }
     },
     // tag, not hunting-hunting: no critter is ever removed here — the catch just
-    // marks it caught (uncatchable for 20s) and sends it fleeing fast.
+    // marks it caught (uncatchable for 20s) and sends it fleeing fast. Task 13:
+    // a mouse, rat or squirrel with cover in reach flees to it and hides — the
+    // catch still returns exactly what it did, and the caller still pays.
     pounceCatch(pos) {
       let best = null;
       let bestD = 0.9;
       for (const c of list) {
-        if (!STALKABLE.has(c.type)) continue;
+        if (!STALKABLE.has(c.type) || c.hidden) continue;
         if (c.caughtUntil && c.caughtUntil > clock) continue;
         const d = c.group.position.distanceTo(pos);
         if (d < bestD) {
@@ -318,11 +371,17 @@ export function createCritters(scene, spawns, opts = {}) {
       best.fleeing = true;
       best.cooldown = best.type === 'bird' ? 18 : 3;
       best.stalkClose = false;
+      // A scripted moment runner is on rails and despawns on its own.
+      if (PREY.has(best.type) && !best.moment) {
+        best.tagged = true;
+        best.hideAt = best.hideAt ?? nearestHide(best.group.position);
+      }
       return { type: best.type, wasStalked };
     },
     update(dt, t, playerPos, catPos) {
       clock = t;
       for (const c of [...list]) {
+        if (c.hidden) continue; // Task 13: in cover for the rest of the walk
         const p = c.group.position;
         const dPlayer = p.distanceTo(playerPos);
         const dCat = p.distanceTo(catPos);
@@ -373,12 +432,24 @@ export function createCritters(scene, spawns, opts = {}) {
             }
           }
         } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat') {
-          if (c.fleeing) {
+          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rat' ? 5.5 : 4.5;
+          // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
+          if (!c.fleeing && dCat < (catStalking ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
+            c.fleeing = true;
+            c.cooldown = 3;
+            c.hideAt = nearestHide(p);
+          }
+          if (c.fleeing && c.hideAt) {
+            // running for cover: straight there, at the dash speed, until it is in
+            const to = c.hideAt.clone().sub(p).setY(0);
+            const d = to.length();
+            if (d > HIDE_REACH) p.addScaledVector(to.normalize(), Math.min(dt * fleeSpeed, d));
+            if (p.distanceTo(c.hideAt) <= HIDE_REACH) hide(c);
+          } else if (c.fleeing) {
             // pounce-tagged: dash away from the cat for a few seconds, then resume patrol
             const away = p.clone().sub(catPos).setY(0);
             if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
             away.normalize();
-            const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rat' ? 5.5 : 4.5;
             p.addScaledVector(away, dt * fleeSpeed);
             c.cooldown -= dt;
             if (c.cooldown <= 0) c.fleeing = false;
