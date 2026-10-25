@@ -652,7 +652,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   max-width: 1000px; margin: 0 auto; padding: 18px 20px 24px; color: var(--cream);
   font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
   display: grid; column-gap: 16px; row-gap: 12px;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   grid-template-rows: auto auto auto auto 1fr auto auto;
   grid-template-areas:
     "header header"
@@ -694,9 +694,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
 .dr-hero-price { margin-top: 6px; background: rgba(20, 28, 42, .6); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
 .dr-spin-hint { position: absolute; top: 10px; right: 12px; font-size: 11px; opacity: .45; pointer-events: none; }
-.dr-strip { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin;
-  overscroll-behavior-x: contain; }
-.dr .dr-portrait { flex: none; width: 52px; height: 52px; border-radius: 12px; background: var(--cream);
+/* desktop: every cat on show, wrapping only if the catalog outgrows a row */
+.dr-strip { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding: 3px; }
+.dr .dr-portrait { flex: none; width: 48px; height: 48px; border-radius: 12px; background: var(--cream);
   position: relative; padding: 0; overflow: hidden; }
 .dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
 .dr-portrait.sel { outline: 3px solid var(--pink); outline-offset: 1px; }
@@ -731,7 +731,8 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
 .dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }
 .dr .dr-pick-buy { background: var(--pink); color: var(--navy); border-radius: 999px; padding: 4px 8px;
-  min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; }
+  min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; white-space: nowrap; }
+.dr-pick .act { white-space: nowrap; }
 
 .dr-abilities { grid-area: abilities; display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -785,6 +786,20 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .dr-stage { height: min(38vh, 300px); }
   .dr-hero-name { font-size: 18px; }
   .dr .dr-portrait { width: 46px; height: 46px; }
+  /* phone: the strip is one row that scrolls sideways inside itself */
+  .dr-strip { flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin;
+    overscroll-behavior-x: contain; }
+  .dr-header .dr-chip { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* Ruling 6: while a slot is open, only that slot shows, with its picker as
+     one sideways row under it, and the stage shrinks a little, so the cat,
+     the open slot, the picker and Start all fit without scrolling */
+  .dr:has(.dr-slot.open) .dr-stage { height: min(30vh, 240px); }
+  .dr-wearing:has(.dr-slot.open) .dr-label { display: none; }
+  .dr .dr-slots:has(.dr-slot.open) .dr-slot:not(.open) { display: none; }
+  .dr .dr-slot.open { grid-column: 1 / -1; }
+  .dr-picker { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding: 6px; }
+  .dr .dr-pick { flex: none; width: 108px; padding: 5px; }
+  .dr-pick img { width: 44px; height: 44px; margin-bottom: 2px; }
   .dr-pills { order: 2; display: flex; gap: 6px; }
   .dr .dr-pills button { flex: 1; background: var(--panel); border-radius: 999px; min-height: 44px; font-size: 14px; }
   .dr .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }

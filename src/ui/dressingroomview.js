@@ -106,9 +106,9 @@ export function createDressingRoom({
   function onBuyCat(id) {
     if (!has(catalog.cats, id)) return;
     if (progression.buy('cats', id)) {
-      autoSync();
       progression.equipCat(id); // the cat on show is now yours, and the one you walk
       dispatch({ type: 'preview-cat', id, owned: true });
+      autoSync();
     }
   }
 
@@ -125,9 +125,9 @@ export function createDressingRoom({
       if (!progression.isUnlocked('accessories', id)) dispatch({ type: 'try-on', slot, id });
     } else if (act === 'buy') {
       if (progression.buy('accessories', id)) {
-        autoSync();
         progression.equipAccessory(id); // it was on the cat already as a try-on
         dispatch({ type: 'try-on', slot, id: null });
+        autoSync();
       }
     }
   }
@@ -137,8 +137,8 @@ export function createDressingRoom({
     if (progression.isUnlocked('areas', id)) {
       progression.setArea(id);
     } else if (progression.buy('areas', id)) {
-      autoSync();
       progression.setArea(id);
+      autoSync();
     }
   }
 

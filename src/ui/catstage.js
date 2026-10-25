@@ -11,6 +11,78 @@ import { createSpin } from './spin.js';
 const CAM_DIR = new THREE.Vector3(1.85, 1.3, -2.45);
 const CAM_TARGET = new THREE.Vector3(0, 0.38, 0);
 
+const CAM_FOV = 30;
+const CAM_ELEVATION = Math.atan2(CAM_DIR.y - CAM_TARGET.y, Math.hypot(CAM_DIR.x - CAM_TARGET.x, CAM_DIR.z - CAM_TARGET.z));
+
+// Pure framing math: how far back the camera sits, and where it looks, so a
+// cat spinning about its own Y axis stays fully in frame from every angle.
+// bounds = { minY, maxY, radius } (radius: the widest reach from the Y axis,
+// so any spin angle fits). The bottom `bottomFrac` of the frame is kept for
+// the hero name text; the cat sits centred in the rest, with `margin` slack.
+// The bounding cylinder is round, so only the camera's elevation matters: its
+// rim is projected exactly (perspective included) and the distance and aim
+// are refined until it fills the free window.
+export function fitFraming(bounds, { fovDeg = CAM_FOV, aspect = 1, elevation = CAM_ELEVATION, bottomFrac = 0, margin = 1.04 } = {}) {
+  const minY = Number.isFinite(bounds.minY) ? bounds.minY : 0;
+  const maxY = Number.isFinite(bounds.maxY) ? Math.max(bounds.maxY, minY) : minY;
+  const r = Math.max(0, Number.isFinite(bounds.radius) ? bounds.radius : 0);
+  const asp = Math.max(Number.isFinite(aspect) ? aspect : 1, 0.1);
+  const t = Math.tan((fovDeg * Math.PI) / 360);
+  const bf = Math.min(Math.max(Number.isFinite(bottomFrac) ? bottomFrac : 0, 0), 0.6);
+  const m = Math.max(margin, 1);
+  // the free window in normalised device coords, shrunk by the margin
+  const top = 1 / m;
+  const bottom = -1 + 2 * bf + (1 - 1 / m);
+  const side = 1 / m;
+  const sinE = Math.sin(elevation);
+  const cosE = Math.cos(elevation);
+  const pts = [];
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    for (const y of [minY, maxY]) pts.push([r * Math.cos(a), y, r * Math.sin(a)]);
+  }
+  // camera at (0, ty + d sinE, d cosE) looking at (0, ty, 0): the rim's
+  // extent on screen
+  const extent = (d, ty) => {
+    const cy = ty + d * sinE;
+    const cz = d * cosE;
+    let yTop = -Infinity; let yBot = Infinity; let xMax = 0; let behind = false;
+    for (const [x, y, z] of pts) {
+      const vy = y - cy; const vz = z - cz;
+      const depth = -vy * sinE - vz * cosE;
+      if (depth <= 1e-3) { behind = true; break; }
+      const ny = (vy * cosE - vz * sinE) / (depth * t);
+      yTop = Math.max(yTop, ny); yBot = Math.min(yBot, ny);
+      xMax = Math.max(xMax, Math.abs(x) / (depth * t * asp));
+    }
+    return { yTop, yBot, xMax, behind };
+  };
+  // for a distance, the aim that centres the rim in the window
+  const aim = (d) => {
+    let ty = (minY + maxY) / 2;
+    for (let k = 0; k < 8; k++) {
+      const e = extent(d, ty);
+      if (e.behind) break;
+      ty += ((e.yTop + e.yBot) / 2 - (top + bottom) / 2) * d * t;
+    }
+    return ty;
+  };
+  const fits = (d) => {
+    const ty = aim(d);
+    const e = extent(d, ty);
+    return !e.behind && e.yTop <= top + 1e-6 && e.yBot >= bottom - 1e-6 && e.xMax <= side + 1e-6;
+  };
+  // bisect the nearest distance that fits (fitting is monotone in distance)
+  let lo = r + Math.max(maxY - minY, 1e-3) * 0.01;
+  let hi = Math.max(lo * 2, 1);
+  for (let k = 0; k < 40 && !fits(hi); k++) hi *= 2;
+  for (let k = 0; k < 40; k++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) hi = mid; else lo = mid;
+  }
+  return { distance: hi, targetY: aim(hi) };
+}
+
 const defaultCreateRenderer = () => new THREE.WebGLRenderer({ alpha: true, antialias: true });
 
 // The injectables exist so tests can drive the stage without WebGL or a DOM;
@@ -39,6 +111,7 @@ export function createCatStage({
   let lastFrame = 0;
   let disposed = false;
   let img = null;
+  let bounds = null; // the current cat's spin-proof bounds (measure)
   let activeId = null; // the one pointer currently dragging
   const spin = createSpin();
   const stage = { failed: false };
@@ -117,11 +190,46 @@ export function createCatStage({
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     camera.aspect = w / h;
-    // height-fitted; on a narrow stage back off so the cat's width still fits
-    const back = Math.max(1, 1.1 / camera.aspect);
-    camera.position.copy(CAM_TARGET).addScaledVector(CAM_DIR.clone().sub(CAM_TARGET), back);
-    camera.lookAt(CAM_TARGET);
+    frameCat();
+  }
+
+  // Aim the camera at the current cat's bounds (the approved three-quarter
+  // direction, distance fitted), leaving the hero text's strip at the bottom.
+  function frameCat() {
+    if (!camera || !el) return;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (!w || !h) return;
+    const dir = CAM_DIR.clone().sub(CAM_TARGET).normalize();
+    if (!bounds) {
+      // no cat yet (or an empty one): the mockup's fixed framing
+      const back = Math.max(1, 1.1 / camera.aspect);
+      camera.position.copy(CAM_TARGET).addScaledVector(CAM_DIR.clone().sub(CAM_TARGET), back);
+      camera.lookAt(CAM_TARGET);
+    } else {
+      const text = el.querySelector ? el.querySelector('.dr-hero-text') : null;
+      const textH = text && text.offsetHeight ? text.offsetHeight + 14 : 0;
+      const { distance, targetY } = fitFraming(bounds, { aspect: w / h, bottomFrac: textH / h });
+      const target = new THREE.Vector3(0, targetY, 0);
+      camera.position.copy(target).addScaledVector(dir, distance);
+      camera.lookAt(target);
+    }
     camera.updateProjectionMatrix();
+  }
+
+  // Spin-proof bounds: the box at angle 0, widened to the farthest reach from
+  // the Y axis so every angle of the spin fits.
+  function measure(obj) {
+    const saved = obj.rotation.y;
+    obj.rotation.y = 0;
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    obj.rotation.y = saved;
+    obj.updateMatrixWorld(true);
+    if (box.isEmpty()) return null;
+    const rx = Math.max(Math.abs(box.min.x), Math.abs(box.max.x));
+    const rz = Math.max(Math.abs(box.min.z), Math.abs(box.max.z));
+    return { minY: box.min.y, maxY: box.max.y, radius: Math.hypot(rx, rz) };
   }
 
   function draw() {
@@ -223,8 +331,10 @@ export function createCatStage({
     if (stage.failed) return;
     disposeCat();
     cat = buildCat(breed, accessories);
+    bounds = measure(cat);
     cat.rotation.y = spin.angle;
     scene.add(cat);
+    frameCat();
     if (el && visible) draw();
   };
 

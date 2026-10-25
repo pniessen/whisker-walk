@@ -125,6 +125,14 @@
   });
   const startPill = params.get('pill');
   if (startPill) $('root').querySelector(`[data-dr-pill="${CSS.escape(startPill)}"]`)?.click();
+  // ?cat=<id> taps that portrait; ?try=<accessory id> opens its slot and tries it on
+  const pick = (sel) => $('root').querySelector(sel)?.click();
+  if (params.get('cat')) pick(`[data-dr-cat="${CSS.escape(params.get('cat'))}"]`);
+  const tryId = params.get('try');
+  if (tryId && CATALOG.accessories[tryId]) {
+    pick(`[data-dr-slot="${CATALOG.accessories[tryId].slot}"]`);
+    pick(`[data-dr-acc="${CSS.escape(tryId)}"][data-dr-act="try"]`);
+  }
 
   $('h-normal').onclick = () => { long = false; progression = seeded(false); build(); out('sample state'); };
   $('h-long').onclick = () => { long = true; progression = seeded(true); build(); out('long state'); };
