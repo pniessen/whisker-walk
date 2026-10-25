@@ -49,6 +49,41 @@ describe('createTippables', () => {
   });
 });
 
+// Task 1 (Stream 3b): ids are per call and by index, so two co-walkers who
+// have taken different numbers of walks since loading the page still agree
+// on every id. A page-lifetime counter made a remote tip hit the wrong prop.
+describe('createTippables — ids agree between co-walkers', () => {
+  const PAIR = [
+    { x: 0, z: 0, kind: 'pot' },
+    { x: 3, z: 1, kind: 'can' },
+  ];
+
+  it('ids are by index and identical across calls', () => {
+    const a = createTippables(scene, PAIR);
+    const b = createTippables(scene, PAIR);
+    expect(a.list.map((e) => e.id)).toEqual(['tip-0', 'tip-1']);
+    expect(b.list.map((e) => e.id)).toEqual(['tip-0', 'tip-1']);
+  });
+
+  it('a remote tip by id lands on the same prop on both devices', () => {
+    createTippables(scene, PAIR); // an earlier walk on this page
+    const mine = createTippables(scene, PAIR);
+    const theirs = createTippables(scene, PAIR);
+    theirs.tip(theirs.list[1]);
+    expect(mine.tipById(theirs.list[1].id)).toBe(true);
+    expect(mine.list[1].tipped).toBe(true);
+    expect(mine.list[0].tipped).toBe(false);
+  });
+
+  it('an unknown or legacy id is a no-op', () => {
+    const t = createTippables(scene, [{ x: 0, z: 0, kind: 'pot' }]);
+    for (const id of ['tip-57', 'tip--1', '', null, 42, '__proto__']) {
+      expect(t.tipById(id)).toBe(false);
+    }
+    expect(t.list[0].tipped).toBe(false);
+  });
+});
+
 // v18 Task 2.5 — Big Swat: tipping cascades into neighbours.
 //
 // "Knock-over radius doubles" is read as the CASCADE radius and NOT the reach

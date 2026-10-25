@@ -50,7 +50,6 @@ const CASCADE_RADIUS = 2.6;
 const CASCADE_MAX_HOPS = 2;
 
 const mat = (color) => litMaterial(color);
-let nextId = 1;
 
 function buildTippable(kind) {
   const g = new THREE.Group();
@@ -99,17 +98,21 @@ function tipEntry(e) {
 // on the very next swat instead of after a reload. Omitting it (the current
 // walk.js call, which another v18 task owns) leaves state null, hasSkill false
 // and every path below on its exact pre-v18 behaviour.
+// Ids are `tip-0 … tip-(n-1)`: by index in `spots`, counted afresh on every
+// call, so both co-walkers derive the same id for the same prop. Co-walk tips
+// travel by id, so a page-lifetime counter would send a remote tip to the
+// wrong prop whenever the two devices had taken different numbers of walks.
 export function createTippables(scene, spots, opts = {}) {
   const getState = typeof opts.getState === 'function' ? opts.getState : () => null;
   const bigSwat = () => hasSkill(getState(), BIG_SWAT_ID);
   const list = [];
-  for (const spot of spots) {
+  spots.forEach((spot, i) => {
     const group = buildTippable(spot.kind);
     group.position.set(spot.x, 0, spot.z);
     group.rotation.y = (spot.x * 7 + spot.z * 13) % 6; // stable pseudo-random facing
     scene.add(group);
-    list.push({ id: `tip-${nextId++}`, kind: spot.kind, group, tipped: false, anim: 0 });
-  }
+    list.push({ id: `tip-${i}`, kind: spot.kind, group, tipped: false, anim: 0 });
+  });
 
   // Breadth-first topple outward from an already-tipped entry, bounded by
   // CASCADE_MAX_HOPS (see the constant for why the two bounds differ). Each
