@@ -20,7 +20,7 @@ The spec covers six streams. Per the scope rule, each gets its own plan so each 
 
 - No new dependencies. Three.js, Vite, Vitest, Supabase only.
 - Pure logic lives in DOM-free, three-free leaf modules so it is unit-testable headless. `src/questscent.js` must import nothing.
-- Determinism: anything derived from the `(date, area)` seed must agree across devices in a co-walk. The quest trail draws jitter from the shared `walkRng` via `scent.trailTo`.
+- Determinism: anything derived from the `(date, area)` seed must agree across devices in a co-walk. The quest trail draws jitter from the shared `walkRng` via `scent.trailTo`, after world-gen, so it cannot desync seeded content. *(Amended during execution: the trail is cat-relative and per-player, so co-walkers see different trails by design; see the spec's Stream 1 "As built" note.)*
 - `SAVE_VERSION` stays 4. This stream adds no save state.
 - Two render tiers only; `render/quality.js` is the single place a tier is decided. This stream adds no tier knob.
 - Anti-goal (spec §4): recoverable, funny, never retroactive. Nothing here may punish.
