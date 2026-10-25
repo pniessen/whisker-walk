@@ -54,6 +54,8 @@ import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
+import { createYardDog } from '../yarddog.js';
+import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
@@ -1462,6 +1464,42 @@ export function createWalkLifecycle({
       };
     }
 
+    // v21 3b Task 16 — The dog in its yard. One per outdoor area (propsets.js's
+    // dogYard; the den has none, so this is the inert NO_DOG there). Trot onto
+    // its lawn and it barks and chases you off, the rival patrol's scamper
+    // over again; stalk in and you get halfway to its kennel first. A fearless
+    // or steady cat is only barked at, as the shipped bark-freeze spared them.
+    // The same gate as the rival (chaseAllowed): never a perched cat, never in
+    // photo mode, and never while the rival's chase owns the cat — the two
+    // share session.chasing, so they never both write its position.
+    //
+    // THE DOG TAKES NOTHING. Like the rival's branch, this calls no progress,
+    // colony, discoveries or points function: no freeze, no drop (whatever is
+    // in your mouth stays there), no marks, no taming. It moves the cat and
+    // says one line. Local to this device (nothing on any wire), no
+    // randomness. Its kennel is solid; its meshes are freed in endWalk before
+    // the scene traversal. Spotting it is updateInteractions' (s.dog.spotPos).
+    const fearlessCat = isFearless(PERSONALITIES[cat.userData.breed]?.special);
+    const dog = createYardDog(scene, propsFor(areaId).dogYard, {
+      reducedMotion,
+      isWalkable: (x, z) => isWalkableAt(areaData, x, z),
+      canChase: () => chaseAllowed(player, session),
+      fearless: fearlessCat,
+      onBark: () => {
+        audio.bark();
+        if (fearlessCat) hud.toast("The dog barks. You don't even flinch. 😼");
+      },
+      onChase: () => {
+        player.halt();
+        session.chasing = true; // avatar.js plays the run gait and ends a rest; interactions.js ignores climb/pounce
+        hud.toast('Woof! The dog chased you off its lawn! 🐕');
+      },
+      onSettled: () => { player.halt(); session.chasing = false; },
+    });
+    for (const c of dog.colliders) areaData.colliders.push({ ...c });
+    if (dog.group) decals.follow(dog.group);
+    session.dog = dog;
+
     // lost-kitten quest chain: solo walks only (roomSeed === undefined) — a
     // co-walk kitten would desync the shared canon since it's driven by
     // this device's own progression.state.kitten.stage. A no-op stub (same
@@ -1803,6 +1841,7 @@ export function createWalkLifecycle({
     session.pushThroughs.dispose();
     session.rests.dispose();
     session.rest = null; // and a nap ends with the walk: no tick, no purr
+    session.dog.dispose();
     session.playerMarks?.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();

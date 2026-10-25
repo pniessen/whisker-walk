@@ -327,6 +327,9 @@ describe('createRivalPatrol', () => {
     expect(chaseAllowed({ perchY: 0 }, { cameraMode: true })).toBe(false);
     expect(chaseAllowed({ perchY: 1.2 }, { cameraMode: false })).toBe(false);
     expect(chaseAllowed({ perchY: 1.2 }, { cameraMode: true })).toBe(false);
+    // v21 3b Task 16: never while another chase (the yard dog's) owns the cat
+    expect(chaseAllowed({ perchY: 0 }, { cameraMode: false, chasing: true })).toBe(false);
+    expect(chaseAllowed({ perchY: 0 }, { cameraMode: false, chasing: false })).toBe(true);
   });
 
   test('photo mode open means no chase', () => {

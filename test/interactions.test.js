@@ -22,6 +22,8 @@ import { createStrayCats } from '../src/straycats.js';
 import { createEnemyWalkLog, rollHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../src/enemies.js';
 import { PERSONALITIES } from '../src/cat/brain.js';
 import { mulberry32 } from '../src/rng.js';
+import { createYardDog } from '../src/yarddog.js';
+import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
@@ -550,6 +552,40 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       h.press();
       expect(h.session.carry.items.list[0].mesh.position.z).toBe(19.8);
       expect(h.session.carry.mouth.dropped.get('park-stick-1').z).toBe(19.8);
+    });
+
+    // v21 3b Task 16: the dog takes nothing — a chased cat keeps what it holds.
+    it('a chase leaves a carried item in your mouth', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      expect(h.session.carry.mouth.held).toEqual({ id: 'park-stick-1', kind: 'stick' });
+      // A dog whose lawn the cat is standing on, wired the way game/walk.js
+      // wires it.
+      const yard = { x: 6, z: 0.5, r: 4, kennel: { x: 4, z: -1.5 } };
+      const s = h.session;
+      const events = [];
+      const dog = createYardDog(new THREE.Scene(), yard, {
+        canChase: () => chaseAllowed(h.player, s),
+        onChase: () => { s.chasing = true; events.push('chase'); },
+        onSettled: () => { s.chasing = false; events.push('settled'); },
+      });
+      const item = s.carry.items.list[0];
+      for (let i = 0; i < 90; i++) {
+        dog.update(1 / 60, s.cat.position, s.cat, {});
+        h.frame();
+        expect(s.carry.mouth.held).toEqual({ id: 'park-stick-1', kind: 'stick' });
+        expect(item.onGround).toBe(false);
+        expect(item.holder).toBe(s.cat);
+      }
+      expect(events).toEqual(['chase', 'settled']);
+      expect(Math.hypot(s.cat.position.x - yard.x, s.cat.position.z - yard.z)).toBeGreaterThanOrEqual(yard.r);
+      // nothing went down anywhere, so no walk-end drop mark is pending
+      expect(s.carry.mouth.dropped.size).toBe(0);
+      expect(h.progression.marksIn('park')).toEqual([]);
+      // and it still puts down where you choose
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — put the stick down');
     });
 
     it('no drop prompt while perched: the cat keeps holding it', () => {
@@ -3269,5 +3305,97 @@ describe('endWalk: what the cat carried home', () => {
   it('the summary names what came home, escaped', () => {
     const tail = src.slice(b, src.indexOf('<button id="btn-summary-continue"', b));
     expect(tail).toMatch(/You brought the \$\{escapeHtml\(carryLabel\([^`]*\)\)\} home\. It's in the den now\.&nbsp;🏠<\/div>/);
+  });
+});
+
+// ===========================================================================
+// v21 3b Task 16 — the yard dog in the journal. The two critter dogs went out
+// of critterSpawns; spotting the yard dog (s.dog.spotPos) must pay exactly
+// what spotting the critter dog paid: one 'critter' award a walk, labelled
+// the way labelFor('dog') always has been, and one journal sighting.
+// ===========================================================================
+describe('spotting the yard dog', () => {
+  function spotHarness({ dog = null, critters = [] } = {}) {
+    const progression = createProgression(fakeStorage());
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const paid = [];
+    const off = bus.on('discovery', (d) => paid.push(d));
+    const session = {
+      areaId: 'park',
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: [] },
+      collectibleMeshes: new Map(),
+      critters: { list: critters, dismayNear() {} },
+      strayCats: { strays: [], nearest: () => null },
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts: null,
+      perched: null,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+      dog,
+    };
+    const api = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      // the cat looks down -z
+      player: { forward: () => new THREE.Vector3(0, 0, -1), perchY: 0, halt() {} },
+      progression, log,
+      hud: { toast() {}, setPrompt() {}, setPoints() {} },
+      audio: { trill() {}, meow() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return { progression, session, paid, off, scan: () => api.updateInteractions(session) };
+  }
+
+  it('spotting the dog still pays the critter award and records a sighting', () => {
+    // The old way: a critter dog in critters.list, 4 m ahead.
+    const group = new THREE.Group();
+    group.position.set(0, 0, -4);
+    const old = spotHarness({ critters: [{ id: 'dog-7', type: 'dog', spottable: true, fleeing: false, group }] });
+    old.scan();
+    old.scan();
+    old.off();
+    // The new way: the yard dog, 4 m ahead.
+    const yard = createYardDog(new THREE.Scene(), { x: 0, z: -4.5, r: 4, kennel: { x: 0, z: -5.5 } });
+    expect(Math.hypot(yard.spotPos.x, yard.spotPos.z + 4.5)).toBeLessThan(1);
+    const now = spotHarness({ dog: yard });
+    now.scan();
+    now.scan();
+    now.off();
+
+    expect(now.paid.map((d) => [d.type, d.label])).toEqual([['critter', 'the neighbor’s dog']]);
+    expect(now.paid.map((d) => [d.type, d.label, d.points])).toEqual(old.paid.map((d) => [d.type, d.label, d.points]));
+    expect(now.progression.state.points).toBe(AWARDS.critter);
+    expect(now.progression.state.points).toBe(old.progression.state.points);
+    expect(now.progression.state.journal.dog).toBe(1);
+    expect(now.progression.state.journal.dog).toBe(old.progression.state.journal.dog);
+    expect(now.progression.state.feats).toEqual(old.progression.state.feats);
+  });
+
+  it('a dog behind the cat, too far away, or no dog at all is not spotted', () => {
+    for (const spotPos of [{ x: 0, z: 4 }, { x: 0, z: -6.5 }, { x: 5, z: -1 }]) {
+      const h = spotHarness({ dog: { spotPos, update() {}, dispose() {} } });
+      h.scan();
+      h.off();
+      expect(h.paid).toEqual([]);
+      expect(h.progression.state.journal.dog ?? 0).toBe(0);
+    }
+    for (const dog of [null, undefined, { spotPos: null }]) {
+      const h = spotHarness({ dog });
+      expect(() => h.scan()).not.toThrow();
+      h.off();
+      expect(h.paid).toEqual([]);
+    }
   });
 });

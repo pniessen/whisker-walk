@@ -184,7 +184,10 @@ const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, g
 // chaseAllowed(player, session) -> bool: the walk's canChase. No chase while
 // the cat is perched (perchY above the ground) or while photo mode is open, so
 // a child framing a photo of the rival cat is never scampered out mid-shot.
-export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode;
+// Nor while another chase already owns the cat (session.chasing — v21 3b Task
+// 16's yard dog shares this gate), so the rival and the dog never both write
+// the cat's position: whichever started first finishes, and the other waits.
+export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode && session.chasing !== true;
 
 // createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state, pos }
 //

@@ -640,6 +640,19 @@ export function createInteractions({
         if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
       }
     }
+    // v21 3b Task 16: the yard dog is spotted like the critter dog it
+    // replaced — the same distance and facing test, the same critter award
+    // and the same journal sighting, once a walk.
+    const dogAt = s.dog?.spotPos;
+    if (dogAt) {
+      const dx = dogAt.x - catP.x;
+      const dz = dogAt.z - catP.z;
+      const d = Math.hypot(dx, dz);
+      const f = player.forward();
+      if (d < 6 && d > 1e-6 && (dx * f.x + dz * f.z) / d > 0.5) {
+        if (log.awardOnce('critter', 'spot-dog', labelFor('dog')) > 0) progression.recordSighting('dog');
+      }
+    }
     for (const stray of s.strayCats.strays) {
       const to = stray.group.position.clone().sub(catP).setY(0);
       if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {

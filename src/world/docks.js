@@ -437,7 +437,6 @@ export function build(scene, { water = {} } = {}) {
       { type: 'crab', x: -33, z: -5.2 },
       { type: 'villager', x: 14, z: 7 }, { type: 'villager', x: -10, z: -8 },
       { type: 'butterfly', x: -6, z: 26 }, { type: 'butterfly', x: 20, z: -28 },
-      { type: 'dog', x: 30, z: 20 },
     ],
     moments: [
       { id: 'rat-raid', type: 'rat', label: 'a rat gang raiding a spilled fish crate!', x: -6, z: -12, from: { x: -28, z: -20 } },

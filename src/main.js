@@ -653,6 +653,9 @@ function init() {
       session.goldMice.update(t);
       // After player.update: a chase scamper overrides the cat's position.
       session.rival.update(dt, t, session.cat.position, session.cat);
+      // v21 3b Task 16: the yard dog, after the rival (they share
+      // session.chasing, so only one of them ever moves the cat at a time).
+      session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });
       const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');

@@ -277,7 +277,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   const puddles = [{ x: -7, z: -8, r: 0.9 }, { x: 9, z: 12, r: 0.8 }];
   for (const p of puddles) scene.add(b.puddle(p.x, p.z, p.r));
 
-  // fenced yard with the dog (scare event source). Two of its three runs
+  // fenced yard with the dog (src/yarddog.js, propsets dogYard). Two of its three runs
   // have carried a fence-top perch since v11; the east run never did, so
   // CF-9b opens it — and that completes the U, because (26,-24) is 5.66 from
   // the shipped (22,-28) top, inside Fence Runner's 6.0 level dash. A Sure
@@ -319,7 +319,6 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
       { type: 'butterfly', x: -12, z: 28 }, { type: 'butterfly', x: 12, z: -12 },
       { type: 'mouse', x: -4, z: -10, x2: 2, z2: -6 },
       { type: 'mouse', x: 16, z: 30, x2: 10, z2: 25 },
-      { type: 'dog', x: 22, z: -24 },
       { type: 'villager', x: -16, z: 12 }, { type: 'villager', x: 14, z: 34 },
     ],
     moments: [
