@@ -21,7 +21,7 @@
 // (warrior / null), never a throw.
 import { RANK_KEYS } from './clanwords.js';
 import { seedFromCode } from './rng.js';
-import { isStrayName } from './straynames.js';
+import { isStrayName, CAT_NAMES, KIT_NAMES } from './straynames.js';
 
 // Mirrors colony.js WALK_STAMP / walkMs (neither is exported). An unparseable
 // stamp reads as 0 there; here a feed with one is IGNORED instead, because a
@@ -108,4 +108,78 @@ export function pickDeputy(feeds) {
     if (best === null || ms < best.ms || (ms === best.ms && byNameStr(cat, best.cat) < 0)) best = { cat, ms };
   }
   return best === null ? null : best.cat;
+}
+
+// ---- A queen's kits ---------------------------------------------------------
+//
+// A queen has one to three kits drawn from the 12 KIT_NAMES. They are DERIVED
+// (never stored) and sit beside her in the den; they take no DEN_HOMES entry,
+// have no colony_cats row and count nothing toward COLONY_MAX (spec §6.5).
+// Both devices agree because everything below is a pure function of names and
+// of the colony's taming order.
+
+const KIT_MAX = 3;
+// One fixed salt. The colony id is null while solo and changes at pairing, so
+// it can be neither present nor stable; salting with it would reshuffle every
+// queen's kits at the moment two sisters pair.
+const KIT_SALT = 'den';
+const CAT_NAME_SET = new Set(CAT_NAMES);
+
+// kitsFor(queenName, salt, taken?) -> string[]: this queen's own preferred
+// kits, walking KIT_NAMES from a per-queen hash offset and skipping any name in
+// `taken`. Called alone (no `taken`) it is her preference in isolation; the
+// colony-wide, collision-free answer comes from placedKits, which threads
+// `taken` through every queen in taming order.
+//
+// [] for anything that is not a shipped queen. Only CAT_NAMES qualify: a fed
+// kit is also a known name and can hash to the queen role, and she would
+// otherwise be handed her own siblings.
+export function kitsFor(queenName, salt, taken = new Set()) {
+  if (typeof queenName !== 'string' || !CAT_NAME_SET.has(queenName)) return [];
+  if (roleFor(queenName) !== RANK_KEYS.queen) return [];
+  const h = seedFromCode(`${queenName}|litter|${typeof salt === 'string' ? salt : ''}`);
+  const want = 1 + (h % KIT_MAX);
+  const start = (h >>> 3) % KIT_NAMES.length;
+  const out = [];
+  for (let i = 0; i < KIT_NAMES.length && out.length < want; i++) {
+    const name = KIT_NAMES[(start + i) % KIT_NAMES.length];
+    if (!taken.has(name)) out.push(name);
+  }
+  return out;
+}
+
+// placedKits(residents, colonyCats) -> [{ queen, kits, home }]
+//
+// `residents` is colony.js's denResidents() output ([{ cat, home }] in taming
+// order, already cut off at the last den home, so a queen with no home never
+// appears); `colonyCats` is colony.cats. Taking plain arrays keeps this module
+// from importing colony.js (and through it net.js).
+//
+// Allocation is joint and ordered: each queen, earliest tamed first, takes her
+// preferred kits that no earlier queen holds. Disjointness across the whole
+// colony is therefore by construction, and an earlier queen's kits can never
+// change when a later queen is tamed.
+//
+// A kit that has been fed is an ordinary colony cat now (it is in colonyCats by
+// name), so it stops being a kit. It is removed AFTER allocation, not treated
+// as taken during it: skipping it in the walk would pull a different name into
+// its mother's list and could shift later queens' kits. Removing it afterwards
+// shrinks only its mother's list.
+export function placedKits(residents, colonyCats) {
+  if (!Array.isArray(residents)) return [];
+  const fed = new Set();
+  if (Array.isArray(colonyCats)) {
+    for (const c of colonyCats) if (c && typeof c.name === 'string') fed.add(c.name);
+  }
+  const taken = new Set();
+  const out = [];
+  for (const r of residents) {
+    const queen = r && r.cat && r.cat.name;
+    if (!r || !r.home) continue;
+    const mine = kitsFor(queen, KIT_SALT, taken);
+    for (const k of mine) taken.add(k);
+    const kits = mine.filter((k) => !fed.has(k));
+    if (kits.length > 0) out.push({ queen, kits, home: r.home });
+  }
+  return out;
 }

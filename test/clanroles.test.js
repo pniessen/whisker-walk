@@ -1,7 +1,8 @@
 import { test, expect } from 'vitest';
-import { roleFor, pickMedicineCat, pickDeputy } from '../src/clanroles.js';
-import { CAT_NAMES } from '../src/straynames.js';
-import { tamedCats } from '../src/colony.js';
+import { roleFor, pickMedicineCat, pickDeputy, kitsFor, placedKits } from '../src/clanroles.js';
+import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
+import { tamedCats, denResidents, denHome } from '../src/colony.js';
+import { DEN_HOMES } from '../src/den.js';
 
 test('roles spread across the shipped names rather than landing on one', () => {
   const counts = { elder: 0, queen: 0, warrior: 0 };
@@ -163,4 +164,98 @@ test('the deputy ordering matches colony.js tamedCats stamp-then-name order', ()
     { cat: c.name, by: 'player-bbbbbbbb', walk: c.tamedWalk },
   ]);
   expect(pickDeputy(feeds)).toBe(tamedCats({ cats })[0].name);
+});
+
+// ---- Queens and their kits (Task 8) ----------------------------------------
+
+// A colony whose named cats are all tamed, in the order given (the walk stamps
+// ascend, so taming order == array order). colony.js is imported by the TEST
+// only; clanroles.js stays a leaf.
+const AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
+function colonyWithTamed(names, { untamed = [] } = {}) {
+  const tamed = names.map((name, i) => ({
+    name, finder: 'player-aaaaaaaa', area: AREAS[i % 4], x: 0, z: 0, wear: null,
+    tamedBy: 'player-aaaaaaaa', tamedWalk: `walk-${1000 + i}`,
+  }));
+  const rest = untamed.map((name) => ({
+    name, finder: 'player-aaaaaaaa', area: 'park', x: 0, z: 0, wear: null, tamedBy: null, tamedWalk: null,
+  }));
+  return { id: null, partner: null, cats: [...tamed, ...rest], feeds: [], trades: [], tradesApplied: [], rewarded: [], seen: { feedKeys: [], tamed: [], trades: [], day: null } };
+}
+const placed = (colony) => placedKits(denResidents(colony), colony.cats);
+const QUEENS = CAT_NAMES.filter((n) => roleFor(n) === 'queen');
+
+test('only a queen has kits, and between one and three of them', () => {
+  for (const queen of QUEENS) {
+    const kits = kitsFor(queen, 'colony-1');
+    expect(kits.length).toBeGreaterThanOrEqual(1);
+    expect(kits.length).toBeLessThanOrEqual(3);
+    for (const k of kits) expect(KIT_NAMES).toContain(k);
+    expect(new Set(kits).size).toBe(kits.length);
+  }
+  const warrior = CAT_NAMES.find((n) => roleFor(n) === 'warrior');
+  expect(kitsFor(warrior, 'colony-1')).toEqual([]);
+});
+
+test('the same queen and salt give the same kits on both devices', () => {
+  expect(kitsFor(QUEENS[0], 'colony-1')).toEqual(kitsFor(QUEENS[0], 'colony-1'));
+});
+
+test.each([null, undefined, '', 42, {}])('kitsFor is total over junk: %p', (bad) => {
+  expect(kitsFor(bad, 'colony-1')).toEqual([]);
+});
+
+test('a kit name is never given kits of her own, even if it hashes to queen', () => {
+  for (const k of KIT_NAMES) expect(kitsFor(k, 'x')).toEqual([]);
+  expect(placedKits([{ cat: { name: KIT_NAMES[0] }, home: DEN_HOMES[0] }], [])).toEqual([]);
+});
+
+test('with all five shipped queens tamed no kit appears twice, and each queen has one', () => {
+  expect(QUEENS).toHaveLength(5);
+  const out = placed(colonyWithTamed(QUEENS));
+  expect(out.map((p) => p.queen)).toEqual(QUEENS);
+  const all = out.flatMap((p) => p.kits);
+  expect(new Set(all).size).toBe(all.length);
+  expect(all.length).toBeLessThanOrEqual(KIT_NAMES.length);
+  for (const p of out) {
+    expect(p.kits.length).toBeGreaterThanOrEqual(1);
+    expect(p.kits.length).toBeLessThanOrEqual(3);
+    expect(p.home).toEqual(DEN_HOMES[QUEENS.indexOf(p.queen)]);
+  }
+});
+
+test("an earlier queen's kits never change when a later queen is tamed", () => {
+  for (let n = 1; n < QUEENS.length; n++) {
+    const before = placed(colonyWithTamed(QUEENS.slice(0, n)));
+    const after = placed(colonyWithTamed(QUEENS.slice(0, n + 1)));
+    expect(after.slice(0, n)).toEqual(before);
+  }
+});
+
+test('placedKits does not depend on a colony id, and warriors add nothing', () => {
+  const colony = colonyWithTamed(QUEENS);
+  expect(placed({ ...colony, id: 'colony-abcdef12' })).toEqual(placed(colony));
+  const warriors = CAT_NAMES.filter((n) => roleFor(n) === 'warrior').slice(0, 4);
+  expect(placed(colonyWithTamed(warriors))).toEqual([]);
+});
+
+test('a kit that has been fed is no longer a kit: its mother shrinks by one, nobody else moves', () => {
+  const base = placed(colonyWithTamed(QUEENS));
+  const target = base[0].kits[0];
+  const after = placed(colonyWithTamed(QUEENS, { untamed: [target] }));
+  const mother = after.find((p) => p.queen === base[0].queen);
+  const expectedMother = base[0].kits.filter((k) => k !== target);
+  if (expectedMother.length === 0) expect(mother).toBeUndefined();
+  else expect(mother.kits).toEqual(expectedMother);
+  for (const p of base.slice(1)) expect(after.find((a) => a.queen === p.queen).kits).toEqual(p.kits);
+  expect(after.flatMap((p) => p.kits)).not.toContain(target);
+});
+
+// A tamed cat past the last den home has no home to sit beside.
+test('a queen past the last den home has no kits placed', () => {
+  const extra = QUEENS[QUEENS.length - 1];
+  const filler = CAT_NAMES.filter((n) => n !== extra).slice(0, DEN_HOMES.length);
+  const colony = colonyWithTamed([...filler, extra]);
+  expect(denHome(colony, extra)).toBeNull();
+  expect(placed(colony)).not.toContainEqual(expect.objectContaining({ queen: extra }));
 });
