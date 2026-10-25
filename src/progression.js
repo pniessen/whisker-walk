@@ -18,7 +18,7 @@ import { isStrayName } from './straynames.js';
 // (clanwords/rng/straynames only), so this edge is cycle-free. RANK_KEYS is the
 // one place the borrowed vocabulary's keys are spelled, so no literal is typed
 // here.
-import { pickMedicineCat, pickDeputy } from './clanroles.js';
+import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
 
@@ -398,7 +398,8 @@ function defaultState() {
     // STORED, unlike every other role, because a selection is not derivable
     // twice: "the first eligible tamed cat" and "the earliest cat fed by two
     // players" can change as the colony grows, and a role that moved would be
-    // a demotion. So each is computed once (settleClanRoles) and kept. A TOP-
+    // a demotion. So each is stored, and moves only to a STRICTLY earlier pick
+    // (settleRoles explains why that is not a demotion). A TOP-
     // LEVEL field, never a property on a colony cat: mergeColony keeps the
     // remote cat object for a cat both devices hold, so anything hung on a cat
     // would be discarded at the next sync. Display only: never a score, a
@@ -810,20 +811,30 @@ export function createProgression(storage) {
     }
   };
 
-  // Fill any UNSET verdict from `colony`; true when something was written.
-  // Never overwrites a set verdict (a selection that moved would be a
-  // demotion), and a null pick writes nothing. The caller saves, so the
-  // mutators persist once, with the colony change that triggered this.
+  // Settle each verdict from `colony`; true when something was written.
+  // A stored verdict is kept unless the new pick is STRICTLY earlier than it,
+  // by the same ordering pickMedicineCat / pickDeputy use (taming stamp, or
+  // two-feeder completion stamp; ties by name). A newly tamed or newly
+  // completed cat always sorts later, so it can never displace the incumbent
+  // (spec §6.4). A verdict moves only when earlier history first arrives,
+  // which is the partner's solo history in the window after pairing: the
+  // first device to merge has not seen it yet. So both devices end on the same
+  // global-earliest cat, and a verdict can only ever move earlier, never back.
+  // This also closes R14's deputy race. A stored verdict the colony cannot
+  // rank (not in the order) is kept. A null pick writes nothing. The caller
+  // saves, so the mutators persist once, with the colony change that
+  // triggered this. Where settling happens is R12a′ (see the callers). A
+  // deputy verdict may name a cat that is not yet tamed: two feeders is the
+  // whole qualification.
   const settleRoles = (colony) => {
     let changed = false;
     const roles = state.clanRoles;
-    if (roles[RANK_KEYS.medicine] === null) {
-      const pick = pickMedicineCat(tamedCats(colony));
-      if (pick !== null) { roles[RANK_KEYS.medicine] = pick; changed = true; }
-    }
-    if (roles[RANK_KEYS.deputy] === null) {
-      const pick = pickDeputy(colony.feeds);
-      if (pick !== null) { roles[RANK_KEYS.deputy] = pick; changed = true; }
+    for (const [key, order] of [[RANK_KEYS.medicine, medicineOrder(tamedCats(colony))],
+      [RANK_KEYS.deputy, deputyOrder(colony.feeds)]]) {
+      if (order.length === 0) continue;
+      const stored = roles[key];
+      // indexOf > 0: the stored cat is ranked, and order[0] is strictly earlier.
+      if (stored === null || order.indexOf(stored) > 0) { roles[key] = order[0]; changed = true; }
     }
     return changed;
   };
@@ -1381,9 +1392,10 @@ export function createProgression(storage) {
       }, { knownItems: KNOWN_ACCESSORY_IDS });
       // A NEW pairing (the id becomes a different, real id) forgets the stored
       // verdicts so both devices re-settle from the merged, shared colony at
-      // the next merge. Otherwise two sisters who each played solo first would
-      // keep two different medicine cats forever, because settleClanRoles
-      // never overwrites a verdict. This mirrors spec §6.6's clan name, which
+      // the next merge. settleRoles' strictly-earlier rule is what makes the
+      // two devices converge (the first to merge has not seen the partner's
+      // solo history yet); the reset just starts both from the shared colony
+      // instead of a solo verdict. This mirrors spec §6.6's clan name, which
       // also changes once, visibly, at pairing. It is a separate event from
       // settling: re-linking to the SAME id resets nothing, and an unlink
       // (id -> null) is not a new pairing, so it keeps what was settled.
@@ -1412,10 +1424,11 @@ export function createProgression(storage) {
       return r.settled.map((s) => s.name);
     },
 
-    // settleClanRoles(colony) — compute any UNSET verdict from `colony` and
-    // write it once. A verdict that is already set is never recomputed, so
-    // adding a cat or a feed later cannot displace the incumbent. Nothing is
-    // written while no cat qualifies. Saves only when something was written.
+    // settleClanRoles(colony) — settle the verdicts from `colony` by the same
+    // rule as settleRoles: a set verdict moves only to a strictly earlier
+    // pick, so adding a cat or a feed later cannot displace the incumbent.
+    // Nothing is written while no cat qualifies. Saves only when something
+    // was written.
     settleClanRoles(colony) {
       if (settleRoles(colony)) save();
     },

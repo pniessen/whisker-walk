@@ -2378,12 +2378,23 @@ describe('clan role verdicts', () => {
     expect(sanitizeClanRoles({ medicine: A }).medicine).toBe(A);
   });
 
-  it('never moves a verdict once it is set', () => {
+  it("moves a verdict only to a strictly earlier pick (the partner's history arriving)", () => {
     p.settleClanRoles(colonyWithADeputy());
-    const first = p.state.clanRoles.deputy;
+    expect(p.state.clanRoles.deputy).toBe(A);
     p.settleClanRoles(colonyWithADifferentEarlierDeputy());
-    expect(first).toBe(A);
-    expect(p.state.clanRoles.deputy).toBe(first);
+    expect(p.state.clanRoles.deputy).toBe(B);
+    // A colony where A is again the only completed cat cannot move it back.
+    p.settleClanRoles(colonyWithADeputy());
+    expect(p.state.clanRoles.deputy).toBe(B);
+  });
+
+  it('a later-tamed eligible cat never displaces the stored medicine cat', () => {
+    const [first, later] = CAT_NAMES.filter((n) => pickMedicineCat([{ name: n }]) === n);
+    const one = { ...emptyColony(), cats: [cat(first, { tamedBy: ME, tamedWalk: 'walk-100' })] };
+    p.settleClanRoles(one);
+    expect(p.state.clanRoles.medicine).toBe(first);
+    p.settleClanRoles({ ...one, cats: [...one.cats, cat(later, { tamedBy: ME, tamedWalk: 'walk-900' })] });
+    expect(p.state.clanRoles.medicine).toBe(first);
   });
 
   it('writes nothing while no cat yet qualifies', () => {
@@ -2501,6 +2512,67 @@ describe('clan role verdicts', () => {
     p.settleClanRoles(colonyWithADeputy());
     p.setColonyLink({ id: null, partner: null });
     expect(p.state.clanRoles.deputy).toBe(A);
+  });
+});
+
+describe('clan role verdicts converge after two solo histories pair (F3)', () => {
+  const AID = 'aaaa-player-0001', BID = 'bbbb-player-0002';
+  const COL = 'col-shared-1';
+  const member = (id) => ({ playerId: id, petName: 'Pet', wardrobe: [] });
+  const ELIGIBLE = CAT_NAMES.filter((n) => pickMedicineCat([{ name: n }]) === n);
+  const [XA, XB] = ELIGIBLE; // A's and B's solo medicine cats
+  const tamedCat = (name, by, walk) => ({ name, finder: by, area: 'park', x: 1, z: 2, wear: null, tamedBy: by, tamedWalk: walk });
+  // A tamed its cat at walk-500, B tamed its cat earlier, at walk-100.
+  const aCats = [tamedCat(XA, AID, 'walk-500')];
+  const bCats = [tamedCat(XB, BID, 'walk-100')];
+  // Deputy: cat P completes (second feeder) at walk-3000; cat Q at walk-2000.
+  const [P, Q] = CAT_NAMES.filter((n) => n !== XA && n !== XB);
+  const f = (c, by, walk) => ({ cat: c, by, walk, head: 0 });
+  const pFeeds = [f(P, AID, 'walk-1000'), f(P, BID, 'walk-3000')];
+  const qFeeds = [f(Q, BID, 'walk-1500'), f(Q, AID, 'walk-2000')];
+  // Every fed cat is in the snapshot too (an untamed one), as the server sends it.
+  const fedCat = (name) => ({ name, finder: AID, area: 'park', x: 1, z: 2, wear: null, tamedBy: null, tamedWalk: null });
+  const snap = (cats, feeds) => ({ id: COL, partner: null, trades: [], feeds,
+    cats: [...cats, ...[...new Set(feeds.map((x) => x.cat))].map(fedCat)] });
+
+  const soloDevice = (cats) => {
+    const p = createProgression(fakeStorage());
+    p.state.colony = { ...p.state.colony, cats: cats.map((c) => ({ ...c })) };
+    p.settleColonyTaming(cats[0].finder); // solo settle
+    return p;
+  };
+
+  it.each([['A first', true], ['B first', false]])('%s: both end with identical verdicts', (_, aFirst) => {
+    const a = soloDevice(aCats), b = soloDevice(bCats);
+    expect(a.state.clanRoles.medicine).toBe(XA);
+    expect(b.state.clanRoles.medicine).toBe(XB);
+    const first = aFirst ? a : b, second = aFirst ? b : a;
+    const firstCats = aFirst ? aCats : bCats, firstFeeds = aFirst ? pFeeds : qFeeds;
+    // The first device pairs; the server holds only its own data so far.
+    first.setColonyLink({ id: COL, partner: member(aFirst ? BID : AID) });
+    first.mergeColonySnapshot(snap(firstCats, firstFeeds));
+    // The second device pairs and sees everything.
+    second.setColonyLink({ id: COL, partner: member(aFirst ? AID : BID) });
+    const all = snap([...aCats, ...bCats], [...pFeeds, ...qFeeds]);
+    second.mergeColonySnapshot(all);
+    // The first device's next pull sees everything too.
+    first.mergeColonySnapshot(all);
+    expect(a.state.clanRoles).toEqual(b.state.clanRoles);
+    expect(a.state.clanRoles).toEqual({ medicine: XB, deputy: Q });
+  });
+
+  it('a verdict never flips back and forth across repeated, partial merges', () => {
+    const a = soloDevice(aCats);
+    a.setColonyLink({ id: COL, partner: member(BID) });
+    const seen = [];
+    const record = () => { const r = JSON.stringify(a.state.clanRoles); if (seen.at(-1) !== r) seen.push(r); };
+    for (const s of [snap(aCats, pFeeds), snap([...aCats, ...bCats], [...pFeeds, ...qFeeds]),
+      snap(aCats, pFeeds), snap(bCats, qFeeds), snap(aCats, pFeeds)]) {
+      a.mergeColonySnapshot(s);
+      record();
+    }
+    expect(new Set(seen).size).toBe(seen.length); // no state is ever returned to
+    expect(a.state.clanRoles).toEqual({ medicine: XB, deputy: Q });
   });
 });
 

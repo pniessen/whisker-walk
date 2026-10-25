@@ -66,16 +66,20 @@ const MEDICINE_ELIGIBLE = new Set([RANK_KEYS.warrior, RANK_KEYS.elder]);
 // falls back to name order and the function stays total. Tamed cats are never
 // trimmed, so the list can exceed 24; nothing here depends on its length.
 export function pickMedicineCat(tamed) {
-  if (!Array.isArray(tamed)) return null;
+  return medicineOrder(tamed)[0] ?? null;
+}
+
+// Every medicine-eligible cat in `tamed`, in the order pickMedicineCat ranks
+// them (its first entry is the pick). progression uses the order to tell
+// whether a new pick is strictly earlier than a stored verdict.
+export function medicineOrder(tamed) {
+  if (!Array.isArray(tamed)) return [];
   const cats = [];
   for (const c of tamed) {
     if (c && isStrayName(c.name)) cats.push({ name: c.name, ms: stampMs(c.tamedWalk) ?? 0 });
   }
   cats.sort((a, b) => a.ms - b.ms || byNameStr(a.name, b.name));
-  for (const c of cats) {
-    if (MEDICINE_ELIGIBLE.has(roleFor(c.name))) return c.name;
-  }
-  return null;
+  return cats.filter((c) => MEDICINE_ELIGIBLE.has(roleFor(c.name))).map((c) => c.name);
 }
 
 // The deputy is the cat that BECAME fed-by-two-different-players earliest:
@@ -87,7 +91,13 @@ export function pickMedicineCat(tamed) {
 // feed by a feeder different from its earliest feeder. Cats are ordered by that
 // stamp, ties by name.
 export function pickDeputy(feeds) {
-  if (!Array.isArray(feeds)) return null;
+  return deputyOrder(feeds)[0] ?? null;
+}
+
+// Every cat fed by two different players, in the order pickDeputy ranks them
+// (completion stamp, ties by name; its first entry is the pick).
+export function deputyOrder(feeds) {
+  if (!Array.isArray(feeds)) return [];
   const valid = [];
   for (const f of feeds) {
     if (!f || !isStrayName(f.cat) || typeof f.by !== 'string' || f.by === '') continue;
@@ -103,11 +113,7 @@ export function pickDeputy(feeds) {
     if (!firstBy.has(f.cat)) firstBy.set(f.cat, f.by);
     else if (firstBy.get(f.cat) !== f.by) done.set(f.cat, f.ms);
   }
-  let best = null;
-  for (const [cat, ms] of done) {
-    if (best === null || ms < best.ms || (ms === best.ms && byNameStr(cat, best.cat) < 0)) best = { cat, ms };
-  }
-  return best === null ? null : best.cat;
+  return [...done].sort((a, b) => a[1] - b[1] || byNameStr(a[0], b[0])).map(([cat]) => cat);
 }
 
 // ---- A queen's kits ---------------------------------------------------------
