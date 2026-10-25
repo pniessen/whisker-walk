@@ -181,7 +181,7 @@ const smooth = (u) => u * u * (3 - 2 * u);
 const facing = (dx, dz) => Math.atan2(dx, dz) + Math.PI;
 const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; } };
 
-// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos), dispose(), state }
+// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state }
 //
 // opts:
 //   reducedMotion  no dash, a short move.
@@ -192,8 +192,10 @@ const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; } };
 //   onSettled()    fires when the scamper ends.
 //
 // update mutates catPos (the LOCAL player's cat position) only during a
-// scamper. The caller sets the cat's facing and gait (avatar.js reads
-// session.chasing for the gait). A partner's remote cat is never passed here,
+// scamper, and, if an `avatar` (the cat's group) is passed, sets its facing
+// here and nowhere else: along the travel direction while it runs, then toward
+// the disc centre on arrival (the same rotation.y convention player.update
+// uses). The gait is avatar.js's (it reads session.chasing). A partner's remote cat is never passed here,
 // so it is never moved by this device. The patrol mesh's position is a pure
 // function of the shared clock plus a local dash, so nothing goes over the
 // network. The per-frame path allocates nothing: positions are written into
@@ -232,7 +234,7 @@ export function createRivalPatrol(scene, areaId, {
   let dashX = 0;
   let dashZ = 0;
 
-  function update(dt, catPos) {
+  function update(dt, catPos, avatar) {
     if (disposed || !(dt >= 0) || !catPos) return;
     const t = now();
     if (!patrolInto(areaId, t, pp)) return;
@@ -282,6 +284,7 @@ export function createRivalPatrol(scene, areaId, {
     // pounce's render lift is never carried along. A small hop on top, none
     // in reduced motion, and it ends on the ground.
     catPos.y = reducedMotion ? 0 : Math.sin(u * Math.PI) * 0.18;
+    if (avatar) avatar.rotation.y = facing(toX - fromX, toZ - fromZ);
     // The patrol cat turns to the trespasser and (unless reduced motion)
     // dashes after it, stopping short; it never reaches it.
     const dx = catPos.x - mesh.position.x;
@@ -298,6 +301,7 @@ export function createRivalPatrol(scene, areaId, {
       catPos.x = toX;
       catPos.z = toZ;
       catPos.y = 0;
+      if (avatar) avatar.rotation.y = facing(cx - toX, cz - toZ);
       dashX = mesh.position.x;
       dashZ = mesh.position.z;
       state = 'return';

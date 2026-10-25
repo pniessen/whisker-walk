@@ -237,6 +237,36 @@ describe('createRivalPatrol', () => {
     expect(cat.y).toBe(0);
   });
 
+  test('the cat faces its travel while it runs, then the disc centre', () => {
+    let clock = 1000;
+    const { api, events } = mk({ now: () => clock });
+    const cat = nearPatrol(clock);
+    const start = { x: cat.x, z: cat.z };
+    const avatar = { rotation: { y: 0 } };
+    // player.update's convention: rotation.y = atan2(vx, vz) + PI, so the
+    // facing direction is (-sin y, -cos y)
+    const dir = () => ({ x: -Math.sin(avatar.rotation.y), z: -Math.cos(avatar.rotation.y) });
+    clock += 1 / 60;
+    api.update(1 / 60, cat, avatar); // starts the chase
+    clock += 1 / 60;
+    api.update(1 / 60, cat, avatar);
+    const d = dir();
+    const land = { x: 0, z: 0 };
+    while (events.filter((e) => e[0] === 'settled').length === 0) {
+      expect(Math.hypot(dir().x - d.x, dir().z - d.z)).toBeLessThan(1e-6); // steady along the run
+      clock += 1 / 60;
+      api.update(1 / 60, cat, avatar);
+    }
+    land.x = cat.x; land.z = cat.z;
+    const run = { x: land.x - start.x, z: land.z - start.z };
+    const rl = Math.hypot(run.x, run.z);
+    expect(d.x * run.x / rl + d.z * run.z / rl).toBeGreaterThan(0.999);
+    const toC = { x: cx - land.x, z: cz - land.z };
+    const cl = Math.hypot(toC.x, toC.z);
+    expect(dir().x).toBeCloseTo(toC.x / cl, 6);
+    expect(dir().z).toBeCloseTo(toC.z / cl, 6);
+  });
+
   test('a scamper starting mid-pounce ends on the ground, not at the lift', () => {
     let clock = 1000;
     const { api } = mk({ now: () => clock });

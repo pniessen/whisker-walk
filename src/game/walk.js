@@ -1330,9 +1330,9 @@ export function createWalkLifecycle({
       session.rival = {
         // `t` (the render clock) is for the marks' pulse only; the patrol
         // reads the shared wall clock itself.
-        update(dt, t, catPos) {
+        update(dt, t, catPos, avatar) {
           marks.update(t);
-          patrol.update(dt, catPos);
+          patrol.update(dt, catPos, avatar);
         },
         dispose() { marks.dispose(); patrol.dispose(); },
       };

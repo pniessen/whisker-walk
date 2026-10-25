@@ -354,6 +354,16 @@ describe('doPounceOrClimb — the hop arc is read per press (v18 CF-9a)', () => 
     expect(h.arcs).toEqual([BASE_POUNCE_ARC]);
   });
 
+  it('does nothing while a rival chase is scampering the cat', () => {
+    const h = harness({ skills: [], feats: {} });
+    h.session.chasing = true;
+    h.press();
+    expect(h.arcs).toEqual([]);
+    h.session.chasing = false;
+    h.press();
+    expect(h.arcs).toHaveLength(1);
+  });
+
   it('gives a Spring Paws press the taller arc', () => {
     const h = harness({ skills: ['spring-paws'] });
     h.press();
