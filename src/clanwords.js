@@ -43,6 +43,23 @@ export const RANK_SUFFIX = Object.freeze({ kit: 'kit', apprentice: 'paw', leader
 // What a clan's title is called: prefix + 'Clan' (MossClan).
 export const CLAN_SUFFIX = 'Clan';
 
+// Internal identifiers for every rank and role. These are NOT display text:
+// they are the keys other modules compare and return (clanRankFor returns
+// RANK_KEYS.warrior, roleFor returns RANK_KEYS.elder). They live here so no
+// other src/ module spells a borrowed word as a string literal, which the
+// structural scan of src/ could not tell apart from display text. A vocabulary
+// swap edits RANK_WORDS' values below; RANK_KEYS stays put.
+export const RANK_KEYS = Object.freeze({
+  kit: 'kit',
+  apprentice: 'apprentice',
+  warrior: 'warrior',
+  elder: 'elder',
+  queen: 'queen',
+  medicine: 'medicine',
+  deputy: 'deputy',
+  leader: 'leader',
+});
+
 // The words a player reads for each rung.
 export const RANK_WORDS = Object.freeze({
   kit: 'kit',

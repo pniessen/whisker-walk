@@ -18,7 +18,7 @@
 // the known-name gate (straynames.js, which imports nothing). No DOM, no THREE.
 // It does NOT import colony.js, so TAME_FEEDS is mirrored below and pinned by
 // a test rather than imported.
-import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from './clanwords.js';
+import { PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from './clanwords.js';
 import { validPetName } from './net.js';
 import { seedFromCode } from './rng.js';
 import { isStrayName } from './straynames.js';
@@ -60,11 +60,11 @@ export function warriorSuffixFor(storedName) {
 // kit -> apprentice -> warrior along the taming bar. A malformed progress
 // object reads as a kit.
 export function clanRankFor(progress) {
-  if (progress && progress.tamed === true) return 'warrior';
+  if (progress && progress.tamed === true) return RANK_KEYS.warrior;
   const have = progress && Number.isFinite(progress.have) ? progress.have : 0;
-  if (have >= WARRIOR_AT) return 'warrior';
-  if (have >= APPRENTICE_AT) return 'apprentice';
-  return 'kit';
+  if (have >= WARRIOR_AT) return RANK_KEYS.warrior;
+  if (have >= APPRENTICE_AT) return RANK_KEYS.apprentice;
+  return RANK_KEYS.kit;
 }
 
 // What to show instead of the stored name. The prefix is the cat's for life;
@@ -75,7 +75,7 @@ export function clanNameOf(storedName, progress) {
   if (typeof storedName !== 'string' || storedName === '') return 'Cat';
   if (!isStrayName(storedName)) return storedName;
   const rank = clanRankFor(progress);
-  const suffix = rank === 'warrior' ? warriorSuffixFor(storedName) : RANK_SUFFIX[rank];
+  const suffix = rank === RANK_KEYS.warrior ? warriorSuffixFor(storedName) : RANK_SUFFIX[rank];
   return prefixFor(storedName) + suffix;
 }
 
