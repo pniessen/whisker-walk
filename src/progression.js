@@ -21,6 +21,10 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
+// v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
+// import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
+// write still happens here: marks.js computes, this module saves.
+import { emptyMarks, sanitizeMarks, addMark as addMarkTo, contestMark as contestMarkIn, MARK_AREAS } from './marks.js';
 
 const SAVE_KEY = 'whisker-walk-save';
 // v4: per-slot cosmetic accessories. STILL 4 in v18 — `skills` and `feats`
@@ -414,6 +418,9 @@ function defaultState() {
     // explains why it is not the inviter's); after that the name never
     // changes again. Additive, so SAVE_VERSION stays 4.
     clan: { name: null, adopted: false },
+    // v21 Stream 3b: this player's PRIVATE marks, per area, newest eight each
+    // (marks.js). Never on a wire. Additive, so SAVE_VERSION stays 4.
+    marks: emptyMarks(),
   };
 }
 
@@ -760,6 +767,7 @@ function sanitizeState(parsed) {
     colony: sanitizeColony(parsed.colony, { knownItems: KNOWN_ACCESSORY_IDS }),
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
     clan: sanitizeClan(parsed.clan),
+    marks: sanitizeMarks(parsed.marks),
   };
 }
 
@@ -1177,6 +1185,40 @@ export function createProgression(storage) {
       save();
       return true;
     },
+    // ---------------------------------------------------------------------
+    // v21 Stream 3b — private marks. Three methods over state.marks, shaped
+    // like giftsIn/leaveGift/claimGift: this module owns `state` and is the
+    // only thing that calls save(); marks.js is the pure rules half. Each
+    // validates on the way IN (marks.js refuses a bad area or mark) and saves
+    // only when something changed, returning whether it did.
+    //
+    // marksIn(area) → the area's marks, oldest to newest, as fresh objects a
+    // caller may sort or edit without touching the save.
+    marksIn(area) {
+      if (typeof area !== 'string' || !MARK_AREAS.includes(area)) return [];
+      const list = state.marks?.[area];
+      return Array.isArray(list) ? list.map((m) => ({ ...m })) : [];
+    },
+
+    // addMark(area, mark) → bool. See marks.addMark: a re-mark refreshes, the
+    // oldest beyond the cap falls off, nothing else is ever removed.
+    addMark(area, mark) {
+      const r = addMarkTo(state.marks, area, mark);
+      if (!r.changed) return false;
+      state.marks = r.marks;
+      save();
+      return true;
+    },
+
+    // contestMark(area, key) → bool. Flags a mark contested; never deletes one.
+    contestMark(area, key) {
+      const r = contestMarkIn(state.marks, area, key);
+      if (!r.changed) return false;
+      state.marks = r.marks;
+      save();
+      return true;
+    },
+
     // ---------------------------------------------------------------------
     // v20 Ruffled Fur — the persisted grudge. Three tiny methods over
     // state.grudges, shaped exactly like the giftsIn/leaveGift/claimGift

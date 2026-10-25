@@ -418,6 +418,7 @@ describe('createProgression', () => {
         },
         clanRoles: { medicine: null, deputy: null },
         clan: { name: null, adopted: false },
+        marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1951,8 +1952,9 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
+    expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
     expect(rest).toEqual(v20);
   });
 
@@ -2640,5 +2642,99 @@ describe('the clan name', () => {
     expect(b.state.clan.name).toBe(clanTitleFor(ME));
     const c = createProgression(fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, clanJoining: true }) }));
     expect('clanJoining' in c.state).toBe(false);
+  });
+});
+
+describe('private marks (v21 Stream 3b)', () => {
+  const scratch = (at, id = 'park-post-1') => ({ kind: 'scratch', id, x: 1, z: 2, at, contested: false, item: null });
+  const EMPTY = { neighborhood: [], park: [], seaside: [], docks: [], den: [] };
+  const SAVE = 'whisker-walk-save';
+
+  test('a v20 save with no marks loads with empty marks', () => {
+    const p = createProgression(fakeStorage({ [SAVE]: JSON.stringify({ version: 4, points: 10 }) }));
+    expect(p.state.marks).toEqual(EMPTY);
+    expect(p.state.points).toBe(10);
+    expect(p.state.version).toBe(4);
+    expect(createProgression(fakeStorage()).state.marks).toEqual(EMPTY);
+  });
+
+  test('garbage marks load as empty marks and never disturb the rest of the save', () => {
+    for (const marks of [null, 7, 'x', [], { park: 'x' }, { park: [{ kind: 'scratch' }] }]) {
+      const p = createProgression(fakeStorage({ [SAVE]: JSON.stringify({ version: 4, points: 33, marks }) }));
+      expect(p.state.marks).toEqual(EMPTY);
+      expect(p.state.points).toBe(33);
+    }
+  });
+
+  test('marks round-trip through save and load', () => {
+    const st = fakeStorage();
+    const a = createProgression(st);
+    expect(a.addMark('park', scratch(100))).toBe(true);
+    expect(a.addMark('park', { kind: 'dig', id: null, x: 4, z: 5, at: 200, contested: false, item: null })).toBe(true);
+    expect(a.contestMark('park', 'scratch:park-post-1')).toBe(true);
+    const b = createProgression(st);
+    expect(b.state.marks.park).toHaveLength(2);
+    expect(b.marksIn('park')[0]).toMatchObject({ kind: 'scratch', contested: true, at: 100 });
+    expect(b.marksIn('seaside')).toEqual([]);
+  });
+
+  test('a save with marks and unknown keys still loads, every other field intact', () => {
+    const st = fakeStorage();
+    const a = createProgression(st);
+    a.addPoints(40);
+    a.addMark('docks', scratch(5, 'docks-bollard-1'));
+    const raw = JSON.parse(st.getItem(SAVE));
+    raw.somethingFromTheFuture = { a: 1 };
+    const b = createProgression(fakeStorage({ [SAVE]: JSON.stringify(raw) }));
+    expect(b.state.points).toBe(40);
+    expect(b.state.marks.docks).toHaveLength(1);
+    expect('somethingFromTheFuture' in b.state).toBe(false);
+  });
+
+  test('addMark and contestMark change nothing but marks', () => {
+    const p = createProgression(fakeStorage());
+    p.addPoints(77);
+    const rest = () => { const { marks, ...r } = JSON.parse(JSON.stringify(p.state)); return r; };
+    const before = rest();
+    p.addMark('park', scratch(1));
+    p.contestMark('park', 'scratch:park-post-1');
+    expect(p.state.marks.park).toHaveLength(1);
+    expect(rest()).toEqual(before);
+    expect(p.state.points).toBe(77);
+    expect(p.state.colony).toEqual(before.colony);
+    expect(p.state.friends).toEqual(before.friends);
+    expect(p.state.golden).toEqual(before.golden);
+  });
+
+  test('addMark and contestMark return false, and write nothing, when nothing changed', () => {
+    const st = fakeStorage();
+    const p = createProgression(st);
+    const raw0 = JSON.stringify(st.dump());
+    expect(p.addMark('moon', scratch(1))).toBe(false);
+    expect(p.addMark('park', { kind: 'nap' })).toBe(false);
+    expect(p.contestMark('park', 'scratch:park-post-1')).toBe(false);
+    expect(p.contestMark('moon', 'x')).toBe(false);
+    expect(JSON.stringify(st.dump())).toBe(raw0);
+    p.addMark('park', { kind: 'border', id: 'park-border-3', x: 1, z: 1, at: 1, contested: false, item: null });
+    expect(p.contestMark('park', 'border:park-border-3')).toBe(false);
+    expect(p.state.marks.park[0].contested).toBe(false);
+  });
+
+  test('marksIn returns a copy: editing it never edits the save', () => {
+    const p = createProgression(fakeStorage());
+    p.addMark('park', scratch(1));
+    p.marksIn('park')[0].contested = true;
+    p.marksIn('park').pop();
+    expect(p.state.marks.park).toHaveLength(1);
+    expect(p.state.marks.park[0].contested).toBe(false);
+    expect(p.marksIn('__proto__')).toEqual([]);
+    expect(p.marksIn(7)).toEqual([]);
+  });
+
+  test('reset gives back empty marks', () => {
+    const p = createProgression(fakeStorage());
+    p.addMark('park', scratch(1));
+    p.reset();
+    expect(p.state.marks).toEqual(EMPTY);
   });
 });
