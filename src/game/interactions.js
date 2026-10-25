@@ -20,11 +20,10 @@ import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
 import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
-import { OUTSIDE_WORDS } from '../clanwords.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
-import { canFeed } from '../colony.js';
+import { canFeed, outsideTag } from '../colony.js';
 import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
 
@@ -654,7 +653,7 @@ export function createInteractions({
         s.prompt = { kind: 'stray-gift', data: stray };
         setPrompt(spendablePoints() >= TREAT_COST
           ? `E — offer ${stray.name} a treat (${TREAT_COST} 🐾)`
-          : `${stray.name} the ${OUTSIDE_WORDS.grudge} is cross — a treat costs ${TREAT_COST} 🐾`);
+          : `${stray.name}${outsideTag(progression.state?.colony, stray.name, 'grudge')} is cross — a treat costs ${TREAT_COST} 🐾`);
       } else if (stray) {
         s.prompt = { kind: 'stray', data: stray };
         setPrompt(`E — touch noses with ${stray.name}`);
@@ -931,7 +930,7 @@ export function createInteractions({
       s.strayCats.turnHostile(stray, s.cat.position);
       audio.hiss();
       s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
-      hud.toast(`${stray.name} hisses and backs away… a ${OUTSIDE_WORDS.grudge} now! 😾`);
+      hud.toast(`${stray.name} hisses and backs away…${outsideTag(progression.state?.colony, stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
       // No friendship award and NO recordGreet: it did not go well. That is
       // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's
       // immunity — cannot be advanced by a greet that ruptured.
@@ -955,9 +954,9 @@ export function createInteractions({
     const level = friendRungCrossed(before, after, {
       charmer: hasSkill(progression.state, 'charmer'),
     });
-    if (level === 'met') hud.toast(`You met ${stray.name} the ${OUTSIDE_WORDS.met}! ♡`);
-    else if (level === 'friend') hud.toast(`${stray.name} the ${OUTSIDE_WORDS.met} is now your friend! ♥`);
-    else if (level === 'best') hud.toast(`${stray.name} the ${OUTSIDE_WORDS.met} is your BEST friend! 💕`);
+    if (level === 'met') hud.toast(`You met ${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')}! ♡`);
+    else if (level === 'friend') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is now your friend! ♥`);
+    else if (level === 'best') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is your BEST friend! 💕`);
     catVoice();
   }
 

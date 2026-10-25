@@ -1,6 +1,7 @@
 import { test, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
+import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES } from '../src/straynames.js';
 import { RIVAL_PREFIXES, PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
@@ -145,4 +146,22 @@ test('the scanner flags a literal and ignores a comment (mutation check)', () =>
 
 test('the rung ladder itself has not moved', () => {
   expect(FRIEND_RUNGS).toEqual({ met: 1, friend: 3, best: 6 });
+});
+
+// ---- Fix round 1: a colony cat is never called an outsider ----
+
+test('outsideTag words a non-member, and says nothing for a colony cat', () => {
+  const colony = { cats: [{ name: 'Tamed', tamed: true }, { name: 'Wild', tamed: false }] };
+  expect(outsideTag(colony, 'Stranger', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
+  expect(outsideTag(colony, 'Stranger', 'grudge', (w) => ` a ${w} now!`)).toBe(` a ${OUTSIDE_WORDS.grudge} now!`);
+  expect(outsideTag(colony, 'Wild', 'met')).toBe('');
+  expect(outsideTag(colony, 'Tamed', 'grudge')).toBe('');
+});
+
+test('outsideTag never throws on hostile input', () => {
+  expect(outsideTag(null, 'Stranger', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
+  expect(outsideTag({ cats: 'x' }, 'Stranger', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
+  expect(outsideTag({ cats: [null, 3] }, 'Stranger', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
+  for (const bad of [undefined, null, 5, {}, []]) expect(outsideTag({ cats: [] }, bad, 'met')).toBe('');
+  expect(outsideTag({ cats: [] }, 'Stranger', 'nope')).toBe('');
 });

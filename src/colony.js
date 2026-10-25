@@ -26,6 +26,7 @@
 import { isStrayName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
+import { OUTSIDE_WORDS } from './clanwords.js';
 // Pure data (no imports of its own), so colony.js stays free of THREE and DOM.
 import { DEN_SPOTS, DEN_HOMES } from './den.js';
 // DOM-free: net.js imports only chat.js. One definition of a valid pet name.
@@ -787,4 +788,17 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
   } catch {
     return nothing();
   }
+}
+
+// Display only. The phrase that calls a stray an outsider ('loner' / 'rogue'),
+// or '' when the cat is in the player's colony: a colony cat has a clan rank
+// on its Colony card and must never read as an outsider. `make` shapes the
+// phrase around the word; the default is ' the loner'. A non-string name
+// claims nothing, so it gets ''. Never throws.
+export function outsideTag(colony, name, key, make = (w) => ` the ${w}`) {
+  if (typeof name !== 'string') return '';
+  const cats = Array.isArray(colony?.cats) ? colony.cats : [];
+  if (cats.some((c) => c && c.name === name)) return '';
+  const word = OUTSIDE_WORDS[key];
+  return typeof word === 'string' ? make(word) : '';
 }
