@@ -187,12 +187,6 @@ body.left-handed .tui-pause {
 
 #homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }
 .homebase-scroll { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
-.hb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
-.hb-header h1 { font-size: 2rem; }
-.hb-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.hb-points { font-size: 1.2rem; color: #f2c14e; }
-.hb-substats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
-  font-size: 0.85rem; color: #a8c0e0; }
 #homebase section { margin-bottom: 22px; }
 #homebase h2 { font-size: 1.1rem; margin-bottom: 10px; color: #a8c0e0; }
 .accessory-slot { margin-bottom: 14px; }
@@ -361,45 +355,6 @@ body.left-handed .tui-pause {
 body.left-handed .chat-wheel { left: 16px; right: auto; }
 body.left-handed .chat-tray { left: 0; right: auto; }
 
-.hb-topbar { position: sticky; top: 0; z-index: 3; background: #1c2431; }
-.hb-hero { padding: 12px 0 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-.hb-hero-start { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-.hb-hero-start .primary { flex: 1; background: #f2c14e; color: #3a2a10; font-size: 1.15rem; padding: 12px 22px; }
-.hb-hero-start .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
-.hb-tabs { display: flex; gap: 4px; background: #1c2431; padding: 8px 0; }
-.hb-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px;
-  background: #2b3648; color: #cdd6e4; font-size: 14px; cursor: pointer; }
-.hb-tab.active { background: #3a4a63; color: #fff; }
-/* v18's sixth tab tipped the row's intrinsic width past the 347px a 375px
-   phone leaves (measured 357px, so "Settings" bled into the scroll
-   container's right padding). Trimming the per-tab padding and the gap buys
-   back 18px — enough for six without shrinking the label text or hiding a
-   tab behind a horizontal scroll. Desktop is untouched; the 900px-wide
-   layout has room to spare. This block has to live AFTER the .hb-tab rules
-   above, not up in the main max-width:480px section earlier in the file:
-   equal specificity means source order decides, and from up there it would
-   silently lose. */
-@media (max-width: 480px) {
-  .hb-tabs { gap: 3px; }
-  .hb-tab { padding: 10px 4px; }
-}
-/* v21's seventh tab (Colony) no longer fits 347px even with the trims above
-   (measured scrollWidth 383). A sideways-scrolling bar hid tabs off-screen
-   with no hint they were there: after tapping Settings (the last tab) the
-   Cats tab sat off the left edge, and a player could not find their way back
-   to the cats or the code box. So on phones the tabs wrap onto two rows,
-   each tab at its natural width and each row stretched to fill, so every tab
-   is always visible and no label is clipped. Desktop
-   keeps the flex:1 row. After the block above for the same source-order
-   reason. (homebase.js's applyActiveTab still scrolls the active tab into
-   view if the bar ever overflows; with wrapping it never does.) */
-@media (max-width: 480px) {
-  .hb-tabs { flex-wrap: wrap; gap: 4px; }
-  .hb-tab { flex: 1 0 auto; white-space: nowrap; padding: 10px 8px; }
-}
-.hb-panel { display: none; }
-.hb-panel.active { display: block; }
-
 /* Boot splash (A2 mascot) — shown on load, fades into the game */
 #splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
   justify-content: center; background: #1c2431; transition: opacity 0.6s ease; }
@@ -409,10 +364,6 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .splash-word { margin-top: 10px; color: #f1e0c2; font-family: Avenir, 'Nunito', sans-serif;
   font-weight: 700; font-size: 1.7rem; letter-spacing: 0.02em; }
 @media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
-
-/* Home base hero wordmark (C1) — replaces the plain title text */
-.hb-wordmark { margin: 0; line-height: 0; }
-.hb-wordmark svg { display: block; width: 240px; max-width: min(64vw, 300px); height: auto; }
 
 /* --- v18 Task 2.7: the in-walk skill-unlock card (src/game/celebrate.js).
    Sits over the live walk, NOT over the pause/summary overlay, so it is
@@ -672,7 +623,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 /* header: the owner's header, then the stats chips inline */
 .dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
-.dr-chip { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
 .dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .dr-stats:empty { display: none; }
@@ -805,7 +756,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .dr .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }
   .dr-wearing, .dr-where { order: 3; }
   .dr-stats { order: 4; flex: 0 0 100%; gap: 2px 14px; }
-  .dr .dr-stats .dr-chip { background: none; padding: 2px 0; font-size: 13px; opacity: .8; }
+  .dr .dr-stats .dr-chip, .dr .dr-stats > span { background: none; padding: 2px 0; font-size: 13px; opacity: .8; }
   .dr-more { order: 5; }
   .dr-extras { order: 6; }
   .dr-dock { order: 9; }
@@ -824,3 +775,8 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .dr .dr-dock .where { font-size: 12px; opacity: .75; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
   .dr-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
 }
+
+/* A home sheet (Skills, Colony, …): one panel and a way back to the cat */
+.hb-sheet .hb-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 14px;
+  padding: 8px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
+  color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }

@@ -1,27 +1,34 @@
 import { describe, it, expect } from 'vitest';
-import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from '../src/ui/hometabs.js';
+import * as hometabs from '../src/ui/hometabs.js';
+import { HOME_SHEETS, resolveSheet } from '../src/ui/dressingroom.js';
+
+const { renderSkillsHtml, renderStarNamePicker } = hometabs;
 import { candidateStarNames } from '../src/clannames.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
 
-describe('home base tabs', () => {
-  it('lists the seven tabs in order, cats first', () => {
-    expect(HOME_TABS).toEqual(['cats', 'accessories', 'skills', 'colony', 'social', 'album', 'settings']);
+// v21 Stream 5: the tab bar is gone. The home screen is the dressing room
+// (null) or one sheet from HOME_SHEETS; a stale tab id from an older build
+// ('cats', 'accessories', the pre-rename 'play') resolves to the room.
+describe('home base sheets', () => {
+  it('the tab set is gone from hometabs', () => {
+    expect(hometabs.HOME_TABS).toBeUndefined();
+    expect(hometabs.resolveTab).toBeUndefined();
   });
-  it('resolveTab keeps a known id', () => {
-    for (const t of HOME_TABS) expect(resolveTab(t)).toBe(t);
+  it('HOME_SHEETS holds every sheet the old tabs led to', () => {
+    for (const id of ['skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code']) {
+      expect(HOME_SHEETS).toContain(id);
+    }
+    expect(HOME_SHEETS).not.toContain('cats');
+    expect(HOME_SHEETS).not.toContain('accessories');
   });
-  it('resolveTab falls back to cats for unknown/empty/non-string', () => {
-    expect(resolveTab('nope')).toBe('cats');
-    expect(resolveTab('')).toBe('cats');
-    expect(resolveTab(undefined)).toBe('cats');
-    expect(resolveTab(null)).toBe('cats');
-    expect(resolveTab(42)).toBe('cats');
+  it('resolveSheet keeps a known sheet', () => {
+    for (const id of HOME_SHEETS) expect(resolveSheet(id)).toBe(id);
   });
-  it("resolveTab clamps the pre-rename 'play' id to cats", () => {
-    expect(resolveTab('play')).toBe('cats');
-  });
-  it('resolves the v18 skills tab, which did not exist in older saves', () => {
-    expect(resolveTab('skills')).toBe('skills');
+  it('resolveSheet sends a stale tab id back to the dressing room (null)', () => {
+    for (const id of ['cats', 'accessories', 'play', '']) expect(resolveSheet(id)).toBeNull();
+    expect(resolveSheet(undefined)).toBeNull();
+    expect(resolveSheet(null)).toBeNull();
+    expect(resolveSheet(42)).toBeNull();
   });
 });
 

@@ -171,6 +171,14 @@ describe('sheets and pictures', () => {
     expect(resolveSheet(undefined)).toBeNull();
     expect(resolveSheet('__proto__')).toBeNull();
   });
+  // Ruling 8: until Task 6 moves the den shop into the den, homebase shows it
+  // as one extra sheet. It is not one of HOME_SHEETS.
+  it('the interim den-shop sheet resolves and renders with its label', () => {
+    expect(resolveSheet('den-shop')).toBe('den-shop');
+    expect(HOME_SHEETS).not.toContain('den-shop');
+    const html = renderDressingRoomHtml({ model: buildDressingModel({}, CATALOG), sheets: [...HOME_SHEETS, 'den-shop'] });
+    expect(html).toContain('data-dr-sheet="den-shop">🛋️ Den shop</button>');
+  });
   it('labels match the signed-off mockup', () => {
     expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['🐾 Skills', '🐈 Colony', '👥 Social', '📖 Journal', '📸 Album', '☁️ Sync', '⚙️ Settings', '🎁 Secret code']);
   });

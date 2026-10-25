@@ -1,9 +1,7 @@
-// The home base tab set, a resolver that clamps any unknown/stale tab id
-// back to the default, and the Skills panel's pure HTML renderer. Pure — no
-// DOM — so it's unit-tested; homebase.js imports it for the tab bar, for
-// persisting the active tab across render() rebuilds, and for the body of
-// the Skills panel. A stale persisted 'play' id (the tab's pre-rename name)
-// clamps to 'cats' via the same unknown-id fallback.
+// The home base's pure HTML renderers for the Skills sheet and the star-name
+// picker. Pure — no DOM — so they're unit-tested. (The tab set that used to
+// live here went away with the tab bar in v21 Stream 5: the home screen is
+// now the dressing room plus sheets, see dressingroom.js's HOME_SHEETS.)
 //
 // The Skills renderer lives HERE rather than in homebase.js because
 // homebase.js reaches for document.getElementById at module scope and so
@@ -11,19 +9,6 @@
 // renderJournalHtml. Its only import is src/skills.js, which is itself
 // import-free, so this module stays DOM-free and cheap to test.
 import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
-
-// v18 adds 'skills' as the sixth tab. It sits third, next to the cat and
-// dress-up tabs, because those three are all "look at what this cat has
-// become" — Social/Album/Settings are a different mode of use. Order is
-// pinned in test/hometabs.test.js: it's the tab bar's left-to-right order,
-// not just a membership list.
-// v21 adds 'colony' fourth, right after Skills: it is another "look at what
-// your cats have become" tab (the shared strays you've tamed).
-export const HOME_TABS = ['cats', 'accessories', 'skills', 'colony', 'social', 'album', 'settings'];
-
-export function resolveTab(id) {
-  return HOME_TABS.includes(id) ? id : 'cats';
-}
 
 // ---------------------------------------------------------------------------
 // Skills panel
