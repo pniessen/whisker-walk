@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, test, expect, vi, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { createPlayerMarks, scratchFacing, CONTESTED_COLOR } from '../src/render/playermarks.js';
 import { propsFor } from '../src/propsets.js';
@@ -138,13 +139,15 @@ describe('createPlayerMarks in the den', () => {
     expect(pm.list.map((e) => e.mesh)).toEqual(before);
   });
 
-  it('setContested flags the entry and tolerates an unknown key', () => {
+  it('setContested ignores a den keepsake (never contested, P8) and tolerates an unknown key', () => {
     const scene = new THREE.Scene();
     const pm = createPlayerMarks(scene, 'den', denMarks(['sock']), { keepSlots: SLOTS });
+    const colors = materialsOf(pm.list[0].mesh).map((m) => m.color.getHex());
     pm.setContested('nope');
     expect(pm.list[0].contested).toBe(false);
     pm.setContested(pm.list[0].key);
-    expect(pm.list[0].contested).toBe(true);
+    expect(pm.list[0].contested).toBe(false);
+    expect(materialsOf(pm.list[0].mesh).map((m) => m.color.getHex())).toEqual(colors);
     expect(() => pm.update(1)).not.toThrow();
   });
 
@@ -309,6 +312,69 @@ describe('createPlayerMarks outdoors', () => {
     // nothing to go on: still a unit vector
     const f4 = scratchFacing({ x: 0, z: 0 });
     expect(Math.hypot(f4.x, f4.z)).toBeCloseTo(1, 5);
+    // R22: at a dog's yard (its square, half-side r, grown by 1.5 m), away
+    // from the yard's centre — even at a corner, r * sqrt(2) out — and that
+    // wins over the spawn
+    const yard = { x: 22, z: -24, r: 4, kennel: { x: 20.3, z: -26.3 } };
+    const corner = scratchFacing({ x: 26, z: -28 }, { isWalkable: () => true, spawn: { x: 0, z: 45 }, dogYard: yard });
+    expect(corner.x).toBeCloseTo(Math.SQRT1_2, 5);
+    expect(corner.z).toBeCloseTo(-Math.SQRT1_2, 5);
+    const side = scratchFacing({ x: 22, z: -18.6 }, { isWalkable: () => true, spawn: { x: 0, z: -45 }, dogYard: yard });
+    expect(side.z).toBeCloseTo(1, 5);
+    // further off than that, the yard has no say
+    const far = scratchFacing({ x: 22, z: -18.4 }, { isWalkable: () => true, spawn: { x: 22, z: -45 }, dogYard: yard });
+    expect(far.z).toBeCloseTo(-1, 5);
+    // a trunk's own collider still comes first
+    const trunk = scratchFacing({ x: 26, z: -27.6 }, { colliders: [{ x: 26, z: -28, r: 0.6 }], dogYard: yard });
+    expect(trunk.z).toBeCloseTo(1, 5);
+  });
+
+  it('a drop is a faint ghost, never a second solid thing (R21); a den keepsake stays solid', () => {
+    const scene = new THREE.Scene();
+    const marks = [
+      mark('drop', { id: 'park-stick-1', x: 5, z: 6, at: 1, item: 'sock' }),
+      ...Array.from({ length: 7 }, (_, i) => mark('dig', { x: i, z: -5, at: 10 + i })),
+    ];
+    const pm = createPlayerMarks(scene, 'park', marks);
+    const drop = pm.list.find((e) => e.kind === 'drop');
+    expect(pm.list.indexOf(drop)).toBe(7); // the oldest: the rank fade lands on top of the ghost
+    for (const m of materialsOf(drop.mesh)) {
+      expect(m.transparent).toBe(true);
+      expect(m.depthWrite).toBe(false);
+      expect(m.opacity).toBeCloseTo(0.4 * markOpacity(7), 5);
+    }
+    drop.mesh.traverse((o) => { if (o.isMesh) expect(o.castShadow).toBe(false); });
+    // at full rank strength it is still only a ghost
+    const fresh = createPlayerMarks(new THREE.Scene(), 'park', [marks[0]]);
+    for (const m of materialsOf(fresh.list[0].mesh)) expect(m.opacity).toBeCloseTo(0.4, 5);
+    // the den's keepsakes are untouched
+    const den = createPlayerMarks(new THREE.Scene(), 'den', denMarks(['sock']), { keepSlots: SLOTS });
+    for (const m of materialsOf(den.list[0].mesh)) {
+      expect(m.opacity).toBe(1);
+      expect(m.transparent).toBe(false);
+      expect(m.depthWrite).toBe(true);
+    }
+  });
+
+  it('setContested never touches a border paw (P8)', () => {
+    const paw = mark('border', { id: 'park-border-3', x: -30, z: 28, at: 1 });
+    const pm = createPlayerMarks(new THREE.Scene(), 'park', [paw]);
+    const colors = materialsOf(pm.list[0].mesh).map((m) => m.color.getHex());
+    pm.setContested(markKey(paw));
+    expect(pm.list[0].contested).toBe(false);
+    expect(materialsOf(pm.list[0].mesh).map((m) => m.color.getHex())).toEqual(colors);
+  });
+
+  it('a mark with a non-finite `at` ranks as the oldest, and never upsets the order', () => {
+    const marks = [
+      mark('dig', { x: 1, z: 1, at: NaN }),
+      mark('dig', { x: 2, z: 2, at: 50 }),
+      mark('dig', { x: 3, z: 3, at: undefined }),
+      mark('dig', { x: 4, z: 4, at: 20 }),
+      mark('dig', { x: 5, z: 5, at: Infinity }),
+    ];
+    const pm = createPlayerMarks(new THREE.Scene(), 'park', marks);
+    expect(pm.list.map((e) => e.mesh.position.x)).toEqual([2, 4, 1, 3, 5]);
   });
 
   it('a mark for a prop that no longer exists renders at its stored spot', () => {
@@ -399,6 +465,10 @@ describe('createPlayerMarks outdoors', () => {
         expect(p.mesh.position.x).toBe(want[i].x);
         expect(p.mesh.position.z).toBe(want[i].z);
         expect(lowestY(p.mesh)).toBeCloseTo(0, 5);
+        // the circle walk.js makes solid: on the post, as wide as it
+        expect(p.collider).toEqual({ x: want[i].x, z: want[i].z, r: expect.any(Number) });
+        const box = new THREE.Box3().setFromObject(p.mesh);
+        expect(p.collider.r).toBeCloseTo((box.max.x - box.min.x) / 2, 2);
       });
       expect(pm.list).toEqual([]);
     }
@@ -466,7 +536,7 @@ describe('createPlayerMarks outdoors', () => {
 // can stand on, within the mark prompt's reach. Same headless canvas stub as
 // test/propsets.test.js (the only DOM the builders touch).
 describe('scratch facings in the real areas', () => {
-  vi.stubGlobal('document', {
+  beforeAll(() => vi.stubGlobal('document', {
     createElement: () => ({
       width: 0,
       height: 0,
@@ -481,7 +551,8 @@ describe('scratch facings in the real areas', () => {
         set: () => true,
       }),
     }),
-  });
+  }));
+  afterAll(() => vi.unstubAllGlobals());
 
   it.each(['neighborhood', 'park', 'seaside', 'docks'])('%s', async (area) => {
     const { build } = await import(`../src/world/${area}.js`);
@@ -489,7 +560,7 @@ describe('scratch facings in the real areas', () => {
     const data = build(new THREE.Scene());
     const isWalkable = (x, z) => isWalkableAt(data, x, z);
     for (const m of propsFor(area).markables) {
-      const f = scratchFacing(m, { colliders: data.colliders, isWalkable, spawn: data.spawn });
+      const f = scratchFacing(m, { colliders: data.colliders, isWalkable, spawn: data.spawn, dogYard: propsFor(area).dogYard });
       // where the cat stands: just clear of a trunk it is scratching, or a
       // step out from a post, on the side the marks face
       const held = data.colliders.find((c) => Math.hypot(m.x - c.x, m.z - c.z) < c.r);
@@ -497,6 +568,29 @@ describe('scratch facings in the real areas', () => {
       const stand = { x: m.x + f.x * out, z: m.z + f.z * out };
       expect(isWalkable(stand.x, stand.z), `${m.id} faces ${f.x.toFixed(2)},${f.z.toFixed(2)}`).toBe(true);
       expect(Math.hypot(stand.x - m.x, stand.z - m.z), m.id).toBeLessThanOrEqual(1.2);
+      // R22: the dog-yard corner post shows its marks to the street, away
+      // from the yard's centre, not into the yard toward the spawn
+      if (m.id === 'neighborhood-post-1') {
+        const y = propsFor(area).dogYard;
+        const away = { x: m.x - y.x, z: m.z - y.z };
+        const d = Math.hypot(away.x, away.z);
+        expect(f.x).toBeCloseTo(away.x / d, 5);
+        expect(f.z).toBeCloseTo(away.z / d, 5);
+      }
     }
   });
+});
+
+// The built posts are solid: walk.js adds each one's collider to the walk's
+// own list after the scent is laid (treats stay where they were) and before
+// the session (and so the first frame) exists.
+test('walk.js makes the built posts solid, after the scent and before the first frame', () => {
+  const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+  const push = src.indexOf('for (const p of playerMarks.posts) areaData.colliders.push(');
+  expect(push).toBeGreaterThan(-1);
+  expect(push).toBeGreaterThan(src.indexOf('const scent = createScent('));
+  expect(push).toBeLessThan(src.indexOf('const session = {'));
+  // and outside the rival slice
+  const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
+  expect(slice).not.toContain('playerMarks');
 });

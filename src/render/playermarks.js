@@ -26,8 +26,9 @@ import { litMaterial } from './materials.js';
 //            the foot of the post, trunk or bollard, turned to face the side
 //            the cat comes at it from (scratchFacing below);
 //   dig      a flat, darker filled-in hole on the ground (scent.js's decal);
-//   drop     the thing itself, lying on the ground where it was put down —
-//            decoration only, nothing picks it up (ruling P5);
+//   drop     a faint ghost of the thing (at most 0.4 strong, ruling R21),
+//            lying on the ground where it was put down — a memory, not a
+//            second thing: nothing picks it up (ruling P5);
 //   border   a small paw print in the player's own colour (Task 12 writes it).
 // A scratch whose id names a current markable sits on that markable; any other
 // mark, and a scratch whose prop has been retired since, sits at its stored
@@ -39,7 +40,8 @@ import { litMaterial } from './materials.js';
 // A markable with `mesh: true` has nothing standing there in the world (the
 // contest-band posts, ruling R4), so this module puts up a short wooden post
 // for it at creation, whether or not it carries a mark yet: the player has to
-// be able to find it to scratch it. Those posts are in `posts`, not `list`.
+// be able to find it to scratch it. Those posts are in `posts`, not `list`,
+// each with the small circle `collider` walk.js adds to the area's colliders.
 //
 // THE CONTESTED LOOK. A contested mark keeps its opacity and turns the pale
 // sandy colour bordermarks.js uses for a contested rival mark. setContested
@@ -86,6 +88,11 @@ const SCRATCH = {
 };
 const SCRATCH_BASE = 0.08; // the patch's lower edge above the ground
 const SCRATCH_GAP = 0.008; // clear of the surface it is on
+// How far round a dog's yard a markable still counts as at the yard (R22).
+const YARD_MARGIN = 1.5;
+// A drop mark is a memory of where a thing was put down, not a second thing
+// to pick up (ruling R21): a faint ghost at most this strong.
+const DROP_GHOST = 0.4;
 // Probe distance for "which way is open ground" around a post.
 const PROBE = 0.6;
 const PROBES = 16;
@@ -104,14 +111,21 @@ const finite = (n) => typeof n === 'number' && Number.isFinite(n);
 //   1. a markable inside a collider (a tree trunk) faces outward from that
 //      collider's centre through its (x, z) — the side test/propsets.test.js
 //      approaches it from;
-//   2. otherwise the open ground around it: the mean of the walkable
+//   2. one at a dog's yard faces AWAY from the yard's centre (ruling R22), so
+//      a corner post of the yard fence shows its marks to the street, not to
+//      the dog. "At the yard" is inside the yard's square grown by
+//      YARD_MARGIN: propsets.js's dogYard r is the half-side of a square
+//      fence (the neighborhood's runs x 18..26, z -28..-20 around r 4), whose
+//      corner posts sit r * sqrt(2) = 5.66 m out — past a plain r + 1.5
+//      circle, so the circle would miss the one post this rule is for;
+//   3. otherwise the open ground around it: the mean of the walkable
 //      directions PROBE metres out (a quayside bollard faces the quay, not
 //      the water);
-//   3. ground open all round faces back toward the spawn, the way a walk
+//   4. ground open all round faces back toward the spawn, the way a walk
 //      comes in;
-//   4. and with nothing to go on, +z.
+//   5. and with nothing to go on, +z.
 // Pure: no randomness, so a reload turns every mark the same way.
-export function scratchFacing(m, { colliders = [], isWalkable, spawn } = {}) {
+export function scratchFacing(m, { colliders = [], isWalkable, spawn, dogYard } = {}) {
   const held = (Array.isArray(colliders) ? colliders : []).filter((c) => finite(c?.x) && finite(c?.z) && finite(c?.r)
     && Math.hypot(m.x - c.x, m.z - c.z) < c.r);
   if (held.length) {
@@ -120,6 +134,13 @@ export function scratchFacing(m, { colliders = [], isWalkable, spawn } = {}) {
     const dz = m.z - c.z;
     const d = Math.hypot(dx, dz);
     if (d > 1e-6) return { x: dx / d, z: dz / d };
+  }
+  if (dogYard && finite(dogYard.x) && finite(dogYard.z) && finite(dogYard.r)) {
+    const dx = m.x - dogYard.x;
+    const dz = m.z - dogYard.z;
+    const reach = dogYard.r + YARD_MARGIN;
+    const d = Math.hypot(dx, dz);
+    if (Math.abs(dx) <= reach && Math.abs(dz) <= reach && d > 1e-6) return { x: dx / d, z: dz / d };
   }
   if (typeof isWalkable === 'function') {
     let sx = 0;
@@ -276,6 +297,25 @@ function buildScratch(kind) {
   return g;
 }
 
+// A drop mark as a faint ghost (ruling R21): the real thing is back at its
+// home on this walk, so a solid copy would be a second sock nobody can pick
+// up. Every material rests at DROP_GHOST (setOpacity multiplies the rank fade
+// in), always transparent, writing no depth, and nothing casts a shadow. It
+// is never registered with walk.js's contact-decal rig either, so it gets no
+// contact shadow.
+function ghost(root) {
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    }
+  });
+  for (const m of materialsOf(root)) {
+    m.userData.baseOpacity = DROP_GHOST;
+    m.depthWrite = false;
+  }
+}
+
 // A short wooden post for a markable that has nothing standing there.
 function buildPost() {
   const post = new THREE.Mesh(new THREE.CylinderGeometry(POST_R * 0.92, POST_R, POST_H, 10), litMaterial(POST_COLOR));
@@ -290,7 +330,8 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
   const isDen = areaId === 'den';
   const markables = isDen ? [] : propsFor(areaId).markables;
   const markableById = new Map(markables.map((m) => [m.id, m]));
-  const facings = new Map(markables.map((m) => [m.id, scratchFacing(m, { colliders, isWalkable, spawn })]));
+  const dogYard = isDen ? null : propsFor(areaId).dogYard;
+  const facings = new Map(markables.map((m) => [m.id, scratchFacing(m, { colliders, isWalkable, spawn, dogYard })]));
 
   for (const m of markables) {
     if (m.mesh !== true) continue;
@@ -298,21 +339,25 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
     post.position.x = m.x;
     post.position.z = m.z;
     scene.add(post);
-    posts.push({ id: m.id, mesh: post });
+    // The circle walk.js adds to the area's colliders, so the cat stops at
+    // the post instead of walking through it.
+    posts.push({ id: m.id, mesh: post, collider: { x: m.x, z: m.z, r: POST_R } });
   }
 
   // Valid marks, one per key (the save's own dedupe, newest `at` wins), newest
   // first, capped. Stable sort, so equal `at`s keep their save order.
+  // A non-finite `at` counts as 0 (the oldest), so the sort never sees NaN.
   function newestFirst(all, keepKind) {
     if (!Array.isArray(all)) return [];
+    const atOf = (m) => (finite(m.at) ? m.at : 0);
     const byKey = new Map();
     for (const m of all) {
       if (!m || typeof m !== 'object' || !keepKind(m.kind)) continue;
       const key = markKey(m);
       const prior = byKey.get(key);
-      if (!prior || !(prior.at > m.at)) byKey.set(key, m);
+      if (!prior || !(atOf(prior) > atOf(m))) byKey.set(key, m);
     }
-    return [...byKey.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, MARKS_PER_AREA);
+    return [...byKey.values()].sort((a, b) => atOf(b) - atOf(a)).slice(0, MARKS_PER_AREA);
   }
 
   // The den: den marks that get a slot, newest first; rank = slot.
@@ -360,6 +405,7 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
         // den keepsakes and drops: the thing itself
         const mesh = buildCarryMesh(mark.item);
         ownMaterials(mesh);
+        if (mark.kind === 'drop') ghost(mesh);
         return mesh;
       }
     }
@@ -436,11 +482,12 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
     list,
     posts,
     sync,
-    // A contested mark changes appearance, never goes away. (A den keepsake or
-    // a border paw is never contested — marks.js refuses both.)
+    // A contested mark changes appearance, never goes away. A den keepsake or
+    // a border paw is never contested (P8; marks.js refuses both), so either
+    // is ignored here.
     setContested(key) {
       const e = list.find((x) => x.key === key);
-      if (!e) return;
+      if (!e || e.kind === 'border' || e.kind === 'den') return;
       e.contested = true;
       setLook(e.mesh, true);
     },

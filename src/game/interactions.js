@@ -536,16 +536,34 @@ export function createInteractions({
     }
   }
 
+  // Each area's markables, read once: propsFor hands back a fresh deep copy,
+  // too dear for every frame. Curated data that never changes while the game
+  // runs, so one copy per area serves every walk.
+  const markablesByArea = new Map();
+  function markablesIn(areaId) {
+    let list = markablesByArea.get(areaId);
+    if (!list) {
+      list = propsFor(areaId).markables;
+      markablesByArea.set(areaId, list);
+    }
+    return list;
+  }
+
   // The nearest markable within MARK_REACH that has no uncontested scratch of
-  // mine on it, or null.
+  // mine on it, or null. "Mine" is read off the marks renderer's own list,
+  // which sync() rebuilds from the save whenever a mark is added and which
+  // setContested updates when a rival scents one over — so no save copy is
+  // made per frame. (A scratch on a current markable is always drawn, so the
+  // list holds every one there is.)
   function markableToScratch(s, catP) {
-    const mine = progression.marksIn(s.areaId);
+    const drawn = s.playerMarks.list;
     let best = null;
     let bestD = MARK_REACH;
-    for (const m of propsFor(s.areaId).markables) {
+    for (const m of markablesIn(s.areaId)) {
       const d = Math.hypot(m.x - catP.x, m.z - catP.z);
       if (d >= bestD) continue;
-      if (mine.some((k) => k.kind === 'scratch' && k.id === m.id && !k.contested)) continue;
+      const key = markKey({ kind: 'scratch', id: m.id });
+      if (drawn.some((e) => e.key === key && !e.contested)) continue;
       best = m;
       bestD = d;
     }
@@ -873,24 +891,25 @@ export function createInteractions({
     for (const c of s.critters.list) {
       if (c.type === 'villager' && c.scratched && c.group.position.distanceTo(catP) > 4) c.scratched = false;
     }
-    // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. Right
-    // after the head scratches (a person you walked up to wins). Only one with
-    // no scratch of mine on it, or one a rival has scented over (contested):
-    // re-marking takes it back. From the ground only, never swimming. Guarded
-    // on the session's marks renderer, so a stand-in test session without one
-    // never offers it. The den has no markables.
-    if (!s.prompt && s.playerMarks && !s.perched && !player.swimming) {
-      const target = markableToScratch(s, catP);
-      if (target) {
-        s.prompt = { kind: 'mark', data: target };
-        setPrompt('E — scratch your mark into it');
-      }
-    }
     if (!s.prompt) {
       const remote = s.remotes.nearest(catP, 1.5);
       if (remote) {
         s.prompt = { kind: 'boop', data: remote };
         setPrompt(`E — touch noses with ${remote.petName}`);
+      }
+    }
+    // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. After
+    // the head scratches AND the boop (ruling R23): a person, or a sister's
+    // cat, you walked up to always wins over a post that happens to be there.
+    // Only a post with no scratch of mine on it, or one a rival has scented
+    // over (contested): re-marking takes it back. From the ground only, never
+    // swimming. Guarded on the session's marks renderer, so a stand-in test
+    // session without one never offers it. The den has no markables.
+    if (!s.prompt && s.playerMarks && !s.perched && !player.swimming) {
+      const target = markableToScratch(s, catP);
+      if (target) {
+        s.prompt = { kind: 'mark', data: target };
+        setPrompt('E — scratch your mark into it');
       }
     }
     // v18 Gift Paws. LAST in the chain on purpose: every prompt above it is

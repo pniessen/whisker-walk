@@ -1027,6 +1027,12 @@ export function createWalkLifecycle({
       spawn: areaData.spawn,
     });
     const scent = createScent(scene, areaData, walkRng);
+    // The posts playerMarks put up are solid: the cat stops at them, as at any
+    // other post. Added to this walk's own collider list (a fresh array per
+    // area build) before the first frame — main.js hands that list to
+    // player.update every frame. Added AFTER the scent is laid, so the buried
+    // treats land exactly where they always did.
+    for (const p of playerMarks.posts) areaData.colliders.push({ ...p.collider });
 
     // Live contact decals for everything that moves, registered now that the
     // movers exist. The cat first and by name: it is on screen 100% of the

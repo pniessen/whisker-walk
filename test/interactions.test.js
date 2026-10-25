@@ -1121,6 +1121,47 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       }
     });
 
+    it('a person or a sister\'s cat beside the post always wins: head scratches, then the boop, then the mark (R23)', () => {
+      const h = markHarness();
+      try {
+        const at = { x: POST.x + 0.6, z: POST.z };
+        const villager = { type: 'villager', scratched: false, group: new THREE.Group() };
+        villager.group.position.set(at.x + 0.5, 0, at.z);
+        const sister = { petName: 'Biscuit', playerId: 'sis-0001' };
+        h.session.critters.list = [villager];
+        h.session.remotes.nearest = () => sister;
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('scratch');
+        villager.scratched = true; // had them already
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt).toEqual({ kind: 'boop', data: sister });
+        expect(h.prompts.at(-1)).toBe('E — touch noses with Biscuit');
+        h.session.remotes.nearest = () => null; // she wandered off
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('mark');
+      } finally {
+        h.off();
+      }
+    });
+
+    it('reads the markables once per area, not every frame', () => {
+      const h = markHarness();
+      try {
+        const clone = globalThis.structuredClone;
+        let clones = 0;
+        globalThis.structuredClone = (v) => { clones += 1; return clone(v); };
+        try {
+          for (let i = 0; i < 5; i++) h.walkTo(POST.x + 0.6, POST.z);
+        } finally {
+          globalThis.structuredClone = clone;
+        }
+        expect(h.session.prompt.kind).toBe('mark');
+        expect(clones).toBeLessThanOrEqual(1);
+      } finally {
+        h.off();
+      }
+    });
+
     it('never from a perch or while swimming, and never without a marks renderer', () => {
       const h = markHarness();
       try {
