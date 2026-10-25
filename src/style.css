@@ -606,5 +606,5 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 }
 /* right edge, mid-height: clear of the top HUD (points, goals, pills) */
 @media (max-width: 500px) {
-  #perf-readout { font-size: 10px; }
+  #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 170px); transform: none; }
 }
