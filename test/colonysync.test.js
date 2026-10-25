@@ -16,7 +16,7 @@ const SECRET = 'psecret-1';
 // the way of a test that isn't about it.
 const BOLD = CAT_NAMES.filter((n) => !isShy(n));
 const CAT = BOLD[0];
-const NO_RESULT = { appliedTrades: [], rewards: [] };
+const NO_RESULT = { appliedTrades: [], rewards: [], settled: [] };
 
 function fakeStorage() {
   const map = new Map();
@@ -239,8 +239,12 @@ describe('createColonySync — pull', () => {
     expect(progression.state.colony.feeds).toHaveLength(48);
     const pushed = [];
     script.colonyFeed = (id, secret, a) => { pushed.push(a); return 'ok'; };
+    // a server that records what it was sent, tamed flag included
     script.colonySync = () => pairedSnap({
-      cats: [...new Set(pushed.map((a) => a.cat))].map((n) => serverCat(n)),
+      cats: [...new Set(pushed.map((a) => a.cat))].map((n) => {
+        const t = pushed.find((a) => a.cat === n && a.tamed);
+        return serverCat(n, t ? { tamed_by: ME, tamed_walk: t.walk } : {});
+      }),
       feeds: pushed.map((a) => serverFeed(a.cat, a.walk)),
     });
     await cs.pull();
@@ -470,8 +474,8 @@ describe('createColonySync — pairing', () => {
     pushProfileNow.mockImplementation(() => { order.push('profile'); return Promise.resolve(); });
     expect(await cs.pairing.join('  k7p2qm ')).toEqual({ ok: true, status: 'pending' });
     expect(cloud.colonyInviteJoin).toHaveBeenCalledWith(ME, SECRET, 'K7P2QM');
-    expect(order.slice(0, 3)).toEqual(['profile', 'join', 'profile']);
-    expect(order[3]).toBe('sync');
+    // the profile is pushed once, not again by the pull that follows
+    expect(order).toEqual(['profile', 'join', 'sync']);
     expect(cs.status().joining).toEqual({ inviterPetName: 'Robin' });
   });
 
@@ -569,5 +573,150 @@ describe('createColonySync — dress and trade', () => {
 
     script.colonyTradeOffer = () => { throw new TypeError('Failed to fetch'); };
     await expect(cs.trade.offer('tophat', 'crown')).resolves.toEqual({ ok: false, status: 'error' });
+  });
+});
+
+describe('createColonySync — fix round 1', () => {
+  // Fix 1: the local dress happens before the pull, so the pull's own diff
+  // can't see it.
+  it('dress fires onChange, solo and paired', async () => {
+    const solo = setup({ MP: false });
+    solo.progression.addPoints(100);
+    solo.progression.buy('accessories', 'crown');
+    feedLocal(solo.progression, CAT, 'walk-1');
+    await solo.cs.pull();
+    solo.onChange.mockClear();
+    expect(await solo.cs.dress(CAT, 'crown')).toEqual({ ok: true, status: 'ok' });
+    expect(solo.progression.state.colony.cats[0].wear).toBe('crown');
+    expect(solo.onChange).toHaveBeenCalledTimes(1);
+
+    let serverWear = null;
+    const paired = setup({ script: { colonyFeed: 'ok',
+      colonyDress: (id, s, cat, item) => { serverWear = item; return 'ok'; },
+      colonySync: () => pairedSnap({ cats: [serverCat(CAT, { wear: serverWear })], feeds: [serverFeed(CAT, 'walk-1')] }) } });
+    paired.progression.addPoints(100);
+    paired.progression.buy('accessories', 'crown');
+    feedLocal(paired.progression, CAT, 'walk-1');
+    await paired.cs.pull();
+    paired.onChange.mockClear();
+    expect(await paired.cs.dress(CAT, 'crown')).toEqual({ ok: true, status: 'ok' });
+    expect(paired.onChange).toHaveBeenCalled();
+    expect(paired.progression.state.colony.cats[0].wear).toBe('crown');
+    // a refused dress changes nothing and fires nothing
+    paired.onChange.mockClear();
+    expect(await paired.cs.dress(CAT, 'wizard')).toEqual({ ok: false, status: 'bad' });
+    expect(paired.onChange).not.toHaveBeenCalled();
+  });
+
+  // Fix 2
+  it('pushes the profile once per session, not on every pull', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, pushProfileNow } = setup({ script: { colonySync: () => { throw new TypeError('Failed to fetch'); } } });
+    await cs.pull();
+    await cs.pull();
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('pushes the profile again after a rename, and after a denied sync (retrying that sync once)', async () => {
+    const { cs, cloud, progression, pushProfileNow, script } = setup({ script: { colonySync: unpairedSnap() } });
+    await cs.pull();
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(1);
+    progression.setPetName('Biscuit');
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(2);
+    // denied (e.g. the profile row never got written): push, then retry once
+    const answers = [{ status: 'denied' }, unpairedSnap()];
+    script.colonySync = () => answers.shift();
+    const syncs = cloud.colonySync.mock.calls.length;
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(3);
+    expect(cloud.colonySync.mock.calls.length).toBe(syncs + 2);
+    expect(cs.status()).toMatchObject({ mode: 'unpaired', lastError: null });
+    // still denied after the retry: reported, and the next pull pushes again
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    script.colonySync = { status: 'denied' };
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(4);
+    expect(cs.status()).toMatchObject({ mode: 'offline', lastError: 'denied' });
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(5);
+  });
+
+  it('a pairing action pushes the profile only when needed', async () => {
+    const { cs, pushProfileNow } = setup({ script: { colonySync: unpairedSnap(), colonyInviteOpen: { status: 'ok', code: 'K7P2QM' } } });
+    await cs.pull();
+    expect(pushProfileNow).toHaveBeenCalledTimes(1);
+    await cs.pairing.open();
+    expect(pushProfileNow).toHaveBeenCalledTimes(1);
+  });
+
+  // Fix 3 (Review Focus 3): the owner's unpair must not soft-lock a shy cat.
+  it('settles a full shy bar after an unpair, reports it, and tells the server on re-pair', async () => {
+    const shy = CAT_NAMES.find(isShy);
+    const walks = Array.from({ length: TAME_FEEDS }, (_, i) => `walk-${20 + i}`);
+    const echo = () => ({ cats: [serverCat(shy)], feeds: walks.map((w) => serverFeed(shy, w)) });
+    const { cs, cloud, progression, script } = setup({ script: { colonyFeed: 'ok', colonySync: () => pairedSnap(echo()) } });
+    await cs.pull();
+    expect(progression.colonyMembers()).toBe(2);
+    for (const w of walks) feedLocal(progression, shy, w);
+    expect(progression.state.colony.cats[0].tamedBy).toBe(null);
+    // the server already has them all: a paired pull settles nothing
+    expect((await cs.pull()).settled).toEqual([]);
+    expect(cloud.colonyFeed).not.toHaveBeenCalled();
+
+    script.colonySync = unpairedSnap();
+    const r = await cs.pull();
+    expect(r.settled).toEqual([shy]);
+    expect(r.rewards).toEqual(['heart']); // settling counts toward the milestone
+    expect(progression.state.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: walks.at(-1) });
+    expect((await cs.pull()).settled).toEqual([]);
+
+    // re-paired: the server still shows it untamed, so the taming is pushed
+    script.colonySync = () => pairedSnap(echo());
+    expect((await cs.pull()).settled).toEqual([]);
+    expect(cloud.colonyFeed).toHaveBeenCalledTimes(1);
+    expect(cloud.colonyFeed).toHaveBeenCalledWith(ME, SECRET,
+      { cat: shy, walk: walks.at(-1), area: 'park', x: 1, z: 2, head: 0, tamed: true });
+    expect(progression.state.colony.cats[0].tamedBy).toBe(ME);
+    // once the server shows it tamed, nothing more is sent
+    script.colonySync = () => pairedSnap({ ...echo(), cats: [serverCat(shy, { tamed_by: ME, tamed_walk: walks.at(-1) })] });
+    await cs.pull();
+    expect(cloud.colonyFeed).toHaveBeenCalledTimes(1);
+  });
+
+  it('settles a bar both siblings filled offline once the merge joins them, and pushes it', async () => {
+    const { cs, cloud, progression, script } = setup({ script: { colonyFeed: 'ok', colonySync: () => pairedSnap() } });
+    await cs.pull();
+    for (let i = 0; i < 3; i++) feedLocal(progression, CAT, `walk-${30 + i}`);
+    script.colonySync = () => pairedSnap({
+      cats: [serverCat(CAT, { finder_id: SIB })],
+      feeds: [0, 1, 2].map((i) => serverFeed(CAT, `walk-${40 + i}`, { by_id: SIB })),
+    });
+    const r = await cs.pull();
+    expect(r.settled).toEqual([CAT]);
+    expect(progression.state.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: 'walk-32' });
+    // my three feeds went up first (untamed), then the settled taming
+    const sent = cloud.colonyFeed.mock.calls.map((c) => [c[2].walk, c[2].tamed]);
+    expect(sent).toEqual([['walk-30', false], ['walk-31', false], ['walk-32', false], ['walk-32', true]]);
+  });
+
+  // Fix 4
+  it('trouble clears a stale invite and joining state', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, script } = setup({ script: { colonySync: unpairedSnap({
+      invite: { code: 'K7P2QM', expires_at: null }, joining: { inviter_pet_name: 'Robin' } }) } });
+    await cs.pull();
+    expect(cs.status().invite).toMatchObject({ code: 'K7P2QM' });
+    expect(cs.status().joining).toEqual({ inviterPetName: 'Robin' });
+    for (const fail of [() => { throw new TypeError('Failed to fetch'); }, () => { throw { code: 'PGRST202' }; }, { status: 'weird' }]) {
+      script.colonySync = unpairedSnap({ invite: { code: 'K7P2QM', expires_at: null }, joining: { inviter_pet_name: 'Robin' } });
+      await cs.pull();
+      expect(cs.status().invite).not.toBe(null);
+      script.colonySync = fail;
+      await cs.pull();
+      expect(cs.status()).toMatchObject({ invite: null, joining: null });
+    }
   });
 });

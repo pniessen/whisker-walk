@@ -141,10 +141,15 @@ export function canFeed(colony, name, by, walk, { members = 1 } = {}) {
   }
   const { needsSecondFeeder } = tamingProgress(colony, name, { members });
   if (needsSecondFeeder && mine > 0) return 'waiting';
-  // A player can't feed past a full bar of their own. For a consistent colony
-  // this only matters when the bar is full, i.e. the cat is (or is about to be)
-  // done, so 'tamed' is the honest answer.
-  if (mine >= TAME_FEEDS) return 'tamed';
+  // No cap on MY feeds here. Once I have TAME_FEEDS feeds the bar is full, so
+  // the cat is either waiting for a second feeder (answered just above) or
+  // ready to tame, and this feed is the one that tames it. That second case
+  // is real: a shy cat I filled alone while paired is left full and untamed
+  // when the owner unpairs us, and answering 'tamed' here would lock it out
+  // for good (Review Focus 3). The extra feed is the only one past the cap,
+  // and the sanitizer's TAME_FEEDS-per-(cat, by) rule trims it on the next
+  // load or merge (the server likewise stores at most six), while the stored
+  // tamedBy/tamedWalk stays.
   return 'ok';
 }
 
@@ -176,6 +181,35 @@ export function feedCat(colony, { name, by, walk, area, x, z, head }, { members 
     tamedNow = true;
   }
   return { colony: next, result: 'ok', tamedNow, progress };
+}
+
+// settleTaming(colony, me, { members }) -> { colony, settled: [{ name, walk }] }.
+// Tames every cat whose bar is full, that isn't tamed, isn't waiting for a
+// second feeder under `members`, and that `me` has fed at least once. It is
+// tamed by `me` at my latest feed (by walk stamp). Two ways a bar ends up like
+// that: the owner unpaired us after I filled a shy cat's bar alone (the shy
+// rule then no longer applies), or a merge joined feeds both siblings made
+// offline, neither of which filled the bar alone. If both siblings settle the
+// same cat, the server keeps whichever tamed_by lands first and the merge
+// adopts it. Pure: `colony` is untouched, and with nothing to settle it is
+// returned as is.
+export function settleTaming(colony, me, { members = 1 } = {}) {
+  if (!isPlayerId(me)) return { colony, settled: [] };
+  const settled = [];
+  for (const cat of colony.cats) {
+    if (cat.tamedBy != null) continue;
+    const p = tamingProgress(colony, cat.name, { members });
+    if (p.have < p.need || p.needsSecondFeeder) continue;
+    let last = null;
+    for (const f of colony.feeds) {
+      if (f.cat === cat.name && f.by === me && (!last || walkMs(f.walk) > walkMs(last.walk))) last = f;
+    }
+    if (last) settled.push({ name: cat.name, walk: last.walk });
+  }
+  if (settled.length === 0) return { colony, settled };
+  const walkOf = new Map(settled.map((s) => [s.name, s.walk]));
+  const cats = colony.cats.map((c) => (walkOf.has(c.name) ? { ...c, tamedBy: me, tamedWalk: walkOf.get(c.name) } : c));
+  return { colony: { ...colony, cats }, settled };
 }
 
 // Untamed cats standing in an area, sorted by name.

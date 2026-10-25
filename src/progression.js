@@ -12,7 +12,7 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
 import { emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
-  feedKey, isColonyId } from './colony.js';
+  feedKey, isColonyId, settleTaming } from './colony.js';
 import { isStrayName } from './straynames.js';
 
 const SAVE_KEY = 'whisker-walk-save';
@@ -1263,6 +1263,19 @@ export function createProgression(storage) {
         partner: partner === undefined ? c.partner : partner,
       }, { knownItems: KNOWN_ACCESSORY_IDS });
       save();
+    },
+
+    // settleColonyTaming(me) → the names tamed by this call. colony.settleTaming
+    // under the current member count: a full, untamed bar that no longer waits
+    // for a second feeder (e.g. after the owner unpaired us) and that `me` has
+    // fed is tamed by `me`, so no cat is ever stuck full. Saves only when
+    // something settled.
+    settleColonyTaming(me) {
+      const r = settleTaming(state.colony, me, { members: api.colonyMembers() });
+      if (r.settled.length === 0) return [];
+      state.colony = sanitizeColony(r.colony, { knownItems: KNOWN_ACCESSORY_IDS });
+      save();
+      return r.settled.map((s) => s.name);
     },
 
     // dressColonyCat(name, item, me) → bool. Only the cat's FINDER may dress

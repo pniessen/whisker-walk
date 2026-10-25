@@ -30,7 +30,7 @@ const KNOWN_ITEMS = new Set(Object.keys(CATALOG.accessories));
 const INVITE_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
 // Every status word the colony RPCs return is lower-case letters and dashes.
 const STATUS_WORD = /^[a-z-]{1,24}$/;
-const NO_RESULT = () => ({ appliedTrades: [], rewards: [] });
+const NO_RESULT = () => ({ appliedTrades: [], rewards: [], settled: [] });
 
 // A thrown RPC error -> the mode it means. PGRST202 is PostgREST's "function
 // not in the schema cache" and 42883 is Postgres's "function does not exist":
@@ -63,6 +63,12 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   let lastError = null;
   let warned = null;      // the trouble last logged, so each change logs once
   let inflight = null;    // the single in-flight pull
+  // The pet name the profile was last pushed for this session, or null when
+  // a push is due. colony_authed needs the profile row, but pushing it on
+  // every pull would upsert every 3 s under the pairing poll and log a
+  // pushProfile failure per pull while offline. So: once per session, again
+  // after a rename, and again after the server says 'denied'.
+  let profileFor = null;
 
   const hasName = () => validPetName(progression.state.petName);
 
@@ -79,16 +85,32 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     warned = key;
     console.warn(`Whisker Walk: colony sync — ${key}`, detail);
   }
-  // A pull that couldn't sync. The local colony (and its link) is left alone.
+  // A pull that couldn't sync. The local colony (and its link) is left alone;
+  // the invite and joining state are dropped, since a code we can't confirm
+  // is still open must not be shown.
   function trouble(mode, reason, detail) {
     netMode = mode;
     lastError = reason;
+    invite = null;
+    joining = null;
     warnOnce(reason, detail);
+  }
+
+  // -> true when it pushed. pushProfileNow resolves even when it fails.
+  async function ensureProfile() {
+    const name = progression.state.petName;
+    if (profileFor === name) return false;
+    profileFor = name;
+    await pushProfileNow?.();
+    return true;
   }
 
   // Everything the home base renders from, so onChange fires only on a real
   // change: the pairing UI polls pull() every 3 s and must not be re-rendered
-  // (losing a half-typed code) when nothing happened.
+  // (losing a half-typed code) when nothing happened. Compared with what the
+  // LAST onChange (or creation) saw, not with the start of a pull, so a change
+  // made just before one (a local dress) or between pulls (a walk's feeds)
+  // still notifies.
   function signature() {
     try {
       return JSON.stringify([status(), progression.state.colony, progression.state.unlocked.accessories]);
@@ -96,8 +118,11 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       return null;
     }
   }
-  function notifyIfChanged(before) {
-    if (before !== null && signature() === before) return;
+  let notifiedSig = signature();
+  function notifyIfChanged() {
+    const now = signature();
+    if (now !== null && now === notifiedSig) return;
+    notifiedSig = now;
     try {
       onChange?.();
     } catch (err) {
@@ -127,8 +152,10 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
 
   // Step 6a: re-push my feeds the server lacks, oldest first, at most
   // FEED_PUSH_MAX per pull. A throw stops this pull's catch-up (the next pull
-  // retries); a refusal ('unpaired'/'denied') stops it too.
+  // retries); a refusal ('unpaired'/'denied') stops it too. Returns the names
+  // of cats whose taming went up with its feed.
   async function pushUnsynced(cloud, secret, remote) {
+    const tamedSent = new Set();
     let n = 0;
     for (const f of unsyncedFeeds(progression.state.colony, remote, pid)) {
       if (n >= FEED_PUSH_MAX) break;
@@ -140,9 +167,40 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
         r = statusWord(await cloud.colonyFeed(pid, secret, args));
       } catch (err) {
         warnOnce('feed push failed', err);
+        return null;
+      }
+      if (r === 'unpaired' || r === 'denied') return null;
+      if (args.tamed && r === 'ok') tamedSent.add(args.cat);
+    }
+    return tamedSent;
+  }
+
+  // Cats I tamed (by a feed, or by settleColonyTaming) that the server still
+  // shows untamed: re-send my taming feed with tamed: true. colony_feed's
+  // insert is a no-op for a feed it has, and it sets tamed_by only where it is
+  // still null, so this is safe to repeat and can't overwrite the partner.
+  // Falls back to my latest feed when the taming feed itself is gone (the
+  // cap-trimmed extra feed, see colony.canFeed).
+  async function pushTamed(cloud, secret, remote, skip) {
+    const remoteUntamed = new Set(remote.cats.filter((c) => c.tamedBy === null).map((c) => c.name));
+    const c = progression.state.colony;
+    for (const cat of c.cats) {
+      if (cat.tamedBy !== pid || !remoteUntamed.has(cat.name) || skip.has(cat.name)) continue;
+      let f = c.feeds.find((x) => x.cat === cat.name && x.by === pid && x.walk === cat.tamedWalk);
+      if (!f) {
+        for (const x of c.feeds) {
+          if (x.cat === cat.name && x.by === pid && (!f || Number(x.walk.slice(5)) > Number(f.walk.slice(5)))) f = x;
+        }
+      }
+      const args = f && feedArgs(f);
+      if (!args) continue;
+      try {
+        const r = statusWord(await cloud.colonyFeed(pid, secret, { ...args, tamed: true }));
+        if (r === 'unpaired' || r === 'denied') return;
+      } catch (err) {
+        warnOnce('feed push failed', err);
         return;
       }
-      if (r === 'unpaired' || r === 'denied') return;
     }
   }
 
@@ -170,20 +228,31 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     return { ...remote, cats };
   }
 
+  // -> the cat names settleColonyTaming tamed during this sync.
   async function syncWithCloud() {
     const cloud = getCloud();
     if (!cloud) throw new Error('cloud unavailable');
     // colony_authed checks the profile row's secret, so the row must exist.
-    // pushProfileNow resolves even when it fails.
-    await pushProfileNow?.();
+    const pushed = await ensureProfile();
     const secret = getPsecret();
-    const raw = await cloud.colonySync(pid, secret, wardrobe());
-    const snap = sanitizeSnapshot(raw, { me: pid, knownItems: KNOWN_ITEMS });
+    const fetchSnap = async () => sanitizeSnapshot(await cloud.colonySync(pid, secret, wardrobe()),
+      { me: pid, knownItems: KNOWN_ITEMS });
+    let snap = await fetchSnap();
+    if (snap.status === 'denied') {
+      // Most likely the profile row isn't there (an earlier push failed).
+      // Push it now and retry once, unless this pull already pushed it.
+      profileFor = null;
+      if (!pushed) {
+        await ensureProfile();
+        snap = await fetchSnap();
+        if (snap.status === 'denied') profileFor = null;
+      }
+    }
 
     if (snap.status === 'denied' || snap.status === 'bad') {
       // Never unlink on these: only an explicit 'unpaired' does that.
-      trouble('offline', snap.status, raw);
-      return;
+      trouble('offline', snap.status, snap.status);
+      return [];
     }
     lastError = null;
     warned = null;
@@ -196,7 +265,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       netMode = 'unpaired';
       invite = snap.invite;
       joining = snap.joining;
-      return;
+      return [];
     }
 
     netMode = 'paired';
@@ -204,33 +273,40 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     joining = null;
     const { remote } = snap;
     progression.setColonyLink({ id: remote.id, partner: remote.partner });
-    await pushUnsynced(cloud, secret, remote);
+    const tamedSent = await pushUnsynced(cloud, secret, remote);
     progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
+    // The merge can join feeds that fill a bar neither side filled alone.
+    const settled = progression.settleColonyTaming(pid);
+    if (tamedSent) await pushTamed(cloud, secret, remote, tamedSent);
+    return settled;
   }
 
   async function doPull() {
-    const before = signature();
+    let settled = [];
     if (MP && hasName()) {
       try {
-        await syncWithCloud();
+        settled = await syncWithCloud();
       } catch (err) {
         const mode = errorMode(err);
         trouble(mode, mode, err);
       }
     }
     // Step 7's bookkeeping runs in every mode: trades only ever arrive from a
-    // server snapshot and apply once, and the milestone rewards are earned by
-    // a solo colony just the same.
+    // server snapshot and apply once, the milestone rewards are earned by a
+    // solo colony just the same, and settling is local (a bar left full by
+    // the owner's unpair is tamed here; the next paired pull tells the
+    // server, through pushTamed). Settling goes first so rewards count it.
     let appliedTrades = [];
     let rewards = [];
     try {
+      settled = [...settled, ...progression.settleColonyTaming(pid)];
       appliedTrades = progression.applyColonyTrades(pid);
       rewards = progression.grantColonyRewards();
     } catch (err) {
       console.warn('Whisker Walk: colony bookkeeping failed', err);
     }
-    notifyIfChanged(before);
-    return { appliedTrades, rewards };
+    notifyIfChanged();
+    return { appliedTrades, rewards, settled };
   }
 
   // Single-flight: a call while one is running gets the same promise.
@@ -263,8 +339,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     try {
       const cloud = getCloud();
       if (!cloud) throw new Error('cloud unavailable');
-      if (profile) await pushProfileNow?.();
+      if (profile) await ensureProfile();
       st = statusWord(await run(cloud, getPsecret()));
+      if (st === 'denied') profileFor = null;
     } catch (err) {
       console.warn('Whisker Walk: colony action failed', err);
       st = 'error';
@@ -320,13 +397,14 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     // once; if that fails the cat stays dressed locally and the next pull's
     // wear catch-up sends it.
     async dress(name, item) {
-      const it = item === null ? null : item;
-      if (!progression.dressColonyCat(name, it, pid)) return { ok: false, status: 'bad' };
+      if (!progression.dressColonyCat(name, item, pid)) return { ok: false, status: 'bad' };
+      // Re-render now: the local dress is done whatever the network does.
+      notifyIfChanged();
       if (status().mode !== 'paired') {
         await pull();
         return { ok: true, status: 'ok' };
       }
-      return action((cloud, s) => cloud.colonyDress(pid, s, name, it), (st) => st === 'ok');
+      return action((cloud, s) => cloud.colonyDress(pid, s, name, item), (st) => st === 'ok');
     },
 
     trade: {

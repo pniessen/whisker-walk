@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, emptyColony, headStartFor, isShy, tamingProgress,
-  canFeed, feedCat, catsInArea, tamedCats } from '../src/colony.js';
+  canFeed, feedCat, catsInArea, tamedCats, settleTaming } from '../src/colony.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
@@ -92,6 +92,55 @@ describe('the taming ladder', () => {
     for (let i = 0; i < TAME_FEEDS; i++) solo = feed(solo, shyName, ME, i).colony;
     expect(tamingProgress(solo, shyName).tamed).toBe(true);
     expect(tamingProgress(solo, shyName, { members: 2 }).tamed).toBe(true); // pairing later never un-tames
+  });
+  // Review Focus 3: the owner unpaired us after I filled a shy cat's bar alone.
+  it('a full shy bar left behind by an unpair can still be tamed by its feeder', () => {
+    let c = emptyColony();
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, shyName, ME, i, { ctx: { members: 2 } }).colony;
+    expect(canFeed(c, shyName, ME, 'walk-50', { members: 2 })).toBe('waiting');
+    // now a lone member: the shy rule is off, and the cap must not read 'tamed'
+    expect(tamingProgress(c, shyName, { members: 1 })).toMatchObject({ tamed: false, needsSecondFeeder: false, have: TAME_FEEDS });
+    expect(canFeed(c, shyName, ME, 'walk-50', { members: 1 })).toBe('ok');
+    const r = feed(c, shyName, ME, 50, { ctx: { members: 1 } });
+    expect(r).toMatchObject({ result: 'ok', tamedNow: true });
+    expect(r.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: 'walk-1050' });
+    expect(canFeed(r.colony, shyName, ME, 'walk-51', { members: 1 })).toBe('tamed');
+  });
+  it('settleTaming tames a full, untamed, not-waiting bar that I have fed, at my latest feed', () => {
+    let c = emptyColony();
+    // fed in walk order 1003, 1001, 1005, ... so "latest" is by stamp, not position
+    for (const n of [3, 1, 5, 0, 2, 4]) c = feed(c, shyName, ME, n, { ctx: { members: 2 } }).colony;
+    const frozen = JSON.stringify(c);
+    // still paired: it is waiting for a second feeder, nothing to settle
+    expect(settleTaming(c, ME, { members: 2 })).toEqual({ colony: c, settled: [] });
+    const s = settleTaming(c, ME, { members: 1 });
+    expect(s.settled).toEqual([{ name: shyName, walk: 'walk-1005' }]);
+    expect(s.colony.cats[0]).toMatchObject({ name: shyName, tamedBy: ME, tamedWalk: 'walk-1005' });
+    expect(s.colony.feeds).toEqual(c.feeds);
+    expect(JSON.stringify(c)).toBe(frozen); // pure
+    // idempotent
+    expect(settleTaming(s.colony, ME, { members: 1 }).settled).toEqual([]);
+  });
+  it('settleTaming also settles a bar two siblings filled offline between them', () => {
+    let c = emptyColony();
+    for (let i = 0; i < 3; i++) c = feed(c, boldName, ME, i, { ctx: { members: 2 } }).colony;
+    for (let i = 0; i < 3; i++) c = feed(c, boldName, SIB, 10 + i, { ctx: { members: 2 } }).colony;
+    // (feedCat itself tamed it here; rebuild the merged-but-untamed shape a merge produces)
+    c = { ...c, cats: c.cats.map((k) => ({ ...k, tamedBy: null, tamedWalk: null })) };
+    expect(settleTaming(c, ME, { members: 2 }).settled).toEqual([{ name: boldName, walk: 'walk-1002' }]);
+    expect(settleTaming(c, SIB, { members: 2 }).settled).toEqual([{ name: boldName, walk: 'walk-1012' }]);
+  });
+  it('settleTaming leaves alone: a bar not full, a cat I never fed, a tamed cat, a bad id', () => {
+    let c = emptyColony();
+    for (let i = 0; i < TAME_FEEDS - 1; i++) c = feed(c, boldName, ME, i).colony;
+    expect(settleTaming(c, ME).settled).toEqual([]);
+    let theirs = emptyColony();
+    for (let i = 0; i < TAME_FEEDS; i++) theirs = feed(theirs, shyName, SIB, i, { ctx: { members: 2 } }).colony;
+    expect(settleTaming(theirs, ME, { members: 1 }).settled).toEqual([]);
+    let tamed = emptyColony();
+    for (let i = 0; i < TAME_FEEDS; i++) tamed = feed(tamed, boldName, ME, i).colony;
+    expect(settleTaming(tamed, ME).settled).toEqual([]);
+    for (const bad of [null, '', '<img>', 7]) expect(settleTaming(theirs, bad, { members: 1 }).settled).toEqual([]);
   });
   it('feedCat never mutates its input', () => {
     const c = emptyColony();

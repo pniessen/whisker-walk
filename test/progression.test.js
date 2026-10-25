@@ -2072,6 +2072,24 @@ describe('the colony save key', () => {
     expect(p.state.colony.id).toBe('col-2');
   });
 
+  it('settleColonyTaming tames a bar an unpair left full, persists it, and writes nothing otherwise', () => {
+    const storage = spyStorage();
+    const p = createProgression(storage);
+    const shy = CAT_NAMES.find(isShy);
+    p.setColonyLink({ id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] } });
+    expect(tameOne(p, shy).progress.needsSecondFeeder).toBe(true);
+    let writes = storage.setItem.mock.calls.length;
+    expect(p.settleColonyTaming(ME)).toEqual([]); // still paired: waiting
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+    p.setColonyLink({ id: null, partner: null });
+    expect(p.settleColonyTaming(ME)).toEqual([shy]);
+    expect(p.state.colony.cats[0]).toMatchObject({ name: shy, tamedBy: ME, tamedWalk: `walk-${100 + TAME_FEEDS - 1}` });
+    expect(createProgression(storage).state.colony.cats[0].tamedBy).toBe(ME);
+    writes = storage.setItem.mock.calls.length;
+    expect(p.settleColonyTaming(ME)).toEqual([]);
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+  });
+
   it('setColonyLink keeps the existing value of an omitted field, and explicit nulls still clear', () => {
     const p = createProgression(fakeStorage());
     tameOne(p);
