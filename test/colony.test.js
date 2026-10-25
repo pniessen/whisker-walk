@@ -504,9 +504,24 @@ describe('sanitizeSnapshot', () => {
     expect(s.remote.trades).toEqual([]);
   });
   it('caps the partner wardrobe at 40 known items', () => {
-    const many = Array.from({ length: 100 }, (_, i) => (i % 2 ? 'crown' : 'heart'));
-    const s = sanitizeSnapshot(paired({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: many }] }), opts);
-    expect(s.remote.partner.wardrobe).toEqual(['heart', 'crown']);
+    // 60 distinct items, all known, so only the cap can cut the list.
+    const sixty = Array.from({ length: 60 }, (_, i) => `item${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`);
+    const known = new Set(sixty);
+    const s = sanitizeSnapshot(paired({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: sixty }] }), { me: ME, knownItems: known });
+    expect(s.remote.partner.wardrobe).toHaveLength(40);
+    expect(s.remote.partner.wardrobe).toEqual(sixty.slice(0, 40));
+    // duplicates don't use up the cap
+    const dup = sanitizeSnapshot(paired({ members: [{ player_id: SIB, pet_name: 'Robin', wardrobe: [...sixty.slice(0, 5), ...sixty] }] }), { me: ME, knownItems: known });
+    expect(dup.remote.partner.wardrobe).toEqual(sixty.slice(0, 40));
+  });
+  it('is bad when `me` is not a valid player id (fails closed)', () => {
+    const good = paired();
+    expect(sanitizeSnapshot(good, opts).status).toBe('paired');
+    for (const me of [undefined, null, '', 'short', '<img src=x>', 42, {}, 'a'.repeat(65)]) {
+      expect(sanitizeSnapshot(good, { me, knownItems: ITEMS }), String(me)).toEqual({ status: 'bad' });
+      expect(sanitizeSnapshot({ status: 'unpaired', invite: null, joining: null }, { me, knownItems: ITEMS })).toEqual({ status: 'bad' });
+    }
+    expect(sanitizeSnapshot(good)).toEqual({ status: 'bad' });
   });
   it('passes denied through and rejects unknown or malformed statuses', () => {
     expect(sanitizeSnapshot({ status: 'denied' }, opts)).toEqual({ status: 'denied' });

@@ -1,0 +1,356 @@
+// Colony sync — the orchestrator between the save (progression.js) and the
+// colony RPCs (cloud.js, docs/supabase-colony.sql).
+//
+// The rule everything here serves: SOLO PLAY NEVER DEPENDS ON THE NETWORK.
+// Feeding, taming and dressing always happen in the local save first; this
+// module only catches the server up and folds the partner's side back in.
+// Without Supabase keys (MP off), offline, or before the owner has run the
+// colony SQL, every call resolves quietly and the colony keeps working as a
+// local single-player colony. There is no outbox: each pull re-pushes any of
+// my feeds the server lacks (colony.unsyncedFeeds), so an offline feed is
+// never lost.
+//
+// Same discipline as cloudsync.js: the cloud handle and the secret are reached
+// only through getCloud()/getPsecret(), and never at all when !MP, so a solo
+// deploy never creates a client or persists a secret. Nothing here throws into
+// a caller, toasts, or touches the DOM/HUD: results come back as return
+// values, and `onChange` tells the home base to re-render.
+//
+// Merging always goes through progression.mergeColonySnapshot (it carries the
+// known-accessory list and refuses a snapshot without a valid colony id), and
+// the inbound snapshot always goes through colony.sanitizeSnapshot first.
+import { sanitizeSnapshot, unsyncedFeeds } from '../colony.js';
+import { CATALOG, STARTER_ACCESSORIES } from '../progression.js';
+import { validPetName } from '../net.js';
+
+export const FEED_PUSH_MAX = 40;     // most catch-up feeds pushed by one pull
+const WARDROBE_MAX = 40;             // colony_sync stores at most 40 items
+const KNOWN_ITEMS = new Set(Object.keys(CATALOG.accessories));
+// The invite alphabet (no 0/O, 1/I/L), as colony_invite_open mints it.
+const INVITE_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+// Every status word the colony RPCs return is lower-case letters and dashes.
+const STATUS_WORD = /^[a-z-]{1,24}$/;
+const NO_RESULT = () => ({ appliedTrades: [], rewards: [] });
+
+// A thrown RPC error -> the mode it means. PGRST202 is PostgREST's "function
+// not in the schema cache" and 42883 is Postgres's "function does not exist":
+// both mean the owner hasn't run docs/supabase-colony.sql yet. Anything else
+// (a failed fetch, a timeout, a 5xx) reads as offline.
+function errorMode(err) {
+  const code = err && typeof err === 'object' ? err.code : undefined;
+  const msg = err && typeof err === 'object' && typeof err.message === 'string' ? err.message : '';
+  if (code === 'PGRST202' || code === '42883') return 'not-set-up';
+  if (/could not find the function|function\s+\S+\s+does not exist/i.test(msg)) return 'not-set-up';
+  return 'offline';
+}
+
+// An RPC result -> its status word: text RPCs return the word itself, jsonb
+// ones { status, ... }. Anything else (or a hostile string) is 'bad'.
+function statusWord(r) {
+  const s = typeof r === 'string' ? r : r && typeof r === 'object' ? r.status : undefined;
+  return typeof s === 'string' && STATUS_WORD.test(s) ? s : 'bad';
+}
+
+const isTradeId = (v) => Number.isSafeInteger(v) && v > 0;
+const isTradeable = (v) => typeof v === 'string' && KNOWN_ITEMS.has(v) && !STARTER_ACCESSORIES.includes(v);
+
+export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow, progression, onChange }) {
+  // What the last pull found: 'unpaired' | 'paired' | 'offline' | 'not-set-up',
+  // or null before the first one (status() then reads the local link).
+  let netMode = null;
+  let invite = null;
+  let joining = null;
+  let lastError = null;
+  let warned = null;      // the trouble last logged, so each change logs once
+  let inflight = null;    // the single in-flight pull
+
+  const hasName = () => validPetName(progression.state.petName);
+
+  function status() {
+    let mode;
+    if (!MP) mode = 'local';
+    else if (!hasName()) mode = 'needs-name';
+    else mode = netMode ?? (progression.colonyMembers() === 2 ? 'paired' : 'unpaired');
+    return { mode, invite, joining, lastError };
+  }
+
+  function warnOnce(key, detail) {
+    if (warned === key) return;
+    warned = key;
+    console.warn(`Whisker Walk: colony sync — ${key}`, detail);
+  }
+  // A pull that couldn't sync. The local colony (and its link) is left alone.
+  function trouble(mode, reason, detail) {
+    netMode = mode;
+    lastError = reason;
+    warnOnce(reason, detail);
+  }
+
+  // Everything the home base renders from, so onChange fires only on a real
+  // change: the pairing UI polls pull() every 3 s and must not be re-rendered
+  // (losing a half-typed code) when nothing happened.
+  function signature() {
+    try {
+      return JSON.stringify([status(), progression.state.colony, progression.state.unlocked.accessories]);
+    } catch {
+      return null;
+    }
+  }
+  function notifyIfChanged(before) {
+    if (before !== null && signature() === before) return;
+    try {
+      onChange?.();
+    } catch (err) {
+      console.warn('Whisker Walk: colony onChange failed', err);
+    }
+  }
+
+  // The tradeable wardrobe colony_sync publishes: owned, known, no starters.
+  function wardrobe() {
+    return [...new Set(progression.state.unlocked.accessories)].filter(isTradeable).slice(0, WARDROBE_MAX);
+  }
+
+  // colony_feed's arguments for one of MY saved feeds, read from the save (the
+  // cat's area and fixed spot, the feed's head start). `tamed` is set on the
+  // feed that filled the bar. null when the save doesn't hold that feed.
+  function feedArgs(feed) {
+    if (!feed || typeof feed !== 'object' || (feed.by !== undefined && feed.by !== pid)) return null;
+    const c = progression.state.colony;
+    const f = c.feeds.find((x) => x.cat === feed.cat && x.by === pid && x.walk === feed.walk);
+    const cat = f && c.cats.find((k) => k.name === f.cat);
+    if (!cat) return null;
+    return {
+      cat: f.cat, walk: f.walk, area: cat.area, x: cat.x, z: cat.z, head: f.head,
+      tamed: cat.tamedBy === pid && cat.tamedWalk === f.walk,
+    };
+  }
+
+  // Step 6a: re-push my feeds the server lacks, oldest first, at most
+  // FEED_PUSH_MAX per pull. A throw stops this pull's catch-up (the next pull
+  // retries); a refusal ('unpaired'/'denied') stops it too.
+  async function pushUnsynced(cloud, secret, remote) {
+    let n = 0;
+    for (const f of unsyncedFeeds(progression.state.colony, remote, pid)) {
+      if (n >= FEED_PUSH_MAX) break;
+      const args = feedArgs(f);
+      if (!args) continue;
+      n++;
+      let r;
+      try {
+        r = statusWord(await cloud.colonyFeed(pid, secret, args));
+      } catch (err) {
+        warnOnce('feed push failed', err);
+        return;
+      }
+      if (r === 'unpaired' || r === 'denied') return;
+    }
+  }
+
+  // Step 6b: the finder is the only one who can dress a cat, so for MY finds
+  // the local wear is the truth: re-push it where the server differs (dressed
+  // offline). Returns the remote with each accepted wear patched in, so the
+  // merge (where the remote's wear wins) doesn't undo it for a pull.
+  async function repushWear(cloud, secret, remote) {
+    const mine = new Map(progression.state.colony.cats.filter((c) => c.finder === pid).map((c) => [c.name, c.wear]));
+    const cats = [];
+    for (const rc of remote.cats) {
+      const wear = mine.get(rc.name);
+      if (rc.finder === pid && mine.has(rc.name) && wear !== rc.wear) {
+        try {
+          if (statusWord(await cloud.colonyDress(pid, secret, rc.name, wear)) === 'ok') {
+            cats.push({ ...rc, wear });
+            continue;
+          }
+        } catch (err) {
+          warnOnce('dress push failed', err);
+        }
+      }
+      cats.push(rc);
+    }
+    return { ...remote, cats };
+  }
+
+  async function syncWithCloud() {
+    const cloud = getCloud();
+    if (!cloud) throw new Error('cloud unavailable');
+    // colony_authed checks the profile row's secret, so the row must exist.
+    // pushProfileNow resolves even when it fails.
+    await pushProfileNow?.();
+    const secret = getPsecret();
+    const raw = await cloud.colonySync(pid, secret, wardrobe());
+    const snap = sanitizeSnapshot(raw, { me: pid, knownItems: KNOWN_ITEMS });
+
+    if (snap.status === 'denied' || snap.status === 'bad') {
+      // Never unlink on these: only an explicit 'unpaired' does that.
+      trouble('offline', snap.status, raw);
+      return;
+    }
+    lastError = null;
+    warned = null;
+
+    if (snap.status === 'unpaired') {
+      // The owner removed a member (or we were never paired). Drop the link,
+      // keep every cat and feed: they come back when a partner is accepted.
+      const c = progression.state.colony;
+      if (c.id !== null || c.partner !== null) progression.setColonyLink({ id: null, partner: null });
+      netMode = 'unpaired';
+      invite = snap.invite;
+      joining = snap.joining;
+      return;
+    }
+
+    netMode = 'paired';
+    invite = null;
+    joining = null;
+    const { remote } = snap;
+    progression.setColonyLink({ id: remote.id, partner: remote.partner });
+    await pushUnsynced(cloud, secret, remote);
+    progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
+  }
+
+  async function doPull() {
+    const before = signature();
+    if (MP && hasName()) {
+      try {
+        await syncWithCloud();
+      } catch (err) {
+        const mode = errorMode(err);
+        trouble(mode, mode, err);
+      }
+    }
+    // Step 7's bookkeeping runs in every mode: trades only ever arrive from a
+    // server snapshot and apply once, and the milestone rewards are earned by
+    // a solo colony just the same.
+    let appliedTrades = [];
+    let rewards = [];
+    try {
+      appliedTrades = progression.applyColonyTrades(pid);
+      rewards = progression.grantColonyRewards();
+    } catch (err) {
+      console.warn('Whisker Walk: colony bookkeeping failed', err);
+    }
+    notifyIfChanged(before);
+    return { appliedTrades, rewards };
+  }
+
+  // Single-flight: a call while one is running gets the same promise.
+  function pull() {
+    if (!inflight) {
+      inflight = doPull()
+        .catch(() => NO_RESULT())
+        .finally(() => { inflight = null; });
+    }
+    return inflight;
+  }
+
+  // A refusal before any network, or null to go ahead.
+  function gate() {
+    if (!MP) return { ok: false, status: 'local' };
+    if (!hasName()) return { ok: false, status: 'needs-name' };
+    return null;
+  }
+
+  // One action RPC: `run(cloud, secret)` -> its raw result, `ok(status)` says
+  // whether that status is success. Any throw — offline, the SQL missing, a
+  // deadlock between two mutual invites (40P01) — is { ok: false, status:
+  // 'error' }, i.e. "try again". It then pulls (after any pull already in
+  // flight, which started before the action) so status() and the colony
+  // reflect it.
+  async function action(run, ok, { profile = false } = {}) {
+    const refused = gate();
+    if (refused) return refused;
+    let st;
+    try {
+      const cloud = getCloud();
+      if (!cloud) throw new Error('cloud unavailable');
+      if (profile) await pushProfileNow?.();
+      st = statusWord(await run(cloud, getPsecret()));
+    } catch (err) {
+      console.warn('Whisker Walk: colony action failed', err);
+      st = 'error';
+    }
+    if (inflight) await inflight;
+    await pull();
+    return { ok: ok(st), status: st };
+  }
+
+  return {
+    available: MP,
+    status,
+    pull,
+
+    // Fire-and-forget, right after a successful local feed. Only when paired;
+    // otherwise (and on any failure) the next pull's catch-up sends it.
+    pushFeed(feed) {
+      try {
+        if (status().mode !== 'paired') return;
+        const args = feedArgs(feed);
+        if (!args) return;
+        const cloud = getCloud();
+        if (!cloud) return;
+        Promise.resolve(cloud.colonyFeed(pid, getPsecret(), args)).catch((err) => warnOnce('feed push failed', err));
+      } catch (err) {
+        warnOnce('feed push failed', err);
+      }
+    },
+
+    pairing: {
+      // The profile row must exist before colony_authed can pass.
+      open() {
+        return action((cloud, s) => cloud.colonyInviteOpen(pid, s), (st) => st === 'ok', { profile: true });
+      },
+      // The code is uppercased and trimmed; one that can't be an invite code
+      // never reaches the server.
+      join(code) {
+        const refused = gate();
+        if (refused) return Promise.resolve(refused);
+        const c = typeof code === 'string' ? code.trim().toUpperCase() : '';
+        if (!INVITE_CODE.test(c)) return Promise.resolve({ ok: false, status: 'bad-code' });
+        return action((cloud, s) => cloud.colonyInviteJoin(pid, s, c), (st) => st === 'pending', { profile: true });
+      },
+      answer(accept) {
+        const yes = accept === true;
+        return action((cloud, s) => cloud.colonyInviteAnswer(pid, s, yes), (st) => st === (yes ? 'paired' : 'declined'),
+          { profile: true });
+      },
+    },
+
+    // Dressing happens in the save first (only the finder, only an owned
+    // item; null takes it off), so it works solo. When paired it is sent at
+    // once; if that fails the cat stays dressed locally and the next pull's
+    // wear catch-up sends it.
+    async dress(name, item) {
+      const it = item === null ? null : item;
+      if (!progression.dressColonyCat(name, it, pid)) return { ok: false, status: 'bad' };
+      if (status().mode !== 'paired') {
+        await pull();
+        return { ok: true, status: 'ok' };
+      }
+      return action((cloud, s) => cloud.colonyDress(pid, s, name, it), (st) => st === 'ok');
+    },
+
+    trade: {
+      // Known, non-starter, different items only; the server re-checks
+      // ownership on both sides.
+      offer(give, want) {
+        const refused = gate();
+        if (refused) return Promise.resolve(refused);
+        if (!isTradeable(give) || !isTradeable(want) || give === want) return Promise.resolve({ ok: false, status: 'bad' });
+        return action((cloud, s) => cloud.colonyTradeOffer(pid, s, give, want), (st) => st === 'ok');
+      },
+      answer(id, accept) {
+        const refused = gate();
+        if (refused) return Promise.resolve(refused);
+        if (!isTradeId(id)) return Promise.resolve({ ok: false, status: 'bad' });
+        const yes = accept === true;
+        return action((cloud, s) => cloud.colonyTradeAnswer(pid, s, id, yes), (st) => st === (yes ? 'accepted' : 'declined'));
+      },
+      cancel(id) {
+        const refused = gate();
+        if (refused) return Promise.resolve(refused);
+        if (!isTradeId(id)) return Promise.resolve({ ok: false, status: 'bad' });
+        return action((cloud, s) => cloud.colonyTradeCancel(pid, s, id), (st) => st === 'cancelled');
+      },
+    },
+  };
+}

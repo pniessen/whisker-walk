@@ -254,6 +254,8 @@ export function createWalkLifecycle({
   getCloud, getSession, setSession, getIsTouch, getHomebase,
   getPendingRoom, clearPendingRoom, pushProfileNow,
   awardStrayGreet, applyRemoteEvent, cloudToast,
+  // v21 Stream 2: game/colonysync.js. Optional; later colony tasks use it.
+  colonySync,
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.

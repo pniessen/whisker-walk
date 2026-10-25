@@ -18,6 +18,9 @@ import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js'
 export function createRooms({
   MP, pid, supabaseUrl, supabaseAnonKey,
   progression, getCloud, getPsecret, getSession, startWalk,
+  // v21 Stream 2: game/colonysync.js. Optional; the partner walk (Task 12)
+  // fires colonySync?.pull() on join.
+  colonySync,
 }) {
   // Room state lives OUTSIDE the walk session — a room can be formed on the
   // home base screen (host/join) before anyone has clicked Start, and

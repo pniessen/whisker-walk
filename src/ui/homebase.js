@@ -90,7 +90,9 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // separate from onStartWalk (beginWalkFromHomebase) because the den never
 // joins a room walk; main.js wires it straight to `startWalk({ areaOverride:
 // 'den' })`, bypassing the host/joiner room branch onStartWalk goes through.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen) {
+// colonySync (v21 Stream 2, game/colonysync.js) is optional: the Colony tab
+// (Tasks 8-11) reads its status() and calls its actions.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;

@@ -60,6 +60,9 @@ export function createInteractions({
   MP, pid, getCloud, getPsecret, getSession, getIsTouch,
   player, progression, log, hud, audio, catVoice, snapPhoto,
   petNameFor, completeBoop,
+  // v21 Stream 2: game/colonysync.js. Optional (tests omit it); the feed
+  // prompt (Task 6) calls colonySync?.pushFeed.
+  colonySync,
 }) {
   // Bodies extracted out of the keydown handlers below (pure move — same
   // logic, no behavior change) so both the keyboard path and the touch

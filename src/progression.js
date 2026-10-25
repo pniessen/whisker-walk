@@ -12,7 +12,7 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
 import { emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
-  feedKey } from './colony.js';
+  feedKey, isColonyId } from './colony.js';
 import { isStrayName } from './straynames.js';
 
 const SAVE_KEY = 'whisker-walk-save';
@@ -1239,7 +1239,11 @@ export function createProgression(storage) {
     // colony.mergeColony for the conflict policy). The remote is sanitized
     // inside the merge, so a hostile snapshot can add only valid things and
     // can remove or un-tame nothing. No write when nothing changed.
+    // A remote that isn't a plain object with a valid colony id is ignored
+    // outright: mergeColony takes id/partner/trades from the remote, so a
+    // failed or garbage response would otherwise clear the colony link.
     mergeColonySnapshot(remote) {
+      if (!remote || typeof remote !== 'object' || Array.isArray(remote) || !isColonyId(remote.id)) return;
       const next = mergeColony(state.colony, remote, { knownItems: KNOWN_ACCESSORY_IDS });
       if (JSON.stringify(next) === JSON.stringify(state.colony)) return;
       state.colony = next;
@@ -1247,9 +1251,17 @@ export function createProgression(storage) {
     },
 
     // setColonyLink({ id, partner }) — record the colony id and partner
-    // after pairing or a pull, sanitized like everything else.
+    // after pairing or a pull, sanitized like everything else. An OMITTED
+    // field (undefined) keeps its current value, so updating just the partner
+    // can't drop the id; an explicit null clears it, which is how a pull that
+    // finds the owner unpaired us unlinks ({ id: null, partner: null }). The
+    // cats and feeds are never touched.
     setColonyLink({ id, partner } = {}) {
-      state.colony = sanitizeColony({ ...state.colony, id, partner }, { knownItems: KNOWN_ACCESSORY_IDS });
+      const c = state.colony;
+      state.colony = sanitizeColony({ ...c,
+        id: id === undefined ? c.id : id,
+        partner: partner === undefined ? c.partner : partner,
+      }, { knownItems: KNOWN_ACCESSORY_IDS });
       save();
     },
 

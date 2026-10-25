@@ -2049,6 +2049,54 @@ describe('the colony save key', () => {
     expect(p.state.colony.feeds).toEqual(c.feeds);
   });
 
+  // A failed or garbage pull must never clear the colony link (Task 5).
+  it('mergeColonySnapshot is a no-op, with no write, unless the remote is an object with a valid id', () => {
+    const storage = spyStorage();
+    const p = createProgression(storage);
+    tameOne(p);
+    p.mergeColonySnapshot(paired());
+    const before = JSON.parse(JSON.stringify(p.state.colony));
+    expect(before.id).toBe('col-1');
+    expect(before.partner).toMatchObject({ playerId: SIB });
+    const writes = storage.setItem.mock.calls.length;
+    const { id, ...noId } = paired();
+    for (const bad of [null, undefined, 'paired', 7, [], [paired()], {}, noId,
+      { ...paired(), id: null }, { ...paired(), id: '' }, { ...paired(), id: '<img>' }, { ...paired(), id: 42 },
+      { ...paired(), id: 'x'.repeat(65) }]) {
+      p.mergeColonySnapshot(bad);
+      expect(p.state.colony, JSON.stringify(bad) ?? String(bad)).toEqual(before);
+    }
+    expect(storage.setItem.mock.calls.length).toBe(writes);
+    // a valid id still merges
+    p.mergeColonySnapshot({ ...paired(), id: 'col-2' });
+    expect(p.state.colony.id).toBe('col-2');
+  });
+
+  it('setColonyLink keeps the existing value of an omitted field, and explicit nulls still clear', () => {
+    const p = createProgression(fakeStorage());
+    tameOne(p);
+    p.setColonyLink({ id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] } });
+    // only the partner: the id survives
+    p.setColonyLink({ partner: { playerId: SIB, petName: 'Robin', wardrobe: ['crown'] } });
+    expect(p.state.colony.id).toBe('col-1');
+    expect(p.state.colony.partner.wardrobe).toEqual(['crown']);
+    // only the id: the partner survives
+    p.setColonyLink({ id: 'col-9' });
+    expect(p.state.colony.id).toBe('col-9');
+    expect(p.state.colony.partner).toMatchObject({ playerId: SIB });
+    // no argument at all changes nothing
+    p.setColonyLink();
+    expect(p.state.colony).toMatchObject({ id: 'col-9', partner: { playerId: SIB } });
+    // explicit nulls unlink, and the cats and feeds stay
+    const { cats, feeds } = p.state.colony;
+    p.setColonyLink({ id: null, partner: null });
+    expect(p.state.colony.id).toBe(null);
+    expect(p.state.colony.partner).toBe(null);
+    expect(p.state.colony.cats).toEqual(cats);
+    expect(p.state.colony.feeds).toEqual(feeds);
+    expect(p.colonyMembers()).toBe(1);
+  });
+
   // Review Focus 5
   it('applyColonyTrades applies an accepted trade exactly once, unequips, and never removes a starter', () => {
     const storage = fakeStorage();

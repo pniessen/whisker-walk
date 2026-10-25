@@ -46,6 +46,9 @@ const WARDROBE_MAX = 40;           // partner wardrobe entries kept
 const TRADE_STATUSES = new Set(['offered', 'accepted', 'declined', 'cancelled']);
 
 const isPlayerId = (v) => typeof v === 'string' && PLAYER_ID.test(v);
+// A usable colony id, the one rule sanitizeColony applies. Exported so
+// progression.mergeColonySnapshot can refuse a snapshot without one.
+export const isColonyId = (v) => typeof v === 'string' && COLONY_ID.test(v);
 const isWalkStamp = (v) => typeof v === 'string' && WALK_STAMP.test(v);
 
 export function emptyColony() {
@@ -327,7 +330,7 @@ function sanitizeColonyUnsafe(v, knownItems) {
 
   const s = isPlainObject(v.seen) ? v.seen : {};
   return {
-    id: typeof v.id === 'string' && COLONY_ID.test(v.id) ? v.id : null,
+    id: isColonyId(v.id) ? v.id : null,
     partner: sanitizePartner(v.partner, knownItems),
     cats,
     feeds,
@@ -351,7 +354,8 @@ function sanitizeColonyUnsafe(v, knownItems) {
 //              code or null, `joining` is the invite we answered or null
 //   'paired'   `remote` = { id, partner, cats, feeds, trades } in client shape
 //   'bad'      anything else, including a paired snapshot with no usable
-//              colony id or no partner other than `me`
+//              colony id or no partner other than `me`, and any snapshot at
+//              all when `me` is not a valid player id
 // A paired snapshot is mapped to the shared field names (finder_id -> finder,
 // by_id -> by, from_id -> from, ...) and run through sanitizeColony, so the
 // per-entry rules, caps and the knownItems filter are the one set in this file.
@@ -369,7 +373,9 @@ export function sanitizeSnapshot(raw, { me, knownItems } = {}) {
 }
 
 function sanitizeSnapshotUnsafe(raw, me, knownItems) {
-  if (!isPlainObject(raw)) return { status: 'bad' };
+  // Without a valid `me` the partner can't be told apart from me, so fail
+  // closed rather than guess.
+  if (!isPlayerId(me) || !isPlainObject(raw)) return { status: 'bad' };
   if (raw.status === 'denied') return { status: 'denied' };
 
   if (raw.status === 'unpaired') {
@@ -390,7 +396,7 @@ function sanitizeSnapshotUnsafe(raw, me, knownItems) {
   }
 
   if (raw.status !== 'paired') return { status: 'bad' };
-  if (typeof raw.colony_id !== 'string' || !COLONY_ID.test(raw.colony_id)) return { status: 'bad' };
+  if (!isColonyId(raw.colony_id)) return { status: 'bad' };
 
   // The partner is the first member who is not me and has a usable player id.
   const member = asArray(raw.members).find((m) => isPlainObject(m) && isPlayerId(m.player_id) && m.player_id !== me);

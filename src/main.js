@@ -17,6 +17,7 @@ import { createSettings } from './settings.js';
 import { createBlockList } from './blocklist.js';
 import { phraseIdForDigit } from './chatkeys.js';
 import { createCloudToast, createCloudSync } from './game/cloudsync.js';
+import { createColonySync } from './game/colonysync.js';
 import { createNetEvents } from './game/netevents.js';
 import { createPhotoMode } from './game/photo.js';
 import { createInteractions } from './game/interactions.js';
@@ -245,6 +246,19 @@ function init() {
     noteGoal: (type) => noteGoal(type),
   });
 
+  // The shared colony's sync (src/game/colonysync.js). Created here, ABOVE
+  // createInteractions and createRooms, because both take it — while it in
+  // turn needs pushProfileNow from createRooms. So it gets pushProfileNow and
+  // onChange as thunks: neither is called before init() returns (the first
+  // pull is the boot pull after homebase.show() below), so the later `const`
+  // bindings are initialised by then. It never creates a cloud when !MP and
+  // never rejects, so solo play is unaffected.
+  const colonySync = createColonySync({
+    MP, pid, getCloud, getPsecret, progression,
+    pushProfileNow: () => pushProfileNow(),
+    onChange: () => homebase.refresh(),
+  });
+
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
@@ -254,7 +268,7 @@ function init() {
     getSession: () => session,
     getIsTouch: () => isTouch,
     player, progression, log, hud, audio, catVoice, snapPhoto,
-    petNameFor, completeBoop,
+    petNameFor, completeBoop, colonySync,
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -273,7 +287,7 @@ function init() {
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    progression, getCloud, getPsecret,
+    progression, getCloud, getPsecret, colonySync,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
   });
@@ -295,7 +309,7 @@ function init() {
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow,
-    awardStrayGreet, applyRemoteEvent, cloudToast,
+    awardStrayGreet, applyRemoteEvent, cloudToast, colonySync,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -348,8 +362,9 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync);
   homebase.show();
+  colonySync.pull(); // fire-and-forget; never rejects, and makes no network call when solo
 
   // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
   // result into awards + HUD refresh + fx, regardless of whether the
@@ -440,6 +455,7 @@ function init() {
       overlay.classList.add('hidden');
       homebase.show();
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
+      colonySync.pull(); // fire-and-forget; catches up feeds made on this walk
     }
   });
   document.addEventListener('keydown', (e) => {
