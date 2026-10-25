@@ -778,7 +778,7 @@ function sanitizeState(parsed) {
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
     clan: sanitizeClan(parsed.clan),
     // Only ids we retired, once each; anything else in a cloud payload is junk.
-    retired: [...new Set(asStringArray(parsed.retired).filter((id) => id in RETIRED_CATS))],
+    retired: [...new Set(asStringArray(parsed.retired).filter((id) => Object.hasOwn(RETIRED_CATS, id)))],
   };
 }
 

@@ -2713,6 +2713,14 @@ describe('retiring Rosa', () => {
     expect(createProgression(storage).state.points).toBe(50);
   });
 
+  it('queues the farewell for a cloud payload with Rosa equipped, once', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload(rawSave({ equipped: { cat: 'rosa', collar: null } }));
+    expect(p.state.equipped.cat).toBe('tabby');
+    expect(p.takeFarewell()).toContain('Rosa');
+    expect(p.takeFarewell()).toBe(null);
+  });
+
   it('retires Rosa in a v3 save before migrating it', () => {
     const { p } = load({
       version: 3, points: 10,
@@ -2734,5 +2742,8 @@ describe('retiring Rosa', () => {
     }
     const { p } = load(rawSave({ retired: ['rosa', 'nope', 'rosa'] }));
     expect(p.state.retired).toEqual(['rosa']);
+    // prototype names are not retired ids
+    const { p: q } = load(rawSave({ retired: ['toString', 'constructor'] }));
+    expect(q.state.retired).toEqual(['rosa']);
   });
 });

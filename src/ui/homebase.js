@@ -1052,6 +1052,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       cloudPreview = null;
       if (!res.ok) cloudError = res.error;
       render();
+      // A pre-update cloud save with Rosa equipped queued her farewell while
+      // loading; say it now, over the freshly drawn home base.
+      if (res.ok) {
+        const farewell = progression.takeFarewell();
+        if (farewell) showNotice(farewell);
+      }
       return;
     }
     if (e.target.id === 'sync-cancel-load') {
