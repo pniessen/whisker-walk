@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { resolveQuality } from '../src/render/quality.js';
+import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG } from '../src/render/quality.js';
 
-const high = { name: 'high', shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true };
-const low  = { name: 'low',  shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false };
+const high = { name: 'high', rung: 0, strays: 22, shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true };
+const low  = { name: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false };
 
 describe('resolveQuality', () => {
   it('auto → high on a desktop pointer with motion allowed', () => {
     expect(resolveQuality({ coarse: false, reducedMotion: false, override: 'auto' })).toEqual(high);
   });
-  it('auto → low on a coarse pointer', () => {
-    expect(resolveQuality({ coarse: true, reducedMotion: false, override: 'auto' })).toEqual(low);
+  it('auto starts at rung 0 whatever the pointer', () => {
+    expect(resolveQuality({ coarse: true, reducedMotion: false, override: 'auto' })).toEqual(high);
   });
   it('auto → low when reduced motion is on, even on desktop', () => {
     expect(resolveQuality({ coarse: false, reducedMotion: true, override: 'auto' })).toEqual(low);
@@ -61,6 +61,50 @@ describe('resolveQuality', () => {
     expect(h.normalMaps).toBe(true);
     expect(l.normalMaps).toBe(false);
     // A phone gets neither channel, not a quieter one.
-    expect(resolveQuality({ coarse: true, reducedMotion: false, override: 'auto' }).normalMaps).toBe(false);
+    expect(resolveQuality({ reducedMotion: true, override: 'auto' }).normalMaps).toBe(false);
+  });
+});
+
+describe('the quality ladder', () => {
+  const auto = (rung) => resolveQuality({ override: 'auto', reducedMotion: false, rung });
+  it('has four frozen rungs, floor 3, with HIGH/LOW at the ends', () => {
+    expect(LADDER).toHaveLength(4);
+    expect(FLOOR_RUNG).toBe(3);
+    expect(Object.isFrozen(LADDER)).toBe(true);
+    LADDER.forEach((t, i) => { expect(Object.isFrozen(t)).toBe(true); expect(t.rung).toBe(i); expect(t.shadowFitRadius).toBe(20); });
+    expect(LADDER[0]).toEqual(high);
+    expect(LADDER[3]).toEqual(low);
+  });
+  it('rung 1 trims the pixel ratio only', () => {
+    const t = auto(1);
+    expect(t.pixelRatioCap).toBe(1.5);
+    expect(t.postFx).toBe(true);
+    expect(t.name).toBe('high');
+  });
+  it('rung 2 drops post-fx and MSAA but keeps shadows and normal maps', () => {
+    const t = auto(2);
+    expect(t.postFx).toBe(false);
+    expect(t.msaaSamples).toBe(0);
+    expect(t.shadowMapSize).toBe(2048);
+    expect(t.normalMaps).toBe(true);
+    expect(t.name).toBe('high');
+  });
+  it('rung 3 is exactly low', () => { expect(auto(3)).toEqual(low); });
+  it('clamps and sanitises the rung', () => {
+    expect(auto(7)).toEqual(low);
+    expect(auto(-1)).toEqual(high);
+    expect(auto(NaN)).toEqual(high);
+    expect(auto(undefined)).toEqual(high);
+  });
+  it('a manual override ignores the rung', () => {
+    expect(resolveQuality({ reducedMotion: false, override: 'high', rung: 3 })).toEqual(high);
+    expect(resolveQuality({ reducedMotion: false, override: 'low', rung: 0 })).toEqual(low);
+    expect(resolveQuality({ reducedMotion: true, override: 'auto', rung: 0 })).toEqual(low);
+  });
+  it('isAdaptive only for auto with motion allowed', () => {
+    expect(isAdaptive({ override: 'auto', reducedMotion: false })).toBe(true);
+    expect(isAdaptive({ override: 'auto', reducedMotion: true })).toBe(false);
+    expect(isAdaptive({ override: 'high', reducedMotion: false })).toBe(false);
+    expect(isAdaptive({ override: 'low', reducedMotion: false })).toBe(false);
   });
 });

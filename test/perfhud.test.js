@@ -6,16 +6,18 @@ const sample = {
   tierName: 'high', quality: 'auto', coarse: false,
   shadowMapSize: 2048, postFx: true, normalMaps: true,
   pixelRatio: 2, bufferW: 2560, bufferH: 1440, strays: 22,
+  adapt: 'auto rung 0/3 · start 0 (top)',
   frame: { calls: 1110, triangles: 109402, shadowCalls: 412, sceneCalls: 690, otherCalls: 8, sceneRenders: 1, renders: 3 },
 };
 
 describe('formatPerfLines', () => {
-  it('formats the seven readout lines', () => {
+  it('formats the eight readout lines', () => {
     expect(formatPerfLines(sample)).toEqual([
       '58 fps · 17.2 ms · worst 41.0 ms (3 s)',
       'cpu 6.1 ms',
       'tier high · setting auto · touch no',
       'shadow 2048 · postFx on · normals on',
+      'auto rung 0/3 · start 0 (top)',
       'px ratio 2 · 2560×1440 · strays 22',
       'draws 1110 · shadow 412 · scene 690 · other 8',
       'tris 109,402 · scene passes 1',
@@ -34,8 +36,8 @@ describe('formatPerfLines', () => {
   });
 
   it('prints a fractional pixel ratio cleanly', () => {
-    expect(formatPerfLines({ ...sample, pixelRatio: 2.625 })[4]).toContain('px ratio 2.63 ');
-    expect(formatPerfLines({ ...sample, pixelRatio: 1.5000001 })[4]).toContain('px ratio 1.5 ');
+    expect(formatPerfLines({ ...sample, pixelRatio: 2.625 })[5]).toContain('px ratio 2.63 ');
+    expect(formatPerfLines({ ...sample, pixelRatio: 1.5000001 })[5]).toContain('px ratio 1.5 ');
   });
 });
 
@@ -60,6 +62,7 @@ describe('createPerfHud', () => {
   let hud;
   const session = { scene: { isScene: true }, tier: { name: 'high', shadowMapSize: 2048, postFx: true, normalMaps: true }, strayCats: { strays: [1, 2] } };
   const settings = { get: () => 'auto' };
+  const adapter = { status: { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '' } };
 
   beforeEach(() => {
     const classes = new Set(['hidden']);
@@ -74,7 +77,9 @@ describe('createPerfHud', () => {
     Object.defineProperty(el, 'textContent', { get: () => text, set: (v) => { text = v; el.writes++; } });
     vi.stubGlobal('document', { createElement: () => el, body: { appendChild: vi.fn() } });
     renderer = fakeRenderer();
-    hud = createPerfHud({ renderer, settings, coarse: false });
+    Object.assign(adapter.status, { mode: 'auto', rung: 0, startRung: 0, startReason: 'top', change: '' });
+    session.useComposer = true;
+    hud = createPerfHud({ renderer, settings, coarse: false, adapter });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -130,5 +135,41 @@ describe('createPerfHud', () => {
     expect(el.textContent.split('\n')[1]).toBe('cpu 7.5 ms');
     expect(el.textContent).toContain('strays 2');
     expect(el.textContent).toContain('800×600');
+  });
+
+  const line = (n) => el.textContent.split('\n')[n];
+
+  it('prints the adaptive rung, its start and the last change', () => {
+    hud.setEnabled(true);
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(line(4)).toBe('auto rung 0/3 · start 0 (top)');
+    Object.assign(adapter.status, { rung: 1, change: '0→1: 72% of frames over 20 ms for 4 s' });
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(line(4)).toBe('auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s');
+  });
+
+  it('says manual or reduced motion with no rung', () => {
+    hud.setEnabled(true);
+    Object.assign(adapter.status, { mode: 'manual', rung: 3, startRung: 3, startReason: 'manual' });
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(line(4)).toBe('manual');
+    Object.assign(adapter.status, { mode: 'reduced-motion', startReason: 'reduced-motion' });
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(line(4)).toBe('reduced motion');
+  });
+
+  it('reads postFx live from session.useComposer, not the walk-start tier', () => {
+    hud.setEnabled(true);
+    hud.frameStart(1000, session);
+    hud.frameEnd(session, 1002);
+    expect(line(3)).toContain('postFx on');
+    session.useComposer = false;
+    hud.frameStart(1600, session);
+    hud.frameEnd(session, 1602);
+    expect(line(3)).toContain('postFx off');
   });
 });

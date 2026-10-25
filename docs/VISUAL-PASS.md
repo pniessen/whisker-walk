@@ -819,3 +819,70 @@ Shadow draws happen inside the scene's `renderer.render` (three calls
   throttles rAF to about 10 ticks, so the readout's fps and frame-time lines
   are meaningless there. The owner takes those readings on the desktop and the
   iPhone 18 (`docs/superpowers/handoffs/2026-10-25-stream4-measurement.md`).
+
+# Adaptive Auto (Stream 4 step 2, branch `worktree-v21-stream4-adaptive`)
+
+Auto no longer looks at the pointer. Every device starts a walk on the high
+rung, and `src/game/adaptquality.js` steps it down one rung at a time if its
+frames stay slow. The step is remembered per device in
+`localStorage['whisker-walk-adapt']` (never the save), so the next walk starts
+there. Manual High/Low turn adaptation off; Auto + reduced motion stays LOW.
+`?perf` shows the rung on its own line, e.g.
+`auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s`.
+
+## The rungs — fill rate first
+
+The iPhone 18 readings put CPU at 4.6–5.5 ms of a 16.7 ms frame, so a phone
+that struggles is GPU/fill-bound.
+
+| Rung | name | Changes from the rung above | Live? |
+|---|---|---|---|
+| 0 | `high` | today's HIGH, 22 strays | — |
+| 1 | `high` | pixel ratio cap 2 → 1.5 (44% fewer pixels) | live |
+| 2 | `high` | postFx off, MSAA 0 | live; bloom fades out over 1.5 s |
+| 3 | `low` | today's LOW exactly: shadow 1024, no normal maps, env 0.32, 14 strays | next walk |
+
+Rung 3 is what every phone got before this branch, so adaptation can never
+make a device worse than it was.
+
+## The thresholds, and why
+
+- **20 ms, more than half the frames, over 4 s.** The iPhone 18's *worst*
+  frame on HIGH is 18 ms, so the target phone never trips. Over half above
+  20 ms is a median under 50 fps — missing vsync most frames on 60 Hz. A
+  4 s window is too long for a GC pause or shader compile to reach 50%.
+- **5 s warm-up** at walk start (shader compiles, texture uploads), **1 s
+  settle** after each step, so steps are at least 5 s apart.
+- **Gaps over 250 ms are discarded**: a background tab, a debugger or a
+  throttled automation pane is not a slow device, and never steps down.
+- **At least 30 kept frames** before any decision. The 5 s warm-up starts at
+  the walk's first frame, not before the (slow, synchronous) area build.
+- **A frame-rate cap is not a slow device.** Low Power Mode, battery saver or
+  a 30 Hz display pin every frame at ~33 ms. When the floor step comes due,
+  the live steps are judged together: if the mean frame time is not at least
+  10% (`ADAPT.minGain`) better than at the walk's first trigger, the floor is
+  skipped, the start-of-walk memory is written back, and the walk stops
+  adapting (live changes stay; nothing pops back). A walk that started on
+  rung 2 has nothing to judge and steps as before.
+
+## Desktop
+
+The same adaptation runs on desktop Auto — it protects a weak laptop iGPU. A
+healthy desktop never trips it (the owner's M2: worst frame 9.4 ms against
+20 ms), so in practice nothing changes there.
+
+## The thermal gap
+
+There is no 5-minute reading. The governor runs for the whole walk, not just
+its start, so a phone that heats up at minute 4 steps down then; it starts
+lower next time, and the retry below lets a cooled phone climb back.
+
+## Retry
+
+At walk start, if the remembered rung is above 0, at least 5 walks have
+started since the last step-down and `waitDays` (starting at 7) have passed,
+the walk starts one rung higher. If it steps down again, `waitDays` doubles
+(cap 56); if it runs a full judged 4 s window without stepping down, the
+retry has held and `waitDays` resets to 7. A retry walk too short to judge
+proves nothing, so the next walk retries the same rung. A `steppedAt` in the
+future (clock change) is clamped to now. One rung at a time.
