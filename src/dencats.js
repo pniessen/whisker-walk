@@ -122,6 +122,67 @@ function buildTipped(kind) {
   return g;
 }
 
+// Footprint radii used when keeping cats clear of things: a cat on the floor,
+// and a cat in its cardboard box (the 1.05 m box's corner is 0.74 m out).
+const CAT_R = 0.45;
+const BOX_R = 0.75;
+// Stand-off distances tried, nearest first: a spot with a big piece of
+// furniture on it pushes the cat further out toward the room centre.
+const RINGS = [STAND_OFF, 1.3, 1.7, 2.1];
+const SIDES = [0, 1, -1, 2, -2, 3, -3, 4, -4];
+
+// findPlace: the first candidate (rings outward, sideways within a ring) that
+// is inside the room, clears the camera wedge, keeps MIN_APART from every
+// placed cat and `r` + obstacle.r from every obstacle. If none is fully free
+// it takes the candidate that still passes the room and wedge checks and has
+// the most clearance, so a crowded room degrades to "a bit snug", never to a
+// cat in a wall, in the opening shot, or exactly on top of another cat.
+// `obstacles` is [{ x, z, r }] circles on the floor plan.
+function findPlace(anchor, base, tangent, r, placed, obstacles) {
+  let best = null;
+  let bestScore = -Infinity;
+  for (const ring of RINGS) {
+    for (const k of SIDES) {
+      const x = anchor.x + base.d.x * ring + tangent.x * k * NUDGE_STEP;
+      const z = anchor.z + base.d.z * ring + tangent.z * k * NUDGE_STEP;
+      if (Math.abs(x) > ROOM_LIMIT || Math.abs(z) > ROOM_LIMIT) continue;
+      if (!clearsCamera(x, z, 0.5, 0.8)) continue;
+      // Worst overlap over everything nearby (negative = overlapping).
+      let slack = Infinity;
+      for (const o of placed) {
+        slack = Math.min(slack, Math.hypot(o.group.position.x - x, o.group.position.z - z) - MIN_APART);
+      }
+      for (const o of obstacles) {
+        slack = Math.min(slack, Math.hypot(o.x - x, o.z - z) - (r + o.r));
+      }
+      if (slack >= 0) return { x, z };
+      if (slack > bestScore) {
+        bestScore = slack;
+        best = { x, z };
+      }
+    }
+  }
+  // Nothing passed the hard checks at all (cannot happen with the real den):
+  // the stand-off position pulled inside the room.
+  const clamp = (v) => Math.max(-ROOM_LIMIT, Math.min(ROOM_LIMIT, v));
+  return best ?? { x: clamp(base.x), z: clamp(base.z) };
+}
+
+// The animator's 'nap' tucks the head down and to one side and wraps the tail
+// over it, which from the spawn camera, ~8 m off, reads as a hollow ring with
+// no head. A den cat is on show, so it naps as a LOAF instead: the same low,
+// squashed body, but the head rests forward and level where you can see it,
+// and the tail lies along the side. Applied after animateCat, which has reset
+// every part this frame.
+function sleepyLoaf(group) {
+  const { head, tailPivots } = group.userData.parts;
+  head.position.x -= 0.08;     // undo the nap's sideways shift
+  head.position.y += 0.12;     // chin up off the floor so the face shows
+  head.position.z -= 0.14;     // forward, out of the body's shadow
+  head.rotation.set(0.28, 0, 0.1);
+  for (const p of tailPivots) p.rotation.y = 0.12; // tail alongside, not over the face
+}
+
 function disposeTree(root) {
   root.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -134,7 +195,7 @@ function disposeTree(root) {
 }
 
 // cats: [{ name, breed, wear: { slot, id } | null, home: { x, z }, moment: { act, spot } }]
-export function createDenCats(scene, cats, { reducedMotion = false } = {}) {
+export function createDenCats(scene, cats, { reducedMotion = false, obstacles = [] } = {}) {
   const list = [];
   const props = [];
 
@@ -142,25 +203,20 @@ export function createDenCats(scene, cats, { reducedMotion = false } = {}) {
     const wear = c.wear && typeof c.wear.slot === 'string' && typeof c.wear.id === 'string'
       ? { [c.wear.slot]: c.wear.id }
       : {};
-    const group = buildCat(c.breed, wear, { simple: true });
+    // The full model, not the simple one: a lying cat in the simple rig reads as
+    // a hollow ring from the spawn camera, and the den is indoors with at most
+    // 12 cats and no strays, so the extra meshes are affordable.
+    const group = buildCat(c.breed, wear);
     const { act, spot } = c.moment;
     const anchor = (spot === 'home' ? c.home : spotXZ(spot)) ?? c.home;
     const base = standOff(anchor);
 
-    // Two cats wanting the same corner (a window cat and a window cat, or a
-    // box on top of someone's home) slide sideways along the wall, nearest
-    // free place first. Never into the camera wedge, never through a wall.
+    // Where it goes: the stand-off position if that is free, otherwise the
+    // nearest free place (further out, then sideways along the wall). A place
+    // is free when it clears every other cat AND every obstacle (fixed props,
+    // placed furniture). See findPlace.
     const tangent = { x: -base.d.z, z: base.d.x };
-    let at = { x: base.x, z: base.z };
-    for (const k of [0, 1, -1, 2, -2, 3, -3]) {
-      const x = base.x + tangent.x * k * NUDGE_STEP;
-      const z = base.z + tangent.z * k * NUDGE_STEP;
-      if (Math.abs(x) > ROOM_LIMIT || Math.abs(z) > ROOM_LIMIT) continue;
-      if (!clearsCamera(x, z, 0.5, 0.8)) continue;
-      if (list.some((o) => Math.hypot(o.group.position.x - x, o.group.position.z - z) < MIN_APART)) continue;
-      at = { x, z };
-      break;
-    }
+    const at = findPlace(anchor, base, tangent, act === 'box' ? BOX_R : CAT_R, list, obstacles);
     group.position.set(at.x, 0, at.z);
 
     const h = nameHash(c.name);
@@ -238,7 +294,9 @@ export function createDenCats(scene, cats, { reducedMotion = false } = {}) {
         if (e.tag) e.tag.visible = near < NAME_RANGE;
         if (e.purr > 0) e.purr = Math.max(0, e.purr - dt);
         const awake = e.purr > 0 || (near < WAKE_RANGE && (e.moment.act === 'nap' || e.moment.act === 'groom'));
-        animateCat(e.group, awake ? 'requestPet' : restPose(e), t + e.phase, 0, reducedMotion);
+        const pose = awake ? 'requestPet' : restPose(e);
+        animateCat(e.group, pose, t + e.phase, 0, reducedMotion);
+        if (pose === 'nap') sleepyLoaf(e.group);
       }
     },
     dispose() {

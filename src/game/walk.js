@@ -908,6 +908,8 @@ export function createWalkLifecycle({
     // save, joined onto THIS area's scenics by gifts.js (a spot id that no
     // longer exists is skipped, never defaulted to the origin). The den has
     // no scenics, so it gets the inert stub.
+    const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
+
     // v21 Stream 2: the colony's tamed cats live in the den, each at its fixed
     // home spot (taming order -> DEN_SPOTS index), and each UTC day gets into
     // something different. Built from the save, draws nothing from walkRng.
@@ -921,9 +923,18 @@ export function createWalkLifecycle({
           home: { x: home.x, z: home.z },
           moment: denMoment(c.name, new Date().toISOString().slice(0, 10)),
         };
-      }), { reducedMotion })
+      }), {
+        reducedMotion,
+        // Keep cats off the den's fixed props and the furniture the player
+        // placed: areaData.colliders already holds both (fixtures plus
+        // placed pieces); boxes are the cardboard box, the paper bag and any
+        // placed box, which have no collider.
+        obstacles: [
+          ...areaData.colliders.map((c) => ({ x: c.x, z: c.z, r: c.r })),
+          ...(areaData.boxes ?? []).map((bx) => ({ x: bx.x, z: bx.z, r: 0.5 })),
+        ],
+      })
       : NO_DEN_CATS;
-    const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
 
     if (roomSeed === undefined) {
       for (const stray of strayCats.strays) {

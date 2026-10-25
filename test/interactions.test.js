@@ -1901,3 +1901,91 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     expect(h.kind()).toBe(null);
   });
 });
+
+describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () => {
+  const AREA = { bounds: { minX: -8, maxX: 8, minZ: -8, maxZ: 8 } };
+  function denHarness({ cats = [{ name: 'Pickles', x: 0, z: -1 }] } = {}) {
+    const progression = createProgression(fakeStorage());
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const prompts = [];
+    const petted = [];
+    let voices = 0;
+    const entries = cats.map((c) => ({ name: c.name, group: { position: new THREE.Vector3(c.x, 0, c.z) } }));
+    const session = {
+      areaId: 'den',
+      walkStamp: 'walk-1',
+      playerId: 'player-me-000001',
+      colonyWalk: false,
+      cat: { position: new THREE.Vector3(0, 0, 0), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: [] },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats: createStrayCats(scene, AREA, 0, mulberry32(3)),
+      enemies: createEnemyWalkLog(),
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      denCats: {
+        list: entries,
+        nearest: (pos, r) => entries.find((e) => e.group.position.distanceTo(pos) < r) ?? null,
+        pet: (e) => petted.push(e.name),
+      },
+      quest: null, questGiver: null, questObject: null,
+      gifts: null, perched: null, freezeTime: 0, catsGreeted: 0,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const api = createInteractions({
+      MP: 0, pid: 'player-me-000001', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player: { forward: () => new THREE.Vector3(0, 0, -1), perchY: 0, halt() {} },
+      progression, log,
+      hud: { toast() {}, setPrompt: (t) => prompts.push(t), setPoints() {} },
+      audio: { trill() {}, meow() {}, hiss() {}, fanfare() {} },
+      catVoice: () => { voices += 1; }, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    return {
+      session, progression, prompts, petted, voices: () => voices,
+      scan: () => api.updateInteractions(session),
+      press: () => { api.updateInteractions(session); api.handleInteract(session); },
+    };
+  }
+
+  it('offers "E — pet <name>" next to a den cat and nothing when none is in range', () => {
+    const h = denHarness();
+    h.scan();
+    expect(h.session.prompt?.kind).toBe('den-cat');
+    expect(h.prompts.at(-1)).toBe('E — pet Pickles');
+    h.session.cat.position.set(0, 0, 6);
+    h.session.prompt = null;
+    h.scan();
+    expect(h.session.prompt?.kind ?? null).not.toBe('den-cat');
+  });
+  it('petting awards a purr once per cat (pet type, key den-<name>), plays the voice, every time', () => {
+    const h = denHarness({ cats: [{ name: 'Pickles', x: 0, z: -1 }, { name: 'Mochi', x: 0.2, z: -9 }] });
+    const before = h.progression.state.points;
+    h.press();
+    const gained = h.progression.state.points - before;
+    expect(gained).toBe(AWARDS.pet);
+    expect(h.voices()).toBe(1);
+    expect(h.petted).toEqual(['Pickles']);
+    h.press(); // again: sits up and purrs again, but no second award
+    expect(h.progression.state.points - before).toBe(gained);
+    expect(h.voices()).toBe(2);
+    expect(h.petted).toEqual(['Pickles', 'Pickles']);
+    // a different cat is its own award
+    h.session.cat.position.set(0.2, 0, -8);
+    h.session.prompt = null;
+    h.press();
+    expect(h.progression.state.points - before).toBe(gained * 2);
+    expect(h.petted.at(-1)).toBe('Mochi');
+  });
+});
