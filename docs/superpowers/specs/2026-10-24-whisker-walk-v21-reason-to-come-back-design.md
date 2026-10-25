@@ -380,6 +380,50 @@ accessories and ten cats already — the right currency exists, it is just gated
 behind abstract points. Colony milestones should hand out wearables directly,
 and a co-walk should show them off.
 
+*As built (Stream 2):* the builder's calls are the "Decisions" table in
+`docs/superpowers/plans/2026-10-24-whisker-walk-v21-stream2-colony.md`. In
+short:
+
+- `TAME_FEEDS = 6`. Earlier greets give a 1/2/3 head start on the same bar.
+- About 1 name in 4 is shy and needs both siblings, but only while the colony
+  has 2 members.
+- The colony holds at most 12 cats and 2 members.
+- Milestones at 1, 3, 6 and 12 tamed cats each unlock an accessory. They never
+  give points.
+- Starters (`bell`, `bandana`) can't be traded.
+
+Things that changed or were added while building:
+
+- **Tamed is stored and settled.** `tamedBy` and `tamedWalk` are never
+  cleared. Every sync also runs a settle step, which tames a cat whose bar is
+  full once the shy rule no longer applies, for example after the owner
+  unpairs by hand. Without it, that cat could never come home.
+- **A lone member counts as unpaired.** A colony with fewer than 2 members
+  syncs as `unpaired`, so a child left alone after an unpair can pair again.
+- **Colony names leave the ordinary stray pool.** On a colony walk, every
+  colony cat's name is removed from the ordinary stray shuffle (a filter only:
+  the draw count is unchanged). That way a colony cat never also turns up as a
+  plain stray in another area. A room with any non-partner member is identical
+  to before.
+- **Den cats are the full cat model.** They use a "loaf" nap pose, because the
+  first nap pose read as a pot. Their spots avoid the den's furniture.
+- **The "While you were out" card is one line per cat**, biggest news first,
+  at most 8 lines. Dismissing it marks only what was shown.
+- **Trading** needs two taps: "Swap!", then "Yes — swap forever". The second
+  tap is ignored for 600 ms, so a double-tap can't skip the warning. An offer
+  of an item you already own, or of a starter, shows only "No thanks". When
+  you trade an accessory away, it comes off any cat you dressed with it, on
+  both devices.
+- **Pair walks** join a room named after the colony id, which is never shown
+  and can't be guessed. A non-host's Start asks the host, and the host answers
+  with a walk-config for the asker's area. The Host and Join-by-code controls
+  stay, so the kids can still walk with friends.
+- **The new tab bar scrolls sideways on phones.** The Colony tab is the
+  seventh tab, which doesn't fit at 375 px.
+- **The schema is SQL the owner runs**: `docs/supabase-colony.sql`, with the
+  steps in `docs/COLONY-SETUP.md`. Until it runs, or with no network,
+  everything works as a single-player local colony.
+
 ### Stream 3 — Deeper verbs and more to touch
 
 The owner asked for both; they are one stream because the verbs are worthless
