@@ -33,6 +33,14 @@ test('no combination the pools can make is a published character name', () => {
   expect(hits).toEqual([]);
 });
 
+// DENIED_NAMES is the only guard behind the spec rule that no published
+// character name can be composed; an emptied or gutted list would make the
+// cross-product tests pass vacuously.
+test('DENIED_NAMES is a real, sizeable list', () => {
+  expect(DENIED_NAMES.size).toBeGreaterThan(100);
+  expect(DENIED_NAMES.has('Firestar')).toBe(true);
+});
+
 test('every clan title the prefixes can make passes validPetName', () => {
   for (const p of PREFIXES) expect(validPetName(p + CLAN_SUFFIX)).toBe(true);
 });
