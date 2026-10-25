@@ -15,12 +15,24 @@
 -- docs/COLONY-SETUP.md, "How to unpair") and the housekeeping of expired
 -- invites and old, already-resolved trades.
 
+-- ── Guard: the v7 setup must already be in place ──────────────────────
+-- PL/pgSQL bodies aren't checked when they are created, so without this a
+-- missing profiles table would only show up later, as failing RPCs.
+do $$
+begin
+  if to_regclass('public.profiles') is null then
+    raise exception 'Whisker Walk: the profiles table is missing. Run docs/supabase-setup.sql first, then run this file again.';
+  end if;
+end $$;
+
 -- ── Tables ────────────────────────────────────────────────────────────
 
 create table if not exists public.colonies (
-  id text primary key default substr(md5(random()::text || clock_timestamp()::text), 1, 16),
+  id text primary key default substr(md5(gen_random_uuid()::text), 1, 16),
   created_at timestamptz not null default now()
 );
+-- 16 hex characters from gen_random_uuid() (core Postgres, no extension).
+alter table public.colonies alter column id set default substr(md5(gen_random_uuid()::text), 1, 16);
 
 -- player_id is the primary key: that alone makes it ONE colony per player.
 create table if not exists public.colony_members (
@@ -119,15 +131,20 @@ revoke execute on function public.colony_authed(text, text) from public, anon, a
 -- ── RPCs (SECURITY DEFINER; the secret is the capability) ─────────────
 
 -- Open (or replace) my invite: a 6-character code that expires in 20 minutes.
--- A player already in a full (2-member) colony can't. A lone member — only
--- possible after the owner unpaired their partner by hand — may invite again,
--- and accepting then reuses their colony, cats and all (ADD-ONLY).
+-- A player already in a full (2-member) colony can't. A LONE member (only
+-- possible after the owner unpaired their partner by hand) counts as
+-- unpaired and re-pairs by OPENING an invite: accepting it reuses their
+-- colony, cats and all (ADD-ONLY). A lone member can't JOIN someone else's
+-- code, because one colony per player would mean leaving theirs behind.
+-- The code's randomness comes from gen_random_uuid(), hashed to 16 even
+-- bytes; each character uses two of them, so the modulo bias is negligible.
 create or replace function public.colony_invite_open(p_player_id text, p_secret text)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_colony text;
   v_alpha constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   v_code text;
+  v_bytes bytea;
   v_n integer;
   v_expires timestamptz := now() + interval '20 minutes';
 begin
@@ -143,8 +160,10 @@ begin
   delete from colony_invites ci where ci.expires_at <= now() or ci.inviter_id = p_player_id;
   loop
     v_code := '';
-    for v_n in 1..6 loop
-      v_code := v_code || substr(v_alpha, 1 + floor(random() * length(v_alpha))::integer, 1);
+    v_bytes := decode(md5(gen_random_uuid()::text), 'hex');
+    for v_n in 0..5 loop
+      v_code := v_code || substr(v_alpha,
+        1 + ((get_byte(v_bytes, 2 * v_n) * 256 + get_byte(v_bytes, 2 * v_n + 1)) % length(v_alpha)), 1);
     end loop;
     exit when not exists (select 1 from colony_invites ci where ci.code = v_code);
   end loop;
@@ -169,7 +188,8 @@ begin
   if not colony_authed(p_player_id, p_secret) then
     return jsonb_build_object('status', 'denied');
   end if;
-  -- one colony per player: a member can't join another one
+  -- one colony per player: ANY member, even a lone one, can't join another
+  -- colony (a lone member re-pairs by opening an invite instead)
   if exists (select 1 from colony_members m where m.player_id = p_player_id) then
     return jsonb_build_object('status', 'already-paired');
   end if;
@@ -280,6 +300,14 @@ begin
     return jsonb_build_object('status', 'denied');
   end if;
   select m.colony_id into v_colony from colony_members m where m.player_id = p_player_id;
+
+  -- A lone member (the owner unpaired their partner by hand) reads as
+  -- unpaired, so the game offers a sharing code again. Their cats stay in
+  -- the colony and come back when the new partner is accepted.
+  if v_colony is not null
+     and (select count(*) from colony_members m where m.colony_id = v_colony) < 2 then
+    v_colony := null;
+  end if;
 
   if v_colony is null then
     select ci.code, ci.expires_at, pr.pet_name into v_code, v_expires, v_joiner_name

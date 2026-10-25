@@ -15,7 +15,7 @@ The game can't create its own database tables, so you run one file once and the 
 
 It's safe to run the file again, for example if you aren't sure the first run finished. Re-running keeps the existing colony data. It doesn't touch the tables the game already uses (saves, profiles and friendships).
 
-(If you see an error about `profiles`, the original setup file `docs/supabase-setup.sql` hasn't been run on this project yet. Run that file first, the same way, and then this one.)
+If you see the error "**Run docs/supabase-setup.sql first**", the game's original setup file hasn't been run on this project yet, and nothing was changed. Run `docs/supabase-setup.sql` the same way, then run this file again.
 
 ## 3. Check it worked
 
@@ -54,7 +54,18 @@ The game itself has no "unpair" button, because nobody should lose the colony by
 
    To separate the two children completely, run it once for each of them. After that, both can pair again from the Colony tab.
 
-What happens to the cats depends on how many players you removed. If you remove only one, the other child keeps the colony and its cats on the server. Their next "sharing code" pairs the new partner into that same colony. If you remove both, their next pairing starts a fresh, empty colony on the server. The old colony's cats stay in the tables but nobody is linked to them any more.
+What happens to the cats depends on how many players you removed:
+
+- **Only one removed.** The other child keeps the colony and its cats on the server. Their Colony tab offers **Get a sharing code** again. When a new partner types that code in and the child taps **Yes, share!**, the new partner joins that same colony, cats and all. The child who stays must be the one who *gets* the code: a player who still has a colony can't join someone else's. If both children want a clean start, remove both.
+- **Both removed.** Their next pairing starts a fresh, empty colony on the server. The old colony's cats stay in the tables, but nobody is linked to them any more.
+
+Either way, the removed player's old feeds and trades stay in the colony's history. Their feeds still count on the cats' bars. A trade offer that was waiting, made by that player or to them, can no longer be accepted, but it still shows as open. To cancel it, run this in **SQL Editor** with the same player id in both places:
+
+```sql
+update colony_trades set status = 'cancelled', decided_at = now()
+ where status = 'offered'
+   and (from_id = '3fa85f64-5717-4562-b3fc-2c963f66afa6' or to_id = '3fa85f64-5717-4562-b3fc-2c963f66afa6');
+```
 
 ## 6. Before you run the file
 
