@@ -17,6 +17,9 @@ import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
 
+// Gait pace while a rival's chase scampers the cat (m/s-equivalent).
+export const CHASE_GAIT_SPEED = 6;
+
 export function createAvatarUpdater({
   player, progression, settings, log, hud, audio,
   petNameFor, completeTag, noteBat,
@@ -103,7 +106,9 @@ export function createAvatarUpdater({
     if (s.pounceCooldown > 0) s.pounceCooldown -= dt;
     if (s.landTime > 0) s.landTime -= dt;
 
-    const speed = player.speed;
+    // A rival's chase moves the cat itself (player.halt() zeroes player.speed),
+    // so feed the gait the scamper's pace and never let a long sit go to sleep.
+    const speed = s.chasing ? CHASE_GAIT_SPEED : player.speed;
     if (speed > 0.3) s.idleTime = 0;
     else s.idleTime += dt;
 
@@ -140,6 +145,7 @@ export function createAvatarUpdater({
       s.stretchTime = 1; // wake-up stretch
       pose = 'stretch';
     }
+    if (s.chasing) { pose = 'follow'; s.stretchTime = 0; }
     s.pose = pose;
     animateCat(cat, pose, t, speed, settings.get('reducedMotion'));
 

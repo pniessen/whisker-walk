@@ -138,6 +138,10 @@ export function createInteractions({
 
   function doPounceOrClimb() {
     const session = getSession();
+    // A rival's chase is a 0.65s scamper that owns the cat's position; a climb
+    // or pounce pressed mid-scamper would be overwritten (and could strand the
+    // cat at perch height outside the border).
+    if (session.chasing) return;
     // Look for a NEW perch reachable from wherever the cat is right now —
     // canReach uses player.perchY, which still holds the current perch's
     // height while perched (it's only zeroed by the hop-down branch below),

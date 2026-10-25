@@ -649,7 +649,7 @@ function init() {
       session.secrets.update(dt, t, session.cat.position, player.speed);
       session.goldMice.update(t);
       // After player.update: a chase scamper overrides the cat's position.
-      session.rival.update(dt, t, session.cat.position, session.cat);
+      session.rival.update(dt, t, session.cat.position);
       const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');

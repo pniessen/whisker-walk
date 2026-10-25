@@ -42,8 +42,7 @@ import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
-import { zoomTuning, canSwim, CAT_RADIUS } from '../player.js';
-import { waterClearance } from '../world/builder.js';
+import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { createRivalPatrol } from '../rivalcats.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { createFx } from '../fx.js';
@@ -1315,32 +1314,25 @@ export function createWalkLifecycle({
       session.rival = NO_RIVAL;
     } else {
       const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8 } : {});
-      // Walkable = the same three rules player.update enforces on the cat:
-      // inside bounds, clear of every collider by c.r + CAT_RADIUS, and at
-      // least CAT_RADIUS from water (pushOutOfWater's WATER_MARGIN).
-      const isWalkable = (x, z) => {
-        const b = areaData.bounds;
-        if (b && (x < b.minX + CAT_RADIUS || x > b.maxX - CAT_RADIUS
-          || z < b.minZ + CAT_RADIUS || z > b.maxZ - CAT_RADIUS)) return false;
-        for (const c of areaData.colliders) {
-          if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
-        }
-        return waterClearance(areaData.waters, x, z) >= CAT_RADIUS;
-      };
+      // Walkable = player.js's own predicate (bounds, colliders, water).
+      const isWalkable = (x, z) => isWalkableAt(areaData, x, z);
       const patrol = createRivalPatrol(scene, areaId, {
         reducedMotion,
         isWalkable,
         canChase: () => player.perchY === 0,
         onChase: (who) => {
           player.halt();
+          session.chasing = true; // avatar.js plays the run gait; interactions.js ignores climb/pounce
           hud.toast(`${who} chased you back over their border! 🐾`);
         },
-        onSettled: () => player.halt(),
+        onSettled: () => { player.halt(); session.chasing = false; },
       });
       session.rival = {
-        update(dt, t, catPos, avatar) {
+        // `t` (the render clock) is for the marks' pulse only; the patrol
+        // reads the shared wall clock itself.
+        update(dt, t, catPos) {
           marks.update(t);
-          patrol.update(dt, catPos, avatar);
+          patrol.update(dt, catPos);
         },
         dispose() { marks.dispose(); patrol.dispose(); },
       };
@@ -1691,6 +1683,7 @@ export function createWalkLifecycle({
     session.critters.dispose();
     session.goldMice.dispose();
     session.rival.dispose();
+    session.chasing = false;
     session.kittenEnc.dispose();
     session.race.dispose();
     session.strayCats.dispose();

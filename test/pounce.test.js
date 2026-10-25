@@ -458,6 +458,17 @@ describe('updateAvatar measures from the paws, not the drawn body', () => {
     return { s, cat, player, updateAvatar, hunted, batted };
   }
 
+  it('a chased cat runs: follow gait at the chase pace, never nap or stretch', () => {
+    const h = avatarHarness();
+    h.s.idleTime = 100;        // long past the nap threshold
+    h.s.pose = 'nap';          // and already asleep, so the wake-up stretch would fire
+    h.s.chasing = true;
+    h.updateAvatar(h.s, 1 / 60, 0);
+    expect(h.s.pose).toBe('follow');
+    expect(h.s.idleTime).toBe(0);
+    expect(h.s.stretchTime).toBe(0);
+  });
+
   it('hunts from the ground plane while the cat is drawn mid-arc', () => {
     const h = avatarHarness();
     // Mid-hop: the renderer has already put the cat SPRING_PAWS_HOP above

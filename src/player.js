@@ -293,6 +293,25 @@ export function canSwim(state) {
   return hasSkill(state, 'sea-legs');
 }
 
+// isWalkableAt(area, x, z) -> may a grounded cat stand here?
+//
+// The predicate form of the three passes update() applies: inside the bounds,
+// clear of every collider by c.r + CAT_RADIUS, and at least WATER_MARGIN from
+// every water. Written next to them, from the same constants, so a rule added
+// to one is added to both. `area` is the built area ({colliders, bounds,
+// waters}). Used by the rival chase to pick a landing spot; update() keeps its
+// push form (it needs to move the cat, not judge a point). Swimming is
+// deliberately ignored: a landing in the water is never wanted.
+export function isWalkableAt(area, x, z) {
+  if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+  const b = area?.bounds;
+  if (b && (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ)) return false;
+  for (const c of area?.colliders ?? []) {
+    if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
+  }
+  return waterClearance(area?.waters, x, z) >= WATER_MARGIN;
+}
+
 // Push `pos` (a THREE.Vector3, mutated in place) out to WATER_MARGIN clear of
 // every water; returns whether it had to.
 //

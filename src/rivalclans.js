@@ -25,20 +25,21 @@ import { seedFromCode } from './rng.js';
 //     (18,42), the pier and sea (x >= 25), the dune chain (-28,18)/(-29,19)
 //     (nearest 17m away), the cliff and overlook (z <= -34) and the boxes
 //     (19,24)/(-14,4) are all clear.
-//   docks (-31,-14) r 6.5: the west container yard, round the container
-//     (-30,-9). Spawn (0,-34), both bridges (0, and -24 which ends at
-//     z -5.5), the crane chain (-16..-22.5,-9.8..-16.6) and its gold mouse
-//     (-17,-13), and the tins (-30,-26) are all outside. The disc does clip
-//     about 1m of the south quay's southern edge and sidewalk (it reaches
-//     z -7.5; the quay is z -8.5..-4.5, sidewalk at z -9), but the quay
-//     centreline (z -6.5) and every required spot stay outside, and a
-//     territory is not a wall. Nothing the Docks needs, with or without
-//     Sea Legs, is inside.
+//   docks (-30.5,-9.5) r 5: the west container yard, with the whole container
+//     (colliders (-30,-10.6) and (-30,-7.4), r 1.9) INSIDE the disc. The ring
+//     itself clears every docks collider by more than 0.85m (CAT_RADIUS plus
+//     0.5) and the canal by the same, so the patrol never walks through the
+//     container (test/rivalworld.test.js builds the area and checks every
+//     patrol and mark point). Spawn (0,-34), both bridges (0, and -24 which
+//     ends at z -5.5, 7.6m from the centre), the crane chain
+//     (-16..-22.5,-9.8..-16.6) and its gold mouse (-17,-13), the tins
+//     (-30,-26), every POI and perch are all outside, and the far edge
+//     (x -35.5) leaves room for a landing inside the map (minX -38).
 export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
   seaside: Object.freeze({ cx: -34, cz: 36, r: 7 }),
-  docks: Object.freeze({ cx: -31, cz: -14, r: 6.5 }),
+  docks: Object.freeze({ cx: -30.5, cz: -9.5, r: 5 }),
 });
 
 const MARK_COUNT = 12;

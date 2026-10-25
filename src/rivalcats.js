@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { rivalFor, patrolPath, borderMarks, isTrespassing } from './rivalclans.js';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
@@ -80,8 +79,13 @@ function loopFor(areaId) {
 // both. A pure function of (areaId, t); null for an unknown area or a t that
 // is not a finite number.
 export function patrolAt(areaId, t) {
+  return patrolInto(areaId, t, { x: 0, z: 0 });
+}
+
+// patrolAt writing into `out` (no allocation): the per-frame path. Returns
+// `out`, or null exactly when patrolAt would.
+function patrolInto(areaId, t, out) {
   if (typeof t !== 'number' || !Number.isFinite(t)) return null;
-  if (!rivalFor(areaId)) return null;
   const l = loopFor(areaId);
   if (!l) return null;
   let s = (t * PATROL_SPEED) % l.length;
@@ -92,10 +96,12 @@ export function patrolAt(areaId, t) {
   const b = l.pts[(i + 1) % l.pts.length];
   const seg = l.cum[i + 1] - l.cum[i];
   const u = seg > 0 ? (s - l.cum[i]) / seg : 0;
-  return { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
+  out.x = a.x + (b.x - a.x) * u;
+  out.z = a.z + (b.z - a.z) * u;
+  return out;
 }
 
-const NO_CHASE = () => ({ chased: false, to: null });
+const NO_CHASE = Object.freeze({ chased: false, to: null });
 
 // Would the patrol chase a cat at catPos, given the patrol at patrolPos? Only
 // when the cat is inside the border AND within NOTICE_DIST of the patrol.
@@ -103,9 +109,9 @@ const NO_CHASE = () => ({ chased: false, to: null });
 // r + LANDING_OFFSET. Never throws; bad input is "no chase".
 export function chaseOutcome(areaId, catPos, patrolPos) {
   const rival = rivalFor(areaId);
-  if (!rival || !isPt(catPos) || !isPt(patrolPos)) return NO_CHASE();
-  if (!isTrespassing(areaId, catPos.x, catPos.z)) return NO_CHASE();
-  if (Math.hypot(catPos.x - patrolPos.x, catPos.z - patrolPos.z) > NOTICE_DIST) return NO_CHASE();
+  if (!rival || !isPt(catPos) || !isPt(patrolPos)) return NO_CHASE;
+  if (!isTrespassing(areaId, catPos.x, catPos.z)) return NO_CHASE;
+  if (Math.hypot(catPos.x - patrolPos.x, catPos.z - patrolPos.z) > NOTICE_DIST) return NO_CHASE;
   let dx = catPos.x - rival.cx;
   let dz = catPos.z - rival.cz;
   let d = Math.hypot(dx, dz);
@@ -175,14 +181,7 @@ const smooth = (u) => u * u * (3 - 2 * u);
 const facing = (dx, dz) => Math.atan2(dx, dz) + Math.PI;
 const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; } };
 
-function angleLerp(a, b, u) {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * u;
-}
-
-// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar), dispose(), state }
+// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos), dispose(), state }
 //
 // opts:
 //   reducedMotion  no dash, a short move.
@@ -193,10 +192,13 @@ function angleLerp(a, b, u) {
 //   onSettled()    fires when the scamper ends.
 //
 // update mutates catPos (the LOCAL player's cat position) only during a
-// scamper, and sets avatar.rotation.y if an avatar is passed. A partner's
-// remote cat is never passed here, so it is never moved by this device. The
-// patrol mesh's position is a pure function of the shared clock plus a local
-// dash, so nothing goes over the network.
+// scamper. The caller sets the cat's facing and gait (avatar.js reads
+// session.chasing for the gait). A partner's remote cat is never passed here,
+// so it is never moved by this device. The patrol mesh's position is a pure
+// function of the shared clock plus a local dash, so nothing goes over the
+// network. The per-frame path allocates nothing: positions are written into
+// scratch objects, and chaseOutcome (which allocates its result) is only
+// called on the frame a chase actually starts.
 export function createRivalPatrol(scene, areaId, {
   reducedMotion = false,
   now = () => Date.now() / 1000,
@@ -207,105 +209,102 @@ export function createRivalPatrol(scene, areaId, {
 } = {}) {
   const rival = rivalFor(areaId);
   if (!rival) return NO_PATROL;
+  const { cx, cz } = rival;
 
-  const mesh = buildCat(strayBreed(rival.name));
-  const start = patrolAt(areaId, now()) ?? { x: rival.cx, z: rival.cz };
-  mesh.position.set(start.x, 0, start.z);
+  // The stray model, as straycats.js builds it ({ simple: true }), at normal size.
+  const mesh = buildCat(strayBreed(rival.name), undefined, { simple: true });
+  const pp = { x: cx, z: cz }; // patrol position now (scratch)
+  const ahead = { x: cx, z: cz }; // half a second on (scratch)
+  patrolInto(areaId, now(), pp);
+  mesh.position.set(pp.x, 0, pp.z);
   scene.add(mesh);
 
   let state = 'patrol'; // 'patrol' | 'scamper' | 'return'
   let cooldown = 0;
   let elapsed = 0;
   let duration = SCAMPER_TIME;
-  let from = null;
-  let toPt = null;
-  let baseY = 0;
+  let fromX = 0;
+  let fromZ = 0;
+  let toX = 0;
+  let toZ = 0;
   let returnT = 0;
   let disposed = false;
-  const dashPos = new THREE.Vector3();
+  let dashX = 0;
+  let dashZ = 0;
 
-  function placeOnRoute(p, p2) {
-    mesh.position.set(p.x, 0, p.z);
-    if (p2) mesh.rotation.y = facing(p2.x - p.x, p2.z - p.z);
-  }
-
-  function update(dt, catPos, avatar) {
+  function update(dt, catPos) {
     if (disposed || !(dt >= 0) || !catPos) return;
     const t = now();
-    const pp = patrolAt(areaId, t);
-    if (!pp) return;
-    const ahead = patrolAt(areaId, t + 0.5);
+    if (!patrolInto(areaId, t, pp)) return;
     cooldown = Math.max(0, cooldown - dt);
 
-    if (state === 'patrol') {
-      placeOnRoute(pp, ahead);
+    if (state === 'patrol' || state === 'return') {
+      patrolInto(areaId, t + 0.5, ahead);
+      if (state === 'patrol') {
+        mesh.position.x = pp.x;
+        mesh.position.z = pp.z;
+      } else {
+        returnT += dt;
+        const w = smooth(Math.min(1, returnT / RETURN_TIME));
+        mesh.position.x = dashX + (pp.x - dashX) * w;
+        mesh.position.z = dashZ + (pp.z - dashZ) * w;
+        if (w >= 1) state = 'patrol';
+      }
+      mesh.rotation.y = facing(ahead.x - pp.x, ahead.z - pp.z);
       animateCat(mesh, 'follow', t, PATROL_SPEED, reducedMotion);
-      if (cooldown <= 0 && canChase() !== false) {
+
+      if (state === 'patrol' && cooldown <= 0 && canChase() !== false
+        && isTrespassing(areaId, catPos.x, catPos.z)
+        && Math.hypot(catPos.x - pp.x, catPos.z - pp.z) <= NOTICE_DIST) {
         const out = chaseOutcome(areaId, catPos, pp);
-        if (out.chased) {
-          const land = findLanding(areaId, out.to, isWalkable);
-          if (land) {
-            state = 'scamper';
-            elapsed = 0;
-            duration = reducedMotion ? SCAMPER_TIME_REDUCED : SCAMPER_TIME;
-            from = { x: catPos.x, z: catPos.z };
-            toPt = land;
-            baseY = catPos.y;
-            dashPos.copy(mesh.position);
-            onChase(rival.name);
-          }
+        const land = out.chased ? findLanding(areaId, out.to, isWalkable) : null;
+        if (land) {
+          state = 'scamper';
+          elapsed = 0;
+          duration = reducedMotion ? SCAMPER_TIME_REDUCED : SCAMPER_TIME;
+          fromX = catPos.x;
+          fromZ = catPos.z;
+          toX = land.x;
+          toZ = land.z;
+          onChase(rival.name);
         }
       }
       return;
     }
 
-    if (state === 'scamper') {
-      elapsed += dt;
-      const u = Math.min(1, elapsed / duration);
-      const e = smooth(u);
-      catPos.x = from.x + (toPt.x - from.x) * e;
-      catPos.z = from.z + (toPt.z - from.z) * e;
-      catPos.y = baseY + (reducedMotion ? 0 : Math.sin(u * Math.PI) * 0.18);
-      if (avatar) {
-        const run = facing(toPt.x - from.x, toPt.z - from.z);
-        const home = facing(rival.cx - toPt.x, rival.cz - toPt.z);
-        avatar.rotation.y = u < 0.7 ? run : angleLerp(run, home, smooth((u - 0.7) / 0.3));
-        animateCat(avatar, 'follow', t, 6, reducedMotion);
-      }
-      // The patrol cat turns to the trespasser and (unless reduced motion)
-      // dashes after it, stopping short; it never reaches it.
-      const dx = catPos.x - mesh.position.x;
-      const dz = catPos.z - mesh.position.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > 1e-3) mesh.rotation.y = facing(dx, dz);
-      if (!reducedMotion && dist > DASH_STOP) {
-        const step = Math.min(DASH_SPEED * dt, dist - DASH_STOP);
-        mesh.position.x += (dx / dist) * step;
-        mesh.position.z += (dz / dist) * step;
-        animateCat(mesh, 'follow', t, DASH_SPEED, reducedMotion);
-      }
-      if (u >= 1) {
-        catPos.x = toPt.x;
-        catPos.z = toPt.z;
-        catPos.y = baseY;
-        if (avatar) avatar.rotation.y = facing(rival.cx - toPt.x, rival.cz - toPt.z);
-        dashPos.copy(mesh.position);
-        state = 'return';
-        returnT = 0;
-        cooldown = CHASE_COOLDOWN;
-        onSettled();
-      }
-      return;
+    // 'scamper'
+    elapsed += dt;
+    const u = Math.min(1, elapsed / duration);
+    const e = smooth(u);
+    catPos.x = fromX + (toX - fromX) * e;
+    catPos.z = fromZ + (toZ - fromZ) * e;
+    // Chases are gated on a grounded cat, so the rest height is the ground: a
+    // pounce's render lift is never carried along. A small hop on top, none
+    // in reduced motion, and it ends on the ground.
+    catPos.y = reducedMotion ? 0 : Math.sin(u * Math.PI) * 0.18;
+    // The patrol cat turns to the trespasser and (unless reduced motion)
+    // dashes after it, stopping short; it never reaches it.
+    const dx = catPos.x - mesh.position.x;
+    const dz = catPos.z - mesh.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 1e-3) mesh.rotation.y = facing(dx, dz);
+    if (!reducedMotion && dist > DASH_STOP) {
+      const step = Math.min(DASH_SPEED * dt, dist - DASH_STOP);
+      mesh.position.x += (dx / dist) * step;
+      mesh.position.z += (dz / dist) * step;
+      animateCat(mesh, 'follow', t, DASH_SPEED, reducedMotion);
     }
-
-    // 'return': drift back onto the route.
-    returnT += dt;
-    const w = smooth(Math.min(1, returnT / RETURN_TIME));
-    mesh.position.x = dashPos.x + (pp.x - dashPos.x) * w;
-    mesh.position.z = dashPos.z + (pp.z - dashPos.z) * w;
-    if (ahead) mesh.rotation.y = facing(ahead.x - pp.x, ahead.z - pp.z);
-    animateCat(mesh, 'follow', t, PATROL_SPEED, reducedMotion);
-    if (w >= 1) state = 'patrol';
+    if (u >= 1) {
+      catPos.x = toX;
+      catPos.z = toZ;
+      catPos.y = 0;
+      dashX = mesh.position.x;
+      dashZ = mesh.position.z;
+      state = 'return';
+      returnT = 0;
+      cooldown = CHASE_COOLDOWN;
+      onSettled();
+    }
   }
 
   function dispose() {

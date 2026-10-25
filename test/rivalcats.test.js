@@ -202,16 +202,48 @@ describe('createRivalPatrol', () => {
     expect(Math.hypot(cat.x - cx, cat.z - cz)).toBeGreaterThan(r);
   });
 
-  test('the cooldown stops a second chase straight away', () => {
+  test('the cooldown is the real one: blocked until it ends, then chases again', () => {
     let clock = 1000;
     const { api, events } = mk({ now: () => clock });
     const cat = nearPatrol(clock);
-    for (let i = 0; i < 60 * 3; i++) {
-      clock += 1 / 60;
-      api.update(1 / 60, cat);
-      if (i === 100) cat.copy(nearPatrol(clock)); // wanders straight back in
-    }
-    expect(events.filter((e) => e[0] === 'chase')).toHaveLength(1);
+    const step = () => { clock += 1 / 60; api.update(1 / 60, cat); };
+    const chases = () => events.filter((e) => e[0] === 'chase').length;
+    // first chase, run to the end of the scamper
+    while (events.filter((e) => e[0] === 'settled').length === 0) step();
+    expect(chases()).toBe(1);
+    const settledAt = clock;
+    // wander back in 0.5 s before the cooldown ends: no chase
+    while (clock < settledAt + CHASE_COOLDOWN - 0.5) step();
+    cat.copy(nearPatrol(clock));
+    for (let i = 0; i < 20; i++) step(); // 0.33 s: still before the cooldown ends
+    expect(chases()).toBe(1);
+    // 0.1 s after the cooldown ends: chased again
+    while (clock < settledAt + CHASE_COOLDOWN + 0.1) step();
+    cat.copy(nearPatrol(clock));
+    for (let i = 0; i < 3; i++) step();
+    expect(chases()).toBe(2);
+  });
+
+  test('the scamper heads for the walkable landing, never the raw point', () => {
+    let clock = 1000;
+    const cat0 = nearPatrol(clock);
+    const raw = chaseOutcome('park', cat0, patrolAt('park', clock)).to;
+    const walkable = (x, z) => Math.hypot(x - raw.x, z - raw.z) > 2;
+    const { api } = mk({ now: () => clock, isWalkable: walkable });
+    const cat = cat0.clone();
+    for (let i = 0; i < 60; i++) { clock += 1 / 60; api.update(1 / 60, cat); }
+    expect(walkable(cat.x, cat.z)).toBe(true);
+    expect(isTrespassing('park', cat.x, cat.z)).toBe(false);
+    expect(cat.y).toBe(0);
+  });
+
+  test('a scamper starting mid-pounce ends on the ground, not at the lift', () => {
+    let clock = 1000;
+    const { api } = mk({ now: () => clock });
+    const cat = nearPatrol(clock);
+    cat.y = 0.9; // a Spring Paws pounce apex
+    for (let i = 0; i < 60; i++) { clock += 1 / 60; api.update(1 / 60, cat); }
+    expect(cat.y).toBe(0);
   });
 
   test('a cat outside is never touched', () => {
@@ -248,10 +280,24 @@ describe('createRivalPatrol', () => {
 test('a chase has no channel to progress at all', () => {
   // Structural, because this is an anti-goal rather than a behaviour: the
   // module cannot take anything away if it cannot reach anything that stores
-  // progress.
+  // progress. An exact allowlist of imports, as enemies.js does for its own.
   const src = readFileSync(new URL('../src/rivalcats.js', import.meta.url), 'utf8');
-  for (const forbidden of ['progression.js', 'colony.js', 'discoveries.js']) {
-    expect(src).not.toContain(forbidden);
+  const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
+  expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './rivalclans.js', './straynames.js']);
+});
+
+test('the walk.js chase branch touches no progress, colony, log or points', () => {
+  const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+  const a = src.indexOf("The rival's border and its patrol");
+  const b = src.indexOf('session.rival = {');
+  expect(a).toBeGreaterThan(0);
+  expect(b).toBeGreaterThan(a);
+  const branch = src.slice(a, b);
+  expect(branch).toContain('hud.toast');
+  // strip comments: they say what the branch must not do
+  const code = branch.replace(/\/\/.*$/gm, '');
+  for (const bad of ['progression.', 'colony', 'recordGolden', 'log.', 'award', 'recordFeat', 'setPoints', 'discover']) {
+    expect(code).not.toContain(bad);
   }
 });
 
