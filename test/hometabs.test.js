@@ -3,8 +3,8 @@ import { HOME_TABS, resolveTab, renderSkillsHtml } from '../src/ui/hometabs.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
 
 describe('home base tabs', () => {
-  it('lists the six tabs in order, cats first', () => {
-    expect(HOME_TABS).toEqual(['cats', 'accessories', 'skills', 'social', 'album', 'settings']);
+  it('lists the seven tabs in order, cats first', () => {
+    expect(HOME_TABS).toEqual(['cats', 'accessories', 'skills', 'colony', 'social', 'album', 'settings']);
   });
   it('resolveTab keeps a known id', () => {
     for (const t of HOME_TABS) expect(resolveTab(t)).toBe(t);

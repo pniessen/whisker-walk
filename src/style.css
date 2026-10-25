@@ -444,3 +444,32 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .skill-unlock-name { font-size: 1.2rem; }
   .skill-unlock-effect { font-size: 0.82rem; }
 }
+
+/* --- v21 Colony tab. One bar per cat: .colony-bar reuses the .skill-bar look
+   (8px pill, gold fill); the head start from earlier greets is a second,
+   softer shade INSIDE the same bar, never a second track. Cards reuse
+   .card / .card-name / .tag. --- */
+.colony-mode { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 12px; }
+.colony-empty, .colony-full { font-size: 0.9rem; color: #c0ccdd; margin: 8px 0; max-width: 60ch; }
+.colony-full { color: #f2c14e; font-weight: 700; }
+.colony-cards { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.colony-card { min-width: 0; }
+.colony-card .card-name { overflow-wrap: anywhere; }
+.colony-breed { font-size: 0.75rem; font-weight: 400; color: #a8c0e0; text-transform: capitalize; margin-left: 4px; }
+.colony-bar {
+  display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+  background: rgba(255,255,255,0.12);
+}
+.colony-bar > span { display: block; height: 100%; }
+.colony-head { background: #7ee2a0; }  /* earlier greets: a different shade, same bar */
+.colony-fed { background: #f2c14e; }
+.colony-count { font-size: 0.8rem; color: #e8eef8; font-weight: 700; }
+.colony-knew { font-size: 0.8rem; color: #7ee2a0; font-weight: 700; }
+.colony-fedby, .colony-where, .colony-found { font-size: 0.8rem; color: #c0ccdd; overflow-wrap: anywhere; }
+.colony-card.selected .colony-where { color: #f2c14e; font-weight: 700; }
+.colony-dress { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: #a8c0e0; margin-top: 2px; }
+.colony-dress select {
+  min-height: 36px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; font: inherit; max-width: 100%;
+}
+.colony-dress select option { color: #111; }

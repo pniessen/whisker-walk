@@ -17,7 +17,9 @@ import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
 // become" — Social/Album/Settings are a different mode of use. Order is
 // pinned in test/hometabs.test.js: it's the tab bar's left-to-right order,
 // not just a membership list.
-export const HOME_TABS = ['cats', 'accessories', 'skills', 'social', 'album', 'settings'];
+// v21 adds 'colony' fourth, right after Skills: it is another "look at what
+// your cats have become" tab (the shared strays you've tamed).
+export const HOME_TABS = ['cats', 'accessories', 'skills', 'colony', 'social', 'album', 'settings'];
 
 export function resolveTab(id) {
   return HOME_TABS.includes(id) ? id : 'cats';

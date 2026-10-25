@@ -362,7 +362,7 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid);
   homebase.show();
   colonySync.pull(); // fire-and-forget; never rejects, and makes no network call when solo
 

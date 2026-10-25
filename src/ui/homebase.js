@@ -2,6 +2,7 @@ import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { HOME_TABS, resolveTab, renderSkillsHtml } from './hometabs.js';
+import { renderColonyHtml } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
@@ -14,7 +15,7 @@ const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 const ACCESSORY_SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
 
-const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', skills: '🐾 Skills', social: '👥 Social', album: '📸 Album', settings: '⚙️ Settings' };
+const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', skills: '🐾 Skills', colony: '🐈 Colony', social: '👥 Social', album: '📸 Album', settings: '⚙️ Settings' };
 
 const CAT_BLURBS = {
   tabby: 'Curious — sniffs out hidden treasures',
@@ -92,7 +93,10 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // 'den' })`, bypassing the host/joiner room branch onStartWalk goes through.
 // colonySync (v21 Stream 2, game/colonysync.js) is optional: the Colony tab
 // (Tasks 8-11) reads its status() and calls its actions.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync) {
+// myId is the player id (main.js `pid`), passed explicitly because the cloud
+// adapter above can be absent when multiplayer is off, and the Colony tab
+// must still tell "my" finds and feeds from my partner's.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -542,6 +546,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               ${renderSkillsHtml(s)}
             </section>
           </div>
+          <div class="hb-panel" data-panel="colony">
+            <section class="colony-section"><h2>Your colony 🐈</h2>
+              ${renderColonyHtml({
+                colony: s.colony, me: myId, members: progression.colonyMembers(),
+                status: colonySync ? colonySync.status() : { mode: 'local' },
+                owned: s.unlocked.accessories, catalog: CATALOG,
+              })}
+            </section>
+          </div>
           <div class="hb-panel" data-panel="social">
             <section class="walk-together"><h2>Walk together 🐾🐾</h2>
               ${renderWalkTogether()}
@@ -865,6 +878,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       settings.set('quality', e.target.value);
       onSettingsChange?.();
       render();
+      return;
+    }
+    // Colony dressing: a finder gives one of their cats an accessory they own
+    // ("" = nothing). colonySync.dress does the save and, when paired, the
+    // push; its onChange re-renders the home base (main.js wires that to
+    // refresh()), and a bad item is refused there, not here.
+    const dressCat = e.target.dataset.colonyDress;
+    if (dressCat) {
+      Promise.resolve(colonySync?.dress(dressCat, e.target.value || null))
+        .then((r) => { if (r && !r.ok) render(); }, () => render()); // a refusal puts the select back
       return;
     }
     // Den placement (Task 7.2): each DEN_SPOTS anchor has its own <select>;
