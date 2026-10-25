@@ -403,7 +403,7 @@ describe('createProgression', () => {
       p.replaceFromPayload({ version: 3 });
 
       expect(p.state).toEqual({
-        version: 4, points: 0, retired: ['rosa'],
+        version: 4, points: 0, retired: ['rosa'], redeemed: [],
         walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
@@ -1951,7 +1951,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, retired, ...rest } = p.state;
+    const { colony, clanRoles, clan, retired, redeemed, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(rest).toEqual(v20);
   });

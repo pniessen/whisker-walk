@@ -305,6 +305,16 @@ function asStringArray(v) {
   return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : [];
 }
 
+// Redeem-code hashes remembered per save; the oldest are dropped past this.
+export const REDEEMED_MAX = 500;
+const REDEEM_HASH_RE = /^[0-9a-f]{64}$/;
+// Valid, unique hex hashes only, keeping the newest REDEEMED_MAX.
+function sanitizeRedeemed(v) {
+  if (!Array.isArray(v)) return [];
+  const ok = [...new Set(v.filter((h) => typeof h === 'string' && REDEEM_HASH_RE.test(h)))];
+  return ok.slice(-REDEEMED_MAX);
+}
+
 function defaultState() {
   return {
     version: SAVE_VERSION,
@@ -431,6 +441,9 @@ function defaultState() {
     // simply one that has not been through retireCats yet. A new save starts
     // with every id marked, so nobody is refunded for a cat they never owned.
     retired: Object.keys(RETIRED_CATS),
+    // Hashes of redeem codes already used on this save (never the codes
+    // themselves). Additive, so SAVE_VERSION stays 4.
+    redeemed: [],
   };
 }
 
@@ -779,6 +792,7 @@ function sanitizeState(parsed) {
     clan: sanitizeClan(parsed.clan),
     // Only ids we retired, once each; anything else in a cloud payload is junk.
     retired: [...new Set(asStringArray(parsed.retired).filter((id) => Object.hasOwn(RETIRED_CATS, id)))],
+    redeemed: sanitizeRedeemed(parsed.redeemed),
   };
 }
 
@@ -915,6 +929,30 @@ export function createProgression(storage) {
       state.points += n;
       state.lifetimePoints += n;
       save();
+    },
+    // redeemCode(hash, reward): once per hash per save. Pays points and refunds
+    // to state.points ONLY (never lifetimePoints, like the Rosa refund). Items
+    // are unlocked, not equipped; ones already owned are refunded at price.
+    redeemCode(hash, reward) {
+      if (typeof hash !== 'string' || !REDEEM_HASH_RE.test(hash)) return { ok: false, reason: 'bad-hash' };
+      if (state.redeemed.includes(hash)) return { ok: false, reason: 'used' };
+      let points = asFiniteNonNegInt(reward?.points, 0);
+      const items = [];
+      for (const kind of ['cats', 'accessories']) {
+        const ids = Array.isArray(reward?.[kind]) ? reward[kind] : [];
+        for (const id of new Set(ids)) {
+          if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;
+          const owned = state.unlocked[kind].includes(id);
+          const refund = owned ? CATALOG[kind][id].price : 0;
+          if (!owned) state.unlocked[kind].push(id);
+          points += refund;
+          items.push({ kind, id, name: CATALOG[kind][id].name, owned, refund });
+        }
+      }
+      state.points += points;
+      state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);
+      save();
+      return { ok: true, items, points };
     },
     // -------------------------------------------------------------------
     // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).

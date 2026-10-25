@@ -11,6 +11,7 @@ import {
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
+import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -109,6 +110,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let petNameError = null;
   let joinError = null;
   let activeTab = 'cats';
+
+  // Secret-code box (Cats tab). Typed text, the last result and the busy flag
+  // live here because render() rebuilds the panel.
+  const redeemer = createRedeemer({ progression });
+  let redeemText = '';
+  let redeemResult = null;
+  let redeemBusy = false;
 
   // Colony pairing (Task 9). The draft code lives here, not in the DOM, because
   // render() rebuilds the panel (a roster change or a poll that found news
@@ -733,6 +741,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
             </div></section>
             ${renderDenSection()}
+            ${renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG })}
           </div>
           <div class="hb-panel" data-panel="accessories">
             <section><h2>Dress up your cat</h2>
@@ -1142,12 +1151,42 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     render();
   });
 
+  // The secret-code form (delegated: render() rebuilds it). While hashing the
+  // box and button are disabled, so a second submit cannot return the first
+  // result. A thrown error reads as the kind 'unsupported' line.
+  root.addEventListener('submit', async (e) => {
+    if (!e.target.classList || !e.target.classList.contains('redeem-form')) return;
+    e.preventDefault();
+    if (redeemBusy) return;
+    const field = root.querySelector('#redeem-input');
+    if (field) redeemText = field.value;
+    redeemBusy = true;
+    redeemResult = null;
+    render();
+    let res;
+    try {
+      res = await redeemer.redeem(redeemText);
+    } catch {
+      res = { kind: 'unsupported' };
+    }
+    redeemBusy = false;
+    redeemResult = res;
+    if (res.kind === 'gift' || res.kind === 'used') redeemText = '';
+    if (res.kind === 'gift') sync?.autoSync?.();
+    render();
+    if (res.kind !== 'gift') root.querySelector('#redeem-input')?.focus();
+  });
+
   // Volume slider: a dedicated 'input' listener (fires continuously while
   // dragging) rather than the delegated click handler above — applying live
   // + patching just the % label keeps the drag smooth. A full render() here
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
+    if (e.target.id === 'redeem-input') {
+      redeemText = e.target.value;
+      return;
+    }
     // The pairing code box: uppercase, invite characters only, 6 at most. The
     // draft is kept so a re-render does not lose it; the box is only written
     // to when cleaning changed something, to leave the cursor alone otherwise.
@@ -1223,6 +1262,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   return {
     show() {
+      redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       render();
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden
