@@ -6,4 +6,6 @@
 //   '<64 hex>': { label: 'Halloween 2026', points: 50, accessories: ['wizard'], cats: [] },
 // };
 
-export const REDEEM_CODES = {};
+export const REDEEM_CODES = {
+  '77cba3f680fe2e4fffed131671d9b7f36f9bd7b2d6334f692eb0407f2f79b59f': { label: "Welcome gift", points: 25, accessories: ["beanie"], cats: [] },
+};
