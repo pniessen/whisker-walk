@@ -18,9 +18,17 @@ describe('supabase-colony.sql', () => {
       expect(m, name).toBeTruthy();
       expect(m[1].match(/p_[a-z_]+/g)).toEqual(args);
       expect(m[0]).toMatch(/security definer/i);
-      expect(m[0]).toMatch(/set search_path = public/i);
+      expect(m[0]).toMatch(/set search_path = public, pg_temp as \$\$/i);
       expect(sql).toMatch(new RegExp(`grant execute on function public\\.${name}[\\s\\S]*?to anon`, 'i'));
     }
+  });
+  // Final review M3: pg_temp last, so a temporary object can never shadow a
+  // real table inside a SECURITY DEFINER function. Every function, helper too.
+  it('pins every function\'s search_path to public, pg_temp', () => {
+    const defs = [...sql.matchAll(/create or replace function public\.([a-z_]+)\([\s\S]*?\$\$/gi)];
+    expect(defs.length).toBe(Object.keys(RPCS).length + 1); // the nine RPCs and colony_authed
+    for (const d of defs) expect(d[0], d[1]).toMatch(/security definer set search_path = public, pg_temp as \$\$/i);
+    expect(sql).not.toMatch(/search_path = public as/i);
   });
   it('enables RLS on every table, revokes anon, and adds no select policy', () => {
     for (const t of TABLES) {

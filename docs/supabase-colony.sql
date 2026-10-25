@@ -119,7 +119,7 @@ revoke all on sequence public.colony_trades_id_seq from anon, authenticated;
 -- matches, as in record_friend_greet. Written so a NULL secret can never
 -- pass (a bare `secret <> p_secret` is NULL, not true, when p_secret is NULL).
 create or replace function public.colony_authed(p_player_id text, p_secret text)
-returns boolean language plpgsql stable security definer set search_path = public as $$
+returns boolean language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_secret text;
 begin
   select pr.secret into v_secret from profiles pr where pr.player_id = p_player_id;
@@ -139,7 +139,7 @@ revoke execute on function public.colony_authed(text, text) from public, anon, a
 -- The code's randomness comes from gen_random_uuid(), hashed to 16 even
 -- bytes; each character uses two of them, so the modulo bias is negligible.
 create or replace function public.colony_invite_open(p_player_id text, p_secret text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_colony text;
   v_alpha constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -178,7 +178,7 @@ end $$;
 -- Type in someone's code. This only ASKS: the inviter must still confirm my
 -- pet name (colony_invite_answer), so a stranger guessing a code gets nowhere.
 create or replace function public.colony_invite_join(p_player_id text, p_secret text, p_code text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_code text := upper(btrim(coalesce(p_code, '')));
   v_inviter text;
@@ -224,7 +224,7 @@ end $$;
 -- add both members and delete the pair's invites. Decline: clear joiner_id,
 -- so the same code can be typed in again until it expires.
 create or replace function public.colony_invite_answer(p_player_id text, p_secret text, p_accept boolean)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_code text;
   v_joiner text;
@@ -286,7 +286,7 @@ end $$;
 -- trade from this very call's result and republishes on its next pull, which
 -- closes the window. Any offer made inside it is re-checked at accept time.
 create or replace function public.colony_sync(p_player_id text, p_secret text, p_wardrobe jsonb)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_colony text;
   v_wardrobe jsonb := '[]'::jsonb;
@@ -371,7 +371,7 @@ end $$;
 create or replace function public.colony_feed(
   p_player_id text, p_secret text, p_cat text, p_walk text, p_area text,
   p_x real, p_z real, p_head integer, p_tamed boolean
-) returns text language plpgsql security definer set search_path = public as $$
+) returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_colony text;
 begin
   if not colony_authed(p_player_id, p_secret) then return 'denied'; end if;
@@ -426,7 +426,7 @@ end $$;
 -- wardrobe isn't checked here (it can lag a fresh purchase); the client only
 -- offers items its player owns and only shows known accessory ids.
 create or replace function public.colony_dress(p_player_id text, p_secret text, p_cat text, p_item text)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_colony text; v_finder text;
 begin
   if not colony_authed(p_player_id, p_secret) then return 'denied'; end if;
@@ -449,7 +449,7 @@ end $$;
 -- hands, so I can't want what I already have or give what they already have.
 -- One open offer per player: a new offer cancels my old one.
 create or replace function public.colony_trade_offer(p_player_id text, p_secret text, p_give text, p_want text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_colony text;
   v_mine jsonb;
@@ -512,7 +512,7 @@ end $$;
 -- and the answer is 'gone'. Otherwise both stored wardrobes are swapped here,
 -- so a second offer of the same item fails until the next sync republishes.
 create or replace function public.colony_trade_answer(p_player_id text, p_secret text, p_trade_id bigint, p_accept boolean)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_colony text;
   v_trade record;
@@ -557,7 +557,7 @@ end $$;
 
 -- Only the trade's `from` may cancel, and only while it is 'offered'.
 create or replace function public.colony_trade_cancel(p_player_id text, p_secret text, p_trade_id bigint)
-returns text language plpgsql security definer set search_path = public as $$
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_colony text;
   v_from text;
