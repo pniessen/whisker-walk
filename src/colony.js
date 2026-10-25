@@ -26,6 +26,8 @@
 import { isStrayName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
+// Pure data (no imports of its own), so colony.js stays free of THREE and DOM.
+import { DEN_SPOTS } from './den.js';
 // DOM-free: net.js imports only chat.js. One definition of a valid pet name.
 import { validPetName } from './net.js';
 
@@ -240,6 +242,30 @@ export function tamedCats(colony) {
   return colony.cats
     .filter((c) => c.tamedBy != null)
     .sort((a, b) => walkMs(a.tamedWalk) - walkMs(b.tamedWalk) || byName(a, b));
+}
+
+// A tamed cat's den home: its index in taming order, which is also its index
+// into DEN_SPOTS (COLONY_MAX = DEN_SPOTS.length, so there is always a spot).
+// -1 for a cat that is not tamed. Nobody can move it: the order is fixed by
+// the walk stamps, and tamedBy/tamedWalk are never cleared.
+export function denHome(colony, name) {
+  return tamedCats(colony).findIndex((c) => c.name === name);
+}
+
+// What a tamed cat is up to in the den today. Same all day, different from day
+// to day, the same on both devices: it is a pure function of the name and the
+// UTC date (`ymd`, 'YYYY-MM-DD'). Presentation only, never progress (spec §9.3).
+//   nap, groom   at its own home spot ('home')
+//   window       by the window ('window', a DEN_SPOTS id)
+//   box, knocked at a spot the hash picks (a DEN_SPOTS id)
+const DEN_ACTS = ['nap', 'box', 'knocked', 'window', 'groom'];
+export function denMoment(name, ymd) {
+  const seed = seedFromCode(`${name}|${ymd}`);
+  const act = DEN_ACTS[seed % DEN_ACTS.length];
+  // A different slice of the hash than the act, so the spot is not tied to it.
+  const hashed = DEN_SPOTS[(seed >>> 8) % DEN_SPOTS.length].id;
+  const spot = act === 'window' ? 'window' : act === 'box' || act === 'knocked' ? hashed : 'home';
+  return { act, spot };
 }
 
 // ---------------------------------------------------------------------------

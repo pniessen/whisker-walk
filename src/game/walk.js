@@ -37,7 +37,10 @@ import { createQuest } from '../quests.js';
 import { QUEST_TRAIL_COLOR } from '../questscent.js';
 import { createGoals } from '../goals.js';
 import { rankFor, CATALOG } from '../progression.js';
-import { catsInArea, colonyWear } from '../colony.js';
+import { catsInArea, colonyWear, tamedCats, denHome, denMoment } from '../colony.js';
+import { createDenCats } from '../dencats.js';
+import { DEN_SPOTS } from '../den.js';
+import { strayBreed } from '../straynames.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim } from '../player.js';
 import { createFx } from '../fx.js';
@@ -77,6 +80,9 @@ const AREAS = { neighborhood, park, seaside, den, docks };
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
 const NO_GHOSTS = { list: [], nearest: () => null, update() {}, dispose() {} };
+// Same idea for the den's tamed cats (v21 Stream 2): off the den walk the
+// render loop, the prompt scan and endWalk still call them unconditionally.
+const NO_DEN_CATS = { list: [], nearest: () => null, pet() {}, update() {}, dispose() {} };
 // Same idea for an area with no golden mice (the den today, a future area
 // before its three are placed): every goldMice method the walk calls, inert.
 // nearestUnfound is here because v18's Whisker Sense asks for it every frame.
@@ -902,6 +908,21 @@ export function createWalkLifecycle({
     // save, joined onto THIS area's scenics by gifts.js (a spot id that no
     // longer exists is skipped, never defaulted to the origin). The den has
     // no scenics, so it gets the inert stub.
+    // v21 Stream 2: the colony's tamed cats live in the den, each at its fixed
+    // home spot (taming order -> DEN_SPOTS index), and each UTC day gets into
+    // something different. Built from the save, draws nothing from walkRng.
+    const denCats = isDen && state.colony
+      ? createDenCats(scene, tamedCats(state.colony).map((c) => {
+        const home = DEN_SPOTS[denHome(state.colony, c.name) % DEN_SPOTS.length];
+        return {
+          name: c.name,
+          breed: strayBreed(c.name),
+          wear: colonyWear(c.wear, CATALOG.accessories),
+          home: { x: home.x, z: home.z },
+          moment: denMoment(c.name, new Date().toISOString().slice(0, 10)),
+        };
+      }), { reducedMotion })
+      : NO_DEN_CATS;
     const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
 
     if (roomSeed === undefined) {
@@ -975,6 +996,7 @@ export function createWalkLifecycle({
     decals.follow(cat);
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const critter of critters.list) decals.follow(critter.group);
+    for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it
     // could cover the whole 110m area at once, which bought 6.8cm texels on the
@@ -1169,6 +1191,7 @@ export function createWalkLifecycle({
       duskActive,
       useComposer: tier.postFx,
       ghosts: NO_GHOSTS,
+      denCats,
       walkStamp,
       // v21 Stream 2: solo, or a room whose every other member is my colony
       // partner (computed beside createStrayCats). Gates the live
@@ -1616,6 +1639,7 @@ export function createWalkLifecycle({
     session.strayCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
+    session.denCats.dispose();
     session.gifts.dispose();
     session.chatBubbles?.clear();
     session.chatWheel?.destroy();

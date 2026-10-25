@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, FEEDS_MAX, HEAD_START_MAX, emptyColony, headStartFor, isShy, tamingProgress,
-  canFeed, feedCat, catsInArea, tamedCats, settleTaming } from '../src/colony.js';
+  canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome } from '../src/colony.js';
+import { DEN_SPOTS } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
 
 const ME = 'aaaaaaaa-1111', SIB = 'bbbbbbbb-2222';
@@ -622,5 +623,41 @@ describe('colonyWear', () => {
     for (const [id, a] of Object.entries(CATALOG.accessories)) {
       expect(colonyWear(id, CATALOG.accessories)).toEqual({ slot: a.slot, id });
     }
+  });
+});
+
+describe('the den: a different thing each day', () => {
+  it('denMoment is the same all day and varies across days', () => {
+    expect(denMoment('Pickles', '2026-10-24')).toEqual(denMoment('Pickles', '2026-10-24'));
+    const acts = new Set(Array.from({ length: 14 }, (_, d) => denMoment('Pickles', `2026-11-${String(d + 1).padStart(2, '0')}`).act));
+    expect(acts.size).toBeGreaterThanOrEqual(3);
+  });
+  it('every moment is a known act with a spot that fits it', () => {
+    const ids = new Set(DEN_SPOTS.map((s) => s.id));
+    const seen = new Set();
+    for (const name of CAT_NAMES) {
+      for (let d = 1; d <= 6; d++) {
+        const m = denMoment(name, `2026-12-0${d}`);
+        seen.add(m.act);
+        expect(['nap', 'box', 'knocked', 'window', 'groom']).toContain(m.act);
+        if (m.act === 'window') expect(m.spot).toBe('window');
+        else if (m.act === 'nap' || m.act === 'groom') expect(m.spot).toBe('home');
+        else expect(ids.has(m.spot)).toBe(true);
+      }
+    }
+    expect(seen.size).toBe(5);
+  });
+  it('each tamed cat gets its own home spot, in taming order', () => {
+    const [a, b] = CAT_NAMES.filter((n) => !isShy(n));
+    let c = emptyColony();
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, a, ME, i).colony; // a tamed first
+    for (let i = 0; i < TAME_FEEDS; i++) c = feed(c, b, ME, 20 + i).colony;
+    expect(denHome(c, a)).toBe(0);
+    expect(denHome(c, b)).toBe(1);
+    expect(denHome(c, 'Zeetoo')).toBe(-1);
+  });
+  it('an untamed cat has no den home', () => {
+    const c = feed(emptyColony(), boldName, ME, 1).colony;
+    expect(denHome(c, boldName)).toBe(-1);
   });
 });

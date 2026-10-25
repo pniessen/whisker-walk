@@ -53,6 +53,8 @@ import { nowSec } from './util.js';
 // deliberate match cannot silently become a mismatch.
 // ---------------------------------------------------------------------------
 const STRAY_PROMPT_RANGE = 2.5;
+// How close you stand to pet a tamed cat at home in the den.
+const DEN_CAT_PET_RANGE = 2.2;
 const SCUFFLE_RANGE = 1.4;
 export const TREAT_COST = 10;
 
@@ -733,6 +735,14 @@ export function createInteractions({
         setPrompt(kp);
       }
     }
+    if (!s.prompt && s.denCats) {
+      // v21 Stream 2: a tamed colony cat at home in the den.
+      const dc = s.denCats.nearest(catP, DEN_CAT_PET_RANGE);
+      if (dc) {
+        s.prompt = { kind: 'den-cat', data: dc };
+        setPrompt(`E — pet ${dc.name}`);
+      }
+    }
     if (!s.prompt) {
       const rp = s.race.promptAt(catP);
       if (rp) {
@@ -1153,6 +1163,13 @@ export function createInteractions({
       } else {
         log.awardOnce('pet', 'kitten-nuzzle', 'a nuzzle from Mochi');
       }
+    } else if (s.prompt.kind === 'den-cat') {
+      // A purr from a tamed colony cat. One award per cat, ever (awardOnce);
+      // petting again just makes it sit up and purr for a moment.
+      const dc = s.prompt.data;
+      s.denCats.pet(dc);
+      log.awardOnce('pet', 'den-' + dc.name, `a purr from ${dc.name}`);
+      catVoice();
     } else if (s.prompt.kind === 'gift-leave') {
       // v18 Gift Paws. progression.leaveGift is the gate: it refuses an
       // unknown area, a spot that already holds one, and the save's cap, and

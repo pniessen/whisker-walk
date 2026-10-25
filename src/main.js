@@ -696,6 +696,7 @@ function init() {
       session.remotes.update(dt, nowSec());
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);
+      session.denCats.update(dt, t, session.cat.position);
       // Wave 2.1's contact decals. Takes no dt — like session.shadows.update()
       // it is a pure function of where things ENDED UP this frame, so its only
       // requirement is ordering: it must run after everything that owns a
