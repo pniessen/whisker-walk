@@ -286,7 +286,7 @@ body.left-handed .tui-pause {
 .wt-petname, .wt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .wt-petname { margin-bottom: 10px; }
 .star-name-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
-.star-name-pick.chosen { border-color: #f2c14e; }
+.star-name-pick.chosen { box-shadow: 0 0 0 2px #f2c14e; }
 .wt-pair { margin-bottom: 12px; }
 .wt-petname input, .wt-join-row input {
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
@@ -471,8 +471,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .colony-card { min-width: 0; }
 .colony-card .card-name { overflow-wrap: anywhere; }
 .colony-breed { font-size: 0.75rem; font-weight: 400; color: #a8c0e0; text-transform: capitalize; margin-left: 4px; }
-/* The rank is a description in words, not a meter: quiet, beside the clan name,
-   and allowed to wrap so a long name plus rank never pushes the bar at 375px. */
+/* The rank is a description in words, not a meter: quiet, beside the clan name.
+   It never breaks inside itself (nowrap), so a long name plus rank moves the
+   whole rank onto the next line rather than pushing the bar at 375px. */
 .colony-rank { font-size: 0.75rem; font-weight: 400; color: #a8c0e0; margin-left: 4px; white-space: nowrap; }
 .colony-title { font-size: 0.75rem; color: #a8c0e0; margin-bottom: 4px; overflow-wrap: anywhere; }
 .colony-bar {

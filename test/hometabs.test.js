@@ -135,7 +135,7 @@ describe('renderSkillsHtml', () => {
   });
 });
 
-// Review Focus 5 - a legacy free-text pet name, and no pet name at all.
+// A legacy free-text pet name, and no pet name at all, must both render.
 describe('star name picker', () => {
   it.each(['Noodle', null])('shows a legacy pet name unchanged: %p', (cur) => {
     const html = renderStarNamePicker(candidateStarNames('player-abc12345'), cur);
