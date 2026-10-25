@@ -26,6 +26,8 @@ import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag } from '../colony.js';
 import { CATALOG } from '../progression.js';
 import { nowSec } from './util.js';
+// Renamed on import: doYarn already has a local `drop` (where the yarn lands).
+import { pick as pickUp, drop as putDown, carryLabel } from '../carry.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -57,6 +59,8 @@ const STRAY_PROMPT_RANGE = 2.5;
 const DEN_CAT_PET_RANGE = 2.2;
 const SCUFFLE_RANGE = 1.4;
 export const TREAT_COST = 10;
+// v21 3b: how close a thing on the ground must be to pick it up in the mouth.
+const CARRY_REACH = 1.2;
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -592,6 +596,20 @@ export function createInteractions({
           : `E — pick up ${c.label}`);
       }
     }
+    // v21 3b — carry, picked up in the mouth. Right after 'collect': a thing
+    // on the ground is something the player walked over to. A cat holds one
+    // thing at a time, and only from the ground (not from a perch). The mouth
+    // is not the collectibles pocket (s.walk.carried), so a full pocket does
+    // not stop it. Guarded so a stand-in test session without a carry simply
+    // never offers it; every real walk has one (inert in the den).
+    const carry = s.carry;
+    if (!s.prompt && carry && !carry.mouth.held && !s.perched) {
+      const item = carry.items.nearest(catP, CARRY_REACH);
+      if (item) {
+        s.prompt = { kind: 'carry', data: item };
+        setPrompt(`E — pick up the ${carryLabel(item.kind)}`);
+      }
+    }
     if (!s.prompt) {
       const tippable = s.tippables.nearest(catP, 1.3);
       const gnome = s.secrets.list.find((e) => e.key === 'gnome');
@@ -817,6 +835,12 @@ export function createInteractions({
         s.prompt = { kind: 'gift-leave', data: spot };
         setPrompt(`E — leave a gift at ${spot.label}`);
       }
+    }
+    // v21 3b — after even 'gift-leave': holding something must never hide a
+    // prompt the player walked over for. Put it down wherever nothing else is.
+    if (!s.prompt && carry?.mouth.held) {
+      s.prompt = { kind: 'drop' };
+      setPrompt(`E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
     if (!s.prompt) setPrompt(null);
 
@@ -1066,9 +1090,35 @@ export function createInteractions({
     if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
   }
 
+  // v21 3b — carry. Neither half pays, records a feat or touches the save; the
+  // only trace is the mouth's own bookkeeping, which endWalk (walk.js) turns
+  // into marks. The item must still be on the ground when E lands: the prompt
+  // is a frame old by then.
+  function pickUpCarryable(s, item) {
+    if (!item?.onGround) return false;
+    if (!pickUp(s.carry.mouth, item)) return false;
+    s.carry.items.hold(item.id, s.cat);
+    return true;
+  }
+
+  // The one drop path: set down at the cat's feet (always somewhere the cat
+  // can stand), remembered against the item's home so a walk-end mark can say
+  // whether it moved.
+  function putDownCarried(s) {
+    const item = s.carry.items.list.find((it) => it.id === s.carry.mouth.held?.id);
+    const { x, z } = s.cat.position;
+    const released = putDown(s.carry.mouth, x, z, item ? { x: item.homeX, z: item.homeZ } : null);
+    if (released) s.carry.items.placeAt(released.id, x, z);
+    return released;
+  }
+
   function handleInteract(s) {
     if (!s.prompt) return;
-    if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
+    if (s.prompt.kind === 'carry') {
+      pickUpCarryable(s, s.prompt.data);
+    } else if (s.prompt.kind === 'drop') {
+      putDownCarried(s);
+    } else if (s.prompt.kind === 'collect' && s.walk.carried < s.walk.carryCap) {
       const c = s.prompt.data;
       s.scene.remove(s.collectibleMeshes.get(c.id));
       s.collectibleMeshes.delete(c.id);

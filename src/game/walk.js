@@ -31,6 +31,9 @@ import { createRemoteCats } from '../remotecats.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
 import { createGifts, pickFoundGift, NO_GIFTS } from '../gifts.js';
 import { createTippables } from '../tippables.js';
+import { createCarryables } from '../carryables.js';
+import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
+import { propsFor } from '../propsets.js';
 import { createScent } from '../scent.js';
 import { createToy } from '../toy.js';
 import { createQuest } from '../quests.js';
@@ -986,6 +989,14 @@ export function createWalkLifecycle({
     const tippables = createTippables(scene, areaData.tippables ?? [], {
       getState: () => progression.state,
     });
+    // v21 3b — the things a cat can pick up in its mouth, and the mouth that
+    // holds one. Created long after mergeStaticProps, so nothing here is
+    // merged. The den has nothing to carry: an empty list keeps the per-frame
+    // update and endWalk's marks unconditional.
+    const carry = {
+      mouth: createMouth(),
+      items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables),
+    };
     const scent = createScent(scene, areaData, walkRng);
 
     // Live contact decals for everything that moves, registered now that the
@@ -1252,6 +1263,7 @@ export function createWalkLifecycle({
       }),
       secrets,
       tippables,
+      carry,
       gifts,
       // v20 Ruffled Fur — the enemy system's per-walk, in-memory scratch
       // state: which cross cats have already had their one swat (and the
@@ -1611,6 +1623,14 @@ export function createWalkLifecycle({
     // walk where she actually started following.
     const mochiArrived = progression.state.kitten.stage === 2;
     if (mochiArrived) progression.setKittenStage(3);
+    // v21 3b — What the cat carried home. Whatever is still in the mouth goes
+    // to the den as a keepsake; anything set down somewhere new leaves a
+    // private mark here. Marks only: no points, no feat, no wire.
+    let broughtHome = null;
+    for (const { area, mark } of walkEndMarks(session.carry.mouth, session.areaId, Date.now())) {
+      if (progression.addMark(area, mark) && mark.kind === 'den') broughtHome = mark.item;
+    }
+    // (end of what the cat carried home)
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -1625,6 +1645,7 @@ export function createWalkLifecycle({
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
+      ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now. 🏠</div>` : ''}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
 
@@ -1664,6 +1685,9 @@ export function createWalkLifecycle({
     // what keeps the traversal from disposing them a second time. The shared
     // gradient texture is deliberately kept (app-lifetime, memoised).
     session.decals.dispose();
+    // Before the traversal too: it takes its meshes out of the scene and frees
+    // each geometry and material exactly once.
+    session.carry.items.dispose();
     session.scene.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {

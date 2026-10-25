@@ -76,3 +76,24 @@ export function walkEndMarks(mouth, area, now) {
   }
   return out;
 }
+
+// carryLabel(kind) → a plain-English name for a carry kind, for prompts and
+// toasts ("E — pick up the toy mouse"). Anything unknown is a "thing".
+const LABELS = Object.freeze({
+  sock: 'sock',
+  toymouse: 'toy mouse',
+  leaf: 'leaf',
+  stick: 'stick',
+  pinecone: 'pine cone',
+  acorn: 'acorn',
+  shell: 'shell',
+  driftwood: 'bit of driftwood',
+  cap: 'bottle cap',
+  rope: 'bit of rope',
+  glove: 'glove',
+  ribbon: 'ribbon',
+});
+
+export function carryLabel(kind) {
+  return typeof kind === 'string' && Object.hasOwn(LABELS, kind) ? LABELS[kind] : 'thing';
+}

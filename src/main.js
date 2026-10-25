@@ -711,6 +711,7 @@ function init() {
         session.fx.burst(session.cat.position, 0xffe27a, 14);
       }
       session.tippables.update(dt);
+      session.carry.items.update(dt); // v21 3b: a held thing follows its holder's mouth
       session.scent.update(dt);
       session.fx.update(dt);
       session.skyLife.update(dt);

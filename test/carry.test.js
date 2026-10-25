@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RAIN_GRIP, MOVED_MIN, createMouth, pick, drop, tickRain, walkEndMarks } from '../src/carry.js';
+import { RAIN_GRIP, MOVED_MIN, createMouth, pick, drop, tickRain, walkEndMarks, carryLabel } from '../src/carry.js';
 import { CARRY_KINDS, propsFor } from '../src/propsets.js';
 import { sanitizeMarks } from '../src/marks.js';
 
@@ -102,5 +102,20 @@ describe('carry rules', () => {
     expect(m.dropped.has(stick.id)).toBe(false);
     drop(m, 0.2, 0, ORIGIN);
     expect(walkEndMarks(m, 'park', 1)).toEqual([]);
+  });
+});
+
+describe('carryLabel', () => {
+  it('names every carry kind in plain English', () => {
+    expect(CARRY_KINDS.map(carryLabel)).toEqual([
+      'sock', 'toy mouse', 'leaf', 'stick', 'pine cone', 'acorn',
+      'shell', 'bit of driftwood', 'bottle cap', 'bit of rope', 'glove', 'ribbon',
+    ]);
+  });
+
+  it('anything else is a "thing", never a throw', () => {
+    for (const k of ['rock', '', '__proto__', 'constructor', 'toString', null, undefined, 7, {}]) {
+      expect(carryLabel(k)).toBe('thing');
+    }
   });
 });

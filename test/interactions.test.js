@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
+import { createCarryables } from '../src/carryables.js';
+import { createMouth } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { catsInArea } from '../src/colony.js';
@@ -372,14 +375,15 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // A crate 2.0m away: outside the 1.3m tip reach, inside the old doubled
   // 2.6m one. The stray stands at the same spot, well inside its own 2.5m
   // greet range, which is the exact Docks collision the review described.
-  function promptHarness({ skills = [], feats = {} } = {}) {
+  // v21 3b: `carryables` puts things on the ground for the carry prompts, and
+  // `stray: null` takes Pickles away when a test needs nothing else in range.
+  function promptHarness({ skills = [], feats = {}, carryables = [], stray = { name: 'Pickles', greeted: false } } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
     log.startWalk();
     const tippables = createTippables(scene, [{ x: 0, z: 2.0, kind: 'bin' }],
       { getState: () => progression.state });
-    const stray = { name: 'Pickles', greeted: false };
     const prompts = [];
     const session = {
       areaId: 'park',
@@ -400,11 +404,12 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       gifts: null,
       perched: null,
       walk: { carried: 0, carryCap: 2 },
+      carry: { mouth: createMouth(), items: createCarryables(scene, carryables) },
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
     };
-    const { updateInteractions } = createInteractions({
+    const { updateInteractions, handleInteract } = createInteractions({
       MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
       getSession: () => session, getIsTouch: () => false,
       player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0 },
@@ -414,7 +419,8 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
     });
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); updateInteractions(session); };
-    return { session, prompts, walkTo };
+    const press = () => { updateInteractions(session); handleInteract(session); };
+    return { session, prompts, walkTo, press, progression };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -439,6 +445,122 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt.kind).toBe('tip');
       expect(h.prompts.at(-1)).toBe('E — paw it over');
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // v21 3b Task 6 — carry, the stream's one required verb. 'carry' sits right
+  // after 'collect' (the thing you walked over to); 'drop' is the very last
+  // prompt, so holding something never shadows anything else.
+  // -------------------------------------------------------------------------
+  describe('carry: pick up, put down', () => {
+    // The harness crate stands at (0, 2); the stick is well clear of it.
+    const STICK = { id: 'park-stick-1', kind: 'stick', x: 5, z: 0 };
+    const carryHarness = (opts = {}) => promptHarness({ stray: null, carryables: [STICK], ...opts });
+
+    it('near a carryable with an empty mouth: "E — pick up the stick"', () => {
+      const h = carryHarness();
+      h.walkTo(5, 1.0);
+      expect(h.session.prompt.kind).toBe('carry');
+      expect(h.session.prompt.data.id).toBe('park-stick-1');
+      expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+      h.walkTo(5, 1.3); // just past the 1.2 m reach
+      expect(h.session.prompt).toBe(null);
+    });
+
+    it('holding something, with nothing else near: "E — put the stick down"', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      expect(h.session.carry.mouth.held).toEqual({ id: 'park-stick-1', kind: 'stick' });
+      const item = h.session.carry.items.list[0];
+      expect(item.onGround).toBe(false);
+      expect(item.holder).toBe(h.session.cat);
+      h.walkTo(20, 20);
+      expect(h.session.prompt.kind).toBe('drop');
+      expect(h.prompts.at(-1)).toBe('E — put the stick down');
+      h.press();
+      expect(h.session.carry.mouth.held).toBe(null);
+      expect(item.onGround).toBe(true);
+      expect([item.mesh.position.x, item.mesh.position.z]).toEqual([20, 20]);
+      // it went down somewhere new, so a walk-end drop mark is pending
+      expect(h.session.carry.mouth.dropped.get('park-stick-1')).toMatchObject({ x: 20, z: 20, homeX: 5, homeZ: 0 });
+      // and it can be picked straight back up
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+    });
+
+    it('a stray in range still wins over drop', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+      h.session.strayCats.nearest = () => ({ name: 'Pickles', greeted: false });
+      h.walkTo(20, 20);
+      expect(h.session.prompt.kind).toBe('stray');
+      expect(h.prompts.at(-1)).toBe('E — touch noses with Pickles');
+    });
+
+    it('collect wins over carry, and carry wins over the crate', () => {
+      const h = carryHarness({ carryables: [{ id: 'park-stick-2', kind: 'stick', x: 0, z: 1.2 }] });
+      h.session.areaData.collectibles.push({ id: 'feather', x: 0, z: 0.8, label: 'a feather' });
+      h.session.collectibleMeshes.set('feather', {});
+      h.walkTo(0, 1.0); // inside collect, carry and tip reach at once
+      expect(h.session.prompt.kind).toBe('collect');
+      h.session.collectibleMeshes.delete('feather');
+      h.walkTo(0, 1.0);
+      expect(h.session.prompt.kind).toBe('carry');
+      expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+    });
+
+    it('picking up and putting down pay nothing and record no feat', () => {
+      const h = carryHarness();
+      const before = JSON.stringify({ p: h.progression.state.points, l: h.progression.state.lifetimePoints,
+        f: h.progression.state.feats, m: h.progression.state.marks });
+      const found = [];
+      const off = bus.on('discovery', (e) => found.push(e));
+      try {
+        h.walkTo(5, 0.5);
+        h.press(); // pick up
+        h.walkTo(20, 20);
+        h.press(); // put down
+        h.walkTo(20, 20);
+        h.press(); // pick up again
+      } finally {
+        off?.();
+      }
+      expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+      expect(found).toEqual([]);
+      expect(JSON.stringify({ p: h.progression.state.points, l: h.progression.state.lifetimePoints,
+        f: h.progression.state.feats, m: h.progression.state.marks })).toBe(before);
+    });
+
+    it('no carry prompt while perched', () => {
+      const h = carryHarness();
+      h.session.perched = { y: 1.2 };
+      h.walkTo(5, 0.5);
+      expect(h.session.prompt).toBe(null);
+      h.press();
+      expect(h.session.carry.mouth.held).toBe(null);
+      h.session.perched = null;
+      h.walkTo(5, 0.5);
+      expect(h.session.prompt.kind).toBe('carry');
+    });
+
+    it('the collect pocket counter is untouched by carrying', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      h.walkTo(20, 20);
+      h.press();
+      expect(h.session.walk.carried).toBe(0);
+      // a full pocket does not stop the mouth either
+      h.session.walk.carried = h.session.walk.carryCap;
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+      h.press();
+      expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+      expect(h.session.walk.carried).toBe(h.session.walk.carryCap);
+    });
   });
 });
 
@@ -2002,5 +2124,41 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
     h.press();
     expect(h.progression.state.points - before).toBe(gained * 2);
     expect(h.petted.at(-1)).toBe('Mochi');
+  });
+});
+
+// ===========================================================================
+// v21 3b Task 6 — the walk-end half of carry, read off walk.js's source (the
+// rivalcats.test.js slice idiom): endWalk turns the mouth into marks exactly
+// once, through progression.addMark and nothing else, before the teardown.
+// ===========================================================================
+describe('endWalk: what the cat carried home', () => {
+  const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+  const end = src.indexOf('function endWalk()');
+  const a = src.indexOf('What the cat carried home', end);
+  const b = src.indexOf('(end of what the cat carried home)', a);
+  const block = src.slice(a, b);
+  const code = block.replace(/\/\/.*$/gm, '');
+
+  it('sits inside endWalk, after completeWalk and before the summary and the teardown', () => {
+    expect(end).toBeGreaterThan(0);
+    expect(a).toBeGreaterThan(src.indexOf('progression.completeWalk(', end));
+    expect(b).toBeGreaterThan(a);
+    expect(b).toBeLessThan(src.indexOf('const summaryHtml', end));
+    expect(b).toBeLessThan(src.indexOf('session.fx.dispose()', end));
+  });
+
+  it('calls walkEndMarks once and writes through progression.addMark only', () => {
+    expect(code.match(/walkEndMarks\(/g)).toHaveLength(1);
+    expect(code).toContain('progression.addMark(');
+    expect(code.match(/progression\.\w+/g)).toEqual(['progression.addMark']);
+    for (const bad of ['award', 'addPoints', 'recordFeat', 'log.', 'walk.carried', 'sendEvent', 'net.']) {
+      expect(code).not.toContain(bad);
+    }
+  });
+
+  it('the summary names what came home, escaped', () => {
+    const tail = src.slice(b, src.indexOf('<button id="btn-summary-continue"', b));
+    expect(tail).toMatch(/You brought the \$\{escapeHtml\(carryLabel\([^`]*\)\)\} home\. It's in the den now\. 🏠/);
   });
 });
