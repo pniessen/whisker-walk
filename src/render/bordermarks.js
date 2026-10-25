@@ -24,7 +24,11 @@ const BASE_OPACITY = 0.6;
 const CONTESTED_OPACITY = 0.75;
 
 export function createBorderMarks(scene, areaId, { contested = [], maxMarks } = {}) {
-  let pts = borderMarks(areaId);
+  // `ring` is each mark's index in borderMarks(areaId), kept through the tier
+  // filter: a saved border mark of the player's names its ring (Task 12), and
+  // finds its decal by it on either tier. `contested` and setContested take
+  // LIST indices.
+  let pts = borderMarks(areaId).map((p, ring) => ({ ...p, ring }));
   if (Number.isInteger(maxMarks) && maxMarks > 0 && pts.length > maxMarks) {
     const k = Math.ceil(pts.length / maxMarks);
     pts = pts.filter((_, i) => i % k === 0);
@@ -48,7 +52,7 @@ export function createBorderMarks(scene, areaId, { contested = [], maxMarks } = 
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(p.x, Y, p.z);
     scene.add(mesh);
-    return { x: p.x, z: p.z, mesh, contested: false };
+    return { x: p.x, z: p.z, ring: p.ring, mesh, contested: false };
   });
 
   function setContested(index) {

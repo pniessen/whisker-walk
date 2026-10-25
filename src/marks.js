@@ -1,7 +1,8 @@
 // =============================================================================
 // Private per-area marks — the rules half (v21 Stream 3b). Pure, no THREE, no
-// DOM, no storage; the only import is propsets.js (itself zero-import), so the
-// save sanitizer can read this without pulling in a world builder. All writes
+// DOM, no storage; the only imports are propsets.js (itself zero-import) and
+// rivalclans.js (a leaf: clanwords.js and rng.js), so the save sanitizer can
+// read this without pulling in a world builder. All writes
 // happen in progression.js, which calls these, saves, and reports whether the
 // save changed.
 //
@@ -29,6 +30,7 @@
 // =============================================================================
 
 import { isPropId, CARRY_KINDS } from './propsets.js';
+import { rivalFor } from './rivalclans.js';
 
 export const MARK_KINDS = Object.freeze(['scratch', 'dig', 'drop', 'border', 'den']);
 export const MARKS_PER_AREA = 8;
@@ -160,6 +162,40 @@ export function contestMark(marks, area, key) {
   if (m.kind === 'border' || m.kind === 'den' || m.contested) return { marks: base, changed: false };
   const list = base[area].map((x, j) => (j === i ? { ...x, contested: true } : x));
   return { marks: { ...base, [area]: list }, changed: true };
+}
+
+// --- The rival clans contest your marks (Task 12) ---------------------------
+//
+// A rival's patrol walks its border. A scratch, dig or drop of mine within
+// CONTEST_REACH of that border is in its band, and a patrol cat that comes
+// within CONTEST_REACH of it scents it over: contested, never removed. A
+// border mark is mine laid over theirs (it IS the contest, and nobody contests
+// it back, ruling P8); a den keepsake is safe at home. Both are pure functions
+// of the mark and the patrol's spot: no randomness, nothing on any wire.
+export const CONTEST_REACH = 1.5;
+const CONTESTABLE_KINDS = Object.freeze(['scratch', 'dig', 'drop']);
+
+// borderMarkId(areaId, ring) → the prop id a border mark of mine is saved
+// under: the area and the rival decal's ring index (bordermarks.js `ring`), so
+// it finds its decal again on either quality tier.
+export const borderMarkId = (areaId, ring) => `${areaId}-border-${ring}`;
+
+// contestable(areaId, mark) → bool. Total: junk, an unknown area or one with
+// no rival is false.
+export function contestable(areaId, mark) {
+  if (!mark || typeof mark !== 'object' || mark.contested === true) return false;
+  if (!CONTESTABLE_KINDS.includes(mark.kind) || !isCoord(mark.x) || !isCoord(mark.z)) return false;
+  const rival = rivalFor(areaId);
+  if (!rival) return false;
+  return Math.abs(Math.hypot(mark.x - rival.cx, mark.z - rival.cz) - rival.r) <= CONTEST_REACH;
+}
+
+// shouldContest(areaId, mark, patrolPos) → bool: contestable, and the patrol
+// cat is within CONTEST_REACH of it.
+export function shouldContest(areaId, mark, patrolPos) {
+  if (!patrolPos || !isCoord(patrolPos.x) || !isCoord(patrolPos.z)) return false;
+  if (!contestable(areaId, mark)) return false;
+  return Math.hypot(mark.x - patrolPos.x, mark.z - patrolPos.z) <= CONTEST_REACH;
 }
 
 // markOpacity(rankFromNewest) → 0..1. Six to eight per area, oldest fading.

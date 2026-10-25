@@ -183,6 +183,28 @@ describe('createRivalPatrol', () => {
     expect(() => { api.update(0.016, new THREE.Vector3()); api.dispose(); api.dispose(); }).not.toThrow();
   });
 
+  // Task 12: the walk reads where the patrol cat is to scent over marks.
+  test('the patrol exposes where it is and still imports nothing new', () => {
+    let clock = 1000;
+    const { api } = mk({ now: () => clock });
+    const p0 = patrolAt('park', clock);
+    expect(api.pos).toEqual({ x: p0.x, z: p0.z });
+    clock += 2;
+    api.update(2, new THREE.Vector3(cx + r + 20, 0, cz)); // a cat far outside: no chase
+    const p1 = patrolAt('park', clock);
+    expect(api.pos.x).toBeCloseTo(p1.x, 9);
+    expect(api.pos.z).toBeCloseTo(p1.z, 9);
+    // read-only: a copy, and no setter
+    api.pos.x = 999;
+    expect(api.pos.x).toBeCloseTo(p1.x, 9);
+    expect(() => { 'use strict'; api.pos = { x: 0, z: 0 }; }).toThrow();
+    // no rival: no position
+    expect(createRivalPatrol(new THREE.Scene(), 'den').pos).toBeNull();
+    const src = readFileSync(new URL('../src/rivalcats.js', import.meta.url), 'utf8');
+    const specs = [...src.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort();
+    expect(specs).toEqual(['./cat/animator.js', './cat/model.js', './rivalclans.js', './straynames.js']);
+  });
+
   test('adds one mesh and dispose removes it', () => {
     const { scene, api } = mk();
     expect(scene.children).toHaveLength(1);

@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
+import { createInteractions, createMarkContest, CONTEST_EVERY, TREAT_COST } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
 import { createKnockables } from '../src/knockables.js';
 import { createPlayerMarks } from '../src/render/playermarks.js';
+import { createBorderMarks } from '../src/render/bordermarks.js';
 import { markKey } from '../src/marks.js';
+import { rivalFor } from '../src/rivalclans.js';
 import { KNOCK_KINDS, propsFor } from '../src/propsets.js';
 import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
@@ -383,7 +385,9 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // `stray: null` takes Pickles away when a test needs nothing else in range.
   // v21 3b Task 11: `areaId` picks the area (and its markables), and `marks`
   // gives the session a real marks renderer (the mark prompt needs one).
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false } = {}) {
+  // Task 12: `rival` is the walk's session.rival stand-in (its border decals
+  // and where the patrol is).
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -424,6 +428,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       carry: { mouth: createMouth(), items: createCarryables(scene, carryables) },
       knockables: createKnockables(scene, knockables),
       playerMarks: marks ? createPlayerMarks(new THREE.Scene(), areaId, progression.marksIn(areaId)) : undefined,
+      rival: rival ?? undefined,
       fx: { burst() {} },
       prompt: null,
       lastPromptKind: null,
@@ -1180,6 +1185,242 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         h.off();
       }
     });
+  });
+
+  // v21 3b Task 12 — the player scents over a rival's border mark.
+  describe('border-mark: scent over their mark', () => {
+    const borderHarness = (areaId = 'park', tier = {}) => {
+      const borderMarks = createBorderMarks(new THREE.Scene(), areaId, tier);
+      const h = promptHarness({ stray: null, areaId, marks: true, rival: { borderMarks, patrolPos: () => null } });
+      const discoveries = [];
+      const off = bus.on('discovery', (e) => discoveries.push(e));
+      const sent = [];
+      h.session.playerId = 'me-player-0001';
+      h.session.net = { sendEvent: (ev) => sent.push(ev) }; // a room walk: still nothing on the wire
+      return { ...h, borderMarks, discoveries, sent, off };
+    };
+    const allButMarks = (p) => JSON.stringify({ ...p.state, marks: undefined });
+
+    it('near a rival border mark: "E — scent over their mark"; it writes a border mark and pays nothing', () => {
+      const h = borderHarness();
+      try {
+        const decal = h.borderMarks.list[3];
+        h.walkTo(decal.x + 0.6, decal.z);
+        expect(h.session.prompt).toEqual({ kind: 'border-mark', data: { index: 3, ring: 3, x: decal.x, z: decal.z } });
+        expect(h.prompts.at(-1)).toBe('E — scent over their mark');
+        const before = allButMarks(h.progression);
+        h.press();
+        expect(allButMarks(h.progression)).toBe(before); // no points, no feat, nothing
+        expect(h.discoveries).toEqual([]);
+        expect(h.sent).toEqual([]);
+        expect(h.toasts).toEqual([]);
+        const marks = h.progression.marksIn('park');
+        expect(marks).toHaveLength(1);
+        expect(marks[0]).toMatchObject({ kind: 'border', id: 'park-border-3', x: decal.x, z: decal.z, contested: false, item: null });
+        // their mark goes pale, yours is drawn on it, and only that one
+        expect(h.borderMarks.list.map((m) => m.contested)).toEqual(h.borderMarks.list.map((_, i) => i === 3));
+        expect(h.session.playerMarks.list.map((e) => e.key)).toEqual(['border:park-border-3']);
+        // done: no prompt there again, and out of reach of the next one nothing either
+        h.walkTo(decal.x + 0.6, decal.z);
+        expect(h.session.prompt).toBe(null);
+        const next = h.borderMarks.list[5];
+        h.walkTo(next.x + 1.05, next.z);
+        expect(h.session.prompt).toBe(null);
+        // the next one along still offers it
+        h.walkTo(next.x + 0.9, next.z);
+        expect(h.session.prompt?.kind).toBe('border-mark');
+      } finally {
+        h.off();
+      }
+    });
+
+    it('on the low tier the saved id is the ring index, not the list index', () => {
+      const h = borderHarness('park', { maxMarks: 8 });
+      try {
+        const decal = h.borderMarks.list[2];
+        expect(decal.ring).toBe(4);
+        h.walkTo(decal.x, decal.z + 0.5);
+        expect(h.session.prompt.data).toMatchObject({ index: 2, ring: 4 });
+        h.press();
+        expect(h.progression.marksIn('park').map((m) => m.id)).toEqual(['park-border-4']);
+        expect(h.borderMarks.list[2].contested).toBe(true);
+      } finally {
+        h.off();
+      }
+    });
+
+    it('comes right after the mark: at the docks bollard, scratch first, then scent over', () => {
+      const h = borderHarness('docks');
+      try {
+        const post = propsFor('docks').markables.find((m) => m.nearBorder);
+        const decal = h.borderMarks.list.find((m) => Math.hypot(m.x - post.x, m.z - post.z) < 1.3);
+        const at = { x: (post.x + decal.x) / 2, z: (post.z + decal.z) / 2 };
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('mark');
+        h.press();
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('border-mark');
+      } finally {
+        h.off();
+      }
+    });
+
+    it('never from a perch, while swimming, or without a rival border', () => {
+      const h = borderHarness();
+      try {
+        const decal = h.borderMarks.list[3];
+        h.session.perched = { x: decal.x, y: 0.85, z: decal.z };
+        h.walkTo(decal.x + 0.5, decal.z);
+        expect(h.session.prompt).toBe(null);
+        h.session.perched = null;
+        h.player.swimming = true;
+        h.walkTo(decal.x + 0.5, decal.z);
+        expect(h.session.prompt).toBe(null);
+        h.player.swimming = false;
+        h.session.rival = { borderMarks: null, patrolPos: () => null }; // the den's NO_RIVAL
+        h.walkTo(decal.x + 0.5, decal.z);
+        expect(h.session.prompt).toBe(null);
+      } finally {
+        h.off();
+      }
+    });
+  });
+
+  // v21 3b Task 12 — the rival clan scents over your marks near its border.
+  describe('createMarkContest: the rival scents over your marks', () => {
+    const POST = propsFor('park').markables.find((m) => m.nearBorder);
+    const { cx, cz, r } = rivalFor('park');
+    const contestHarness = (payload = {}) => {
+      const progression = createProgression(fakeStorage());
+      progression.replaceFromPayload({ version: 4, ...payload });
+      const now = 1_000_000;
+      // Near the border: my scratch on the contest-band post, a drop just
+      // outside the ring, a border paw of mine beside the post. Far away: a
+      // dig in the middle of the park and a drop by the gate.
+      const mine = [
+        { kind: 'scratch', id: POST.id, x: POST.x, z: POST.z, at: now + 1, contested: false, item: null },
+        { kind: 'drop', id: 'park-stick-1', x: cx + r + 0.5, z: cz, at: now + 2, contested: false, item: 'stick' },
+        { kind: 'border', id: 'park-border-2', x: POST.x + 0.2, z: POST.z, at: now + 3, contested: false, item: null },
+        { kind: 'dig', id: null, x: 0, z: 0, at: now + 4, contested: false, item: null },
+        { kind: 'drop', id: 'park-sock-1', x: 0, z: 40, at: now + 5, contested: false, item: 'sock' },
+      ];
+      for (const m of mine) progression.addMark('park', m);
+      const playerMarks = createPlayerMarks(new THREE.Scene(), 'park', progression.marksIn('park'));
+      const toasts = [];
+      let pos = { x: cx - r, z: cz }; // the far side of the ring
+      const contest = createMarkContest({
+        areaId: 'park', progression, playerMarks,
+        patrolPos: () => pos, toast: (t) => toasts.push(t),
+      });
+      return { progression, playerMarks, toasts, contest, moveTo: (p) => { pos = p; } };
+    };
+    const shape = (list) => list.map(({ contested, ...rest }) => rest);
+    const allButMarks = (p) => JSON.stringify({ ...p.state, marks: undefined });
+
+    it('a contested mark survives: same count before and after, only contested flips', () => {
+      const h = contestHarness();
+      const before = h.progression.marksIn('park');
+      expect(before).toHaveLength(5);
+      h.contest.tick(1);
+      expect(h.progression.marksIn('park')).toEqual(before); // patrol far away: nothing
+      h.moveTo({ x: POST.x + 0.4, z: POST.z - 0.3 });
+      h.contest.tick(CONTEST_EVERY);
+      const after = h.progression.marksIn('park');
+      expect(after).toHaveLength(before.length);
+      expect(shape(after)).toEqual(shape(before));
+      expect(after.map((m) => m.contested)).toEqual([true, false, false, false, false]);
+      // drawn pale at once, and still drawn
+      expect(h.playerMarks.list.find((e) => e.key === markKey(before[0])).contested).toBe(true);
+      expect(h.playerMarks.list).toHaveLength(5);
+      // one toast, in the rival's own name, read as written
+      expect(h.toasts).toEqual([`${rivalFor('park').name} scented over your mark! Scratch it again to take it back. 🐾`]);
+      // the patrol walks on to the drop by the ring: contested too, no second toast this walk
+      h.moveTo({ x: cx + r, z: cz });
+      h.contest.tick(CONTEST_EVERY);
+      expect(h.progression.marksIn('park').map((m) => m.contested)).toEqual([true, true, false, false, false]);
+      expect(h.toasts).toHaveLength(1);
+      // the border paw beside the post is never contested back, however long the patrol stays
+      h.moveTo({ x: POST.x + 0.2, z: POST.z });
+      for (let i = 0; i < 20; i++) h.contest.tick(CONTEST_EVERY);
+      expect(h.progression.marksIn('park')[2]).toMatchObject({ kind: 'border', contested: false });
+      expect(h.progression.marksIn('park')).toHaveLength(5);
+    });
+
+    it('contesting touches nothing but marks', () => {
+      const h = contestHarness({
+        points: 345,
+        golden: ['gm-park-1'],
+        friends: { Pickles: { greets: 3 } },
+        grudges: ['Mochi'],
+      });
+      const before = allButMarks(h.progression);
+      const { points, colony, friends, grudges, golden } = JSON.parse(before);
+      // the save really has something to lose
+      expect(points).toBe(345);
+      expect(golden).toEqual(['gm-park-1']);
+      expect(Object.keys(friends)).toEqual(['Pickles']);
+      expect(grudges).toEqual(['Mochi']);
+      h.moveTo({ x: POST.x, z: POST.z });
+      for (let i = 0; i < 8; i++) h.contest.tick(CONTEST_EVERY);
+      expect(h.progression.marksIn('park')[0].contested).toBe(true);
+      expect(allButMarks(h.progression)).toBe(before);
+      const now = h.progression.state;
+      expect(now.points).toEqual(points);
+      expect(JSON.parse(JSON.stringify({ colony: now.colony, friends: now.friends, grudges: now.grudges, golden: now.golden })))
+        .toEqual(JSON.parse(JSON.stringify({ colony, friends, grudges, golden })));
+    });
+
+    it('checks at most 4 times a second, with no per-frame copy of the save', () => {
+      const h = contestHarness();
+      let reads = 0;
+      const marksIn = h.progression.marksIn;
+      h.progression.marksIn = (a) => { reads += 1; return marksIn(a); };
+      const clone = globalThis.structuredClone;
+      let clones = 0;
+      globalThis.structuredClone = (v) => { clones += 1; return clone(v); };
+      try {
+        for (let i = 0; i < 60; i++) h.contest.tick(1 / 60);
+      } finally {
+        globalThis.structuredClone = clone;
+      }
+      expect(CONTEST_EVERY).toBe(0.25);
+      expect(reads).toBeLessThanOrEqual(4);
+      expect(reads).toBeGreaterThanOrEqual(3);
+      expect(clones).toBe(0);
+    });
+
+    it('no rival, no patrol position, or a bad tick: nothing happens', () => {
+      const progression = createProgression(fakeStorage());
+      progression.addMark('den', { kind: 'den', id: 'den-sock-1', x: 0, z: 0, at: 1, contested: false, item: 'sock' });
+      const toasts = [];
+      const den = createMarkContest({ areaId: 'den', progression, playerMarks: null, patrolPos: () => ({ x: 0, z: 0 }), toast: (t) => toasts.push(t) });
+      expect(() => den.tick(1)).not.toThrow();
+      const h = contestHarness();
+      const before = h.progression.marksIn('park');
+      const none = createMarkContest({ areaId: 'park', progression: h.progression, playerMarks: h.playerMarks, patrolPos: () => null, toast: (t) => toasts.push(t) });
+      none.tick(1);
+      h.moveTo({ x: POST.x, z: POST.z });
+      for (const bad of [NaN, -1, undefined, Infinity, '1']) h.contest.tick(bad);
+      expect(h.progression.marksIn('park')).toEqual(before);
+      expect(toasts).toEqual([]);
+      expect(h.toasts).toEqual([]);
+    });
+  });
+
+  // The walk wires both halves around the 3a chase slice, which stays clean
+  // (rivalcats.test.js scans it for banned words).
+  it('walk.js reads my saved border marks before the rival slice and contests after it', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const a = src.indexOf("The rival's border and its patrol");
+    const b = src.indexOf('session.rival = {', a);
+    const saved = src.indexOf('const myBorderIds');
+    const contest = src.indexOf('createMarkContest(');
+    expect(saved).toBeGreaterThan(0);
+    expect(saved).toBeLessThan(a);
+    expect(contest).toBeGreaterThan(b);
+    expect(src).toContain('const NO_RIVAL = { update() {}, dispose() {}, patrolPos: () => null, borderMarks: null };');
+    expect(src.slice(b, contest)).toContain('patrolPos: () => patrol.pos');
+    expect(src.slice(b, contest)).toContain('borderMarks: marks');
   });
 });
 

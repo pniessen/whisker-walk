@@ -35,6 +35,8 @@ import { createTippables } from '../tippables.js';
 import { createCarryables } from '../carryables.js';
 import { createKnockables } from '../knockables.js';
 import { createPlayerMarks } from '../render/playermarks.js';
+import { borderMarkId } from '../marks.js';
+import { createMarkContest } from './interactions.js';
 import { createMouth, walkEndMarks, carryLabel } from '../carry.js';
 import { propsFor } from '../propsets.js';
 import { createScent } from '../scent.js';
@@ -99,8 +101,9 @@ const NO_GOLD_MICE = {
   list: [], update() {}, checkFind: () => null, nearestUnfound: () => null,
   remove() {}, dispose() {},
 };
-// The den has no rival border: every call the render loop makes is inert.
-const NO_RIVAL = { update() {}, dispose() {} };
+// The den has no rival border: every call the render loop makes is inert, and
+// there is no patrol to scent over a mark and no decal to scent over (Task 12).
+const NO_RIVAL = { update() {}, dispose() {}, patrolPos: () => null, borderMarks: null };
 const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 // -----------------------------------------------------------------------------
@@ -1350,6 +1353,12 @@ export function createWalkLifecycle({
       ? createGoldMice(scene, areaId, new Set(progression.state.golden))
       : NO_GOLD_MICE;
 
+    // v21 3b Task 12 — the rival border marks I scented over on earlier walks,
+    // by saved id (`<area>-border-<ring>`), read here, BEFORE the rival slice
+    // below: that slice stays free of the save (its 3a test scans it), and
+    // only ever sees this set of ids.
+    const myBorderIds = new Set(progression.marksIn(areaId).filter((m) => m.kind === 'border').map((m) => m.id));
+
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
     // goldMice above; the den has no rival, so everything is a no-op there.
     // Only the LOCAL cat is ever chased: session.cat is passed to update, a
@@ -1364,6 +1373,14 @@ export function createWalkLifecycle({
     } else {
       // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.
       const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8 } : {});
+      // My saved paws (Task 12) turn their decals pale from the first frame.
+      // A saved id names the RING index; the low tier draws only every other
+      // ring point, so each drawn decal is matched by its own `ring` and
+      // contested by its list index (a ring point this tier does not draw has
+      // no decal to turn).
+      marks.list.forEach((m, i) => {
+        if (myBorderIds.has(borderMarkId(areaId, m.ring))) marks.setContested(i);
+      });
       // Walkable = player.js's own predicate (bounds, colliders, water).
       const isWalkable = (x, z) => isWalkableAt(areaData, x, z);
       const patrol = createRivalPatrol(scene, areaId, {
@@ -1385,6 +1402,30 @@ export function createWalkLifecycle({
           patrol.update(dt, catPos, avatar);
         },
         dispose() { marks.dispose(); patrol.dispose(); },
+        // Task 12: where the patrol cat is (the contest below reads it), and
+        // the decals (interactions.js's 'border-mark' prompt reads them).
+        patrolPos: () => patrol.pos,
+        borderMarks: marks,
+      };
+    }
+
+    // v21 3b Task 12 — the rival clan scents over my marks near its border.
+    // Its own block, after the rival slice above, which never touches the
+    // save. A few times a second (interactions.createMarkContest) it reads
+    // where the patrol cat is and flags each scratch, dig or drop of mine it
+    // has reached as contested: never deleted, nothing paid or taken, no
+    // randomness, nothing on any wire. Driven from session.rival.update, the
+    // call the render loop already makes every frame; the den has none.
+    if (session.rival.borderMarks) {
+      const contest = createMarkContest({
+        areaId, progression, playerMarks,
+        patrolPos: session.rival.patrolPos,
+        toast: (text) => hud.toast(text),
+      });
+      const rivalUpdate = session.rival.update;
+      session.rival.update = (dt, t, catPos, avatar) => {
+        rivalUpdate(dt, t, catPos, avatar);
+        contest.tick(dt);
       };
     }
 

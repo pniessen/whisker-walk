@@ -86,6 +86,21 @@ describe('createBorderMarks', () => {
     idx.forEach((v, i) => expect(v).toBe(i * step));
   });
 
+  // Task 12: a saved border mark names its ring index, so the decal it
+  // contested is found again on either quality tier.
+  it('each decal knows its ring index, on the low tier too', () => {
+    const ring = borderMarks('park');
+    const full = createBorderMarks(new THREE.Scene(), 'park').list;
+    expect(full.map((m) => m.ring)).toEqual(ring.map((_, i) => i));
+    const low = createBorderMarks(new THREE.Scene(), 'park', { maxMarks: 8 }).list;
+    expect(low).toHaveLength(6);
+    expect(low.map((m) => m.ring)).toEqual([0, 2, 4, 6, 8, 10]);
+    for (const m of low) {
+      expect(m.x).toBe(ring[m.ring].x);
+      expect(m.z).toBe(ring[m.ring].z);
+    }
+  });
+
   it('update does not throw', () => {
     const api = createBorderMarks(new THREE.Scene(), 'park');
     expect(() => api.update(3.2)).not.toThrow();

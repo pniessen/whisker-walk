@@ -29,7 +29,8 @@ import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { knockNoun, propsFor } from '../propsets.js';
-import { markKey } from '../marks.js';
+import { markKey, shouldContest, borderMarkId } from '../marks.js';
+import { rivalFor } from '../rivalclans.js';
 
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
@@ -70,6 +71,56 @@ const KNOCK_REACH = 1.0;
 // scratch its mark into it (test/propsets.test.js places every markable's
 // standing spot inside this).
 const MARK_REACH = 1.2;
+// v21 3b Task 12: how close the cat must be to one of a rival's border decals
+// to scent over it.
+const BORDER_MARK_REACH = 1.0;
+// v21 3b Task 12: how often (seconds) the walk checks whether the rival's
+// patrol cat is scenting over a mark of mine. 4 a second: the patrol moves
+// about 0.19 m between checks, far inside the 1.5 m contest reach.
+export const CONTEST_EVERY = 0.25;
+
+// createMarkContest({ areaId, progression, playerMarks, patrolPos, toast })
+//   → { tick(dt) }
+//
+// The rival clan scents over my marks near its border (v21 3b Task 12). One
+// per walk, driven by the walk's render loop through session.rival.update.
+// At most every CONTEST_EVERY seconds it asks where the patrol cat is
+// (patrolPos() → {x, z} or null) and contests every mark of mine that
+// marks.shouldContest says it has reached: the save flags it (never deletes),
+// and the renderer turns it pale. The first time in a walk, one toast.
+//
+// IT TAKES NOTHING. Its only write is progression.contestMark, which only
+// sets `contested` on a mark; points, taming, colony cats and every other
+// mark are untouched, a border or den mark is never contested, and nothing
+// goes on any wire. No randomness: the patrol's spot is the shared clock's.
+// The save is read through marksIn (eight shallow copies at most) only on a
+// check, never per frame.
+export function createMarkContest({ areaId, progression, playerMarks, patrolPos, toast }) {
+  const rival = rivalFor(areaId);
+  if (!rival) return { tick() {} };
+  let clock = 0;
+  let told = false;
+  return {
+    tick(dt) {
+      if (!(dt > 0) || !Number.isFinite(dt)) return;
+      clock += dt;
+      if (clock < CONTEST_EVERY) return;
+      clock = 0;
+      const pos = patrolPos();
+      if (!pos) return;
+      for (const m of progression.marksIn(areaId)) {
+        if (!shouldContest(areaId, m, pos)) continue;
+        const key = markKey(m);
+        if (!progression.contestMark(areaId, key)) continue;
+        playerMarks?.setContested(key);
+        if (!told) {
+          told = true;
+          toast(`${rival.name} scented over your mark! Scratch it again to take it back. 🐾`);
+        }
+      }
+    },
+  };
+}
 
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
@@ -570,6 +621,28 @@ export function createInteractions({
     return best;
   }
 
+  // The nearest of the rival's rendered border decals within BORDER_MARK_REACH
+  // whose ring has no border mark of mine, as { index, ring, x, z } (index is
+  // the decal's place in borderMarks.list, ring its place in the full ring:
+  // they differ on the low tier), or null. "Mine" is read off the marks
+  // renderer's list, as markableToScratch does: nothing is copied per frame.
+  function borderDecalToScent(s, catP) {
+    const decals = s.rival.borderMarks.list;
+    const drawn = s.playerMarks.list;
+    let best = null;
+    let bestD = BORDER_MARK_REACH;
+    for (let i = 0; i < decals.length; i++) {
+      const d = decals[i];
+      const dist = Math.hypot(d.x - catP.x, d.z - catP.z);
+      if (dist >= bestD) continue;
+      const key = markKey({ kind: 'border', id: borderMarkId(s.areaId, d.ring) });
+      if (drawn.some((e) => e.key === key)) continue;
+      best = { index: i, ring: d.ring, x: d.x, z: d.z };
+      bestD = dist;
+    }
+    return best;
+  }
+
   // A mark's `at`: now, or one past the same-key mark already in the save if
   // that one is newer (the clock stepped back). marks.js keeps the newer of two
   // same-key marks, so a re-mark stamped earlier would be dropped silently.
@@ -910,6 +983,18 @@ export function createInteractions({
       if (target) {
         s.prompt = { kind: 'mark', data: target };
         setPrompt('E — scratch your mark into it');
+      }
+    }
+    // v21 3b Task 12 — scent over one of the rival's border marks. Right after
+    // the mark, under the same rules: from the ground, never swimming, only
+    // with a marks renderer, and only where the walk has a rival border (the
+    // den's NO_RIVAL has borderMarks: null). Only a decal whose ring has no
+    // border mark of mine on it yet.
+    if (!s.prompt && s.playerMarks && s.rival?.borderMarks && !s.perched && !player.swimming) {
+      const target = borderDecalToScent(s, catP);
+      if (target) {
+        s.prompt = { kind: 'border-mark', data: target };
+        setPrompt('E — scent over their mark');
       }
     }
     // v18 Gift Paws. LAST in the chain on purpose: every prompt above it is
@@ -1469,6 +1554,15 @@ export function createInteractions({
       const m = s.prompt.data;
       if (leaveMark(s, { kind: 'scratch', id: m.id, x: m.x, z: m.z })) {
         s.fx?.burst({ x: m.x, y: 0.3, z: m.z }, 0x9c7a55, 8);
+      }
+    } else if (s.prompt.kind === 'border-mark') {
+      // v21 3b Task 12 — pays nothing, says nothing. My paw goes down on their
+      // mark and their mark goes pale, now and on every later walk (walk.js
+      // reads my border marks back at walk start). Nobody contests it back.
+      const d = s.prompt.data;
+      if (leaveMark(s, { kind: 'border', id: borderMarkId(s.areaId, d.ring), x: d.x, z: d.z })) {
+        s.rival?.borderMarks?.setContested(d.index);
+        s.fx?.burst({ x: d.x, y: 0.2, z: d.z }, 0xe0782f, 8);
       }
     } else if (s.prompt.kind === 'scratch') {
       s.prompt.data.scratched = true;

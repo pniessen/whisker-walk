@@ -179,14 +179,14 @@ const smooth = (u) => u * u * (3 - 2 * u);
 // rotation.y that makes a cat face direction (dx, dz): the same formula
 // player.js uses for the player's cat.
 const facing = (dx, dz) => Math.atan2(dx, dz) + Math.PI;
-const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; } };
+const NO_PATROL = { update() {}, dispose() {}, get state() { return 'none'; }, get pos() { return null; } };
 
 // chaseAllowed(player, session) -> bool: the walk's canChase. No chase while
 // the cat is perched (perchY above the ground) or while photo mode is open, so
 // a child framing a photo of the rival cat is never scampered out mid-shot.
 export const chaseAllowed = (player, session) => player.perchY === 0 && !session.cameraMode;
 
-// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state }
+// createRivalPatrol(scene, areaId, opts) -> { update(dt, catPos, avatar?), dispose(), state, pos }
 //
 // opts:
 //   reducedMotion  no dash, a short move.
@@ -329,5 +329,13 @@ export function createRivalPatrol(scene, areaId, {
     });
   }
 
-  return { update, dispose, get state() { return state; } };
+  // pos: where the patrol cat is now (its mesh, so a dash counts too), as a
+  // fresh {x, z} — read-only. The walk reads it a few times a second to scent
+  // over the player's marks near the border (Task 12); this module does not.
+  return {
+    update,
+    dispose,
+    get state() { return state; },
+    get pos() { return { x: mesh.position.x, z: mesh.position.z }; },
+  };
 }

@@ -2,8 +2,10 @@ import { test, expect } from 'vitest';
 import {
   MARK_KINDS, MARKS_PER_AREA, MARK_AREAS,
   emptyMarks, sanitizeMarks, markKey, addMark, contestMark, markOpacity,
+  CONTEST_REACH, contestable, shouldContest, borderMarkId,
 } from '../src/marks.js';
 import { isPropId } from '../src/propsets.js';
+import { rivalFor } from '../src/rivalclans.js';
 
 const scratch = (at, id = 'park-post-1', extra = {}) => ({ kind: 'scratch', id, x: 1, z: 2, at, contested: false, item: null, ...extra });
 const drop = (at, id = 'park-stick-1', item = 'stick') => ({ kind: 'drop', id, x: 3, z: 4, at, contested: false, item });
@@ -178,4 +180,59 @@ test('sanitizeMarks is idempotent', () => {
   for (let i = 0; i < 12; i++) m = addMark(m, 'seaside', drop(i + 1, `seaside-shell-${i}`, 'shell')).marks;
   expect(sanitizeMarks(m)).toEqual(m);
   expect(sanitizeMarks(JSON.parse(JSON.stringify(m)))).toEqual(m);
+});
+
+// --- Task 12: the rival clans contest your marks ---------------------------
+
+// A mark `off` metres outside (negative: inside) the park rival's border, due
+// east of its centre.
+const nearRing = (kind, off, extra = {}) => {
+  const { cx, cz, r } = rivalFor('park');
+  const base = { scratch: scratch(1), dig: dig(1, 0, 0), drop: drop(1), border: border(1), den: { kind: 'den', id: 'den-sock-1', at: 1, contested: false, item: 'sock' } }[kind];
+  return { ...base, x: cx + r + off, z: cz, ...extra };
+};
+
+test('only marks near the rival border are contestable, never border or den marks', () => {
+  expect(CONTEST_REACH).toBe(1.5);
+  for (const kind of ['scratch', 'dig', 'drop']) {
+    for (const off of [0, 1.5, -1.5, 0.7, -0.3]) expect(contestable('park', nearRing(kind, off)), `${kind} ${off}`).toBe(true);
+    for (const off of [1.6, -1.6, 5, -6]) expect(contestable('park', nearRing(kind, off)), `${kind} ${off}`).toBe(false);
+    // already contested: nothing more to take
+    expect(contestable('park', nearRing(kind, 0, { contested: true }))).toBe(false);
+  }
+  // a border mark IS the contest; a den keepsake is safe at home
+  expect(contestable('park', nearRing('border', 0))).toBe(false);
+  expect(contestable('park', nearRing('den', 0))).toBe(false);
+  // junk never throws and never contests
+  for (const bad of [null, undefined, 5, 'x', [], {}, { kind: 'scratch' }, nearRing('scratch', 0, { x: NaN }), nearRing('scratch', 0, { z: '1' })]) {
+    expect(contestable('park', bad)).toBe(false);
+  }
+});
+
+test('shouldContest needs the patrol within reach', () => {
+  const m = nearRing('scratch', 0.5);
+  expect(shouldContest('park', m, { x: m.x, z: m.z })).toBe(true);
+  expect(shouldContest('park', m, { x: m.x + 1.5, z: m.z })).toBe(true);
+  expect(shouldContest('park', m, { x: m.x, z: m.z - 1.49 })).toBe(true);
+  expect(shouldContest('park', m, { x: m.x + 1.6, z: m.z })).toBe(false);
+  expect(shouldContest('park', m, { x: m.x + 20, z: m.z })).toBe(false);
+  // a patrol in reach of a mark that is not contestable still takes nothing
+  expect(shouldContest('park', nearRing('scratch', 3), { x: rivalFor('park').cx + rivalFor('park').r + 3, z: rivalFor('park').cz })).toBe(false);
+  expect(shouldContest('park', nearRing('border', 0), { x: nearRing('border', 0).x, z: nearRing('border', 0).z })).toBe(false);
+  for (const bad of [null, undefined, {}, { x: 1 }, { x: NaN, z: 0 }, { x: '1', z: 2 }]) {
+    expect(shouldContest('park', m, bad)).toBe(false);
+  }
+});
+
+test('unknown areas and the den contest nothing', () => {
+  const m = nearRing('scratch', 0);
+  for (const a of ['den', 'nowhere', '__proto__', 'constructor', undefined, null, 3]) {
+    expect(contestable(a, m)).toBe(false);
+    expect(shouldContest(a, m, { x: m.x, z: m.z })).toBe(false);
+  }
+});
+
+test('a border mark id names the area and the ring index, and is a prop id', () => {
+  expect(borderMarkId('docks', 6)).toBe('docks-border-6');
+  expect(isPropId(borderMarkId('neighborhood', 11))).toBe(true);
 });
