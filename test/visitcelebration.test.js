@@ -107,7 +107,7 @@ describe('createVisitCelebration', () => {
     expect(cb.onOpen).toHaveBeenCalledTimes(1);
     expect(cb.onOpen).toHaveBeenCalledWith(expect.objectContaining({ visit: 5 }));
     expect(html(root())).toContain("It's a Party Hat!");
-    t.runAll(); // the 500ms double-tap guard
+    t.runOnce(); // the 500ms double-tap guard (armed before the 4s auto-close)
     click(root(), 'done');
     expect(mount.children).toHaveLength(0);
     expect(cb.onClose).toHaveBeenCalledTimes(1);
@@ -227,15 +227,26 @@ describe('createVisitCelebration', () => {
     click(root(), 'done');
     expect(cel.isOpen()).toBe(true);
     expect(cb.onClose).not.toHaveBeenCalled();
-    expect(t.delays()).toEqual([500]);
-    t.runAll();
-    click(root(), 'done');
+    expect(t.delays()).toEqual([500, 4000]); // the guard, then the auto-close
+    t.runOnce();
+    click(root(), 'done'); // Yay! still closes early
     expect(cb.onClose).toHaveBeenCalledWith('done');
+    expect(cb.onClose).toHaveBeenCalledTimes(1);
+    expect(t.size).toBe(0);
   });
 
-  it('timers: A has none before the tap; B 5s+fade; C 3s after reveal; cycle C 6s', () => {
+  it('timers: A none before the tap, 4s after reveal; cycle A 6s; B 5s+fade; C 3s after reveal; cycle C 6s', () => {
     let x = setup(); x.cel.show(ms(5, 'A'), {});
     expect(x.t.size).toBe(0);
+    click(x.root(), 'open');
+    expect(x.t.delays()).toEqual([500, 4000]);
+    x.t.runAll();
+    expect(x.cel.isOpen()).toBe(false);
+    expect(x.cb.onClose).toHaveBeenCalledWith('done');
+    x = setup(); x.cel.show(ms(5, 'A', false), {});
+    expect(x.t.delays()).toEqual([6000]);
+    x.t.runAll();
+    expect(x.cel.isOpen()).toBe(false);
     x = setup(); x.cel.show(ms(5, 'B'), {});
     expect(x.t.delays()).toEqual([5000]);
     x.t.runAll();
@@ -245,6 +256,22 @@ describe('createVisitCelebration', () => {
     expect(x.t.delays()).toContain(3000);
     x = setup(); x.cel.show(ms(10, 'C', false), {});
     expect(x.t.delays()).toEqual([6000]);
+  });
+
+  it('A: the dimmer stops blocking Start once revealed, and on a cycle-back', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = (sel) => {
+      const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const m = css.match(new RegExp(`(^|[},])\\s*[^{}]*${esc}[^{}]*\\{([^}]*)\\}`));
+      return m ? m[2] : '';
+    };
+    expect(rule('.visit-cel.style-a.revealed .visit-cel-dim')).toMatch(/pointer-events:\s*none/);
+    expect(rule('.visit-cel.style-a.cycle .visit-cel-dim')).toMatch(/pointer-events:\s*none/);
+    const a = setup(); a.cel.show(ms(5, 'A'), {});
+    click(a.root(), 'open');
+    expect(a.root().classList.contains('revealed')).toBe(true);
+    const c = setup(); c.cel.show(ms(5, 'A', false), {});
+    expect(c.root().className).toContain('cycle');
   });
 
   it('B: the hold timer adds fade and queues the fade-out timer', () => {

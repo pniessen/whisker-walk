@@ -16,6 +16,10 @@ const B_HOLD_MS = 5000;
 const FADE_MS = 700;
 const C_REVEAL_HOLD_MS = 3000;
 const C_CYCLE_HOLD_MS = 6000; // long enough to read and tap "Wear it"
+// A after "Open it!": the dimmer lets go (CSS) and the card goes by itself, so
+// one tap on Start is enough. The cycle-back A matches the cycle-back C.
+const A_REVEAL_HOLD_MS = 4000;
+const A_CYCLE_HOLD_MS = 6000;
 
 const CONFETTI_COLORS = ['#ff8fb1', '#f2c14e', '#7ee2a0', '#7fc4ff', '#c79bff', '#ffffff'];
 
@@ -208,10 +212,13 @@ export function createVisitCelebration(mount, {
       current.locked = true;
       timers.push(setTimer(() => { if (current) current.locked = false; }, REVEAL_LOCK_MS));
       if (milestone.style === 'C') fadeThenClose(C_REVEAL_HOLD_MS);
+      else if (milestone.style === 'A') fadeThenClose(A_REVEAL_HOLD_MS);
       safe(onOpen, milestone);
       if (!root) return; // onOpen may have closed us
       setCard('revealed');
       root.classList.add('revealed');
+      // The dimmer no longer blocks (style.css), so A is not modal any more.
+      if (milestone.style === 'A') root.setAttribute?.('aria-modal', 'false');
       if (current.thumb && milestone.style !== 'C') {
         const burst = mount.ownerDocument.createElement('div');
         burst.innerHTML = confettiHtml(milestone.visit, rng, 30);
@@ -238,7 +245,8 @@ export function createVisitCelebration(mount, {
       root.className = `visit-cel style-${style.toLowerCase()}${isNew ? '' : ' cycle'}`;
       if (style === 'A') {
         root.setAttribute?.('role', 'dialog');
-        root.setAttribute?.('aria-modal', 'true');
+        // Only the unopened present is modal; a cycle-back A never blocks.
+        root.setAttribute?.('aria-modal', isNew ? 'true' : 'false');
         root.setAttribute?.('aria-label', `Visit ${m.visit}`);
       } else {
         root.setAttribute?.('role', 'status');
@@ -256,6 +264,7 @@ export function createVisitCelebration(mount, {
       // can never leave a card that never goes away.
       if (style === 'B') fadeThenClose(B_HOLD_MS);
       else if (!isNew && style === 'C') fadeThenClose(C_CYCLE_HOLD_MS);
+      else if (!isNew && style === 'A') fadeThenClose(A_CYCLE_HOLD_MS);
       if (style === 'B' || !isNew) {
         current.opened = true;
         // A cycle-back has no present: the card itself is the reveal. main
