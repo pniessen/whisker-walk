@@ -311,7 +311,7 @@ function init() {
   // clearPendingRoom below. startWalk is passed as a thunk because it is
   // declared further down — nothing can reach it before init() returns.
   const {
-    rooms, pushProfileNow, getPendingRoom, clearPendingRoom, hostRoomWalk, requestRoomWalk,
+    rooms, pushProfileNow, getPendingRoom, clearPendingRoom, startRoomTogether,
   } = createRooms({
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -319,7 +319,6 @@ function init() {
     progression, getCloud, getPsecret, colonySync,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
-    toast: cloudToast,
   });
 
   // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and
@@ -347,7 +346,7 @@ function init() {
     setSession: (next) => { session = next; },
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
-    getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
+    getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
   });
 

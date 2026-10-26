@@ -120,8 +120,8 @@ export function createWalkLifecycle({
   player, progression, settings, hud, audio, music, log, touchUI, catVoice,
   getCloud, getSession, setSession, getIsTouch, getHomebase,
   getPendingRoom, clearPendingRoom, pushProfileNow,
-  // game/rooms.js: the room branches of the home base's Start (Task 12).
-  hostRoomWalk, requestRoomWalk,
+  // game/rooms.js: the home base's Start in a room (v21 Play together).
+  startRoomTogether,
   awardStrayGreet, applyRemoteEvent,
   // v21 Stream 2: game/colonysync.js. Optional; later colony tasks use it.
   colonySync,
@@ -273,26 +273,17 @@ export function createWalkLifecycle({
   }
 
   // homebase's Start button always calls this. Solo (no room) it starts the
-  // walk. In a room it never starts a walk alone — a member walking solo
-  // would see a different world from the room it is still in:
-  //   * the host starts everyone (game/rooms.js's hostRoomWalk: one fresh
-  //     seed, carried to everyone, the host included, via walk-config);
-  //   * any other member asks the host for a walk in THEIR area (v21 Stream 2,
-  //     Task 12's walk-request — rooms.js's requestRoomWalk), and the home
-  //     base shows "Starting…" until the host's walk-config arrives or the
-  //     wait runs out. A second press while waiting does nothing.
-  // isHost() is read here, at the click, not from the last render, so a
-  // host flip between the two (the host leaving, or a smaller playerId
-  // joining) just picks the other branch.
+  // walk. In a room, anyone's Start starts everyone (game/rooms.js's
+  // startRoomTogether, v21 Play together): it proposes a walk in MY area,
+  // every device gathers proposals for a moment and all start the same one,
+  // so nobody walks a different world from the room they are in. The home
+  // base shows "Starting…" meanwhile; a second press does nothing.
   function beginWalkFromHomebase({ duskMode }) {
-    const pendingRoom = getPendingRoom();
-    if (!pendingRoom) {
+    if (!getPendingRoom()) {
       startWalk({ duskMode });
       return;
     }
-    const opts = { area: progression.state.area, dusk: !!duskMode };
-    if (pendingRoom.net.isHost()) hostRoomWalk(opts);
-    else requestRoomWalk(opts);
+    startRoomTogether({ area: progression.state.area, dusk: !!duskMode });
   }
 
   // The den button's variant (Task 7.2): the den never joins a room walk
