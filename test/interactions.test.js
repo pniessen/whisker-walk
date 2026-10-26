@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
@@ -25,6 +25,7 @@ import { mulberry32 } from '../src/rng.js';
 import { createYardDog } from '../src/yarddog.js';
 import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
+import { onAnyDeck } from '../src/world/builder.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
 // out out of main.js was verified by mechanical diff and a browser smoke run.
@@ -456,7 +457,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     const frame = () => { session.carry.items.update(0); updateInteractions(session); };
     const walkTo = (x, z) => { session.cat.position.set(x, 0, z); frame(); };
     const press = () => { frame(); handleInteract(session); };
-    return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, log, purrs };
+    return { session, prompts, toasts, walkTo, press, frame, progression, player, tickCarryRain, handleInteract, log, purrs };
   }
 
   it('offers the stray greet 2.0m from a crate, with and without Big Swat', () => {
@@ -485,8 +486,9 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
 
   // -------------------------------------------------------------------------
   // v21 3b Task 6 — carry, the stream's one required verb. 'carry' sits right
-  // after 'collect' (the thing you walked over to); 'drop' is the very last
-  // prompt, so holding something never shadows anything else.
+  // after the boop (ruling R43: the people prompts come first) and above the
+  // mark, the rest and gift-leave; 'drop' is the very last prompt, so holding
+  // something never shadows anything else.
   // -------------------------------------------------------------------------
   describe('carry: pick up, put down', () => {
     // The harness crate stands at (0, 2); the stick is well clear of it.
@@ -616,6 +618,126 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.prompts.at(-1)).toBe('E — put the stick down');
     });
 
+    // v21 3b ruling R42 — a raised deck (the seaside pier at y 0.25, the
+    // Docks' two bridges) is like a perch: a thing put down lands at ground
+    // height, under the boards, and vanishes. So no drop prompt and no rain
+    // slip while the cat, or its mouth, is over one; both come back on solid
+    // ground. The areas are really built and the deck test is the one walk.js
+    // passes in (onAnyDeck over the built waters).
+    describe('on a raised deck (R42)', () => {
+      const AREAS = {};
+      beforeAll(async () => {
+        vi.stubGlobal('document', {
+          createElement: () => ({
+            width: 0,
+            height: 0,
+            getContext: () => new Proxy({}, {
+              get: (_target, key) => {
+                if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+                if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+                  return () => ({ addColorStop: () => {} });
+                }
+                return () => {};
+              },
+              set: () => true,
+            }),
+          }),
+        });
+        // Only the builds need the stub.
+        try {
+          AREAS.seaside = (await import('../src/world/seaside.js')).build(new THREE.Scene());
+          AREAS.docks = (await import('../src/world/docks.js')).build(new THREE.Scene());
+        } finally {
+          vi.unstubAllGlobals();
+        }
+      });
+
+      // A shell on solid ground near the deck, picked up, then the cat walks
+      // to `deck`; the session gets the built area's bounds, waters and deck test.
+      const onTheDeck = (areaId, home) => {
+        const area = AREAS[areaId];
+        const h = promptHarness({ stray: null, areaId, carryables: [{ id: `${areaId}-shell-9`, kind: 'shell', ...home }] });
+        h.session.areaData.bounds = area.bounds;
+        h.session.areaData.waters = area.waters;
+        h.session.carry.onDeck = (x, z) => onAnyDeck(area.waters, x, z);
+        h.walkTo(home.x, home.z + 0.5);
+        h.press();
+        expect(h.session.carry.mouth.held?.kind).toBe('shell');
+        return h;
+      };
+      const rainFor = (h, seconds, step = 0.5) => {
+        for (let t = 0; t < seconds - 1e-9; t += step) { h.tickCarryRain(h.session, step); h.session.carry.items.update(step); }
+      };
+      const DECKS = [
+        // area, where the shell starts (solid ground), a spot on the deck, solid ground to come back to
+        ['the seaside pier', 'seaside', { x: 18, z: -10 }, { x: 30, z: -10 }, { x: 18, z: -6 }],
+        ['the Docks main bridge', 'docks', { x: 8, z: 8 }, { x: 0, z: -1 }, { x: 8, z: 8 }],
+        ['the Docks plank bridge', 'docks', { x: -30, z: 8 }, { x: -24, z: 0 }, { x: -30, z: 8 }],
+      ];
+
+      it.each(DECKS)('%s: no drop prompt, E keeps it held, and it goes down on solid ground', (_name, areaId, home, deck, ground) => {
+        const h = onTheDeck(areaId, home);
+        expect(h.session.carry.onDeck(deck.x, deck.z)).toBe(true);
+        expect(h.session.carry.onDeck(ground.x, ground.z)).toBe(false);
+        h.walkTo(deck.x, deck.z);
+        expect(h.session.prompt).toBe(null);
+        h.session.prompt = { kind: 'drop' }; // an E on the frame it stepped on
+        h.handleInteract(h.session);
+        expect(h.session.carry.mouth.held?.kind).toBe('shell');
+        expect(h.session.carry.mouth.dropped.size).toBe(0);
+        h.walkTo(ground.x, ground.z);
+        expect(h.prompts.at(-1)).toBe('E — put the shell down');
+        h.press();
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(h.session.carry.items.list[0].onGround).toBe(true);
+      });
+
+      it.each(DECKS)('%s: the rain grip holds on the deck; the count resumes on solid ground', (_name, areaId, home, deck, ground) => {
+        const h = onTheDeck(areaId, home);
+        h.session.weather = { isRaining: () => true };
+        h.walkTo(deck.x, deck.z);
+        rainFor(h, RAIN_GRIP * 3);
+        expect(h.session.carry.mouth.held?.kind).toBe('shell');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        expect(h.toasts).toEqual([]);
+        h.walkTo(ground.x, ground.z);
+        rainFor(h, RAIN_GRIP - 0.5);
+        expect(h.session.carry.mouth.held?.kind).toBe('shell');
+        rainFor(h, 0.5);
+        expect(h.session.carry.mouth.held).toBe(null);
+        expect(h.toasts).toEqual(['Your paws are too slippery — you dropped the shell! 💧']);
+        expect(h.session.carry.onDeck(h.session.carry.items.list[0].mesh.position.x,
+          h.session.carry.items.list[0].mesh.position.z)).toBe(false);
+      });
+
+      it('standing on the sand with the mouth over the pier also holds the drop and the grip', () => {
+        const h = onTheDeck('seaside', { x: 18, z: -6 });
+        h.session.weather = { isRaining: () => true };
+        // Just off the pier's north edge (z -8.5), on the sand (the sea starts at x 25),
+        // facing the boards: the mouth is ~0.6 m ahead, over the deck.
+        h.walkTo(23.5, -8.1);
+        const at = h.session.carry.items.list[0].mesh.position;
+        expect(h.session.carry.onDeck(23.5, -8.1)).toBe(false);
+        expect(h.session.carry.onDeck(at.x, at.z)).toBe(true);
+        expect(h.session.prompt).toBe(null);
+        rainFor(h, RAIN_GRIP * 2);
+        expect(h.session.carry.mouth.held?.kind).toBe('shell');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        // a step back, mouth on the sand too: down it goes
+        h.walkTo(23.5, -7.2);
+        expect(h.prompts.at(-1)).toBe('E — put the shell down');
+      });
+
+      it('the walk passes the builder\'s deck test over its own waters into the carry', () => {
+        const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+        const bundle = src.slice(src.indexOf('const carry = {'), src.indexOf('};', src.indexOf('const carry = {')));
+        expect(bundle).toContain('onDeck: (x, z) => onAnyDeck(areaData.waters, x, z)');
+        // and interactions.js never imports the world builder
+        const inter = readFileSync(new URL('../src/game/interactions.js', import.meta.url), 'utf8');
+        expect(inter).not.toMatch(/from '\.\.\/world\//);
+      });
+    });
+
     it('a stray in range still wins over drop', () => {
       const h = carryHarness();
       h.walkTo(5, 0.5);
@@ -627,7 +749,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.prompts.at(-1)).toBe('E — touch noses with Pickles');
     });
 
-    it('collect wins over carry, and carry wins over the crate', () => {
+    it('collect wins over carry, and so does the crate (R43: carry sits below the boop)', () => {
       const h = carryHarness({ carryables: [{ id: 'park-stick-2', kind: 'stick', x: 0, z: 1.2 }] });
       h.session.areaData.collectibles.push({ id: 'feather', x: 0, z: 0.8, label: 'a feather' });
       h.session.collectibleMeshes.set('feather', {});
@@ -635,8 +757,76 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt.kind).toBe('collect');
       h.session.collectibleMeshes.delete('feather');
       h.walkTo(0, 1.0);
+      expect(h.session.prompt.kind).toBe('tip');
+      h.walkTo(0, 0.5); // out of the crate's 1.3 m, still inside the stick's 1.2 m
       expect(h.session.prompt.kind).toBe('carry');
       expect(h.prompts.at(-1)).toBe('E — pick up the stick');
+    });
+
+    // Ruling R43 (the same reasoning as R23): a sock lying beside a stray, a
+    // quest, the kitten, the race, a villager or a sister's cat never blocks
+    // them. Carry still outranks the cat's own marks, the rests, gift-leave
+    // and the drop.
+    describe('carry sits below the people prompts (R43)', () => {
+      const PEOPLE = [
+        ['greeting a stray', 'stray', (s) => { s.strayCats.nearest = () => ({ name: 'Pickles', greeted: false }); },
+          (s) => { s.strayCats.nearest = () => null; }],
+        ['a quest', 'quest-accept', (s) => {
+          s.quest = { state: 'offered' };
+          s.questGiver = { group: new THREE.Group() };
+          s.questGiver.group.position.set(5, 0, 1.5);
+        }, (s) => { s.quest = null; s.questGiver = null; }],
+        ['the kitten', 'kitten', (s) => { s.kittenEnc = { promptAt: () => 'E — help the kitten' }; },
+          (s) => { s.kittenEnc = null; }],
+        ['the race', 'race', (s) => { s.race = { promptAt: () => 'E — race!' }; },
+          (s) => { s.race = { promptAt: () => null }; }],
+        ['a villager\'s head scratches', 'scratch', (s) => {
+          const villager = { type: 'villager', scratched: false, group: new THREE.Group() };
+          villager.group.position.set(5.5, 0, 0.5);
+          s.critters.list = [villager];
+        }, (s) => { s.critters.list[0].scratched = true; }],
+        ['a sister\'s boop', 'boop', (s) => { s.remotes.nearest = () => ({ petName: 'Biscuit', playerId: 'sis-0001' }); },
+          (s) => { s.remotes.nearest = () => null; }],
+      ];
+      it.each(PEOPLE)('%s wins over picking up the stick; carry shows once it is gone', (_name, kind, add, remove) => {
+        const h = carryHarness();
+        add(h.session);
+        h.walkTo(5, 0.5); // the stick is 0.5 m away
+        expect(h.session.prompt.kind).toBe(kind);
+        remove(h.session);
+        h.walkTo(5, 0.5);
+        expect(h.session.prompt.kind).toBe('carry');
+      });
+
+      it('carry still wins over scratching a mark into a post beside it', () => {
+        const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
+        const at = { x: POST.x + 0.6, z: POST.z };
+        const h = promptHarness({ stray: null, areaId: 'neighborhood', marks: true,
+          carryables: [{ id: 'neighborhood-sock-1', kind: 'sock', x: at.x, z: at.z + 0.5 }] });
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('carry');
+        h.press();
+        h.walkTo(at.x, at.z);
+        expect(h.session.prompt.kind).toBe('mark'); // and the mark wins over the drop
+      });
+
+      it('in the prompt chain, carry comes after every people prompt and before mark, border-mark, rest, gift-leave and drop', () => {
+        const src = readFileSync(new URL('../src/game/interactions.js', import.meta.url), 'utf8');
+        const body = src.slice(src.indexOf('function updateInteractions('));
+        const at = (kind) => {
+          const i = body.indexOf(`s.prompt = { kind: '${kind}'`);
+          expect(i, kind).toBeGreaterThan(-1);
+          return i;
+        };
+        const carry = at('carry');
+        for (const k of ['collect', 'knock', 'tip', 'dig', 'quest-accept', 'quest-complete', 'stray-gift', 'stray',
+          'stray-feed', 'stray-wait', 'ghost', 'kitten', 'den-little-feed', 'den-cat', 'race', 'scratch', 'boop']) {
+          expect(at(k), k).toBeLessThan(carry);
+        }
+        for (const k of ['mark', 'border-mark', 'rest', 'gift-leave', 'drop']) {
+          expect(at(k), k).toBeGreaterThan(carry);
+        }
+      });
     });
 
     it('picking up and putting down pay nothing and record no feat', () => {
@@ -865,7 +1055,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
 
   // -------------------------------------------------------------------------
   // v21 3b Task 10 — knock it off the ledge. 'knock' sits right after
-  // 'collect' and before 'carry'; it is offered only while perched, beside a
+  // 'collect'; it is offered only while perched, beside a
   // thing still standing on that ledge. It pays exactly what a tip pays.
   // -------------------------------------------------------------------------
   describe('knock: off the ledge', () => {

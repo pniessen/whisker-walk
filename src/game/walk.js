@@ -20,7 +20,7 @@ import * as seaside from '../world/seaside.js';
 import * as den from '../world/den.js';
 import * as docks from '../world/docks.js';
 import { clearSpot } from '../world/spots.js';
-import { puddle as puddleProp } from '../world/builder.js';
+import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
 import { buildCat } from '../cat/model.js';
 import { PERSONALITIES } from '../cat/brain.js';
@@ -934,6 +934,7 @@ export function createWalkLifecycle({
       colonyCats,
       excludeNames,
       extras,
+      reducedMotion,
     });
     const remotes = createRemoteCats(scene);
 
@@ -1026,10 +1027,15 @@ export function createWalkLifecycle({
     // v21 3b — the things a cat can pick up in its mouth, and the mouth that
     // holds one. Created long after mergeStaticProps, so nothing here is
     // merged. The den has nothing to carry: an empty list keeps the per-frame
-    // update and endWalk's marks unconditional.
+    // update and endWalk's marks unconditional. `onDeck` is the builder's deck
+    // test over this area's waters (the seaside pier, the Docks bridges):
+    // interactions.js holds the drop and the rain slip there (ruling R42),
+    // since a thing put down lands at ground height, under the boards, and
+    // netevents.js ignores a co-walker's drop onto one.
     const carry = {
       mouth: createMouth(),
       items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables),
+      onDeck: (x, z) => onAnyDeck(areaData.waters, x, z),
     };
     // Task 8 — in a co-walk, a remote cat that leaves or goes quiet takes what
     // she was holding with her (netevents.js). Harmless solo: no remote ever

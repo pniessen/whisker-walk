@@ -250,8 +250,10 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // v21 3b Task 8 — a co-walker picked something up ('carry-pick') or put it
   // down ('carry-drop', from her E or from rain). Sent by game/interactions.js's
   // pickUpCarryable and putDownCarried. WORLD STATE ONLY: no toast, no points,
-  // no feat, no mark, no save — and her drop never becomes a mark of mine
-  // (my mouth's bookkeeping is never touched).
+  // no feat, no mark, no save — and her drop never becomes a mark of mine.
+  // The one touch on my mouth's bookkeeping is a forgetting: when she picks
+  // up a thing I had set down, my pending walk-end 'drop' for it is cleared,
+  // so I am not left a ghost of a stick she carried away.
   //
   // The item must be one of this walk's carryables (found with list.find, so a
   // '__proto__' id is just an unknown id) and the sender a remote in this walk.
@@ -259,8 +261,10 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // loser between two sisters — both cats hold one. A thing hidden because its
   // holder vanished (`gone`, takeHeldItemsWithRemotes) comes back with the
   // next valid pick or drop for it. A drop's pos must be two finite numbers
-  // inside this area's bounds (inclusive: the sender clamps to them), or it is
-  // ignored and the item stays where it was.
+  // inside this area's bounds (inclusive: the sender clamps to them), and not
+  // on a raised deck (ruling R42: a thing there would land under the boards;
+  // a current build never sends one), or it is ignored and the item stays
+  // where it was.
   function applyRemoteCarry(s, ev) {
     const items = s.carry?.items;
     if (!items || typeof ev.itemId !== 'string') return;
@@ -271,6 +275,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     if (ev.type === 'carry-pick') {
       items.hold(item.id, remote.group);
       item.gone = false;
+      s.carry.mouth?.dropped?.delete(item.id);
       return;
     }
     const b = s.areaData?.bounds;
@@ -278,6 +283,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     const [x, z] = ev.pos;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
     if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return;
+    if (typeof s.carry.onDeck === 'function' && s.carry.onDeck(x, z)) return;
     items.placeAt(item.id, x, z);
     item.gone = false;
   }

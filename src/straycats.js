@@ -363,8 +363,9 @@ function shuffled(arr, rng) {
 // and first timer from ITS OWN `rng`, never from `rng` above: the walk
 // stream's position after spawn stays 47 + 5 * count (pinned with a counting
 // rng). Only a legendary name is an extra, once, and never one already cast.
+// `reducedMotion` holds a legendary glow still, at the top of its breath.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
-  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [],
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false,
 } = {}) {
   const strays = [];
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
@@ -664,9 +665,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       return count;
     },
     update(dt, t, catPos, opts = {}) {
-      // v21 3b: the legendary glow breathes, off its own dt-driven clock.
+      // v21 3b: the legendary glow breathes, off its own dt-driven clock. With
+      // reduced motion the clock never moves, so the glow stays at the top of
+      // the breath (legendPulse(0)): bright, and still.
       if (glows.length) {
-        if (Number.isFinite(dt) && dt > 0) glowClock += dt;
+        if (!reducedMotion && Number.isFinite(dt) && dt > 0) glowClock += dt;
         const { opacity, scale } = legendPulse(glowClock);
         for (const g of glows) {
           g.material.opacity = opacity;

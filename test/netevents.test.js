@@ -1,11 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { createNetEvents, takeHeldItemsWithRemotes } from '../src/game/netevents.js';
 import { createProgression } from '../src/progression.js';
 import { CAT_NAMES } from '../src/straynames.js';
 import { createCarryables, MOUTH } from '../src/carryables.js';
-import { createMouth } from '../src/carry.js';
+import { createMouth, walkEndMarks } from '../src/carry.js';
+import { onAnyDeck } from '../src/world/builder.js';
 import { createRemoteCats } from '../src/remotecats.js';
 import { createKnockables } from '../src/knockables.js';
 
@@ -397,6 +398,85 @@ describe('applyRemoteEvent: carry-pick and carry-drop', () => {
     h.apply(pickEv());
     expect(() => h.applyRemoteEvent({ ...h.s, areaData: {} }, dropEv())).not.toThrow();
     expect(h.item(STICK.id).holder).toBe(h.partnerGroup());
+  });
+
+  // M6 — my walk-end 'drop' mark is for a thing I left somewhere. If my sister
+  // then picks it up, it is hers to carry off: my pending drop is forgotten,
+  // so no ghost of it is drawn at my spot on a later walk.
+  it('a partner pick of a thing I set down clears my pending walk-end drop for it', () => {
+    const h = carryHarness();
+    const mouth = h.s.carry.mouth;
+    mouth.dropped.set(STICK.id, { kind: 'stick', x: 12, z: -7, homeX: 5, homeZ: 0 });
+    mouth.dropped.set(LEAF.id, { kind: 'leaf', x: 0, z: 0, homeX: -4, homeZ: 3 });
+    h.apply(pickEv());
+    expect(mouth.dropped.has(STICK.id)).toBe(false);
+    expect(mouth.dropped.has(LEAF.id)).toBe(true); // the leaf she did not touch
+    expect(walkEndMarks(mouth, 'park', 1).map((m) => m.mark.id)).toEqual([LEAF.id]);
+    // her later drop of it never becomes a mark of mine
+    h.apply(dropEv());
+    expect(mouth.dropped.has(STICK.id)).toBe(false);
+    expect(h.saveUntouched()).toBe(true);
+    // an ignored pick (a stranger) forgets nothing
+    h.apply(pickEv({ id: STRANGER, itemId: LEAF.id }));
+    expect(mouth.dropped.has(LEAF.id)).toBe(true);
+  });
+
+  // R42 — a current build never puts a thing down on a raised deck (it would
+  // land under the boards). A drop pos on one, from an older or odd client, is
+  // ignored like an out-of-bounds one: the item stays in her mouth.
+  describe('a partner drop onto a raised deck (R42)', () => {
+    let seaside;
+    beforeAll(async () => {
+      vi.stubGlobal('document', {
+        createElement: () => ({
+          width: 0,
+          height: 0,
+          getContext: () => new Proxy({}, {
+            get: (_target, key) => {
+              if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+              if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+                return () => ({ addColorStop: () => {} });
+              }
+              return () => {};
+            },
+            set: () => true,
+          }),
+        }),
+      });
+      // Only the build needs the stub; the remote cats' name tags want no DOM.
+      try {
+        seaside = (await import('../src/world/seaside.js')).build(new THREE.Scene());
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('is ignored, without throwing; a drop on the sand still lands', () => {
+      const h = carryHarness();
+      h.s.areaData = { bounds: seaside.bounds, waters: seaside.waters };
+      h.s.carry.onDeck = (x, z) => onAnyDeck(seaside.waters, x, z);
+      h.apply(pickEv());
+      const stick = h.item(STICK.id);
+      for (const pos of [[30, -10], [23, -9], [22, -11.5]]) { // on the pier, its landward end, its corner
+        expect(() => h.apply(dropEv({ pos }))).not.toThrow();
+        expect(stick.onGround).toBe(false);
+        expect(stick.holder).toBe(h.partnerGroup());
+      }
+      h.apply(dropEv({ pos: [18, -10] })); // the sand beside it
+      expect(stick.onGround).toBe(true);
+      expect(stick.mesh.position.x).toBe(18);
+      expect(stick.mesh.position.z).toBe(-10);
+      expect(h.toasts).toEqual([]);
+      expect(h.saveUntouched()).toBe(true);
+    });
+
+    it('a session whose carry has no deck test (the den, a stand-in) places as before', () => {
+      const h = carryHarness();
+      h.s.areaData = { bounds: seaside.bounds };
+      h.apply(pickEv());
+      h.apply(dropEv({ pos: [30, -10] }));
+      expect(h.item(STICK.id).onGround).toBe(true);
+    });
   });
 
   it('the walk wires the take-it-with-you rule to its remote cats, outside the rival slice', () => {

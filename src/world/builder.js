@@ -2788,6 +2788,14 @@ export function onDeck(w, x, z) {
   );
 }
 
+// Is (x, z) on any deck of any of these waters? The carry's "never put a
+// thing down here" test (v21 3b ruling R42): a deck is raised structure, and a
+// thing set down lands at ground height, under its boards. Total: no waters,
+// or no decks, is false.
+export function onAnyDeck(waters, x, z) {
+  return (waters ?? []).some((w) => onDeck(w, x, z));
+}
+
 // waterClearance(waters, x, z) — how far the point is from the nearest water's
 // edge: positive on dry land, negative in the water, Infinity where there is
 // no water to be near (an area with none, or a point standing on a deck).

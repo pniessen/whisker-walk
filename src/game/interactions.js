@@ -79,6 +79,24 @@ const BORDER_MARK_REACH = 1.0;
 // drink, eat or nap there.
 const REST_REACH = 1.2;
 
+// v21 3b ruling R42 — is the cat, or the thing in its mouth, over a raised
+// deck (the seaside pier, the Docks bridges)? A drop is placed at ground
+// height, which is under those boards. `s.carry.onDeck(x, z)` is the walk's
+// own deck test (walk.js passes it in, the way it passes isWalkable to the
+// rival and the dog), so this module never imports the world builder. A
+// carry without one (a stand-in test session, the den) has no decks. The
+// mouth point is where carryables.update last put the held mesh: at a deck's
+// edge the cat can stand on the sand with its mouth over the boards.
+function overDeck(s) {
+  const onDeck = s.carry?.onDeck;
+  if (typeof onDeck !== 'function') return false;
+  const c = s.cat?.position;
+  if (c && onDeck(c.x, c.z)) return true;
+  const held = s.carry.mouth?.held;
+  const at = held ? s.carry.items?.list.find((it) => it.id === held.id)?.mesh?.position : null;
+  return !!at && Number.isFinite(at.x) && Number.isFinite(at.z) && onDeck(at.x, at.z);
+}
+
 export function createInteractions({
   // getIsTouch, not a captured boolean: a hybrid device upgrades into touch
   // mode mid-session (onFirstTouch), and setPrompt must see that upgrade.
@@ -709,31 +727,17 @@ export function createInteractions({
           : `E — pick up ${c.label}`);
       }
     }
-    // v21 3b Task 10 — knock it off the ledge. Right after 'collect' and
-    // before 'carry': only while perched, beside a thing still standing on a
-    // ledge at the cat's own height (knockables.nearest checks the height).
-    // Carry is never offered while perched, so the two never compete; what
-    // this outranks is the tip and everything after it. Guarded so a stand-in
-    // test session without knockables simply never offers it.
+    // v21 3b Task 10 — knock it off the ledge. Right after 'collect': only
+    // while perched, beside a thing still standing on a ledge at the cat's own
+    // height (knockables.nearest checks the height). Carry is never offered
+    // while perched, so the two never compete; what this outranks is the tip
+    // and everything after it. Guarded so a stand-in test session without
+    // knockables simply never offers it.
     if (!s.prompt && s.perched && s.knockables) {
       const thing = s.knockables.nearest(catP, s.perched.y, KNOCK_REACH);
       if (thing) {
         s.prompt = { kind: 'knock', data: thing };
         setPrompt('E — knock it off! 😼');
-      }
-    }
-    // v21 3b — carry, picked up in the mouth. Right after 'collect': a thing
-    // on the ground is something the player walked over to. A cat holds one
-    // thing at a time, and only from the ground (not from a perch). The mouth
-    // is not the collectibles pocket (s.walk.carried), so a full pocket does
-    // not stop it. Guarded so a stand-in test session without a carry simply
-    // never offers it; every real walk has one (inert in the den).
-    const carry = s.carry;
-    if (!s.prompt && carry && !carry.mouth.held && !s.perched) {
-      const item = carry.items.nearest(catP, CARRY_REACH);
-      if (item) {
-        s.prompt = { kind: 'carry', data: item };
-        setPrompt(`E — pick up the ${carryLabel(item.kind)}`);
       }
     }
     if (!s.prompt) {
@@ -961,6 +965,23 @@ export function createInteractions({
         setPrompt(`E — touch noses with ${remote.petName}`);
       }
     }
+    // v21 3b — carry, picked up in the mouth. After the boop (ruling R43, the
+    // same reasoning as R23): a stray, a quest, the kitten, the race, a
+    // villager's head scratches or a sister's nose-touch is never blocked by a
+    // sock lying beside it. Above the mark, the rest, gift-leave and the drop:
+    // a thing on the ground is still something the player walked over to. A
+    // cat holds one thing at a time, and only from the ground (not from a
+    // perch). The mouth is not the collectibles pocket (s.walk.carried), so a
+    // full pocket does not stop it. Guarded so a stand-in test session without
+    // a carry simply never offers it; every real walk has one (inert in the den).
+    const carry = s.carry;
+    if (!s.prompt && carry && !carry.mouth.held && !s.perched) {
+      const item = carry.items.nearest(catP, CARRY_REACH);
+      if (item) {
+        s.prompt = { kind: 'carry', data: item };
+        setPrompt(`E — pick up the ${carryLabel(item.kind)}`);
+      }
+    }
     // v21 3b Task 11 — scratch your mark into a post, trunk or bollard. After
     // the head scratches AND the boop (ruling R23): a person, or a sister's
     // cat, you walked up to always wins over a post that happens to be there.
@@ -1013,8 +1034,10 @@ export function createInteractions({
     // v21 3b — after even 'gift-leave': holding something must never hide a
     // prompt the player walked over for. Put it down wherever nothing else is,
     // but only from the ground: dropped from a roof or a car, or in water, it
-    // could land somewhere the cat cannot reach. The cat just keeps holding it.
-    if (!s.prompt && carry?.mouth.held && !s.perched && !player.swimming) {
+    // could land somewhere the cat cannot reach. Nor on a raised deck (the
+    // pier, the Docks bridges; ruling R42): a drop is placed at ground height,
+    // under the boards, where it cannot be seen. The cat just keeps holding it.
+    if (!s.prompt && carry?.mouth.held && !s.perched && !player.swimming && !overDeck(s)) {
       s.prompt = { kind: 'drop' };
       setPrompt(`E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
@@ -1295,8 +1318,11 @@ export function createInteractions({
   // the area's bounds; if the mesh position is unusable, the cat's own spot.
   // Remembered against the item's home so a walk-end mark can say whether it
   // moved. The carry-drop is sent from here, not from the prompt, so a rain
-  // slip reaches co-walkers too.
+  // slip reaches co-walkers too. Never over a raised deck (R42): the prompt
+  // and the rain both hold off there already, and this refuses too, so an E
+  // pressed on the frame the cat steps onto the pier keeps the thing held.
   function putDownCarried(s) {
+    if (overDeck(s)) return null;
     const item = s.carry.items.list.find((it) => it.id === s.carry.mouth.held?.id);
     const at = item?.mesh?.position;
     const fromMouth = Number.isFinite(at?.x) && Number.isFinite(at?.z);
@@ -1319,14 +1345,15 @@ export function createInteractions({
   // out the item goes through the same putDownCarried the player's E uses, so
   // the carry-drop event goes out to co-walkers and the walk-end 'drop' mark
   // follows on its own. Nothing else happens: no points, no feat, no freeze.
-  // While perched or swimming the grip does not loosen at all (the count simply
-  // resumes once the cat is back on the ground): a slip there could set the
-  // item inside a roof or car footprint or on the water bed. A walk without a
-  // weather object (the den) or with a stub that lacks isRaining is dry.
+  // While perched, swimming or over a raised deck the grip does not loosen at
+  // all (the count simply resumes once the cat is back on solid ground): a
+  // slip there could set the item inside a roof or car footprint, on the water
+  // bed, or under the pier's boards (R42). A walk without a weather object
+  // (the den) or with a stub that lacks isRaining is dry.
   function tickCarryRain(s, dt) {
     const carry = s.carry;
     if (!carry?.mouth.held) return;
-    if (s.perched || player.swimming) return;
+    if (s.perched || player.swimming || overDeck(s)) return;
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
     const released = putDownCarried(s);

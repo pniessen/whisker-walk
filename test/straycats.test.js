@@ -1170,6 +1170,22 @@ describe('createStrayCats — a legendary extra (v21 3b)', () => {
     expect(() => plain.update(0.05, 0, FAR, NO_OPTS)).not.toThrow();
   });
 
+  it('with reduced motion the glow holds still at the top of its breath', () => {
+    const top = legendPulse(0);
+    expect(top).toEqual({ opacity: 1, scale: 1.05 });
+    const cats = createStrayCats(fakeScene(), AREA, 2, mulberry32(4), { extras: [legend()], roomSeed: 9, reducedMotion: true });
+    const g = glowsIn(cats.strays.find((x) => x.name === 'Captain Barnacle').group)[0];
+    for (let i = 0; i < 80; i++) {
+      cats.update(0.05, i * 0.05, FAR, NO_OPTS);
+      expect(g.material.opacity).toBe(top.opacity);
+      expect(g.scale.x).toBeCloseTo(top.scale, 12);
+    }
+    // and the walk passes the setting in
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const call = src.slice(src.indexOf('const strayCats = createStrayCats('), src.indexOf('});', src.indexOf('const strayCats = createStrayCats(')));
+    expect(call).toMatch(/\breducedMotion,/);
+  });
+
   it('only a legendary name with a real rng is ever an extra, and never twice', () => {
     const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(4), {
       colonyCats: [{ name: 'Duchess', x: 2, z: 2, wear: null }],
