@@ -61,10 +61,13 @@ describe('dressing-room model', () => {
   it('an unlocked-by-gate but unbought area shows its price', () => {
     const s = defaultishState(); s.walks.neighborhood = 2;
     const park = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park');
-    expect(park.lockLine).toBe('50 🐾 to unlock');
+    const price = CATALOG.areas.park.price;
+    expect(park.lockLine).toBe(`${price} 🐾 — keep walking!`);
     expect(park.canBuy).toBe(false);
-    s.points = 50;
-    expect(buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park').canBuy).toBe(true);
+    s.points = price;
+    const afford = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'park');
+    expect(afford.canBuy).toBe(true);
+    expect(afford.lockLine).toBe(`Tap to unlock — ${price} 🐾`);
   });
   it('abilities are counted from the live skill list', () => {
     expect(buildDressingModel(defaultishState(), CATALOG).abilities.total).toBe(SKILLS.length);
@@ -117,6 +120,24 @@ describe('dressing-room renderer', () => {
     expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length);
     expect(count(html, /data-dr-pill=/g)).toBe(3);
     expect(html).toContain(`aria-pressed="true"`);
+  });
+  it('a place card says whether it can be unlocked now, and looks not-yet when it cannot', () => {
+    const price = CATALOG.areas.park.price;
+    const s = defaultishState(); s.walks.neighborhood = 2;
+    const card = (html) => html.match(/<button class="dr-place[^"]*" data-dr-place="park">[\s\S]*?<\/button>/)[0];
+    const poor = card(render({}, s));
+    expect(poor).toContain(`${price} 🐾 — keep walking!`);
+    expect(poor).toMatch(/class="dr-place [^"]*\bcant\b/);
+    s.points = price;
+    const rich = card(render({}, s));
+    expect(rich).toContain(`Tap to unlock — ${price} 🐾`);
+    expect(rich).not.toMatch(/\bcant\b/);
+    const gated = card(render({}, defaultishState()));
+    expect(gated).toContain('opens after 2 walks');
+    expect(gated).not.toMatch(/\bcant\b/);
+  });
+  it('the pills are toggle buttons, not a tablist', () => {
+    expect(render()).not.toContain('role="tablist"');
   });
   it('shows the hero unlock button only for a buyable locked cat', () => {
     const s = defaultishState(); s.points = 60;

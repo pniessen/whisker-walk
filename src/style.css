@@ -699,6 +699,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-place.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
 .dr-place.locked img { filter: grayscale(.85) brightness(.6); }
 .dr-place.locked .cap::before { content: '🔒 '; }
+/* not enough paws yet: the picture stays visible, just dimmed and quiet */
+.dr-place.cant img { filter: saturate(.55) brightness(.8); }
+.dr-place.cant { opacity: .85; cursor: default; }
 
 /* the quiet row of sheets */
 .dr-more { grid-area: more; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }

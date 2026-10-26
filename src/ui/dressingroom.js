@@ -100,7 +100,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     if (gated) {
       lockLine = `opens after ${req.walks} walks in ${catalog.areas[req.area]?.name ?? req.area} · ${have}/${req.walks} so far`;
     } else if (!owned) {
-      lockLine = `${price} 🐾 to unlock`;
+      lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }
     return { id, name: a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
@@ -163,7 +163,8 @@ function slotHtml(s, openSlot, picker, thumbs) {
 
 function placeHtml(p) {
   const sub = p.selected ? 'today’s walk' : p.owned ? 'tap to walk here' : p.lockLine;
-  return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''}" data-dr-place="${escapeHtml(p.id)}">`
+  const cant = !p.owned && !p.locked && !p.canBuy;
+  return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`
     + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.remove()">`
     + `<span class="cap">${escapeHtml(p.name)}<small>${escapeHtml(sub)}</small></span></button>`;
 }
@@ -191,7 +192,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
     </div>
     <div class="dr-strip">${m.cats.map((c) => portraitHtml(c, thumbs)).join('')}</div>
   </section>
-  <div class="dr-pills" role="tablist">${PILLS.map(([id, label]) => `<button data-dr-pill="${id}" aria-pressed="${id === pill}">${pillLabel(id, label)}</button>`).join('')}</div>
+  <div class="dr-pills">${PILLS.map(([id, label]) => `<button data-dr-pill="${id}" aria-pressed="${id === pill}">${pillLabel(id, label)}</button>`).join('')}</div>
   <section class="dr-wearing" data-panel="wearing">
     <p class="dr-label">Wearing · ${m.wearingCount} of ${m.slotCount} slots · ${m.ownedAccessories} of ${m.accessoryTotal} owned</p>
     <div class="dr-slots">${m.slots.map((s) => slotHtml(s, openSlot, ui.pickerHtml, thumbs)).join('')}</div>
