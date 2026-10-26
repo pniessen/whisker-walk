@@ -173,35 +173,95 @@ export function isGrudgeableStray(strayCats, cat) {
 }
 
 // ---------------------------------------------------------------------------
-// v21 3b — a legendary cat looks the part: a soft gold glow on the ground under
-// it and a sparkle before its name. Both are derived from the NAME at spawn
-// (isLegendaryName), never stored on the stray, so a legendary cat reads the
-// same whether it walks in as an extra or is cast as a colony cat.
+// v21 3b — a legendary cat looks the part: a gold glow on the ground under it
+// and a drawn gold star before its name (nametag.js's `legend` mood). Both are
+// derived from the NAME at spawn (isLegendaryName), never stored on the stray,
+// so a legendary cat reads the same whether it walks in as an extra or is cast
+// as a colony cat.
 //
 // The glow is scent.js's flat decal (CircleGeometry + MeshBasicMaterial laid
-// flat), gold at its centre and clear at its rim (knockables.js's per-vertex
-// alpha). It is a CHILD of the cat's group: the root group is only ever moved
+// flat). It is a CHILD of the cat's group: the root group is only ever moved
 // and turned, never tilted (animateCat poses the parts under it), so the disc
 // follows the cat with no per-frame code, and endWalk's scene traversal frees
-// its geometry and material exactly once, with the cat. contactDecal keeps
-// walk.js's shadow sweep off it. Strays spawn long after mergeStaticProps, so
-// it is never merged.
+// its geometry, material and texture exactly once, with the cat. contactDecal
+// keeps walk.js's shadow sweep off it. Strays spawn long after
+// mergeStaticProps, so it is never merged.
+//
+// Ruling R41 — it has to READ at phone size, on sand, grass and boards:
+//   * it draws ABOVE the contact shadow. contactshadows.js draws its blobs at
+//     renderOrder -1 and y 0.015 with depthWrite off; the glow sits between
+//     them and everything else transparent (renderOrder -0.5), a hair higher
+//     (y 0.04 local, ~0.034 world: over paths and puddles, still under the
+//     water surfaces at 0.04-0.05 world) with its own polygon offset, so the
+//     dark blob can never land on top of it;
+//   * the cat's body covers the middle of the disc from above, so the alpha
+//     is a PLATEAU, not a cone: near-opaque deep gold out to ~55% of the
+//     radius, then a soft fade, from a small DataTexture (headless-safe, no
+//     canvas) — a per-vertex fan could only fade linearly from the hidden
+//     centre. Deep, saturated gold rather than pale yellow, because pale
+//     yellow vanishes on sand;
+//   * it breathes: a slow opacity and size pulse off a dt-driven clock in
+//     update() (legendPulse; no rng, nothing stored on the cat).
 // ---------------------------------------------------------------------------
-const LEGEND_GLOW_RADIUS = 0.75;
-const LEGEND_GLOW_ALPHA = 0.55;
-const LEGEND_GLOW_RGB = [1, 0.84, 0.4];   // soft gold
-const LEGEND_MARK = '✨';
+const LEGEND_GLOW_RADIUS = 0.95;
+const LEGEND_GLOW_TEX = 64;
+const LEGEND_GLOW_RENDER_ORDER = -0.5;   // after the contact shadows (-1), before every other transparent (0)
+const LEGEND_PULSE_PERIOD = 2.6;          // seconds per breath
+const LEGEND_PULSE_OPACITY = [0.72, 1];
+const LEGEND_PULSE_SCALE = [0.95, 1.05];
+
+// legendPulse(t) → { opacity, scale } at clock time t (seconds). Bounded,
+// smooth, and total: a non-finite t reads as the top of the breath.
+export function legendPulse(t) {
+  const k = Number.isFinite(t) ? 0.5 + 0.5 * Math.cos((2 * Math.PI * t) / LEGEND_PULSE_PERIOD) : 1;
+  const lerp = ([lo, hi]) => lo + (hi - lo) * k;
+  return { opacity: lerp(LEGEND_PULSE_OPACITY), scale: lerp(LEGEND_PULSE_SCALE) };
+}
+
+// The glow's RGBA, as a function of the distance from the centre (0..1 of the
+// radius): deep gold, near-opaque to 0.55, smoothstepped to clear at the rim,
+// brightening a little toward the middle.
+function legendGlowTexture() {
+  const n = LEGEND_GLOW_TEX;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const d = Math.hypot((x + 0.5) / n - 0.5, (y + 0.5) / n - 0.5) * 2;
+      const f = THREE.MathUtils.clamp((d - 0.55) / 0.45, 0, 1);
+      const alpha = d >= 1 ? 0 : 0.95 * (1 - f * f * (3 - 2 * f));
+      const warm = THREE.MathUtils.clamp(1 - d, 0, 1);
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = Math.round(176 + 50 * warm);   // 176 at the rim → 226 at the centre
+      data[i + 2] = Math.round(24 + 70 * warm);    // 24 → 94
+      data[i + 3] = Math.round(255 * alpha);
+    }
+  }
+  const tex = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.name = 'legend-glow';   // never 'surface:' — endWalk's traversal frees it with the material
+  tex.needsUpdate = true;
+  return tex;
+}
 
 function legendGlow() {
-  const geo = new THREE.CircleGeometry(LEGEND_GLOW_RADIUS, 20);
-  const rgba = new Float32Array(geo.attributes.position.count * 4);
-  for (let v = 0; v < geo.attributes.position.count; v++) rgba.set(LEGEND_GLOW_RGB, v * 4);
-  rgba[3] = LEGEND_GLOW_ALPHA;             // vertex 0 is the centre; the rim stays clear
-  geo.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false });
+  const geo = new THREE.CircleGeometry(LEGEND_GLOW_RADIUS, 24);
+  const mat = new THREE.MeshBasicMaterial({
+    map: legendGlowTexture(),
+    transparent: true,
+    opacity: LEGEND_PULSE_OPACITY[1],
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
   const glow = new THREE.Mesh(geo, mat);
   glow.rotation.x = -Math.PI / 2;
-  glow.position.y = 0.03;
+  glow.position.y = 0.04;
+  glow.renderOrder = LEGEND_GLOW_RENDER_ORDER;
   glow.castShadow = false;
   glow.receiveShadow = false;
   glow.userData.contactDecal = true;
@@ -209,13 +269,12 @@ function legendGlow() {
   return glow;
 }
 
-// The tag label and the glow, for any stray by name. Not legendary: the name
-// as it always was, and nothing added.
-function tagLabel(name) {
-  return isLegendaryName(name) ? `${LEGEND_MARK} ${name}` : name;
-}
+// The glow for any stray by name, or null: not legendary, nothing added.
 function dressLegend(group, name) {
-  if (isLegendaryName(name)) group.add(legendGlow());
+  if (!isLegendaryName(name)) return null;
+  const glow = legendGlow();
+  group.add(glow);
+  return glow;
 }
 
 function shuffled(arr, rng) {
@@ -308,6 +367,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [],
 } = {}) {
   const strays = [];
+  // v21 3b: the legendary glows under this walk's cats (none, usually), and
+  // the clock their pulse reads. Kept here, never on a stray.
+  const glows = [];
+  let glowClock = 0;
   const b = area.bounds;
   const names = shuffled(CAT_NAMES, rng);
   const crossNames = new Set(Array.isArray(grudges) ? grudges : []);
@@ -367,11 +430,14 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const personality = !fixed ? rolled : isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
 
     const cross = crossNames.has(name);
-    const tag = makeNameTag(tagLabel(name), { cross });
+    const tag = makeNameTag(name, { cross, legend: isLegendaryName(name) });
     if (tag) group.add(tag);
-    dressLegend(group, name);
+    const glow = dressLegend(group, name);
+    if (glow) glows.push(glow);
 
     scene.add(group);
+    // Keep in step with the extras loop below: it builds the same entry for a
+    // legendary extra, field for field.
     strays.push({
       id: `stray-${i}`,
       breed,
@@ -427,10 +493,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
     const personality = isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
     const cross = crossNames.has(name);
-    const tag = makeNameTag(tagLabel(name), { cross });
+    const tag = makeNameTag(name, { cross, legend: true });
     if (tag) group.add(tag);
-    dressLegend(group, name);
+    glows.push(dressLegend(group, name));
     scene.add(group);
+    // Keep in step with the main loop's strays.push above.
     strays.push({
       id: `stray-${strays.length}`,
       breed, name, personality, group, tag, cross,
@@ -597,6 +664,15 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       return count;
     },
     update(dt, t, catPos, opts = {}) {
+      // v21 3b: the legendary glow breathes, off its own dt-driven clock.
+      if (glows.length) {
+        if (Number.isFinite(dt) && dt > 0) glowClock += dt;
+        const { opacity, scale } = legendPulse(glowClock);
+        for (const g of glows) {
+          g.material.opacity = opacity;
+          g.scale.setScalar(scale);
+        }
+      }
       for (const s of strays) {
         // v20: the reveal distance is a property of the TAG's mood, not of
         // this loop — a cross cat's tag carries roughly three times as far

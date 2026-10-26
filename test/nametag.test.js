@@ -28,6 +28,9 @@ function fakeCtx() {
     fill: () => ctx.ops.push(['fill', ctx.fillStyle]),
     stroke: () => ctx.ops.push(['stroke', ctx.strokeStyle, ctx.lineWidth]),
     fillText: (...a) => ctx.ops.push(['fillText', ctx.font, ctx.fillStyle, ...a]),
+    moveTo: (...a) => ctx.ops.push(['moveTo', ...a]),
+    lineTo: (...a) => ctx.ops.push(['lineTo', ...a]),
+    closePath: () => ctx.ops.push(['closePath']),
     // ~0.55em per character is close enough to a bold sans face for the
     // shrink-to-fit path; the emoji is wider than a letter, as it is in
     // every real font.
@@ -88,6 +91,64 @@ describe('makeNameTag defaults', () => {
 
   it('is a no-op without a document, as callers rely on', () => {
     expect(makeNameTag('Marmalade')).toBe(null);
+  });
+});
+
+// v21 3b, ruling R41: a legendary cat's tag carries a DRAWN gold star (a ✨
+// glyph came out as a tiny white "+" on phones) and a gold-edged, wider pill.
+describe('the legend tag', () => {
+  const starOps = (ops) => ops.filter((o) => o[0] === 'moveTo' || o[0] === 'lineTo');
+
+  it('draws a gold five-pointed star before the plain name, in a gold-edged pill', () => {
+    withFakeDocument(() => {
+      const tag = makeNameTag('Duchess', { legend: true });
+      const ops = opsOf(tag);
+      expect(tag.userData.legend).toBe(true);
+      expect(tag.userData.tagName).toBe('Duchess');
+      expect(labelIn(ops)).toBe('Duchess');                  // no emoji in the text at all
+      expect(starOps(ops)).toHaveLength(10);                  // 5 points, 5 notches
+      expect(fillsIn(ops)).toEqual(['rgba(20,26,38,0.7)', '#ffc93c']);   // pill, then the gold star
+      expect(ops.find((o) => o[0] === 'roundRect')).toEqual(['roundRect', 4, 8, 248, 48, 22]);
+      expect(ops.filter((o) => o[0] === 'stroke').map((o) => o[1])).toContain('#ffc93c');  // gold edge
+      // The star sits left of the name, inside the canvas, and the name is white.
+      const text = ops.find((o) => o[0] === 'fillText');
+      expect(text[2]).toBe('#fff');
+      const xs = starOps(ops).map((o) => o[1]);
+      expect(Math.max(...xs)).toBeLessThan(text[4]);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+      const ys = starOps(ops).map((o) => o[2]);
+      expect(Math.min(...ys)).toBeGreaterThanOrEqual(8);      // inside the pill's band
+      expect(Math.max(...ys)).toBeLessThanOrEqual(56);
+    });
+  });
+
+  it('never shrinks a legendary name below the phone floor', () => {
+    withFakeDocument(() => {
+      for (const name of ['Duchess', 'Professor Whiskers', 'Captain Barnacle', 'Lord Lantern']) {
+        const px = parseInt(labelFontOf(opsOf(makeNameTag(name, { legend: true }))).replace(/^bold /, ''), 10);
+        expect(px).toBeGreaterThanOrEqual(24);
+      }
+    });
+  });
+
+  it('leaves every other tag exactly as it was', () => {
+    withFakeDocument(() => {
+      const plain = opsOf(makeNameTag('Marmalade'));
+      expect(opsOf(makeNameTag('Marmalade', { legend: false }))).toEqual(plain);
+      expect(starOps(plain)).toHaveLength(0);
+      expect(makeNameTag('Marmalade').userData.legend).toBe(false);
+    });
+  });
+
+  it('keeps its star through a grudge and the making-up', () => {
+    withFakeDocument(() => {
+      const fresh = opsOf(makeNameTag('Duchess', { legend: true })).slice();
+      const tag = makeNameTag('Duchess', { legend: true, cross: true });
+      expect(starOps(opsOf(tag))).toHaveLength(10);
+      tag.userData.tagCtx.ops.length = 0;
+      setNameTagMood(tag, { cross: false });
+      expect(opsOf(tag)).toEqual(fresh);
+    });
   });
 });
 

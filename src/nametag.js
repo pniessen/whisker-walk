@@ -17,6 +17,10 @@ import * as THREE from 'three';
 const TAG_W = 256;
 const TAG_H = 64;
 const PILL = { x: 28, y: 8, w: 200, h: 48, r: 22 };
+// v21 3b: a legendary cat's pill runs nearly the canvas's full width (same
+// canvas, same sprite, so nothing resizes), leaving room for the drawn star
+// beside names as long as 'Professor Whiskers' without shrinking them further.
+const PILL_LEGEND = { x: 4, y: 8, w: 248, h: 48, r: 22 };
 // The label is centred on the canvas and baselined at 42px — a 34px bold cap
 // height sits visually centred in a pill spanning y 8..56 at that baseline.
 // Kept as constants rather than folded into the shrink loop so the default
@@ -63,6 +67,40 @@ const LABEL_COLOR = '#fff';
 // the pill is sized by measuring the real label, so tofu (which is narrower
 // than the emoji) can only ever leave the label roomier, never clipped.
 const CROSS_MARK = '\u{1F63E}'; // 😾 pouting cat face
+
+// v21 3b — the legend mood (ruling R41): a legendary stray's tag carries a
+// gold five-pointed star before its name. DRAWN with canvas paths, not typed:
+// a ✨ glyph at tag size came out as a tiny white "+" on phones, and like the
+// cross emoji above it is at the font stack's mercy. A path is the same on
+// every device. Gold fill with a dark edge so it reads on the dark pill.
+// Off by default: every other tag paints exactly what it always did.
+const STAR_FILL = '#ffc93c';
+const STAR_EDGE = 'rgba(90,56,0,0.9)';
+const STAR_EDGE_PX = 2;
+const STAR_SIZE_EM = 0.95;   // the star's width, in units of the font size
+const STAR_GAP_EM = 0.22;    // space between star and name
+const STAR_INNER = 0.45;     // inner radius as a fraction of the outer
+
+function drawStar(ctx, cx, cy, r) {
+  if (typeof ctx.moveTo !== 'function' || typeof ctx.lineTo !== 'function') return;
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const rad = k % 2 === 0 ? r : r * STAR_INNER;
+    const a = -Math.PI / 2 + (k * Math.PI) / 5;
+    const px = cx + Math.cos(a) * rad;
+    const py = cy + Math.sin(a) * rad;
+    if (k === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  if (ctx.closePath) ctx.closePath();
+  ctx.fillStyle = STAR_FILL;
+  ctx.fill();
+  if (ctx.stroke) {
+    ctx.strokeStyle = STAR_EDGE;
+    ctx.lineWidth = STAR_EDGE_PX;
+    ctx.stroke();
+  }
+}
 
 // --- Reveal ranges ----------------------------------------------------
 // Distance in world units at which a stray's tag switches on. The reveal
@@ -116,13 +154,15 @@ export const CROSS_TAG_Y = 1.32;
 // so a repainted tag is pixel-identical to a freshly built one of the same
 // mood. That matters for reconciliation: a forgiven cat must look exactly
 // like a cat that was never cross, not merely similar.
-function paintTag(ctx, name, cross) {
+function paintTag(ctx, name, cross, legend = false) {
   // Mandatory on the repaint path and harmless on the build path: both pill
   // fills are translucent, so without clearing, the OLD label bleeds through
   // the new pill.
   if (ctx.clearRect) ctx.clearRect(0, 0, TAG_W, TAG_H);
 
   const label = cross ? `${CROSS_MARK} ${name}` : `${name}`;
+  // The legend star's share of the width, at font size `p` (0 off the mood).
+  const starRoom = (p) => (legend ? p * (STAR_SIZE_EM + STAR_GAP_EM) : 0);
   let px = BASE_FONT_PX;
   ctx.font = font(px);
   // Shrink to fit, on BOTH moods.
@@ -150,9 +190,11 @@ function paintTag(ctx, name, cross) {
   //
   // measureText is guarded because the tag is built against fake 2D contexts
   // in headless tests.
+  // A legend tag uses the wider pill, so the star costs the name nothing.
+  const pill = legend ? PILL_LEGEND : PILL;
   if (typeof ctx.measureText === 'function') {
-    const maxW = PILL.w - LABEL_PAD_PX * 2;
-    while (px > MIN_FONT_PX && (ctx.measureText(label).width || 0) > maxW) {
+    const maxW = pill.w - LABEL_PAD_PX * 2;
+    while (px > MIN_FONT_PX && (ctx.measureText(label).width || 0) + starRoom(px) > maxW) {
       px -= FONT_STEP_PX;
       ctx.font = font(px);
     }
@@ -160,17 +202,35 @@ function paintTag(ctx, name, cross) {
   ctx.textAlign = 'center';
   ctx.fillStyle = cross ? PILL_CROSS : PILL_NEUTRAL;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(PILL.x, PILL.y, PILL.w, PILL.h, PILL.r);
-  else ctx.rect(PILL.x, PILL.y, PILL.w, PILL.h);
+  if (ctx.roundRect) ctx.roundRect(pill.x, pill.y, pill.w, pill.h, pill.r);
+  else ctx.rect(pill.x, pill.y, pill.w, pill.h);
   ctx.fill();
   if (cross && ctx.stroke) {
     // Same path, stroked — the font-independent half of the hostile read.
     ctx.strokeStyle = PILL_CROSS_EDGE;
     ctx.lineWidth = PILL_CROSS_EDGE_PX;
     ctx.stroke();
+  } else if (legend && ctx.stroke) {
+    // The legend's own edge: gold, and like the star, pure geometry.
+    ctx.strokeStyle = STAR_FILL;
+    ctx.lineWidth = PILL_CROSS_EDGE_PX;
+    ctx.stroke();
   }
+  if (!legend) {
+    ctx.fillStyle = LABEL_COLOR;
+    ctx.fillText(label, LABEL_X, LABEL_BASELINE);
+    return;
+  }
+  // The legend mood: star then name, centred together as one run.
+  const textW = typeof ctx.measureText === 'function'
+    ? (ctx.measureText(label).width || 0)
+    : label.length * px * 0.55;
+  const starW = px * STAR_SIZE_EM;
+  const left = LABEL_X - (textW + starRoom(px)) / 2;
+  drawStar(ctx, left + starW / 2, LABEL_BASELINE - px * 0.36, starW / 2);
+  ctx.textAlign = 'left';
   ctx.fillStyle = LABEL_COLOR;
-  ctx.fillText(label, LABEL_X, LABEL_BASELINE);
+  ctx.fillText(label, left + starRoom(px), LABEL_BASELINE);
 }
 
 // Guards on `document` so it's a safe no-op in non-DOM test/SSR contexts —
@@ -178,15 +238,18 @@ function paintTag(ctx, name, cross) {
 //
 // opts.cross paints the grudge mood at build time (for a stray that was
 // already cross when this walk started). It defaults to false, so every
-// existing call site is unchanged.
-export function makeNameTag(name, { cross = false } = {}) {
+// existing call site is unchanged. opts.legend (v21 3b) adds the drawn gold
+// star of a legendary cat; it also defaults to false, and survives every
+// mood repaint (setNameTagMood reads it back off the tag).
+export function makeNameTag(name, { cross = false, legend = false } = {}) {
   if (typeof document === 'undefined') return null;
   const tagCanvas = document.createElement('canvas');
   tagCanvas.width = TAG_W;
   tagCanvas.height = TAG_H;
   const tctx = tagCanvas.getContext('2d');
   const isCross = !!cross;
-  paintTag(tctx, name, isCross);
+  const isLegend = !!legend;
+  paintTag(tctx, name, isCross, isLegend);
   const tagTex = new THREE.CanvasTexture(tagCanvas);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
   tag.scale.set(1.4, 0.35, 1);
@@ -198,6 +261,7 @@ export function makeNameTag(name, { cross = false } = {}) {
   tag.userData.tagCtx = tctx;
   tag.userData.tagName = name;
   tag.userData.cross = isCross;
+  tag.userData.legend = isLegend;
   tag.userData.revealRange = isCross ? CROSS_NAME_TAG_RANGE : NAME_TAG_RANGE;
   return tag;
 }
@@ -229,7 +293,7 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   if (!tag || !tag.userData || !tag.userData.tagCtx) return tag ?? null;
   const next = !!cross;
   if (tag.userData.cross === next) return tag;
-  paintTag(tag.userData.tagCtx, tag.userData.tagName, next);
+  paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true);
   tag.userData.cross = next;
   tag.userData.revealRange = next ? CROSS_NAME_TAG_RANGE : NAME_TAG_RANGE;
   // Height moves with the mood for the same reason the paint does — see

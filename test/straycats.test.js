@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
-  createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES,
+  createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES, legendPulse,
 } from '../src/straycats.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
@@ -1068,26 +1068,44 @@ describe('createStrayCats — a legendary extra (v21 3b)', () => {
     expect(Number.isFinite(s.group.position.x)).toBe(true);
   });
 
-  it('wears a gold glow under it and a sparkle on its tag; nobody else does', () => {
+  it('wears a gold glow under it and a star on its tag; nobody else does', () => {
     withFakeDocument(() => {
       const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(4), { extras: [legend()] });
       const s = cats.strays.find((x) => x.name === 'Captain Barnacle');
-      expect(s.tag.userData.tagName).toBe('✨ Captain Barnacle');
+      expect(s.tag.userData.tagName).toBe('Captain Barnacle');
+      expect(s.tag.userData.legend).toBe(true);        // nametag.js draws the gold star
       const glows = glowsIn(s.group);
       expect(glows).toHaveLength(1);
       const [g] = glows;
       expect(g.geometry.type).toBe('CircleGeometry');
+      expect(g.geometry.parameters.radius).toBeCloseTo(0.95);
       expect(g.material.type).toBe('MeshBasicMaterial');
       expect(g.material.transparent).toBe(true);
       expect(g.material.depthWrite).toBe(false);
       expect(g.userData.contactDecal).toBe(true);    // the shadow sweep leaves it alone
       expect(g.rotation.x).toBeCloseTo(-Math.PI / 2); // flat on the ground
+      // R41: above the contact shadow (renderOrder -1 at y 0.015, depthWrite
+      // off) and below every other transparent (renderOrder 0), a hair higher
+      // with its own polygon offset.
+      expect(g.renderOrder).toBeGreaterThan(-1);
+      expect(g.renderOrder).toBeLessThan(0);
+      expect(g.position.y * 0.85).toBeGreaterThan(0.015);
+      expect(g.position.y * 0.85).toBeLessThan(0.04);  // still under the water surfaces
+      expect(g.material.polygonOffset).toBe(true);
+      // A plateau of deep gold, not a fade from the (cat-covered) centre: a
+      // texel halfway out is still near-opaque, the rim is clear.
+      const { data, width } = g.material.map.image;
+      const alphaAt = (fx) => data[((width / 2) * width + Math.floor(fx * (width - 1))) * 4 + 3];
+      expect(alphaAt(0.5 + 0.25)).toBeGreaterThan(200);   // half the radius out
+      expect(alphaAt(0.999)).toBeLessThan(10);              // the rim
+      expect(g.material.map.name).not.toMatch(/^surface:/); // freed by endWalk's traversal, once
       // A child of the cat: it follows the cat with no per-frame code, and
       // endWalk's scene traversal frees it exactly once with the cat.
       expect(g.parent).toBe(s.group);
       for (const o of cats.strays.filter((x) => x !== s)) {
         expect(glowsIn(o.group)).toHaveLength(0);
         expect(o.tag.userData.tagName).toBe(o.name);
+        expect(o.tag.userData.legend).toBe(false);
       }
       s.group.position.set(10, 0, -3);
       const w = new THREE.Vector3();
@@ -1103,19 +1121,53 @@ describe('createStrayCats — a legendary extra (v21 3b)', () => {
       });
       const s = cats.strays.find((x) => x.name === 'Duchess');
       expect(s.colony).toBe(true);
-      expect(s.tag.userData.tagName).toBe('✨ Duchess');
+      expect(s.tag.userData.legend).toBe(true);
       expect(glowsIn(s.group)).toHaveLength(1);
     });
   });
 
-  it('a cross legendary cat keeps its sparkle when it is forgiven', () => {
+  it('a cross legendary cat keeps its star when it is forgiven', () => {
     withFakeDocument(() => {
       const cats = createStrayCats(fakeScene(), AREA, 1, mulberry32(4), { extras: [legend()], grudges: ['Captain Barnacle'] });
       const s = cats.strays.find((x) => x.name === 'Captain Barnacle');
       expect(s.cross).toBe(true);
       cats.forgive(s, new THREE.Vector3());
-      expect(s.tag.userData.tagName).toBe('✨ Captain Barnacle');
+      expect(s.tag.userData.legend).toBe(true);
+      expect(s.tag.userData.tagName).toBe('Captain Barnacle');
     });
+  });
+
+  it('the glow breathes gently and boundedly, off dt alone', () => {
+    // The pure curve: bounded, smooth, periodic, total.
+    const samples = Array.from({ length: 400 }, (_, k) => legendPulse(k * 0.05));
+    for (const p of samples) {
+      expect(p.opacity).toBeGreaterThanOrEqual(0.7);
+      expect(p.opacity).toBeLessThanOrEqual(1);
+      expect(p.scale).toBeGreaterThanOrEqual(0.94);
+      expect(p.scale).toBeLessThanOrEqual(1.06);
+    }
+    const ops = samples.map((p) => p.opacity);
+    expect(Math.max(...ops) - Math.min(...ops)).toBeGreaterThan(0.2);   // it does pulse
+    for (let k = 1; k < samples.length; k++) expect(Math.abs(ops[k] - ops[k - 1])).toBeLessThan(0.05);  // gently
+    for (const bad of [NaN, Infinity, undefined]) expect(legendPulse(bad)).toEqual({ opacity: 1, scale: 1.05 });
+    // Wired into update(): the same dt sequence gives the same glow, and
+    // nothing random is drawn for it.
+    const run = () => {
+      const cats = createStrayCats(fakeScene(), AREA, 2, mulberry32(4), { extras: [legend()], roomSeed: 9 });
+      const g = glowsIn(cats.strays.find((x) => x.name === 'Captain Barnacle').group)[0];
+      const seen = [];
+      for (let i = 0; i < 40; i++) { cats.update(0.05, i * 0.05, FAR, NO_OPTS); seen.push([g.material.opacity, g.scale.x]); }
+      return seen;
+    };
+    const a = run();
+    expect(run()).toEqual(a);
+    expect(new Set(a.map(([o]) => o)).size).toBeGreaterThan(10);
+    const at = legendPulse(40 * 0.05);
+    expect(a.at(-1)[0]).toBeCloseTo(at.opacity);
+    expect(a.at(-1)[1]).toBeCloseTo(at.scale);
+    // A walk with no legendary cat has nothing to pulse and is untouched.
+    const plain = createStrayCats(fakeScene(), AREA, 2, mulberry32(4));
+    expect(() => plain.update(0.05, 0, FAR, NO_OPTS)).not.toThrow();
   });
 
   it('only a legendary name with a real rng is ever an extra, and never twice', () => {
