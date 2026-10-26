@@ -161,6 +161,52 @@ test('the den, unknown areas and a bad roll show no legendary cat', () => {
   expect(legendaryFor(null, 'neighborhood', 0)).toBe('Duchess');   // no save: unfound, lucky roll
 });
 
+// Ruling R40: on a partner (room) walk the answer reads only what both screens
+// share — the roll and the colony — so two sisters side by side always agree.
+test('partners with different saves but one colony and one room seed get the same answer', () => {
+  const shared = [colonyCat('Duchess', 'neighborhood'), colonyCat('Pickles', 'seaside')];
+  // She has met Captain Barnacle and two other legends (found count 3, past
+  // A_COUPLE); I have met nobody (found count 1, from the colony alone).
+  const her = saveWith({
+    friends: { 'Captain Barnacle': { greets: 1 }, 'Professor Whiskers': { greets: 4 }, 'Lord Lantern': { greets: 2 } },
+    cats: shared,
+  });
+  const me = saveWith({ cats: shared });
+  expect(foundCount(her)).toBeGreaterThanOrEqual(A_COUPLE);
+  expect(foundCount(me)).toBeLessThan(A_COUPLE);
+  // Solo, those saves really do disagree (the brief's rule, kept exactly)...
+  expect(legendaryFor(her, 'seaside', 0.5)).toBe('Captain Barnacle');
+  expect(legendaryFor(me, 'seaside', 0.5)).toBe(null);
+  // ...and on a partner walk they never do: every seed, every area.
+  for (let seed = 1; seed <= 400; seed++) {
+    const u = legendaryRoll(seed);
+    for (const area of [...COLONY_AREAS, 'den']) {
+      expect(legendaryFor(her, area, u, { shared: true })).toBe(legendaryFor(me, area, u, { shared: true }));
+    }
+  }
+  // The shared rule itself: not in the colony, and u under the odds for the
+  // colony's own legendary count (one here, so one in five).
+  expect(legendaryFor(her, 'seaside', 0.19, { shared: true })).toBe('Captain Barnacle');
+  expect(legendaryFor(her, 'seaside', 0.21, { shared: true })).toBe(null);     // met, but no guarantee
+  expect(legendaryFor(her, 'neighborhood', 0, { shared: true })).toBe(null);   // Duchess is a colony cat
+  const two = saveWith({ cats: [...shared, colonyCat('Lord Lantern', 'docks', 'me')] });
+  expect(legendaryFor(two, 'seaside', 0.04, { shared: true })).toBe('Captain Barnacle');
+  expect(legendaryFor(two, 'seaside', 0.06, { shared: true })).toBe(null);     // two in the colony: one in twenty
+  // Garbage and the den still show nobody.
+  expect(legendaryFor(her, 'den', 0, { shared: true })).toBe(null);
+  expect(legendaryFor(her, 'seaside', NaN, { shared: true })).toBe(null);
+});
+
+test('solo keeps the found-always-returns rule', () => {
+  const met = saveWith({ friends: { 'Captain Barnacle': { greets: 1 } } });
+  for (const u of [0.3, 0.9, 0.999]) {
+    expect(legendaryFor(met, 'seaside', u)).toBe('Captain Barnacle');
+    expect(legendaryFor(met, 'seaside', u, { shared: false })).toBe('Captain Barnacle');
+    expect(legendaryFor(met, 'seaside', u, {})).toBe('Captain Barnacle');
+    expect(legendaryFor(met, 'seaside', u, { shared: true })).toBe(null);
+  }
+});
+
 test('partners roll the same number; solo rolls do not touch walkRng', () => {
   // A room walk: the same seed, the same u, on every client, and it is not the
   // walk stream's first value (which would tie the roll to the name shuffle).

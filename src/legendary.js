@@ -81,12 +81,26 @@ export function legendaryOdds(found) {
 // and have not fed it yet, so it waits for you), and an unfound one comes on a
 // lucky roll. The den, an unknown area and a roll that is not a finite number
 // show nobody.
-export function legendaryFor(state, areaId, u) {
+//
+// `shared` (ruling R40) is set on a partner (room) walk. Then the answer may
+// depend ONLY on what both screens share — the shared roll and the shared
+// colony — so two sisters side by side always agree: it appears iff it is not
+// in the colony and u < legendaryOdds(how many legendary cats are in the
+// colony). My own greets play no part, so "a found cat always comes back" is
+// a solo-walk promise (a sister who met it but has not fed it sees it again
+// on her own walks). Solo walks keep the rule above exactly.
+export function legendaryFor(state, areaId, u, { shared = false } = {}) {
   if (typeof areaId !== 'string' || !Object.hasOwn(LEGENDARY_BY_AREA, areaId)) return null;
   if (!Number.isFinite(u)) return null;
   const name = LEGENDARY_BY_AREA[areaId];
   if (inColony(state, name)) return null;
+  if (shared) return u < legendaryOdds(colonyFoundCount(state)) ? name : null;
   return isFound(state, name) || u < legendaryOdds(foundCount(state)) ? name : null;
+}
+
+// How many of the four are colony cats: the found count both partners share.
+function colonyFoundCount(state) {
+  return LEGENDARY_NAMES.filter((n) => inColony(state, n)).length;
 }
 
 // legendaryRoll(roomSeed) → a number in [0, 1). Solo (roomSeed undefined, the

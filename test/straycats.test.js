@@ -1164,6 +1164,8 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     expect(src.split('legendaryRoll(').length - 1).toBe(1);
     expect(src.indexOf('legendaryRoll(roomSeed)')).toBeGreaterThan(decide);
     expect(src.indexOf('legendaryRoll(roomSeed)')).toBeLessThan(src.indexOf('\n', decide));
+    // Ruling R40: a room walk decides on shared data only.
+    expect(src.slice(decide, src.indexOf('\n', decide))).toContain('{ shared: roomSeed !== undefined }');
     // The extra list is empty unless that guard found a cat...
     expect(src).toContain('const extras = legend ? [');
     // ...and it is what createStrayCats is handed.

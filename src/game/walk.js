@@ -920,7 +920,10 @@ export function createWalkLifecycle({
     // name and the room seed, so partners see it in the same place. Neither
     // is walkRng: createStrayCats draws the extra after the ordinary cast and
     // only from its own rng, and nothing here is computed off a colony walk.
-    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, legendaryRoll(roomSeed)) : null;
+    // On a partner walk (ruling R40) the decision is `shared`: it reads only
+    // the shared roll and the shared colony, never my own greets, so both
+    // sisters' screens give the same answer.
+    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
     const extras = legend ? [{
       name: legend,
       rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
