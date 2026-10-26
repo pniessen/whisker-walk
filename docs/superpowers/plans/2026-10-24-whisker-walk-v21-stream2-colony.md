@@ -35,7 +35,7 @@ Every one of these can be changed with a constant. They are fixed here so tasks 
 | Trading (§10.3) | A one-for-one accessory swap between the two members. Each player has at most one open offer, and accepting is **final**. Starter accessories (`bell`, `bandana`) can't be traded. |
 | Sync cadence | Pull at boot, when the home base reappears after a walk, on pair-room join, and after each pairing, dress or trade action. Push each feed at once (fire-and-forget). Every pull also re-pushes any of my feeds the server lacks, so nothing is lost offline and no outbox is needed. |
 | Live co-walk | Colony cats spawn in a room walk only if every other roster member is my colony partner, so worlds with non-partners stay identical. A new `colony-feed` event shows the partner's feed live (display only, never saved). |
-| Host problem (§9.9) | A non-host's Start sends a new `walk-request` event, and the host client answers with `walk-config` for the requester's area. The button never reads "Waiting for host…". |
+| Host problem (§9.9) | A non-host's Start sends a new `walk-request` event, and the host client answers with `walk-config` for the requester's area. The button never reads "Waiting for host…". **Superseded 2026-10-25 (v21 Play together):** anyone's Start now proposes a walk (`walk-config` from any member); every device gathers proposals briefly and starts the smallest player id's — see `src/game/lobby.js`. Members still also send `walk-request` for hosts on an older build. |
 
 ## Global Constraints
 

@@ -170,8 +170,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // Paired siblings get their own room with nothing to type (Task 12).
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
     return `
-      ${pairWalk ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
+      ${pairWalk && hasValidPetName ? `<div class="wt-pair">${pairWalk}</div>` : ''}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
@@ -678,7 +678,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${duskWanted ? 'checked' : ''} /> Dusk walk ✨</label>` : '';
     if (openSheet) {
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
-      // room flow presses "Start the walk together" from Social). The room
+      // room flow presses "Start the walk together" from 👫 Play together). The room
       // isn't rendered here, so this is still the only #btn-start.
       const areaId = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
       root.innerHTML = `

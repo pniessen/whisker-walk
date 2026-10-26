@@ -47,8 +47,8 @@ try {
   pid = crypto.randomUUID(); // storage unavailable (private mode, quota) — still usable this session
 }
 
-// multiplayer is entirely env-gated: absent keys means "Walk together" shows
-// a friendly not-configured state and nothing else about solo play changes.
+// multiplayer is entirely env-gated: absent keys hide the 👫 Play together
+// button and sheet, and nothing else about solo play changes.
 const MP = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 // per-device "hide this visitor" list — see src/blocklist.js. Module-scope
@@ -319,6 +319,7 @@ function init() {
     progression, getCloud, getPsecret, colonySync,
     getSession: () => session,
     startWalk: (opts) => startWalk(opts),
+    toast: cloudToast,
   });
 
   // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and

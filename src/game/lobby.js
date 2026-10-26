@@ -74,11 +74,32 @@ export function decideLobbyEvent(ev, { roster, selfId, inWalk, knownAreas, unloc
   return null;
 }
 
-// How long every device in the room waits after the first Start it sees
-// before starting, collecting any other Start pressed at the same moment.
-// Long enough for a proposal to cross the network, short enough that a kid
-// pressing Start barely notices.
+// How long a device waits after the first Start it sees before starting,
+// collecting any other Start pressed at the same moment. The host's own
+// proposal always wins on the host, so the host needs only enough time to hear
+// a member's; a member waits longer, so a near-simultaneous host press that
+// crosses a slow link (cellular, a phone waking a throttled socket) still
+// arrives in time and both start the host's walk. Members used to wait up to
+// 6 s for the host to answer, so 1.5 s is still quick.
 export const START_GATHER_MS = 700;
+export const MEMBER_GATHER_MS = 1500;
+
+// A room member whose walk state I heard this recently is out on a walk.
+// Walking devices broadcast state many times a second; home screens never do.
+export const WALKING_FRESH_MS = 3000;
+
+// walkersIn(lastStateAt, rosterIds, selfId, now) → ids of the others in the
+// room heard walking within WALKING_FRESH_MS, in roster order. A Start beside
+// a sister who is already walking would put us in two different worlds in one
+// room, so rooms.js refuses it and says why. Total over garbage.
+export function walkersIn(lastStateAt, rosterIds, selfId, now) {
+  if (!lastStateAt || typeof lastStateAt !== 'object' || !Array.isArray(rosterIds)) return [];
+  return rosterIds.filter((id) => {
+    if (typeof id !== 'string' || id === selfId || !Object.hasOwn(lastStateAt, id)) return false;
+    const t = lastStateAt[id];
+    return Number.isFinite(t) && Number.isFinite(now) && now - t < WALKING_FRESH_MS;
+  });
+}
 
 // pickRoomStart(proposals) → the proposal every device starts, or null.
 //

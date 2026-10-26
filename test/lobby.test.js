@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rosterIsPartnerOnly, decideLobbyEvent, pickRoomStart, START_GATHER_MS } from '../src/game/lobby.js';
+import { rosterIsPartnerOnly, decideLobbyEvent, pickRoomStart, START_GATHER_MS, MEMBER_GATHER_MS, WALKING_FRESH_MS, walkersIn } from '../src/game/lobby.js';
 
 // v21 Stream 2, Task 6. game/walk.js asks this at walk start: colony cats
 // spawn in a room walk only when everyone else in the room is my colony
@@ -124,8 +124,35 @@ describe('pickRoomStart', () => {
     expect(pickRoomStart([null, ok, { from: '' }])).toBe(ok);
   });
 
-  it('gathers for under a second, so a kid barely waits', () => {
-    expect(START_GATHER_MS).toBeGreaterThan(300);
-    expect(START_GATHER_MS).toBeLessThan(1000);
+  it('a member gathers longer than the host, so a slow phone still hears the host', () => {
+    // The host's own proposal always wins on the host, so only members need
+    // slack for a near-simultaneous press crossing a slow link.
+    expect(MEMBER_GATHER_MS).toBeGreaterThan(START_GATHER_MS);
+    expect(MEMBER_GATHER_MS).toBeLessThanOrEqual(2000);
+  });
+});
+
+// Never start a second world beside a sibling who is already walking: a
+// device that heard someone's walk state recently knows they are out.
+describe('walkersIn', () => {
+  const roster = ['me', 'robin', 'pip'];
+
+  it('names the others heard walking within WALKING_FRESH_MS', () => {
+    const now = 100_000;
+    const seen = { robin: now - 500, pip: now - WALKING_FRESH_MS - 1, me: now };
+    expect(walkersIn(seen, roster, 'me', now)).toEqual(['robin']);
+  });
+
+  it('ignores me, strangers, and anyone gone quiet', () => {
+    const now = 50_000;
+    expect(walkersIn({ me: now, stranger: now }, roster, 'me', now)).toEqual([]);
+    expect(walkersIn({ robin: now - WALKING_FRESH_MS }, roster, 'me', now)).toEqual([]);
+  });
+
+  it('is total over garbage', () => {
+    expect(walkersIn(null, roster, 'me', 1)).toEqual([]);
+    expect(walkersIn({ robin: 'x' }, roster, 'me', 1)).toEqual([]);
+    expect(walkersIn({ robin: 1 }, null, 'me', 1)).toEqual([]);
+    expect(walkersIn({ __proto__: 1 }, ['__proto__'], 'me', 1)).toEqual([]);
   });
 });

@@ -15,7 +15,7 @@
 import { rankFor, CATALOG } from '../progression.js';
 import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
 import { seedFromCode } from '../rng.js';
-import { decideLobbyEvent, pickRoomStart, START_GATHER_MS } from './lobby.js';
+import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
 
 // v21 Stream 2, Task 12 — pair walks. The two siblings' room is 'P' + their
 // colony id: 16 random hex characters the server mints and never publishes,
@@ -24,6 +24,8 @@ import { decideLobbyEvent, pickRoomStart, START_GATHER_MS } from './lobby.js';
 const COLONY_ROOM_ID = /^[0-9a-f]{16}$/;
 const TYPED_CODE = /^[A-Z0-9]{4}$/;
 
+// toast(text) is optional: main.js's cloud toast (textContent, never markup),
+// used when a Start is refused because someone in the room is already walking.
 // createTransport is optional and defaults to the Supabase transport; tests
 // hand it net.js's createFakeHub endpoints.
 export function createRooms({
@@ -32,6 +34,7 @@ export function createRooms({
   // v21 Stream 2: game/colonysync.js. Optional; walkWithPartner fires
   // colonySync.pull() on join and reads its status().
   colonySync,
+  toast,
   createTransport = () => createSupabaseTransport(supabaseUrl, supabaseAnonKey),
 }) {
   // Room state lives OUTSIDE the walk session — a room can be formed on the
@@ -136,6 +139,7 @@ export function createRooms({
       return;
     }
     const room = pendingRoom;
+    const ms = room.net.isHost() ? START_GATHER_MS : MEMBER_GATHER_MS;
     gathering = {
       room,
       proposals: [proposal],
@@ -146,7 +150,7 @@ export function createRooms({
         const winner = pickRoomStart(g.proposals);
         if (winner) startRoomWalk(winner);
         else notifyRoomChange();
-      }, START_GATHER_MS),
+      }, ms),
     };
     notifyRoomChange(); // "Starting…"
   }
@@ -158,12 +162,29 @@ export function createRooms({
   // second press, or a press after someone else's Start was heard.
   function startRoomTogether({ area, dusk }) {
     if (!pendingRoom || gathering || getSession()) return false;
-    const seed = (seedFromCode(pendingRoom.code) ^ Date.now()) >>> 0;
+    const room = pendingRoom;
+    // Someone in the room is already out walking: starting now would put us
+    // in two different worlds in one room. Say so instead.
+    const walkers = walkersIn(room.lastStateAt, room.roster.map((p) => p?.playerId), pid, Date.now());
+    if (walkers.length) {
+      const who = room.roster.find((p) => p?.playerId === walkers[0]);
+      const name = who && typeof who.petName === 'string' && who.petName ? who.petName : 'Your friend';
+      try { toast?.(`${name} is already on a walk! Wait till they come home, then press Start.`); } catch { /* a toast is never worth a crash */ }
+      return false;
+    }
+    // The player id is mixed in so two presses in the same millisecond still
+    // propose different seeds (only the winner's is ever used).
+    const seed = (seedFromCode(room.code) ^ seedFromCode(pid) ^ Date.now()) >>> 0;
     const proposal = { from: pid, area, dusk: !!dusk, seed };
     // Gathering opens BEFORE the send: the fake hub delivers synchronously, and
     // a reply proposal must land in this window, not open a second one.
     gather(proposal);
-    pendingRoom.net.sendEvent({ v: 1, id: pid, type: 'walk-config', area, dusk: !!dusk, seed });
+    room.net.sendEvent({ v: 1, id: pid, type: 'walk-config', area, dusk: !!dusk, seed });
+    // A host still running the previous version ignores a member's walk-config
+    // but answers a walk-request with its own walk-config, which this member
+    // then gathers (the host's id wins), so both share the host's world. A
+    // current host is already gathering and ignores the request.
+    if (!room.net.isHost()) room.net.sendEvent({ v: 1, id: pid, type: 'walk-request', area, dusk: !!dusk });
     return true;
   }
 
@@ -187,7 +208,12 @@ export function createRooms({
   }
 
   function setupRoomNet(net, code, pair = false) {
-    pendingRoom = { net, code, roster: [], pair };
+    // lastStateAt: playerId → when I last heard their walk state (they're out walking).
+    pendingRoom = { net, code, roster: [], pair, lastStateAt: Object.create(null) };
+    const room = pendingRoom;
+    net.onState((st) => {
+      if (pendingRoom === room && st && typeof st.id === 'string') room.lastStateAt[st.id] = Date.now();
+    });
     net.onRoster((roster) => {
       if (!pendingRoom) return; // left/torn down between the send and this callback
       pendingRoom.roster = roster;

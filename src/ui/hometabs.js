@@ -136,7 +136,7 @@ export function renderGoldenTallyHtml(found, total) {
 }
 
 // ---------------------------------------------------------------------------
-// Star-name picker (Social tab, beside the free-text pet-name field)
+// Star-name picker (👫 Play together sheet, beside the free-text pet-name field)
 //
 // Offers a few closed-pool names from clannames.js's candidateStarNames. The
 // chosen name IS state.petName (set through the existing setPetName path), so
