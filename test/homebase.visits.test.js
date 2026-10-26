@@ -63,11 +63,11 @@ afterEach(() => {
   delete globalThis.document;
 });
 
-function setup({ storage = memStorage(), onCelebrate } = {}) {
+function setup({ storage = memStorage(), onCelebrate, sync = null } = {}) {
   const progression = createProgression(storage);
   const album = { photos: [] };
   const settings = { get: () => null, set() {}, all: () => ({}) };
-  const hb = createHomeBase(progression, album, () => {}, null, null, null, settings, () => {}, () => {}, null, 'me', () => {}, onCelebrate);
+  const hb = createHomeBase(progression, album, () => {}, null, sync, null, settings, () => {}, () => {}, null, 'me', () => {}, onCelebrate);
   return { progression, hb };
 }
 const celebration = () => doc.body.children.find((c) => String(c.className).startsWith('visit-cel'));
@@ -175,6 +175,47 @@ describe('the home base on a visit', () => {
     hb.hide();
     expect(onClosed).toHaveBeenCalledWith('walk');
     expect(JSON.stringify(progression.state.equipped)).toBe(before);
+  });
+});
+
+describe('the cloud-load farewell', () => {
+  // A cloud save with Rosa equipped queues her farewell while it loads.
+  function withFarewell(progression) {
+    let queued = null;
+    progression.takeFarewell = vi.fn(() => { const l = queued; queued = null; return l; });
+    return { queue: (l) => { queued = l; }, peek: () => queued };
+  }
+  const confirmLoad = () => doc.root.listeners.click({ target: { id: 'sync-confirm-load', dataset: {}, closest: () => null } });
+  const notice = () => doc.body.children.find((c) => c.id === 'home-notice');
+
+  it('stays queued while a celebration is up, and shows once it closes', async () => {
+    const sync = { confirmLoad: vi.fn(async () => ({ ok: true })) };
+    const { progression, hb } = setup({ sync });
+    const fw = withFarewell(progression);
+    const visit = progression.recordVisit();
+    hb.show();
+    // main's afterCards: the farewell goes up when the celebration closes.
+    hb.showVisit(visit, { onClosed: () => { const l = progression.takeFarewell(); if (l) hb.showNotice(l); } });
+    expect(hb.visitOpen()).toBe(true);
+    fw.queue('Bye Rosa');
+    await confirmLoad();
+    expect(fw.peek()).toBe('Bye Rosa'); // not taken, so not lost
+    tap(celebration(), 'open');
+    vi.advanceTimersByTime(10000);
+    expect(hb.visitOpen()).toBe(false);
+    expect(fw.peek()).toBe(null);
+    expect(notice()).toBeTruthy();
+  });
+
+  it('shows at once when nothing is in the way', async () => {
+    const sync = { confirmLoad: vi.fn(async () => ({ ok: true })) };
+    const { progression, hb } = setup({ sync });
+    const fw = withFarewell(progression);
+    hb.show();
+    fw.queue('Bye Rosa');
+    await confirmLoad();
+    expect(fw.peek()).toBe(null);
+    expect(notice()).toBeTruthy();
   });
 });
 

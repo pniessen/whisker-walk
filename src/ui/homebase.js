@@ -1106,8 +1106,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (!res.ok) cloudError = res.error;
       render();
       // A pre-update cloud save with Rosa equipped queued her farewell while
-      // loading; say it now, over the freshly drawn home base.
-      if (res.ok) {
+      // loading; say it now, over the freshly drawn home base. While a visit
+      // celebration is up the notice would be refused, so leave it queued:
+      // the celebration's close (visitboot's afterCards) shows it.
+      if (res.ok && !visitOpen()) {
         const farewell = progression.takeFarewell();
         if (farewell) showNotice(farewell);
       }
