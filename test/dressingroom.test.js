@@ -78,7 +78,38 @@ describe('slot picker', () => {
   it('lists every accessory in the slot', () => {
     const want = Object.values(CATALOG.accessories).filter((a) => a.slot === 'head').length;
     const html = renderSlotPickerHtml(defaultishState(), CATALOG, 'head', null);
-    expect(count(html, /data-dr-act="try"/g)).toBe(want);
+    expect(count(html, /class="dr-pick[ "]/g)).toBe(want);
+  });
+  it('an unwon prize is a wrapped surprise: no price, no try-on, not buyable', () => {
+    const slot = CATALOG.accessories.leafcrown.slot;
+    const s = defaultishState(); s.points = 9999;
+    const html = renderSlotPickerHtml(s, CATALOG, slot, null);
+    expect(html).toContain('prize-surprise');
+    expect(html).toContain('A surprise at visit 20');
+    const tile = html.match(/<div class="dr-pick[^"]*prize-surprise[^>]*>.*?<\/div>/)[0];
+    expect(tile).not.toContain('data-dr-acc');
+    expect(tile).not.toContain('🐾');
+    expect(tile).not.toContain('Try on');
+    expect(html).not.toContain('data-dr-acc="leafcrown"');
+  });
+  it('a won prize behaves like any owned item', () => {
+    const slot = CATALOG.accessories.leafcrown.slot;
+    const s = defaultishState(); s.unlocked.accessories.push('leafcrown');
+    const wear = renderSlotPickerHtml(s, CATALOG, slot, null);
+    expect(wear).toContain('data-dr-acc="leafcrown" data-dr-act="wear"');
+    expect(wear).not.toContain('A surprise at visit 20');
+    s.equipped[slot] = 'leafcrown';
+    const on = renderSlotPickerHtml(s, CATALOG, slot, null);
+    expect(on).toContain('data-dr-acc="leafcrown" data-dr-act="off"');
+    expect(on).toContain('On ✓');
+  });
+  it('totals leave the prizes out', () => {
+    const shop = Object.values(CATALOG.accessories).filter((a) => !a.prize).length;
+    const s = defaultishState();
+    s.unlocked.accessories.push(...Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize));
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.accessoryTotal).toBe(shop);
+    expect(m.ownedAccessories).toBe(2);
   });
   it('labels owned, worn, affordable and unaffordable items', () => {
     const s = defaultishState(); s.equipped.collar = 'bell'; s.points = 25;

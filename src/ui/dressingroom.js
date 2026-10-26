@@ -5,6 +5,7 @@
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
 import { SKILLS, hasSkill } from '../skills.js';
+import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
 
 export const HOME_SHEETS = ['together', 'skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
@@ -106,11 +107,14 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     return { id, name: a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
 
+  const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
+
   return {
     hero, cats, slots, wearingCount, slotCount: slotIds.length, places,
     currentPlace: { id: area, name: catalog.areas[area]?.name ?? '' },
-    ownedAccessories: Object.keys(catalog.accessories).filter((id) => ownedAcc.includes(id)).length,
-    accessoryTotal: Object.keys(catalog.accessories).length,
+    // Prizes are won, not collected from the shop, so they stay out of both totals.
+    ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
+    accessoryTotal: shopIds.length,
     abilities: { earned: SKILLS.filter((s) => hasSkill(state, s.id)).length, total: SKILLS.length },
   };
 }
@@ -135,6 +139,11 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     const pic = img(thumbs?.accessories?.[id], '');
     const name = escapeHtml(a.name);
     const attrs = (act) => `data-dr-acc="${escapeHtml(id)}" data-dr-act="${act}"`;
+    // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
+    // it), no price, no try-on.
+    if (a.prize && !owned) {
+      return `<div class="dr-pick locked prize-surprise">🎁<span>A surprise at visit ${prizeVisit(id)}</span></div>`;
+    }
     if (on) {
       return `<button class="dr-pick on" ${attrs('off')}>${pic}${name}<span class="act">On ✓</span><small>Take off</small></button>`;
     }
