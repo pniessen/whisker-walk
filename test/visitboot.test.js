@@ -104,3 +104,39 @@ describe('startVisitGreeting', () => {
     expect(w.g.holding()).toBe(false);
   });
 });
+
+describe('startVisitGreeting when showVisit throws', () => {
+  it('lets go of the hold, still shows the farewell and news, and ready resolves', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const log = [];
+    const g = startVisitGreeting({
+      visit: { visits: 5, milestone: { visit: 5 } },
+      homebase: { showVisit: () => { throw new Error('boom'); } },
+      showFarewell: () => log.push('farewell'),
+      showNews: () => log.push('news'),
+      splashGone: Promise.resolve(),
+    });
+    expect(g.holding()).toBe(true);
+    await expect(g.ready).resolves.toBeUndefined();
+    expect(g.holding()).toBe(false);
+    expect(log).toEqual(['farewell', 'news']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('a plain visit: the farewell already went up, nothing doubles', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const log = [];
+    const g = startVisitGreeting({
+      visit: { visits: 3, milestone: null },
+      homebase: { showVisit: () => { throw new Error('boom'); } },
+      showFarewell: () => log.push('farewell'),
+      showNews: () => log.push('news'),
+      splashGone: Promise.resolve(),
+    });
+    await expect(g.ready).resolves.toBeUndefined();
+    expect(g.holding()).toBe(false);
+    expect(log).toEqual(['farewell']);
+    warn.mockRestore();
+  });
+});

@@ -38,7 +38,10 @@ export function whenSplashGone({ win = globalThis.window, doc = globalThis.docum
 //   Start): no greeting; homebase.showVisit wears a pending prize.
 export function startVisitGreeting({ visit, homebase, showFarewell, showNews, splashGone, walkActive = () => false }) {
   let holding = !!(visit && visit.milestone);
+  // Runs at most once: a showVisit that threw after it had put a card up could
+  // otherwise call onClosed later and show the farewell twice.
   const afterCards = (reason) => {
+    if (!holding) return;
     holding = false;
     if (reason === 'walk') return;
     showFarewell();
@@ -47,7 +50,14 @@ export function startVisitGreeting({ visit, homebase, showFarewell, showNews, sp
   if (!holding) showFarewell();
   const ready = Promise.resolve(splashGone).then(() => {
     const walking = walkActive();
-    const shown = homebase.showVisit(visit, { onClosed: afterCards });
+    let shown = false;
+    try {
+      shown = homebase.showVisit(visit, { onClosed: afterCards });
+    } catch (err) {
+      // Never leave the news held for the whole session, nor reject ready.
+      console.warn('visit greeting failed', err);
+      shown = false;
+    }
     if (!shown && holding) afterCards(walking ? 'walk' : 'done');
   });
   return { holding: () => holding, ready };
