@@ -461,7 +461,7 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
 // ── Walk together with your partner (Task 12) ──────────────────────────
 // `room` is rooms.getState(): null outside a room, else { code, roster,
 // isHost, pair, starting }. These three go into homebase.js's hero and its
-// Social › Walk together section.
+// 👫 Play together sheet.
 
 function partnerOf(colony) {
   const p = colony && colony.partner;

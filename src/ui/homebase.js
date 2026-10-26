@@ -171,6 +171,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const pairWalk = renderPartnerWalkHtml({ status: colonySync ? colonySync.status() : null, colony, room: st });
     return `
       ${pairWalk ? `<div class="wt-pair">${pairWalk}</div>` : ''}
+      ${hasValidPetName ? '' : '<p class="wt-first">First, give your cat a name your friends will see:</p>'}
       <div class="wt-petname">
         <input type="text" id="wt-petname-input" maxlength="16" placeholder="Pet's name" value="${escapeHtml(name)}" />
         <button id="wt-petname-save">Save</button>
@@ -303,7 +304,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <input type="text" id="friend-code-input" maxlength="20" placeholder="CAT-XXXXXXXX" class="wt-code-input sync-code-input" ${hasValidPetName ? '' : 'disabled'} />
           <button id="friend-code-add" ${friendCodeBusy || !hasValidPetName ? 'disabled' : ''}>Add a friend by code</button>
         </div>
-        ${!hasValidPetName ? '<div class="tag">Set your pet’s name below (Walk together) to add friends by code.</div>' : ''}
+        ${!hasValidPetName ? '<div class="tag">Give your cat a name in 👫 Play together to add friends by code.</div>' : ''}
         ${friendCodeError ? `<div class="tag error">${escapeHtml(friendCodeError)}</div>` : ''}
         ${friendCodeSuccess ? `<div class="tag on">${escapeHtml(friendCodeSuccess)}</div>` : ''}
         ${friendCodeCandidate ? `
@@ -576,10 +577,29 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return dressing;
   }
 
-  // The sheets on offer: Sync only when cloud saves are set up. (The den shop
-  // lives inside the den now — ui/denshopview.js.)
+  // The sheets on offer: Sync only when cloud saves are set up, Play together
+  // only when multiplayer is. (The den shop lives inside the den now —
+  // ui/denshopview.js.)
   function availableSheets() {
-    return HOME_SHEETS.filter((id) => id !== 'sync' || (sync && sync.available));
+    return HOME_SHEETS.filter((id) => {
+      if (id === 'sync') return !!(sync && sync.available);
+      if (id === 'together') return !!(rooms && rooms.available);
+      return true;
+    });
+  }
+
+  // The 👫 button beside Start, on the dressing room and on every sheet but
+  // its own: one tap to the party screen. In a room it says how many are in.
+  function playTogetherHtml(roomState) {
+    if (!rooms || !rooms.available || openSheet === 'together') return '';
+    const n = roomState && Array.isArray(roomState.roster) ? roomState.roster.length : 0;
+    const label = roomState ? `👫 ${n} together` : '👫 Play together';
+    return `<button id="btn-play-together" class="dr-together" type="button">${escapeHtml(label)}</button>`;
+  }
+
+  // Start, with Play together beside it when multiplayer is on.
+  function startRowHtml(roomState) {
+    return `<div class="dr-start-row">${playTogetherHtml(roomState)}${renderStartButtonHtml(roomState)}</div>`;
   }
 
   // null (or anything not on offer) = back to the dressing room.
@@ -612,10 +632,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
           })}
         </section>`;
-      case 'social': return `
-        <section class="walk-together"><h2>Walk together 🐾🐾</h2>
+      case 'together': return `
+        <section class="walk-together"><h2>Play together 👫</h2>
           ${renderWalkTogether()}
-        </section>
+        </section>`;
+      case 'social': return `
         <section class="friends-section"><h2>Friends 🐾</h2>
           ${renderPlayerPets()}
           ${renderStrayFriends()}
@@ -667,7 +688,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <footer class="hb-sheet-dock">
           <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(CATALOG.areas[areaId].name)}</b></div>
           ${duskHtml}
-          ${renderStartButtonHtml(roomState)}
+          ${startRowHtml(roomState)}
         </footer>
       </div>`;
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
@@ -710,7 +731,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
     root.innerHTML = room.html({
-      headerHtml, statsHtml, startHtml: renderStartButtonHtml(roomState), extrasHtml, sheets: availableSheets(),
+      headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
     });
     room.afterRender(root);
     stage.setVisible(shown);
@@ -786,6 +807,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // doesn't leave home (a room start that fails).
       render();
       onStartWalk({ duskMode });
+      return;
+    }
+    if (e.target.id === 'btn-play-together') {
+      setSheet('together');
       return;
     }
     if (e.target.id === 'btn-visit-den') {

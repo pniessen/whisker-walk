@@ -199,8 +199,11 @@ describe('sheets and pictures', () => {
     expect(HOME_SHEETS).not.toContain('den-shop');
     expect(SHEET_LABEL['den-shop']).toBeUndefined();
   });
-  it('labels match the signed-off mockup', () => {
-    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['🐾 Skills', '🐈 Colony', '👥 Social', '📖 Journal', '📸 Album', '☁️ Sync', '⚙️ Settings', '🎁 Secret code']);
+  it('labels match the signed-off mockup, with Play together added first', () => {
+    expect(HOME_SHEETS.map((id) => SHEET_LABEL[id])).toEqual(['👫 Play together', '🐾 Skills', '🐈 Colony', '👥 Social', '📖 Journal', '📸 Album', '☁️ Sync', '⚙️ Settings', '🎁 Secret code']);
+  });
+  it('Play together is a sheet of its own', () => {
+    expect(resolveSheet('together')).toBe('together');
   });
   it('place pictures use the base url', () => expect(PLACE_PICTURE('park')).toBe('/places/park.jpg'));
   it('blurbs cover every cat', () => {
