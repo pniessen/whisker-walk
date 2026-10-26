@@ -313,8 +313,12 @@ function starGeometry(outer, inner, depth) {
 // Visit-prize head, face and neck items, shared by the cat and Hagrid. Each
 // takes the same anchors the shop items of that slot use, so the prize sits
 // where its neighbours do: `k` scales size, the rest are the slot's anchors.
-function addPrizeHead(head, id, { k, y, rx, rz }) {
+// `ringY` is where the two rings (Party Crown, Leaf Crown) sit; it defaults to
+// `y`. Hagrid needs his lower: his hats rest on top of the comb at `y`, but a
+// ring that wide hung there floats round the comb, clear of his small skull.
+function addPrizeHead(head, id, { k, y, rx, rz, ringY = y }) {
   if (id === 'partycrown') {
+    y = ringY;
     // a gold band with five tall points (the Flower Crown is soft petals)
     const band = new THREE.Mesh(new THREE.TorusGeometry(rx * 0.95, 0.011 * k, 5, 12), mat(PRIZE_GOLD));
     band.rotation.x = Math.PI / 2;
@@ -332,6 +336,7 @@ function addPrizeHead(head, id, { k, y, rx, rz }) {
     }
   } else if (id === 'leafcrown') {
     // a ring of green leaves, each tipped outward
+    y = ringY;
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       const leaf = ball(0.032 * k, PRIZE_LEAF[i % PRIZE_LEAF.length], 0.55, 0.3, 1.5, 5, 4);
@@ -629,7 +634,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   }
 
   // visit prizes (collar prizes go through buildCollar above)
-  addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06 });
+  // The rings sit ON his head (skull top ~0.137, ~0.10-0.12 under the ring),
+  // round the comb, which pokes up through the middle like a real crown's.
+  addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
   addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
   addPrizeNeck(head, accessories.neck, { k: 0.67, y: -0.12, z: 0.04, ringR: 0.1 });
 

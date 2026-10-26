@@ -374,3 +374,30 @@ describe('visit prize placement', () => {
     expect(hat.max.y).toBeLessThanOrEqual(crown.max.y + 0.02);
   });
 });
+
+describe('Hagrid wears the ring-shaped head prizes on his head, not above it', () => {
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  const hex = (o) => o.material?.color?.getHex?.();
+  // The skull is the head group's first child; the beak (the first orange
+  // mesh, before the orange feet) finds the head.
+  function skullAndItem(id, colours) {
+    const c = buildCat('hagrid', { ...bareSet, head: id });
+    c.updateMatrixWorld(true);
+    let head = null;
+    c.traverse((o) => { if (!head && o.isMesh && hex(o) === 0xf2a04e) head = o.parent; });
+    const skull = new THREE.Box3().setFromObject(head.children[0]);
+    const item = new THREE.Box3();
+    head.traverse((o) => { if (o.isMesh && colours.includes(hex(o))) item.expandByObject(o); });
+    const tophat = new THREE.Box3().setFromObject(buildCat('hagrid', { ...bareSet, head: 'tophat' }));
+    return { skull, item, tophat };
+  }
+  it.each([
+    ['partycrown', [0xf5c518]],
+    ['leafcrown', [0x3f9e4d, 0x6cc070, 0x2f7d3e, 0x6b4a2a]],
+  ])('%s starts below the top of his skull (round the comb) and stays under the top hat', (id, colours) => {
+    const { skull, item, tophat } = skullAndItem(id, colours);
+    expect(item.isEmpty()).toBe(false);
+    expect(item.min.y).toBeLessThan(skull.max.y);
+    expect(item.max.y).toBeLessThanOrEqual(tophat.max.y);
+  });
+});
