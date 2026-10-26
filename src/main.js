@@ -47,8 +47,8 @@ try {
   pid = crypto.randomUUID(); // storage unavailable (private mode, quota) — still usable this session
 }
 
-// multiplayer is entirely env-gated: absent keys means "Walk together" shows
-// a friendly not-configured state and nothing else about solo play changes.
+// multiplayer is entirely env-gated: absent keys hide the 👫 Play together
+// button and sheet, and nothing else about solo play changes.
 const MP = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 // per-device "hide this visitor" list — see src/blocklist.js. Module-scope
@@ -311,7 +311,7 @@ function init() {
   // clearPendingRoom below. startWalk is passed as a thunk because it is
   // declared further down — nothing can reach it before init() returns.
   const {
-    rooms, pushProfileNow, getPendingRoom, clearPendingRoom, hostRoomWalk, requestRoomWalk,
+    rooms, pushProfileNow, getPendingRoom, clearPendingRoom, startRoomTogether,
   } = createRooms({
     MP, pid,
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -347,7 +347,7 @@ function init() {
     setSession: (next) => { session = next; },
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
-    getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
+    getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
   });
 

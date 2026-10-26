@@ -720,6 +720,12 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr .dr-dock #btn-start, .dr .dr-dock .primary { background: var(--pink); color: var(--navy); border-radius: 999px;
   padding: 13px 22px; font-weight: 700; font-size: 17px; width: 100%; min-height: 48px; }
 .dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: #6a6250; color: #a89e88; }
+/* Play together beside Start (v21): Start keeps most of the row. */
+.dr-start-row { display: flex; gap: 8px; align-items: stretch; }
+.dr-start-row #btn-start { flex: 1 1 auto; min-width: 0; }
+.dr .dr-together, .hb-sheet-dock .dr-together { flex: 0 0 auto; min-height: 48px; padding: 8px 14px; border: 1.5px solid #5b6c88; border-radius: 999px;
+  background: transparent; color: #f1e0c2; font: inherit; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.wt-first { margin: 0 0 6px; font-weight: 700; }
 
 /* extras: the dusk toggle and the den, quiet ghost buttons under Start */
 .dr-extras { grid-area: extras; display: flex; gap: 8px; justify-content: center; align-content: flex-start; flex-wrap: wrap; }
@@ -822,6 +828,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .hb-sheet-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
 .hb-sheet-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px;
   padding: 8px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; }
+.hb-sheet-dock .dr-start-row { flex: 1 1 260px; }
 .hb-sheet-dock #btn-start { flex: 1 1 200px; min-height: 48px; padding: 13px 22px; border: 0; border-radius: 999px;
   background: #e7a9a0; color: #1c2431; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
 .hb-sheet-dock #btn-start:disabled { background: #6a6250; color: #a89e88; cursor: default; }

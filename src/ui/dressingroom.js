@@ -7,8 +7,9 @@ import { asFiniteNonNeg } from '../progression.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { CAT_BLURBS } from './catblurbs.js';
 
-export const HOME_SHEETS = ['skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
+export const HOME_SHEETS = ['together', 'skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
 export const SHEET_LABEL = {
+  together: '👫 Play together',
   skills: '🐾 Skills', colony: '🐈 Colony', social: '👥 Social', journal: '📖 Journal',
   album: '📸 Album', sync: '☁️ Sync', settings: '⚙️ Settings', code: '🎁 Secret code',
 };

@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRooms } from '../src/game/rooms.js';
+import { START_GATHER_MS, MEMBER_GATHER_MS, WALKING_FRESH_MS } from '../src/game/lobby.js';
 import { createFakeHub, createNet } from '../src/net.js';
 import { createProgression } from '../src/progression.js';
 
 // v21 Stream 2, Task 12 — pair walks. Two siblings in a colony start a walk
-// together with no room code, and either of them can press Start: a member's
-// Start sends 'walk-request', and the host answers with 'walk-config'.
+// together with no room code. Anyone in a room can press Start: it proposes a
+// walk, every device gathers proposals for START_GATHER_MS, and all start the
+// same one (v21 Play together).
 //
 // createRooms takes its transport factory as an optional dep (the Supabase one
 // by default), so these run two real lobbies against net.js's in-memory hub.
@@ -103,7 +105,7 @@ describe('rooms.walkWithPartner', () => {
   });
 });
 
-describe('either sibling can press Start', () => {
+describe('anyone can press Start, and it starts everyone', () => {
   let hub;
   beforeEach(() => { hub = createFakeHub(); vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
@@ -124,94 +126,176 @@ describe('either sibling can press Start', () => {
     return p;
   }
 
-  it("the member's Start asks, and the host starts everyone in the member's area", async () => {
+  it("a member's Start starts everyone in the member's area, after a short gather", async () => {
     const { host, kid } = await inPairRoom({ kid: { unlocked: ['seaside'] } });
     kid.progression.setArea('seaside');
-    expect(kid.requestRoomWalk({ area: 'seaside', dusk: true })).toBe(true);
+    expect(kid.startRoomTogether({ area: 'seaside', dusk: true })).toBe(true);
+    expect(kid.rooms.getState().starting).toBe(true);
+    expect(host.rooms.getState().starting).toBe(true);
+    expect(kid.walks).toEqual([]);
 
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
     // The host isn't seaside-unlocked: it renders it for this walk only.
-    expect(host.walks).toHaveLength(1);
-    const [h] = host.walks;
-    expect(h).toEqual({ duskMode: true, roomSeed: expect.any(Number), areaOverride: 'seaside' });
+    expect(host.walks).toEqual([{ duskMode: true, roomSeed: expect.any(Number), areaOverride: 'seaside' }]);
     expect(host.progression.state.area).toBe('neighborhood');
-    // The member got the host's config, with the same seed.
-    expect(kid.walks).toEqual([{ duskMode: true, roomSeed: h.roomSeed }]);
+    expect(kid.walks).toEqual([{ duskMode: true, roomSeed: host.walks[0].roomSeed }]);
     expect(kid.rooms.getState().starting).toBe(false);
-
-    vi.advanceTimersByTime(10_000);
-    expect(kid.toasts).toEqual([]); // the walk started: no "didn't answer"
   });
 
-  it("the host's own Start still works, and moves an unlocked member to its area", async () => {
+  it("the host's Start works the same way, and moves an unlocked member to its area", async () => {
     const { host, kid } = await inPairRoom({ kid: { unlocked: ['park'] } });
     host.progression.setArea('park');
-    host.hostRoomWalk({ area: 'park', dusk: false });
+    expect(host.startRoomTogether({ area: 'park', dusk: false })).toBe(true);
+    vi.advanceTimersByTime(START_GATHER_MS);
     expect(host.walks).toEqual([{ duskMode: false, roomSeed: expect.any(Number) }]);
+    // The member's longer window closes a moment later, on the host's walk.
+    vi.advanceTimersByTime(MEMBER_GATHER_MS - START_GATHER_MS);
     expect(kid.walks).toEqual([{ duskMode: false, roomSeed: host.walks[0].roomSeed }]);
     expect(kid.progression.state.area).toBe('park');
   });
 
-  it("nobody answers: after 6 s, a plain toast and the button comes back", async () => {
+  it('a host whose phone is asleep no longer strands the room: the member just goes', async () => {
     const kid = await withSilentHost();
     expect(kid.rooms.getState().isHost).toBe(false);
-    expect(kid.requestRoomWalk({ area: 'neighborhood', dusk: false })).toBe(true);
-    vi.advanceTimersByTime(5_999);
-    expect(kid.toasts).toEqual([]);
-    expect(kid.rooms.getState().starting).toBe(true);
-    vi.advanceTimersByTime(1);
-    expect(kid.toasts).toEqual(["Mittens didn't answer — are they on the home screen?"]);
-    expect(kid.rooms.getState().starting).toBe(false);
-    expect(kid.walks).toEqual([]);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks).toEqual([{ duskMode: false, roomSeed: expect.any(Number) }]);
   });
 
-  it("a host that's mid-walk doesn't answer, and a code room says 'They'", async () => {
-    const host = client(hub, { pid: HOST, petName: 'Mittens' });
-    const kid = client(hub, { pid: KID, petName: 'Robin' });
-    await host.rooms.join('ABCD');
-    await kid.rooms.join('ABCD');
-    host.hostRoomWalk({ area: 'neighborhood', dusk: false }); // the host is walking
-    kid.endWalk(); kid.walks.length = 0;                      // the member came back home early
-    kid.requestRoomWalk({ area: 'neighborhood', dusk: false });
+  it("a Start pressed after hearing someone else's adds nothing", async () => {
+    const { host, kid } = await inPairRoom({ host: { unlocked: ['park'] }, kid: { unlocked: ['seaside'] } });
+    kid.startRoomTogether({ area: 'seaside', dusk: false });
+    expect(host.startRoomTogether({ area: 'park', dusk: true })).toBe(false); // already gathering
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
     expect(host.walks).toHaveLength(1);
-    vi.advanceTimersByTime(6_000);
-    expect(kid.toasts).toEqual(["They didn't answer — are they on the home screen?"]);
+    expect(kid.walks).toHaveLength(1);
+    expect(kid.walks[0].roomSeed).toBe(host.walks[0].roomSeed);
+    expect(kid.walks[0].duskMode).toBe(host.walks[0].duskMode);
   });
 
-  it('a second Start while starting is a no-op: one request, one timer', async () => {
+  it('both press before either hears the other: the smaller player id wins on both', async () => {
+    const { host, kid } = await inPairRoom({ host: { unlocked: ['park'] }, kid: { unlocked: ['park', 'seaside'] } });
+    // Hold the network so neither proposal arrives before both are pressed.
+    const held = [];
+    for (const c of [host, kid]) {
+      const net = c.getPendingRoom().net;
+      const real = net.sendEvent.bind(net);
+      vi.spyOn(net, 'sendEvent').mockImplementation((ev) => { held.push(() => real(ev)); });
+    }
+    kid.startRoomTogether({ area: 'seaside', dusk: false });
+    host.startRoomTogether({ area: 'park', dusk: false });
+    for (const send of held) send();
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(host.walks).toHaveLength(1);
+    expect(kid.walks).toHaveLength(1);
+    expect(kid.walks[0]).toEqual({ duskMode: false, roomSeed: host.walks[0].roomSeed });
+    expect(kid.progression.state.area).toBe('park'); // the host's (smaller id) proposal
+  });
+
+  it('three in a code room all start together', async () => {
+    const a = client(hub, { pid: HOST, petName: 'Mittens' });
+    const b = client(hub, { pid: KID, petName: 'Robin' });
+    const c = client(hub, { pid: 'cccc-cousin-03', petName: 'Pip' });
+    for (const x of [a, b, c]) await x.rooms.join('ABCD');
+    c.startRoomTogether({ area: 'neighborhood', dusk: false });
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    const seed = c.walks[0].roomSeed;
+    for (const x of [a, b, c]) expect(x.walks).toEqual([{ duskMode: false, roomSeed: seed }]);
+  });
+
+  it('a second Start while starting is a no-op: one proposal sent', async () => {
     const kid = await withSilentHost();
     const send = vi.spyOn(kid.getPendingRoom().net, 'sendEvent');
-    expect(kid.requestRoomWalk({ area: 'neighborhood', dusk: false })).toBe(true);
-    expect(kid.requestRoomWalk({ area: 'neighborhood', dusk: false })).toBe(false);
-    expect(send.mock.calls).toEqual([[{ v: 1, id: KID, type: 'walk-request', area: 'neighborhood', dusk: false }]]);
-    vi.advanceTimersByTime(12_000);
-    expect(kid.toasts).toHaveLength(1);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    // A member's one press: its proposal, then the previous version's request
+    // (so a host still running the old build answers it).
+    expect(send.mock.calls.map((c) => c[0].type)).toEqual(['walk-config', 'walk-request']);
+    expect(send.mock.calls[0][0]).toEqual({ v: 1, id: KID, type: 'walk-config', area: 'neighborhood', dusk: false, seed: expect.any(Number) });
+    vi.advanceTimersByTime(MEMBER_GATHER_MS * 3);
+    expect(kid.walks).toHaveLength(1);
   });
 
-  it('leaving the room clears the wait: no toast later, and Start works again at once', async () => {
+  it('leaving the room while starting starts nothing', async () => {
     const kid = await withSilentHost();
-    kid.requestRoomWalk({ area: 'neighborhood', dusk: false });
-    expect(kid.rooms.getState().starting).toBe(true);
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
     await kid.rooms.leave();
-    vi.advanceTimersByTime(3_000);
-    await kid.rooms.walkWithPartner();
-    expect(kid.rooms.getState().starting).toBe(false);
-    expect(kid.requestRoomWalk({ area: 'neighborhood', dusk: false })).toBe(true);
-    vi.advanceTimersByTime(6_000);
-    expect(kid.toasts).toHaveLength(1);
-  });
-
-  it('a walk ending (endWalk drops the room) also clears the wait', async () => {
-    const kid = await withSilentHost();
-    kid.requestRoomWalk({ area: 'neighborhood', dusk: false });
-    kid.clearPendingRoom();
-    vi.advanceTimersByTime(6_000);
-    expect(kid.toasts).toEqual([]);
-  });
-
-  it("a member's request is never sent by the host, and the host never asks", async () => {
-    const { host, kid } = await inPairRoom();
-    expect(host.requestRoomWalk({ area: 'neighborhood', dusk: false })).toBe(false);
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
     expect(kid.walks).toEqual([]);
-    expect(host.rooms.getState().starting).toBe(false);
+    expect(kid.rooms.getState()).toBe(null);
+  });
+
+  it('a walk ending (endWalk drops the room) also cancels a start', async () => {
+    const kid = await withSilentHost();
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+    kid.clearPendingRoom();
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks).toEqual([]);
+  });
+
+  it('Start while I am walking is refused', async () => {
+    const { host } = await inPairRoom();
+    host.startRoomTogether({ area: 'neighborhood', dusk: false });
+    vi.advanceTimersByTime(START_GATHER_MS);
+    expect(host.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+  });
+
+  it("never starts a second world beside a sister who's already walking", async () => {
+    const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
+    const walkingHost = createNet(hub.transport());
+    await walkingHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    await kid.rooms.walkWithPartner();
+    walkingHost.sendState({ v: 1, id: HOST, pos: [1, 2], yaw: 0, pose: 'follow', speed: 1 });
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(false);
+    expect(kid.toasts).toEqual(['Mittens is already on a walk! Wait till they come home, then press Start.']);
+    expect(kid.rooms.getState().starting).toBe(false);
+    // Once she has been quiet a while (home again), Start works.
+    vi.advanceTimersByTime(WALKING_FRESH_MS);
+    expect(kid.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+  });
+
+  it("a host proposal that arrives late, but inside a member's window, still wins", async () => {
+    const { host, kid } = await inPairRoom({ host: { unlocked: ['park'] }, kid: { unlocked: ['park', 'seaside'] } });
+    const hostNet = host.getPendingRoom().net;
+    const real = hostNet.sendEvent.bind(hostNet);
+    let late = null;
+    vi.spyOn(hostNet, 'sendEvent').mockImplementation((ev) => { late = () => real(ev); });
+    // Hold the member's send too, so the host doesn't hear it first.
+    const kidNet = kid.getPendingRoom().net;
+    const kidReal = kidNet.sendEvent.bind(kidNet);
+    const kidHeld = [];
+    vi.spyOn(kidNet, 'sendEvent').mockImplementation((ev) => { kidHeld.push(() => kidReal(ev)); });
+    kid.startRoomTogether({ area: 'seaside', dusk: false });
+    host.startRoomTogether({ area: 'park', dusk: false });
+    vi.advanceTimersByTime(1_000); // a slow link: longer than the host's window
+    late();
+    for (const send of kidHeld) send();
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks[0]).toEqual({ duskMode: false, roomSeed: host.walks[0].roomSeed });
+    expect(kid.progression.state.area).toBe('park'); // the host's walk, not the member's seaside
+  });
+
+  it('a host still on the previous version answers, and both share its world', async () => {
+    const kid = client(hub, { pid: KID, petName: 'Robin', partner: { pid: HOST, petName: 'Mittens' } });
+    const oldHost = createNet(hub.transport());
+    await oldHost.join('P' + COLONY_ID, { playerId: HOST, petName: 'Mittens' });
+    // The old host ignores a member's walk-config and answers walk-request.
+    oldHost.onEvent((ev) => {
+      if (ev.type === 'walk-request') oldHost.sendEvent({ v: 1, id: HOST, type: 'walk-config', area: ev.area, dusk: !!ev.dusk, seed: 4242 });
+    });
+    await kid.rooms.walkWithPartner();
+    kid.startRoomTogether({ area: 'neighborhood', dusk: false });
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks).toEqual([{ duskMode: false, roomSeed: 4242 }]);
+  });
+
+  it("an older member's walk-request is still answered by the host", async () => {
+    const { host } = await inPairRoom();
+    // A previous-version client asks instead of proposing.
+    const old = createNet(hub.transport());
+    await old.join('P' + COLONY_ID, { playerId: 'bbbb-old-00009', petName: 'Old' });
+    old.sendEvent({ v: 1, id: 'bbbb-old-00009', type: 'walk-request', area: 'neighborhood', dusk: false });
+    vi.advanceTimersByTime(START_GATHER_MS);
+    expect(host.walks).toEqual([{ duskMode: false, roomSeed: expect.any(Number) }]);
   });
 });
