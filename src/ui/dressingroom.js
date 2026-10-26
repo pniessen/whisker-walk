@@ -11,13 +11,10 @@ export const HOME_SHEETS = ['skills', 'colony', 'social', 'journal', 'album', 's
 export const SHEET_LABEL = {
   skills: '🐾 Skills', colony: '🐈 Colony', social: '👥 Social', journal: '📖 Journal',
   album: '📸 Album', sync: '☁️ Sync', settings: '⚙️ Settings', code: '🎁 Secret code',
-  'den-shop': '🛋️ Den shop',
 };
-// Until Task 6 moves the den shop into the den, homebase shows today's den
-// shop as one extra sheet. Task 6 deletes this list and the label above.
-const INTERIM_SHEETS = ['den-shop'];
+// The den shop is not a home sheet: it lives inside the den (ui/denshopview.js).
 export function resolveSheet(id) {
-  return HOME_SHEETS.includes(id) || INTERIM_SHEETS.includes(id) ? id : null;
+  return HOME_SHEETS.includes(id) ? id : null;
 }
 
 export const PLACE_PICTURE = (id) => `${import.meta.env.BASE_URL}places/${id}.jpg`;

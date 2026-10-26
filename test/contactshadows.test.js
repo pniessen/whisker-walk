@@ -491,3 +491,101 @@ describe('wiring', () => {
     expect(mainSrc).toContain('session.decals.update()');
   });
 });
+
+// v21 Stream 5 Task 6: the den shop places and clears furniture during a den
+// walk, so a static footprint can come and go after the build-time scan.
+describe('static footprints added and removed live', () => {
+  const prop = (x, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    m.position.set(x, 0.5, z);
+    return m;
+  };
+  const decalAt = (rig, i) => {
+    const m = new THREE.Matrix4();
+    rig.staticMesh.getMatrixAt(i, m);
+    return new THREE.Vector3().setFromMatrixPosition(m);
+  };
+
+  it('addStatic gives a new prop the same decal the build-time scan would have', () => {
+    const scene = fakeArea();
+    const rig = createContactShadows(scene);
+    const before = rig.staticCount;
+    const p = prop(5, 6);
+    scene.add(p);
+    expect(rig.addStatic(p)).toBe(true);
+    expect(rig.staticCount).toBe(before + 1);
+    const want = footprintFor(new THREE.Box3().setFromObject(p));
+    const at = decalAt(rig, rig.staticCount - 1);
+    expect(at.x).toBeCloseTo(want.x, 6);
+    expect(at.z).toBeCloseTo(want.z, 6);
+    // still exactly one static and one mover mesh in the scene, flagged and uncullable
+    expect(scene.children.filter((c) => c.isInstancedMesh && c.userData.contactDecal)).toHaveLength(2);
+    expect(rig.staticMesh.parent).toBe(scene);
+    expect(rig.staticMesh.frustumCulled).toBe(false);
+    expect(rig.staticMesh.castShadow).toBe(false);
+    rig.dispose();
+  });
+
+  it('removeStatic drops the decal of a prop that was there at the scan', () => {
+    const scene = fakeArea();
+    const p = prop(-5, 2);
+    scene.add(p);
+    const rig = createContactShadows(scene);
+    const before = rig.staticCount;
+    expect(rig.removeStatic(p)).toBe(true);
+    expect(rig.staticCount).toBe(before - 1);
+    for (let i = 0; i < rig.staticCount; i++) {
+      const at = decalAt(rig, i);
+      expect(Math.hypot(at.x + 5, at.z - 2)).toBeGreaterThan(0.01);
+    }
+    rig.dispose();
+  });
+
+  it('a prop that never qualified, or was never there, changes nothing', () => {
+    const scene = fakeArea();
+    const rig = createContactShadows(scene);
+    const before = rig.staticCount;
+    const mesh = rig.staticMesh;
+    const flat = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+    flat.rotation.x = -Math.PI / 2;
+    expect(rig.addStatic(flat)).toBe(false);
+    expect(rig.removeStatic(prop(40, 40))).toBe(false);
+    expect(rig.addStatic(null)).toBe(false);
+    expect(rig.removeStatic(null)).toBe(false);
+    expect(rig.staticCount).toBe(before);
+    expect(rig.staticMesh).toBe(mesh);
+    rig.dispose();
+  });
+
+  it('frees the old static mesh when it rebuilds, and dispose frees the new one', () => {
+    const scene = fakeArea();
+    const rig = createContactShadows(scene);
+    const old = rig.staticMesh;
+    let freed = 0;
+    old.geometry.addEventListener('dispose', () => { freed++; });
+    const p = prop(1, 1);
+    scene.add(p);
+    rig.addStatic(p);
+    expect(freed).toBe(1);
+    expect(old.parent).toBe(null);
+    const now = rig.staticMesh;
+    expect(now).not.toBe(old);
+    rig.dispose();
+    expect(now.parent).toBe(null);
+  });
+
+  it('removing the last footprint leaves no static mesh, and adding one back makes it again', () => {
+    const scene = new THREE.Scene();
+    const p = prop(0, 0);
+    scene.add(p);
+    const rig = createContactShadows(scene);
+    expect(rig.staticCount).toBe(1);
+    rig.removeStatic(p);
+    expect(rig.staticCount).toBe(0);
+    expect(rig.staticMesh).toBe(null);
+    rig.addStatic(p);
+    expect(rig.staticCount).toBe(1);
+    expect(rig.staticMesh.isInstancedMesh).toBe(true);
+    rig.dispose();
+  });
+});

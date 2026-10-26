@@ -14,7 +14,6 @@ import {
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
-import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
@@ -84,7 +83,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let petNameError = null;
   let joinError = null;
   // v21 Stream 5: the home screen is the dressing room (openSheet null) or
-  // one sheet from HOME_SHEETS (plus the interim 'den-shop', Ruling 8).
+  // one sheet from HOME_SHEETS.
   let openSheet = null;
   // The dusk toggle's tick, remembered across renders (a pill switch
   // re-renders); never saved, and cleared on show() as it always was.
@@ -143,58 +142,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let cloudStatus = null; // inline result text after a manual "Sync now"
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
-
-  // Den furniture card (Task 7.2) — the `.card` markup idiom the old shop
-  // cards used (price tag / Buy button / owned tag) but against DEN_ITEMS +
-  // state.den.owned instead of CATALOG + state.unlocked: den items have no
-  // "equip" concept of their own (placement happens via the per-spot
-  // <select>s in renderDenSection below), just owned-or-not-yet.
-  function denItemCard(id, item) {
-    const s = progression.state;
-    const owned = s.den.owned.includes(id);
-    let action;
-    if (owned) {
-      action = `<div class="tag on">owned</div>`;
-    } else if (s.points >= item.price) {
-      action = `<button data-action="buy-den" data-id="${id}">Unlock — ${item.price} 🐾</button>`;
-    } else {
-      action = `<div class="tag">${item.price} 🐾</div>`;
-    }
-    return `<div class="card ${owned ? 'selected' : 'locked'}" data-kind="den" data-id="${id}">
-      <div class="card-name">${item.name}</div>
-      ${action}
-    </div>`;
-  }
-
-  // "Your Den" Play-tab section (Task 7.2): the DEN_ITEMS catalog as cards
-  // (Buy -> buyDenItem) plus one <select> per DEN_SPOTS anchor point (options
-  // = "empty" + every owned item) that calls placeDenItem on change. All
-  // labels here are the static catalog strings (item.name / spot.id) — no
-  // user-authored text ever reaches this section's innerHTML.
-  function renderDenSection() {
-    const s = progression.state;
-    return `
-      <section class="den-section"><h2>Your Den 🏠</h2>
-        <div class="cards">
-          ${Object.entries(DEN_ITEMS).map(([id, item]) => denItemCard(id, item)).join('')}
-        </div>
-        <div class="den-spots">
-          ${DEN_SPOTS.map((spot) => {
-            const current = s.den.placed[spot.id] ?? '';
-            const options = s.den.owned.map((ownedId) =>
-              `<option value="${ownedId}" ${ownedId === current ? 'selected' : ''}>${DEN_ITEMS[ownedId].name}</option>`
-            ).join('');
-            return `<label class="den-spot-row">
-              <span class="den-spot-id">${spot.id}</span>
-              <select data-den-spot="${spot.id}">
-                <option value="" ${current === '' ? 'selected' : ''}>— empty —</option>
-                ${options}
-              </select>
-            </label>`;
-          }).join('')}
-        </div>
-      </section>`;
-  }
 
   function renderWalkTogether() {
     if (!rooms || !rooms.available) {
@@ -628,10 +575,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return dressing;
   }
 
-  // The sheets on offer: Sync only when cloud saves are set up, and today's
-  // den shop until Task 6 moves it into the den (Ruling 8).
+  // The sheets on offer: Sync only when cloud saves are set up. (The den shop
+  // lives inside the den now — ui/denshopview.js.)
   function availableSheets() {
-    return [...HOME_SHEETS.filter((id) => id !== 'sync' || (sync && sync.available)), 'den-shop'];
+    return HOME_SHEETS.filter((id) => id !== 'sync' || (sync && sync.available));
   }
 
   // null (or anything not on offer) = back to the dressing room.
@@ -694,7 +641,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       case 'sync': return `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
       case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
-      case 'den-shop': return renderDenSection();
       default: return '';
     }
   }
@@ -1093,13 +1039,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
-    // The den shop's cards (cats, accessories and places are bought in the
-    // dressing room now).
-    const cardEl = e.target.closest('.card');
-    const action = e.target.dataset.action;
-    if (!cardEl || action !== 'buy-den') return;
-    if (progression.buyDenItem(cardEl.dataset.id)) sync?.autoSync?.();
-    render();
   });
 
   // The secret-code form (delegated: render() rebuilds it). While hashing the
@@ -1190,16 +1129,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (dressCat) {
       Promise.resolve(colonySync?.dress(dressCat, e.target.value || null))
         .then((r) => { if (r && !r.ok) render(); }, () => render()); // a refusal puts the select back
-      return;
-    }
-    // Den placement (Task 7.2): each DEN_SPOTS anchor has its own <select>;
-    // picking an owned item there calls placeDenItem, picking "— empty —"
-    // (value "") clears the spot. placeDenItem itself already handles the
-    // "this item is already at a different spot" move.
-    const spotId = e.target.dataset.denSpot;
-    if (spotId) {
-      progression.placeDenItem(spotId, e.target.value || null);
-      render();
     }
   });
 

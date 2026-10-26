@@ -196,9 +196,6 @@ body.left-handed .tui-pause {
 }
 .card.selected { border-color: #f2c14e; }
 .card.locked { opacity: 0.75; }
-.den-spots { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.den-spot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.den-spot-id { font-size: 0.85rem; color: #c0ccdd; text-transform: capitalize; }
 .card-name { font-weight: 700; }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
 .card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
@@ -786,3 +783,74 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 @media (max-width: 480px) {
   .hb-sheet-dock { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
 }
+
+/* --- The den shop, inside the den (v21 Stream 5, Task 6) ------------------
+   A HUD button on den walks only, and a sheet over the lower part of the
+   screen (a panel down the right on a wide screen) so the room stays in view
+   while the player arranges it. z-index 11 puts the button over #overlay (10)
+   so it can be pressed from the desktop pause card too; the sheet sits over
+   everything in the walk. While it is open the pause card, the touch
+   controls and the chat wheel step aside. */
+.hud-den-shop {
+  position: absolute; z-index: 11; pointer-events: auto;
+  top: max(64px, calc(env(safe-area-inset-top) + 64px));
+  right: max(16px, env(safe-area-inset-right));
+  min-height: 44px; padding: 8px 16px; border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.55); background: rgba(20,26,38,0.72);
+  color: #fff; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.hud-den-shop:hover { background: rgba(20,26,38,0.9); }
+/* left-handed mode moves the ⏸ button to the top right */
+body.left-handed .hud-den-shop { right: auto; left: max(16px, env(safe-area-inset-left)); }
+body.den-shop-open #overlay,
+body.den-shop-open .touch-ui,
+body.den-shop-open .hud-den-shop,
+body.den-shop-open .hud-controls,
+body.den-shop-open .chat-wheel { display: none !important; }
+.den-shop {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  max-height: 52vh; max-height: 52dvh;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(28, 36, 49, 0.95); color: #fff;
+  border-radius: 18px 18px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.35);
+}
+@media (min-width: 900px) {
+  .den-shop {
+    left: auto; top: 16px; right: 16px; bottom: 16px; width: 380px;
+    max-height: none; border-radius: 18px;
+  }
+}
+.ds-head { display: flex; align-items: center; gap: 10px; }
+.ds-head h2 { flex: 1; font-size: 1.2rem; margin: 0; }
+.ds-points { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+.ds-done {
+  min-height: 48px; min-width: 88px; padding: 10px 22px; border: 0; border-radius: 12px;
+  background: #f2c14e; color: #3a2a10; font: inherit; font-weight: 800; font-size: 1.05rem; cursor: pointer;
+}
+.ds-note { color: #f2c14e; font-weight: 700; font-size: 0.95rem; margin: 0; }
+.ds-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 4px; }
+.ds-body h3 { font-size: 0.95rem; color: #a8c0e0; margin: 10px 0 8px; }
+.ds-hint { color: #c0ccdd; font-size: 0.9rem; margin: 0 0 8px; }
+.ds-spots { display: flex; flex-direction: column; gap: 6px; }
+.ds-spot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ds-spot-name { font-size: 0.95rem; color: #e0e8f2; }
+.ds-spot select {
+  min-height: 44px; width: 58%; max-width: 230px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.25); background: #2a3550; color: #fff; font: inherit; font-size: 0.95rem;
+}
+.ds-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ds-card {
+  background: rgba(255,255,255,0.07); border-radius: 12px; padding: 10px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 8px; border: 2px solid transparent;
+}
+.ds-card.owned { border-color: #f2c14e; }
+.ds-card.locked { opacity: 0.7; }
+.ds-name { font-weight: 700; font-size: 0.95rem; }
+.ds-tag { font-size: 0.9rem; color: #c0ccdd; }
+.ds-card.owned .ds-tag { color: #f2c14e; font-weight: 700; }
+.ds-buy {
+  width: 100%; min-height: 44px; border: 0; border-radius: 10px; padding: 8px 10px;
+  background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.ds-buy:hover { background: #5a7eb5; }

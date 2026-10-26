@@ -29,6 +29,7 @@ import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
 import { createQualityAdapter } from './game/adaptquality.js';
 import { createWalkLifecycle } from './game/walk.js';
+import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
@@ -321,6 +322,15 @@ function init() {
     toast: cloudToast,
   });
 
+  // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and
+  // walks on like the pause card's explore button.
+  const denShop = createDenShopView({
+    hud, progression, sync, player,
+    getSession: () => session,
+    pause: () => handleTouchAction('pause'),
+    resume: () => resumeWalk(),
+  });
+
   // The walk lifecycle (src/game/walk.js). main.js keeps the `session`
   // binding — the render loop, keydown handlers and discovery bus all read
   // it — and hands the module accessors for it. getHomebase is a thunk
@@ -338,7 +348,7 @@ function init() {
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
-    awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter,
+    awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -499,11 +509,12 @@ function init() {
       log.award('perk', `wave-${id}`, 'a friendly wave back');
     }
   });
+  function resumeWalk() {
+    if (isTouch) player.setTouchEngaged(true);
+    else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
+  }
   overlay.addEventListener('click', (e) => {
-    if (e.target.id === 'btn-resume') {
-      if (isTouch) player.setTouchEngaged(true);
-      else canvas.requestPointerLock();
-    }
+    if (e.target.id === 'btn-resume') resumeWalk();
     if (e.target.id === 'btn-end') endWalk();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
