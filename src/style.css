@@ -805,6 +805,16 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .hud-den-shop:hover { background: rgba(20,26,38,0.9); }
 /* left-handed mode moves the ⏸ button to the top right */
 body.left-handed .hud-den-shop { right: auto; left: max(16px, env(safe-area-inset-left)); }
+/* desktop hint: only on a den walk, only with a mouse, only while the pause card is up */
+.den-shop-hint { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  body.den-walk:not(.den-shop-open):has(#overlay:not(.hidden)) .den-shop-hint {
+    display: block; position: fixed; z-index: 11; pointer-events: none;
+    left: 50%; bottom: 8vh; transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 999px; background: rgba(20,26,38,0.8);
+    color: #fff; font-weight: 700; text-align: center;
+  }
+}
 body.den-shop-open #overlay,
 body.den-shop-open .touch-ui,
 body.den-shop-open .hud-den-shop,

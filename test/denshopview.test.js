@@ -93,7 +93,8 @@ function setup() {
     progression, pause, resume, bus, canvas, doc, hudRoot: hud, mountRoot: app,
   });
   const sheet = app.children.find((c) => c.attrs.role === 'dialog');
-  return { doc, canvas, sheet, bus, view, locks, playerKeys, pause, resume };
+  const hint = app.children.find((c) => c.attrs.id === 'den-shop-hint');
+  return { doc, canvas, sheet, hint, bus, view, locks, playerKeys, pause, resume };
 }
 
 describe('den shop overlay input guards', () => {
@@ -142,6 +143,18 @@ describe('den shop overlay input guards', () => {
     dispatch(select, 'keydown', { code: 'Escape' });
     expect(t.view.isOpen).toBe(false);
     expect(t.resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('a hint says how to reach the shop; the den-walk class is on only during a den walk', () => {
+    const t = setup();
+    expect(t.hint).toBeTruthy();
+    expect(t.hint.textContent).toMatch(/Esc/);
+    expect(t.hint.textContent).toContain('Den shop');
+    expect(t.doc.body.classList.contains('den-walk')).toBe(false);
+    t.view.setActive(true);
+    expect(t.doc.body.classList.contains('den-walk')).toBe(true);
+    t.view.setActive(false);
+    expect(t.doc.body.classList.contains('den-walk')).toBe(false);
   });
 
   it('keys outside the sheet are untouched', () => {

@@ -50,6 +50,15 @@ export function createDenShopView({
   sheet.setAttribute('aria-label', 'Den shop');
   mountRoot.appendChild(sheet);
 
+  // A desktop player reaches the shop by Esc -> pause card -> this button, with
+  // nothing to say so. This line floats under the pause card on a den walk
+  // (style.css shows it only with a mouse, only while the card is up).
+  const hint = doc.createElement('div');
+  hint.setAttribute('id', 'den-shop-hint');
+  hint.className = 'den-shop-hint';
+  hint.textContent = 'Press Esc, then 🛋️ Den shop to decorate';
+  mountRoot.appendChild(hint);
+
   let active = false;
   let open = false;
   let note = '';
@@ -157,6 +166,7 @@ export function createDenShopView({
     setActive(on) {
       active = !!on;
       button.classList.toggle('hidden', !active);
+      doc.body.classList.toggle('den-walk', active);
       if (!active) hide({ walkOn: false });
     },
     open: show,
