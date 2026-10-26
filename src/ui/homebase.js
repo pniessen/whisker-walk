@@ -16,8 +16,23 @@ import {
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL, KNOWN_GOLD } from '../goldmice.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
+import { isMilestone, welcomeLine } from '../visits.js';
+import { createVisitCelebration } from './visitcelebration.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
+
+// The header's visit chip: "🐾 Visit 23", or "🎉 Visit 30" on a milestone
+// visit; nothing before the first visit. visits comes from the save, so it is
+// coerced to a whole number before it reaches innerHTML.
+export function visitBadgeHtml(visits) {
+  const n = Math.floor(asFiniteNonNeg(visits, 0));
+  if (n < 1) return '';
+  return `<div class="dr-chip visit">${isMilestone(n) ? '🎉' : '🐾'} Visit ${n}</div>`;
+}
+
+// How long the welcome line stays before it is removed (its CSS fade ends
+// just before this).
+const WELCOME_MS = 4600;
 
 // petNames in a room roster arrive over the network (another player's
 // client, not necessarily one that enforced validPetName) — escape before
@@ -79,7 +94,9 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // must still tell "my" finds and feeds from my partner's.
 // toast(text) is optional: main.js's cloud toast, used for "You're sharing a
 // colony with …". It is called with plain text and never with markup.
-export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast) {
+// onCelebrate() is optional: called when a visit celebration opens its present
+// (or a style-B / cycle-back card shows) — main.js plays the unlock fanfare.
+export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate) {
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
@@ -506,7 +523,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // colonyNews's snapshot of what the card shows, marked read on dismiss. Returns
   // whether it was shown.
   function showNews(html, seen) {
-    if (typeof html !== 'string' || !html || newsEl || noticeEl || !homeVisible()) return false;
+    if (typeof html !== 'string' || !html || newsEl || noticeEl || visitOpen() || !homeVisible()) return false;
     newsShown = seen && typeof seen === 'object' ? seen : null;
     newsEl = document.createElement('div');
     newsEl.id = 'colony-news';
@@ -535,7 +552,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   function showNotice(text) {
-    if (typeof text !== 'string' || !text || noticeEl || !homeVisible()) return false;
+    if (typeof text !== 'string' || !text || noticeEl || visitOpen() || !homeVisible()) return false;
     noticeEl = document.createElement('div');
     noticeEl.id = 'home-notice';
     noticeEl.className = 'colony-news';
@@ -559,15 +576,93 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return true;
   }
 
+  // ---- Visit milestones ----------------------------------------------------
+  // The celebration is mounted on document.body, outside #homebase, like the
+  // news card, so render() can't wipe it. It never touches the save itself:
+  // wearing happens here, and only through wearPendingVisitPrize() (a no-op
+  // when nothing is pending, so a cycle-back's outfit is never changed) or the
+  // explicit "Wear it" button. Every wear re-renders, so the hero cat shows the
+  // prize (that is style C's reveal).
+  let visitClosed = null; // the caller's onClosed for the celebration that is up
+  const celebration = createVisitCelebration(document.body, {
+    onOpen: () => {
+      try { onCelebrate?.(); } catch (err) { console.warn('Whisker Walk: celebration sound failed', err); }
+      progression.wearPendingVisitPrize();
+      render();
+    },
+    onWear: (id) => {
+      progression.equipAccessory(id);
+      render();
+    },
+    onClose: (reason) => {
+      progression.wearPendingVisitPrize(); // a mid-celebration Start still wears it
+      render();
+      const cb = visitClosed;
+      visitClosed = null;
+      cb?.(reason);
+    },
+  });
+  function visitOpen() { return celebration.isOpen(); }
+  const heroStage = () => root.querySelector('#dr-stage');
+
+  // The welcome line: a small line over the hero stage that fades by itself
+  // and never takes a click (pointer-events: none in style.css).
+  let welcomeEl = null;
+  let welcomeTimer = null;
+  function closeWelcome() {
+    if (welcomeTimer !== null) clearTimeout(welcomeTimer);
+    welcomeTimer = null;
+    welcomeEl?.remove();
+    welcomeEl = null;
+  }
+  function showWelcome(text) {
+    closeWelcome();
+    if (!text || !homeVisible()) return;
+    welcomeEl = document.createElement('div');
+    welcomeEl.className = 'visit-welcome';
+    welcomeEl.setAttribute('role', 'status');
+    welcomeEl.textContent = text;
+    let rect = null;
+    try { rect = heroStage()?.getBoundingClientRect?.() ?? null; } catch { rect = null; }
+    if (rect && rect.width > 0) {
+      welcomeEl.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+      welcomeEl.style.top = `${Math.round(rect.top + 10)}px`;
+    }
+    document.body.appendChild(welcomeEl);
+    welcomeTimer = setTimeout(closeWelcome, WELCOME_MS);
+  }
+
+  // showVisit(result, { onClosed }): result is progression.recordVisit()'s.
+  // A milestone shows the celebration and returns true; onClosed(reason) runs
+  // once when it closes ('done', or 'walk' when a walk started over it).
+  // Otherwise the welcome line shows, it returns false, and onClosed is not called.
+  function showVisit(result, { onClosed } = {}) {
+    const milestone = result && result.milestone;
+    if (milestone && !visitOpen()) {
+      visitClosed = typeof onClosed === 'function' ? onClosed : null;
+      const shownOk = celebration.show(milestone, {
+        petName: progression.state.petName || '',
+        anchor: () => heroStage()?.getBoundingClientRect?.(),
+        thumb: thumbs?.accessories?.[milestone.prize?.id],
+      });
+      if (shownOk) return true;
+      visitClosed = null;
+    }
+    const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
+    if (n >= 1) showWelcome(welcomeLine(n));
+    return false;
+  }
+
   // The dressing room's hero cat: ONE stage (one WebGL canvas) and ONE
   // controller per home base, made on the first render that needs them. The
   // canvas is re-mounted into the fresh #dr-stage after every render
   // (afterRender), so a colony poll or a roster change mid-drag keeps the cat.
   let stage = null;
   let dressing = null;
+  let thumbs = null; // menuThumbnails(), made once with the dressing room
   function ensureDressing() {
     if (dressing) return dressing;
-    const thumbs = menuThumbnails();
+    thumbs = menuThumbnails();
     stage = createCatStage({ buildCat, thumbs });
     dressing = createDressingRoom({
       progression, catalog: CATALOG, stage, sync, thumbs,
@@ -715,6 +810,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
     const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <span class="dr-edition">${CLAN_SUFFIX} Edition</span></h1>`
+      + visitBadgeHtml(s.visits)
       + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
       + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
     // The old header's substats lines, one block (other branches add a line
@@ -1179,7 +1275,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     },
     showNews,
     showNotice,
+    showVisit,
+    visitOpen,
     hide() {
+      // A walk is starting: the celebration closes with 'walk' (its onClose
+      // wears a pending prize), before anything else is torn down.
+      celebration.close('walk');
+      closeWelcome();
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
       shown = false;

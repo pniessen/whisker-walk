@@ -401,12 +401,25 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare());
+  // Visit milestones: count this open before show(), so the header badge has
+  // the number. A milestone's celebration comes before every other card; the
+  // farewell and the news follow once it closes. A plain visit shows the
+  // welcome line, the farewell goes up straight away and the news on the pull.
+  const visit = progression.recordVisit();
   homebase.show();
-  // Rosa's one-time farewell goes up synchronously, before the async news pull
-  // below can land, so it is always first (showNews yields while it is up).
-  const farewell = progression.takeFarewell();
-  if (farewell) homebase.showNotice(farewell);
+  // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
+  const showFarewell = () => {
+    const farewell = progression.takeFarewell();
+    if (farewell) homebase.showNotice(farewell);
+  };
+  const afterVisitCards = (reason) => {
+    // A walk started over the celebration: the walk's own summary pull shows
+    // the news later (pendingRewards keeps what the boot pull granted).
+    if (reason === 'walk') return;
+    showFarewell();
+    showColonyNews([]); // whatever the boot pull left in pendingRewards
+  };
 
   // "While you were out" (Task 10): the first thing a kid sees on open is what
   // their sibling did. Runs after the boot pull and after each walk's
@@ -429,6 +442,10 @@ function init() {
   }
   const pullThenNews = () => colonySync.pull().then((r) => showColonyNews(r && r.rewards), () => {});
   pullThenNews(); // fire-and-forget; never rejects, and makes no network call when solo
+  // If the pull lands while a celebration is up, showNews returns false and
+  // pendingRewards keeps its rewards for afterVisitCards. A plain visit puts the farewell up now, before the async pull lands, and
+  // leaves the news to the pull as before (so the card includes what it brings).
+  if (!homebase.showVisit(visit, { onClosed: afterVisitCards })) showFarewell();
 
   // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
   // result into awards + HUD refresh + fx, regardless of whether the

@@ -652,6 +652,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-edition { color: #f2c14e; white-space: nowrap; }
 .dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
+.dr-chip.visit { color: var(--pink); font-weight: 700; }
 .dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .dr-stats:empty { display: none; }
 
@@ -999,4 +1000,25 @@ body.den-shop-open .chat-wheel { display: none !important; }
 @media (max-width: 480px) {
   .visit-cel { padding: 12px; }
   .visit-cel-title { font-size: 1.5rem; }
+}
+
+/* Visit milestones: the welcome line on a plain visit. A small pill over the
+   hero stage (main sets left/top from the stage; the defaults are for when it
+   can't). It fades by itself and never takes a click. Below the news card (5). */
+.visit-welcome {
+  position: fixed; left: 50%; top: 18%; z-index: 4; transform: translateX(-50%);
+  max-width: calc(100vw - 32px); pointer-events: none;
+  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 999px;
+  padding: 8px 16px; font-size: 1rem; font-weight: 700; text-align: center;
+  overflow-wrap: anywhere; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  animation: visit-welcome 4.5s ease-in-out forwards;
+}
+@keyframes visit-welcome {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  10%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .visit-welcome { animation-name: visit-welcome-still; }
+  @keyframes visit-welcome-still { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
 }
