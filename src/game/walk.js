@@ -51,6 +51,7 @@ import { catsInArea, colonyWear, denResidents, denMoment } from '../colony.js';
 import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
+import { legendaryFor, legendaryRoll } from '../legendary.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
@@ -910,11 +911,26 @@ export function createWalkLifecycle({
       }))
       : [];
     const excludeNames = colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : [];
+    // v21 3b — this area's legendary cat, on a colony walk only (ruling P6):
+    // solo or partner-only, never with a non-partner (whose walk must be
+    // exactly today's) and never in the den. legendary.js decides from the
+    // save and one roll; the roll is legendaryRoll's own stream (Math.random
+    // solo, a salted mulberry32 off the room seed for partners, so both roll
+    // the same number) and the extra's spot is its own mulberry32 over its
+    // name and the room seed, so partners see it in the same place. Neither
+    // is walkRng: createStrayCats draws the extra after the ordinary cast and
+    // only from its own rng, and nothing here is computed off a colony walk.
+    const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, legendaryRoll(roomSeed)) : null;
+    const extras = legend ? [{
+      name: legend,
+      rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
+    }] : [];
     const strayCats = createStrayCats(scene, areaData, isDen ? 0 : (coarse ? 14 : 22), walkRng, {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
       colonyCats,
       excludeNames,
+      extras,
     });
     const remotes = createRemoteCats(scene);
 

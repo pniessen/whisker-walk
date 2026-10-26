@@ -2308,16 +2308,17 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
 
   function enemyHarness({
     skills = [], grudges = [], points = 0, friends = {}, breed = 'tabby', count = 1,
-    scenics = [], gifts = null,
+    scenics = [], gifts = null, extras = [],
   } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, grudges, points, friends });
     const log = createDiscoveryLog(progression);
     log.startWalk();
-    const strayCats = createStrayCats(scene, AREA, count, mulberry32(11), { grudges });
+    const strayCats = createStrayCats(scene, AREA, count, mulberry32(11), { grudges, extras });
     const toasts = [];
     const prompts = [];
     const hisses = [];
+    const sounds = [];
     let halted = 0;
     const session = {
       areaId: 'park',
@@ -2366,7 +2367,7 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
         setPrompt: (t) => prompts.push(t),
         setPoints() {},
       },
-      audio: { trill() {}, meow() {}, hiss: (v) => hisses.push(v ?? 1) },
+      audio: { trill() {}, meow() {}, hiss: (v) => hisses.push(v ?? 1), fanfare: () => sounds.push('fanfare') },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
     });
     // Park a stray `d` metres in front of the cat and hand it back.
@@ -2377,7 +2378,7 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
       return s;
     };
     return {
-      progression, log, session, strayCats, toasts, prompts, hisses,
+      progression, log, session, strayCats, toasts, prompts, hisses, sounds,
       halted: () => halted, park,
       walkTo: (x, z) => { session.cat.position.set(x, 0, z); api.updateInteractions(session); },
       scan: () => api.updateInteractions(session),
@@ -2801,6 +2802,94 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
       expect(() => h.greet(s)).not.toThrow();
       expect(() => h.pressE()).not.toThrow();
     }
+  });
+
+  // --- 7. a legendary cat (v21 3b) ----------------------------------------
+
+  describe('a legendary cat', () => {
+    const LEGEND = 'Captain Barnacle';
+    // Friendly walk stamps for `name`, in order, so a greet never ruptures.
+    const friendlyStamps = (name, n) => {
+      const out = [];
+      for (let i = 0; out.length < n && i < 20000; i++) if (!rollHostile(`walk-${i}`, name)) out.push(`walk-${i}`);
+      return out;
+    };
+    let off;
+    afterEach(() => off?.());
+    const watch = () => {
+      const seen = [];
+      off = bus.on('discovery', (d) => seen.push(d));
+      return seen;
+    };
+
+    it('meeting a legendary cat for the first time pays legend once, ever', () => {
+      const h = enemyHarness({ extras: [{ name: LEGEND, rng: mulberry32(3) }] });
+      const s = h.park(1, 1);
+      expect(s.name).toBe(LEGEND);
+      const seen = watch();
+      const [w1, w2] = friendlyStamps(LEGEND, 2);
+
+      h.session.walkStamp = w1;
+      h.greet(s);
+      expect(h.progression.state.friends[LEGEND].greets).toBe(1);
+      expect(h.progression.state.points).toBe(AWARDS.friend + AWARDS.legend);
+      expect(h.progression.state.feats.legend).toBe(1);
+      expect(h.sounds.filter((x) => x === 'fanfare')).toHaveLength(1);
+      const legendAward = seen.find((d) => d.type === 'legend');
+      expect(legendAward).toMatchObject({ key: `legend-${LEGEND}`, label: `a legendary cat — ${LEGEND}! ✨`, points: AWARDS.legend });
+      // The ordinary met toast still says hello.
+      expect(h.toasts.some((t) => t.startsWith(`You met ${LEGEND}`))).toBe(true);
+
+      // Mashing E on the same walk: recordGreet's per-walk guard holds, and
+      // no second legend.
+      h.greet(s);
+      expect(h.progression.state.feats.legend).toBe(1);
+
+      // The next walk: an ordinary friend greet and nothing more.
+      const before = h.progression.state.points;
+      h.log.startWalk();
+      h.session.walkStamp = w2;
+      s.greeted = false;
+      h.greet(s);
+      expect(h.progression.state.friends[LEGEND].greets).toBe(2);
+      expect(h.progression.state.points - before).toBe(AWARDS.friend);
+      expect(h.progression.state.feats.legend).toBe(1);
+      expect(seen.filter((d) => d.type === 'legend')).toHaveLength(1);
+      expect(h.sounds.filter((x) => x === 'fanfare')).toHaveLength(1);
+    });
+
+    it('pays nothing extra for a legendary cat I had already met', () => {
+      const h = enemyHarness({
+        extras: [{ name: LEGEND, rng: mulberry32(3) }],
+        friends: { [LEGEND]: { breed: 'tabby', greets: 1, lastWalk: 'walk-old' } },
+      });
+      const s = h.park(1, 1);
+      h.session.walkStamp = friendlyStamps(LEGEND, 1)[0];
+      h.greet(s);
+      expect(h.progression.state.points).toBe(AWARDS.friend);
+      expect(h.progression.state.feats.legend ?? 0).toBe(0);
+      expect(h.sounds).not.toContain('fanfare');
+    });
+
+    it('an ordinary stray never pays legend', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = friendlyStamps(s.name, 1)[0];
+      h.greet(s);
+      expect(h.progression.state.points).toBe(AWARDS.friend);
+      expect(h.progression.state.feats.legend ?? 0).toBe(0);
+      expect(h.sounds).not.toContain('fanfare');
+    });
+
+    it('a legendary cat that hisses at the first hello pays no legend until it is made up with', () => {
+      const h = enemyHarness({ extras: [{ name: LEGEND, rng: mulberry32(3) }] });
+      const s = h.park(1, 1);
+      h.session.walkStamp = stampFor(LEGEND, true);
+      h.greet(s);
+      expect(h.progression.state.feats.legend ?? 0).toBe(0);
+      expect(h.progression.state.points).toBe(0);
+      expect(h.sounds).not.toContain('fanfare');
+    });
   });
 });
 

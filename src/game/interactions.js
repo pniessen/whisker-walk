@@ -20,6 +20,7 @@ import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
 import { GIFT_LEAVE_RANGE } from '../gifts.js';
 import { friendRungCrossed, isGrudgeableStray } from '../straycats.js';
+import { isLegendaryName } from '../legendary.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
@@ -1153,6 +1154,15 @@ export function createInteractions({
     const level = friendRungCrossed(before, after, {
       charmer: hasSkill(progression.state, 'charmer'),
     });
+    // v21 3b — the first greet EVER of a legendary cat (its count going 0 → 1
+    // on this greet, so recordGreet's per-walk guard and the lifetime count
+    // both stand between it and a second payout) is the big moment: the one
+    // new award in 3b, on top of the ordinary friend award above. Later greets
+    // pay the friend award only.
+    if (before === 0 && after === 1 && isLegendaryName(stray.name)) {
+      log.award('legend', 'legend-' + stray.name, `a legendary cat — ${stray.name}! ✨`);
+      audio.fanfare?.();
+    }
     if (level === 'met') hud.toast(`You met ${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')}! ♡`);
     else if (level === 'friend') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is now your friend! ♥`);
     else if (level === 'best') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is your BEST friend! 💕`);

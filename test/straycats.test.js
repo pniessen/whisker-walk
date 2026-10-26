@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
   createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES,
@@ -993,5 +994,188 @@ describe('reserved kit names', () => {
       const { strays } = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed));
       for (const s of strays) expect(kits.has(s.name)).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v21 3b Task 18 — a legendary cat, added AFTER the ordinary cast and drawn
+// from its own rng. walkRng must not feel it: the stream position after spawn
+// is still 47 + 5 * count, extra or no extra.
+// ---------------------------------------------------------------------------
+describe('createStrayCats — a legendary extra (v21 3b)', () => {
+  const counting = () => { let n = 0; const f = () => { n++; return ((n * 0.6180339887) % 1); }; f.count = () => n; return f; };
+  const legend = (name = 'Captain Barnacle', seed = 5) => ({ name, rng: mulberry32(seed) });
+  const glowsIn = (group) => group.children.filter((o) => o.userData?.legendGlow);
+
+  it('a legendary extra draws nothing from the walk rng', () => {
+    for (const count of [0, 14, 22]) {
+      const a = counting(), b = counting();
+      createStrayCats(fakeScene(), AREA, count, a);
+      createStrayCats(fakeScene(), AREA, count, b, {
+        extras: [legend()],
+        colonyCats: [{ name: 'Pickles', x: 1, z: 1, wear: null }],
+      });
+      expect(a.count()).toBe(47 + 5 * count);
+      expect(b.count()).toBe(47 + 5 * count);
+    }
+    // ...and the next value off a seeded stream is where it always was.
+    const a = mulberry32(42), b = mulberry32(42);
+    createStrayCats(fakeScene(), AREA, 22, a);
+    createStrayCats(fakeScene(), AREA, 22, b, { extras: [legend()] });
+    expect(b()).toBe(a());
+  });
+
+  it('draws all five of its spawn values from its own rng, in order', () => {
+    const own = counting();
+    createStrayCats(fakeScene(), AREA, 3, mulberry32(1), { extras: [{ name: 'Duchess', rng: own }] });
+    expect(own.count()).toBe(5);
+  });
+
+  it('the ordinary cast is untouched by an extra', () => {
+    const a = createStrayCats(fakeScene(), AREA, 22, mulberry32(8));
+    const b = createStrayCats(fakeScene(), AREA, 22, mulberry32(8), { extras: [legend()] });
+    expect(b.strays.slice(0, 22).map((s) => [s.name, s.group.position.x, s.group.position.z, s.personality]))
+      .toEqual(a.strays.map((s) => [s.name, s.group.position.x, s.group.position.z, s.personality]));
+    expect(b.strays).toHaveLength(23);
+    expect(b.strays[22].name).toBe('Captain Barnacle');
+  });
+
+  it('partners see it at the same spot: its place is a function of its own rng alone', () => {
+    const one = createStrayCats(fakeScene(), AREA, 22, mulberry32(3), { extras: [legend('Duchess', 99)] });
+    const two = createStrayCats(fakeScene(), AREA, 14, () => 0.5, { extras: [legend('Duchess', 99)], roomSeed: 7 });
+    const [p, q] = [one, two].map((c) => c.strays.find((s) => s.name === 'Duchess'));
+    expect([q.group.position.x, q.group.position.z, q.group.rotation.y, q.timer])
+      .toEqual([p.group.position.x, p.group.position.z, p.group.rotation.y, p.timer]);
+    expect(p.home.x).toBe(p.group.position.x);
+    expect(Math.abs(p.group.position.x)).toBeLessThanOrEqual(AREA.bounds.maxX);
+  });
+
+  it('a legendary extra is a real, grudgeable, feedable stray', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 4, mulberry32(2), { extras: [legend()] });
+    const s = cats.strays.find((x) => x.name === 'Captain Barnacle');
+    expect(s).toBeTruthy();
+    expect(isGrudgeableStray(cats, s)).toBe(true);      // the identity half: a real entry in strays
+    expect(s.colony).toBe(false);
+    expect(s.personality).not.toBe('shy');               // isShy(name) is false, so never shy
+    expect(Object.keys(s)).not.toContain('legendary');   // no stored per-cat field
+    expect(new Set(cats.strays.map((x) => x.id)).size).toBe(5);
+    // Feedable through the ordinary path, from its home.
+    const r = feedCat(emptyColony(), { name: s.name, by: 'aaaaaaaa-1111', walk: 'walk-1000', area: 'seaside', x: s.home.x, z: s.home.z, head: 0 });
+    expect(r.result).toBe('ok');
+    expect(canFeed(r.colony, s.name, 'aaaaaaaa-1111', 'walk-1001')).toBe('ok');
+    // It wanders on its own stream, like every stray.
+    for (let i = 0; i < 300; i++) cats.update(0.05, i * 0.05, FAR, NO_OPTS);
+    expect(Number.isFinite(s.group.position.x)).toBe(true);
+  });
+
+  it('wears a gold glow under it and a sparkle on its tag; nobody else does', () => {
+    withFakeDocument(() => {
+      const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(4), { extras: [legend()] });
+      const s = cats.strays.find((x) => x.name === 'Captain Barnacle');
+      expect(s.tag.userData.tagName).toBe('✨ Captain Barnacle');
+      const glows = glowsIn(s.group);
+      expect(glows).toHaveLength(1);
+      const [g] = glows;
+      expect(g.geometry.type).toBe('CircleGeometry');
+      expect(g.material.type).toBe('MeshBasicMaterial');
+      expect(g.material.transparent).toBe(true);
+      expect(g.material.depthWrite).toBe(false);
+      expect(g.userData.contactDecal).toBe(true);    // the shadow sweep leaves it alone
+      expect(g.rotation.x).toBeCloseTo(-Math.PI / 2); // flat on the ground
+      // A child of the cat: it follows the cat with no per-frame code, and
+      // endWalk's scene traversal frees it exactly once with the cat.
+      expect(g.parent).toBe(s.group);
+      for (const o of cats.strays.filter((x) => x !== s)) {
+        expect(glowsIn(o.group)).toHaveLength(0);
+        expect(o.tag.userData.tagName).toBe(o.name);
+      }
+      s.group.position.set(10, 0, -3);
+      const w = new THREE.Vector3();
+      g.getWorldPosition(w);
+      expect([w.x, w.z]).toEqual([10, -3]);
+    });
+  });
+
+  it('a legendary colony cat looks the part too, without an extra', () => {
+    withFakeDocument(() => {
+      const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(4), {
+        colonyCats: [{ name: 'Duchess', x: 2, z: 2, wear: null }],
+      });
+      const s = cats.strays.find((x) => x.name === 'Duchess');
+      expect(s.colony).toBe(true);
+      expect(s.tag.userData.tagName).toBe('✨ Duchess');
+      expect(glowsIn(s.group)).toHaveLength(1);
+    });
+  });
+
+  it('a cross legendary cat keeps its sparkle when it is forgiven', () => {
+    withFakeDocument(() => {
+      const cats = createStrayCats(fakeScene(), AREA, 1, mulberry32(4), { extras: [legend()], grudges: ['Captain Barnacle'] });
+      const s = cats.strays.find((x) => x.name === 'Captain Barnacle');
+      expect(s.cross).toBe(true);
+      cats.forgive(s, new THREE.Vector3());
+      expect(s.tag.userData.tagName).toBe('✨ Captain Barnacle');
+    });
+  });
+
+  it('only a legendary name with a real rng is ever an extra, and never twice', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(4), {
+      colonyCats: [{ name: 'Duchess', x: 2, z: 2, wear: null }],
+      extras: [
+        { name: 'Pickles', rng: mulberry32(1) },        // an ordinary stray name
+        { name: 'Zeetoo', rng: mulberry32(1) },         // a family pet
+        { name: 'Lord Lantern' },                       // no rng
+        { name: 'Lord Lantern', rng: 'nope' },
+        null, 7,
+        { name: 'Duchess', rng: mulberry32(1) },        // already cast as a colony cat
+        legend('Professor Whiskers'), legend('Professor Whiskers'),
+      ],
+    });
+    const names = cats.strays.map((s) => s.name);
+    expect(names.filter((n) => n === 'Duchess')).toHaveLength(1);
+    expect(names.filter((n) => n === 'Professor Whiskers')).toHaveLength(1);
+    expect(names).not.toContain('Zeetoo');
+    expect(names).not.toContain('Lord Lantern');
+    expect(cats.strays).toHaveLength(4);
+    for (const bad of [undefined, null, 'x', {}]) {
+      expect(createStrayCats(fakeScene(), AREA, 2, mulberry32(4), { extras: bad }).strays).toHaveLength(2);
+    }
+  });
+
+  it('dispose takes the extra out of the scene with everyone else', () => {
+    const scene = fakeScene();
+    const cats = createStrayCats(scene, AREA, 2, mulberry32(4), { extras: [legend()] });
+    expect(scene.objects.size).toBe(3);
+    cats.dispose();
+    expect(scene.objects.size).toBe(0);
+  });
+});
+
+// The walk-level guard, as a text slice: a co-walk with a non-partner must
+// behave exactly as it does today, so the roll and the extra live entirely
+// behind colonyWalk (solo, or partner-only) and never in the den.
+describe('game/walk.js — where a legendary cat may appear', () => {
+  const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+
+  it('a walk with a non-partner never passes extras', () => {
+    const decide = src.indexOf('const legend = colonyWalk && !isDen ? legendaryFor(');
+    expect(decide).toBeGreaterThan(-1);
+    // One roll, and only inside that guard.
+    expect(src.split('legendaryRoll(').length - 1).toBe(1);
+    expect(src.indexOf('legendaryRoll(roomSeed)')).toBeGreaterThan(decide);
+    expect(src.indexOf('legendaryRoll(roomSeed)')).toBeLessThan(src.indexOf('\n', decide));
+    // The extra list is empty unless that guard found a cat...
+    expect(src).toContain('const extras = legend ? [');
+    // ...and it is what createStrayCats is handed.
+    const call = src.indexOf('const strayCats = createStrayCats(');
+    expect(call).toBeGreaterThan(decide);
+    expect(src.slice(call, src.indexOf('});', call))).toMatch(/\n\s+extras,\n/);
+    // The extra's own rng: mulberry32 over its name and the room seed, never walkRng.
+    const ex = src.slice(src.indexOf('const extras = legend ? ['), call);
+    expect(ex).toContain('mulberry32((seedFromCode(legend) ^ (roomSeed ?? ');
+    expect(ex).not.toContain('walkRng');
+    // And none of it inside the rival's slice.
+    const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
+    expect(slice).not.toMatch(/legend/i);
   });
 });

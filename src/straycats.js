@@ -6,6 +6,7 @@ import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName } from './straynames.js';
 import { isShy } from './colony.js';
+import { isLegendaryName } from './legendary.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -171,6 +172,52 @@ export function isGrudgeableStray(strayCats, cat) {
   return Array.isArray(list) && list.includes(cat);
 }
 
+// ---------------------------------------------------------------------------
+// v21 3b — a legendary cat looks the part: a soft gold glow on the ground under
+// it and a sparkle before its name. Both are derived from the NAME at spawn
+// (isLegendaryName), never stored on the stray, so a legendary cat reads the
+// same whether it walks in as an extra or is cast as a colony cat.
+//
+// The glow is scent.js's flat decal (CircleGeometry + MeshBasicMaterial laid
+// flat), gold at its centre and clear at its rim (knockables.js's per-vertex
+// alpha). It is a CHILD of the cat's group: the root group is only ever moved
+// and turned, never tilted (animateCat poses the parts under it), so the disc
+// follows the cat with no per-frame code, and endWalk's scene traversal frees
+// its geometry and material exactly once, with the cat. contactDecal keeps
+// walk.js's shadow sweep off it. Strays spawn long after mergeStaticProps, so
+// it is never merged.
+// ---------------------------------------------------------------------------
+const LEGEND_GLOW_RADIUS = 0.75;
+const LEGEND_GLOW_ALPHA = 0.55;
+const LEGEND_GLOW_RGB = [1, 0.84, 0.4];   // soft gold
+const LEGEND_MARK = '✨';
+
+function legendGlow() {
+  const geo = new THREE.CircleGeometry(LEGEND_GLOW_RADIUS, 20);
+  const rgba = new Float32Array(geo.attributes.position.count * 4);
+  for (let v = 0; v < geo.attributes.position.count; v++) rgba.set(LEGEND_GLOW_RGB, v * 4);
+  rgba[3] = LEGEND_GLOW_ALPHA;             // vertex 0 is the centre; the rim stays clear
+  geo.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false });
+  const glow = new THREE.Mesh(geo, mat);
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.03;
+  glow.castShadow = false;
+  glow.receiveShadow = false;
+  glow.userData.contactDecal = true;
+  glow.userData.legendGlow = true;
+  return glow;
+}
+
+// The tag label and the glow, for any stray by name. Not legendary: the name
+// as it always was, and nothing added.
+function tagLabel(name) {
+  return isLegendaryName(name) ? `${LEGEND_MARK} ${name}` : name;
+}
+function dressLegend(group, name) {
+  if (isLegendaryName(name)) group.add(legendGlow());
+}
+
 function shuffled(arr, rng) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -250,8 +297,15 @@ function shuffled(arr, rng) {
 // none of them can turn up here at a random spot. It filters the list the
 // shuffle already drew, so it costs no draws either; off a colony walk it is
 // empty and the cast is exactly the pre-colony one.
+//
+// `extras` (v21 3b) is the legendary cat game/walk.js decided walks here this
+// time, `[{ name, rng }]` (empty off a colony walk and in the den). Each adds
+// one stray AFTER the ordinary cast, and draws its x, z, facing, personality
+// and first timer from ITS OWN `rng`, never from `rng` above: the walk
+// stream's position after spawn stays 47 + 5 * count (pinned with a counting
+// rng). Only a legendary name is an extra, once, and never one already cast.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
-  grudges = [], roomSeed, colonyCats = [], excludeNames = [],
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [],
 } = {}) {
   const strays = [];
   const b = area.bounds;
@@ -313,8 +367,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const personality = !fixed ? rolled : isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
 
     const cross = crossNames.has(name);
-    const tag = makeNameTag(name, { cross });
+    const tag = makeNameTag(tagLabel(name), { cross });
     if (tag) group.add(tag);
+    dressLegend(group, name);
 
     scene.add(group);
     strays.push({
@@ -345,6 +400,47 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       state: 'idle', // idle | wander | greet
       pose: 'follow',
       timer: 1 + rng() * 3, // 5th draw this iteration — same shared-stream order as above
+      greeted: false,
+      scurry: 0,
+      scurryDir: null,
+      batCooldown: 0,
+    });
+  }
+
+  // v21 3b — the extras, after the ordinary cast is complete and the walk
+  // stream is done with. Same five draws in the same order as above, off the
+  // extra's own rng; personality the colony cat's way (isShy by name, a rolled
+  // 'shy' made 'bold'), with no per-index offset so the cat is the same on a
+  // 14-stray device and a 22-stray one.
+  for (const ex of Array.isArray(extras) ? extras : []) {
+    if (!ex || !isLegendaryName(ex.name) || typeof ex.rng !== 'function') continue;
+    if (strays.some((s) => s.name === ex.name)) continue;
+    const name = ex.name;
+    const breed = strayBreed(name);
+    const group = buildCat(breed, undefined, { simple: true });
+    group.scale.multiplyScalar(0.85);
+    const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng());
+    const z = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng());
+    group.position.set(x, 0, z);
+    group.rotation.y = ex.rng() * Math.PI * 2;
+    const roll = ex.rng();
+    const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
+    const personality = isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
+    const cross = crossNames.has(name);
+    const tag = makeNameTag(tagLabel(name), { cross });
+    if (tag) group.add(tag);
+    dressLegend(group, name);
+    scene.add(group);
+    strays.push({
+      id: `stray-${strays.length}`,
+      breed, name, personality, group, tag, cross,
+      colony: false,
+      wanderRng: strayWanderRng(wanderBase, name),
+      home: new THREE.Vector3(x, 0, z),
+      target: null,
+      state: 'idle',
+      pose: 'follow',
+      timer: 1 + ex.rng() * 3,
       greeted: false,
       scurry: 0,
       scurryDir: null,

@@ -1,6 +1,11 @@
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, isStrayName } from '../src/straynames.js';
-import { LEGENDARY_BY_AREA, isLegendaryName } from '../src/legendary.js';
+import {
+  LEGENDARY_BY_AREA, isLegendaryName,
+  ODDS_EARLY, ODDS_LATE, A_COUPLE, LEGEND_SALT,
+  isFound, foundCount, legendaryOdds, legendaryFor, legendaryRoll,
+} from '../src/legendary.js';
+import { mulberry32 } from '../src/rng.js';
 import { COLONY_AREAS, TAME_FEEDS, emptyColony, feedCat, isShy } from '../src/colony.js';
 import { isGrudgeableStray } from '../src/straycats.js';
 import { CATALOG } from '../src/progression.js';
@@ -83,5 +88,102 @@ test('a legendary cat can be fed and tamed through the ordinary feed path', () =
     // An ordinary colony cat: exactly the fields any fed stray gets, no more.
     expect(Object.keys(cat).sort()).toEqual(['area', 'finder', 'name', 'tamedBy', 'tamedWalk', 'wear', 'x', 'z']);
     expect(cat.tamedBy).toBe(ME);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// v21 3b Task 18 — finding a legendary cat.
+// ---------------------------------------------------------------------------
+const saveWith = ({ friends = {}, cats = [] } = {}) => ({ friends, colony: { ...emptyColony(), cats } });
+const colonyCat = (name, area, tamedBy = null) => ({ name, area, x: 1, z: 2, finder: 'me', wear: null, tamedBy, tamedWalk: null });
+
+test('the odds are pinned', () => {
+  expect([ODDS_EARLY, ODDS_LATE, A_COUPLE, LEGEND_SALT]).toEqual([1 / 5, 1 / 20, 2, 0x1e6e7d00]);
+});
+
+test('one in five until a couple are found, then one in twenty', () => {
+  expect(legendaryOdds(0)).toBe(1 / 5); expect(legendaryOdds(1)).toBe(1 / 5);
+  expect(legendaryOdds(2)).toBe(1 / 20); expect(legendaryOdds(4)).toBe(1 / 20);
+});
+
+test('found means I greeted it or it is a colony cat, read off the save alone', () => {
+  expect(isFound(saveWith(), 'Duchess')).toBe(false);
+  expect(isFound(saveWith({ friends: { Duchess: { breed: 'tabby', greets: 0, lastWalk: null } } }), 'Duchess')).toBe(false);
+  expect(isFound(saveWith({ friends: { Duchess: { breed: 'tabby', greets: 1, lastWalk: 'w' } } }), 'Duchess')).toBe(true);
+  expect(isFound(saveWith({ cats: [colonyCat('Duchess', 'neighborhood')] }), 'Duchess')).toBe(true);
+  expect(isFound(saveWith({ cats: [colonyCat('Duchess', 'neighborhood', 'me')] }), 'Duchess')).toBe(true);
+  // Total over garbage, own properties only.
+  for (const bad of [null, undefined, {}, { friends: null, colony: null }, { friends: { Duchess: { greets: 'lots' } } },
+    { friends: { Duchess: { greets: NaN } } }, { friends: Object.create({ Duchess: { greets: 9 } }) },
+    { colony: { cats: 'Duchess' } }, { colony: { cats: [null, 7] } }]) {
+    expect(isFound(bad, 'Duchess')).toBe(false);
+  }
+  expect(isFound(saveWith(), '__proto__')).toBe(false);
+  expect(isFound(saveWith(), 42)).toBe(false);
+  expect(foundCount(saveWith({
+    friends: { Duchess: { greets: 2 }, Pickles: { greets: 9 } },
+    cats: [colonyCat('Lord Lantern', 'docks')],
+  }))).toBe(2);
+  expect(foundCount(null)).toBe(0);
+});
+
+test('a found cat always comes back until it is fed; a colony cat is cast as one instead', () => {
+  const met = saveWith({ friends: { 'Captain Barnacle': { breed: 'tabby', greets: 1, lastWalk: 'w' } } });
+  // Found and not fed: every walk, whatever the roll.
+  for (const u of [0, 0.5, 0.999]) expect(legendaryFor(met, 'seaside', u)).toBe('Captain Barnacle');
+  // Fed once (an untamed colony cat): cast as a colony cat at its spot, so no extra.
+  const fed = saveWith({ friends: met.friends, cats: [colonyCat('Captain Barnacle', 'seaside')] });
+  for (const u of [0, 0.5]) expect(legendaryFor(fed, 'seaside', u)).toBe(null);
+  // Tamed: it lives in the den now, so it never wanders in as an extra either.
+  const tamed = saveWith({ friends: met.friends, cats: [colonyCat('Captain Barnacle', 'seaside', 'me')] });
+  expect(legendaryFor(tamed, 'seaside', 0)).toBe(null);
+  // Unfound: only on a lucky roll, one in five while fewer than a couple are found...
+  const none = saveWith();
+  expect(legendaryFor(none, 'seaside', 0.19)).toBe('Captain Barnacle');
+  expect(legendaryFor(none, 'seaside', 0.2)).toBe(null);
+  // ...and one in twenty after.
+  const two = saveWith({ friends: { Duchess: { greets: 1 }, 'Professor Whiskers': { greets: 3 } } });
+  expect(legendaryFor(two, 'seaside', 0.04)).toBe('Captain Barnacle');
+  expect(legendaryFor(two, 'seaside', 0.06)).toBe(null);
+  // Each area has its own cat.
+  for (const [area, name] of Object.entries(LEGENDARY_BY_AREA)) expect(legendaryFor(none, area, 0)).toBe(name);
+});
+
+test('the den, unknown areas and a bad roll show no legendary cat', () => {
+  const met = saveWith({ friends: { Duchess: { greets: 1 } } });
+  for (const area of ['den', 'moon', '__proto__', 'constructor', 'toString', '', null, undefined, 3]) {
+    expect(legendaryFor(met, area, 0)).toBe(null);
+  }
+  for (const u of [NaN, Infinity, -Infinity, undefined, null, '0']) {
+    expect(legendaryFor(met, 'neighborhood', u)).toBe(null);
+    expect(legendaryFor(saveWith(), 'neighborhood', u)).toBe(null);
+  }
+  expect(legendaryFor(null, 'neighborhood', 0)).toBe('Duchess');   // no save: unfound, lucky roll
+});
+
+test('partners roll the same number; solo rolls do not touch walkRng', () => {
+  // A room walk: the same seed, the same u, on every client, and it is not the
+  // walk stream's first value (which would tie the roll to the name shuffle).
+  for (const seed of [1, 42, 0xdeadbeef, 2 ** 31 - 1]) {
+    expect(legendaryRoll(seed)).toBe(legendaryRoll(seed));
+    expect(legendaryRoll(seed)).toBe(mulberry32((seed ^ LEGEND_SALT) >>> 0)());
+    expect(legendaryRoll(seed)).not.toBe(mulberry32(seed)());
+    const u = legendaryRoll(seed);
+    expect(u >= 0 && u < 1).toBe(true);
+  }
+  const spy = vi.spyOn(Math, 'random');
+  try {
+    // A room walk never calls Math.random...
+    legendaryRoll(7);
+    expect(spy).not.toHaveBeenCalled();
+    // ...and solo it is exactly one Math.random(): the solo walk's own
+    // unseeded stream, which nobody shares. It takes no rng argument at all,
+    // so it cannot be handed walkRng by mistake.
+    spy.mockReturnValueOnce(0.123);
+    expect(legendaryRoll(undefined)).toBe(0.123);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(legendaryRoll.length).toBe(1);
+  } finally {
+    spy.mockRestore();
   }
 });
