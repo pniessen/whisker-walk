@@ -34,17 +34,21 @@ export function ordinal(n) {
 }
 
 // "a" or "an" by the first letter, so "an Admiral Hat" works if one is added.
+// Plural names ("Star Sunglasses", "Golden Paw Booties") take no article: ''.
 export function article(name) {
-  return /^[aeiou]/i.test(String(name ?? '').trim()) ? 'an' : 'a';
+  const n = String(name ?? '').trim();
+  if (/s$/i.test(n) && !/ss$/i.test(n)) return '';
+  return /^[aeiou]/i.test(n) ? 'an' : 'a';
 }
 
 function aName(name) {
   const n = String(name ?? 'surprise');
-  return `${article(n)} ${n}`;
+  const a = article(n);
+  return a ? `${a} ${n}` : n;
 }
 
-export function confettiHtml(visit, rng = Math.random) {
-  const count = confettiCount(visit);
+export function confettiHtml(visit, rng = Math.random, countOverride) {
+  const count = countOverride ?? confettiCount(visit);
   let out = '<div class="visit-confetti" aria-hidden="true">';
   for (let i = 0; i < count; i++) {
     const left = (rng() * 100).toFixed(1);
@@ -59,14 +63,18 @@ export function confettiHtml(visit, rng = Math.random) {
 // The inner markup of the card for one stage: 'start' (what shows first) or
 // 'revealed' (after the present is opened). Cycle-backs have no present, so
 // they only ever use 'start'. Pure and escaped.
-export function celebrationHtml(milestone, { petName, stage = 'start' } = {}) {
+export function celebrationHtml(milestone, { petName, stage = 'start', thumb } = {}) {
   const m = milestone || {};
   const n = Number(m.visit) || 0;
   const prize = m.prize || {};
   const isNew = prize.isNew !== false;
   const name = escapeHtml(prize.name ?? 'surprise');
-  const cat = escapeHtml(petName || 'your cat');
+  const cat = escapeHtml(petName || 'Your cat');
   const style = m.style || 'A';
+  const prizeShow = thumb
+    ? `<img class="visit-cel-thumb" src="${escapeHtml(thumb)}" alt="${name}">`
+    : `<div class="visit-cel-prize">${name}</div>`;
+  const itsLine = `It's ${escapeHtml(aName(prize.name))}!`;
   const wear = '<button class="visit-cel-btn secondary" data-vc="wear">Wear it</button>';
   const yay = '<button class="visit-cel-btn" data-vc="done">Yay!</button>';
 
@@ -82,12 +90,12 @@ export function celebrationHtml(milestone, { petName, stage = 'start' } = {}) {
   if (style === 'C') {
     let bubble;
     if (!isNew) bubble = `You came back! Visit ${n}! Remember this? You looked great in it!`;
-    else if (stage === 'revealed') bubble = `It's ${escapeHtml(aName(prize.name))}!`;
+    else if (stage === 'revealed') bubble = `${itsLine}`;
     else if (n === 1) bubble = 'Hi! This is our first visit together. I found something for you…';
     else bubble = `You came back! This is our ${ordinal(n)} visit. I found something for you…`;
     let body = `<div class="visit-cel-bubble">${bubble}</div>`;
-    if (!isNew) body += `<div class="visit-cel-prize">${name}</div>${wear}${yay}`;
-    else if (stage === 'revealed') body += `<div class="visit-cel-prize">${name}</div>`;
+    if (!isNew) body += `${prizeShow}${wear}${yay}`;
+    else if (stage === 'revealed') body += prizeShow;
     else body += '<button class="visit-cel-gift" data-vc="open" aria-label="Open the present">🎁</button>';
     return `<div class="visit-cel-card">${body}</div>`;
   }
@@ -96,16 +104,22 @@ export function celebrationHtml(milestone, { petName, stage = 'start' } = {}) {
   if (!isNew) {
     return `<div class="visit-cel-card"><div class="visit-cel-title">Visit #${n}!</div>
       <div class="visit-cel-line">Remember this? You looked great in it!</div>
-      <div class="visit-cel-prize">${name}</div>${wear}${yay}</div>`;
+      ${prizeShow}${wear}${yay}</div>`;
   }
   if (stage === 'revealed') {
     return `<div class="visit-cel-card"><div class="visit-cel-title">Visit #${n}!</div>
-      <div class="visit-cel-line">It's ${escapeHtml(aName(prize.name))}!</div>
-      <div class="visit-cel-prize">${name}</div>${yay}</div>`;
+      <div class="visit-cel-line">${itsLine}</div>
+      ${prizeShow}${yay}</div>`;
   }
   return `<div class="visit-cel-card"><div class="visit-cel-title">Visit #${n}!</div>
     <div class="visit-cel-line">You've come back ${n} times!</div>
     <button class="visit-cel-btn gift" data-vc="open">🎁 Open it!</button></div>`;
+}
+
+const REVEAL_LOCK_MS = 500;
+
+function safe(fn, ...args) {
+  try { fn(...args); } catch (err) { console.warn('visit celebration callback failed', err); }
 }
 
 export function createVisitCelebration(mount, {
@@ -133,7 +147,7 @@ export function createVisitCelebration(mount, {
   function finish(reason) {
     if (!root) return;
     teardown();
-    onClose(reason);
+    safe(onClose, reason);
   }
 
   function fadeThenClose(holdMs) {
@@ -143,8 +157,44 @@ export function createVisitCelebration(mount, {
     }, holdMs));
   }
 
+  function focusButton(sel) {
+    try { card?.querySelector?.(sel)?.focus?.(); } catch { /* focus is a nicety */ }
+  }
+
   function setCard(stage) {
-    card.innerHTML = celebrationHtml(current.milestone, { petName: current.petName, stage });
+    card.innerHTML = celebrationHtml(current.milestone, { petName: current.petName, stage, thumb: current.thumb });
+  }
+
+  // Style C hangs next to the cat. anchor is an Element or a () => DOMRect.
+  function place(anchor) {
+    const view = mount.ownerDocument?.defaultView;
+    const vw = view?.innerWidth || 375;
+    const vh = view?.innerHeight || 812;
+    let rect = null;
+    try {
+      rect = typeof anchor === 'function' ? anchor() : anchor?.getBoundingClientRect?.();
+    } catch { rect = null; }
+    const width = Math.min(260, vw - 24);
+    let left; let top;
+    if (rect && rect.width > 0) {
+      left = rect.left + rect.width / 2 - width / 2;
+      if (rect.top >= 150) {
+        top = rect.top - 140; // just above the cat
+      } else {
+        // No room above: sit beside the cat, on the roomier side, inside the stage.
+        top = Math.max(8, rect.top + 8);
+        const roomR = vw - rect.right; const roomL = rect.left;
+        left = roomR >= roomL ? Math.min(rect.right + 4, vw - width - 12) : Math.max(12, rect.left - width - 4);
+      }
+      top = Math.min(top, Math.max(8, rect.bottom - 120)); // never down over Start
+    } else {
+      left = (vw - width) / 2;
+      top = vh * 0.12; // upper third
+    }
+    left = Math.max(12, Math.min(left, vw - width - 12));
+    top = Math.max(8, top);
+    card.classList.add('anchored');
+    if (card.style) card.style.cssText = `left:${Math.round(left)}px;top:${Math.round(top)}px;width:${Math.round(width)}px`;
   }
 
   function handleClick(ev) {
@@ -154,46 +204,66 @@ export function createVisitCelebration(mount, {
     const { milestone } = current;
     if (action === 'open' && !current.opened) {
       current.opened = true;
-      onOpen(milestone);
+      // "Yay!" lands under the finger after the re-render; swallow the second
+      // tap of a double-tap.
+      current.locked = true;
+      timers.push(setTimer(() => { if (current) current.locked = false; }, REVEAL_LOCK_MS));
+      if (milestone.style === 'C') fadeThenClose(C_REVEAL_HOLD_MS);
+      safe(onOpen, milestone);
+      if (!root) return; // onOpen may have closed us
       setCard('revealed');
       root.classList.add('revealed');
-      if (milestone.style === 'C') fadeThenClose(C_REVEAL_HOLD_MS);
+      if (current.thumb) {
+        const burst = mount.ownerDocument.createElement('div');
+        burst.innerHTML = confettiHtml(milestone.visit, rng, 30);
+        root.appendChild(burst);
+      }
+      focusButton('[data-vc="done"]');
     } else if (action === 'wear') {
-      onWear(milestone.prize.id);
+      safe(onWear, milestone.prize.id);
     } else if (action === 'done') {
+      if (current.locked) return;
       finish('done');
     }
   }
 
   return {
-    show(milestone, { petName } = {}) {
+    show(milestone, { petName, anchor, thumb } = {}) {
       if (root || !milestone) return false;
       const style = ['A', 'B', 'C'].includes(milestone.style) ? milestone.style : 'A';
       const m = { ...milestone, style };
       const isNew = m.prize?.isNew !== false;
       const doc = mount.ownerDocument;
-      current = { milestone: m, petName, opened: false };
+      current = { milestone: m, petName, thumb, opened: false, locked: false };
       root = doc.createElement('div');
       root.className = `visit-cel style-${style.toLowerCase()}${isNew ? '' : ' cycle'}`;
-      root.setAttribute?.('role', 'dialog');
-      root.innerHTML = (style === 'B' ? '' : '<div class="visit-cel-dim"></div>') + confettiHtml(m.visit, rng);
+      if (style === 'A') {
+        root.setAttribute?.('role', 'dialog');
+        root.setAttribute?.('aria-modal', 'true');
+        root.setAttribute?.('aria-label', `Visit ${m.visit}`);
+      } else {
+        root.setAttribute?.('role', 'status');
+      }
+      root.innerHTML = (style === 'A' ? '<div class="visit-cel-dim"></div>' : '') + confettiHtml(m.visit, rng);
       card = doc.createElement('div');
       card.className = 'visit-cel-wrap';
       root.appendChild(card);
       root.addEventListener('click', handleClick);
       setCard('start');
+      if (style === 'C') place(anchor);
       mount.appendChild(root);
 
-      if (style === 'B') {
-        onOpen(m);
-        fadeThenClose(B_HOLD_MS);
-      } else if (!isNew) {
-        // A cycle-back has no present to open: the card itself is the reveal.
-        // The player is the one who chooses to wear it, so onOpen is just the
-        // "something nice happened" signal; main must not wear anything.
+      // Timers are armed before any callback runs, so a throwing callback
+      // can never leave a card that never goes away.
+      if (style === 'B') fadeThenClose(B_HOLD_MS);
+      else if (!isNew && style === 'C') fadeThenClose(C_CYCLE_HOLD_MS);
+      if (style === 'B' || !isNew) {
         current.opened = true;
-        onOpen(m);
-        if (style === 'C') fadeThenClose(C_CYCLE_HOLD_MS);
+        // A cycle-back has no present: the card itself is the reveal. main
+        // must not wear anything when prize.isNew is false.
+        safe(onOpen, m);
+      } else {
+        focusButton('[data-vc="open"]');
       }
       return true;
     },
