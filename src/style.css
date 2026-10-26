@@ -967,7 +967,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
 }
 .style-c .visit-cel-gift { position: absolute; left: var(--vc-gift-x, 0); top: 65%; width: 56px; height: 56px; padding: 0; pointer-events: auto; }
 .style-c .visit-cel-side {
-  position: absolute; right: 12px; top: 65%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
   max-width: 45%; pointer-events: auto; text-align: right;
 }
 .visit-cel-btn, .visit-cel-gift {

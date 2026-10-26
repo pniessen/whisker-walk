@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { celebrationHtml, createVisitCelebration, ordinal, article } from '../src/ui/visitcelebration.js';
 import { confettiCount } from '../src/visits.js';
@@ -301,7 +302,7 @@ describe('createVisitCelebration', () => {
   });
 
   it('C never shows the thumb, even on the reveal; A does', () => {
-    const { cel, root, t } = setup();
+    const { cel, root } = setup();
     cel.show(ms(10, 'C'), { thumb: 'cat.png' });
     click(root(), 'open');
     expect(html(root())).not.toContain('cat.png');
@@ -309,7 +310,6 @@ describe('createVisitCelebration', () => {
     const a = setup(); a.cel.show(ms(10, 'A'), { thumb: 'hat.png' });
     click(a.root(), 'open');
     expect(html(a.root())).toContain('hat.png');
-    void t;
   });
 
   it('a throwing onOpen does not strand B', () => {
@@ -322,5 +322,16 @@ describe('createVisitCelebration', () => {
     expect(mount.children).toHaveLength(0);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('cycle-back C: the side column is bottom-anchored inside the wrap; tall anchors are clamped', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.style-c \.visit-cel-side\s*\{([^}]*)\}/)[1];
+    expect(rule).toMatch(/bottom:\s*12px/);
+    expect(rule).not.toMatch(/(^|[;\s])top:/);
+    const { cel, root } = setup();
+    cel.show(ms(10, 'C', false), { anchor: () => ({ left: 14, top: 79, width: 347, height: 2000 }) });
+    expect(html(root())).toContain('visit-cel-side');
+    expect(root().children[0].style.cssText).toContain('height:733px'); // 812 - 79
   });
 });

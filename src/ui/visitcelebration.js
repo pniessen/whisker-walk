@@ -187,6 +187,7 @@ export function createVisitCelebration(mount, {
     left = Math.max(0, Math.min(left, vw - 1));
     width = Math.max(1, Math.min(width, vw - left));
     top = Math.max(0, top);
+    height = Math.max(1, Math.min(height, vh - top));
     const bubbleW = Math.min(width, Math.max(180, Math.floor(width * 0.58)));
     const giftX = Math.max(0, Math.round(width - 12 - GIFT_SIZE));
     card.classList.add('anchored');
