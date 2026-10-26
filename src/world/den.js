@@ -657,22 +657,73 @@ export function build(scene, { placed = {}, wind } = {}) {
   sillPlant.position.y = SILL_Y;
   scene.add(sillPlant);
 
-  for (const spot of DEN_SPOTS) {
-    const itemId = placed[spot.id];
+  // The player's furniture. One code path for the build and for the den
+  // shop's live re-place (v21 Stream 5), so a piece placed during a walk adds
+  // exactly what it would have added at build time: its mesh to the scene,
+  // its collider, perches and hide-box to the SAME arrays the walk holds
+  // (mutated in place, never replaced — player.update, interactions.js and
+  // avatar.js read them off areaData every frame or every press).
+  const pieces = new Map(); // spotId -> { itemId, mesh, collider, perches, box }
+  function addPiece(spot, itemId, prepare) {
     // An id the catalog no longer knows (a save written by a newer build, a
     // hand-edited payload) simply leaves the spot empty — same "unknown data
     // is dropped, never thrown on" posture as progression.js's sanitizeDen.
-    const builder = itemId && BUILDERS[itemId];
-    if (!builder) continue;
+    const builder = typeof itemId === 'string' && Object.hasOwn(BUILDERS, itemId) ? BUILDERS[itemId] : null;
+    if (!builder) return null;
     const built = builder(spot);
+    const own = [...(built.perch ? [built.perch] : []), ...(built.perches ?? [])];
+    prepare?.(built.mesh);
     scene.add(built.mesh);
     if (built.collider) colliders.push(built.collider);
-    if (built.perch) perches.push(built.perch);
-    for (const p of built.perches ?? []) perches.push(p);
+    for (const p of own) perches.push(p);
     if (built.box) boxes.push(built.box);
+    pieces.set(spot.id, { itemId, mesh: built.mesh, collider: built.collider ?? null, perches: own, box: built.box ?? null });
+    return built.mesh;
+  }
+  const drop = (arr, item) => {
+    const i = arr.indexOf(item);
+    if (i >= 0) arr.splice(i, 1);
+  };
+  function removePiece(spotId) {
+    const piece = pieces.get(spotId);
+    if (!piece) return null;
+    pieces.delete(spotId);
+    piece.mesh.removeFromParent();
+    if (piece.collider) drop(colliders, piece.collider);
+    for (const p of piece.perches) drop(perches, p);
+    if (piece.box) drop(boxes, piece.box);
+    return piece;
   }
 
+  for (const spot of DEN_SPOTS) addPiece(spot, placed[spot.id]);
+
+  // furniture.place(spotId, itemId | null, { prepare }) re-places ONE spot in
+  // the running den. Returns { added, removed, removedPerches }: the new
+  // top-level object (already in the scene; `prepare(mesh)` runs just before
+  // it joins), the old one (already out of the scene, NOT disposed — the
+  // caller owns its GPU resources and its contact decal), and the perches
+  // that went with the old one, by identity, so a cat sitting on one can be
+  // set down. The same piece again, an unknown spot, or clearing an empty
+  // spot changes nothing. See game/denlive.js for the walk-side half (merge,
+  // shadow casters, contact decals, a perched cat).
+  const NOTHING = () => ({ added: null, removed: null, removedPerches: [] });
+  const furniture = {
+    at(spotId) {
+      return pieces.get(spotId)?.itemId ?? null;
+    },
+    place(spotId, itemId, { prepare } = {}) {
+      const spot = DEN_SPOTS.find((s) => s.id === spotId);
+      if (!spot) return NOTHING();
+      const known = typeof itemId === 'string' && Object.hasOwn(BUILDERS, itemId) ? itemId : null;
+      if (furniture.at(spotId) === known) return NOTHING();
+      const old = removePiece(spotId);
+      const added = known ? addPiece(spot, known, prepare) : null;
+      return { added, removed: old?.mesh ?? null, removedPerches: old?.perches ?? [] };
+    },
+  };
+
   return {
+    furniture,
     name: 'Your Den',
     colliders,
     bounds: { minX: -BOUND, maxX: BOUND, minZ: -BOUND, maxZ: BOUND },

@@ -45,6 +45,10 @@ export function nightEyesLighting({ dusk = false, nightEyes = false, baseExposur
   };
 }
 
+// Bloom's built strength, and what the adaptive adapter (game/adaptquality.js)
+// fades from and resets to.
+export const BLOOM_STRENGTH = 0.35;
+
 export function createComposerRig(renderer, camera) {
   // The app's calibrated base exposure, read off the renderer main.js already
   // configured (main.js sets toneMappingExposure before constructing the rig)
@@ -74,7 +78,7 @@ export function createComposerRig(renderer, camera) {
     renderPass = new RenderPass(new THREE.Scene(), camera); // scene swapped per walk in startWalk
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.35,  // strength — gentle
+      BLOOM_STRENGTH,  // gentle
       0.6,   // radius
       // threshold sits above 1.0 so plain whites (fur, whiskers, clouds —
       // which top out at ~1.0 in the HDR buffer) never bloom; only surfaces
@@ -135,6 +139,18 @@ export function createComposerRig(renderer, camera) {
     }
   }
 
+  // Adaptive quality hooks (game/adaptquality.js). EffectComposer caches the
+  // renderer's pixel ratio when it is built, so a mid-walk or next-walk change
+  // to renderer.setPixelRatio has to be forwarded here too. Both are no-ops
+  // until ensure() has built the composer.
+  function setPixelRatio(pr) {
+    if (composer) composer.setPixelRatio(pr);
+  }
+
+  function setBloomStrength(s) {
+    if (bloomPass) bloomPass.strength = s;
+  }
+
   // applyLighting(scene, …) — called once per walk from startWalk, after
   // duskActive is known. Sets BOTH levers unconditionally (not only when the
   // ability is on), because toneMappingExposure is renderer-global state that
@@ -157,5 +173,8 @@ export function createComposerRig(renderer, camera) {
     renderer.toneMappingExposure = baseExposure;
   }
 
-  return { ensure, attachScene, renderFrame, resize, applyLighting, resetLighting, baseExposure };
+  return {
+    ensure, attachScene, renderFrame, resize, applyLighting, resetLighting, baseExposure,
+    setPixelRatio, setBloomStrength,
+  };
 }

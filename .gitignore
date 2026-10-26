@@ -10,6 +10,15 @@ dist/
 # tested. Kept out of the repo because they are scratch, but kept ON DISK
 # because the visual pass has caught defects the suite structurally cannot.
 verify-*.html
+# These four import src/render/rig.js, so they are kept in the repo where a rig change cannot leave them behind. The other verify pages stay scratch.
+!verify-park.html
+!verify-docks.html
+!verify-seaside.html
+!verify-neighborhood.html
+# These three import the stage/controller/rig too: the dressing room's sign-off record and the source of the place pictures.
+!verify-dressingroom-mockup.html
+!verify-dressingroom.html
+!verify-places.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

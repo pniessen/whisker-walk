@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dressing room harness</title>
+<!-- v21 Stream 5, Task 4: the real controller, styles, stage and a real
+     progression on an in-memory save (the mockup's sample save). Nothing is
+     written to localStorage. URL params: ?long=1 (room joined, dusk on,
+     every chip), ?pill=where|more, ?nogl=1 (pretend WebGL is missing). -->
+<style>
+  .harness { max-width: 1000px; margin: 30px auto 60px; padding: 12px 20px; color: #a8c0e0; font: 13px/1.5 sans-serif;
+             border-top: 1px dashed #33425e; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .harness button { padding: 8px 12px; border-radius: 8px; border: 1px solid #5b6c88; background: #2c3d58; color: #fff; }
+  .harness output { flex: 1 0 100%; color: #f2c14e; }
+</style>
+</head>
+<body>
+<div id="homebase"><div id="root"></div>
+  <div class="harness">
+    <b>Harness:</b>
+    <button id="h-normal">Sample state</button>
+    <button id="h-long">Long state (room, dusk, every chip)</button>
+    <button id="h-points">+100 points</button>
+    <output id="h-out">—</output>
+  </div>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import { CATALOG, createProgression, rankFor } from '/src/progression.js';
+  import { SKILLS } from '/src/skills.js';
+  import { GOLD_TOTAL } from '/src/goldmice.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { menuThumbnails } from '/src/thumbnails.js';
+  import { createCatStage } from '/src/ui/catstage.js';
+  import { renderStartButtonHtml } from '/src/ui/colonypanel.js';
+  import { createDressingRoom } from '/src/ui/dressingroomview.js';
+
+  const params = new URLSearchParams(location.search);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $ = (id) => document.getElementById(id);
+  const out = (msg) => { $('h-out').textContent = msg; };
+
+  // ---- an in-memory save seeded with the mockup's sample ----
+  function memoryStorage() {
+    const m = new Map();
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  }
+  function seeded(long) {
+    const blank = JSON.parse(JSON.stringify(createProgression(memoryStorage()).state));
+    Object.assign(blank, {
+      points: 85, lifetimePoints: 230, bestWalk: 42,
+      streak: { last: new Date().toISOString().slice(0, 10), count: 3 },
+      skills: SKILLS.slice(0, 2).map((s) => s.id),
+      area: 'park', walks: { ...blank.walks, neighborhood: 5, park: 1 },
+    });
+    blank.unlocked = { cats: ['tabby', 'black', 'calico', 'zeetoo'], accessories: ['bell', 'bandana', 'glow', 'crown', 'glasses'], areas: ['neighborhood', 'park'] };
+    blank.equipped = { cat: 'calico', collar: 'glow', head: null, face: null, neck: 'bandana', body: null, back: null, feet: null };
+    if (long) {
+      blank.race = { date: new Date().toISOString().slice(0, 10), area: 'park', bestMs: 41234 };
+      blank.kitten = { stage: 3 };
+    }
+    const store = memoryStorage();
+    store.setItem('whisker-walk-save', JSON.stringify(blank));
+    return createProgression(store);
+  }
+
+  let long = params.get('long') === '1';
+  let progression = seeded(long);
+  const golden = 3; // display only, as in the mockup
+  const thumbs = menuThumbnails();
+  const stage = params.get('nogl') === '1'
+    ? createCatStage({ buildCat, thumbs, createRenderer: () => { throw new Error('no WebGL (harness)'); } })
+    : createCatStage({ buildCat, thumbs });
+  let dressing = null;
+
+  // ---- the owner's pieces (homebase renders these in Task 5) ----
+  function headerHtml(s) {
+    const rank = rankFor(s.lifetimePoints);
+    const next = rank.next ? `${rank.next.at - s.lifetimePoints} to ${esc(rank.next.title)}` : 'top rank!';
+    return `<div class="dr-title">🐾 Whisker Walk</div><div class="dr-chip gold">🐾 ${s.points}</div>`
+      + `<div class="dr-chip">🏆 ${esc(rank.title)} → ${next}</div>`
+      + (long ? '<div class="dr-chip">👥 Walking together with Pip</div>' : '');
+  }
+  function statsHtml(s) {
+    return (s.streak.count >= 2 ? `<div class="dr-chip">🔥 ${s.streak.count}-day streak</div>` : '')
+      + `<div class="dr-chip">best walk ${s.bestWalk} 🐾</div>`
+      + (s.race?.bestMs ? `<div class="dr-chip">Today’s race best: ${(s.race.bestMs / 1000).toFixed(1)}s 🏁</div>` : '')
+      + (s.kitten?.stage === 3 ? '<div class="dr-chip">🐱 Mochi lives with you now</div>' : '')
+      + `<div class="dr-chip">🥇 ${golden} of ${GOLD_TOTAL} golden mice</div>`;
+  }
+  const room = () => (long ? { code: 'ABCD', starting: false } : null);
+  function startHtml() { return renderStartButtonHtml(room()); }
+  function extrasHtml(s) {
+    const glowReady = s.equipped.collar === 'glow';
+    return (glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${long ? 'checked' : ''} /> Dusk walk ✨</label>` : '')
+      + (room() ? '' : '<button id="btn-visit-den">Visit your den 🏠</button>');
+  }
+
+  function render() {
+    const s = progression.state;
+    const root = $('root');
+    root.innerHTML = dressing.html({ headerHtml: headerHtml(s), statsHtml: statsHtml(s), startHtml: startHtml(), extrasHtml: extrasHtml(s) });
+    dressing.afterRender(root);
+  }
+  function build() {
+    dressing = createDressingRoom({
+      progression, catalog: CATALOG, stage, thumbs,
+      sync: { autoSync: () => out('autoSync() called') },
+      onChange: render,
+      onOpenSheet: (id) => out(`would open the ${id} sheet`),
+    });
+    render();
+  }
+  build();
+  $('root').addEventListener('click', (e) => {
+    if (dressing.handleClick(e)) return;
+    if (e.target.closest('#btn-start')) {
+      dressing.clearPreview();
+      const s = progression.state;
+      const acc = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'].map((k) => s.equipped[k]).filter(Boolean).join(', ');
+      out(`walk would use ${s.equipped.cat} wearing ${acc || 'nothing'} in ${s.area}`);
+      render();
+    } else if (e.target.closest('#btn-visit-den')) out('would visit the den');
+  });
+  const startPill = params.get('pill');
+  if (startPill) $('root').querySelector(`[data-dr-pill="${CSS.escape(startPill)}"]`)?.click();
+  // ?cat=<id> taps that portrait; ?try=<accessory id> opens its slot and tries it on
+  const pick = (sel) => $('root').querySelector(sel)?.click();
+  if (params.get('cat')) pick(`[data-dr-cat="${CSS.escape(params.get('cat'))}"]`);
+  const tryId = params.get('try');
+  if (tryId && CATALOG.accessories[tryId]) {
+    pick(`[data-dr-slot="${CATALOG.accessories[tryId].slot}"]`);
+    pick(`[data-dr-acc="${CSS.escape(tryId)}"][data-dr-act="try"]`);
+  }
+
+  $('h-normal').onclick = () => { long = false; progression = seeded(false); build(); out('sample state'); };
+  $('h-long').onclick = () => { long = true; progression = seeded(true); build(); out('long state'); };
+  $('h-points').onclick = () => { progression.addPoints(100); render(); out('+100 points'); };
+
+  window.harness = { get dressing() { return dressing; }, get progression() { return progression; }, stage, render };
+  document.title = 'Dressing room harness';
+</script>
+</body>
+</html>

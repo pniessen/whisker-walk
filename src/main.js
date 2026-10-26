@@ -8,6 +8,7 @@ import { renderNewsHtml } from './ui/colonypanel.js';
 import { buildEnvMap } from './render/materials.js';
 import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
+import { createPerfHud } from './ui/perfhud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
@@ -26,7 +27,9 @@ import { createInteractions } from './game/interactions.js';
 import { createAvatarUpdater } from './game/avatar.js';
 import { createRooms } from './game/rooms.js';
 import { createComposerRig } from './game/composer.js';
+import { createQualityAdapter } from './game/adaptquality.js';
 import { createWalkLifecycle } from './game/walk.js';
+import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
@@ -89,10 +92,13 @@ if (!renderer) {
 }
 
 function init() {
-  // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap —
-  // matches the shadow/stray-count tuning in startWalk below, all in service
-  // of keeping frame time down on weaker mobile GPUs.
+  // coarse-pointer devices (phones/tablets) get a lower pixel-ratio cap here,
+  // for the home base only. Walks no longer key off the pointer: each walk's
+  // pixel ratio, shadows and stray count come from its quality rung, which
+  // game/adaptquality.js picks (and sets the pixel ratio for) at walk start.
   const coarse = matchMedia('(pointer: coarse)').matches;
+  // ?perf forces the readout on for this page load only; it is never saved.
+  const perfFlag = new URLSearchParams(location.search).has('perf');
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -133,6 +139,11 @@ function init() {
   const progression = createProgression(window.localStorage);
   const album = createAlbum(window.localStorage);
   const settings = createSettings(window.localStorage);
+  // Adaptive Auto quality: every device starts a walk on the high rung and
+  // steps down live if its frames stay slow; the step is remembered per
+  // device in localStorage['whisker-walk-adapt'] (never the save).
+  const qualityAdapter = createQualityAdapter({ renderer, composerRig, storage: window.localStorage });
+  const perfHud = createPerfHud({ renderer, settings, coarse, adapter: qualityAdapter });
   const log = createDiscoveryLog(progression);
 
   // Cloud save wiring (lazy capability handles + the home base's Sync ☁️
@@ -190,6 +201,8 @@ function init() {
     music.setMuted(settings.get('muted'));
     player.setInvertY(settings.get('invertY'));
     touchUI.setLeftHanded(settings.get('leftHanded'));
+    // With ?perf the readout stays on even if the Settings box is unchecked, by design.
+    perfHud.setEnabled(settings.get('perfReadout') || perfFlag);
   }
   applySettings();
   // routed through handleTouchAction('interact') rather than calling
@@ -309,6 +322,15 @@ function init() {
     toast: cloudToast,
   });
 
+  // The den shop, inside the den (src/ui/denshopview.js): pauses like ⏸ and
+  // walks on like the pause card's explore button.
+  const denShop = createDenShopView({
+    hud, progression, sync, player,
+    getSession: () => session,
+    pause: () => handleTouchAction('pause'),
+    resume: () => resumeWalk(),
+  });
+
   // The walk lifecycle (src/game/walk.js). main.js keeps the `session`
   // binding — the render loop, keydown handlers and discovery bus all read
   // it — and hands the module accessors for it. getHomebase is a thunk
@@ -326,7 +348,7 @@ function init() {
     getIsTouch: () => isTouch,
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow, hostRoomWalk, requestRoomWalk,
-    awardStrayGreet, applyRemoteEvent, colonySync,
+    awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -381,6 +403,10 @@ function init() {
   };
   const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast);
   homebase.show();
+  // Rosa's one-time farewell goes up synchronously, before the async news pull
+  // below can land, so it is always first (showNews yields while it is up).
+  const farewell = progression.takeFarewell();
+  if (farewell) homebase.showNotice(farewell);
 
   // "While you were out" (Task 10): the first thing a kid sees on open is what
   // their sibling did. Runs after the boot pull and after each walk's
@@ -473,11 +499,12 @@ function init() {
       log.award('perk', `wave-${id}`, 'a friendly wave back');
     }
   });
+  function resumeWalk() {
+    if (isTouch) player.setTouchEngaged(true);
+    else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
+  }
   overlay.addEventListener('click', (e) => {
-    if (e.target.id === 'btn-resume') {
-      if (isTouch) player.setTouchEngaged(true);
-      else canvas.requestPointerLock();
-    }
+    if (e.target.id === 'btn-resume') resumeWalk();
     if (e.target.id === 'btn-end') endWalk();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
@@ -487,6 +514,9 @@ function init() {
     }
   });
   document.addEventListener('keydown', (e) => {
+    // Typing in a home-base box (code, pet name, friend code) must never fire
+    // hotkeys like M, which would also rebuild the panel and steal focus.
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
     if (e.code === 'KeyE' && session && player.engaged && !e.repeat) {
       if (session.prompt) handleInteract(session);
       else {
@@ -499,7 +529,7 @@ function init() {
     if (e.code === 'KeyV' && session && player.engaged && !e.repeat) {
       doMeow();
     }
-    if (e.code === 'KeyM') {
+    if (e.code === 'KeyM' && !typing) {
       // settings.muted is the single source of truth (see applySettings) —
       // M just flips it, same as the homebase checkbox does; audio only
       // ever reads it back via applySettings()'s audio.setMuted() call.
@@ -521,7 +551,6 @@ function init() {
     }
     // chat keys — only during an active engaged walk, never while typing
     // (guards home-base pet-name/friend-code/room-code inputs).
-    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
     if (session && player.engaged && !typing) {
       const digitPhrase = phraseIdForDigit(e.code);
       if (digitPhrase) { session.sendPhrase(digitPhrase); return; }
@@ -539,9 +568,10 @@ function init() {
   // never reallocated).
   const pushMovers = [];
   renderer.setAnimationLoop(() => {
+    perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
-    if (!session) return;
+    if (!session) { perfHud.frameEnd(null, performance.now()); return; }
     if (player.engaged) {
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
@@ -792,6 +822,11 @@ function init() {
         session.questGiver.marker.position.y = 2.1 + Math.sin(t * 3) * 0.12;
       }
     }
+    // Before the draw, never after: a pixel-ratio change reassigns
+    // canvas.width, which clears the buffer, so doing it after renderFrame()
+    // would present a blank frame (a visible flash at a step-down).
+    qualityAdapter.frame(session, performance.now());
     renderFrame();
+    perfHud.frameEnd(session, performance.now());
   });
 }

@@ -466,16 +466,65 @@ export function createContactShadows(scene, {
   const footprints = scanFootprints(scene);
 
   let staticMesh = null;
-  if (footprints.length) {
-    staticMesh = new THREE.InstancedMesh(decalGeometry(), decalMaterial(staticOpacity), footprints.length);
-    staticMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  function buildStatic() {
+    if (!footprints.length) return null;
+    const mesh = new THREE.InstancedMesh(decalGeometry(), decalMaterial(staticOpacity), footprints.length);
+    mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     for (let i = 0; i < footprints.length; i++) {
       const f = footprints[i];
-      writeInstance(staticMesh, i, f.x, f.z, f.halfX, f.halfZ);
+      writeInstance(mesh, i, f.x, f.z, f.halfX, f.halfZ);
     }
-    staticMesh.instanceMatrix.needsUpdate = true;
-    prepare(staticMesh);
-    scene.add(staticMesh);
+    mesh.instanceMatrix.needsUpdate = true;
+    prepare(mesh);
+    scene.add(mesh);
+    return mesh;
+  }
+  staticMesh = buildStatic();
+
+  function freeMesh(mesh) {
+    mesh.removeFromParent();
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+    mesh.dispose(); // frees the instance matrix attribute's GPU buffer
+  }
+
+  // ---- static props that come and go (v21 Stream 5, the den shop) ---------
+  //
+  // The den shop places and clears furniture DURING a den walk, after the scan
+  // above. addStatic/removeStatic keep the static half honest: the same
+  // qualifies/footprintFor rule the scan applies, so a piece placed live gets
+  // exactly the decal it would have had at build time, and a piece cleared
+  // takes its decal with it. InstancedMesh's count is fixed at construction,
+  // so each change rebuilds the static mesh — one shop tap, a few dozen
+  // matrices, never per frame. The matching is by footprint, with a tolerance
+  // for the ~1e-6 m of float noise mergeprops.js's header describes.
+  const SAME = 1e-4;
+  const sameFootprint = (a, b) => Math.abs(a.x - b.x) < SAME && Math.abs(a.z - b.z) < SAME
+    && Math.abs(a.halfX - b.halfX) < SAME && Math.abs(a.halfZ - b.halfZ) < SAME;
+  function footprintOf(object3d) {
+    if (!object3d || !object3d.isObject3D) return null;
+    _box.setFromObject(object3d);
+    return qualifies(_box) ? footprintFor(_box) : null;
+  }
+  function rebuildStatic() {
+    if (staticMesh) freeMesh(staticMesh);
+    staticMesh = buildStatic();
+  }
+  function addStatic(object3d) {
+    const f = footprintOf(object3d);
+    if (!f) return false;
+    footprints.push(f);
+    rebuildStatic();
+    return true;
+  }
+  function removeStatic(object3d) {
+    const f = footprintOf(object3d);
+    if (!f) return false;
+    const i = footprints.findIndex((g) => sameFootprint(f, g));
+    if (i < 0) return false;
+    footprints.splice(i, 1);
+    rebuildStatic();
+    return true;
   }
 
   const moverMesh = new THREE.InstancedMesh(decalGeometry(), decalMaterial(moverOpacity), moverCapacity);
@@ -562,11 +611,7 @@ export function createContactShadows(scene, {
 
   function dispose() {
     for (const mesh of [staticMesh, moverMesh]) {
-      if (!mesh) continue;
-      mesh.removeFromParent();
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-      mesh.dispose(); // frees the instance matrix attribute's GPU buffer
+      if (mesh) freeMesh(mesh);
     }
     followers.length = 0;
     // The gradient texture is NOT disposed. It is memoised for the app's
@@ -579,10 +624,13 @@ export function createContactShadows(scene, {
     update,
     dispose,
     follow,
+    addStatic,
+    removeStatic,
     // Read by the verify harness and by tests; not used by the game.
     get staticCount() { return footprints.length; },
     get moverCount() { return followers.length; },
-    staticMesh,
+    // A getter: addStatic/removeStatic replace the static mesh.
+    get staticMesh() { return staticMesh; },
     moverMesh,
   };
 }

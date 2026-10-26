@@ -2,7 +2,7 @@
 
 Whisker Walk normally makes up its cat sounds with a little synthesizer —
 that's the "meow" you hear by default. This page is about swapping that
-synth voice out for a real one: a phone recording of Zeetoo, Rosa, Robbie,
+synth voice out for a real one: a phone recording of Zeetoo, Robbie,
 or Hagrid, played back whenever their character makes a sound in-game.
 
 You don't need any audio editing skill for this. Five minutes, a phone, and
@@ -24,7 +24,6 @@ a quiet room is plenty.
 - Supported formats: **`.mp3`**, **`.m4a`**, **`.ogg`**.
 - Rename the file to match exactly one of these (lowercase, no spaces):
   - `zeetoo.m4a` (or `.mp3` / `.ogg`)
-  - `rosa.m4a`
   - `robbie.m4a`
   - `hagrid.m4a`
 
@@ -59,11 +58,11 @@ After adding Zeetoo's recording, it looks like:
 }
 ```
 
-Add as many as you have — you don't need all four at once:
+Add as many as you have — you don't need all of them at once:
 
 ```json
 {
-  "files": ["zeetoo.m4a", "rosa.m4a", "robbie.m4a", "hagrid.m4a"]
+  "files": ["zeetoo.m4a", "robbie.m4a", "hagrid.m4a"]
 }
 ```
 

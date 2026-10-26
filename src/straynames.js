@@ -12,7 +12,7 @@
 // CAT_NAMES would shift every draw after it (gifts, weather, secrets, goals) and
 // change what a co-walk with a non-partner looks like. Kits are never drawn into a walk's
 // shuffle, so CAT_NAMES stays untouched. isStrayName() accepts them, and so does
-// straycats.js's D2 vocabulary gate (isGrudgeableStray): a fed kit becomes an
+// straycats.js's strays-only vocabulary gate (isGrudgeableStray): a fed kit becomes an
 // ordinary colony cat that walks as a stray and must stay feedable. The server needs no
 // change: colony_cats.name is plain text, and the feed RPC only requires
 // ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).

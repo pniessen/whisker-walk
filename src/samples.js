@@ -1,5 +1,5 @@
 // Sampled pet-voice support: the family can record their real cats
-// (Zeetoo/Rosa/Robbie/Hagrid) and hear them in-game instead of the synth
+// (Zeetoo/Robbie/D2/Digit/Hagrid) and hear them in-game instead of the synth
 // voice. See docs/RECORDING-PETS.md for how the family adds recordings.
 //
 // createSamples(baseUrl, { fetchFn, decode }) loads

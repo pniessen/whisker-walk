@@ -621,6 +621,10 @@ instead of a raking line; the frame keeps ~8 draw calls. No budget ceiling in
   capture mechanism forces a second render per tick, which would put the true
   figure near 525. The stability argues against it but does not disprove it.
 
+  **Resolved (Stream 4 step 1, 2026-10-25): it is ~1050-class, not ~525.** The
+  scene is drawn once per frame. See "Stream 4 step 1 — the draw-call answer"
+  at the end of this document.
+
   **Why this matters more than the number itself:** every harness measures
   ~360-580 calls, because a harness builds only `world/<area>.js` plus a cat.
   The real walk also carries critters, strays, remotes, secrets, collectibles,
@@ -634,6 +638,18 @@ instead of a raking line; the frame keeps ~8 draw calls. No budget ceiling in
   be re-made against an in-game number rather than a harness one.
 - **`verify-{park,docks,seaside,neighborhood}.html` still carry the old rig**
   and still never set `castShadow` — they have never shown shadows.
+
+  **Closed (Stream 4 step 1).** The game's rig now lives in
+  `src/render/rig.js`: sun, hemisphere fill, shadow bias, and the caster rule
+  with its thresholds. `walk.js`, `test/budget.test.js` and these four pages
+  all import it, so they cannot drift apart again. The four pages are now
+  tracked in git, while the other `verify-*.html` stay scratch. Each one wires
+  `createShadowFit` the way `verify-lighting.html` does, and now shows real
+  shadows. Their HUDs print caster counts that equal this document's
+  unmerged build-time figures: park 134, docks 424, seaside 33,
+  neighborhood 314. The pages do not run `mergeStaticProps`, so harness draw
+  counts are still the unmerged ones. As before, never size a budget from a
+  harness number.
 
 ---
 
@@ -733,3 +749,140 @@ work, and under parallel load the heavy files intermittently tripped the limit.
 That produced "Test timed out in 5000ms" on tests that pass alone, which is a
 false negative, and a suite that fails at random is one people stop believing.
 30s is a hang guard, not a budget for slow tests.
+
+---
+
+# Stream 4 step 1 — the draw-call answer (branch `worktree-v21-stream4-perf`)
+
+## The answer
+
+**The true per-frame figure is ~1050-class, not ~525. The scene is drawn once
+per frame.** Measured 2026-10-25 on the "Ready?" screen of a real walk, Cozy
+Neighborhood, solo and unseeded, in the in-game readout (`?perf`). The readout
+was cross-checked against a raw count of every `gl.drawElements` /
+`drawArrays` / instanced draw issued between two consecutive rAF callbacks:
+
+| tier | raw gl draws per tick | readout total | shadow pass | scene | other | scene passes |
+|---|---|---|---|---|---|---|
+| high (desktop) | 1220, all 30 ticks | 1220 | 379 | 827 | 14 | 1 |
+| low (desktop, forced) | 1121, all 10 ticks | 1121 | 229 | 892 | 0 | 1 |
+| low (375×812, touch) | — | 552–616 | 155–203 | 373–413 | 0–6 | 1 |
+
+The phone row is pane emulation at 375×812, three unseeded walks: 567 =
+shadow 155 + scene 412 + other 6 (first walk), 552 = 179 + 373 + 0, and
+616 = 203 + 413 + 0. The single "other 6" frame came on the first walk of a
+page load, was not seen again, and is unexplained.
+
+The two counts agree to the call. "Scene passes 1" means `renderer.render` is
+handed the walk's scene exactly once per frame, so nothing in the game or in
+the capture path renders it twice. The raw count needs no help from three: it
+counts what reaches the GPU.
+
+On the high tier, "other" is the composer's full-screen passes: the bloom
+mip chain plus the output pass. That is 14 quads, as measured (bloom's 5-mip
+chain plus composite and output), and they cost fill rate,
+not draw-call overhead. The low tier has no composer, so "other" is 0.
+
+Rows from different walks are **not** comparable with each other. Each walk
+re-rolls strays, critters, secrets, collectibles and sky life, which moves the
+total by ~250 calls (see "A measurement caveat worth carrying" above).
+1050 → 1220 is most likely that variance plus content landed since, not a
+counting change. The phone row is smaller mainly because a touch device gets
+14 strays instead of 22, and its narrower view culls more.
+
+## A trap for anyone reading `renderer.info` — `autoReset`
+
+three resets `renderer.info` at the top of **every** `renderer.render()` call
+(`info.autoReset` defaults to true). On the high tier, a frame is
+`composer.render()`. The scene pass is followed by the bloom and output passes,
+and each of those is its own `renderer.render(fullScreenQuad)`. So anything that
+reads `renderer.info.render.calls` after a high-tier frame sees **only the last
+full-screen pass**, about one call, not half or double the frame. A per-frame
+total therefore needs `info.autoReset = false` and one `info.reset()` per frame.
+That is what `src/render/perfstats.js` does, and only while the readout is on.
+It wraps `renderer.render` and `renderer.shadowMap.render` to split the total
+into shadow / scene / other.
+
+Shadow draws happen inside the scene's `renderer.render` (three calls
+`shadowMap.render` before drawing the scene), so they were always part of the
+1050. They are not a second pass that could be double-counted.
+
+## What the numbers say, before any fps reading
+
+- The shadow pass is about 31% of the draws on high (379/1220) and 20% on low
+  (229/1121). It is the biggest single lever left, and casters are what Wave 3.3 already trims.
+- The high tier's composer adds only 14 draws (bloom's 5-mip chain plus
+  composite and output); its cost is fill rate on a
+  2× pixel-ratio buffer. Whether that matters is exactly what the owner's
+  desktop fps reading will say.
+- **No fps figure in this section, deliberately.** Under automation the pane
+  throttles rAF to about 10 ticks, so the readout's fps and frame-time lines
+  are meaningless there. The owner takes those readings on the desktop and the
+  iPhone 18 (`docs/superpowers/handoffs/2026-10-25-stream4-measurement.md`).
+
+# Adaptive Auto (Stream 4 step 2, branch `worktree-v21-stream4-adaptive`)
+
+Auto no longer looks at the pointer. Every device starts a walk on the high
+rung, and `src/game/adaptquality.js` steps it down one rung at a time if its
+frames stay slow. The step is remembered per device in
+`localStorage['whisker-walk-adapt']` (never the save), so the next walk starts
+there. Manual High/Low turn adaptation off; Auto + reduced motion stays LOW.
+`?perf` shows the rung on its own line, e.g.
+`auto rung 1/3 · start 0 (top) · 0→1: 72% of frames over 20 ms for 4 s`.
+
+## The rungs — fill rate first
+
+The iPhone 18 readings put CPU at 4.6–5.5 ms of a 16.7 ms frame, so a phone
+that struggles is GPU/fill-bound.
+
+| Rung | name | Changes from the rung above | Live? |
+|---|---|---|---|
+| 0 | `high` | today's HIGH, 22 strays | — |
+| 1 | `high` | pixel ratio cap 2 → 1.5 (44% fewer pixels) | live |
+| 2 | `high` | postFx off, MSAA 0 | live; bloom fades out over 1.5 s |
+| 3 | `low` | today's LOW exactly: shadow 1024, no normal maps, env 0.32, 14 strays | next walk |
+
+Rung 3 is what every phone got before this branch, so adaptation can never
+make a device worse than it was.
+
+## The thresholds, and why
+
+- **20 ms, more than half the frames, over 4 s.** The iPhone 18's *worst*
+  frame on HIGH is 18 ms, so the target phone never trips. Over half above
+  20 ms is a median under 50 fps — missing vsync most frames on 60 Hz. A
+  4 s window is too long for a GC pause or shader compile to reach 50%.
+- **5 s warm-up** at walk start (shader compiles, texture uploads), **1 s
+  settle** after each step, so steps are at least 5 s apart.
+- **Gaps over 250 ms are discarded**: a background tab, a debugger or a
+  throttled automation pane is not a slow device, and never steps down.
+- **At least 30 kept frames** before any decision. The 5 s warm-up starts at
+  the walk's first frame, not before the (slow, synchronous) area build.
+- **A frame-rate cap is not a slow device.** Low Power Mode, battery saver or
+  a 30 Hz display pin every frame at ~33 ms. When the floor step comes due,
+  the live steps are judged together: if the mean frame time is not at least
+  10% (`ADAPT.minGain`) better than at the walk's first trigger, the floor is
+  skipped, the start-of-walk memory is written back, and the walk stops
+  adapting (live changes stay; nothing pops back). A walk that started on
+  rung 2 has nothing to judge and steps as before.
+
+## Desktop
+
+The same adaptation runs on desktop Auto — it protects a weak laptop iGPU. A
+healthy desktop never trips it (the owner's M2: worst frame 9.4 ms against
+20 ms), so in practice nothing changes there.
+
+## The thermal gap
+
+There is no 5-minute reading. The governor runs for the whole walk, not just
+its start, so a phone that heats up at minute 4 steps down then; it starts
+lower next time, and the retry below lets a cooled phone climb back.
+
+## Retry
+
+At walk start, if the remembered rung is above 0, at least 5 walks have
+started since the last step-down and `waitDays` (starting at 7) have passed,
+the walk starts one rung higher. If it steps down again, `waitDays` doubles
+(cap 56); if it runs a full judged 4 s window without stepping down, the
+retry has held and `waitDays` resets to 7. A retry walk too short to judge
+proves nothing, so the next walk retries the same rung. A `steppedAt` in the
+future (clock change) is clamped to now. One rung at a time.

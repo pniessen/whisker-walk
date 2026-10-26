@@ -5,6 +5,9 @@
 // walk start; a settings change here only takes effect next walk.
 const HIGH = Object.freeze({
   name: 'high',
+  rung: 0,
+  // Ambient strays per area (game/walk.js). A count knob, not a look knob.
+  strays: 22,
   shadowMapSize: 2048,
   envIntensity: 0.45,
   postFx: true,
@@ -35,8 +38,9 @@ const HIGH = Object.freeze({
   // anything costing fill rate or texture memory is high only. A normal map is
   // a second 256x256 RGBA tile per surface — it roughly doubles what the
   // surface vocabulary costs in VRAM, and it does it on exactly the devices
-  // (`coarse` pointers) where texture memory is the scarce resource. The
-  // colour tiles are already gated the same way and for the same reason.
+  // (the ones adaptive Auto steps down to the low rung) where texture memory
+  // is the scarce resource. The colour tiles are already gated the same way
+  // and for the same reason.
   //
   // It is a separate flag rather than a read of `name === 'high'` so that a
   // future "high tier, but this GPU is a laptop iGPU" case has somewhere to
@@ -46,6 +50,8 @@ const HIGH = Object.freeze({
 
 const LOW = Object.freeze({
   name: 'low',
+  rung: 3,
+  strays: 14,
   shadowMapSize: 1024,
   envIntensity: 0.32,
   postFx: false,
@@ -68,12 +74,30 @@ const LOW = Object.freeze({
   normalMaps: false,
 });
 
-// coarse: matchMedia('(pointer: coarse)') — touch/mobile input.
+// The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
+// MSAA, then today's LOW as the floor): see "Rung order" in
+// docs/superpowers/plans/2026-10-25-whisker-walk-v21-stream4-adaptive.md and
+// "The rungs — fill rate first" in docs/VISUAL-PASS.md (Adaptive Auto).
+// `name` stays 'high' for rungs 0-2 because render/textures.js and
+// render/water.js read it.
+const RUNG1 = Object.freeze({ ...HIGH, rung: 1, pixelRatioCap: 1.5 });
+const RUNG2 = Object.freeze({ ...RUNG1, rung: 2, postFx: false, msaaSamples: 0 });
+export const LADDER = Object.freeze([HIGH, RUNG1, RUNG2, LOW]);
+export const FLOOR_RUNG = 3;
+
 // reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').
-// override: the persisted 'quality' setting — 'auto' defers to device
-// signals, 'high'/'low' force a tier regardless of device.
-export function resolveQuality({ coarse, reducedMotion, override }) {
+// override: the persisted 'quality' setting — 'auto' adapts, 'high'/'low'
+// force a tier regardless of device.
+// rung: the adaptive governor's current rung; only read in auto mode.
+export function resolveQuality({ reducedMotion, override, rung = 0 } = {}) {
   if (override === 'high') return HIGH;
   if (override === 'low') return LOW;
-  return coarse || reducedMotion ? LOW : HIGH;
+  if (reducedMotion) return LOW;
+  const r = Number.isFinite(rung) ? Math.trunc(rung) : 0;
+  return LADDER[Math.min(FLOOR_RUNG, Math.max(0, r))];
+}
+
+// True when the governor may move the rung during a walk.
+export function isAdaptive({ reducedMotion, override } = {}) {
+  return override === 'auto' && !reducedMotion;
 }

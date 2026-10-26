@@ -37,9 +37,9 @@ const RECOIL_STEP = 0.9;
 // The per-stray wander stream
 //
 // Spawn (position, facing, name, personality, first timer) is drawn from the
-// injected `rng` — walkRng on a room walk — so two co-walkers on one roomSeed
-// see the same cats appear in the same places. The wander FSM in update() used
-// bare Math.random() for everything AFTER that: scurry bearing, wander target,
+// injected `rng` — the strays' own stream, strayStream(roomSeed) — so two
+// co-walkers on one roomSeed see the same cats appear in the same places. The
+// wander FSM in update() used bare Math.random() for everything AFTER that: scurry bearing, wander target,
 // idle pose and every timer. The cats therefore spawned together and drifted
 // apart within a couple of seconds — the same "same world, different fields"
 // family as CF-7 (game/walk.js:507) and the firefly desync (walk.js:429), just
@@ -71,6 +71,20 @@ const RECOIL_STEP = 0.9;
 // built from the same name (enemies.js's hostileSeed, catreplies' per-cat
 // offset), so a cat's wander cannot be correlated with whether it is cross.
 const WANDER_SALT = 0xa11ec475; // "alleycats"
+
+// STRAY_SPAWN_SALT keeps the spawn stream apart from walkRng (a plain
+// mulberry32(roomSeed)), from the per-cat wander seeds above, and from sky
+// life's 0x5eaf00d stream, all of which start from the same room seed.
+const STRAY_SPAWN_SALT = 0x57a7ca75;
+
+// strayStream(roomSeed) → the stream createStrayCats should spawn from.
+// Co-walkers with the same roomSeed get the same sequence; solo it is
+// Math.random, exactly as walkRng is solo.
+export function strayStream(roomSeed) {
+  return roomSeed !== undefined
+    ? mulberry32(((roomSeed >>> 0) ^ STRAY_SPAWN_SALT) >>> 0)
+    : Math.random;
+}
 
 // strayWanderRng(base, name) → a fresh mulberry32 for one cat's wander draws.
 // `base` is the walk-wide seed (roomSeed, or a random fallback — see
@@ -132,8 +146,10 @@ export function friendRungCrossed(before, after, { charmer = false } = {}) {
 export { CAT_NAMES };
 
 // ---------------------------------------------------------------------------
-// v20 "Ruffled Fur", D2 — "strays only, never the named family pets (Zeetoo,
-// Rosa, Robbie, Hagrid) and never ghost visitors."
+// v20 "Ruffled Fur" — the strays-only rule (v20 spec decision D2): "strays
+// only, never the named family pets and never ghost visitors." The family
+// pets today are Zeetoo, Robbie, D2, Digit and Hagrid; the spec's label is
+// older than the cat, so the code calls it the strays-only rule.
 //
 // src/enemies.js owns the RULES and says plainly that it cannot enforce this:
 // it sees a save, a name and a walk stamp, and has no way to tell one cat
@@ -147,8 +163,8 @@ export { CAT_NAMES };
 //   * the VOCABULARY half — the name must come from a closed, code-owned list:
 //     CAT_NAMES plus KIT_NAMES. A fed den kit is an ordinary colony cat on the
 //     ordinary taming ladder, so it must be feedable on later walks; without
-//     its name here it would be stranded at one feed forever. The four
-//     family pets are CATALOG.cats entries (progression.js:178-181), i.e.
+//     its name here it would be stranded at one feed forever. The family
+//     pets are entries of `CATALOG.cats` in progression.js, i.e.
 //     PLAYER AVATARS, and none of the stray or kit names is one of them.
 //     test/straycats.test.js pins that disjointness against the real CATALOG,
 //     so the guard cannot rot if either list is edited.
@@ -162,7 +178,7 @@ export { CAT_NAMES };
 // D5's friend/best immunity). That is what "ordinary ladder" means.
 const STRAY_NAMES = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES]);
 
-// isGrudgeableStray(strayCats, cat) → bool. The single D2 gate; every enemy
+// isGrudgeableStray(strayCats, cat) → bool. The single strays-only gate; every enemy
 // path in game/interactions.js asks it before consulting enemies.js at all.
 // Total over garbage: a null strayCats, a nameless object or a plain
 // `{ name }` literal all read as "not a stray" rather than throwing.
@@ -340,15 +356,15 @@ function shuffled(arr, rng) {
 // THE DRAWS ARE THE SAME. It still takes the full `shuffled(CAT_NAMES, rng)`
 // and all five per-index draws (x, z, facing, personality roll, first timer)
 // for every i < count, and simply throws away the ones a colony cat does not
-// use. That waste is the point. On a room walk `rng` is walkRng, the one
-// order-sensitive shared stream (see game/walk.js's WARNING at startWalk), and
-// everything spawned after the strays — gifts, weather, secrets, goals — reads
-// its values off the same stream. If a colony cat skipped its position draws,
-// every one of those systems would read different values from then on, and
-// two co-walkers whose colonies differ by one offline feed would be walking
-// through different worlds without either of them knowing why. Spending the
-// draws keeps the stream position after spawn a function of `count` alone
-// (test/straycats.test.js pins it with a counting rng).
+// use. That waste is the point. On a room walk `rng` is strayStream(roomSeed),
+// the strays' own stream, not walkRng: the stray count (tier.strays: 22, or 14
+// on the low rung) costs walkRng nothing, so gifts, weather, secrets, treats
+// and goals read the same values on every device. What the waste still
+// protects is the stray stream itself: if a colony cat skipped its position draws, two
+// co-walkers whose colonies differ by one offline feed would place every
+// later stray differently. Spending the draws keeps the stream position after
+// spawn a function of `count` alone (test/straycats.test.js pins it with a
+// counting rng).
 //
 // `excludeNames` is every OTHER colony cat game/walk.js knows about on a
 // colony walk — tamed ones (they live in the den now) and ones whose fixed
@@ -380,7 +396,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   // The cast: colony cats first, then everyone else in shuffle order. Built
   // from data the caller already sanitized (colony.js), but filtered again
   // here because this module owns stray identity: only a CAT_NAMES or
-  // KIT_NAMES name can be a stray (the D2 guard below relies on it), each name once, a spot
+  // KIT_NAMES name can be a stray (the strays-only guard relies on it), each name once, a spot
   // must be finite, and there are never more colony cats than `count`.
   const colony = [];
   const colonyNames = new Set();
@@ -407,11 +423,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     // Position, facing and the personality roll below are drawn from `rng` in
     // this fixed order — x, then z, then facing, then personality — for every
-    // stray before moving to the next one. On a room walk `rng` is walkRng,
-    // shared and order-sensitive (see game/walk.js:266-287): these four draws
-    // used to be bare Math.random() calls, so two co-walkers on the same
-    // roomSeed agreed on which cats existed (the name shuffle and personality
-    // roll were already seeded) but each saw them standing and facing
+    // stray before moving to the next one. On a room walk `rng` is the
+    // strays' own stream, strayStream(roomSeed), shared by every co-walker
+    // and order-sensitive: these four draws used to be bare Math.random()
+    // calls, so two co-walkers on the same roomSeed agreed on which cats
+    // existed (the name shuffle and personality roll were already seeded)
+    // but each saw them standing and facing
     // differently. Same failure family as CF-7 (walk.js:507) and the firefly
     // desync (walk.js:429) — a placed/derived value quietly left off the
     // shared stream.

@@ -2654,9 +2654,9 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
     });
   });
 
-  // --- 2. D2: strays only -------------------------------------------------
+  // --- 2. the strays-only rule ---------------------------------------------
 
-  describe('D2 — never a family pet, never a ghost', () => {
+  describe('the strays-only rule — never a family pet, never a ghost', () => {
     it('refuses to turn a ghost visitor that happens to share a stray name', () => {
       // enemies.js cannot tell these apart and says so; the guard is the call
       // site's. A ghost/remote pet is a different object in a different list,
@@ -2679,7 +2679,7 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
 
     it('refuses to turn a family pet even smuggled into the stray list', () => {
       const h = enemyHarness();
-      for (const name of ['Zeetoo', 'Rosa', 'Robbie', 'Hagrid']) {
+      for (const name of Object.values(CATALOG.cats).map((c) => c.name)) {
         const pet = {
           name, breed: 'tabby', greeted: false,
           group: { position: new THREE.Vector3(0, 0, 1), rotation: { y: 0 } },

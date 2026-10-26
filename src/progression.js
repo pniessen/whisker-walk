@@ -144,15 +144,16 @@ const DUSK_WALKS_MAX = 100_000;
 // walk into ten thousand meshes.
 const GIFTS_MAX = 8;
 // Ceiling on state.grudges' length (v20 Ruffled Fur). Same job as
-// GOLD_MAX_COUNT and GIFTS_MAX above. straycats.js ships 48 stray names
-// (CAT_NAMES) and a grudge is keyed on the name, so 48 is the real-world
-// bound and no honest save can exceed it; 64 leaves headroom for future
-// names while stopping a hostile cloud payload padding the field with
+// GOLD_MAX_COUNT and GIFTS_MAX above. A grudge is keyed on a stored name —
+// 48 stray names (CAT_NAMES), 12 kits (KIT_NAMES) and 4 legendary cats
+// (LEGENDARY_NAMES, v21 3b), 64 in all — so no honest save can exceed 64;
+// 96 leaves headroom for future names while stopping a hostile cloud
+// payload padding the field with
 // thousands of valid-shaped names and bloating the save past the
 // localStorage quota. The number is NOT imported from straycats.js — that
 // module pulls in THREE and the cat model, which need a DOM canvas, and
 // progression.js must stay loadable without one.
-const GRUDGES_MAX = 64;
+const GRUDGES_MAX = 96;
 
 // The prestige ladder, gated purely on lifetimePoints. Ranks confer NOTHING
 // mechanical — skills.js is the mechanical axis and this is the prestige one,
@@ -187,6 +188,17 @@ export function rankFor(lifetimePoints) {
   return { title: current.title, next };
 }
 
+// Cats taken out of the shop for good. Rosa was a real family cat who died, so
+// she is not for sale any more; anyone who bought her gets her price back once
+// (the one-time refund in retireCats below). Her id stays here, not in
+// CATALOG, so the refund knows what she cost after the catalog forgot her.
+const RETIRED_CATS = { rosa: { name: 'Rosa', price: 40 } };
+
+// DRAFT wording, the owner signs it off. Kept in this one place so the line can
+// change without touching the logic; catName is the cat who takes over.
+export const ROSA_FAREWELL = (catName) =>
+  `We'll always love Rosa. 💛 Your 40 points are back, and ${catName} will walk with you today.`;
+
 export const CATALOG = {
   cats: {
     tabby: { name: 'Tabby', price: 0 },
@@ -196,8 +208,9 @@ export const CATALOG = {
     calico: { name: 'Calico', price: 45 },
     mainecoon: { name: 'Maine Coon', price: 60 },
     zeetoo: { name: 'Zeetoo', price: 40 },
-    rosa: { name: 'Rosa', price: 40 },
     robbie: { name: 'Robbie', price: 40 },
+    d2: { name: 'D2', price: 40 },
+    digit: { name: 'Digit', price: 40 },
     hagrid: { name: 'Hagrid', price: 60 },
   },
   accessories: {
@@ -295,6 +308,16 @@ function asFiniteNonNegInt(v, fallback) {
 }
 function asStringArray(v) {
   return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : [];
+}
+
+// Redeem-code hashes remembered per save; the oldest are dropped past this.
+export const REDEEMED_MAX = 500;
+const REDEEM_HASH_RE = /^[0-9a-f]{64}$/;
+// Valid, unique hex hashes only, keeping the newest REDEEMED_MAX.
+function sanitizeRedeemed(v) {
+  if (!Array.isArray(v)) return [];
+  const ok = [...new Set(v.filter((h) => typeof h === 'string' && REDEEM_HASH_RE.test(h)))];
+  return ok.slice(-REDEEMED_MAX);
 }
 
 function defaultState() {
@@ -421,6 +444,14 @@ function defaultState() {
     // v21 Stream 3b: this player's PRIVATE marks, per area, newest eight each
     // (marks.js). Never on a wire. Additive, so SAVE_VERSION stays 4.
     marks: emptyMarks(),
+    // Ids of retired cats whose one-time refund has been settled (see
+    // RETIRED_CATS). Additive, so SAVE_VERSION stays 4: a save without it is
+    // simply one that has not been through retireCats yet. A new save starts
+    // with every id marked, so nobody is refunded for a cat they never owned.
+    retired: Object.keys(RETIRED_CATS),
+    // Hashes of redeem codes already used on this save (never the codes
+    // themselves). Additive, so SAVE_VERSION stays 4.
+    redeemed: [],
   };
 }
 
@@ -768,6 +799,9 @@ function sanitizeState(parsed) {
     clanRoles: sanitizeClanRoles(parsed.clanRoles),
     clan: sanitizeClan(parsed.clan),
     marks: sanitizeMarks(parsed.marks),
+    // Only ids we retired, once each; anything else in a cloud payload is junk.
+    retired: [...new Set(asStringArray(parsed.retired).filter((id) => Object.hasOwn(RETIRED_CATS, id)))],
+    redeemed: sanitizeRedeemed(parsed.redeemed),
   };
 }
 
@@ -790,32 +824,63 @@ function migrateV3ToV4(parsed) {
   });
 }
 
+// Pure, runs on the RAW parsed save before any version branch, so a v2/v3 save
+// is refunded too. For each retired cat not yet marked in `retired`: if the save
+// owns it, its price goes back into `points` (never `lifetimePoints`, which is
+// a record of points earned, not of points held), and if it was the equipped
+// cat, `farewell` names it. Every retired id is marked afterwards, so this
+// happens once; sanitizeState then drops the id from `unlocked.cats` (it is no
+// longer in CATALOG) and falls the equipped cat back to Tabby.
+function retireCats(parsed) {
+  if (!isPlainObject(parsed)) return { parsed, farewell: null };
+  const done = asStringArray(parsed.retired);
+  let points = asFiniteNonNeg(parsed.points, 0);
+  let farewell = null;
+  const retired = [...done];
+  for (const [id, { price }] of Object.entries(RETIRED_CATS)) {
+    if (done.includes(id)) continue;
+    if (asStringArray(parsed.unlocked?.cats).includes(id)) points += price;
+    if (parsed.equipped?.cat === id) farewell = id;
+    retired.push(id);
+  }
+  return { parsed: { ...parsed, points, retired }, farewell };
+}
+
 // Shared by createProgression's initial load AND replaceFromPayload below —
 // a cloud-loaded (or otherwise externally supplied) save must go through
 // the exact same parse/version-migration/sanitize path as a normal boot,
 // so there's only one place that knows how to read whisker-walk-save.
+// Returns { state, changed, farewell }: `changed` means retireCats rewrote the
+// save, so the caller must persist it now (the marker only protects against a
+// second refund once it is on disk); `farewell` is the retired cat id the
+// player had equipped, if any.
 function loadState(storage) {
   try {
     const raw = storage.getItem(SAVE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.version === SAVE_VERSION) return sanitizeState(parsed);
+      const first = JSON.parse(raw);
+      const { parsed, farewell } = retireCats(first);
+      const changed = isPlainObject(first) && parsed !== first
+        && Object.keys(RETIRED_CATS).some((id) => !asStringArray(first.retired).includes(id));
+      if (parsed && parsed.version === SAVE_VERSION) return { state: sanitizeState(parsed), changed, farewell };
       if (parsed && parsed.version === 3) {
-        return migrateV3ToV4(parsed);
+        return { state: migrateV3ToV4(parsed), changed, farewell };
       }
       if (parsed && parsed.version === 2) {
-        return migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null });
+        return { state: migrateV3ToV4({ ...parsed, version: 3, lifetimePoints: parsed.points, bestWalk: 0, friends: {}, petName: null }), changed, farewell };
       }
       console.warn('Whisker Walk: incompatible save, starting fresh');
     }
   } catch (err) {
     console.warn('Whisker Walk: could not read save, starting fresh', err);
   }
-  return defaultState();
+  return { state: defaultState(), changed: false, farewell: null };
 }
 
 export function createProgression(storage) {
-  let state = loadState(storage);
+  let state;
+  // The farewell line waits here until the UI asks for it (takeFarewell).
+  let pendingFarewell = null;
 
   const save = () => {
     try {
@@ -824,6 +889,15 @@ export function createProgression(storage) {
       console.warn('Whisker Walk: could not write save', err);
     }
   };
+
+  // One place for both load paths: adopt the loaded state, persist at once if
+  // retirement rewrote it, and queue the farewell if the equipped cat was retired.
+  const adopt = (loaded) => {
+    state = loaded.state;
+    if (loaded.changed) save();
+    if (loaded.farewell) pendingFarewell = ROSA_FAREWELL(CATALOG.cats[state.equipped.cat].name);
+  };
+  adopt(loadState(storage));
 
   // Settle each verdict from `colony`; true when something was written.
   // A stored verdict is kept unless the new pick is STRICTLY earlier than it,
@@ -864,6 +938,32 @@ export function createProgression(storage) {
       state.points += n;
       state.lifetimePoints += n;
       save();
+    },
+    // redeemCode(hash, reward): once per hash per save. Pays points and refunds
+    // to state.points ONLY (never lifetimePoints, like the Rosa refund). Items
+    // are unlocked, not equipped; ones already owned are refunded at price.
+    // An area from a code skips its walk and price gates (the owner's way to
+    // open an area directly, e.g. the Docks for a performance check).
+    redeemCode(hash, reward) {
+      if (typeof hash !== 'string' || !REDEEM_HASH_RE.test(hash)) return { ok: false, reason: 'bad-hash' };
+      if (state.redeemed.includes(hash)) return { ok: false, reason: 'used' };
+      let points = asFiniteNonNegInt(reward?.points, 0);
+      const items = [];
+      for (const kind of ['cats', 'accessories', 'areas']) {
+        const ids = Array.isArray(reward?.[kind]) ? reward[kind] : [];
+        for (const id of new Set(ids)) {
+          if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;
+          const owned = state.unlocked[kind].includes(id);
+          const refund = owned ? CATALOG[kind][id].price : 0;
+          if (!owned) state.unlocked[kind].push(id);
+          points += refund;
+          items.push({ kind, id, name: CATALOG[kind][id].name, owned, refund });
+        }
+      }
+      state.points += points;
+      state.redeemed = [...state.redeemed, hash].slice(-REDEEMED_MAX);
+      save();
+      return { ok: true, items, points };
     },
     // -------------------------------------------------------------------
     // deductPoints(n) → the number of points ACTUALLY deducted (0 if none).
@@ -1256,8 +1356,8 @@ export function createProgression(storage) {
     // as on the way out: a field that is only cleaned at load time spends
     // the rest of the session dirty.
     //
-    // No eligibility rules live here. D2 (strays only, never the family pets
-    // or ghost visitors) and D5 (a `friend`/`best` cat is immune) are
+    // No eligibility rules live here. The strays-only rule (never the family
+    // pets or ghost visitors) and D5 (a `friend`/`best` cat is immune) are
     // decided by enemies.shouldTurnHostile at the greet site; this method is
     // the writer, not the judge.
     recordGrudge(name) {
@@ -1604,7 +1704,13 @@ export function createProgression(storage) {
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud save', err);
       }
-      state = loadState(storage);
+      adopt(loadState(storage));
+    },
+    // The one-time gentle line after a retired cat was equipped, then null.
+    takeFarewell() {
+      const line = pendingFarewell;
+      pendingFarewell = null;
+      return line;
     },
   };
   return api;

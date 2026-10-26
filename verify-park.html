@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Park visual pass</title>
+<style>
+  body { margin: 0; background: #6cb058; font: 12px Avenir, sans-serif; }
+  #hud { position: fixed; bottom: 8px; left: 8px; color: #fff; background: rgba(0,0,0,.6);
+         padding: 6px 10px; border-radius: 8px; z-index: 5; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { waterRig } from '/src/render/water.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { build } from '/src/world/park.js';
+
+  const W = 1000, H = 580;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;             // main.js:97
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  document.body.appendChild(renderer.domElement);
+
+  const tier = { name: 'high', envIntensity: 0.45 };
+  setTextureTier(tier);
+
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+
+  // The game's rig, from render/rig.js, in walk.js's order: the sun before the
+  // build, the fill after it (it takes the area's own groundBounce), then the
+  // shadow fit, the bias and the caster sweep once the scene is complete.
+  const sun = createSun();
+  scene.add(sun);
+
+  const wind = createWind({ reducedMotion: false });
+  const area = build(scene, { water: { quality: tier, reducedMotion: false }, wind });
+  scene.add(createFill(area.groundBounce));
+  const water = waterRig(area.waterFx ?? []);
+
+  // The pond EXACTLY as it shipped before this pass: CircleGeometry(7, 20) with
+  // litMaterial(0x7ab0d8), 1cm above the new surface so it hides it completely.
+  // Toggled by __old(true/false) so the same camera, the same lights and the
+  // same tone mapping can measure both.
+  const oldPond = new THREE.Mesh(new THREE.CircleGeometry(7, 20), litMaterial(0x7ab0d8));
+  oldPond.rotation.x = -Math.PI / 2;
+  oldPond.position.set(-14, 0.03, 2);
+  oldPond.visible = false;
+  scene.add(oldPond);
+
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  // The shadow fit as the game runs it on the high tier; shadows.update()
+  // runs before every render, as main.js does each frame.
+  const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
+  sun.shadow.bias = SUN_BIAS;
+  const casters = assignShadowCasters(scene);
+  const VIEWS = {
+    // Cat-height on the south shore looking across the pond: the money shot.
+    pond:     { pos: [-14, 2.2, 13.5], look: [-14, 0.2, 0] },
+    // Standing at the water's edge — foam band and rim colour at close range.
+    rim:      { pos: [-14, 1.4, 10.5], look: [-14, 0.05, 5] },
+    // Down onto the middle of the pond, where the ramp is fully deep.
+    deep:     { pos: [-14, 9, 8],      look: [-14, 0, 2] },
+    // The fountain and the gravel walks meeting it.
+    fountain: { pos: [0, 2.2, 26],     look: [0, 0.8, 20] },
+    // Lawn at a grazing angle plus a path segment — grass and sand together.
+    lawn:     { pos: [4, 1.6, 34],     look: [0, 0, 24] },
+    // Trees and bushes, for the wind check.
+    trees:    { pos: [-16, 3.0, 20],   look: [-24, 2.0, 30] },
+    // Far view: everything should have flattened back to colour.
+    far:      { pos: [0, 16, 50],      look: [-6, 0, 4] },
+  };
+  let t = 0;
+  const render = () => { shadows.update(); renderer.render(scene, camera); };
+  window.__view = (name) => {
+    const v = VIEWS[name] || VIEWS.pond;
+    camera.position.set(...v.pos);
+    camera.lookAt(...v.look);
+    render();
+    document.getElementById('hud').textContent =
+      `${name} · high tier · old pond ${oldPond.visible ? 'ON' : 'off'} · waterFx ${(area.waterFx ?? []).length} · casters ${casters.casters}/${casters.meshes}`;
+    return name;
+  };
+  window.__old = (on) => { oldPond.visible = !!on; render(); return oldPond.visible; };
+  // Reads back the sRGB pixel the user actually sees at canvas (x, y).
+  window.__probe = (x, y) => {
+    render();
+    const gl = renderer.getContext();
+    const px = new Uint8Array(4);
+    gl.readPixels(x, H - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return [px[0], px[1], px[2]];
+  };
+  window.__scene = scene; window.__water = water; window.__area = area; window.__wind = wind;
+  window.__cam = (px,py,pz, lx,ly,lz, label='free') => { camera.position.set(px,py,pz); camera.lookAt(lx,ly,lz); render(); document.getElementById('hud').textContent = `${label} · pos ${px},${py},${pz} -> ${lx},${ly},${lz} · casters ${casters.casters}/${casters.meshes}`; return label; };
+  window.__step = (n = 60) => { for (let i = 0; i < n; i++) { t += 1 / 60; water.update(1 / 60); wind.update(t, 1); } render(); return t.toFixed(2); };
+  __view('pond');
+</script>

@@ -463,7 +463,7 @@ describe('reactToMeow', () => {
 //
 // src/enemies.js owns the rules and has its own suite. What is under test
 // here is everything that module explicitly cannot do: telling one cat object
-// from another (D2), carrying a persisted grudge onto the right stray at walk
+// from another (the strays-only rule), carrying a persisted grudge onto the right stray at walk
 // start, and the two live transitions the world half performs.
 // ===========================================================================
 
@@ -499,16 +499,18 @@ function withFakeDocument(fn) {
   }
 }
 
-describe('D2 — only strays can ever bear a grudge', () => {
+describe('the strays-only rule — only strays can ever bear a grudge', () => {
   it('shares not one name with any player avatar, so no family pet is a stray', () => {
     // THE vocabulary half of the guard, pinned against the REAL catalog
-    // rather than a hand-copied list of four names, so it cannot rot: adding
-    // 'Rosa' to CAT_NAMES, or a new family pet whose name is already a stray
+    // rather than a hand-copied list of names, so it cannot rot: adding
+    // a stray name to the family catalog, or a new family pet whose name is already a stray
     // name, fails here rather than shipping a cat that can scratch its own
     // child.
     const avatarNames = Object.values(CATALOG.cats).map((c) => c.name);
     expect(avatarNames).toContain('Zeetoo');   // the list really is the family pets
     expect(avatarNames).toContain('Hagrid');
+    expect(avatarNames).toContain('D2');
+    expect(avatarNames).toContain('Digit');
     for (const name of avatarNames) expect(CAT_NAMES).not.toContain(name);
     // The gate also admits KIT_NAMES and LEGENDARY_NAMES, so they must be
     // disjoint from avatars too.
@@ -560,7 +562,17 @@ describe('D2 — only strays can ever bear a grudge', () => {
     // Belt to the braces: the two halves are independent, so smuggling a
     // family pet past the identity half still fails the vocabulary half.
     const cats = createStrayCats(fakeScene(), AREA, 1);
-    for (const name of ['Zeetoo', 'Rosa', 'Robbie', 'Hagrid']) {
+    for (const name of Object.values(CATALOG.cats).map((c) => c.name)) {
+      const pet = { name, group: cats.strays[0].group };
+      cats.strays.push(pet);
+      expect(isGrudgeableStray(cats, pet)).toBe(false);
+      cats.strays.pop();
+    }
+  });
+
+  it('refuses D2 and Digit by name when forced into the stray array', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 1);
+    for (const name of ['D2', 'Digit']) {
       const pet = { name, group: cats.strays[0].group };
       cats.strays.push(pet);
       expect(isGrudgeableStray(cats, pet)).toBe(false);
@@ -946,7 +958,7 @@ describe('createStrayCats — colony cats (v21 Stream 2)', () => {
 });
 
 // The walkRng guard. shuffled(CAT_NAMES, rng) consumes CAT_NAMES.length - 1
-// draws; changing this number shifts gifts, weather, secrets and goals.
+// draws; changing this number shifts the stray stream (every stray's spot after it).
 describe('reserved kit names', () => {
   it('CAT_NAMES is still exactly 48 names', () => {
     expect(CAT_NAMES.length).toBe(48);

@@ -293,8 +293,8 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
   // that stray. It never writes the save — the durable feed reaches me
   // through colonysync's next pull, sanitized there like every cloud value.
   // Only on a colony walk (everyone else is my partner), only from my
-  // partner's id, and only for a known cat name (isStrayName: CAT_NAMES or
-  // KIT_NAMES, since a fed kit is fed on a walk too), so nothing else can put
+  // partner's id, and only for a known cat name (isStrayName: CAT_NAMES,
+  // KIT_NAMES — a fed kit is fed on a walk too — or LEGENDARY_NAMES), so nothing else can put
   // words on my screen. The toast is textContent (hud.toast), so the
   // partner's pet name is never markup.
   function showPartnerFeed(s, ev) {

@@ -14,8 +14,9 @@ describe('PERSONALITIES', () => {
 
   it('includes the family pets with their traits', () => {
     expect(PERSONALITIES.zeetoo.special).toBe('keenNose');
-    expect(PERSONALITIES.rosa.special).toBe('fearless');
     expect(PERSONALITIES.robbie.special).toBe('pouncer');
+    expect(PERSONALITIES.d2.special).toBe('steady');
+    expect(PERSONALITIES.digit.special).toBe('chaser');
     expect(PERSONALITIES.hagrid.special).toBe('bird'); // a chicken among cats
   });
 });

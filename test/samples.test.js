@@ -37,7 +37,7 @@ describe('createSamples', () => {
     const samples = createSamples(BASE, { fetchFn, decode, playBuffer });
     await samples.ready;
     expect(samples.has('zeetoo')).toBe(true);
-    expect(samples.has('rosa')).toBe(false);
+    expect(samples.has('robbie')).toBe(false);
     samples.play('zeetoo', { rate: 1.1, volume: 0.5 });
     expect(playBuffer).toHaveBeenCalledWith(fakeBuffer, { rate: 1.1, volume: 0.5 });
   });
@@ -64,15 +64,15 @@ describe('createSamples', () => {
 
   it('failed decode leaves has() false for that name', async () => {
     const fetchFn = vi.fn(async (url) => {
-      if (url.endsWith('manifest.json')) return jsonResponse({ files: ['rosa.mp3'] });
-      if (url.endsWith('rosa.mp3')) return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
+      if (url.endsWith('manifest.json')) return jsonResponse({ files: ['robbie.mp3'] });
+      if (url.endsWith('robbie.mp3')) return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
       throw new Error(`unexpected fetch ${url}`);
     });
     const decode = vi.fn(async () => { throw new Error('bad audio data'); });
     const samples = createSamples(BASE, { fetchFn, decode });
     await samples.ready;
-    expect(samples.has('rosa')).toBe(false);
-    expect(() => samples.play('rosa')).not.toThrow();
+    expect(samples.has('robbie')).toBe(false);
+    expect(() => samples.play('robbie')).not.toThrow();
   });
 
   it('a 404 on the sample file itself leaves has() false', async () => {

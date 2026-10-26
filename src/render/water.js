@@ -610,11 +610,12 @@ export function createWater(footprint, options = {}) {
     withRoughness: tier === 'high',
   });
 
-  // THE LOW TIER. resolveQuality sends every coarse-pointer (mobile) and every
-  // reduced-motion device here, and it is also where the composer is never
-  // allocated — so it is the tier that must not pay for anything it cannot
-  // afford. It keeps ONLY the baked ramp: one texture, no normal map, no
-  // roughness map, two fewer samplers in the shader, and update() is a no-op,
+  // THE LOW TIER. Adaptive Auto's floor rung (a device whose frames stayed
+  // slow), manual Low and every reduced-motion device land here, and it is
+  // also where the composer is never allocated — so it is the tier that must
+  // not pay for anything it cannot afford. It keeps ONLY the baked ramp: one
+  // texture, no normal map, no roughness map, two fewer samplers in the
+  // shader, and update() is a no-op,
   // so a low-tier walk does exactly as much per-frame work for its water as
   // the flat plane it replaces did — none. What survives is the half of the
   // effect that costs nothing per frame and does most of the work anyway:

@@ -1,5 +1,5 @@
 import { describe, it, test, expect, beforeEach, vi } from 'vitest';
-import { createProgression, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan } from '../src/progression.js';
+import { createProgression, ROSA_FAREWELL, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan } from '../src/progression.js';
 import { clanTitleFor } from '../src/clannames.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
@@ -403,7 +403,7 @@ describe('createProgression', () => {
       p.replaceFromPayload({ version: 3 });
 
       expect(p.state).toEqual({
-        version: 4, points: 0,
+        version: 4, points: 0, retired: ['rosa'], redeemed: [],
         walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
@@ -1795,8 +1795,9 @@ describe('v20 grudges save field', () => {
 
   it('caps the table so it can never outgrow the shipped name list', () => {
     const p = createProgression(fakeStorage());
-    for (let i = 0; i < 100; i++) p.recordGrudge(`Cat${i}`);
-    expect(p.state.grudges).toHaveLength(64);
+    for (let i = 0; i < 120; i++) p.recordGrudge(`Cat${i}`);
+    // 96: above every stored name (48 strays + 12 kits + 4 legendary = 64).
+    expect(p.state.grudges).toHaveLength(96);
     expect(p.recordGrudge('OneMore')).toBe(false);
   });
 
@@ -1827,7 +1828,7 @@ describe('v20 grudges save field', () => {
   it('caps a hostile payload that pads the list', () => {
     const p = createProgression(fakeStorage());
     p.replaceFromPayload({ version: 4, grudges: Array.from({ length: 5000 }, (_, i) => `Cat${i}`) });
-    expect(p.state.grudges).toHaveLength(64);
+    expect(p.state.grudges).toHaveLength(96);
   });
 
   it('never lets a __proto__ entry pollute anything', () => {
@@ -1952,7 +1953,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
     expect(rest).toEqual(v20);
@@ -2736,5 +2737,110 @@ describe('private marks (v21 Stream 3b)', () => {
     p.addMark('park', scratch(1));
     p.reset();
     expect(p.state.marks).toEqual(EMPTY);
+  });
+});
+
+describe('retiring Rosa', () => {
+  const KEY = 'whisker-walk-save';
+  const STARTERS = ['tabby', 'siamese', 'persian'];
+  const rawSave = (over = {}) => ({
+    version: 4, points: 10,
+    walks: { neighborhood: 0, park: 0, seaside: 0 },
+    unlocked: { cats: [...STARTERS, 'rosa'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+    equipped: { cat: 'tabby', collar: null },
+    area: 'neighborhood', lifetimePoints: 10,
+    ...over,
+  });
+  const load = (raw) => {
+    const storage = fakeStorage({ [KEY]: JSON.stringify(raw) });
+    return { storage, p: createProgression(storage) };
+  };
+
+  it('refunds an owned, equipped Rosa, switches to Tabby, and speaks once', () => {
+    const { p } = load(rawSave({ equipped: { cat: 'rosa', collar: null } }));
+    expect(p.state.points).toBe(50);
+    expect(p.state.lifetimePoints).toBe(10);
+    expect(p.state.unlocked.cats).not.toContain('rosa');
+    expect(p.state.equipped.cat).toBe('tabby');
+    expect(p.state.retired).toContain('rosa');
+    const line = p.takeFarewell();
+    expect(line).toContain('Rosa');
+    expect(line).toContain('Tabby');
+    expect(line).toBe(ROSA_FAREWELL('Tabby'));
+    expect(p.takeFarewell()).toBe(null);
+  });
+
+  it('refunds an owned but unequipped Rosa without a farewell', () => {
+    const { p } = load(rawSave());
+    expect(p.state.points).toBe(50);
+    expect(p.state.unlocked.cats).not.toContain('rosa');
+    expect(p.takeFarewell()).toBe(null);
+  });
+
+  it('leaves points alone when Rosa was never owned, but still marks her', () => {
+    const { p } = load(rawSave({ unlocked: { cats: STARTERS, accessories: ['bell', 'bandana'], areas: ['neighborhood'] } }));
+    expect(p.state.points).toBe(10);
+    expect(p.state.retired).toContain('rosa');
+    expect(p.takeFarewell()).toBe(null);
+  });
+
+  it('persists immediately so a second boot refunds nothing and says nothing', () => {
+    const { storage } = load(rawSave({ equipped: { cat: 'rosa', collar: null } }));
+    const stored = JSON.parse(storage.getItem(KEY));
+    expect(stored.points).toBe(50);
+    expect(stored.unlocked.cats).not.toContain('rosa');
+    expect(stored.retired).toContain('rosa');
+    const again = createProgression(storage);
+    expect(again.state.points).toBe(50);
+    expect(again.takeFarewell()).toBe(null);
+  });
+
+  it('honours the marker: no refund when retired already lists rosa', () => {
+    const { p } = load(rawSave({ retired: ['rosa'] }));
+    expect(p.state.points).toBe(10);
+    expect(p.takeFarewell()).toBe(null);
+  });
+
+  it('refunds a Rosa-owning payload from the cloud once, and persists it', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.replaceFromPayload(rawSave());
+    expect(p.state.points).toBe(50);
+    expect(JSON.parse(storage.getItem(KEY)).points).toBe(50);
+    expect(createProgression(storage).state.points).toBe(50);
+  });
+
+  it('queues the farewell for a cloud payload with Rosa equipped, once', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload(rawSave({ equipped: { cat: 'rosa', collar: null } }));
+    expect(p.state.equipped.cat).toBe('tabby');
+    expect(p.takeFarewell()).toContain('Rosa');
+    expect(p.takeFarewell()).toBe(null);
+  });
+
+  it('retires Rosa in a v3 save before migrating it', () => {
+    const { p } = load({
+      version: 3, points: 10,
+      walks: { neighborhood: 0, park: 0, seaside: 0 },
+      unlocked: { cats: [...STARTERS, 'rosa'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+      equipped: { cat: 'rosa', collar: null, outfit: null },
+      area: 'neighborhood', lifetimePoints: 10, bestWalk: 0, friends: {},
+    });
+    expect(p.state.points).toBe(50);
+    expect(p.state.equipped.cat).toBe('tabby');
+    expect(p.takeFarewell()).toContain('Rosa');
+  });
+
+  it('marks a fresh save, and sanitizes a garbage retired field to known ids', () => {
+    expect(createProgression(fakeStorage()).state.retired).toEqual(['rosa']);
+    for (const junk of ['x', [1], ['nope']]) {
+      const { p } = load(rawSave({ retired: junk, unlocked: { cats: STARTERS, accessories: ['bell'], areas: ['neighborhood'] } }));
+      expect(p.state.retired).toEqual(['rosa']);
+    }
+    const { p } = load(rawSave({ retired: ['rosa', 'nope', 'rosa'] }));
+    expect(p.state.retired).toEqual(['rosa']);
+    // prototype names are not retired ids
+    const { p: q } = load(rawSave({ retired: ['toString', 'constructor'] }));
+    expect(q.state.retired).toEqual(['rosa']);
   });
 });
