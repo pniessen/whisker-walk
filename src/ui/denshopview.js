@@ -18,6 +18,7 @@
 import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { renderDenShopHtml, changedSpots, SPOT_LABEL } from './denshop.js';
 import { applyDenSpot } from '../game/denlive.js';
+import { bus as gameBus } from '../events.js';
 
 /**
  * createDenShopView({ hud, progression, sync, player, getSession, pause, resume,
@@ -31,6 +32,8 @@ export function createDenShopView({
   getSession = () => null, pause = () => {}, resume = () => {},
   hudRoot = document.getElementById('hud'),
   mountRoot = document.getElementById('app') ?? document.body,
+  canvas = document.getElementById('game'),
+  bus = gameBus,
   doc = document,
 } = {}) {
   const button = doc.createElement('button');
@@ -118,6 +121,34 @@ export function createDenShopView({
       e.preventDefault();
       hide();
     }
+  });
+
+  // THE PAUSE MUST HOLD while the sheet is up, and two of player.js's
+  // document-wide listeners would break it (player.js is left alone):
+  //
+  //  * a click on the canvas requests pointer lock whenever the player is
+  //    enabled — and the room is deliberately left visible around the sheet,
+  //    so a click there would re-engage the walk underneath it with the
+  //    cursor captured. Swallowed here in the CAPTURE phase, on the document,
+  //    so the click never reaches the canvas at all;
+  //  * belt and braces: if a lock is gained anyway, the sheet gets out of the
+  //    way rather than sitting over a walk that is running (no resume — the
+  //    walk already is).
+  doc.addEventListener('click', (e) => {
+    if (open && canvas && e.target === canvas) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+  bus?.on?.('player:lockchange', ({ locked } = {}) => {
+    if (open && locked) hide({ walkOn: false });
+  });
+  //  * player.js preventDefaults Arrow/Space on every keydown while enabled,
+  //    which would stop a focused <select> stepping and a focused button
+  //    pressing. Keys typed inside the sheet stop here and stay with the form
+  //    control — except Escape, which bubbles on to close the sheet.
+  sheet.addEventListener('keydown', (e) => {
+    if (e.code !== 'Escape') e.stopPropagation();
   });
 
   return {
