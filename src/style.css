@@ -348,6 +348,8 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .splash-inner svg { width: min(52vw, 220px); height: auto; display: block; margin: 0 auto; }
 .splash-word { margin-top: 10px; color: #f1e0c2; font-family: Avenir, 'Nunito', sans-serif;
   font-weight: 700; font-size: 1.7rem; letter-spacing: 0.02em; }
+.splash-edition { margin-top: 2px; color: #f2c14e; font-family: Avenir, 'Nunito', sans-serif;
+  font-weight: 700; font-size: 1.05rem; letter-spacing: 0.12em; text-transform: uppercase; }
 @media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
 
 /* --- v18 Task 2.7: the in-walk skill-unlock card (src/game/celebrate.js).
@@ -607,7 +609,8 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 
 /* header: the owner's header, then the stats chips inline */
 .dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+.dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.dr-edition { color: #f2c14e; white-space: nowrap; }
 .dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
 .dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
