@@ -7,6 +7,7 @@ import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
+import { CLAN_SUFFIX } from '../clanwords.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
   theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
@@ -692,7 +693,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
-    const headerHtml = '<h1 class="dr-title">🐾 Whisker Walk</h1>'
+    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <span class="dr-edition">${CLAN_SUFFIX} Edition</span></h1>`
       + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
       + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
     // The old header's substats lines, one block (other branches add a line
