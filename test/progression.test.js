@@ -419,6 +419,7 @@ describe('createProgression', () => {
         clanRoles: { medicine: null, deputy: null },
         clan: { name: null, adopted: false },
         marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
+        visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -563,9 +564,10 @@ describe('v11 slots + save migration', () => {
     }
   });
 
-  it('every slot offers 4-5 choices so no category feels thin', () => {
+  it('every slot offers 4-5 shop choices so no category feels thin', () => {
+    // Visit prizes are won, not bought, so they are not shop choices.
     for (const slot of ['collar', ...SLOTS]) {
-      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot).length;
+      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot && !a.prize).length;
       expect(count, `slot "${slot}" has ${count} items`).toBeGreaterThanOrEqual(4);
       expect(count, `slot "${slot}" has ${count} items`).toBeLessThanOrEqual(5);
     }
@@ -1953,9 +1955,10 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
+    expect([visits, visitPrizesSeen, visitPrizePending]).toEqual([0, 0, null]);
     expect(rest).toEqual(v20);
   });
 
