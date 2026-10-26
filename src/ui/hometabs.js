@@ -144,8 +144,9 @@ export function renderGoldenTallyHtml(found, total) {
   const t = safeCount(total);
   const f = Math.min(safeCount(found), t);
   const phrase = `${f} of ${t} golden mice`;
-  // The words "golden mice" are hidden by CSS on a phone (one line only);
-  // the title and aria-label keep the whole phrase.
+  // The words "golden mice" are visually hidden by CSS on a phone (one line
+  // only), clipped rather than display:none so a screen reader still reads
+  // them; the title keeps the whole phrase for a hover.
   return `<span class="hb-gold" title="${phrase}" aria-label="${phrase}">🥇 ${f} of ${t}<span class="hb-gold-word"> golden mice</span></span>`;
 }
 

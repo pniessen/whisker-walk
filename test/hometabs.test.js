@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from '../src/ui/hometabs.js';
 import { candidateStarNames } from '../src/clannames.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
@@ -180,5 +181,16 @@ describe('golden mice tally', () => {
     expect(html).toContain('title="3 of 12 golden mice"');
     expect(html).toContain('aria-label="3 of 12 golden mice"');
     expect(renderGoldenTallyHtml(99, 12)).toContain('title="12 of 12 golden mice"');
+  });
+  it('on a phone the words are clipped out of sight, not display:none, so a screen reader still reads them', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rules = [...css.matchAll(/\.hb-gold-word\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules) expect(r).not.toMatch(/display\s*:\s*none|visibility\s*:\s*hidden/);
+    const phone = css.slice(css.indexOf('@media (max-width: 480px)', css.indexOf('.hb-gold {')));
+    const rule = phone.match(/\.hb-gold-word\s*\{([^}]*)\}/)[1];
+    expect(rule).toMatch(/position\s*:\s*absolute/);
+    expect(rule).toMatch(/clip-path\s*:\s*inset\(50%\)/);
+    expect(rule).toMatch(/overflow\s*:\s*hidden/);
   });
 });

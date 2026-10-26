@@ -77,8 +77,12 @@ const CROSS_MARK = '\u{1F63E}'; // 😾 pouting cat face
 const STAR_FILL = '#ffc93c';
 const STAR_EDGE = 'rgba(90,56,0,0.9)';
 const STAR_EDGE_PX = 2;
-const STAR_SIZE_EM = 0.95;   // the star's width, in units of the font size
-const STAR_GAP_EM = 0.22;    // space between star and name
+// Trimmed from 0.95 / 0.22 after the 375 px eye-check: at the 24 px floor the
+// longest legendary name, 'Professor Whiskers' (~214 px in Avenir Heavy), plus
+// the star ran to within ~3 px of the pill's edge and touched its gold stroke.
+// At 0.8 / 0.15 the run is ~236 px and clears the edge by ~6 px a side.
+const STAR_SIZE_EM = 0.8;    // the star's width, in units of the font size
+const STAR_GAP_EM = 0.15;    // space between star and name
 const STAR_INNER = 0.45;     // inner radius as a fraction of the outer
 
 function drawStar(ctx, cx, cy, r) {

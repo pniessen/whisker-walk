@@ -21,37 +21,37 @@
 // collider and water clearance, a real perch under every knockable, a clear
 // opening in every flap, nothing crowding a POI or sitting on a rival's land.
 //
-// What each list means, for the tasks that read it:
-//   carryables  on the ground, picked up in the mouth (Tasks 5-9).
+// What each list means, for the code that reads it:
+//   carryables  on the ground, picked up in the mouth.
 //   knockables  standing at (x, y, z) on an existing, ungated perch: y is the
 //               ledge's real top face, (x, z) at least 0.35 m off the perch
 //               point the cat snaps to. A knock lands it at fallTo on the
-//               ground and it stays there (Task 10); fallTo.y is the height
-//               of the deck or kerb it lands on, when that is not 0.
+//               ground and it stays there; fallTo.y is the height of the deck
+//               or kerb it lands on, when that is not 0.
 //   markables   (x, z) is the face of the post, trunk or bollard the claws
-//               reach (Task 11). A colliderless post or bollard is walked
-//               right up to. A tree's (x, z) sits on its trunk, inside its
-//               collider, and the cat comes at it from the side it faces:
-//               outward from the trunk's centre through (x, z). `mesh: false`
-//               means the thing being scratched is already in the world;
-//               `mesh: true` means nothing stands there yet and the walk must
-//               put up a post (the contest-band posts — no area but the docks
-//               has anything standing on its rival's border). `nearBorder` is
-//               the one per area inside Task 12's contest band.
+//               reach. A colliderless post or bollard is walked right up to.
+//               A tree's (x, z) sits on its trunk, inside its collider, and
+//               the cat comes at it from the side it faces: outward from the
+//               trunk's centre through (x, z). `mesh: false` means the thing
+//               being scratched is already in the world; `mesh: true` means
+//               nothing stands there yet and the walk must put up a post (the
+//               contest-band posts — no area but the docks has anything
+//               standing on its rival's border). `nearBorder` is the one per
+//               area inside the rival border's contest band.
 //   flaps       a gate with a cat flap (`flap`) or a hedge with a gap (`gap`),
-//               built by Task 14. rotY is the panel's yaw exactly as THREE's
-//               rotation.y, so the frame runs along the panel's local x, i.e.
-//               world (cos rotY, -sin rotY). `width` is the opening.
-//   rests       drink / eat / nap spots (Task 15); `mesh: false` reuses what
-//               the room already has (the den's bowls and hearth).
+//               built by pushthrough.js. rotY is the panel's yaw exactly as
+//               THREE's rotation.y, so the frame runs along the panel's local
+//               x, i.e. world (cos rotY, -sin rotY). `width` is the opening.
+//   rests       drink / eat / nap spots; `mesh: false` reuses what the room
+//               already has (the den's bowls and hearth).
 //   hides       the cover a fleeing mouse, rat or squirrel dives under — all
-//               of them under something already there (Task 13).
-//   dogYard     the dog's lawn and its kennel (Task 16). `exit`, only on a
-//               yard with a fence, is the unit direction from the centre out
-//               through the fence's opening: a chased cat is put out that way,
-//               never through the fence (ruling R38).
-//   keepSlots   where the den lays out what you carried home (Task 7),
-//               newest first into slot 0.
+//               of them under something already there.
+//   dogYard     the dog's lawn and its kennel. `exit`, only on a yard with a
+//               fence, is the unit direction from the centre out through the
+//               fence's opening: a chased cat is put out that way, never
+//               through the fence (ruling R38).
+//   keepSlots   where the den lays out what you carried home, newest first
+//               into slot 0.
 // =============================================================================
 
 export const PROP_ID = Object.freeze(/^[a-z]{2,12}-[a-z]{2,12}-\d{1,2}$/);
@@ -171,9 +171,8 @@ const SETS = {
     // mouse's, or behind Sure Claws; staying near x 18 keeps all three 2 m off
     // the POI at (20, 14). The seat's top is y 0.54 and its backrest runs along
     // x 17.75, so they all fall forward, off the seat's front (+x), onto the
-    // boardwalk (y 0.03). The middle
-    // stays clear for the perched cat: the bucket at one end, the cup and the
-    // book at the other.
+    // boardwalk (y 0.03). The middle stays clear for the perched cat: the
+    // bucket at one end, the cup and the book at the other.
     knockables: [
       { id: 'seaside-bucket-1', kind: 'bucket', x: 17.95, z: 13.5, y: 0.54, fallTo: { x: 18.95, z: 13.4, y: 0.03 } },
       { id: 'seaside-cup-1', kind: 'cup', x: 17.92, z: 14.4, y: 0.54, fallTo: { x: 18.9, z: 14.3, y: 0.03 } },

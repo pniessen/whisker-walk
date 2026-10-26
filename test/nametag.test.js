@@ -131,6 +131,39 @@ describe('the legend tag', () => {
     });
   });
 
+  // M3: at 375 px the longest legendary name touched the gold edge. With a
+  // measureText that matches Avenir Heavy (what "bold Avenir" resolves to:
+  // 'Professor Whiskers' is 213.7 px at 24 px), the star and the name, as one
+  // centred run at the 24 px floor, clear the pill's edge by a few px a side.
+  it('the longest legendary name clears the gold edge at the phone floor', () => {
+    const prev = globalThis.document;
+    let ctx;
+    globalThis.document = {
+      createElement: () => {
+        ctx = fakeCtx();
+        ctx.measureText = (str) => ({
+          width: (String(str) === 'Professor Whiskers' ? 213.7 / 24 : 0.55 * String(str).length)
+            * (parseInt(ctx.font.replace(/^bold /, ''), 10) || 34),
+        });
+        return { width: 0, height: 0, getContext: () => ctx };
+      },
+    };
+    try {
+      const ops = opsOf(makeNameTag('Professor Whiskers', { legend: true }));
+      const pill = ops.find((o) => o[0] === 'roundRect');
+      const [x0, x1] = [pill[1], pill[1] + pill[3]];
+      const text = ops.find((o) => o[0] === 'fillText');
+      expect(text[1]).toBe('bold 24px Avenir, sans-serif');
+      const starLeft = Math.min(...starOps(ops).map((o) => o[1]));
+      const textRight = text[4] + 213.7;
+      expect(starLeft - x0).toBeGreaterThanOrEqual(5);
+      expect(x1 - textRight).toBeGreaterThanOrEqual(5);
+    } finally {
+      if (prev === undefined) delete globalThis.document;
+      else globalThis.document = prev;
+    }
+  });
+
   it('leaves every other tag exactly as it was', () => {
     withFakeDocument(() => {
       const plain = opsOf(makeNameTag('Marmalade'));
