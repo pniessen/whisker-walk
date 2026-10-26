@@ -2190,6 +2190,19 @@ describe('the colony save key', () => {
     expect(reloaded.state.unlocked.accessories).toContain('wizard');
   });
 
+  it('applyColonyTrades never removes or adds a visit prize, and still records the trade id', () => {
+    const p = createProgression(fakeStorage());
+    p.state.unlocked.accessories.push('partycrown');
+    const giveTrade = { id: 11, from: ME, to: SIB, give: 'partycrown', want: 'glasses', status: 'accepted' };
+    const getTrade = { id: 12, from: SIB, to: ME, give: 'starshades', want: 'bell', status: 'accepted' };
+    p.mergeColonySnapshot(paired([], [], [giveTrade, getTrade]));
+    expect(p.applyColonyTrades(ME)).toEqual([giveTrade, getTrade]);
+    expect(p.state.unlocked.accessories).toContain('partycrown');
+    expect(p.state.unlocked.accessories).not.toContain('starshades');
+    expect(p.state.colony.tradesApplied).toEqual([11, 12]);
+    expect(p.applyColonyTrades(ME)).toEqual([]);
+  });
+
   it('applyColonyTrades reads the other side of a swap, and skips trades that are not accepted or not mine', () => {
     const storage = spyStorage();
     const p = createProgression(storage);

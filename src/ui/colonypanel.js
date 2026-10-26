@@ -16,7 +16,7 @@ import { strayBreed } from '../straynames.js';
 import { clanNameOf, colonyRankFor } from '../clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
 import { roleFor } from '../clanroles.js';
-import { STARTER_ACCESSORIES } from '../progression.js';
+import { isTradeableAccessory } from '../progression.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
 // helper module for six lines).
@@ -398,12 +398,12 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
     const want = escapeHtml(itemName(catalog, got.want));
     const id = escapeHtml(got.id);
     // Swap! is offered only for a swap that makes sense: I still own what they
-    // want, I don't already own what they give, and neither is a starter (which
-    // can never be traded). Otherwise the child sees why, and can only say no.
+    // want, I don't already own what they give, and neither is a starter or a visit
+    // prize (which can never be traded). Otherwise the child sees why, and can only say no.
     const gname = escapeHtml(itemName(catalog, got.give));
     let block = null;
-    if (STARTER_ACCESSORIES.includes(got.give)) block = `${give} can't be swapped`;
-    else if (STARTER_ACCESSORIES.includes(got.want)) block = `${want} can't be swapped`;
+    if (!isTradeableAccessory(got.give)) block = `${give} can't be swapped`;
+    else if (!isTradeableAccessory(got.want)) block = `${want} can't be swapped`;
     else if (mine.has(got.give)) block = `You already have ${gname}`;
     else if (!mine.has(got.want)) block = `You don't have your ${want} any more, so you can't swap.`;
     const have = block === null;
@@ -434,8 +434,8 @@ export function renderTradesHtml({ colony, me, owned, catalog, state } = {}) {
       </div></div>`;
   } else if (!(got && st.confirmId === got.id)) {
     // Make a swap: my tradeable items for the partner's I don't own. Starters
-    // are never offered, and an id the catalog doesn't know is never listed.
-    const ok = (id) => itemName(catalog, id) !== null && !STARTER_ACCESSORIES.includes(id);
+    // and prizes are never offered, and an id the catalog doesn't know is never listed.
+    const ok = (id) => itemName(catalog, id) !== null && isTradeableAccessory(id);
     const giveIds = [...new Set(Array.isArray(owned) ? owned : [])].filter(ok);
     const wanted = Array.isArray(partner.wardrobe) ? partner.wardrobe : [];
     const wantIds = [...new Set(wanted)].filter((id) => ok(id) && !mine.has(id));

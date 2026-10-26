@@ -200,6 +200,24 @@ describe('createColonySync — pull', () => {
     expect(cloud.colonySync).toHaveBeenCalledWith(ME, SECRET, ['tophat', 'crown']);
   });
 
+  it('never pushes a visit prize in the wardrobe, even when the save owns three', async () => {
+    const { cs, cloud, progression } = setup({ script: { colonySync: () => unpairedSnap() } });
+    progression.addPoints(200);
+    expect(progression.buy('accessories', 'tophat')).toBe(true);
+    progression.state.unlocked.accessories.push('partycrown', 'starshades', 'leafcrown');
+    await cs.pull();
+    expect(cloud.colonySync).toHaveBeenCalledWith(ME, SECRET, ['tophat']);
+  });
+
+  it('refuses to propose a trade giving or wanting a visit prize', async () => {
+    const { cs, cloud, progression } = setup({ script: { colonySync: () => pairedSnap() } });
+    progression.state.unlocked.accessories.push('partycrown');
+    await cs.pull();
+    await expect(cs.trade.offer('partycrown', 'crown')).resolves.toEqual({ ok: false, status: 'bad' });
+    await expect(cs.trade.offer('tophat', 'starshades')).resolves.toEqual({ ok: false, status: 'bad' });
+    expect(cloud.colonyTradeOffer).not.toHaveBeenCalled();
+  });
+
   it('pushes feeds made while offline on the next successful pull', async () => {
     const { cs, cloud, progression, script } = setup();
     feedLocal(progression, CAT, 'walk-1');

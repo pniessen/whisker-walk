@@ -27,7 +27,7 @@
 // known-accessory list and refuses a snapshot without a valid colony id), and
 // the inbound snapshot always goes through colony.sanitizeSnapshot first.
 import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX } from '../colony.js';
-import { CATALOG, STARTER_ACCESSORIES } from '../progression.js';
+import { CATALOG, isTradeableAccessory } from '../progression.js';
 import { validPetName } from '../net.js';
 import { clanTitleFor } from '../clannames.js';
 
@@ -63,7 +63,7 @@ function statusWord(r) {
 }
 
 const isTradeId = (v) => Number.isSafeInteger(v) && v > 0;
-const isTradeable = (v) => typeof v === 'string' && KNOWN_ITEMS.has(v) && !STARTER_ACCESSORIES.includes(v);
+const isTradeable = (v) => typeof v === 'string' && KNOWN_ITEMS.has(v) && isTradeableAccessory(v);
 
 export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow, progression, onChange, onTradesApplied }) {
   // What the last pull found: 'unpaired' | 'paired' | 'offline' | 'not-set-up',

@@ -1703,9 +1703,9 @@ export function createProgression(storage) {
     // An accepted trade naming me is applied exactly once, ever: its id goes
     // into colony.tradesApplied, which is persisted and survives a reload.
     // For each one: the outgoing item leaves unlocked.accessories unless it is
-    // a starter (STARTER_ACCESSORIES can never be traded away). Any equipped
+    // a starter or a visit prize (neither can ever be traded away). Any equipped
     // slot holding it is cleared, and so is the `wear` of any colony cat I
-    // found. The incoming item is added if it is a known accessory. All of it
+    // found. The incoming item is added if it is a known accessory and not a prize. All of it
     // lands in one save(); with nothing to do there is no write.
     applyColonyTrades(me) {
       const done = new Set(state.colony.tradesApplied);
@@ -1719,7 +1719,7 @@ export function createProgression(storage) {
         if (done.has(t.id)) continue;
         const eff = tradeEffect(t, me);
         if (!eff) continue;
-        if (!STARTER_ACCESSORIES.includes(eff.remove) && owned.includes(eff.remove)) {
+        if (isTradeableAccessory(eff.remove) && owned.includes(eff.remove)) {
           owned = owned.filter((id) => id !== eff.remove);
           for (const slot of Object.keys(equipped)) {
             if (slot !== 'cat' && equipped[slot] === eff.remove) equipped[slot] = null;
@@ -1728,7 +1728,7 @@ export function createProgression(storage) {
             cats = cats.map((c) => (c.finder === me && c.wear === eff.remove ? { ...c, wear: null } : c));
           }
         }
-        if (KNOWN_ACCESSORY_IDS.has(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
+        if (KNOWN_ACCESSORY_IDS.has(eff.add) && !isPrizeAccessory(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
         done.add(t.id);
         applied.push({ ...t });
       }

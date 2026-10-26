@@ -517,6 +517,13 @@ describe('renderTradesHtml', () => {
     expect(options(html, 'data-trade-want')).toEqual(['crown', 'wizard']);
   });
 
+  it('never offers a visit prize to give, nor lists one the partner has', () => {
+    const colony = pairedColony({ partner: { playerId: PARTNER, petName: 'Robin', wardrobe: ['crown', 'starshades'] } });
+    const html = trades(colony, { owned: ['bell', 'tophat', 'glow', 'partycrown'] });
+    expect(options(html, 'data-trade-give')).toEqual(['tophat', 'glow']);
+    expect(options(html, 'data-trade-want')).toEqual(['crown']);
+  });
+
   it('shows the offer button and the plain no-take-backs line', () => {
     const html = trades(pairedColony());
     expect(html).toContain('data-trade-action="offer"');
@@ -704,6 +711,15 @@ describe('renderTradesHtml — offers I should not accept', () => {
   it('no Swap! when what they want is a starter', () => {
     const html = view({ want: 'bandana' });
     expect(html).toMatch(/Bandana can.t be swapped/);
+    expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
+    expect(html).toMatch(/data-trade-action="decline"/);
+  });
+  it('no Swap! when what they give or want is a visit prize', () => {
+    let html = view({ give: 'starshades' });
+    expect(html).toMatch(/Star Shades can.t be swapped|can.t be swapped/);
+    expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
+    html = view({ want: 'partycrown' }, ['bell', 'partycrown']);
+    expect(html).toMatch(/can.t be swapped/);
     expect(html).not.toMatch(/data-trade-action="(accept|confirm)"/);
     expect(html).toMatch(/data-trade-action="decline"/);
   });
