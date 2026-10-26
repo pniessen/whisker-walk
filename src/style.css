@@ -919,3 +919,65 @@ body.den-shop-open .chat-wheel { display: none !important; }
   background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
 }
 .ds-buy:hover { background: #5a7eb5; }
+
+/* Visit celebrations (src/ui/visitcelebration.js)
+   A full card over a dimmer, B a small banner, C a speech bubble from the
+   cat. Above the colony-news modal and the home base, below the walk's
+   skill-unlock card (12). The root never eats clicks except on the card and
+   its buttons, so style B can never block Start. */
+.visit-cel {
+  position: fixed; inset: 0; z-index: 9; pointer-events: none;
+  display: grid; place-items: center; padding: 16px;
+  opacity: 1; transition: opacity 0.7s;
+}
+.visit-cel.fade { opacity: 0; }
+.visit-cel-dim { position: absolute; inset: 0; background: rgba(14, 19, 29, 0.78); pointer-events: auto; }
+.visit-cel.style-b { place-items: start center; padding-top: max(16px, env(safe-area-inset-top)); }
+.visit-cel.style-c { place-items: end center; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.visit-cel-wrap { position: relative; width: 100%; max-width: 380px; pointer-events: none; }
+.visit-cel-card {
+  pointer-events: auto; position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  background: #2a3550; border: 2px solid #ff8fb1; border-radius: 18px; padding: 20px 18px 18px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 0 28px rgba(255, 143, 177, 0.4);
+  animation: visit-cel-pop 0.45s ease-out;
+}
+.style-b .visit-cel-card { padding: 12px 16px; gap: 4px; }
+.visit-cel-title { font-size: 1.7rem; font-weight: 800; color: #ff8fb1; }
+.style-b .visit-cel-title { font-size: 1.15rem; }
+.visit-cel-line { font-size: 1.05rem; line-height: 1.4; color: #fff; overflow-wrap: anywhere; }
+.visit-cel-prize { font-size: 1.35rem; font-weight: 800; color: #f2c14e; overflow-wrap: anywhere; }
+.visit-cel-bubble {
+  position: relative; font-size: 1.1rem; line-height: 1.4; color: #1c2431; overflow-wrap: anywhere;
+  background: #fff; border-radius: 16px; padding: 12px 14px;
+}
+.style-c .visit-cel-card { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.visit-cel-btn, .visit-cel-gift {
+  min-height: 48px; min-width: 48px; padding: 10px 22px; border: 0; border-radius: 12px; cursor: pointer;
+  font: inherit; font-size: 1.1rem; font-weight: 700; background: #ff8fb1; color: #1c2431;
+}
+.style-b .visit-cel-btn { min-height: 36px; padding: 6px 16px; font-size: 0.95rem; }
+.visit-cel-btn.secondary { background: #f2c14e; }
+.visit-cel-gift { font-size: 2rem; padding: 6px 22px; animation: visit-cel-wiggle 1.2s ease-in-out infinite; }
+.visit-cel-btn:hover, .visit-cel-gift:hover { filter: brightness(1.08); }
+.visit-cel-btn:focus-visible, .visit-cel-gift:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.visit-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.visit-confetti i {
+  position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 2px; opacity: 0.95;
+  animation: visit-confetti-fall 3.4s linear both;
+}
+@keyframes visit-confetti-fall {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(105vh) rotate(540deg); }
+}
+@keyframes visit-cel-pop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes visit-cel-wiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .visit-confetti { display: none; }
+  .visit-cel-card, .visit-cel-gift { animation: none; }
+  .visit-cel { transition: none; }
+}
+@media (max-width: 480px) {
+  .visit-cel { padding: 12px; }
+  .visit-cel-title { font-size: 1.5rem; }
+}
