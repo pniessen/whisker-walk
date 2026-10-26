@@ -952,7 +952,24 @@ body.den-shop-open .chat-wheel { display: none !important; }
   position: relative; font-size: 1.1rem; line-height: 1.4; color: #1c2431; overflow-wrap: anywhere;
   background: #fff; border-radius: 16px; padding: 12px 14px;
 }
-.style-c .visit-cel-card { background: transparent; border: 0; box-shadow: none; padding: 0; }
+/* C: the wrap is sized to the cat's stage by the module; the bubble hangs at
+   its top-right (tail down-left toward the cat's head) and the present sits
+   on the right edge, lower half, beside the cat, never on it. */
+.style-c .visit-cel-card { display: block; position: relative; height: 100%; background: transparent; border: 0; box-shadow: none; padding: 0; animation: none; pointer-events: none; }
+.style-c .visit-cel-bubble {
+  position: absolute; top: 0; right: 0; width: var(--vc-bubble-w, 200px); max-width: 100%;
+  box-sizing: border-box; pointer-events: auto; text-align: left; font-size: 1rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); animation: visit-cel-pop 0.45s ease-out;
+}
+.style-c .visit-cel-bubble::after {
+  content: ""; position: absolute; left: 14px; bottom: -10px;
+  border: 10px solid transparent; border-top-color: #fff; border-bottom: 0; border-right-width: 4px;
+}
+.style-c .visit-cel-gift { position: absolute; left: var(--vc-gift-x, 0); top: 65%; width: 56px; height: 56px; padding: 0; pointer-events: auto; }
+.style-c .visit-cel-side {
+  position: absolute; right: 12px; top: 65%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  max-width: 45%; pointer-events: auto; text-align: right;
+}
 .visit-cel-btn, .visit-cel-gift {
   min-height: 48px; min-width: 48px; padding: 10px 22px; border: 0; border-radius: 12px; cursor: pointer;
   font: inherit; font-size: 1.1rem; font-weight: 700; background: #ff8fb1; color: #1c2431;

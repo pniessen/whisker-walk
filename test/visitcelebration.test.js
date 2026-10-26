@@ -276,17 +276,40 @@ describe('createVisitCelebration', () => {
     expect(html(a.root())).toContain('visit-cel-dim');
   });
 
-  it('C is placed from the anchor, clamped, with an upper-third fallback', () => {
-    const rectOf = (r) => ({ left: r.left, top: r.top, right: r.left + r.width, bottom: r.top + r.height, width: r.width, height: r.height });
-    let x = setup(); x.cel.show(ms(10, 'C'), { anchor: () => rectOf({ left: 40, top: 300, width: 200, height: 220 }) });
-    const card = x.root().children[0];
-    expect(card.style.cssText).toContain('top:160px');
-    x = setup(); x.cel.show(ms(10, 'C'), { anchor: () => rectOf({ left: 300, top: 60, width: 120, height: 200 }) });
-    const m = x.root().children[0].style.cssText.match(/left:(-?\d+)px;top:(\d+)px;width:(\d+)px/);
-    expect(Number(m[1])).toBeGreaterThanOrEqual(12);
-    expect(Number(m[1]) + Number(m[3])).toBeLessThanOrEqual(375 - 12);
+  it('C hangs beside the real #dr-stage rect: narrow bubble, present on the right edge', () => {
+    const rect = { left: 14, top: 79, width: 347, height: 300, right: 361, bottom: 379 };
+    const { cel, root } = setup();
+    cel.show(ms(10, 'C'), { anchor: () => rect });
+    const css = root().children[0].style.cssText;
+    const num = (k) => Number(css.match(new RegExp(`${k}:(-?\\d+)px`))[1]);
+    expect(num('left')).toBe(14);
+    expect(num('top')).toBe(79);
+    expect(num('width')).toBe(347);
+    expect(num('height')).toBe(300);
+    expect(num('--vc-bubble-w')).toBeLessThanOrEqual(0.58 * 347);
+    expect(num('--vc-bubble-w')).toBeGreaterThanOrEqual(180);
+    expect(num('--vc-gift-x')).toBeGreaterThanOrEqual(0.75 * 347);
+    expect(num('--vc-gift-x') + 56).toBeLessThanOrEqual(347 - 12);
+  });
+
+  it('C accepts an element anchor and falls back to the upper third', () => {
+    let x = setup();
+    x.cel.show(ms(10, 'C'), { anchor: { getBoundingClientRect: () => ({ left: 14, top: 79, width: 347, height: 300 }) } });
+    expect(x.root().children[0].style.cssText).toContain('top:79px');
     x = setup(); x.cel.show(ms(10, 'C'), {});
     expect(x.root().children[0].style.cssText).toContain('top:97px');
+  });
+
+  it('C never shows the thumb, even on the reveal; A does', () => {
+    const { cel, root, t } = setup();
+    cel.show(ms(10, 'C'), { thumb: 'cat.png' });
+    click(root(), 'open');
+    expect(html(root())).not.toContain('cat.png');
+    expect(html(root())).toContain("It's a Party Hat!");
+    const a = setup(); a.cel.show(ms(10, 'A'), { thumb: 'hat.png' });
+    click(a.root(), 'open');
+    expect(html(a.root())).toContain('hat.png');
+    void t;
   });
 
   it('a throwing onOpen does not strand B', () => {

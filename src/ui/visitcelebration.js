@@ -93,10 +93,10 @@ export function celebrationHtml(milestone, { petName, stage = 'start', thumb } =
     else if (stage === 'revealed') bubble = `${itsLine}`;
     else if (n === 1) bubble = 'Hi! This is our first visit together. I found something for you…';
     else bubble = `You came back! This is our ${ordinal(n)} visit. I found something for you…`;
+    // The hero cat wears the prize itself, so C never shows a thumbnail.
     let body = `<div class="visit-cel-bubble">${bubble}</div>`;
-    if (!isNew) body += `${prizeShow}${wear}${yay}`;
-    else if (stage === 'revealed') body += prizeShow;
-    else body += '<button class="visit-cel-gift" data-vc="open" aria-label="Open the present">🎁</button>';
+    if (!isNew) body += `<div class="visit-cel-side"><div class="visit-cel-prize">${name}</div>${wear}${yay}</div>`;
+    else if (stage !== 'revealed') body += '<button class="visit-cel-gift" data-vc="open" aria-label="Open the present">🎁</button>';
     return `<div class="visit-cel-card">${body}</div>`;
   }
 
@@ -117,6 +117,7 @@ export function celebrationHtml(milestone, { petName, stage = 'start', thumb } =
 }
 
 const REVEAL_LOCK_MS = 500;
+const GIFT_SIZE = 56; // px, matches .visit-cel-gift
 
 function safe(fn, ...args) {
   try { fn(...args); } catch (err) { console.warn('visit celebration callback failed', err); }
@@ -162,7 +163,8 @@ export function createVisitCelebration(mount, {
   }
 
   function setCard(stage) {
-    card.innerHTML = celebrationHtml(current.milestone, { petName: current.petName, stage, thumb: current.thumb });
+    const thumb = current.milestone.style === 'C' ? undefined : current.thumb;
+    card.innerHTML = celebrationHtml(current.milestone, { petName: current.petName, stage, thumb });
   }
 
   // Style C hangs next to the cat. anchor is an Element or a () => DOMRect.
@@ -174,27 +176,23 @@ export function createVisitCelebration(mount, {
     try {
       rect = typeof anchor === 'function' ? anchor() : anchor?.getBoundingClientRect?.();
     } catch { rect = null; }
-    const width = Math.min(260, vw - 24);
-    let left; let top;
+    // The wrap covers the anchor (the cat's stage); CSS lays the bubble out
+    // along its top-right and the present/actions down its right edge.
+    let left; let top; let width; let height;
     if (rect && rect.width > 0) {
-      left = rect.left + rect.width / 2 - width / 2;
-      if (rect.top >= 150) {
-        top = rect.top - 140; // just above the cat
-      } else {
-        // No room above: sit beside the cat, on the roomier side, inside the stage.
-        top = Math.max(8, rect.top + 8);
-        const roomR = vw - rect.right; const roomL = rect.left;
-        left = roomR >= roomL ? Math.min(rect.right + 4, vw - width - 12) : Math.max(12, rect.left - width - 4);
-      }
-      top = Math.min(top, Math.max(8, rect.bottom - 120)); // never down over Start
+      left = rect.left; top = rect.top; width = rect.width; height = rect.height || rect.bottom - rect.top;
     } else {
-      left = (vw - width) / 2;
-      top = vh * 0.12; // upper third
+      left = 12; top = vh * 0.12; width = vw - 24; height = 220; // upper third
     }
-    left = Math.max(12, Math.min(left, vw - width - 12));
-    top = Math.max(8, top);
+    left = Math.max(0, Math.min(left, vw - 1));
+    width = Math.max(1, Math.min(width, vw - left));
+    top = Math.max(0, top);
+    const bubbleW = Math.min(width, Math.max(180, Math.floor(width * 0.58)));
+    const giftX = Math.max(0, Math.round(width - 12 - GIFT_SIZE));
     card.classList.add('anchored');
-    if (card.style) card.style.cssText = `left:${Math.round(left)}px;top:${Math.round(top)}px;width:${Math.round(width)}px`;
+    if (card.style) {
+      card.style.cssText = `left:${Math.round(left)}px;top:${Math.round(top)}px;width:${Math.round(width)}px;height:${Math.round(height)}px;--vc-bubble-w:${bubbleW}px;--vc-gift-x:${giftX}px`;
+    }
   }
 
   function handleClick(ev) {
@@ -213,7 +211,7 @@ export function createVisitCelebration(mount, {
       if (!root) return; // onOpen may have closed us
       setCard('revealed');
       root.classList.add('revealed');
-      if (current.thumb) {
+      if (current.thumb && milestone.style !== 'C') {
         const burst = mount.ownerDocument.createElement('div');
         burst.innerHTML = confettiHtml(milestone.visit, rng, 30);
         root.appendChild(burst);
