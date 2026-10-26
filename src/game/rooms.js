@@ -43,7 +43,8 @@ export function createRooms({
   let pendingRoom = null; // { net, code, roster, pair }
   // A start being gathered (v21 Play together): { room, proposals, timer } or
   // null. Opened by my own Start or by the first proposal I hear; for
-  // START_GATHER_MS every proposal is collected, then pickRoomStart's winner
+  // START_GATHER_MS (host) or MEMBER_GATHER_MS (member) every proposal is
+  // collected, then pickRoomStart's winner
   // starts. Dropped when any walk starts and whenever the room goes away
   // (leave, or endWalk's clear).
   let gathering = null;

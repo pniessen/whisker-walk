@@ -40,7 +40,8 @@ export function rosterIsPartnerOnly(rosterIds, selfId, partnerId) {
 //
 //   * 'walk-config' from anyone else in the room is a start proposal with
 //     their area, dusk and seed. rooms.js gathers proposals for
-//     START_GATHER_MS and starts pickRoomStart's winner, so two kids pressing
+//     START_GATHER_MS (host) or MEMBER_GATHER_MS (member) and starts
+//     pickRoomStart's winner, so two kids pressing
 //     Start at once still land in the same world. `override` is true when I
 //     haven't unlocked that area: the walk renders it without changing my save.
 //     A config from someone not in the roster is spoofed or stale.
