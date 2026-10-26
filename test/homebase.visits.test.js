@@ -93,7 +93,7 @@ describe('the home base on a visit', () => {
     progression.recordVisit();
     hb.show();
     const h = doc.root.innerHTML;
-    expect(h).toMatch(/<\/h1><div class="dr-chip visit">🎉 Visit 1<\/div><div class="dr-chip gold">/);
+    expect(h).toMatch(/<\/h1><div class="dr-chip visit milestone">🎉 Visit 1<\/div><div class="dr-chip gold">/);
   });
 
   it('a plain visit shows the welcome line and no celebration', () => {
@@ -175,5 +175,46 @@ describe('the home base on a visit', () => {
     hb.hide();
     expect(onClosed).toHaveBeenCalledWith('walk');
     expect(JSON.stringify(progression.state.equipped)).toBe(before);
+  });
+});
+
+describe('showVisit while the home base is hidden', () => {
+  it('shows nothing over a walk, and wears the pending prize', () => {
+    const { progression, hb } = setup();
+    const visit = progression.recordVisit();
+    hb.show();
+    hb.hide(); // a room partner pressed Start during the splash
+    const onClosed = vi.fn();
+    expect(hb.showVisit(visit, { onClosed })).toBe(false);
+    expect(hb.visitOpen()).toBe(false);
+    expect(celebration()).toBe(undefined);
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+    expect(onClosed).not.toHaveBeenCalled();
+    expect(progression.state.equipped.head).toBe('partycrown');
+  });
+});
+
+describe('the visit badge style', () => {
+  it('is a filled pink badge that pops once on a milestone, still under reduced motion', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.dr-chip\.visit \{[^}]*\}/)[0];
+    expect(rule).toContain('#ff8fb1');
+    expect(rule).toContain('#3b0f22');
+    expect(css).toMatch(/\.dr-chip\.visit\.milestone\.pop \{[^}]*animation/);
+    expect(css).toMatch(/prefers-reduced-motion[^{]*\{[^}]*\.dr-chip\.visit\.milestone\.pop \{ animation: none/);
+  });
+  it('pops the live badge when the celebration shows', () => {
+    const { progression, hb } = setup();
+    const visit = progression.recordVisit();
+    hb.show();
+    const badge = fakeEl(doc);
+    doc.root.querySelector = (sel) => (sel === '.dr-chip.visit' ? badge : null);
+    hb.showVisit(visit, { onClosed: () => {} });
+    expect(badge.classList.contains('pop')).toBe(true);
+  });
+  it('marks a milestone badge', () => {
+    expect(visitBadgeHtml(30)).toContain('class="dr-chip visit milestone"');
+    expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
   });
 });

@@ -652,7 +652,22 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-edition { color: #f2c14e; white-space: nowrap; }
 .dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
-.dr-chip.visit { color: var(--pink); font-weight: 700; }
+.dr-chip.visit {
+  background: #ff8fb1; color: #3b0f22; font-weight: 800; font-size: 15px; padding: 7px 13px;
+  box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35);
+}
+/* A milestone visit's badge pops once (a little grow and a glow) when the
+   celebration starts; homebase adds .pop to the live element, so a later
+   render() never replays it. */
+.dr-chip.visit.milestone.pop { animation: visit-badge-pop 0.9s ease-out 0.2s 1 both; }
+@keyframes visit-badge-pop {
+  0% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
+  40% { transform: scale(1.14); box-shadow: 0 0 18px 4px rgba(255, 210, 225, 0.9); }
+  100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr-chip.visit.milestone.pop { animation: none; }
+}
 .dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .dr-stats:empty { display: none; }
 
@@ -773,6 +788,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .dr-header > :not(.dr-stats) { flex: 0 1 auto; min-width: 0; }
   .dr-title { font-size: 16px; margin-right: 0; }
   .dr-chip { font-size: 12px; padding: 5px 8px; }
+  .dr-chip.visit { font-size: 14px; padding: 6px 11px; }
   .dr-hero { order: 1; }
   .dr-stage { height: min(38vh, 300px); }
   .dr-hero-name { font-size: 18px; }

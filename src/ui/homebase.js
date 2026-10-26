@@ -27,7 +27,9 @@ const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 export function visitBadgeHtml(visits) {
   const n = Math.floor(asFiniteNonNeg(visits, 0));
   if (n < 1) return '';
-  return `<div class="dr-chip visit">${isMilestone(n) ? '🎉' : '🐾'} Visit ${n}</div>`;
+  return isMilestone(n)
+    ? `<div class="dr-chip visit milestone">🎉 Visit ${n}</div>`
+    : `<div class="dr-chip visit">🐾 Visit ${n}</div>`;
 }
 
 // How long the welcome line stays before it is removed (its CSS fade ends
@@ -637,6 +639,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // once when it closes ('done', or 'walk' when a walk started over it).
   // Otherwise the welcome line shows, it returns false, and onClosed is not called.
   function showVisit(result, { onClosed } = {}) {
+    // Hidden: a walk already started (a room partner pressed Start during the
+    // splash). Nothing goes up over the walk, but the prize is still worn.
+    if (!homeVisible()) {
+      progression.wearPendingVisitPrize();
+      return false;
+    }
     const milestone = result && result.milestone;
     if (milestone && !visitOpen()) {
       visitClosed = typeof onClosed === 'function' ? onClosed : null;
@@ -645,7 +653,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         anchor: () => heroStage()?.getBoundingClientRect?.(),
         thumb: thumbs?.accessories?.[milestone.prize?.id],
       });
-      if (shownOk) return true;
+      if (shownOk) {
+        // The badge pops once now that the greeting is in view (not on the
+        // first render, which the splash covers).
+        try { root.querySelector('.dr-chip.visit')?.classList.add('pop'); } catch { /* a nicety */ }
+        return true;
+      }
       visitClosed = null;
     }
     const n = Math.floor(asFiniteNonNeg(result && result.visits, 0));
