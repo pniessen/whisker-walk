@@ -351,23 +351,36 @@ export function assignShadowCasters(scene) {
   let meshes = 0;
   let casters = 0;
   for (const child of scene.children) {
-    casterBox.setFromObject(child);
-    const eligible = castsFromBox(casterBox);
-    child.traverse((obj) => {
-      // userData.contactDecal is render/contactshadows.js's two
-      // InstancedMeshes opting out. They are already shadows: casting from
-      // them would draw a hard black quad into the shadow map under every
-      // prop, and receiving would band them with the very shadows they
-      // exist to reinforce. The module sets castShadow/receiveShadow false
-      // itself; without the opt-out here this sweep would overwrite it
-      // moments later.
-      if (obj.isMesh && !obj.userData.contactDecal) {
-        obj.receiveShadow = true;
-        obj.castShadow = eligible && !isTransparentMat(obj.material);
-        meshes++;
-        if (obj.castShadow) casters++;
-      }
-    });
+    const r = assignShadowCastersFor(child);
+    meshes += r.meshes;
+    casters += r.casters;
   }
+  return { meshes, casters };
+}
+
+// The same rule for ONE top-level child — the sweep above is this, per child.
+// Exported for a prop that joins the scene after the sweep has run: the den
+// shop's furniture, placed during a den walk (game/denlive.js).
+export function assignShadowCastersFor(child) {
+  let meshes = 0;
+  let casters = 0;
+  if (!child || !child.isObject3D) return { meshes, casters };
+  casterBox.setFromObject(child);
+  const eligible = castsFromBox(casterBox);
+  child.traverse((obj) => {
+    // userData.contactDecal is render/contactshadows.js's two
+    // InstancedMeshes opting out. They are already shadows: casting from
+    // them would draw a hard black quad into the shadow map under every
+    // prop, and receiving would band them with the very shadows they
+    // exist to reinforce. The module sets castShadow/receiveShadow false
+    // itself; without the opt-out here this sweep would overwrite it
+    // moments later.
+    if (obj.isMesh && !obj.userData.contactDecal) {
+      obj.receiveShadow = true;
+      obj.castShadow = eligible && !isTransparentMat(obj.material);
+      meshes++;
+      if (obj.castShadow) casters++;
+    }
+  });
   return { meshes, casters };
 }

@@ -15,6 +15,10 @@ verify-*.html
 !verify-docks.html
 !verify-seaside.html
 !verify-neighborhood.html
+# These three import the stage/controller/rig too: the dressing room's sign-off record and the source of the place pictures.
+!verify-dressingroom-mockup.html
+!verify-dressingroom.html
+!verify-places.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

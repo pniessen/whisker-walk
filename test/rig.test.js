@@ -5,7 +5,7 @@ import {
   SUN_COLOR, SUN_POSITION, SUN_INTENSITY, SUN_BIAS,
   HEMI_SKY, HEMI_INTENSITY, DEFAULT_GROUND_BOUNCE,
   CAST_FLAT_HEIGHT, CAST_TALL_HEIGHT, CAST_WIDE_SPAN,
-  createSun, createFill, isTransparentMat, castsFromBox, assignShadowCasters,
+  createSun, createFill, isTransparentMat, castsFromBox, assignShadowCasters, assignShadowCastersFor,
 } from '../src/render/rig.js';
 
 // render/rig.js is the one lighting rig the game (game/walk.js), the budget
@@ -109,6 +109,37 @@ describe('assignShadowCasters', () => {
     for (const m of [tall, flat, glass]) expect(m.receiveShadow).toBe(true);
     expect(decal.castShadow).toBe(false);
     expect(decal.receiveShadow).toBe(false);
+  });
+});
+
+describe('assignShadowCastersFor (one prop added after the sweep)', () => {
+  it('gives one top-level child exactly what the whole-scene sweep would', () => {
+    const make = () => {
+      const g = new THREE.Group();
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 0.3), new THREE.MeshStandardMaterial());
+      post.position.y = 0.8;
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshStandardMaterial({ transparent: true }));
+      g.add(post, glass);
+      g.position.set(3, 0, -2);
+      return g;
+    };
+    const a = make();
+    const sceneA = new THREE.Scene();
+    sceneA.add(a);
+    assignShadowCasters(sceneA);
+    const b = make();
+    const res = assignShadowCastersFor(b);
+    expect(res).toEqual({ meshes: 2, casters: 1 });
+    expect(b.children.map((m) => [m.castShadow, m.receiveShadow]))
+      .toEqual(a.children.map((m) => [m.castShadow, m.receiveShadow]));
+  });
+
+  it('a flat rug casts nothing and receives', () => {
+    const rug = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.04, 20), new THREE.MeshStandardMaterial());
+    assignShadowCastersFor(rug);
+    expect(rug.castShadow).toBe(false);
+    expect(rug.receiveShadow).toBe(true);
+    expect(assignShadowCastersFor(null)).toEqual({ meshes: 0, casters: 0 });
   });
 });
 

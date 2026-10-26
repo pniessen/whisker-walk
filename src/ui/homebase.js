@@ -1,7 +1,11 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
-import { HOME_TABS, resolveTab, renderSkillsHtml, renderStarNamePicker } from './hometabs.js';
+import { renderSkillsHtml, renderStarNamePicker } from './hometabs.js';
+import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
+import { createDressingRoom } from './dressingroomview.js';
+import { createCatStage } from './catstage.js';
+import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
@@ -10,40 +14,9 @@ import {
 } from './colonypanel.js';
 import { renderJournalHtml } from '../journal.js';
 import { GOLD_TOTAL } from '../goldmice.js';
-import { DEN_ITEMS, DEN_SPOTS } from '../den.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
-
-// Cat Couture (Task 3): the Accessories section is grouped by slot, in this
-// fixed display order — independent of CATALOG.accessories' insertion order,
-// so adding a new item to the catalog can't silently reorder the headings.
-const ACCESSORY_SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
-const SLOT_LABEL = { collar: 'Collar', head: 'Head', face: 'Face', neck: 'Neck', body: 'Body', back: 'Back', feet: 'Feet' };
-
-const TAB_LABEL = { cats: '🐱 Cats', accessories: '🎩 Accessories', skills: '🐾 Skills', colony: '🐈 Colony', social: '👥 Social', album: '📸 Album', settings: '⚙️ Settings' };
-
-const CAT_BLURBS = {
-  tabby: 'Curious — sniffs out hidden treasures',
-  siamese: 'Hyper — fast, loud, chases everything',
-  persian: 'Lazy — naps often, loves pets',
-  black: 'Brave — nothing spooks this cat',
-  calico: 'Playful — pounces butterflies for points',
-  mainecoon: 'Steady — big, calm, unbothered',
-  zeetoo: 'Legendary tabby — smells treasure from a block away',
-  robbie: 'Cow cat — maximum chaos, champion pouncer',
-  d2: 'Gentle giant — big, fluffy, never in a hurry',
-  digit: 'Kitten — all legs and ears, chases everything',
-  hagrid: 'A chicken?! Birds trust Hagrid completely',
-};
-const ACC_BLURBS = {
-  bell: 'Birds come closer',
-  glow: 'Unlocks dusk walks with fireflies',
-  bandana: 'Neighbors wave back (+points)',
-  booties: 'Puddles become splash discoveries',
-  backpack: 'Carry one extra collectible',
-  crown: 'Butterflies trail your cat',
-};
 
 // petNames in a room roster arrive over the network (another player's
 // client, not necessarily one that enforced validPetName) — escape before
@@ -109,9 +82,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   const root = document.getElementById('homebase');
   let petNameError = null;
   let joinError = null;
-  let activeTab = 'cats';
+  // v21 Stream 5: the home screen is the dressing room (openSheet null) or
+  // one sheet from HOME_SHEETS.
+  let openSheet = null;
+  // The dusk toggle's tick, remembered across renders (a pill switch
+  // re-renders); never saved, and cleared on show() as it always was.
+  let duskWanted = false;
+  let shown = false; // between show() and hide()
 
-  // Secret-code box (Cats tab). Typed text, the last result and the busy flag
+  // Secret-code box (its own sheet). Typed text, the last result and the busy flag
   // live here because render() rebuilds the panel.
   const redeemer = createRedeemer({ progression });
   let redeemText = '';
@@ -163,93 +142,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   let cloudStatus = null; // inline result text after a manual "Sync now"
   let cloudJustLinked = false; // show the big "write this down" code once, right after linking
   let cloudPreview = null; // pending { code, secret, payload, local, cloud } from previewLoad
-
-  function card(kind, id, item, ownedLabel) {
-    const s = progression.state;
-    const owned = progression.isUnlocked(kind, id);
-    const selected =
-      (kind === 'cats' && s.equipped.cat === id) ||
-      (kind === 'accessories' && s.equipped[item.slot] === id) ||
-      (kind === 'areas' && s.area === id);
-    const blurb = kind === 'cats' ? CAT_BLURBS[id] : kind === 'accessories' ? ACC_BLURBS[id] : '';
-    const thumbs = menuThumbnails();
-    const thumb = kind === 'cats' ? thumbs.cats[id] : kind === 'accessories' ? thumbs.accessories[id] : null;
-    let action;
-    if (owned) {
-      action = selected
-        ? `<div class="tag on">${ownedLabel}</div>` +
-          (kind === 'accessories' ? `<button data-action="unequip">Take off</button>` : '')
-        : `<button data-action="equip">${kind === 'areas' ? 'Walk here' : 'Choose'}</button>`;
-    } else if (progression.canBuy(kind, id)) {
-      action = `<button data-action="buy">Unlock — ${item.price} 🐾</button>`;
-    } else {
-      let need = `${item.price} 🐾`;
-      if (item.requires) {
-        const req = item.requires;
-        need += ` · ${s.walks[req.area]}/${req.walks} walks in ${CATALOG.areas[req.area].name}`;
-      }
-      action = `<div class="tag">${need}</div>`;
-    }
-    return `<div class="card ${selected ? 'selected' : ''} ${owned ? '' : 'locked'}"
-      data-kind="${kind}" data-id="${id}">
-      ${thumb ? `<img class="card-thumb" src="${thumb}" alt="${item.name}">` : ''}
-      <div class="card-name">${item.name}</div>
-      ${blurb ? `<div class="card-sub">${blurb}</div>` : ''}
-      ${action}
-    </div>`;
-  }
-
-  // Den furniture card (Task 7.2) — same `.card` markup idiom as card()
-  // above (price tag / Buy button / owned tag) but against DEN_ITEMS +
-  // state.den.owned instead of CATALOG + state.unlocked: den items have no
-  // "equip" concept of their own (placement happens via the per-spot
-  // <select>s in renderDenSection below), just owned-or-not-yet.
-  function denItemCard(id, item) {
-    const s = progression.state;
-    const owned = s.den.owned.includes(id);
-    let action;
-    if (owned) {
-      action = `<div class="tag on">owned</div>`;
-    } else if (s.points >= item.price) {
-      action = `<button data-action="buy-den" data-id="${id}">Unlock — ${item.price} 🐾</button>`;
-    } else {
-      action = `<div class="tag">${item.price} 🐾</div>`;
-    }
-    return `<div class="card ${owned ? 'selected' : 'locked'}" data-kind="den" data-id="${id}">
-      <div class="card-name">${item.name}</div>
-      ${action}
-    </div>`;
-  }
-
-  // "Your Den" Play-tab section (Task 7.2): the DEN_ITEMS catalog as cards
-  // (Buy -> buyDenItem) plus one <select> per DEN_SPOTS anchor point (options
-  // = "empty" + every owned item) that calls placeDenItem on change. All
-  // labels here are the static catalog strings (item.name / spot.id) — no
-  // user-authored text ever reaches this section's innerHTML.
-  function renderDenSection() {
-    const s = progression.state;
-    return `
-      <section class="den-section"><h2>Your Den 🏠</h2>
-        <div class="cards">
-          ${Object.entries(DEN_ITEMS).map(([id, item]) => denItemCard(id, item)).join('')}
-        </div>
-        <div class="den-spots">
-          ${DEN_SPOTS.map((spot) => {
-            const current = s.den.placed[spot.id] ?? '';
-            const options = s.den.owned.map((ownedId) =>
-              `<option value="${ownedId}" ${ownedId === current ? 'selected' : ''}>${DEN_ITEMS[ownedId].name}</option>`
-            ).join('');
-            return `<label class="den-spot-row">
-              <span class="den-spot-id">${spot.id}</span>
-              <select data-den-spot="${spot.id}">
-                <option value="" ${current === '' ? 'selected' : ''}>— empty —</option>
-                ${options}
-              </select>
-            </label>`;
-          }).join('')}
-        </div>
-      </section>`;
-  }
 
   function renderWalkTogether() {
     if (!rooms || !rooms.available) {
@@ -506,11 +398,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // reasons (and never doubles).
   function syncPairingPoll() {
     const status = colonySync ? colonySync.status() : null;
-    const want = shouldPollPairing(status, { tab: activeTab, visible: homeVisible() });
+    const want = shouldPollPairing(status, { tab: openSheet, visible: homeVisible() });
     if (want && pairTimer === null) {
       pairTimer = setInterval(() => {
         // Re-check on every tick: a tick must never run on stale reasons.
-        if (!shouldPollPairing(colonySync.status(), { tab: activeTab, visible: homeVisible() })) {
+        if (!shouldPollPairing(colonySync.status(), { tab: openSheet, visible: homeVisible() })) {
           syncPairingPoll();
           return;
         }
@@ -598,12 +490,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (!newsEl) return;
     newsEl.remove();
     newsEl = null;
-    const shown = newsShown;
+    const seen = newsShown;
     newsShown = null;
     // Dismissing is what marks it read; closing because a walk began is not.
     // Only what the card showed is marked, not what merged while it was up.
     if (markSeen) {
-      try { progression.markColonySeen(utcToday(), shown || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
+      try { progression.markColonySeen(utcToday(), seen || undefined); } catch (err) { console.warn('Whisker Walk: could not mark news seen', err); }
     }
   }
 
@@ -665,21 +557,91 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     return true;
   }
 
-  function applyActiveTab() {
-    for (const btn of root.querySelectorAll('.hb-tab')) {
-      btn.classList.toggle('active', btn.dataset.tab === activeTab);
-      btn.setAttribute('aria-selected', btn.dataset.tab === activeTab ? 'true' : 'false');
-    }
-    for (const panel of root.querySelectorAll('.hb-panel')) {
-      panel.classList.toggle('active', panel.dataset.panel === activeTab);
-    }
-    // On phones the tab bar scrolls sideways (style.css); keep the active
-    // tab visible, since render() rebuilds the bar at scrollLeft 0. Plain
-    // scrollLeft math, so the page itself never scrolls.
-    const bar = root.querySelector('.hb-tabs');
-    const on = bar && bar.querySelector('.hb-tab.active');
-    if (on && bar.scrollWidth > bar.clientWidth) {
-      bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
+  // The dressing room's hero cat: ONE stage (one WebGL canvas) and ONE
+  // controller per home base, made on the first render that needs them. The
+  // canvas is re-mounted into the fresh #dr-stage after every render
+  // (afterRender), so a colony poll or a roster change mid-drag keeps the cat.
+  let stage = null;
+  let dressing = null;
+  function ensureDressing() {
+    if (dressing) return dressing;
+    const thumbs = menuThumbnails();
+    stage = createCatStage({ buildCat, thumbs });
+    dressing = createDressingRoom({
+      progression, catalog: CATALOG, stage, sync, thumbs,
+      onChange: render,
+      onOpenSheet: (id) => setSheet(id),
+    });
+    return dressing;
+  }
+
+  // The sheets on offer: Sync only when cloud saves are set up. (The den shop
+  // lives inside the den now — ui/denshopview.js.)
+  function availableSheets() {
+    return HOME_SHEETS.filter((id) => id !== 'sync' || (sync && sync.available));
+  }
+
+  // null (or anything not on offer) = back to the dressing room.
+  function setSheet(id) {
+    const want = resolveSheet(id);
+    openSheet = want && availableSheets().includes(want) ? want : null;
+    render();
+    root.scrollTop = 0; // a sheet (or the room) opens at its top
+  }
+
+  // One sheet's content: the same sections the old tabs held.
+  function renderSheetBody(id, s, colonyStatus) {
+    switch (id) {
+      case 'skills': return `
+        <section class="skills-section"><h2>Cat Skills 🐾</h2>
+          <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
+            ability is yours forever.</p>
+          ${renderSkillsHtml(s)}
+        </section>`;
+      case 'colony': return `
+        <section class="colony-section"><h2>Your colony 🐈</h2>
+          ${renderColonyHtml({
+            colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
+            status: colonyStatus, clanRoles: s.clanRoles, clanName: s.clan.name,
+            owned: s.unlocked.accessories, catalog: CATALOG,
+            pairing: {
+              busy: pairBusy, error: pairError, code: pairCode,
+              hasPetName: validPetName(s.petName ?? ''),
+            },
+            trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
+          })}
+        </section>`;
+      case 'social': return `
+        <section class="walk-together"><h2>Walk together 🐾🐾</h2>
+          ${renderWalkTogether()}
+        </section>
+        <section class="friends-section"><h2>Friends 🐾</h2>
+          ${renderPlayerPets()}
+          ${renderStrayFriends()}
+          ${cloud && cloud.available ? renderFriendCode() : ''}
+        </section>`;
+      case 'journal': return `
+        <section class="journal-section"><h2>Critter Journal 📖</h2>
+          ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, GOLD_TOTAL)}
+        </section>`;
+      case 'album': return `
+        <section><h2>Photo album 📸</h2><div class="photos">
+          ${album.photos.length
+            ? album.photos.map((p) => {
+              // p.date is sanitize-shaped (YYYY-MM-DD or absent — see
+              // album.js's sanitizePhoto/YMD_PATTERN) via the
+              // cloud-load path, but a plain local-storage load never
+              // routes through that sanitizer — escapeHtml it too, same
+              // as label/area, rather than trust the shape to hold.
+              const caption = [escapeHtml(p.label), escapeHtml(p.area), ...(p.date ? [escapeHtml(p.date)] : [])].join(' · ');
+              return `<figure class="photo-framed"><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${caption}</figcaption></figure>`;
+            }).join('')
+            : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
+        </div></section>`;
+      case 'sync': return `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>`;
+      case 'settings': return renderSettings();
+      case 'code': return renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG });
+      default: return '';
     }
   }
 
@@ -687,7 +649,31 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const s = progression.state;
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
     noteColonyPairing(colonyStatus);
+    if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
     const glowReady = s.equipped.collar === 'glow';
+    const roomState = rooms && rooms.available ? rooms.getState() : null;
+    // The dusk toggle renders once: in the room's extras, or in a sheet's dock.
+    const duskHtml = glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" ${duskWanted ? 'checked' : ''} /> Dusk walk ✨</label>` : '';
+    if (openSheet) {
+      // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
+      // room flow presses "Start the walk together" from Social). The room
+      // isn't rendered here, so this is still the only #btn-start.
+      const areaId = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
+      root.innerHTML = `
+      <div class="homebase-scroll hb-sheet" data-sheet="${escapeHtml(openSheet)}">
+        <button id="hb-back" class="hb-back">← Back to my cat</button>
+        ${renderSheetBody(openSheet, s, colonyStatus)}
+        <footer class="hb-sheet-dock">
+          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(CATALOG.areas[areaId].name)}</b></div>
+          ${duskHtml}
+          ${renderStartButtonHtml(roomState)}
+        </footer>
+      </div>`;
+      if (stage) stage.setVisible(false); // no frames for a cat nobody can see
+      syncPairingPoll();
+      if (cloud && cloud.available && openSheet === 'social') loadPlayerPets();
+      return;
+    }
     const rank = rankFor(s.lifetimePoints);
     const nextLine = rank.next
       ? `next: ${Math.max(0, rank.next.at - s.lifetimePoints)} 🐾 to ${rank.next.title}`
@@ -704,126 +690,37 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // coerced again through asFiniteNonNeg rather than trusted wholesale.
     const today = new Date().toISOString().slice(0, 10);
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
-    const roomState = rooms && rooms.available ? rooms.getState() : null;
-    root.innerHTML = `
-      <div class="homebase-scroll">
-        <div class="hb-topbar">
-          <div class="hb-hero">
-            <header class="hb-header">
-              <h1 class="hb-wordmark" aria-label="Whisker Walk"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" role="img" aria-hidden="true"><rect x="6" y="6" width="628" height="228" rx="34" fill="#1c2431"/><g stroke="#f1e0c2" stroke-width="3" stroke-linecap="round" opacity="0.75"><line x1="95" y1="128" x2="45" y2="116"/><line x1="92" y1="140" x2="40" y2="140"/><line x1="95" y1="152" x2="45" y2="164"/><line x1="545" y1="128" x2="595" y2="116"/><line x1="548" y1="140" x2="600" y2="140"/><line x1="545" y1="152" x2="595" y2="164"/></g><path d="M108 190 Q 320 230 528 190" stroke="#c99a72" stroke-width="10" stroke-linecap="round" fill="none"/><path d="M528 190 q 15 -19 -4 -29" stroke="#c99a72" stroke-width="10" stroke-linecap="round" fill="none"/><text x="320" y="150" text-anchor="middle" font-family="Avenir, 'Nunito', 'Trebuchet MS', sans-serif" font-size="72" font-weight="700" fill="#f1e0c2">Whisker Walk</text><polygon points="296,46 306,17 319,44" fill="#f1e0c2"/><polygon points="344,46 334,17 321,44" fill="#f1e0c2"/><polygon points="300,42 306,27 314,42" fill="#e7a9a0"/><polygon points="340,42 334,27 326,42" fill="#e7a9a0"/><circle cx="320" cy="60" r="27" fill="#f1e0c2"/><path d="M308 38 q4 8 1 15" stroke="#d8bd8f" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M320 35 q0 9 0 16" stroke="#d8bd8f" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M332 38 q-4 8 -1 15" stroke="#d8bd8f" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M304 57 q7 -7 14 0" stroke="#1c2431" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M322 57 q7 -7 14 0" stroke="#1c2431" stroke-width="3" stroke-linecap="round" fill="none"/><polygon points="316,66 324,66 320,72" fill="#e7a9a0"/><g stroke="#f1e0c2" stroke-width="2.2" stroke-linecap="round" opacity="0.9"><line x1="280" y1="63" x2="297" y2="61"/><line x1="280" y1="70" x2="297" y2="68"/><line x1="343" y1="61" x2="360" y2="63"/><line x1="343" y1="68" x2="360" y2="70"/></g></svg></h1>
-              <div class="hb-header-right">
-                <div class="hb-points">🐾 ${s.points} whisker points</div>
-                <div class="hb-substats">
-                  <span>🏆 ${rank.title} — ${nextLine}</span>
+    // The header's pieces stay inline, not in one wrapper: on a phone
+    // .dr-header is display: contents, so the stats can move into More.
+    const headerHtml = '<h1 class="dr-title">🐾 Whisker Walk</h1>'
+      + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
+      + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
+    // The old header's substats lines, one block (other branches add a line
+    // here). style.css chips each <span>.
+    const statsHtml = `
                   ${streakCount >= 2 ? `<span>🔥 ${streakCount}-day streak</span>` : ''}
                   <span>best walk: ${s.bestWalk} 🐾</span>
                   ${raceBestMs != null ? `<span>Today’s race best: ${(raceBestMs / 1000).toFixed(1)}s 🏁</span>` : ''}
                   ${s.kitten.stage === 3 ? '<span>🐱 Mochi lives with you now</span>' : ''}
-                </div>
-              </div>
-            </header>
-            <div class="hb-hero-start">
-              ${glowReady ? `<label class="dusk"><input type="checkbox" id="dusk-toggle" /> Dusk walk ✨</label>` : ''}
-              ${renderStartButtonHtml(roomState)}
-              ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}
-            </div>
-          </div>
-          <nav class="hb-tabs" role="tablist">
-            ${HOME_TABS.map((id) => `<button class="hb-tab" data-tab="${id}" role="tab">${TAB_LABEL[id]}</button>`).join('')}
-          </nav>
-        </div>
-        <div class="hb-panels">
-          <div class="hb-panel" data-panel="cats">
-            <section><h2>Your cat</h2><div class="cards">
-              ${Object.entries(CATALOG.cats).map(([id, c]) => card('cats', id, c, 'walking today')).join('')}
-            </div></section>
-            <section><h2>Where to?</h2><div class="cards">
-              ${Object.entries(CATALOG.areas).map(([id, a]) => card('areas', id, a, 'today’s walk')).join('')}
-            </div></section>
-            ${renderDenSection()}
-            ${renderRedeemHtml({ text: redeemText, busy: redeemBusy, result: redeemResult, catalog: CATALOG })}
-          </div>
-          <div class="hb-panel" data-panel="accessories">
-            <section><h2>Dress up your cat</h2>
-              ${ACCESSORY_SLOTS.map((slot) => {
-                const items = Object.entries(CATALOG.accessories).filter(([, a]) => a.slot === slot);
-                if (!items.length) return '';
-                return `<div class="accessory-slot">
-                  <h3>${SLOT_LABEL[slot]}</h3>
-                  <div class="cards">
-                    ${items.map(([id, a]) => card('accessories', id, a, 'on')).join('')}
-                  </div>
-                </div>`;
-              }).join('')}
-            </section>
-          </div>
-          <div class="hb-panel" data-panel="skills">
-            <section class="skills-section"><h2>Cat Skills 🐾</h2>
-              <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
-                ability is yours forever.</p>
-              ${renderSkillsHtml(s)}
-            </section>
-          </div>
-          <div class="hb-panel" data-panel="colony">
-            <section class="colony-section"><h2>Your colony 🐈</h2>
-              ${renderColonyHtml({
-                colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
-                status: colonyStatus, clanRoles: s.clanRoles, clanName: s.clan.name,
-                owned: s.unlocked.accessories, catalog: CATALOG,
-                pairing: {
-                  busy: pairBusy, error: pairError, code: pairCode,
-                  hasPetName: validPetName(s.petName ?? ''),
-                },
-                trades: { give: tradeGive, want: tradeWant, confirmId: tradeConfirmId, busy: tradeBusy, error: tradeError },
-              })}
-            </section>
-          </div>
-          <div class="hb-panel" data-panel="social">
-            <section class="walk-together"><h2>Walk together 🐾🐾</h2>
-              ${renderWalkTogether()}
-            </section>
-            <section class="friends-section"><h2>Friends 🐾</h2>
-              ${renderPlayerPets()}
-              ${renderStrayFriends()}
-              ${cloud && cloud.available ? renderFriendCode() : ''}
-            </section>
-          </div>
-          <div class="hb-panel" data-panel="album">
-            <section class="journal-section"><h2>Critter Journal 📖</h2>
-              ${renderJournalHtml(s.journal ?? {}, (s.golden ?? []).length, GOLD_TOTAL)}
-            </section>
-            <section><h2>Photo album 📸</h2><div class="photos">
-              ${album.photos.length
-                ? album.photos.map((p) => {
-                  // p.date is sanitize-shaped (YYYY-MM-DD or absent — see
-                  // album.js's sanitizePhoto/YMD_PATTERN) via the
-                  // cloud-load path, but a plain local-storage load never
-                  // routes through that sanitizer — escapeHtml it too, same
-                  // as label/area, rather than trust the shape to hold.
-                  const caption = [escapeHtml(p.label), escapeHtml(p.area), ...(p.date ? [escapeHtml(p.date)] : [])].join(' · ');
-                  return `<figure class="photo-framed"><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${caption}</figcaption></figure>`;
-                }).join('')
-                : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
-            </div></section>
-          </div>
-          <div class="hb-panel" data-panel="settings">
-            ${sync && sync.available ? `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>` : ''}
-            ${renderSettings()}
-          </div>
-        </div>
-      </div>`;
-    activeTab = resolveTab(activeTab);
-    applyActiveTab();
+    `;
+    const extrasHtml = `
+      ${duskHtml}
+      ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
+    const room = ensureDressing();
+    root.innerHTML = room.html({
+      headerHtml, statsHtml, startHtml: renderStartButtonHtml(roomState), extrasHtml, sheets: availableSheets(),
+    });
+    room.afterRender(root);
+    stage.setVisible(shown);
     syncPairingPoll();
-    if (cloud && cloud.available) loadPlayerPets();
   }
 
   root.addEventListener('click', async (e) => {
-    const tabBtn = e.target.closest('.hb-tab');
-    if (tabBtn) {
-      activeTab = resolveTab(tabBtn.dataset.tab);
-      applyActiveTab();
-      syncPairingPoll();
+    // The dressing room's own controls (portraits, slots, picker, places,
+    // pills, sheet buttons) go to its controller first.
+    if (dressing && dressing.handleClick(e)) return;
+    if (e.target.id === 'hb-back') {
+      setSheet(null);
       return;
     }
     if (e.target.id === 'colony-pair-open') {
@@ -879,7 +776,14 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     if (e.target.id === 'btn-start') {
       const dusk = root.querySelector('#dusk-toggle');
-      onStartWalk({ duskMode: !!(dusk && dusk.checked) });
+      // A previewed cat or a tried-on accessory is never walked: the walk
+      // reads the save's equipped cat and accessories (Review Focus 1).
+      const duskMode = !!(dusk && dusk.checked);
+      dressing?.clearPreview();
+      // Redraw without the preview, so "(trying)" can't linger if this start
+      // doesn't leave home (a room start that fails).
+      render();
+      onStartWalk({ duskMode });
       return;
     }
     if (e.target.id === 'btn-visit-den') {
@@ -890,7 +794,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       if (window.confirm('Erase all progress and start over?')) {
         progression.reset();
         album.clear();
+        dressing?.clearPreview(); // a preview of the old save means nothing now
+        openSheet = null; // back to the (fresh) cat
         render();
+        root.scrollTop = 0;
       }
       return;
     }
@@ -1132,23 +1039,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       render();
       return;
     }
-    const cardEl = e.target.closest('.card');
-    const action = e.target.dataset.action;
-    if (!cardEl || !action) return;
-    const { kind, id } = cardEl.dataset;
-    if (action === 'buy') {
-      if (progression.buy(kind, id)) sync?.autoSync?.();
-    }
-    else if (action === 'buy-den') {
-      if (progression.buyDenItem(id)) sync?.autoSync?.();
-    }
-    else if (action === 'unequip') progression.unequip(CATALOG.accessories[id].slot);
-    else if (action === 'equip') {
-      if (kind === 'cats') progression.equipCat(id);
-      else if (kind === 'accessories') progression.equipAccessory(id);
-      else if (kind === 'areas') progression.setArea(id);
-    }
-    render();
   });
 
   // The secret-code form (delegated: render() rebuilds it). While hashing the
@@ -1221,6 +1111,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // this setting at walk start (Task 5), so this never applies live — just
   // persist it and re-render to reflect the chosen value.
   root.addEventListener('change', (e) => {
+    if (e.target.id === 'dusk-toggle') { duskWanted = e.target.checked; return; }
     if (e.target.id === 'set-quality' && settings) {
       settings.set('quality', e.target.value);
       onSettingsChange?.();
@@ -1238,16 +1129,6 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (dressCat) {
       Promise.resolve(colonySync?.dress(dressCat, e.target.value || null))
         .then((r) => { if (r && !r.ok) render(); }, () => render()); // a refusal puts the select back
-      return;
-    }
-    // Den placement (Task 7.2): each DEN_SPOTS anchor has its own <select>;
-    // picking an owned item there calls placeDenItem, picking "— empty —"
-    // (value "") clears the spot. placeDenItem itself already handles the
-    // "this item is already at a different spot" move.
-    const spotId = e.target.dataset.denSpot;
-    if (spotId) {
-      progression.placeDenItem(spotId, e.target.value || null);
-      render();
     }
   });
 
@@ -1263,7 +1144,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   return {
     show() {
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
-      render();
+      duskWanted = false; // as before: every visit starts with the dusk box clear
+      shown = true;
+      render(); // also turns the hero stage back on
       root.classList.remove('hidden');
       syncPairingPoll(); // render() ran while still hidden
     },
@@ -1272,6 +1155,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     hide() {
       closeNews(false); // a walk is starting: leave the news unread for next time
       closeNotice();
+      shown = false;
+      // A walk is starting: stop the hero's frames and drop any preview.
+      if (stage) stage.setVisible(false);
+      dressing?.clearPreview();
       root.classList.add('hidden');
       syncPairingPoll(); // clears the poll: nothing pulls every 3 s during a walk
     },

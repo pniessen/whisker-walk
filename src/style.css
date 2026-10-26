@@ -187,17 +187,8 @@ body.left-handed .tui-pause {
 
 #homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }
 .homebase-scroll { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
-.hb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
-.hb-header h1 { font-size: 2rem; }
-.hb-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.hb-points { font-size: 1.2rem; color: #f2c14e; }
-.hb-substats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
-  font-size: 0.85rem; color: #a8c0e0; }
 #homebase section { margin-bottom: 22px; }
 #homebase h2 { font-size: 1.1rem; margin-bottom: 10px; color: #a8c0e0; }
-.accessory-slot { margin-bottom: 14px; }
-.accessory-slot:last-child { margin-bottom: 0; }
-.accessory-slot h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 8px; font-weight: 700; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
 .card {
   background: rgba(255,255,255,0.07); border-radius: 12px; padding: 12px;
@@ -205,24 +196,16 @@ body.left-handed .tui-pause {
 }
 .card.selected { border-color: #f2c14e; }
 .card.locked { opacity: 0.75; }
-.den-spots { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.den-spot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.den-spot-id { font-size: 0.85rem; color: #c0ccdd; text-transform: capitalize; }
 .card-name { font-weight: 700; }
-.card-thumb {
-  width: 100%; height: 96px; object-fit: contain;
-  background: rgba(255,255,255,0.06); border-radius: 8px;
-}
-.card.locked .card-thumb { filter: grayscale(0.7) brightness(0.8); }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
-.card button, .hb-footer button, .hb-hero-start button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+.card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
   border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
   background: #4a6ea5; color: #fff; font-weight: 700;
 }
 .card button:hover, .walk-together button:hover, .friend-code-block button:hover { background: #5a7eb5; }
 .walk-together button:disabled, .friend-code-block button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
 @media (pointer: coarse) {
-  .card button, .hb-footer button, .hb-hero-start button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+  .card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
     min-height: 44px;
   }
 }
@@ -236,7 +219,7 @@ body.left-handed .tui-pause {
 .skills-intro { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 14px; max-width: 60ch; }
 .skill-family { margin-bottom: 14px; }
 .skill-family:last-of-type { margin-bottom: 0; }
-/* matches .accessory-slot h3, so family headings and slot headings sit at
+/* matches the old accessory-slot h3, so family headings and slot headings sit at
    the same visual level across the two shop-like tabs. */
 .skill-family h3 { font-size: 0.9rem; color: #a8c0e0; margin-bottom: 8px; font-weight: 700; }
 /* The feat is the point of the card, so it stays full-strength white even on
@@ -270,10 +253,6 @@ body.left-handed .tui-pause {
 .friend-code-confirm .sync-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
 .friend-code-confirm .primary { background: #f2c14e; color: #3a2a10; }
 .friend-code-confirm .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
-.hb-footer { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
-.hb-footer .primary { background: #f2c14e; color: #3a2a10; font-size: 1.15rem; padding: 12px 22px; }
-.hb-footer .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
-.hb-footer .danger { background: transparent; color: #d08080; margin-left: auto; }
 .dusk { color: #c8b8f0; }
 .walk-together { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
 .settings-section { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
@@ -361,45 +340,6 @@ body.left-handed .tui-pause {
 body.left-handed .chat-wheel { left: 16px; right: auto; }
 body.left-handed .chat-tray { left: 0; right: auto; }
 
-.hb-topbar { position: sticky; top: 0; z-index: 3; background: #1c2431; }
-.hb-hero { padding: 12px 0 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-.hb-hero-start { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-.hb-hero-start .primary { flex: 1; background: #f2c14e; color: #3a2a10; font-size: 1.15rem; padding: 12px 22px; }
-.hb-hero-start .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
-.hb-tabs { display: flex; gap: 4px; background: #1c2431; padding: 8px 0; }
-.hb-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px;
-  background: #2b3648; color: #cdd6e4; font-size: 14px; cursor: pointer; }
-.hb-tab.active { background: #3a4a63; color: #fff; }
-/* v18's sixth tab tipped the row's intrinsic width past the 347px a 375px
-   phone leaves (measured 357px, so "Settings" bled into the scroll
-   container's right padding). Trimming the per-tab padding and the gap buys
-   back 18px — enough for six without shrinking the label text or hiding a
-   tab behind a horizontal scroll. Desktop is untouched; the 900px-wide
-   layout has room to spare. This block has to live AFTER the .hb-tab rules
-   above, not up in the main max-width:480px section earlier in the file:
-   equal specificity means source order decides, and from up there it would
-   silently lose. */
-@media (max-width: 480px) {
-  .hb-tabs { gap: 3px; }
-  .hb-tab { padding: 10px 4px; }
-}
-/* v21's seventh tab (Colony) no longer fits 347px even with the trims above
-   (measured scrollWidth 383). A sideways-scrolling bar hid tabs off-screen
-   with no hint they were there: after tapping Settings (the last tab) the
-   Cats tab sat off the left edge, and a player could not find their way back
-   to the cats or the code box. So on phones the tabs wrap onto two rows,
-   each tab at its natural width and each row stretched to fill, so every tab
-   is always visible and no label is clipped. Desktop
-   keeps the flex:1 row. After the block above for the same source-order
-   reason. (homebase.js's applyActiveTab still scrolls the active tab into
-   view if the bar ever overflows; with wrapping it never does.) */
-@media (max-width: 480px) {
-  .hb-tabs { flex-wrap: wrap; gap: 4px; }
-  .hb-tab { flex: 1 0 auto; white-space: nowrap; padding: 10px 8px; }
-}
-.hb-panel { display: none; }
-.hb-panel.active { display: block; }
-
 /* Boot splash (A2 mascot) — shown on load, fades into the game */
 #splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
   justify-content: center; background: #1c2431; transition: opacity 0.6s ease; }
@@ -409,10 +349,6 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .splash-word { margin-top: 10px; color: #f1e0c2; font-family: Avenir, 'Nunito', sans-serif;
   font-weight: 700; font-size: 1.7rem; letter-spacing: 0.02em; }
 @media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
-
-/* Home base hero wordmark (C1) — replaces the plain title text */
-.hb-wordmark { margin: 0; line-height: 0; }
-.hb-wordmark svg { display: block; width: 240px; max-width: min(64vw, 300px); height: auto; }
 
 /* --- v18 Task 2.7: the in-walk skill-unlock card (src/game/celebrate.js).
    Sits over the live walk, NOT over the pause/summary overlay, so it is
@@ -635,3 +571,299 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 @media (max-height: 500px) {
   #perf-readout { font-size: 10px; top: calc(env(safe-area-inset-top) + 8px); transform: none; }
 }
+
+/* ---- dressing room (v21 Stream 5) ----
+   Ported from the signed-off verify-dressingroom-mockup.html, re-laid for
+   Controller Ruling 1: every region is a direct child of .dr and renders
+   once; CSS places it. Desktop: a grid (hero left; wearing / abilities /
+   start / extras right; then places; then the quiet row). Phone (<=600px):
+   one column in DOM order, pills pick the panel, the dock (current place +
+   Start) is pinned to the bottom, and the More pill also shows the stats
+   and the extras (dusk, den). The canvas catstage.js inserts into #dr-stage
+   sits absolutely behind the hero text; #dr-stage has a fixed height so the
+   canvas's 100% height can never feed back into its ResizeObserver. */
+.dr {
+  --navy: #1c2431; --frame: #223047; --panel: #2c3d58; --line: #33425e; --cream: #f1e0c2;
+  --pink: #e7a9a0; --muted: #8c9bb4; --lock: #3a4a66; --gold: #f2c14e;
+  max-width: 1000px; margin: 0 auto; padding: 18px 20px 24px; color: var(--cream);
+  font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
+  display: grid; column-gap: 16px; row-gap: 12px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto 1fr auto auto;
+  grid-template-areas:
+    "header header"
+    "hero wearing"
+    "hero abilities"
+    "hero dock"
+    "hero extras"
+    "where where"
+    "more more";
+}
+/* #homebase gives every section a bottom margin; the grid gap spaces these */
+.dr > section, #homebase .dr > section { margin: 0; min-width: 0; }
+.dr button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.dr button:disabled { cursor: default; }
+.dr img { display: block; }
+
+/* header: the owner's header, then the stats chips inline */
+.dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+.dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.dr-chip.gold { color: var(--gold); font-weight: 700; }
+.dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.dr-stats:empty { display: none; }
+
+/* hero: the live cat (or its still picture) and the portrait strip */
+.dr-hero { grid-area: hero; align-self: start; min-width: 0; }
+.dr-stage { position: relative; border-radius: 14px; height: 340px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 85%, #3d5680 0, #30456a 35%, #223047 75%); }
+.dr-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
+.dr-stage canvas:active { cursor: grabbing; }
+.dr-stage .dr-hero-img { position: absolute; left: 12px; right: 12px; top: 12px; bottom: 64px;
+  width: calc(100% - 24px); height: calc(100% - 76px); object-fit: contain; }
+.dr-hero-text { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 10px;
+  text-shadow: 0 1px 3px rgba(20, 28, 42, .7); }
+.dr-hero-name { font-weight: 700; font-size: 22px; }
+.dr-hero-blurb { font-size: 13px; opacity: .8; }
+.dr .dr-hero-buy { pointer-events: auto; margin-top: 6px; background: var(--pink); color: var(--navy);
+  border-radius: 999px; padding: 8px 18px; min-height: 44px; font-weight: 700; }
+.dr-hero-price { margin-top: 6px; background: rgba(20, 28, 42, .6); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.dr-spin-hint { position: absolute; top: 10px; right: 12px; font-size: 11px; opacity: .45; pointer-events: none; }
+/* desktop: every cat on show, wrapping only if the catalog outgrows a row */
+.dr-strip { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding: 3px; }
+.dr .dr-portrait { flex: none; width: 48px; height: 48px; border-radius: 12px; background: var(--cream);
+  position: relative; padding: 0; overflow: hidden; }
+.dr-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.dr-portrait.sel { outline: 3px solid var(--pink); outline-offset: 1px; }
+.dr .dr-portrait.locked { background: var(--lock); }
+.dr-portrait.locked img { opacity: .45; filter: grayscale(.6); }
+.dr-portrait.locked::after { content: '🔒'; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
+
+/* wearing: slot tiles and the picker that opens under them */
+.dr-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; opacity: .6; margin: 0 0 6px; }
+.dr-wearing { grid-area: wearing; }
+.dr-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.dr .dr-slot { background: var(--panel); border-radius: 10px; min-height: 44px; display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; font-size: 13px; text-align: left; min-width: 0; }
+.dr-slot img { width: 34px; height: 34px; border-radius: 8px; background: var(--cream); flex: none; }
+.dr-slot span { min-width: 0; overflow-wrap: anywhere; }
+.dr-slot small { display: block; font-size: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
+.dr .dr-slot.empty { background: transparent; border: 1px dashed #5b6c88; opacity: .65; }
+.dr-slot.open { outline: 2px solid var(--pink); }
+.dr .dr-slot.open { opacity: 1; }
+.dr .dr-slot.trying { border: 1px dashed var(--pink); }
+.dr-picker { grid-column: 1 / -1; background: #1f2b40; border-radius: 10px; padding: 8px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.dr .dr-pick { background: var(--panel); border-radius: 9px; padding: 6px; font-size: 11px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; min-height: 44px; }
+.dr-pick img { width: 54px; height: 54px; border-radius: 8px; background: var(--cream); margin: 0 auto 4px; }
+.dr-pick .act { display: block; margin-top: 3px; font-weight: 700; color: var(--pink); }
+.dr-pick small { display: block; font-size: 10px; opacity: .6; }
+.dr-pick.on { outline: 2px solid var(--pink); }
+.dr-pick.locked { gap: 4px; }
+.dr-pick.locked .act { color: var(--muted); font-weight: 400; }
+.dr-pick.trying { outline: 2px dashed var(--pink); }
+.dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
+.dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }
+.dr .dr-pick-buy { background: var(--pink); color: var(--navy); border-radius: 999px; padding: 4px 8px;
+  min-height: 44px; width: 100%; font-weight: 700; font-size: 11px; white-space: nowrap; }
+.dr-pick .act { white-space: nowrap; }
+
+.dr-abilities { grid-area: abilities; display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* the dock: Start (and, on a phone, where you're walking) */
+.dr-dock { grid-area: dock; }
+.dr-dock .where { display: none; }
+.dr .dr-dock #btn-start, .dr .dr-dock .primary { background: var(--pink); color: var(--navy); border-radius: 999px;
+  padding: 13px 22px; font-weight: 700; font-size: 17px; width: 100%; min-height: 48px; }
+.dr .dr-dock #btn-start:disabled, .dr .dr-dock .primary:disabled { background: #6a6250; color: #a89e88; }
+
+/* extras: the dusk toggle and the den, quiet ghost buttons under Start */
+.dr-extras { grid-area: extras; display: flex; gap: 8px; justify-content: center; align-content: flex-start; flex-wrap: wrap; }
+.dr-extras:empty { display: none; }
+.dr .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label {
+  border: 1.5px solid #5b6c88; border-radius: 999px; padding: 8px 14px; font-size: 13px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.dr .dr-extras > label { color: #c8b8f0; }
+
+/* places: one row of picture cards with a gradient caption */
+.dr-where { grid-area: where; }
+.dr-places { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
+.dr .dr-place { position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 10; text-align: left; padding: 0;
+  background: linear-gradient(165deg, #c3d9a8, #7fa87c); min-height: 44px; }
+.dr-place img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.dr-place .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 9px 7px; font-weight: 700; font-size: 13px;
+  background: linear-gradient(transparent, rgba(20, 28, 42, .85)); color: #fff; }
+.dr-place .cap small { display: block; font-weight: 400; font-size: 11px; opacity: .9; }
+.dr-place.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+.dr-place.locked img { filter: grayscale(.85) brightness(.6); }
+.dr-place.locked .cap::before { content: '🔒 '; }
+/* not enough paws yet: the picture stays visible, just dimmed and quiet */
+.dr-place.cant img { filter: saturate(.55) brightness(.8); }
+.dr-place.cant { opacity: .85; cursor: default; }
+
+/* the quiet row of sheets */
+.dr-more { grid-area: more; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+.dr-more .dr-ghost { opacity: .85; }
+
+.dr-pills { display: none; }
+
+/* ===== phone ===== */
+@media (max-width: 600px) {
+  /* A wrapping row: the header's own pieces flow inline at the top (the
+     header box itself is display: contents), every region below takes a
+     full line, and `order` moves the stats down into the More panel. */
+  .dr { display: flex; flex-flow: row wrap; align-items: center; align-content: flex-start; gap: 8px 6px;
+    padding: 10px 14px 0; min-height: 100%; }
+  .dr > * { flex: 0 0 100%; min-width: 0; }
+  .dr-header { display: contents; }
+  .dr-header > :not(.dr-stats) { flex: 0 1 auto; min-width: 0; }
+  .dr-title { font-size: 16px; margin-right: 0; }
+  .dr-chip { font-size: 12px; padding: 5px 8px; }
+  .dr-hero { order: 1; }
+  .dr-stage { height: min(38vh, 300px); }
+  .dr-hero-name { font-size: 18px; }
+  .dr .dr-portrait { width: 46px; height: 46px; }
+  /* phone: the strip is one row that scrolls sideways inside itself */
+  .dr-strip { flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin;
+    overscroll-behavior-x: contain; }
+  .dr-header .dr-chip { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* Ruling 6: while a slot is open, only that slot shows, with its picker as
+     one sideways row under it, and the stage shrinks a little, so the cat,
+     the open slot, the picker and Start all fit without scrolling */
+  .dr:has(.dr-slot.open) .dr-stage { height: min(30vh, 240px); }
+  .dr-wearing:has(.dr-slot.open) .dr-label { display: none; }
+  .dr .dr-slots:has(.dr-slot.open) .dr-slot:not(.open) { display: none; }
+  .dr .dr-slot.open { grid-column: 1 / -1; }
+  .dr-picker { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding: 6px; }
+  .dr .dr-pick { flex: none; width: 108px; padding: 5px; }
+  .dr-pick img { width: 44px; height: 44px; margin-bottom: 2px; }
+  .dr-pills { order: 2; display: flex; gap: 6px; }
+  .dr .dr-pills button { flex: 1; background: var(--panel); border-radius: 999px; min-height: 44px; font-size: 14px; }
+  .dr .dr-pills button[aria-pressed="true"] { background: var(--pink); color: var(--navy); font-weight: 700; }
+  .dr-wearing, .dr-where { order: 3; }
+  .dr-stats { order: 4; flex: 0 0 100%; gap: 2px 14px; }
+  .dr .dr-stats .dr-chip, .dr .dr-stats > span { background: none; padding: 2px 0; font-size: 13px; opacity: .8; }
+  .dr-more { order: 5; }
+  .dr-extras { order: 6; }
+  .dr-dock { order: 9; }
+  .dr [data-panel], .dr .dr-abilities, .dr .dr-stats, .dr .dr-extras { display: none; }
+  .dr[data-pill="wearing"] .dr-wearing, .dr[data-pill="where"] .dr-where { display: block; }
+  .dr[data-pill="more"] .dr-stats:not(:empty) { display: flex; }
+  .dr[data-pill="more"] .dr-extras:not(:empty) { display: flex; }
+  .dr[data-pill="more"] .dr-more { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dr-places { grid-auto-flow: row; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dr-more { border: 0; padding: 0; }
+  .dr .dr-more .dr-ghost, .dr .dr-extras > button, .dr .dr-extras > label { min-height: 48px; font-size: 14px; }
+  .dr .dr-extras > button, .dr .dr-extras > label { flex: 1 1 140px; }
+  .dr-dock { position: sticky; bottom: 0; z-index: 2; flex-basis: calc(100% + 28px); margin: 4px -14px 0;
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: rgba(28, 36, 49, .96); border-top: 1px solid var(--line); backdrop-filter: blur(6px); }
+  .dr .dr-dock .where { font-size: 12px; opacity: .75; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .dr-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
+}
+
+/* A home sheet (Skills, Colony, …): one panel and a way back to the cat */
+.hb-sheet .hb-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 14px;
+  padding: 8px 16px; border: 1.5px solid #5b6c88; border-radius: 999px; background: transparent;
+  color: #f1e0c2; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.hb-back { align-self: flex-start; }
+/* Ruling 10: every sheet keeps Start pinned at the bottom, like the room's
+   phone dock. The sheet is a column at least a screen tall, so on a short
+   sheet the dock still sits at the bottom edge. */
+.homebase-scroll.hb-sheet { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
+.hb-sheet-dock { position: sticky; bottom: 0; z-index: 2; margin: auto -20px 0; display: flex; flex-wrap: wrap;
+  align-items: center; gap: 8px 12px; padding: 10px 20px max(10px, env(safe-area-inset-bottom));
+  background: rgba(28, 36, 49, .96); border-top: 1px solid #33425e; backdrop-filter: blur(6px); color: #f1e0c2; }
+.hb-sheet-dock .where { flex: 1 1 100%; display: flex; gap: 6px; align-items: center; font-size: 12px; opacity: .75; }
+.hb-sheet-dock .where img { width: 34px; height: 22px; border-radius: 4px; object-fit: cover; }
+.hb-sheet-dock .dusk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px;
+  padding: 8px 14px; border: 1.5px solid #5b6c88; border-radius: 999px; font-size: 14px; cursor: pointer; }
+.hb-sheet-dock #btn-start { flex: 1 1 200px; min-height: 48px; padding: 13px 22px; border: 0; border-radius: 999px;
+  background: #e7a9a0; color: #1c2431; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+.hb-sheet-dock #btn-start:disabled { background: #6a6250; color: #a89e88; cursor: default; }
+@media (max-width: 480px) {
+  .hb-sheet-dock { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
+}
+
+/* --- The den shop, inside the den (v21 Stream 5, Task 6) ------------------
+   A HUD button on den walks only, and a sheet over the lower part of the
+   screen (a panel down the right on a wide screen) so the room stays in view
+   while the player arranges it. z-index 11 puts the button over #overlay (10)
+   so it can be pressed from the desktop pause card too; the sheet sits over
+   everything in the walk. While it is open the pause card, the touch
+   controls and the chat wheel step aside. */
+.hud-den-shop {
+  position: absolute; z-index: 11; pointer-events: auto;
+  top: max(64px, calc(env(safe-area-inset-top) + 64px));
+  right: max(16px, env(safe-area-inset-right));
+  min-height: 44px; padding: 8px 16px; border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.55); background: rgba(20,26,38,0.72);
+  color: #fff; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.hud-den-shop:hover { background: rgba(20,26,38,0.9); }
+/* left-handed mode moves the ⏸ button to the top right */
+body.left-handed .hud-den-shop { right: auto; left: max(16px, env(safe-area-inset-left)); }
+/* desktop hint: only on a den walk, only with a mouse, only while the pause card is up */
+.den-shop-hint { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  body.den-walk:not(.den-shop-open):has(#overlay:not(.hidden)) .den-shop-hint {
+    display: block; position: fixed; z-index: 11; pointer-events: none;
+    left: 50%; bottom: 8vh; transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 999px; background: rgba(20,26,38,0.8);
+    color: #fff; font-weight: 700; text-align: center;
+  }
+}
+body.den-shop-open #overlay,
+body.den-shop-open .touch-ui,
+body.den-shop-open .hud-den-shop,
+body.den-shop-open .hud-controls,
+body.den-shop-open .chat-wheel { display: none !important; }
+.den-shop {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  max-height: 52vh; max-height: 52dvh;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(28, 36, 49, 0.95); color: #fff;
+  border-radius: 18px 18px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.35);
+}
+@media (min-width: 900px) {
+  .den-shop {
+    left: auto; top: 16px; right: 16px; bottom: 16px; width: 380px;
+    max-height: none; border-radius: 18px;
+  }
+}
+.ds-head { display: flex; align-items: center; gap: 10px; }
+.ds-head h2 { flex: 1; font-size: 1.2rem; margin: 0; }
+.ds-points { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+.ds-done {
+  min-height: 48px; min-width: 88px; padding: 10px 22px; border: 0; border-radius: 12px;
+  background: #f2c14e; color: #3a2a10; font: inherit; font-weight: 800; font-size: 1.05rem; cursor: pointer;
+}
+.ds-note { color: #f2c14e; font-weight: 700; font-size: 0.95rem; margin: 0; }
+.ds-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: 4px; }
+.ds-body h3 { font-size: 0.95rem; color: #a8c0e0; margin: 10px 0 8px; }
+.ds-hint { color: #c0ccdd; font-size: 0.9rem; margin: 0 0 8px; }
+.ds-spots { display: flex; flex-direction: column; gap: 6px; }
+.ds-spot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ds-spot-name { font-size: 0.95rem; color: #e0e8f2; }
+.ds-spot select {
+  min-height: 44px; width: 58%; max-width: 230px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.25); background: #2a3550; color: #fff; font: inherit; font-size: 0.95rem;
+}
+.ds-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.ds-card {
+  background: rgba(255,255,255,0.07); border-radius: 12px; padding: 10px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 8px; border: 2px solid transparent;
+}
+.ds-card.owned { border-color: #f2c14e; }
+.ds-card.locked { opacity: 0.7; }
+.ds-name { font-weight: 700; font-size: 0.95rem; }
+.ds-tag { font-size: 0.9rem; color: #c0ccdd; }
+.ds-card.owned .ds-tag { color: #f2c14e; font-weight: 700; }
+.ds-buy {
+  width: 100%; min-height: 44px; border: 0; border-radius: 10px; padding: 8px 10px;
+  background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.ds-buy:hover { background: #5a7eb5; }

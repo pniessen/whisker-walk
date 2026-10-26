@@ -114,6 +114,8 @@ export function createWalkLifecycle({
   // game/adaptquality.js: picks each walk's tier (adaptive Auto) and sets the
   // renderer + composer pixel ratio for it.
   qualityAdapter,
+  // v21 Stream 5: the den shop overlay (ui/denshopview.js), on den walks only.
+  denShop,
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -281,7 +283,7 @@ export function createWalkLifecycle({
 
   // The den button's variant (Task 7.2): the den never joins a room walk
   // (homebase hides the button while a room is pending — see
-  // renderDenSection's `rooms.getState()` check), so this bypasses
+  // the Visit your den button's `roomState` check), so this bypasses
   // beginWalkFromHomebase's host/joiner room branch entirely and calls
   // startWalk directly with areaOverride: 'den' — same mechanism a room
   // joiner's areaOverride uses to walk somewhere without persisting it as
@@ -1232,6 +1234,7 @@ export function createWalkLifecycle({
     hud.setPoints(state.points);
     hud.setRank(session.rankTitle);
     hud.setGoals(goals ? goals.goals : null);
+    denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
       <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
@@ -1392,6 +1395,7 @@ export function createWalkLifecycle({
     session.chatWheel?.destroy();
     setSession(null);
     player.disable();
+    denShop?.setActive(false);
     hud.hide();
     touchUI.setVisible(false);
     hud.setPrompt(null);
