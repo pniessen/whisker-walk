@@ -468,16 +468,6 @@ function init() {
     if (session) overlay.classList.toggle('hidden', locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
   });
-  bus.on('critter:scare', () => {
-    if (!session) return;
-    audio.bark();
-    const special = PERSONALITIES[session.cat.userData.breed].special;
-    if (special !== 'fearless' && special !== 'steady') {
-      session.freezeTime = 1.5;
-      player.halt(); // frozen means frozen — no sliding
-      hud.toast('Woof! You froze on the spot! 🙀');
-    }
-  });
   bus.on('villager:wave', ({ id }) => {
     if (session && progression.state.equipped.neck === 'bandana') {
       log.award('perk', `wave-${id}`, 'a friendly wave back');

@@ -46,7 +46,10 @@
 //               the room already has (the den's bowls and hearth).
 //   hides       the cover a fleeing mouse, rat or squirrel dives under — all
 //               of them under something already there (Task 13).
-//   dogYard     the dog's lawn and its kennel (Task 16).
+//   dogYard     the dog's lawn and its kennel (Task 16). `exit`, only on a
+//               yard with a fence, is the unit direction from the centre out
+//               through the fence's opening: a chased cat is put out that way,
+//               never through the fence (ruling R38).
 //   keepSlots   where the den lays out what you carried home (Task 7),
 //               newest first into slot 0.
 // =============================================================================
@@ -109,8 +112,9 @@ const SETS = {
     ],
     // Under the bushes beside both mouse runs, and the one a squirrel passes.
     hides: [{ x: -4, z: -12 }, { x: 9, z: 22 }, { x: 18, z: 4 }],
-    // The shipped dog-yard fence, x 18..26, z -28..-20.
-    dogYard: { x: 22, z: -24, r: 4, kennel: { x: 20.3, z: -26.3 } },
+    // The shipped dog-yard fence, x 18..26, z -28..-20: a U open to the
+    // north (+z), which is the way a chased cat goes out.
+    dogYard: { x: 22, z: -24, r: 4, kennel: { x: 20.3, z: -26.3 }, exit: { x: 0, z: 1 } },
     keepSlots: [],
   },
 

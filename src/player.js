@@ -459,7 +459,7 @@ export function createPlayer(camera, canvas) {
       // stuck-in-air state: every call site that yanks the cat somewhere
       // else mid-pounce already calls halt() — game/interactions.js's perch
       // branch (which teleports the cat onto a perch and sets perchY) and
-      // main.js's scare freeze — so neither can leave a live arc lifting the
+      // the scuffle freeze — so neither can leave a live arc lifting the
       // cat off the perch it just landed on.
       hopArc = null;
       hopTime = 0;

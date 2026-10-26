@@ -1480,6 +1480,8 @@ export function createWalkLifecycle({
     // randomness. Its kennel is solid; its meshes are freed in endWalk before
     // the scene traversal. Spotting it is updateInteractions' (s.dog.spotPos).
     const fearlessCat = isFearless(PERSONALITIES[cat.userData.breed]?.special);
+    // A fearless cat hears the bark every time, and is told so once a walk.
+    let shrugged = false;
     const dog = createYardDog(scene, propsFor(areaId).dogYard, {
       reducedMotion,
       isWalkable: (x, z) => isWalkableAt(areaData, x, z),
@@ -1487,7 +1489,10 @@ export function createWalkLifecycle({
       fearless: fearlessCat,
       onBark: () => {
         audio.bark();
-        if (fearlessCat) hud.toast("The dog barks. You don't even flinch. 😼");
+        if (fearlessCat && !shrugged) {
+          shrugged = true;
+          hud.toast("The dog barks. You don't even flinch. 😼");
+        }
       },
       onChase: () => {
         player.halt();

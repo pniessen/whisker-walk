@@ -155,6 +155,67 @@ describe('dogLanding', () => {
   });
 });
 
+// Ruling R38: the neighborhood's yard is a U of fence open to the north, and a
+// chase puts the cat out through the opening, never through the 0.85 m fence.
+describe('a fenced yard: out through the opening', () => {
+  // neighborhood.js's three b.fenceRun calls (pinned below against its source).
+  const FENCE = [[18, -28, 26, -28], [18, -28, 18, -20], [26, -28, 26, -20]];
+  // Does segment p->q cross segment a->b (properly or touching)?
+  const cross = (p, q, [ax, az, bx, bz]) => {
+    const o = (x1, z1, x2, z2, x3, z3) => Math.sign((x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1));
+    const d1 = o(ax, az, bx, bz, p.x, p.z);
+    const d2 = o(ax, az, bx, bz, q.x, q.z);
+    const d3 = o(p.x, p.z, q.x, q.z, ax, az);
+    const d4 = o(p.x, p.z, q.x, q.z, bx, bz);
+    return d1 !== d2 && d3 !== d4;
+  };
+
+  test('the fence this test checks against is the one neighborhood.js builds', () => {
+    const src = readFileSync(new URL('../src/world/neighborhood.js', import.meta.url), 'utf8');
+    for (const [x1, z1, x2, z2] of FENCE) expect(src).toContain(`b.fenceRun(${x1}, ${z1}, ${x2}, ${z2})`);
+    // only the neighborhood's yard is fenced
+    expect(propsFor('neighborhood').dogYard.exit).toEqual({ x: 0, z: 1 });
+    for (const a of ['park', 'seaside', 'docks']) expect(propsFor(a).dogYard.exit).toBeUndefined();
+  });
+
+  test('an exit sends every chase out along it; a bad exit is no exit', () => {
+    const fenced = { ...YARD, exit: { x: 0, z: 2 } }; // normalised
+    for (const cat of [{ x: 11, z: -5 }, { x: 10, z: -8.5 }, { x: 7, z: -5 }, { x: 10, z: -5 }]) {
+      const p = dogLanding(fenced, cat, () => true);
+      expect(p.x).toBeCloseTo(10, 9);
+      expect(p.z).toBeCloseTo(-5 + 4 + DOG_LANDING_OFFSET, 9);
+    }
+    for (const exit of [{ x: 0, z: 0 }, { x: NaN, z: 1 }, { x: '0', z: 1 }, null, 'north', 3]) {
+      const p = dogLanding({ ...YARD, exit }, { x: 11, z: -5 }, () => true);
+      expect(p.x).toBeCloseTo(15.5, 9);
+      expect(p.z).toBeCloseTo(-5, 9);
+    }
+  });
+
+  test('against the real neighborhood: no chase crosses the fence, and every lawn point lands walkable', () => {
+    const y = propsFor('neighborhood').dogYard;
+    const walk = (x, z) => isWalkableAt(built.neighborhood, x, z);
+    let n = 0;
+    for (let i = 0; i < 48; i++) {
+      for (const f of [0, 0.3, 0.7, 0.95]) {
+        const t = (i / 48) * Math.PI * 2;
+        const cat = { x: y.x + Math.cos(t) * y.r * f, z: y.z + Math.sin(t) * y.r * f };
+        const p = dogLanding(y, cat, walk);
+        expect(p, `${cat.x},${cat.z}`).not.toBeNull();
+        expect(inYard(y, p.x, p.z)).toBe(false);
+        expect(walk(p.x, p.z)).toBe(true);
+        for (const run of FENCE) expect(cross(cat, p, run), `${cat.x.toFixed(2)},${cat.z.toFixed(2)} -> ${p.x},${p.z}`).toBe(false);
+        n += 1;
+      }
+    }
+    expect(n).toBe(192);
+    // and without the exit, the old ray would have gone straight through it
+    const open = { ...y, exit: undefined };
+    const through = dogLanding(open, { x: 22, z: -27 }, walk);
+    expect(FENCE.some((run) => cross({ x: 22, z: -27 }, through, run))).toBe(true);
+  });
+});
+
 describe('each area has exactly one dog', () => {
   test('a dog yard in every outdoor area, none in the den, and no dog critter spawn remains', () => {
     for (const a of AREAS) {
@@ -165,6 +226,27 @@ describe('each area has exactly one dog', () => {
       expect(inYard(y, y.kennel.x, y.kennel.z)).toBe(true);
     }
     expect(propsFor('den').dogYard).toBeNull();
+  });
+
+  test('the old bark-freeze is gone: nothing emits or handles critter:scare, and no critter is a dog', () => {
+    const files = [];
+    const walkDir = (d) => {
+      for (const e of readdirSync(new URL(`../src/${d}`, import.meta.url), { withFileTypes: true })) {
+        const rel = d ? `${d}/${e.name}` : e.name;
+        if (e.isDirectory()) walkDir(rel);
+        else if (rel.endsWith('.js')) files.push(rel);
+      }
+    };
+    walkDir('');
+    for (const f of files) {
+      const src = readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
+      expect(src, f).not.toContain('critter:scare');
+    }
+    const critters = readFileSync(new URL('../src/critters.js', import.meta.url), 'utf8');
+    expect(critters).not.toMatch(/type === 'dog'/);
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(main).not.toMatch(/freezeTime\s*=[^=]/); // main.js only reads it now
+    expect(main).not.toContain('You froze on the spot');
   });
 });
 

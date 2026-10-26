@@ -312,13 +312,13 @@ export function shouldTurnHostile(state, name, walkStamp, { forgivenThisWalk = f
 // ---------------------------------------------------------------------------
 // The scuffle — D3 and D6
 //
-// D6: built from the vocabulary the dog scare already established
-// (critters.js → main.js:412, which sets session.freezeTime = 1.5, halts the
-// player and plays the `scared` pose) plus a point cost. No hit points, no
-// health bar, no way to lose a walk.
+// D6: built from the vocabulary the old critter dog's scare established (it
+// set session.freezeTime = 1.5, halted the player and played the `scared`
+// pose; retired in v21 3b Task 16, whose yard dog freezes nobody) plus a
+// point cost. No hit points, no health bar, no way to lose a walk.
 //
 // SCUFFLE_FREEZE is that same 1.5s, named here rather than retyped at the
-// call site so the two hostile mechanics in the game cannot drift apart.
+// call site. It is now the only freeze in the game.
 //
 // SCUFFLE_COST = 5 spendable points. Sized against the award it stands
 // opposite: AWARDS.friend is 6, so a scuffle costs slightly LESS than the

@@ -23,8 +23,8 @@ export const DOG_NOTICE_STALKED = 0.5;
 export const DOG_LANDING_OFFSET = 1.5;
 // Seconds with no new bark or chase after one ends, so toasts never stack.
 export const DOG_COOLDOWN = 8;
-// The breed specials the dog only barks at — the same pair the shipped
-// bark-freeze spared (main.js's 'critter:scare').
+// The breed specials the dog only barks at — the same pair the old critter
+// dog's bark-freeze spared (retired with it in Task 16).
 export const DOG_FEARLESS = Object.freeze(['fearless', 'steady']);
 
 // findLanding's search pattern (rivalcats.js): further out along the ray in
@@ -47,7 +47,12 @@ function yardOf(yard) {
   if (!finite(x) || !finite(z) || !finite(r) || r <= 0) return null;
   const k = Object.hasOwn(yard, 'kennel') ? yard.kennel : null;
   const kennel = k !== null && typeof k === 'object' && finite(k.x) && finite(k.z) ? { x: k.x, z: k.z } : null;
-  return { x, z, r, kennel };
+  // A fenced yard's way out (propsets.js): a direction, normalised here; a
+  // zero, non-finite or missing one is no exit.
+  const e = Object.hasOwn(yard, 'exit') ? yard.exit : null;
+  const el = e !== null && typeof e === 'object' && finite(e.x) && finite(e.z) ? Math.hypot(e.x, e.z) : 0;
+  const exit = el > 1e-6 ? { x: e.x / el, z: e.z / el } : null;
+  return { x, z, r, kennel, exit };
 }
 
 const isPt = (p) => p !== null && typeof p === 'object' && finite(p.x) && finite(p.z);
@@ -77,17 +82,19 @@ export function dogNotices(yard, catPos, { stalking = false } = {}) {
 }
 
 // dogLanding(yard, catPos, isWalkable) → { x, z } just off the lawn, or null.
-// First choice: on the ray from the yard's centre through the cat, at
+// First choice: on the ray from the yard's centre through the cat — or, for a
+// fenced yard with an `exit`, out along the exit through the fence's opening
+// (R38: a chase never scampers the cat through the fence) — at
 // r + DOG_LANDING_OFFSET. If the walk's isWalkable(x, z) refuses it, the same
 // search rivalcats.js's findLanding makes: further along the ray, then
-// rotated round the circle. A cat dead on the centre runs away from the
-// kennel. Null — nothing walkable — means no chase, never a cat left on the
-// lawn.
+// rotated round the circle. A cat dead on the centre of an open yard runs
+// away from the kennel. Null — nothing walkable — means no chase, never a cat
+// left on the lawn.
 export function dogLanding(yard, catPos, isWalkable) {
   const y = yardOf(yard);
   if (!y || !isPt(catPos) || typeof isWalkable !== 'function') return null;
-  let dx = catPos.x - y.x;
-  let dz = catPos.z - y.z;
+  let dx = y.exit ? y.exit.x : catPos.x - y.x;
+  let dz = y.exit ? y.exit.z : catPos.z - y.z;
   let d = Math.hypot(dx, dz);
   if (d < 1e-6 && y.kennel) {
     dx = y.x - y.kennel.x;

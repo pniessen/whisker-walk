@@ -17,10 +17,10 @@ const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat']);
 // meow carries. Derived from CHASEABLE rather than listed fresh: everything a
 // cat can chase, MINUS the two types whose existing meow reaction is to bolt
 // (bird and seagull, see reactToMeow). Drawing a critter that the same meow
-// scatters would be the game contradicting itself in one frame. Dogs and
-// villagers are excluded because they are not chaseable: a summoned dog would
-// fire critter:scare at the caller, and villagers already answer a meow with
-// a wave.
+// scatters would be the game contradicting itself in one frame. Villagers are
+// excluded because they are not chaseable, and already answer a meow with a
+// wave. (The dog is no critter at all since v21 3b Task 16: it lives in its
+// yard, src/yarddog.js, and never comes when called.)
 const CURIOUS = new Set([...CHASEABLE].filter((t) => t !== 'bird' && t !== 'seagull'));
 // The outer band Far Call reaches, the same 22m straycats.js uses so one meow
 // draws one consistent neighbourhood. STANDOFF is how far short of the caller
@@ -131,13 +131,6 @@ function buildCritter(type) {
       claw.position.set(side * 0.14, 0.08, -0.06);
       g.add(claw);
     }
-  } else if (type === 'dog') {
-    const body = box(0.3, 0.28, 0.6, 0xc8a060);
-    body.position.y = 0.3;
-    g.add(body);
-    const head = box(0.22, 0.2, 0.22, 0xc8a060);
-    head.position.set(0, 0.55, -0.32);
-    g.add(head);
   } else if (type === 'villager') {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.1, 8), mat(0x6a8ac0));
     body.position.y = 0.55;
@@ -531,13 +524,6 @@ export function createCritters(scene, spawns, opts = {}) {
           c.group.rotation.y = -(t * 0.3 + c.phase);
         } else if (c.type === 'crab') {
           p.x = c.anchor.x + Math.sin(t * 1.5 + c.phase) * 1.2;
-        } else if (c.type === 'dog') {
-          c.cooldown -= dt;
-          if (dCat < 8 && c.cooldown <= 0) {
-            c.cooldown = 12;
-            bus.emit('critter:scare', { x: p.x, z: p.z });
-          }
-          c.group.rotation.y = Math.atan2(catPos.x - p.x, catPos.z - p.z);
         } else if (c.type === 'villager') {
           const arm = c.group.userData.arm;
           if (c.meowWaveT > 0) c.meowWaveT -= dt;

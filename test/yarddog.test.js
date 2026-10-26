@@ -257,6 +257,9 @@ test('the walk.js dog block pays and takes nothing, and leaves the carried item 
   // the toasts, verbatim
   expect(code).toContain('Woof! The dog chased you off its lawn! 🐕');
   expect(code).toContain("The dog barks. You don't even flinch. 😼");
+  // the fearless line is said once a walk (the bark itself repeats)
+  expect(code).toMatch(/let shrugged = false;[\s\S]*onBark: \(\) => \{\s*audio\.bark\(\);\s*if \(fearlessCat && !shrugged\) \{\s*shrugged = true;\s*hud\.toast\("The dog barks/);
+  expect(code.match(/hud\.toast\("The dog barks/g)).toHaveLength(1);
   // and nothing of the dog went into the rival's slice
   const r0 = src.indexOf("The rival's border and its patrol");
   const r1 = src.indexOf('session.rival = {');
@@ -275,4 +278,16 @@ test('endWalk frees the dog once, before the scene traversal; the render loop dr
   const dog = main.indexOf('session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });');
   expect(rival).toBeGreaterThan(0);
   expect(dog).toBeGreaterThan(rival);
+});
+
+test('the journal says how to meet this dog: from outside its lawn', () => {
+  const src = readFileSync(new URL('../src/journal.js', import.meta.url), 'utf8');
+  expect(src).not.toContain('Walk up calmly');
+  expect(src).toContain("{ id: 'dog', emoji: '🐕', name: 'Friendly Dog', hint: 'Spot it from outside its lawn — it chases cats off the grass!' }");
+});
+
+test('photo mode can still frame the dog: the yard dog is the critter-dog subject', () => {
+  const src = readFileSync(new URL('../src/game/photo.js', import.meta.url), 'utf8');
+  expect(src).toContain('const dogAt = s.dog?.spotPos;');
+  expect(src).toContain("if (dogAt) candidates.push({ key: 'critter-dog', label: labelFor('dog'), pos: new THREE.Vector3(dogAt.x, 0, dogAt.z) });");
 });

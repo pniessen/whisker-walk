@@ -10,7 +10,7 @@ export const CRITTER_INFO = [
   { id: 'duck', emoji: '🦆', name: 'Paddling Duck', hint: 'Look for it near ponds and puddles.' },
   { id: 'seagull', emoji: '🕊️', name: 'Squawking Seagull', hint: 'Follow the shoreline at the seaside.' },
   { id: 'crab', emoji: '🦀', name: 'Sideways Crab', hint: 'Check the sand near the tide line.' },
-  { id: 'dog', emoji: '🐕', name: 'Friendly Dog', hint: 'Walk up calmly for a sniff hello.' },
+  { id: 'dog', emoji: '🐕', name: 'Friendly Dog', hint: 'Spot it from outside its lawn — it chases cats off the grass!' },
   { id: 'villager', emoji: '🧑', name: 'Neighborhood Villager', hint: 'Wave hello as you walk past.' },
   { id: 'firefly', emoji: '✨', name: 'Glowing Firefly', hint: 'Comes out after dusk — watch for the twinkle.' },
   { id: 'mouse', emoji: '🐭', name: 'Quick Mouse', hint: 'Stalk quietly, then pounce!' },

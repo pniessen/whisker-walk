@@ -168,6 +168,8 @@ export function createYardDog(scene, yard, {
     && yard.kennel && Number.isFinite(yard.kennel.x) && Number.isFinite(yard.kennel.z);
   if (!ok) return NO_DOG;
   const Y = { x: yard.x, z: yard.z, r: yard.r, kennel: { x: yard.kennel.x, z: yard.kennel.z } };
+  // A fenced yard's way out (dogs.js validates it; dogLanding uses it).
+  if (yard.exit && typeof yard.exit === 'object') Y.exit = { x: yard.exit.x, z: yard.exit.z };
 
   // Home: beside the kennel, toward the middle of the lawn, facing it.
   let ux = Y.x - Y.kennel.x;

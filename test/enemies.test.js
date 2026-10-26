@@ -300,12 +300,13 @@ describe('the scuffle', () => {
     expect(SCUFFLE_COST).toBeLessThan(AWARDS.friend);
   });
 
-  it('reuses the dog scare\'s freeze rather than inventing a duration (D6)', () => {
+  it('keeps the old dog scare\'s freeze rather than inventing a duration (D6)', () => {
+    // 1.5 s, what the critter dog's scare froze a cat for. That scare was
+    // retired in v21 3b Task 16 (the yard dog freezes nobody), so the
+    // scuffle's is now the game's only freeze.
     expect(SCUFFLE_FREEZE).toBe(1.5);
-    // main.js:412 sets the same 1.5 for a dog scare; pinned as a literal so
-    // a change to either has to be a deliberate change to both.
     const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-    expect(mainSrc).toContain('session.freezeTime = 1.5;');
+    expect(mainSrc).not.toContain('session.freezeTime = 1.5;');
   });
 
   it('caps the worst possible walk well below a walk\'s ordinary take', () => {

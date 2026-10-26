@@ -485,12 +485,12 @@ export function createInteractions({
   // -------------------------------------------------------------------
   // v20 Ruffled Fur — the scuffle. Crowd a cross cat and it swats you.
   //
-  // D6: built from the ONE hostile mechanic the game already has, the dog
-  // scare (critters.js's 'critter:scare' → main.js:407-414) — freezeTime =
-  // 1.5, player.halt(), the `scared` pose and a toast. Note the pose is not
-  // played here: avatar.js derives it from s.freezeTime (`if (s.freezeTime >
-  // 0) pose = 'scared'`), so setting the timer IS playing the pose, exactly
-  // as it is for the dog. There are no hit points, no health bar and no way
+  // D6: built from what was then the ONE hostile mechanic in the game, the
+  // old critter dog's scare (retired in v21 3b Task 16 — today's yard dog
+  // freezes nobody) — freezeTime = 1.5, player.halt(), the `scared` pose and
+  // a toast. Note the pose is not played here: avatar.js derives it from
+  // s.freezeTime (`if (s.freezeTime > 0) pose = 'scared'`), so setting the
+  // timer IS playing the pose. There are no hit points, no health bar and no way
   // to lose a walk. Everything genuinely new is the point cost (D3) and the
   // rate limit, both of which are enemies.js's.
   //
@@ -525,7 +525,7 @@ export function createInteractions({
     // repaints it on a 'discovery' event, and a deduction is not one).
     const lost = progression.deductPoints?.(SCUFFLE_COST) ?? 0;
     if (lost > 0) hud.setPoints?.(progression.state.points);
-    // The dog scare's breed rule, verbatim: 'fearless' and 'steady' cats are
+    // The old dog scare's breed rule, verbatim: 'fearless' and 'steady' cats are
     // not cowed, so they skip the freeze/halt/toast block. What sits OUTSIDE
     // that block is deliberately the same shape too — the bark plays for
     // everyone, and so do the hiss, the dust and the cost. The special

@@ -215,7 +215,7 @@ export function createAvatarUpdater({
         log.awardOnce('perk', key, 'a joyful puddle splash');
       } else if (p.special !== 'steady' && !s.balkedPuddles.has(key)) {
         s.balkedPuddles.add(key);
-        s.freezeTime = Math.max(s.freezeTime, 0.8); // don't shorten a dog-scare freeze
+        s.freezeTime = Math.max(s.freezeTime, 0.8); // don't shorten a scuffle freeze
         hud.toast('Brrr — cold paws! 💦');
       }
     }
