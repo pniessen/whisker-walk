@@ -92,6 +92,15 @@ describe('slot picker', () => {
     expect(tile).not.toContain('Try on');
     expect(html).not.toContain('data-dr-acc="leafcrown"');
   });
+  it('the surprise tile sizes its 🎁 with a span (::first-line does not apply to a flex box)', async () => {
+    const slot = CATALOG.accessories.leafcrown.slot;
+    const html = renderSlotPickerHtml(defaultishState(), CATALOG, slot, null);
+    expect(html).toContain('<span class="gift" aria-hidden="true">🎁</span><span>A surprise at visit 20</span>');
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).not.toMatch(/prize-surprise::first-line/);
+    expect(css).toMatch(/\.dr-pick\.prize-surprise \.gift\s*\{[^}]*font-size:\s*30px/);
+  });
   it('a won prize behaves like any owned item', () => {
     const slot = CATALOG.accessories.leafcrown.slot;
     const s = defaultishState(); s.unlocked.accessories.push('leafcrown');

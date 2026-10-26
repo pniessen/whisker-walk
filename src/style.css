@@ -723,7 +723,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-pick.locked .act { color: var(--muted); font-weight: 400; }
 .dr-pick.prize-surprise { justify-content: center; font-size: 11px; color: var(--cream);
   background: linear-gradient(135deg, var(--panel), #3a2a4a); border: 1px dashed var(--pink); cursor: default; }
-.dr-pick.prize-surprise::first-line { font-size: 30px; }
+.dr-pick.prize-surprise .gift { font-size: 30px; line-height: 1.1; }
 .dr-pick.trying { outline: 2px dashed var(--pink); }
 .dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
 .dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }

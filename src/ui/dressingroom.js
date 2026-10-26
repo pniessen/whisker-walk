@@ -142,7 +142,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.
     if (a.prize && !owned) {
-      return `<div class="dr-pick locked prize-surprise">🎁<span>A surprise at visit ${prizeVisit(id)}</span></div>`;
+      return `<div class="dr-pick locked prize-surprise"><span class="gift" aria-hidden="true">🎁</span><span>A surprise at visit ${prizeVisit(id)}</span></div>`;
     }
     if (on) {
       return `<button class="dr-pick on" ${attrs('off')}>${pic}${name}<span class="act">On ✓</span><small>Take off</small></button>`;
