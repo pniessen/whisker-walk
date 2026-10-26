@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
+import { CATALOG } from '../src/progression.js';
+import { VISIT_PRIZES } from '../src/visits.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -341,4 +343,18 @@ describe('cat model: budget and determinism', () => {
     };
     for (const breed of ALL) expect(fingerprint(breed)).toBe(fingerprint(breed));
   });
+});
+
+describe('visit prizes', () => {
+  const meshCount = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  it.each(VISIT_PRIZES)('prize %s adds geometry to the cat', (id) => {
+    const slot = CATALOG.accessories[id].slot;
+    expect(meshCount(buildCat('tabby', { ...bareSet, [slot]: id }))).toBeGreaterThan(meshCount(buildCat('tabby', bareSet)));
+  });
+  it.each(VISIT_PRIZES.filter((id) => ['collar', 'head', 'face', 'neck'].includes(CATALOG.accessories[id].slot)))(
+    'prize %s fits Hagrid', (id) => {
+      const slot = CATALOG.accessories[id].slot;
+      expect(meshCount(buildCat('hagrid', { ...bareSet, [slot]: id }))).toBeGreaterThan(meshCount(buildCat('hagrid', bareSet)));
+    });
 });
