@@ -75,7 +75,7 @@ const RAINBOOT_COLOR = 0x3a6ea5;
 // Wave-2 catalog balance: every slot gets 4 choices
 // `tag` is not in the shop: it is the built-in collar of a cat whose STYLE row
 // sets `tagCollar` — a plain black band with a round silver name tag.
-const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x6a3fc8 }; // default red below
+const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x8a5cf0 }; // default red below
 const TAG_SILVER = 0xc8ccd4;
 const HEART_CHARM = 0xe0447a;
 const WIZARD_COLOR = 0x4a3b8c;
@@ -283,10 +283,14 @@ function buildCollar(style, ringR, tubeR, charmPos) {
     const beadColors = [0xffffff, PRIZE_GOLD, 0x7ef2e8, 0xf27ab0];
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
-      const bead = ball(tubeR * 0.5, beadColors[i % beadColors.length], 1, 1, 1, 5, 4);
-      bead.position.set(Math.cos(a) * ringR, Math.sin(a) * ringR, tubeR * 0.6);
+      const bead = ball(tubeR * 0.9, beadColors[i % beadColors.length], 1, 1, 1, 6, 5);
+      bead.position.set(Math.cos(a) * ringR, Math.sin(a) * ringR, tubeR * 0.9);
       ring.add(bead);
     }
+    // a big gold sparkle charm at the throat to catch the eye
+    const charm = new THREE.Mesh(starGeometry(tubeR * 2.2, tubeR * 1.0, tubeR * 0.6), mat(PRIZE_GOLD));
+    charm.position.copy(charmPos);
+    group.add(charm);
   }
   return group;
 }
@@ -342,41 +346,58 @@ function addPrizeHead(head, id, { k, y, rx, rz }) {
     twig.position.set(0, y - 0.01, 0);
     head.add(twig);
   } else if (id === 'candlehat') {
-    // a tiny pink cake with frosting, one candle and a flame
-    const cake = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * k, 0.085 * k, 0.06 * k, 10), mat(PRIZE_CAKE));
-    cake.position.set(0, y + 0.03 * k, 0);
+    // a tiny pink cake with frosting, one candle and a flame. Scaled to 0.65 and
+    // sunk into the fur so the flame tops out near the Party Crown's points and
+    // the head close-up frames the whole thing.
+    const c = k * 0.65;
+    y -= 0.045;
+    const cake = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * c, 0.085 * c, 0.06 * c, 10), mat(PRIZE_CAKE));
+    cake.position.set(0, y + 0.03 * c, 0);
     head.add(cake);
-    const frosting = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * k, 0.08 * k, 0.018 * k, 10), mat(PRIZE_FROSTING));
-    frosting.position.set(0, y + 0.067 * k, 0);
+    const frosting = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * c, 0.08 * c, 0.018 * c, 10), mat(PRIZE_FROSTING));
+    frosting.position.set(0, y + 0.067 * c, 0);
     head.add(frosting);
-    const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.01 * k, 0.01 * k, 0.07 * k, 6), mat(0x4ec9d4));
-    candle.position.set(0, y + 0.11 * k, 0);
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.01 * c, 0.01 * c, 0.07 * c, 6), mat(0x4ec9d4));
+    candle.position.set(0, y + 0.11 * c, 0);
     head.add(candle);
-    const flame = ball(0.014 * k, PRIZE_FLAME, 0.8, 1.5, 0.8, 5, 4);
-    flame.position.set(0, y + 0.16 * k, 0);
+    const flame = ball(0.014 * c, PRIZE_FLAME, 0.8, 1.5, 0.8, 5, 4);
+    flame.position.set(0, y + 0.16 * c, 0);
     head.add(flame);
   }
 }
 
-function addPrizeFace(head, id, { k, x, y, z }) {
+function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
   if (id === 'starshades') {
-    // star-shaped lenses (the Sunglasses are round and dark)
+    // big star lenses (the Sunglasses are round and dark): a pink star on a
+    // slightly larger gold star, yawed to follow the cheek, plus a gold bridge
     for (const side of [-1, 1]) {
-      const lens = new THREE.Mesh(starGeometry(0.046 * k, 0.021 * k, 0.012 * k), mat(PRIZE_STAR_LENS));
-      lens.position.set(side * x, y, z);
+      const lens = new THREE.Group();
+      const back = new THREE.Mesh(starGeometry(0.082 * k, 0.04 * k, 0.012 * k), mat(PRIZE_GOLD));
+      back.position.z = 0.007 * k;
+      const front = new THREE.Mesh(starGeometry(0.066 * k, 0.03 * k, 0.014 * k), mat(PRIZE_STAR_LENS));
+      lens.add(back, front);
+      lens.position.set(side * x, y, starZ);
+      lens.rotation.y = -side * 0.4;
       head.add(lens);
     }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(x * 0.6, 0.006 * k, 0.006 * k), mat(PRIZE_GOLD));
-    bridge.position.set(0, y, z);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(x * 0.5, 0.01 * k, 0.01 * k), mat(PRIZE_GOLD));
+    bridge.position.set(0, y, starZ + 0.004);
     head.add(bridge);
   } else if (id === 'warpaint') {
-    // two thin blue stripes slanting down each cheek, wrapped a little round the skull
+    // three blue stripes on each cheek, each placed ON the skull ellipsoid and
+    // turned to lie along its tangent there, slanting down toward the chin
+    const [ax, ay, az] = skull;
+    const cx = x * 1.5;
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 2; i++) {
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.06 * k, 0.009 * k, 0.014 * k), mat(PRIZE_WARPAINT));
-        stripe.position.set(side * (x + 0.045 * k), y - 0.04 * k - i * 0.026 * k, z + 0.028 * k);
-        stripe.rotation.y = side * 0.55;
-        stripe.rotation.z = -side * 0.35;
+      for (let i = 0; i < 3; i++) {
+        const sy = y - (0.03 + i * 0.032) * k;
+        const ux = cx / ax, uy = sy / ay;
+        const sz = -az * Math.sqrt(Math.max(0.05, 1 - ux * ux - uy * uy));
+        const yaw = Math.atan2(cx / (ax * ax), -sz / (az * az));
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08 * k, 0.012 * k, 0.012 * k), mat(PRIZE_WARPAINT));
+        stripe.position.set(side * cx, sy, sz - 0.003 * k);
+        stripe.rotation.y = -side * yaw;
+        stripe.rotation.z = -side * 0.3;
         head.add(stripe);
       }
     }
@@ -385,15 +406,19 @@ function addPrizeFace(head, id, { k, x, y, z }) {
 
 function addPrizeNeck(head, id, { k, y, z, ringR }) {
   if (id === 'streamerscarf') {
-    // a rainbow party scarf: striped wrap, three trailing streamers
-    const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.032 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
+    // a fat red wrap with a gold stripe, and four fanned streamers hanging at the front
+    const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
     band.rotation.x = Math.PI / 2 + 0.35;
     band.position.set(0, y, z);
     head.add(band);
-    for (let i = 0; i < 3; i++) {
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.04 * k, (0.16 - i * 0.025) * k, 0.012 * k), mat(PRIZE_STREAMERS[i + 1]));
-      tail.position.set((-0.045 + i * 0.05) * k, y - (0.13 + i * 0.0) * k, z + 0.02 * k);
-      tail.rotation.z = (i - 1) * 0.18;
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(ringR + 0.02 * k, 0.018 * k, 5, 12), mat(PRIZE_STREAMERS[1]));
+    stripe.rotation.x = Math.PI / 2 + 0.35;
+    stripe.position.set(0, y + 0.02 * k, z);
+    head.add(stripe);
+    for (let i = 0; i < 4; i++) {
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.055 * k, 0.22 * k, 0.014 * k), mat(PRIZE_STREAMERS[i]));
+      tail.position.set((-0.075 + i * 0.05) * k, y - 0.17 * k, z - 0.07 * k - i * 0.004);
+      tail.rotation.z = (i - 1.5) * 0.2;
       head.add(tail);
     }
   }
@@ -605,7 +630,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 
   // visit prizes (collar prizes go through buildCollar above)
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06 });
-  addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1 });
+  addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
   addPrizeNeck(head, accessories.neck, { k: 0.67, y: -0.12, z: 0.04, ringR: 0.1 });
 
   // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
@@ -1076,7 +1101,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
 
   // visit prizes (collar prizes go through buildCollar above)
   addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
-  addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17 });
+  addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
   addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08, ringR: 0.15 });
 
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
@@ -1185,9 +1210,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
-    // under ~y 1.1 so the whole-cat shop thumbnail still frames them
-    const tie = new THREE.Vector3(0.05, 0.72, 0.2);
-    const tops = [[-0.07, 0.93, 0.19], [0.1, 1.0, 0.22], [0.03, 0.88, 0.14]];
+    // under ~y 1.05 so the whole-cat shop thumbnail still frames them
+    const tie = new THREE.Vector3(0.05, 0.58, 0.2);
+    const tops = [[-0.07, 0.79, 0.19], [0.1, 0.86, 0.22], [0.03, 0.74, 0.14]];
     tops.forEach(([bx, by, bz], i) => {
       const len = Math.hypot(bx - tie.x, by - tie.y, bz - tie.z);
       const string = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, len, 4), mat(0xf5f5f5));

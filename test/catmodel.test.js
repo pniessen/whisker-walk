@@ -358,3 +358,19 @@ describe('visit prizes', () => {
       expect(meshCount(buildCat('hagrid', { ...bareSet, [slot]: id }))).toBeGreaterThan(meshCount(buildCat('hagrid', bareSet)));
     });
 });
+
+describe('visit prize placement', () => {
+  const boxOfMesh = (c) => { c.updateMatrixWorld(true); return new THREE.Box3().setFromObject(c); };
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  it('balloon bunch stays inside the whole-cat thumbnail framing (top < 1.1)', () => {
+    const bare = boxOfMesh(buildCat('tabby', bareSet));
+    const worn = boxOfMesh(buildCat('tabby', { ...bareSet, back: 'balloonbunch' }));
+    expect(worn.max.y).toBeLessThan(1.1);
+    expect(worn.max.y).toBeGreaterThan(bare.max.y);
+  });
+  it('candle hat does not rise above the party crown', () => {
+    const hat = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'candlehat' }));
+    const crown = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'partycrown' }));
+    expect(hat.max.y).toBeLessThanOrEqual(crown.max.y + 0.02);
+  });
+});
