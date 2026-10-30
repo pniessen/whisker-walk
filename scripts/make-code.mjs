@@ -17,7 +17,7 @@
 // paste into src/redeemcodes.js. Only the hash of the code is ever stored.
 import { pathToFileURL } from 'node:url';
 import { normalizeCode, hashCode } from '../src/redeem.js';
-import { CATALOG } from '../src/progression.js';
+import { CATALOG, isPrizeAccessory } from '../src/progression.js';
 import { REDEEM_CODES } from '../src/redeemcodes.js';
 
 export const WORDS = [
@@ -89,6 +89,8 @@ export function validateReward(reward) {
   for (const id of accessories) {
     if (!Object.hasOwn(CATALOG.accessories, id)) {
       messages.push(`Unknown accessory "${id}". Known: ${Object.keys(CATALOG.accessories).join(', ')}`);
+    } else if (isPrizeAccessory(id)) {
+      messages.push(`"${id}" is a visit prize, so a code can't give it.`);
     }
   }
   for (const id of cats) {

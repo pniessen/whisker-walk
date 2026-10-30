@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Visit milestones harness</title>
+<!-- Visit counter + milestone celebrations: the REAL home base (createHomeBase
+     with null rooms/sync/cloud/colonySync stubs) on a real progression over an
+     in-memory save. Nothing is written to localStorage. Each "Visit N" button
+     rebuilds a save at visit N-1 and calls recordVisit() + showVisit(). -->
+<style>
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999; padding: 6px 8px; display: flex; flex-wrap: wrap;
+         gap: 5px; align-items: center; background: rgba(12, 18, 30, .92); color: #a8c0e0; font: 12px/1.4 sans-serif;
+         border-top: 1px dashed #33425e; }
+  #bar button { padding: 6px 9px; border-radius: 8px; border: 1px solid #5b6c88; background: #2c3d58; color: #fff; font-size: 12px; }
+  #bar output { flex: 1 0 100%; color: #f2c14e; }
+  #bar.min > :not(#bar-toggle) { display: none; }
+</style>
+</head>
+<body>
+<div id="homebase" class="hidden"></div>
+<div id="bar">
+  <button id="bar-toggle" title="Collapse or expand this bar">harness</button>
+  <button data-visit="1">Visit 1</button>
+  <button data-visit="5">5</button>
+  <button data-visit="10">10</button>
+  <button data-visit="20">20</button>
+  <button data-visit="30">30</button>
+  <button data-visit="90">90</button>
+  <button data-visit="100">100</button>
+  <button id="h-ordinary">Ordinary visit</button>
+  <button id="h-all">All prizes</button>
+  <button id="h-hagrid">Hagrid</button>
+  <button id="h-mid">Start mid-celebration</button>
+  <button id="h-home">Back home</button>
+  <output id="h-out">pick a visit</output>
+</div>
+<script type="module">
+  import '/src/style.css';
+  import { createProgression } from '/src/progression.js';
+  import { latestMilestoneUpTo, VISIT_PRIZES } from '/src/visits.js';
+  import { createHomeBase } from '/src/ui/homebase.js';
+
+  const $ = (id) => document.getElementById(id);
+  const out = (msg) => { $('h-out').textContent = msg; };
+  const KEY = 'whisker-walk-save';
+
+  function memoryStorage() {
+    const m = new Map();
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  }
+  // A save with `visits` and `visitPrizesSeen` set (and optionally more), loaded
+  // back through the real sanitiser so owned prizes follow visitPrizesSeen.
+  function seeded({ visits, seen, cat = null }) {
+    const blank = JSON.parse(JSON.stringify(createProgression(memoryStorage()).state));
+    Object.assign(blank, { visits, visitPrizesSeen: seen, visitPrizePending: null, points: 85, lifetimePoints: 230, petName: 'Mochi' });
+    if (cat) {
+      blank.unlocked.cats = [...new Set([...blank.unlocked.cats, cat])];
+      blank.equipped.cat = cat;
+    }
+    const store = memoryStorage();
+    store.setItem(KEY, JSON.stringify(blank));
+    return createProgression(store);
+  }
+
+  let progression = null;
+  let hb = null;
+  const settings = { get: () => null, set() {}, all: () => ({}) };
+
+  // A fresh #homebase element each time: createHomeBase wires listeners on it,
+  // so a rebuilt home base must not share the old one's.
+  function rebuild(p) {
+    if (hb) { try { hb.hide(); } catch { /* nothing open */ } }
+    const old = $('homebase');
+    const fresh = document.createElement('div');
+    fresh.id = 'homebase';
+    fresh.className = 'hidden';
+    old.replaceWith(fresh);
+    progression = p;
+    hb = createHomeBase(p, { photos: [] }, () => { hb.hide(); out('Start pressed: a walk would begin (use Back home)'); },
+      null, null, null, settings, () => {}, () => out('would visit the den'), null, 'me', (t) => out(`toast: ${t}`), () => out('celebration fanfare'));
+  }
+  const worn = () => {
+    const e = progression.state.equipped;
+    return ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'].map((k) => e[k] && `${k}:${e[k]}`).filter(Boolean).join(' ') || 'nothing';
+  };
+
+  function visit(n, label) {
+    rebuild(seeded({ visits: n - 1, seen: latestMilestoneUpTo(n - 1) }));
+    const result = progression.recordVisit();
+    hb.show();
+    const celebrated = hb.showVisit(result, { onClosed: (reason) => out(`${label}: closed (${reason}); wearing ${worn()}`) });
+    const m = result.milestone;
+    out(`${label}: visit ${result.visits}, ` + (m ? `milestone style ${m.style}, prize ${m.prize.id}${m.prize.isNew ? '' : ' (owned again)'}` : 'no milestone')
+      + (celebrated ? '' : ' (welcome line)'));
+  }
+  for (const b of document.querySelectorAll('[data-visit]')) b.onclick = () => visit(Number(b.dataset.visit), `Visit ${b.dataset.visit}`);
+  $('h-ordinary').onclick = () => visit(23, 'Ordinary visit');
+
+  // Every prize owned, no celebration: check each on the cat (or on Hagrid).
+  function allPrizes(cat) {
+    rebuild(seeded({ visits: 80, seen: 80, cat }));
+    hb.show();
+    out(`${cat ? 'Hagrid' : 'Hero cat'} owns all ${VISIT_PRIZES.length} prizes; open a slot and tap one (the chicken wears collar/head/face/neck only)`);
+  }
+  $('h-all').onclick = () => allPrizes(null);
+  $('h-hagrid').onclick = () => allPrizes('hagrid');
+
+  // Visit 5 (style A: the prize is held for the tap) interrupted by Start.
+  $('h-mid').onclick = () => {
+    visit(5, 'Mid-celebration');
+    hb.hide();
+    out(`Start pressed mid-celebration; prize worn: ${worn()} (Back home to see it)`);
+  };
+  $('h-home').onclick = () => { if (!hb) return visit(1, 'Visit 1'); hb.show(); out(`home; wearing ${worn()}`); };
+  $('bar-toggle').onclick = () => $('bar').classList.toggle('min');
+
+  window.harness = { get homebase() { return hb; }, get progression() { return progression; } };
+</script>
+</body>
+</html>

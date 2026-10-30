@@ -419,6 +419,7 @@ describe('createProgression', () => {
         clanRoles: { medicine: null, deputy: null },
         clan: { name: null, adopted: false },
         marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
+        visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -563,9 +564,10 @@ describe('v11 slots + save migration', () => {
     }
   });
 
-  it('every slot offers 4-5 choices so no category feels thin', () => {
+  it('every slot offers 4-5 shop choices so no category feels thin', () => {
+    // Visit prizes are won, not bought, so they are not shop choices.
     for (const slot of ['collar', ...SLOTS]) {
-      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot).length;
+      const count = Object.values(CATALOG.accessories).filter((a) => a.slot === slot && !a.prize).length;
       expect(count, `slot "${slot}" has ${count} items`).toBeGreaterThanOrEqual(4);
       expect(count, `slot "${slot}" has ${count} items`).toBeLessThanOrEqual(5);
     }
@@ -1953,9 +1955,10 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
+    expect([visits, visitPrizesSeen, visitPrizePending]).toEqual([0, 0, null]);
     expect(rest).toEqual(v20);
   });
 
@@ -2185,6 +2188,19 @@ describe('the colony save key', () => {
     expect(reloaded.state.unlocked.accessories).toContain('bell');
     expect(reloaded.state.equipped.collar).toBe('bell');
     expect(reloaded.state.unlocked.accessories).toContain('wizard');
+  });
+
+  it('applyColonyTrades never removes or adds a visit prize, and still records the trade id', () => {
+    const p = createProgression(fakeStorage());
+    p.state.unlocked.accessories.push('partycrown');
+    const giveTrade = { id: 11, from: ME, to: SIB, give: 'partycrown', want: 'glasses', status: 'accepted' };
+    const getTrade = { id: 12, from: SIB, to: ME, give: 'starshades', want: 'bell', status: 'accepted' };
+    p.mergeColonySnapshot(paired([], [], [giveTrade, getTrade]));
+    expect(p.applyColonyTrades(ME)).toEqual([giveTrade, getTrade]);
+    expect(p.state.unlocked.accessories).toContain('partycrown');
+    expect(p.state.unlocked.accessories).not.toContain('starshades');
+    expect(p.state.colony.tradesApplied).toEqual([11, 12]);
+    expect(p.applyColonyTrades(ME)).toEqual([]);
   });
 
   it('applyColonyTrades reads the other side of a swap, and skips trades that are not accepted or not mine', () => {

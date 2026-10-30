@@ -38,6 +38,8 @@ describe('make-code script helpers', () => {
     const catId = Object.keys(CATALOG.cats)[0];
     const accId = Object.keys(CATALOG.accessories)[0];
     expect(validateReward({ points: 5, accessories: [], cats: [], label: '' })).toEqual([]);
+    expect(validateReward({ points: 0, accessories: ['partycrown'], cats: [], label: '' }))
+      .toEqual([expect.stringMatching(/partycrown.*visit prize/)]);
     expect(validateReward({ points: 0, accessories: [accId], cats: [catId], label: '' })).toEqual([]);
     expect(validateReward({ points: 0, accessories: ['nope-acc'], cats: ['nope-cat'], label: '' }).join('|'))
       .toMatch(/nope-acc[\s\S]*nope-cat/);

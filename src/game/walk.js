@@ -299,6 +299,16 @@ export function createWalkLifecycle({
 
 
   function startWalk({ duskMode = false, roomSeed, areaOverride } = {}) {
+    // A visit prize held for the tap (styles A and C) goes on FIRST, before
+    // anything below reads state.equipped (the avatar, the collar/crown
+    // perks). Style C never dims and A lets go after its reveal, so Start,
+    // the den button, or a room partner's start can all land while the
+    // present is still up. Every walk comes through here (beginWalkFromHomebase
+    // solo, beginDenWalk, and rooms.js's startWalk thunk for room starts),
+    // which is why it lives here and not in each caller. A no-op when nothing
+    // is pending, so a cycle-back's outfit is never touched; the card itself
+    // still closes with 'walk' in getHomebase().hide() below.
+    progression.wearPendingVisitPrize();
     // Read ONCE per walk, here, and passed down from this one place. Every
     // system below that cares (fx, skyLife, weather, and now the water and the
     // wind) wants the same answer, and the two new ones are on the 60Hz path —

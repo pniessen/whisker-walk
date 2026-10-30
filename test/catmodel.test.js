@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
+import { CATALOG } from '../src/progression.js';
+import { VISIT_PRIZES } from '../src/visits.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -340,5 +342,62 @@ describe('cat model: budget and determinism', () => {
       return parts.join('|');
     };
     for (const breed of ALL) expect(fingerprint(breed)).toBe(fingerprint(breed));
+  });
+});
+
+describe('visit prizes', () => {
+  const meshCount = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  it.each(VISIT_PRIZES)('prize %s adds geometry to the cat', (id) => {
+    const slot = CATALOG.accessories[id].slot;
+    expect(meshCount(buildCat('tabby', { ...bareSet, [slot]: id }))).toBeGreaterThan(meshCount(buildCat('tabby', bareSet)));
+  });
+  it.each(VISIT_PRIZES.filter((id) => ['collar', 'head', 'face', 'neck'].includes(CATALOG.accessories[id].slot)))(
+    'prize %s fits Hagrid', (id) => {
+      const slot = CATALOG.accessories[id].slot;
+      expect(meshCount(buildCat('hagrid', { ...bareSet, [slot]: id }))).toBeGreaterThan(meshCount(buildCat('hagrid', bareSet)));
+    });
+});
+
+describe('visit prize placement', () => {
+  const boxOfMesh = (c) => { c.updateMatrixWorld(true); return new THREE.Box3().setFromObject(c); };
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  it('balloon bunch stays inside the whole-cat thumbnail framing (top < 1.1)', () => {
+    const bare = boxOfMesh(buildCat('tabby', bareSet));
+    const worn = boxOfMesh(buildCat('tabby', { ...bareSet, back: 'balloonbunch' }));
+    expect(worn.max.y).toBeLessThan(1.1);
+    expect(worn.max.y).toBeGreaterThan(bare.max.y);
+  });
+  it('candle hat does not rise above the party crown', () => {
+    const hat = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'candlehat' }));
+    const crown = boxOfMesh(buildCat('tabby', { ...bareSet, head: 'partycrown' }));
+    expect(hat.max.y).toBeLessThanOrEqual(crown.max.y + 0.02);
+  });
+});
+
+describe('Hagrid wears the ring-shaped head prizes on his head, not above it', () => {
+  const bareSet = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+  const hex = (o) => o.material?.color?.getHex?.();
+  // The skull is the head group's first child; the beak (the first orange
+  // mesh, before the orange feet) finds the head.
+  function skullAndItem(id, colours) {
+    const c = buildCat('hagrid', { ...bareSet, head: id });
+    c.updateMatrixWorld(true);
+    let head = null;
+    c.traverse((o) => { if (!head && o.isMesh && hex(o) === 0xf2a04e) head = o.parent; });
+    const skull = new THREE.Box3().setFromObject(head.children[0]);
+    const item = new THREE.Box3();
+    head.traverse((o) => { if (o.isMesh && colours.includes(hex(o))) item.expandByObject(o); });
+    const tophat = new THREE.Box3().setFromObject(buildCat('hagrid', { ...bareSet, head: 'tophat' }));
+    return { skull, item, tophat };
+  }
+  it.each([
+    ['partycrown', [0xf5c518]],
+    ['leafcrown', [0x3f9e4d, 0x6cc070, 0x2f7d3e, 0x6b4a2a]],
+  ])('%s starts below the top of his skull (round the comb) and stays under the top hat', (id, colours) => {
+    const { skull, item, tophat } = skullAndItem(id, colours);
+    expect(item.isEmpty()).toBe(false);
+    expect(item.min.y).toBeLessThan(skull.max.y);
+    expect(item.max.y).toBeLessThanOrEqual(tophat.max.y);
   });
 });

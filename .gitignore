@@ -19,6 +19,8 @@ verify-*.html
 !verify-dressingroom-mockup.html
 !verify-dressingroom.html
 !verify-places.html
+# This one drives the real home base (and its hero stage) through every visit celebration and prize: the visit milestones' sign-off record.
+!verify-visits.html
 
 # Brainstorming visual-companion scratch (mockups, server state)
 .superpowers/

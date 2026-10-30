@@ -10,6 +10,7 @@ import { createDiscoveryLog } from './discoveries.js';
 import { createHud } from './ui/hud.js';
 import { createPerfHud } from './ui/perfhud.js';
 import { createHomeBase } from './ui/homebase.js';
+import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
@@ -401,12 +402,19 @@ function init() {
       blockList.add(otherId);
     },
   };
-  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast);
+  const homebase = createHomeBase(progression, album, beginWalkFromHomebase, rooms, sync, homebaseCloud, settings, applySettings, beginDenWalk, colonySync, pid, cloudToast, () => audio.unlockFanfare());
+  // Visit milestones: count this open before show(), so the header badge has
+  // the number. A milestone's celebration comes before every other card; the
+  // farewell and the news follow once it closes. A plain visit shows the
+  // welcome line, the farewell goes up straight away and the news on the pull.
+  const visit = progression.recordVisit();
   homebase.show();
-  // Rosa's one-time farewell goes up synchronously, before the async news pull
-  // below can land, so it is always first (showNews yields while it is up).
-  const farewell = progression.takeFarewell();
-  if (farewell) homebase.showNotice(farewell);
+  // Rosa's one-time farewell goes up before the news (showNews yields while it is up).
+  const showFarewell = () => {
+    const farewell = progression.takeFarewell();
+    if (farewell) homebase.showNotice(farewell);
+  };
+  let visitHolding = () => false; // true while a milestone greeting is pending or up
 
   // "While you were out" (Task 10): the first thing a kid sees on open is what
   // their sibling did. Runs after the boot pull and after each walk's
@@ -417,7 +425,7 @@ function init() {
   let pendingRewards = new Set(); // a Set: two callers can share one in-flight pull and both hand over its rewards
   function showColonyNews(rewards) {
     for (const r of rewards || []) pendingRewards.add(r);
-    if (session) return;
+    if (session || visitHolding()) return; // the celebration's close shows it
     const colony = progression.state.colony;
     const news = colonyNews(colony, {
       me: pid, ymd: new Date().toISOString().slice(0, 10),
@@ -429,6 +437,18 @@ function init() {
   }
   const pullThenNews = () => colonySync.pull().then((r) => showColonyNews(r && r.rewards), () => {});
   pullThenNews(); // fire-and-forget; never rejects, and makes no network call when solo
+  // The greeting waits for the boot splash (src/visitboot.js). A plain visit
+  // puts the farewell up now and leaves the news to the pull, as before. A
+  // milestone holds the farewell and the news until its celebration closes
+  // ('done'); if the pull lands first, pendingRewards keeps its rewards. Closed
+  // by a walk, the walk's own summary pull shows the news later.
+  const greeting = startVisitGreeting({
+    visit, homebase, showFarewell,
+    showNews: () => showColonyNews([]), // whatever the boot pull left in pendingRewards
+    splashGone: whenSplashGone(),
+    walkActive: () => !!session,
+  });
+  visitHolding = greeting.holding;
 
   // Shared goal-completion handler: turns a goals.note()/noteDuoRemote()
   // result into awards + HUD refresh + fx, regardless of whether the

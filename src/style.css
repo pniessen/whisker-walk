@@ -652,6 +652,22 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-edition { color: #f2c14e; white-space: nowrap; }
 .dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
+.dr-chip.visit {
+  background: #ff8fb1; color: #3b0f22; font-weight: 800; font-size: 15px; padding: 7px 13px;
+  box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35);
+}
+/* A milestone visit's badge pops once (a little grow and a glow) when the
+   celebration starts; homebase adds .pop to the live element, so a later
+   render() never replays it. */
+.dr-chip.visit.milestone.pop { animation: visit-badge-pop 0.9s ease-out 0.2s 1 both; }
+@keyframes visit-badge-pop {
+  0% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
+  40% { transform: scale(1.14); box-shadow: 0 0 18px 4px rgba(255, 210, 225, 0.9); }
+  100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr-chip.visit.milestone.pop { animation: none; }
+}
 .dr-stats { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .dr-stats:empty { display: none; }
 
@@ -705,6 +721,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-pick.on { outline: 2px solid var(--pink); }
 .dr-pick.locked { gap: 4px; }
 .dr-pick.locked .act { color: var(--muted); font-weight: 400; }
+.dr-pick.prize-surprise { justify-content: center; font-size: 11px; color: var(--cream);
+  background: linear-gradient(135deg, var(--panel), #3a2a4a); border: 1px dashed var(--pink); cursor: default; }
+.dr-pick.prize-surprise .gift { font-size: 30px; line-height: 1.1; }
 .dr-pick.trying { outline: 2px dashed var(--pink); }
 .dr-pick.locked.trying .dr-pick-try .act { color: var(--pink); font-weight: 700; }
 .dr .dr-pick-try { display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 44px; }
@@ -769,6 +788,7 @@ body.left-handed .chat-tray { left: 0; right: auto; }
   .dr-header > :not(.dr-stats) { flex: 0 1 auto; min-width: 0; }
   .dr-title { font-size: 16px; margin-right: 0; }
   .dr-chip { font-size: 12px; padding: 5px 8px; }
+  .dr-chip.visit { font-size: 14px; padding: 6px 11px; }
   .dr-hero { order: 1; }
   .dr-stage { height: min(38vh, 300px); }
   .dr-hero-name { font-size: 18px; }
@@ -916,3 +936,109 @@ body.den-shop-open .chat-wheel { display: none !important; }
   background: #4a6ea5; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
 }
 .ds-buy:hover { background: #5a7eb5; }
+
+/* Visit celebrations (src/ui/visitcelebration.js)
+   A full card over a dimmer, B a small banner, C a speech bubble from the
+   cat. Above the colony-news modal and the home base, below the walk's
+   skill-unlock card (12). The root never eats clicks except on the card and
+   its buttons, so style B can never block Start. */
+.visit-cel {
+  position: fixed; inset: 0; z-index: 9; pointer-events: none;
+  display: grid; place-items: center; padding: 16px;
+  opacity: 1; transition: opacity 0.7s;
+}
+.visit-cel.fade { opacity: 0; }
+.visit-cel-dim { position: absolute; inset: 0; background: rgba(14, 19, 29, 0.78); pointer-events: auto; transition: opacity 0.4s; }
+/* Once A's present is open (and on a cycle-back A, which has none), the dimmer
+   lets taps through to Start and lightens; the card auto-closes by itself. */
+.visit-cel.style-a.revealed .visit-cel-dim,
+.visit-cel.style-a.cycle .visit-cel-dim { pointer-events: none; opacity: 0.45; }
+.visit-cel.style-b { place-items: start center; padding-top: max(16px, env(safe-area-inset-top)); }
+.visit-cel.style-c { display: block; padding: 0; }
+.visit-cel.style-c .visit-cel-wrap { position: fixed; max-width: none; }
+.visit-cel-wrap { position: relative; width: 100%; max-width: 380px; pointer-events: none; }
+.visit-cel-card {
+  pointer-events: auto; position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  background: #2a3550; border: 2px solid #ff8fb1; border-radius: 18px; padding: 20px 18px 18px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 0 28px rgba(255, 143, 177, 0.4);
+  animation: visit-cel-pop 0.45s ease-out;
+}
+.style-b .visit-cel-card { padding: 12px 16px; gap: 4px; }
+.visit-cel-title { font-size: 1.7rem; font-weight: 800; color: #ff8fb1; }
+.style-b .visit-cel-title { font-size: 1.15rem; }
+.visit-cel-line { font-size: 1.05rem; line-height: 1.4; color: #fff; overflow-wrap: anywhere; }
+.visit-cel-prize { font-size: 1.35rem; font-weight: 800; color: #f2c14e; overflow-wrap: anywhere; }
+.visit-cel-bubble {
+  position: relative; font-size: 1.1rem; line-height: 1.4; color: #1c2431; overflow-wrap: anywhere;
+  background: #fff; border-radius: 16px; padding: 12px 14px;
+}
+/* C: the wrap is sized to the cat's stage by the module; the bubble hangs at
+   its top-right (tail down-left toward the cat's head) and the present sits
+   on the right edge, lower half, beside the cat, never on it. */
+.style-c .visit-cel-card { display: block; position: relative; height: 100%; background: transparent; border: 0; box-shadow: none; padding: 0; animation: none; pointer-events: none; }
+.style-c .visit-cel-bubble {
+  position: absolute; top: 0; right: 0; width: var(--vc-bubble-w, 200px); max-width: 100%;
+  box-sizing: border-box; pointer-events: auto; text-align: left; font-size: 1rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); animation: visit-cel-pop 0.45s ease-out;
+}
+.style-c .visit-cel-bubble::after {
+  content: ""; position: absolute; left: 14px; bottom: -10px;
+  border: 10px solid transparent; border-top-color: #fff; border-bottom: 0; border-right-width: 4px;
+}
+.style-c .visit-cel-gift { position: absolute; left: var(--vc-gift-x, 0); top: 65%; width: 56px; height: 56px; padding: 0; pointer-events: auto; }
+.style-c .visit-cel-side {
+  position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  max-width: 45%; pointer-events: auto; text-align: right;
+}
+.visit-cel-btn, .visit-cel-gift {
+  min-height: 48px; min-width: 48px; padding: 10px 22px; border: 0; border-radius: 12px; cursor: pointer;
+  font: inherit; font-size: 1.1rem; font-weight: 700; background: #ff8fb1; color: #1c2431;
+}
+.style-b .visit-cel-btn { min-height: 44px; padding: 6px 16px; font-size: 0.95rem; }
+.visit-cel-thumb { width: 96px; height: 96px; object-fit: contain; border-radius: 12px; background: rgba(255,255,255,0.1); }
+.visit-cel-btn.secondary { background: #f2c14e; }
+.visit-cel-gift { font-size: 2rem; padding: 6px 22px; animation: visit-cel-wiggle 1.2s ease-in-out infinite; }
+.visit-cel-btn:hover, .visit-cel-gift:hover { filter: brightness(1.08); }
+.visit-cel-btn:focus-visible, .visit-cel-gift:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.visit-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.visit-confetti i {
+  position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 2px; opacity: 0.95;
+  animation: visit-confetti-fall 3.4s linear both;
+}
+@keyframes visit-confetti-fall {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(105vh) rotate(540deg); }
+}
+@keyframes visit-cel-pop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes visit-cel-wiggle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .visit-confetti { display: none; }
+  .visit-cel-card, .visit-cel-gift { animation: none; }
+  .visit-cel { transition: none; }
+}
+@media (max-width: 480px) {
+  .visit-cel { padding: 12px; }
+  .visit-cel-title { font-size: 1.5rem; }
+}
+
+/* Visit milestones: the welcome line on a plain visit. A small pill over the
+   hero stage (main sets left/top from the stage; the defaults are for when it
+   can't). It fades by itself and never takes a click. Below the news card (5). */
+.visit-welcome {
+  position: fixed; left: 50%; top: 18%; z-index: 4; transform: translateX(-50%);
+  max-width: calc(100vw - 32px); pointer-events: none;
+  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 999px;
+  padding: 8px 16px; font-size: 1rem; font-weight: 700; text-align: center;
+  overflow-wrap: anywhere; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  animation: visit-welcome 4.5s ease-in-out forwards;
+}
+@keyframes visit-welcome {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  10%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .visit-welcome { animation-name: visit-welcome-still; }
+  @keyframes visit-welcome-still { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+}

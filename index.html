@@ -65,6 +65,11 @@
         function hide() {
           if (done) return; done = true;
           s.classList.add('hide');
+          // The visit greeting (src/visitboot.js) waits for this, so a line
+          // that fades by itself is not spent behind the splash. Signalled as
+          // the fade starts: the greeting shows through the fading splash.
+          window.__splashDone = true;
+          try { window.dispatchEvent(new Event('splash-hidden')); } catch (e) { /* old browser: the fallback timer covers it */ }
           setTimeout(function () { s.style.display = 'none'; }, 650);
         }
         window.addEventListener('load', function () { setTimeout(hide, 750); });

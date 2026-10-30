@@ -21,6 +21,7 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
+import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
 // write still happens here: marks.js computes, this module saves.
@@ -71,6 +72,8 @@ const GOLD_MAX_COUNT = 64;
 // and, via 5 * count in recordStreakWalk-adjacent bonus math and repeated
 // save() round-trips, an avoidable way to inflate the persisted save.
 const STREAK_COUNT_MAX = 3650;
+// Ceiling on state.visits and state.visitPrizesSeen: a million opens is "implausible", not a goal.
+const VISITS_MAX = 1_000_000;
 // Ceiling on state.race.bestMs: 24 hours in ms. No real daily-race best time
 // is ever going to approach this — its job, like STREAK_COUNT_MAX above, is
 // rejecting a hostile/corrupted cloud payload's implausible number rather
@@ -242,6 +245,20 @@ export const CATALOG = {
     jetpack: { name: 'Toy Jetpack', slot: 'back', price: 45 },
     balloon: { name: 'Party Balloon', slot: 'back', price: 30 },
     socks: { name: 'Mismatched Socks', slot: 'feet', price: 20 },
+    // Visit prizes (src/visits.js has the schedule). Won by visiting, never
+    // bought: canBuy refuses them and redeemCode skips them. sanitizeState
+    // rebuilds the ones visitPrizesSeen has won on every load.
+    partycrown: { name: 'Party Crown', slot: 'head', price: 0, prize: true },
+    confetticape: { name: 'Confetti Cape', slot: 'body', price: 0, prize: true },
+    starshades: { name: 'Star Sunglasses', slot: 'face', price: 0, prize: true },
+    leafcrown: { name: 'Leaf Crown', slot: 'head', price: 0, prize: true },
+    balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
+    sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
+    // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
+    warpaint: { name: `${CLAN_SUFFIX} War Paint`, slot: 'face', price: 0, prize: true },
+    candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
+    streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
+    goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },
   },
   areas: {
     neighborhood: { name: 'Cozy Neighborhood', price: 0 },
@@ -274,6 +291,19 @@ const KNOWN_ACCESSORY_IDS = new Set(Object.keys(CATALOG.accessories));
 // (decisions.md, "Trading"): applyColonyTrades refuses to remove one, and the
 // wardrobe pushed to the colony leaves them out. defaultState copies this.
 export const STARTER_ACCESSORIES = ['bell', 'bandana'];
+
+// A visit prize (CATALOG.accessories entry flagged `prize`). Own-property
+// lookup, so '__proto__' or 'toString' is never one.
+export function isPrizeAccessory(id) {
+  return typeof id === 'string' && Object.hasOwn(CATALOG.accessories, id) && CATALOG.accessories[id].prize === true;
+}
+
+// What may be offered in a colony trade: a known accessory that is neither a
+// starter (never traded away) nor a prize (won by visiting, so never lost).
+export function isTradeableAccessory(id) {
+  return typeof id === 'string' && KNOWN_ACCESSORY_IDS.has(id)
+    && !STARTER_ACCESSORIES.includes(id) && !isPrizeAccessory(id);
+}
 
 // summarizeSaveForPreview(s) — reduces a save object down to the four fields
 // the cloud-sync "Load from cloud" preview card displays (main.js's
@@ -452,6 +482,16 @@ function defaultState() {
     // Hashes of redeem codes already used on this save (never the codes
     // themselves). Additive, so SAVE_VERSION stays 4.
     redeemed: [],
+    // Visit milestones (src/visits.js). `visits` counts every open of the game
+    // (recordVisit, once per page load). `visitPrizesSeen` is the highest
+    // milestone visit already celebrated: it stops a celebration replaying
+    // after a reload, and every prize it has won is rebuilt into owned on load.
+    // `visitPrizePending` is a won prize waiting to be put on (styles A and C
+    // wear it on the tap; the next recordVisit wears it if the tab closed
+    // first). Additive, so SAVE_VERSION stays 4: an older save starts at 0.
+    visits: 0,
+    visitPrizesSeen: 0,
+    visitPrizePending: null,
   };
 }
 
@@ -751,6 +791,12 @@ function sanitizeState(parsed) {
   for (const id of d.unlocked.cats) if (!unlockedCats.includes(id)) unlockedCats.push(id);
   for (const id of d.unlocked.accessories) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
   for (const id of d.unlocked.areas) if (!unlockedAreas.includes(id)) unlockedAreas.push(id);
+  // Visit prizes are add-only: every prize visitPrizesSeen has won is owned,
+  // whatever the payload's unlocked list says. Before the equipped checks
+  // below, so a worn prize the list had lost stays worn.
+  const visits = Math.min(VISITS_MAX, asFiniteNonNegInt(parsed.visits, 0));
+  const visitPrizesSeen = Math.min(VISITS_MAX, asFiniteNonNegInt(parsed.visitPrizesSeen, 0));
+  for (const id of prizesWonBy(visitPrizesSeen)) if (!unlockedAcc.includes(id)) unlockedAcc.push(id);
 
   const equippedCat = typeof parsed.equipped?.cat === 'string' && unlockedCats.includes(parsed.equipped.cat)
     ? parsed.equipped.cat : d.equipped.cat;
@@ -802,6 +848,9 @@ function sanitizeState(parsed) {
     // Only ids we retired, once each; anything else in a cloud payload is junk.
     retired: [...new Set(asStringArray(parsed.retired).filter((id) => Object.hasOwn(RETIRED_CATS, id)))],
     redeemed: sanitizeRedeemed(parsed.redeemed),
+    visits,
+    visitPrizesSeen,
+    visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
   };
 }
 
@@ -953,6 +1002,8 @@ export function createProgression(storage) {
         const ids = Array.isArray(reward?.[kind]) ? reward[kind] : [];
         for (const id of new Set(ids)) {
           if (typeof id !== 'string' || !Object.hasOwn(CATALOG[kind], id)) continue;
+          // Prizes are won by visiting only: no unlock, and no refund either.
+          if (CATALOG[kind][id].prize) continue;
           const owned = state.unlocked[kind].includes(id);
           const refund = owned ? CATALOG[kind][id].price : 0;
           if (!owned) state.unlocked[kind].push(id);
@@ -1012,7 +1063,7 @@ export function createProgression(storage) {
     },
     canBuy(kind, id) {
       const item = CATALOG[kind][id];
-      if (!item || api.isUnlocked(kind, id) || state.points < item.price) return false;
+      if (!item || item.prize || api.isUnlocked(kind, id) || state.points < item.price) return false;
       if (item.requires && state.walks[item.requires.area] < item.requires.walks) return false;
       return true;
     },
@@ -1070,6 +1121,54 @@ export function createProgression(storage) {
         state.equipped[item.slot] = id;
         save();
       }
+    },
+    // recordVisit() → { visits, milestone }. Called once per page load. In
+    // order, all in one save(): wear a prize left pending by a tab closed
+    // before the tap; count the visit; and if the latest milestone at or
+    // below it has not been celebrated, mark it seen, grant every prize up to
+    // it (a skipped milestone is still granted, but only the latest is
+    // celebrated) and either wear the new prize now (style B) or hold it for
+    // the tap (A, C). Past prize 10 the milestone shows an owned prize again
+    // (isNew false): nothing is granted, worn or held.
+    // milestone: null | { visit, index, style, prize: { id, name, slot, isNew } }.
+    recordVisit() {
+      const wearNow = (id) => {
+        const item = CATALOG.accessories[id];
+        if (item && state.unlocked.accessories.includes(id)) state.equipped[item.slot] = id;
+      };
+      if (state.visitPrizePending !== null) {
+        wearNow(state.visitPrizePending);
+        state.visitPrizePending = null;
+      }
+      state.visits = Math.min(VISITS_MAX, state.visits + 1);
+      const visits = state.visits;
+      const m = latestMilestoneUpTo(visits);
+      if (m <= state.visitPrizesSeen) {
+        save();
+        return { visits, milestone: null };
+      }
+      state.visitPrizesSeen = m;
+      for (const id of prizesWonBy(m)) if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      const index = milestoneIndex(m);
+      const style = styleFor(index);
+      const { id, isNew } = prizeFor(index);
+      if (isNew) {
+        if (style === 'B') wearNow(id);
+        else state.visitPrizePending = id;
+      }
+      save();
+      const { name, slot } = CATALOG.accessories[id];
+      return { visits, milestone: { visit: m, index, style, prize: { id, name, slot, isNew } } };
+    },
+    // wearPendingVisitPrize() → the prize id put on, or null when none was
+    // pending. The tap on the present in styles A and C.
+    wearPendingVisitPrize() {
+      const id = state.visitPrizePending;
+      if (id === null) return null;
+      state.visitPrizePending = null;
+      api.equipAccessory(id);
+      save();
+      return id;
     },
     unequip(slot) {
       state.equipped[slot] = null;
@@ -1604,9 +1703,9 @@ export function createProgression(storage) {
     // An accepted trade naming me is applied exactly once, ever: its id goes
     // into colony.tradesApplied, which is persisted and survives a reload.
     // For each one: the outgoing item leaves unlocked.accessories unless it is
-    // a starter (STARTER_ACCESSORIES can never be traded away). Any equipped
+    // a starter or a visit prize (neither can ever be traded away). Any equipped
     // slot holding it is cleared, and so is the `wear` of any colony cat I
-    // found. The incoming item is added if it is a known accessory. All of it
+    // found. The incoming item is added if it is a known accessory and not a prize. All of it
     // lands in one save(); with nothing to do there is no write.
     applyColonyTrades(me) {
       const done = new Set(state.colony.tradesApplied);
@@ -1620,7 +1719,7 @@ export function createProgression(storage) {
         if (done.has(t.id)) continue;
         const eff = tradeEffect(t, me);
         if (!eff) continue;
-        if (!STARTER_ACCESSORIES.includes(eff.remove) && owned.includes(eff.remove)) {
+        if (isTradeableAccessory(eff.remove) && owned.includes(eff.remove)) {
           owned = owned.filter((id) => id !== eff.remove);
           for (const slot of Object.keys(equipped)) {
             if (slot !== 'cat' && equipped[slot] === eff.remove) equipped[slot] = null;
@@ -1629,7 +1728,7 @@ export function createProgression(storage) {
             cats = cats.map((c) => (c.finder === me && c.wear === eff.remove ? { ...c, wear: null } : c));
           }
         }
-        if (KNOWN_ACCESSORY_IDS.has(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
+        if (KNOWN_ACCESSORY_IDS.has(eff.add) && !isPrizeAccessory(eff.add) && !owned.includes(eff.add)) owned.push(eff.add);
         done.add(t.id);
         applied.push({ ...t });
       }
@@ -1698,13 +1797,26 @@ export function createProgression(storage) {
     // reloads live state through the SAME loadState() the constructor uses,
     // so a v2-format cloud payload migrates exactly like a normal v2 save
     // would on next boot instead of needing its own migration logic here.
+    //
+    // Visits are the exception to "replace": the count and visitPrizesSeen
+    // keep the larger of local and loaded, so an older cloud save never makes
+    // the count go down, and every prize the kept visitPrizesSeen has won is
+    // owned again (sanitizeState rebuilt only the loaded value's).
     replaceFromPayload(rawSaveObject) {
+      const localVisits = state.visits;
+      const localSeen = state.visitPrizesSeen;
       try {
         storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
       } catch (err) {
         console.warn('Whisker Walk: could not write cloud save', err);
       }
       adopt(loadState(storage));
+      state.visits = Math.max(localVisits, state.visits);
+      state.visitPrizesSeen = Math.max(localSeen, state.visitPrizesSeen);
+      for (const id of prizesWonBy(state.visitPrizesSeen)) {
+        if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
+      }
+      save();
     },
     // The one-time gentle line after a retired cat was equipped, then null.
     takeFarewell() {

@@ -32,6 +32,10 @@ separate devices with separate saves. Both get this.
    (mockups, 2026-10-25):
    - **A. The big moment:** the screen dims, confetti falls, and a present
      card says "Visit #N!". She taps **Open it!** to unwrap the accessory.
+     After the reveal the dimmer lets taps through and the card closes by
+     itself about 4 s later ("Yay!" closes it sooner), so Start is one tap
+     away; a cycle-back A never blocks and closes at about 6 s (ruling,
+     final review 2026-10-25).
    - **B. Quick and cheerful:** a burst of confetti and a banner saying
      "Visit N! Your cat got a ___. It's already on!" The cat is already
      wearing it. Nothing to tap.

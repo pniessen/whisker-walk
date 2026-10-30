@@ -75,7 +75,7 @@ const RAINBOOT_COLOR = 0x3a6ea5;
 // Wave-2 catalog balance: every slot gets 4 choices
 // `tag` is not in the shop: it is the built-in collar of a cat whose STYLE row
 // sets `tagCollar` — a plain black band with a round silver name tag.
-const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22 }; // default red below
+const COLLAR_COLORS = { glow: 0x7ef2c0, heart: 0xf27ab0, studded: 0x2c2c34, tag: 0x1c1c22, sparklecollar: 0x8a5cf0 }; // default red below
 const TAG_SILVER = 0xc8ccd4;
 const HEART_CHARM = 0xe0447a;
 const WIZARD_COLOR = 0x4a3b8c;
@@ -85,6 +85,20 @@ const SWEATER_STRIPE = 0xf2ead9;
 const JETPACK_SILVER = 0xb8bcc4;
 const JETPACK_FLAME = 0xf2822e;
 const BALLOON_COLOR = 0xf25c8a;
+// Visit prizes (src/visits.js): bright and a little magical, so they read as
+// earned rather than bought.
+const PRIZE_GOLD = 0xf5c518;
+const PRIZE_RIBBON = 0xe0405a;
+const PRIZE_LEAF = [0x3f9e4d, 0x6cc070, 0x2f7d3e];
+const PRIZE_CONFETTI = [0xf25c8a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2, 0x7ad06a];
+const PRIZE_CAPE = 0x5b3fa8;       // confetti cape base: purple, nothing like the red superhero cape
+const PRIZE_STAR_LENS = 0xf25cb4;
+const PRIZE_WARPAINT = 0x2b5fb8;
+const PRIZE_CAKE = 0xf2a0c0;
+const PRIZE_FROSTING = 0xfff4e0;
+const PRIZE_FLAME = 0xffb02e;
+const PRIZE_BALLOONS = [0xf25c8a, 0x4ec9d4, 0xf2c14e];
+const PRIZE_STREAMERS = [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2];
 const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on purpose
 
 const mat = (color) => litMaterial(color);
@@ -264,8 +278,155 @@ function buildCollar(style, ringR, tubeR, charmPos) {
       stud.position.set(Math.cos(a) * ringR, Math.sin(a) * ringR, tubeR * 0.7);
       ring.add(stud);
     }
+  } else if (style === 'sparklecollar') {
+    // small bright beads all round the ring, in its local plane so they follow its tilt
+    const beadColors = [0xffffff, PRIZE_GOLD, 0x7ef2e8, 0xf27ab0];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const bead = ball(tubeR * 0.9, beadColors[i % beadColors.length], 1, 1, 1, 6, 5);
+      bead.position.set(Math.cos(a) * ringR, Math.sin(a) * ringR, tubeR * 0.9);
+      ring.add(bead);
+    }
+    // a big gold sparkle charm at the throat to catch the eye
+    const charm = new THREE.Mesh(starGeometry(tubeR * 2.2, tubeR * 1.0, tubeR * 0.6), mat(PRIZE_GOLD));
+    charm.position.copy(charmPos);
+    group.add(charm);
   }
   return group;
+}
+
+// A flat five-point star, extruded a hair so it has a face to catch light.
+function starGeometry(outer, inner, depth) {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = Math.PI / 2 + (i / 10) * Math.PI * 2;
+    if (i === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  geo.translate(0, 0, -depth / 2);
+  return geo;
+}
+
+// Visit-prize head, face and neck items, shared by the cat and Hagrid. Each
+// takes the same anchors the shop items of that slot use, so the prize sits
+// where its neighbours do: `k` scales size, the rest are the slot's anchors.
+// `ringY` is where the two rings (Party Crown, Leaf Crown) sit; it defaults to
+// `y`. Hagrid needs his lower: his hats rest on top of the comb at `y`, but a
+// ring that wide hung there floats round the comb, clear of his small skull.
+function addPrizeHead(head, id, { k, y, rx, rz, ringY = y }) {
+  if (id === 'partycrown') {
+    y = ringY;
+    // a gold band with five tall points (the Flower Crown is soft petals)
+    const band = new THREE.Mesh(new THREE.TorusGeometry(rx * 0.95, 0.011 * k, 5, 12), mat(PRIZE_GOLD));
+    band.rotation.x = Math.PI / 2;
+    band.scale.set(1, rz / rx, 1);
+    band.position.set(0, y - 0.005, 0);
+    head.add(band);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const point = new THREE.Mesh(new THREE.ConeGeometry(0.03 * k, 0.1 * k, 4), mat(PRIZE_GOLD));
+      point.position.set(Math.cos(a) * rx * 0.95, y + 0.045 * k, Math.sin(a) * rz * 0.95);
+      head.add(point);
+      const jewel = ball(0.014 * k, i % 2 ? 0x4ec9d4 : PRIZE_RIBBON, 1, 1, 1, 5, 4);
+      jewel.position.set(Math.cos(a) * rx * 0.95, y + 0.1 * k, Math.sin(a) * rz * 0.95);
+      head.add(jewel);
+    }
+  } else if (id === 'leafcrown') {
+    // a ring of green leaves, each tipped outward
+    y = ringY;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const leaf = ball(0.032 * k, PRIZE_LEAF[i % PRIZE_LEAF.length], 0.55, 0.3, 1.5, 5, 4);
+      leaf.position.set(Math.cos(a) * rx, y, Math.sin(a) * rz);
+      leaf.rotation.y = -a + Math.PI / 2;
+      leaf.rotation.x = -0.5;
+      head.add(leaf);
+    }
+    const twig = new THREE.Mesh(new THREE.TorusGeometry(rx, 0.006 * k, 4, 12), mat(0x6b4a2a));
+    twig.rotation.x = Math.PI / 2;
+    twig.scale.set(1, rz / rx, 1);
+    twig.position.set(0, y - 0.01, 0);
+    head.add(twig);
+  } else if (id === 'candlehat') {
+    // a tiny pink cake with frosting, one candle and a flame. Scaled to 0.65 and
+    // sunk into the fur so the flame tops out near the Party Crown's points and
+    // the head close-up frames the whole thing.
+    const c = k * 0.65;
+    y -= 0.045;
+    const cake = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * c, 0.085 * c, 0.06 * c, 10), mat(PRIZE_CAKE));
+    cake.position.set(0, y + 0.03 * c, 0);
+    head.add(cake);
+    const frosting = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * c, 0.08 * c, 0.018 * c, 10), mat(PRIZE_FROSTING));
+    frosting.position.set(0, y + 0.067 * c, 0);
+    head.add(frosting);
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.01 * c, 0.01 * c, 0.07 * c, 6), mat(0x4ec9d4));
+    candle.position.set(0, y + 0.11 * c, 0);
+    head.add(candle);
+    const flame = ball(0.014 * c, PRIZE_FLAME, 0.8, 1.5, 0.8, 5, 4);
+    flame.position.set(0, y + 0.16 * c, 0);
+    head.add(flame);
+  }
+}
+
+function addPrizeFace(head, id, { k, x, y, z, starZ, skull }) {
+  if (id === 'starshades') {
+    // big star lenses (the Sunglasses are round and dark): a pink star on a
+    // slightly larger gold star, yawed to follow the cheek, plus a gold bridge
+    for (const side of [-1, 1]) {
+      const lens = new THREE.Group();
+      const back = new THREE.Mesh(starGeometry(0.082 * k, 0.04 * k, 0.012 * k), mat(PRIZE_GOLD));
+      back.position.z = 0.007 * k;
+      const front = new THREE.Mesh(starGeometry(0.066 * k, 0.03 * k, 0.014 * k), mat(PRIZE_STAR_LENS));
+      lens.add(back, front);
+      lens.position.set(side * x, y, starZ);
+      lens.rotation.y = -side * 0.4;
+      head.add(lens);
+    }
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(x * 0.5, 0.01 * k, 0.01 * k), mat(PRIZE_GOLD));
+    bridge.position.set(0, y, starZ + 0.004);
+    head.add(bridge);
+  } else if (id === 'warpaint') {
+    // three blue stripes on each cheek, each placed ON the skull ellipsoid and
+    // turned to lie along its tangent there, slanting down toward the chin
+    const [ax, ay, az] = skull;
+    const cx = x * 1.5;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const sy = y - (0.03 + i * 0.032) * k;
+        const ux = cx / ax, uy = sy / ay;
+        const sz = -az * Math.sqrt(Math.max(0.05, 1 - ux * ux - uy * uy));
+        const yaw = Math.atan2(cx / (ax * ax), -sz / (az * az));
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08 * k, 0.012 * k, 0.012 * k), mat(PRIZE_WARPAINT));
+        stripe.position.set(side * cx, sy, sz - 0.003 * k);
+        stripe.rotation.y = -side * yaw;
+        stripe.rotation.z = -side * 0.3;
+        head.add(stripe);
+      }
+    }
+  }
+}
+
+function addPrizeNeck(head, id, { k, y, z, ringR }) {
+  if (id === 'streamerscarf') {
+    // a fat red wrap with a gold stripe, and four fanned streamers hanging at the front
+    const band = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05 * k, 6, 12), mat(PRIZE_STREAMERS[0]));
+    band.rotation.x = Math.PI / 2 + 0.35;
+    band.position.set(0, y, z);
+    head.add(band);
+    const stripe = new THREE.Mesh(new THREE.TorusGeometry(ringR + 0.02 * k, 0.018 * k, 5, 12), mat(PRIZE_STREAMERS[1]));
+    stripe.rotation.x = Math.PI / 2 + 0.35;
+    stripe.position.set(0, y + 0.02 * k, z);
+    head.add(stripe);
+    for (let i = 0; i < 4; i++) {
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.055 * k, 0.22 * k, 0.014 * k), mat(PRIZE_STREAMERS[i]));
+      tail.position.set((-0.075 + i * 0.05) * k, y - 0.17 * k, z - 0.07 * k - i * 0.004);
+      tail.rotation.z = (i - 1.5) * 0.2;
+      head.add(tail);
+    }
+  }
 }
 
 // Hagrid the chicken honors the cat parts contract so the animator, camera,
@@ -471,6 +632,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     tail.rotation.z = 0.15;
     head.add(tail);
   }
+
+  // visit prizes (collar prizes go through buildCollar above)
+  // The rings sit ON his head (skull top ~0.137, ~0.10-0.12 under the ring),
+  // round the comb, which pokes up through the middle like a real crown's.
+  addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
+  addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
+  addPrizeNeck(head, accessories.neck, { k: 0.67, y: -0.12, z: 0.04, ringR: 0.1 });
 
   // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
   // bird frame — every item in those slots is skipped here rather than
@@ -938,6 +1106,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(tail);
   }
 
+  // visit prizes (collar prizes go through buildCollar above)
+  addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
+  addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
+  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08, ringR: 0.15 });
+
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
   // The three shells (and the sweater's knit rings) are scaled by the torso's
   // fx/fy/fz factors so a narrow cat's sweater is narrow too, not a barrel with
@@ -965,6 +1138,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     cape.rotation.x = -0.15;
     g.add(cape);
     const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
+    clasp.position.set(0, 0.48, 0.28);
+    g.add(clasp);
+  } else if (accessories.body === 'confetticape') {
+    // a purple cape (not the hero's red) flecked with confetti dots on its outer face
+    const capeGroup = new THREE.Group();
+    capeGroup.position.set(0, 0.28, 0.45);
+    capeGroup.rotation.x = -0.15;
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(PRIZE_CAPE));
+    capeGroup.add(cape);
+    const dots = [[-0.09, 0.14], [0.06, 0.15], [0.11, 0.04], [-0.04, 0.05], [-0.11, -0.05], [0.03, -0.06], [0.1, -0.14], [-0.05, -0.15]];
+    dots.forEach(([dx, dy], i) => {
+      const dot = ball(0.022, PRIZE_CONFETTI[i % PRIZE_CONFETTI.length], 1, 1, 0.4, 5, 4);
+      dot.position.set(dx, dy, 0.022);
+      capeGroup.add(dot);
+    });
+    g.add(capeGroup);
+    const clasp = ball(0.032, PRIZE_GOLD, 1, 1, 1, 6, 5);
     clasp.position.set(0, 0.48, 0.28);
     g.add(clasp);
   } else if (accessories.body === 'raincoat') {
@@ -1025,6 +1215,22 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       nozzle.position.set(side * 0.07 * fx, 0.4 - BACK_DROP, 0.185);
       g.add(nozzle);
     }
+  } else if (accessories.back === 'balloonbunch') {
+    // three balloons on three strings tied at one point over the tail; kept
+    // under ~y 1.05 so the whole-cat shop thumbnail still frames them
+    const tie = new THREE.Vector3(0.05, 0.58, 0.2);
+    const tops = [[-0.07, 0.79, 0.19], [0.1, 0.86, 0.22], [0.03, 0.74, 0.14]];
+    tops.forEach(([bx, by, bz], i) => {
+      const len = Math.hypot(bx - tie.x, by - tie.y, bz - tie.z);
+      const string = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, len, 4), mat(0xf5f5f5));
+      string.position.set((bx + tie.x) / 2, (by + tie.y) / 2, (bz + tie.z) / 2);
+      string.rotation.z = -Math.atan2(bx - tie.x, by - tie.y);
+      string.rotation.x = Math.atan2(bz - tie.z, by - tie.y);
+      g.add(string);
+      const balloon = ball(0.075, PRIZE_BALLOONS[i], 1, 1.15, 1, 10, 8);
+      balloon.position.set(bx, by + 0.09, bz);
+      g.add(balloon);
+    });
   } else if (accessories.back === 'balloon') {
     // hovers just over the tail — low enough to stay inside the shop
     // thumbnail's whole-cat framing (~y 1.1 at this plane)
@@ -1044,6 +1250,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     for (const leg of legs) {
       leg.userData.paw.material = mat(0xf2c14e);
       leg.userData.paw.scale.multiplyScalar(1.15);
+    }
+  } else if (accessories.feet === 'goldbooties') {
+    // shiny gold paws with a darker gold cuff at the ankle
+    for (const leg of legs) {
+      leg.userData.paw.material = mat(PRIZE_GOLD);
+      leg.userData.paw.scale.multiplyScalar(1.18);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 8), mat(0xd9a000));
+      cuff.position.set(0, -0.22, 0);
+      leg.add(cuff);
     }
   } else if (accessories.feet === 'sneakers') {
     for (const leg of legs) {
