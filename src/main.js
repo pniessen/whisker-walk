@@ -793,6 +793,8 @@ function init() {
         z: session.cat.position.z,
         grounded: !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.swimming,
       });
+      // Clouds take the same absolute t and follow the camera, so after player.update too.
+      session.clouds.update(t);
       session.remotes.update(dt, nowSec());
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so

@@ -20,6 +20,8 @@
   import { createShadowFit } from '/src/render/shadowfit.js';
   import { createGrass } from '/src/render/grass.js';
   import { createPawPrints } from '/src/render/pawprints.js';
+  import { createClouds } from '/src/render/clouds.js';
+  import { skyBackground } from '/src/render/sky.js';
   import { LADDER } from '/src/render/quality.js';
   import * as neighborhood from '/src/world/neighborhood.js';
   import * as park from '/src/world/park.js';
@@ -91,11 +93,28 @@
   }
   window.__paws = paws;
   window.__pawsAge = (s) => { paws?.update(s, {}); render(); };
+  // ?clouds[=low] adds walk.js's drifting sky clouds (render/clouds.js), after
+  // the caster sweep as walk.js does; &dusk swaps in the area's dusk sky and
+  // fog first (walk.js's dusk block). window.__cloudT drives their drift.
+  if (params0.has('dusk')) {
+    scene.background = skyBackground(area.skyDusk.top, area.skyDusk.horizon);
+    scene.fog = new THREE.Fog(area.skyDusk.horizon, 30, 110);
+    sun.intensity = 0.7;
+  }
+  const b0 = area.bounds;
+  const clouds = params0.has('clouds')
+    ? createClouds(scene, {
+      areaId: id, tier: LADDER[params0.get('clouds') === 'low' ? 3 : 0], camera, dusk: params0.has('dusk'),
+      centre: { x: (b0.minX + b0.maxX) / 2, z: (b0.minZ + b0.maxZ) / 2 },
+    })
+    : null;
+  window.__cloudT = 0;
   window.__grassT = 0;
   window.__scene = scene; // for poking at the scene from the console
   const render = () => {
     shadows.update();
     grass?.update(window.__grassT, 1);
+    clouds?.update(window.__cloudT);
     renderer.render(scene, camera);
     window.__calls = renderer.info.render.calls;
   };

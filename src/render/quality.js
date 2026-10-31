@@ -68,6 +68,12 @@ const HIGH = Object.freeze({
   // ~43m of trail, so the 9s fade, not the ring, is what usually ends a print.
   pawPrints: 96,
   pawFade: 9,
+  // Drifting sky clouds (render/clouds.js; VISUAL-PASS.md "Stream 4 round
+  // four — clouds"): how many. Every puff of every cloud is one instance of
+  // one InstancedMesh, so any count is ONE main-pass draw call and no
+  // shadow-pass draws; the count trades a few thousand cheap triangles and
+  // how full the sky looks. 0 turns them off.
+  cloudCount: 10,
 });
 
 const LOW = Object.freeze({
@@ -106,6 +112,9 @@ const LOW = Object.freeze({
   // the fill-bound rung. Still on — the trail is the thing the kids notice.
   pawPrints: 48,
   pawFade: 6,
+  // Fewer clouds, same single draw call: a sparser sky on the rung where
+  // fill-bound devices land, since a big near cloud is mostly overdraw.
+  cloudCount: 6,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and

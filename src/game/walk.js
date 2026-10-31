@@ -81,6 +81,7 @@ import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
+import { createClouds } from '../render/clouds.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1066,6 +1067,14 @@ export function createWalkLifecycle({
       // Lawn tufts, same shape again; updated beside wind in the render loop.
       grass,
       paws,
+      // Stream 4 round four — drifting sky clouds (render/clouds.js), same
+      // shape again: one InstancedMesh, built here after the caster sweep and
+      // the prop merge so neither sees it. Laid out from a per-area seed, never
+      // walkRng; the den gets the no-op stub. Tints itself from scene.fog.
+      clouds: createClouds(scene, {
+        areaId, tier, camera, reducedMotion, dusk: duskActive,
+        centre: { x: (areaData.bounds.minX + areaData.bounds.maxX) / 2, z: (areaData.bounds.minZ + areaData.bounds.maxZ) / 2 },
+      }),
       // The sun's view-following shadow camera, in the same shape. Built above
       // (it has to be, so the very first frame of the walk is already fitted
       // rather than centred on the world origin) and re-fitted once per frame
@@ -1081,7 +1090,7 @@ export function createWalkLifecycle({
       // dedicated rng stream (never walkRng): sky life must not perturb the
       // shared determinism stream that co-walk clients rely on staying in
       // sync — see Global Constraints. Seeding off roomSeed (when present)
-      // keeps co-walk clients' clouds identical without touching walkRng.
+      // keeps co-walk clients' birds identical without touching walkRng.
       // Indoor den: no sky to animate — a no-op stub keeps the render loop's
       // unconditional session.skyLife.update()/dispose() calls safe.
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
@@ -1592,6 +1601,7 @@ export function createWalkLifecycle({
     // geometry and material once.
     session.grass.dispose();
     session.paws.dispose();
+    session.clouds.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
     // belongs to the light and goes with the scene), called anyway so the rig
     // is torn down through the same door as every other session rig rather
