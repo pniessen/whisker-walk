@@ -196,8 +196,10 @@ otherwise, these win:
      - Still to decide: which shore the bridge leaves from. It could be one
        bridge from one territory, or one per territory so every clan can
        reach it.
-   - Still unconfirmed: the small river loop where the River and Marshes meet
-     the Woods (a pond?).
+   - **A small pond where the River and Marshes meet the Woods** (owner,
+     2026-10-31): the loop in her river.
+     - It sits on the border, so it belongs to both territories.
+     - It's a good spot for fishing or drinking.
 9. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
    the cliff walls, and tall pine trees. It is still a later release.
    - Dens in the cliff walls make it the place where climbing and height
