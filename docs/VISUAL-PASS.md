@@ -1194,7 +1194,7 @@ fill-rate cost of the mist on the low rung.
   clouds are identical (clouds left skylife.js; bird timers run on each
   client's own dt). New `test/skylife.test.js`.
 
-# Corner map (2026-10-31, branch `minimap`)
+## Corner map (2026-10-31)
 
 A coin-sized disc in the top-right of the walk screen (150 px on desktop,
 110 px in touch mode), drawn on its own 2D `<canvas>` by
@@ -1223,7 +1223,8 @@ below that.
   edge, with the roster back under it.
 - **Cost:** 0 draw calls. It adds nothing to the Three.js scene, and it
   repaints at most 30 times a second, only when something on it changed.
-# Camera zoom (2026-10-31)
+
+## Camera zoom (2026-10-31)
 
 The 11-year-old playtester asked for "a zoom in/out feature that is easier
 to use". There was no camera zoom at all, so the kids were pinch-zooming the
