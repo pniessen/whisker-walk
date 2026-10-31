@@ -785,6 +785,8 @@ function init() {
       // The lawn tufts take the same t and intensity as wind, and read the
       // camera, so this sits after player.update like shadows.update above.
       session.grass.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
+      // Clouds take the same absolute t and follow the camera, so after player.update too.
+      session.clouds.update(t);
       session.remotes.update(dt, nowSec());
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so

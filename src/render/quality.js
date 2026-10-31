@@ -61,6 +61,12 @@ const HIGH = Object.freeze({
   // them, so this is a quarter more of the resource that is not the budget.
   grassRadius: 9,
   grassSpacing: 0.3,
+  // Drifting sky clouds (render/clouds.js; VISUAL-PASS.md "Stream 4 round
+  // four — clouds"): how many. Every puff of every cloud is one instance of
+  // one InstancedMesh, so any count is ONE main-pass draw call and no
+  // shadow-pass draws; the count trades a few thousand cheap triangles and
+  // how full the sky looks. 0 turns them off.
+  cloudCount: 10,
 });
 
 const LOW = Object.freeze({
@@ -95,6 +101,9 @@ const LOW = Object.freeze({
   // count knob, a rung change mid-walk takes effect on the next walk.
   grassRadius: 6,
   grassSpacing: 0.42,
+  // Fewer clouds, same single draw call: a sparser sky on the rung where
+  // fill-bound devices land, since a big near cloud is mostly overdraw.
+  cloudCount: 6,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and

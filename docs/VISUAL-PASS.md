@@ -1034,3 +1034,51 @@ The beach's brightness problem is the lighting, not the sand: anything pale
 there is compressed by the tone curve. Lowering the beach's exposure (sun or
 hemisphere strength for this area) would be the bigger lever, and it would
 change every prop on the beach, so it was left alone.
+
+## Stream 4 round four — clouds (2026-10-31)
+
+**What.** `render/clouds.js`: soft low-poly clouds drifting across the
+Neighborhood, Park, Seaside and Docks skies (the den gets a no-op stub).
+Each cloud is 3–6 squashed icosahedron puffs with a flat underside. The
+vertex colours hold the shading (a baked facet light and how high up the puff
+each face sits); the shader turns that into near-white tops over a darker
+underside, using the live fog colour, so the undersides still read against
+the Seaside's near-white horizon and the clouds re-tint themselves when a
+shower clears. At dusk the lit side goes warm and dim (peach mixed into the
+dusk horizon) and the underside drops below the horizon colour, so nothing
+glows white against a purple sky. Fog is off for the clouds (they sit past
+the fog's 110–130 m) and a gentler manual haze pulls the far ones toward the
+horizon instead. Not tone-mapped, so they match the sky background, which
+isn't tone-mapped either.
+
+**Where.** Centred on the camera every frame, like a sky that is kilometres
+away: no parallax, and every vertex stays inside the 300 m far plane wherever
+the cat walks. Centres sit within 220 m of the camera, never closer than
+55 m across the wind (straight overhead is out of view anyway). Bases are at
+least 30 m up, raised per area until a cloud at the disc's edge clears the
+horizon band's crest seen from the area centre (only the Docks' skyline is
+tall enough to lift the floor). They drift along the lawn's wind direction (0.8, 0.6) at
+0.6–1.1 m/s, wrap from the downwind end of their chord to the upwind end, and
+dissolve and re-grow over the last 45 m of each end rather than popping.
+Reduced motion: they hold still. Layout comes from a hash of the area id on
+its own mulberry32 stream; walkRng is untouched and nothing goes on the wire.
+
+**Cost.** One InstancedMesh, one material: **+1 main-pass draw call, 0
+shadow-pass draws** (`castShadow` false; rig.js and mergeprops.js skip
+`userData.clouds`). Measured in `verify-places.html?clouds`: 423 → 424
+calls. About 50 instances × 80 triangles on high.
+
+**Tiers.** `cloudCount` in quality.js: 10 on rungs 0–2, 6 on the low rung.
+Same single draw call either way; 0 would turn them off.
+
+**Replaced.** `skylife.js` used to drift six clouds of its own (2–3 separate
+lit meshes each, overhead at y 22–28, up to ~18 draw calls whenever they were
+in frame). Those are gone and skylife.js is birds only; its `advanceClouds`
+helper and test went with them.
+
+**Not verified.** Only checked in `verify-places.html?clouds[=low][&dusk]`
+from low cameras (y ~2) in all four areas, day and dusk; not in a real walk,
+not on the iPhone, not under rain or sunset weather. At the default chase-cam
+pitch the frame only shows sky up to ~7° above level (render/sky.js), and most
+clouds sit at 8–20°, so they show when the camera tilts up or sits low rather
+than in every default frame.

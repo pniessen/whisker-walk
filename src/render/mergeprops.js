@@ -139,7 +139,7 @@ export function mergeKey(mesh) {
   // Per-leaf state that outlives the build, and the reason each is here is in
   // the header: the dusk glow swap needs its own material object, and the
   // contact decals are InstancedMeshes that must never be touched.
-  if (mesh.userData.window || mesh.userData.contactDecal || mesh.userData.grass || mesh.userData.noMerge) return null;
+  if (mesh.userData.window || mesh.userData.contactDecal || mesh.userData.grass || mesh.userData.clouds || mesh.userData.noMerge) return null;
   // A hidden mesh merged into a visible one becomes visible. Nothing in the
   // builders ships one, but the failure mode is a wrong image rather than a
   // wrong count, so it is checked rather than assumed.
