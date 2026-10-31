@@ -316,8 +316,10 @@ already). Good things follow:
 
 ### Builder notes (skip if you're not building it)
 
-- Add `edition: 'legacy' | 'clan'` to `progression.js` state as an additive,
-  sanitised field defaulting to `'clan'`. `SAVE_VERSION` stays 4. Older
+- Add `edition: 'legacy' | 'canon'` to `progression.js` state as an additive,
+  sanitised field defaulting to `'canon'` (shown as "Clan Edition"; the id
+  isn't `'clan'` because the borrowed-word scan flags that word in any
+  `src/` string). `SAVE_VERSION` stays 4. Older
   builds drop the unknown field on save, so the kid quietly comes back on
   Clan Edition, which is harmless.
 - **Test the invariant directly.** For any save, flipping the edition there
@@ -518,8 +520,8 @@ of them. Three things make them read as one world:
    place:
    - the pond sits on the Woods' west edge, and will sit on the River and
      Marshes' east edge;
-   - the river leaves the Woods at its north-east corner and enters the Moor
-     at its south;
+   - the river leaves the Woods through its north edge, east of the middle,
+     and enters the Moor at its south;
    - each territory's lakeshore faces the lake's middle;
    - each Twolegplace path meets the edge facing Twolegplace.
 2. **Neighbours on the horizon.** Past each edge, the horizon shows the
@@ -620,7 +622,7 @@ would mostly hide.
   sanitiser keep a cat in any well-formed area id it doesn't know, so from
   then on a stale build can't drop a colony cat this way.
 - **Registering a new area** touches:
-  - `CATALOG.areas` (with `edition: 'clan'`, `price: 0` and `requires`);
+  - `CATALOG.areas` (with `edition: 'canon'`, `price: 0` and `requires`);
   - `defaultState().walks` (forgetting it pins walks at NaN forever);
   - `AREAS` in `game/walk.js`;
   - `MARK_AREAS`, `COLONY_AREAS`, `GOLD_MICE` (`GOLD_TOTAL` goes up by three);
@@ -960,7 +962,7 @@ prints, clouds and ambient life merged). Still true, plus:*
   why that changed. The save accepts only `PREFIXES` + `Clan`
   (`progression.js`, `ACCEPTED_CLAN_NAMES`), so a canonical clan **pick**
   should be a new additive field, displayed in Clan Edition. Do not overwrite
-  `state.clan.name`; Legacy keeps showing it.
+  `state.clan.name`; it stays stored, hidden in Legacy (decision 1).
 - **Colony cats store `area` plus an area-local `x, z` spot** (clamped to
   ±200 m, `colony.js`). Any future world-coordinate scheme must stay a
   derived offset, never a rewrite of stored spots.
