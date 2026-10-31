@@ -22,12 +22,13 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, groundFinds,
 } = await import('../src/render/grass.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside, SPAWN: SEASIDE_SPAWN } = await import('../src/world/seaside.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
@@ -287,9 +288,11 @@ describe('dune grass (Seaside, Stream 4 round three)', () => {
   const dune = GRASS_STYLES.seaside;
 
   it('grows only on the back beach and the cliff foot', () => {
-    // Front beach, boardwalk, wet sand and spawn: bare.
-    for (let z = -20; z <= 46; z += 2) {
-      for (const x of [6, 12, 18, 22, 24]) expect(duneDensity(x, z)).toBe(0);
+    // Front beach, boardwalk, wet sand and spawn: bare, the whole length of
+    // the beach (bounds z -34..48), including past the cliff foot.
+    for (let z = -34; z <= 48; z += 0.5) {
+      for (const x of [14, 16, 18, 20, 22, 23, 24, 25]) expect(duneDensity(x, z)).toBe(0);
+      if (z > -24) for (const x of [6, 12]) expect(duneDensity(x, z)).toBe(0);
     }
     expect(duneDensity(SEASIDE_SPAWN.x, SEASIDE_SPAWN.z)).toBe(0);
     // The back beach has clumps AND bare sand between them.
@@ -318,7 +321,10 @@ describe('dune grass (Seaside, Stream 4 round three)', () => {
   });
 
   it('lawn tufts are unchanged by the style refactor', () => {
-    // The default style is the lawn: same presence, same height range.
+    // Golden values captured from the pre-style grass.js on main (Stream 4
+    // round two): the default style must reproduce them exactly.
+    const GOLD = [[0,0,{"x":0.1736434184387326,"z":0.09074121499434114,"h":0.09237821347174668,"s":0.9440568940791991,"rot":4.4145308368031495,"tint":[1.1703621288834765,1.0717154515720904,0.9730687742607042]}],[7,-3,{"x":2.1901849627867342,"z":-0.6909551570937037,"h":0.0795965326308756,"s":0.8975483133953063,"rot":2.5891740061071977,"tint":[1.1305235349230236,1.0363120191916824,0.942100503460341]}],[-12,40,{"x":-3.518841334618628,"z":12.147163804918527,"h":0.0906101243904757,"s":0.9219364539122423,"rot":5.236757313310521,"tint":[1.027287373971078,1.0124685842590406,0.9976497945470033]}],[101,5,{"x":30.437912731524555,"z":1.5758719412237405,"h":0.11519275292594076,"s":0.9982766116601441,"rot":4.624480565274916,"tint":[1.1332379906216372,1.072020187494345,1.0108023843670526]}],[-55,-66,{"x":-16.331090749371796,"z":-19.571300490908325,"h":0.08054081870782487,"s":0.8753474137235983,"rot":5.859810309442972,"tint":[1.112365198516662,1.0291068128636107,0.9458484272105594]}],[3,9,{"x":1.0070090587064624,"z":2.9580968719907106,"h":0.12510545919179844,"s":1.0732476695763031,"rot":4.028933675247906,"tint":[0.9771537669158975,0.9320598967233673,0.8869660265308371]}]];
+    for (const [i, j, t] of GOLD) expect(tuftAt(i, j, 0.3)).toEqual(t);
     for (let i = 0; i < 50; i++) {
       const a = tuftAt(i, 3 * i, 0.3);
       const b = tuftAt(i, 3 * i, 0.3, GRASS_STYLES.park);
@@ -354,6 +360,31 @@ describe('dune grass (Seaside, Stream 4 round three)', () => {
           && Math.abs((p.x - f.x) * f.ux + (p.z - f.z) * f.uz) < f.halfL
           && Math.abs(-(p.x - f.x) * f.uz + (p.z - f.z) * f.ux) < f.halfW)).toBe(false);
       }
+      // Fish, golden mice and scenics keep a bare patch (walk.js's keepOut).
+      const finds = groundFinds(areaData, GOLD_MICE.seaside);
+      expect(finds.length).toBeGreaterThan(5);
+      const withKeepOut = createGrass(scene, {
+        areaId: 'seaside', areaData, tier, camera,
+        keepOut: finds.map((f) => ({ ...f, r: 0.5 })),
+      });
+      for (const f of finds) {
+        aimAt(camera, f.x, f.z);
+        withKeepOut.update(3, 1);
+        for (let i = 0; i < withKeepOut.mesh.count; i++) {
+          withKeepOut.mesh.getMatrixAt(i, m);
+          p.setFromMatrixPosition(m);
+          expect(Math.hypot(p.x - f.x, p.z - f.z)).toBeGreaterThan(0.5);
+        }
+      }
+      withKeepOut.dispose();
+      // Nothing on the wet sand by the south end either.
+      aimAt(camera, 23, -30);
+      grass.update(4, 1);
+      for (let i = 0; i < grass.mesh.count; i++) {
+        grass.mesh.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m);
+        expect(p.x).toBeLessThan(14);
+      }
       // At the spawn, looking along the boardwalk: nothing at all.
       aimAt(camera, SEASIDE_SPAWN.x, SEASIDE_SPAWN.z - 4);
       grass.update(2, 1);
@@ -362,4 +393,18 @@ describe('dune grass (Seaside, Stream 4 round three)', () => {
       expect(scene.children.length).toBe(before);
     });
   }
+});
+
+describe('groundFinds', () => {
+  it('lists ground-level collectibles and mice and every scenic, not raised ones', () => {
+    const area = {
+      collectibles: [{ x: 1, z: 2 }, { x: 3, z: 4, y: 1.9 }, { x: 5, z: 6, y: 0 }],
+      scenics: [{ id: 's', x: 7, z: 8 }],
+    };
+    const mice = [{ x: 9, z: 10 }, { x: 11, z: 12, y: 0.72 }];
+    expect(groundFinds(area, mice)).toEqual([
+      { x: 1, z: 2 }, { x: 5, z: 6 }, { x: 9, z: 10 }, { x: 7, z: 8 },
+    ]);
+    expect(groundFinds(undefined, undefined)).toEqual([]);
+  });
 });

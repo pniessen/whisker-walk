@@ -35,7 +35,7 @@ describe('seaside: wet sand at the waterline', () => {
     expect(band).toBeTruthy();
     expect(band.isMesh).toBe(true);
     expect(band.position.y).toBeGreaterThan(0);
-    expect(band.position.y).toBeLessThan(0.03);
+    expect(band.position.y).toBeLessThan(0.015); // under contact-shadow decals
     expect(band.material.vertexColors).toBe(true);
     expect(band.material.color.getHex()).toBe(BEACH);
   });
@@ -63,22 +63,50 @@ describe('seaside: wet sand at the waterline', () => {
 });
 
 describe('seaside: the cliff keeps its face', () => {
+  const scene = new THREE.Scene();
+  const area = build(scene);
+  const boxes = scene.children.filter((c) => c.isMesh && c.geometry.type === 'BoxGeometry'
+    && c.geometry.parameters.height === 8);
+
+  it('finds the bluff and the overlook', () => {
+    expect(boxes.map((b) => b.geometry.parameters.width).sort((a, b) => a - b)).toEqual([10, 60]);
+  });
+
+  for (const w of [60, 10]) {
+    it(`${w}m box: every side face stays flat, the base stays on the sand, the top stays 7..8.5m`, () => {
+      const box = boxes.find((b) => b.geometry.parameters.width === w);
+      const { width, depth } = box.geometry.parameters;
+      const pos = box.geometry.attributes.position;
+      const eps = 1e-5;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i) + box.position.y;
+        const z = pos.getZ(i);
+        // x and z never move: a vertex is inside or on its box's footprint.
+        expect(Math.abs(x)).toBeLessThanOrEqual(width / 2 + eps);
+        expect(Math.abs(z)).toBeLessThanOrEqual(depth / 2 + eps);
+        expect(y).toBeGreaterThanOrEqual(-eps);
+        if (y > 0.5) {
+          expect(y).toBeLessThanOrEqual(8.5 + eps);
+        }
+      }
+      // Every top vertex (the highest few per column) is between 7 and 8.5.
+      const tops = new Map();
+      for (let i = 0; i < pos.count; i++) {
+        const k = `${pos.getX(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+        tops.set(k, Math.max(tops.get(k) ?? -Infinity, pos.getY(i) + box.position.y));
+      }
+      for (const top of tops.values()) {
+        expect(top).toBeGreaterThanOrEqual(7 - eps);
+        expect(top).toBeLessThanOrEqual(8.5 + eps);
+      }
+    });
+  }
+
   it('the seaward face still stands on the collider line', () => {
-    const scene = new THREE.Scene();
-    const area = build(scene);
-    const cliff = scene.children.find((c) => c.isMesh && c.geometry.parameters?.width === 60);
-    expect(cliff).toBeTruthy();
+    const cliff = boxes.find((b) => b.geometry.parameters.width === 60);
     cliff.geometry.computeBoundingBox();
-    const bb = cliff.geometry.boundingBox;
-    expect(cliff.position.z + bb.max.z).toBeCloseTo(-37, 5);
-    expect(bb.min.y + cliff.position.y).toBeCloseTo(0, 5);
-    // The broken top stays near 8m: never below 6.5, never above 8.5.
-    expect(bb.max.y + cliff.position.y).toBeLessThan(8.5);
-    expect(bb.max.y + cliff.position.y).toBeGreaterThan(7);
-    const pos = cliff.geometry.attributes.position;
-    let lowest = Infinity;
-    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) lowest = Math.min(lowest, pos.getY(i));
-    const colliders = area.colliders.filter((c) => c.z === -37);
-    expect(colliders).toHaveLength(12);
+    expect(cliff.position.z + cliff.geometry.boundingBox.max.z).toBeCloseTo(-37, 5);
+    expect(area.colliders.filter((c) => c.z === -37)).toHaveLength(12);
   });
 });

@@ -290,7 +290,9 @@ const smooth01 = (a, b, v) => {
 // about 2.6m across. The boardwalk is at x 18..22 and the spawn at (18, 42),
 // so the front beach and the wet sand stay bare.
 export function duneDensity(x, z) {
-  const zone = Math.max(smooth01(4, -10, x), smooth01(-24, -32, z));
+  // The cliff-foot strip stops well short of the boardwalk (x 18) and the wet
+  // sand, which run the whole length of the beach.
+  const zone = Math.max(smooth01(4, -10, x), smooth01(-24, -32, z) * smooth01(14, 8, x));
   if (zone <= 0) return 0;
   return 0.92 * zone * smooth01(0.48, 0.76, patchNoise(x, z, 2.6, 11));
 }
@@ -320,6 +322,19 @@ export function tuftAt(ix, iz, spacing, style = LAWN) {
   const v = 0.86 + 0.22 * hashCell(ix, iz, 8);
   const warm = hashCell(ix, iz, 9) * style.warm;
   return { x, z, h, s, rot, tint: [v * (1 + warm), v, v * (1 - warm)] };
+}
+
+// groundFinds(areaData, goldMice) — the things a kid hunts for at ground
+// level: collectibles and golden mice with no height (y absent or ~0; a fish
+// on a ledge is above any grass) and every scenic spot. walk.js keeps grass
+// clear of each, because dune grass is tall enough to bury a fish.
+export function groundFinds(areaData, goldMice = []) {
+  const low = (p) => !(p.y > 0.05);
+  return [
+    ...(areaData?.collectibles ?? []).filter(low),
+    ...(goldMice ?? []).filter(low),
+    ...(areaData?.scenics ?? []),
+  ].map(({ x, z }) => ({ x, z }));
 }
 
 // layoutTufts(cx, cz, opts, mask, emit) — call emit(tuft) for every tuft within

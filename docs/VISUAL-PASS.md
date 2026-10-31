@@ -986,3 +986,51 @@ Tried and dropped: a stronger sand drift tint at Seaside made no visible
 difference — the beach is pale enough that ACES washes the streaks out. Seaside's
 empty pale beach is the next candidate (a darker wet-sand band at the
 waterline, or dune grass from `render/grass.js`).
+
+## Stream 4 round three — the Seaside (2026-10-31)
+
+Looked at from the cat's camera, the beach was a near-white plain, the sand met
+the sea in a ruler-straight line, and the cliff was one flat tan wall. Four
+changes, all in `world/seaside.js` and `render/grass.js`:
+
+- **Warmer sand.** `BEACH` 0xe0d0a0 → 0xdcc28e (ground and `groundBounce`).
+  An authored colour change, not texture compensation; the "sand is not
+  colour-compensated" rule still holds. **0 draw calls.**
+- **Wet sand at the waterline.** One vertex-coloured plane from under the
+  boardwalk (x 21.8) to 0.4 m under the sea (x 25.4), with a wavy wet edge.
+  The tint has to be strong (~0.35): the beach sits so far up ACES's shoulder
+  that a 0.7 multiplier measured 207 against dry sand's 221 on screen
+  (invisible) and 0.5 only 191. At 0.35 the damp sand lands near 165.
+  Roughness 0.8 — damp, not glossy. **+1 draw call, 0 shadow.**
+- **Cliff strata.** The bluff and the overlook get vertex-colour rock bands,
+  a darker damp foot, and an uneven top edge. Only top vertices move, and only
+  in y, so the seaward face and its colliders at z -37 are unchanged.
+  **0 draw calls.**
+- **Dune grass.** `render/grass.js` now has styles (`GRASS_STYLES`): the
+  lawns keep the old turf, Seaside gets marram — 12–30 cm, khaki-green, in
+  ~2.6 m clumps with bare sand between, a stronger sway, and a 1.5× reach
+  because clumps on open sand are seen from further away. It grows only on
+  the back beach (none east of x 4) and along the cliff foot, so the spawn,
+  the boardwalk and the wet sand stay bare (the cliff-foot strip stops at
+  x 8–14). Same mesh, mask and shader as the lawn. Because it is tall enough
+  to bury a fish, walk.js now also keeps grass 0.5 m clear of ground-level
+  collectibles, golden mice and scenic spots (`groundFinds`).
+  **+1 draw call, 0 shadow.** Instance capacity on high roughly doubles
+  (4k → 8k tufts, ~82k triangles) because of the 1.5× reach; only the
+  clumps are drawn.
+
+Review fixes: grass was growing on the wet sand at the south end (the
+cliff-foot zone ignored x) and around fish-3 and the overlook; the wet band
+moved from y 0.012 to 0.008 so it sits clearly under the contact-shadow
+decals (0.015); the lawn's tufts are now pinned to golden values from the
+pre-style code.
+
+Verified in game: a Seaside walk on this Mac ran at 119 fps with no console
+errors. Not verified: the iPhone, and walking the cat into the grass in game
+(the automated browser can't send held keys); the dune grass was checked in
+`verify-places.html?area=seaside&grass`.
+
+The beach's brightness problem is the lighting, not the sand: anything pale
+there is compressed by the tone curve. Lowering the beach's exposure (sun or
+hemisphere strength for this area) would be the bigger lever, and it would
+change every prop on the beach, so it was left alone.

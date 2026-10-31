@@ -90,7 +90,9 @@ function wetSandBand() {
     surface: 'sand', repeat: repeatFor('sand', w, len), vertexColors: true, roughness: 0.8,
   }));
   m.name = 'wet-sand';
-  m.position.set(cx, 0.012, 0);
+  // Under the contact-shadow decals (0.015) with room to spare, above the
+  // ground (0) and below the boardwalk (0.03) and the sea (0.05).
+  m.position.set(cx, 0.008, 0);
   m.receiveShadow = true;
   return m;
 }
