@@ -174,7 +174,7 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // fountain at the path junction. Dressed stone, map-less: a 12-sided basin
   // and an 8-sided spire are the cylinder rule's worked example, and the spire
-  // is 0.2-0.3m across besides. 'cobble' (0.8) rather than 'wetStone' (0.42) —
+  // is 0.2-0.3m across besides. 'cobble' (0.8) rather than 'wetStone' (0.55) —
   // the sheen preset would put a bright bloom on a pale, sky-facing 2.6m drum,
   // and the art direction's own rule is that between two defensible numbers the
   // matter one wins. The rim is a shipped perch (kind 'stone'); nothing here

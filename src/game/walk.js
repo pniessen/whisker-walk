@@ -79,6 +79,12 @@ import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '../render/
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
+import { createGrass } from '../render/grass.js';
+// Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
+// is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
+// 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
+const GRASS_REST_CLEAR = 0.6;
+const GRASS_ITEM_CLEAR = 0.3;
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
@@ -974,6 +980,22 @@ export function createWalkLifecycle({
     // behind every number in them.
     sun.shadow.bias = SUN_BIAS;
     assignShadowCasters(scene);
+    // Stream 4 round two — lawn tufts (render/grass.js). HERE, after the caster
+    // sweep, the contact-shadow scan and the prop merge have all run, so none
+    // of them ever sees it: one draw call in the main pass, none in the shadow
+    // pass. Its mask reads the area's paths off the scene, which is complete
+    // by now. The den, Seaside and the Docks get the module's no-op stub.
+    // keepOut: rest spots and carryable spots have no collider, so the mask
+    // would otherwise grow tufts through the doormat and around the acorn.
+    const grassProps = isDen ? null : propsFor(areaId);
+    const grassKeepOut = grassProps ? [
+      ...(grassProps.rests ?? []).map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
+      ...(grassProps.carryables ?? []).flatMap((c) => [
+        { x: c.x, z: c.z, r: GRASS_ITEM_CLEAR },
+        ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
+      ]),
+    ] : [];
+    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
@@ -1030,6 +1052,8 @@ export function createWalkLifecycle({
       water: waterRig(areaData.waterFx),
       // Built above, before the world, so the area could register into it.
       wind,
+      // Lawn tufts, same shape again; updated beside wind in the render loop.
+      grass,
       // The sun's view-following shadow camera, in the same shape. Built above
       // (it has to be, so the very first frame of the walk is already fitted
       // rather than centred on the world origin) and re-fitted once per frame
@@ -1552,6 +1576,9 @@ export function createWalkLifecycle({
     // neither depends on a subtlety of that sweep.
     session.water.dispose();
     session.wind.dispose();
+    // Before the traversal: it takes its mesh out of the scene and frees its
+    // geometry and material once.
+    session.grass.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
     // belongs to the light and goes with the scene), called anyway so the rig
     // is torn down through the same door as every other session rig rather

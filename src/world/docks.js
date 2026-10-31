@@ -85,7 +85,7 @@ const CANAL = {
 // reads fine flat stays flat. What got a surface here is what the area is
 // literally described as being made of — wet cobbles underfoot, brick and
 // painted-timber warehouse walls, roofing felt, dock timber, yard-painted
-// steel, glass. What did NOT: the quay edging, the paths and sidewalks, the
+// steel, glass. What did NOT: the quay edging, the
 // bollard ropes, the barrels, the roof tank, the awning canvas, the bridge
 // decks (their planking is already geometry, and the plank tile's boards run
 // along the deck where the raised strips run across it — two rhythms
@@ -123,7 +123,7 @@ export function build(scene, { water = {} } = {}) {
   // near-black, which is the Night Eyes showcase.
   b.applySky(scene, 0x5e7290, 0x8e9aae);
   // Wet cobbles, at last literally: 'wetStone' is the cobble tile at roughness
-  // 0.42, the one preset in the table that is a sheen rather than a matte, and
+  // 0.55, the one preset in the table that is a sheen rather than a matte, and
   // its own docstring names this exact surface. The repeat is derived from the
   // plane's real 120m (100 tiles of 1.2m, i.e. 0.3m setts) rather than picked
   // — a picked number on a plane this size is a visible plaid. The colour is
@@ -231,12 +231,22 @@ export function build(scene, { water = {} } = {}) {
   }
 
   // --- streets and quays ----------------------------------------------------
-  scene.add(b.path(-36, 6.5, 36, 6.5, 4));   // north quay
-  scene.add(b.path(-36, -6.5, 36, -6.5, 4)); // south quay
-  scene.add(b.path(0, 6.5, 0, 36, 3));       // north bridge road
-  scene.add(b.path(0, -6.5, 0, -36, 3));     // south bridge road
-  scene.add(b.sidewalk(-36, 9, 36, 9));
-  scene.add(b.sidewalk(-36, -9, 36, -9));
+  // Quays and bridge roads are dry flagstone (Stream 4 round two). They were
+  // the shared untextured path beige, 0xcbb8a0: the brightest, flattest thing
+  // in the darkest palette in the game, and the first thing a walk shows,
+  // since the cat spawns on the south bridge road. A weathered stone grey
+  // sits them in the overcast harbour, a step lighter than the wet cobbles
+  // so the walkway still reads as the way to go.
+  const QUAY = { surface: 'flagstone', color: 0x8c877e };
+  scene.add(b.path(-36, 6.5, 36, 6.5, 4, QUAY));   // north quay
+  scene.add(b.path(-36, -6.5, 36, -6.5, 4, QUAY)); // south quay
+  scene.add(b.path(0, 6.5, 0, 36, 3, QUAY));       // north bridge road
+  scene.add(b.path(0, -6.5, 0, -36, 3, QUAY));     // south bridge road
+  // The same flagstone a shade paler than the quay, for the same reason: the
+  // default pavement 0xd8d0c0 was a white stripe down both banks.
+  const PAVEMENT = { surface: 'flagstone', color: 0x9c978d };
+  scene.add(b.sidewalk(-36, 9, 36, 9, undefined, PAVEMENT));
+  scene.add(b.sidewalk(-36, -9, 36, -9, undefined, PAVEMENT));
 
   // --- the two dry crossings ------------------------------------------------
   // Load-bearing, not decoration. See the Sea Legs note in the header.

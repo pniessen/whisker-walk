@@ -46,6 +46,21 @@ const HIGH = Object.freeze({
   // future "high tier, but this GPU is a laptop iGPU" case has somewhere to
   // land without inventing a third tier.
   normalMaps: true,
+  // Grass tufts on the lawns (render/grass.js; VISUAL-PASS.md "Stream 4 round
+  // two — grass"). The radius (metres) the tufts reach around a point just
+  // past the cat before fading out, and the world lattice spacing between
+  // them. Either way it is ONE draw call and no shadow-pass draws, so what
+  // these trade is vertex work and tuft pixels, not draw calls.
+  // 9m: the camera sits 4.5m behind the cat at a 28-degree pitch, so 9m
+  // around a centre just past the cat fills the near lawn where 6-15cm tufts
+  // are still more than a couple of pixels; further out they are noise.
+  // 0.3m: about one tuft per cat-length of lawn in each direction, dense
+  // enough to read as a lawn rather than a scatter. At most 4,053 tufts
+  // (41k triangles); open lawn draws ~3,500, the park's path-and-pond
+  // junction ~2,200. The ?perf readout shows ~160k triangles a frame without
+  // them, so this is a quarter more of the resource that is not the budget.
+  grassRadius: 9,
+  grassSpacing: 0.3,
 });
 
 const LOW = Object.freeze({
@@ -72,6 +87,14 @@ const LOW = Object.freeze({
   // The surfaces still get their preset roughness/metalness, which are two
   // floats in a uniform block and cost nothing.
   normalMaps: false,
+  // Smaller and sparser, because this rung is where fill-bound devices land:
+  // 6m still covers the ground around the cat, and 0.42m roughly halves the
+  // density, so 1,129 tufts at most (11k triangles). Still one draw call —
+  // grass on the low rung costs the same draw count as on high, and it is
+  // the lawn texture near the cat that the low tier needs most. Like every
+  // count knob, a rung change mid-walk takes effect on the next walk.
+  grassRadius: 6,
+  grassSpacing: 0.42,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
