@@ -6,7 +6,7 @@ import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 import { STARTER_ACCESSORIES } from '../src/progression.js';
 import { emptyColony, isShy, TAME_FEEDS } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
-import { pickMedicineCat } from '../src/clanroles.js';
+import { pickMedicineCat, medicineOrder } from '../src/clanroles.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -71,6 +71,56 @@ describe('createProgression', () => {
     p.completeWalk(); // area defaults to neighborhood
     p.completeWalk();
     expect(p.canBuy('areas', 'park')).toBe(true);
+  });
+
+  it('the Woods is free, clan-only, and opens after 2 Neighborhood walks', () => {
+    expect(CATALOG.areas.woods).toEqual({ name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' });
+    p.completeWalk();
+    expect(p.canBuy('areas', 'woods')).toBe(false);
+    p.completeWalk();
+    expect(p.canBuy('areas', 'woods')).toBe(true);
+    const points = p.state.points;
+    expect(p.buy('areas', 'woods')).toBe(true);
+    expect(p.state.unlocked.areas).toContain('woods');
+    expect(p.state.points).toBe(points);
+  });
+
+  it('in Legacy the Woods can be neither bought nor set, and state.area stays put', () => {
+    p.addPoints(999);
+    p.completeWalk(); p.completeWalk();
+    p.setEdition('legacy');
+    expect(p.canBuy('areas', 'woods')).toBe(false);
+    expect(p.buy('areas', 'woods')).toBe(false);
+    expect(p.state.unlocked.areas).not.toContain('woods');
+    p.setEdition('canon');
+    expect(p.buy('areas', 'woods')).toBe(true);
+    p.setEdition('legacy');
+    p.setArea('woods');
+    expect(p.state.area).toBe('neighborhood');
+    // Other places are untouched by the edition.
+    expect(p.canBuy('areas', 'park')).toBe(true);
+    p.setEdition('canon');
+    p.setArea('woods');
+    expect(p.state.area).toBe('woods');
+    // Flipping to Legacy hides the Woods; it never rewrites the chosen place.
+    p.setEdition('legacy');
+    p.setArea('woods');
+    expect(p.state.area).toBe('woods');
+  });
+
+  it('a fresh save counts Woods walks from 0', () => {
+    expect(p.state.walks.woods).toBe(0);
+    p.completeWalk('woods');
+    expect(p.state.walks.woods).toBe(1);
+  });
+
+  it('an unlocked Woods survives a reload', () => {
+    p.completeWalk(); p.completeWalk();
+    p.buy('areas', 'woods');
+    p.completeWalk('woods');
+    const again = createProgression(storage);
+    expect(again.state.unlocked.areas).toContain('woods');
+    expect(again.state.walks.woods).toBe(1);
   });
 
   // Regression (Task 7.2 fix): the den is freely repeatable and never
@@ -404,7 +454,7 @@ describe('createProgression', () => {
 
       expect(p.state).toEqual({
         version: 4, points: 0, retired: ['rosa'], redeemed: [],
-        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
+        walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
         equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
@@ -418,9 +468,9 @@ describe('createProgression', () => {
         },
         clanRoles: { medicine: null, deputy: null },
         clan: { name: null, adopted: false },
-        marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
+        marks: { neighborhood: [], park: [], seaside: [], docks: [], woods: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
-        mapMode: 'north',
+        mapMode: 'north', edition: 'canon',
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -449,7 +499,7 @@ describe('createProgression', () => {
       expect(p.state.points).toBe(0);
       expect(p.state.lifetimePoints).toBe(0);
       expect(p.state.bestWalk).toBe(0);
-      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0 });
       // starter unlocks are still guaranteed even though the payload's
       // unlocked lists were unusable
       expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
@@ -600,7 +650,7 @@ describe('v11 slots + save migration', () => {
       expect(p.state.lifetimePoints).toBe(300);     // veteran rank must survive
       expect(p.state.bestWalk).toBe(40);             // best-walk record must survive
       expect(p.state.area).toBe('park');
-      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0, docks: 0 });
+      expect(p.state.walks).toEqual({ neighborhood: 5, park: 2, seaside: 0, den: 0, docks: 0, woods: 0 });
       expect(p.state.friends).toEqual({ Whiskers: { breed: 'siamese', greets: 4, lastWalk: 'walk-9' } });
       expect(p.state.petName).toBe('Zeetoo');
       expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black', 'siamese', 'persian']));
@@ -1088,7 +1138,7 @@ describe('v18 skills/feats save fields', () => {
     expect(p.state.bestWalk).toBe(61);
     // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
     // the whole point of iterating the DEFAULT walks keys rather than the payload's.
-    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0 });
     expect(p.state.journal).toEqual({ bird: 4 });
     expect(p.state.golden).toEqual(['gm-park-1']);
     expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
@@ -1303,7 +1353,7 @@ describe('v18 duskWalks save field', () => {
     expect(p.state.points).toBe(120);
     // v18 Task 2.6: 'docks' is recovered with a 0 on a save that predates it —
     // the whole point of iterating the DEFAULT walks keys rather than the payload's.
-    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 7, park: 3, seaside: 2, den: 1, docks: 0, woods: 0 });
     expect(p.state.journal).toEqual({ bird: 4 });
     expect(p.state.golden).toEqual(['gm-park-1']);
     expect(p.state.streak).toEqual({ last: '2026-08-01', count: 5 });
@@ -1407,7 +1457,7 @@ describe('v18 duskWalks save field', () => {
     p.completeWalk('park', { dusk: true });
     p.completeWalk('seaside', { dusk: true });
     expect(p.state.duskWalks).toBe(2);
-    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0, docks: 0 });
+    expect(p.state.walks).toEqual({ neighborhood: 0, park: 4, seaside: 1, den: 0, docks: 0, woods: 0 });
   });
 
   it('unlocks Night Eyes on the fifth dusk walk and persists across a reload', () => {
@@ -1939,6 +1989,33 @@ describe('the colony save key', () => {
     id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] }, cats, feeds, trades,
   });
 
+  it('a fresh save starts on Clan Edition', () => {
+    expect(createProgression(fakeStorage()).state.edition).toBe('canon');
+  });
+  it('setEdition persists across a reload and ignores junk', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.setEdition('Legacy'); p.setEdition(null);
+    expect(p.state.edition).toBe('canon');
+    p.setEdition('legacy');
+    expect(createProgression(storage).state.edition).toBe('legacy');
+  });
+  it('junk edition in a stored payload loads as canon', () => {
+    for (const edition of ['sideways', 42, null, {}]) {
+      const storage = fakeStorage({ [SAVE]: JSON.stringify({ version: 4, edition }) });
+      expect(createProgression(storage).state.edition).toBe('canon');
+    }
+  });
+  it('a Legacy feed does not write clanRoles', () => {
+    const n = CAT_NAMES.find((x) => !isShy(x) && medicineOrder([{ name: x, tamedWalk: 'walk-1' }]).length === 1);
+    const legacy = createProgression(fakeStorage()); legacy.setEdition('legacy');
+    tameOne(legacy, n);
+    expect(legacy.state.clanRoles).toEqual({ medicine: null, deputy: null });
+    const canon = createProgression(fakeStorage());
+    tameOne(canon, n);
+    expect(canon.state.clanRoles.medicine).toBe(n);
+  });
+
   it('a v20 save loads with an empty colony and SAVE_VERSION 4', () => {
     // A v20-shaped payload: every field v20 wrote, and no `colony` key.
     const v20 = {
@@ -1956,11 +2033,12 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, ...rest } = p.state;
+    expect(edition).toBe('canon');
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
-    expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
+    expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
-    expect(rest).toEqual(v20);
+    expect(rest).toEqual({ ...v20, walks: { ...v20.walks, woods: 0 } });
   });
 
   it('a fresh save starts with the starter accessories and an empty colony', () => {
@@ -2665,7 +2743,7 @@ describe('the clan name', () => {
 
 describe('private marks (v21 Stream 3b)', () => {
   const scratch = (at, id = 'park-post-1') => ({ kind: 'scratch', id, x: 1, z: 2, at, contested: false, item: null });
-  const EMPTY = { neighborhood: [], park: [], seaside: [], docks: [], den: [] };
+  const EMPTY = { neighborhood: [], park: [], seaside: [], docks: [], woods: [], den: [] };
   const SAVE = 'whisker-walk-save';
 
   test('a v20 save with no marks loads with empty marks', () => {

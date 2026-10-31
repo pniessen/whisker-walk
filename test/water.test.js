@@ -40,6 +40,7 @@ vi.stubGlobal('document', {
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,7 @@ const WATERED = {
   park: buildWith(buildPark),
   seaside: buildWith(buildSeaside),
   docks: buildWith(buildDocks),
+  woods: buildWith(buildWoods),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -600,5 +602,37 @@ describe('water footprint geometry', () => {
 
   it('leaves an already-dry point exactly where it is', () => {
     expect(nearestDry([circle, band], 30, 30, 0.6)).toEqual({ x: 30, z: 30 });
+  });
+});
+
+// The Woods is the first area whose waters touch: the pond sits over
+// river-west, and river-west meets river-north at a right angle. A push out of
+// one of them can land in, or within the margin of, the other, so these are
+// the spots that prove nearestDry still lands dry. The margins are the three
+// its callers use: the cat (0.35), the toy (0.5) and buried treats (0.6).
+describe('nearestDry where two waters touch (the Woods)', () => {
+  const waters = WATERED.woods.area.waters;
+  const SPOTS = [
+    [17.8, -14.2, 'the inside corner where the river turns north (on the bank)'],
+    [19, -13, 'the inside corner (in the water)'],
+    [21, -11, 'the middle of the junction'],
+    [-38.5, -8.6, 'the bank where the pond meets the river'],
+    [-40, -9.5, 'where the pond and the river overlap'],
+    [-44, -11, 'the pond\'s north rim, inside the river'],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        // and close by: the nearest dry ground is never far from these spots
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+
+  it('still takes the short way out where nothing else is near', () => {
+    // on the river's south bank far from the pond and the junction: straight out
+    expect(nearestDry(waters, 0, -9.2, 0.35)).toEqual({ x: 0, z: -8.65 });
   });
 });

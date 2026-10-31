@@ -5,6 +5,7 @@
 // stage shows, nothing more, and clearPreview() (called by the owner on hide
 // and before Start) drops them, so a walk always uses the owned, equipped cat.
 import { CATALOG } from '../progression.js';
+import { areaInEdition } from '../edition.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, resolveSheet } from './dressingroom.js';
 
@@ -134,6 +135,8 @@ export function createDressingRoom({
 
   function onPlace(id) {
     if (!has(catalog.areas, id)) return;
+    // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
+    if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
     if (progression.isUnlocked('areas', id)) {
       progression.setArea(id);
     } else if (progression.buy('areas', id)) {

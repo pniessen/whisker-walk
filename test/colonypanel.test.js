@@ -8,7 +8,7 @@ import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js'
 import { CAT_NAMES, KIT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
 import { clanNameOf } from '../src/clannames.js';
-import { RANK_WORDS, RANK_KEYS } from '../src/clanwords.js';
+import { RANK_WORDS, RANK_KEYS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
 import { roleFor } from '../src/clanroles.js';
 
 const ME = 'me-player-0001';
@@ -872,5 +872,60 @@ describe('den roles on the card', () => {
   it('escapes the descriptor', () => {
     const html = render(colonyOf({ cats: [tamed('<b>x</b>')] }), { clanRoles: roles('<b>x</b>', null) });
     expect(html).not.toContain('<b>x');
+  });
+});
+
+describe('renderColonyHtml in each edition', () => {
+  const tamed = (name) => cat(name, { tamedBy: ME, tamedWalk: 'walk-1' });
+  // The rank/role span and the clan banner, the two pieces Legacy drops.
+  const rankSpans = (html) => count(html, /class="colony-rank"/g);
+
+  it("a Woods cat's place reads The Woods, and a Neighborhood cat's reads Twolegplace in Clan Edition and Cozy Neighborhood in Legacy", () => {
+    const colony = colonyOf({ cats: [cat(A, { area: 'woods' }), cat(B, { area: 'neighborhood' })] });
+    const clan = render(colony, { edition: 'canon' });
+    expect(clan).toContain('in The Woods');
+    expect(clan).toContain(`in ${PLACE_WORDS.town}`);
+    expect(clan).not.toContain('in Cozy Neighborhood');
+    const legacy = render(colony, { edition: 'legacy' });
+    expect(legacy).toContain('in The Woods');
+    expect(legacy).toContain('in Cozy Neighborhood');
+    expect(legacy).not.toContain(PLACE_WORDS.town);
+  });
+
+  it('a Legacy card shows the stored name and no rank', () => {
+    const colony = colonyOf({ cats: [tamed('Pickles')], feeds: feed('Pickles', ME, TAME_FEEDS) });
+    const legacy = render(colony, { edition: 'legacy' });
+    expect(legacy).toMatch(/class="card-name">Pickles<\/div>/);
+    expect(rankSpans(legacy)).toBe(0);
+    for (const word of Object.values(RANK_WORDS)) expect(legacy).not.toContain(word);
+    const clan = render(colony, { edition: 'canon' });
+    expect(clan).toContain(clanNameOf('Pickles', { have: TAME_FEEDS, tamed: true }));
+    expect(rankSpans(clan)).toBe(1);
+  });
+
+  it('Legacy shows no clan title', () => {
+    const colony = colonyOf({ cats: [tamed(A)] });
+    expect(render(colony, { clanName: 'MossClan' })).toContain('MossClan');
+    const legacy = render(colony, { clanName: 'MossClan', edition: 'legacy' });
+    expect(legacy).not.toContain('MossClan');
+    expect(legacy).not.toContain('colony-banner');
+  });
+
+  it('a tamed cat with no stored role still has a role word in Clan Edition', () => {
+    // A cat tamed in Legacy holds no clan verdict until a later Clan feed; its
+    // card must still read sensibly, never a blank or "undefined" line.
+    const colony = colonyOf({ cats: [tamed(A), tamed('Pickles')] });
+    const html = render(colony, { clanRoles: {}, edition: 'canon' });
+    expect(html).not.toContain('undefined');
+    expect(html).not.toMatch(/class="colony-rank"><\/span>/);
+    expect(html).toContain(RANK_WORDS[roleFor(A)]);
+  });
+
+  it('Legacy names the war paint without the clan word in a cat\'s dress list', () => {
+    const colony = colonyOf({ cats: [tamed(A)] });
+    const legacy = render(colony, { owned: ['warpaint'], edition: 'legacy' });
+    expect(legacy).toContain('>War Paint</option>');
+    expect(legacy).not.toContain(CLAN_SUFFIX);
+    expect(render(colony, { owned: ['warpaint'] })).toContain(`>${CLAN_SUFFIX} War Paint</option>`);
   });
 });

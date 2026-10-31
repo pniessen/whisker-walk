@@ -22,7 +22,7 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, groundFinds,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, groundFinds,
 } = await import('../src/render/grass.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
@@ -281,6 +281,25 @@ describe('grass rig — the budget', () => {
     expect(tris(high)).toBeLessThan(60000);
     expect(tris(low)).toBeLessThan(tris(high) / 2);
     expect(layoutRadius(high.grassRadius, high.grassSpacing)).toBeGreaterThan(high.grassRadius);
+  });
+});
+
+describe('woodland undergrowth (the Woods)', () => {
+  it('the Woods grows undergrowth', () => {
+    expect(GRASS_STYLES.woods.density).toBe(woodsDensity);
+    let lo = Infinity; let hi = -Infinity; let bare = 0; let thick = 0;
+    for (let x = -60; x <= 60; x++) {
+      for (let z = -60; z <= 60; z++) {
+        const d = woodsDensity(x, z);
+        lo = Math.min(lo, d); hi = Math.max(hi, d);
+        if (d === 0) bare++;
+        if (d > 0.5) thick++;
+      }
+    }
+    expect(lo).toBeGreaterThanOrEqual(0);
+    expect(hi).toBeLessThanOrEqual(0.85);
+    expect(bare).toBeGreaterThan(0);
+    expect(thick).toBeGreaterThan(0);
   });
 });
 

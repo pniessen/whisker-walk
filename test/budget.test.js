@@ -29,6 +29,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDen } = await import('../src/world/den.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -97,6 +98,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // userData.contactDecal exclusion (a bare area build never contains the
 // contact-shadow InstancedMeshes — those are added later, by
 // render/contactshadows.js, from within startWalk, not by the area builder).
+//
+// Meshes are counted by traversal, EVERY mesh, because each one is a draw call
+// whether or not it casts. That includes userData.noCast meshes (builder.js's
+// reed beds and stepping stones): rig.js skips them in its caster sweep and so
+// leaves them out of its own mesh tally, which is why that tally is not used
+// here. They are left out of the caster count only, as rig.js leaves them out
+// of the shadow pass.
 function budgetStats(scene) {
   let meshes = 0;
   let casters = 0;
@@ -111,7 +119,7 @@ function budgetStats(scene) {
       const geo = obj.geometry;
       const vertexCount = geo.index ? geo.index.count : geo.attributes.position.count;
       triangles += vertexCount / 3;
-      if (eligible && !isTransparentMat(obj.material)) casters++;
+      if (eligible && !isTransparentMat(obj.material) && !obj.userData.noCast) casters++;
     });
   }
   return { meshes, casters, triangles: Math.round(triangles) };
@@ -124,6 +132,9 @@ const AREAS = [
   ['docks', buildDocks, 600, 500, 90000],
   ['seaside', buildSeaside, 85, 45, 30000],
   ['den', buildDen, 340, 220, 40000],
+  // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
+  // was measured holding 60 fps in (plan Global Constraints).
+  ['woods', buildWoods, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -159,6 +170,7 @@ const MERGED_AREAS = [
   ['docks', buildDocks, 370, 280],
   ['seaside', buildSeaside, 60, 40],
   ['den', buildDen, 185, 110],
+  ['woods', buildWoods, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

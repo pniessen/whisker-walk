@@ -24,8 +24,9 @@ import { isLegendaryName } from '../legendary.js';
 import { shouldTurnHostile, SCUFFLE_COST, SCUFFLE_FREEZE } from '../enemies.js';
 import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
-import { canFeed, outsideTag } from '../colony.js';
+import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
+import { isClanEdition } from '../edition.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
@@ -801,7 +802,7 @@ export function createInteractions({
         s.prompt = { kind: 'stray-gift', data: stray };
         setPrompt(spendablePoints() >= TREAT_COST
           ? `E — offer ${stray.name} a treat (${TREAT_COST} 🐾)`
-          : `${stray.name}${outsideTag(progression.state?.colony, stray.name, 'grudge')} is cross — a treat costs ${TREAT_COST} 🐾`);
+          : `${stray.name}${outsider(stray.name, 'grudge')} is cross — a treat costs ${TREAT_COST} 🐾`);
       } else if (stray) {
         s.prompt = { kind: 'stray', data: stray };
         setPrompt(`E — touch noses with ${stray.name}`);
@@ -850,8 +851,10 @@ export function createInteractions({
       // excludes it from the cast); off one — a room with a non-partner — it
       // can be, as an ordinary stray, and feeding it would tame a cat whose
       // fixed spot is somewhere the player is not.
+      // No feed prompt in an area the colony does not feed (the Woods, the
+      // den): a feed there would settle nothing and tame a cat out of place.
       const colony = progression.state?.colony;
-      if (colony && progression.feedColonyCat) {
+      if (colony && progression.feedColonyCat && feedsHere(s.areaId)) {
         const members = progression.colonyMembers?.() ?? 1;
         const now = Date.now();
         const answer = (st) => canFeed(colony, st.name, pid, s.walkStamp, { members, now });
@@ -1155,7 +1158,7 @@ export function createInteractions({
       s.strayCats.turnHostile(stray, s.cat.position);
       audio.hiss();
       s.fx?.burst(stray.group.position, 0x8a3a4a, 10);
-      hud.toast(`${stray.name} hisses and backs away…${outsideTag(progression.state?.colony, stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
+      hud.toast(`${stray.name} hisses and backs away…${outsider(stray.name, 'grudge', (w) => ` a ${w} now!`)} 😾`);
       // No friendship award and NO recordGreet: it did not go well. That is
       // also why the greet count — and therefore the ♡/♥/💕 ladder and D5's
       // immunity — cannot be advanced by a greet that ruptured.
@@ -1188,10 +1191,17 @@ export function createInteractions({
       log.award('legend', 'legend-' + stray.name, `a legendary cat — ${stray.name}! ✨`);
       audio.fanfare?.();
     }
-    if (level === 'met') hud.toast(`You met ${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')}! ♡`);
-    else if (level === 'friend') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is now your friend! ♥`);
-    else if (level === 'best') hud.toast(`${stray.name}${outsideTag(progression.state?.colony, stray.name, 'met')} is your BEST friend! 💕`);
+    if (level === 'met') hud.toast(`You met ${stray.name}${outsider(stray.name, 'met')}! ♡`);
+    else if (level === 'friend') hud.toast(`${stray.name}${outsider(stray.name, 'met')} is now your friend! ♥`);
+    else if (level === 'best') hud.toast(`${stray.name}${outsider(stray.name, 'met')} is your BEST friend! 💕`);
     catVoice();
+  }
+
+  // The clan's outsider word after a stray's name (" the loner"), or '' in
+  // Legacy, which hides the clan layer: "You met Pickles! ♡".
+  function outsider(name, key, make) {
+    if (!isClanEdition(progression.state)) return '';
+    return outsideTag(progression.state?.colony, name, key, make);
   }
 
   // livesElsewhere(colony, name, areaId) → bool. This name is already a

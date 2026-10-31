@@ -339,7 +339,7 @@ describe('removing the critter dogs shifts no walkRng draw', () => {
     expect([...weathers].sort()).toEqual(['clear', 'rain', 'sunset']);
   });
 
-  test('nothing outside the area files and the walk reads critterSpawns, and the walk only filters birds and hands it to createCritters', () => {
+  test('nothing outside the area files, the walk and the goals reads critterSpawns; the walk only filters birds and hands it to createCritters, the goals only look for a villager', () => {
     const files = [];
     const walkDir = (d) => {
       for (const e of readdirSync(new URL(`../src/${d}`, import.meta.url), { withFileTypes: true })) {
@@ -351,7 +351,15 @@ describe('removing the critter dogs shifts no walkRng draw', () => {
     walkDir('');
     const readers = files.filter((f) => !f.startsWith('world/')
       && readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8').includes('critterSpawns'));
-    expect(readers).toEqual(['game/walk.js']);
+    expect(readers).toEqual(['game/walk.js', 'goals.js']);
+    // goals.js only asks whether the area has a villager (no draw, and the
+    // rain filter above never drops one), to keep head scratches off the
+    // Woods' goal list
+    const goals = readFileSync(new URL('../src/goals.js', import.meta.url), 'utf8')
+      .split('\n').filter((l) => l.includes('critterSpawns') && !l.trim().startsWith('//'));
+    expect(goals).toEqual([
+      "  if (goal.type === 'pet') return (areaData.critterSpawns ?? []).some((c) => c.type === 'villager');",
+    ]);
     const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8')
       .split('\n').filter((l) => l.includes('critterSpawns') && !l.trim().startsWith('//'));
     expect(walk).toEqual([

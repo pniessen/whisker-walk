@@ -19,6 +19,7 @@ import * as park from '../world/park.js';
 import * as seaside from '../world/seaside.js';
 import * as den from '../world/den.js';
 import * as docks from '../world/docks.js';
+import * as woods from '../world/woods.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
@@ -64,7 +65,7 @@ import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
-import { rivalFor } from '../rivalclans.js';
+import { rivalForWalk, placeName, effectiveArea } from '../edition.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
@@ -105,7 +106,7 @@ import { nowSec, escapeHtml, hashName } from './util.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks };
+const AREAS = { neighborhood, park, seaside, den, docks, woods };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -292,12 +293,17 @@ export function createWalkLifecycle({
   // every device gathers proposals for a moment and all start the same one,
   // so nobody walks a different world from the room they are in. The home
   // base shows "Starting…" meanwhile; a second press does nothing.
+  //
+  // The walk goes where effectiveArea says: a Legacy kid whose place is the
+  // Woods walks the Neighborhood. That is an override, never a setArea, so
+  // state.area keeps the Woods for when they flip back.
   function beginWalkFromHomebase({ duskMode }) {
+    const area = effectiveArea(progression.state, CATALOG);
     if (!getPendingRoom()) {
-      startWalk({ duskMode });
+      startWalk(area === progression.state.area ? { duskMode } : { duskMode, areaOverride: area });
       return;
     }
-    startRoomTogether({ area: progression.state.area, dusk: !!duskMode });
+    startRoomTogether({ area, dusk: !!duskMode });
   }
 
   // The den button's variant (Task 7.2): the den never joins a room walk
@@ -1035,7 +1041,7 @@ export function createWalkLifecycle({
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
-    const goals = isDen ? null : createGoals(walkRng);
+    const goals = isDen ? null : createGoals(walkRng, areaData);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
     // slot 0 with an identical shared goal — no extra wire event needed to
@@ -1196,7 +1202,9 @@ export function createWalkLifecycle({
     // THE CHASE TAKES NOTHING. This branch calls no progression, colony,
     // discoveries or points function: it moves the cat, shows one toast, and
     // that is all (spec section 10.1; rivalcats.js is pinned the same way).
-    if (isDen || !rivalFor(areaId)) {
+    // No patrol in Legacy: no border decals, border-mark prompt or mark
+    // contest, so a Legacy walk writes no clan field.
+    if (isDen || !rivalForWalk(areaId, progression.state.edition)) {
       session.rival = NO_RIVAL;
     } else {
       // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.
@@ -1513,7 +1521,7 @@ export function createWalkLifecycle({
 
     log.startWalk();
     hud.show();
-    hud.setArea(areaData.name);
+    hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
     hud.setPoints(state.points);
     hud.setRank(session.rankTitle);
     hud.setGoals(goals ? goals.goals : null);

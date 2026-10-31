@@ -4,6 +4,9 @@
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
+import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
+import { TERRITORIES, territoryMapModel, opensAfterLine } from '../territories.js';
+import { renderTerritoryMapHtml } from './territorymap.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
@@ -86,13 +89,17 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   const slots = slotIds.map((slot) => {
     const trying = !!t && t.slot === slot;
     const itemId = trying ? t.id : equippedId(state, catalog, slot);
-    return { slot, label: labelOf(slot), itemId, itemName: itemId ? catalog.accessories[itemId].name : null, trying };
+    return { slot, label: labelOf(slot), itemId, itemName: itemId ? accessoryName(catalog.accessories[itemId], state?.edition) : null, trying };
   });
   const wearingCount = slotIds.filter((s) => equippedId(state, catalog, s)).length;
 
   const areaIds = Object.keys(catalog.areas);
   const area = typeof state?.area === 'string' && has(catalog.areas, state.area) ? state.area : areaIds[0];
-  const places = Object.entries(catalog.areas).map(([id, a]) => {
+  // Where the walk actually happens: a Legacy kid whose chosen place is
+  // Clan-only walks the Neighborhood, so neither the dock nor the cards may
+  // name the Woods; the card marked today's walk is the place she'll walk.
+  const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
+  const places = Object.entries(catalog.areas).filter(([, a]) => areaInEdition(a, state?.edition)).map(([id, a]) => {
     const owned = ownedAreas.includes(id);
     const price = num(a.price);
     const req = a.requires;
@@ -100,18 +107,25 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     const gated = !owned && !!req && have < req.walks;
     let lockLine = '';
     if (gated) {
-      lockLine = `opens after ${req.walks} walks in ${catalog.areas[req.area]?.name ?? req.area} · ${have}/${req.walks} so far`;
+      lockLine = opensAfterLine(req, have, state?.edition, catalog);
     } else if (!owned) {
       lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }
-    return { id, name: a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
+    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
+
+  // Clan Edition draws her territory map for the places on it; the rest
+  // (the Park, Seaside, the Docks) stay picture cards under "Other places".
+  const clanPlaces = isClanEdition(state) ? {
+    territoryMap: territoryMapModel(state, catalog),
+    otherPlaces: places.filter((p) => !TERRITORIES.some((t) => t.areaId === p.id)),
+  } : {};
 
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
 
   return {
-    hero, cats, slots, wearingCount, slotCount: slotIds.length, places,
-    currentPlace: { id: area, name: catalog.areas[area]?.name ?? '' },
+    hero, cats, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
+    currentPlace: { id: walkArea, name: placeName(walkArea, state?.edition, catalog) },
     // Prizes are won, not collected from the shop, so they stay out of both totals.
     ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
     accessoryTotal: shopIds.length,
@@ -137,7 +151,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     const on = owned && worn === id && !(t && t.slot === slot && t.id !== id);
     const trying = !!t && t.slot === slot && t.id === id;
     const pic = img(thumbs?.accessories?.[id], '');
-    const name = escapeHtml(a.name);
+    const name = escapeHtml(accessoryName(a, state?.edition));
     const attrs = (act) => `data-dr-acc="${escapeHtml(id)}" data-dr-act="${act}"`;
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.
@@ -210,7 +224,11 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   <section class="dr-abilities"><div class="dr-chip">🐾 ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
   <section class="dr-where" data-panel="where">
     <p class="dr-label">Where to?</p>
-    <div class="dr-places">${m.places.map(placeHtml).join('')}</div>
+    ${m.territoryMap
+    ? `${renderTerritoryMapHtml(m.territoryMap)}
+    <p class="dr-label">Other places</p>
+    <div class="dr-places">${m.otherPlaces.map(placeHtml).join('')}</div>`
+    : `<div class="dr-places">${m.places.map(placeHtml).join('')}</div>`}
   </section>
   <section class="dr-more" data-panel="more">${sheetButtons}</section>
   <section class="dr-extras">${extrasHtml}</section>

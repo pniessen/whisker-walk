@@ -62,6 +62,7 @@ const { build: buildNeighborhood } = await import('../src/world/neighborhood.js'
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -526,6 +527,7 @@ const AREAS = {
   park: buildPark(new THREE.Scene()),
   seaside: buildSeaside(new THREE.Scene()),
   docks: buildDocks(new THREE.Scene()),
+  woods: buildWoods(new THREE.Scene()),
 };
 // Every ELEVATED collectible in the game (y > 0), each named explicitly.
 //
@@ -541,6 +543,7 @@ const ELEVATED = [
   ['tin-5', 'docks'],            // the legendary ship's bell, on W1's parapet (v18 Task 2.6)
   ['feather-5', 'park'],
   ['fish-5', 'seaside'],
+  ['woods-find-5', 'woods'], // the ball of moss on the Lookout Rocks' first rock
 ].map(([id, area]) => {
   const c = AREAS[area].collectibles.find((x) => x.id === id);
   if (!c) throw new Error(`no collectible ${id} in ${area}`); // renamed or removed
@@ -597,6 +600,11 @@ const SHIPPED_HOPS = {
   'tin-5': 4,      // the legendary ship's bell, on the docks warehouse parapet
   'feather-5': 2,  // shares the oak branch with gm-park-2 — same chain, same count
   'fish-5': 2,     // shares the dune ledge with gm-sea-2 — same chain, same count
+  // The Woods. Two two-hop chains, the shape the park and the seaside use.
+  'gm-woods-1': 2, // great oak lookout: ground -> mossy boulder 0.72 -> branch 2.1
+  'gm-woods-2': 2, // lookout rocks: ground -> rock 0.72 -> top rock 1.9
+  'gm-woods-3': 0, // hidden at ground level among three bushes
+  'woods-find-5': 1, // on the Lookout Rocks' first rock, 0.72
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
@@ -617,7 +625,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -673,6 +681,11 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       'tin-5': 3,
       'feather-5': 1,
       'fish-5': 1,
+      // The Woods' two chains collapse the same way the park's and the
+      // seaside's do: the branch at 2.1 and the top rock at 1.9 are both
+      // under 2.2.
+      'gm-woods-1': 1,
+      'gm-woods-2': 1,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
@@ -840,7 +853,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -936,6 +949,9 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.park).toHaveLength(17);
     expect(GATED.seaside).toHaveLength(5);
     expect(GATED.docks).toHaveLength(10);
+    // Woods: a fork on every scenery tree, and nothing else.
+    expect(GATED.woods.length).toBeGreaterThanOrEqual(60);
+    for (const p of GATED.woods) expect(p.kind).toBe('tree');
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
@@ -952,6 +968,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.park).toHaveLength(5);
     expect(UNGATED.seaside).toHaveLength(5);
     expect(UNGATED.docks).toHaveLength(16);
+    // the fallen log and the four steps of the Great Oak and Lookout Rocks
+    expect(UNGATED.woods).toHaveLength(5);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
@@ -1118,7 +1136,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

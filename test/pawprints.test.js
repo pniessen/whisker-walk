@@ -27,13 +27,14 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside, SPAWN: SEASIDE_SPAWN } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {
@@ -188,6 +189,10 @@ describe('paw print surfaces', () => {
     expect(surfaceAt('neighborhood', nb.areaData, ns, 0, 20)).toBe('gravel');
     expect(surfaceAt('neighborhood', nb.areaData, ns, 3.2, 20)).toBeNull(); // sidewalk
     expect(surfaceAt('neighborhood', nb.areaData, ns, 20, 20)).toBeNull(); // lawn
+  });
+
+  it('the Woods prints only on its worn paths', () => {
+    expect(AREA_RULES.woods).toEqual({ ground: null, path: 'sand', strip: null });
   });
 
   it('never prints in water or in a puddle, in any area', () => {

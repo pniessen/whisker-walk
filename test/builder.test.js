@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 
@@ -393,5 +394,206 @@ describe('builder — ground-plane macro variation (Wave 2.2)', () => {
     const grass = b.ground(70, 0x6aa04e, { surface: 'grass' });
     expect(grass.material.color).toEqual(new THREE.Color(0x6fa852));
     expect(grass.material.vertexColors).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The Woods' pieces (Clan Edition and the Woods, Task 4).
+// ---------------------------------------------------------------------------
+describe('horizonBand side tints and rooftops', () => {
+  const fingerprint = (m) => {
+    const g = m.geometry;
+    const h = createHash('sha256');
+    for (const k of Object.keys(g.attributes).sort()) h.update(Buffer.from(g.attributes[k].array.buffer));
+    h.update(Buffer.from(g.index.array.buffer));
+    return h.digest('hex').slice(0, 16);
+  };
+
+  // Hashes taken from the code as it stood before the new options existed:
+  // the park's call (hills) and the Docks' call (skyline). Omitting the new
+  // options must leave every area's band byte-identical.
+  it('horizonBand without the new options is unchanged', () => {
+    expect(fingerprint(b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 40, color: 0x8ac27e, salt: 23,
+    }))).toBe('0e316909b26ce838');
+    expect(fingerprint(b.horizonBand({
+      kind: 'skyline', inner: 56, outer: 112, height: 9, wavelength: 46, blocks: 52, color: 0x646976, salt: 41,
+    }))).toBe('923b0516f4882a6a');
+  });
+
+  const tints = { north: 0x336633, east: 0x884422, south: 0x224488, west: 0x888822 };
+
+  it('sideTint gives each side its colour', () => {
+    expect(b.sideTint(0, -100, tints)).toBe(tints.north);
+    expect(b.sideTint(100, 0, tints)).toBe(tints.east);
+    expect(b.sideTint(0, 100, tints)).toBe(tints.south);
+    expect(b.sideTint(-100, 0, tints)).toBe(tints.west);
+  });
+
+  it('sideTint blends across a corner and has no seam there', () => {
+    // Right in the corner the two sides mix; a hair either side agrees.
+    const a = new THREE.Color(b.sideTint(100, -99.9, tints));
+    const c = new THREE.Color(b.sideTint(99.9, -100, tints));
+    expect(a.r).toBeCloseTo(c.r, 1);
+    expect(a.g).toBeCloseTo(c.g, 1);
+    expect(a.b).toBeCloseTo(c.b, 1);
+    expect(b.sideTint(100, -100, tints)).not.toBe(tints.east);
+    expect(b.sideTint(100, -100, tints)).not.toBe(tints.north);
+    // Outside the 15% corner zone a side is pure.
+    expect(b.sideTint(100, 60, tints)).toBe(tints.east);
+  });
+
+  it('rooftopSpots stay on their arc', () => {
+    const spots = b.rooftopSpots({ from: 0.1, to: 0.25, count: 14 }, 56, 116, 7);
+    expect(spots).toHaveLength(14);
+    for (const s of spots) {
+      expect(s.x).toBeGreaterThanOrEqual(56);
+      expect(Number.isFinite(s.yaw)).toBe(true);
+    }
+    expect(b.rooftopSpots({ from: 0.1, to: 0.25, count: 14 }, 56, 116, 7)).toEqual(spots);
+  });
+
+  it('horizonBand rooftops without a height take the band\'s, never NaN', () => {
+    const m = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
+      rooftops: { from: 0.1, to: 0.25, count: 6 },
+    });
+    expect(Array.from(m.geometry.attributes.position.array).every(Number.isFinite)).toBe(true);
+    const withHeight = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
+      rooftops: { from: 0.1, to: 0.25, count: 6, height: 7 },
+    });
+    expect(Array.from(m.geometry.attributes.position.array))
+      .toEqual(Array.from(withHeight.geometry.attributes.position.array));
+  });
+
+  it('horizonBand with rooftops and side tints is still one mesh, with colours', () => {
+    const plain = b.horizonBand({ kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5 });
+    const m = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
+      sideTints: tints, rooftops: { from: 0.1, to: 0.25, count: 14, height: 9 },
+    });
+    expect(m.isMesh).toBe(true);
+    expect(m.name).toBe('horizonBand');
+    expect(m.geometry.attributes.color).toBeDefined();
+    expect(m.geometry.attributes.position.count).toBeGreaterThan(plain.geometry.attributes.position.count);
+  });
+});
+
+describe('the Woods builders', () => {
+  const bbox = (o) => new THREE.Box3().setFromObject(o);
+
+  it("logBridge's top is at y", () => {
+    // precise: the trunk is tilted (see logBridge), and the loose box of a
+    // rotated mesh is the box of its rotated bounding box, which overshoots
+    const top = (o) => new THREE.Box3().setFromObject(o, true).max.y;
+    expect(top(b.logBridge(0, -4, 0, 4))).toBeCloseTo(0.14, 2);
+    expect(top(b.logBridge(0, -4, 0, 4, 1.2, 0.2))).toBeCloseTo(0.2, 2);
+  });
+
+  it("logBridge's top is level from end to end", () => {
+    const log = b.logBridge(0, -4, 0, 4, 2.8, 0.18);
+    log.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    for (const z of [-3.9, 0, 3.9]) {
+      ray.set(new THREE.Vector3(0, 5, z), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObject(log, true)[0].point.y, `z ${z}`).toBeCloseTo(0.18, 2);
+    }
+  });
+
+  it("logBridge's top is hewn flat, `flat` wide, and rounds off beyond it", () => {
+    const log = b.logBridge(0, -4, 0, 4, 3, 0.16, 1.9);
+    log.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const hitY = (x) => {
+      ray.set(new THREE.Vector3(x, 5, 0), new THREE.Vector3(0, -1, 0));
+      return ray.intersectObject(log, true)[0]?.point.y;
+    };
+    for (const x of [-0.94, -0.5, 0, 0.5, 0.94]) expect(hitY(x), `x ${x}`).toBeCloseTo(0.16, 3);
+    // past the flat, the trunk's round flank falls away
+    expect(hitY(1.1)).toBeLessThan(0.15);
+    expect(hitY(-1.1)).toBeLessThan(0.15);
+    // and the whole trunk is there below: 3 m across
+    const bb = new THREE.Box3().setFromObject(log, true);
+    expect(bb.max.x - bb.min.x).toBeCloseTo(3, 1);
+  });
+
+  it('steppingStones takes bigger, steadier, staggered stones when asked', () => {
+    const plain = b.steppingStones(0, 0, 6, 0, 5);
+    const big = b.steppingStones(0, 0, 6, 0, 5, { rMin: 0.7, rMax: 0.7, jitter: 0, stagger: 0.04 });
+    const bb = new THREE.Box3().setFromObject(big, true);
+    // jitter 0: the stones' centres sit exactly on the line
+    expect(bb.min.z).toBeCloseTo(-0.7, 2);
+    expect(bb.max.z).toBeCloseTo(0.7, 2);
+    // stagger: neighbouring stones' tops differ, so overlapping ones never z-fight
+    const tops = new Set();
+    const pos = big.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0.05) tops.add(pos.getY(i).toFixed(3));
+    expect(tops.size).toBe(2);
+    // the defaults are unchanged
+    expect(new THREE.Box3().setFromObject(plain).max.y).toBeCloseTo(0.1, 5);
+  });
+
+  it('steppingStones is one mesh with n stones of vertices, all low', () => {
+    const one = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 8).attributes.position.count;
+    const m = b.steppingStones(0, 0, 6, 0, 5);
+    expect(m.isMesh).toBe(true);
+    expect(m.geometry.attributes.position.count).toBe(5 * one);
+    expect(bbox(m).max.y).toBeLessThan(0.2);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+  });
+
+  it('steppingStones draws rounder stones when given more sides', () => {
+    const round = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 16).attributes.position.count;
+    expect(b.steppingStones(0, 0, 6, 0, 5, { sides: 16 }).geometry.attributes.position.count).toBe(5 * round);
+  });
+
+  it("fallenLog's top is at 0.5", () => {
+    expect(bbox(b.fallenLog(3, 4, 4, 0.7)).max.y).toBeCloseTo(0.5, 2);
+  });
+
+  it("fallenLog's branch stub leans out from the trunk, not into it", () => {
+    const log = b.fallenLog(0, 0, 4, 0);
+    const stub = log.children[1];
+    stub.updateMatrixWorld(true);
+    // the stub's tip (local +y) is further from the trunk's axis than its base
+    const tip = new THREE.Vector3(0, 0.2, 0).applyMatrix4(stub.matrixWorld);
+    const base = new THREE.Vector3(0, -0.2, 0).applyMatrix4(stub.matrixWorld);
+    expect(Math.abs(tip.x)).toBeGreaterThan(Math.abs(base.x));
+    expect(tip.y).toBeGreaterThan(base.y);
+  });
+
+  it('fernBed is one low mesh that stays out of the shadow pass', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 3, z: 1 }, { x: -2, z: 4 }];
+    const m = b.fernBed(spots, 7);
+    expect(m.isMesh).toBe(true);
+    const bb = bbox(m);
+    expect(bb.max.y).toBeLessThanOrEqual(0.6);
+    expect(bb.max.y).toBeGreaterThan(0.3);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    // deterministic, and each clump stays within a metre of its spot
+    expect(b.fernBed(spots, 7).geometry.attributes.position.array).toEqual(m.geometry.attributes.position.array);
+    expect(bb.min.x).toBeGreaterThan(-3);
+    expect(bb.max.x).toBeLessThan(4);
+  });
+
+  it('brambleBed is one mesh, under a metre tall, out of the shadow pass', () => {
+    const m = b.brambleBed([{ x: 0, z: 0 }, { x: 5, z: 2 }], 3);
+    expect(m.isMesh).toBe(true);
+    expect(bbox(m).max.y).toBeLessThanOrEqual(1.0);
+    expect(bbox(m).max.y).toBeGreaterThan(0.5);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+  });
+
+  it('reedBed is one mesh, never taller than 1.1', () => {
+    const m = b.reedBed([{ x: 0, z: 0 }, { x: 1, z: 0.5 }, { x: -2, z: 3 }], 3);
+    expect(m.isMesh).toBe(true);
+    expect(bbox(m).max.y).toBeLessThanOrEqual(1.1);
+    expect(bbox(m).max.y).toBeGreaterThan(0.5);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
   });
 });

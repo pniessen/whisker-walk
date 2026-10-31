@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { SKILLS } from '../src/skills.js';
+import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
@@ -54,7 +55,7 @@ describe('dressing-room model', () => {
     expect(JSON.stringify(s)).toBe(before);
   });
   it('a gated area says how to open it', () => {
-    const m = buildDressingModel(defaultishState(), CATALOG);
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
     expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after 2 walks in City Park');
     expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Cozy Neighborhood · 0/2 so far');
   });
@@ -249,5 +250,94 @@ describe('sheets and pictures', () => {
   it('blurbs cover every cat', () => {
     for (const id of Object.keys(CATALOG.cats)) expect(CAT_BLURBS[id]).toBeTruthy();
     expect(Object.keys(ACC_BLURBS).length).toBeGreaterThan(0);
+  });
+});
+
+describe('dressing-room places by edition', () => {
+  it('Legacy lists today\'s four places and never the Woods', () => {
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+  });
+  it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    s.walks.neighborhood = 1;
+    const woods = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'woods');
+    expect(woods).toMatchObject({ name: 'The Woods', locked: true, price: 0 });
+    expect(woods.lockLine).toBe('opens after 2 walks in Twolegplace · 1/2 so far');
+  });
+});
+
+describe('the territory map in the dressing room', () => {
+  it('dressingroom: Clan shows the map and the Park, Seaside and Docks under Other places', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
+    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
+    expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
+    const html = renderDressingRoomHtml({ model: m });
+    const where = html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+    expect(where).toContain('class="territory-map"');
+    expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('Other places'));
+    expect(where).toContain('<p class="dr-label">Other places</p>');
+    for (const id of ['park', 'seaside', 'docks']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
+    expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
+    expect(where).not.toContain('Cozy Neighborhood');
+    expect(where).toContain('Twolegplace');
+    expect(html).toContain('Walking in <b>Twolegplace</b>');
+  });
+  it('Legacy keeps the picture cards and no map', () => {
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
+    expect(m.territoryMap).toBeUndefined();
+    expect(m.otherPlaces).toBeUndefined();
+    const html = renderDressingRoomHtml({ model: m });
+    expect(html).not.toContain('territory-map');
+    expect(html).not.toContain('Other places');
+    expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
+  });
+});
+
+describe('the dressing room in each edition', () => {
+  it('dressingroom: Legacy names the war paint without the clan word', () => {
+    const s = defaultishState();
+    s.unlocked.accessories.push('warpaint');
+    s.edition = 'legacy';
+    const legacy = renderSlotPickerHtml(s, CATALOG, 'face', null);
+    expect(legacy).toContain('War Paint');
+    expect(legacy).not.toContain(`${CLAN_SUFFIX} War Paint`);
+    s.edition = 'canon';
+    expect(renderSlotPickerHtml(s, CATALOG, 'face', null)).toContain(`${CLAN_SUFFIX} War Paint`);
+  });
+
+  it('the face slot label names the worn war paint by edition', () => {
+    const s = defaultishState();
+    s.unlocked.accessories.push('warpaint');
+    s.equipped.face = 'warpaint';
+    s.edition = 'legacy';
+    expect(buildDressingModel(s, CATALOG).slots.find((x) => x.slot === 'face').itemName).toBe('War Paint');
+    s.edition = 'canon';
+    expect(buildDressingModel(s, CATALOG).slots.find((x) => x.slot === 'face').itemName).toBe(`${CLAN_SUFFIX} War Paint`);
+  });
+
+  it("Legacy's dock says Cozy Neighborhood when the chosen place is the Woods", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('woods');
+    s.area = 'woods';
+    expect(buildDressingModel(s, CATALOG).currentPlace).toEqual({ id: 'woods', name: 'The Woods' });
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.currentPlace).toEqual({ id: 'neighborhood', name: 'Cozy Neighborhood' });
+    expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Cozy Neighborhood</b>');
+    expect(s.area).toBe('woods');
+  });
+
+  it("Legacy marks the Neighborhood card as today's walk when the chosen place is the Woods", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('woods');
+    s.area = 'woods';
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
+    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(s.area).toBe('woods');
   });
 });

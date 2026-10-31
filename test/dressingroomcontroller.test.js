@@ -2,7 +2,7 @@
 // targets (no jsdom in this project). Pins the review focus: previewing and
 // trying on never equip, buy, or save anything.
 import { describe, it, expect, vi } from 'vitest';
-import { CATALOG } from '../src/progression.js';
+import { CATALOG, createProgression } from '../src/progression.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
 
 const lockedCat = Object.keys(CATALOG.cats).find((id) => CATALOG.cats[id].price > 0);
@@ -70,6 +70,59 @@ describe('createDressingRoom handleClick', () => {
     expect(t.progression.buy).toHaveBeenCalled();
     expect(t.progression.equipCat).not.toHaveBeenCalled();
     expect(t.sync.autoSync).not.toHaveBeenCalled();
+  });
+
+  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
+    const t = setup();
+    t.state.edition = 'legacy';
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    t.state.unlocked.areas.push('woods');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.buy).not.toHaveBeenCalled();
+    expect(t.progression.setArea).not.toHaveBeenCalled();
+    expect(t.state.area).toBe('neighborhood');
+  });
+
+  it('in Clan Edition the Woods card buys and sets it as before', () => {
+    const t = setup();
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.buy).toHaveBeenCalledWith('areas', 'woods');
+    expect(t.progression.setArea).toHaveBeenCalledWith('woods');
+  });
+
+  // The territory map's Woods is a <g data-dr-place="woods">; these use a real
+  // progression so the walk gate is the real canBuy, not a stubbed answer.
+  function realSetup() {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    const sync = { autoSync: vi.fn() };
+    const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange: () => {} });
+    return { dr, progression, sync };
+  }
+
+  it('tapping the locked Woods buys nothing and keeps the area', () => {
+    const t = realSetup();
+    expect(t.progression.state.edition).toBe('canon');
+    t.progression.state.walks.neighborhood = 1;
+    t.progression.state.points = 9999;
+    const before = JSON.stringify(t.progression.state);
+    expect(t.dr.handleClick(click({ drPlace: 'woods' }))).toBe(true);
+    expect(JSON.stringify(t.progression.state)).toBe(before);
+    expect(t.progression.state.area).toBe('neighborhood');
+    expect(t.sync.autoSync).not.toHaveBeenCalled();
+  });
+
+  it('tapping the opened Woods selects it', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.state.unlocked.areas).toContain('woods');
+    expect(t.progression.state.area).toBe('woods');
+    // and once it is yours, a tap on Twolegplace and back just switches
+    t.dr.handleClick(click({ drPlace: 'neighborhood' }));
+    expect(t.progression.state.area).toBe('neighborhood');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.state.area).toBe('woods');
   });
 
   it('a click outside the dressing room returns false and changes nothing', () => {

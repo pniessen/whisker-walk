@@ -93,6 +93,8 @@ export const AREA_RULES = Object.freeze({
   neighborhood: Object.freeze({ ground: null, path: 'gravel', strip: null }),
   seaside: Object.freeze({ ground: 'sand', path: 'sand', strip: null, wetBand: true }),
   docks: Object.freeze({ ground: 'stone', path: 'flagstone', strip: 'flagstone' }),
+  // Bare earth under the trees takes no prints; only the worn paths do.
+  woods: Object.freeze({ ground: null, path: 'sand', strip: null }),
 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on

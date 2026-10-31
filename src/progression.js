@@ -21,6 +21,7 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
+import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
@@ -255,7 +256,7 @@ export const CATALOG = {
     balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
     sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
     // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
-    warpaint: { name: `${CLAN_SUFFIX} War Paint`, slot: 'face', price: 0, prize: true },
+    warpaint: { name: `${CLAN_SUFFIX} War Paint`, legacyName: 'War Paint', slot: 'face', price: 0, prize: true },
     candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
     streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
     goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },
@@ -271,6 +272,7 @@ export const CATALOG = {
     // "2 walks in Seaside" gate (and this area's own walk count) work —
     // see defaultState below, where forgetting it is a permanent NaN.
     docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
+    woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
   },
 };
 
@@ -369,7 +371,9 @@ function defaultState() {
     // walk count would be permanently broken for that save. sanitizeState's
     // walks loop iterates the keys of THIS object, so a loaded save that
     // predates v18 picks the key up here with a 0 default.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0 },
+    // The Woods joins them for the same reason: the first Woods walk on a save
+    // with no 'woods' key would pin state.walks.woods at NaN forever.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
@@ -496,6 +500,8 @@ function defaultState() {
     // the map with the cat. Additive, so SAVE_VERSION stays 4: an older save
     // starts north.
     mapMode: 'north',
+    // Additive: SAVE_VERSION stays 4. Missing or junk loads as Clan Edition.
+    edition: DEFAULT_EDITION,
   };
 }
 
@@ -856,6 +862,7 @@ function sanitizeState(parsed) {
     visitPrizesSeen,
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
+    edition: sanitizeEdition(parsed.edition),
   };
 }
 
@@ -1070,6 +1077,8 @@ export function createProgression(storage) {
       const item = CATALOG[kind][id];
       if (!item || item.prize || api.isUnlocked(kind, id) || state.points < item.price) return false;
       if (item.requires && state.walks[item.requires.area] < item.requires.walks) return false;
+      // Legacy hides a Clan-only place; the hidden card is not the only guard.
+      if (kind === 'areas' && !areaInEdition(item, state.edition)) return false;
       return true;
     },
     buy(kind, id) {
@@ -1185,8 +1194,16 @@ export function createProgression(storage) {
         save();
       }
     },
+    setEdition(edition) {
+      if (EDITIONS.includes(edition) && edition !== state.edition) {
+        state.edition = edition;
+        save();
+      }
+    },
+    // A Clan-only place cannot be chosen in Legacy. Refusing leaves state.area
+    // alone, so a kid already standing in the Woods keeps it for Clan Edition.
     setArea(id) {
-      if (api.isUnlocked('areas', id)) {
+      if (api.isUnlocked('areas', id) && areaInEdition(CATALOG.areas[id], state.edition)) {
         state.area = id;
         save();
       }
@@ -1588,7 +1605,8 @@ export function createProgression(storage) {
         // device may hold a feed its partner has not seen, and a verdict
         // written from it could disagree with theirs forever: wait for the
         // next merge instead.
-        if (api.colonyMembers() === 1) settleRoles(state.colony);
+        // A Legacy walk writes no clan field, so it settles nothing either.
+        if (api.colonyMembers() === 1 && isClanEdition(state)) settleRoles(state.colony);
         save();
       }
       return { result: r.result, tamedNow: r.tamedNow, progress: r.progress };

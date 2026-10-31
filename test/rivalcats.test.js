@@ -370,7 +370,10 @@ test('the walk.js chase branch touches no progress, colony, log or points', () =
   const branch = src.slice(a, b);
   expect(branch).toContain('hud.toast');
   // strip comments: they say what the branch must not do
-  const code = branch.replace(/\/\/.*$/gm, '');
+  // Reading the edition to gate the patrol (Clan Edition Task 8) is the one
+  // progression read allowed: it decides whether there is a patrol, and
+  // writes nothing.
+  const code = branch.replace(/\/\/.*$/gm, '').replace('rivalForWalk(areaId, progression.state.edition)', '');
   for (const bad of ['progression.', 'colony', 'recordGolden', 'log.', 'award', 'recordFeat', 'setPoints', 'discover']) {
     expect(code).not.toContain(bad);
   }

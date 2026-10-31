@@ -52,6 +52,12 @@ export const colonyCap = (members) => (members >= 2 ? COLONY_MAX : SOLO_MAX);
 // siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
 export const FEEDS_MAX = 320;
 export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
+// The fixed territory ids (clan spec section 3). The colony does not feed in
+// them yet, but a save may already hold a cat from one, so a load must not
+// drop it.
+export const TERRITORY_AREAS = Object.freeze(['woods', 'moor', 'river', 'pines', 'island', 'gorge']);
+// True where a stray can be fed into the colony.
+export const feedsHere = (areaId) => COLONY_AREAS.includes(areaId);
 // The shy rule needs a partner who still plays: it holds only while the other
 // member has fed some colony cat within this many days (final review I1).
 export const SHY_PARTNER_DAYS = 14;
@@ -369,7 +375,13 @@ function lastDistinct(v, ok, max) {
 function sanitizeCat(c, knownItems) {
   if (!isPlainObject(c)) return null;
   const { name, finder, area } = c;
-  if (!isStrayName(name) || !isPlayerId(finder) || !COLONY_AREAS.includes(area)) return null;
+  // A cat from a territory this build can't feed in yet is kept, and still lives
+  // in the den once tamed. Once the Woods is walkable catsInArea can place an
+  // untamed 'woods' cat in a Woods walk; it just can't be fed there until colony
+  // feeding is enabled for that territory. Refusing it here would let a
+  // build that doesn't know a territory drop a tamed cat. 'den' and junk stay out.
+  const knownArea = COLONY_AREAS.includes(area) || TERRITORY_AREAS.includes(area);
+  if (!isStrayName(name) || !isPlayerId(finder) || !knownArea) return null;
   const tamedBy = isPlayerId(c.tamedBy) ? c.tamedBy : null;
   return {
     name, finder, area,

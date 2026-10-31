@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 
-// Twelve hidden golden mice, three per area, placed at parkour destinations
-// using the perch coordinates that actually ship in src/world/*.js (see
-// task-4.2-report.md for the chain math) rather than the v11 spec's
+// Fifteen hidden golden mice, three in each of five areas, placed at parkour
+// destinations using the perch coordinates that actually ship in
+// src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
 // original coordinates, which Task 4.2 moved. Per area: two mice sit on
 // real perch chain steps (reachable only by climbing), one sits hidden at
 // ground level among props, off the main paths.
@@ -57,10 +57,26 @@ export const GOLD_MICE = {
     // there carries a collider, so the cat can walk right up to it.
     { id: 'gm-docks-3', x: -16.4, z: 17.6, y: 0 },
   ],
+  // The Woods. The two climbing mice sit on the two chain tops in
+  // src/world/woods.js's `perches`, at the same numbers, and none is across
+  // the river except over a dry deck (Sea Legs is a shortcut, never a key).
+  // woods.js keeps every tree and fern off all three.
+  woods: [
+    // top of the Great Oak chain: ground -> mossy boulder 0.72 -> branch 2.1.
+    // Out on the branch, 0.75 m west of the perch at the trunk (9.6, 21.4):
+    // at the trunk's own centre it would sit inside the trunk and the canopy,
+    // hidden from every side. Here it faces the boulder and the scenic, and a
+    // cat on the branch perch is still inside checkFind's 1.0 m.
+    { id: 'gm-woods-1', x: 8.85, z: 21.4, y: 2.1 },
+    // top of the Lookout Rocks chain on the lakeshore: rock 0.72 -> rock 1.9
+    { id: 'gm-woods-2', x: -23, z: -27, y: 1.9 },
+    // hidden at ground level among the three bushes round (-38, 30)
+    { id: 'gm-woods-3', x: -38, z: 30, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 12 (four areas x three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 15 (five areas x three)
 
 // Returns { group, material } rather than just the group: all 3 child
 // meshes share this single litMaterial instance, so disposeMouse below
