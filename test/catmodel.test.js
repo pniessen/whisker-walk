@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { buildCat } from '../src/cat/model.js';
+import { buildCat, coatColor } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
@@ -399,5 +399,13 @@ describe('Hagrid wears the ring-shaped head prizes on his head, not above it', (
     expect(item.isEmpty()).toBe(false);
     expect(item.min.y).toBeLessThan(skull.max.y);
     expect(item.max.y).toBeLessThanOrEqual(tophat.max.y);
+  });
+});
+
+// The corner map draws a remote sibling's dot in their cat's coat colour.
+describe('coatColor', () => {
+  it('is the breed base colour, and tabby for an unknown breed', () => {
+    expect(coatColor('black')).toBe(0x2a2a30);
+    expect(coatColor('nonsense')).toBe(0x9c7a4f);
   });
 });

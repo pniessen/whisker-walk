@@ -2352,6 +2352,19 @@ describe('Gift Paws (v18 Task 3.2)', () => {
     expect(h.session.prompt).toBe(null);
   });
 
+  // The corner map greys out scenic spots the cat has been to on this walk.
+  // It reads session.scenicsVisited, which the same 4 m check fills.
+  it('a scenic within 4 m is recorded in scenicsVisited exactly once', () => {
+    const h = giftHarness();
+    h.session.scenicsVisited = new Set();
+    h.walkTo(3, 40);
+    expect(h.session.scenicsVisited.size).toBe(0);
+    h.walkTo(3, 20); // 3 m from the fountain
+    h.walkTo(3, 23);
+    h.walkTo(3, 22);
+    expect([...h.session.scenicsVisited]).toEqual(['fountain']);
+  });
+
   // --- finding -----------------------------------------------------------
 
   function withFinder(h, holder, gift) {

@@ -657,6 +657,11 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   return g;
 }
 
+// The corner map draws a remote sibling's dot in their cat's main coat colour.
+export function coatColor(breed) {
+  return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
+}
+
 export function buildCat(breed, accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, opts = {}) {
   if (breed === 'hagrid') return buildChicken(accessories);
   const s = STYLE[breed];

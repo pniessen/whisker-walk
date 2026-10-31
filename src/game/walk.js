@@ -67,6 +67,7 @@ import { rivalFor } from '../rivalclans.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
+import { buildMapLayer, createMinimap } from '../ui/minimap.js';
 import { createChatBubbles } from '../chatbubble.js';
 import { createChatWheel } from '../ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../chat.js';
@@ -1328,7 +1329,7 @@ export function createWalkLifecycle({
     const today = new Date().toISOString().slice(0, 10);
     session.race = walkPois.length >= 5
       ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn)
-      : { state: 'idle', timeMs: 0, currentRing: 0, update() {}, promptAt: () => null, begin() {}, dispose() {} };
+      : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
     session.raceDate = today;
     // last "ring N/5" value written to the HUD objective (or null when the
@@ -1481,6 +1482,25 @@ export function createWalkLifecycle({
     // profiles is unavoidably async, so ghosts pop in a moment after the
     // walk starts; that's fine.
     if (roomSeed === undefined && MP) spawnGhosts(session);
+
+    // The corner map, outdoors only: the den is one small room and has no
+    // map, so session.minimap is null there and every use guards for it.
+    // scenicsVisited is filled by interactions.js's 4 m scenic check and
+    // greys out the spots already visited this walk. A tap on the map flips
+    // north-up / turning and remembers the choice in the save.
+    session.scenicsVisited = isDen ? null : new Set();
+    session.minimap = isDen ? null : createMinimap(hud.mapHost, {
+      areaId,
+      layer: buildMapLayer(areaData, scene),
+      mode: progression.state.mapMode,
+      onToggle: () => {
+        const m = session.minimap.mode === 'north' ? 'turn' : 'north';
+        progression.setMapMode(m);
+        session.minimap.setMode(m);
+      },
+    });
+    // Whether the map is showing; the render loop hides it while paused.
+    session.minimapShown = null;
 
     log.startWalk();
     hud.show();
@@ -1671,6 +1691,7 @@ export function createWalkLifecycle({
     session.gifts.dispose();
     session.chatBubbles?.clear();
     session.chatWheel?.destroy();
+    session.minimap?.dispose();
     setSession(null);
     player.disable();
     denShop?.setActive(false);
