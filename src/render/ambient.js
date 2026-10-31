@@ -108,7 +108,8 @@ const WEATHER_EASE = 2;
 // ambientKind(areaId, { dusk }) — which effect an area gets, or null.
 export function ambientKind(areaId, { dusk = false } = {}) {
   switch (areaId) {
-    case 'park': return 'leaves';
+    case 'park':
+    case 'woods': return 'leaves';
     case 'seaside': return 'spray';
     case 'docks': return dusk ? 'moths' : 'motes';
     case 'neighborhood': return 'fluff';

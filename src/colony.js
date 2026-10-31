@@ -375,8 +375,10 @@ function lastDistinct(v, ok, max) {
 function sanitizeCat(c, knownItems) {
   if (!isPlainObject(c)) return null;
   const { name, finder, area } = c;
-  // A cat from a territory this build can't walk yet is kept, never placed in a
-  // walk, and still lives in the den once tamed. Refusing it here would let a
+  // A cat from a territory this build can't feed in yet is kept, and still lives
+  // in the den once tamed. Once the Woods is walkable catsInArea can place an
+  // untamed 'woods' cat in a Woods walk; it just can't be fed there until colony
+  // feeding is enabled for that territory. Refusing it here would let a
   // build that doesn't know a territory drop a tamed cat. 'den' and junk stay out.
   const knownArea = COLONY_AREAS.includes(area) || TERRITORY_AREAS.includes(area);
   if (!isStrayName(name) || !isPlayerId(finder) || !knownArea) return null;

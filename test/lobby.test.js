@@ -36,7 +36,7 @@ describe('decideLobbyEvent', () => {
   const R = [{ playerId: 'a-host' }, { playerId: 'b-kid' }];
   const ctx = (o = {}) => ({
     roster: R, selfId: 'a-host', inWalk: false,
-    knownAreas: ['neighborhood', 'park', 'seaside', 'docks'], unlockedAreas: ['neighborhood'], ...o,
+    knownAreas: ['neighborhood', 'park', 'seaside', 'docks', 'woods'], unlockedAreas: ['neighborhood'], ...o,
   });
 
   it("the host answers a member's request with a config for THEIR area", () => {
@@ -73,6 +73,11 @@ describe('decideLobbyEvent', () => {
     // v21 Play together: a member's Start no longer needs the host to answer.
     expect(decideLobbyEvent({ type: 'walk-config', id: 'b-kid', area: 'park', dusk: false, seed: 9 }, ctx()))
       .toEqual({ kind: 'propose', from: 'b-kid', area: 'park', dusk: false, seed: 9, override: true });
+  });
+
+  it("a joiner who hasn't unlocked the Woods still accepts a Woods proposal as an override", () => {
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'a-host', area: 'woods', dusk: false, seed: 5 }, ctx({ selfId: 'b-kid' })))
+      .toEqual({ kind: 'propose', from: 'a-host', area: 'woods', dusk: false, seed: 5, override: true });
   });
 
   it('a config from someone not in the room proposes nothing', () => {

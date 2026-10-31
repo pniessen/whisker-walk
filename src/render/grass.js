@@ -300,7 +300,15 @@ const DUNE = Object.freeze({
   color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity,
 });
 
-export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE });
+// The Woods' undergrowth: short, deep green, in patches among the trees.
+export function woodsDensity(x, z) {
+  return 0.85 * smooth01(0.42, 0.72, patchNoise(x, z, 3.4, 29));
+}
+const WOODLAND = Object.freeze({
+  color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity,
+});
+
+export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND });
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.

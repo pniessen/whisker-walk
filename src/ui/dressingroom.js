@@ -4,6 +4,7 @@
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
+import { areaInEdition, placeName } from '../edition.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
@@ -92,7 +93,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
 
   const areaIds = Object.keys(catalog.areas);
   const area = typeof state?.area === 'string' && has(catalog.areas, state.area) ? state.area : areaIds[0];
-  const places = Object.entries(catalog.areas).map(([id, a]) => {
+  const places = Object.entries(catalog.areas).filter(([, a]) => areaInEdition(a, state?.edition)).map(([id, a]) => {
     const owned = ownedAreas.includes(id);
     const price = num(a.price);
     const req = a.requires;
@@ -100,7 +101,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     const gated = !owned && !!req && have < req.walks;
     let lockLine = '';
     if (gated) {
-      lockLine = `opens after ${req.walks} walks in ${catalog.areas[req.area]?.name ?? req.area} · ${have}/${req.walks} so far`;
+      lockLine = `opens after ${req.walks} walks in ${placeName(req.area, state?.edition, catalog) || req.area} · ${have}/${req.walks} so far`;
     } else if (!owned) {
       lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }

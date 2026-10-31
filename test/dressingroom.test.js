@@ -54,7 +54,7 @@ describe('dressing-room model', () => {
     expect(JSON.stringify(s)).toBe(before);
   });
   it('a gated area says how to open it', () => {
-    const m = buildDressingModel(defaultishState(), CATALOG);
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
     expect(m.places.find((p) => p.id === 'seaside').lockLine).toContain('opens after 2 walks in City Park');
     expect(m.places.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Cozy Neighborhood · 0/2 so far');
   });
@@ -249,5 +249,19 @@ describe('sheets and pictures', () => {
   it('blurbs cover every cat', () => {
     for (const id of Object.keys(CATALOG.cats)) expect(CAT_BLURBS[id]).toBeTruthy();
     expect(Object.keys(ACC_BLURBS).length).toBeGreaterThan(0);
+  });
+});
+
+describe('dressing-room places by edition', () => {
+  it('Legacy lists today\'s four places and never the Woods', () => {
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+  });
+  it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    s.walks.neighborhood = 1;
+    const woods = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'woods');
+    expect(woods).toMatchObject({ name: 'The Woods', locked: true, price: 0 });
+    expect(woods.lockLine).toBe('opens after 2 walks in Twolegplace · 1/2 so far');
   });
 });

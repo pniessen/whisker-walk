@@ -75,8 +75,9 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -152,6 +153,19 @@ describe('buildMapLayer', () => {
     const sea = buildMapLayer(seaside.areaData, seaside.scene).water.find((w) => (w.decks ?? []).length);
     expect(sea.decks).toHaveLength(1);
     expect(sea.decks[0].maxX).toBeGreaterThan(sea.decks[0].minX);
+  });
+
+  it('buildMapLayer for the Woods has ground, edge, four waters with their decks, and paths', () => {
+    const { scene, areaData } = built('woods');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
+    expect(layer.edge).toEqual(areaData.bounds);
+    expect(layer.water).toHaveLength(4);
+    // The two rivers carry decks; the lake and pond have none of their own.
+    expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
+    expect(layer.paths.length).toBeGreaterThan(0);
+    // Every Woods collider is a trunk or a stone under 1 m, below the map's block cut.
+    expect(layer.blocks).toEqual([]);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {

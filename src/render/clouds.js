@@ -51,7 +51,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 
 // Outdoor areas only: the den is a room and its window does not show sky
 // far enough out to matter.
-export const CLOUD_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks']);
+export const CLOUD_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks', 'woods']);
 
 // One wind direction for the whole world: grass.js's WIND_DIR (0.8, 0.6).
 export const WIND_DIR = Object.freeze([0.8, 0.6]);
