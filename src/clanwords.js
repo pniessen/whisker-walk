@@ -191,6 +191,10 @@ export const OUTSIDE_WORDS = Object.freeze({
   player: 'kittypet',
 });
 
+// Place names borrowed from the books. Keyed by the game's own territory id
+// (never by the word), so no id in src/ has to spell a borrowed word.
+export const PLACE_WORDS = Object.freeze({ town: 'Twolegplace' });
+
 // Published character names the pools must never be able to compose, so a
 // child who has read the books never meets a real character by accident. The
 // test only requires the prefix x suffix cross product to be clean, but a

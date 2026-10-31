@@ -3,7 +3,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
-import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS } from '../src/clanwords.js';
+import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
@@ -99,7 +99,7 @@ test('RIVAL_PREFIXES has only its own keys', () => {
 
 // ---- Task 14: no borrowed word is hard-coded outside clanwords.js ----
 
-const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), CLAN_SUFFIX];
+const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX];
 
 // The contents of every string and template literal in a source text, with
 // comments skipped. A template's text is kept across its lines, and each
@@ -214,4 +214,9 @@ test('outsideTag never throws on hostile input', () => {
   expect(outsideTag({ cats: [null, 3] }, 'Stranger', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
   for (const bad of [undefined, null, 5, {}, []]) expect(outsideTag({ cats: [] }, bad, 'met')).toBe('');
   expect(outsideTag({ cats: [] }, 'Stranger', 'nope')).toBe('');
+});
+
+test('PLACE_WORDS is frozen, and the scanner flags its words', () => {
+  expect(Object.isFrozen(PLACE_WORDS)).toBe(true);
+  expect(borrowedIn("const a = 'Twolegplace';")).toContain('Twolegplace');
 });
