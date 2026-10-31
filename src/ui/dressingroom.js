@@ -95,6 +95,10 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
 
   const areaIds = Object.keys(catalog.areas);
   const area = typeof state?.area === 'string' && has(catalog.areas, state.area) ? state.area : areaIds[0];
+  // Where the walk actually happens: a Legacy kid whose chosen place is
+  // Clan-only walks the Neighborhood, so neither the dock nor the cards may
+  // name the Woods; the card marked today's walk is the place she'll walk.
+  const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
   const places = Object.entries(catalog.areas).filter(([, a]) => areaInEdition(a, state?.edition)).map(([id, a]) => {
     const owned = ownedAreas.includes(id);
     const price = num(a.price);
@@ -107,7 +111,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     } else if (!owned) {
       lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }
-    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
+    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === walkArea, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
 
   // Clan Edition draws her territory map for the places on it; the rest
@@ -118,10 +122,6 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   } : {};
 
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
-
-  // Where the walk actually happens: a Legacy kid whose chosen place is
-  // Clan-only walks the Neighborhood, so the dock must not name the Woods.
-  const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
 
   return {
     hero, cats, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,

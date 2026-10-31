@@ -1386,3 +1386,17 @@ measurement caveat worth carrying"): strays, critters and finds re-roll.
 
 **Not checked:** a real iPhone (frame time, thermal), desktop with pointer
 lock, the low tier, and walking every POI.
+
+**Fixed after the branch review (2026-10-31):**
+
+- The canopy over the glade path: a tree now keeps 1.5 + 1.6 × scale + 0.5 m
+  from a path's centreline (the path's half-width, its canopy's reach, half a
+  metre), not a flat 3 m. Three trees go: 69 in all, not 72. The Woods now
+  builds 172 meshes / 152 casters / 44,462 triangles, 170 / 150 merged.
+  Camera-side canopy hiding is still deferred.
+- The stepping stones: fourteen rounder stones (16 sides) in a straight line,
+  and the deck widened from ±0.5 m to ±0.75 m. The stones leave the water at
+  about ±0.83 m, and the deck stays inside what the raycast test proves dry.
+- Legacy with the Woods chosen marks the Cozy Neighborhood card "today's
+  walk" (checked live on a throwaway save, with the page title and splash
+  reading Legacy Edition).

@@ -7,7 +7,7 @@ import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
-import { editionTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
+import { editionTitle, gameTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
   theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
@@ -98,6 +98,18 @@ const FRIEND_CODE_RE = /^[0-9a-f]{6,32}$/;
 // colony with …". It is called with plain text and never with markup.
 // onCelebrate() is optional: called when a visit celebration opens its present
 // (or a style-B / cycle-back card shows) — main.js plays the unlock fanfare.
+// The page title and the boot splash name the save's edition. index.html
+// ships both neutral ("Whisker Walk 2"), because the splash is up before the
+// save is read; every home-screen render fills them in, so the first render
+// names the loaded save's edition and each flip after it follows.
+export function showEditionTitle(doc, edition) {
+  if (!doc) return;
+  doc.title = gameTitle(edition);
+  const word = doc.querySelector?.('#splash .splash-edition');
+  if (word) word.textContent = editionTitle(edition);
+  doc.getElementById?.('splash')?.setAttribute('aria-label', gameTitle(edition));
+}
+
 export function createHomeBase(progression, album, onStartWalk, rooms, sync, cloud, settings, onSettingsChange, onVisitDen, colonySync, myId, toast, onCelebrate) {
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -795,6 +807,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   function render() {
     const s = progression.state;
+    showEditionTitle(document, s.edition);
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };
     noteColonyPairing(colonyStatus);
     if (openSheet && !availableSheets().includes(openSheet)) openSheet = null;
@@ -843,7 +856,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
-    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <button class="dr-edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
+    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
       + visitBadgeHtml(s.visits)
       + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
       + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;

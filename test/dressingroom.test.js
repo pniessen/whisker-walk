@@ -329,4 +329,15 @@ describe('the dressing room in each edition', () => {
     expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Cozy Neighborhood</b>');
     expect(s.area).toBe('woods');
   });
+
+  it("Legacy marks the Neighborhood card as today's walk when the chosen place is the Woods", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('woods');
+    s.area = 'woods';
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
+    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(s.area).toBe('woods');
+  });
 });

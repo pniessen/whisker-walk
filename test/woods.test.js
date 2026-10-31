@@ -208,6 +208,10 @@ describe('the Woods: water', () => {
       }
     }
     expect(wet.slice(0, 8)).toEqual([]);
+    // and the deck is as wide as the stones look: a cat walking along their
+    // visible edge is on the deck, not stopped by the water (live bug, the
+    // strip was ±0.5 m under stones drawn to about ±0.75)
+    expect((deck.maxZ - deck.minZ) / 2).toBeGreaterThanOrEqual(0.75);
     // and the crossing runs from bank to bank
     expect(deck.minX).toBeLessThan(river.minX);
     expect(deck.maxX).toBeGreaterThan(river.maxX);
@@ -227,7 +231,10 @@ describe('the Woods: trees', () => {
     for (const t of a) {
       const at = `(${t.x}, ${t.z})`;
       for (const w of WOODS_WATERS) expect(waterGap(w, t.x, t.z), `${at} near ${w.id}`).toBeGreaterThanOrEqual(3);
-      for (const seg of WOODS_PATHS) expect(segDist(t.x, t.z, seg), `${at} on a path`).toBeGreaterThanOrEqual(3);
+      // the canopy (1.6 m x scale across, at camera height) stays half a
+      // metre off the path's edge, so the camera never walks into one
+      const pathClear = 1.5 + 1.6 * t.scale + 0.5;
+      for (const seg of WOODS_PATHS) expect(segDist(t.x, t.z, seg), `${at} on a path`).toBeGreaterThanOrEqual(pathClear);
       expect(Math.hypot(t.x - CLEARING.x, t.z - CLEARING.z), `${at} in the clearing`).toBeGreaterThanOrEqual(CLEARING.r);
       expect(Math.hypot(t.x - SPAWN.x, t.z - SPAWN.z), `${at} on the spawn`).toBeGreaterThanOrEqual(4);
       for (const w of WOODS_WATERS) {
