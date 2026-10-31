@@ -204,6 +204,12 @@ otherwise, these win:
      2026-10-31): the loop in her river.
      - It sits on the border, so it belongs to both territories.
      - It's a good spot for fishing or drinking.
+10. **Saves start on Clan Edition, and "Twolegplace" stays** (owner,
+    2026-10-31).
+    - Both kids already play with the clan features on, so existing and new
+      saves start on Clan Edition, and Legacy is one tap away.
+    - "Twolegplace" is kept as the place name. It is the one exception to
+      the homage rule; changing it later is a one-line edit.
 9. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
    the cliff walls, and tall pine trees. It is still a later release.
    - Dens in the cliff walls make it the place where climbing and height
