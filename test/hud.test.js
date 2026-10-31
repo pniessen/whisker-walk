@@ -153,3 +153,27 @@ describe('hud.setObjective', () => {
     expect(distEl().textContent).toBe('here');
   });
 });
+
+describe('hud corner map slot', () => {
+  it('mapHost is the #hud-map element, which holds the area caption', () => {
+    const hud = createHud();
+    expect(hud.mapHost).toBe(byId.get('hud-map'));
+    expect(byId.get('hud-map').cls.has('hud-map')).toBe(true);
+  });
+
+  it('setArea writes the caption under the map', () => {
+    const hud = createHud();
+    hud.setArea('The Park');
+    expect(byId.get('hud-area').textContent).toBe('The Park');
+  });
+
+  it('setCamera hides the map while the viewfinder is up and brings it back', () => {
+    const hud = createHud();
+    hud.setCamera(true);
+    expect(byId.get('hud-map').classList.contains('hidden')).toBe(true);
+    expect(byId.get('hud-viewfinder').classList.contains('hidden')).toBe(false);
+    hud.setCamera(false);
+    expect(byId.get('hud-map').classList.contains('hidden')).toBe(false);
+    expect(byId.get('hud-viewfinder').classList.contains('hidden')).toBe(true);
+  });
+});

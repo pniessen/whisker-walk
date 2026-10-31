@@ -14,19 +14,52 @@ body { font-family: 'Avenir', 'Trebuchet MS', sans-serif; background: #1c2431; c
 .hidden { display: none !important; }
 
 #hud { pointer-events: none; }
+/* The corner map's diameter: coin-sized, smaller on phones and tablets.
+   Everything that has to clear the map reads this one value. */
+:root { --map-size: 150px; }
+body.touch-mode { --map-size: 110px; }
+/* Points on the left, rank centred in what is left. The right edge stops
+   short of the corner map, so the rank can never slide under it. */
 .hud-top {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
   left: max(16px, env(safe-area-inset-left));
-  right: max(16px, env(safe-area-inset-right));
-  display: flex; justify-content: space-between; font-size: 1.2rem;
+  right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 12px);
+  display: flex; align-items: flex-start; font-size: 1.2rem;
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 .hud-points { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; }
-.hud-rank { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; font-size: 1rem; }
-.hud-area { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; }
+.hud-rank { background: rgba(20,26,38,0.55); padding: 6px 14px; border-radius: 999px; font-size: 1rem;
+  margin: 0 auto; }
+/* The corner map, top-right: the disc (a canvas minimap.js adds) with the
+   area name as a small caption pill under it. z-index 2 lifts it over the
+   full-screen .touch-ui layer (z1) so a tap lands on the map, not the orbit
+   drag; #hud stays pointer-events: none and only the canvas opts back in. */
+.hud-map {
+  position: absolute; z-index: 2;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  width: var(--map-size);
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+}
+.hud-map-disc {
+  display: block; width: var(--map-size); height: var(--map-size);
+  border-radius: 50%; touch-action: none; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+/* The caption may run a little wider than a phone-sized disc ("Cozy
+   Neighborhood"); centred, the overhang stays inside the side gutter. */
+.hud-area {
+  background: rgba(20,26,38,0.55); padding: 2px 10px; border-radius: 999px;
+  font-size: 0.8rem; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.hud-area:empty { display: none; }
+body.touch-mode .hud-area { font-size: 0.72rem; }
+/* Co-walk roster: below the map and its caption (~22px). */
 .hud-roster {
-  position: absolute; top: 64px; right: 16px;
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px);
+  right: max(16px, env(safe-area-inset-right));
   display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
 }
 .hud-roster-chip {
@@ -177,9 +210,16 @@ body.left-handed .tui-actions {
   right: auto;
   left: max(16px, env(safe-area-inset-left));
 }
+/* The top-right corner belongs to the map, so the left-handed pause sits
+   immediately left of it, level with the map's top, and the top row's right
+   edge pulls in to leave it room. */
 body.left-handed .tui-pause {
   left: auto;
-  right: max(16px, env(safe-area-inset-right));
+  top: max(16px, env(safe-area-inset-top));
+  right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 10px);
+}
+body.left-handed .hud-top {
+  right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 64px);
 }
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .photos figure { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 8px; }
