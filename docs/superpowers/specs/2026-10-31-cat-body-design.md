@@ -1,6 +1,6 @@
 # Whisker Walk: A Cat-Shaped Cat (design)
 
-Date: 2026-10-31. Status: design only, no product code. Built against the `woods` branch (main plus the in-progress Clan Edition work). The implementation plan is `docs/superpowers/plans/2026-10-31-cat-body.md`.
+Date: 2026-10-31. Status: design only, no product code. Built against `main` at 4b09d01 (which now includes the `woods` Clan Edition work). The implementation plan is `docs/superpowers/plans/2026-10-31-cat-body.md`.
 
 Sections marked **For the builder** carry the engineering detail. The rest is written for a parent.
 
@@ -37,7 +37,7 @@ They chose **Version 2** of a turntable sketch (`cat-shapes.html` in the session
 - **Leave an accessory floating or sunk** into the new body: hats, glasses, collars, neck items, sweaters, capes, backpacks, wings.
 - **Make a coat unrecognisable.** Robbie keeps his white bib, flanks and blaze. The calico keeps her orange and grey patches. D2 keeps his white shoulder band.
 - **Break an animation.** Napping, sitting, stalking, stretching, pouncing, grooming, being scared or cross, and walking must all still work and look right.
-- **Stand a cat in or above the ground**, in any pose.
+- **Stand a cat in or above the ground**, in any pose. "In the ground" means more than 1 cm of overlap, measured off the built model. This is stricter than today: the old sit sinks the rump 9.8 cm and the old stretch sinks the back paws 2.7 cm. Both are fixed (ruling R2).
 - **Change anything on the wire.** Co-walk partners are drawn from breed and accessories, exactly as now (§6).
 
 ## 3. How each part changes
@@ -60,11 +60,16 @@ All numbers are in the cat's own units, before the breed size is applied (a Main
 
 **The body shape.** The body is still one ball, but each point on it is moved: the front underside drops lower (deep chest), the sides pull in just behind the middle (waist), the back end widens (round hips) with a small extra swell where the thighs join, the underside behind the middle lifts (tucked belly), and the top of the back rises a little toward the hips. These are the sketch's exact numbers. Painting the coat onto this same piece is what lets the stripes follow every curve.
 
-**The poses.** Every pose (nap, sit, stalk and so on) was written for the old, lower body. Rather than rewrite them all, the new cat is treated the way Digit's long legs already are: when a pose folds the legs, the body comes down by the extra leg length, and each folded leg lands its paw where the old leg's would have. So the new cat sits, naps and stalks at the same height above the ground as before, just with a better shape. The tail's new curl is softened in the lying-down poses, so a napping cat's tail wraps round it instead of standing up.
+**The poses.** Every pose (nap, sit, stalk and so on) was written for the old, lower body. Rather than rewrite them all, the new cat is treated the way Digit's long legs already are. When a pose folds the legs, the body comes down by the extra leg length, and each folded leg lands its paw where the old leg's would have. These rulings are decided:
 
-**Accessories.** Hats, glasses, the eye patch and collars ride on the head as now and simply come along. Neck items (bandana, tie, bow tie, scarf, streamer scarf) and collar charms move forward so they sit on the new chest instead of inside it. Sweaters, hoodies and raincoats are reshaped to the new body and move with it. Sweater stripes are painted on, so a sweater takes one piece instead of four. Backpacks, jetpacks, wings and capes are re-placed on the new back and rump using the same "how far from the fur" each had before.
+- **R1. Standing poses stand higher; crouches don't.** In the standing states (follow, sniff, stretch, groom, pounce, scared, cross, land), the body is deliberately higher than before by the extra leg length, about 9 cm: that is the "air under the belly". Only the crouch states (nap, stalk, sit/perch, requestPet) bring the body back down to rest where it rested before.
+- **R2. Never in the ground.** No pose may put any part more than 1 cm into the ground, and this beats matching the old rig. The sit (whose rump sank 9.8 cm) is lifted until the rump rests on the ground. In the stretch, the back legs no longer reach through the ground; the bottom rises on the tilt instead.
+- **R3. The new tail curl is for resting states only.** Standing, walking, grooming and sniffing get the full curl; napping and sitting get a fifth of it, so the tail lies round the cat. Cross and scared keep today's tail exactly: the cross bottlebrush stays straight and the scared tail stays tucked. Stalk, pounce and stretch keep a straight tail too.
+- **R4. The chest stays under the head.** In the cross pose the torso turns side-on while the head keeps facing you. The chest does not swing out sideways with the torso: it stays centred under the chin, within 2 cm.
 
-**Things around the cat that know how tall it is.** The cat is about 14 cm taller at the head, so these are re-measured off the built cat: the camera's aim point, name tags and chat bubbles, the "+points" pop-up, the whisker shimmer, the dressing-room stage's fallback aim, the shop thumbnails, the kitten tags and "cat in a box" height in the colony den, and the gap a cat walks through under hedge arches and gate flaps. Carrying, contact shadows, kittens' sizes and perches already measure the cat for themselves.
+**Accessories.** Hats, glasses, the eye patch and collars ride on the head as now and simply come along. Neck items (bandana, tie, bow tie, scarf, streamer scarf) and collar charms move forward so they sit on the new chest instead of inside it. Sweaters, hoodies and raincoats are reshaped to the new body and move with it. How far forward the neck items move, and how loosely the shells fit, are signed off by screenshot in the live check, not by tests alone (ruling R5). Booties' cuffs and sneakers' stripes move down with the paws on the longer legs. Sweater stripes are painted on, so a sweater takes one piece instead of four. Backpacks, jetpacks, wings and capes are re-placed on the new back and rump using the same "how far from the fur" each had before.
+
+**Things around the cat that know how tall it is.** The cat is about 14 cm taller at the head, so these are re-measured off the built cat: the camera's aim point, name tags and chat bubbles, the "+points" pop-up, the dressing-room stage's fallback aim, the shop thumbnails, the kitten tags and "cat in a box" height in the colony den, and the gap a cat walks through under hedge arches and gate flaps. Carrying, contact shadows, kittens' sizes and perches already measure the cat for themselves. The whisker shimmer is left alone: it marks the hidden mouse's direction 1.1 m in front of the cat, not a point on the cat. Swimming uses the walk gait and needs nothing.
 
 ## 4. How each coat maps onto the new body
 
@@ -104,7 +109,7 @@ Counted today on `woods` by building every preset. "Simple" is the cheaper versi
 
 The new chest, the thighs, the tail's root, joints and tip are all merged into pieces that already exist (the belly, the back legs and the tail links), so they cost no extra draw calls. A sweater drops from 4 pieces to 1.
 
-The new body has more triangles: a smoother torso to paint stripes on, plus the merged thighs, chest and rounded tail joints. A full tabby goes from about 3,700 to about 7,000 triangles, and a simple one from about 3,400 to about 5,000. The game is draw-call bound, not triangle bound (VISUAL-PASS.md section 0), but tests cap these numbers (8,000 full, 5,500 simple) and the iPhone reading is repeated (§8).
+The new body has more triangles: a smoother torso to paint stripes on, plus the merged thighs, chest and rounded tail joints. A full tabby goes from about 3,700 to about 7,200 triangles, and a simple one from about 3,400 to about 5,100. The simple torso has 28 rings along its length, so the tabby's ~7 bands survive on strays and co-walk partners. The game is draw-call bound, not triangle bound (VISUAL-PASS.md section 0), but tests cap these numbers (8,000 full, 5,500 simple) and the iPhone reading is repeated (§8).
 
 ## 6. Co-walks
 
@@ -115,6 +120,7 @@ Nothing on the wire changes. Each phone already builds its partner's cat from th
 The builder (design on branch `cat-builder-design`) feeds a STYLE-row-shaped coat into `buildCat` through `lookToStyle(look)`. This design keeps that contract and makes the builder's job smaller.
 
 **For the builder**
+- **Leg radius:** the limb keeps today's 0.058 bottom radius rather than the sketch's 0.056, because the paw's width was tuned against 0.058. The 2 mm is invisible at play distance.
 - **Coat painting is one function**, `paintCoat(geometry, coat)` in `src/cat/coat.js`, driven by `coatFromStyle(styleRow)`. A coat is `{ base, belly, accent, stripes, stripeStrength, patches: [{ at, halfX, halfZ, colour }], chest }` (Task 4 of the plan has the exact shape). The builder's "Patches in the markings colour alone" means passing its own colour into `patches`. The calico's orange and grey stay in her STYLE row.
 - **Pattern costs change in the builder's favour.** Body stripes, body patches and the socks bib are now painted, so they cost **0** meshes. The worst custom cat is **31 full / 25 simple** (plain body 30, plus one head mark: the "M", the head patch, or the chin). The builder design's ceilings of 33 / 27 should come down to 31 / 25.
 - **The bib** becomes the chest piece's colour: `coat.chest` (white for the builder's White socks pattern, `belly` otherwise). It is no longer a body patch.
@@ -125,11 +131,11 @@ The builder (design on branch `cat-builder-design`) feeds a STYLE-row-shaped coa
 
 ## 8. Risks
 
-1. **Poses written for the old body.** Napping, sitting, stalking and stretching might hover or sink on a taller cat with a deeper chest. *Mitigation:* the long-leg refit Digit already uses now applies to every cat; tests record every preset's lowest point in every pose **before** the change and hold the new body to within 1 cm sinking and 2 cm hovering of it. Screenshots of every pose in the live check.
+1. **Poses written for the old body.** Napping, sitting, stalking and stretching might hover or sink on a taller cat with a deeper chest. *Mitigation:* the long-leg refit Digit already uses now applies to every cat. Tests record every preset's lowest points in every pose **before** the change. They then hold crouches to where they rested before (or to the ground, where the old pose sank into it), hold standing poses to "before plus the extra leg length", and hold every pose to no more than 1 cm in the ground (R1, R2). Screenshots of every pose in the live check.
 2. **Accessories on a new surface.** The chest now fills the space where neck items and collar charms used to hang, and shells and back items were fitted by eye to the old ellipsoid. *Mitigation:* items touching the body are re-placed by a rule that keeps each one's distance from the fur, not by hand; tests measure each against the real body surface; screenshots of every slot.
 3. **Coats losing their identity when painted.** Soft painted edges on a finite mesh can blur a small patch, and the cheaper "simple" body has fewer points to paint on. Colours could drift if painted values aren't in the same colour space as today's materials. *Mitigation:* tests read the painted colours back (Robbie's bib, the calico's two flanks, black stays exactly black); side-by-side screenshots of every preset, full and simple.
-4. **Phone performance.** About 3,300 more triangles per full cat and about 1,600 per stray or co-walk partner, drawn twice (the cat and its shadow). *Mitigation:* the counts are pinned in tests; the live check repeats the Stream 4 iPhone reading in the busiest area. The fallback is a lower segment count for simple cats, not a different shape.
-5. **The tail changes owner.** Its curl moves from fixed positions to a bend the animator applies each frame, so lying-down poses can soften it. Hagrid's tail must stay exactly as it is. *Mitigation:* Hagrid's golden fingerprint must not change in any task; animator tests pin the new curl.
+4. **Phone performance.** About 3,500 more triangles per full cat and about 1,700 per stray or co-walk partner, drawn twice (the cat and its shadow). *Mitigation:* the counts are pinned in tests; the live check repeats the Stream 4 iPhone reading in the busiest area. The fallback is a lower segment count for simple cats, not a different shape.
+5. **The tail changes owner.** Its curl moves from fixed positions to a bend the animator applies each frame, so lying-down poses can soften it and cross and scared can drop it (R3). Hagrid's tail must stay exactly as it is. *Mitigation:* Hagrid's golden fingerprint must not change in any task; animator tests pin the new curl.
 
 ## 9. Decisions for the owner to check
 
