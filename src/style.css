@@ -868,6 +868,42 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-place.cant img { filter: saturate(.55) brightness(.8); }
 .dr-place.cant { opacity: .85; cursor: default; }
 
+/* Clan Edition: her territory map in place of the cards (ui/territorymap.js).
+   Board units are 1000 x 700, so on a phone 30 units is about 10 px. */
+.territory-map { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 0 12px;
+  font-family: 'Chalkboard SE', 'Comic Sans MS', Nunito, Avenir, sans-serif; -webkit-tap-highlight-color: transparent; }
+/* iOS Safari only delivers a tap on a non-link SVG element to the delegated
+   click handler when the element (or an ancestor below the handler) has a pointer cursor. */
+.territory-map [data-dr-place] { cursor: pointer; }
+.territory-map .tm-paper { fill: #f3e4c4; }
+.territory-map .tm-frame { fill: none; stroke: #9b7b52; stroke-width: 6; }
+.territory-map .tm-paper, .territory-map .tm-frame, .territory-map .tm-lands,
+.territory-map .tm-water, .territory-map .tm-paths, .territory-map .tm-label { pointer-events: none; }
+.territory-map .tm-land { stroke: #7a5c3a; stroke-width: 3; stroke-linejoin: round; }
+.territory-map .tm-land.built { fill-opacity: .85; }
+.territory-map .tm-land.built.locked { fill: #cbbfa6; stroke-dasharray: 14 9; }
+.territory-map .tm-land.soon { fill-opacity: .42; stroke-opacity: .7; stroke-dasharray: 14 9; }
+.territory-map .tm-land.later { fill-opacity: .22; stroke-opacity: .55; stroke-dasharray: 2 9; stroke-linecap: round; }
+/* the tap target: invisible, except as the pink ring round today's walk */
+.territory-map .tm-hit { fill: transparent; stroke: none; }
+.territory-map .sel .tm-hit { stroke: var(--pink, #e7a9a0); stroke-width: 9; }
+.territory-map .tm-river-bank { fill: none; stroke: #5d93a8; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
+.territory-map .tm-river { fill: none; stroke: #9fd0e0; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+.territory-map .tm-lake, .territory-map .tm-pond { fill: #9fd0e0; stroke: #5d93a8; stroke-width: 4; }
+.territory-map .tm-island { fill: #b9d48e; stroke: #6f8a4a; stroke-width: 3; }
+.territory-map .tm-star { fill: #f2c14e; stroke: #b98a1e; stroke-width: 2; stroke-linejoin: round; }
+.territory-map .tm-path { fill: none; stroke: #8a6a44; stroke-width: 5; stroke-dasharray: 12 10; stroke-linecap: round; }
+.territory-map .tm-bridge { stroke: #7a5534; stroke-width: 13; stroke-linecap: round; }
+.territory-map .tm-bridge-planks { stroke: #c49a6c; stroke-width: 9; stroke-dasharray: 3 6; }
+.territory-map .tm-label { fill: #4a3522; stroke: #f3e4c4; stroke-width: 8; stroke-linejoin: round; paint-order: stroke; }
+.territory-map .tm-name { font-weight: 700; }
+.territory-map .tm-line { font-size: 28px; }
+.territory-map .tm-icon { font-size: 34px; }
+.territory-map .tm-small { font-size: 24px; }
+.territory-map .soon .tm-label { fill: #6b5a48; }
+.territory-map .later .tm-label { fill: #8a7a66; font-style: italic; }
+.territory-map .sel .tm-line { fill: #b5524a; font-weight: 700; }
+
 /* the quiet row of sheets */
 .dr-more { grid-area: more; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
 .dr-more .dr-ghost { opacity: .85; }

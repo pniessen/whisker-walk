@@ -4,7 +4,9 @@
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
-import { areaInEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
+import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
+import { TERRITORIES, territoryMapModel, opensAfterLine } from '../territories.js';
+import { renderTerritoryMapHtml } from './territorymap.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
@@ -101,12 +103,19 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
     const gated = !owned && !!req && have < req.walks;
     let lockLine = '';
     if (gated) {
-      lockLine = `opens after ${req.walks} walks in ${placeName(req.area, state?.edition, catalog) || req.area} · ${have}/${req.walks} so far`;
+      lockLine = opensAfterLine(req, have, state?.edition, catalog);
     } else if (!owned) {
       lockLine = points >= price ? `Tap to unlock — ${price} 🐾` : `${price} 🐾 — keep walking!`;
     }
-    return { id, name: a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
+    return { id, name: placeName(id, state?.edition, catalog) || a.name, owned, selected: id === area, canBuy: !owned && !gated && points >= price, price, locked: gated, lockLine };
   });
+
+  // Clan Edition draws her territory map for the places on it; the rest
+  // (the Park, Seaside, the Docks) stay picture cards under "Other places".
+  const clanPlaces = isClanEdition(state) ? {
+    territoryMap: territoryMapModel(state, catalog),
+    otherPlaces: places.filter((p) => !TERRITORIES.some((t) => t.areaId === p.id)),
+  } : {};
 
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
 
@@ -115,7 +124,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
 
   return {
-    hero, cats, slots, wearingCount, slotCount: slotIds.length, places,
+    hero, cats, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
     currentPlace: { id: walkArea, name: placeName(walkArea, state?.edition, catalog) },
     // Prizes are won, not collected from the shop, so they stay out of both totals.
     ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
@@ -215,7 +224,11 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   <section class="dr-abilities"><div class="dr-chip">🐾 ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
   <section class="dr-where" data-panel="where">
     <p class="dr-label">Where to?</p>
-    <div class="dr-places">${m.places.map(placeHtml).join('')}</div>
+    ${m.territoryMap
+    ? `${renderTerritoryMapHtml(m.territoryMap)}
+    <p class="dr-label">Other places</p>
+    <div class="dr-places">${m.otherPlaces.map(placeHtml).join('')}</div>`
+    : `<div class="dr-places">${m.places.map(placeHtml).join('')}</div>`}
   </section>
   <section class="dr-more" data-panel="more">${sheetButtons}</section>
   <section class="dr-extras">${extrasHtml}</section>

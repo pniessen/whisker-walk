@@ -267,6 +267,35 @@ describe('dressing-room places by edition', () => {
   });
 });
 
+describe('the territory map in the dressing room', () => {
+  it('dressingroom: Clan shows the map and the Park, Seaside and Docks under Other places', () => {
+    const s = { ...defaultishState(), edition: 'canon' };
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
+    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
+    expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
+    const html = renderDressingRoomHtml({ model: m });
+    const where = html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+    expect(where).toContain('class="territory-map"');
+    expect(where.indexOf('class="territory-map"')).toBeLessThan(where.indexOf('Other places'));
+    expect(where).toContain('<p class="dr-label">Other places</p>');
+    for (const id of ['park', 'seaside', 'docks']) expect(where).toMatch(new RegExp(`<button class="dr-place[^"]*" data-dr-place="${id}"`));
+    expect(where).not.toMatch(/<button class="dr-place[^"]*" data-dr-place="(neighborhood|woods)"/);
+    expect(where).not.toContain('Cozy Neighborhood');
+    expect(where).toContain('Twolegplace');
+    expect(html).toContain('Walking in <b>Twolegplace</b>');
+  });
+  it('Legacy keeps the picture cards and no map', () => {
+    const m = buildDressingModel({ ...defaultishState(), edition: 'legacy' }, CATALOG);
+    expect(m.territoryMap).toBeUndefined();
+    expect(m.otherPlaces).toBeUndefined();
+    const html = renderDressingRoomHtml({ model: m });
+    expect(html).not.toContain('territory-map');
+    expect(html).not.toContain('Other places');
+    expect(html).toMatch(/data-dr-place="neighborhood">[\s\S]*?Cozy Neighborhood/);
+  });
+});
+
 describe('the dressing room in each edition', () => {
   it('dressingroom: Legacy names the war paint without the clan word', () => {
     const s = defaultishState();
