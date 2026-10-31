@@ -41,3 +41,31 @@ export function pinToRim(p, radiusPx, inset) {
   const k = limit / d;
   return { u: p.u * k, v: p.v * k };
 }
+
+// Which things get a marker. Reads only the keys listed here, so anything
+// hidden (golden mice, secrets, gifts, collectibles, strays) cannot leak onto
+// the map even if the caller's frame carries it. The cat itself is not a
+// marker; the painter always draws it at the centre.
+export function mapMarkers(frame) {
+  const out = [];
+  const race = frame.race;
+  if (race && race.state === 'running') {
+    // currentRing is 1-based: bright for the next ring, dim for the one after.
+    const next = race.rings[race.currentRing - 1];
+    const after = race.rings[race.currentRing];
+    if (next) out.push({ kind: 'ring', n: race.currentRing, dim: false, x: next.x, z: next.z });
+    if (next && after) out.push({ kind: 'ring', n: race.currentRing + 1, dim: true, x: after.x, z: after.z });
+  } else if (race && race.state === 'idle' && race.pad) {
+    out.push({ kind: 'pad', x: race.pad.x, z: race.pad.z });
+  }
+  if (frame.quest && frame.quest.state === 'active') {
+    out.push({ kind: 'quest', x: frame.quest.target.x, z: frame.quest.target.z });
+  }
+  for (const s of frame.scenics) {
+    out.push({ kind: 'scenic', x: s.x, z: s.z, filled: frame.visitedScenics.has(s.id) });
+  }
+  for (const r of frame.remotes) {
+    out.push({ kind: 'remote', x: r.x, z: r.z, color: r.color });
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim } from '../src/ui/minimapmath.js';
+import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers } from '../src/ui/minimapmath.js';
 
 const view = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
 
@@ -62,5 +62,81 @@ describe('mapRadiusFor', () => {
   it('falls back to the default radius', () => {
     expect(MAP_RADIUS_M).toBe(35);
     expect(mapRadiusFor('nowhere')).toBe(35);
+  });
+});
+
+describe('mapMarkers', () => {
+  const rings = [1, 2, 3, 4, 5].map((i) => ({ x: i * 10, z: -i * 10 }));
+  const pad = { x: 3, z: 4 };
+  const frame = (over = {}) => ({
+    race: null, quest: null, scenics: [], visitedScenics: new Set(), remotes: [], ...over,
+  });
+  const race = (over) => ({ state: 'running', currentRing: 2, rings, pad, ...over });
+  const of = (ms, kind) => ms.filter((m) => m.kind === kind);
+
+  it('running race shows the next ring bright and the one after dim', () => {
+    const rs = of(mapMarkers(frame({ race: race() })), 'ring');
+    expect(rs).toHaveLength(2);
+    expect(rs[0]).toMatchObject({ n: 2, dim: false, x: rings[1].x, z: rings[1].z });
+    expect(rs[1]).toMatchObject({ n: 3, dim: true, x: rings[2].x, z: rings[2].z });
+  });
+
+  it('last ring has no dim follower', () => {
+    const rs = of(mapMarkers(frame({ race: race({ currentRing: 5 }) })), 'ring');
+    expect(rs).toHaveLength(1);
+    expect(rs[0]).toMatchObject({ n: 5, dim: false });
+  });
+
+  it('idle race shows only the pad', () => {
+    const ms = mapMarkers(frame({ race: race({ state: 'idle', currentRing: 0 }) }));
+    expect(of(ms, 'pad')).toHaveLength(1);
+    expect(of(ms, 'pad')[0]).toMatchObject({ x: 3, z: 4 });
+    expect(of(ms, 'ring')).toHaveLength(0);
+  });
+
+  it('done race and the stub race show nothing', () => {
+    const stub = { state: 'idle', currentRing: 0, rings: [], pad: null };
+    for (const r of [race({ state: 'done', currentRing: 6 }), stub]) {
+      const ms = mapMarkers(frame({ race: r }));
+      expect(of(ms, 'ring')).toHaveLength(0);
+      expect(of(ms, 'pad')).toHaveLength(0);
+    }
+  });
+
+  it('quest shows only while active', () => {
+    const q = (state) => ({ state, target: { x: 7, z: 8 } });
+    const active = of(mapMarkers(frame({ quest: q('active') })), 'quest');
+    expect(active).toHaveLength(1);
+    expect(active[0]).toMatchObject({ x: 7, z: 8 });
+    for (const state of ['offered', 'complete']) {
+      expect(of(mapMarkers(frame({ quest: q(state) })), 'quest')).toHaveLength(0);
+    }
+    expect(of(mapMarkers(frame({ quest: null })), 'quest')).toHaveLength(0);
+  });
+
+  it('scenic stars fill once visited', () => {
+    const ms = mapMarkers(frame({
+      scenics: [{ id: 'pier-end', x: 1, z: 2 }, { id: 'lighthouse', x: 3, z: 4 }],
+      visitedScenics: new Set(['pier-end']),
+    }));
+    const ss = of(ms, 'scenic');
+    expect(ss).toHaveLength(2);
+    expect(ss.find((m) => m.x === 1).filled).toBe(true);
+    expect(ss.find((m) => m.x === 3).filled).toBe(false);
+  });
+
+  it('remote cats keep their colour', () => {
+    const ms = mapMarkers(frame({ remotes: [{ x: 5, z: 6, color: '#ff8800' }] }));
+    expect(of(ms, 'remote')).toEqual([{ kind: 'remote', x: 5, z: 6, color: '#ff8800' }]);
+  });
+
+  it('extra keys never become markers', () => {
+    const ms = mapMarkers({
+      ...frame(),
+      goldMice: [{ x: 1, z: 1 }],
+      collectibles: [{ x: 2, z: 2 }],
+      secrets: [{ x: 3, z: 3 }],
+    });
+    expect(ms).toEqual([]);
   });
 });
