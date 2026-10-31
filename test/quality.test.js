@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { resolveQuality, isAdaptive, LADDER, FLOOR_RUNG } from '../src/render/quality.js';
 
-const high = { name: 'high', rung: 0, strays: 22, shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3 };
-const low  = { name: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42 };
+const high = { name: 'high', rung: 0, strays: 22, shadowMapSize: 2048, envIntensity: 0.45, postFx: true, pixelRatioCap: 2, msaaSamples: 4, shadowFitRadius: 20, normalMaps: true, grassRadius: 9, grassSpacing: 0.3, pawPrints: 96, pawFade: 9 };
+const low  = { name: 'low',  rung: 3, strays: 14, shadowMapSize: 1024, envIntensity: 0.32, postFx: false, pixelRatioCap: 1.5, msaaSamples: 0, shadowFitRadius: 20, normalMaps: false, grassRadius: 6, grassSpacing: 0.42, pawPrints: 48, pawFade: 6 };
 
 describe('resolveQuality', () => {
   it('auto → high on a desktop pointer with motion allowed', () => {

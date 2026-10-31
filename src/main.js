@@ -785,6 +785,14 @@ function init() {
       // The lawn tufts take the same t and intensity as wind, and read the
       // camera, so this sits after player.update like shadows.update above.
       session.grass.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
+      // Paw prints, after player.update so they follow this frame's paws. Only
+      // a cat with its paws on the ground prints: not perched, not mid-pounce
+      // (hopY), not swimming. The trail itself ignores a cat that isn't moving.
+      session.paws.update(dt, {
+        x: session.cat.position.x,
+        z: session.cat.position.z,
+        grounded: !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.swimming,
+      });
       session.remotes.update(dt, nowSec());
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so

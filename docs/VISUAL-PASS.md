@@ -1034,3 +1034,44 @@ The beach's brightness problem is the lighting, not the sand: anything pale
 there is compressed by the tone curve. Lowering the beach's exposure (sun or
 hemisphere strength for this area) would be the bigger lever, and it would
 change every prop on the beach, so it was left alone.
+
+## Stream 4 round four — paw prints (2026-10-31)
+
+The cat leaves a trail of little paws that fades away (`render/pawprints.js`).
+Prints alternate left and right of the line the cat walks, one per stride of
+real travel (0.24–0.6 m, longer at a trot), toes pointing the way it went with
+a slight outward splay. Only while the paws are on the ground: not perched,
+not mid-pounce (`player.hopY`), not swimming, and nothing across a teleport.
+
+- **Surfaces.** A small per-area rule plus the ground strips read off the
+  scene (a strip named `path` is a path; any other flat strip is a sidewalk or
+  the boardwalk). Seaside: deep, darker prints in dry sand, darker still and
+  crisp on the wet band (`wetness() >= 0.3`), none on the boardwalk. Docks:
+  damp prints on the cobbles, fainter on the flagstone quays and pavements,
+  drying 30% quicker. Park and Neighbourhood: faint dusty prints on gravel
+  paths only — none on the lawn or the sidewalks. Never in water, on a deck
+  over water (pier, bridges) or in a puddle. The den gets the no-op stub.
+- **One draw call.** One InstancedMesh, a 2-triangle quad per print with the
+  paw (heel pad + four toe beans) drawn as a distance field in the fragment
+  shader — no texture. Fade is on the GPU from per-slot laid-at time and
+  sequence number, so the CPU writes one slot per print and two uniforms a
+  frame. **+1 main-pass draw, 0 shadow** (castShadow false; `userData.pawPrints`
+  is skipped by rig.js and mergeprops.js). Measured +1 total calls in
+  `verify-places.html`. Transparent, depthWrite off, polygonOffset, at
+  y 0.012: over the wet sand (0.008) and paths (0.01), under the contact
+  shadows (0.015, which draw after it: renderOrder -2 vs -1).
+- **Ring.** Fixed capacity; a new print overwrites the oldest, and the last six
+  slots before reuse fade out first, so a sprint never makes a print pop.
+- **Tiers** (`pawPrints`, `pawFade` in quality.js): rungs 0–2 keep 96 prints
+  for 9 s; the low rung 48 prints for 6 s. Life is scaled per surface (stone
+  0.7, gravel 0.85). Reduced motion needs nothing: prints don't move.
+- **Local only.** No wire events and no seeded game RNG (per-print jitter is
+  a hash of the print's own sequence number). Co-walkers' cats don't leave
+  prints on my screen — a possible follow-up.
+
+Looked at in `verify-places.html?area=<id>&paws[=low]` (a hand-placed trail)
+on this Mac: sand, wet sand, Docks cobbles and quays, park gravel. At 12 cm
+the prints read as dots from the game camera, so they are 17 cm; cobble
+prints at 0.32 alpha vanished into the setts, so they are 0.6. The pale rim
+round dry-sand prints barely shows under ACES. Not verified: a real walk in
+game (the automated browser can't hold keys), the iPhone, dusk, and rain.

@@ -61,6 +61,13 @@ const HIGH = Object.freeze({
   // them, so this is a quarter more of the resource that is not the budget.
   grassRadius: 9,
   grassSpacing: 0.3,
+  // Paw prints (render/pawprints.js; VISUAL-PASS.md "Stream 4 round four —
+  // paw prints"): the ring's size and a print's life in seconds on sand. ONE
+  // draw call either way and none in the shadow pass; what these trade is a
+  // few transparent pixels per print. 96 prints at a trot's ~0.45m stride is
+  // ~43m of trail, so the 9s fade, not the ring, is what usually ends a print.
+  pawPrints: 96,
+  pawFade: 9,
 });
 
 const LOW = Object.freeze({
@@ -95,6 +102,10 @@ const LOW = Object.freeze({
   // count knob, a rung change mid-walk takes effect on the next walk.
   grassRadius: 6,
   grassSpacing: 0.42,
+  // Half the ring and a shorter life: fewer overlapping transparent quads on
+  // the fill-bound rung. Still on — the trail is the thing the kids notice.
+  pawPrints: 48,
+  pawFade: 6,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and
