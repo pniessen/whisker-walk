@@ -117,8 +117,51 @@ otherwise, these win:
    chosen, and that it never counts against a kid. Builder: wanderers are
    local visuals or strays under the existing stray rules, and add nothing on
    the wire.
-7. **The territory layout comes from the 11-year-old's own drawing.** §3's
-   layout and map sketch wait for it.
+7. **The territory layout comes from the 11-year-old's own drawing.** She
+   rearranged the proposal on 2026-10-31. It is saved in the "Clan Territory
+   Map" artifact (https://claude.ai/artifact/K8j8579QoYSxJj1eFajuxC,
+   db `layouts/current`, version 17), on a 1000 × 700 board with north up.
+   Her layout replaces §3's.
+
+   ```
+                 N
+       ┌───────────────┐┌────────────────┐
+       │   PINES AND   ├┤      MOOR      │
+       │     SWAMP  ~~~~~~~~~~~~~~~~~~~  │      (Gorge, later)
+       └──────┬────────┘└──────┬─────~───┘     ┌─────────┐
+              │          ★     │     ~         │  GORGE  │
+       ┌──────┴────────┐ meeting place  ~      │ (later) │
+     ~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~ ~      └────┬────┘
+       │  RIVER AND (o)┼┤     WOODS      ├┐         │
+       │   MARSHES     ││                ││ TWOLEG- │
+       └───────────────┘└───────────.....┘│  PLACE  │
+                                    path  └─────────┘
+   ```
+
+   **What touches (each pair shares a border):**
+   - Pines and Moor;
+   - Pines and River and Marshes (they overlap a little);
+   - River and Marshes and Woods;
+   - Woods and Moor;
+   - Woods and Twolegplace;
+   - Twolegplace and the Gorge, nearly (the Gorge is later anyway).
+
+   **The ★ meeting place** sits in open ground in the middle, between the
+   Pines, the Moor and the Woods, and belongs to no territory.
+
+   **Her river** is one long river:
+   - it enters from the far west and runs through the River and Marshes;
+   - it makes a loop where the River and Marshes meet the Woods (read as a
+     pond: to confirm);
+   - it crosses the Woods eastward, turns north up the Woods–Moor side, then
+     runs west across the Moor and ends at the Pines border;
+   - so it nearly circles the meeting place.
+
+   **A path** runs out of Twolegplace north-west into the Woods: the
+   kittypets' way into clan land (to confirm).
+
+   She left no notes and kept every territory's size. The Moor, Woods,
+   Twolegplace and Gorge moved; the Pines and River barely did.
 
 Next step: when the drawing arrives, revise §3 and the build order around it,
 then write the implementation plan, one territory at a time.
