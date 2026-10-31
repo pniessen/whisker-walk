@@ -85,6 +85,29 @@ describe('createProgression', () => {
     expect(p.state.points).toBe(points);
   });
 
+  it('in Legacy the Woods can be neither bought nor set, and state.area stays put', () => {
+    p.addPoints(999);
+    p.completeWalk(); p.completeWalk();
+    p.setEdition('legacy');
+    expect(p.canBuy('areas', 'woods')).toBe(false);
+    expect(p.buy('areas', 'woods')).toBe(false);
+    expect(p.state.unlocked.areas).not.toContain('woods');
+    p.setEdition('canon');
+    expect(p.buy('areas', 'woods')).toBe(true);
+    p.setEdition('legacy');
+    p.setArea('woods');
+    expect(p.state.area).toBe('neighborhood');
+    // Other places are untouched by the edition.
+    expect(p.canBuy('areas', 'park')).toBe(true);
+    p.setEdition('canon');
+    p.setArea('woods');
+    expect(p.state.area).toBe('woods');
+    // Flipping to Legacy hides the Woods; it never rewrites the chosen place.
+    p.setEdition('legacy');
+    p.setArea('woods');
+    expect(p.state.area).toBe('woods');
+  });
+
   it('a fresh save counts Woods walks from 0', () => {
     expect(p.state.walks.woods).toBe(0);
     p.completeWalk('woods');

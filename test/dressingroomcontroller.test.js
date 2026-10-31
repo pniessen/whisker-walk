@@ -72,6 +72,24 @@ describe('createDressingRoom handleClick', () => {
     expect(t.sync.autoSync).not.toHaveBeenCalled();
   });
 
+  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
+    const t = setup();
+    t.state.edition = 'legacy';
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    t.state.unlocked.areas.push('woods');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.buy).not.toHaveBeenCalled();
+    expect(t.progression.setArea).not.toHaveBeenCalled();
+    expect(t.state.area).toBe('neighborhood');
+  });
+
+  it('in Clan Edition the Woods card buys and sets it as before', () => {
+    const t = setup();
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.buy).toHaveBeenCalledWith('areas', 'woods');
+    expect(t.progression.setArea).toHaveBeenCalledWith('woods');
+  });
+
   it('a click outside the dressing room returns false and changes nothing', () => {
     const t = setup();
     expect(t.dr.handleClick({ target: { closest: () => null } })).toBe(false);

@@ -21,7 +21,7 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
-import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition } from './edition.js';
+import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition, areaInEdition } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
@@ -1077,6 +1077,8 @@ export function createProgression(storage) {
       const item = CATALOG[kind][id];
       if (!item || item.prize || api.isUnlocked(kind, id) || state.points < item.price) return false;
       if (item.requires && state.walks[item.requires.area] < item.requires.walks) return false;
+      // Legacy hides a Clan-only place; the hidden card is not the only guard.
+      if (kind === 'areas' && !areaInEdition(item, state.edition)) return false;
       return true;
     },
     buy(kind, id) {
@@ -1198,8 +1200,10 @@ export function createProgression(storage) {
         save();
       }
     },
+    // A Clan-only place cannot be chosen in Legacy. Refusing leaves state.area
+    // alone, so a kid already standing in the Woods keeps it for Clan Edition.
     setArea(id) {
-      if (api.isUnlocked('areas', id)) {
+      if (api.isUnlocked('areas', id) && areaInEdition(CATALOG.areas[id], state.edition)) {
         state.area = id;
         save();
       }

@@ -55,6 +55,18 @@ export function effectiveArea(state, catalog) {
   return area;
 }
 
+// How a room walk in `area` lands on this kid's save. 'set' makes it their
+// place, as a room start always has; 'override' walks it for this one walk
+// only. A Legacy kid gets an override when their own place is Clan-only (so it
+// is not rewritten to the Neighborhood) or when the room's place is Clan-only
+// (setArea refuses those in Legacy).
+export function roomAreaMove(state, catalog, area) {
+  if (!state || state.edition !== 'legacy') return 'set';
+  const areas = catalog && catalog.areas;
+  const clanOnly = (id) => !!areas && Object.hasOwn(areas, id) && !areaInEdition(areas[id], 'legacy');
+  return clanOnly(state.area) || clanOnly(area) ? 'override' : 'set';
+}
+
 export function rivalForWalk(areaId, edition) {
   return edition === 'legacy' ? null : rivalFor(areaId);
 }

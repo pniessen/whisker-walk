@@ -14,6 +14,7 @@ import { markKey } from '../src/marks.js';
 import { KNOCK_KINDS, propsFor } from '../src/propsets.js';
 import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
+import { OUTSIDE_WORDS } from '../src/clanwords.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { catsInArea } from '../src/colony.js';
 import { createGoals } from '../src/goals.js';
@@ -3094,6 +3095,40 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
       expect(h.sounds).not.toContain('fanfare');
     });
   });
+
+  // --- 8. Legacy has no outsider word (Clan Edition Task 8) ----------------
+
+  describe('the outsider word follows the edition', () => {
+    it('in Legacy, meeting a stray says no outsider word', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.progression.setEdition('legacy');
+      h.session.walkStamp = stampFor(s.name, false);
+      h.greet(s);
+      expect(h.toasts).toContain(`You met ${s.name}! ♡`);
+    });
+
+    it('in Clan Edition the outsider word is still there', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      h.session.walkStamp = stampFor(s.name, false);
+      h.greet(s);
+      expect(h.toasts.some((t) => t.includes(` the ${OUTSIDE_WORDS.met}`))).toBe(true);
+    });
+
+    it('in Legacy a cross stray hisses and waits with no outsider word', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 2.0);
+      h.progression.setEdition('legacy');
+      h.session.walkStamp = stampFor(s.name, true);
+      h.greet(s);
+      expect(h.toasts).toContain(`${s.name} hisses and backs away… 😾`);
+      s.group.position.set(0, 0, 2.0);
+      h.scan();
+      expect(h.session.prompt.kind).toBe('stray-gift');
+      expect(h.prompts.at(-1)).toBe(`${s.name} is cross — a treat costs ${TREAT_COST} 🐾`);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -3231,6 +3266,18 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     expect(h.kind()).toBe('stray-feed');
     expect(h.session.prompt.data).toBe(h.stray);
     expect(h.prompts.at(-1)).toBe('E — feed Pickles 🐟');
+  });
+
+  it('no feed prompt where the colony does not feed', () => {
+    const h = colonyHarness();
+    h.press();                                // touch noses
+    expect(h.stray.greeted).toBe(true);
+    h.session.areaId = 'woods';
+    h.scan();
+    expect(h.kind()).not.toBe('stray-feed');
+    h.session.areaId = 'park';
+    h.scan();
+    expect(h.kind()).toBe('stray-feed');
   });
 
   it('the greet still wins the slot over a feed', () => {

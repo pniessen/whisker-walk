@@ -154,6 +154,27 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(kid.progression.state.area).toBe('park');
   });
 
+  it('a Legacy member whose place is the Woods keeps it after a room start', async () => {
+    const { host, kid } = await inPairRoom({ kid: { unlocked: ['woods'] } });
+    kid.progression.setArea('woods');
+    kid.progression.setEdition('legacy');
+    expect(host.startRoomTogether({ area: 'neighborhood', dusk: false })).toBe(true);
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks.at(-1).areaOverride).toBe('neighborhood');
+    expect(kid.progression.state.area).toBe('woods');
+  });
+
+  it('a Legacy member walks a Clan host\'s Woods without it becoming theirs', async () => {
+    const { host, kid } = await inPairRoom({ host: { unlocked: ['woods'] }, kid: { unlocked: ['park', 'woods'] } });
+    host.progression.setArea('woods');
+    kid.progression.setArea('park');
+    kid.progression.setEdition('legacy');
+    host.startRoomTogether({ area: 'woods', dusk: false });
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks.at(-1).areaOverride).toBe('woods');
+    expect(kid.progression.state.area).toBe('park');
+  });
+
   it('a host whose phone is asleep no longer strands the room: the member just goes', async () => {
     const kid = await withSilentHost();
     expect(kid.rooms.getState().isHost).toBe(false);

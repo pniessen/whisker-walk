@@ -2,7 +2,7 @@ import { test, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { CLAN_SUFFIX, PLACE_WORDS } from '../src/clanwords.js';
 import { rivalFor } from '../src/rivalclans.js';
-import { EDITIONS, DEFAULT_EDITION, sanitizeEdition, isClanEdition, editionTitle, areaInEdition, placeName, effectiveArea, rivalForWalk, accessoryName } from '../src/edition.js';
+import { EDITIONS, DEFAULT_EDITION, sanitizeEdition, isClanEdition, editionTitle, areaInEdition, placeName, effectiveArea, rivalForWalk, accessoryName, roomAreaMove } from '../src/edition.js';
 
 const CAT = { areas: { neighborhood: {}, park: {}, woods: { edition: 'canon' } } };
 
@@ -52,4 +52,14 @@ test('accessoryName drops the clan word in Legacy only', () => {
   expect(accessoryName(paint, 'legacy')).toBe('War Paint');
   expect(accessoryName(paint, 'canon')).toBe(`${CLAN_SUFFIX} War Paint`);
   expect(accessoryName({ name: 'Bow' }, 'legacy')).toBe('Bow');
+});
+test('roomAreaMove never moves a Legacy kid off a canon-only place', () => {
+  expect(roomAreaMove({ edition: 'legacy', area: 'woods' }, CATALOG, 'neighborhood')).toBe('override');
+  expect(roomAreaMove({ edition: 'legacy', area: 'park' }, CATALOG, 'seaside')).toBe('set');
+  expect(roomAreaMove({ edition: 'canon', area: 'woods' }, CATALOG, 'park')).toBe('set');
+});
+test('roomAreaMove never makes a canon-only place a Legacy kid\'s own', () => {
+  // setArea refuses it in Legacy, so a room walk there must be an override.
+  expect(roomAreaMove({ edition: 'legacy', area: 'park' }, CATALOG, 'woods')).toBe('override');
+  expect(roomAreaMove({ edition: 'canon', area: 'park' }, CATALOG, 'woods')).toBe('set');
 });

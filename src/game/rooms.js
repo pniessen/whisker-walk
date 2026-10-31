@@ -15,6 +15,7 @@
 import { rankFor, CATALOG } from '../progression.js';
 import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
 import { seedFromCode } from '../rng.js';
+import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
 
 // v21 Stream 2, Task 12 — pair walks. The two siblings' room is 'P' + their
@@ -121,10 +122,12 @@ export function createRooms({
 
   // Start this member's half of a room walk. An area I haven't unlocked is
   // rendered for this one walk via the override instead of being forced onto
-  // my save; an unlocked one becomes my area, as it always has.
+  // my save; an unlocked one becomes my area, as it always has, unless the
+  // edition says otherwise (roomAreaMove: a Legacy kid's Clan-only place is
+  // never rewritten, and a Clan-only room place is never made theirs).
   function startRoomWalk({ area, dusk, seed }) {
     clearGathering();
-    if (progression.isUnlocked('areas', area)) {
+    if (progression.isUnlocked('areas', area) && roomAreaMove(progression.state, CATALOG, area) === 'set') {
       progression.setArea(area);
       startWalk({ duskMode: dusk, roomSeed: seed });
     } else {
