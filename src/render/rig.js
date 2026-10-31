@@ -374,8 +374,10 @@ export function assignShadowCastersFor(child) {
     // prop, and receiving would band them with the very shadows they
     // exist to reinforce. The module sets castShadow/receiveShadow false
     // itself; without the opt-out here this sweep would overwrite it
-    // moments later.
-    if (obj.isMesh && !obj.userData.contactDecal) {
+    // moments later. userData.grass (render/grass.js) opts out the same way:
+    // ground cover must never cast (its whole budget is 0 shadow-pass draws),
+    // and walk.js adds it after this sweep anyway — this is the guard rail.
+    if (obj.isMesh && !obj.userData.contactDecal && !obj.userData.grass) {
       obj.receiveShadow = true;
       obj.castShadow = eligible && !isTransparentMat(obj.material);
       meshes++;
