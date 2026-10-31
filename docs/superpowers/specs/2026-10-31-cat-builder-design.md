@@ -230,3 +230,21 @@ The room profile is tracked at join (`rooms.js`). If she finishes the builder wh
 1. **Personalities she hasn't bought.** Fearless, Pouncer and Steady belong to Black Cat, Calico and Maine Coon, which cost 45, 45 and 60 paws. Reading "free from the start, any of the six" literally, a custom cat can have them right away. Buying those three would then only buy their looks. **Recommended: yes, all six from the start, as decided.** Say if you'd rather lock a personality until its cat is bought.
 2. **Whose name does her brother see?** While she walks her cat Ember, the design shows "Ember" on the cat's name tag in co-walks, ghosts and the roster. The colony panel, which names the player, keeps her usual pet name. The alternative is to keep her usual pet name everywhere.
 3. **No delete at 3 cats.** At 3, she changes one of her cats instead of deleting it. Is that OK, or should there be a "let this cat go" button with a confirm?
+
+---
+
+## Owner's answers (2026-10-31): these settle §7's open questions
+
+1. **Co-walk name:** her brother sees **her usual pet name** whichever cat she walks as. The custom cat's name shows only on her own screen. The profile's `pet_name` (ghosts, friend list, walk log, reply seeds) never changes when she switches cats, so the plan must not reuse `petName` for the cat's name.
+2. **Personalities:** **all six are open from the start**, whether or not she owns the matching ready-made cat ("free from the start"). The Personality row has no locked state and no buy path.
+3. **At 3 custom cats:** **no delete button.** She makes a new cat by reopening the builder on one of her three and changing it. No removal API, no id reuse, and no confirm UI.
+
+## Fixes from the builder check (to apply in the plan)
+
+- **Golden fingerprints:** the existing determinism test only checks that a preset builds the same twice in one run. The plan must add golden fingerprints of every preset before touching `model.js` (the cat body plan already does; reuse them).
+- **More direct readers of `equipped.cat`:**
+  - `src/ui/dressingroom.js` (selected portrait and hero);
+  - the retired-cat farewell in `progression.js`.
+- **`sanitizeState` rebuilds `equipped`** as `{cat, collar, …slots}`, so `equipped.custom` must be added there explicitly or it is silently dropped.
+- **Cloud restore is manual only** (`cloudsync.js`: "Load from cloud"). The older-build mitigation is narrower than §4 implies; say so.
+- **Ordering:** the cat body reshape (docs/superpowers/plans/2026-10-31-cat-body.md) lands first. The builder's mesh ceilings drop from 33/27 to 31/25, because body patterns are painted and free.
