@@ -120,7 +120,7 @@ otherwise, these win:
 7. **The territory layout comes from the 11-year-old's own drawing.** She
    rearranged the proposal on 2026-10-31. It is saved in the "Clan Territory
    Map" artifact (https://claude.ai/artifact/K8j8579QoYSxJj1eFajuxC,
-   db `layouts/current`, version 17), on a 1000 × 700 board with north up.
+   db `layouts/current`, version 20), on a 1000 × 700 board with north up.
    Her layout replaces §3's.
 
    ```
