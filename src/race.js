@@ -69,6 +69,11 @@ export function createRace(scene, course, spawn) {
   });
   if (rings.length > 0) rings[0].mesh.material = brightMat;
 
+  // Plain positions for the corner map, built once so the per-frame read
+  // allocates nothing.
+  const ringPositions = rings.map((r) => ({ x: r.x, z: r.z }));
+  const padPosition = { x: pad.position.x, z: pad.position.z };
+
   scene.add(group);
 
   let state = 'idle'; // 'idle' | 'running' | 'done'
@@ -85,6 +90,12 @@ export function createRace(scene, course, spawn) {
     },
     get currentRing() {
       return currentRing;
+    },
+    get rings() {
+      return ringPositions;
+    },
+    get pad() {
+      return padPosition;
     },
     // update(dt, catPos) — while running, accumulates elapsed time and
     // checks the cat against ONLY the current ring (rings[currentRing - 1]);

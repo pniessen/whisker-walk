@@ -276,6 +276,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const s = settings.all();
     const pct = Math.round(s.volume * 100);
     const musicPct = Math.round(s.musicVolume * 100);
+    // The corner map's mode is kept on the save, not in settings, because
+    // tapping the map during a walk flips the same value.
+    const mapMode = progression.state.mapMode;
     return `
       <section class="settings-section"><h2>Settings ⚙️</h2>
         <div class="settings-grid">
@@ -293,6 +296,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <label class="settings-row"><input type="checkbox" id="set-invert-y" ${s.invertY ? 'checked' : ''} /> Invert look (Y axis)</label>
           <label class="settings-row"><input type="checkbox" id="set-left-handed" ${s.leftHanded ? 'checked' : ''} /> Left-handed touch controls</label>
           <label class="settings-row"><input type="checkbox" id="set-reduced-motion" ${s.reducedMotion ? 'checked' : ''} /> Reduced motion</label>
+          <label class="settings-row settings-quality">
+            <span>Map</span>
+            <select id="set-map-mode">
+              <option value="north" ${mapMode === 'north' ? 'selected' : ''}>North up</option>
+              <option value="turn" ${mapMode === 'turn' ? 'selected' : ''}>Turns with me</option>
+            </select>
+          </label>
           <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
           <label class="settings-row"><input type="checkbox" id="set-perf-readout" ${s.perfReadout ? 'checked' : ''} /> Performance readout (fps counter)</label>
           <label class="settings-row settings-quality">
@@ -1253,6 +1263,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'set-quality' && settings) {
       settings.set('quality', e.target.value);
       onSettingsChange?.();
+      render();
+      return;
+    }
+    if (e.target.id === 'set-map-mode') {
+      progression.setMapMode(e.target.value);
       render();
       return;
     }

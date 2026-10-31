@@ -152,3 +152,12 @@ describe('createRace', () => {
     expect(scene.objects.has(race.group)).toBe(false);
   });
 });
+
+describe('createRace — positions for the corner map', () => {
+  it('race exposes ring and pad positions', () => {
+    const course = makeCourse();
+    const race = createRace(fakeScene(), course, SPAWN);
+    expect(race.rings).toEqual(course.map((p) => ({ x: p.x, z: p.z })));
+    expect(race.pad).toEqual({ x: SPAWN.x + 2, z: SPAWN.z - 3 });
+  });
+});

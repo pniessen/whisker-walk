@@ -54,6 +54,7 @@ import { strayBreed } from '../straynames.js';
 import { legendaryFor, legendaryRoll } from '../legendary.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
+import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { isFearless } from '../dogs.js';
@@ -67,6 +68,7 @@ import { rivalFor } from '../rivalclans.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
+import { buildMapLayer, createMinimap } from '../ui/minimap.js';
 import { createChatBubbles } from '../chatbubble.js';
 import { createChatWheel } from '../ui/chatwheel.js';
 import { phraseById, createChatRateLimiter, shouldShowIncomingChat } from '../chat.js';
@@ -507,7 +509,15 @@ export function createWalkLifecycle({
     // walk, the same granularity (and the same "next walk" boundary) as the
     // zoom tuning above.
     player.setSwim(canSwim(progression.state));
-    camera.position.copy(cat.position).add(cameraOffset(0, 0.18));
+    // Camera zoom: the step this device last chose (settings.cameraZoom),
+    // capped in the den, applied instantly so a walk never opens with the
+    // camera gliding out. reducedMotion is set first so later zoom presses
+    // this walk are instant too.
+    player.setReducedMotion(reducedMotion);
+    const zoomStep = clampZoomStep(settings.get('cameraZoom'), maxZoomStep(isDen));
+    player.setCameraZoom(zoomStep, { instant: true });
+    const startView = zoomView(zoomStep);
+    camera.position.copy(cat.position).add(cameraOffset(0, 0.18, startView.dist, startView.height));
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
     const equipped = state.equipped;
@@ -1328,7 +1338,7 @@ export function createWalkLifecycle({
     const today = new Date().toISOString().slice(0, 10);
     session.race = walkPois.length >= 5
       ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn)
-      : { state: 'idle', timeMs: 0, currentRing: 0, update() {}, promptAt: () => null, begin() {}, dispose() {} };
+      : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
     session.raceDate = today;
     // last "ring N/5" value written to the HUD objective (or null when the
@@ -1482,6 +1492,25 @@ export function createWalkLifecycle({
     // walk starts; that's fine.
     if (roomSeed === undefined && MP) spawnGhosts(session);
 
+    // The corner map, outdoors only: the den is one small room and has no
+    // map, so session.minimap is null there and every use guards for it.
+    // scenicsVisited is filled by interactions.js's 4 m scenic check and
+    // greys out the spots already visited this walk. A tap on the map flips
+    // north-up / turning and remembers the choice in the save.
+    session.scenicsVisited = isDen ? null : new Set();
+    session.minimap = isDen ? null : createMinimap(hud.mapHost, {
+      areaId,
+      layer: buildMapLayer(areaData, scene),
+      mode: progression.state.mapMode,
+      onToggle: () => {
+        const m = session.minimap.mode === 'north' ? 'turn' : 'north';
+        progression.setMapMode(m);
+        session.minimap.setMode(m);
+      },
+    });
+    // Whether the map is showing; the render loop hides it while paused.
+    session.minimapShown = null;
+
     log.startWalk();
     hud.show();
     hud.setArea(areaData.name);
@@ -1494,8 +1523,8 @@ export function createWalkLifecycle({
       <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
       <button id="btn-end">End walk &amp; head home</button>
       <p class="controls-hint">${getIsTouch()
-        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · tap the prompt to interact'
-        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera'}</p></div>`;
+        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
+        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -1671,6 +1700,7 @@ export function createWalkLifecycle({
     session.gifts.dispose();
     session.chatBubbles?.clear();
     session.chatWheel?.destroy();
+    session.minimap?.dispose();
     setSession(null);
     player.disable();
     denShop?.setActive(false);

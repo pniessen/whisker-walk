@@ -5,10 +5,11 @@ import * as THREE from 'three';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-export function cameraOffset(yaw, pitch, dist = 4.5, height = 2.2) {
+// `out` lets the per-frame caller (player.update) reuse one vector.
+export function cameraOffset(yaw, pitch, dist = 4.5, height = 2.2, out = new THREE.Vector3()) {
   const p = THREE.MathUtils.clamp(pitch, -0.3, 0.9);
   const back = dist * Math.cos(p);
-  return new THREE.Vector3(
+  return out.set(
     Math.sin(yaw) * back,
     height + dist * Math.sin(p) * 0.9,
     Math.cos(yaw) * back
