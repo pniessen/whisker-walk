@@ -745,6 +745,9 @@ body.left-handed .chat-tray { left: 0; right: auto; }
 .dr-header { grid-area: header; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .dr-title { font-weight: 700; font-size: 20px; margin-right: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .dr-edition { color: #f2c14e; white-space: nowrap; }
+/* The edition in the title is a switch, but reads as part of the title. */
+button.dr-edition { font: inherit; color: #f2c14e; border: 0; background: none; padding: 0; cursor: pointer; }
+button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: underline; }
 .dr-chip, .dr-stats > span { background: var(--panel); border-radius: 10px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
 .dr-chip.gold { color: var(--gold); font-weight: 700; }
 .dr-chip.visit {

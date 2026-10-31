@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { SKILLS } from '../src/skills.js';
+import { CLAN_SUFFIX } from '../src/clanwords.js';
 import { CAT_BLURBS, ACC_BLURBS } from '../src/ui/catblurbs.js';
 import {
   HOME_SHEETS, SHEET_LABEL, resolveSheet, PLACE_PICTURE,
@@ -263,5 +264,40 @@ describe('dressing-room places by edition', () => {
     const woods = buildDressingModel(s, CATALOG).places.find((p) => p.id === 'woods');
     expect(woods).toMatchObject({ name: 'The Woods', locked: true, price: 0 });
     expect(woods.lockLine).toBe('opens after 2 walks in Twolegplace · 1/2 so far');
+  });
+});
+
+describe('the dressing room in each edition', () => {
+  it('dressingroom: Legacy names the war paint without the clan word', () => {
+    const s = defaultishState();
+    s.unlocked.accessories.push('warpaint');
+    s.edition = 'legacy';
+    const legacy = renderSlotPickerHtml(s, CATALOG, 'face', null);
+    expect(legacy).toContain('War Paint');
+    expect(legacy).not.toContain(`${CLAN_SUFFIX} War Paint`);
+    s.edition = 'canon';
+    expect(renderSlotPickerHtml(s, CATALOG, 'face', null)).toContain(`${CLAN_SUFFIX} War Paint`);
+  });
+
+  it('the face slot label names the worn war paint by edition', () => {
+    const s = defaultishState();
+    s.unlocked.accessories.push('warpaint');
+    s.equipped.face = 'warpaint';
+    s.edition = 'legacy';
+    expect(buildDressingModel(s, CATALOG).slots.find((x) => x.slot === 'face').itemName).toBe('War Paint');
+    s.edition = 'canon';
+    expect(buildDressingModel(s, CATALOG).slots.find((x) => x.slot === 'face').itemName).toBe(`${CLAN_SUFFIX} War Paint`);
+  });
+
+  it("Legacy's dock says Cozy Neighborhood when the chosen place is the Woods", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('woods');
+    s.area = 'woods';
+    expect(buildDressingModel(s, CATALOG).currentPlace).toEqual({ id: 'woods', name: 'The Woods' });
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.currentPlace).toEqual({ id: 'neighborhood', name: 'Cozy Neighborhood' });
+    expect(renderDressingRoomHtml({ model: m })).toContain('Walking in <b>Cozy Neighborhood</b>');
+    expect(s.area).toBe('woods');
   });
 });

@@ -256,7 +256,7 @@ export const CATALOG = {
     balloonbunch: { name: 'Balloon Bunch', slot: 'back', price: 0, prize: true },
     sparklecollar: { name: 'Sparkle Collar', slot: 'collar', price: 0, prize: true },
     // "Clan War Paint": the borrowed word comes from clanwords.js, like every other.
-    warpaint: { name: `${CLAN_SUFFIX} War Paint`, slot: 'face', price: 0, prize: true },
+    warpaint: { name: `${CLAN_SUFFIX} War Paint`, legacyName: 'War Paint', slot: 'face', price: 0, prize: true },
     candlehat: { name: 'Birthday-Candle Hat', slot: 'head', price: 0, prize: true },
     streamerscarf: { name: 'Streamer Scarf', slot: 'neck', price: 0, prize: true },
     goldbooties: { name: 'Golden Paw Booties', slot: 'feet', price: 0, prize: true },

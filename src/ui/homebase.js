@@ -7,7 +7,7 @@ import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
-import { CLAN_SUFFIX } from '../clanwords.js';
+import { editionTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
   theySaidNo, PAIR_DECLINED_LINE, tradeErrorLine, confirmClickAllowed,
@@ -196,7 +196,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <button id="wt-petname-save">Save</button>
         ${petNameError ? `<div class="tag error">${escapeHtml(petNameError)}</div>` : ''}
       </div>
-      ${renderStarNamePicker(candidateStarNames(myId), name)}
+      ${isClanEdition(progression.state) ? renderStarNamePicker(candidateStarNames(myId), name) : ''}
       <div class="wt-actions">
         <button id="wt-host" ${hasValidPetName ? '' : 'disabled'}>Host a walk</button>
         <div class="wt-join-row">
@@ -279,6 +279,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // The corner map's mode is kept on the save, not in settings, because
     // tapping the map during a walk flips the same value.
     const mapMode = progression.state.mapMode;
+    const edition = progression.state.edition;
     return `
       <section class="settings-section"><h2>Settings ⚙️</h2>
         <div class="settings-grid">
@@ -301,6 +302,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
             <select id="set-map-mode">
               <option value="north" ${mapMode === 'north' ? 'selected' : ''}>North up</option>
               <option value="turn" ${mapMode === 'turn' ? 'selected' : ''}>Turns with me</option>
+            </select>
+          </label>
+          <label class="settings-row settings-quality">
+            <span>Game edition</span>
+            <select id="set-edition">
+              <option value="canon" ${edition === 'canon' ? 'selected' : ''}>${editionTitle('canon')}</option>
+              <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
           <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
@@ -741,7 +749,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <section class="colony-section"><h2>Your colony 🐈</h2>
           ${renderColonyHtml({
             colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
-            status: colonyStatus, clanRoles: s.clanRoles, clanName: s.clan.name,
+            status: colonyStatus, clanRoles: s.clanRoles, clanName: s.clan.name, edition: s.edition,
             owned: s.unlocked.accessories, catalog: CATALOG,
             pairing: {
               busy: pairBusy, error: pairError, code: pairCode,
@@ -798,13 +806,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       // Ruling 10: every sheet keeps Start pinned at the bottom (the host-a-
       // room flow presses "Start the walk together" from 👫 Play together). The room
       // isn't rendered here, so this is still the only #btn-start.
-      const areaId = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
+      const chosen = Object.prototype.hasOwnProperty.call(CATALOG.areas, s.area) ? s.area : Object.keys(CATALOG.areas)[0];
+      // Where the walk actually happens: Legacy walks the Neighborhood in place
+      // of a Clan-only choice, and must not name it.
+      const areaId = effectiveArea({ area: chosen, edition: s.edition }, CATALOG);
       root.innerHTML = `
       <div class="homebase-scroll hb-sheet" data-sheet="${escapeHtml(openSheet)}">
         <button id="hb-back" class="hb-back">← Back to my cat</button>
         ${renderSheetBody(openSheet, s, colonyStatus)}
         <footer class="hb-sheet-dock">
-          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(CATALOG.areas[areaId].name)}</b></div>
+          <div class="where"><img src="${escapeHtml(PLACE_PICTURE(areaId))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(placeName(areaId, s.edition, CATALOG))}</b></div>
           ${duskHtml}
           ${startRowHtml(roomState)}
         </footer>
@@ -832,7 +843,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     const raceBestMs = s.race?.date === today ? asFiniteNonNeg(s.race?.bestMs, null) : null;
     // The header's pieces stay inline, not in one wrapper: on a phone
     // .dr-header is display: contents, so the stats can move into More.
-    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <span class="dr-edition">${CLAN_SUFFIX} Edition</span></h1>`
+    const headerHtml = `<h1 class="dr-title">🐾 Whisker Walk 2: <button class="dr-edition" data-edition-toggle>${editionTitle(s.edition)}</button></h1>`
       + visitBadgeHtml(s.visits)
       + `<div class="dr-chip gold">🐾 ${asFiniteNonNeg(s.points, 0)} whisker points</div>`
       + `<div class="dr-chip">🏆 ${escapeHtml(rank.title)} — ${escapeHtml(nextLine)}</div>`;
@@ -863,6 +874,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (dressing && dressing.handleClick(e)) return;
     if (e.target.id === 'hb-back') {
       setSheet(null);
+      return;
+    }
+    // The title's edition is a switch: a tap flips it. Legacy only hides the
+    // clan layer, so flipping never loses anything.
+    if (e.target.closest?.('[data-edition-toggle]')) {
+      progression.setEdition(isClanEdition(progression.state) ? 'legacy' : 'canon');
+      render();
       return;
     }
     if (e.target.id === 'colony-pair-open') {
@@ -1268,6 +1286,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);
+      render();
+      return;
+    }
+    if (e.target.id === 'set-edition') {
+      progression.setEdition(e.target.value);
       render();
       return;
     }

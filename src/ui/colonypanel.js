@@ -17,6 +17,7 @@ import { clanNameOf, colonyRankFor } from '../clannames.js';
 import { RANK_WORDS, RANK_KEYS } from '../clanwords.js';
 import { roleFor } from '../clanroles.js';
 import { isTradeableAccessory } from '../progression.js';
+import { placeName, accessoryName } from '../edition.js';
 
 // Duplicated from hometabs.js rather than imported (a copy beats a shared
 // helper module for six lines).
@@ -39,7 +40,7 @@ function modeLine(mode, partnerName) {
   }
 }
 
-function dressSelect(cat, owned, catalog) {
+function dressSelect(cat, owned, catalog, edition) {
   const accessories = catalog && catalog.accessories;
   const ids = [];
   for (const id of Array.isArray(owned) ? owned : []) {
@@ -49,7 +50,7 @@ function dressSelect(cat, owned, catalog) {
   // so the select never silently shows "nothing" for a dressed cat.
   if (typeof cat.wear === 'string' && own(accessories, cat.wear) && !ids.includes(cat.wear)) ids.push(cat.wear);
   const opts = ids.map((id) =>
-    `<option value="${escapeHtml(id)}"${cat.wear === id ? ' selected' : ''}>${escapeHtml(accessories[id].name)}</option>`);
+    `<option value="${escapeHtml(id)}"${cat.wear === id ? ' selected' : ''}>${escapeHtml(accessoryName(accessories[id], edition))}</option>`);
   return `<label class="colony-dress">Dress ${escapeHtml(cat.name)}
       <select data-colony-dress="${escapeHtml(cat.name)}" aria-label="Dress ${escapeHtml(cat.name)}">
         <option value=""${cat.wear ? '' : ' selected'}>nothing</option>${opts.join('')}
@@ -96,15 +97,17 @@ function verdictsOf(clanRoles) {
 }
 
 function catCard(cat, p, ctx) {
-  const { me, partner, partnerName, catalog, owned } = ctx;
+  const { me, partner, partnerName, catalog, owned, edition } = ctx;
+  const legacy = edition === 'legacy';
   const name = escapeHtml(cat.name);
   // The clan name is a pure display layer over the STORED name, which never
   // changes. clanNameOf passes an unknown non-empty name through verbatim, so a
   // hostile stored name reaches this template by this path too: escape it.
   // The rank is a word, never a level; its text comes by reference from
   // RANK_WORDS so no borrowed vocabulary is typed outside clanwords.js.
-  const headline = escapeHtml(clanNameOf(cat.name, p, colonyRankFor(cat.name, p)));
-  const rank = escapeHtml(descriptorFor(cat, p, ctx.verdicts));
+  // Legacy hides the clan layer: the headline is the stored name, with no rank.
+  const headline = legacy ? name : escapeHtml(clanNameOf(cat.name, p, colonyRankFor(cat.name, p)));
+  const rank = legacy ? '' : ` <span class="colony-rank">${escapeHtml(descriptorFor(cat, p, ctx.verdicts))}</span>`;
   const mine = p.byPlayer.find((b) => b.by === me)?.n ?? 0;
   const theirs = partner ? (p.byPlayer.find((b) => b.by === partner.playerId)?.n ?? 0) : 0;
   const fed = partner ? `you fed ${mine} · ${partnerName} fed ${theirs}` : `you fed ${mine}`;
@@ -112,7 +115,9 @@ function catCard(cat, p, ctx) {
   // Waiting on whoever hasn't fed it yet: usually the partner, but if only
   // the partner has fed it, it is waiting for me.
   const waitingFor = p.byPlayer.some((b) => b.by === me) ? partnerName : 'you';
-  const area = own(catalog && catalog.areas, cat.area) ? catalog.areas[cat.area].name : cat.area;
+  // placeName gives the Neighborhood its Clan Edition name; an unknown area
+  // keeps showing its raw id, as before.
+  const area = placeName(cat.area, edition, catalog) || cat.area;
   let where;
   if (p.tamed) where = 'lives in your den 🏠';
   else if (p.needsSecondFeeder) where = `shy — waiting for ${waitingFor} 🐾`;
@@ -134,10 +139,10 @@ function catCard(cat, p, ctx) {
   const stored = headline === name ? '' : `${name} `;
   const breed = escapeHtml(typeof cat.name === 'string' ? strayBreed(cat.name) : '');
   const titleLine = `<div class="colony-title">${stored}<span class="colony-breed">${breed}</span></div>`;
-  const dress = cat.finder === me ? dressSelect(cat, owned, catalog) : '';
+  const dress = cat.finder === me ? dressSelect(cat, owned, catalog, edition) : '';
 
   return `<div class="card colony-card ${p.tamed ? 'selected' : ''}" data-cat="${name}">
-    <div class="card-name">${headline} <span class="colony-rank">${rank}</span></div>
+    <div class="card-name">${headline}${rank}</div>
     ${titleLine}
     <div class="colony-bar" role="progressbar" aria-label="${headline}'s trust"
       aria-valuemin="0" aria-valuemax="${p.need}" aria-valuenow="${p.have}">${head}<span class="colony-fed" style="width:${fedPct}%"></span></div>
@@ -270,13 +275,15 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 // string for the Colony panel body. Safe to call with anything; never throws.
 // `now` (epoch ms, the caller's Date.now()) is the clock for the shy rule,
 // which only waits on a partner who is still playing (colony.tamingProgress).
+// `edition` ('canon' | 'legacy', progression.state.edition): Legacy shows each
+// cat under its stored name with no rank or role, and no clan banner.
 // `clanRoles` (progression.state.clanRoles) names the medicine cat and the
 // deputy; it is optional and read defensively.
 // `trades` ({ give, want, confirmId, busy, error }) feeds renderTradesHtml.
 // `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
 // pairing area sits right under the header so it is never buried under a long
 // list of cats. With nothing to show it is still the same empty placeholder.
-export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades, clanRoles, clanName } = {}) {
+export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades, clanRoles, clanName, edition } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -284,7 +291,7 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   // placed into the HTML, so nothing is ever escaped twice or not at all.
   const partnerName = partner && partner.petName ? String(partner.petName) : 'your partner';
 
-  const ctx = { me, partner, partnerName, catalog, owned, feeds: safeColony.feeds, verdicts: verdictsOf(clanRoles) };
+  const ctx = { me, partner, partnerName, catalog, owned, edition, feeds: safeColony.feeds, verdicts: verdictsOf(clanRoles) };
   const rows = cats.map((cat) => ({ cat, p: tamingProgress(safeColony, cat.name, { members, now }) }));
   rows.sort((a, b) =>
     (b.p.tamed - a.p.tamed) || (b.p.have - a.p.have) || (a.cat.name < b.cat.name ? -1 : a.cat.name > b.cat.name ? 1 : 0));
@@ -304,7 +311,8 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   // Trading is only for a live pair: the offer RPCs need the partner on the server.
   const trading = mode === 'paired'
     ? `<div id="colony-trading">${renderTradesHtml({ colony: safeColony, me, owned, catalog, state: trades })}</div>` : '';
-  const title = typeof clanName === 'string' && clanName ? escapeHtml(clanName) : '';
+  // Legacy hides the clan's name; it stays in the save for Clan Edition.
+  const title = edition !== 'legacy' && typeof clanName === 'string' && clanName ? escapeHtml(clanName) : '';
   const heading = title ? `<h3 class="colony-banner">${title}</h3>` : '';
   return `${heading}${header}<div id="colony-pairing">${pair}</div>${trading}${list}${full}`;
 }

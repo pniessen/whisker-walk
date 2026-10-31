@@ -4,7 +4,7 @@
 // renders exactly once. Nothing here writes state: ownership and
 // affordability mirror progression.isUnlocked/canBuy, purely from the save.
 import { asFiniteNonNeg } from '../progression.js';
-import { areaInEdition, placeName } from '../edition.js';
+import { areaInEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
@@ -87,7 +87,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   const slots = slotIds.map((slot) => {
     const trying = !!t && t.slot === slot;
     const itemId = trying ? t.id : equippedId(state, catalog, slot);
-    return { slot, label: labelOf(slot), itemId, itemName: itemId ? catalog.accessories[itemId].name : null, trying };
+    return { slot, label: labelOf(slot), itemId, itemName: itemId ? accessoryName(catalog.accessories[itemId], state?.edition) : null, trying };
   });
   const wearingCount = slotIds.filter((s) => equippedId(state, catalog, s)).length;
 
@@ -110,9 +110,13 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
 
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
 
+  // Where the walk actually happens: a Legacy kid whose chosen place is
+  // Clan-only walks the Neighborhood, so the dock must not name the Woods.
+  const walkArea = effectiveArea({ area, edition: state?.edition }, catalog);
+
   return {
     hero, cats, slots, wearingCount, slotCount: slotIds.length, places,
-    currentPlace: { id: area, name: catalog.areas[area]?.name ?? '' },
+    currentPlace: { id: walkArea, name: placeName(walkArea, state?.edition, catalog) },
     // Prizes are won, not collected from the shop, so they stay out of both totals.
     ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
     accessoryTotal: shopIds.length,
@@ -138,7 +142,7 @@ export function renderSlotPickerHtml(state, catalog, slot, tryOn, thumbs) {
     const on = owned && worn === id && !(t && t.slot === slot && t.id !== id);
     const trying = !!t && t.slot === slot && t.id === id;
     const pic = img(thumbs?.accessories?.[id], '');
-    const name = escapeHtml(a.name);
+    const name = escapeHtml(accessoryName(a, state?.edition));
     const attrs = (act) => `data-dr-acc="${escapeHtml(id)}" data-dr-act="${act}"`;
     // An unwon prize stays a surprise: no data-dr-acc (the controller ignores
     // it), no price, no try-on.

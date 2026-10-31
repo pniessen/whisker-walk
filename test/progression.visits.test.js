@@ -31,7 +31,9 @@ describe('the prize catalog', () => {
     };
     expect(Object.keys(want)).toEqual([...VISIT_PRIZES]);
     for (const [id, [name, slot]] of Object.entries(want)) {
-      expect(CATALOG.accessories[id]).toEqual({ name, slot, price: 0, prize: true });
+      // Only the war paint carries a Legacy name: its name is built from the clan word.
+      const legacy = id === 'warpaint' ? { legacyName: 'War Paint' } : {};
+      expect(CATALOG.accessories[id]).toEqual({ name, ...legacy, slot, price: 0, prize: true });
     }
     const prizes = Object.keys(CATALOG.accessories).filter((id) => CATALOG.accessories[id].prize);
     expect(prizes.sort()).toEqual([...VISIT_PRIZES].sort());
