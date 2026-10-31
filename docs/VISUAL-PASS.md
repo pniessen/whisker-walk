@@ -1211,24 +1211,36 @@ between them in about 0.25 s, and jumps there under Reduced motion.
 - **Controls.** Touch: a round + / − pair (44 px) centred under the action
   cluster, mirrored with it in left-handed mode, inside the orbit area in both
   modes; and a two-finger pinch on the orbit area (one step per 30% change in
-  finger spread). Desktop: the wheel (one notch, or a trackpad's worth of
-  small deltas, is one step) and `+`/`=`, `-` (and the numpad). All only
-  during an engaged walk. The HUD and pause-card hints list them.
+  finger spread). A second finger within 150 ms of a still first finger is
+  its pinch partner wherever it lands, so a mid-screen pinch that straddles
+  the joystick zone never walks the cat; after a pinch the remaining finger
+  does not orbit until both lift. Desktop: the wheel, one step per gesture
+  (a gesture ends after a 200 ms pause, so a trackpad flick with its momentum
+  tail is exactly one step and slow notches step once each), and `+`/`=`, `-`
+  matched by character then key position (non-US layouts, numpad), no key
+  repeat. All only during an engaged walk. The den's "no room" toast is
+  throttled to one per 2.5 s. The HUD and pause-card hints list them.
 - **Remembered per device** in `settings.cameraZoom` (0–3, junk → 1), never
   the save. Purely local: no wire events, no `walkRng`.
 - **Page zoom.** `#game` and `.touch-ui` were already `touch-action: none`
   and the touch layer already cancels its touches; the touch layer now also
   cancels Safari's `gesturestart`/`gesturechange`, so a pinch over the game
-  zooms the camera, not the page. Wheel/ctrl+wheel and ctrl +/- are only
+  zooms the camera, not the page. Those are cancelled on all of `#hud`, so a
+  pinch starting on the corner map does not zoom the page either. Wheel/ctrl+wheel and ctrl +/- are only
   cancelled during an engaged walk; menus and the home base keep browser zoom.
 - **Safety.** There was no camera collision before. Beyond the default
   distance only (steps 0–1 are byte-identical to the old camera): the camera
   is held no farther outside the area bounds than the default camera could
   already go (bounds + 4.5 m); if it lands inside a big collider footprint
   (r ≥ 1.9: houses, warehouses, billboards, cliffs, containers — colliders
-  have no heights, so footprints are the only test) it is pulled in along its
-  line to just outside it, never closer than 4.5 m; the pull eases (fast in,
-  slower out). Camera y is floored at 0.5 m. **The den caps at step 1**: the
+  have no heights, so footprints are the only test): the whole cat→camera
+  segment is tested, and the camera stops just before the first footprint it
+  would enter, never closer than 4.5 m. A 1.5 m soft band outside each
+  footprint ramps the limit down to the tangent point so it has no jump
+  there; player.js then eases it (in at ≤ 12 m/s, out at ≤ 6 m/s after a
+  0.3 s hold, so grazing an edge does not pump). A house closer than 4.5 m
+  behind the cat still leaves the camera inside it, as the default always
+  did. Camera y is floored at 0.5 m. **The den caps at step 1**: the
   default camera already reaches its walls, so zooming out indoors only shows
   a toast.
 - **Draw cost** (Neighbourhood spawn, high tier, desktop browser at 375×812
@@ -1249,6 +1261,5 @@ between them in about 0.25 s, and jumps there under Reduced motion.
   so a walk never becomes engaged there. The handlers are unit-tested
   (`test/camzoom.test.js`).
 - The den cap and the building pull-in in the running game (unit-tested only).
-- Whether lines of sight through a house (camera clear of it, house between
-  camera and cat) need handling: not handled, since footprints have no height
-  and the far camera usually sees over roofs.
+- Footprints have no height, so the far camera is pulled in for a house even
+  where it would have seen over the roof.

@@ -587,10 +587,12 @@ function init() {
     if (e.code === 'KeyC' && session && player.engaged) {
       doCameraToggle();
     }
-    const zoomDir = keyZoomDir(e.code);
+    // + / = zoom in, - zooms out, by character first (non-US layouts) then
+    // by key position. A held key does not auto-repeat through the steps.
+    const zoomDir = keyZoomDir(e.key, e.code);
     if (zoomDir && !typing && session && player.engaged) {
       e.preventDefault(); // ctrl/cmd +/- would otherwise also zoom the page
-      zoomBy(zoomDir);
+      if (!e.repeat) zoomBy(zoomDir);
     }
     // chat keys — only during an active engaged walk, never while typing
     // (guards home-base pet-name/friend-code/room-code inputs).

@@ -77,12 +77,20 @@ describe('easeZoomLevel', () => {
 });
 
 describe('zoom inputs step the right way (-1 in/closer, +1 out/farther)', () => {
-  it('keys: + and = zoom in, − zooms out, numpad too, everything else nothing', () => {
-    expect(keyZoomDir('Equal')).toBe(-1);
-    expect(keyZoomDir('NumpadAdd')).toBe(-1);
-    expect(keyZoomDir('Minus')).toBe(1);
-    expect(keyZoomDir('NumpadSubtract')).toBe(1);
-    for (const c of ['KeyE', 'KeyC', 'Digit1', 'Space', 'ArrowUp', '', undefined]) expect(keyZoomDir(c)).toBe(0);
+  it('keys: + and = zoom in, - zooms out, by character first, key position second', () => {
+    expect(keyZoomDir('=', 'Equal')).toBe(-1);
+    expect(keyZoomDir('+', 'Equal')).toBe(-1);
+    expect(keyZoomDir('-', 'Minus')).toBe(1);
+    // German layout: + and - live on BracketRight and Slash
+    expect(keyZoomDir('+', 'BracketRight')).toBe(-1);
+    expect(keyZoomDir('-', 'Slash')).toBe(1);
+    // numpad and a dead key fall back to the position
+    expect(keyZoomDir('+', 'NumpadAdd')).toBe(-1);
+    expect(keyZoomDir(undefined, 'NumpadSubtract')).toBe(1);
+    expect(keyZoomDir('Dead', 'Equal')).toBe(-1);
+    for (const [k, c] of [['e', 'KeyE'], ['c', 'KeyC'], ['1', 'Digit1'], [' ', 'Space'], ['ArrowUp', 'ArrowUp'], ['', ''], [undefined, undefined]]) {
+      expect(keyZoomDir(k, c)).toBe(0);
+    }
   });
 
   it('touch buttons: zoomIn and zoomOut', () => {
@@ -98,18 +106,26 @@ describe('zoom inputs step the right way (-1 in/closer, +1 out/farther)', () => 
     expect(w(3, 1, 2000)).toBe(1); // Firefox line mode: 3 lines down
   });
 
-  it('wheel: a trackpad\'s small deltas add up to one step, and momentum cannot fire a second', () => {
+  it('wheel: a whole trackpad flick with its momentum tail is exactly one step', () => {
     const w = createWheelStepper();
-    const fired = [];
-    // 40 deltas of 10px over 400ms: one 100px notch's worth, then cooldown/
-    // momentum. Without the cooldown this would be four steps.
-    for (let i = 0; i < 40; i++) {
-      const d = w(10, 0, i * 10);
-      if (d) fired.push(d);
+    let steps = 0;
+    // 2 s of events every 16 ms: a fast start decaying to a 1 px tail.
+    for (let i = 0; i < 125; i++) {
+      const d = Math.max(1, Math.round(60 * Math.exp(-i / 25)));
+      if (w(d, 0, i * 16)) steps++;
     }
-    expect(fired.length).toBeLessThanOrEqual(2);
-    expect(fired[0]).toBe(1);
-    expect(w(5, 0, 2000)).toBe(0); // a tiny nudge after a pause does nothing
+    expect(steps).toBe(1);
+    // Small finger twitches never step.
+    const v = createWheelStepper();
+    expect(v(2, 0, 0) || v(-2, 0, 500) || v(3, 0, 1000)).toBe(0);
+  });
+
+  it('wheel: slow notches under 100 px, far apart, step once each', () => {
+    const w = createWheelStepper();
+    const got = [0, 400, 800, 1200].map((t) => w(-50, 0, t));
+    expect(got).toEqual([-1, -1, -1, -1]);
+    // ...and a direction change on the next notch works too
+    expect(w(50, 0, 1600)).toBe(1);
   });
 
   it('pinch: fingers apart zooms in, together zooms out, one step per 30% change', () => {
@@ -160,6 +176,18 @@ describe('createZoomControl', () => {
     expect(settings.get('cameraZoom')).toBe(0);
   });
 
+  it('a held pinch-out in the den shows the toast once, not on every step', () => {
+    let t = 0;
+    const settings = createSettings(fakeStorage());
+    const onCapped = vi.fn();
+    const ctl = createZoomControl({ settings, player: { setCameraZoom() {} }, isDen: () => true, onCapped, now: () => t });
+    for (let i = 0; i < 10; i++) { ctl.step(1); t += 100; }
+    expect(onCapped).toHaveBeenCalledTimes(1);
+    t += 3000;
+    ctl.step(1);
+    expect(onCapped).toHaveBeenCalledTimes(2);
+  });
+
   it('ignores anything that is not a single step', () => {
     const { ctl, player } = setup();
     expect(ctl.step(0)).toBe(null);
@@ -175,33 +203,65 @@ describe('cameraPullScale', () => {
   it('never touches the default or closer camera', () => {
     const off = { x: 0, y: 3, z: 4.5 };
     const wall = [{ x: 0, z: 4.5, r: 3.4 }];
-    expect(cameraPullScale(cat, off, { dist: 4.5, colliders: wall, bounds: { minX: -1, maxX: 1, minZ: -1, maxZ: 1 } })).toBe(1);
-    expect(cameraPullScale(cat, off, { dist: 3, colliders: wall })).toBe(1);
+    expect(cameraPullScale(cat, off, 4.5, wall, { minX: -1, maxX: 1, minZ: -1, maxZ: 1 })).toBe(1);
+    expect(cameraPullScale(cat, off, 3, wall, null)).toBe(1);
   });
 
   it('keeps a far camera no farther past the map edge than the default camera could go', () => {
     const off = { x: 0, y: 8, z: 11 };
     const bounds = { minX: -50, maxX: 50, minZ: -50, maxZ: 2 };
-    const s = cameraPullScale(cat, off, { dist: far.dist, bounds });
+    const s = cameraPullScale(cat, off, far.dist, [], bounds);
     expect(cat.z + off.z * s).toBeCloseTo(2 + 4.5);
   });
 
   it('pulls a far camera out of a house footprint, but not closer than the default', () => {
     const off = { x: 0, y: 8, z: 11 };
     const house = { x: 0, z: 10, r: 3.4 }; // camera point (0, 11) is inside it
-    const s = cameraPullScale(cat, off, { dist: far.dist, colliders: [house] });
+    const s = cameraPullScale(cat, off, far.dist, [house], null);
     const z = off.z * s;
     expect(z).toBeLessThan(10 - 3.4);
     expect(z).toBeGreaterThanOrEqual(4.5 - 1e-9);
     // a big footprint starting right behind the cat still leaves the default distance
-    const near = cameraPullScale(cat, off, { dist: far.dist, colliders: [{ x: 0, z: 8, r: 6 }] });
+    const near = cameraPullScale(cat, off, far.dist, [{ x: 0, z: 8, r: 6 }], null);
     expect(off.z * near).toBeCloseTo(4.5);
+  });
+
+  it('pulls in for a house wholly BETWEEN the cat and the camera, not only one the camera is inside', () => {
+    const off = { x: 0, y: 8, z: 11 };
+    const house = { x: 0, z: 6, r: 3.4 }; // spans z 2.6..9.4; camera point (11) is clear of it
+    const s = cameraPullScale(cat, off, far.dist, [house], null);
+    // The entry point (2.6 m) is closer than the default distance, and the
+    // pull never goes inside the default, so the camera comes in to 4.5 m.
+    expect(off.z * s).toBeCloseTo(4.5);
+    // With the house farther out the camera stops just short of its wall.
+    const s2 = cameraPullScale(cat, off, far.dist, [{ x: 0, z: 9.5, r: 2 }], null);
+    expect(off.z * s2).toBeCloseTo(7.5 - 0.4);
+    // a house beside the line (well clear of it) does nothing
+    expect(cameraPullScale(cat, off, far.dist, [{ x: 8, z: 6, r: 3.4 }], null)).toBe(1);
+  });
+
+  it('the limit is continuous as the line sweeps onto a footprint (no jump at the tangent)', () => {
+    const off = { x: 0, y: 8, z: 11 };
+    // Slide the house sideways across the line. A real jump would stay the
+    // same size however fine the slide; a continuous limit shrinks with it.
+    const maxJump = (step) => {
+      let prev = null;
+      let m = 0;
+      for (let x = 8; x >= -8; x -= step) {
+        const s = cameraPullScale(cat, off, far.dist, [{ x, z: 8, r: 2 }], null);
+        if (prev !== null) m = Math.max(m, Math.abs(s - prev) * off.z);
+        prev = s;
+      }
+      return m;
+    };
+    expect(maxJump(0.001)).toBeLessThan(0.08);
+    expect(maxJump(0.0001)).toBeLessThan(0.025);
   });
 
   it('ignores small props (cars, crates) and a building the cat is perched on', () => {
     const off = { x: 0, y: 8, z: 11 };
-    expect(cameraPullScale(cat, off, { dist: far.dist, colliders: [{ x: 0, z: 11, r: 1.8 }] })).toBe(1);
-    expect(cameraPullScale(cat, off, { dist: far.dist, colliders: [{ x: 0, z: 2, r: 9.5 }] })).toBe(1);
+    expect(cameraPullScale(cat, off, far.dist, [{ x: 0, z: 11, r: 1.8 }], null)).toBe(1);
+    expect(cameraPullScale(cat, off, far.dist, [{ x: 0, z: 2, r: 9.5 }], null)).toBe(1);
   });
 });
 
@@ -255,6 +315,28 @@ describe('player camera zoom', () => {
       player.update(1 / 60);
       expect(camera.position.y).toBeGreaterThanOrEqual(MIN_CAMERA_Y);
     }
+  });
+
+  it('walking past a house at the far step, the camera never jumps', () => {
+    const { camera, player, cat } = harness();
+    player.setCameraZoom(MAX_ZOOM_STEP, { instant: true });
+    const house = [{ x: 0, z: 6, r: 3.4 }];
+    cat.position.set(-12, 0, 0);
+    player.update(1 / 60, house);
+    let prevDist = Math.hypot(camera.position.x - cat.position.x, camera.position.z - cat.position.z);
+    let maxJump = 0;
+    let minDist = Infinity;
+    // The cat walks 24 m along x at 3.5 m/s; the camera stays at yaw 0 (+z).
+    for (let i = 0; i < 412; i++) {
+      cat.position.x += 3.5 / 60;
+      player.update(1 / 60, house);
+      const d = Math.hypot(camera.position.x - cat.position.x, camera.position.z - cat.position.z);
+      maxJump = Math.max(maxJump, Math.abs(d - prevDist));
+      minDist = Math.min(minDist, d);
+      prevDist = d;
+    }
+    expect(minDist).toBeLessThan(6); // it did pull in while the house was in the way
+    expect(maxJump).toBeLessThan(0.25); // ...without ever jumping
   });
 
   function far() { return ZOOM_STEPS[MAX_ZOOM_STEP]; }

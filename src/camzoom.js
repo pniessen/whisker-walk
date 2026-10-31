@@ -56,8 +56,9 @@ export function maxZoomStep(isDen) {
 
 // level is a float step index (the camera eases through the in-between
 // values). Returns the distance and height for it, interpolated linearly
-// between neighbouring steps and clamped at both ends.
-export function zoomView(level) {
+// between neighbouring steps and clamped at both ends. Pass `out` to have it
+// written into a reused object (player.update does, every frame).
+export function zoomView(level, out = { dist: 0, height: 0 }) {
   const l = typeof level === 'number' && Number.isFinite(level)
     ? Math.min(Math.max(level, 0), MAX_ZOOM_STEP)
     : DEFAULT_ZOOM_STEP;
@@ -65,7 +66,9 @@ export function zoomView(level) {
   const f = l - i;
   const a = ZOOM_STEPS[i];
   const b = ZOOM_STEPS[i + 1];
-  return { dist: a.dist + (b.dist - a.dist) * f, height: a.height + (b.height - a.height) * f };
+  out.dist = a.dist + (b.dist - a.dist) * f;
+  out.height = a.height + (b.height - a.height) * f;
+  return out;
 }
 
 // Exponential ease toward the target step. 12/s puts the camera ~95% of the
@@ -85,9 +88,14 @@ export function easeZoomLevel(level, target, dt, reducedMotion = false) {
 // Direction convention everywhere: -1 is "zoom in" (closer, smaller step),
 // +1 is "zoom out" (farther). + means in, as on every map app.
 
-// Keyboard: +/= and − on the main row and the numpad. Nothing else in the game
-// binds these (main.js uses E V M T C Space, digits for chat, Enter, Escape).
-export function keyZoomDir(code) {
+// Keyboard: the characters + / = zoom in and - zooms out. Matched on e.key
+// first, so a German or French layout (where + and - sit on other physical
+// keys) works; e.code is the fallback for the US positions and the numpad.
+// Nothing else in the game binds these (main.js uses E V M T C Space, digits
+// for chat, Enter, Escape).
+export function keyZoomDir(key, code) {
+  if (key === '+' || key === '=') return -1;
+  if (key === '-') return 1;
   if (code === 'Equal' || code === 'NumpadAdd') return -1;
   if (code === 'Minus' || code === 'NumpadSubtract') return 1;
   return 0;
@@ -100,33 +108,39 @@ export function zoomActionDir(name) {
   return 0;
 }
 
-// Mouse wheel. One mouse notch should be one step, but a trackpad sends a
-// stream of small deltas plus momentum, which would race through all four
-// steps in one flick. So deltas are summed until they reach one notch's worth
-// (100 px, Chrome's notch), then one step fires and further wheel input is
-// ignored for a short cooldown so the momentum tail cannot fire again.
-// deltaMode 1 (lines, Firefox) and 2 (pages) are converted to pixels first.
-// Scrolling up (negative deltaY) zooms in, as in map apps; on a Mac a trackpad
-// pinch arrives as a ctrl+wheel with the same sign convention.
-const WHEEL_NOTCH = 100;
-const WHEEL_COOLDOWN_MS = 220;
-const WHEEL_IDLE_RESET_MS = 300;
+// Mouse wheel. ONE GESTURE, ONE STEP. A trackpad flick is a stream of small
+// deltas followed by a long momentum tail; a mouse notch is one event, which
+// on some mice and browsers is well under 100 px. So wheel input is grouped
+// into gestures: a gesture is a run of events with no gap longer than
+// WHEEL_GAP_MS between them, and the gap is measured from the LATEST event,
+// so a momentum tail that keeps arriving keeps its gesture open however long
+// it lasts. Each gesture fires one step, as soon as it has added up to
+// WHEEL_MIN px (enough to ignore a resting finger's 1-2 px twitches), and
+// nothing more until the stream pauses. Slow notches more than WHEEL_GAP_MS
+// apart are separate gestures and step once each; a fast spin of the wheel is
+// one gesture and steps once, which suits a kid better than racing through
+// all four steps. deltaMode 1 (lines, Firefox) and 2 (pages) are converted to
+// pixels first. Scrolling up (negative deltaY) zooms in, as in map apps; a
+// Mac trackpad pinch arrives as ctrl+wheel with the same sign convention.
+const WHEEL_MIN = 30;
+const WHEEL_GAP_MS = 200;
 export function createWheelStepper() {
   let acc = 0;
   let lastT = -Infinity;
-  let coolUntil = -Infinity;
+  let fired = false;
   return function onWheel(deltaY, deltaMode, now) {
     const px = deltaMode === 1 ? deltaY * 40 : deltaMode === 2 ? deltaY * 400 : deltaY;
     if (typeof px !== 'number' || !Number.isFinite(px)) return 0;
-    if (now - lastT > WHEEL_IDLE_RESET_MS) acc = 0;
+    if (now - lastT > WHEEL_GAP_MS) {
+      acc = 0;
+      fired = false;
+    }
     lastT = now;
-    if (now < coolUntil) return 0;
+    if (fired) return 0;
     acc += px;
-    if (Math.abs(acc) < WHEEL_NOTCH) return 0;
-    const dir = acc < 0 ? -1 : 1;
-    acc = 0;
-    coolUntil = now + WHEEL_COOLDOWN_MS;
-    return dir;
+    if (Math.abs(acc) < WHEEL_MIN) return 0;
+    fired = true;
+    return acc < 0 ? -1 : 1;
   };
 }
 
@@ -153,8 +167,13 @@ export function createPinchTracker() {
 // step(dir). It reads and writes the remembered step in settings and hands the
 // player the new target. In the den the step is capped; pushing past the cap
 // calls onCapped (main.js shows a short toast) so a kid knows the button
-// worked and the room is simply too small.
-export function createZoomControl({ settings, player, isDen = () => false, onCapped = () => {} }) {
+// worked and the room is simply too small. The toast is throttled to one per
+// CAPPED_TOAST_MS, so a held pinch-out cannot stack a column of them.
+const CAPPED_TOAST_MS = 2500;
+export function createZoomControl({
+  settings, player, isDen = () => false, onCapped = () => {}, now = () => Date.now(),
+}) {
+  let lastCapped = -Infinity;
   return {
     step(dir) {
       if (dir !== -1 && dir !== 1) return null;
@@ -162,7 +181,13 @@ export function createZoomControl({ settings, player, isDen = () => false, onCap
       const cur = clampZoomStep(settings.get('cameraZoom'), max);
       const next = clampZoomStep(cur + dir, max);
       if (next === cur) {
-        if (dir > 0 && max < MAX_ZOOM_STEP) onCapped();
+        if (dir > 0 && max < MAX_ZOOM_STEP) {
+          const t = now();
+          if (t - lastCapped >= CAPPED_TOAST_MS) {
+            lastCapped = t;
+            onCapped();
+          }
+        }
         return cur;
       }
       settings.set('cameraZoom', next);
@@ -184,22 +209,44 @@ export function createZoomControl({ settings, player, isDen = () => false, onCap
 //     margin: a far camera is held to the same box, never farther out over the
 //     ridges and sea beyond the map.
 //  2. Buildings. Colliders are circles with no height, so a footprint is the
-//     best "inside a building" test there is. Only big footprints count
-//     (r >= 1.9: houses, warehouses, billboards, cliffs, containers) — cars,
-//     benches and crates are short and the camera rides over them. If the
-//     camera point lands inside one, it is pulled in along its line to the
-//     cat to just outside the footprint. A footprint the cat itself stands in
-//     (a perched cat on a roof) is ignored, or the camera would collapse.
-//  3. Ground. The camera never goes below 0.5 m.
+//     best "building" test there is. Only big footprints count (r >= 1.9:
+//     houses, warehouses, billboards, cliffs, containers); cars, benches and
+//     crates are short and the camera rides over them. The whole cat→camera
+//     SEGMENT is tested, not just the camera point: if it enters a footprint,
+//     the camera is pulled in to just before the entry point. Testing only
+//     the end point let a house sit wholly between cat and camera with no
+//     pull, then snapped the camera through it as the end point entered.
+//     A footprint the cat itself stands in (a perched cat on a roof) is
+//     ignored, or the camera would collapse onto the cat.
+//  3. Ground. The camera never goes below 0.5 m (player.js).
+//
+// CONTINUITY. A segment that first touches a circle at a tangent would make
+// the limit jump from the full length to the tangent point in one frame. So
+// each footprint also has a SOFT_EDGE band outside it: while the line passes
+// within that band, the limit slides linearly from the full length (at the
+// band's outer edge) down to the tangent point (at the footprint's edge),
+// where the exact entry point takes over — the same value, so there is no
+// step. player.js eases what is left and holds briefly before letting the
+// camera back out, so grazing an edge does not flicker.
 //
 // Returns the scale (0..1] to apply to the whole offset, so the camera slides
-// along its own line toward the cat and keeps its viewing angle.
+// along its own line toward the cat and keeps its viewing angle. Arguments
+// are positional and nothing is allocated: this runs every frame.
 export const BIG_COLLIDER_R = 1.9;
 const EDGE_MARGIN = ZOOM_STEPS[DEFAULT_ZOOM_STEP].dist;
 const CLEARANCE = 0.4;
+const SOFT_EDGE = 1.5;
 export const MIN_CAMERA_Y = 0.5;
 
-export function cameraPullScale(cat, off, { dist, colliders = [], bounds = null } = {}) {
+// Shrinks scale s so that c + o*s stays inside [lo, hi] on one axis.
+function limitAxis(s, c, o, lo, hi) {
+  const p = c + o * s;
+  if (p > hi && o > 0) return Math.min(s, (hi - c) / o);
+  if (p < lo && o < 0) return Math.min(s, (lo - c) / o);
+  return s;
+}
+
+export function cameraPullScale(cat, off, dist, colliders, bounds) {
   const defDist = ZOOM_STEPS[DEFAULT_ZOOM_STEP].dist;
   if (!(dist > defDist)) return 1;
   const minScale = defDist / dist;
@@ -207,33 +254,29 @@ export function cameraPullScale(cat, off, { dist, colliders = [], bounds = null 
   const ox = off.x;
   const oz = off.z;
   if (bounds) {
-    const lim = (c, o, lo, hi) => {
-      const p = c + o * s;
-      if (p > hi && o > 0) s = Math.min(s, (hi - c) / o);
-      if (p < lo && o < 0) s = Math.min(s, (lo - c) / o);
-    };
-    lim(cat.x, ox, bounds.minX - EDGE_MARGIN, bounds.maxX + EDGE_MARGIN);
-    lim(cat.z, oz, bounds.minZ - EDGE_MARGIN, bounds.maxZ + EDGE_MARGIN);
+    s = limitAxis(s, cat.x, ox, bounds.minX - EDGE_MARGIN, bounds.maxX + EDGE_MARGIN);
+    s = limitAxis(s, cat.z, oz, bounds.minZ - EDGE_MARGIN, bounds.maxZ + EDGE_MARGIN);
   }
   const len = Math.hypot(ox, oz);
-  if (len > 1e-6) {
-    for (const c of colliders) {
+  if (len > 1e-6 && colliders) {
+    const ux = ox / len;
+    const uz = oz / len;
+    for (let i = 0; i < colliders.length; i++) {
+      const c = colliders[i];
       if (!(c && c.r >= BIG_COLLIDER_R)) continue;
-      const cx = cat.x - c.x;
-      const cz = cat.z - c.z;
+      const cx = c.x - cat.x;
+      const cz = c.z - cat.z;
       if (cx * cx + cz * cz <= c.r * c.r) continue; // cat is on/in it (perched)
-      const px = cat.x + ox * s - c.x;
-      const pz = cat.z + oz * s - c.z;
-      if (px * px + pz * pz >= c.r * c.r) continue; // camera point is clear
-      // Entry point of the cat→camera ray into the circle: smallest t > 0 of
-      // |cat + t*off - c| = r.
-      const a = ox * ox + oz * oz;
-      const b = 2 * (cx * ox + cz * oz);
-      const cc = cx * cx + cz * cz - c.r * c.r;
-      const disc = b * b - 4 * a * cc;
-      if (disc < 0) continue;
-      const t = (-b - Math.sqrt(disc)) / (2 * a);
-      if (t > 0) s = Math.min(s, t - CLEARANCE / len);
+      const along = cx * ux + cz * uz; // metres along the line to the centre's foot
+      if (along <= 0) continue; // behind the cat
+      const side = Math.abs(cx * uz - cz * ux); // metres from the line to the centre
+      let limit; // metres along the line the camera may go
+      if (side < c.r) limit = along - Math.sqrt(c.r * c.r - side * side) - CLEARANCE;
+      else if (side < c.r + SOFT_EDGE) {
+        const f = (side - c.r) / SOFT_EDGE; // 0 at the footprint, 1 at the band's edge
+        limit = (along - CLEARANCE) + (len - (along - CLEARANCE)) * f;
+      } else continue;
+      if (limit < len) s = Math.min(s, limit / len);
     }
   }
   return Math.min(1, Math.max(minScale, s));

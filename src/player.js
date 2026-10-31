@@ -12,6 +12,10 @@ import {
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
 export const CAT_RADIUS = 0.35;
+// Camera pull-in tuning (see stepPull in createPlayer).
+const PULL_IN_SPEED = 12; // metres per second, at most
+const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
+const PULL_HOLD = 0.3; // seconds
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
@@ -374,6 +378,35 @@ export function createPlayer(camera, canvas) {
   let camLevel = DEFAULT_ZOOM_STEP;
   let camPull = 1;
   let snapPull = true; // next update sets camPull outright instead of easing
+  let pullHold = 0; // seconds the camera has wanted to move back OUT
+  // Reused every frame so the camera path allocates nothing.
+  const camView = { dist: 0, height: 0 };
+  const camOff = new THREE.Vector3();
+  // Moves the eased pull-in toward this frame's target.
+  //  - In (a wall is in the way): eased quickly, but never faster than
+  //    PULL_IN_SPEED metres of camera travel per second, so even a sudden
+  //    change of target cannot make the camera jump.
+  //  - Out: only after the target has wanted out for PULL_HOLD seconds in a
+  //    row, then eased gently and capped at PULL_OUT_SPEED. Grazing the edge of a footprint therefore
+  //    does not make the camera pump in and out.
+  // reducedMotion and walk start (snapPull) take the target as-is.
+  function stepPull(cur, target, dt, dist) {
+    if (reducedMotion || snapPull) {
+      snapPull = false;
+      pullHold = 0;
+      return target;
+    }
+    if (target >= cur) {
+      pullHold += dt;
+      if (pullHold < PULL_HOLD) return cur;
+      const out = (target - cur) * (1 - Math.exp(-5 * dt));
+      return cur + Math.min(out, (PULL_OUT_SPEED * dt) / dist);
+    }
+    pullHold = 0;
+    const eased = (target - cur) * (1 - Math.exp(-20 * dt));
+    const cap = (PULL_IN_SPEED * dt) / dist;
+    return cur + Math.max(eased, -cap);
+  }
   let reducedMotion = false;
 
   const api = {
@@ -671,18 +704,15 @@ export function createPlayer(camera, canvas) {
       }
 
       camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
-      const view = zoomView(camLevel);
-      const off = cameraOffset(yaw, pitch, view.dist, view.height);
+      zoomView(camLevel, camView);
+      cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
       // At or inside the default distance this is exactly 1, so the shipped
       // camera is untouched; beyond it the camera is kept out of buildings
-      // and off the far side of the map edge. Pulling in is quick (a wall is
-      // in the way now), letting back out is gentler.
-      const pull = cameraPullScale(avatar.position, off, { dist: view.dist, colliders, bounds });
-      if (reducedMotion || snapPull) camPull = pull;
-      else camPull += (pull - camPull) * (1 - Math.exp(-(pull < camPull ? 20 : 5) * Math.max(dt, 0)));
-      snapPull = false;
-      off.multiplyScalar(camPull);
-      camera.position.copy(avatar.position).add(off);
+      // and off the far side of the map edge (camzoom.js).
+      const pull = cameraPullScale(avatar.position, camOff, camView.dist, colliders, bounds);
+      camPull = stepPull(camPull, pull, Math.max(dt, 0), camView.dist);
+      camOff.multiplyScalar(camPull);
+      camera.position.copy(avatar.position).add(camOff);
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
       camera.lookAt(avatar.position.x, avatar.position.y + 0.6, avatar.position.z);
     },
