@@ -6,7 +6,7 @@ import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
 import { STARTER_ACCESSORIES } from '../src/progression.js';
 import { emptyColony, isShy, TAME_FEEDS } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
-import { pickMedicineCat } from '../src/clanroles.js';
+import { pickMedicineCat, medicineOrder } from '../src/clanroles.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -420,7 +420,7 @@ describe('createProgression', () => {
         clan: { name: null, adopted: false },
         marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
-        mapMode: 'north',
+        mapMode: 'north', edition: 'canon',
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1939,6 +1939,33 @@ describe('the colony save key', () => {
     id: 'col-1', partner: { playerId: SIB, petName: 'Robin', wardrobe: [] }, cats, feeds, trades,
   });
 
+  it('a fresh save starts on Clan Edition', () => {
+    expect(createProgression(fakeStorage()).state.edition).toBe('canon');
+  });
+  it('setEdition persists across a reload and ignores junk', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    p.setEdition('Legacy'); p.setEdition(null);
+    expect(p.state.edition).toBe('canon');
+    p.setEdition('legacy');
+    expect(createProgression(storage).state.edition).toBe('legacy');
+  });
+  it('junk edition in a stored payload loads as canon', () => {
+    for (const edition of ['sideways', 42, null, {}]) {
+      const storage = fakeStorage({ [SAVE]: JSON.stringify({ version: 4, edition }) });
+      expect(createProgression(storage).state.edition).toBe('canon');
+    }
+  });
+  it('a Legacy feed does not write clanRoles', () => {
+    const n = CAT_NAMES.find((x) => !isShy(x) && medicineOrder([{ name: x, tamedWalk: 'walk-1' }]).length === 1);
+    const legacy = createProgression(fakeStorage()); legacy.setEdition('legacy');
+    tameOne(legacy, n);
+    expect(legacy.state.clanRoles).toEqual({ medicine: null, deputy: null });
+    const canon = createProgression(fakeStorage());
+    tameOne(canon, n);
+    expect(canon.state.clanRoles.medicine).toBe(n);
+  });
+
   it('a v20 save loads with an empty colony and SAVE_VERSION 4', () => {
     // A v20-shaped payload: every field v20 wrote, and no `colony` key.
     const v20 = {
@@ -1956,7 +1983,8 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, ...rest } = p.state;
+    expect(edition).toBe('canon');
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);

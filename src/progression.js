@@ -21,6 +21,7 @@ import { isStrayName } from './straynames.js';
 import { medicineOrder, deputyOrder } from './clanroles.js';
 import { RANK_KEYS, PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { clanTitleFor } from './clannames.js';
+import { DEFAULT_EDITION, EDITIONS, sanitizeEdition, isClanEdition } from './edition.js';
 import { latestMilestoneUpTo, milestoneIndex, styleFor, prizeFor, prizesWonBy } from './visits.js';
 // v21 Stream 3b: private per-area marks. marks.js is the pure rules half (its only
 // import is propsets.js, a zero-import leaf), so the edge is cycle-free. Every
@@ -496,6 +497,8 @@ function defaultState() {
     // the map with the cat. Additive, so SAVE_VERSION stays 4: an older save
     // starts north.
     mapMode: 'north',
+    // Additive: SAVE_VERSION stays 4. Missing or junk loads as Clan Edition.
+    edition: DEFAULT_EDITION,
   };
 }
 
@@ -856,6 +859,7 @@ function sanitizeState(parsed) {
     visitPrizesSeen,
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
+    edition: sanitizeEdition(parsed.edition),
   };
 }
 
@@ -1182,6 +1186,12 @@ export function createProgression(storage) {
     setMapMode(mode) {
       if (mode === 'north' || mode === 'turn') {
         state.mapMode = mode;
+        save();
+      }
+    },
+    setEdition(edition) {
+      if (EDITIONS.includes(edition) && edition !== state.edition) {
+        state.edition = edition;
         save();
       }
     },
@@ -1588,7 +1598,8 @@ export function createProgression(storage) {
         // device may hold a feed its partner has not seen, and a verdict
         // written from it could disagree with theirs forever: wait for the
         // next merge instead.
-        if (api.colonyMembers() === 1) settleRoles(state.colony);
+        // A Legacy walk writes no clan field, so it settles nothing either.
+        if (api.colonyMembers() === 1 && isClanEdition(state)) settleRoles(state.colony);
         save();
       }
       return { result: r.result, tamedNow: r.tamedNow, progress: r.progress };
