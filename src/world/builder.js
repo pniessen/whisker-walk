@@ -545,7 +545,7 @@ export function ground(size, color, { surface } = {}) {
 // are already tiled — see the docks.js surface note. None of those three
 // should have to change for either of the others, so nobody is defaulted into
 // a surface here.
-export function path(x1, z1, x2, z2, w = 2, { surface } = {}) {
+export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0 } = {}) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   // Segmented along both axes — see segsFor()/GROUND-PLANE MACRO VARIATION
   // above tree(). Width gets at most a handful of segments (paths run 1-5m
@@ -554,7 +554,7 @@ export function path(x1, z1, x2, z2, w = 2, { surface } = {}) {
   // not a constant shared with the 120m ground plane.
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(w, len, segsFor(w, 1, 6), segsFor(len, 4, 64)),
-    surface ? surfMat(0xcbb8a0, surface, w, len) : mat(0xcbb8a0),
+    surface ? surfMat(color, surface, w, len) : mat(color),
   );
   m.rotation.x = -Math.PI / 2;
   // atan2 of the NEGATED delta, not the negated atan2 — they are not the same
@@ -966,7 +966,7 @@ const GROUND_TREATMENTS = {
   // Damp streaks on the Docks' stone — deliberately the strongest of the six
   // tints. This is the one macro effect the plan calls out by name, and
   // wetStone already has the most headroom for it: its own preset exists
-  // specifically to read as "just rained on" (roughness dropped to 0.42 —
+  // specifically to read as "just rained on" (roughness dropped to 0.55 —
   // see materials.js), so a cooler, darker streak on top is the same idea
   // carried from the light response into the colour.
   wetStone: { patches: 6, tint: [0.92, 0.94, 0.96] },
@@ -975,6 +975,10 @@ const GROUND_TREATMENTS = {
   cobble: { patches: 6, tint: [0.92, 0.92, 0.93] },
   // Packed-earth/gravel paths and lanes.
   gravel: { patches: 5, tint: [0.92, 0.91, 0.91] },
+  // The Docks' quays and pavements (Stream 4 round two): dry weathered stone,
+  // the same neutral streak as dry cobble, so a quay and the cobbles beside it
+  // weather alike and differ only in their slabs and their sheen.
+  flagstone: { patches: 5, tint: [0.92, 0.92, 0.93] },
   // Fallback for a ground/path/sidewalk with no `surface` at all — today
   // that's only the den's indoor floor, which is deliberately map-less (see
   // ground()'s own call site comment: floorSeams() already draws real board
@@ -1135,6 +1139,45 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
+// Skyline facade tones, as multipliers on the band's own colour (so an area's
+// palette still decides the overall value; these only vary hue and value a
+// little between buildings). Kept within about +-18%: the far bank is seen
+// through 60-110m of fog, and anything stronger turns a hazy town into a
+// patchwork of coloured boxes.
+const SKYLINE_PLAIN = [1, 1, 1];
+const SKYLINE_TONES = [
+  SKYLINE_PLAIN,
+  [1.18, 0.94, 0.86], // brick
+  [1.12, 1.05, 0.88], // ochre render
+  [0.9, 0.95, 1.06], // slate
+  [0.84, 0.85, 0.9], // soot-dark
+];
+// Window glass, darker and a touch blue: daylight windows read darker than
+// the wall around them, which is the whole cue that a box is a building.
+const SKYLINE_WINDOW = [0.6, 0.66, 0.78];
+
+// Adds a grid of window quads to `out`, on the block's local -z face (the face
+// that looks back at the area once horizonBand rotates the block to its yaw),
+// in the block's own local frame, centred on the block like the BoxGeometry.
+// Floors every 2.6m, bays every 2.4m, a few windows left out per block by hash
+// so no two buildings share a pattern. Each window is one 2-triangle quad, so
+// a full 52-block skyline adds roughly a thousand triangles and no draw calls.
+function addSkylineWindows(out, bw, bh, bd, k, salt) {
+  const floors = Math.floor((bh - 1.6) / 2.6);
+  const bays = Math.floor((bw - 1.4) / 2.4);
+  if (floors < 1 || bays < 1) return;
+  const x0 = -((bays - 1) * 2.4) / 2;
+  for (let f = 0; f < floors; f++) {
+    for (let c = 0; c < bays; c++) {
+      if (hash01(k * 31 + f, c, salt + 11) < 0.14) continue;
+      const w = new THREE.PlaneGeometry(1.1, 1.3);
+      w.rotateY(Math.PI);
+      w.translate(x0 + c * 2.4, -bh / 2 + 1.5 + f * 2.6, -bd / 2 - 0.04);
+      out.push(w);
+    }
+  }
+}
+
 /**
  * horizonBand(opts) — one decorative mesh that breaks an area's horizon.
  *
@@ -1248,6 +1291,9 @@ export function horizonBand({
 
   // ---- the skyline's rooftops ---------------------------------------------
   const parts = [ring];
+  // One colour multiplier per part, applied as vertex colours below. Only the
+  // skyline uses it; for hills every entry stays white and no attribute is set.
+  const tones = [SKYLINE_PLAIN];
   if (kind === 'skyline') {
     for (let k = 0; k < blocks; k++) {
       const u = (k + 0.15 + 0.7 * hash01(k, 0, salt + 1)) / blocks;
@@ -1277,9 +1323,20 @@ export function horizonBand({
       // block's own position, so a block on a side wall is parallel to it.
       const yaw = Math.atan2(px, pz);
       const g = new THREE.BoxGeometry(bw, bh, bd);
-      g.rotateY(yaw);
-      g.translate(x, base + bh / 2, z);
-      parts.push(g);
+      // Stream 4 round two: each block gets its own facade tone and a grid of
+      // windows on the face that looks back at the area, both carried as
+      // vertex colours on the SAME merged mesh — still one draw call. Before
+      // this the far bank was 52 identical grey boxes, the flattest thing on
+      // screen right behind the cat at the Docks' spawn.
+      const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * SKYLINE_TONES.length)];
+      const facade = [g];
+      addSkylineWindows(facade, bw, bh, bd, k, salt);
+      for (const f of facade) {
+        f.rotateY(yaw);
+        f.translate(x, base + bh / 2, z);
+        parts.push(f);
+        tones.push(f === g ? tone : SKYLINE_WINDOW);
+      }
       // A roof feature on the taller half, because a skyline with a level top
       // edge is a wall. Chimneys and tanks are what break a real one.
       if (hash01(k, 5, salt + 6) > 0.45) {
@@ -1290,10 +1347,20 @@ export function horizonBand({
         c.rotateY(yaw);
         c.translate(x + Math.cos(yaw) * cx2, base + bh + ch / 2, z - Math.sin(yaw) * cx2);
         parts.push(c);
+        tones.push(tone);
       }
     }
   }
 
+  if (kind === 'skyline') {
+    parts.forEach((p, i) => {
+      const [r, g2, bl] = tones[i];
+      const n = p.attributes.position.count;
+      const c = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) { c[v * 3] = r; c[v * 3 + 1] = g2; c[v * 3 + 2] = bl; }
+      p.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    });
+  }
   const geo = parts.length === 1 ? ring : mergeGeometries(parts, false);
   if (parts.length > 1) for (const p of parts) p.dispose();
   geo.computeBoundingSphere();
@@ -1311,7 +1378,7 @@ export function horizonBand({
   // the band's whole job is to be a SHAPE — see the note in materials.js's
   // header about a texture resolving to its flat mean at distance, which here
   // is not a compromise but the correct answer.
-  const m = new THREE.Mesh(geo, litMaterial(color, { flatShading: true }));
+  const m = new THREE.Mesh(geo, litMaterial(color, { flatShading: true, vertexColors: kind === 'skyline' }));
   // Named so a test (and a future draw-call audit) can find it without the
   // area files having to publish it as a record — the same trick path() uses.
   m.name = 'horizonBand';
@@ -1630,13 +1697,13 @@ export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'no
 // plane that is already carrying the same cobble tile, and two grids at
 // different densities on top of each other is the one way to make a tiled
 // surface look like a mistake).
-export function sidewalk(x1, z1, x2, z2, w = 1.2, { surface } = {}) {
+export function sidewalk(x1, z1, x2, z2, w = 1.2, { surface, color = 0xd8d0c0 } = {}) {
   // a lighter strip beside a street — reuses path() geometry with pavement color
   const len = Math.hypot(x2 - x1, z2 - z1);
   // Segmented the same way path() is — see its comment and segsFor() above.
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(w, len, segsFor(w, 1, 6), segsFor(len, 4, 64)),
-    surface ? surfMat(0xd8d0c0, surface, w, len) : mat(0xd8d0c0),
+    surface ? surfMat(color, surface, w, len) : mat(color),
   );
   m.rotation.x = -Math.PI / 2;
   // atan2 of the NEGATED delta, not the negated atan2 — they are not the same

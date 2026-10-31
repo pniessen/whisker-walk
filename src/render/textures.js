@@ -19,12 +19,12 @@ import { mulberry32, seedFromCode } from '../rng.js';
 // There are two vocabularies in the surface system and they are NOT the same
 // set of names:
 //
-//   TEXTURES (this file, SURFACE_NAMES) — 8 painted tiles:
-//     brick, siding, shingle, plank, cobble, sand, gravel, grass
+//   TEXTURES (this file, SURFACE_NAMES) — 9 painted tiles:
+//     brick, siding, shingle, plank, cobble, sand, gravel, grass, flagstone
 //
-//   SURFACE PRESETS (materials.js, SURFACE_PRESET_NAMES) — 17 light
-//     responses, of which 9 carry a map, and they do NOT map one-to-one
-//     (9 presets over 8 tiles, because two presets share one):
+//   SURFACE PRESETS (materials.js, SURFACE_PRESET_NAMES) — 18 light
+//     responses, of which 10 carry a map, and they do NOT map one-to-one
+//     (10 presets over 9 tiles, because two presets share one):
 //     'wood' uses the plank texture; 'cobble' AND 'wetStone' both use the
 //     cobble texture; 'glass', 'bark', 'paintedMetal' and five others carry
 //     no texture at all.
@@ -237,6 +237,12 @@ const SURFACES = {
   // 4-7px are 22-38mm stones. That is the real grading of a crushed
   // aggregate, not an adjective.
   gravel: { metres: 1.4, repeat: [2, 2] },
+  // Quay flagstones — the big dressed slabs a harbour edge is paved with.
+  // 2 courses of slabs per tile, so at 2.4m a slab is 1.2m deep and 0.8-1.6m
+  // long: the one paving surface in the set meant to read as a FEW large
+  // stones rather than many small ones, which is what tells a quay apart from
+  // the wet cobbled street beside it at a glance.
+  flagstone: { metres: 2.4, repeat: [2, 2] },
   // Lawn mottle. The largest tile in the set by a wide margin: grass is
   // applied to the biggest single surfaces in the game, and a small repeat
   // on a 40m lawn produces a visible plaid that no amount of subtlety saves.
@@ -869,6 +875,9 @@ const PLANK_GRAIN = 0.05; // grain streaks, max
 
 const COBBLE_GROUT = 0.12; // the channel between setts
 const COBBLE_JITTER = 0.02; // +/- per-stone, on the stones only
+const FLAG_JOINT = 0.10; // the mortar joint between slabs
+const FLAG_JITTER = 0.05; // per-slab value, on the slab only
+const FLAG_SPECKLE = 0.035; // weathering flecks, on the slab only
 
 // Sand is per-texel rather than per-dot; see paintSand for why the scattered
 // version it replaced was invisible.
@@ -1119,6 +1128,66 @@ function paintCobble(ctx, S, rand) {
       // stretch and exaggerate, whereas a wall is seen face on.
       ctx.fillStyle = ink(Math.max(0, (rand() - 0.5) * COBBLE_JITTER));
       ctx.fill();
+    }
+  }
+}
+
+// --- flagstone -------------------------------------------------------------
+// Two courses of large dressed slabs, each course broken at random lengths and
+// the two courses offset, so the joints never line up into a grid. Built the
+// way cobble is (mortar laid over white, slabs painted back to white on top),
+// with two differences that are the whole point of the surface:
+//
+//   * FEW, BIG units. Two to three slabs per course, so the eye reads stones
+//     rather than texture. Per-slab value jitter is stronger than cobble's
+//     (0.05 against 0.02) because a slab covers enough screen for a tone
+//     change to read as "a different stone" rather than as noise.
+//   * Weathering flecks inside each slab, small and sparse, so a 1m slab does
+//     not read as a flat plastic panel up close.
+//
+// Every slab sits strictly inside the tile and its joints, so the tile is
+// seamless without wrapped copies: each course's breaks start at x = 0, and the
+// mortar strip at the tile edge is half a joint on each side.
+//
+// Worst-case stack: joint alone 0.10; on a slab, jitter then a fleck,
+// 1 - (0.95)(0.965) = 0.083. Joints and flecks never overlap (each fleck
+// is placed wholly inside its slab).
+function paintFlagstone(ctx, S, rand) {
+  const COURSES = 2;
+  const H = S / COURSES;
+  const J = S * 0.012; // half a joint, in px
+  fillWhite(ctx, S);
+  ctx.fillStyle = ink(FLAG_JOINT);
+  ctx.fillRect(0, 0, S, S);
+  for (let row = 0; row < COURSES; row++) {
+    // 2 or 3 slabs; break points jittered so no two tiles' slabs repeat the
+    // same rhythm across a row. The second course is offset by a fraction of
+    // the tile so its joints fall between the first course's.
+    const n = rand() < 0.5 ? 2 : 3;
+    const cuts = [0];
+    for (let i = 1; i < n; i++) cuts.push((i / n + (rand() - 0.5) * (0.5 / n)) * S);
+    cuts.push(S);
+    for (let i = 0; i < n; i++) {
+      const x = cuts[i] + J;
+      const w = cuts[i + 1] - cuts[i] - 2 * J;
+      const y = row * H + J;
+      const h = H - 2 * J;
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.fillStyle = ink(rand() * FLAG_JITTER);
+      ctx.fill();
+      // Flecks are placed wholly inside the slab, so none ever reaches the
+      // joint (no clip needed, and the stack stays jitter + fleck).
+      const flecks = 6 + Math.floor(rand() * 6);
+      ctx.fillStyle = ink(FLAG_SPECKLE);
+      for (let f = 0; f < flecks; f++) {
+        // Square chips, 2-6px (~2-6cm of world): at this size a square and a
+        // round fleck are the same texel blob once mipmapped.
+        const d = Math.max(2, Math.round(S * (0.008 + rand() * 0.016)));
+        ctx.fillRect(Math.round(x + rand() * (w - d)), Math.round(y + rand() * (h - d)), d, d);
+      }
     }
   }
 }
@@ -1383,6 +1452,7 @@ const PAINTERS = {
   sand: paintSand,
   gravel: paintGravel,
   grass: paintGrass,
+  flagstone: paintFlagstone,
 };
 
 // Exposed for the pixel-level test, which needs to know what "in budget"

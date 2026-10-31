@@ -20,7 +20,7 @@ import { surfaceTexture, surfaceMaps, textureTileMetres, isTextureName } from '.
 // path below is byte-for-byte the material this function has always returned,
 // and 39 existing call sites depend on that.
 //
-// TWO NAMESPACES. The 17 PRESET names here are not the 8 TEXTURE names in
+// TWO NAMESPACES. The 18 PRESET names here are not the 9 TEXTURE names in
 // textures.js, and the mapping between them is many-to-one with gaps:
 // 'wood' uses the plank texture, 'cobble' and 'wetStone' share the cobble
 // texture, and eight presets carry no texture at all. A world file should
@@ -299,6 +299,17 @@ export const SURFACE_PRESETS = Object.freeze({
   // 0.42 leaves a broad soft bloom drifting across the road as the camera
   // moves, which is what "damp" looks like. Shares the cobble map.
   //
+  // RAISED TO 0.55 (Stream 4 round two, 2026-10-31), and the in-game view is
+  // why. The Docks' spawn camera looks straight toward the 19.1-degree sun,
+  // and at 0.42 the sun's lobe on the quay pushed past the bloom threshold
+  // (1.1, game/composer.js), so on the high tier bloom smeared it into a
+  // white haze over roughly a fifth of the very first frame of the area. The
+  // 248/255-over-1.5% figure below came from the harness, which has no bloom
+  // and a different camera. At 0.55 the same view keeps a soft bright
+  // gradient that still reads as wet, with no haze. The "above ~0.5 the IBL
+  // smears flat" concern holds for the ambient half, but under this low sun the
+  // wet read comes from the sun's lobe, which 0.55 keeps.
+  //
   // normalScale 0.15, and the fact that it differs from `cobble` above while
   // sharing a map is the point. `normalScale` is a material uniform, not a
   // property of the tile, so one derived normal map serves both presets at two
@@ -306,7 +317,7 @@ export const SURFACE_PRESETS = Object.freeze({
   //   * It has to be lower, because a specular lobe reacts to a normal
   //     perturbation at roughly TWICE the rate a diffuse term does — the
   //     reflection vector turns through 2*theta for theta of normal tilt — and
-  //     at roughness 0.42 this preset has a real lobe. walk.js measured the
+  //     at roughness 0.42 (now 0.55) this preset has a real lobe. walk.js measured the
   //     grazing sun already putting a specular sheet on the Docks quay peaking
   //     at 248/255 over 1.5% of frame; a normal map at cobble's 0.25 shatters
   //     that sheet into individual glints that crawl as the camera moves.
@@ -315,7 +326,15 @@ export const SURFACE_PRESETS = Object.freeze({
   //     degrees) softens it into a broad mottle drifting across the quay,
   //     which is what wet setts actually look like, without resolving into
   //     countable sparkles.
-  wetStone: { roughness: 0.42, metalness: 0.0, texture: 'cobble', normalScale: 0.15 },
+  wetStone: { roughness: 0.55, metalness: 0.0, texture: 'cobble', normalScale: 0.15 },
+
+  // Dry quay flagstone — the big slabs along a harbour edge. Matte (0.88,
+  // between brick and gravel): the quay is the DRY walkway beside the wet
+  // cobbled street, and the sheen difference against wetStone's 0.42 is half
+  // of how the two read apart under the Docks' grazing sun. normalScale 0.3:
+  // the joints are the only relief a slab has, and they are wide and few, so
+  // this sits a touch above cobble's 0.25 without crawling.
+  flagstone: { roughness: 0.88, metalness: 0.0, texture: 'flagstone', normalScale: 0.3 },
 
   // Window glass. 0.08, metalness 0 (glass is a dielectric; metalness would
   // destroy its transmission-through-colour read entirely). 0.08 rather than
