@@ -642,7 +642,7 @@ it('a Legacy room start proposes the Neighborhood', () => {
 **Files:**
 - Modify: `src/colony.js` (`COLONY_AREAS` gains `'woods'`)
 - Modify: `docs/supabase-colony.sql` line 384, exactly as in owner step 2
-- Modify: `test/legendary.test.js` line 17. It pins `LEGENDARY_BY_AREA`'s keys to `COLONY_AREAS`, and the Woods has no legendary cat in this plan. Rule: the Woods is **exempt by name**, not given a placeholder cat (a placeholder would be a real spawn the kids could meet). The line becomes `expect(Object.keys(LEGENDARY_BY_AREA).sort()).toEqual(COLONY_AREAS.filter((a) => a !== 'woods').sort())`, with a comment that the Woods' legendary comes with a later plan.
+- Modify: `test/legendary.test.js` line 17. It pins `LEGENDARY_BY_AREA`'s keys to `COLONY_AREAS`, and the Woods has no legendary cat in this plan. Rule: the Woods is **exempt by name**, not given a placeholder cat (a placeholder would be a real spawn the kids could meet). *(Updated 2026-10-31 for the River plan.)* The exemption is a named list shared with the River, so it holds whichever territories are feeding: `const NO_LEGENDARY_YET = ['woods', 'river']; // their legendary cats come with a later plan` and `expect(Object.keys(LEGENDARY_BY_AREA).sort()).toEqual(COLONY_AREAS.filter((a) => !NO_LEGENDARY_YET.includes(a)).sort())`. A bare `a !== 'woods'` would break as soon as `'river'` joins `COLONY_AREAS`. **Ship this task together with the River plan's Task 7** (`docs/superpowers/plans/2026-10-31-clan-edition-river.md`), since the one SQL edit gates both.
 - Test: `test/colony.test.js`, `test/editions.invariants.test.js`, `test/legendary.test.js`
 
 **Interfaces:**
