@@ -162,6 +162,12 @@ otherwise, these win:
 
    She left no notes and kept every territory's size. The Moor, Woods,
    Twolegplace and Gorge moved; the Pines and River barely did.
+8. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
+   the cliff walls, and tall pine trees. It is still a later release.
+   - Dens in the cliff walls make it the place where climbing and height
+     matter most. That is why it waits until the game can do height
+     (cliffs, ledges, perches you climb up to).
+   - The cliff dens are natural spots to explore, hide in and nap in.
 
 Next step: when the drawing arrives, revise §3 and the build order around it,
 then write the implementation plan, one territory at a time.
