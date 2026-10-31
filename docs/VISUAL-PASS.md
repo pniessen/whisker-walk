@@ -960,3 +960,29 @@ an adaptive step to rung 3 thins the grass on the next walk; the live steps
   ~1.5 m in front of its long walls (its r 3.4 circle against a 5×4 m body).
 - No fps reading. The owner's desktop and iPhone 18 readings are still the
   check that matters.
+
+# Stream 4 round two — the Docks (2026-10-31)
+
+Found by looking at each area from the real spawn camera (`catcam.cameraOffset`,
+looking toward -z), not from the harness's flattering views.
+
+- **Quays, bridge roads and pavements are flagstone.** They were the shared
+  untextured path beige `0xcbb8a0`, the brightest flat surface in the darkest
+  palette, and the cat spawns on one. New `flagstone` tile (2.4 m, two courses
+  of large slabs, mortar joints, sparse weathering flecks) and preset
+  (roughness 0.88, normalScale 0.3). Quay `0x8c877e`, pavement `0x9c978d`.
+  `path()` and `sidewalk()` take a `color` option. **0 draw calls.**
+- **wetStone roughness 0.42 → 0.55.** The spawn camera faces the 19.1° sun;
+  at 0.42 the quay's specular lobe crossed the bloom threshold (1.1) and the
+  high tier smeared it into a white haze over roughly a fifth of the first
+  frame. The harness never showed it (no bloom, different camera). At 0.55 a
+  soft wet gradient remains. **0 draw calls.**
+- **The skyline has windows.** `horizonBand({ kind: 'skyline' })` now gives
+  each block one of five facade tones and a grid of window quads on its
+  inward face, as vertex colours on the same merged mesh. About 1,300 extra
+  triangles; hills bands are unchanged. **0 draw calls.**
+
+Tried and dropped: a stronger sand drift tint at Seaside made no visible
+difference — the beach is pale enough that ACES washes the streaks out. Seaside's
+empty pale beach is the next candidate (a darker wet-sand band at the
+waterline, or dune grass from `render/grass.js`).
