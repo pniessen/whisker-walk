@@ -79,12 +79,15 @@ import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '../render/
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
-import { createGrass } from '../render/grass.js';
+import { createGrass, groundFinds } from '../render/grass.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
 const GRASS_REST_CLEAR = 0.6;
 const GRASS_ITEM_CLEAR = 0.3;
+// Fish, golden mice and scenic spots sit on the ground and are what the kids
+// hunt for; Seaside's dune grass reaches 0.3m, so each keeps a bare patch.
+const GRASS_FIND_CLEAR = 0.5;
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
@@ -984,9 +987,11 @@ export function createWalkLifecycle({
     // sweep, the contact-shadow scan and the prop merge have all run, so none
     // of them ever sees it: one draw call in the main pass, none in the shadow
     // pass. Its mask reads the area's paths off the scene, which is complete
-    // by now. The den, Seaside and the Docks get the module's no-op stub.
-    // keepOut: rest spots and carryable spots have no collider, so the mask
-    // would otherwise grow tufts through the doormat and around the acorn.
+    // by now. Seaside grows dune grass on its back beach; the den and the Docks
+    // get the module's no-op stub.
+    // keepOut: rest spots, carryable spots and ground-level finds have no
+    // collider, so the mask would otherwise grow tufts through the doormat,
+    // around the acorn, or over a fish.
     const grassProps = isDen ? null : propsFor(areaId);
     const grassKeepOut = grassProps ? [
       ...(grassProps.rests ?? []).map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
@@ -994,6 +999,7 @@ export function createWalkLifecycle({
         { x: c.x, z: c.z, r: GRASS_ITEM_CLEAR },
         ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
       ]),
+      ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
 

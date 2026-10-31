@@ -22,6 +22,116 @@ const surfMat = (color, surface, w, h) =>
 // tile smears at a 6-sided silhouette).
 const surfNoMap = (color, surface) => litMaterial(color, surfaceProps(surface));
 
+// -----------------------------------------------------------------------------
+// STREAM 4 ROUND THREE — the beach (2026-10-31).
+//
+// From the cat's camera the Seaside read as a white plain with a ruler-straight
+// edge where it met the sea and a flat tan wall at the back. Four changes, all
+// in this file and grass.js, none adding a shadow-pass draw:
+//
+//   * BEACH 0xe0d0a0 -> 0xdcc28e. Under ACES and this area's bright bounce the
+//     old hex rendered within a few values of white, so the beach read as snow.
+//     The new one is the same sand a step warmer and a touch deeper. This is
+//     the AUTHORED colour changing, not texture compensation, so the "sand is
+//     not colour-compensated" rule further down still holds.
+//   * A WET-SAND BAND (+1 draw) from under the boardwalk out to just past the
+//     waterline: darker, a little smoother, with a wavy wet edge, so the sea
+//     meets damp sand instead of dry.
+//   * CLIFF STRATA (0 draws): the bluff and the overlook take vertex-coloured
+//     rock layers and an uneven top edge. Their faces do not move, so the
+//     cliff colliders still line up.
+//   * DUNE GRASS on the back beach — render/grass.js's 'dune' style (+1 draw).
+// -----------------------------------------------------------------------------
+export const BEACH = 0xdcc28e;
+
+// Wet sand at the waterline: how far it reaches, and its darkest multiplier.
+// The band starts at x 21.8, under the boardwalk (x 18..22), so its dry edge
+// is hidden, and runs 0.4m under the sea (x 25) so there is no gap at the
+// waterline.
+const WET_FROM = 21.8;
+const WET_TO = 25.4;
+// Strong on purpose: the beach is lit so far up ACES's shoulder that a 0.7
+// multiplier measured 207 against the dry sand's 221 on screen (invisible) and
+// 0.5 only 191. At ~0.35 the damp sand lands near 165, which reads as wet.
+const WET_TINT = [0.37, 0.34, 0.31];
+
+// A deterministic 0..1 value for an integer, for the strata tones.
+function hash1(n) {
+  const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+// The wet band's vertex colour at (x, z): 1 (dry, the beach itself) at
+// WET_FROM, WET_TINT at the waterline, with a wavy edge where the last wave
+// reached.
+export function wetness(x, z) {
+  // The wet edge wanders +-0.5m along the beach; the ramp itself runs 2m.
+  const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
+  const t = Math.min(1, Math.max(0, (x - 22.4 + reach) / 2));
+  return t * t * (3 - 2 * t);
+}
+
+function wetSandBand() {
+  const w = WET_TO - WET_FROM;
+  const len = 140;
+  const geo = new THREE.PlaneGeometry(w, len, 8, 140);
+  geo.rotateX(-Math.PI / 2); // local x -> world x, local y -> world -z
+  const pos = geo.attributes.position;
+  const cx = (WET_FROM + WET_TO) / 2;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const k = wetness(pos.getX(i) + cx, pos.getZ(i));
+    for (let c = 0; c < 3; c++) col[i * 3 + c] = 1 + (WET_TINT[c] - 1) * k;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  // Roughness 0.8, not wet stone's 0.55: damp sand is darker, not shiny, and
+  // the camera faces this band with the sun behind it.
+  const m = new THREE.Mesh(geo, litMaterial(BEACH, {
+    surface: 'sand', repeat: repeatFor('sand', w, len), vertexColors: true, roughness: 0.8,
+  }));
+  m.name = 'wet-sand';
+  // Under the contact-shadow decals (0.015) with room to spare, above the
+  // ground (0) and below the boardwalk (0.03) and the sea (0.05).
+  m.position.set(cx, 0.008, 0);
+  m.receiveShadow = true;
+  return m;
+}
+
+// Rock layers and a broken top edge for a sandstone box (the cliff and the
+// overlook). Only the TOP vertices move, and only in y, so every face keeps
+// its plane and the colliders along the cliff face still match it. Vertices
+// on the same (x, z) get the same lift, so the top face and the side faces
+// stay joined.
+function strata(geo, worldX, salt) {
+  const pos = geo.attributes.position;
+  geo.computeBoundingBox();
+  const top = geo.boundingBox.max.y;
+  const bottom = geo.boundingBox.min.y;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + worldX;
+    const z = pos.getZ(i);
+    let y = pos.getY(i);
+    if (y > top - 1e-4) {
+      y += 0.45 * Math.sin(x * 0.41 + salt) + 0.3 * Math.sin(x * 1.13 + z * 0.6 + salt * 2) - 0.25;
+      pos.setY(i, y);
+    }
+    const h = y - bottom;
+    // Bands about a metre thick that dip gently along the face.
+    const band = Math.floor(h / 1.05 + 0.35 * Math.sin(x * 0.17 + salt));
+    let v = 0.76 + 0.28 * hash1(band + salt * 13); // wide: ACES flattens the top end
+    if (h < 0.9) v *= 0.86 + 0.14 * (h / 0.9); // a darker, damp foot
+    col[i * 3] = v * 1.01;
+    col[i * 3 + 1] = v;
+    col[i * 3 + 2] = v * 0.97;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+const cliffMat = (w, h) =>
+  litMaterial(0xb09878, { surface: 'sand', repeat: repeatFor('sand', w, h), vertexColors: true, flatShading: true });
+
 // =============================================================================
 // Seaside.
 //
@@ -81,7 +191,7 @@ const SEA = {
 // render/textures.js's header): its whole read is per-texel variance, with no
 // shift in overall value, because a beach that goes darker when you texture it
 // just looks wet. builder.ground() therefore lifts grass and nothing else, and
-// 0xe0d0a0 below is still the hex a human picked.
+// BEACH (0xdcc28e since round three, above) is still the hex a human picked.
 //
 // AND A FINDING ABOUT THAT TILE, measured on screen at the real renderer
 // settings rather than reasoned about, because the next person to work here
@@ -122,7 +232,8 @@ export function build(scene, { water = {}, wind } = {}) {
   // and the tile is a fine speckle whose repeat comes from the plane's own
   // 140m (175 tiles of 0.8m). See the note above on why the colour is not
   // lifted the way a lawn's is.
-  scene.add(b.ground(140, 0xe0d0a0, { surface: 'sand' }));
+  scene.add(b.ground(140, BEACH, { surface: 'sand' }));
+  scene.add(wetSandBand());
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — dunes and a headland. See
   // builder.horizonBand's own block for the geometry; it carries no collider,
@@ -159,7 +270,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // own horizon stop to stand in for the aerial perspective fog does not
   // supply inside 40m. This palette will not take that: 0xe8e0d0 is nearly
   // white by authorship (Wave 1.4's own note flags these near-white horizon
-  // hexes), the beach under it is 0xe0d0a0, and lifting pale sand toward pale
+  // hexes), the beach under it is BEACH (0xdcc28e), and lifting pale sand toward pale
   // haze produced dunes that measured correct and were invisible — sand on
   // sand on sky, three values inside a few percent of each other. So they are
   // DARKENED instead, to a duller khaki: real backing dunes are packed, damp
@@ -278,14 +389,14 @@ export function build(scene, { water = {}, wind } = {}) {
   // rather than a pattern that visibly changes size around a corner (brick
   // courses would do exactly that), and by the distance either end face is
   // seen, mipmapping has resolved both to their mean anyway.
-  const cliff = new THREE.Mesh(new THREE.BoxGeometry(60, 8, 18),
-    surfMat(0xb09878, 'sand', 60, 8));
+  const cliff = new THREE.Mesh(strata(new THREE.BoxGeometry(60, 8, 18, 30, 8, 6), -10, 1.7),
+    cliffMat(60, 8));
   cliff.position.set(-10, 4, -46);
   scene.add(cliff);
   for (let i = 0; i < 12; i++) addC(-38 + i * 5, -37, 2.5); // cliff face blocks walking through
   // Square in plan, so its four faces tile identically — no end-face caveat.
-  const overlook = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 10),
-    surfMat(0xb09878, 'sand', 10, 8));
+  const overlook = new THREE.Mesh(strata(new THREE.BoxGeometry(10, 8, 10, 5, 8, 5), -40, 4.2),
+    cliffMat(10, 8));
   overlook.position.set(-40, 4, -40);
   scene.add(overlook);
   addC(-40, -40, 6);
@@ -408,7 +519,7 @@ export function build(scene, { water = {}, wind } = {}) {
     // b.ground() above. The brightest bounce of any area by a distance, which
     // is physically right for pale dry sand and is what will put warm light
     // under the pier and the boat hulls.
-    groundBounce: 0xe0d0a0,
+    groundBounce: BEACH,
     skyDusk: { top: 0x22304e, horizon: 0x7a5a6e },
     tippables: [
       { x: 17, z: 15, kind: 'pot' }, { x: 17, z: -17, kind: 'can' },

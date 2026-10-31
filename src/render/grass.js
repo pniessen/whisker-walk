@@ -34,8 +34,8 @@ import { waterClearance } from '../world/builder.js';
 // safe here.
 // ---------------------------------------------------------------------------
 
-// Areas with a lawn. The Docks has no grass; Seaside's ground is sand and the
-// den's garden is only seen through a window, so neither is worth the risk.
+// Areas with a lawn. The Docks has no grass and the den's garden is only seen
+// through a window. Seaside grows DUNE grass instead (GRASS_STYLES below).
 export const GRASS_AREAS = Object.freeze(['park', 'neighborhood']);
 
 // Mask resolution. Half a metre: finer than any path (1.2m sidewalks are the
@@ -243,50 +243,109 @@ export function buildGrassMask(area, footprints = [], cell = MASK_CELL) {
   };
 }
 
-// Bilinear value noise on a PATCH_SIZE lattice, in [0, 1].
-function patchNoise(x, z) {
-  const gx = x / PATCH_SIZE;
-  const gz = z / PATCH_SIZE;
+// Bilinear value noise on a `size`-metre lattice, in [0, 1].
+function patchNoise(x, z, size = PATCH_SIZE, salt = 7) {
+  const gx = x / size;
+  const gz = z / size;
   const ix = Math.floor(gx);
   const iz = Math.floor(gz);
   const fx = gx - ix;
   const fz = gz - iz;
   const sx = fx * fx * (3 - 2 * fx);
   const sz = fz * fz * (3 - 2 * fz);
-  const a = hashCell(ix, iz, 7);
-  const b = hashCell(ix + 1, iz, 7);
-  const c = hashCell(ix, iz + 1, 7);
-  const d = hashCell(ix + 1, iz + 1, 7);
+  const a = hashCell(ix, iz, salt);
+  const b = hashCell(ix + 1, iz, salt);
+  const c = hashCell(ix, iz + 1, salt);
+  const d = hashCell(ix + 1, iz + 1, salt);
   return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sz;
 }
 
-// tuftAt(ix, iz, spacing) — the tuft that lattice cell (ix, iz) always grows,
-// or null for a bare cell. Pure function of the world cell.
-export function tuftAt(ix, iz, spacing) {
-  if (hashCell(ix, iz, 1) >= PRESENCE) return null;
+// ---------------------------------------------------------------------------
+// STYLES. A lawn is short, even, green turf everywhere the mask allows. Dune
+// grass (Seaside, Stream 4 round three) is marram: taller, khaki, in clumps
+// with bare sand between, and only on the back beach — never on the wet sand
+// or the front of the beach where the cat spawns. One style per area; the
+// mesh, the mask and the shader are shared.
+//
+//   color      material colour (null: the area's groundBounce, the lawn hex)
+//   hMin/hMax  tuft height range, metres. The cat is ~0.4m tall; dune grass
+//              tops out at 0.3 so a cat in it is still a cat in it.
+//   width      extra x/z scale on every tuft
+//   warm       how far the tint may lean yellow (drier blades)
+//   sway       tip sway as a fraction of height at a gust peak
+//   reach      radius multiplier on the tier's grassRadius: clumps on open
+//              sand are seen from further away than turf
+//   density    (x, z) -> chance a lattice cell grows a tuft; null = PRESENCE
+// ---------------------------------------------------------------------------
+const LAWN = Object.freeze({
+  color: null, hMin: TUFT_MIN_H, hMax: TUFT_MAX_H, width: 1, warm: 0.1, sway: SWAY_AMP, reach: 1, density: null,
+});
+
+const smooth01 = (a, b, v) => {
+  const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+// Where marram grows at Seaside: the back of the beach (west of x 4, full by
+// x -10) and along the cliff foot (south of z -24, full by -32), in clumps
+// about 2.6m across. The boardwalk is at x 18..22 and the spawn at (18, 42),
+// so the front beach and the wet sand stay bare.
+export function duneDensity(x, z) {
+  // The cliff-foot strip stops well short of the boardwalk (x 18) and the wet
+  // sand, which run the whole length of the beach.
+  const zone = Math.max(smooth01(4, -10, x), smooth01(-24, -32, z) * smooth01(14, 8, x));
+  if (zone <= 0) return 0;
+  return 0.92 * zone * smooth01(0.48, 0.76, patchNoise(x, z, 2.6, 11));
+}
+const DUNE = Object.freeze({
+  color: 0x96a466, hMin: 0.12, hMax: 0.3, width: 0.9, warm: 0.28, sway: 0.3, reach: 1.5, density: duneDensity,
+});
+
+export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE });
+
+// tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
+// grows, or null for a bare cell. Pure function of the world cell.
+export function tuftAt(ix, iz, spacing, style = LAWN) {
   const x = (ix + 0.5 + (hashCell(ix, iz, 2) - 0.5) * 0.8) * spacing;
   const z = (iz + 0.5 + (hashCell(ix, iz, 3) - 0.5) * 0.8) * spacing;
-  const tall = 0.35 * hashCell(ix, iz, 4) + 0.65 * patchNoise(x, z);
-  const h = TUFT_MIN_H + (TUFT_MAX_H - TUFT_MIN_H) * tall;
+  const presence = style.density ? style.density(x, z) : PRESENCE;
+  if (hashCell(ix, iz, 1) >= presence) return null;
+  // Lawn: patchy heights. Dune: the clump's own strength, so each clump is
+  // tallest in its middle.
+  const field = style.density ? Math.min(1, presence / 0.92) : patchNoise(x, z);
+  const tall = 0.35 * hashCell(ix, iz, 4) + 0.65 * field;
+  const h = style.hMin + (style.hMax - style.hMin) * tall;
   // Width scale: taller tufts spread a bit wider.
-  const s = 0.8 + 0.25 * tall + 0.15 * hashCell(ix, iz, 5);
+  const s = (0.8 + 0.25 * tall + 0.15 * hashCell(ix, iz, 5)) * style.width;
   const rot = hashCell(ix, iz, 6) * Math.PI * 2;
-  // Tint: brightness 0.86-1.08, and a slight warm (yellow-green) lean on some,
-  // so the lawn has a few drier tufts among the lush ones.
+  // Tint: brightness 0.86-1.08, and a warm (yellow) lean on some, so the
+  // lawn has a few drier tufts among the lush ones.
   const v = 0.86 + 0.22 * hashCell(ix, iz, 8);
-  const warm = hashCell(ix, iz, 9) * 0.1;
+  const warm = hashCell(ix, iz, 9) * style.warm;
   return { x, z, h, s, rot, tint: [v * (1 + warm), v, v * (1 - warm)] };
+}
+
+// groundFinds(areaData, goldMice) — the things a kid hunts for at ground
+// level: collectibles and golden mice with no height (y absent or ~0; a fish
+// on a ledge is above any grass) and every scenic spot. walk.js keeps grass
+// clear of each, because dune grass is tall enough to bury a fish.
+export function groundFinds(areaData, goldMice = []) {
+  const low = (p) => !(p.y > 0.05);
+  return [
+    ...(areaData?.collectibles ?? []).filter(low),
+    ...(goldMice ?? []).filter(low),
+    ...(areaData?.scenics ?? []),
+  ].map(({ x, z }) => ({ x, z }));
 }
 
 // layoutTufts(cx, cz, opts, mask, emit) — call emit(tuft) for every tuft within
 // layoutRadius of lattice cell (cx, cz) that the mask allows. Returns count.
-export function layoutTufts(cx, cz, { radius, spacing }, mask, emit) {
+export function layoutTufts(cx, cz, { radius, spacing }, mask, emit, style = LAWN) {
   const n = Math.ceil(layoutRadius(radius, spacing) / spacing);
   let count = 0;
   for (let j = -n; j <= n; j++) {
     for (let i = -n; i <= n; i++) {
       if (i * i + j * j > n * n) continue;
-      const t = tuftAt(cx + i, cz + j, spacing);
+      const t = tuftAt(cx + i, cz + j, spacing, style);
       if (!t || !mask.at(t.x, t.z)) continue;
       emit(t, count++);
     }
@@ -349,9 +408,10 @@ const NO_GRASS = Object.freeze({ mesh: null, count: 0, capacity: 0, update() {},
 // tufts poking through it around a napping cat) and its carryables' start and
 // landing spots (an 8cm acorn would sit hidden in 6-15cm tufts).
 export function createGrass(scene, { areaId, areaData, tier, camera, reducedMotion = false, keepOut = [] }) {
-  const radius = tier?.grassRadius ?? 0;
+  const style = GRASS_STYLES[areaId];
+  const radius = (tier?.grassRadius ?? 0) * (style?.reach ?? 1);
   const spacing = tier?.grassSpacing ?? 0;
-  if (!GRASS_AREAS.includes(areaId) || !(radius > 0) || !(spacing > 0) || !areaData?.bounds) return NO_GRASS;
+  if (!style || !(radius > 0) || !(spacing > 0) || !areaData?.bounds) return NO_GRASS;
 
   const t0 = performance.now(); // maskMs: for a harness; ~4ms in Node
   const masked = keepOut.length
@@ -363,7 +423,7 @@ export function createGrass(scene, { areaId, areaData, tier, camera, reducedMoti
   const capacity = capacityFor(radius, spacing);
 
   const material = new THREE.MeshStandardMaterial({
-    color: areaData.groundBounce ?? 0x6cb058,
+    color: style.color ?? areaData.groundBounce ?? 0x6cb058,
     // Matte, same as the 'grass' surface preset the lawn wears (0.95), and no
     // metalness: the tufts should read as the lawn, standing up.
     roughness: 0.95,
@@ -449,7 +509,7 @@ uniform vec2 uWindDir;`)
       mesh.setMatrixAt(i, m4);
       c.setRGB(t.tint[0], t.tint[1], t.tint[2]);
       mesh.setColorAt(i, c);
-    });
+    }, style);
     mesh.count = n;
     mesh.instanceMatrix.clearUpdateRanges();
     mesh.instanceMatrix.addUpdateRange(0, n * 16);
@@ -475,7 +535,7 @@ uniform vec2 uWindDir;`)
     uniforms.uTime.value = t;
     const k = Math.min(Math.max(intensity, 0), MAX_INTENSITY);
     // Reduced motion: no sway at all (the same rule wind.js follows).
-    uniforms.uAmp.value = reducedMotion ? 0 : SWAY_AMP * (1 + GUST_DEPTH * Math.sin(t * GUST_FREQUENCY)) * k;
+    uniforms.uAmp.value = reducedMotion ? 0 : style.sway * (1 + GUST_DEPTH * Math.sin(t * GUST_FREQUENCY)) * k;
   }
 
   function dispose() {
