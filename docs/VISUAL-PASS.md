@@ -1193,3 +1193,31 @@ fill-rate cost of the mist on the low rung.
 - **Birds:** main.js's slow-mo comment no longer claims co-walk birds and
   clouds are identical (clouds left skylife.js; bird timers run on each
   client's own dt). New `test/skylife.test.js`.
+
+# Corner map (2026-10-31, branch `minimap`)
+
+A coin-sized disc in the top-right of the walk screen (150 px on desktop,
+110 px in touch mode), drawn on its own 2D `<canvas>` by
+`src/ui/minimap.js`. The area caption sits under it and the roster moves
+below that.
+
+- **Shows:** the ground, area edge, water, path strips, big colliders as
+  blocks, the player's cat, co-walkers as dots in their coat colour, the
+  next race ring and the one after it (dimmed), the race pad, the quest
+  target, and scenic spots (filled once visited). Markers off the disc are
+  pinned to its rim.
+- **Never shows:** golden mice, secrets, gifts, collectibles, carryables,
+  critters or strays. `buildMapLayer` and `mapMarkers` only name the keys
+  above, so nothing hidden can leak in.
+- **Modes:** North up (default) or Turns with me. Tapping the map flips it;
+  Settings → Map sets it too. It is kept per save (`progression.state.mapMode`).
+- **Hidden:** while paused or at the Ready? card, in the viewfinder, and in
+  the den (no map there).
+- **Layout around it:** the points/rank row and the race/quest objective
+  pill are centred in the band left of the map. On a phone (≤480 px) the
+  objective drops below the map and its caption, and a long rank title ends
+  in an ellipsis rather than wrapping. Left-handed, the pause button sits
+  just left of the map. In the den the caption is a plain pill at the right
+  edge.
+- **Cost:** 0 draw calls. It adds nothing to the Three.js scene, and it
+  repaints at most 30 times a second, only when something on it changed.

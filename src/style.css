@@ -55,6 +55,10 @@ body.touch-mode { --map-size: 110px; }
 }
 .hud-area:empty { display: none; }
 body.touch-mode .hud-area { font-size: 0.72rem; }
+/* The den has no map, so its caption would float small in an empty corner:
+   there it goes back to a plain pill at the right edge, like its neighbours. */
+.hud-map:not(:has(.hud-map-disc)) { align-items: flex-end; }
+.hud-map:not(:has(.hud-map-disc)) .hud-area { padding: 6px 14px; font-size: 1rem; }
 /* Co-walk roster: below the map and its caption (~22px). */
 .hud-roster {
   position: absolute;
@@ -66,13 +70,20 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   background: rgba(20,26,38,0.55); padding: 3px 10px; border-radius: 999px;
   font-size: 0.8rem;
 }
+/* The race/quest objective, centred in the band left of the corner map (the
+   band the rank pill is centred in), so a long objective never runs under
+   the map or the roster below it. */
 .hud-objective {
-  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 64px;
+  left: max(16px, env(safe-area-inset-left));
+  right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 12px);
+  width: fit-content; margin: 0 auto; text-align: center;
   background: rgba(242,193,78,0.9); color: #3a2a10; font-weight: 700;
   padding: 6px 16px; border-radius: 999px; font-size: 0.95rem;
 }
 .hud-objective-dist {
   margin-left: 0.6em; font-size: 0.8em; font-weight: 600; opacity: 0.65;
+  white-space: nowrap; /* "24 m" never splits across a wrapped objective */
 }
 .hud-goals {
   position: absolute; top: 64px; left: 16px;
@@ -394,6 +405,18 @@ body.left-handed .hud-top {
   .homebase-scroll { padding: 20px 14px 44px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .hud-goals { font-size: 0.72rem; padding: 6px 9px; gap: 2px; }
+  /* On a phone the band at 64px is shared with the goals list and the
+     touch pause button, so the objective drops below the map and its
+     caption, level with the roster. */
+  .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px); }
+  /* The top row shares its width with the map (and, left-handed, the pause
+     button too): keep both pills on one line, and let a long rank title
+     ("Neighborhood Legend") end in an ellipsis rather than wrap down over
+     the goals list. */
+  .hud-top { font-size: 1rem; gap: 6px; }
+  .hud-points, .hud-rank { padding: 5px 10px; white-space: nowrap; }
+  .hud-points { flex-shrink: 0; }
+  .hud-rank { font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
   .summary-card {
     max-width: 92vw; margin: 0 auto; padding: 16px 0;
