@@ -19,6 +19,7 @@ class FakeEl {
     this.listeners = {};
     this.cls = new Set();
     this.calls = {}; // 2D context method name -> call count
+    this.fills = []; // the fillStyle in force at each fill() / fillRect()
     this.classList = {
       add: (c) => this.cls.add(c),
       remove: (c) => this.cls.delete(c),
@@ -49,15 +50,20 @@ class FakeEl {
     this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn);
   }
   getContext() {
+    const state = {};
     return new Proxy({}, {
       get: (_t, key) => {
+        if (key in state) return state[key];
         if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
         if (key === 'createLinearGradient' || key === 'createRadialGradient') {
           return () => ({ addColorStop: () => {} });
         }
-        return () => { this.calls[key] = (this.calls[key] ?? 0) + 1; };
+        return () => {
+          this.calls[key] = (this.calls[key] ?? 0) + 1;
+          if (key === 'fill' || key === 'fillRect') this.fills.push(state.fillStyle);
+        };
       },
-      set: () => true,
+      set: (_t, key, v) => { state[key] = v; return true; },
     });
   }
 }
@@ -130,6 +136,22 @@ describe('buildMapLayer', () => {
     const text = JSON.stringify(layer);
     for (const n of ['3', '4', '5', '6']) expect(text).not.toContain(`"x":${n}`);
     expect(layer.blocks).toEqual([{ x: 1, z: 2, r: 1.5 }]);
+  });
+
+  // Raised decks are not flat strips, so without these the Docks canal reads
+  // as an uncrossable band and the Seaside pier as open sea.
+  it('buildMapLayer keeps the Docks bridge decks and the Seaside pier deck', () => {
+    const docks = built('docks');
+    const canal = buildMapLayer(docks.areaData, docks.scene).water
+      .find((w) => w.kind === 'rect' && w.minX === -45 && w.maxX === 45);
+    expect(canal.decks).toEqual([
+      { minX: -2.5, maxX: 2.5, minZ: -6.5, maxZ: 6.5 },
+      { minX: -25.1, maxX: -22.9, minZ: -5.5, maxZ: 5.5 },
+    ]);
+    const seaside = built('seaside');
+    const sea = buildMapLayer(seaside.areaData, seaside.scene).water.find((w) => (w.decks ?? []).length);
+    expect(sea.decks).toHaveLength(1);
+    expect(sea.decks[0].maxX).toBeGreaterThan(sea.decks[0].minX);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
@@ -242,6 +264,26 @@ describe('createMinimap', () => {
     now.mockReturnValue(1040); // the change is still pending and now due
     map.update({ cx: 1, cz: 0, heading: 0 }, EMPTY_FRAME);
     expect(count()).toBe(a + 1);
+  });
+
+  it('paints a deck over its water in the path tone', () => {
+    const layer = {
+      ...LAYER,
+      water: [{ kind: 'rect', minX: -10, maxX: 10, minZ: -2, maxZ: 2, decks: [{ minX: -1, maxX: 1, minZ: -3, maxZ: 3 }] }],
+    };
+    const { map, canvas } = makeMap({ layer });
+    map.update({ cx: 0, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const water = canvas.fills.indexOf('#86bcdc');
+    expect(water).toBeGreaterThan(-1);
+    expect(canvas.fills.slice(water + 1)).toContain('rgba(250,244,228,0.85)');
+  });
+
+  // coatColor hands back a number (0x2a2a30); a canvas ignores a number
+  // fillStyle and keeps the previous one, which drew every co-walker white.
+  it('fills a co-walker dot with a numeric coat colour as a CSS colour', () => {
+    const { map, canvas } = makeMap();
+    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, remotes: [{ x: 5, z: 5, color: 0x2a2a30 }] });
+    expect(canvas.fills).toContain('#2a2a30');
   });
 
   it('draws markers past the rim without throwing, and hide/show toggle the canvas', () => {

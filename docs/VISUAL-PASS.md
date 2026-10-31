@@ -1209,8 +1209,10 @@ below that.
 - **Never shows:** golden mice, secrets, gifts, collectibles, carryables,
   critters or strays. `buildMapLayer` and `mapMarkers` only name the keys
   above, so nothing hidden can leak in.
-- **Modes:** North up (default) or Turns with me. Tapping the map flips it;
-  Settings → Map sets it too. It is kept per save (`progression.state.mapMode`).
+- **Modes:** North up (default) or Turns with me. On a touch screen a tap
+  on the map flips it; Settings → Map sets it anywhere (on desktop the map
+  only shows while the pointer is locked, so a click goes to the game). It
+  is kept per save (`progression.state.mapMode`).
 - **Hidden:** while paused or at the Ready? card, in the viewfinder, and in
   the den (no map there).
 - **Layout around it:** the points/rank row and the race/quest objective
@@ -1218,6 +1220,6 @@ below that.
   objective drops below the map and its caption, and a long rank title ends
   in an ellipsis rather than wrapping. Left-handed, the pause button sits
   just left of the map. In the den the caption is a plain pill at the right
-  edge.
+  edge, with the roster back under it.
 - **Cost:** 0 draw calls. It adds nothing to the Three.js scene, and it
   repaints at most 30 times a second, only when something on it changed.

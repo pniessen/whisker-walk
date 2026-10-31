@@ -429,13 +429,16 @@ function addPrizeNeck(head, id, { k, y, z, ringR }) {
   }
 }
 
+// Hagrid's russet feathers, shared with coatColor so his map dot matches.
+const HAGRID_FEATHER = 0xb06a30;
+
 // Hagrid the chicken honors the cat parts contract so the animator, camera,
 // and every interaction work unchanged: legs[0]/legs[1] are the real legs
 // (the 4-beat gait's front pair is exactly a bipedal alternating step),
 // legs[2]/legs[3] are hidden dummies, and the comb stands in for the ears.
 function buildChicken(accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }) {
   const g = new THREE.Group();
-  const FEATHER = 0xb06a30;
+  const FEATHER = HAGRID_FEATHER;
   const CREAM = 0xe8d0a8;
   const COMB = 0xd83a3a;
 
@@ -658,7 +661,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 }
 
 // The corner map draws a remote sibling's dot in their cat's main coat colour.
+// Hagrid has no STYLE entry (he is built by buildChicken), so he is named here.
 export function coatColor(breed) {
+  if (breed === 'hagrid') return HAGRID_FEATHER;
   return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
 }
 

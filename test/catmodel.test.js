@@ -408,4 +408,10 @@ describe('coatColor', () => {
     expect(coatColor('black')).toBe(0x2a2a30);
     expect(coatColor('nonsense')).toBe(0x9c7a4f);
   });
+
+  // Hagrid is a chicken with no STYLE entry: his dot is his russet feathers,
+  // not the tabby fallback.
+  it('is Hagrid\'s feather colour for hagrid', () => {
+    expect(coatColor('hagrid')).toBe(0xb06a30);
+  });
 });

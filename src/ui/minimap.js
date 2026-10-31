@@ -32,14 +32,34 @@ export function buildMapLayer(areaData, scene) {
   return {
     ground,
     edge: areaData.bounds,
-    water: (areaData.waters ?? []).map((w) => (w.kind === 'circle'
-      ? { kind: 'circle', x: w.x, z: w.z, r: w.r }
-      : { kind: 'rect', minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ })),
+    // Decks (the Docks' bridges, the Seaside pier) are dry crossings over
+    // the water. They are raised, so flatFootprints never sees them; without
+    // them the canal reads as uncrossable and the pier as open sea.
+    water: (areaData.waters ?? []).map((w) => ({
+      ...(w.kind === 'circle'
+        ? { kind: 'circle', x: w.x, z: w.z, r: w.r }
+        : { kind: 'rect', minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ }),
+      decks: (w.decks ?? []).map((d) => ({ minX: d.minX, maxX: d.maxX, minZ: d.minZ, maxZ: d.maxZ })),
+    })),
     paths: flatFootprints(scene).filter((f) => f.kind === 'strip'),
     // Big colliders stand in for buildings, trees and large props; small
     // ones (bins, posts) would only be noise at this scale.
     blocks: (areaData.colliders ?? []).filter((c) => c.r >= 1).map((c) => ({ x: c.x, z: c.z, r: c.r })),
   };
+}
+
+// A canvas ignores a numeric fillStyle and keeps the previous one, and
+// coatColor hands back numbers (0x2a2a30). Each colour is turned into a CSS
+// string once and remembered, so repaints build no strings.
+const cssColors = new Map();
+function cssColor(c) {
+  if (typeof c !== 'number') return c || '#888';
+  let s = cssColors.get(c);
+  if (!s) {
+    s = '#' + c.toString(16).padStart(6, '0');
+    cssColors.set(c, s);
+  }
+  return s;
 }
 
 function cssSize(canvas) {
@@ -173,6 +193,12 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         ctx.fillRect(w.minX, w.minZ, w.maxX - w.minX, w.maxZ - w.minZ);
       }
     }
+    // Decks go on after all the water, in the path tone, so a crossing reads
+    // as a way over.
+    ctx.fillStyle = PATH;
+    for (const w of layer.water) {
+      for (const d of w.decks ?? []) ctx.fillRect(d.minX, d.minZ, d.maxX - d.minX, d.maxZ - d.minZ);
+    }
     ctx.fillStyle = BLOCK;
     for (const b of layer.blocks) {
       ctx.beginPath();
@@ -230,7 +256,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     } else if (m.kind === 'remote') {
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = m.color || '#888';
+      ctx.fillStyle = cssColor(m.color);
       ctx.fill();
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = '#fff';
@@ -311,6 +337,11 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     // painted by the next call after the gap, because it is measured against
     // the last painted state.
     update(view, frame) {
+      // The time gate comes first so a frame inside the gap builds no
+      // markers or key. Nothing is recorded here, so a change in that frame
+      // is still seen by the first call after the gap.
+      const now = performance.now();
+      if (now - lastPaintAt < MIN_FRAME_MS) return;
       const markers = mapMarkers(frame);
       const key = markersKey(markers);
       const size = cssSize(canvas);
@@ -321,8 +352,6 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         || Math.hypot(view.cx - last.cx, view.cz - last.cz) > 0.05
         || Math.abs(view.heading - last.heading) > 0.01;
       if (!changed) return;
-      const now = performance.now();
-      if (now - lastPaintAt < MIN_FRAME_MS) return;
       lastPaintAt = now;
       last = { cx: view.cx, cz: view.cz, heading: view.heading, key, mode: currentMode, size };
       paint(view, markers, size);

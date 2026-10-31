@@ -66,6 +66,9 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   right: max(16px, env(safe-area-inset-right));
   display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
 }
+/* No map in the den: the roster goes back under the caption pill, where it
+   sat before the map, instead of under an empty corner. */
+.hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: 64px; }
 .hud-roster-chip {
   background: rgba(20,26,38,0.55); padding: 3px 10px; border-radius: 999px;
   font-size: 0.8rem;
