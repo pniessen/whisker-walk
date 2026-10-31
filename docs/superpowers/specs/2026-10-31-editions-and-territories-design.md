@@ -173,11 +173,7 @@ otherwise, these win:
      - The island is the shared, peaceful ground where cats from any clan
        meet. It's the natural spot for both kids' clans to gather together,
        which keeps them allies (decision 2).
-     - Whether the island is a place you can walk (reached by a log or
-       stepping stones) or a mark on the territory map is still open. A
-       walkable island is the stronger idea, but it's one more small map,
-       and getting onto it is a water crossing (Sea Legs and decks already
-       exist).
+     - The island is walkable, reached by a bridge (see below).
    - She drew both on her map (version 22):
      - the lake is a large outline around the middle (board x ≈ 400–520,
        y ≈ 205–425);
@@ -192,8 +188,16 @@ otherwise, these win:
        routes between Twolegplace and its neighbours.
      - None goes to the Pines and Swamp, so it stays the most out-of-the-way
        territory, the furthest from the Twolegs.
+   - **A bridge goes to the island** (owner, 2026-10-31), so the island is a
+     real place you walk to, not just a mark on the map.
+     - It's a small map of its own.
+     - The bridge is a deck over the lake, the same way the Seaside pier and
+       the Docks bridges are decks over water today, so it needs no swimming.
+     - Still to decide: which shore the bridge leaves from. It could be one
+       bridge from one territory, or one per territory so every clan can
+       reach it.
    - Still unconfirmed: the small river loop where the River and Marshes meet
-     the Woods (a pond?), and whether the island is walkable.
+     the Woods (a pond?).
 9. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
    the cliff walls, and tall pine trees. It is still a later release.
    - Dens in the cliff walls make it the place where climbing and height
