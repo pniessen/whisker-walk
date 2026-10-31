@@ -886,3 +886,77 @@ the walk starts one rung higher. If it steps down again, `waitDays` doubles
 retry has held and `waitDays` resets to 7. A retry walk too short to judge
 proves nothing, so the next walk retries the same rung. A `steppedAt` in the
 future (clock change) is clamped to now. One rung at a time.
+
+# Stream 4 round two — grass
+
+Short swaying tufts on the Park and Cozy Neighborhood lawns
+(`src/render/grass.js`, wired in `game/walk.js`, tests in `test/grass.test.js`).
+
+## Technique
+
+- **One `THREE.InstancedMesh`, one `MeshStandardMaterial`** (roughness 0.95,
+  like the lawn's 'grass' preset), so it takes the same sun, hemisphere, IBL and
+  fog as everything else. A tuft is 5 single-triangle blades written in both
+  windings (10 triangles), 6–15 cm tall. Normals point up, so a tuft is lit like
+  the lawn under it. Vertex colour darkens the root; each tuft gets a small
+  brightness/warmth tint via `instanceColor`.
+- **World lattice, view-following patch.** Tufts sit on a fixed world lattice,
+  and every property (jitter, height, turn, tint, whether the cell grows a tuft
+  at all) is a hash of the WORLD cell (`hashCell`, integer mixing). A slow value
+  noise adds taller and shorter patches. The patch is centred `0.6 × radius` in
+  front of the camera (`shadowfit.js`'s `fitCentre`), just past the cat. The CPU
+  re-lays the instance buffer only when that centre crosses a ~2 m chunk
+  (`snapCentre`), about once a second at a trot. The edge fade runs in the
+  vertex shader against the live centre, so the circle glides while the tufts
+  stay put. Tufts shrink to nothing between 55% and 100% of the radius, so
+  there is no visible edge.
+- **Sway in the vertex shader** (`onBeforeCompile`): tips only (local y²), a
+  travelling wave across the lawn, scaled by `wind.js`'s own gust envelope and
+  rain intensity (1.7). Reduced motion sets the amplitude to 0. Vertex sway is
+  fine here, unlike `wind.js`'s rigid sway, because grass has no collider.
+- **Coverage mask**, built once per walk (~4 ms). It is a 0.5 m grid over
+  `bounds`: each cell is clear, blocked or an edge, and only edge cells pay
+  for the exact per-tuft test. No grass outside bounds, in water
+  (`waterClearance` + 0.35 m), on anything flat lying on the ground (paths,
+  sidewalks, puddles; read off the scene as oriented strips and discs, so a
+  diagonal park path masks its own strip), within colliders (+0.15 m) or on
+  `boxes`. A masked tuft is never written to the buffer.
+
+## Cost
+
+| | main pass | shadow pass |
+|---|---|---|
+| draw calls | **1** | **0** |
+
+The harness confirms this: `verify-places.html?area=park&grass` vs without is
+119 vs 118 `renderer.info.render.calls`, with the shadow pass included.
+`castShadow` is false, and `rig.js`'s caster sweep and `mergeprops.js` both
+skip `userData.grass`. The mesh is added after `createContactShadows`,
+`mergeStaticProps` and `assignShadowCasters`, so none of them ever sees it.
+It is `frustumCulled = false` (instances move; it is always in view anyway)
+and `receiveShadow = true` (a tuft under a tree is shaded; costs fragment work,
+not draws).
+
+| tier | radius | spacing | max tufts | max triangles |
+|---|---|---|---|---|
+| high (rungs 0–2) | 9 m | 0.30 m | 4,053 | 40,530 |
+| low (rung 3) | 6 m | 0.42 m | 1,129 | 11,290 |
+
+Drawn counts are lower: an open lawn draws ~3,500 on high, the park's
+path/pond junction ~2,200, and the neighbourhood crossroads ~940. Knobs are
+`grassRadius` / `grassSpacing` in `quality.js`. They are read at walk start, so
+an adaptive step to rung 3 thins the grass on the next walk; the live steps
+(1, 2) don't touch it.
+
+## Not done
+
+- No grass in the den's window garden, at Seaside or at the Docks.
+- No GPU-side layout. The CPU re-lays a few thousand matrices about once a
+  second; the matrices could move onto the GPU if a phone ever shows it in a
+  profile.
+- No interaction: the cat doesn't part the grass, and tufts don't flatten
+  under it.
+- Keep-outs are the collider circles, so a house has a bare apron of up to
+  ~1.5 m in front of its long walls (its r 3.4 circle against a 5×4 m body).
+- No fps reading. The owner's desktop and iPhone 18 readings are still the
+  check that matters.
