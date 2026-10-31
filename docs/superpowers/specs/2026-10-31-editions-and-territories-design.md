@@ -211,38 +211,43 @@ otherwise, these win:
      (cliffs, ledges, perches you climb up to).
    - The cliff dens are natural spots to explore, hide in and nap in.
 
-Next step: when the drawing arrives, revise §3 and the build order around it,
-then write the implementation plan, one territory at a time.
+**Done (2026-10-31):** §3, §4 and §8 are rewritten around her drawing, and
+text the decisions contradict is removed or marked *stale*. The first
+implementation plan, the edition switch plus the Woods, is
+`docs/superpowers/plans/2026-10-31-clan-edition-woods.md`.
 
 ---
 
 ## The short version
 
-- **One save, two ways of telling it.** Both editions read the same save: the
-  same points, cats, colony, marks and unlocks. The switch changes words,
-  names and decoration. It never changes what a kid owns. Flip it any time on
-  the home screen, and flip it back, and nothing is lost.
-- **Legacy Edition is today's game, unchanged.** Clan Edition is the new layer
-  on top. (Whether "today's game" is really what she means by Legacy is the
-  first question in §6.)
-- **Kittypets** are twelve of the old stray cats, the most house-cat-sounding
-  ones. They live in Twolegplace (today's Cozy Neighborhood), wear collars and
-  keep their names. They can be befriended and can join the clan, the way
-  Rusty became Firepaw in book one.
-- **Territories.** I recommend keeping separate maps rather than building one
-  continuous world:
-  - re-dress three of today's areas as territories, and keep the Neighborhood
-    as Twolegplace;
-  - build two new areas, the Moor and the Gorge;
-  - make each map's horizon show its neighbours;
-  - put a territory map on the home screen for choosing where to walk.
+*Updated 2026-10-31 for decisions 1–9.*
 
-  A single continuous world would cost weeks of engine work and risk the
-  colony and co-walks. The fog would also hide most of what it buys.
+- **One save, two editions.** Both editions read the same save: the same
+  points, cats, colony and unlocks. Flip the edition any time on the home
+  screen and flip it back, and nothing is lost.
+- **Legacy Edition is the older plain game** (decision 1): no clan names, no
+  rival clans, no clan words. The clan layer is hidden, not deleted, and comes
+  back when the kid flips to Clan Edition.
+- **Clan Edition is a new world** of all-new maps, laid out the way she drew
+  it (§3): the Woods, the Moor, the River and Marshes, and the Pines and Swamp
+  around a lake, with a walkable island in the middle and the Gorge to come
+  later. Twolegplace is the Cozy Neighborhood, shared by both editions.
+- **Each kid picks their own clan**, and the two kids' clans are always
+  allies (decision 2).
+- **Kittypets** are some of the old stray cats. They live in Twolegplace and
+  now and then wander into a territory, where a kid can befriend them and
+  bring them home, the way Rusty came to the clan (§2, §3).
+- **The maps stay separate.** Each one shows its neighbours on the horizon,
+  shared features line up across borders, and a territory map on the home
+  screen shows the whole world. One continuous world stays rejected.
+- **First step:** the edition switch, the territory map and the Woods (§8).
 
 ---
 
 ## 1. What each edition is
+
+*Updated 2026-10-31: decisions 1 and 5 changed what Legacy is and made the
+territories new maps. Text they contradict is rewritten or marked stale.*
 
 ### What the two editions share (everything that matters)
 
@@ -252,7 +257,7 @@ then write the implementation plan, one territory at a time.
 | Points, lifetime points, rank | Shared | One number. |
 | Unlocked cats, accessories, areas | Shared | Buying in either edition buys it for both. |
 | The colony (both kids' cats), feeds, taming | Shared | The same cats with the same progress. |
-| Marks, walk counts, golden mice, gifts, skills, streak, visits, journal, den furniture | Shared | All are stored under area ids that don't change (see below). |
+| Marks, walk counts, golden mice, gifts, skills, streak, visits, journal, den furniture | Shared | Stored per area id. The old four areas keep their ids; each new territory has its own id, so its walk counts, marks, golden mice, races and scenics start fresh (decision 5). |
 | Your own cat and its name | Shared | The pet name (including a chosen `-star` name) is the same in both. |
 | Each stray's real stored name | Shared | It never changes. Names on screen are a display layer, as the clan spec already does it. |
 
@@ -261,36 +266,37 @@ then write the implementation plan, one territory at a time.
 | Thing | Legacy Edition | Clan Edition |
 |---|---|---|
 | Title | "Whisker Walk 2" + *Legacy Edition* | "Whisker Walk 2" + *Clan Edition* (the title already says this today) |
-| Choosing where to walk | Today's list of area cards | A territory map: tap a territory to walk there |
-| Place names | Cozy Neighborhood, City Park, Seaside, The Old Docks | Twolegplace, the Woods, the River and Marshes, the Pines and Swamp, plus the new Moor and Gorge |
-| Rival clans | Today's four (HedgeClan, AlderClan, DuneClan, HeronClan) | The books' clans, each living in its own territory |
-| Your clan | Today's minted clan name (for example MossClan) | The clan the kids pick (see §6, question 2) |
-| Some strays | "Marmalade the loner" | "Marmalade the kittypet", wearing a collar |
-| The den | "Den" | "Camp" (words only) |
-| Decoration | Today's | Collider-free extras: ferns, reeds, border posts, horizons that show the next territory |
+| Choosing where to walk | Today's list of area cards: Cozy Neighborhood, City Park, Seaside, The Old Docks | A territory map: tap a territory to walk there. Below it, "Other places" lists the Park, Seaside and Docks. |
+| Places | The four areas, exactly as today | Twolegplace (the Neighborhood) and the new territory maps (§3) |
+| Clan names, roles and ranks | Hidden: colony cats show by their own names | Shown, as today |
+| Rival clans and their patrols | None | As today in the old areas. In the new territories, after the clan-pick step (§3). |
+| Your clan | Hidden (still stored) | The clan each kid picks (decision 2) |
+| Some strays | "Marmalade" (the older wording, no "loner") | "Marmalade the kittypet", wearing a collar (kittypets step) |
+| The den | "Den" | "Camp" (words only, later) |
 
 ### The rule that keeps both kids safe
 
-> **The edition never changes what a kid owns, and never changes the walkable
-> world, what spawns where, or anything sent between the two devices.**
+> **The edition never changes what a kid owns. An area is built the same
+> way in both editions, so what you bump into, what spawns where, and
+> anything sent between the two devices never depend on the edition.**
 
-Three good things follow from that rule:
+The edition changes three things only: the words, which places the home
+screen offers, and whether this device runs the rival patrol (which is local
+already). Good things follow:
 
-- **Switching can never lose anything.** Nothing is converted. Each Clan
-  territory *is* one of today's areas underneath:
-  - the Woods is the Park;
-  - the River and Marshes is the Seaside;
-  - the Pines and Swamp is the Docks;
-  - Twolegplace is the Neighborhood.
-
-  So "how does progress map across" has a one-word answer: **exactly.** Your
-  12 walks in City Park are 12 walks in the Woods.
+- **Switching can never lose anything.** Nothing is converted or deleted.
+  Clan progress stays in the save in Legacy, and Legacy's areas and unlocks
+  stay owned in Clan Edition.
+- ~~*Stale (decision 5):* each Clan territory *is* one of today's areas
+  underneath, so progress maps across exactly.~~ The territories are new
+  maps, so their progress starts fresh; everything a kid owns is shared (§3,
+  "Unlocking territories").
 - **Co-walks across editions just work.** If she is on Clan Edition and he is
-  on Legacy, they walk the same world. He sees "City Park" and she sees "the
-  Woods", and each sees their own edition's words and decoration. The rival
-  patrol is already worked out locally on each device, with nothing sent
-  between them, so it can differ per edition without the two worlds drifting
-  apart.
+  on Legacy, they walk the same world. He sees his edition's words, she sees
+  hers. The rival patrol is worked out locally on each device with nothing
+  sent between them, so a Legacy kid simply sees none. If she hosts a walk in
+  the Woods, he can join it on Legacy, the same way a joiner can already walk
+  an area they haven't unlocked.
 - **The switch can be flipped any time from the home screen, but not during
   a walk.** A walk's world is built when it starts, so the new edition shows
   from the next walk.
@@ -301,32 +307,38 @@ Three good things follow from that rule:
   choice also sits in Settings, in plain words.
 - **It is saved with the kid's save, not the device.** Cloud sync then carries
   it with her, the same way the corner map's north-up choice is designed to.
-- **Existing saves start on Legacy**, so nothing changes for either kid until
-  one of them flips it. A brand-new save also starts on Legacy, and flipping
-  takes one tap.
+- **Existing saves start on Clan Edition.** *(Changed 2026-10-31.)* The
+  draft said Legacy, back when Legacy meant "today's game". Decision 1 made
+  Legacy the plain game, so starting there would hide the clan names, roles
+  and rivals both kids see today. Starting on Clan Edition keeps what they
+  see; Legacy is one tap away. A brand-new save starts on Clan Edition too.
+  *(Owner to confirm.)*
 
 ### Builder notes (skip if you're not building it)
 
 - Add `edition: 'legacy' | 'clan'` to `progression.js` state as an additive,
-  sanitised field defaulting to `'legacy'`. `SAVE_VERSION` stays 4. Older
-  builds drop the unknown field on save, so the kid quietly falls back to
-  Legacy, which is harmless.
+  sanitised field defaulting to `'clan'`. `SAVE_VERSION` stays 4. Older
+  builds drop the unknown field on save, so the kid quietly comes back on
+  Clan Edition, which is harmless.
 - **Test the invariant directly.** For any save, flipping the edition there
   and back leaves the state deep-equal apart from `edition`.
 - All edition-dependent *words* go through `clanwords.js` (clan spec §6.8 and
   decision 3). Use a second data-only file beside it if that is tidier
   (`clancanon.js`, say). Keep the structural scan test covering it.
-- **Edition-only decoration carries no collider, no perch, no POI and no
-  spawn.** Anything with a collider changes the world for both editions, so it
-  needs the owner's OK because it changes Legacy.
+- **An area builds the same in both editions.** Nothing in a world file reads
+  the edition: no collider, perch, POI or spawn may depend on it.
+- **Legacy writes no clan field during a walk**: no rival border marks, no
+  contested marks, and no role settling from a feed. Role settling still runs
+  at sync time in both editions, because it is shared colony bookkeeping that
+  keeps the two devices agreeing.
 - The rival patrol (`rivalcats.js`) uses the shared wall clock and sends
   nothing over the network; the chase moves only the local cat. That is why
   its clan name and presence may vary by edition. Disc **positions** should
   not vary by edition, though, because `markcontest.js` and `marks.js` read
   them. Keep `DISCS` as it is and change only the clan each disc belongs to.
-- Areas stay keyed by today's ids (`neighborhood`, `park`, `seaside`,
-  `docks`) everywhere: the save, `marks.js`, `goldmice.js`, the colony and the
-  server. Territory names are a lookup from id to name per edition.
+- The old four areas keep their ids (`neighborhood`, `park`, `seaside`,
+  `docks`). New territories get new ids (§3, builder notes). Twolegplace is
+  the `neighborhood` id under a Clan Edition name.
 
 ---
 
@@ -363,11 +375,11 @@ Three good things follow from that rule:
 3. **In Clan Edition, kittypets wear a collar** (decoration only, using the
    collar models the shop already has). Legacy shows them exactly as today.
 4. **Where they appear.** Their home is Twolegplace (the Neighborhood).
-   Strays are cast across all areas today, and changing who spawns where would
-   make co-walks drift apart, so a kittypet will sometimes turn up in the Woods
-   or on the Moor. In Clan Edition that reads as *"a kittypet out exploring"*,
-   which is exactly what Rusty was. Keeping them strictly in Twolegplace is
-   possible later, but it changes Legacy too, so it is the owner's call.
+   Decision 6 adds the occasional **wanderer** into a territory: how often,
+   how it is chosen, and why it never counts against a kid are in §3,
+   "Twolegplace, and kittypets who wander". The ordinary stray cast is not
+   changed, because changing who spawns where would make co-walks drift
+   apart.
 5. **They can be befriended, as today**: greet, friend, best friend.
 6. **They can join the clan, as today.** This is the book-one moment. A
    kittypet who joins gets a clan name on the Colony card, with the old name
@@ -377,7 +389,8 @@ Three good things follow from that rule:
 7. **The family cats are always kittypets and always keep their names.**
    Robbie, D2, Digit, Zeetoo and Hagrid are the kids' real house cats. In Clan
    Edition the home screen can say *"Robbie, a kittypet who walks with
-   ThunderClan"*. The shop doesn't change.
+   ThunderClan"* (with her chosen homage name in place of the books' one,
+   per decision 3). The shop doesn't change.
 
 None of this renames, adds or removes a stored name, so the colony and the
 server are untouched.
@@ -402,178 +415,313 @@ server are untouched.
 
 ## 3. Territories
 
-### The proposed layout
+*Rewritten 2026-10-31 around her drawing (decision 7, version 22) and
+decisions 4–9. The earlier draft re-dressed today's areas as territories and
+compared three ways of building that; decision 5 overturned it, so it is gone.
+Every territory below is a **new map**.*
 
-The five clan territories and Twolegplace form **one map of six regions**.
-Some share borders and two places belong to more than one clan, as in the
-books.
+### The world at a glance
 
-| Territory | Clan | Built from | What makes it read as the place |
-|---|---|---|---|
-| **Twolegplace** | none (kittypets) | Cozy Neighborhood, unchanged | Houses, gardens and fences: where every walk's cat comes from |
-| **The Woods** | ThunderClan | City Park | More trees and ferns at the edges; the pond and clearings stay |
-| **The River and Marshes** | RiverClan | Seaside | The sea reads as the lake or river; wet sand reads as marsh; dune grass as reeds; the pier is the crossing |
-| **The Pines and Swamp** | ShadowClan | The Old Docks | Dark and lamplit; pines along the west yard; the canal as a swamp ditch; the road edge is the Thunderpath. *The weakest fit of the four; see §6.* |
-| **The Moor** | WindClan | **New area** | Open heather and wind, few props, rabbits in the grass |
-| **The Gorge** | SkyClan | **New area** | A path between cliff walls, ledges to climb, a river at the bottom |
+Six places sit around one lake. Twolegplace (the Cozy Neighborhood) is in the
+south-east corner. The four clan territories of the first release each touch
+the lake. The island in the lake is shared ground. The Gorge waits to the
+east, for later.
 
-**Borders and overlaps:**
+| Place | Whose | What it is like | It borders | Its side of the lake |
+|---|---|---|---|---|
+| **Twolegplace** | Nobody's: the kittypets live here | The Cozy Neighborhood, exactly as it is, in both editions: houses, gardens, fences | The Woods (west, over the garden fence). Its paths also reach the Moor and the River and Marshes. The Gorge nearly touches it. | None |
+| **The Woods** | The storm clan | Oak wood with ferns, bramble thickets and sunny clearings. Warm and sheltered; the middle of everything. | Twolegplace (east), the Moor (north), the River and Marshes (west, sharing the pond) | The south-east side, which is the Woods' own north-west corner. The river runs along this shore. |
+| **The Moor** | The wind clan | Open heather on rolling hills, few trees, rabbits, and wind. The river crosses it. | The Pines and Swamp (west), the Woods (south). The north path from Twolegplace arrives on its east side. | The north-east side, where the river runs into the lake |
+| **The River and Marshes** | The river clan | Reedbeds and wet meadow, the river coming in from the far west, good fishing, the pond | The Pines and Swamp (north; they overlap a little), the Woods (east, sharing the pond). The long path from Twolegplace arrives on its south side. | The south-west side |
+| **The Pines and Swamp** | The shadow clan | Dark pine stands and a boggy swamp. No Twolegplace path reaches it: it is the furthest place from the Twolegs. | The Moor (east), the River and Marshes (south) | The north-west side, where the bridge to the island starts |
+| **The island** | Nobody's: everyone's meeting place | A small grassy island with the ★ meeting place on it | Only the lake. One bridge reaches it. | All of it |
+| **The Gorge** *(later)* | The sky clan | Rocks, dens dug into the cliff walls, tall pines (decision 9) | Nearly touches Twolegplace. The north path runs past its west side. | None |
 
-- **Twolegplace and the Woods** share the **garden fence**, the fence Rusty
-  jumped.
-- **The Woods and the Pines** are split by the **Thunderpath** (a road).
-- **The Woods and the River** share the river. **Sunny Rocks** sits on it,
-  and both clans claim it. This is the books' Sunningrocks, the classic
-  contested place.
-- **The Woods, the Moor and the River** meet at the **Gathering Hollow**, a
-  neutral place that belongs to all of them.
-- **The Moor and the River** share a **stream**.
-- **The Moor and the Gorge** share the **gorge rim**: the moor's edge is the
-  top of the gorge.
-- **The River and the Pines** share the **marsh edge**.
-- The Gorge touches only the Moor. SkyClan lives apart, as in the books.
+The clan names above are placeholders. The real ones are homages that she
+chooses from a short list (decision 3), in a later step.
 
-### Map sketch
+### Water: the river, the pond, the lake and the island
 
-```
-                                   NORTH
-  +--------------------------------------+---------------------------+
-  |                                      :                           |
-  |              THE MOOR                :        THE GORGE          |
-  |              WindClan                :        SkyClan            |
-  |              (new map)          gorge rim     (new map)          |
-  |                                      :                           |
-  +-------- the stream ---------( * )----+---------------------------+
-  |                        Gathering     |                           |
-  |        THE WOODS        Hollow (all) |    THE RIVER & MARSHES    |
-  |        ThunderClan                   |    RiverClan              |
-  |        (was City Park)    [SUNNY ROCKS: Woods and River both     |
-  |                            claim it]  ~~~~~~ the river ~~~~~~    |
-  +=== garden fence ===+== Thunderpath ==+--- marsh edge ------------+
-  |                    |                                             |
-  |    TWOLEGPLACE     |          THE PINES & SWAMP                  |
-  |    kittypets       |          ShadowClan                         |
-  |    (was Cozy       |          (was The Old Docks)                |
-  |     Neighborhood)  |                                             |
-  +--------------------+---------------------------------------------+
+- **The river** is one long river:
+  - it comes in from the far west and runs through the River and Marshes;
+  - it feeds **the pond**, which sits on the border between the River and
+    Marshes and the Woods;
+  - from the pond it runs east through the north of the Woods, along the
+    lake's south shore;
+  - it turns north up the side where the Woods meets the Moor;
+  - then it runs west across the Moor and pours into the lake from the
+    north, close to the Pines border.
 
-  ===  a border you can see (fence, road)    ---  an ordinary shared edge
-  :    the gorge rim                         ( * ) and [ ] places that more
-                                                   than one clan claims
-```
+  So it nearly rings the lake.
+- **The pond** is small and belongs to both the River and Marshes and the
+  Woods. It is a good place to fish or drink.
+- **The lake** is in the middle, where four territories meet: the Pines and
+  Swamp, the Moor, the Woods, and the River and Marshes. Each of them has its
+  own stretch of shore, as listed in the table.
+- **The island** is in the lake, with the ★ meeting place on it. It is a real
+  place you can walk to:
+  - **one bridge** reaches it, from the Pines and Swamp's shore on the
+    north-west side of the lake;
+  - the way there is under **a truce**, like a Gathering in the books.
+    Crossing Pines land to reach the bridge never starts a chase or costs
+    anything, and nothing on the island does either. This matters because the
+    two kids may be in different clans (decision 2).
+- **Water stops a cat in the game** (it has since v19; the Sea Legs ability
+  lets a cat paddle). So wherever the river cuts a territory in two, the map
+  gives it crossings: a fallen log, stepping stones, a plank bridge. Nothing a
+  kid needs to reach is ever cut off by water. Sea Legs is a shortcut, never a
+  key, the same rule the Docks follows today.
 
-This is a starting point. The fastest way to get it right is to ask her to
-draw it (§6, question 5).
+### The three paths out of Twolegplace
 
-### Where the clans live, and what "rival" means
+Twolegplace has three paths. They are the kittypets' ways into clan land, and
+the walking routes between Twolegplace and its neighbours.
 
-- The clans' home is the **camp** (today's den), wherever their territory is.
-- Every territory except the kids' own has its owning clan's patrol near a
-  camp at its usual spot. Walking there is trespassing. As today, the only
-  cost is being chased back out: funny, recoverable, and nothing lost.
-- **In their own territory**, the patrol becomes the *neighbouring* clan
-  patrolling the contested spot. If they pick ThunderClan, that is RiverClan
-  at Sunny Rocks. Every area keeps exactly one rival, which honours clan-spec
-  decision 9.
-- Nothing here sets one sibling against the other. They are one clan
-  (§6, question 2).
+- **The short path** goes north-west, through a gap in the garden fence, into
+  the Woods.
+- **The north path** goes up between the Woods and the Gorge to the Moor.
+- **The long path** goes west along the south edge, through the bottom of the
+  Woods, to the River and Marshes.
 
-### Three ways to build it, cheapest first
+None goes to the Pines and Swamp. In each map, a path meets the map's edge on
+the side that faces Twolegplace, so the paths line up across maps.
 
-The engine today builds **one area per walk**. Each area is about 80–110 m
-across with flat ground and no terrain heights. On the iPhone 18, Cozy
-Neighborhood draws about 300 calls a frame and the Docks about 400. Most of
-those calls are shadow work (about 73–83%). The phone holds 60 fps in both
-(`docs/VISUAL-PASS.md`, Stream 4 readings).
+### Twolegplace, and kittypets who wander
 
-| | **(a) Rename and re-tint, separate maps** | **(b) Separate maps that visibly connect, plus a territory map** ← recommended | **(c) One big continuous world** |
-|---|---|---|---|
-| **What you get** | New names and colours on the four areas, two new areas. Nothing shows they connect. | (a), plus each map's horizon shows its neighbours, border posts at shared edges, Sunny Rocks and the Gathering Hollow as real places, and a territory map on the home screen to pick from. Later, optionally, walking across a border. | Walk from Twolegplace through the Woods to the Moor without stopping. |
-| **iPhone draw calls and memory** | About the same as today. | About +2–4 draws per area, nothing extra in the shadow pass. Horizons are already one mesh per area and only get repainted. | Several regions loaded at once and swapped in as you walk. Near a border, about twice today's draws. Loading a region mid-walk risks a visible stutter. |
-| **Co-walks** | Unchanged. | Unchanged. Crossing a border together uses today's "host proposes, both start" flow. | A rebuild. Positions sent between the devices only make sense inside one area, so two kids in different regions need new rules. |
-| **The walk loop** | Unchanged. | Unchanged. A walk is still in one territory. | A rebuild. Weather, secrets, quests, goals, races, golden mice, legendary cats, rivals, marks and gifts are all chosen once per area per walk (about 25 source files key on the area id). |
-| **Corner map (being built now)** | Unchanged. | Unchanged. Later it can label shared edges ("Moor ↑"). The home-screen territory map reuses its 2D drawing. | Its design (one area shape, centred on the cat) would need redoing. |
-| **Unlocks** | Today's chain plus two new areas. | The same. In Clan Edition the chain tells the book-one story: start as a kittypet in Twolegplace, then into the Woods, and onward. | It needs a new idea of "unlocking part of a continuous world". |
-| **Existing content that moves** | None. | None in today's areas. The two new areas need their own landmarks, race points, scenic spots and three golden mice each. | Everything is re-anchored to world coordinates: landmarks, golden mice, races, scenic spots, rival camps, marks, and every colony cat's fixed spot. That last one is shared data both kids depend on. |
-| **Effort** | Smallest. | Moderate, in independent steps. | Weeks, with the highest risk to the colony and co-walks. |
-| **Risk to the kids' progress** | Low | Low | **Real** |
+- **Twolegplace is the Cozy Neighborhood**, unchanged, and shared by both
+  editions (decision 6). Clan Edition calls it Twolegplace; Legacy calls it
+  the Cozy Neighborhood. It is the one place where the two editions' worlds
+  meet.
+- **Kittypets live there, and sometimes wander into a territory.** The plan
+  for how often:
+  - on about **one territory walk in five**, one kittypet turns up in that
+    territory, near where a Twolegplace path comes in;
+  - never more than one per walk, and never in Twolegplace itself, since they
+    live there;
+  - which kittypet, and whether one comes at all, depends only on **today's
+    date and the territory**. So both devices in a co-walk see the same
+    wanderer, whatever edition each kid is on.
+  - A wanderer is an ordinary stray under today's rules: a kid can greet it,
+    befriend it, feed it and bring it home, the way Rusty came to the clan.
+    It never chases, is never chased, and **never counts against anyone**.
+- *Builder:* the roll is seeded from `seedFromCode(date + '-wander-' +
+  areaId)`, never `walkRng`, and adds nothing on the wire (decision 6). It
+  belongs to the kittypets step, not to any territory's map.
 
-**Why I recommend (b).** It delivers what she asked for: one world, named
-territories, shared borders and contested places. Each map shows where it
-sits, and the home-screen map shows the whole. It keeps every walk, colony cat
-and co-walk exactly as solid as it is today.
+### How separate maps share borders
 
-Option (c)'s extra is walking across a border without a pause. The fog closes
-in at 40–130 m, so you can't see a neighbouring territory from inside one
-anyway. You see about what (b)'s painted horizon shows. (b)'s optional last
-step ("cross the border": finish this walk, start the next territory with a
-short crossing card) gets most of the feeling for a small fraction of the
-cost.
+Each territory is its own map, about 100 m across, and a walk happens in one
+of them. Three things make them read as one world:
 
-**Why (a) alone falls short.** Five clans need five places, and Twolegplace is
-where kittypets live. Even the cheapest honest version needs two new maps, or
-it leaves one clan out at first. The Gorge is the natural one to wait
-(§6, question 4). Without visible connections, (a) also gives "a park called
-the Woods", not one world.
+1. **Matching edges.** Each map's edge looks like the neighbour on the other
+   side of it, and a feature on a border appears on both maps in the same
+   place:
+   - the pond sits on the Woods' west edge, and will sit on the River and
+     Marshes' east edge;
+   - the river leaves the Woods at its north-east corner and enters the Moor
+     at its south;
+   - each territory's lakeshore faces the lake's middle;
+   - each Twolegplace path meets the edge facing Twolegplace.
+2. **Neighbours on the horizon.** Past each edge, the horizon shows the
+   neighbour. From the Woods, for example:
+   - heather hills to the north (the Moor);
+   - flat reedbeds to the west (the River and Marshes);
+   - rooftops over the garden fence to the east (Twolegplace);
+   - the lake opening out to the north-west, with the island and its big
+     tree out on the water.
 
-### Builder notes
+   This is painted scenery with nothing to bump into, so it costs one or two
+   draw calls.
+3. **Border crossings.** Where a path or the river meets the edge of a map, a
+   border post stands. Walking up to it asks "Head to the Moor?":
+   - **yes** ends this walk the normal way, with its summary and points, and
+     opens the home-screen territory map with the Moor picked, ready to
+     start;
+   - a neighbour that isn't built yet says "The Moor: not explored yet";
+   - the post on the Twolegplace side goes back to Twolegplace the same way.
 
-- **New areas need a server change before colony cats can be fed in them.**
-  `docs/supabase-colony.sql` lines 372–401 (the feed function) refuses any
-  area outside `('neighborhood','park','seaside','docks')`. Until the owner
-  runs a one-line SQL update, strays in the Moor and the Gorge can be greeted
-  but not fed into the colony. Ship it that way first; it is safe.
-- **Update both devices before anyone walks a new area.** An older build's
-  sanitisers keep only the ids they know:
-  - `unlocked.areas` (a bought area would vanish, with its points);
-  - `state.walks` keys;
+**What I recommend.** Build matching edges and horizons with every territory,
+from the first one. Add border crossings as their own small step once two
+neighbouring territories exist, going through the home-screen map as above.
+Why:
+
+- Every walk system (the race, golden mice, weather, strays, quests, the
+  co-walk seed) is chosen once per map per walk. Going through the home
+  screen keeps all of it exactly as solid as today.
+- It cannot break a co-walk: a walk ends for both, and the next one is
+  started together through today's "host proposes, both start" flow.
+- The fog closes in at 40–130 m, so even a continuous world would show about
+  what the horizon shows.
+
+A **direct crossing** (step over the border and the next territory starts
+straight away, with a short crossing card) can come later if she wants it.
+
+**One big continuous world stays rejected.** It means weeks of engine work,
+loading regions mid-walk on the iPhone, and re-anchoring every colony cat's
+stored spot, and it puts the kids' progress at real risk for a view the fog
+would mostly hide.
+
+### Unlocking territories
+
+- Progress in a territory starts fresh, because it is a new map with its own
+  area id. Everything a kid owns (points, cats, colony, accessories) is
+  shared, as always.
+- **Each territory opens for free after two walks in a neighbour**, following
+  the story of book one: start as a kittypet in Twolegplace, then into the
+  Woods, then onward.
+
+  | Territory | Opens after |
+  |---|---|
+  | The Woods | 2 walks in Twolegplace |
+  | The River and Marshes | 2 walks in the Woods |
+  | The Moor | 2 walks in the Woods |
+  | The Pines and Swamp | 2 walks in the River and Marshes |
+  | The island | 1 walk in the Pines and Swamp (its bridge is there) |
+  | The Gorge (later) | to be decided with it |
+
+- **Free on purpose.** A device that hasn't updated yet can drop an unlock it
+  doesn't understand. A free unlock that drops comes straight back, and no
+  points are lost with it.
+- **Nothing is taken away.** Legacy's areas and unlocks are untouched. In Clan
+  Edition, the City Park, the Seaside and the Old Docks are still there,
+  listed under the territory map as "Other places". A kid never has to switch
+  editions to reach an area they already own.
+
+### Where the clans live *(waits for the clan-pick step)*
+
+- Each kid picks a clan (decision 2), and the two kids' clans are always
+  allies. A territory's computer-run patrol is its own clan's, or a
+  neighbouring clan's when a kid picked that territory's clan ("your clan's
+  home").
+- That needs the clan pick and the homage names first. **Until then, a new
+  territory has no rival patrol.** The truce on the way to the island holds
+  from the day the island exists.
+
+### Builder notes (skip if you're not building it)
+
+- **Area ids, fixed now:** `woods`, `moor`, `river`, `pines`, `island`,
+  `gorge`. Twolegplace stays `neighborhood`. The Park, Seaside and Docks keep
+  their ids and are not territories.
+- **The colony server** accepts only the four old area ids
+  (`docs/supabase-colony.sql`, `colony_feed`, line 384). Add all six new ids
+  in **one** owner edit before the first territory ships its colony feeding.
+  Accepting an id no map uses yet is harmless, and it saves the owner a SQL
+  step per territory. The exact line is in the Woods plan.
+- **Update both devices before anyone walks a new territory.** A build that
+  doesn't know an area id drops it from:
+  - `unlocked.areas`;
+  - `state.walks`;
   - `MARK_AREAS`;
-  - `COLONY_AREAS` (`colony.js` returns `null` for a cat in an unknown
-    area).
+  - `COLONY_AREAS`: `sanitizeCat` returns `null` for an unknown area, so an
+    old build drops even a **tamed** colony cat from a new territory.
 
-  The site is one GitHub Pages deploy, so a refresh fixes it. A tab left open
-  for a week does not. Consider a version check that holds a stale build back
-  from saving.
-- New area registration, from the existing comments:
-  - a `CATALOG.areas` entry with `price`/`requires`;
-  - a `defaultState().walks` key (forgetting it pins walks at NaN forever,
-    per `progression.js`);
+  The co-walk lobby already ignores a proposal for an area it doesn't know,
+  so a stale joiner simply doesn't start. The Woods plan makes the colony
+  sanitiser keep a cat in any well-formed area id it doesn't know, so from
+  then on a stale build can't drop a colony cat this way.
+- **Registering a new area** touches:
+  - `CATALOG.areas` (with `edition: 'clan'`, `price: 0` and `requires`);
+  - `defaultState().walks` (forgetting it pins walks at NaN forever);
   - `AREAS` in `game/walk.js`;
-  - `MARK_AREAS`, `COLONY_AREAS`, `DISCS`, `RIVAL_PREFIXES`, `GOLD_MICE`
-    (`GOLD_TOTAL` goes from 12 to 18; check anything that says "12");
-  - the per-area render tables: `render/ambient.js`, `clouds.js`,
-    `grass.js`, `pawprints.js`, `rig.js`, `sky.js` and `water.js`;
-  - `PLACE_PICTURE` in `homebase.js`;
-  - five POIs (the race needs them) and three scenics.
-- **No terrain.** Colliders are 2D circles at y = 0, and `builder.js` says
-  plainly that displacing the ground is a systems change. So:
-  - **The Moor** is flat heather with a rolling-hill horizon band. It is
-    cheap, and it suits the iPhone because it has few shadow casters.
-  - **The Gorge** is a flat floor between tall cliff-wall colliders, with
-    height only through the existing perch and climb system (`climbing.js`).
-    Cliffs are big shadow casters, so merge them, and measure on the iPhone
-    before calling it done. The Gorge is the riskiest single item in this
-    design.
-- Horizon bands (`builder.js` around line 1040: one merged mesh per area,
-  beyond `bounds`, no collider) are where "you can see the Moor from the
-  Woods" lives. That is a repaint, not new geometry.
-- Sunny Rocks and the Gathering Hollow are scenics (`scenics` entries) in one
-  physical area each. The overview map draws them straddling the border.
-- Option (b)'s optional crossing step: end the walk, then start the
-  neighbour's walk with a crossing card and a combined summary at the end.
-  A co-walk crossing is a host proposal through the existing `lobby.js` flow.
-  `areaOverride` already lets a joiner walk an area they haven't unlocked.
+  - `MARK_AREAS`, `COLONY_AREAS`, `GOLD_MICE` (`GOLD_TOTAL` goes up by three);
+  - `CLOUD_AREAS`, `GRASS_STYLES`, the pawprint `AREA_RULES`, `ambientKind`
+    and the audio ambience;
+  - a picture at `public/places/<id>.jpg`;
+  - the cross-area tests: `budget`, `water`, `climbing`, `spots`, `minimap`.
+- **Each map needs:** flat ground of about 100 × 100 m; eight or more POIs
+  (the daily race picks five); five collectibles; three golden mice (two up
+  perch chains, one hidden at ground level); three scenics; perches with at
+  least one vantage; water footprints with dry decks wherever the cat must
+  cross; and a horizon band painted for its neighbours.
+- **Budget.** No map may cost more than the Cozy Neighborhood, the area the
+  iPhone 18 was measured holding 60 fps in (`docs/VISUAL-PASS.md`, Stream 4).
+  In `test/budget.test.js` terms that is at most 450 meshes and 380 casters
+  as built, and 260 meshes and 205 casters merged. Check each map on the
+  iPhone before calling it done.
+- **No terrain.** Colliders are circles at y = 0, and ground is flat
+  (`builder.js`). The Moor's hills live in its horizon. The Gorge waits until
+  the game can do height (decision 9).
+- **Horizons** use `builder.horizonBand`. A band that faces two kinds of
+  neighbour needs one small addition: rooftops on one side only (Twolegplace
+  seen from the Woods). The Woods plan adds it.
+- **The island and the bridge.** The bridge is a deck over the lake, like the
+  Seaside pier, so it needs no swimming. Its map is small. It is built after
+  the Pines and Swamp, whose shore the bridge starts from.
 
 ---
 
 ## 4. The map sketch
 
-See §3, "Map sketch". The table under "Borders and overlaps" lists each shared
-edge in words.
+Redrawn from her map (version 22, north up). Sizes are rough; what touches
+what is exact.
+
+```
+                                   NORTH
+ +--------------------------+   +-------------------------------+
+ |   THE PINES AND SWAMP    |   |           THE MOOR            |       :
+ |   dark pines and swamp,  |   |   open heather, wind, rabbits |       : the
+ |   furthest from Twolegs  |   |                               |       : north
+ |                          |   |    ~~~~~~~~~~~~~~~~~~~~~~~~   |       : path
+ |                  +-------+---+-~~~+                     ~    |       :
+ |   bridge  =======|==> (*) island  |   the river crosses ~    |       :
+ |                  |    THE LAKE    |   the Moor and runs ~    |       :
+ +------------------+                +---into the lake ----~----+       :
+ +------------------+                +---------------------~----+       :  +---------+
+ |                  +------+---+-----+                     ~    |       :  |  GORGE  |
+~~~~~~~~~~~~~~~~~~~~~~~~~~(o)~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    |       :  | (later) |
+ | THE RIVER AND MARSHES   | pond        THE WOODS              |       :  +---------+
+ | reeds, wet meadow       |             oaks, ferns, clearings |       :
+ |                         |                     ...............|.short.:......
+ |                         |                                    | TWOLEGPLACE  |
+ +.........................+....................................+ (the Cozy    |
+   <... the long path runs west along the south edge ..........   Neighborhood, |
+                                                                | both games)  |
+                                                                +--------------+
+
+  ~~~   water: the river (in from the far west), the lake, and the pond (o)
+  ...   the three paths out of Twolegplace: short into the Woods, long along
+        the south edge to the River and Marshes, and north to the Moor
+  ===>  the one bridge to the island, from the Pines and Swamp's shore
+  (*)   the meeting place on the island: shared ground, under a truce
+```
+
+**What touches what:**
+
+- the Pines and Swamp and the Moor;
+- the Pines and Swamp and the River and Marshes (they overlap a little);
+- the River and Marshes and the Woods, at the pond;
+- the Woods and the Moor, along the river;
+- the Woods and Twolegplace, at the garden fence;
+- all four clan territories and the lake;
+- Twolegplace and the Gorge, nearly. The Gorge's side of the map stays an
+  "unexplored" edge until it is built.
+
+**Builder: her drawing in numbers** (1000 × 700 board, north up; territories
+are circles):
+
+| Place | Centre (x, y) | Radius |
+|---|---|---|
+| Twolegplace | 843, 566 | 110 |
+| The Woods | 565, 500 | 170 |
+| The Moor | 620, 161 | 165 |
+| The Gorge | 815, 353 | 80 |
+| The Pines and Swamp | 308, 199 | 150 |
+| The River and Marshes | 232, 488 | 160 |
+| ★ meeting place | 455, 314 | (on the island) |
+| The lake | x 397–522, y 207–426 | (her outline) |
+| The island | x 437–485, y 289–329 | (her outline) |
+
+The home-screen territory map draws straight from this layout, kept as data
+in the game (`src/territories.js` in the Woods plan).
 
 ---
 
 ## 5. Naming and ownership
+
+*Settled by decision 3 (2026-10-31): close homages, not the books' exact
+names, with a short list per clan for her to choose from. The recommendation
+at the end of this section (canonical clan names) is **stale**. The facts
+about the code and the public repository still hold.*
 
 **What the code does today.**
 
@@ -614,6 +762,16 @@ plays it, not of who could see it.
 ---
 
 ## 6. Questions only the playtester or the owner can answer
+
+*Status 2026-10-31.* Answered by the owner's decisions: 1 (decision 1),
+2 (decision 2), 3 (decision 3), 4 (decision 4), 5 (decisions 5, 7 and 8:
+all-new maps from her drawing, so the "does the Docks feel like ShadowClan"
+part no longer applies), and 8 (moot: Clan Edition's territories are new
+maps, so Legacy's world never changes). Still open: 6 (the kittypet list),
+7 (should Legacy get the new maps under plain names; the Woods plan keeps
+them Clan-only, and a Legacy kid can still join a co-walk there) and 9 (a
+direct crossing; §3 recommends crossings through the home-screen map first).
+The original questions follow unchanged.
 
 Ranked by how much the answer changes what gets built.
 
@@ -681,7 +839,7 @@ Ranked by how much the answer changes what gets built.
 
 ### Non-goals
 
-- No continuous open world (option c).
+- No continuous open world (§3, "How separate maps share borders").
 - No new clan mechanics: no battles, no prophecies, no plot.
 - No changes to the colony's rules, caps or taming.
 - No renaming of any stored cat name.
@@ -697,7 +855,9 @@ Ranked by how much the answer changes what gets built.
   hills" and a kittypet as "a house cat with a collar" to someone who has
   never opened the books. Every borrowed word sits next to something you can
   see.
-- **A clan war between siblings.** They are one clan.
+- **A clan war between siblings.** Each kid may pick a different clan
+  (decision 2), so the two kids' clans are always allies: nothing scores one
+  against the other, and patrols come only from the computer-run clans.
 - **Chores**: nothing asks you to patrol or mark a border daily (the clan
   spec's §5 rule carries over).
 - **Breaking co-walks.** If two kids on different editions ever see
@@ -707,42 +867,74 @@ Ranked by how much the answer changes what gets built.
 
 ## 8. Suggested build order
 
-Each step ships alone and is useful alone.
+*Rewritten 2026-10-31 for decisions 1–9. Each step ships alone, and each one
+leaves the kids something to play.*
 
-0. **Ask** questions 1–5 in §6. Questions 1 and 2 shape step 1. Question 5
-   shapes steps 4–6.
-1. **The edition switch, words only.**
-   - The saved `edition` setting, the toggle on the title and in Settings.
-   - Clan Edition's names for the four existing areas, the clans, the camp
-     and the HUD words. The clan choice (question 2).
-   - Legacy is byte-for-byte today.
-   - Test: flipping never changes anything else in the save.
-2. **Kittypets.** The name list, the collar in Clan Edition, "the
-   kittypet" toasts, and "once a kittypet called…" on the Colony card.
-3. **The home-screen territory map** (Clan Edition). Six regions, borders,
-   Sunny Rocks and the Gathering Hollow. Tap to walk. The Moor and the Gorge
-   are shown under mist as "not yet". Reuse the corner map's 2D drawing once
-   that has landed.
-4. **Re-dress the Woods, the River and the Pines.**
-   - Decoration you walk through, plus repainted horizons showing the
-     neighbours.
-   - Border posts at the shared edges.
-   - Each rival camp relabelled with its clan, and the contested spot in the
-     kids' home territory.
-   - One area per step if that is easier to review.
-5. **The Moor** (WindClan): a new area. Colony feeding stays off there until
-   the owner runs the one-line SQL update and both devices are updated.
-6. **The Gorge** (SkyClan): a new area. Measure it on the iPhone before
-   calling it done.
-7. *(Optional)* **Crossing a border**: finish one walk and step into the
-   neighbouring territory, solo or together.
+**The first release** is Twolegplace (the Neighborhood, which already
+exists), the Woods, the River and Marshes, the Moor, the Pines and Swamp, and
+the island. **The Gorge comes later** (decision 4).
 
-Steps 1–3 need no new maps and carry almost no risk. They are probably what
-she notices most.
+1. **The edition switch, the territory map, and the Woods.** Plan:
+   `docs/superpowers/plans/2026-10-31-clan-edition-woods.md`.
+   - The saved edition, a switch in Settings and on the title, and Legacy
+     quietly hiding the clan layer (decision 1).
+   - The home-screen territory map in Clan Edition, drawn from her layout,
+     with the territories not built yet shown as "coming soon" and the
+     Gorge's edge as "unexplored".
+   - The Woods as a new map: paths, the pond, its stretch of lakeshore, the
+     river with its crossings, POIs, collectibles, golden mice, the race,
+     scenics, perches, undergrowth, a horizon showing its neighbours, and the
+     corner map.
+   - Colony feeding in the Woods turns on only after the owner's one SQL edit,
+     which also covers every later territory.
+2. **Clans: her pick of names, and each kid's clan.**
+   - A short list of homage names per clan for her to choose from
+     (decision 3).
+   - Each kid picks a clan; the two kids' clans are always allies
+     (decision 2).
+   - Each territory gets its clan's patrol at a camp, following the "your
+     clan's home" rule.
+3. **Kittypets.** The kittypet names, collars in Clan Edition, "the
+   kittypet" wording, "once a kittypet called…" on the Colony card (§2), and
+   the occasional wanderer into a territory (§3).
+4. **The River and Marshes.** The pond on its east edge matches the Woods'.
+5. **The Moor.** The river crosses it into the lake; the north path from
+   Twolegplace arrives on its east side.
+6. **Border crossings.** Border posts on the paths and the river, through the
+   home-screen map (§3). Worth doing once the Woods has two built neighbours.
+7. **The Pines and Swamp.** The bridge's shore. The truce path to the bridge
+   is built here.
+8. **The island.** A small map of its own, reached by the bridge, with the ★
+   meeting place. It is where both kids' clans gather together.
+9. *(Later)* **The Gorge**, once the game can do height. Measure it on the
+   iPhone before calling it done.
+10. *(Optional)* **Direct crossings**: step over a border and the next
+    territory starts straight away.
+
+Steps 2 and 3 need no new maps and can move earlier or later around steps
+4–8. Each new map is held to the Cozy Neighborhood's budget and checked on the
+iPhone (§3, builder notes).
 
 ---
 
 ## Builder notes: facts checked against the source (main at `70ac310`)
+
+*Re-checked 2026-10-31 at main `fb6ba0f` (corner map, camera zoom, paw
+prints, clouds and ambient life merged). Still true, plus:*
+
+- `colony_feed` in `docs/supabase-colony.sql` line 384 is the only server
+  check on area ids; the `colony_cats.area` column is plain text.
+- `sanitizeCat` in `src/colony.js` returns `null` for an area outside
+  `COLONY_AREAS`, tamed or not (see §3 builder notes).
+- `game/lobby.js` ignores a walk proposal for an area missing from
+  `CATALOG.areas`, so a stale joiner doesn't start rather than crashing.
+- `state.golden` is checked by id shape (`gm-<word>-<n>`), not against the
+  known list, so golden mice found in a new territory survive an old build.
+- The corner map (`src/ui/minimap.js`) builds from `areaData` alone, so a new
+  map gets it for free.
+- The test suite at `fb6ba0f`: 139 files, 3366 tests, all passing.
+
+*As first checked at `70ac310`:*
 
 - **The title already reads "Whisker Walk 2: Clan Edition"**:
   - the home screen, in `src/ui/homebase.js` around line 825;
