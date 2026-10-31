@@ -62,6 +62,7 @@
     ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera })
     : null;
   window.__grassT = 0;
+  window.__scene = scene; // for poking at the scene from the console
   const render = () => {
     shadows.update();
     grass?.update(window.__grassT, 1);

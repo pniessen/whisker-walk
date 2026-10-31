@@ -22,7 +22,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { build } = await import('../src/world/seaside.js');
+const { build, BEACH } = await import('../src/world/seaside.js');
 const { surfaceProps, tileMetres } = await import('../src/render/materials.js');
 const { setTextureTier, getTextureTier } = await import('../src/render/textures.js');
 
@@ -73,9 +73,12 @@ describe('Seaside — surfaces', () => {
     // mean is 0.998 BY DESIGN: its read is per-texel variance only, because a
     // beach that darkens when you texture it just looks wet. If someone ever
     // "fixes" that by lifting this colour, the beach goes pale and this says so.
+    // (BEACH itself moved 0xe0d0a0 -> 0xdcc28e in Stream 4 round three: an
+    // authored change, not compensation.)
     const scene = new THREE.Scene();
     build(scene);
-    expect(groundOf(scene).material.color.getHex()).toBe(0xe0d0a0);
+    expect(BEACH).toBe(0xdcc28e);
+    expect(groundOf(scene).material.color.getHex()).toBe(BEACH);
   });
 
   it('planks the boardwalk and the pier in the same timber at the same scale', () => {
@@ -264,6 +267,6 @@ describe('Seaside — wind', () => {
 // cross-area ordering case in test/docks.test.js.
 describe('Seaside — the hemisphere fill’s bounce', () => {
   it('bounces the beach’s own sand', () => {
-    expect(build(new THREE.Scene()).groundBounce).toBe(0xe0d0a0);
+    expect(build(new THREE.Scene()).groundBounce).toBe(BEACH);
   });
 });

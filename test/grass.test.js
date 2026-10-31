@@ -22,17 +22,18 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity,
 } = await import('../src/render/grass.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
+const { build: buildSeaside, SPAWN: SEASIDE_SPAWN } = await import('../src/world/seaside.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN grass.
 function walkScene(areaId, tier = LADDER[0]) {
@@ -257,10 +258,10 @@ describe('grass rig — the budget', () => {
     grass.dispose();
   });
 
-  it('stays out of the Docks, Seaside and the den', () => {
+  it('stays out of the Docks and the den', () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();
-    for (const areaId of ['docks', 'seaside', 'den']) {
+    for (const areaId of ['docks', 'den']) {
       const g = createGrass(scene, { areaId, areaData: { bounds: { minX: -1, maxX: 1, minZ: -1, maxZ: 1 } }, tier: LADDER[0], camera });
       expect(g.mesh).toBe(null);
       g.update(1, 1);
@@ -280,4 +281,85 @@ describe('grass rig — the budget', () => {
     expect(tris(low)).toBeLessThan(tris(high) / 2);
     expect(layoutRadius(high.grassRadius, high.grassSpacing)).toBeGreaterThan(high.grassRadius);
   });
+});
+
+describe('dune grass (Seaside, Stream 4 round three)', () => {
+  const dune = GRASS_STYLES.seaside;
+
+  it('grows only on the back beach and the cliff foot', () => {
+    // Front beach, boardwalk, wet sand and spawn: bare.
+    for (let z = -20; z <= 46; z += 2) {
+      for (const x of [6, 12, 18, 22, 24]) expect(duneDensity(x, z)).toBe(0);
+    }
+    expect(duneDensity(SEASIDE_SPAWN.x, SEASIDE_SPAWN.z)).toBe(0);
+    // The back beach has clumps AND bare sand between them.
+    let grown = 0;
+    let bare = 0;
+    for (let x = -46; x <= -12; x += 0.5) {
+      for (let z = -30; z <= 46; z += 0.5) (duneDensity(x, z) > 0.3 ? grown++ : bare++);
+    }
+    expect(grown / (grown + bare)).toBeGreaterThan(0.15);
+    expect(bare / (grown + bare)).toBeGreaterThan(0.3);
+  });
+
+  it('tufts are taller than lawn but never as tall as the cat', () => {
+    let n = 0;
+    for (let i = -160; i < -40; i++) {
+      for (let j = -100; j < 100; j++) {
+        const t = tuftAt(i, j, 0.3, dune);
+        if (!t) continue;
+        n++;
+        expect(t.h).toBeGreaterThanOrEqual(dune.hMin);
+        expect(t.h).toBeLessThanOrEqual(0.3);
+      }
+    }
+    expect(n).toBeGreaterThan(1000);
+    expect(dune.hMax).toBeGreaterThan(TUFT_MAX_H);
+  });
+
+  it('lawn tufts are unchanged by the style refactor', () => {
+    // The default style is the lawn: same presence, same height range.
+    for (let i = 0; i < 50; i++) {
+      const a = tuftAt(i, 3 * i, 0.3);
+      const b = tuftAt(i, 3 * i, 0.3, GRASS_STYLES.park);
+      expect(a).toEqual(b);
+      if (a) {
+        expect(a.h).toBeGreaterThanOrEqual(TUFT_MIN_H);
+        expect(a.h).toBeLessThanOrEqual(TUFT_MAX_H);
+      }
+    }
+  });
+
+  for (const tier of [LADDER[0], LADDER[3]]) {
+    it(`seaside rig (${tier.name}): one mesh, no shadows, tufts only where allowed`, () => {
+      const { scene, areaData, camera } = walkScene('seaside', tier);
+      const before = scene.children.length;
+      aimAt(camera, -24, 6);
+      const grass = createGrass(scene, { areaId: 'seaside', areaData, tier, camera });
+      grass.update(1, 1);
+      expect(scene.children.length).toBe(before + 1);
+      expect(grass.mesh.castShadow).toBe(false);
+      expect(grass.mesh.count).toBeGreaterThan(100);
+      expect(grass.mesh.count).toBeLessThanOrEqual(grass.capacity);
+      expect(grass.capacity * TRIANGLES_PER_TUFT).toBeLessThan(120000);
+      const fps = flatFootprints(scene);
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      for (let i = 0; i < grass.mesh.count; i++) {
+        grass.mesh.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m);
+        expect(duneDensity(p.x, p.z)).toBeGreaterThan(0);
+        expect(areaData.colliders.some((c) => Math.hypot(p.x - c.x, p.z - c.z) < c.r)).toBe(false);
+        expect(fps.some((f) => f.kind === 'strip'
+          && Math.abs((p.x - f.x) * f.ux + (p.z - f.z) * f.uz) < f.halfL
+          && Math.abs(-(p.x - f.x) * f.uz + (p.z - f.z) * f.ux) < f.halfW)).toBe(false);
+      }
+      // At the spawn, looking along the boardwalk: nothing at all.
+      aimAt(camera, SEASIDE_SPAWN.x, SEASIDE_SPAWN.z - 4);
+      grass.update(2, 1);
+      expect(grass.mesh.count).toBe(0);
+      grass.dispose();
+      expect(scene.children.length).toBe(before);
+    });
+  }
 });
