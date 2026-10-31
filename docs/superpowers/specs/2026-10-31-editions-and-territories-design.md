@@ -25,6 +25,61 @@ still loads, and the colony caps stay as they are.**
 
 ---
 
+## Owner's answers (2026-10-31): these override the draft below
+
+The owner answered four of §6's questions. Where the draft below says
+otherwise, these win:
+
+1. **Legacy Edition is the older plain game, with no clan words.**
+   - Legacy hides the v21 clan layer: clan names and roles, rival clans and
+     their patrols, and clan wording.
+   - It is still **hidden, not deleted.** The one-save rule holds. Clan
+     progress (clan name, roles, marks, colony standing) stays in the save,
+     untouched, and comes back when the kid flips to Clan Edition.
+   - Cats tamed into the colony stay owned in Legacy. They show as the kid's
+     cats, without clan titles.
+   - **Co-walks across editions:** the rival patrol is already worked out
+     locally on each device, so a Legacy kid simply sees none while a Clan kid
+     sees them. Nothing on the wire changes.
+   - This replaces "Legacy is today's game, unchanged" in the short version
+     and in §1.
+   - Builder: list every v21 3a surface that has to go quiet in Legacy, with a
+     test that a Legacy walk spawns no rival patrol and shows no clan wording.
+     A Legacy-only walk must not write to clan fields.
+2. **Each kid picks their own clan.**
+   - This runs into the anti-goal about sibling rivalry, so the design must
+     make different clans **allies, never opponents**, for the two kids:
+     - in a co-walk, the two kids' clans are always friends;
+     - nothing scores one kid's clan against the other's;
+     - rival patrols come only from the computer-run clans;
+     - each territory's NPC clan is the one neither kid picked, or the
+       territory's own clan when a kid picked it ("your clan's home").
+   - Builder: per-kid clan choice is one more additive save field. The
+     existing minted clan name (clan spec §2) becomes this choice in Clan
+     Edition.
+3. **Close homages, not the books' exact names.**
+   - The code is on public GitHub, so clan and place names should clearly
+     echo the books without copying them.
+   - Propose a short list per clan for the 11-year-old to choose from before
+     any names go into the game. Their meaning and flavour should match: the
+     storm clan of the woods, the wind clan of the moor, the river clan, the
+     shadow clan of the pines, the sky clan of the gorge.
+   - Generic place words (the Woods, the Moor, the Gorge) are fine as they
+     are.
+   - This settles §5.
+4. **The Gorge comes later.**
+   - First release: Twolegplace, the Woods, the River and Marshes, the Pines
+     and Swamp, and the Moor.
+   - The Gorge (and its clan) is a later step, after the game can do height.
+   - The territory map leaves a visible "unexplored" edge where the Gorge
+     will join.
+
+Still open: whether the territory mapping in §3 is right (Seaside as the River
+and Marshes, the Docks as the Pines and Swamp). The plan is to ask the
+11-year-old to draw her own map.
+
+---
+
 ## The short version
 
 - **One save, two ways of telling it.** Both editions read the same save: the
