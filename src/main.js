@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
+import { coatColor } from './cat/model.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -12,6 +13,7 @@ import { createPerfHud } from './ui/perfhud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
+import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
@@ -183,10 +185,27 @@ function init() {
     decode: (arrayBuf) => audio.getContext().decodeAudioData(arrayBuf),
     playBuffer: (buf, opts) => audio.playBuffer(buf, opts),
   });
+  // Camera zoom (src/camzoom.js): keys, wheel, the touch +/− pair and pinch
+  // all land in zoomControl.step(dir). Only during an engaged walk, so the
+  // wheel and +/− keys do nothing on the home base or the pause card.
+  const zoomControl = createZoomControl({
+    settings,
+    player,
+    isDen: () => session?.areaId === 'den',
+    onCapped: () => hud.toast('The den is cosy — no room to zoom out further 🏠'),
+  });
+  const zoomBy = (dir) => {
+    if (session && player.engaged) zoomControl.step(dir);
+  };
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
-    onAction: (name) => handleTouchAction(name),
+    onAction: (name) => {
+      const zoomDir = zoomActionDir(name);
+      if (zoomDir) zoomBy(zoomDir);
+      else handleTouchAction(name);
+    },
+    onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
@@ -569,6 +588,13 @@ function init() {
     if (e.code === 'KeyC' && session && player.engaged) {
       doCameraToggle();
     }
+    // + / = zoom in, - zooms out, by character first (non-US layouts) then
+    // by key position. A held key does not auto-repeat through the steps.
+    const zoomDir = keyZoomDir(e.key, e.code);
+    if (zoomDir && !typing && session && player.engaged) {
+      e.preventDefault(); // ctrl/cmd +/- would otherwise also zoom the page
+      if (!e.repeat) zoomBy(zoomDir);
+    }
     // chat keys — only during an active engaged walk, never while typing
     // (guards home-base pet-name/friend-code/room-code inputs).
     if (session && player.engaged && !typing) {
@@ -578,6 +604,17 @@ function init() {
       if (e.code === 'Escape') { session.chatWheel?.closeFromKeyboard?.(); return; }
     }
   });
+  // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
+  // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
+  // else; a Mac trackpad pinch inside the game arrives here as ctrl+wheel and
+  // zooms the camera instead of the page.
+  const wheelStep = createWheelStepper();
+  document.addEventListener('wheel', (e) => {
+    if (!session || !player.engaged) return;
+    e.preventDefault();
+    const dir = wheelStep(e.deltaY, e.deltaMode, performance.now());
+    if (dir) zoomBy(dir);
+  }, { passive: false });
   document.addEventListener('mousedown', () => {
     if (isTouch) return; // touch snapping goes through tapWorld — a synthesized
     // mousedown from a button tap must not double-snap.
@@ -590,11 +627,26 @@ function init() {
   // The cat's paws for paws.update, mutated every frame rather than rebuilt
   // (pawprints.js reads the fields and keeps no reference).
   const pawState = { x: 0, z: 0, grounded: false };
+  // The corner map's inputs, mutated every frame rather than rebuilt. The
+  // remote dots come from a pool that only grows when a new co-walker joins.
+  const mapView = { cx: 0, cz: 0, heading: 0 };
+  const mapRemotes = [];
+  const mapRemotePool = [];
+  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
     if (!session) { perfHud.frameEnd(null, performance.now()); return; }
+    // The corner map shows only while the walk is being played: not behind
+    // the Ready? and pause cards, which are exactly the times the player is
+    // not engaged. (The viewfinder hides it in hud.setCamera; the summary
+    // comes after endWalk has disposed it.)
+    if (session.minimap && session.minimapShown !== player.engaged) {
+      session.minimapShown = player.engaged;
+      if (player.engaged) session.minimap.show();
+      else session.minimap.hide();
+    }
     if (player.engaged) {
       // `waters` is v20's fourth argument: the area's water footprints, which
       // player.update blocks the cat out of unless Sea Legs is on. The den has
@@ -811,6 +863,28 @@ function init() {
       for (const r of session.remotes.list) pushMovers.push(r.group.position);
       for (const push of session.pushThroughs.update(dt, pushMovers)) {
         if (push.by === 0) (push.kind === 'gap' ? audio.zoomWind() : audio.landThump());
+      }
+      // The corner map, after remotes.update so co-walker dots sit where
+      // their cats are this frame. It throttles and skips repaints itself.
+      if (session.minimap) {
+        const f = player.forward();
+        mapView.cx = session.cat.position.x;
+        mapView.cz = session.cat.position.z;
+        mapView.heading = Math.atan2(-f.x, -f.z);
+        mapFrame.race = session.race;
+        mapFrame.quest = session.quest;
+        mapFrame.scenics = session.areaData.scenics;
+        mapFrame.visitedScenics = session.scenicsVisited;
+        mapRemotes.length = 0;
+        for (const r of session.remotes.list) {
+          let dot = mapRemotePool[mapRemotes.length];
+          if (!dot) { dot = { x: 0, z: 0, color: 0 }; mapRemotePool.push(dot); }
+          dot.x = r.group.position.x;
+          dot.z = r.group.position.z;
+          dot.color = coatColor(r.breed);
+          mapRemotes.push(dot);
+        }
+        session.minimap.update(mapView, mapFrame);
       }
       session.chatBubbles?.update();
       session.ghosts.update(dt, t);

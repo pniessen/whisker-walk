@@ -492,6 +492,10 @@ function defaultState() {
     visits: 0,
     visitPrizesSeen: 0,
     visitPrizePending: null,
+    // Which way the corner map faces: 'north' keeps north up, 'turn' rotates
+    // the map with the cat. Additive, so SAVE_VERSION stays 4: an older save
+    // starts north.
+    mapMode: 'north',
   };
 }
 
@@ -851,6 +855,7 @@ function sanitizeState(parsed) {
     visits,
     visitPrizesSeen,
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
+    mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
   };
 }
 
@@ -1173,6 +1178,12 @@ export function createProgression(storage) {
     unequip(slot) {
       state.equipped[slot] = null;
       save();
+    },
+    setMapMode(mode) {
+      if (mode === 'north' || mode === 'turn') {
+        state.mapMode = mode;
+        save();
+      }
     },
     setArea(id) {
       if (api.isUnlocked('areas', id)) {

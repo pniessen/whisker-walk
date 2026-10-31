@@ -1063,6 +1063,8 @@ export function createInteractions({
     for (const sc of s.areaData.scenics) {
       if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
+        // The corner map greys out spots already visited this walk.
+        s.scenicsVisited?.add(sc.id);
       }
     }
 

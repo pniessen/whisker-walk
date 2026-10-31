@@ -7,14 +7,14 @@ export function createHud() {
     <div class="hud-top">
       <div class="hud-points">🐾 <span id="hud-points-value">0</span></div>
       <div class="hud-rank" id="hud-rank"></div>
-      <div class="hud-area" id="hud-area"></div>
     </div>
+    <div class="hud-map" id="hud-map"><div class="hud-area" id="hud-area"></div></div>
     <div class="hud-roster hidden" id="hud-roster"></div>
     <div class="hud-objective hidden" id="hud-objective"></div>
     <div class="hud-goals hidden" id="hud-goals"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
-    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · M mute · Esc menu</div>
+    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
     <div class="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
       <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
@@ -24,6 +24,7 @@ export function createHud() {
   const pointsEl = root.querySelector('#hud-points-value');
   const areaEl = root.querySelector('#hud-area');
   const rankEl = root.querySelector('#hud-rank');
+  const mapEl = root.querySelector('#hud-map');
   const toastsEl = root.querySelector('#hud-toasts');
   const promptEl = root.querySelector('#hud-prompt');
   const promptTapHandlers = [];
@@ -34,7 +35,10 @@ export function createHud() {
     show() { root.classList.remove('hidden'); },
     hide() { root.classList.add('hidden'); },
     setPoints(n) { pointsEl.textContent = String(n); },
+    // The area name is the caption under the corner map.
     setArea(name) { areaEl.textContent = name; },
+    // Where the corner map's canvas goes (createMinimap's host).
+    get mapHost() { return mapEl; },
     setRank(title) { rankEl.textContent = `🏆 ${title}`; },
     // tappable: on touch devices there's no E key, so the prompt pill itself
     // becomes a button — strip the "E — " keyboard-hint prefix for display
@@ -97,8 +101,11 @@ export function createHud() {
         el.appendChild(d);
       }
     },
+    // The corner map steps aside while the viewfinder is up, leaving the
+    // whole screen for lining up the shot.
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
+      mapEl.classList.toggle('hidden', !!on);
     },
     setRoster(names) {
       const el = root.querySelector('#hud-roster');

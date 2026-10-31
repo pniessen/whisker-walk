@@ -19,6 +19,7 @@ describe('createSettings', () => {
       hideChat: false,
       perfReadout: false,
       quality: 'auto',
+      cameraZoom: 1,
     });
     expect(settings.get('volume')).toBe(0.8);
   });
@@ -49,6 +50,7 @@ describe('createSettings', () => {
       hideChat: false,
       perfReadout: false,
       quality: 'auto',
+      cameraZoom: 1,
     });
   });
 
@@ -65,6 +67,7 @@ describe('createSettings', () => {
       hideChat: false,
       perfReadout: false,
       quality: 'auto',
+      cameraZoom: 1,
     });
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -127,5 +130,23 @@ describe('createSettings', () => {
     const storage = fakeStorage();
     createSettings(storage).set('perfReadout', true);
     expect(createSettings(storage).get('perfReadout')).toBe(true);
+  });
+
+  it('cameraZoom defaults to step 1 (today\'s camera), turns junk into the default, persists a valid step', () => {
+    expect(createSettings(fakeStorage()).get('cameraZoom')).toBe(1);
+    for (const junk of ['far', 2.5, -1, 4, 99, NaN, null, true, {}, [2]]) {
+      const s = createSettings(fakeStorage({ 'whisker-walk-settings': JSON.stringify({ cameraZoom: junk }) }));
+      expect(s.get('cameraZoom')).toBe(1);
+    }
+    const storage = fakeStorage();
+    const s = createSettings(storage);
+    s.set('cameraZoom', 3);
+    expect(s.get('cameraZoom')).toBe(3);
+    s.set('cameraZoom', 7); // out of range: kept at the last good value
+    expect(s.get('cameraZoom')).toBe(3);
+    s.set('cameraZoom', 'close');
+    expect(s.get('cameraZoom')).toBe(3);
+    s.set('cameraZoom', 0);
+    expect(createSettings(storage).get('cameraZoom')).toBe(0);
   });
 });
