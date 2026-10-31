@@ -106,9 +106,22 @@ otherwise, these win:
      into the maps themselves, as matching edges and visible neighbours,
      rather than painted onto old horizons.
 
-Still open: Twolegplace (new map, or the shared Neighborhood), and the exact
-layout of the territories. The plan is to ask the 11-year-old to draw her own
-map.
+6. **Twolegplace is the Cozy Neighborhood, shared by both editions.**
+   Kittypets mostly live there, but **occasionally wander into the clan
+   territories**:
+   - a rare, harmless visitor;
+   - something a kid can meet, befriend or bring home, in the spirit of Rusty
+     in book one.
+
+   The revised design should say how often a wanderer appears, how it's
+   chosen, and that it never counts against a kid. Builder: wanderers are
+   local visuals or strays under the existing stray rules, and add nothing on
+   the wire.
+7. **The territory layout comes from the 11-year-old's own drawing.** §3's
+   layout and map sketch wait for it.
+
+Next step: when the drawing arrives, revise §3 and the build order around it,
+then write the implementation plan, one territory at a time.
 
 ---
 
