@@ -4,6 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
 // The Woods.
@@ -125,24 +126,72 @@ const CLEARING = { x: 4, z: 12, r: 9 };
 // The fallen log on the edge of the clearing, a seat and a first hop.
 const FALLEN_LOG = { x: -2, z: 16, length: 5, yaw: 0.3 };
 
-// Places a tree must keep 4 m from, so nothing the kids look for is hidden in
-// a trunk or under a canopy: the POIs, scenics, collectibles, golden mice and
-// perch chains the Woods' content is laid out on (plan, "The Woods in
-// numbers"), and the spawn. The fallen log is kept clear along its length,
-// below.
-const KEEP_CLEAR = [
-  // points of interest
+// --- the things to find ------------------------------------------------------
+// Laid out before the trees and the undergrowth, because KEEP_CLEAR (below) is
+// built from these very records: whatever a kid hunts for, nothing grows on it.
+
+// The nine points of interest the race and the quests draw on. Each stands at
+// least 2 m from the water and far enough from every trunk and rock that
+// spots.js's clearSpot leaves it exactly where it is, so a race ring stands on
+// its POI (test/woods.test.js checks both, and floods each one from the spawn).
+const POIS = [
   [4, 12], [-30, 2], [-20, -24], [30, -24], [36, 30], [-12, 32], [-36, 22], [16, -2], [40, -40],
-  // scenics
-  [-26, -30], [-34, -2], [6, 23],
-  // collectibles
-  [-8, 26], [30, -34], [-28, -20], [32, 24], [-22, -26],
-  // golden mice, and the bushes the third one hides in
-  [9.6, 21.4], [-23, -27], [-38, 30], [-36, 28], [-40, 28], [-38, 33],
-  // the Great Oak and Lookout Rocks chains
-  [8, 20], [-22, -26],
-  [SPAWN.x, SPAWN.z],
+].map(([x, z]) => ({ x, z }));
+
+const SCENICS = [
+  { id: 'lake-view', x: -26, z: -30, label: 'the lakeshore' },
+  { id: 'woods-pond', x: -34, z: -2, label: 'the pond on the border' },
+  { id: 'great-oak', x: 6, z: 23, label: 'the great oak' },
 ];
+
+const COLLECTIBLES = [
+  { id: 'woods-find-1', x: -8, z: 26, label: 'a glossy acorn' },
+  { id: 'woods-find-2', x: 30, z: -34, label: 'a jay feather' },
+  { id: 'woods-find-3', x: -28, z: -20, label: 'a snail shell by the river' },
+  { id: 'woods-find-4', x: 32, z: 24, label: 'a dry oak leaf, just right for a nest' },
+  // on the Lookout Rocks' first rock, so one hop up
+  { id: 'woods-find-5', x: -22, z: -26, y: 0.72, label: 'a ball of moss on the lookout rock' },
+];
+
+// The two climb chains, two hops each, the shape the park's oak and the
+// seaside's dune use. The Great Oak: a mossy boulder at the foot of the
+// biggest tree in the wood, then its low branch, 2.13 m across and 1.38 m up
+// from the boulder (inside the 2.6 reach and the 1.6 climb), and at 2.1 too
+// high to reach from the grass. Lookout Rocks on the lakeshore: a low rock,
+// then a tall one 1.41 m across and 1.18 m up. A golden mouse sits on each top
+// (src/goldmice.js). The colliders sit under the perches, so a cat walks round
+// the rocks and up onto them.
+const GREAT_OAK = { x: 9.6, z: 21.4, scale: 1.6, r: 0.8 };
+const CHAIN_ROCKS = [
+  { x: 8, z: 20, r: 0.7 },
+  { x: -22, z: -26, r: 0.7 },
+];
+const OAK_ROOT = { x: 8.77, z: 20.67, r: 0.35 };
+const LOOKOUT_TOP = { x: -23, z: -27, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 1.0 };
+const CHAIN_PERCHES = [
+  { x: 8, z: 20, y: 0.72, kind: 'stone' },
+  { x: GREAT_OAK.x, z: GREAT_OAK.z, y: 2.1, kind: 'tree', label: 'great oak lookout', vantage: true },
+  { x: -22, z: -26, y: 0.72, kind: 'stone' },
+  { x: LOOKOUT_TOP.x, z: LOOKOUT_TOP.z, y: LOOKOUT_TOP.y, kind: 'stone', label: 'lookout rocks', vantage: true },
+];
+
+// The bushes the third golden mouse hides among. A bush has no collider, as
+// in the park: a cat pushes through to the mouse.
+const GOLD_BUSHES = [[-36, 28], [-40, 28], [-38, 33]];
+
+const PUDDLES = [{ x: 20, z: 34, r: 0.9 }, { x: -16, z: 6, r: 0.8 }];
+
+// Places a tree must keep 4 m from, and every fern and bramble its own
+// distance (FERN.clear, BRAMBLE.clear), so nothing the kids look for is
+// hidden in a trunk, under a canopy or under a frond: every POI (and so every
+// race ring), scenic, collectible, golden mouse, chain perch, the bushes the
+// hidden mouse needs, the puddles and the spawn. Built from the records
+// themselves, so a find can never move without its clearance moving with it.
+// The fallen log is kept clear along its length, below.
+const KEEP_CLEAR = [
+  ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.woods, ...CHAIN_PERCHES,
+  ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, SPAWN,
+].map(({ x, z }) => [x, z]);
 
 // Distance from (x, z) to a segment.
 function segDist(x, z, x1, z1, x2, z2) {
@@ -288,6 +337,30 @@ function reedSpots() {
 // bounds, so it has no collider and no perch.
 const ISLAND = { x: -72, z: -72, r: 9, rise: 1.4 };
 
+// The wood's critters: birds in the first four trees, a squirrel on each
+// side of the river, butterflies in the clearing, ducks on the pond and two
+// mice in the leaf litter. No villagers: no Twolegs walk in the Woods.
+function critterSpawns() {
+  return [
+    ...woodsTreeSpots().slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
+    { type: 'squirrel', x: -24, z: 30, x2: -30, z2: 10 },
+    { type: 'squirrel', x: 28, z: -10, x2: 36, z2: -30 },
+    { type: 'butterfly', x: 2, z: 8 }, { type: 'butterfly', x: 8, z: 14 }, { type: 'butterfly', x: -2, z: 12 },
+    { type: 'duck', x: -44, z: -6 }, { type: 'duck', x: -42, z: -4 }, { type: 'duck', x: -46, z: -8 },
+    { type: 'mouse', x: -9, z: 25, x2: -4, z2: 30 },
+    { type: 'mouse', x: 30, z: 26, x2: 34, z2: 20 },
+  ];
+}
+
+// A mossy boulder, the first step of each chain: builder.rock's shape and
+// height (its top is just over the 0.72 perch), in a greener stone.
+const MOSSY = 0x7f8a6c;
+function mossyBoulder(x, z) {
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), litMaterial(MOSSY, surfaceProps('cobble')));
+  m.position.set(x, 0.3, z);
+  return m;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa8d8c0, 0xd0ead8);
   scene.add(b.ground(120, 0x5f9a4a, { surface: 'grass' }));
@@ -365,6 +438,46 @@ export function build(scene, { water = {}, wind } = {}) {
   }
   perches.push({ x: FALLEN_LOG.x, z: FALLEN_LOG.z, y: 0.5, kind: 'tree' });
 
+  // --- the climb chains -----------------------------------------------------------
+  // The Great Oak, with its mossy boulder at the foot, and Lookout Rocks on
+  // the lakeshore: a low rock and a tall flat-topped one, its top at the 1.9
+  // perch. Named so test/woods.test.js can find the oak and see past it.
+  const oak = b.tree(GREAT_OAK.x, GREAT_OAK.z, GREAT_OAK.scale, { wind });
+  oak.name = 'greatOak';
+  // The low branch the golden mouse sits out on (src/goldmice.js), reaching
+  // west from the trunk to just past the mouse, its top under the mouse's
+  // belly. A child of the oak, in its scaled frame, so it sways with it.
+  const s = GREAT_OAK.scale;
+  const limb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07 / s, 0.12 / s, 0.75 / s, 6),
+    litMaterial(0x7a5230, surfaceProps('bark')),
+  );
+  limb.rotation.z = Math.PI / 2;
+  limb.position.set(-0.6 / s, 1.9 / s, 0);
+  oak.add(limb);
+  scene.add(oak);
+  addC(GREAT_OAK.x, GREAT_OAK.z, GREAT_OAK.r);
+  for (const { x, z, r } of CHAIN_ROCKS) {
+    scene.add(mossyBoulder(x, z));
+    addC(x, z, r);
+  }
+  // The boulder sits in the oak's roots. The crevice between their colliders
+  // is 0.63 m, narrower than a cat, so one more collider closes it rather than
+  // leave a dead-end notch (test/water.test.js finds it as a stranded cell).
+  addC(OAK_ROOT.x, OAK_ROOT.z, OAK_ROOT.r);
+  const lookout = new THREE.Mesh(
+    new THREE.CylinderGeometry(LOOKOUT_TOP.rTop, LOOKOUT_TOP.rBottom, LOOKOUT_TOP.y, 7),
+    litMaterial(0x8e8c88, surfaceProps('cobble')),
+  );
+  lookout.position.set(LOOKOUT_TOP.x, LOOKOUT_TOP.y / 2, LOOKOUT_TOP.z);
+  scene.add(lookout);
+  addC(LOOKOUT_TOP.x, LOOKOUT_TOP.z, LOOKOUT_TOP.r);
+  perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
+
+  // --- the hidden mouse's bushes, and the puddles ---------------------------------
+  for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
+  for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
+
   // --- the island -----------------------------------------------------------------
   // A flattened sphere, so only a low dome shows above the lake, and the
   // tree stood on its crown.
@@ -387,13 +500,14 @@ export function build(scene, { water = {}, wind } = {}) {
     // Nothing Twoleg-made in the Woods.
     boxes: [],
     tippables: [],
-    // The finds, the race's POIs and the critters land in the next step.
-    pois: [],
-    collectibles: [],
-    scenics: [],
-    critterSpawns: [],
-    moments: [],
-    puddles: [],
+    pois: POIS.map((p) => ({ ...p })),
+    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
+    scenics: SCENICS.map((c) => ({ ...c })),
+    critterSpawns: critterSpawns(),
+    moments: [
+      { id: 'squirrel-dash', label: 'two squirrels racing up the great oak', x: 9, z: 24, from: { x: 20, z: 30 } },
+    ],
+    puddles: PUDDLES.map((p) => ({ ...p })),
     waters: WOODS_WATERS,
     waterFx,
     groundBounce: 0x5f9a4a,

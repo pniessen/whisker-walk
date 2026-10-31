@@ -26,6 +26,11 @@ const woods = await import('../src/world/woods.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { waterGap, inWater } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
+const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
+const { clearSpot } = await import('../src/world/spots.js');
+const { raceCourse } = await import('../src/race.js');
+const { seedFromCode } = await import('../src/rng.js');
 
 const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsUndergrowth } = woods;
 
@@ -48,9 +53,11 @@ function segDist(x, z, [x1, z1, x2, z2]) {
 const rectDist = (d, x, z) => Math.hypot(Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 
 // Flood-fill the cells a grounded cat may stand on (player.js's own rule) on a
-// 0.5 m grid from SPAWN, and say whether (x, z) was reached.
-function reaches(a, x, z) {
-  const STEP = 0.5;
+// 0.5 m grid from SPAWN. Each area record is flooded once and remembered.
+const STEP = 0.5;
+const floods = new WeakMap();
+function flood(a) {
+  if (floods.has(a)) return floods.get(a);
   const { minX, maxX, minZ, maxZ } = a.bounds;
   const nx = Math.round((maxX - minX) / STEP) + 1;
   const nz = Math.round((maxZ - minZ) / STEP) + 1;
@@ -70,7 +77,29 @@ function reaches(a, x, z) {
       stack.push([p, q]);
     }
   }
-  return seen[Math.round((x - minX) / STEP) * nz + Math.round((z - minZ) / STEP)] === 1;
+  const f = { minX, minZ, nx, nz, seen };
+  floods.set(a, f);
+  return f;
+}
+
+// Whether the flood reached the grid cell at (x, z).
+function reaches(a, x, z) {
+  const f = flood(a);
+  const i = Math.round((x - f.minX) / STEP), j = Math.round((z - f.minZ) / STEP);
+  return i >= 0 && j >= 0 && i < f.nx && j < f.nz && f.seen[i * f.nz + j] === 1;
+}
+
+// Whether the flood reached any cell strictly within `r` of (x, z): where a
+// cat can stand to climb onto a perch, or to pick something up.
+function reachesWithin(a, x, z, r) {
+  const f = flood(a);
+  for (let i = Math.floor((x - r - f.minX) / STEP); i <= Math.ceil((x + r - f.minX) / STEP); i++) {
+    for (let j = Math.floor((z - r - f.minZ) / STEP); j <= Math.ceil((z + r - f.minZ) / STEP); j++) {
+      if (i < 0 || j < 0 || i >= f.nx || j >= f.nz || !f.seen[i * f.nz + j]) continue;
+      if (Math.hypot(f.minX + i * STEP - x, f.minZ + j * STEP - z) < r) return true;
+    }
+  }
+  return false;
 }
 
 describe('the Woods: water', () => {
@@ -309,5 +338,190 @@ describe('the Woods: the area record', () => {
   it('nothing in the Woods reads the edition', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/world/woods.js', import.meta.url)), 'utf8');
     expect(src).not.toMatch(/edition/i);
+  });
+});
+
+describe('the Woods: things to find, climb and race', () => {
+  const POIS = [[4, 12], [-30, 2], [-20, -24], [30, -24], [36, 30], [-12, 32], [-36, 22], [16, -2], [40, -40]];
+  const perchAt = (x, z) => area.perches.find((p) => p.x === x && p.z === z && !p.requires);
+  const collider = (x, z) => area.colliders.find((c) => c.x === x && c.z === z);
+  const waterDist = (x, z) => Math.min(...WOODS_WATERS.map((w) => waterGap(w, x, z)));
+  // Where the race rings stand: each POI pushed clear of colliders and water,
+  // exactly as the game does.
+  const rings = () => area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
+
+  it('woods: nine POIs, all at least 2 m from water and clear of every collider', () => {
+    expect(area.pois.map((p) => [p.x, p.z])).toEqual(POIS);
+    for (const p of area.pois) {
+      const at = `poi (${p.x}, ${p.z})`;
+      expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
+      // clear by clearSpot's own margin, so a race ring stands on the POI
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+      }
+    }
+    expect(rings().map((p) => [p.x, p.z])).toEqual(POIS);
+  });
+
+  it('woods: five collectibles, three scenics, at least one vantage perch', () => {
+    expect(area.collectibles).toEqual([
+      { id: 'woods-find-1', x: -8, z: 26, label: 'a glossy acorn' },
+      { id: 'woods-find-2', x: 30, z: -34, label: 'a jay feather' },
+      { id: 'woods-find-3', x: -28, z: -20, label: 'a snail shell by the river' },
+      { id: 'woods-find-4', x: 32, z: 24, label: 'a dry oak leaf, just right for a nest' },
+      { id: 'woods-find-5', x: -22, z: -26, y: 0.72, label: 'a ball of moss on the lookout rock' },
+    ]);
+    expect(area.scenics).toEqual([
+      { id: 'lake-view', x: -26, z: -30, label: 'the lakeshore' },
+      { id: 'woods-pond', x: -34, z: -2, label: 'the pond on the border' },
+      { id: 'great-oak', x: 6, z: 23, label: 'the great oak' },
+    ]);
+    const vantages = area.perches.filter((p) => p.vantage);
+    expect(vantages.length).toBeGreaterThanOrEqual(1);
+    for (const v of vantages) expect(typeof v.label).toBe('string');
+  });
+
+  it("woods: the Great Oak chain is two hops and the branch can't be reached from the ground", () => {
+    const boulder = perchAt(8, 20);
+    const branch = perchAt(9.6, 21.4);
+    expect(boulder).toEqual({ x: 8, z: 20, y: 0.72, kind: 'stone' });
+    expect(branch).toEqual({ x: 9.6, z: 21.4, y: 2.1, kind: 'tree', label: 'great oak lookout', vantage: true });
+    expect(collider(8, 20)?.r).toBe(0.7);
+    expect(collider(9.6, 21.4)?.r).toBe(0.8);
+    expect(canReach(boulder, { x: boulder.x, z: boulder.z }, 0)).toBe(true);
+    expect(canReach(branch, { x: boulder.x, z: boulder.z }, boulder.y)).toBe(true);
+    expect(canReach(branch, { x: branch.x, z: branch.z }, 0)).toBe(false);
+    // and the boulder can be reached from ground a cat can walk to
+    expect(reachesWithin(area, boulder.x, boulder.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('woods: the Lookout Rocks chain is two hops', () => {
+    const low = perchAt(-22, -26);
+    const high = perchAt(-23, -27);
+    expect(low).toEqual({ x: -22, z: -26, y: 0.72, kind: 'stone' });
+    expect(high).toEqual({ x: -23, z: -27, y: 1.9, kind: 'stone', label: 'lookout rocks', vantage: true });
+    expect(collider(-22, -26)?.r).toBe(0.7);
+    expect(collider(-23, -27)?.r).toBe(0.9);
+    expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+    expect(canReach(high, { x: low.x, z: low.z }, low.y)).toBe(true);
+    expect(canReach(high, { x: high.x, z: high.z }, 0)).toBe(false);
+    expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('puts the two climbing golden mice on the chain tops and hides the third among three bushes', () => {
+    const [oak, rocks, hidden] = GOLD_MICE.woods;
+    // the oak's mouse is out along the branch, inside checkFind's 1.0 m of a
+    // cat on the branch perch, and clear of the trunk (r 0.45 there) it would
+    // otherwise be hidden in
+    const branch = perchAt(9.6, 21.4);
+    expect(branch.y).toBe(oak.y);
+    expect(Math.hypot(oak.x - branch.x, oak.z - branch.z)).toBeLessThan(1.0);
+    expect(Math.hypot(oak.x - branch.x, oak.z - branch.z)).toBeGreaterThan(0.45 + 0.12);
+    expect(perchAt(rocks.x, rocks.z)?.y).toBe(rocks.y);
+    expect(hidden.y).toBe(0);
+    for (const [x, z] of [[-36, 28], [-40, 28], [-38, 33]]) {
+      const bush = scene.children.find((o) => o.position.x === x && o.position.z === z);
+      expect(bush, `bush (${x}, ${z})`).toBeTruthy();
+      // a cat pushes through a bush: nothing stands in its way
+      expect(collider(x, z)).toBeUndefined();
+    }
+  });
+
+  // Everything a kid hunts for, with where a cat must stand to get it: on the
+  // spot itself for a POI, a race ring, a scenic or a ground find; within the
+  // climb reach of the first rock or boulder of the chain an elevated one sits
+  // on (the chain tests above take it from there).
+  const targets = () => {
+    const firstStep = (x, z) => {
+      if (Math.hypot(x - 9.6, z - 21.4) < 1) return perchAt(8, 20);
+      if (Math.hypot(x - -23, z - -27) < 1.5) return perchAt(-22, -26);
+      return null;
+    };
+    const list = [
+      ...area.pois.map((p) => ({ what: `poi (${p.x}, ${p.z})`, ...p })),
+      ...rings().map((p) => ({ what: `race ring (${p.x}, ${p.z})`, ...p })),
+      ...area.scenics.map((p) => ({ what: p.id, ...p })),
+      ...area.collectibles.map((p) => ({ what: p.id, ...p })),
+      ...GOLD_MICE.woods.map((p) => ({ what: p.id, ...p })),
+    ];
+    return list.map((t) => {
+      if (!(t.y > 0)) return t;
+      const step = firstStep(t.x, t.z);
+      expect(step, `${t.what} sits on no chain`).toBeTruthy();
+      return { ...t, step };
+    });
+  };
+
+  it('every find, POI, scenic, golden mouse and race ring is reachable on foot from the spawn', () => {
+    const missed = [];
+    for (const t of targets()) {
+      const ok = t.step
+        ? reachesWithin(area, t.step.x, t.step.z, BASE_CLIMB_BUDGET.reachLow)
+        : reaches(area, t.x, t.z);
+      if (!ok) missed.push(t.what);
+    }
+    expect(missed).toEqual([]);
+    // the glade north of the river, named, so a regression there says so
+    for (const [x, z] of [[-20, -24], [-28, -20], [-26, -30]]) expect(reaches(area, x, z), `(${x}, ${z})`).toBe(true);
+  });
+
+  it('no tree, fern or bramble stands on anything a kid looks for', () => {
+    const { ferns, brambles } = woodsUndergrowth();
+    const trees = woodsTreeSpots();
+    const spots = [
+      ...targets(),
+      ...area.perches.filter((p) => !p.requires && p.kind === 'stone').map((p) => ({ what: `rock (${p.x}, ${p.z})`, ...p })),
+    ];
+    for (const t of spots) {
+      for (const tr of trees) expect(Math.hypot(t.x - tr.x, t.z - tr.z), `tree (${tr.x}, ${tr.z}) on ${t.what}`).toBeGreaterThanOrEqual(4);
+      for (const f of ferns) expect(Math.hypot(t.x - f.x, t.z - f.z), `fern (${f.x}, ${f.z}) on ${t.what}`).toBeGreaterThanOrEqual(3);
+      for (const br of brambles) expect(Math.hypot(t.x - br.x, t.z - br.z), `bramble (${br.x}, ${br.z}) on ${t.what}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("the Great Oak's golden mouse sits under its canopy, in sight from the ground", () => {
+    const oak = scene.getObjectByName('greatOak');
+    expect(oak).toBeTruthy();
+    const m = GOLD_MICE.woods[0];
+    scene.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    // from the boulder and from the scenic in front of the tree, at a cat's
+    // eye height: nothing of the oak is between the eye and the mouse
+    for (const [x, z] of [[8, 20], [6, 23]]) {
+      const eye = new THREE.Vector3(x, 0.9, z);
+      const dir = target.clone().sub(eye);
+      const len = dir.length();
+      ray.set(eye, dir.normalize());
+      ray.far = len;
+      expect(ray.intersectObject(oak, true), `from (${x}, ${z})`).toEqual([]);
+    }
+  });
+
+  it('carries its critters, one moment and two puddles, and no villagers', () => {
+    const birds = area.critterSpawns.filter((c) => c.type === 'bird');
+    expect(birds).toEqual(woodsTreeSpots().slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+    expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
+      { type: 'squirrel', x: -24, z: 30, x2: -30, z2: 10 },
+      { type: 'squirrel', x: 28, z: -10, x2: 36, z2: -30 },
+      { type: 'butterfly', x: 2, z: 8 }, { type: 'butterfly', x: 8, z: 14 }, { type: 'butterfly', x: -2, z: 12 },
+      { type: 'duck', x: -44, z: -6 }, { type: 'duck', x: -42, z: -4 }, { type: 'duck', x: -46, z: -8 },
+      { type: 'mouse', x: -9, z: 25, x2: -4, z2: 30 },
+      { type: 'mouse', x: 30, z: 26, x2: 34, z2: 20 },
+    ]);
+    expect(area.moments).toEqual([
+      { id: 'squirrel-dash', label: 'two squirrels racing up the great oak', x: 9, z: 24, from: { x: 20, z: 30 } },
+    ]);
+    expect(area.puddles).toEqual([{ x: 20, z: 34, r: 0.9 }, { x: -16, z: 6, r: 0.8 }]);
+    for (const p of area.puddles) {
+      expect(scene.children.some((o) => o.position.x === p.x && o.position.z === p.z && o.geometry?.type === 'CircleGeometry')).toBe(true);
+    }
+  });
+
+  it('race: a Woods course of five rings is drawn from its POIs', () => {
+    const course = raceCourse(area.pois, seedFromCode('2026-11-01-woods'));
+    expect(course).toHaveLength(5);
+    expect(new Set(course).size).toBe(5);
+    for (const p of course) expect(area.pois).toContain(p);
   });
 });
