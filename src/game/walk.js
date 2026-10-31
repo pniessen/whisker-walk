@@ -82,6 +82,7 @@ import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
 import { createClouds } from '../render/clouds.js';
+import { createAmbient } from '../render/ambient.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1008,6 +1009,13 @@ export function createWalkLifecycle({
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
     const paws = createPawPrints(scene, { areaId, areaData, tier });
+    // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
+    // one draw, no shadow draws; created here for the same reason as grass.
+    // Purely local and off its own random stream, never walkRng. The den and
+    // reduced motion get the module's no-op stub.
+    const ambient = createAmbient(scene, {
+      areaId, areaData, tier, camera, dusk: duskActive, reducedMotion, cat,
+    });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
@@ -1075,6 +1083,7 @@ export function createWalkLifecycle({
         areaId, tier, camera, reducedMotion, dusk: duskActive,
         centre: { x: (areaData.bounds.minX + areaData.bounds.maxX) / 2, z: (areaData.bounds.minZ + areaData.bounds.maxZ) / 2 },
       }),
+      ambient,
       // The sun's view-following shadow camera, in the same shape. Built above
       // (it has to be, so the very first frame of the walk is already fitted
       // rather than centred on the world origin) and re-fitted once per frame
@@ -1602,6 +1611,7 @@ export function createWalkLifecycle({
     session.grass.dispose();
     session.paws.dispose();
     session.clouds.dispose();
+    session.ambient.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
     // belongs to the light and goes with the scene), called anyway so the rig
     // is torn down through the same door as every other session rig rather

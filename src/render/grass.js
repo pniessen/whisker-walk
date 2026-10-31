@@ -82,7 +82,7 @@ const SWAY_AMP = 0.2;
 // ~3.3s per cycle, close to wind.js's 3.6s so grass and bushes agree.
 const SWAY_FREQ = 1.9;
 // One wind direction for the whole lawn (a unit vector in xz).
-const WIND_DIR = Object.freeze([0.8, 0.6]);
+export const WIND_DIR = Object.freeze([0.8, 0.6]);
 
 // ---------------------------------------------------------------------------
 // Pure helpers (unit-tested in test/grass.test.js)

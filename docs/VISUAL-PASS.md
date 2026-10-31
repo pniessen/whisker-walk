@@ -1122,3 +1122,47 @@ not on the iPhone, not under rain or sunset weather. At the default chase-cam
 pitch the frame only shows sky up to ~7° above level (render/sky.js), and most
 clouds sit at 8–20°, so they show when the camera tilts up or sits low rather
 than in every default frame.
+## Stream 4 round four — ambient life
+
+Small, gentle motion, one effect per area, all in `render/ambient.js`:
+
+- **Park:** leaves let go from under the real tree canopies (read off the
+  scene: `builder.tree()` now tags its Group with `userData.canopy`), swing
+  and tumble down in ~10 s on the same wind as the grass (`WIND_DIR`, wind.js's
+  gust envelope, 1.7× in rain), rest on the lawn for a few seconds, then fade.
+  Only trees within 26 m of the view drop leaves. Mostly yellow-greens with
+  some gold and rust.
+- **Seaside:** soft mist puffs rise and thin along the waterline (the sea
+  record's `minX`, x 25), within 16 m along the shore of the view.
+  No gull shadow: a Points sprite always faces the camera, so a "shadow" on
+  the sand would stand upright from the cat's low camera. It would need a
+  second, ground-flat mesh, and that is a second draw.
+- **Docks:** at dusk walks only (`duskActive`), three moths circle each of the
+  8 lamp posts nearest the view (`builder.lampPost()` tags `userData.lampGlobeY`),
+  with a slow wing flutter. By day, a dozen faint sunlit motes over the canal
+  (additive, barely there).
+- **Neighbourhood:** a dozen dandelion seeds riding the breeze, 0.4–1.8 m up.
+- **Den:** nothing.
+
+**Cost: +1 main-pass draw call per outdoor area, 0 shadow-pass draws.** One
+`THREE.Points` with a canvas sprite and a patched `PointsMaterial` (per-point
+size, rotation and squash, so leaves tumble and moths flap without geometry).
+CPU-simulated into fixed buffers allocated at walk start; no per-frame
+allocation. Created after the caster sweep and the merge, beside grass, and
+flagged `userData.ambient` so rig.js and mergeprops.js skip it.
+
+**Tiers:** `ambientScale` on the ladder — 1 on rungs 0–2 (40 leaves, 26 mist
+puffs, 24 moths, 14 motes, 12 seeds), 0.5 on the low rung. Still one draw; the
+low rung halves the soft-sprite overdraw (the mist is the big one).
+
+**Kids' comfort:** nothing is drawn within 1.5 m of the camera (plus the
+sprite's half-size, faded over the next 0.8 m), near the cat, or on the line
+of sight from the camera to the cat. **Reduced motion:** no mesh at all — a
+frozen leaf in mid-air reads as a glitch, and every effect here is motion.
+
+Purely local: its own PRNG, never `walkRng`, no wire events.
+
+Checked in `verify-places.html?area=…&ambient[=low]` (and `&dusk` for the
+moths; `window.__ambientStep(seconds)` runs the simulation) from cat-height
+cameras. Not verified: in a real walk, on the iPhone, in rain, or the
+fill-rate cost of the mist on the low rung.

@@ -22,6 +22,7 @@
   import { createPawPrints } from '/src/render/pawprints.js';
   import { createClouds } from '/src/render/clouds.js';
   import { skyBackground } from '/src/render/sky.js';
+  import { createAmbient } from '/src/render/ambient.js';
   import { LADDER } from '/src/render/quality.js';
   import * as neighborhood from '/src/world/neighborhood.js';
   import * as park from '/src/world/park.js';
@@ -109,6 +110,26 @@
     })
     : null;
   window.__cloudT = 0;
+  // ?ambient[=low] adds walk.js's ambient particles (render/ambient.js), also
+  // after the caster sweep. ?dusk also asks for the dusk effect (the Docks'
+  // moths). window.__ambientStep(seconds) runs the simulation on
+  // from __grassT in 1/30s steps, since leaves and mist are stateful.
+  // (?dusk is applied once, above, the way walk.js does it.)
+  const dusk = params0.has('dusk');
+  const ambient = params0.has('ambient')
+    ? createAmbient(scene, {
+      areaId: id, areaData: area, tier: LADDER[params0.get('ambient') === 'low' ? 3 : 0], camera, dusk,
+    })
+    : null;
+  window.__ambient = ambient;
+  window.__ambientStep = (seconds = 1) => {
+    for (let s = 0; s < seconds; s += 1 / 30) {
+      window.__grassT += 1 / 30;
+      ambient?.update(window.__grassT, 1);
+    }
+    render();
+    return ambient?.visibleCount ?? 0;
+  };
   window.__grassT = 0;
   window.__scene = scene; // for poking at the scene from the console
   const render = () => {
