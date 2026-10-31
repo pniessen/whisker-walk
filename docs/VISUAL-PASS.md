@@ -1223,3 +1223,72 @@ below that.
   edge, with the roster back under it.
 - **Cost:** 0 draw calls. It adds nothing to the Three.js scene, and it
   repaints at most 30 times a second, only when something on it changed.
+# Camera zoom (2026-10-31)
+
+The 11-year-old playtester asked for "a zoom in/out feature that is easier
+to use". There was no camera zoom at all, so the kids were pinch-zooming the
+browser page. `src/camzoom.js` adds four fixed steps; the camera eases
+between them in about 0.25 s, and jumps there under Reduced motion.
+
+| Step | Distance | Height | |
+|---|---|---|---|
+| 0 | 3.0 m | 1.5 m | close |
+| 1 | 4.5 m | 2.2 m | **default: today's camera, unchanged** |
+| 2 | 7.0 m | 3.8 m | |
+| 3 | 11.0 m | 6.5 m | far: height grows faster, so the view tilts down over the area |
+
+- **Controls.** Touch: a round + / − pair (44 px) centred under the action
+  cluster, mirrored with it in left-handed mode, inside the orbit area in both
+  modes; and a two-finger pinch on the orbit area (one step per 30% change in
+  finger spread). A second finger within 150 ms of a still first finger is
+  its pinch partner wherever it lands, so a mid-screen pinch that straddles
+  the joystick zone never walks the cat; after a pinch the remaining finger
+  does not orbit until both lift. Desktop: the wheel, one step per gesture
+  (a gesture ends after a 200 ms pause, so a trackpad flick with its momentum
+  tail is exactly one step and slow notches step once each), and `+`/`=`, `-`
+  matched by character then key position (non-US layouts, numpad), no key
+  repeat. All only during an engaged walk. The den's "no room" toast is
+  throttled to one per 2.5 s. The HUD and pause-card hints list them.
+- **Remembered per device** in `settings.cameraZoom` (0–3, junk → 1), never
+  the save. Purely local: no wire events, no `walkRng`.
+- **Page zoom.** `#game` and `.touch-ui` were already `touch-action: none`
+  and the touch layer already cancels its touches; the touch layer now also
+  cancels Safari's `gesturestart`/`gesturechange`, so a pinch over the game
+  zooms the camera, not the page. Those are cancelled on all of `#hud`, so a
+  pinch starting on the corner map does not zoom the page either. Wheel/ctrl+wheel and ctrl +/- are only
+  cancelled during an engaged walk; menus and the home base keep browser zoom.
+- **Safety.** There was no camera collision before. Beyond the default
+  distance only (steps 0–1 are byte-identical to the old camera): the camera
+  is held no farther outside the area bounds than the default camera could
+  already go (bounds + 4.5 m); if it lands inside a big collider footprint
+  (r ≥ 1.9: houses, warehouses, billboards, cliffs, containers — colliders
+  have no heights, so footprints are the only test): the whole cat→camera
+  segment is tested, and the camera stops just before the first footprint it
+  would enter, never closer than 4.5 m. A 1.5 m soft band outside each
+  footprint ramps the limit down to the tangent point so it has no jump
+  there; player.js then eases it (in at ≤ 12 m/s, out at ≤ 6 m/s after a
+  0.3 s hold, so grazing an edge does not pump). A house closer than 4.5 m
+  behind the cat still leaves the camera inside it, as the default always
+  did. Camera y is floored at 0.5 m. **The den caps at step 1**: the
+  default camera already reaches its walls, so zooming out indoors only shows
+  a toast.
+- **Draw cost** (Neighbourhood spawn, high tier, desktop browser at 375×812
+  phone emulation, `?perf`): default 985–1004 draws (shadow 399–429, scene
+  542–591); far 962–993 (shadow 330–372, scene 607–620). The shadow box is
+  fitted ahead of the camera, so moving the camera back trades shadow draws
+  for scene draws and the total stays flat. The shadow box still covers the
+  cat and the near street at the far step (cat, car and lamp-post shadows
+  present in the screenshot); objects at the far end of the street, which are
+  only on screen at the far step, sit near its edge.
+
+## Not verified
+
+- On a real iPhone/iPad: pinch feel, that Safari no longer page-zooms over the
+  game, and frame time at the far step (the fps in the automated pane is
+  meaningless: it runs as a background page).
+- Desktop wheel and keys live: the automated browser cannot take pointer lock,
+  so a walk never becomes engaged there. The handlers are unit-tested
+  (`test/camzoom.test.js`).
+- The den cap and the building pull-in in the running game (unit-tested only).
+- Footprints have no height, so the far camera is pulled in for a house even
+  where it would have seen over the roof.

@@ -4,11 +4,18 @@ import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
 import { inWater, waterClearance, nearestDry } from './world/builder.js';
+import {
+  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
+} from './camzoom.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
 export const CAT_RADIUS = 0.35;
+// Camera pull-in tuning (see stepPull in createPlayer).
+const PULL_IN_SPEED = 12; // metres per second, at most
+const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
+const PULL_HOLD = 0.3; // seconds
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
@@ -362,6 +369,45 @@ export function createPlayer(camera, canvas) {
   // per-walk state, so setAvatar and disable deliberately leave it alone —
   // walk.js sets it once per walk from the save.
   let swim = false;
+  // Camera zoom (src/camzoom.js). camTarget is the whole step the player
+  // chose; camLevel is the float the camera is actually at while it eases
+  // there. camPull is the safety pull-in (camzoom.js's cameraPullScale),
+  // eased too so walking past a house does not make the camera jump. Not
+  // reset by setAvatar: walk.js sets the step at every walk start.
+  let camTarget = DEFAULT_ZOOM_STEP;
+  let camLevel = DEFAULT_ZOOM_STEP;
+  let camPull = 1;
+  let snapPull = true; // next update sets camPull outright instead of easing
+  let pullHold = 0; // seconds the camera has wanted to move back OUT
+  // Reused every frame so the camera path allocates nothing.
+  const camView = { dist: 0, height: 0 };
+  const camOff = new THREE.Vector3();
+  // Moves the eased pull-in toward this frame's target.
+  //  - In (a wall is in the way): eased quickly, but never faster than
+  //    PULL_IN_SPEED metres of camera travel per second, so even a sudden
+  //    change of target cannot make the camera jump.
+  //  - Out: only after the target has wanted out for PULL_HOLD seconds in a
+  //    row, then eased gently and capped at PULL_OUT_SPEED. Grazing the edge of a footprint therefore
+  //    does not make the camera pump in and out.
+  // reducedMotion and walk start (snapPull) take the target as-is.
+  function stepPull(cur, target, dt, dist) {
+    if (reducedMotion || snapPull) {
+      snapPull = false;
+      pullHold = 0;
+      return target;
+    }
+    if (target >= cur) {
+      pullHold += dt;
+      if (pullHold < PULL_HOLD) return cur;
+      const out = (target - cur) * (1 - Math.exp(-5 * dt));
+      return cur + Math.min(out, (PULL_OUT_SPEED * dt) / dist);
+    }
+    pullHold = 0;
+    const eased = (target - cur) * (1 - Math.exp(-20 * dt));
+    const cap = (PULL_IN_SPEED * dt) / dist;
+    return cur + Math.max(eased, -cap);
+  }
+  let reducedMotion = false;
 
   const api = {
     locked: false,
@@ -427,6 +473,27 @@ export function createPlayer(camera, canvas) {
     // water, never accidental swimming.
     setSwim(v) {
       swim = !!v;
+    },
+    // Camera zoom step (camzoom.js). `instant` skips the ease — walk start
+    // uses it so a walk never opens with the camera gliding out. Under
+    // reducedMotion every change is instant.
+    setCameraZoom(step, { instant = false } = {}) {
+      camTarget = clampZoomStep(step);
+      if (instant || reducedMotion) {
+        camLevel = camTarget;
+        snapPull = true;
+      }
+    },
+    setReducedMotion(v) {
+      reducedMotion = !!v;
+    },
+    // The step the camera is easing toward, and where it is now. Read by
+    // tests; nothing in the game needs them.
+    get cameraZoomStep() {
+      return camTarget;
+    },
+    get cameraZoomLevel() {
+      return camLevel;
     },
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
@@ -636,7 +703,17 @@ export function createPlayer(camera, canvas) {
         avatar.rotation.y = Math.atan2(velocity.x, velocity.z) + Math.PI;
       }
 
-      camera.position.copy(avatar.position).add(cameraOffset(yaw, pitch));
+      camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
+      zoomView(camLevel, camView);
+      cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
+      // At or inside the default distance this is exactly 1, so the shipped
+      // camera is untouched; beyond it the camera is kept out of buildings
+      // and off the far side of the map edge (camzoom.js).
+      const pull = cameraPullScale(avatar.position, camOff, camView.dist, colliders, bounds);
+      camPull = stepPull(camPull, pull, Math.max(dt, 0), camView.dist);
+      camOff.multiplyScalar(camPull);
+      camera.position.copy(avatar.position).add(camOff);
+      if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
       camera.lookAt(avatar.position.x, avatar.position.y + 0.6, avatar.position.z);
     },
   };
