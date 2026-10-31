@@ -1179,6 +1179,95 @@ function addSkylineWindows(out, bw, bh, bd, k, salt) {
   }
 }
 
+// Side tints. The ring is a square, so "which side is a point on" is whichever
+// axis it is furthest along, and "how far along that side" is the other
+// coordinate over the first. Within CORNER_BLEND of a side's length from a
+// corner the neighbouring side's colour mixes in by smoothstep, reaching an
+// even mix at the corner itself, so two sides with different tints meet
+// without a seam. Returns a THREE.Color in the working (linear) space, which is
+// what a vertex colour wants; sideTint() is the same rule as a hex.
+const CORNER_BLEND = 0.15;
+const tintScratch = new THREE.Color();
+function sideTintColor(x, z, tints) {
+  const ax = Math.abs(x);
+  const az = Math.abs(z);
+  let side;
+  let adjacent;
+  let along;
+  if (ax >= az) {
+    side = x >= 0 ? tints.east : tints.west;
+    along = ax > 0 ? z / ax : 0;
+    adjacent = along >= 0 ? tints.south : tints.north;
+  } else {
+    side = z >= 0 ? tints.south : tints.north;
+    along = az > 0 ? x / az : 0;
+    adjacent = along >= 0 ? tints.east : tints.west;
+  }
+  // A side's length is 2 in these units, so 15% of it is 0.3 from the corner.
+  const mix = 0.5 * smoothstep(1 - 2 * CORNER_BLEND, 1, Math.abs(along));
+  const c = new THREE.Color(side);
+  if (mix > 0) c.lerp(tintScratch.set(adjacent), mix);
+  return c;
+}
+
+export function sideTint(x, z, tints) {
+  return sideTintColor(x, z, tints).getHex();
+}
+
+// Where `count` rooftop blocks go on the perimeter arc u in [from, to): the
+// same hash01 draws the skyline kind uses, so a rooftop row looks like the
+// Docks' far bank. Pure, so a test can check the placement without a mesh.
+// The outer half of the band only, for the reason given in horizonBand.
+export function rooftopSpots({ from, to, count }, inner, outer, salt) {
+  const span = outer - inner;
+  const spots = [];
+  for (let k = 0; k < count; k++) {
+    const u = from + (to - from) * ((k + 0.15 + 0.7 * hash01(k, 0, salt + 1)) / count);
+    const [px, pz] = squarePoint(u);
+    const s = inner + (0.50 + 0.44 * hash01(k, 1, salt + 2)) * span;
+    spots.push({ x: px * s, z: pz * s, yaw: Math.atan2(px, pz) });
+  }
+  return spots;
+}
+
+// One skyline block (a box, its window quads and maybe a roof feature) in the
+// band's local frame, pushed onto `parts` with its tone and, when the band has
+// side tints, the tint its position falls under. Shared by the skyline kind and
+// by `rooftops` so the two cannot drift apart.
+function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint }) {
+  const before = parts.length;
+  const bw = 6 + 13 * hash01(k, 2, salt + 3);
+  const bd = 5 + 11 * hash01(k, 3, salt + 4);
+  const g = new THREE.BoxGeometry(bw, bh, bd);
+  // Stream 4 round two: each block gets its own facade tone and a grid of
+  // windows on the face that looks back at the area, both carried as
+  // vertex colours on the SAME merged mesh — still one draw call. Before
+  // this the far bank was 52 identical grey boxes, the flattest thing on
+  // screen right behind the cat at the Docks' spawn.
+  const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * SKYLINE_TONES.length)];
+  const facade = [g];
+  addSkylineWindows(facade, bw, bh, bd, k, salt);
+  for (const f of facade) {
+    f.rotateY(yaw);
+    f.translate(x, base + bh / 2, z);
+    parts.push(f);
+    tones.push(f === g ? tone : SKYLINE_WINDOW);
+  }
+  // A roof feature on the taller half, because a skyline with a level top
+  // edge is a wall. Chimneys and tanks are what break a real one.
+  if (hash01(k, 5, salt + 6) > 0.45) {
+    const cw = 1.2 + 2.4 * hash01(k, 6, salt + 7);
+    const ch = 1.5 + 3.5 * hash01(k, 7, salt + 8);
+    const cx2 = (hash01(k, 8, salt + 9) - 0.5) * bw * 0.5;
+    const c = new THREE.BoxGeometry(cw, ch, cw);
+    c.rotateY(yaw);
+    c.translate(x + Math.cos(yaw) * cx2, base + bh + ch / 2, z - Math.sin(yaw) * cx2);
+    parts.push(c);
+    tones.push(tone);
+  }
+  for (let i = before; i < parts.length; i++) bases.push(tint);
+}
+
 /**
  * horizonBand(opts) — one decorative mesh that breaks an area's horizon.
  *
@@ -1203,6 +1292,13 @@ function addSkylineWindows(out, bw, bh, bd, k, salt) {
  *             at the tideline instead of paving the bay.
  *   headland  { x, z, r, h } — one extra smooth lobe added to the height
  *             field, for the promontory the plan asks the Seaside for.
+ *   sideTints { north, east, south, west } (hex) — colours the ring by side as
+ *             vertex colours on the same mesh, mixing across the corners (see
+ *             sideTint). The tint IS the colour then, so the material is white
+ *             and `color` is not used. Omitted: the band is as it always was.
+ *   rooftops  { from, to, count, height } — `count` skyline blocks on the
+ *             perimeter arc u in [from, to) (0-0.25 is the east side), on any
+ *             kind, merged into the same mesh. Omitted: none.
  */
 export function horizonBand({
   kind = 'hills',
@@ -1220,6 +1316,8 @@ export function horizonBand({
   blocks = 46,
   avoid = [],
   headland = null,
+  sideTints = null,
+  rooftops = null,
 } = {}) {
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
@@ -1295,6 +1393,8 @@ export function horizonBand({
   // One colour multiplier per part, applied as vertex colours below. Only the
   // skyline uses it; for hills every entry stays white and no attribute is set.
   const tones = [SKYLINE_PLAIN];
+  // The side tint under each part (null: none), parallel to `parts`.
+  const bases = [null];
   if (kind === 'skyline') {
     for (let k = 0; k < blocks; k++) {
       const u = (k + 0.15 + 0.7 * hash01(k, 0, salt + 1)) / blocks;
@@ -1313,8 +1413,6 @@ export function horizonBand({
       const x = px * s;
       const z = pz * s;
       if (wet(x, z)) continue;
-      const bw = 6 + 13 * hash01(k, 2, salt + 3);
-      const bd = 5 + 11 * hash01(k, 3, salt + 4);
       const bh = height * (0.40 + 0.75 * hash01(k, 4, salt + 5));
       // Sunk half a metre into the band's own surface so a block never floats
       // above a dip in it — the land under a town is not a table.
@@ -1323,42 +1421,40 @@ export function horizonBand({
       // rather than corners. Squares of the perimeter parameter, not of the
       // block's own position, so a block on a side wall is parallel to it.
       const yaw = Math.atan2(px, pz);
-      const g = new THREE.BoxGeometry(bw, bh, bd);
-      // Stream 4 round two: each block gets its own facade tone and a grid of
-      // windows on the face that looks back at the area, both carried as
-      // vertex colours on the SAME merged mesh — still one draw call. Before
-      // this the far bank was 52 identical grey boxes, the flattest thing on
-      // screen right behind the cat at the Docks' spawn.
-      const tone = SKYLINE_TONES[Math.floor(hash01(k, 9, salt + 10) * SKYLINE_TONES.length)];
-      const facade = [g];
-      addSkylineWindows(facade, bw, bh, bd, k, salt);
-      for (const f of facade) {
-        f.rotateY(yaw);
-        f.translate(x, base + bh / 2, z);
-        parts.push(f);
-        tones.push(f === g ? tone : SKYLINE_WINDOW);
-      }
-      // A roof feature on the taller half, because a skyline with a level top
-      // edge is a wall. Chimneys and tanks are what break a real one.
-      if (hash01(k, 5, salt + 6) > 0.45) {
-        const cw = 1.2 + 2.4 * hash01(k, 6, salt + 7);
-        const ch = 1.5 + 3.5 * hash01(k, 7, salt + 8);
-        const cx2 = (hash01(k, 8, salt + 9) - 0.5) * bw * 0.5;
-        const c = new THREE.BoxGeometry(cw, ch, cw);
-        c.rotateY(yaw);
-        c.translate(x + Math.cos(yaw) * cx2, base + bh + ch / 2, z - Math.sin(yaw) * cx2);
-        parts.push(c);
-        tones.push(tone);
-      }
+      addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint: sideTints ? sideTintColor(x, z, sideTints) : null });
     }
   }
 
-  if (kind === 'skyline') {
+  if (rooftops) {
+    // Salted apart from the skyline kind's own blocks, so a band that has both
+    // does not stack two blocks on the same spot.
+    const rsalt = salt + 100;
+    rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
+      if (wet(x, z)) return;
+      const bh = rooftops.height * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
+      const base = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner) - 0.5;
+      addRoofBlock(parts, tones, bases, {
+        k, x, z, yaw, base, bh, salt: rsalt, tint: sideTints ? sideTintColor(x, z, sideTints) : null,
+      });
+    });
+  }
+
+  // Vertex colours: the skyline's per-block tones, and/or the side tints. A
+  // part's colour is its tint (white when there are none) times its tone.
+  const coloured = kind === 'skyline' || !!sideTints || !!rooftops;
+  if (coloured) {
     parts.forEach((p, i) => {
       const [r, g2, bl] = tones[i];
       const n = p.attributes.position.count;
+      const pp = p.attributes.position;
       const c = new Float32Array(n * 3);
-      for (let v = 0; v < n; v++) { c[v * 3] = r; c[v * 3 + 1] = g2; c[v * 3 + 2] = bl; }
+      for (let v = 0; v < n; v++) {
+        // The ring takes its tint per vertex; a block takes one for the lot.
+        const t = i === 0 && sideTints ? sideTintColor(pp.getX(v), pp.getZ(v), sideTints) : bases[i];
+        c[v * 3] = r * (t ? t.r : 1);
+        c[v * 3 + 1] = g2 * (t ? t.g : 1);
+        c[v * 3 + 2] = bl * (t ? t.b : 1);
+      }
       p.setAttribute('color', new THREE.BufferAttribute(c, 3));
     });
   }
@@ -1379,7 +1475,7 @@ export function horizonBand({
   // the band's whole job is to be a SHAPE — see the note in materials.js's
   // header about a texture resolving to its flat mean at distance, which here
   // is not a compromise but the correct answer.
-  const m = new THREE.Mesh(geo, litMaterial(color, { flatShading: true, vertexColors: kind === 'skyline' }));
+  const m = new THREE.Mesh(geo, litMaterial(sideTints ? 0xffffff : color, { flatShading: true, vertexColors: coloured }));
   // Named so a test (and a future draw-call audit) can find it without the
   // area files having to publish it as a record — the same trick path() uses.
   m.name = 'horizonBand';
@@ -2184,6 +2280,99 @@ export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
   g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
   g.rotation.y = angle;
   return g;
+}
+
+// A trunk laid across a stream as a bridge. Like bridgeDeck it emits no
+// collider: the walkable part is the area's own crossing record, this is the
+// picture of it. Half sunk, so the top is at `y` (the deck height) and the
+// visible width at the bank is narrower than `w`. An even side count puts a
+// vertex exactly on top, so the top really is at `y`.
+export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14) {
+  const g = new THREE.Group();
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const r = w / 2;
+  const geo = new THREE.CylinderGeometry(r * 0.92, r, len, 12);
+  geo.rotateX(Math.PI / 2);
+  const trunk = new THREE.Mesh(geo, surfNoMap(0x6e4a2c, 'bark'));
+  trunk.position.y = y - r;
+  g.add(trunk);
+  g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
+  g.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+  return g;
+}
+
+// Flat stones across a shallow ford, one merged geometry. They are wide and
+// low, so rig.js's caster sweep would make them cast; noCast keeps them out of
+// the shadow pass. Placement and shape come from hash01, never Math.random, so
+// both cats' screens agree.
+export function steppingStones(x1, z1, x2, z2, n = 5) {
+  const geoms = [];
+  for (let i = 0; i < n; i++) {
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    const sx = x1 + (x2 - x1) * f + (hash01(i, 1, 61) - 0.5) * 0.3;
+    const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * 0.3;
+    const r = 0.38 + 0.14 * hash01(i, 3, 61);
+    const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, 8);
+    stone.rotateY(hash01(i, 4, 61) * Math.PI);
+    stone.translate(sx, 0, sz);
+    geoms.push(stone);
+  }
+  const geo = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
+  if (geoms.length > 1) for (const p of geoms) p.dispose();
+  const m = new THREE.Mesh(geo, surfNoMap(0x8a8a84, 'cobble'));
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
+// A fallen trunk lying along its local z, turned to `yaw`, its top at y 0.5
+// (a hop for a kitten, a seat for a cat). Sunk in the ground, with a broken
+// branch stub so it does not read as a pipe. No collider.
+export function fallenLog(x, z, length, yaw) {
+  const g = new THREE.Group();
+  const r = 0.42;
+  const geo = new THREE.CylinderGeometry(r * 0.9, r, length, 12);
+  geo.rotateX(Math.PI / 2);
+  const trunk = new THREE.Mesh(geo, surfNoMap(0x6a4a2e, 'bark'));
+  trunk.position.y = 0.5 - r;
+  g.add(trunk);
+  const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.4, 6), surfNoMap(0x6a4a2e, 'bark'));
+  stub.rotation.z = 0.9;
+  stub.position.set(r * 0.9, 0.2, length * 0.15);
+  g.add(stub);
+  g.position.set(x, 0, z);
+  g.rotation.y = yaw;
+  return g;
+}
+
+// Clumps of reeds at `spots`, one merged mesh. Blades are thin leaning boxes,
+// at most 1.0 m before the lean (the budget is 1.1 m). A bed is wide and low,
+// so it opts out of the caster sweep like the stones do.
+const REED_BLADES = 5;
+export function reedBed(spots, seed) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    for (let k = 0; k < REED_BLADES; k++) {
+      const h = 0.6 + 0.4 * hash01(sp.x + k, sp.z + i, seed + 1);
+      const blade = new THREE.BoxGeometry(0.04, h, 0.04);
+      blade.translate(0, h / 2, 0);
+      blade.rotateX((hash01(sp.x, sp.z + k, seed + 2) - 0.5) * 0.3);
+      blade.rotateZ((hash01(sp.x + k, sp.z, seed + 3) - 0.5) * 0.3);
+      blade.translate(
+        sp.x + (hash01(k, i, seed + 4) - 0.5) * 0.5,
+        0,
+        sp.z + (hash01(i, k, seed + 5) - 0.5) * 0.5,
+      );
+      geoms.push(blade);
+    }
+  });
+  const geo = geoms.length === 0 ? new THREE.BufferGeometry()
+    : geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
+  if (geoms.length > 1) for (const p of geoms) p.dispose();
+  const m = new THREE.Mesh(geo, surfNoMap(0x8aa05a, 'foliage'));
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
 }
 
 // LEFT FLAT, in all five areas. Corrugated board is uncoated pulp — it is

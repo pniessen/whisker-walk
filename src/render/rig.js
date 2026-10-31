@@ -381,8 +381,12 @@ export function assignShadowCastersFor(child) {
     // userData.clouds (render/clouds.js) likewise: no cloud shadows, ever.
     // userData.ambient (render/ambient.js's particles) likewise: a THREE.Points
     // is not isMesh today, but the flag keeps it out if that ever changes.
+    // userData.noCast (world/builder.js's reedBed and steppingStones): wide,
+    // low ground dressing. castsFromBox would cast anything wider than 1 m, so
+    // setting castShadow = false at build time is not enough; this sweep would
+    // overwrite it.
     if (obj.isMesh && !obj.userData.contactDecal && !obj.userData.grass && !obj.userData.pawPrints
-      && !obj.userData.clouds && !obj.userData.ambient) {
+      && !obj.userData.clouds && !obj.userData.ambient && !obj.userData.noCast) {
       obj.receiveShadow = true;
       obj.castShadow = eligible && !isTransparentMat(obj.material);
       meshes++;

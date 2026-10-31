@@ -112,6 +112,25 @@ describe('assignShadowCasters', () => {
   });
 });
 
+describe('assignShadowCasters honours noCast', () => {
+  it('leaves a wide, low noCast mesh casting nothing (reed bed, stepping stones)', () => {
+    const scene = new THREE.Scene();
+    const wide = (w) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, 0.5), new THREE.MeshStandardMaterial());
+      m.position.y = 0.55;
+      m.userData.noCast = true;
+      m.castShadow = false;
+      scene.add(m);
+      return m;
+    };
+    const reeds = wide(3);
+    const stones = wide(6);
+    assignShadowCasters(scene);
+    expect(reeds.castShadow).toBe(false);
+    expect(stones.castShadow).toBe(false);
+  });
+});
+
 describe('assignShadowCastersFor (one prop added after the sweep)', () => {
   it('gives one top-level child exactly what the whole-scene sweep would', () => {
     const make = () => {
