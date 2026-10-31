@@ -162,7 +162,26 @@ otherwise, these win:
 
    She left no notes and kept every territory's size. The Moor, Woods,
    Twolegplace and Gorge moved; the Pines and River barely did.
-8. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
+8. **The lake and the island** (owner, 2026-10-31):
+   - There is a **lake in the middle, where the four territories meet**: the
+     Pines and Swamp, the Moor, the Woods, and the River and Marshes.
+   - The lake has an **island, and the meeting place (★) is on the island.**
+   - The river she drew, which nearly circles the ★, reads as this lake's
+     shore and the streams feeding it. Each of the four territories has a
+     stretch of lakeshore.
+   - Builder:
+     - The island is the shared, peaceful ground where cats from any clan
+       meet. It's the natural spot for both kids' clans to gather together,
+       which keeps them allies (decision 2).
+     - Whether the island is a place you can walk (reached by a log or
+       stepping stones) or a mark on the territory map is still open. A
+       walkable island is the stronger idea, but it's one more small map,
+       and getting onto it is a water crossing (Sea Legs and decks already
+       exist).
+   - Still unconfirmed: the small river loop where the River and Marshes meet
+     the Woods, and whether the path out of Twolegplace is the kittypets'
+     way into clan land.
+9. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
    the cliff walls, and tall pine trees. It is still a later release.
    - Dens in the cliff walls make it the place where climbing and height
      matter most. That is why it waits until the game can do height
