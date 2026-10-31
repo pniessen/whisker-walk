@@ -120,7 +120,7 @@ otherwise, these win:
 7. **The territory layout comes from the 11-year-old's own drawing.** She
    rearranged the proposal on 2026-10-31. It is saved in the "Clan Territory
    Map" artifact (https://claude.ai/artifact/K8j8579QoYSxJj1eFajuxC,
-   db `layouts/current`, version 20), on a 1000 × 700 board with north up.
+   db `layouts/current`, version 22), on a 1000 × 700 board with north up.
    Her layout replaces §3's.
 
    ```
@@ -178,9 +178,22 @@ otherwise, these win:
        walkable island is the stronger idea, but it's one more small map,
        and getting onto it is a water crossing (Sea Legs and decks already
        exist).
+   - She drew both on her map (version 22):
+     - the lake is a large outline around the middle (board x ≈ 400–520,
+       y ≈ 205–425);
+     - the island is a smaller land outline around the ★.
+   - **Paths out of Twolegplace** (owner, version 22): Twolegplace has three
+     paths, **to the Moor, the Woods, and the River and Marshes**:
+     - north up to the Moor;
+     - the short path into the Woods;
+     - a long one west along the south edge, through the bottom of the
+       Woods, to the River and Marshes.
+     - These are the kittypets' routes into clan land, and the walking
+       routes between Twolegplace and its neighbours.
+     - None goes to the Pines and Swamp, so it stays the most out-of-the-way
+       territory, the furthest from the Twolegs.
    - Still unconfirmed: the small river loop where the River and Marshes meet
-     the Woods, and whether the path out of Twolegplace is the kittypets'
-     way into clan land.
+     the Woods (a pond?), and whether the island is walkable.
 9. **What the Gorge looks like** (owner, 2026-10-31): rocks, dens dug into
    the cliff walls, and tall pine trees. It is still a later release.
    - Dens in the cliff walls make it the place where climbing and height
