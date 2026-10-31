@@ -225,6 +225,38 @@ describe('grass rig — the budget', () => {
     grass.dispose();
   });
 
+  it('keepOut clears a spot with no collider (the doormat a cat naps on)', () => {
+    // neighborhood-nap-1, the brick house's doormat: no collider and no decal,
+    // so only keepOut keeps tufts from poking through a 2cm mat.
+    const [mx, mz] = [7.9, 30];
+    const near = (grass) => {
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      let n = 0;
+      for (let i = 0; i < grass.mesh.count; i++) {
+        grass.mesh.getMatrixAt(i, m);
+        p.setFromMatrixPosition(m);
+        if (Math.hypot(p.x - mx, p.z - mz) < 0.6) n++;
+      }
+      return n;
+    };
+    const open = walkScene('neighborhood');
+    aimAt(open.camera, mx, mz);
+    const bare = createGrass(open.scene, { areaId: 'neighborhood', ...open });
+    bare.update(1, 1);
+    expect(near(bare)).toBeGreaterThan(0); // the spot really is lawn
+    bare.dispose();
+
+    const kept = walkScene('neighborhood');
+    aimAt(kept.camera, mx, mz);
+    const grass = createGrass(kept.scene, {
+      areaId: 'neighborhood', ...kept, keepOut: [{ x: mx, z: mz, r: 0.6 }],
+    });
+    grass.update(1, 1);
+    expect(near(grass)).toBe(0);
+    grass.dispose();
+  });
+
   it('stays out of the Docks, Seaside and the den', () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();

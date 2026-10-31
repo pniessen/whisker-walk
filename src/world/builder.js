@@ -541,10 +541,11 @@ export function ground(size, color, { surface } = {}) {
 // `surface` is opt-in for the same reason ground()'s and platform()'s are: a
 // park's winding path is gravel ('sand' is the fine-speckle tile and is what a
 // gravel walk actually looks like), a neighbourhood's is packed earth, and the
-// Docks' four paths are deliberately flat because they run over cobbles that
-// are already tiled — see the docks.js surface note. None of those three
+// Docks' four paths are 'flagstone' (Stream 4 round two: big slabs, so they
+// read apart from the small cobbles they run over). None of those three
 // should have to change for either of the others, so nobody is defaulted into
-// a surface here.
+// a surface here. `color` replaces the shared path beige where an area's
+// palette needs it (the Docks, again).
 export function path(x1, z1, x2, z2, w = 2, { surface, color = 0xcbb8a0 } = {}) {
   const len = Math.hypot(x2 - x1, z2 - z1);
   // Segmented along both axes — see segsFor()/GROUND-PLANE MACRO VARIATION
@@ -1692,11 +1693,11 @@ export function billboard(x, z, rotY = 0, title = 'THE DAD SHOW', subtitle = 'no
 // `surface` is opt-in, exactly like path()'s and for the same reason. The
 // obvious candidate is 'cobble' — the sett grid is the closest thing in the
 // vocabulary to paving slabs, and at a derived repeat it lays roughly 0.3m
-// stones down the strip. It is NOT defaulted on, because the Docks' two
-// sidewalks were deliberately left flat by the pilot (they run over a ground
-// plane that is already carrying the same cobble tile, and two grids at
-// different densities on top of each other is the one way to make a tiled
-// surface look like a mistake).
+// stones down the strip. It is NOT defaulted on, because a sidewalk over a
+// ground plane already carrying the cobble tile would put two grids at
+// different densities on top of each other, the one way to make a tiled
+// surface look like a mistake. That is why the Docks' two sidewalks use
+// 'flagstone' instead (Stream 4 round two): big slabs, not a second grid.
 export function sidewalk(x1, z1, x2, z2, w = 1.2, { surface, color = 0xd8d0c0 } = {}) {
   // a lighter strip beside a street — reuses path() geometry with pavement color
   const len = Math.hypot(x2 - x1, z2 - z1);

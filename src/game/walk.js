@@ -80,6 +80,11 @@ import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass } from '../render/grass.js';
+// Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
+// is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
+// 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
+const GRASS_REST_CLEAR = 0.6;
+const GRASS_ITEM_CLEAR = 0.3;
 import { mulberry32, seedFromCode } from '../rng.js';
 import { SKILLS, hasSkill, unlockedSkills } from '../skills.js';
 import { bus } from '../events.js';
@@ -980,7 +985,17 @@ export function createWalkLifecycle({
     // of them ever sees it: one draw call in the main pass, none in the shadow
     // pass. Its mask reads the area's paths off the scene, which is complete
     // by now. The den, Seaside and the Docks get the module's no-op stub.
-    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion });
+    // keepOut: rest spots and carryable spots have no collider, so the mask
+    // would otherwise grow tufts through the doormat and around the acorn.
+    const grassProps = isDen ? null : propsFor(areaId);
+    const grassKeepOut = grassProps ? [
+      ...(grassProps.rests ?? []).map((r) => ({ x: r.x, z: r.z, r: GRASS_REST_CLEAR })),
+      ...(grassProps.carryables ?? []).flatMap((c) => [
+        { x: c.x, z: c.z, r: GRASS_ITEM_CLEAR },
+        ...(c.fallTo ? [{ x: c.fallTo.x, z: c.fallTo.z, r: GRASS_ITEM_CLEAR }] : []),
+      ]),
+    ] : [];
+    const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,

@@ -1145,9 +1145,12 @@ function paintCobble(ctx, S, rand) {
 //   * Weathering flecks inside each slab, small and sparse, so a 1m slab does
 //     not read as a flat plastic panel up close.
 //
-// Every slab sits strictly inside the tile and its joints, so the tile is
-// seamless without wrapped copies: each course's breaks start at x = 0, and the
-// mortar strip at the tile edge is half a joint on each side.
+// Seamless by construction: the first course's breaks start at x = 0, so its
+// tile-edge mortar is half a joint on each side. The second course is shifted
+// along by 30-50% of the tile, and a slab pushed past the right edge is drawn
+// in two pieces, the overhang at the left edge where the next repeat puts it.
+// That shift is what stops the tile edge becoming one straight joint running
+// through both courses down the whole length of a quay.
 //
 // Worst-case stack: joint alone 0.10; on a slab, jitter then a fleck,
 // 1 - (0.95)(0.965) = 0.083. Joints and flecks never overlap (each fleck
@@ -1160,33 +1163,45 @@ function paintFlagstone(ctx, S, rand) {
   ctx.fillStyle = ink(FLAG_JOINT);
   ctx.fillRect(0, 0, S, S);
   for (let row = 0; row < COURSES; row++) {
-    // 2 or 3 slabs; break points jittered so no two tiles' slabs repeat the
-    // same rhythm across a row. The second course is offset by a fraction of
-    // the tile so its joints fall between the first course's.
+    // 2 or 3 slabs; break points jittered so the rhythm is not even. The
+    // second course is shifted by 30-50% of the tile, so its joints fall
+    // between the first course's and nothing lines up along a long quay.
     const n = rand() < 0.5 ? 2 : 3;
     const cuts = [0];
     for (let i = 1; i < n; i++) cuts.push((i / n + (rand() - 0.5) * (0.5 / n)) * S);
     cuts.push(S);
+    const shift = row === 0 ? 0 : Math.round(S * (0.3 + 0.2 * rand()));
+    const y = row * H + J;
+    const h = H - 2 * J;
     for (let i = 0; i < n; i++) {
-      const x = cuts[i] + J;
+      const x = cuts[i] + J + shift;
       const w = cuts[i + 1] - cuts[i] - 2 * J;
-      const y = row * H + J;
-      const h = H - 2 * J;
-      ctx.beginPath();
-      ctx.rect(x, y, w, h);
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-      ctx.fillStyle = ink(rand() * FLAG_JITTER);
-      ctx.fill();
-      // Flecks are placed wholly inside the slab, so none ever reaches the
-      // joint (no clip needed, and the stack stays jitter + fleck).
+      const jitter = rand() * FLAG_JITTER;
+      // A shifted slab may run off the right edge; the overhang is drawn at
+      // the left edge, which is exactly where the next tile repeat puts it.
+      const pieces = [];
+      const x0 = x % S;
+      if (x0 + w <= S) pieces.push([x0, w]);
+      else pieces.push([x0, S - x0], [0, x0 + w - S]);
+      for (const [px, pw] of pieces) {
+        ctx.beginPath();
+        ctx.rect(px, y, pw, h);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.fillStyle = ink(jitter);
+        ctx.fill();
+      }
+      // Flecks are placed wholly inside the slab (wrapped the same way), so
+      // none ever reaches a joint and the stack stays jitter + fleck.
       const flecks = 6 + Math.floor(rand() * 6);
       ctx.fillStyle = ink(FLAG_SPECKLE);
       for (let f = 0; f < flecks; f++) {
         // Square chips, 2-6px (~2-6cm of world): at this size a square and a
         // round fleck are the same texel blob once mipmapped.
         const d = Math.max(2, Math.round(S * (0.008 + rand() * 0.016)));
-        ctx.fillRect(Math.round(x + rand() * (w - d)), Math.round(y + rand() * (h - d)), d, d);
+        let fx = Math.round(x + rand() * (w - d)) % S;
+        if (fx + d > S) fx = S - d; // keep a chip from straddling the seam
+        ctx.fillRect(fx, Math.round(y + rand() * (h - d)), d, d);
       }
     }
   }

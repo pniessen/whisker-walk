@@ -330,7 +330,7 @@ export const SURFACE_PRESETS = Object.freeze({
 
   // Dry quay flagstone — the big slabs along a harbour edge. Matte (0.88,
   // between brick and gravel): the quay is the DRY walkway beside the wet
-  // cobbled street, and the sheen difference against wetStone's 0.42 is half
+  // cobbled street, and the sheen difference against wetStone's 0.55 is half
   // of how the two read apart under the Docks' grazing sun. normalScale 0.3:
   // the joints are the only relief a slab has, and they are wide and few, so
   // this sits a touch above cobble's 0.25 without crawling.

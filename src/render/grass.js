@@ -344,13 +344,20 @@ const NO_GRASS = Object.freeze({ mesh: null, count: 0, capacity: 0, update() {},
 // createContactShadows have scanned the scene, so none of them ever sees it
 // (rig.js also skips `userData.grass`, belt and braces). A no-op stub for an
 // area without a lawn or a tier with grass off.
-export function createGrass(scene, { areaId, areaData, tier, camera, reducedMotion = false }) {
+// `keepOut` is extra [{ x, z, r }] circles that hold no collider but must stay
+// clear of tufts: the walk passes its rest spots (a 2cm doormat would have
+// tufts poking through it around a napping cat) and its carryables' start and
+// landing spots (an 8cm acorn would sit hidden in 6-15cm tufts).
+export function createGrass(scene, { areaId, areaData, tier, camera, reducedMotion = false, keepOut = [] }) {
   const radius = tier?.grassRadius ?? 0;
   const spacing = tier?.grassSpacing ?? 0;
   if (!GRASS_AREAS.includes(areaId) || !(radius > 0) || !(spacing > 0) || !areaData?.bounds) return NO_GRASS;
 
   const t0 = performance.now(); // maskMs: for a harness; ~4ms in Node
-  const mask = buildGrassMask(areaData, flatFootprints(scene));
+  const masked = keepOut.length
+    ? { ...areaData, colliders: [...(areaData.colliders ?? []), ...keepOut] }
+    : areaData;
+  const mask = buildGrassMask(masked, flatFootprints(scene));
   const maskMs = performance.now() - t0;
   const chunk = chunkCellsFor(spacing);
   const capacity = capacityFor(radius, spacing);
