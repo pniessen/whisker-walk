@@ -18,6 +18,8 @@
   import { createWind } from '/src/render/wind.js';
   import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
   import { createShadowFit } from '/src/render/shadowfit.js';
+  import { createGrass } from '/src/render/grass.js';
+  import { LADDER } from '/src/render/quality.js';
   import * as neighborhood from '/src/world/neighborhood.js';
   import * as park from '/src/world/park.js';
   import * as seaside from '/src/world/seaside.js';
@@ -25,7 +27,8 @@
 
   const AREAS = { neighborhood, park, seaside, docks };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
-  const W = 640, H = 360;
+  // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
+  const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(W, H);
   renderer.setPixelRatio(1);
@@ -51,7 +54,20 @@
   const shadows = createShadowFit(sun, camera, { radius: 20, mapSize: 2048 });
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
-  const render = () => { shadows.update(); renderer.render(scene, camera); };
+  // ?grass[=low] adds walk.js's lawn tufts (render/grass.js), after the caster
+  // sweep exactly as walk.js does. Off by default so the shipped place
+  // pictures stay reproducible.
+  const params0 = new URLSearchParams(location.search);
+  const grass = params0.has('grass')
+    ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera })
+    : null;
+  window.__grassT = 0;
+  const render = () => {
+    shadows.update();
+    grass?.update(window.__grassT, 1);
+    renderer.render(scene, camera);
+    window.__calls = renderer.info.render.calls;
+  };
 
   window.__cam = (px, py, pz, lx, ly, lz) => {
     camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz); render();

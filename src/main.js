@@ -782,6 +782,9 @@ function init() {
       // just takes the hint. 1.7 is "noticeably windier" and well under the
       // module's storm ceiling of 2.
       session.wind.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
+      // The lawn tufts take the same t and intensity as wind, and read the
+      // camera, so this sits after player.update like shadows.update above.
+      session.grass.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
       session.remotes.update(dt, nowSec());
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so
