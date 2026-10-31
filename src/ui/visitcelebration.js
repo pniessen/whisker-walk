@@ -135,6 +135,27 @@ export function createVisitCelebration(mount, {
   let card = null;
   let current = null;
   let timers = [];
+  // Style C is placed in screen coordinates next to the cat's stage, but the
+  // home page scrolls: re-measure on every scroll (capture, so a scrolling
+  // panel counts as well as the window) and on resize, or the bubble and the
+  // present are left behind while the cat moves.
+  let follow = null;
+
+  function stopFollowing() {
+    if (!follow) return;
+    follow.view.removeEventListener?.('scroll', follow.fn, { capture: true });
+    follow.view.removeEventListener?.('resize', follow.fn);
+    follow = null;
+  }
+
+  function startFollowing(anchor) {
+    const view = mount.ownerDocument?.defaultView;
+    if (!view?.addEventListener) return;
+    const fn = () => { if (card) place(anchor); };
+    view.addEventListener('scroll', fn, { capture: true, passive: true });
+    view.addEventListener('resize', fn, { passive: true });
+    follow = { view, fn };
+  }
 
   function clearTimers() {
     for (const t of timers) clearTimer(t);
@@ -143,6 +164,7 @@ export function createVisitCelebration(mount, {
 
   function teardown() {
     clearTimers();
+    stopFollowing();
     if (root) root.remove();
     root = null;
     card = null;
@@ -190,8 +212,10 @@ export function createVisitCelebration(mount, {
     }
     left = Math.max(0, Math.min(left, vw - 1));
     width = Math.max(1, Math.min(width, vw - left));
-    top = Math.max(0, top);
-    height = Math.max(1, Math.min(height, vh - top));
+    // No floor on top: once the page scrolls the cat up past the screen's
+    // edge the bubble goes with it rather than sticking at 0. A tall stage
+    // that starts on screen is still cut at the bottom edge.
+    height = Math.max(1, top >= 0 ? Math.min(height, vh - top) : height);
     const bubbleW = Math.min(width, Math.max(180, Math.floor(width * 0.58)));
     const giftX = Math.max(0, Math.round(width - 12 - GIFT_SIZE));
     card.classList.add('anchored');
@@ -257,7 +281,7 @@ export function createVisitCelebration(mount, {
       root.appendChild(card);
       root.addEventListener('click', handleClick);
       setCard('start');
-      if (style === 'C') place(anchor);
+      if (style === 'C') { place(anchor); startFollowing(anchor); }
       mount.appendChild(root);
 
       // Timers are armed before any callback runs, so a throwing callback

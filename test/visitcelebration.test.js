@@ -362,3 +362,66 @@ describe('createVisitCelebration', () => {
     expect(root().children[0].style.cssText).toContain('height:733px'); // 812 - 79
   });
 });
+
+describe('style C follows the cat when the page scrolls', () => {
+  // The home page scrolls; the bubble is placed in screen coordinates, so it
+  // must re-measure the cat's stage on every scroll and resize, and let go of
+  // those listeners when it closes.
+  function withView() {
+    const s = setup();
+    const view = {
+      innerWidth: 375, innerHeight: 812, listeners: {},
+      addEventListener(t, f, o) { view.listeners[t] = { f, o }; },
+      removeEventListener(t, f) { if (view.listeners[t]?.f === f) delete view.listeners[t]; },
+    };
+    s.mount.ownerDocument.defaultView = view;
+    return { ...s, view };
+  }
+
+  it('re-places the bubble on scroll, so it moves with the stage', () => {
+    const x = withView();
+    let top = 200;
+    x.cel.show(ms(3, 'C'), { anchor: () => ({ left: 10, top, width: 300, height: 250, bottom: top + 250 }) });
+    expect(x.root().children[0].style.cssText).toContain('top:200px');
+    expect(x.view.listeners.scroll?.o).toMatchObject({ capture: true, passive: true });
+    top = 40; // the page scrolled up by 160px
+    x.view.listeners.scroll.f();
+    expect(x.root().children[0].style.cssText).toContain('top:40px');
+  });
+
+  it('scrolls off the top of the screen with the cat instead of sticking at 0', () => {
+    const x = withView();
+    let top = 100;
+    x.cel.show(ms(3, 'C'), { anchor: () => ({ left: 10, top, width: 300, height: 250, bottom: top + 250 }) });
+    top = -120; // the cat's stage is now partly above the screen
+    x.view.listeners.scroll.f();
+    const css = x.root().children[0].style.cssText;
+    expect(css).toContain('top:-120px');
+    expect(css).toContain('height:250px');
+  });
+
+  it('re-places on resize too', () => {
+    const x = withView();
+    let left = 10;
+    x.cel.show(ms(3, 'C'), { anchor: () => ({ left, top: 100, width: 300, height: 250, bottom: 350 }) });
+    left = 50;
+    x.view.listeners.resize.f();
+    expect(x.root().children[0].style.cssText).toContain('left:50px');
+  });
+
+  it('stops listening once the bubble closes', () => {
+    const x = withView();
+    x.cel.show(ms(3, 'C'), { anchor: () => ({ left: 10, top: 100, width: 300, height: 250, bottom: 350 }) });
+    x.cel.close();
+    expect(x.view.listeners.scroll).toBeUndefined();
+    expect(x.view.listeners.resize).toBeUndefined();
+  });
+
+  it('styles A and B add no scroll listener', () => {
+    for (const st of ['A', 'B']) {
+      const x = withView();
+      x.cel.show(ms(3, st));
+      expect(x.view.listeners.scroll).toBeUndefined();
+    }
+  });
+});
