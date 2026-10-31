@@ -420,6 +420,7 @@ describe('createProgression', () => {
         clan: { name: null, adopted: false },
         marks: { neighborhood: [], park: [], seaside: [], docks: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
+        mapMode: 'north',
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -1955,10 +1956,10 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, ...rest } = p.state;
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], den: [] });
-    expect([visits, visitPrizesSeen, visitPrizePending]).toEqual([0, 0, null]);
+    expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
     expect(rest).toEqual(v20);
   });
 
@@ -2858,5 +2859,44 @@ describe('retiring Rosa', () => {
     // prototype names are not retired ids
     const { p: q } = load(rawSave({ retired: ['toString', 'constructor'] }));
     expect(q.state.retired).toEqual(['rosa']);
+  });
+});
+
+describe('map mode', () => {
+  const SAVE_KEY = 'whisker-walk-save';
+  const rawSave = () => ({
+    version: 4, points: 10,
+    walks: { neighborhood: 0, park: 0, seaside: 0 },
+    unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
+    equipped: { cat: 'tabby', collar: null },
+    area: 'neighborhood', lifetimePoints: 10,
+  });
+  it('a fresh save starts north', () => {
+    expect(createProgression(fakeStorage()).state.mapMode).toBe('north');
+  });
+  it("setMapMode('turn') persists across a reload", () => {
+    const storage = fakeStorage();
+    createProgression(storage).setMapMode('turn');
+    expect(createProgression(storage).state.mapMode).toBe('turn');
+  });
+  it('junk mapMode in a stored or cloud payload loads as north', () => {
+    for (const junk of ['sideways', 42, null]) {
+      const stored = createProgression(fakeStorage({ [SAVE_KEY]: JSON.stringify({ ...rawSave(), mapMode: junk }) }));
+      expect(stored.state.mapMode).toBe('north');
+      const cloud = createProgression(fakeStorage());
+      cloud.replaceFromPayload({ ...rawSave(), mapMode: junk });
+      expect(cloud.state.mapMode).toBe('north');
+    }
+  });
+  it('setMapMode ignores junk', () => {
+    const p = createProgression(fakeStorage());
+    p.setMapMode('turn');
+    p.setMapMode('up');
+    expect(p.state.mapMode).toBe('turn');
+  });
+  it('an old v4 save without the field loads as north', () => {
+    const raw = rawSave();
+    delete raw.mapMode;
+    expect(createProgression(fakeStorage({ [SAVE_KEY]: JSON.stringify(raw) })).state.mapMode).toBe('north');
   });
 });
