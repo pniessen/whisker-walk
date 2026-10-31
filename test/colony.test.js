@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CAT_NAMES, KIT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, SOLO_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
-  canFeed, feedCat, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
+  canFeed, feedCat, feedsHere, catsInArea, tamedCats, settleTaming, denMoment, denHome, denResidents } from '../src/colony.js';
 import { DEN_SPOTS, DEN_HOMES } from '../src/den.js';
 import { sanitizeColony, mergeColony, unsyncedFeeds, tradeEffect, rewardsDue, COLONY_REWARDS } from '../src/colony.js';
 
@@ -1165,5 +1165,16 @@ describe('feeding a den kit', () => {
     const c = kitFeed(emptyColony(), kit).colony;
     expect(sanitizeColony(c).cats.map((x) => x.name)).toContain(kit);
     expect(mergeColony(c, emptyColony()).cats.map((x) => x.name)).toContain(kit);
+  });
+});
+
+describe('territories the colony does not feed in yet', () => {
+  it('feedsHere is true for the four colony areas and false for the Woods and the den', () => {
+    for (const a of ['neighborhood', 'park', 'seaside', 'docks']) expect(feedsHere(a)).toBe(true);
+    expect(feedsHere('woods')).toBe(false);
+    expect(feedsHere('den')).toBe(false);
+  });
+  it('feedCat still refuses a territory the colony does not feed in yet', () => {
+    expect(feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'woods', x: 0, z: 0 }).result).toBe('bad');
   });
 });
