@@ -1298,7 +1298,8 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
  *             and `color` is not used. Omitted: the band is as it always was.
  *   rooftops  { from, to, count, height } — `count` skyline blocks on the
  *             perimeter arc u in [from, to) (0-0.25 is the east side), on any
- *             kind, merged into the same mesh. Omitted: none.
+ *             kind, merged into the same mesh. `height` defaults to the
+ *             band's. Omitted: none.
  */
 export function horizonBand({
   kind = 'hills',
@@ -1431,7 +1432,9 @@ export function horizonBand({
     const rsalt = salt + 100;
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
-      const bh = rooftops.height * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
+      // No height given: the band's own, the same default the skyline kind's
+      // blocks are scaled from. Without it every block would be NaN tall.
+      const bh = (rooftops.height ?? height) * (0.40 + 0.75 * hash01(k, 4, rsalt + 5));
       const base = heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner) - 0.5;
       addRoofBlock(parts, tones, bases, {
         k, x, z, yaw, base, bh, salt: rsalt, tint: sideTints ? sideTintColor(x, z, sideTints) : null,
@@ -2294,7 +2297,13 @@ export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14) {
   const geo = new THREE.CylinderGeometry(r * 0.92, r, len, 12);
   geo.rotateX(Math.PI / 2);
   const trunk = new THREE.Mesh(geo, surfNoMap(0x6e4a2c, 'bark'));
-  trunk.position.y = y - r;
+  // The trunk tapers, so laid flat its top would slope down 8% of r toward
+  // the thin end, and the strip of log showing above the water would narrow
+  // to almost nothing there. Tilting it by the taper keeps the top level from
+  // bank to bank, so one deck width is right all the way; the tilt pivots on
+  // the middle, where the radius is 0.96 r, so that is what sits under `y`.
+  trunk.rotation.x = -Math.atan2(r * 0.08, len);
+  trunk.position.y = y - 0.96 * r;
   g.add(trunk);
   g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
   g.rotation.y = Math.atan2(x2 - x1, z2 - z1);
@@ -2337,7 +2346,8 @@ export function fallenLog(x, z, length, yaw) {
   trunk.position.y = 0.5 - r;
   g.add(trunk);
   const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.4, 6), surfNoMap(0x6a4a2e, 'bark'));
-  stub.rotation.z = 0.9;
+  // Negative, so it leans up and away from the trunk rather than into it.
+  stub.rotation.z = -0.9;
   stub.position.set(r * 0.9, 0.2, length * 0.15);
   g.add(stub);
   g.position.set(x, 0, z);

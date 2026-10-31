@@ -40,6 +40,7 @@ vi.stubGlobal('document', {
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,7 @@ const WATERED = {
   park: buildWith(buildPark),
   seaside: buildWith(buildSeaside),
   docks: buildWith(buildDocks),
+  woods: buildWith(buildWoods),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a

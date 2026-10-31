@@ -453,6 +453,20 @@ describe('horizonBand side tints and rooftops', () => {
     expect(b.rooftopSpots({ from: 0.1, to: 0.25, count: 14 }, 56, 116, 7)).toEqual(spots);
   });
 
+  it('horizonBand rooftops without a height take the band\'s, never NaN', () => {
+    const m = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
+      rooftops: { from: 0.1, to: 0.25, count: 6 },
+    });
+    expect(Array.from(m.geometry.attributes.position.array).every(Number.isFinite)).toBe(true);
+    const withHeight = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5,
+      rooftops: { from: 0.1, to: 0.25, count: 6, height: 7 },
+    });
+    expect(Array.from(m.geometry.attributes.position.array))
+      .toEqual(Array.from(withHeight.geometry.attributes.position.array));
+  });
+
   it('horizonBand with rooftops and side tints is still one mesh, with colours', () => {
     const plain = b.horizonBand({ kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5 });
     const m = b.horizonBand({
@@ -470,8 +484,21 @@ describe('the Woods builders', () => {
   const bbox = (o) => new THREE.Box3().setFromObject(o);
 
   it("logBridge's top is at y", () => {
-    expect(bbox(b.logBridge(0, -4, 0, 4)).max.y).toBeCloseTo(0.14, 2);
-    expect(bbox(b.logBridge(0, -4, 0, 4, 1.2, 0.2)).max.y).toBeCloseTo(0.2, 2);
+    // precise: the trunk is tilted (see logBridge), and the loose box of a
+    // rotated mesh is the box of its rotated bounding box, which overshoots
+    const top = (o) => new THREE.Box3().setFromObject(o, true).max.y;
+    expect(top(b.logBridge(0, -4, 0, 4))).toBeCloseTo(0.14, 2);
+    expect(top(b.logBridge(0, -4, 0, 4, 1.2, 0.2))).toBeCloseTo(0.2, 2);
+  });
+
+  it("logBridge's top is level from end to end", () => {
+    const log = b.logBridge(0, -4, 0, 4, 2.8, 0.18);
+    log.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    for (const z of [-3.9, 0, 3.9]) {
+      ray.set(new THREE.Vector3(0, 5, z), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObject(log, true)[0].point.y, `z ${z}`).toBeCloseTo(0.18, 2);
+    }
   });
 
   it('steppingStones is one mesh with n stones of vertices, all low', () => {
@@ -486,6 +513,17 @@ describe('the Woods builders', () => {
 
   it("fallenLog's top is at 0.5", () => {
     expect(bbox(b.fallenLog(3, 4, 4, 0.7)).max.y).toBeCloseTo(0.5, 2);
+  });
+
+  it("fallenLog's branch stub leans out from the trunk, not into it", () => {
+    const log = b.fallenLog(0, 0, 4, 0);
+    const stub = log.children[1];
+    stub.updateMatrixWorld(true);
+    // the stub's tip (local +y) is further from the trunk's axis than its base
+    const tip = new THREE.Vector3(0, 0.2, 0).applyMatrix4(stub.matrixWorld);
+    const base = new THREE.Vector3(0, -0.2, 0).applyMatrix4(stub.matrixWorld);
+    expect(Math.abs(tip.x)).toBeGreaterThan(Math.abs(base.x));
+    expect(tip.y).toBeGreaterThan(base.y);
   });
 
   it('reedBed is one mesh, never taller than 1.1', () => {
