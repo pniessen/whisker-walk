@@ -170,6 +170,35 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
   background: rgba(20,26,38,0.55); color: #fff; font-size: 1.1rem;
   display: grid; place-items: center; touch-action: none; cursor: pointer;
 }
+/* Camera zoom pair (+ in, − out; src/camzoom.js). A row of two round 44px
+   buttons centred UNDER the action cluster, in the strip between the
+   cluster's bottom (88px) and the screen edge, which nothing else uses on a
+   touch screen (the desktop controls bar is hidden there). That spot is
+   inside the orbit area in both handedness modes, never the joystick's, and
+   clear of the top corners: top-right is the corner map's, top-left the
+   points/goals/pause. right 28px = the cluster's 16px inset plus half the
+   width difference (122px cluster vs 98px pair), so the pair sits centred
+   below it. The 24px bottom leaves 20px of air under the cluster and rides
+   up with the iPhone home-indicator inset exactly as the cluster does. */
+.tui-zoom {
+  position: absolute;
+  right: max(28px, calc(12px + env(safe-area-inset-right)));
+  bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
+  display: flex; gap: 10px;
+  pointer-events: auto; touch-action: none;
+}
+.tui-zoom-btn {
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(20,26,38,0.55); color: #fff;
+  font: inherit; font-size: 1.5rem; font-weight: 700; line-height: 1;
+  display: grid; place-items: center; touch-action: none; cursor: pointer;
+}
+.tui-zoom-btn:active { background: rgba(20,26,38,0.8); }
+body.left-handed .tui-zoom {
+  right: auto;
+  left: max(28px, calc(12px + env(safe-area-inset-left)));
+}
 /* Left-handed mode (settings.leftHanded): mirrors the button cluster —
    joystick/orbit touchstart zones are mirrored in JS (touchui.js), this
    mirrors the two fixed-position controls to match. */

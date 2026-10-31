@@ -14,7 +14,7 @@ export function createHud() {
     <div class="hud-goals hidden" id="hud-goals"></div>
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
-    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · M mute · Esc menu</div>
+    <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
     <div class="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
       <span class="vf-hint-desktop">📷 click to snap · C to lower</span>

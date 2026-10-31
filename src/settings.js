@@ -1,3 +1,5 @@
+import { DEFAULT_ZOOM_STEP, MAX_ZOOM_STEP } from './camzoom.js';
+
 const KEY = 'whisker-walk-settings';
 
 const DEFAULTS = {
@@ -10,6 +12,9 @@ const DEFAULTS = {
   hideChat: false,
   perfReadout: false,
   quality: 'auto',
+  // Camera zoom step (src/camzoom.js): 0 close .. 3 far, 1 is the camera the
+  // game always had. Per device, like the rest of this file, never the save.
+  cameraZoom: DEFAULT_ZOOM_STEP,
 };
 
 // Resolved into a render tier by src/render/quality.js (resolveQuality) —
@@ -18,6 +23,13 @@ const DEFAULTS = {
 // force a tier and turn adaptation off. Applied at walk start, so a change
 // here takes effect on the next walk, not live.
 const QUALITY = ['auto', 'high', 'low'];
+
+// A whole step inside the zoom range, or the fallback. Junk (a string, a
+// fraction, an out-of-range number from some future build) gives the
+// fallback rather than the nearest end, so a corrupt value means today's view.
+function zoomStep(v, fallback) {
+  return Number.isInteger(v) && v >= 0 && v <= MAX_ZOOM_STEP ? v : fallback;
+}
 
 function isPlainObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -48,6 +60,7 @@ function sanitize(raw) {
     hideChat: typeof raw.hideChat === 'boolean' ? raw.hideChat : DEFAULTS.hideChat,
     perfReadout: typeof raw.perfReadout === 'boolean' ? raw.perfReadout : DEFAULTS.perfReadout,
     quality: clampEnum(raw.quality, QUALITY, DEFAULTS.quality),
+    cameraZoom: zoomStep(raw.cameraZoom, DEFAULTS.cameraZoom),
   };
 }
 
@@ -88,6 +101,7 @@ export function createSettings(storage) {
       if (key === 'volume') state = { ...state, volume: clampVolume(val, state.volume) };
       else if (key === 'musicVolume') state = { ...state, musicVolume: clampVolume(val, state.musicVolume) };
       else if (key === 'quality') state = { ...state, quality: clampEnum(val, QUALITY, state.quality) };
+      else if (key === 'cameraZoom') state = { ...state, cameraZoom: zoomStep(val, state.cameraZoom) };
       else state = { ...state, [key]: !!val };
       save();
     },

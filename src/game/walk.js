@@ -54,6 +54,7 @@ import { strayBreed } from '../straynames.js';
 import { legendaryFor, legendaryRoll } from '../legendary.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
+import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { isFearless } from '../dogs.js';
@@ -507,7 +508,15 @@ export function createWalkLifecycle({
     // walk, the same granularity (and the same "next walk" boundary) as the
     // zoom tuning above.
     player.setSwim(canSwim(progression.state));
-    camera.position.copy(cat.position).add(cameraOffset(0, 0.18));
+    // Camera zoom: the step this device last chose (settings.cameraZoom),
+    // capped in the den, applied instantly so a walk never opens with the
+    // camera gliding out. reducedMotion is set first so later zoom presses
+    // this walk are instant too.
+    player.setReducedMotion(reducedMotion);
+    const zoomStep = clampZoomStep(settings.get('cameraZoom'), maxZoomStep(isDen));
+    player.setCameraZoom(zoomStep, { instant: true });
+    const startView = zoomView(zoomStep);
+    camera.position.copy(cat.position).add(cameraOffset(0, 0.18, startView.dist, startView.height));
     camera.lookAt(cat.position.x, 0.6, cat.position.z);
 
     const equipped = state.equipped;
@@ -1494,8 +1503,8 @@ export function createWalkLifecycle({
       <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
       <button id="btn-end">End walk &amp; head home</button>
       <p class="controls-hint">${getIsTouch()
-        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · tap the prompt to interact'
-        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera'}</p></div>`;
+        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
+        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());

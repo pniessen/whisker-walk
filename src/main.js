@@ -12,6 +12,7 @@ import { createPerfHud } from './ui/perfhud.js';
 import { createHomeBase } from './ui/homebase.js';
 import { whenSplashGone, startVisitGreeting } from './visitboot.js';
 import { detectTouch, createTouchUI, onFirstTouch } from './ui/touchui.js';
+import { createZoomControl, createWheelStepper, keyZoomDir, zoomActionDir } from './camzoom.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
 import { createSamples } from './samples.js';
@@ -183,10 +184,27 @@ function init() {
     decode: (arrayBuf) => audio.getContext().decodeAudioData(arrayBuf),
     playBuffer: (buf, opts) => audio.playBuffer(buf, opts),
   });
+  // Camera zoom (src/camzoom.js): keys, wheel, the touch +/− pair and pinch
+  // all land in zoomControl.step(dir). Only during an engaged walk, so the
+  // wheel and +/− keys do nothing on the home base or the pause card.
+  const zoomControl = createZoomControl({
+    settings,
+    player,
+    isDen: () => session?.areaId === 'den',
+    onCapped: () => hud.toast('The den is cosy — no room to zoom out further 🏠'),
+  });
+  const zoomBy = (dir) => {
+    if (session && player.engaged) zoomControl.step(dir);
+  };
   const touchUI = createTouchUI(document.getElementById('hud'), {
     onMove: (v) => player.setTouchMove(v),
     onOrbit: (dx, dy) => player.addOrbit(dx, dy),
-    onAction: (name) => handleTouchAction(name),
+    onAction: (name) => {
+      const zoomDir = zoomActionDir(name);
+      if (zoomDir) zoomBy(zoomDir);
+      else handleTouchAction(name);
+    },
+    onZoom: zoomBy,
   }, { leftHanded: settings.get('leftHanded') });
   // Pushes every live-tunable setting into the systems that read it — audio
   // volume/mute, camera invert-Y, touch-UI handedness — so a change applies
@@ -569,6 +587,11 @@ function init() {
     if (e.code === 'KeyC' && session && player.engaged) {
       doCameraToggle();
     }
+    const zoomDir = keyZoomDir(e.code);
+    if (zoomDir && !typing && session && player.engaged) {
+      e.preventDefault(); // ctrl/cmd +/- would otherwise also zoom the page
+      zoomBy(zoomDir);
+    }
     // chat keys — only during an active engaged walk, never while typing
     // (guards home-base pet-name/friend-code/room-code inputs).
     if (session && player.engaged && !typing) {
@@ -578,6 +601,17 @@ function init() {
       if (e.code === 'Escape') { session.chatWheel?.closeFromKeyboard?.(); return; }
     }
   });
+  // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
+  // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
+  // else; a Mac trackpad pinch inside the game arrives here as ctrl+wheel and
+  // zooms the camera instead of the page.
+  const wheelStep = createWheelStepper();
+  document.addEventListener('wheel', (e) => {
+    if (!session || !player.engaged) return;
+    e.preventDefault();
+    const dir = wheelStep(e.deltaY, e.deltaMode, performance.now());
+    if (dir) zoomBy(dir);
+  }, { passive: false });
   document.addEventListener('mousedown', () => {
     if (isTouch) return; // touch snapping goes through tapWorld — a synthesized
     // mousedown from a button tap must not double-snap.
