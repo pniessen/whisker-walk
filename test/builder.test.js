@@ -501,6 +501,39 @@ describe('the Woods builders', () => {
     }
   });
 
+  it("logBridge's top is hewn flat, `flat` wide, and rounds off beyond it", () => {
+    const log = b.logBridge(0, -4, 0, 4, 3, 0.16, 1.9);
+    log.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const hitY = (x) => {
+      ray.set(new THREE.Vector3(x, 5, 0), new THREE.Vector3(0, -1, 0));
+      return ray.intersectObject(log, true)[0]?.point.y;
+    };
+    for (const x of [-0.94, -0.5, 0, 0.5, 0.94]) expect(hitY(x), `x ${x}`).toBeCloseTo(0.16, 3);
+    // past the flat, the trunk's round flank falls away
+    expect(hitY(1.1)).toBeLessThan(0.15);
+    expect(hitY(-1.1)).toBeLessThan(0.15);
+    // and the whole trunk is there below: 3 m across
+    const bb = new THREE.Box3().setFromObject(log, true);
+    expect(bb.max.x - bb.min.x).toBeCloseTo(3, 1);
+  });
+
+  it('steppingStones takes bigger, steadier, staggered stones when asked', () => {
+    const plain = b.steppingStones(0, 0, 6, 0, 5);
+    const big = b.steppingStones(0, 0, 6, 0, 5, { rMin: 0.7, rMax: 0.7, jitter: 0, stagger: 0.04 });
+    const bb = new THREE.Box3().setFromObject(big, true);
+    // jitter 0: the stones' centres sit exactly on the line
+    expect(bb.min.z).toBeCloseTo(-0.7, 2);
+    expect(bb.max.z).toBeCloseTo(0.7, 2);
+    // stagger: neighbouring stones' tops differ, so overlapping ones never z-fight
+    const tops = new Set();
+    const pos = big.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0.05) tops.add(pos.getY(i).toFixed(3));
+    expect(tops.size).toBe(2);
+    // the defaults are unchanged
+    expect(new THREE.Box3().setFromObject(plain).max.y).toBeCloseTo(0.1, 5);
+  });
+
   it('steppingStones is one mesh with n stones of vertices, all low', () => {
     const one = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 8).attributes.position.count;
     const m = b.steppingStones(0, 0, 6, 0, 5);
@@ -524,6 +557,30 @@ describe('the Woods builders', () => {
     const base = new THREE.Vector3(0, -0.2, 0).applyMatrix4(stub.matrixWorld);
     expect(Math.abs(tip.x)).toBeGreaterThan(Math.abs(base.x));
     expect(tip.y).toBeGreaterThan(base.y);
+  });
+
+  it('fernBed is one low mesh that stays out of the shadow pass', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 3, z: 1 }, { x: -2, z: 4 }];
+    const m = b.fernBed(spots, 7);
+    expect(m.isMesh).toBe(true);
+    const bb = bbox(m);
+    expect(bb.max.y).toBeLessThanOrEqual(0.6);
+    expect(bb.max.y).toBeGreaterThan(0.3);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    // deterministic, and each clump stays within a metre of its spot
+    expect(b.fernBed(spots, 7).geometry.attributes.position.array).toEqual(m.geometry.attributes.position.array);
+    expect(bb.min.x).toBeGreaterThan(-3);
+    expect(bb.max.x).toBeLessThan(4);
+  });
+
+  it('brambleBed is one mesh, under a metre tall, out of the shadow pass', () => {
+    const m = b.brambleBed([{ x: 0, z: 0 }, { x: 5, z: 2 }], 3);
+    expect(m.isMesh).toBe(true);
+    expect(bbox(m).max.y).toBeLessThanOrEqual(1.0);
+    expect(bbox(m).max.y).toBeGreaterThan(0.5);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
   });
 
   it('reedBed is one mesh, never taller than 1.1', () => {

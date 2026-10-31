@@ -2285,25 +2285,34 @@ export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
   return g;
 }
 
-// A trunk laid across a stream as a bridge. Like bridgeDeck it emits no
-// collider: the walkable part is the area's own crossing record, this is the
-// picture of it. Half sunk, so the top is at `y` (the deck height) and the
-// visible width at the bank is narrower than `w`. An even side count puts a
-// vertex exactly on top, so the top really is at `y`.
-export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14) {
+// A trunk laid across a stream as a bridge, its top hewn flat to walk on, the
+// way a real log bridge is. Like bridgeDeck it emits no collider: the walkable
+// part is the area's own crossing record, this is the picture of it. `w` is
+// the trunk's diameter and `flat` the width of the hewn top, which sits level
+// at `y` from end to end; the trunk's round flanks fall away on either side
+// and into the water. A deck record should be no wider than `flat`, so a cat
+// on the deck is on the log.
+//
+// Extruded from the trunk's cross-section (a circle with its top sliced off)
+// rather than built as a sunk cylinder: a sunk 12-sided cylinder shows only
+// the ridge between its two top facets, about 7.5 x its height above the
+// water, so a walkable width meant a trunk several metres across.
+export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
   const g = new THREE.Group();
   const len = Math.hypot(x2 - x1, z2 - z1);
   const r = w / 2;
-  const geo = new THREE.CylinderGeometry(r * 0.92, r, len, 12);
-  geo.rotateX(Math.PI / 2);
+  const hw = Math.min(flat / 2, r * 0.98);
+  const c = Math.sqrt(r * r - hw * hw);
+  const phi = Math.atan2(c, hw);
+  const shape = new THREE.Shape();
+  shape.moveTo(-hw, c);
+  shape.lineTo(hw, c);
+  // clockwise from the flat's right end, round under the bottom, to its left end
+  shape.absarc(0, 0, r, phi, Math.PI - phi, true);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false, curveSegments: 20 });
+  geo.translate(0, -c, -len / 2);
   const trunk = new THREE.Mesh(geo, surfNoMap(0x6e4a2c, 'bark'));
-  // The trunk tapers, so laid flat its top would slope down 8% of r toward
-  // the thin end, and the strip of log showing above the water would narrow
-  // to almost nothing there. Tilting it by the taper keeps the top level from
-  // bank to bank, so one deck width is right all the way; the tilt pivots on
-  // the middle, where the radius is 0.96 r, so that is what sits under `y`.
-  trunk.rotation.x = -Math.atan2(r * 0.08, len);
-  trunk.position.y = y - 0.96 * r;
+  trunk.position.y = y;
   g.add(trunk);
   g.position.set((x1 + x2) / 2, 0, (z1 + z2) / 2);
   g.rotation.y = Math.atan2(x2 - x1, z2 - z1);
@@ -2314,16 +2323,21 @@ export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14) {
 // low, so rig.js's caster sweep would make them cast; noCast keeps them out of
 // the shadow pass. Placement and shape come from hash01, never Math.random, so
 // both cats' screens agree.
-export function steppingStones(x1, z1, x2, z2, n = 5) {
+//
+// Options, for a ford a cat should be able to walk across without wetting a
+// paw: rMin/rMax (the stones' base radius range), jitter (how far a stone may
+// sit off the line, in total) and stagger (alternate stones sit this much
+// higher and lower, so stones that overlap never fight for the same pixels).
+export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52, jitter = 0.3, stagger = 0 } = {}) {
   const geoms = [];
   for (let i = 0; i < n; i++) {
     const f = n === 1 ? 0.5 : i / (n - 1);
-    const sx = x1 + (x2 - x1) * f + (hash01(i, 1, 61) - 0.5) * 0.3;
-    const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * 0.3;
-    const r = 0.38 + 0.14 * hash01(i, 3, 61);
+    const sx = x1 + (x2 - x1) * f + (hash01(i, 1, 61) - 0.5) * jitter;
+    const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * jitter;
+    const r = rMin + (rMax - rMin) * hash01(i, 3, 61);
     const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, 8);
     stone.rotateY(hash01(i, 4, 61) * Math.PI);
-    stone.translate(sx, 0, sz);
+    stone.translate(sx, (i % 2 ? -0.5 : 0.5) * stagger, sz);
     geoms.push(stone);
   }
   const geo = geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
@@ -2380,6 +2394,63 @@ export function reedBed(spots, seed) {
     : geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
   if (geoms.length > 1) for (const p of geoms) p.dispose();
   const m = new THREE.Mesh(geo, surfNoMap(0x8aa05a, 'foliage'));
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
+// Ferns, a clump at each spot, one merged mesh: FERN_FRONDS thin fronds
+// arching out from the middle, under 0.6 m tall, so they dress the floor of a
+// wood without hiding a cat or a path. Low and wide like the reeds, so they
+// opt out of the caster sweep the same way.
+const FERN_FRONDS = 7;
+export function fernBed(spots, seed) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    const turn = hash01(sp.x, sp.z, seed + 1) * Math.PI * 2;
+    const size = 0.8 + 0.4 * hash01(sp.z, sp.x, seed + 2);
+    for (let k = 0; k < FERN_FRONDS; k++) {
+      const len = (0.5 + 0.2 * hash01(i, k, seed + 3)) * size;
+      const frond = new THREE.BoxGeometry(0.17 * size, 0.015, len);
+      frond.translate(0, 0, len / 2);
+      // lifted 30-50 degrees off the ground, then turned to its place in the ring
+      frond.rotateX(-(0.52 + 0.35 * hash01(k, i, seed + 4)));
+      frond.rotateY(turn + (k / FERN_FRONDS) * Math.PI * 2 + (hash01(k, i, seed + 5) - 0.5) * 0.5);
+      frond.translate(sp.x, 0, sp.z);
+      geoms.push(frond);
+    }
+  });
+  return mergedNoCast(geoms, 0x467f36, 'foliage');
+}
+
+// Bramble thickets, one merged mesh: each spot is three or four squashed
+// low-poly lobes huddled together, under a metre tall. No collider, like a
+// bush: a cat pushes through. Low and wide, so out of the caster sweep too.
+export function brambleBed(spots, seed) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    const lobes = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 2);
+    for (let k = 0; k < lobes; k++) {
+      const r = 0.45 + 0.25 * hash01(i, k, seed + 2);
+      const lobe = new THREE.IcosahedronGeometry(r, 0);
+      lobe.scale(1, 0.62, 1);
+      const a = hash01(k, i, seed + 3) * Math.PI * 2;
+      const d = k === 0 ? 0 : 0.45 + 0.35 * hash01(i + k, k, seed + 4);
+      lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
+      lobe.translate(sp.x + Math.cos(a) * d, r * 0.62 * 0.8, sp.z + Math.sin(a) * d);
+      geoms.push(lobe);
+    }
+  });
+  return mergedNoCast(geoms, 0x3b5e2e, 'foliage');
+}
+
+// The shared tail of the ground-dressing beds: merge, map-less material, and
+// out of the caster sweep (see the reedBed note).
+function mergedNoCast(geoms, color, surface) {
+  const geo = geoms.length === 0 ? new THREE.BufferGeometry()
+    : geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
+  if (geoms.length > 1) for (const p of geoms) p.dispose();
+  const m = new THREE.Mesh(geo, surfNoMap(color, surface));
   m.castShadow = false;
   m.userData.noCast = true;
   return m;
@@ -3130,19 +3201,47 @@ function nearestOf(x, z, cands) {
  * The closer candidate wins, so a treat that rolled off the seaside's pier POI
  * climbs back onto the pier instead of being flung 11m west to the sand.
  */
+// A point exactly `margin` out is dry; float rounding in a push (18 - 0.35 is
+// not exactly 17.65) must not make it count as wet and start another push.
+const DRY_EPS = 1e-9;
+const tooClose = (w, x, z, margin) => !onDeck(w, x, z) && waterGap(w, x, z) < margin - DRY_EPS;
+
 export function nearestDry(waters, x, z, margin = 0.6) {
   let p = { x, z };
   const list = waters ?? [];
-  // A push out of one footprint can only land inside another where two bodies
-  // of water touch — no area does that today, but the relaxation is two lines
-  // and stops the function from silently returning a wet point if one ever does.
-  for (let pass = 0; pass < 3; pass++) {
-    const w = list.find((wt) => !onDeck(wt, p.x, p.z) && waterGap(wt, p.x, p.z) < margin);
-    if (!w) break;
+  // A push out of one footprint can land inside, or within the margin of,
+  // another where two bodies of water touch, and the Woods has two such
+  // places: its pond sits over the river, and the river's two reaches meet at
+  // a right angle. So the push repeats a few times, and if that still has not
+  // reached dry ground (an inside corner can bounce between the two waters),
+  // the ring search below finds the nearest point that is.
+  for (let pass = 0; pass < 4; pass++) {
+    const w = list.find((wt) => tooClose(wt, p.x, p.z, margin));
+    if (!w) return p;
     p = nearestOf(x, z, [
       pushOutOf(w, p.x, p.z, margin),
       ...(w.decks ?? []).map((d) => clampInto(d, p.x, p.z, margin)),
     ]);
   }
-  return p;
+  if (!list.some((w) => tooClose(w, p.x, p.z, margin))) return p;
+  return ringSearchDry(list, x, z, margin) ?? p;
+}
+
+// The nearest dry point to (x, z), to within RING_STEP: rings outward from the
+// point, each sampled at RING_ANGLES evenly spaced angles from due east.
+// Deterministic (no rng), as nearestDry must be. Only reached when the pushes
+// above fail, so its cost (a few thousand footprint tests at worst) is rare.
+const RING_STEP = 0.05;
+const RING_ANGLES = 64;
+const RING_MAX = 30;
+function ringSearchDry(list, x, z, margin) {
+  for (let r = RING_STEP; r <= RING_MAX; r += RING_STEP) {
+    for (let k = 0; k < RING_ANGLES; k++) {
+      const a = (k / RING_ANGLES) * Math.PI * 2;
+      const px = x + Math.cos(a) * r;
+      const pz = z + Math.sin(a) * r;
+      if (!list.some((w) => tooClose(w, px, pz, margin))) return { x: px, z: pz };
+    }
+  }
+  return null;
 }

@@ -45,21 +45,25 @@ export const SPAWN = Object.freeze({ x: 44, z: 12 });
 
 const BOUNDS = Object.freeze({ minX: -50, maxX: 50, minZ: -50, maxZ: 50 });
 
-// The log bridge over river-west. builder.logBridge sinks a trunk of diameter
-// `w` so its top is at `y`, which leaves a ridge of the trunk showing above
-// the water rather than its full width. LOG_W and LOG_TOP are sized so about
-// 1.1 m of log shows over the river, and the deck is that strip; the trunk
-// runs 1.5 m onto each bank so the crossing starts on dry ground.
+// The log bridge over river-west: a great fallen oak, 3 m through, with its
+// top hewn flat and 1.9 m wide (builder.logBridge), level at LOG_TOP. The deck
+// is the middle 1.8 m of that flat, so a cat on the deck is on the log, and it
+// is wide enough that a thumb on the stick doesn't bounce off the bank. The
+// trunk runs 1.5 m onto each bank so the crossing starts on dry ground.
 // test/woods.test.js raycasts the built log across the whole deck.
 const LOG_X = -4.5;
-const LOG_W = 2.8;
-const LOG_TOP = 0.18;
-const LOG_HALF = 0.55;
+const LOG_W = 3.0;
+const LOG_FLAT = 1.9;
+const LOG_TOP = 0.16;
+const LOG_HALF = 0.9;
 const LOG_BRIDGE = Object.freeze({ minX: LOG_X - LOG_HALF, maxX: LOG_X + LOG_HALF, minZ: -15.5, maxZ: -7.5 });
 
-// The stepping stones over river-north: seven flat stones in a line at z -29,
-// from bank to bank. The deck is the strip the stones cover, about a metre.
+// The stepping stones over river-north: ten broad flat stones in a line at
+// z -29, from bank to bank, set close and staggered in height so they overlap
+// without a gap of open water anywhere along the strip the deck covers (a
+// metre wide; test/woods.test.js raycasts it).
 const STONES_Z = -29;
+const STONES = { n: 10, rMin: 0.75, rMax: 0.85, jitter: 0.05, stagger: 0.03 };
 const STEPPING_STONES = Object.freeze({ minX: 16.5, maxX: 24.5, minZ: STONES_Z - 0.5, maxZ: STONES_Z + 0.5 });
 
 // The waters. Every footprint runs on past the bounds where its water does,
@@ -158,8 +162,15 @@ function fallenLogEnds() {
 // dry for a cat but it is still a river for a tree.
 const waterDist = (x, z) => Math.min(...WOODS_WATERS.map((w) => b.waterGap(w, x, z)));
 
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(
+  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+
 function treeFits(x, z) {
   if (waterDist(x, z) < 3) return false;
+  // the crossings stay open to see from the paths and the banks
+  if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
   if (WOODS_PATHS.some((s) => segDist(x, z, ...s) < 3)) return false;
   if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 4)) return false;
   if (segDist(x, z, ...fallenLogEnds()) < 4) return false;
@@ -169,14 +180,19 @@ function treeFits(x, z) {
 // Rounded so the spots are clean data (they end up in colliders and perches).
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// The scenery trees: a 12 m grid, each cell's tree jittered up to 4 m, kept
-// only where it fits. Seeded by name rather than drawn from the walk's rng, so
-// every walk and both co-walkers get the same wood. Every cell draws its three
-// numbers whether or not its tree is kept, so moving one clearance never
-// reshuffles the rest of the wood.
-const TREE_CELL = 12;
-const TREE_JITTER = 4;
-const MAX_TREES = 32;
+// The scenery trees: an 8 m grid, each cell's tree jittered up to 2.5 m, kept
+// only where it fits, so the canopies close over the cat between the paths
+// and the clearing opens to the sky. Seeded by name rather than drawn from the
+// walk's rng, so every walk and both co-walkers get the same wood. Every cell
+// draws its three numbers whether or not its tree is kept, so moving one
+// clearance never reshuffles the rest of the wood.
+//
+// The cap is the budget: each tree is two meshes and two shadow casters, and
+// 80 of them keeps the Woods inside the Cozy Neighborhood's merged ceiling of
+// 205 casters with room to spare (test/budget.test.js).
+const TREE_CELL = 8;
+const TREE_JITTER = 2.5;
+const MAX_TREES = 80;
 export function woodsTreeSpots() {
   const rng = mulberry32(seedFromCode('woods-trees'));
   const spots = [];
@@ -189,6 +205,46 @@ export function woodsTreeSpots() {
     }
   }
   return spots;
+}
+
+// The undergrowth: ferns all through the wood and a few bramble thickets,
+// seeded by name like the trees. None has a collider (a cat pushes through),
+// and every clump keeps off the paths, the decks, the water's edge, the
+// spawn, the clearing and every KEEP_CLEAR place, so nothing the kids walk to
+// or look for is hidden. The brambles stand taller (under a metre), so they
+// keep further back: from the paths, and well away from the crossings, so the
+// log and the stones stay in sight from the path.
+const FERN = { cell: 4, jitter: 1.5, keep: 0.55, path: 2.3, water: 1.5, deck: 3, clear: 3, spawn: 4, trunk: 1 };
+const BRAMBLE = { cell: 9, jitter: 2.5, keep: 0.6, path: 3.8, water: 2.5, deck: 7, clear: 4.5, spawn: 7, trunk: 1.6 };
+function undergrowthFits(x, z, rule, trees) {
+  if (x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ) return false;
+  if (waterDist(x, z) < rule.water) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < rule.deck)) return false;
+  if (WOODS_PATHS.some((s) => segDist(x, z, ...s) < rule.path)) return false;
+  if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < rule.clear)) return false;
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < rule.spawn) return false;
+  if (segDist(x, z, ...fallenLogEnds()) < rule.clear) return false;
+  if (trees.some((t) => Math.hypot(x - t.x, z - t.z) < rule.trunk * t.scale)) return false;
+  return Math.hypot(x - CLEARING.x, z - CLEARING.z) >= CLEARING.r;
+}
+function scatter(rng, rule, trees) {
+  const spots = [];
+  for (let gz = BOUNDS.minZ + rule.cell / 2; gz < BOUNDS.maxZ; gz += rule.cell) {
+    for (let gx = BOUNDS.minX + rule.cell / 2; gx < BOUNDS.maxX; gx += rule.cell) {
+      const x = r2(gx + (rng() * 2 - 1) * rule.jitter);
+      const z = r2(gz + (rng() * 2 - 1) * rule.jitter);
+      const keep = rng() < rule.keep;
+      if (keep && undergrowthFits(x, z, rule, trees)) spots.push({ x, z });
+    }
+  }
+  return spots;
+}
+export function woodsUndergrowth() {
+  const rng = mulberry32(seedFromCode('woods-undergrowth'));
+  const trees = woodsTreeSpots();
+  const ferns = scatter(rng, FERN, trees);
+  const brambles = scatter(rng, BRAMBLE, trees);
+  return { ferns, brambles };
 }
 
 // Reeds, a clump every 2.5 m: round the pond's east half, along the
@@ -268,10 +324,10 @@ export function build(scene, { water = {}, wind } = {}) {
   });
 
   // --- the crossings ----------------------------------------------------------
-  const bridge = b.logBridge(LOG_X, LOG_BRIDGE.minZ, LOG_X, LOG_BRIDGE.maxZ, LOG_W, LOG_TOP);
+  const bridge = b.logBridge(LOG_X, LOG_BRIDGE.minZ, LOG_X, LOG_BRIDGE.maxZ, LOG_W, LOG_TOP, LOG_FLAT);
   bridge.name = 'logBridge';
   scene.add(bridge);
-  const stones = b.steppingStones(17.2, STONES_Z, 23.8, STONES_Z, 7);
+  const stones = b.steppingStones(17.0, STONES_Z, 24.0, STONES_Z, STONES.n, STONES);
   stones.name = 'steppingStones';
   scene.add(stones);
 
@@ -280,6 +336,15 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- reeds --------------------------------------------------------------------
   scene.add(b.reedBed(reedSpots(), seedFromCode('woods-reeds')));
+
+  // --- the undergrowth ----------------------------------------------------------
+  const { ferns, brambles } = woodsUndergrowth();
+  const fernMesh = b.fernBed(ferns, seedFromCode('woods-ferns'));
+  fernMesh.name = 'ferns';
+  scene.add(fernMesh);
+  const brambleMesh = b.brambleBed(brambles, seedFromCode('woods-brambles'));
+  brambleMesh.name = 'brambles';
+  scene.add(brambleMesh);
 
   // --- the trees ----------------------------------------------------------------
   // A collider a little wider than the trunk, growing with it, and a Sure

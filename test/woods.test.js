@@ -27,7 +27,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { waterGap, inWater } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
 
-const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots } = woods;
+const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsUndergrowth } = woods;
 
 const built = () => {
   const scene = new THREE.Scene();
@@ -43,6 +43,9 @@ function segDist(x, z, [x1, z1, x2, z2]) {
   const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
   return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
 }
+
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 
 // Flood-fill the cells a grounded cat may stand on (player.js's own rule) on a
 // 0.5 m grid from SPAWN, and say whether (x, z) was reached.
@@ -149,23 +152,34 @@ describe('the Woods: water', () => {
         expect(hit && hit.point.y > waterY, `(${x.toFixed(2)}, ${z}) is open water`).toBe(true);
       }
     }
-    // wide enough to walk: two grid columns at least, a cat and a bit
-    expect(deck.maxX - deck.minX).toBeGreaterThanOrEqual(1);
+    // wide enough that a thumb on the stick doesn't bounce off the bank
+    expect(deck.maxX - deck.minX).toBeGreaterThanOrEqual(1.8);
     // and it spans the river, landing on dry ground at both ends
     expect(deck.minZ).toBeLessThan(river.minZ);
     expect(deck.maxZ).toBeGreaterThan(river.maxZ);
   });
 
-  it("the stepping stones' deck lies along the stones", () => {
+  it('the stepping stones cover their whole deck, with no open water anywhere on it', () => {
     const deck = byId('river-north').decks[0];
     const river = byId('river-north');
     const stones = scene.getObjectByName('steppingStones');
     expect(stones).toBeTruthy();
-    const bb = new THREE.Box3().setFromObject(stones);
-    expect(deck.minZ).toBeGreaterThanOrEqual(bb.min.z - 0.1);
-    expect(deck.maxZ).toBeLessThanOrEqual(bb.max.z + 0.1);
-    expect(bb.min.x).toBeLessThanOrEqual(river.minX);
-    expect(bb.max.x).toBeGreaterThanOrEqual(river.maxX);
+    const waterY = scene.getObjectByName('water:river-north').position.y;
+    scene.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    // every 5 cm across the river, and across the deck's full width, edges
+    // included: a stone is under every point, standing above the water
+    const wet = [];
+    for (let x = river.minX; x <= river.maxX + 1e-9; x += 0.05) {
+      for (let k = 0; k <= 8; k++) {
+        const z = deck.minZ + (deck.maxZ - deck.minZ) * (k / 8);
+        ray.set(new THREE.Vector3(x, 5, z), new THREE.Vector3(0, -1, 0));
+        const hit = ray.intersectObject(stones, false)[0];
+        if (!hit || hit.point.y <= waterY) wet.push(`(${x.toFixed(2)}, ${z.toFixed(2)})`);
+      }
+    }
+    expect(wet.slice(0, 8)).toEqual([]);
+    // and the crossing runs from bank to bank
     expect(deck.minX).toBeLessThan(river.minX);
     expect(deck.maxX).toBeGreaterThan(river.maxX);
   });
@@ -177,14 +191,19 @@ describe('the Woods: trees', () => {
   it('woodsTreeSpots is deterministic and keeps its clearances', () => {
     const a = woodsTreeSpots();
     expect(woodsTreeSpots()).toEqual(a);
-    expect(a.length).toBeGreaterThanOrEqual(24);
-    expect(a.length).toBeLessThanOrEqual(32);
+    // a wood, not a park: closer to eighty trees than thirty (the cap is the
+    // shadow-caster budget, see test/budget.test.js)
+    expect(a.length).toBeGreaterThanOrEqual(60);
+    expect(a.length).toBeLessThanOrEqual(80);
     for (const t of a) {
       const at = `(${t.x}, ${t.z})`;
       for (const w of WOODS_WATERS) expect(waterGap(w, t.x, t.z), `${at} near ${w.id}`).toBeGreaterThanOrEqual(3);
       for (const seg of WOODS_PATHS) expect(segDist(t.x, t.z, seg), `${at} on a path`).toBeGreaterThanOrEqual(3);
       expect(Math.hypot(t.x - CLEARING.x, t.z - CLEARING.z), `${at} in the clearing`).toBeGreaterThanOrEqual(CLEARING.r);
       expect(Math.hypot(t.x - SPAWN.x, t.z - SPAWN.z), `${at} on the spawn`).toBeGreaterThanOrEqual(4);
+      for (const w of WOODS_WATERS) {
+        for (const d of w.decks ?? []) expect(rectDist(d, t.x, t.z), `${at} by a crossing`).toBeGreaterThanOrEqual(4);
+      }
       expect(t.scale).toBeGreaterThanOrEqual(1);
       expect(t.scale).toBeLessThanOrEqual(1.6);
       expect(t.x).toBeGreaterThanOrEqual(area.bounds.minX);
@@ -194,10 +213,57 @@ describe('the Woods: trees', () => {
     }
   });
 
+  it('leaves the wood walkable: no two trunks closer than a cat can pass between', () => {
+    const a = woodsTreeSpots();
+    for (let i = 0; i < a.length; i++) {
+      for (let j = i + 1; j < a.length; j++) {
+        const gap = Math.hypot(a[i].x - a[j].x, a[i].z - a[j].z) - 0.5 * a[i].scale - 0.5 * a[j].scale;
+        expect(gap, `(${a[i].x}, ${a[i].z}) and (${a[j].x}, ${a[j].z})`).toBeGreaterThan(2 * 0.35);
+      }
+    }
+  });
+
   it('plants each tree with a collider and a Sure Claws fork', () => {
     for (const t of woodsTreeSpots()) {
       expect(area.colliders.some((c) => c.x === t.x && c.z === t.z), `collider (${t.x}, ${t.z})`).toBe(true);
       expect(area.perches.some((p) => p.x === t.x && p.z === t.z && p.requires), `fork (${t.x}, ${t.z})`).toBe(true);
+    }
+  });
+});
+
+describe('the Woods: undergrowth', () => {
+  const CLEARING = { x: 4, z: 12, r: 9 };
+  const { ferns, brambles } = woodsUndergrowth();
+  const decks = WOODS_WATERS.flatMap((w) => w.decks ?? []);
+  const waterDist = (x, z) => Math.min(...WOODS_WATERS.map((w) => waterGap(w, x, z)));
+
+  it('is seeded: the same ferns and brambles every time, and plenty of them', () => {
+    expect(woodsUndergrowth()).toEqual({ ferns, brambles });
+    expect(ferns.length).toBeGreaterThanOrEqual(80);
+    expect(brambles.length).toBeGreaterThanOrEqual(8);
+  });
+
+  for (const [name, list, path, deck] of [['fern', ferns, 2.3, 3], ['bramble', brambles, 3.8, 7]]) {
+    it(`keeps every ${name} off the paths, the crossings, the water, the spawn and the clearing`, () => {
+      for (const p of list) {
+        const at = `${name} (${p.x}, ${p.z})`;
+        for (const seg of WOODS_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(path);
+        for (const d of decks) expect(rectDist(d, p.x, p.z), at).toBeGreaterThanOrEqual(deck);
+        expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(1.5);
+        expect(Math.hypot(p.x - SPAWN.x, p.z - SPAWN.z), at).toBeGreaterThanOrEqual(4);
+        expect(Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z), at).toBeGreaterThanOrEqual(CLEARING.r);
+      }
+    });
+  }
+
+  it('is drawn as two merged meshes out of the shadow pass, with no colliders', () => {
+    for (const n of ['ferns', 'brambles']) {
+      const m = scene.getObjectByName(n);
+      expect(m?.isMesh, n).toBe(true);
+      expect(m.userData.noCast, n).toBe(true);
+    }
+    for (const p of [...ferns, ...brambles]) {
+      expect(area.colliders.some((c) => c.x === p.x && c.z === p.z)).toBe(false);
     }
   });
 });
