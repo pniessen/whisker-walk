@@ -74,9 +74,41 @@ otherwise, these win:
    - The territory map leaves a visible "unexplored" edge where the Gorge
      will join.
 
-Still open: whether the territory mapping in §3 is right (Seaside as the River
-and Marshes, the Docks as the Pines and Swamp). The plan is to ask the
-11-year-old to draw her own map.
+5. **All-new territories (answered after the four above).** Clan Edition's
+   territories are **new maps**, not re-dressed versions of today's areas.
+   Legacy keeps the Neighborhood, Park, Seaside and Docks exactly as they are.
+   This overturns §3's recommendation and part of §1. Consequences the
+   revised design has to work through:
+   - **Progress no longer maps "exactly".**
+     - New territories have new area ids, so walk counts, unlocks, marks,
+       golden mice, races and scenics there start fresh.
+     - Everything a kid owns (points, cats, colony, accessories) is still
+       shared.
+     - The revised design must say how a kid unlocks territories, and must
+       never take away an unlocked Legacy area.
+   - **The colony server** accepts only the four existing area ids. Every new
+     territory needs the owner's one-line SQL change, and both kids' devices
+     must update before anyone walks one (see the builder facts at the end).
+   - **Much more work:** five new maps (four in the first release, the Gorge
+     later), each with its own POIs, collectibles, golden mice, races,
+     scenics, colliders, perches and props.
+     - Build and ship them one territory at a time.
+     - Each new map is held to the iPhone draw-call budget and the
+       visual-pass standards in docs/VISUAL-PASS.md.
+   - **Twolegplace** (where the kittypets live) must also be decided:
+     - a new map;
+     - or the Neighborhood, shared by both editions as the one place the two
+       worlds meet.
+
+     The second is cheaper, and it gives kittypets a home that exists in both
+     editions.
+   - **Borders and overlaps:** with all-new maps, shared borders can be built
+     into the maps themselves, as matching edges and visible neighbours,
+     rather than painted onto old horizons.
+
+Still open: Twolegplace (new map, or the shared Neighborhood), and the exact
+layout of the territories. The plan is to ask the 11-year-old to draw her own
+map.
 
 ---
 
