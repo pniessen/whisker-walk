@@ -71,6 +71,13 @@ const LEAF_RANGE = 26; // only trees this close to the view drop leaves
 const LEAF_REST_Y = 0.05; // a sprite's half-height, so a resting leaf is not cut by the lawn
 const LEAF_FADE = 1.5; // seconds a resting leaf takes to fade
 const RECYCLE = LEAF_RANGE + 10; // a leaf whose tree is further from the view than this is reused
+// Never hide a find. A ~20cm leaf resting on a 6-10cm toy or a golden mouse
+// would cover it, so a leaf coming down inside a keep-out circle (walk.js's
+// grassKeepOut: rest spots, carryables and their fall spots, ground-level
+// finds), padded by KEEP_OUT_PAD, fades out over its last KEEP_OUT_FADE metres
+// of fall and goes back to its tree instead of resting there.
+export const KEEP_OUT_PAD = 0.15;
+const KEEP_OUT_FADE = 0.8;
 // Autumn-ish but not a costume: mostly the canopy's own yellow-greens, with
 // some gold and a few rust leaves. sRGB hex, converted once below.
 const LEAF_COLOURS = [0x9cb84a, 0x86a843, 0xc9b03c, 0xd98a32, 0xb8652e];
@@ -85,6 +92,18 @@ const MOTH_RESORT = 0.5; // seconds between re-picking the lamps nearest the vie
 // Docks motes and neighbourhood fluff.
 const MOTE_SPAN = 12;
 const FLUFF_SPAN = 11;
+
+// Weather (weather.js). The points are unlit, so the weather's darker light
+// has to be multiplied in: rain dims everything to ~65% (a touch cool), a
+// sunset walk to ~75% and warm. In rain the motes and the dandelion fluff are
+// hidden outright, since sunny drifting fluff in a shower looks wrong; leaves
+// and surf mist stay. A rainy walk's shower stops after a minute or two
+// (weather.isRaining()), so the rain look eases in and out over WEATHER_EASE
+// seconds rather than snapping. Dusk walks roll no weather, so this never
+// stacks on the dusk dim below.
+export const RAIN_TINT = Object.freeze([0.64, 0.65, 0.68]);
+export const SUNSET_TINT = Object.freeze([0.82, 0.74, 0.62]);
+const WEATHER_EASE = 2;
 
 // ambientKind(areaId, { dusk }) — which effect an area gets, or null.
 export function ambientKind(areaId, { dusk = false } = {}) {
@@ -277,19 +296,22 @@ const NO_AMBIENT = Object.freeze({
 });
 
 // createAmbient(scene, { areaId, areaData, tier, camera, dusk, reducedMotion,
-// cat, seed, prewarm }) — the per-walk rig, in the session's
+// cat, keepOut, weather, seed, prewarm }) — the per-walk rig, in the session's
 // { update, dispose } shape. Call it AFTER rig.js's assignShadowCasters and
 // mergeStaticProps / createContactShadows (walk.js does, beside grass), so
 // none of them sees the points.
 //
 // `cat` (optional) is the player's cat Group; its position is read each frame
-// to keep particles off it. `dusk` is walk.js's duskActive.
+// to keep particles off it. `dusk` is walk.js's duskActive. `keepOut` is a
+// list of { x, z, r } ground circles no leaf may rest in (see KEEP_OUT_PAD).
+// `weather` (optional) is weather.js's api: its `condition` ('clear', 'rain'
+// or 'sunset') and, for rain, `isRaining()`, read every frame.
 //
 // Reduced motion: the stub, nothing drawn at all. A frozen leaf hanging in mid
 // air reads as a glitch, not as calm, and every effect here IS motion.
 export function createAmbient(scene, {
   areaId, areaData, tier, camera, dusk = false, reducedMotion = false, cat = null,
-  seed, prewarm = true,
+  keepOut = [], weather = null, seed, prewarm = true,
 } = {}) {
   if (reducedMotion) return NO_AMBIENT;
   const kind = ambientKind(areaId, { dusk });
@@ -312,6 +334,20 @@ export function createAmbient(scene, {
 
   const rand = makeRandom(seed ?? Math.floor(Math.random() * 4294967296));
   const colliders = areaData?.colliders ?? [];
+  // Keep-out circles, flattened once: x, z, (r + pad)^2.
+  const keep = new Float32Array((keepOut?.length ?? 0) * 3);
+  for (let k = 0; k < keep.length / 3; k++) {
+    const c = keepOut[k];
+    keep[k * 3] = c.x;
+    keep[k * 3 + 1] = c.z;
+    keep[k * 3 + 2] = (c.r + KEEP_OUT_PAD) ** 2;
+  }
+  const kept = (x, z) => {
+    for (let k = 0; k < keep.length; k += 3) {
+      if ((x - keep[k]) ** 2 + (z - keep[k + 1]) ** 2 < keep[k + 2]) return true;
+    }
+    return false;
+  };
 
   // ---- fixed buffers: GPU attributes and CPU particle state ----------------
   const pos = new Float32Array(cap * 3);
@@ -324,6 +360,7 @@ export function createAmbient(scene, {
   geometry.setAttribute('color', attr(col, 4));
   geometry.setAttribute('aSize', attr(size, 1));
   geometry.setAttribute('aSpin', attr(spin, 2));
+  const attrs = geometry.attributes;
   geometry.setDrawRange(0, cap);
 
   // Per particle: mode (0 waiting, 1 alive / falling, 2 resting), age,
@@ -430,6 +467,16 @@ export function createAmbient(scene, {
       out.rot = a * p3[i];
       out.squash = 0.25 + 0.75 * Math.abs(Math.cos(a * p3[i] * 0.6 + ph));
       alpha[i] = Math.min(1, a / 0.6);
+      // Coming down on a find: fade out on the way down, never rest on it.
+      // Only tested over the last stretch of the fall, so a leaf high in a
+      // tree costs nothing here.
+      const blocked = by[i] < LEAF_REST_Y + KEEP_OUT_FADE && kept(out.x, out.z);
+      if (blocked) alpha[i] *= smooth(LEAF_REST_Y, LEAF_REST_Y + KEEP_OUT_FADE, by[i]);
+      if (blocked && by[i] <= LEAF_REST_Y) {
+        wait(i, 0.5, 3);
+        out.y = -10;
+        return;
+      }
       if (by[i] <= LEAF_REST_Y) {
         // Land where it is drawn, so it does not jump on touchdown.
         bx[i] = out.x;
@@ -532,7 +579,8 @@ export function createAmbient(scene, {
     out.squash = 1;
     const fade = smooth(0, 1.5, a) * (1 - smooth(life[i] - 1.5, life[i], a));
     const twinkle = kind === 'motes' ? 0.55 * (0.7 + 0.3 * Math.sin(a * 2.3 + ph)) : 0.85;
-    alpha[i] = fade * twinkle;
+    // No sunny fluff in a shower (see RAIN_TINT).
+    alpha[i] = fade * twinkle * (1 - wet);
     if (a >= life[i]) wait(i, 0, 2);
   }
 
@@ -595,6 +643,11 @@ export function createAmbient(scene, {
   const keepIn = KEEP_CLEAR + pad;
   let lastT = null;
   let visibleCount = 0;
+  // 0 dry .. 1 raining, eased; see RAIN_TINT.
+  const isRainWalk = weather?.condition === 'rain';
+  const raining = () => isRainWalk && (weather.isRaining ? weather.isRaining() : true);
+  let wet = raining() ? 1 : 0;
+  const sunsetWalk = weather?.condition === 'sunset';
   if (kind === 'moths') for (let i = 0; i < cap; i++) initMoth(i);
   // Staggered first births: leaves over a whole fall (~10s) so the prewarm
   // below does not land them all together, the others over two seconds.
@@ -609,6 +662,18 @@ export function createAmbient(scene, {
     if (kind === 'moths') {
       resortIn -= dt;
       if (resortIn <= 0) { pickLamps(); resortIn = MOTH_RESORT; }
+    }
+    // The weather's light: a few multiplies a frame, none per particle beyond
+    // the three below.
+    if (isRainWalk) wet += ((raining() ? 1 : 0) - wet) * Math.min(1, dt / WEATHER_EASE);
+    let tr = 1;
+    let tg = 1;
+    let tb = 1;
+    if (sunsetWalk) { tr = SUNSET_TINT[0]; tg = SUNSET_TINT[1]; tb = SUNSET_TINT[2]; }
+    if (wet > 0) {
+      tr += (RAIN_TINT[0] - tr) * wet;
+      tg += (RAIN_TINT[1] - tg) * wet;
+      tb += (RAIN_TINT[2] - tb) * wet;
     }
     const cam = camera.position;
     const hasCat = !!cat?.position;
@@ -649,9 +714,9 @@ export function createAmbient(scene, {
       pos[i * 3] = out.x;
       pos[i * 3 + 1] = out.y;
       pos[i * 3 + 2] = out.z;
-      col[i * 4] = rgb[i * 3];
-      col[i * 4 + 1] = rgb[i * 3 + 1];
-      col[i * 4 + 2] = rgb[i * 3 + 2];
+      col[i * 4] = rgb[i * 3] * tr;
+      col[i * 4 + 1] = rgb[i * 3 + 1] * tg;
+      col[i * 4 + 2] = rgb[i * 3 + 2] * tb;
       col[i * 4 + 3] = visible ? a : 0;
       // Size zero for an invisible point: the GPU drops it before any
       // fragment work, so a hidden particle costs a vertex and nothing more.
@@ -681,7 +746,10 @@ export function createAmbient(scene, {
     const dt = lastT === null ? 0 : clamp(t - lastT, 0, 0.1);
     lastT = t;
     simulate(t, dt, intensity);
-    for (const name of ['position', 'color', 'aSize', 'aSpin']) geometry.attributes[name].needsUpdate = true;
+    attrs.position.needsUpdate = true;
+    attrs.color.needsUpdate = true;
+    attrs.aSize.needsUpdate = true;
+    attrs.aSpin.needsUpdate = true;
   }
 
   // Prewarm: run ten seconds of leaf-fall up front so the first frame already
@@ -702,6 +770,7 @@ export function createAmbient(scene, {
   return {
     mesh, kind, capacity: cap, anchors,
     get visibleCount() { return visibleCount; },
+    get wet() { return wet; },
     update, dispose,
   };
 }

@@ -106,6 +106,20 @@ describe('paw print gait', () => {
     expect(walkLine(air.step, { from: { x: 0, z: 0 }, dir: { x: 0, z: 1 }, metres: 10, grounded: false })).toHaveLength(0);
   });
 
+  it('fills a scratch print when given one', () => {
+    const a = createTrail();
+    const b = createTrail();
+    const out = {};
+    let same = 0;
+    for (let i = 0; i <= 120; i++) {
+      const pa = a.step(0, i * 0.02, true, 1 / 60);
+      const pb = b.step(0, i * 0.02, true, 1 / 60, out);
+      expect(pb === null).toBe(pa === null);
+      if (pa) { expect(pb).toBe(out); expect(pb).toEqual(pa); same++; }
+    }
+    expect(same).toBeGreaterThan(2);
+  });
+
   it('lays nothing across a teleport', () => {
     const trail = createTrail();
     trail.step(0, 0, true, 1 / 60);

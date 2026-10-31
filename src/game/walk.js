@@ -1012,9 +1012,13 @@ export function createWalkLifecycle({
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and
-    // reduced motion get the module's no-op stub.
+    // reduced motion get the module's no-op stub. keepOut: the grass's own
+    // keep-out circles, so a resting leaf never covers a toy or a golden
+    // mouse. weather: read live, so a shower's leaves dim and its fluff hides
+    // until the rain stops.
     const ambient = createAmbient(scene, {
       areaId, areaData, tier, camera, dusk: duskActive, reducedMotion, cat,
+      keepOut: grassKeepOut, weather,
     });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
@@ -1078,9 +1082,11 @@ export function createWalkLifecycle({
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
       // shape again: one InstancedMesh, built here after the caster sweep and
       // the prop merge so neither sees it. Laid out from a per-area seed, never
-      // walkRng; the den gets the no-op stub. Tints itself from scene.fog.
+      // walkRng; the den gets the no-op stub. Tints itself from scene.fog,
+      // in the sunset palette on a sunset-weather walk.
       clouds: createClouds(scene, {
         areaId, tier, camera, reducedMotion, dusk: duskActive,
+        sunset: weather.condition === 'sunset',
         centre: { x: (areaData.bounds.minX + areaData.bounds.maxX) / 2, z: (areaData.bounds.minZ + areaData.bounds.maxZ) / 2 },
       }),
       ambient,
@@ -1099,7 +1105,9 @@ export function createWalkLifecycle({
       // dedicated rng stream (never walkRng): sky life must not perturb the
       // shared determinism stream that co-walk clients rely on staying in
       // sync — see Global Constraints. Seeding off roomSeed (when present)
-      // keeps co-walk clients' birds identical without touching walkRng.
+      // gives co-walk clients the same flock headings and gaps without
+      // touching walkRng (only roughly in time: each client's timer runs on
+      // its own frame dt — see main.js's slow-mo note).
       // Indoor den: no sky to animate — a no-op stub keeps the render loop's
       // unconditional session.skyLife.update()/dispose() calls safe.
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {

@@ -163,22 +163,23 @@ function wrap(x, half) {
   return ((((x + half) % w) + w) % w) - half;
 }
 
-// cloudPlace(cloud, t) — where a cloud's centre is at absolute time t,
+// cloudPlace(cloud, t, out) — where a cloud's centre is at absolute time t,
 // relative to the camera's xz, and its dissolve factor (0 at a chord end,
-// 1 for most of the chord).
-export function cloudPlace(cloud, t) {
+// 1 for most of the chord): { x, z, u, half, fade }. Writes into `out` when
+// given (update() passes one scratch object, so the frame allocates nothing),
+// else returns a fresh object.
+export function cloudPlace(cloud, t, out = null) {
   const half = Math.sqrt(SKY_RADIUS * SKY_RADIUS - cloud.v * cloud.v);
   const u = wrap(cloud.u0 + cloud.speed * t, half);
   const d = half - Math.abs(u);
   const k = Math.min(Math.max(d / FADE_LEN, 0), 1);
-  const fade = k * k * (3 - 2 * k);
-  return {
-    x: u * WIND_DIR[0] + cloud.v * ACROSS[0],
-    z: u * WIND_DIR[1] + cloud.v * ACROSS[1],
-    u,
-    half,
-    fade,
-  };
+  const o = out ?? {};
+  o.x = u * WIND_DIR[0] + cloud.v * ACROSS[0];
+  o.z = u * WIND_DIR[1] + cloud.v * ACROSS[1];
+  o.u = u;
+  o.half = half;
+  o.fade = k * k * (3 - 2 * k);
+  return o;
 }
 
 // The furthest any cloud vertex can reach horizontally from its cloud's
@@ -221,23 +222,35 @@ export function bandElevation(scene, centre = { x: 0, z: 0 }) {
   return (best * 180) / Math.PI;
 }
 
-// cloudPalette(horizon, dusk) — { top, under, haze } THREE.Colors from the
-// sky's live horizon colour. Day: near-white tops (a breath of the horizon in
-// them) over an underside pulled from the horizon toward a cool slate, which
-// is what lets the clouds read against the Seaside's nearly white horizon.
+// cloudPalette(horizon, mood, out) — { top, under, haze } THREE.Colors from
+// the sky's live horizon colour. `mood` is 'day' (or false), 'dusk' (or true,
+// the old boolean) or 'sunset'.
+// Day: near-white tops (a breath of the horizon in them) over an underside
+// pulled from the horizon toward a cool slate, which is what lets the clouds
+// read against the Seaside's nearly white horizon.
 // Dusk: the lit side goes warm and dim (a peach mixed into the purple horizon)
 // and the underside drops below the horizon, so nothing glows white against a
 // dusk sky.
+// Sunset (weather.js's sunset walk, whose fog is the peach 0xf8c890 horizon):
+// the tops catch the low sun, a warm cream only a step brighter than the
+// horizon, never the day's near-white; the undersides go a dusky mauve.
+// Without this a sunset walk used the day palette and its tops read as white
+// cut-outs against an orange sky.
 const WHITE = new THREE.Color(0xffffff);
 const SLATE = new THREE.Color(0x76869e);
 const PEACH = new THREE.Color(0xf2b08c);
-export function cloudPalette(horizon, dusk = false, out = null) {
+const SUNLIT = new THREE.Color(0xffe2c4);
+const MAUVE = new THREE.Color(0x8a6a80);
+export function cloudPalette(horizon, mood = false, out = null) {
   const h = horizon instanceof THREE.Color ? horizon : new THREE.Color(horizon);
   const p = out ?? { top: new THREE.Color(), under: new THREE.Color(), haze: new THREE.Color() };
   p.haze.copy(h);
-  if (dusk) {
+  if (mood === true || mood === 'dusk') {
     p.top.copy(h).lerp(PEACH, 0.38);
     p.under.copy(h).multiplyScalar(0.72);
+  } else if (mood === 'sunset') {
+    p.top.copy(h).lerp(SUNLIT, 0.45);
+    p.under.copy(h).lerp(MAUVE, 0.5).multiplyScalar(0.85);
   } else {
     p.top.copy(WHITE).lerp(h, 0.12);
     p.under.copy(h).lerp(SLATE, 0.42).multiplyScalar(0.88);
@@ -285,14 +298,19 @@ export function puffGeometry(detail = 1) {
 
 const NO_CLOUDS = Object.freeze({ mesh: null, clouds: [], update() {}, dispose() {} });
 
-// createClouds(scene, { areaId, tier, camera, reducedMotion, dusk, centre })
+// createClouds(scene, { areaId, tier, camera, reducedMotion, dusk, sunset, centre })
 // — the per-walk rig, in the session's { update, dispose } shape. Call it
 // AFTER rig.js's assignShadowCasters and mergeStaticProps have scanned the
 // scene (both also skip `userData.clouds`, belt and braces). A no-op stub for
 // the den, an unknown area, or a tier with clouds off. `centre` is the area's
 // middle, used once to measure the horizon band; it defaults to the origin
-// every world is built around.
-export function createClouds(scene, { areaId, tier, camera, reducedMotion = false, dusk = false, centre } = {}) {
+// every world is built around. `sunset` is a sunset-weather walk (walk.js
+// passes weather.condition === 'sunset'); weather never rolls on a dusk walk,
+// and a sunset lasts the whole walk, so the mood is fixed at creation while
+// the colours themselves still follow the live fog.
+export function createClouds(scene, {
+  areaId, tier, camera, reducedMotion = false, dusk = false, sunset = false, centre,
+} = {}) {
   const count = tier?.cloudCount ?? 0;
   if (!CLOUD_AREAS.includes(areaId) || !(count > 0) || !camera) return NO_CLOUDS;
 
@@ -304,7 +322,8 @@ export function createClouds(scene, { areaId, tier, camera, reducedMotion = fals
   if (baseMin !== BASE_MIN) clouds = layoutClouds(areaId, count, baseMin);
 
   const total = clouds.reduce((s, c) => s + c.puffs.length, 0);
-  const palette = cloudPalette(scene.fog?.color ?? 0xcfe8f0, dusk);
+  const mood = dusk ? 'dusk' : sunset ? 'sunset' : 'day';
+  const palette = cloudPalette(scene.fog?.color ?? 0xcfe8f0, mood);
   const uniforms = {
     uTop: { value: palette.top },
     uUnder: { value: palette.under },
@@ -355,6 +374,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   const up = new THREE.Vector3(0, 1, 0);
   const p3 = new THREE.Vector3();
   const s3 = new THREE.Vector3();
+  const at = { x: 0, z: 0, u: 0, half: 0, fade: 0 }; // cloudPlace's scratch
 
   // update(t) — once per rendered frame, after the camera moved. `t` is
   // absolute elapsed seconds (the same t wind/grass take).
@@ -364,7 +384,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     const cz = camera.position.z;
     let i = 0;
     for (const cloud of clouds) {
-      const at = cloudPlace(cloud, time);
+      cloudPlace(cloud, time, at);
       const s = cloud.scale * at.fade;
       // Long axis across the line of sight (tangent to the circle round the
       // camera), give or take the cloud's own twist: end-on, a row of puffs
@@ -387,7 +407,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     }
     mesh.instanceMatrix.needsUpdate = true;
     // Follow the sky: a shower that clears hands the fog its old colour back.
-    if (scene.fog) cloudPalette(scene.fog.color, dusk, palette);
+    if (scene.fog) cloudPalette(scene.fog.color, mood, palette);
   }
 
   function dispose() {

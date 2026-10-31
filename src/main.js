@@ -587,6 +587,9 @@ function init() {
   // The cats that push the flaps and gaps this frame (refilled every frame,
   // never reallocated).
   const pushMovers = [];
+  // The cat's paws for paws.update, mutated every frame rather than rebuilt
+  // (pawprints.js reads the fields and keeps no reference).
+  const pawState = { x: 0, z: 0, grounded: false };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -635,9 +638,12 @@ function init() {
       // Slow-mo on a perfect stalk-and-pounce catch: critters/strays slow down for
       // a beat while player/camera/remotes keep real-time motion (remotes MUST stay
       // real dt — slowing their interpolation would desync them from the network clock).
-      // skyLife also stays on real dt below: its rng timers are seeded from roomSeed so
-      // co-walk clouds/birds stay identical across clients, and a local-only slow-mo
-      // would desync that shared stream permanently.
+      // skyLife (birds only; clouds live in render/clouds.js now) also stays on real dt
+      // below. In a co-walk its rng is seeded from roomSeed, so partners draw the same
+      // sequence of flock headings and gaps — but its timer counts down on each client's
+      // own frame time from each client's own walk start, so flocks are only roughly in
+      // step across clients, never identical. Slow-mo would just push this client's
+      // flocks further out of step for no reason; nothing in the game reads a bird.
       if (session.slowmoTime > 0) session.slowmoTime -= dt;
       const wdt = session.slowmoTime > 0 ? dt * 0.35 : dt;
       session.critters.update(wdt, t, session.cat.position, session.cat.position);
@@ -788,11 +794,10 @@ function init() {
       // Paw prints, after player.update so they follow this frame's paws. Only
       // a cat with its paws on the ground prints: not perched, not mid-pounce
       // (hopY), not swimming. The trail itself ignores a cat that isn't moving.
-      session.paws.update(dt, {
-        x: session.cat.position.x,
-        z: session.cat.position.z,
-        grounded: !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.swimming,
-      });
+      pawState.x = session.cat.position.x;
+      pawState.z = session.cat.position.z;
+      pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.swimming;
+      session.paws.update(dt, pawState);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);

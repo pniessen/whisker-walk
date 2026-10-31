@@ -1122,7 +1122,7 @@ not on the iPhone, not under rain or sunset weather. At the default chase-cam
 pitch the frame only shows sky up to ~7° above level (render/sky.js), and most
 clouds sit at 8–20°, so they show when the camera tilts up or sits low rather
 than in every default frame.
-## Stream 4 round four — ambient life
+## Stream 4 round four — ambient life (2026-10-31)
 
 Small, gentle motion, one effect per area, all in `render/ambient.js`:
 
@@ -1166,3 +1166,30 @@ Checked in `verify-places.html?area=…&ambient[=low]` (and `&dusk` for the
 moths; `window.__ambientStep(seconds)` runs the simulation) from cat-height
 cameras. Not verified: in a real walk, on the iPhone, in rain, or the
 fill-rate cost of the mist on the low rung.
+
+### Review fixes (2026-10-31)
+
+- **No per-frame allocation:** `cloudPlace(cloud, t, out)` and the trail's
+  `step(…, out)` fill a scratch object when given one (clouds.js and
+  pawprints.js pass theirs); `paws.update` returns its reused print; main.js
+  mutates one `pawState` instead of building `{ x, z, grounded }` per frame;
+  ambient.js flags its four attributes directly instead of looping a fresh
+  array of names.
+- **Leaves never hide a find:** `createAmbient` takes walk.js's
+  `grassKeepOut` as `keepOut`. A leaf coming down inside a circle (padded
+  0.15 m) fades out over its last 0.8 m of fall and goes back to its tree
+  instead of resting there.
+- **Weather:** `createAmbient` takes the weather api and reads it live. Rain
+  dims the points to ~65% (`RAIN_TINT`) and hides the motes and dandelion
+  fluff; both ease back over 2 s when the shower stops (`isRaining()`). A
+  sunset walk warm-dims them to ~75% (`SUNSET_TINT`). Clouds get a `sunset`
+  palette (cream-peach tops a step above the 0xf8c890 horizon, mauve
+  undersides): the fog tint alone left them on the day palette, whose tops
+  are near-white. Rain clouds still use the day palette over the grey fog.
+- **Paw prints on dry sand:** `sand` 0x7a6440 @ 0.85 → 0x4e3d2a @ 1 (rim
+  kept). In `verify-places.html?area=seaside&paws`, the nearest pad's
+  darkening went from 47 to 92 of the sand's 209 (sRGB luma). `wetSand`
+  alpha 0.62 → 0.75 (74 → 90 of 184 on the wet band).
+- **Birds:** main.js's slow-mo comment no longer claims co-walk birds and
+  clouds are identical (clouds left skylife.js; bird timers run on each
+  client's own dt). New `test/skylife.test.js`.

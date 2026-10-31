@@ -299,6 +299,40 @@ describe('the cloud mesh', () => {
     }
   });
 
+  it('sunset palette: warm, no near-white tops, a dusky underside against the peach horizon', () => {
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const horizon = new THREE.Color(0xf8c890); // weather.js's sunset fog
+    const day = cloudPalette(horizon); // what a sunset walk used to get
+    const p = cloudPalette(horizon, 'sunset');
+    expect(lum(day.top)).toBeGreaterThan(0.85); // the near-white this fixes
+    expect(lum(p.top)).toBeLessThan(0.8);
+    expect(lum(p.top)).toBeGreaterThan(lum(horizon)); // still catches the sun
+    expect(p.top.r).toBeGreaterThan(p.top.b); // warm
+    expect(lum(p.under)).toBeLessThan(lum(horizon) * 0.7);
+    // The old boolean still means dusk.
+    expect(cloudPalette(horizon, true).top.equals(cloudPalette(horizon, 'dusk').top)).toBe(true);
+  });
+
+  it('a sunset walk uses the sunset palette, from the live fog', () => {
+    const { scene } = world('park');
+    const old = scene.fog;
+    scene.fog = new THREE.Fog(0xf8c890, 40, 130);
+    const c = make('park', { sunset: true });
+    c.update(1);
+    const want = cloudPalette(new THREE.Color(0xf8c890), 'sunset');
+    expect(c.palette.top.equals(want.top)).toBe(true);
+    expect(c.palette.under.equals(want.under)).toBe(true);
+    c.dispose();
+    scene.fog = old;
+  });
+
+  it('cloudPlace fills a scratch object when given one', () => {
+    const cloud = layoutClouds('park', 3)[0];
+    const out = { x: 0, z: 0, u: 0, half: 0, fade: 0 };
+    expect(cloudPlace(cloud, 7, out)).toBe(out);
+    expect(out).toEqual(cloudPlace(cloud, 7));
+  });
+
   it('re-tints from the live fog colour (a shower clearing hands the sky back)', () => {
     const { scene } = world('park');
     const old = scene.fog;

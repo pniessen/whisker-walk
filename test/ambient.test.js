@@ -21,6 +21,7 @@ vi.stubGlobal('document', {
 
 const {
   createAmbient, ambientKind, ambientCapacity, findTrees, findLamps, KEEP_CLEAR, AMBIENT_KINDS,
+  KEEP_OUT_PAD, RAIN_TINT, SUNSET_TINT,
 } = await import('../src/render/ambient.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
@@ -361,5 +362,126 @@ describe('the rest of the pipeline ignores it', () => {
     m.castShadow = false;
     assignShadowCasters(scene);
     expect(m.castShadow).toBe(false);
+  });
+});
+
+describe('never hides a find', () => {
+  // Rest spots, carryables and ground-level finds arrive as walk.js's
+  // grassKeepOut circles. Block a wide circle round every park tree, so
+  // nearly every leaf comes down inside one.
+  const { scene: treeScene } = walkScene('park');
+  const keepOut = findTrees(treeScene).map((t) => ({ x: t.x, z: t.z, r: t.r + 4 }));
+  const restingInside = (ambient) => {
+    const { position, aSize } = ambient.mesh.geometry.attributes;
+    let n = 0;
+    for (let i = 0; i < ambient.capacity; i++) {
+      if (aSize.array[i] === 0 || position.getY(i) > 0.06) continue;
+      const x = position.getX(i);
+      const z = position.getZ(i);
+      if (keepOut.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + KEEP_OUT_PAD)) n++;
+    }
+    return n;
+  };
+
+  it('no leaf rests inside a keep-out circle; leaves still fall', () => {
+    const { ambient } = make('park', { keepOut });
+    let inAir = 0;
+    let t = 0;
+    for (let s = 0; s < 20 * 30; s++) {
+      t += 1 / 30;
+      ambient.update(t, 1);
+      expect(restingInside(ambient)).toBe(0);
+      inAir = Math.max(inAir, ambient.visibleCount);
+    }
+    expect(inAir).toBeGreaterThan(5);
+  });
+
+  it('(the same walk without keepOut does rest leaves there)', () => {
+    const { ambient } = make('park');
+    let seen = 0;
+    let t = 0;
+    for (let s = 0; s < 20 * 30; s++) {
+      t += 1 / 30;
+      ambient.update(t, 1);
+      seen += restingInside(ambient);
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+});
+
+describe('weather', () => {
+  // Points whose alpha is shown in both runs, and their colour ratio b / a.
+  function ratios(a, b) {
+    const ca = a.mesh.geometry.attributes.color.array;
+    const cb = b.mesh.geometry.attributes.color.array;
+    const out = [];
+    for (let i = 0; i < a.capacity; i++) {
+      if (!(ca[i * 4 + 3] > 0) || !(cb[i * 4 + 3] > 0)) continue;
+      out.push([cb[i * 4] / ca[i * 4], cb[i * 4 + 1] / ca[i * 4 + 1], cb[i * 4 + 2] / ca[i * 4 + 2]]);
+    }
+    return out;
+  }
+  const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+  it('dims the leaves in rain, to about 60-70%', () => {
+    const clear = make('park').ambient;
+    const rain = make('park', { weather: { condition: 'rain', isRaining: () => true } }).ambient;
+    run(clear, 2);
+    run(rain, 2);
+    const rs = ratios(clear, rain);
+    expect(rs.length).toBeGreaterThan(3);
+    for (const r of rs) {
+      for (let c = 0; c < 3; c++) expect(r[c]).toBeCloseTo(RAIN_TINT[c], 5);
+    }
+    expect(lum(RAIN_TINT)).toBeGreaterThan(0.6);
+    expect(lum(RAIN_TINT)).toBeLessThan(0.7);
+  });
+
+  it('warm-dims everything at sunset, to about 75%', () => {
+    const clear = make('seaside').ambient;
+    const sunset = make('seaside', { weather: { condition: 'sunset' } }).ambient;
+    run(clear, 3);
+    run(sunset, 3);
+    const rs = ratios(clear, sunset);
+    expect(rs.length).toBeGreaterThan(0);
+    for (const r of rs) {
+      for (let c = 0; c < 3; c++) expect(r[c]).toBeCloseTo(SUNSET_TINT[c], 5);
+    }
+    expect(lum(SUNSET_TINT)).toBeGreaterThan(0.7);
+    expect(lum(SUNSET_TINT)).toBeLessThan(0.8);
+    expect(SUNSET_TINT[0]).toBeGreaterThan(SUNSET_TINT[2]); // warm
+  });
+
+  it('hides the fluff and the motes while it rains, and brings them back after', () => {
+    for (const area of ['neighborhood', 'docks']) {
+      let raining = true;
+      const { ambient } = make(area, { weather: { condition: 'rain', isRaining: () => raining } });
+      let t = run(ambient, 4);
+      expect(ambient.visibleCount, area).toBe(0);
+      raining = false; // the shower stops mid-walk
+      t = run(ambient, 8, t);
+      expect(ambient.visibleCount, area).toBeGreaterThan(0);
+      expect(ambient.wet).toBeLessThan(0.05);
+      // ...and the colours are back to full daylight.
+      const clear = make(area).ambient;
+      run(clear, 12);
+      const col = ambient.mesh.geometry.attributes.color.array;
+      const ref = clear.mesh.geometry.attributes.color.array;
+      let maxShown = 0;
+      let maxRef = 0;
+      for (let i = 0; i < ambient.capacity; i++) {
+        if (col[i * 4 + 3] > 0) maxShown = Math.max(maxShown, col[i * 4 + 1]);
+        if (ref[i * 4 + 3] > 0) maxRef = Math.max(maxRef, ref[i * 4 + 1]);
+      }
+      expect(maxShown).toBeGreaterThan(maxRef * 0.95);
+    }
+  });
+
+  it('keeps the leaves and the surf mist in rain', () => {
+    for (const area of ['park', 'seaside']) {
+      const { ambient } = make(area, { weather: { condition: 'rain', isRaining: () => true } });
+      run(ambient, 3);
+      expect(ambient.visibleCount, area).toBeGreaterThan(0);
+    }
   });
 });

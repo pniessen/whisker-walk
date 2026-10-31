@@ -62,11 +62,18 @@ const HOLD = 0.35;
 export const SURFACES = Object.freeze({
   // Dry beach: deep, clear prints with a pale rim. Strong on purpose — the
   // beach sits high on ACES's shoulder (see seaside.js's WET_TINT note), so a
-  // gentle darkening is invisible.
-  sand: Object.freeze({ color: 0x7a6440, alpha: 0.85, rim: 0.45, life: 1 }),
+  // gentle darkening is invisible. 0x7a6440 at 0.85 measured as faint grey
+  // specks in verify-places (?area=seaside&paws, the cat's-eye view): the
+  // nearest pad darkened the sand by at most 47 of 209 (sRGB luma), roughly
+  // the 0.5 multiplier that is only just visible. 0x4e3d2a at full alpha
+  // darkens it by 92, the ~0.35 that reads clearly, and is still a warm
+  // brown hollow inside its pale rim rather than a black hole.
+  sand: Object.freeze({ color: 0x4e3d2a, alpha: 1, rim: 0.45, life: 1 }),
   // The wet band at the waterline: darker, crisp, no rim (wet sand holds a
-  // clean edge).
-  wetSand: Object.freeze({ color: 0x3a3022, alpha: 0.62, rim: 0, life: 1 }),
+  // clean edge). The band is itself ~0.37x the beach, so these need more
+  // strength than their colour suggests: 0.62 darkened it by 74 of 184, 0.75
+  // by 90, in line with the dry trail.
+  wetSand: Object.freeze({ color: 0x3a3022, alpha: 0.75, rim: 0, life: 1 }),
   // The Docks' wet cobbles: damp prints that dry off quicker. Faint on
   // screen even at 0.6 — the setts are dark and busy (0.32 vanished).
   stone: Object.freeze({ color: 0x18181c, alpha: 0.6, rim: 0, life: 0.7 }),
@@ -191,8 +198,10 @@ function jitter(n, salt) {
 }
 
 // createTrail({ stride }) — the gait, separate from the mesh so it can be
-// tested without one. step(x, z, grounded, dt) returns a print to lay this
-// frame ({ x, z, yaw, side, seq }) or null. Prints alternate left/right of the
+// tested without one. step(x, z, grounded, dt, out) returns a print to lay
+// this frame ({ x, z, yaw, side, seq }) or null; with `out` it fills and
+// returns that object instead of allocating one (createPawPrints passes a
+// scratch, so laying a print allocates nothing). Prints alternate left/right of the
 // line the cat walks, one per stride of actual travel: a cat standing still,
 // walking into a wall, in the air or swimming lays nothing.
 export function createTrail() {
@@ -210,7 +219,7 @@ export function createTrail() {
     travelled = 0;
   }
 
-  function step(x, z, grounded, dt = 1 / 60) {
+  function step(x, z, grounded, dt = 1 / 60, out = null) {
     if (!Number.isFinite(lastX)) { reset(x, z); return null; }
     const dx = x - lastX;
     const dz = z - lastZ;
@@ -236,7 +245,13 @@ export function createTrail() {
     const pz = z + fx * off;
     // Toes splay a touch outward, plus a small per-print wobble.
     const yaw = Math.atan2(fx, fz) - side * 0.14 + (jitter(seq, 2) - 0.5) * 0.16;
-    return { x: px, z: pz, yaw, side, seq: seq++ };
+    const o = out ?? {};
+    o.x = px;
+    o.z = pz;
+    o.yaw = yaw;
+    o.side = side;
+    o.seq = seq++;
+    return o;
   }
 
   return { step, reset, get speed() { return speed; } };
@@ -391,6 +406,10 @@ float pawDist(vec2 p) {
   for (const [k, s] of Object.entries(SURFACES)) colors[k] = new THREE.Color(s.color);
   let laid = 0;
   let now = 0;
+  // The print laid this frame, reused: update() returns it, so it is only
+  // good until the next update (the render loop ignores it; tests read it
+  // straight away).
+  const print = { x: 0, z: 0, yaw: 0, side: 0, seq: 0, kind: null };
 
   // lay(print, kind) — write one print into the next ring slot.
   function lay(pr, kind) {
@@ -420,17 +439,20 @@ float pawDist(vec2 p) {
 
   // update(dt, { x, z, grounded }) — once per frame with the cat's position
   // and whether its paws are on the ground (not perched, mid-hop or
-  // swimming). Returns the print laid this frame, or null (for tests).
+  // swimming). Reads the three fields and keeps no reference to the object,
+  // so the render loop passes the same one every frame. Returns the print
+  // laid this frame ({ x, z, yaw, side, seq, kind }, a reused object), or
+  // null (for tests).
   function update(dt = 0, { x, z, grounded = true } = {}) {
     now += Math.max(0, dt || 0);
     uniforms.uTime.value = now;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
-    const pr = trail.step(x, z, grounded, dt);
-    if (!pr) return null;
-    const kind = surfaceAt(areaId, areaData, strips, pr.x, pr.z);
+    if (!trail.step(x, z, grounded, dt, print)) return null;
+    const kind = surfaceAt(areaId, areaData, strips, print.x, print.z);
     if (!kind) return null;
-    lay(pr, kind);
-    return { ...pr, kind };
+    print.kind = kind;
+    lay(print, kind);
+    return print;
   }
 
   function dispose() {
