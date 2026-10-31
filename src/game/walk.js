@@ -80,6 +80,7 @@ import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
+import { createAmbient } from '../render/ambient.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1002,6 +1003,13 @@ export function createWalkLifecycle({
       ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
+    // one draw, no shadow draws; created here for the same reason as grass.
+    // Purely local and off its own random stream, never walkRng. The den and
+    // reduced motion get the module's no-op stub.
+    const ambient = createAmbient(scene, {
+      areaId, areaData, tier, camera, dusk: duskActive, reducedMotion, cat,
+    });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
@@ -1060,6 +1068,7 @@ export function createWalkLifecycle({
       wind,
       // Lawn tufts, same shape again; updated beside wind in the render loop.
       grass,
+      ambient,
       // The sun's view-following shadow camera, in the same shape. Built above
       // (it has to be, so the very first frame of the walk is already fitted
       // rather than centred on the world origin) and re-fitted once per frame
@@ -1585,6 +1594,7 @@ export function createWalkLifecycle({
     // Before the traversal: it takes its mesh out of the scene and frees its
     // geometry and material once.
     session.grass.dispose();
+    session.ambient.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
     // belongs to the light and goes with the scene), called anyway so the rig
     // is torn down through the same door as every other session rig rather
