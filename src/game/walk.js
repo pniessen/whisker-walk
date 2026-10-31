@@ -80,6 +80,9 @@ import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
+import { createPawPrints } from '../render/pawprints.js';
+import { createClouds } from '../render/clouds.js';
+import { createAmbient } from '../render/ambient.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1002,6 +1005,21 @@ export function createWalkLifecycle({
       ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    // Stream 4 round four — paw prints (render/pawprints.js). After the same
+    // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
+    // Purely local: no wire event, and never walkRng. The den gets the stub.
+    const paws = createPawPrints(scene, { areaId, areaData, tier });
+    // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
+    // one draw, no shadow draws; created here for the same reason as grass.
+    // Purely local and off its own random stream, never walkRng. The den and
+    // reduced motion get the module's no-op stub. keepOut: the grass's own
+    // keep-out circles, so a resting leaf never covers a toy or a golden
+    // mouse. weather: read live, so a shower's leaves dim and its fluff hides
+    // until the rain stops.
+    const ambient = createAmbient(scene, {
+      areaId, areaData, tier, camera, dusk: duskActive, reducedMotion, cat,
+      keepOut: grassKeepOut, weather,
+    });
 
     // No goals in the den (Task 7.2) — session.goals stays null and every
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
@@ -1060,6 +1078,18 @@ export function createWalkLifecycle({
       wind,
       // Lawn tufts, same shape again; updated beside wind in the render loop.
       grass,
+      paws,
+      // Stream 4 round four — drifting sky clouds (render/clouds.js), same
+      // shape again: one InstancedMesh, built here after the caster sweep and
+      // the prop merge so neither sees it. Laid out from a per-area seed, never
+      // walkRng; the den gets the no-op stub. Tints itself from scene.fog,
+      // in the sunset palette on a sunset-weather walk.
+      clouds: createClouds(scene, {
+        areaId, tier, camera, reducedMotion, dusk: duskActive,
+        sunset: weather.condition === 'sunset',
+        centre: { x: (areaData.bounds.minX + areaData.bounds.maxX) / 2, z: (areaData.bounds.minZ + areaData.bounds.maxZ) / 2 },
+      }),
+      ambient,
       // The sun's view-following shadow camera, in the same shape. Built above
       // (it has to be, so the very first frame of the walk is already fitted
       // rather than centred on the world origin) and re-fitted once per frame
@@ -1075,7 +1105,9 @@ export function createWalkLifecycle({
       // dedicated rng stream (never walkRng): sky life must not perturb the
       // shared determinism stream that co-walk clients rely on staying in
       // sync — see Global Constraints. Seeding off roomSeed (when present)
-      // keeps co-walk clients' clouds identical without touching walkRng.
+      // gives co-walk clients the same flock headings and gaps without
+      // touching walkRng (only roughly in time: each client's timer runs on
+      // its own frame dt — see main.js's slow-mo note).
       // Indoor den: no sky to animate — a no-op stub keeps the render loop's
       // unconditional session.skyLife.update()/dispose() calls safe.
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
@@ -1585,6 +1617,9 @@ export function createWalkLifecycle({
     // Before the traversal: it takes its mesh out of the scene and frees its
     // geometry and material once.
     session.grass.dispose();
+    session.paws.dispose();
+    session.clouds.dispose();
+    session.ambient.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
     // belongs to the light and goes with the scene), called anyway so the rig
     // is torn down through the same door as every other session rig rather

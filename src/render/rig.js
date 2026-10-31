@@ -377,7 +377,12 @@ export function assignShadowCastersFor(child) {
     // moments later. userData.grass (render/grass.js) opts out the same way:
     // ground cover must never cast (its whole budget is 0 shadow-pass draws),
     // and walk.js adds it after this sweep anyway — this is the guard rail.
-    if (obj.isMesh && !obj.userData.contactDecal && !obj.userData.grass) {
+    // userData.pawPrints (render/pawprints.js) is ground decoration too.
+    // userData.clouds (render/clouds.js) likewise: no cloud shadows, ever.
+    // userData.ambient (render/ambient.js's particles) likewise: a THREE.Points
+    // is not isMesh today, but the flag keeps it out if that ever changes.
+    if (obj.isMesh && !obj.userData.contactDecal && !obj.userData.grass && !obj.userData.pawPrints
+      && !obj.userData.clouds && !obj.userData.ambient) {
       obj.receiveShadow = true;
       obj.castShadow = eligible && !isTransparentMat(obj.material);
       meshes++;

@@ -61,6 +61,26 @@ const HIGH = Object.freeze({
   // them, so this is a quarter more of the resource that is not the budget.
   grassRadius: 9,
   grassSpacing: 0.3,
+  // Paw prints (render/pawprints.js; VISUAL-PASS.md "Stream 4 round four —
+  // paw prints"): the ring's size and a print's life in seconds on sand. ONE
+  // draw call either way and none in the shadow pass; what these trade is a
+  // few transparent pixels per print. 96 prints at a trot's ~0.45m stride is
+  // ~43m of trail, so the 9s fade, not the ring, is what usually ends a print.
+  pawPrints: 96,
+  pawFade: 9,
+  // Drifting sky clouds (render/clouds.js; VISUAL-PASS.md "Stream 4 round
+  // four — clouds"): how many. Every puff of every cloud is one instance of
+  // one InstancedMesh, so any count is ONE main-pass draw call and no
+  // shadow-pass draws; the count trades a few thousand cheap triangles and
+  // how full the sky looks. 0 turns them off.
+  cloudCount: 10,
+  // Ambient life (render/ambient.js; VISUAL-PASS.md "Stream 4 round four —
+  // ambient life"): falling leaves in the park, surf mist at the seaside,
+  // dusk moths or canal motes at the Docks, dandelion fluff in the
+  // neighbourhood. A multiplier on each effect's particle count (1 = the
+  // full, still sparse, count: 40 leaves at most). One draw call whatever
+  // the value; 0 would switch the effect off and cost no draw at all.
+  ambientScale: 1,
 });
 
 const LOW = Object.freeze({
@@ -95,6 +115,18 @@ const LOW = Object.freeze({
   // count knob, a rung change mid-walk takes effect on the next walk.
   grassRadius: 6,
   grassSpacing: 0.42,
+  // Half the ring and a shorter life: fewer overlapping transparent quads on
+  // the fill-bound rung. Still on — the trail is the thing the kids notice.
+  pawPrints: 48,
+  pawFade: 6,
+  // Fewer clouds, same single draw call: a sparser sky on the rung where
+  // fill-bound devices land, since a big near cloud is mostly overdraw.
+  cloudCount: 6,
+  // Half the particles. Still one draw call; what halves is the overdraw of
+  // the soft sprites (the surf mist is the big one), which is fill rate —
+  // the thing this rung is short of. Kept on rather than 0 because the
+  // effect is a few dozen points and the low rung is where most phones live.
+  ambientScale: 0.5,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and

@@ -1034,3 +1034,162 @@ The beach's brightness problem is the lighting, not the sand: anything pale
 there is compressed by the tone curve. Lowering the beach's exposure (sun or
 hemisphere strength for this area) would be the bigger lever, and it would
 change every prop on the beach, so it was left alone.
+
+## Stream 4 round four — paw prints (2026-10-31)
+
+The cat leaves a trail of little paws that fades away (`render/pawprints.js`).
+Prints alternate left and right of the line the cat walks, one per stride of
+real travel (0.24–0.6 m, longer at a trot), toes pointing the way it went with
+a slight outward splay. Only while the paws are on the ground: not perched,
+not mid-pounce (`player.hopY`), not swimming, and nothing across a teleport.
+
+- **Surfaces.** A small per-area rule plus the ground strips read off the
+  scene (a strip named `path` is a path; any other flat strip is a sidewalk or
+  the boardwalk). Seaside: deep, darker prints in dry sand, darker still and
+  crisp on the wet band (`wetness() >= 0.3`), none on the boardwalk. Docks:
+  damp prints on the cobbles, fainter on the flagstone quays and pavements,
+  drying 30% quicker. Park and Neighbourhood: faint dusty prints on gravel
+  paths only — none on the lawn or the sidewalks. Never in water, on a deck
+  over water (pier, bridges) or in a puddle. The den gets the no-op stub.
+- **One draw call.** One InstancedMesh, a 2-triangle quad per print with the
+  paw (heel pad + four toe beans) drawn as a distance field in the fragment
+  shader — no texture. Fade is on the GPU from per-slot laid-at time and
+  sequence number, so the CPU writes one slot per print and two uniforms a
+  frame. **+1 main-pass draw, 0 shadow** (castShadow false; `userData.pawPrints`
+  is skipped by rig.js and mergeprops.js). Measured +1 total calls in
+  `verify-places.html`. Transparent, depthWrite off, polygonOffset, at
+  y 0.012: over the wet sand (0.008) and paths (0.01), under the contact
+  shadows (0.015, which draw after it: renderOrder -2 vs -1).
+- **Ring.** Fixed capacity; a new print overwrites the oldest, and the last six
+  slots before reuse fade out first, so a sprint never makes a print pop.
+- **Tiers** (`pawPrints`, `pawFade` in quality.js): rungs 0–2 keep 96 prints
+  for 9 s; the low rung 48 prints for 6 s. Life is scaled per surface (stone
+  0.7, gravel 0.85). Reduced motion needs nothing: prints don't move.
+- **Local only.** No wire events and no seeded game RNG (per-print jitter is
+  a hash of the print's own sequence number). Co-walkers' cats don't leave
+  prints on my screen — a possible follow-up.
+
+Looked at in `verify-places.html?area=<id>&paws[=low]` (a hand-placed trail)
+on this Mac: sand, wet sand, Docks cobbles and quays, park gravel. At 12 cm
+the prints read as dots from the game camera, so they are 17 cm; cobble
+prints at 0.32 alpha vanished into the setts, so they are 0.6. The pale rim
+round dry-sand prints barely shows under ACES. Not verified: a real walk in
+game (the automated browser can't hold keys), the iPhone, dusk, and rain.
+## Stream 4 round four — clouds (2026-10-31)
+
+**What.** `render/clouds.js`: soft low-poly clouds drifting across the
+Neighborhood, Park, Seaside and Docks skies (the den gets a no-op stub).
+Each cloud is 3–6 squashed icosahedron puffs with a flat underside. The
+vertex colours hold the shading (a baked facet light and how high up the puff
+each face sits); the shader turns that into near-white tops over a darker
+underside, using the live fog colour, so the undersides still read against
+the Seaside's near-white horizon and the clouds re-tint themselves when a
+shower clears. At dusk the lit side goes warm and dim (peach mixed into the
+dusk horizon) and the underside drops below the horizon colour, so nothing
+glows white against a purple sky. Fog is off for the clouds (they sit past
+the fog's 110–130 m) and a gentler manual haze pulls the far ones toward the
+horizon instead. Not tone-mapped, so they match the sky background, which
+isn't tone-mapped either.
+
+**Where.** Centred on the camera every frame, like a sky that is kilometres
+away: no parallax, and every vertex stays inside the 300 m far plane wherever
+the cat walks. Centres sit within 220 m of the camera, never closer than
+55 m across the wind (straight overhead is out of view anyway). Bases are at
+least 30 m up, raised per area until a cloud at the disc's edge clears the
+horizon band's crest seen from the area centre (only the Docks' skyline is
+tall enough to lift the floor). They drift along the lawn's wind direction (0.8, 0.6) at
+0.6–1.1 m/s, wrap from the downwind end of their chord to the upwind end, and
+dissolve and re-grow over the last 45 m of each end rather than popping.
+Reduced motion: they hold still. Layout comes from a hash of the area id on
+its own mulberry32 stream; walkRng is untouched and nothing goes on the wire.
+
+**Cost.** One InstancedMesh, one material: **+1 main-pass draw call, 0
+shadow-pass draws** (`castShadow` false; rig.js and mergeprops.js skip
+`userData.clouds`). Measured in `verify-places.html?clouds`: 423 → 424
+calls. About 50 instances × 80 triangles on high.
+
+**Tiers.** `cloudCount` in quality.js: 10 on rungs 0–2, 6 on the low rung.
+Same single draw call either way; 0 would turn them off.
+
+**Replaced.** `skylife.js` used to drift six clouds of its own (2–3 separate
+lit meshes each, overhead at y 22–28, up to ~18 draw calls whenever they were
+in frame). Those are gone and skylife.js is birds only; its `advanceClouds`
+helper and test went with them.
+
+**Not verified.** Only checked in `verify-places.html?clouds[=low][&dusk]`
+from low cameras (y ~2) in all four areas, day and dusk; not in a real walk,
+not on the iPhone, not under rain or sunset weather. At the default chase-cam
+pitch the frame only shows sky up to ~7° above level (render/sky.js), and most
+clouds sit at 8–20°, so they show when the camera tilts up or sits low rather
+than in every default frame.
+## Stream 4 round four — ambient life (2026-10-31)
+
+Small, gentle motion, one effect per area, all in `render/ambient.js`:
+
+- **Park:** leaves let go from under the real tree canopies (read off the
+  scene: `builder.tree()` now tags its Group with `userData.canopy`), swing
+  and tumble down in ~10 s on the same wind as the grass (`WIND_DIR`, wind.js's
+  gust envelope, 1.7× in rain), rest on the lawn for a few seconds, then fade.
+  Only trees within 26 m of the view drop leaves. Mostly yellow-greens with
+  some gold and rust.
+- **Seaside:** soft mist puffs rise and thin along the waterline (the sea
+  record's `minX`, x 25), within 16 m along the shore of the view.
+  No gull shadow: a Points sprite always faces the camera, so a "shadow" on
+  the sand would stand upright from the cat's low camera. It would need a
+  second, ground-flat mesh, and that is a second draw.
+- **Docks:** at dusk walks only (`duskActive`), three moths circle each of the
+  8 lamp posts nearest the view (`builder.lampPost()` tags `userData.lampGlobeY`),
+  with a slow wing flutter. By day, a dozen faint sunlit motes over the canal
+  (additive, barely there).
+- **Neighbourhood:** a dozen dandelion seeds riding the breeze, 0.4–1.8 m up.
+- **Den:** nothing.
+
+**Cost: +1 main-pass draw call per outdoor area, 0 shadow-pass draws.** One
+`THREE.Points` with a canvas sprite and a patched `PointsMaterial` (per-point
+size, rotation and squash, so leaves tumble and moths flap without geometry).
+CPU-simulated into fixed buffers allocated at walk start; no per-frame
+allocation. Created after the caster sweep and the merge, beside grass, and
+flagged `userData.ambient` so rig.js and mergeprops.js skip it.
+
+**Tiers:** `ambientScale` on the ladder — 1 on rungs 0–2 (40 leaves, 26 mist
+puffs, 24 moths, 14 motes, 12 seeds), 0.5 on the low rung. Still one draw; the
+low rung halves the soft-sprite overdraw (the mist is the big one).
+
+**Kids' comfort:** nothing is drawn within 1.5 m of the camera (plus the
+sprite's half-size, faded over the next 0.8 m), near the cat, or on the line
+of sight from the camera to the cat. **Reduced motion:** no mesh at all — a
+frozen leaf in mid-air reads as a glitch, and every effect here is motion.
+
+Purely local: its own PRNG, never `walkRng`, no wire events.
+
+Checked in `verify-places.html?area=…&ambient[=low]` (and `&dusk` for the
+moths; `window.__ambientStep(seconds)` runs the simulation) from cat-height
+cameras. Not verified: in a real walk, on the iPhone, in rain, or the
+fill-rate cost of the mist on the low rung.
+
+### Review fixes (2026-10-31)
+
+- **No per-frame allocation:** `cloudPlace(cloud, t, out)` and the trail's
+  `step(…, out)` fill a scratch object when given one (clouds.js and
+  pawprints.js pass theirs); `paws.update` returns its reused print; main.js
+  mutates one `pawState` instead of building `{ x, z, grounded }` per frame;
+  ambient.js flags its four attributes directly instead of looping a fresh
+  array of names.
+- **Leaves never hide a find:** `createAmbient` takes walk.js's
+  `grassKeepOut` as `keepOut`. A leaf coming down inside a circle (padded
+  0.15 m) fades out over its last 0.8 m of fall and goes back to its tree
+  instead of resting there.
+- **Weather:** `createAmbient` takes the weather api and reads it live. Rain
+  dims the points to ~65% (`RAIN_TINT`) and hides the motes and dandelion
+  fluff; both ease back over 2 s when the shower stops (`isRaining()`). A
+  sunset walk warm-dims them to ~75% (`SUNSET_TINT`). Clouds get a `sunset`
+  palette (cream-peach tops a step above the 0xf8c890 horizon, mauve
+  undersides): the fog tint alone left them on the day palette, whose tops
+  are near-white. Rain clouds still use the day palette over the grey fog.
+- **Paw prints on dry sand:** `sand` 0x7a6440 @ 0.85 → 0x4e3d2a @ 1 (rim
+  kept). In `verify-places.html?area=seaside&paws`, the nearest pad's
+  darkening went from 47 to 92 of the sand's 209 (sRGB luma). `wetSand`
+  alpha 0.62 → 0.75 (74 → 90 of 184 on the wet band).
+- **Birds:** main.js's slow-mo comment no longer claims co-walk birds and
+  clouds are identical (clouds left skylife.js; bird timers run on each
+  client's own dt). New `test/skylife.test.js`.

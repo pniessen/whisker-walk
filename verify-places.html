@@ -19,6 +19,10 @@
   import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
   import { createShadowFit } from '/src/render/shadowfit.js';
   import { createGrass } from '/src/render/grass.js';
+  import { createPawPrints } from '/src/render/pawprints.js';
+  import { createClouds } from '/src/render/clouds.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { createAmbient } from '/src/render/ambient.js';
   import { LADDER } from '/src/render/quality.js';
   import * as neighborhood from '/src/world/neighborhood.js';
   import * as park from '/src/world/park.js';
@@ -61,11 +65,77 @@
   const grass = params0.has('grass')
     ? createGrass(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('grass') === 'low' ? 3 : 0], camera })
     : null;
+  // ?paws[=low] lays a short hand-placed trail of paw prints
+  // (render/pawprints.js) by walking an invisible cat along PAW_TRAILS at a
+  // trot, through the same update() walk.js's render loop calls. The trail is
+  // a few seconds old at the start, so the far end shows the fade.
+  // window.__pawsAge(s) ages every print by s seconds and re-renders.
+  // Each area is a list of polylines; the cat hops (no prints) between them.
+  const PAW_TRAILS = {
+    seaside: [[[9, 36], [13, 32], [16.5, 31]], [[23.2, 33], [24.4, 26], [24.2, 21]]], // dry sand; wet sand
+    docks: [[[-6, 14], [-6, 9.5], [-3, 6.5], [3, 6.5]]], // cobbles -> pavement -> quay
+    park: [[[0, 40], [0, 30]]], // gravel path
+    neighborhood: [[[0, 14], [0, 4]]], // gravel road
+  };
+  const paws = params0.has('paws')
+    ? createPawPrints(scene, { areaId: id, areaData: area, tier: LADDER[params0.get('paws') === 'low' ? 3 : 0] })
+    : null;
+  for (const pts of paws ? PAW_TRAILS[id] ?? [] : []) {
+    const dt = 1 / 60;
+    paws.update(dt, { x: pts[0][0], z: pts[0][1], grounded: false }); // land here
+    for (let k = 1; k < pts.length; k++) {
+      const [x0, z0] = pts[k - 1];
+      const [x1, z1] = pts[k];
+      const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / (2.5 * dt));
+      for (let i = 0; i <= n; i++) {
+        paws.update(dt, { x: x0 + (x1 - x0) * i / n, z: z0 + (z1 - z0) * i / n, grounded: true });
+      }
+    }
+  }
+  window.__paws = paws;
+  window.__pawsAge = (s) => { paws?.update(s, {}); render(); };
+  // ?clouds[=low] adds walk.js's drifting sky clouds (render/clouds.js), after
+  // the caster sweep as walk.js does; &dusk swaps in the area's dusk sky and
+  // fog first (walk.js's dusk block). window.__cloudT drives their drift.
+  if (params0.has('dusk')) {
+    scene.background = skyBackground(area.skyDusk.top, area.skyDusk.horizon);
+    scene.fog = new THREE.Fog(area.skyDusk.horizon, 30, 110);
+    sun.intensity = 0.7;
+  }
+  const b0 = area.bounds;
+  const clouds = params0.has('clouds')
+    ? createClouds(scene, {
+      areaId: id, tier: LADDER[params0.get('clouds') === 'low' ? 3 : 0], camera, dusk: params0.has('dusk'),
+      centre: { x: (b0.minX + b0.maxX) / 2, z: (b0.minZ + b0.maxZ) / 2 },
+    })
+    : null;
+  window.__cloudT = 0;
+  // ?ambient[=low] adds walk.js's ambient particles (render/ambient.js), also
+  // after the caster sweep. ?dusk also asks for the dusk effect (the Docks'
+  // moths). window.__ambientStep(seconds) runs the simulation on
+  // from __grassT in 1/30s steps, since leaves and mist are stateful.
+  // (?dusk is applied once, above, the way walk.js does it.)
+  const dusk = params0.has('dusk');
+  const ambient = params0.has('ambient')
+    ? createAmbient(scene, {
+      areaId: id, areaData: area, tier: LADDER[params0.get('ambient') === 'low' ? 3 : 0], camera, dusk,
+    })
+    : null;
+  window.__ambient = ambient;
+  window.__ambientStep = (seconds = 1) => {
+    for (let s = 0; s < seconds; s += 1 / 30) {
+      window.__grassT += 1 / 30;
+      ambient?.update(window.__grassT, 1);
+    }
+    render();
+    return ambient?.visibleCount ?? 0;
+  };
   window.__grassT = 0;
   window.__scene = scene; // for poking at the scene from the console
   const render = () => {
     shadows.update();
     grass?.update(window.__grassT, 1);
+    clouds?.update(window.__cloudT);
     renderer.render(scene, camera);
     window.__calls = renderer.info.render.calls;
   };

@@ -1425,6 +1425,10 @@ export function tree(x, z, scale = 1, { wind } = {}) {
   g.add(leaves);
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
+  // Where the canopy is, in the Group's own (unscaled) frame. render/ambient.js
+  // reads this off the scene at walk time to drop leaves from under real
+  // canopies; it survives mergeStaticProps, which keeps every top-level Group.
+  g.userData.canopy = { y: leaves.position.y, r: 1.6 };
   // Registered AFTER position/scale are set: wind.add derives this tree's
   // phase from its (x, z), so a tree registered at the origin would sway in
   // lockstep with every other tree in the area.
@@ -1584,6 +1588,9 @@ export function lampPost(x, z) {
   lamp.position.y = 3.3;
   g.add(lamp);
   g.position.set(x, 0, z);
+  // The globe's height, for render/ambient.js's dusk moths (read off the
+  // scene, so a lamp added in a world file gets moths with no second edit).
+  g.userData.lampGlobeY = lamp.position.y;
   return g;
 }
 
