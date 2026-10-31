@@ -156,8 +156,10 @@
     park: '-14,3.4,16,-14,0.2,0',
     seaside: '6,4.2,22,32,0.4,4',
     docks: '0,3.6,16,0,0.4,0',
-    // from the clearing's north edge, looking up the glade path to the log bridge
-    woods: '2,1.2,4,-4.5,0.3,-12',
+    // the spawn view: the chase camera behind the cat on the short path, looking
+    // north up the north path (the shipped card picture). The clearing's view up
+    // the glade path to the log bridge is '2,1.2,4,-4.5,0.3,-12'.
+    woods: '44,2.9,16.5,44,0.4,4',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

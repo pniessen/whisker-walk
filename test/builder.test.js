@@ -544,6 +544,11 @@ describe('the Woods builders', () => {
     expect(m.userData.noCast).toBe(true);
   });
 
+  it('steppingStones draws rounder stones when given more sides', () => {
+    const round = new THREE.CylinderGeometry(0.4, 0.4, 0.2, 16).attributes.position.count;
+    expect(b.steppingStones(0, 0, 6, 0, 5, { sides: 16 }).geometry.attributes.position.count).toBe(5 * round);
+  });
+
   it("fallenLog's top is at 0.5", () => {
     expect(bbox(b.fallenLog(3, 4, 4, 0.7)).max.y).toBeCloseTo(0.5, 2);
   });

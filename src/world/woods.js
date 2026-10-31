@@ -59,13 +59,20 @@ const LOG_TOP = 0.16;
 const LOG_HALF = 0.9;
 const LOG_BRIDGE = Object.freeze({ minX: LOG_X - LOG_HALF, maxX: LOG_X + LOG_HALF, minZ: -15.5, maxZ: -7.5 });
 
-// The stepping stones over river-north: ten broad flat stones in a line at
-// z -29, from bank to bank, set close and staggered in height so they overlap
-// without a gap of open water anywhere along the strip the deck covers (a
-// metre wide; test/woods.test.js raycasts it).
+// The stepping stones over river-north: fourteen broad flat stones in a
+// straight line at z -29, from bank to bank, set close and staggered in height
+// so they overlap without a gap of open water anywhere along the strip the
+// deck covers (1.5 m wide; test/woods.test.js raycasts it). The deck has to be
+// as wide as the stones look, or a cat walking on their visible edge is
+// stopped by the water. Rounder stones (16 sides, not 8), set closer and with
+// no sideways jitter, keep the dry edge within about 8 cm of where the stones
+// leave the water (±0.83), so the deck can reach ±0.75 and never past them.
 const STONES_Z = -29;
-const STONES = { n: 10, rMin: 0.75, rMax: 0.85, jitter: 0.05, stagger: 0.03 };
-const STEPPING_STONES = Object.freeze({ minX: 16.5, maxX: 24.5, minZ: STONES_Z - 0.5, maxZ: STONES_Z + 0.5 });
+const STONES = { n: 14, rMin: 0.88, rMax: 0.9, jitter: 0, stagger: 0.03, sides: 16 };
+const STONES_HALF = 0.75;
+const STEPPING_STONES = Object.freeze({
+  minX: 16.5, maxX: 24.5, minZ: STONES_Z - STONES_HALF, maxZ: STONES_Z + STONES_HALF,
+});
 
 // The waters. Every footprint runs on past the bounds where its water does,
 // so the lake opens out to the horizon and the river leaves the map west and
@@ -216,11 +223,18 @@ const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
 const DECKS = [LOG_BRIDGE, STEPPING_STONES];
 
-function treeFits(x, z) {
+// A tree's clearance from a path's centreline grows with the tree: the
+// path's half-width, then the canopy's reach (builder.tree's 1.6 m blob,
+// scaled with the tree, and low enough to be at camera height), then half a
+// metre, so the camera following the cat down a path never ends up inside
+// a canopy.
+const pathClearance = (scale) => PATH_W / 2 + 1.6 * scale + 0.5;
+
+function treeFits(x, z, scale) {
   if (waterDist(x, z) < 3) return false;
   // the crossings stay open to see from the paths and the banks
   if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
-  if (WOODS_PATHS.some((s) => segDist(x, z, ...s) < 3)) return false;
+  if (WOODS_PATHS.some((s) => segDist(x, z, ...s) < pathClearance(scale))) return false;
   if (KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 4)) return false;
   if (segDist(x, z, ...fallenLogEnds()) < 4) return false;
   return Math.hypot(x - CLEARING.x, z - CLEARING.z) >= CLEARING.r;
@@ -250,7 +264,7 @@ export function woodsTreeSpots() {
       const x = r2(gx + (rng() * 2 - 1) * TREE_JITTER);
       const z = r2(gz + (rng() * 2 - 1) * TREE_JITTER);
       const scale = r2(1.0 + 0.6 * rng());
-      if (spots.length < MAX_TREES && treeFits(x, z)) spots.push({ x, z, scale });
+      if (spots.length < MAX_TREES && treeFits(x, z, scale)) spots.push({ x, z, scale });
     }
   }
   return spots;

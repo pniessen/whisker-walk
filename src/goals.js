@@ -12,8 +12,25 @@ export const GOAL_POOL = [
   { id: 'pounce-play', text: 'Pounce-tag 2 critters', type: 'hunt', target: 2 },
 ];
 
-export function createGoals(rng) {
-  const pool = [...GOAL_POOL];
+// goalFits(goal, areaData) → false when the area itself has nothing that
+// could finish the goal: no tippables to tip, no box to sit in, no villager
+// to give head scratches (the Woods has none of the three). It reads only
+// the area's built data, which is the same on both co-walk devices, so both
+// still filter to the same pool. Missing areaData keeps every goal.
+export function goalFits(goal, areaData) {
+  if (!areaData) return true;
+  if (goal.type === 'mischief') return (areaData.tippables?.length ?? 0) >= goal.target;
+  if (goal.type === 'sits') return (areaData.boxes?.length ?? 0) >= goal.target;
+  if (goal.type === 'pet') return (areaData.critterSpawns ?? []).some((c) => c.type === 'villager');
+  return true;
+}
+
+// Always exactly three rng draws, whatever the area: the walkRng is shared
+// by co-walkers, and a different draw count would shift every roll after it.
+// Filtering keeps GOAL_POOL's order, so an area that can finish every goal
+// draws exactly what it drew before the filter existed.
+export function createGoals(rng, areaData) {
+  const pool = GOAL_POOL.filter((g) => goalFits(g, areaData));
   const goals = [];
   while (goals.length < 3) {
     const i = Math.floor(rng() * pool.length);

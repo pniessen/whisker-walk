@@ -175,6 +175,17 @@ describe('anyone can press Start, and it starts everyone', () => {
     expect(kid.progression.state.area).toBe('park');
   });
 
+  it('a refused setArea never desyncs the room: the member walks the room place by override', async () => {
+    const { host, kid } = await inPairRoom({ kid: { unlocked: ['park'] } });
+    host.progression.setArea('park');
+    // a setArea that says no (any rule it may grow): the save keeps its place
+    vi.spyOn(kid.progression, 'setArea').mockImplementation(() => {});
+    host.startRoomTogether({ area: 'park', dusk: false });
+    vi.advanceTimersByTime(MEMBER_GATHER_MS);
+    expect(kid.walks.at(-1).areaOverride).toBe('park');
+    expect(kid.progression.state.area).toBe('neighborhood');
+  });
+
   it('a host whose phone is asleep no longer strands the room: the member just goes', async () => {
     const kid = await withSilentHost();
     expect(kid.rooms.getState().isHost).toBe(false);

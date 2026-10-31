@@ -2327,15 +2327,17 @@ export function logBridge(x1, z1, x2, z2, w = 1.6, y = 0.14, flat = w * 0.6) {
 // Options, for a ford a cat should be able to walk across without wetting a
 // paw: rMin/rMax (the stones' base radius range), jitter (how far a stone may
 // sit off the line, in total) and stagger (alternate stones sit this much
-// higher and lower, so stones that overlap never fight for the same pixels).
-export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52, jitter = 0.3, stagger = 0 } = {}) {
+// higher and lower, so stones that overlap never fight for the same pixels)
+// and sides (an octagon by default; a rounder stone's dry edge sits closer to
+// its drawn edge, which matters when a deck has to match what is drawn).
+export function steppingStones(x1, z1, x2, z2, n = 5, { rMin = 0.38, rMax = 0.52, jitter = 0.3, stagger = 0, sides = 8 } = {}) {
   const geoms = [];
   for (let i = 0; i < n; i++) {
     const f = n === 1 ? 0.5 : i / (n - 1);
     const sx = x1 + (x2 - x1) * f + (hash01(i, 1, 61) - 0.5) * jitter;
     const sz = z1 + (z2 - z1) * f + (hash01(i, 2, 61) - 0.5) * jitter;
     const r = rMin + (rMax - rMin) * hash01(i, 3, 61);
-    const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, 8);
+    const stone = new THREE.CylinderGeometry(r * 0.88, r, 0.2, sides);
     stone.rotateY(hash01(i, 4, 61) * Math.PI);
     stone.translate(sx, (i % 2 ? -0.5 : 0.5) * stagger, sz);
     geoms.push(stone);

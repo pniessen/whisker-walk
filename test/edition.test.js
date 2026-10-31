@@ -2,7 +2,7 @@ import { test, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { CLAN_SUFFIX, PLACE_WORDS } from '../src/clanwords.js';
 import { rivalFor } from '../src/rivalclans.js';
-import { EDITIONS, DEFAULT_EDITION, sanitizeEdition, isClanEdition, editionTitle, areaInEdition, placeName, effectiveArea, rivalForWalk, accessoryName, roomAreaMove } from '../src/edition.js';
+import { EDITIONS, DEFAULT_EDITION, sanitizeEdition, isClanEdition, editionTitle, gameTitle, areaInEdition, placeName, effectiveArea, rivalForWalk, accessoryName, roomAreaMove } from '../src/edition.js';
 
 const CAT = { areas: { neighborhood: {}, park: {}, woods: { edition: 'canon' } } };
 
@@ -23,6 +23,10 @@ test('isClanEdition is false only for legacy', () => {
 test('editionTitle names both editions', () => {
   expect(editionTitle('canon')).toBe(`${CLAN_SUFFIX} Edition`);
   expect(editionTitle('legacy')).toBe('Legacy Edition');
+});
+test('gameTitle is the page title for each edition', () => {
+  expect(gameTitle('canon')).toBe(`Whisker Walk 2: ${CLAN_SUFFIX} Edition`);
+  expect(gameTitle('legacy')).toBe('Whisker Walk 2: Legacy Edition');
 });
 test('areaInEdition hides canon-only places in Legacy only', () => {
   expect(areaInEdition({ edition: 'canon' }, 'legacy')).toBe(false);
