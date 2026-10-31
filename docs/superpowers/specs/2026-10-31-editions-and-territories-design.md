@@ -193,9 +193,13 @@ otherwise, these win:
      - It's a small map of its own.
      - The bridge is a deck over the lake, the same way the Seaside pier and
        the Docks bridges are decks over water today, so it needs no swimming.
-     - Still to decide: which shore the bridge leaves from. It could be one
-       bridge from one territory, or one per territory so every clan can
-       reach it.
+     - **One shared bridge, from the Pines and Swamp's shore** (owner,
+       2026-10-31), on the north-west side of the lake.
+     - Cats from every other clan reach the island through Pines land. The
+       way there is under a truce, as for a Gathering in the books: crossing
+       Pines territory on the way to the island never starts a border scuffle
+       or costs a kid anything. This matters because each kid may be in a
+       different clan (decision 2).
    - **A small pond where the River and Marshes meet the Woods** (owner,
      2026-10-31): the loop in her river.
      - It sits on the border, so it belongs to both territories.
