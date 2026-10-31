@@ -29,6 +29,11 @@ export function editionTitle(edition) {
   return edition === 'legacy' ? 'Legacy Edition' : `${CLAN_SUFFIX} Edition`;
 }
 
+// The page's title for a save on `edition`.
+export function gameTitle(edition) {
+  return `Whisker Walk 2: ${editionTitle(edition)}`;
+}
+
 // A catalog entry marked edition: 'canon' is a Clan Edition place; Legacy hides it.
 export function areaInEdition(entry, edition) {
   return !(edition === 'legacy' && entry && entry.edition === 'canon');

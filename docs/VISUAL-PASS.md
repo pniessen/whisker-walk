@@ -1293,3 +1293,110 @@ between them in about 0.25 s, and jumps there under Reduced motion.
 - The den cap and the building pull-in in the running game (unit-tested only).
 - Footprints have no height, so the far camera is pulled in for a house even
   where it would have seen over the roof.
+
+## The Woods — budget and live check (2026-10-31)
+
+The Woods is held to the Cozy Neighborhood's ceilings (plan Global
+Constraints). Measured off `build(scene)` the way `test/budget.test.js` does:
+
+| area | meshes built | casters built | triangles | meshes merged | casters merged |
+|---|---|---|---|---|---|
+| woods | **178** / 450 | **158** / 380 | 44,222 / 60,000 | **176** / 260 | **156** / 205 |
+| neighborhood (for scale) | 381 | 314 | 25,899 | 218 | 169 |
+
+Merging folds almost nothing away here (178 → 176): the trees, rocks and
+logs are already one or two meshes each, and the ferns and brambles are one
+bed mesh apiece. The Woods spends triangles (low-poly canopies) rather than
+meshes, which is the trade this budget wants.
+
+**In-game draw calls.** `?perf`, tier forced to high (the Auto setting
+stepped down on its own while the pane was in the background, so it was
+pinned for these), 375×812 phone emulation with touch, one unseeded walk per
+row. "Ready" is the first frame of the walk from the spawn; "spin" orbits the
+camera about ten steps of ~45° on the spawn and gives the lowest and highest
+frame.
+
+| area | Ready (3 walks) | spin, min–max |
+|---|---|---|
+| **woods** | 478, 446, 414 | 349–833 |
+| neighborhood | 898, 962, 956 | 216–1004 |
+| seaside | 934, 932, 844 | 276–931 |
+| docks | 370, 247, 348 | 329–827 |
+
+The Woods is no higher than the Neighborhood on the same tier, and sits with
+the Docks at the bottom of the four even with four water bodies. The spawn
+faces north into open wood, so its Ready frame is cheap (scene ~95–140,
+shadow ~260–370); the most expensive views look west or south across the
+whole wood. Walking the cat around (pane at its own 499×727, touch, high)
+the highest frame seen was 946 (shadow 510, scene 422) by the great oak
+looking west, and 834–897 on the glade path looking south over the river.
+Rows from different walks are not comparable to the call (see "A
+measurement caveat worth carrying"): strays, critters and finds re-roll.
+
+**Checked live** (a throwaway save on its own origin, 2 Neighborhood walks):
+
+- Home screen, Clan Edition, at 1280×720 and 375×812: six regions, the
+  lake, the island, the river, the pond, the paths and the bridge; the Woods
+  says "Tap to explore". A real click on the Woods `<g>` selects it (save
+  `area: 'woods'`, the dock says "Walking in The Woods").
+- The Woods' tap area does not bleed into the Moor or the River: of 2,696
+  points sampled on a 3 px grid that hit the Woods' target, every one lies
+  inside the Woods' own land shape and under no other region's.
+- Flip to Legacy on the title: four cards (Cozy Neighborhood, City Park,
+  Seaside, The Old Docks), no Woods, the dock says Cozy Neighborhood, the
+  save keeps `area: 'woods'`; flip back and the Woods is selected again.
+- A walk in the Woods (the automated pane can now drive the touch joystick
+  and the orbit drag with synthetic `TouchEvent`s, so the cat really walked):
+  the corner map shows the paths, the river corner and the east edge; the
+  east horizon carries the skyline blocks; from the glade the lake opens out
+  to the north-west with the island's tree on it.
+- **The log bridge** reads as a crossing from the glade path: the log's
+  flat top runs straight on from the path end, and the cat crossed it both
+  ways. **The stepping stones** read as one stone causeway across
+  river-north, and the cat crossed them, but only once lined up: the deck
+  strip is 1 m wide while the stones draw about 1.6 m wide, so a cat at
+  z -27.86 standing on the stones' visible edge was stopped by the water.
+  At z -28.7 it walked straight over.
+- **gm-woods-1** is not hidden by the canopy. From the chase camera it shows
+  on its limb, under the canopy's lower edge, from the north (5 m and 2.4 m),
+  the south (6 m and 2.4 m) and the west. From the east it is behind the
+  trunk, because the limb grows west; that is the trunk, not the canopy.
+- **Ferns and brambles in shade.** They take no shadow, but they don't look
+  wrong: a fern lying across a canopy shadow's edge is one even mid-green,
+  close to the shaded grass and a little darker than the lit grass, so it
+  reads as a plant rather than glowing. The brambles are dark enough that the
+  missing shadow doesn't show.
+- `verify-places.html?area=woods` builds (`__calls` 104 at the spawn view, no
+  console errors). The card picture `public/places/woods.jpg` is the spawn
+  view at 640×360 (`44,2.9,16.5 → 44,0.4,4`, now `VIEWS.woods`), and the
+  home dock shows it.
+- No console errors anywhere above.
+
+**Seen, not fixed:**
+
+- On the glade path looking south (cat at -4.5, -18.8) the chase camera sits
+  inside an oak's canopy and half the screen is a flat green wall. Only
+  houses pull the camera in, and the Woods is the first area dense with
+  trees right beside a path.
+- In Legacy with `area: 'woods'` the dock says Cozy Neighborhood but no card
+  is marked "today's walk": the Cozy Neighborhood card says "tap to walk
+  here".
+- Looking north-west over the lake toward the sun, the water's glare blooms
+  into a broad white patch on the high tier.
+
+**Not checked:** a real iPhone (frame time, thermal), desktop with pointer
+lock, the low tier, and walking every POI.
+
+**Fixed after the branch review (2026-10-31):**
+
+- The canopy over the glade path: a tree now keeps 1.5 + 1.6 × scale + 0.5 m
+  from a path's centreline (the path's half-width, its canopy's reach, half a
+  metre), not a flat 3 m. Three trees go: 69 in all, not 72. The Woods now
+  builds 172 meshes / 152 casters / 44,462 triangles, 170 / 150 merged.
+  Camera-side canopy hiding is still deferred.
+- The stepping stones: fourteen rounder stones (16 sides) in a straight line,
+  and the deck widened from ±0.5 m to ±0.75 m. The stones leave the water at
+  about ±0.83 m, and the deck stays inside what the raycast test proves dry.
+- Legacy with the Woods chosen marks the Cozy Neighborhood card "today's
+  walk" (checked live on a throwaway save, with the page title and splash
+  reading Legacy Edition).

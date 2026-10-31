@@ -16,7 +16,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   },
 }));
 
-const { createHomeBase } = await import('../src/ui/homebase.js');
+const { createHomeBase, showEditionTitle } = await import('../src/ui/homebase.js');
 const { createProgression } = await import('../src/progression.js');
 
 function memStorage() {
@@ -63,6 +63,7 @@ afterEach(() => {
   delete globalThis.document;
 });
 
+import { readFileSync } from 'node:fs';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
 
 // A rooms stand-in that is available with no room open, so the Play together
@@ -122,6 +123,48 @@ describe('the title names the edition', () => {
     await clickEditionToggle();
     expect(progression.state.edition).toBe('canon');
     expect(doc.root.innerHTML).toContain(`data-edition-toggle>${CLAN_SUFFIX} Edition</button>`);
+  });
+
+  it('the edition switch says what it does to a screen reader', () => {
+    setup();
+    expect(doc.root.innerHTML).toMatch(/<button class="dr-edition" aria-label="Switch game edition" title="Switch game edition" data-edition-toggle>/);
+  });
+
+  it('the page title follows the save: Clan Edition on load, Legacy after a flip', async () => {
+    setup();
+    expect(doc.title).toBe(`Whisker Walk 2: ${CLAN_SUFFIX} Edition`);
+    await clickEditionToggle();
+    expect(doc.title).toBe('Whisker Walk 2: Legacy Edition');
+  });
+
+  it('a Legacy save loads with a Legacy page title', () => {
+    const storage = memStorage();
+    createProgression(storage).setEdition('legacy');
+    const progression = createProgression(storage);
+    const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, null, 'me', () => {}).show();
+    expect(doc.title).toBe('Whisker Walk 2: Legacy Edition');
+  });
+
+  it('showEditionTitle names the edition under the splash and in its label', () => {
+    const word = { textContent: '' };
+    const splash = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+    const page = {
+      title: '',
+      getElementById: (id) => (id === 'splash' ? splash : null),
+      querySelector: (sel) => (sel === '#splash .splash-edition' ? word : null),
+    };
+    showEditionTitle(page, 'legacy');
+    expect(page.title).toBe('Whisker Walk 2: Legacy Edition');
+    expect(word.textContent).toBe('Legacy Edition');
+    expect(splash.attrs['aria-label']).toBe('Whisker Walk 2: Legacy Edition');
+  });
+
+  it('index.html ships a neutral title and splash, since the splash shows before the save is read', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    expect(html).toContain('<title>Whisker Walk 2</title>');
+    expect(html).toContain('aria-label="Whisker Walk 2"');
+    expect(html).not.toContain(`${CLAN_SUFFIX} Edition`);
   });
 
   it('flipping there and back leaves the save as it was', async () => {

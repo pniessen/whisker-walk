@@ -129,7 +129,11 @@ export function createRooms({
     clearGathering();
     if (progression.isUnlocked('areas', area) && roomAreaMove(progression.state, CATALOG, area) === 'set') {
       progression.setArea(area);
-      startWalk({ duskMode: dusk, roomSeed: seed });
+      // setArea may refuse (it checks the edition itself); if it did, walk
+      // the room's place by override rather than whatever the save holds,
+      // so this device never builds a different place from its partner's.
+      if (progression.state.area === area) startWalk({ duskMode: dusk, roomSeed: seed });
+      else startWalk({ duskMode: dusk, roomSeed: seed, areaOverride: area });
     } else {
       startWalk({ duskMode: dusk, roomSeed: seed, areaOverride: area });
     }

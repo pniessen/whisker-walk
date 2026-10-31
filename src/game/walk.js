@@ -1041,7 +1041,7 @@ export function createWalkLifecycle({
     // consumer below (noteGoal's `!session?.goals` guard, hud.setGoals,
     // endWalk's goalsDone/summary) treats a null goals as "this walk has no
     // goal HUD" rather than crashing on it.
-    const goals = isDen ? null : createGoals(walkRng);
+    const goals = isDen ? null : createGoals(walkRng, areaData);
     // Co-walk duo goal (Task 6.2): both clients derive this from the SAME
     // seeded goal pool + walkRng draw, then deterministically overwrite
     // slot 0 with an identical shared goal — no extra wire event needed to
