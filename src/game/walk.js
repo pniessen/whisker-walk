@@ -1569,7 +1569,7 @@ export function createWalkLifecycle({
         if (!session) return; // presence sync can land after endWalk tore the session down
         const liveIds = new Set(roster.map((p) => p.playerId));
         for (const r of remotes.list) {
-          if (!liveIds.has(r.playerId)) remotes.remove(r.playerId);
+          if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
         }
         for (const p of roster) {
           if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet
@@ -1754,6 +1754,10 @@ export function createWalkLifecycle({
       session.net.sendEvent({ v: 1, id: session.playerId, type: 'clan-buddy', catId: session.clanBuddy.id, on: false });
     }
     session.clanBuddy = null;
+    // A fight still on ends here, while the room is still joined, so its
+    // intruder-done reaches the co-walker (whose intruder would otherwise
+    // stand held). Idempotent; solo it sends nothing.
+    session.clanFight.abort();
 
     if (session.net) {
       const net = session.net;
@@ -1828,7 +1832,6 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
-    session.clanFight.abort();
     session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();

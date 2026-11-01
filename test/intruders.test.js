@@ -414,6 +414,24 @@ describe('the intruder in the world (Task 2)', () => {
     expect(intr.holders(k)).toEqual(['me']);
   });
 
+  test('dropHolder: a co-walker who left lets go at once; my own hold stays', () => {
+    const { clock, intr, step } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 5;
+    step(DT);
+    intr.hold(k, 'sis', { x: 0, z: 0 });
+    intr.dropHolder('nobody');
+    expect(intr.holders(k)).toEqual(['sis']);
+    intr.dropHolder('sis');
+    expect(intr.holders(k)).toEqual([]);
+    expect(intr.current().state).toBe('walking');   // no longer held: on its way again
+    intr.hold(k, 'me', { x: 0, z: 0 }, { local: true });
+    intr.hold(k, 'sis', { x: 1, z: 0 });
+    intr.dropHolder('sis');
+    expect(intr.holders(k)).toEqual(['me']);
+    expect(intr.current().state).toBe('held');
+  });
+
   test('the intruder is swept for shadows on every visit', () => {
     const built = [];
     const { clock, step, meshes } = spawnIntruders({ onBuild: (g) => built.push(g) });
@@ -587,7 +605,7 @@ describe('the intruder in the world (Task 2)', () => {
     expect(NO_INTRUDERS.current()).toBeNull();
     expect(NO_INTRUDERS.isFled(1)).toBe(false);
     expect(NO_INTRUDERS.holders(1)).toEqual([]);
-    for (const f of ['update', 'hold', 'release', 'flee', 'dispose']) expect(() => NO_INTRUDERS[f]()).not.toThrow();
+    for (const f of ['update', 'hold', 'release', 'dropHolder', 'flee', 'dispose']) expect(() => NO_INTRUDERS[f]()).not.toThrow();
   });
 });
 

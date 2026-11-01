@@ -199,6 +199,7 @@ export const NO_INTRUDERS = Object.freeze({
   current: () => null,
   hold() {},
   release() {},
+  dropHolder() {},
   holders: () => [],
   stage() {},
   flee() {},
@@ -457,6 +458,13 @@ export function createIntruders(scene, areaId, {
     },
     holders(visit) {
       return isCurrent(visit) ? [...cur.holders.keys()] : [];
+    },
+    // A co-walker who left the room lets go of whatever it held (a crash or a
+    // dropped connection would otherwise hold it up to HOLD_MAX).
+    dropHolder(holderId) {
+      if (!cur || cur.fled || !cur.holders.has(String(holderId))) return;
+      cur.holders.delete(String(holderId));
+      letGo();
     },
     // My fight's staging (Task 4): { pose, x, z, y, face? } puts the held mesh
     // at that spot in that pose, facing `face` (my cat) or else its holder;

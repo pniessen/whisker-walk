@@ -330,6 +330,17 @@ describe('the clan in the walk (source pins)', () => {
     const abort = s.indexOf('session.clanFight.abort()');
     expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
     expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
+    // its intruder-done goes out while the room is still joined: before leave()
+    const leave = s.indexOf('net.leave()', s.indexOf('function endWalk('));
+    expect(leave).toBeGreaterThan(-1);
+    expect(abort).toBeLessThan(leave);
+    expect(s.split('session.clanFight.abort()')).toHaveLength(2);
+  });
+
+  it('a co-walker who leaves the room lets go of the intruder at once', () => {
+    const s = readFileSync('src/game/walk.js', 'utf8');
+    const roster = s.slice(s.indexOf('net.onRoster('), s.indexOf('net.onState('));
+    expect(roster).toMatch(/if \(!liveIds\.has\(r\.playerId\)\) \{ remotes\.remove\(r\.playerId\); session\.intruders\.dropHolder\(r\.playerId\); \}/);
   });
 
   it('Legacy never shows the panel: it can never be at home', async () => {
@@ -355,11 +366,17 @@ describe('the clan in the walk (source pins)', () => {
     const gate = body.indexOf("if (session?.clanFight?.uiShowing === 'fight') {");
     expect(gate).toBeGreaterThan(-1);
     const block = body.slice(gate, body.indexOf('\n    }', gate));
-    // modifier combos pass to the browser untouched; the rest are swallowed,
-    // and reach the fight only while the walk is being played (not paused)
+    // modifier combos pass to the browser untouched; the rest are swallowed
+    // and reach the fight only while the walk is being played: from the pause
+    // card nothing is swallowed (Enter / Space on its buttons, F5 work)
     expect(block).toContain('if (e.metaKey || e.ctrlKey || e.altKey) return;');
-    expect(block.indexOf('e.preventDefault();')).toBeGreaterThan(block.indexOf('e.altKey'));
-    expect(block).toContain('if (player.engaged) session.clanFight.key(e.key);');
+    const engaged = block.indexOf('if (player.engaged) {');
+    expect(engaged).toBeGreaterThan(block.indexOf('e.altKey'));
+    const inner = block.slice(engaged, block.indexOf('\n      }', engaged));
+    expect(inner).toContain('e.preventDefault();');
+    expect(block.split('e.preventDefault()')).toHaveLength(2);   // only the engaged one
+    // a held key's repeats answer nothing
+    expect(inner).toContain('if (!e.repeat) session.clanFight.key(e.key);');
     expect(block).toContain('return;');
     for (const branch of ["e.code === 'KeyE'", "e.code === 'Space'", 'phraseIdForDigit(', "e.code === 'KeyM'"]) {
       expect(body.indexOf(branch)).toBeGreaterThan(gate);

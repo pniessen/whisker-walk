@@ -556,12 +556,16 @@ function init() {
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's
     // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.
-    // Only while the walk is being played (never from the pause card), and a
-    // Cmd / Ctrl / Alt combo (Cmd-R, say) is left to the browser untouched.
+    // Only while the walk is being played: from the pause card the keys are
+    // the browser's (Enter / Space on a focused button, F5), and a Cmd / Ctrl /
+    // Alt combo (Cmd-R, say) is left to the browser untouched. A held key's
+    // repeats answer nothing, so a held "1" never answers the next round.
     if (session?.clanFight?.uiShowing === 'fight') {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      e.preventDefault();
-      if (player.engaged) session.clanFight.key(e.key);
+      if (player.engaged) {
+        e.preventDefault();
+        if (!e.repeat) session.clanFight.key(e.key);
+      }
       return;
     }
     // Typing in a home-base box (code, pet name, friend code) must never fire
