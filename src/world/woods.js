@@ -402,6 +402,7 @@ export function build(scene, { water = {}, wind } = {}) {
       color: WATER_COLOR,
       quality: water.quality ?? 'high',
       reducedMotion: water.reducedMotion ?? false,
+      waters: WOODS_WATERS,
     });
     scene.add(fx.mesh);
     return fx;

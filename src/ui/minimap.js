@@ -2,6 +2,7 @@
 // 2D page UI on its own <canvas>; nothing here touches the Three.js scene
 // beyond reading the flat path strips once when a walk starts.
 import { flatFootprints } from '../render/grass.js';
+import { findTrees } from '../render/ambient.js';
 import { toMap, pinToRim, mapMarkers, mapRadiusFor } from './minimapmath.js';
 
 const CREAM = '#f4efe4';
@@ -14,6 +15,12 @@ const STAR = '#6d4aa8';
 const WATER = '#86bcdc';
 const PATH = 'rgba(250,244,228,0.85)';
 const BLOCK = 'rgba(70,60,52,0.45)';
+const TREE = 'rgba(46,88,42,0.55)';
+// A tree is drawn as most of its crown, not its full canopy, so a wood reads
+// as trees with ground between them rather than one green blot; capped so the
+// camp's great tree is not a lake of green.
+const CROWN = 0.8;
+const CROWN_MAX = 2.5;
 
 // Desktop and phone diameters (CSS px). The stylesheet sets the same sizes;
 // these are the fallback when the canvas has not been laid out yet.
@@ -52,7 +59,20 @@ export function buildMapLayer(areaData, scene) {
     // Big colliders stand in for buildings, trees and large props; small
     // ones (bins, posts) would only be noise at this scale.
     blocks: (areaData.colliders ?? []).filter((c) => c.r >= 1).map((c) => ({ x: c.x, z: c.z, r: c.r })),
+    // Trees, read off the scene (every builder.tree() tags its canopy). Their
+    // trunk colliders are under the block cut, so without these the Woods,
+    // the River and the park showed bare grass. A tree whose trunk is already
+    // a block (the Pines' Old Ash) is left to the block.
+    trees: treesFor(areaData, scene),
   };
+}
+
+function treesFor(areaData, scene) {
+  if (!scene || typeof scene.traverse !== 'function') return [];
+  const big = (areaData.colliders ?? []).filter((c) => c.r >= 1);
+  return findTrees(scene)
+    .filter((t) => !big.some((c) => Math.hypot(t.x - c.x, t.z - c.z) < 0.5))
+    .map((t) => ({ x: t.x, z: t.z, r: Math.min(CROWN_MAX, t.r * CROWN) }));
 }
 
 // A canvas ignores a numeric fillStyle and keeps the previous one, and
@@ -233,6 +253,18 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         ctx.fillRect(-d.halfW, -len / 2, d.halfW * 2, len);
         ctx.restore();
       }
+    }
+    // Every crown in one path and one fill: the Woods' seventy trees cost the
+    // map one fill call per paint.
+    const trees = layer.trees ?? [];
+    if (trees.length) {
+      ctx.fillStyle = TREE;
+      ctx.beginPath();
+      for (const t of trees) {
+        ctx.moveTo(t.x + t.r, t.z);
+        ctx.arc(t.x, t.z, t.r, 0, Math.PI * 2);
+      }
+      ctx.fill();
     }
     ctx.fillStyle = BLOCK;
     for (const b of layer.blocks) {

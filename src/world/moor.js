@@ -476,6 +476,7 @@ export function build(scene, { water = {}, wind } = {}) {
       ...WATER_LOOK[w.id],
       quality: water.quality ?? 'high',
       reducedMotion: water.reducedMotion ?? false,
+      waters: MOOR_WATERS,
     });
     scene.add(fx.mesh);
     return fx;
