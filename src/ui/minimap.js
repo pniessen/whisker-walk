@@ -35,11 +35,18 @@ export function buildMapLayer(areaData, scene) {
     // Decks (the Docks' bridges, the Seaside pier) are dry crossings over
     // the water. They are raised, so flatFootprints never sees them; without
     // them the canal reads as uncrossable and the pier as open sea.
+    // A rect water keeps its islands (round holes of dry ground), and a strip
+    // deck (a diagonal bridge) is copied by its ends and half-width.
     water: (areaData.waters ?? []).map((w) => ({
       ...(w.kind === 'circle'
         ? { kind: 'circle', x: w.x, z: w.z, r: w.r }
-        : { kind: 'rect', minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ }),
-      decks: (w.decks ?? []).map((d) => ({ minX: d.minX, maxX: d.maxX, minZ: d.minZ, maxZ: d.maxZ })),
+        : {
+          kind: 'rect', minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ,
+          ...(w.islands ? { islands: w.islands.map((i) => ({ x: i.x, z: i.z, r: i.r })) } : {}),
+        }),
+      decks: (w.decks ?? []).map((d) => (Number.isFinite(d.x1)
+        ? { kind: 'strip', x1: d.x1, z1: d.z1, x2: d.x2, z2: d.z2, halfW: d.halfW }
+        : { minX: d.minX, maxX: d.maxX, minZ: d.minZ, maxZ: d.maxZ })),
     })),
     paths: flatFootprints(scene).filter((f) => f.kind === 'strip'),
     // Big colliders stand in for buildings, trees and large props; small
@@ -193,11 +200,39 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         ctx.fillRect(w.minX, w.minZ, w.maxX - w.minX, w.maxZ - w.minZ);
       }
     }
+    // Islands are land, so they are filled exactly as the land is (cream,
+    // then the ground tone at half strength), after all the water so a lake
+    // reads with its island in it, and before the decks so a bridge lands on
+    // it.
+    for (const w of layer.water) {
+      for (const i of w.islands ?? []) {
+        ctx.beginPath();
+        ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
+        ctx.fillStyle = CREAM;
+        ctx.fill();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = layer.ground;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
     // Decks go on after all the water, in the path tone, so a crossing reads
-    // as a way over.
+    // as a way over. A strip deck (a diagonal bridge) is a rotated rectangle,
+    // drawn like a path strip: local +y along it.
     ctx.fillStyle = PATH;
     for (const w of layer.water) {
-      for (const d of w.decks ?? []) ctx.fillRect(d.minX, d.minZ, d.maxX - d.minX, d.maxZ - d.minZ);
+      for (const d of w.decks ?? []) {
+        if (d.kind !== 'strip') {
+          ctx.fillRect(d.minX, d.minZ, d.maxX - d.minX, d.maxZ - d.minZ);
+          continue;
+        }
+        const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+        ctx.save();
+        ctx.translate((d.x1 + d.x2) / 2, (d.z1 + d.z2) / 2);
+        ctx.rotate(Math.atan2(-(d.x2 - d.x1), d.z2 - d.z1));
+        ctx.fillRect(-d.halfW, -len / 2, d.halfW * 2, len);
+        ctx.restore();
+      }
     }
     ctx.fillStyle = BLOCK;
     for (const b of layer.blocks) {

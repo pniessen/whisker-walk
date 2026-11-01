@@ -3402,6 +3402,17 @@ export function logBasket(x, z) {
 // must leave this hole in itself". Every function below treats a point on a
 // deck as dry land.
 //
+// A rect footprint may carry `islands: [{ x, z, r }]`: round holes of dry
+// ground cut out of the water. An island is not a deck, because a deck means
+// raised boards (ruling R42: carrying will not set things down on one, and
+// paw prints skip it); an island is ground, so it gets neither rule. A circle
+// footprint does not support islands.
+//
+// A deck may also be a strip `{ x1, z1, x2, z2, halfW }` — a centreline from
+// end 1 to end 2 and a half-width — instead of an axis-aligned rect, so a
+// bridge on a diagonal is still one deck. `Number.isFinite(d.x1)` tells the
+// two shapes apart.
+//
 // All of this is plain data and pure geometry: no THREE, no renderer, so the
 // world files stay unit-testable headless.
 // =============================================================================
@@ -3410,19 +3421,47 @@ export function logBasket(x, z) {
 // water, positive on dry land. For a rect the inside case reports the
 // SHALLOWEST penetration (the nearest way out), which is what makes the
 // push-out below take the short route to shore.
+//
+// Islands only exist on rects; a circle's `islands`, if one were ever given,
+// is ignored. An island is a hole in the water, so the gap is the larger of
+// the rect's own and each island's "how far inside its rim".
 export function waterGap(w, x, z) {
   if (w.kind === 'circle') return Math.hypot(x - w.x, z - w.z) - w.r;
   const dx = Math.max(w.minX - x, x - w.maxX);
   const dz = Math.max(w.minZ - z, z - w.maxZ);
-  if (dx > 0 || dz > 0) return Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
-  return Math.max(dx, dz);
+  let gap = (dx > 0 || dz > 0)
+    ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
+    : Math.max(dx, dz);
+  for (const i of w.islands ?? []) gap = Math.max(gap, i.r - Math.hypot(x - i.x, z - i.z));
+  return gap;
+}
+
+// A strip deck's frame: start point a, unit vector u along it, side normal n
+// = (-u.z, u.x), and its length. A strip is how a diagonal bridge stays one
+// deck rather than a staircase of axis-aligned rects.
+const isStrip = (d) => Number.isFinite(d.x1);
+function stripFrame(d) {
+  const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+  const ux = (d.x2 - d.x1) / len, uz = (d.z2 - d.z1) / len;
+  return { ax: d.x1, az: d.z1, ux, uz, nx: -uz, nz: ux, len };
+}
+
+// A point built exactly on a strip's end or edge (a + t·u + s·n) comes back
+// from the dot products a few 1e-16 off, so the strip test allows 1e-9 of
+// slack. A rect deck needs none: its edges are compared as given.
+const STRIP_EPS = 1e-9;
+function onOneDeck(d, x, z) {
+  if (!isStrip(d)) return x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ;
+  const f = stripFrame(d);
+  const px = x - f.ax, pz = z - f.az;
+  const t = px * f.ux + pz * f.uz;
+  const s = px * f.nx + pz * f.nz;
+  return t >= -STRIP_EPS && t <= f.len + STRIP_EPS && Math.abs(s) <= d.halfW + STRIP_EPS;
 }
 
 // Is (x, z) standing on one of this footprint's dry decks?
 export function onDeck(w, x, z) {
-  return (w.decks ?? []).some(
-    (d) => x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ,
-  );
+  return (w.decks ?? []).some((d) => onOneDeck(d, x, z));
 }
 
 // Is (x, z) on any deck of any of these waters? The carry's "never put a
@@ -3457,13 +3496,35 @@ function pushOutOf(w, x, z, margin) {
     const need = w.r + margin;
     return { x: w.x + (dx / d) * need, z: w.z + (dz / d) * need };
   }
+  // An island is a way out too: onto the ground, `margin` inside its rim,
+  // straight along the line from its centre (a fixed +x at the dead centre).
+  const islandExits = (w.islands ?? []).map((i) => {
+    let dx = x - i.x, dz = z - i.z;
+    let d = Math.hypot(dx, dz);
+    if (d < 1e-6) { dx = 1; dz = 0; d = 1; }
+    const need = i.r - margin;
+    return { x: i.x + (dx / d) * need, z: i.z + (dz / d) * need };
+  });
   return nearestOf(x, z, [
     { x: w.minX - margin, z }, { x: w.maxX + margin, z },
     { x, z: w.minZ - margin }, { x, z: w.maxZ + margin },
+    ...islandExits,
   ]);
 }
 
 function clampInto(d, x, z, margin) {
+  if (isStrip(d)) {
+    // The strip's own frame: clamp along it and across it, then map back.
+    // Too short or too narrow for the margin, it takes the middle instead.
+    const f = stripFrame(d);
+    const px = x - f.ax, pz = z - f.az;
+    const t = f.len <= 2 * margin
+      ? f.len / 2
+      : Math.min(f.len - margin, Math.max(margin, px * f.ux + pz * f.uz));
+    const side = d.halfW - margin;
+    const s = d.halfW <= margin ? 0 : Math.min(side, Math.max(-side, px * f.nx + pz * f.nz));
+    return { x: f.ax + t * f.ux + s * f.nx, z: f.az + t * f.uz + s * f.nz };
+  }
   const cl = (v, lo, hi) => (lo + margin >= hi - margin
     ? (lo + hi) / 2
     : Math.min(hi - margin, Math.max(lo + margin, v)));

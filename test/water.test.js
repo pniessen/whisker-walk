@@ -195,10 +195,22 @@ for (const [name, { scene, area }] of Object.entries(WATERED)) {
         } else {
           expect(w.maxX).toBeGreaterThan(w.minX);
           expect(w.maxZ).toBeGreaterThan(w.minZ);
+          // Islands (round holes of dry ground) are a rect-only feature.
+          for (const i of w.islands ?? []) {
+            expect(Number.isFinite(i.x) && Number.isFinite(i.z) && i.r > 0).toBe(true);
+          }
         }
+        if (w.kind === 'circle') expect(w.islands).toBeUndefined();
         for (const d of w.decks ?? []) {
-          expect(d.maxX).toBeGreaterThan(d.minX);
-          expect(d.maxZ).toBeGreaterThan(d.minZ);
+          if (Number.isFinite(d.x1)) {
+            // A strip deck: two finite ends, apart, and a width.
+            expect([d.x1, d.z1, d.x2, d.z2].every(Number.isFinite)).toBe(true);
+            expect(Math.hypot(d.x2 - d.x1, d.z2 - d.z1)).toBeGreaterThan(0);
+            expect(d.halfW).toBeGreaterThan(0);
+          } else {
+            expect(d.maxX).toBeGreaterThan(d.minX);
+            expect(d.maxZ).toBeGreaterThan(d.minZ);
+          }
         }
       }
     });

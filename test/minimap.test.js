@@ -158,6 +158,23 @@ describe('buildMapLayer', () => {
     expect(sea.decks[0].maxX).toBeGreaterThan(sea.decks[0].minX);
   });
 
+  it('buildMapLayer keeps a rect water\'s islands and a strip deck', () => {
+    const areaData = {
+      bounds: { minX: -30, maxX: 30, minZ: -30, maxZ: 30 },
+      waters: [{
+        id: 'w', kind: 'rect', minX: -20, maxX: 20, minZ: -20, maxZ: 20,
+        islands: [{ x: 0, z: 0, r: 5 }],
+        decks: [{ x1: -3, z1: -4, x2: -12, z2: -16, halfW: 0.9 }, { minX: 1, maxX: 2, minZ: 3, maxZ: 4 }],
+      }],
+    };
+    const [w] = buildMapLayer(areaData, new THREE.Scene()).water;
+    expect(w.islands).toEqual([{ x: 0, z: 0, r: 5 }]);
+    expect(w.decks).toEqual([
+      { kind: 'strip', x1: -3, z1: -4, x2: -12, z2: -16, halfW: 0.9 },
+      { minX: 1, maxX: 2, minZ: 3, maxZ: 4 },
+    ]);
+  });
+
   it('buildMapLayer for the Woods has ground, edge, four waters with their decks, and paths', () => {
     const { scene, areaData } = built('woods');
     const layer = buildMapLayer(areaData, scene);
@@ -350,6 +367,26 @@ describe('createMinimap', () => {
     const water = canvas.fills.indexOf('#86bcdc');
     expect(water).toBeGreaterThan(-1);
     expect(canvas.fills.slice(water + 1)).toContain('rgba(250,244,228,0.85)');
+  });
+
+  it('paints an island like the land, over its water', () => {
+    const layer = {
+      ...LAYER,
+      ground: '#5a8a4a',
+      water: [{
+        kind: 'rect', minX: -10, maxX: 10, minZ: -10, maxZ: 10,
+        islands: [{ x: 0, z: 0, r: 3 }],
+        decks: [{ kind: 'strip', x1: 1, z1: 1, x2: 6, z2: 6, halfW: 0.5 }],
+      }],
+    };
+    const { map, canvas } = makeMap({ layer });
+    map.update({ cx: 0, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const water = canvas.fills.indexOf('#86bcdc');
+    expect(water).toBeGreaterThan(-1);
+    const island = canvas.fills.indexOf('#5a8a4a', water + 1);
+    expect(island).toBeGreaterThan(water);
+    const deck = canvas.fills.indexOf('rgba(250,244,228,0.85)', island + 1);
+    expect(deck).toBeGreaterThan(island);
   });
 
   // coatColor hands back a number (0x2a2a30); a canvas ignores a number
