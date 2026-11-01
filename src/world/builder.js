@@ -2491,7 +2491,7 @@ export function gorseBed(spots, seed) {
       lobes.push(lobe);
       for (let f = 0; f < 2; f++) {
         const fa = hash01(k + f, i, seed + 6 + f) * Math.PI * 2;
-        const el = 0.3 + 0.8 * hash01(i, k + f, seed + 8 + f); // upper half only
+        const el = 0.6 + 0.6 * hash01(i, k + f, seed + 8 + f); // upper half only
         const fleck = new THREE.IcosahedronGeometry(0.07, 0);
         fleck.translate(
           cx + Math.cos(fa) * Math.cos(el) * r * 0.95,
@@ -2541,7 +2541,8 @@ export function tor(x, z, { r = 1.2, h = 1.2, seed = 0 } = {}) {
 }
 
 // Rabbit burrows: a dark hole laid flat on the ground and a low mound of
-// spoil 0.35 m to one side. Two merged meshes (two colours), both under 0.2 m
+// spoil beside it, its centre 0.8 m away (mound radius 0.55 + hole radius
+// 0.22 + a little), so the mound never covers the hole. Two merged meshes (two colours), both under 0.2 m
 // and out of the caster sweep; a hide for the Moor, not an obstacle.
 export function burrows(spots, seed) {
   const spoil = [];
@@ -2554,7 +2555,7 @@ export function burrows(spots, seed) {
     const mound = new THREE.SphereGeometry(0.55, 8, 4);
     mound.scale(1, 0.15 / 0.55, 1);
     const a = hash01(sp.x, sp.z, seed + i + 1) * Math.PI * 2;
-    mound.translate(sp.x + Math.cos(a) * 0.35, 0, sp.z + Math.sin(a) * 0.35);
+    mound.translate(sp.x + Math.cos(a) * 0.8, 0, sp.z + Math.sin(a) * 0.8);
     spoil.push(mound);
   });
   const g = new THREE.Group();

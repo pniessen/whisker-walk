@@ -612,6 +612,9 @@ describe('the Woods builders', () => {
     }
     expect(bbox(g).max.y).toBeLessThanOrEqual(0.95);
     expect(bbox(g).max.y).toBeGreaterThan(0.4);
+    expect(found.gorseBloom.geometry.attributes.position.count).toBeGreaterThan(0);
+    const gb = bbox(found.gorse);
+    expect(bbox(found.gorseBloom).min.y).toBeGreaterThan((gb.min.y + gb.max.y) / 2);
   });
 
   it("tor's top is at h and its foot is as wide as its collider", () => {
@@ -626,6 +629,29 @@ describe('the Woods builders', () => {
     }
     expect((bb.max.x - bb.min.x) / 2).toBeGreaterThanOrEqual(0.8 * 1.4);
     expect(b.tor(5, -3, { r: 1.4, h: 1.5 }).geometry.attributes.position.array).toEqual(pos.array);
+  });
+
+  it('burrow holes are clear of their spoil mound', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 6, z: 1 }, { x: -4, z: 7 }];
+    const g = b.burrows(spots, 2);
+    const mpos = g.getObjectByName('burrowSpoil').geometry.attributes.position;
+    const hpos = g.getObjectByName('burrowHoles').geometry.attributes.position;
+    // the mound is above the hole's y (0.02) wherever it stands, so no mound
+    // vertex may sit over any hole vertex (rim or centre) within 0.01 m
+    for (let i = 0; i < hpos.count; i++) {
+      for (let j = 0; j < mpos.count; j++) {
+        if (mpos.getY(j) <= 0.02) continue;
+        expect(Math.hypot(hpos.getX(i) - mpos.getX(j), hpos.getZ(i) - mpos.getZ(j))).toBeGreaterThan(0.01);
+      }
+    }
+    // each hole centre is at least the mound's footprint away from its mound centre
+    spots.forEach((sp) => {
+      let nearest = Infinity;
+      for (let j = 0; j < mpos.count; j++) {
+        if (mpos.getY(j) > 0.02) nearest = Math.min(nearest, Math.hypot(sp.x - mpos.getX(j), sp.z - mpos.getZ(j)));
+      }
+      expect(nearest).toBeGreaterThanOrEqual(0.22);
+    });
   });
 
   it('burrows are two noCast meshes under 0.2 m', () => {
