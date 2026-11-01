@@ -1301,10 +1301,11 @@ Constraints). Measured off `build(scene)` the way `test/budget.test.js` does:
 
 | area | meshes built | casters built | triangles | meshes merged | casters merged |
 |---|---|---|---|---|---|
-| woods | **178** / 450 | **158** / 380 | 44,222 / 60,000 | **176** / 260 | **156** / 205 |
+| woods | **172** / 450 | **152** / 380 | 44,462 / 60,000 | **170** / 260 | **150** / 205 |
+| river | **159** / 450 | **133** / 380 | 45,344 / 60,000 | **157** / 260 | **131** / 205 |
 | neighborhood (for scale) | 381 | 314 | 25,899 | 218 | 169 |
 
-Merging folds almost nothing away here (178 → 176): the trees, rocks and
+Merging folds almost nothing away here (172 → 170): the trees, rocks and
 logs are already one or two meshes each, and the ferns and brambles are one
 bed mesh apiece. The Woods spends triangles (low-poly canopies) rather than
 meshes, which is the trade this budget wants.
@@ -1400,3 +1401,53 @@ lock, the low tier, and walking every POI.
 - Legacy with the Woods chosen marks the Cozy Neighborhood card "today's
   walk" (checked live on a throwaway save, with the page title and splash
   reading Legacy Edition).
+
+## The River and Marshes — budget and live check (2026-10-31)
+
+Held to the same ceilings as the Woods. Built, the River is 159 meshes, 133
+casters and 45,344 triangles; merged it is 157 meshes and 131 casters (see
+the table in the Woods' entry above). It has 24 willows, 14 alders, 9 pines,
+393 reed clumps (215 of them in the west reedbed) and 25 lily pads. Like the
+Woods it spends triangles, not meshes: reeds and trees are cheap in draws.
+
+**In-game draw calls.** Spawn, Ready screen, HIGH tier, desktop 1024x768 css
+at 2x, one walk each (so the rows are only roughly comparable; strays and
+finds re-roll):
+
+| area | draws | shadow | scene | triangles |
+|---|---|---|---|---|
+| river | 740 | 302 | 424 | 144,618 |
+| woods | 486 | 279 | 173 | 96,378 |
+| neighborhood | 1,347 | 333 | 1,000 | 163,562 |
+
+The River sits between the Woods and the Neighborhood. Its extra scene
+draws over the Woods are the reeds, pads and pools seen across open ground.
+On a 750x1624 phone portrait view the River spawn was 444 draws (shadow 286,
+scene 144, 106,796 triangles). These are the desktop and emulated-phone
+numbers only; the iPhone reading is still the owner's step.
+
+**Checked live.** The map card is locked ("opens after 2 walks in The
+Woods"), becomes "Tap to explore" after two Woods walks, and tapping it
+unlocks and selects it for 0 points; phone map too. Legacy shows four cards
+and no River, with the Cozy Neighborhood marked "today's walk", and flips
+back. A River walk on phone touch: the corner map shows path and edge, the
+spawn view is the long path with willows ahead, no console errors. The Old
+Willow's golden mouse is in plain sight from the chase camera (a marker
+stood in, as the harness doesn't draw mice). The 14 stepping stones read as
+one ford about 1.7 m wide. The chase camera never ended up inside a canopy
+on the bank, long or pond paths. The east edge shows the pond and the river
+leaving east, matching the Woods' west edge. The card picture is the pool-1
+view (lily pads, reeds, willows); the bank-path view was mostly bare grass.
+
+**Not checked.** Holding keys to walk (the automated browser can't), the
+reedbed from inside on foot, iPhone fps and thermals, dusk and rain audio by
+ear. The golden-mice counter reads "0 of 18" in both editions: Legacy counts
+mice it can't reach, a pattern left over from the Woods.
+
+**Open items, left for the owner.**
+- The west reedbed reads thin live: scattered single stalks over grass, not
+  a bed (215 clumps over about 930 m2). More or denser clumps would cost
+  little, but it is a taste call, so it is not changed here.
+- The pools read silver from above because they reflect the sky. Fine on
+  foot; flat from the scenic and card angles.
+- The island bridge reads only as a thin line from the lake-island scenic.

@@ -161,8 +161,9 @@
     // north up the north path (the shipped card picture). The clearing's view up
     // the glade path to the log bridge is '2,1.2,4,-4.5,0.3,-12'.
     woods: '44,2.9,16.5,44,0.4,4',
-    // from the bank path, looking up to the old willow and the log bridge
-    river: '-6,1.4,6,-20,0.4,-26',
+    // pool-1 with its lily pads and reeds, willows behind (the card picture); the
+    // bank-path view '-6,1.4,6,-20,0.4,-26' was mostly bare grass
+    river: '-24,1.8,9,-33,0.5,15',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();
