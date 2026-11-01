@@ -197,7 +197,7 @@ describe('dressing-room renderer', () => {
     expect(html).toContain('🎁 Secret code');
   });
   it('place pictures fall back to a gradient when the image fails', () => {
-    expect(render()).toContain('onerror="this.remove()"');
+    expect(render()).toContain(`onerror="this.style.display='none'"`);
   });
   it('thumbs are optional and used when given', () => {
     expect(render()).not.toContain('<img src="data:');
@@ -423,5 +423,54 @@ describe('camps in the Where-to pill', () => {
   it('Legacy shows no camps', () => {
     const s = { ...defaultishState(), edition: 'legacy' };
     expect(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG) })).not.toContain('tm-camp');
+  });
+});
+
+describe('her own cats in the dressing room', () => {
+  const LOOK = { coat: 'cream', marks: 'grey', pattern: 'patches', fur: 'fluffy', eyes: 'blue', size: 1 };
+  const BASE_STATE = defaultishState();
+  const withMine = (n, custom = null) => ({ ...BASE_STATE, customCats: ['mine1', 'mine2', 'mine3'].slice(0, n).map((id, i) => ({ id, name: ['Ember', 'Ash', 'Fern'][i], personality: 'fearless', look: LOOK })), equipped: { ...BASE_STATE.equipped, custom } });
+
+  it('her cats follow the ready-made portraits, then the ＋ tile', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(1), CATALOG) });
+    expect(h.indexOf('data-dr-cat="hagrid"')).toBeLessThan(h.indexOf('data-dr-mine="mine1"'));
+    expect(h.indexOf('data-dr-mine="mine1"')).toBeLessThan(h.indexOf('data-dr-make'));
+    expect(h).toContain('＋ Make a cat');
+  });
+  it('at three cats the tile is greyed with the agreed words and nothing deletes', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(3), CATALOG) });
+    expect(h).toContain('3 of 3 — change one of yours for a new look');
+    expect(h).not.toMatch(/<button[^>]*data-dr-make/);
+    expect(h).not.toMatch(/delete|remove|let this cat go/i);
+  });
+  it('walking a custom cat: her tile is selected, no preset is, the hero is hers with Change my cat', () => {
+    const m = buildDressingModel(withMine(2, 'mine2'), CATALOG);
+    expect(m.cats.some((c) => c.selected)).toBe(false);
+    expect(m.mine.find((c) => c.id === 'mine2').selected).toBe(true);
+    expect(m.hero).toMatchObject({ custom: true, name: 'Ash', breed: 'black', blurb: 'Brave — nothing spooks this cat', look: LOOK });
+    expect(renderDressingRoomHtml({ model: m })).toContain('data-dr-edit="mine2"');
+  });
+  it('builder mode replaces the strip, panels and dock but keeps the one stage', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), startHtml: '<button id="btn-start">', ui: { builderHtml: '<section class="cb">B</section>' } });
+    expect(h).toContain('id="dr-stage"');
+    expect(h).toContain('<section class="cb">B</section>');
+    expect(h).not.toContain('dr-strip');
+    expect(h).not.toContain('btn-start');
+  });
+  it('builder mode shows the draft name and no buy or edit button', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(1, 'mine1'), CATALOG), ui: { builderHtml: '<section class="cb"></section>', heroName: 'Ember', heroBlurb: 'x' } });
+    expect(h).toContain('Ember');
+    expect(h).not.toContain('data-dr-edit');
+    expect(h).not.toContain('data-dr-buy-cat');
+  });
+  it('the hero name and builder hero name are escaped', () => {
+    const h = renderDressingRoomHtml({ model: buildDressingModel(withMine(0), CATALOG), ui: { builderHtml: '<i></i>', heroName: '<img src=x>' } });
+    expect(h).not.toContain('<img src=x>');
+  });
+  it('the same in both editions apart from the places', () => {
+    const strip = (h) => h.slice(h.indexOf('dr-strip'), h.indexOf('dr-pills'));
+    const a = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(1), edition: 'legacy' }, CATALOG) });
+    const b = renderDressingRoomHtml({ model: buildDressingModel({ ...withMine(1), edition: 'canon' }, CATALOG) });
+    expect(strip(a)).toBe(strip(b));
   });
 });

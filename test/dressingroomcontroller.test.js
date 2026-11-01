@@ -6,6 +6,7 @@ import { CATALOG, createProgression } from '../src/progression.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
 import { territoryMapModel } from '../src/territories.js';
 import { renderTerritoryMapHtml } from '../src/ui/territorymap.js';
+import { DEFAULT_LOOK } from '../src/customcats.js';
 
 const lockedCat = Object.keys(CATALOG.cats).find((id) => CATALOG.cats[id].price > 0);
 const accId = Object.keys(CATALOG.accessories)[0];
@@ -252,5 +253,140 @@ describe('createDressingRoom handleClick', () => {
     expect(t.dr.ui.previewCat).toBe(null);
     expect(t.dr.ui.tryOn).toBe(null);
     expect(t.calls).toEqual([]);
+  });
+});
+
+// The cat builder inside the dressing room, with a real progression.
+describe('createDressingRoom: her own cats and the builder', () => {
+  const doneBtn = { disabled: true };
+  const heroName = { textContent: '' };
+  const fakeRoot = { querySelector: (sel) => (sel.includes('cb-done') ? doneBtn : sel.includes('dr-hero-name') ? heroName : null) };
+  const input = (dataset, value) => ({ target: { dataset, value, closest: () => fakeRoot } });
+
+  function real() {
+    doneBtn.disabled = true;
+    heroName.textContent = '';
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    const sync = { autoSync: vi.fn() };
+    const stage = { mount() {}, show: vi.fn(), failed: false };
+    const onChange = vi.fn();
+    const onProfileChange = vi.fn();
+    const dr = createDressingRoom({
+      progression, sync, stage, onChange, onProfileChange, snapCustom: () => ({}),
+      thumbs: { cats: {}, accessories: {}, mine: {} },
+    });
+    return { dr, progression, sync, stage, onChange, onProfileChange };
+  }
+
+  it('＋ opens the builder; typing a valid name enables Done without a render', () => {
+    const { dr, onChange } = real();
+    dr.handleClick(click({ drMake: '' }));
+    onChange.mockClear();
+    expect(dr.handleInput(input({ cbName: '' }, 'Ember'))).toBe(true);
+    expect(doneBtn.disabled).toBe(false);
+    expect(heroName.textContent).toBe('Ember');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it('Done saves, walks and dresses the new cat, and re-tracks the room', () => {
+    const { dr, progression, onProfileChange, sync } = real();
+    progression.equipAccessory('bell');
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleClick(click({ cbPick: 'pattern', cbValue: 'socks' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    dr.handleClick(click({ cbDone: '' }));
+    expect(progression.state.customCats[0]).toMatchObject({ id: 'mine1', name: 'Ember' });
+    expect(progression.state.equipped).toMatchObject({ custom: 'mine1', collar: 'bell' });
+    expect(dr.ui).toMatchObject({ builder: null, pill: 'wearing' });
+    expect(onProfileChange).toHaveBeenCalled();
+    expect(sync.autoSync).toHaveBeenCalled();
+  });
+  it('Done with an invalid name does nothing', () => {
+    const { dr, progression } = real();
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'x'));
+    dr.handleClick(click({ cbDone: '' }));
+    expect(progression.state.customCats).toEqual([]);
+    expect(dr.ui.builder).not.toBe(null);
+  });
+  it('Not now: clean closes at once; changed asks once; Leave keeps the old version', () => {
+    const { dr, progression } = real();
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    dr.handleClick(click({ cbCancel: '' }));
+    expect(dr.ui.builder).toBe(null);
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    dr.handleClick(click({ cbPick: 'coat', cbValue: 'black' }));
+    dr.handleClick(click({ cbCancel: '' }));
+    expect(dr.ui.builder.confirmLeave).toBe(true);
+    dr.handleClick(click({ cbLeave: '' }));
+    expect(progression.state.customCats[0].look.coat).toBe('ginger');
+  });
+  it('editing saves over the cat and keeps every accessory', () => {
+    const { dr, progression } = real();
+    progression.equipAccessory('bell');
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    const outfit = { ...progression.state.equipped };
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    dr.handleClick(click({ cbPersonality: 'napper' }));
+    dr.handleClick(click({ cbDone: '' }));
+    expect(progression.state.customCats).toHaveLength(1);
+    expect(progression.state.customCats[0].personality).toBe('napper');
+    expect(progression.state.equipped).toEqual(outfit);
+  });
+  it('at three, ＋ does nothing', () => {
+    const { dr, progression } = real();
+    for (const n of ['Ash', 'Fern', 'Moss']) progression.createCustomCat({ name: n, personality: 'steady', look: DEFAULT_LOOK });
+    dr.handleClick(click({ drMake: '' }));
+    expect(dr.ui.builder).toBe(null);
+  });
+  it('a ready-made portrait clears the custom choice; her tile sets it; both re-track', () => {
+    const { dr, progression, onProfileChange } = real();
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    dr.handleClick(click({ drMine: 'mine1' }));
+    expect(progression.state.equipped.custom).toBe('mine1');
+    dr.handleClick(click({ drCat: 'tabby' }));
+    expect(progression.state.equipped.custom).toBe(null);
+    expect(onProfileChange).toHaveBeenCalledTimes(2);
+  });
+  it('the builder stage shows the draft bare; the dressing room shows her cat dressed', () => {
+    const { dr, progression, stage } = real();
+    progression.equipAccessory('bell');
+    dr.handleClick(click({ drMake: '' }));
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show).toHaveBeenLastCalledWith('tabby', {}, DEFAULT_LOOK);
+  });
+  it('the size slider sets the size and redraws the stage without a render', () => {
+    const { dr, stage, onChange } = real();
+    dr.handleClick(click({ drMake: '' }));
+    onChange.mockClear();
+    expect(dr.handleInput(input({ cbSize: '' }, '1.1'))).toBe(true);
+    expect(dr.ui.builder.draft.look.size).toBe(1.1);
+    expect(stage.show).toHaveBeenLastCalledWith('tabby', {}, { ...DEFAULT_LOOK, size: 1.1 });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it('a re-render keeps the draft name', () => {
+    const { dr } = real();
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    expect(dr.html()).toContain('value="Ember"');
+  });
+  it('focus and caret survive a render (a colony poll or a partner re-track)', () => {
+    const { dr } = real();
+    const fresh = { focus: vi.fn(), setSelectionRange: vi.fn() };
+    const root = { ownerDocument: { activeElement: { dataset: { cbName: '' }, selectionStart: 3, selectionEnd: 3 } }, querySelector: () => fresh };
+    const saved = dr.captureFocus(root);
+    dr.restoreFocus(root, saved);
+    expect(fresh.focus).toHaveBeenCalled();
+    expect(fresh.setSelectionRange).toHaveBeenCalledWith(3, 3);
+    expect(dr.captureFocus({ ownerDocument: { activeElement: { dataset: {} } } })).toBe(null);
+  });
+  it('clearPreview (a walk starting) closes the builder unsaved', () => {
+    const { dr, progression } = real();
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    dr.clearPreview();
+    expect(dr.ui.builder).toBe(null);
+    expect(progression.state.customCats).toEqual([]);
   });
 });

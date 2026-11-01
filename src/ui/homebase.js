@@ -722,6 +722,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       progression, catalog: CATALOG, stage, sync, thumbs,
       onChange: render,
       onOpenSheet: (id) => setSheet(id),
+      onProfileChange: () => rooms?.retrackProfile?.(),
     });
     return dressing;
   }
@@ -884,10 +885,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${duskHtml}
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
+    const f = dressing?.captureFocus?.(root);
     root.innerHTML = room.html({
       headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
     });
     room.afterRender(root);
+    dressing?.restoreFocus?.(root, f);
     stage.setVisible(shown);
     syncPairingPoll();
   }
@@ -1277,6 +1280,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
+    if (dressing?.handleInput?.(e)) return;
     if (e.target.id === 'redeem-input') {
       redeemText = e.target.value;
       return;

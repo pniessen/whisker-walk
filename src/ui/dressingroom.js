@@ -11,6 +11,7 @@ import { clanPickerModel, renderClanPickerHtml } from './clanpicker.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
+import { sanitizeCustomCats, presetFor, lookKey, COATS, CUSTOM_MAX } from '../customcats.js';
 
 export const HOME_SHEETS = ['together', 'skills', 'colony', 'social', 'journal', 'album', 'sync', 'settings', 'code'];
 export const SHEET_LABEL = {
@@ -73,16 +74,32 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
 
   const catIds = Object.keys(catalog.cats);
   const selectedCat = typeof equippedCat === 'string' && has(catalog.cats, equippedCat) ? equippedCat : catIds[0];
-  const heroId = typeof previewCat === 'string' && has(catalog.cats, previewCat) ? previewCat : selectedCat;
+  // Her own cats (the builder's): walking one means no ready-made portrait is selected.
+  const customCats = sanitizeCustomCats(state?.customCats);
+  const customId = plain(state?.equipped).custom;
+  const myCat = customCats.find((c) => c.id === customId) ?? null;
+  const previewing = typeof previewCat === 'string' && has(catalog.cats, previewCat);
+  const heroId = previewing ? previewCat : selectedCat;
   const heroOwned = ownedCats.includes(heroId);
   const heroPrice = num(catalog.cats[heroId]?.price);
-  const hero = {
-    id: heroId, name: catalog.cats[heroId]?.name ?? '', blurb: CAT_BLURBS[heroId] ?? '',
-    owned: heroOwned, price: heroPrice, canBuy: !heroOwned && points >= heroPrice,
-  };
+  const hero = myCat && !previewing
+    ? {
+      id: myCat.id, custom: true, name: myCat.name, blurb: CAT_BLURBS[presetFor(myCat.personality)] ?? '',
+      owned: true, price: 0, canBuy: false, breed: presetFor(myCat.personality), look: myCat.look,
+    }
+    : {
+      id: heroId, name: catalog.cats[heroId]?.name ?? '', blurb: CAT_BLURBS[heroId] ?? '',
+      owned: heroOwned, price: heroPrice, canBuy: !heroOwned && points >= heroPrice, breed: heroId, look: null,
+    };
   const cats = catIds.map((id) => ({
     id, name: catalog.cats[id].name, owned: ownedCats.includes(id), price: num(catalog.cats[id].price),
-    selected: id === selectedCat, previewing: id === heroId && id !== selectedCat,
+    selected: id === selectedCat && !myCat, previewing: previewing && id === heroId && (id !== selectedCat || !!myCat),
+  }));
+  // key = the portrait's cache key: the preset it walks as, and its look.
+  const mine = customCats.map((c) => ({
+    id: c.id, name: c.name, selected: !!myCat && c.id === myCat.id,
+    key: `${presetFor(c.personality)}|${lookKey(c.look)}`,
+    coatHex: `#${COATS[c.look.coat].hex.toString(16).padStart(6, '0')}`,
   }));
 
   const t = validTry(catalog, tryOn);
@@ -127,7 +144,7 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   const shopIds = Object.keys(catalog.accessories).filter((id) => !catalog.accessories[id].prize);
 
   return {
-    hero, cats, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
+    hero, cats, mine, canMake: mine.length < CUSTOM_MAX, slots, wearingCount, slotCount: slotIds.length, places, ...clanPlaces,
     currentPlace: { id: walkArea, name: placeName(walkArea, state?.edition, catalog) },
     // Prizes are won, not collected from the shop, so they stay out of both totals.
     ownedAccessories: shopIds.filter((id) => ownedAcc.includes(id)).length,
@@ -180,6 +197,19 @@ function portraitHtml(c, thumbs) {
   return `<button class="dr-portrait ${c.selected || c.previewing ? 'sel' : ''} ${c.owned ? '' : 'locked'}" data-dr-cat="${escapeHtml(c.id)}" aria-pressed="${c.selected || c.previewing}" title="${escapeHtml(title)}">${img(thumbs?.cats?.[c.id], c.name)}</button>`;
 }
 
+// One of her own cats: its snapped portrait, or a coat-coloured dot with
+// the first letter of its name when the portrait could not be drawn.
+function mineHtml(c, thumbs) {
+  const pic = thumbs?.mine?.[c.key];
+  const face = pic ? img(pic, c.name)
+    : `<span class="dr-mine-dot" style="--sw:${escapeHtml(c.coatHex)}">${escapeHtml(c.name.charAt(0))}</span>`;
+  return `<button class="dr-portrait dr-mine ${c.selected ? 'sel' : ''}" data-dr-mine="${escapeHtml(c.id)}" aria-pressed="${c.selected}" title="${escapeHtml(c.name)}">${face}</button>`;
+}
+function makeHtml(canMake) {
+  return canMake ? '<button class="dr-portrait dr-make" data-dr-make>＋ Make a cat</button>'
+    : '<div class="dr-portrait dr-make full" aria-disabled="true">3 of 3 — change one of yours for a new look</div>';
+}
+
 function slotHtml(s, openSlot, picker, thumbs) {
   const open = openSlot === s.slot;
   return `<button class="dr-slot ${s.itemId ? '' : 'empty'} ${open ? 'open' : ''} ${s.trying ? 'trying' : ''}" data-dr-slot="${escapeHtml(s.slot)}" aria-expanded="${open}">`
@@ -192,7 +222,7 @@ function placeHtml(p) {
   const sub = p.selected ? 'today’s walk' : p.owned ? 'tap to walk here' : p.lockLine;
   const cant = !p.owned && !p.locked && !p.canBuy;
   return `<button class="dr-place ${p.selected ? 'sel' : ''} ${p.locked ? 'locked' : ''} ${cant ? 'cant' : ''}" data-dr-place="${escapeHtml(p.id)}">`
-    + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.remove()">`
+    + `<img src="${escapeHtml(PLACE_PICTURE(p.id))}" alt="" onerror="this.style.display='none'">`
     + `<span class="cap">${escapeHtml(p.name)}<small>${escapeHtml(sub)}</small></span></button>`;
 }
 
@@ -203,21 +233,38 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   const pill = PILLS.some(([id]) => id === ui.pill) ? ui.pill : 'wearing';
   const openSlot = m.slots.some((s) => s.slot === ui.openSlot) ? ui.openSlot : null;
   const h = m.hero;
-  const buy = h.owned ? ''
+  const building = typeof ui.builderHtml === 'string' && ui.builderHtml !== '';
+  const buy = building ? ''
+    : h.custom ? `<button class="dr-hero-edit" data-dr-edit="${escapeHtml(h.id)}">✏️ Change my cat</button>`
+    : h.owned ? ''
     : h.canBuy ? `<button class="dr-hero-buy" data-dr-buy-cat="${escapeHtml(h.id)}">Unlock — ${h.price} 🐾</button>`
       : `<span class="dr-hero-price">${h.price} 🐾</span>`;
   const sheetButtons = (Array.isArray(sheets) ? sheets : []).map(resolveSheet).filter(Boolean)
     .map((id) => `<button class="dr-ghost" data-dr-sheet="${id}">${escapeHtml(SHEET_LABEL[id])}</button>`).join('');
   const pillLabel = (id, label) => (id === 'wearing' ? `${label} ${m.wearingCount}` : label);
+  const heroName = building ? (ui.heroName || 'Your cat') : h.name;
+  const heroBlurb = building ? (ui.heroBlurb ?? '') : h.blurb;
+  const heroHtml = `<section class="dr-hero">
+    <div class="dr-stage" id="dr-stage">
+      <div class="dr-spin-hint">↔ drag to spin</div>
+      <div class="dr-hero-text"><div class="dr-hero-name">${escapeHtml(heroName)}</div><div class="dr-hero-blurb">${escapeHtml(heroBlurb)}</div>${buy}</div>
+    </div>`;
+
+  // The builder (Task 8) keeps the header and the one stage; its rows replace
+  // the strip, the pills, every panel, the extras and the Start dock.
+  if (building) {
+    return `<div class="dr dr-building" id="dr" data-pill="${pill}">
+  <header class="dr-header">${headerHtml}<div class="dr-stats">${statsHtml}</div></header>
+  ${heroHtml}
+  </section>
+  ${ui.builderHtml}
+</div>`;
+  }
 
   return `<div class="dr dr-pill-${pill}" id="dr" data-pill="${pill}">
   <header class="dr-header">${headerHtml}<div class="dr-stats">${statsHtml}</div></header>
-  <section class="dr-hero">
-    <div class="dr-stage" id="dr-stage">
-      <div class="dr-spin-hint">↔ drag to spin</div>
-      <div class="dr-hero-text"><div class="dr-hero-name">${escapeHtml(h.name)}</div><div class="dr-hero-blurb">${escapeHtml(h.blurb)}</div>${buy}</div>
-    </div>
-    <div class="dr-strip">${m.cats.map((c) => portraitHtml(c, thumbs)).join('')}</div>
+  ${heroHtml}
+    <div class="dr-strip">${m.cats.map((c) => portraitHtml(c, thumbs)).join('')}${(m.mine ?? []).map((c) => mineHtml(c, thumbs)).join('')}${m.canMake === undefined ? '' : makeHtml(m.canMake)}</div>
   </section>
   <div class="dr-pills">${PILLS.map(([id, label]) => `<button data-dr-pill="${id}" aria-pressed="${id === pill}">${pillLabel(id, label)}</button>`).join('')}</div>
   <section class="dr-wearing" data-panel="wearing">
@@ -237,7 +284,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   <section class="dr-more" data-panel="more">${sheetButtons}</section>
   <section class="dr-extras">${extrasHtml}</section>
   <footer class="dr-dock">
-    <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.remove()">Walking in <b>${escapeHtml(m.currentPlace.name)}</b></div>
+    <div class="where"><img src="${escapeHtml(PLACE_PICTURE(m.currentPlace.id))}" alt="" onerror="this.style.display='none'">Walking in <b>${escapeHtml(m.currentPlace.name)}</b></div>
     ${startHtml}
   </footer>
 </div>`;
