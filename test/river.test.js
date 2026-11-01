@@ -693,3 +693,22 @@ describe('the River: reeds and lily pads', () => {
     }
   });
 });
+
+describe('the Old Willow and the wind', () => {
+  it('is built without wind, so its limb and golden mouse never part', () => {
+    const added = [];
+    const wind = { add: (obj) => { added.push(obj); } };
+    const sc = new THREE.Scene();
+    build(sc, { wind });
+    const old = sc.getObjectByName('oldWillow');
+    expect(old).toBeTruthy();
+    // Other willows and trees do sway, so the stub is really being used.
+    expect(added.length).toBeGreaterThan(10);
+    // Nothing registered is the Old Willow or sits inside it (its limb).
+    for (const obj of added) {
+      expect(obj).not.toBe(old);
+      let p = obj;
+      while (p) { expect(p).not.toBe(old); p = p.parent; }
+    }
+  });
+});

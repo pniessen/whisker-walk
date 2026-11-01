@@ -1421,7 +1421,16 @@ finds re-roll):
 | neighborhood | 1,347 | 333 | 1,000 | 163,562 |
 
 The River sits between the Woods and the Neighborhood. Its extra scene
-draws over the Woods are the reeds, pads and pools seen across open ground.
+draws over the Woods (424 against 173) are not the reeds, pads and pools:
+those are about 5 draws, one each. After merging, the River's static scene is
+157 draws against the Woods' 170. The likely cause is the spawn view (not
+measured per object). Both cats start facing north; the Woods' spawn is
+(44, 12), so the camera looks across about 62 m of map, while the River's is
+(44, 40) and looks up the whole 90 m. The HIGH tier scatters 22 strays over
++/-35 m, each about 25 meshes, so roughly 10 are in frame at the River's spawn
+against about 4 at the Woods' (about 150 draws more), plus more scenery. That
+fits the shadow pass barely differing (302 against 279) and the narrow phone
+screen dropping the River's scene draws to 144.
 On a 750x1624 phone portrait view the River spawn was 444 draws (shadow 286,
 scene 144, 106,796 triangles). These are the desktop and emulated-phone
 numbers only; the iPhone reading is still the owner's step.
@@ -1440,7 +1449,8 @@ leaving east, matching the Woods' west edge. The card picture is the pool-1
 view (lily pads, reeds, willows); the bank-path view was mostly bare grass.
 
 **Not checked.** Holding keys to walk (the automated browser can't), the
-reedbed from inside on foot, iPhone fps and thermals, dusk and rain audio by
+reedbed from inside on foot, the corner map's waters and decks (only the path
+and edge near the spawn were seen), the horizon's side tints by eye, iPhone fps and thermals, dusk and rain audio by
 ear. The golden-mice counter reads "0 of 18" in both editions: Legacy counts
 mice it can't reach, a pattern left over from the Woods.
 
@@ -1448,6 +1458,6 @@ mice it can't reach, a pattern left over from the Woods.
 - The west reedbed reads thin live: scattered single stalks over grass, not
   a bed (215 clumps over about 930 m2). More or denser clumps would cost
   little, but it is a taste call, so it is not changed here.
-- The pools read silver from above because they reflect the sky. Fine on
-  foot; flat from the scenic and card angles.
+- The pools read silver from above because they reflect the sky. Flat from
+  the scenic and card angles; not seen from on foot.
 - The island bridge reads only as a thin line from the lake-island scenic.
