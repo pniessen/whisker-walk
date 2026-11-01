@@ -43,6 +43,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -164,6 +165,7 @@ const WATERED = {
   woods: buildWith(buildWoods),
   river: buildWith(buildRiver),
   moor: buildWith(buildMoor),
+  pines: buildWith(buildPines),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -678,6 +680,31 @@ describe("nearestDry where the Moor's waters touch", () => {
     [-36, 0, 'that corner'],
     [-37.5, 9, 'where the mouth overlaps the lake'],
     [-34.6, 7.6, 'the bank between the mouth and the lake'],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+});
+
+// The Pines has three overlap zones: the Black Mire's corner, where its two
+// reaches meet, the bay over the lake (and the two land pockets beside it),
+// and the bogs. Same margins as the Woods block.
+describe("nearestDry where the Pines' waters touch", () => {
+  const waters = WATERED.pines.area.waters;
+  const SPOTS = [
+    [-32.6, -11.6, "the deep swamp's bank at the mire's inside corner"],
+    [-30, -8.5, "the corner's water"],
+    [-26.4, -5.4, 'the bank at its outside corner'],
+    [28, 6.5, 'the bay north of the lake'],
+    [30.4, 7.6, 'the land pocket between the bay and the lake'],
+    [25.6, 44.4, "the pocket at the bay's south-east"],
+    [-36.3, 16, "bog-1's bank"],
   ];
   for (const [x, z, where] of SPOTS) {
     for (const margin of [0.35, 0.5, 0.6]) {

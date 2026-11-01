@@ -32,6 +32,7 @@ const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -143,6 +144,7 @@ const AREAS = [
   ['woods', buildWoods, 450, 380, 60000],
   ['river', buildRiver, 450, 380, 60000],
   ['moor', buildMoor, 450, 380, 60000],
+  ['pines', buildPines, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
