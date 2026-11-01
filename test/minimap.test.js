@@ -418,6 +418,13 @@ describe('createMinimap', () => {
     expect(canvas.fills).toContain('#2a2a30');
   });
 
+  it('draws a camp past the rim at the rim, in its colour with a white outline', () => {
+    const { map, canvas } = makeMap();
+    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, camp: { x: 900, z: 0, color: '#3f7d3a' } });
+    expect(canvas.fills).toContain('#3f7d3a');
+    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, camp: null });
+  });
+
   it('draws markers past the rim without throwing, and hide/show toggle the canvas', () => {
     const { map, canvas } = makeMap();
     const frame = {

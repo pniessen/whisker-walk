@@ -48,6 +48,8 @@ export function pinToRim(p, radiusPx, inset) {
 // marker; the painter always draws it at the centre.
 export function mapMarkers(frame) {
   const out = [];
+  // The clan's camp goes first so every other marker draws over it.
+  if (frame.camp) out.push({ kind: 'camp', x: frame.camp.x, z: frame.camp.z, color: frame.camp.color });
   const race = frame.race;
   if (race && race.state === 'running') {
     // currentRing is 1-based: bright for the next ring, dim for the one after.

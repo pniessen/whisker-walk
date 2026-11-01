@@ -288,6 +288,23 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
         ctx.strokeStyle = STAR;
         ctx.stroke();
       }
+    } else if (m.kind === 'camp') {
+      // A small dome with a dark door, in the clan's colour.
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y + 4);
+      ctx.arc(x, y + 4, 6, Math.PI, 0);
+      ctx.closePath();
+      ctx.fillStyle = cssColor(m.color);
+      ctx.fill();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y + 4);
+      ctx.arc(x, y + 4, 2, Math.PI, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#2a2018';
+      ctx.fill();
     } else if (m.kind === 'remote') {
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);

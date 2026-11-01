@@ -33,7 +33,7 @@ import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
-import { castFor, clanCountFor, lonersFor, roamHomes } from '../clancast.js';
+import { castFor, CLAN_COLOURS, clanCountFor, lonersFor, roamHomes } from '../clancast.js';
 import { campLayout } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { createRemoteCats } from '../remotecats.js';
@@ -861,6 +861,11 @@ export function createWalkLifecycle({
       reducedMotion,
       onBuddyEnd: (cat, reason, secs) => onClanBuddyEnd(cat, reason, secs),
     }) : NO_CLAN_CATS;
+    // The camp on the corner map (Clan Edition only; Legacy shows no clan layer).
+    const campAt = clanCast.length ? campLayout(areaId) : null;
+    const campMarker = !isDen && campAt && isClanEdition(state)
+      ? { x: campAt.cx, z: campAt.cz, color: CLAN_COLOURS[areaId] }
+      : null;
     const remotes = createRemoteCats(scene, { reducedMotion });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
@@ -1114,6 +1119,7 @@ export function createWalkLifecycle({
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
+      campMarker,
       // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
       // collar for solo walks — see where duskActive is computed above).
       // endWalk needs it for the duskWalks tally that Night Eyes reads;

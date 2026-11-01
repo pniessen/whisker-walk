@@ -632,7 +632,7 @@ function init() {
   const mapView = { cx: 0, cz: 0, heading: 0 };
   const mapRemotes = [];
   const mapRemotePool = [];
-  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes };
+  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -882,6 +882,7 @@ function init() {
         mapFrame.quest = session.quest;
         mapFrame.scenics = session.areaData.scenics;
         mapFrame.visitedScenics = session.scenicsVisited;
+        mapFrame.camp = session.campMarker;
         mapRemotes.length = 0;
         for (const r of session.remotes.list) {
           let dot = mapRemotePool[mapRemotes.length];

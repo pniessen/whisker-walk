@@ -236,6 +236,14 @@ describe('the clan in the walk (source pins)', () => {
     expect(call).toContain('showNames: isClanEdition(');
   });
 
+  it('joins campMarker to the session literal, never assigned before it exists', () => {
+    const w = readFileSync('src/game/walk.js', 'utf8');
+    const literal = w.indexOf('const session = {');
+    expect(w.slice(0, literal)).not.toMatch(/session\.campMarker\s*=/);
+    expect(w.slice(literal, literal + 4000)).toMatch(/\bcampMarker,/);
+    expect(readFileSync('src/main.js', 'utf8')).toContain('mapFrame.camp = session.campMarker');
+  });
+
   it('joins clanCats to the session literal, never assigned before it exists', () => {
     const s = src();
     const literal = s.indexOf('const session = {');

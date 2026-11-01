@@ -65,6 +65,24 @@ describe('mapRadiusFor', () => {
   });
 });
 
+describe('mapMarkers camp', () => {
+  const base = { race: null, quest: null, scenics: [{ id: 's', x: 3, z: 3 }], visitedScenics: new Set(), remotes: [{ x: 1, z: 1, color: 0 }] };
+  it('puts the camp first, so every other marker draws over it', () => {
+    const ms = mapMarkers({ ...base, camp: { x: 1, z: 2, color: '#000' } });
+    expect(ms[0]).toEqual({ kind: 'camp', x: 1, z: 2, color: '#000' });
+    expect(ms.length).toBeGreaterThan(1);
+  });
+  it('has no camp marker without a camp', () => {
+    expect(mapMarkers({ ...base, camp: null }).some((m) => m.kind === 'camp')).toBe(false);
+    expect(mapMarkers(base).some((m) => m.kind === 'camp')).toBe(false);
+  });
+  it('a far camp pins to the rim like the other markers', () => {
+    const view = { cx: 0, cz: 0, radiusPx: 50, radiusM: 35, mode: 'north' };
+    const p = pinToRim(toMap(500, 0, view), view.radiusPx, 6);
+    expect(Math.hypot(p.u, p.v)).toBeCloseTo(44, 5);
+  });
+});
+
 describe('mapMarkers', () => {
   const rings = [1, 2, 3, 4, 5].map((i) => ({ x: i * 10, z: -i * 10 }));
   const pad = { x: 3, z: 4 };

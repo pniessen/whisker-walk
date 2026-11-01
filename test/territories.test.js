@@ -18,6 +18,7 @@ function clanState() {
     area: 'neighborhood',
   };
 }
+const clanOf = (s, id) => region(territoryMapModel(s, CATALOG), id).camp;
 const region = (m, id) => m.regions.find((r) => r.id === id);
 // The markup of one region: from its <g ... data-region="id"> to the next region.
 function regionHtml(html, id) {
@@ -190,5 +191,45 @@ describe('territories', () => {
     const html = renderTerritoryMapHtml(territoryMapModel(clanState(), catalog));
     expect(html).toContain('&lt;b&gt;');
     expect(html).not.toContain('<b>');
+  });
+});
+
+describe('camps on the territory map', () => {
+  const pick = (mine, partner = null) => ({ ...clanState(), clanPick: { mine, partner, partnerId: partner ? 'p1' : null }, colony: { partner: partner ? { playerId: 'p1' } : null } });
+  it('Clan Edition marks your clan\'s camp as mine and the others as not', () => {
+    const s = pick('woods');
+    expect(clanOf(s, 'woods')).toMatchObject({ mine: true, ally: false, color: '#3f7d3a' });
+    expect(clanOf(s, 'river').mine).toBe(false);
+  });
+  it('the sibling\'s pick is the ally', () => {
+    const s = pick('woods', 'river');
+    expect(clanOf(s, 'river')).toMatchObject({ mine: false, ally: true });
+    expect(clanOf(s, 'moor').ally).toBe(false);
+  });
+  it('Legacy gives every region no camp', () => {
+    const m = territoryMapModel({ ...pick('woods'), edition: 'legacy' }, CATALOG);
+    for (const r of m.regions) expect(r.camp).toBeNull();
+  });
+  it('the pines region has a camp, the island region and the town do not', () => {
+    const s = clanState();
+    expect(clanOf(s, 'pines')).not.toBeNull();
+    expect(territoryMapModel(s, CATALOG).island.camp ?? null).toBeNull();
+    expect(clanOf(s, 'town')).toBeNull();
+    expect(clanOf(s, 'gorge')).toBeNull();
+  });
+  it('every camp sits inside its own region', () => {
+    const m = territoryMapModel(clanState(), CATALOG);
+    for (const r of m.regions.filter((x) => x.camp)) {
+      expect(Math.hypot(r.camp.x - r.x, r.camp.y - r.y)).toBeLessThan(r.r);
+    }
+  });
+  it('draws a camp group per camp, after the tap target, with a name title', () => {
+    const html = renderTerritoryMapHtml(territoryMapModel(pick('woods', 'river'), CATALOG));
+    const w = regionHtml(html, 'woods');
+    expect(w).toContain('class="tm-camp mine"');
+    expect(w.indexOf('tm-hit')).toBeLessThan(w.indexOf('tm-camp'));
+    expect(regionHtml(html, 'river')).toContain('class="tm-camp ally"');
+    expect(regionHtml(html, 'moor')).toContain('class="tm-camp"');
+    expect(regionHtml(html, 'town')).not.toContain('tm-camp');
   });
 });
