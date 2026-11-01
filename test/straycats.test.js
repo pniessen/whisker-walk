@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
-  createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES, legendPulse,
+  createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES, legendPulse, strayStream,
 } from '../src/straycats.js';
 import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
@@ -1259,5 +1259,163 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     // And none of it inside the rival's slice.
     const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
     expect(slice).not.toMatch(/legend/i);
+  });
+});
+
+// Island Task 3: an area can name places its strays never stand. Literal
+// shapes, the same numbers the Pines' ISLAND_KEEP_OUT will carry.
+describe('the keep-out — places a walk\'s strays never stand', () => {
+  const KO = {
+    rects: [{ minX: 26, maxX: 86, minZ: 8, maxZ: 66 }, { minX: 0, maxX: 30, minZ: 5, maxZ: 44 }],
+    capsules: [{ x1: 20.56, z1: 18.08, x2: 10.0, z2: 4.0, r: 1.5 }],
+    margin: 0.6,
+  };
+  const KO_AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, keepOut: KO };
+  const EPS = 1e-9;
+  function outside(x, z) {
+    for (const r of KO.rects) {
+      const dx = Math.max(r.minX - x, 0, x - r.maxX);
+      const dz = Math.max(r.minZ - z, 0, z - r.maxZ);
+      if (Math.hypot(dx, dz) < KO.margin - EPS) return false;
+    }
+    for (const c of KO.capsules) {
+      const sx = c.x2 - c.x1, sz = c.z2 - c.z1;
+      const t = Math.max(0, Math.min(1, ((x - c.x1) * sx + (z - c.z1) * sz) / (sx * sx + sz * sz)));
+      if (Math.hypot(x - (c.x1 + sx * t), z - (c.z1 + sz * t)) < c.r - EPS) return false;
+    }
+    return true;
+  }
+  const v = (x, z) => new THREE.Vector3(x, 0, z);
+  const ISLAND = v(28, 28);
+  const BRIDGE = v(15.28, 11.04);
+  const FOOT = v(10.6, 4.8);
+
+  it('strays on an area with a keep-out never stand in it', () => {
+    let bad = null;
+    for (let seed = 1; seed <= 200; seed++) {
+      const cats = createStrayCats(fakeScene(), KO_AREA, 3, strayStream(seed), { roomSeed: seed });
+      const [a, b, c] = cats.strays;
+      const where = (s, i) => `seed ${seed} frame ${i} ${s.name} at (${s.group.position.x}, ${s.group.position.z})`;
+      for (const s of cats.strays) {
+        expect(outside(s.group.position.x, s.group.position.z), where(s, -1)).toBe(true);
+        expect(outside(s.home.x, s.home.z), where(s, -1)).toBe(true);
+      }
+      let toy = null;
+      for (let i = 0; i < 3600; i++) {
+        const t = i / 30;
+        let catPos = t < 40 ? ISLAND : t < 80 ? BRIDGE : FOOT;
+        let catSpeed = 0;
+        // A toy thrown onto the island, then one into the lake's corner, with
+        // a playful stray standing on the shore close enough to chase it.
+        if (i === 60) toy = { active: true, mesh: { position: v(28, 28) }, bat() {} };
+        if (i === 150) {
+          b.personality = 'playful';
+          b.state = 'idle';
+          b.group.position.set(30.8, 0, 3.0);
+          toy = { active: true, mesh: { position: v(27, 9) }, bat() {} };
+        }
+        if (i === 240) toy = null;
+        // A shy stray on the shore, scurrying from a fast approach, away from
+        // the cat and straight at the bay.
+        if (i === 300) {
+          a.personality = 'shy';
+          a.state = 'idle';
+          a.scurry = 0;
+          a.group.position.set(24, 0, 3.6);
+          catPos = v(24, 2);
+          catSpeed = 3;
+        }
+        // A cross cat recoiling away from the cat, towards the water.
+        if (i === 600) {
+          c.group.position.set(20, 0, 3.9);
+          cats.turnHostile(c, v(20, 2.4));
+          expect(outside(c.group.position.x, c.group.position.z), where(c, i)).toBe(true);
+        }
+        // A Far Call from the island. No stray outside the keep-out is in
+        // its band (the nearest clear ground is over 22 m away), so a second
+        // call comes from the bridge, with a stray waiting on the shore below.
+        if (i === 900) {
+          cats.reactToMeow(v(28, 30), { far: true });
+          a.group.position.set(15.28, 0, -2);
+          a.scurry = 0;
+          cats.reactToMeow(BRIDGE, { far: true });
+          expect(a.state, where(a, i)).toBe('wander');
+          for (const s of cats.strays) {
+            if (s.target) expect(outside(s.target.x, s.target.z), `target: ${where(s, i)}`).toBe(true);
+          }
+        }
+        cats.update(1 / 30, t, catPos, { stalking: false, catSpeed, toy });
+        // Checked by hand and reported once: an expect per stray per frame
+        // is millions of them over the run.
+        for (const s of cats.strays) {
+          if (!outside(s.group.position.x, s.group.position.z)) bad ??= where(s, i);
+          if (s.target && !outside(s.target.x, s.target.z)) bad ??= `target (${s.target.x}, ${s.target.z}): ${where(s, i)}`;
+        }
+      }
+    }
+    expect(bad).toBe(null);
+  }, 60000);
+
+  it('a colony cat stored inside the keep-out is moved out of it, and so is its home', () => {
+    const name = CAT_NAMES[0];
+    const cats = createStrayCats(fakeScene(), KO_AREA, 3, mulberry32(7), {
+      colonyCats: [{ name, x: 40, z: 40, wear: null }],
+    });
+    const s = cats.strays.find((x) => x.name === name);
+    expect(s.colony).toBe(true);
+    expect(outside(s.group.position.x, s.group.position.z)).toBe(true);
+    expect(s.home.x).toBe(s.group.position.x);
+    expect(s.home.z).toBe(s.group.position.z);
+  });
+
+  it('a legendary extra rolled inside the keep-out is moved out of it, and so is its home', () => {
+    // 0.9 of the way across 0.7 x the bounds is (28, 28): the island.
+    const name = LEGENDARY_NAMES[0];
+    const cats = createStrayCats(fakeScene(), KO_AREA, 1, mulberry32(7), { extras: [{ name, rng: () => 0.9 }] });
+    const s = cats.strays.find((x) => x.name === name);
+    expect(outside(s.group.position.x, s.group.position.z)).toBe(true);
+    expect(s.home.x).toBe(s.group.position.x);
+    expect(s.home.z).toBe(s.group.position.z);
+  });
+
+  it('a wander target drawn from home never lands inside the keep-out', () => {
+    const cats = createStrayCats(fakeScene(), KO_AREA, 1, mulberry32(3), { roomSeed: 3 });
+    const s = cats.strays[0];
+    s.personality = 'bold';
+    // Homes on the shore, every one of them within a wander's reach of water.
+    const homes = [[24, 2], [31, 4], [-1.5, 20], [25, 46], [8, 2]];
+    for (const [hx, hz] of homes) {
+      for (let k = 0; k < 200; k++) {
+        s.home.set(hx, 0, hz);
+        s.group.position.set(hx, 0, hz);
+        s.state = 'idle';
+        s.timer = 0;
+        cats.update(1 / 30, k, FAR, NO_OPTS);
+        expect(s.state).toBe('wander');
+        expect(outside(s.target.x, s.target.z), `home (${hx}, ${hz}) target (${s.target.x}, ${s.target.z})`).toBe(true);
+      }
+    }
+  });
+
+  it('without a keep-out, the Woods\' strays stand exactly where they did', () => {
+    // The Woods' bounds (woods.js BOUNDS), and the old spawn formula: after
+    // the name shuffle's draws, each stray takes x, z, facing, personality
+    // and timer, and stands at lerp(0.7 x the bounds, x) and the same for z.
+    const WOODS = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 } };
+    const b = WOODS.bounds;
+    for (let seed = 1; seed <= 20; seed++) {
+      const r = strayStream(seed);
+      for (let k = 0; k < CAT_NAMES.length - 1; k++) r();
+      const snapshot = [];
+      for (let i = 0; i < 3; i++) {
+        const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, r());
+        const z = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, r());
+        r(); r(); r();
+        snapshot.push([x, z]);
+      }
+      const cats = createStrayCats(fakeScene(), WOODS, 3, strayStream(seed), { roomSeed: seed });
+      expect(cats.strays.map((s) => [s.group.position.x, s.group.position.z])).toEqual(snapshot);
+      expect(cats.strays.map((s) => [s.home.x, s.home.z])).toEqual(snapshot);
+    }
   });
 });
