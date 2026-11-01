@@ -3493,17 +3493,29 @@ export function onDeck(w, x, z) {
 // Signed distance from (x, z) to the nearest deck of any of these waters:
 // negative inside (how far in from the nearest edge), positive outside, and
 // Infinity where there are no decks. Beside onDeck: when onDeck learns a new
-// kind of deck, this must too. It handles rect decks only; the guard in
-// test/shore.test.js ("uses only shapes the shore and deck code understand") enforces that.
+// kind of deck, this must too. A strip is measured in its own frame, as the
+// rectangle onOneDeck reads (flat at both ends, not a capsule), so its sign
+// agrees with onDeck everywhere but onOneDeck's STRIP_EPS of slack. Any other
+// shape fails the guard in test/shore.test.js ("uses only shapes the shore
+// and deck code understand").
+function boxDistance(dx, dz) {
+  return dx > 0 || dz > 0
+    ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
+    : Math.max(dx, dz);
+}
+function oneDeckDistance(d, x, z) {
+  if (!isStrip(d)) return boxDistance(Math.max(d.minX - x, x - d.maxX), Math.max(d.minZ - z, z - d.maxZ));
+  const f = stripFrame(d);
+  const px = x - f.ax, pz = z - f.az;
+  const t = px * f.ux + pz * f.uz;
+  const s = px * f.nx + pz * f.nz;
+  return boxDistance(Math.max(-t, t - f.len), Math.abs(s) - d.halfW);
+}
 export function deckDistance(waters, x, z) {
   let min = Infinity;
   for (const w of waters ?? []) {
     for (const d of w.decks ?? []) {
-      const dx = Math.max(d.minX - x, x - d.maxX);
-      const dz = Math.max(d.minZ - z, z - d.maxZ);
-      const g = dx > 0 || dz > 0
-        ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
-        : Math.max(dx, dz);
+      const g = oneDeckDistance(d, x, z);
       if (g < min) min = g;
     }
   }

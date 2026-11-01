@@ -152,6 +152,58 @@ describe('deckDistance', () => {
     expect(deckDistance([{ id: 'c', kind: 'circle', x: 0, z: 0, r: 5 }], 0, 0)).toBe(Infinity);
     expect(deckDistance(undefined, 0, 0)).toBe(Infinity);
   });
+
+  // A strip deck is an oriented rectangle in its own frame, flat at both ends
+  // (not a capsule), exactly as onDeck reads it.
+  const strip = { x1: 0, z1: 0, x2: 6, z2: 8, halfW: 1 };
+  const stripWater = [{ id: 's', kind: 'rect', minX: -20, maxX: 20, minZ: -20, maxZ: 20, decks: [strip] }];
+  // Frame: along u = (0.6, 0.8), length 10; side n = (-0.8, 0.6).
+  const at = (t, s) => [t * 0.6 + s * -0.8, t * 0.8 + s * 0.6];
+
+  it('a strip deck: signed distance in its own frame', () => {
+    const cases = [
+      [5, 0, -1], // the middle: 1 m in from either side
+      [0.4, 0, -0.4], // near end 1: the end is nearer than the sides
+      [9.7, 0.5, -0.3], // near end 2
+      [5, 1.5, 0.5], // off a side
+      [-2, 0, 2], // past end 1: flat, not a capsule
+      [12, 0, 2], // past end 2
+      [-3, 5, 5], // off the corner (end 1, side +): hypot(3, 4)
+      [13, -5, 5], // off the corner (end 2, side -): hypot(3, 4)
+    ];
+    for (const [t, s, want] of cases) {
+      const [x, z] = at(t, s);
+      expect(deckDistance(stripWater, x, z), `t ${t}, s ${s}`).toBeCloseTo(want, 9);
+    }
+  });
+
+  it("a strip deck: deckDistance's sign agrees with onDeck everywhere, ends and corners included", () => {
+    const w = stripWater[0];
+    let checked = 0;
+    for (let t = -2; t <= 12; t += 0.13) {
+      for (let s = -2.5; s <= 2.5; s += 0.11) {
+        const [x, z] = at(t, s);
+        const d = deckDistance(stripWater, x, z);
+        if (Math.abs(d) < 1e-6) continue;
+        expect(d <= 0, `t ${t.toFixed(2)}, s ${s.toFixed(2)}`).toBe(onDeck(w, x, z));
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(4000);
+    // exactly on an end or a side counts as on the deck, for both
+    for (const [t, s] of [[0, 0], [10, 0], [5, 1], [0, -1], [10, 1]]) {
+      const [x, z] = at(t, s);
+      expect(onDeck(w, x, z)).toBe(true);
+      expect(deckDistance(stripWater, x, z)).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('a strip deck and a rect deck: the nearer one wins', () => {
+    const waters = [{ ...stripWater[0], decks: [strip, { minX: 10, maxX: 12, minZ: -1, maxZ: 1 }] }];
+    expect(deckDistance(waters, 9, 0)).toBeCloseTo(1, 9); // the rect's west edge
+    const [x, z] = at(5, 0);
+    expect(deckDistance(waters, x, z)).toBeCloseTo(-1, 9);
+  });
 });
 
 describe('shallow widths', () => {
