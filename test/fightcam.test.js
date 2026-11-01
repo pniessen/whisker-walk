@@ -19,7 +19,7 @@ vi.stubGlobal('document', {
 
 const b = await import('../src/world/builder.js');
 const {
-  findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints,
+  findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear,
 } = await import('../src/fightcam.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
@@ -223,7 +223,7 @@ describe('chooseFightView', () => {
     const subj = subject(me, it);
     for (const frame of [PORTRAIT, LAND, DESK]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1, ...frame });
-      for (const p of subjectPoints(subj, false)) {
+      for (const p of framePoints(subj)) {
         const q = projectPoint(v, p, frame.aspect, frame.fovY);
         expect(q.x).toBeGreaterThanOrEqual(-FIGHT_FRAME.x);
         expect(q.x).toBeLessThanOrEqual(FIGHT_FRAME.x);
@@ -395,6 +395,14 @@ describe('createFightCam (the blend)', () => {
   });
 });
 
+test('the frame holds each cat\'s whole body (nose to tail), not just its middle', () => {
+  const pts = framePoints({ me: [{ x: 0, z: 0 }], it: [], path: [] });
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    expect(pts.some((p) => Math.abs(p.x - dx * CAT_BODY) < 1e-9 && Math.abs(p.z - dz * CAT_BODY) < 1e-9)).toBe(true);
+  }
+  expect(CAT_BODY).toBeGreaterThanOrEqual(0.55);
+});
+
 test('the cat heights cover paws to a pouncing head', () => {
   expect(Math.min(...CAT_HEIGHTS)).toBeLessThanOrEqual(0.1);
   expect(Math.max(...CAT_HEIGHTS)).toBeGreaterThanOrEqual(0.8);
@@ -433,7 +441,7 @@ describe('camera moves are checked: ease only when every step of it is clear', (
         fc.update(1 / 60, { subject: sj, camera: cam, cat: me });
         const shown = { pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z }, look: cam.looked };
         const left = occ.filter((o) => !o.obj || o.obj.visible !== false);
-        for (const p of subjectPoints(sj, false)) {
+        for (const p of framePoints(sj)) {
           const q = projectPoint(shown, p, frame.aspect, frame.fovY);
           expect(Math.abs(q.x) <= FIGHT_FRAME.x && q.y >= FIGHT_FRAME.bottom && q.y <= FIGHT_FRAME.top, `frame ${frames} out of frame`).toBe(true);
           expect(firstBlocker(shown.pos, p, left), `frame ${frames} a tree in the way`).toBe(null);

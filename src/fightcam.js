@@ -169,6 +169,23 @@ export function subjectPoints(subject, withPath = false) {
   return out;
 }
 
+// A cat is no point: from its middle its nose and its tail reach about this
+// far (the head sits 0.4 m forward, the tail as far back), whichever way it
+// faces. The frame holds that much round each spot, at body height.
+export const CAT_BODY = 0.55;
+
+// The points that must be on screen above the sheet: subjectPoints (no run),
+// plus each spot's body reach in the four directions at body height.
+export function framePoints(subject) {
+  const out = subjectPoints(subject, false);
+  const y = CAT_HEIGHTS[1];
+  for (const p of [...subject.me, ...subject.it]) {
+    out.push({ x: p.x + CAT_BODY, y, z: p.z }, { x: p.x - CAT_BODY, y, z: p.z },
+      { x: p.x, y, z: p.z + CAT_BODY }, { x: p.x, y, z: p.z - CAT_BODY });
+  }
+  return out;
+}
+
 // --- one view ----------------------------------------------------------------
 
 // The view from `pos` with the pair's middle AIM_Y up the screen.
@@ -243,7 +260,7 @@ function candidates(subject, yaw0, ring0) {
 export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70 }) {
   const { mid } = subject;
   const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= REACH + o.R);
-  const framePts = subjectPoints(subject, false);
+  const framePts = framePoints(subject);
   const seePts = subjectPoints(subject, true);
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
@@ -308,7 +325,7 @@ export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8
 // the frame above the sheet and every line to them clear of the trees, at
 // every BLEND_SAMPLES point. If not, the camera cuts instead of easing.
 export function blendClear(from, to, subject, occluders, aspect, fovY) {
-  const framePts = subjectPoints(subject, false);
+  const framePts = framePoints(subject);
   const seePts = subjectPoints(subject, true);
   // only the trees within reach of the move's lines: inside a circle round
   // the pair's middle that holds both ends of the move
