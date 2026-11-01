@@ -113,3 +113,19 @@ test('the caps are still unchanged with the Moor feeding', () => {
 test('the caps are still unchanged with the Pines feeding', () => {
   expect([COLONY_MAX, SOLO_MAX]).toEqual([24, 12]);
 });
+
+describe('kittypets keep every promise', () => {
+  test('feeding and taming a kittypet stores its own name, and flipping the edition changes nothing', () => {
+    const p = load();
+    for (let i = 0; i < 6; i++) p.feedColonyCat({ name: 'Clementine', by: ME, walk: `walk-${900 + i}`, area: 'woods', x: 3, z: 4 });
+    const cat = p.state.colony.cats.find((c) => c.name === 'Clementine');
+    expect(cat).toMatchObject({ name: 'Clementine', area: 'woods', tamedBy: ME });
+    const { edition: _a, ...before } = structuredClone(p.state);
+    p.setEdition('legacy'); p.setEdition('canon');
+    const { edition: _b, ...after } = p.state;
+    expect(after).toEqual(before);
+  });
+  test('the caps are unchanged by kittypets', () => {
+    expect([COLONY_MAX, SOLO_MAX]).toEqual([24, 12]);
+  });
+});
