@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { TORSO, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
+import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -183,7 +183,7 @@ const PATCH_UP = new THREE.Vector3(0, 1, 0);
 // halfX/halfZ are TANGENT half-extents at the pole, in units of the sphere
 // radius, so 1.0 is a patch that reaches 45 degrees from its centre — a stripe
 // wrapping well down the flank — and 0.2 is a small spot.
-function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
+function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, deform = null) {
   const pos = [0, r * PATCH_LIFT, 0]; // centre vertex at the pole
   const nor = [0, 1, 0];
   const idx = [];
@@ -218,6 +218,19 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
   // normal attribute with it.
   geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(
     PATCH_UP, new THREE.Vector3(...dir).normalize()));
+  if (deform) {
+    // Host surfaces that are not spheres (the torso): push each unit direction
+    // through the host's deformation, then out to r x lift.
+    const p = geo.attributes.position;
+    const unit = new Float32Array(p.count * 3);
+    geo.userData.unit = unit; // each vertex's undeformed direction
+    for (let i = 0; i < p.count; i++) {
+      const L = Math.hypot(p.getX(i), p.getY(i), p.getZ(i));
+      unit[i * 3] = p.getX(i) / L; unit[i * 3 + 1] = p.getY(i) / L; unit[i * 3 + 2] = p.getZ(i) / L;
+      const [x, y, z] = deform(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]);
+      p.setXYZ(i, x * r * PATCH_LIFT, y * r * PATCH_LIFT, z * r * PATCH_LIFT);
+    }
+  }
   return geo;
 }
 
@@ -225,9 +238,12 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
 // wave's mesh delta is negative rather than zero: a tabby's stripes were three
 // meshes and are now one, and the cow cat's two body patches are now one.
 // Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
-function addMarking(host, r, color, patches) {
-  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ));
+function addMarking(host, r, color, patches, deform = null) {
+  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18, deform));
   const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
+  if (deform && geos.length > 1) {
+    geo.userData.unit = new Float32Array(geos.flatMap((g) => Array.from(g.userData.unit)));
+  }
   host.add(new THREE.Mesh(geo, mat(color)));
 }
 
@@ -706,7 +722,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // How far a shallower torso brings the top of the back down: the back-slot
   // items sit on the spine and drop with it rather than float over it.
   const BACK_DROP = BODY_R * 0.75 * (1 - fy);
-  const body = ball(BODY_R, s.base, ...BODY_SCALE);
+  const body = new THREE.Mesh(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), mat(s.base));
+  body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
   g.add(body);
   // The belly hangs off the body's underside, so it narrows with it and its
@@ -1012,7 +1029,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   }
 
   for (const [host, { r, byColour }] of queued) {
-    for (const [colour, patches] of byColour) addMarking(host, r, colour, patches);
+    for (const [colour, patches] of byColour) addMarking(host, r, colour, patches, host === body ? deformTorso : null);
   }
 
   // accessories — head/g-parented so they track poses; every item here is

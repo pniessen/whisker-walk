@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, coatColor } from '../src/cat/model.js';
+import { deformTorso } from '../src/cat/torso.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
@@ -110,8 +111,16 @@ describe('cat model: markings lie ON the surface they mark', () => {
             // the marking, this single property makes the patch follow the
             // surface in every pose, including the animator's squash and
             // stretch, on every breed, for free.
+            // The body is the deformed torso: its surface is the unit direction
+            // pushed through deformTorso, then x r x lift. The skull is a sphere.
             const d = Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i));
-            expect(d).toBeCloseTo(r * PATCH_LIFT, 5);
+            if (host === body) {
+              const un = mark.geometry.userData.unit;
+              const [x, y, z] = deformTorso(un[i * 3], un[i * 3 + 1], un[i * 3 + 2]);
+              expect(pos.getX(i)).toBeCloseTo(x * r * PATCH_LIFT, 5);
+              expect(pos.getY(i)).toBeCloseTo(y * r * PATCH_LIFT, 5);
+              expect(pos.getZ(i)).toBeCloseTo(z * r * PATCH_LIFT, 5);
+            } else expect(d).toBeCloseTo(r * PATCH_LIFT, 5);
             checked++;
           }
         }

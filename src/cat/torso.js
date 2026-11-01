@@ -1,9 +1,20 @@
+import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
 // The cat's "Version 2" proportions (docs/superpowers/specs/2026-10-31-cat-body-design.md):
 // a shorter torso on longer legs. Numbers marked (sketch) come from the approved
 // cat-shapes sketch; the rest keep today's cat where it already worked.
 
 // The torso: radius, scale and centre height (sketch).
-export const TORSO = { R: 0.32, SCALE: [0.8, 0.74, 1.12], CENTRE_Y: 0.43 };
+export const TORSO = {
+  R: 0.32, SCALE: [0.8, 0.74, 1.12], CENTRE_Y: 0.43,
+  // The deformation (sketch): a deep chest, slim waist just behind the middle,
+  // round hips, a belly tucked up toward them, a gentle 0.08 haunch (the sketch's
+  // first 0.24 was rejected) and a back that rises toward the hips.
+  SHAPE: { chest: 0.16, chestLow: 0.12, waist: 0.14, waistZ: 0.15, waistW: 0.08, waistDrop: 0.08, hips: 0.12, tuck: 0.28, haunch: 0.08, haunchZ: 0.55, haunchZW: 0.07, haunchY: -0.15, haunchYW: 0.2, backRise: 0.07 },
+  // [around, along the length]: 40 and 28 rings over the ~7 tabby bands.
+  SEG: { full: [40, 40], simple: [24, 28] },
+};
 
 // The old torso. Every authored marking and accessory point was written in
 // this frame, so markings convert their points through it to keep their direction.
@@ -31,10 +42,52 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // Per-state correction (metres, added after the pose and the long-leg fit):
 // `body` moves every non-leg part, `head` overrides it for the head. Filled by
 // measurement against the old rig's pose baseline (test/fixtures/catpose-baseline.json).
-// The sit (requestPet, perch): the shorter torso, tilted back, leaves its rump
-// 0.027 higher than the old one rested (torsoMin 0.0516 against 0.0246), so it
-// comes down by exactly that. Every other state passes as it is.
+// The sit (requestPet, perch): with the shaped torso (deep chest, belly tucked
+// toward the hips) the tilted-back rump rests 0.0204 above ground at fit 0 against
+// 0.0246 for the old torso, so it comes UP by 0.004 and rests where the old one did.
 export const POSE_FIT = {
-  requestPet: { body: -0.027 },
-  perch: { body: -0.027 },
+  requestPet: { body: 0.004 },
+  perch: { body: 0.004 },
 };
+
+// A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
+export function deformTorso(x, y, z, S = TORSO.SHAPE) {
+  const front = Math.max(0, -z), back = Math.max(0, z);
+  const waist = Math.exp(-((z - S.waistZ) ** 2) / S.waistW);
+  let kx = 1 - S.waist * waist + S.hips * back * back;
+  let ky = 1 + S.chest * front - S.waistDrop * waist;
+  if (y < 0) ky *= 1 + S.chestLow * front - S.tuck * back * back;
+  const haunch = Math.exp(-((z - S.haunchZ) ** 2) / S.haunchZW) * Math.exp(-((y - S.haunchY) ** 2) / S.haunchYW);
+  kx *= 1 + S.haunch * haunch;
+  x *= kx; y *= ky;
+  if (y > 0) y += S.backRise * (z + 1) * 0.5 * (1 - x * x);
+  return [x, y, z];
+}
+
+// One welded, deformed surface. Poles sit at nose and rump, the seam runs along
+// the belly. `userData.unit` keeps each vertex's undeformed direction.
+export function torsoGeometry(r, around, along) {
+  let geo = new THREE.SphereGeometry(r, around, along).rotateX(Math.PI / 2).rotateZ(Math.PI / 2);
+  geo.deleteAttribute('uv');
+  geo.deleteAttribute('normal');
+  geo = mergeVertices(geo);
+  const p = geo.attributes.position;
+  const unit = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const L = Math.hypot(p.getX(i), p.getY(i), p.getZ(i));
+    const ux = p.getX(i) / L, uy = p.getY(i) / L, uz = p.getZ(i) / L;
+    unit[i * 3] = ux; unit[i * 3 + 1] = uy; unit[i * 3 + 2] = uz;
+    const [x, y, z] = deformTorso(ux, uy, uz);
+    p.setXYZ(i, x * r, y * r, z * r);
+  }
+  geo.userData.unit = unit;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// The body-local point (before the mesh's scale) along unit direction `dir`.
+export function torsoSurface(dir) {
+  const L = Math.hypot(dir[0], dir[1], dir[2]);
+  const [x, y, z] = deformTorso(dir[0] / L, dir[1] / L, dir[2] / L);
+  return new THREE.Vector3(x * TORSO.R, y * TORSO.R, z * TORSO.R);
+}
