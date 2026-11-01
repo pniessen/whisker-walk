@@ -54,7 +54,48 @@ export const NO_CLAN_FIGHT = Object.freeze({
   chasedOffTogether: () => false,
   answer() {},
   abort() {},
+  cameraSubject: null,
 });
+
+const TUMBLE_SPOTS = 16; // points round the tumble's circle: 0.31 m apart at the fight's gap
+
+// Every spot either cat can stand on in a fight with my cat at `spot` and the
+// intruder held at `foeAt`, for the fight camera (src/fightcam.js), which
+// keeps its lines to all of them clear of the trees: the two anchors, my
+// dodge, the charge's ease-back, each loser's step back and the tumble's
+// circle round their middle, each sampled finely enough that every spot
+// between is within 0.2 m of one (test/clanfight.test.js). stagePoses below
+// puts the cats nowhere else, and never on a spot that is not clan ground
+// (R3), so `ok` (clan ground) drops those; the two anchors always stay.
+export function fightReach(spot, foeAt, ok = () => true) {
+  let nx = spot.x - foeAt.x;
+  let nz = spot.z - foeAt.z;
+  const gap = Math.hypot(nx, nz);
+  if (gap < 1e-6) { nx = 1; nz = 0; } else { nx /= gap; nz /= gap; }
+  const sx = -nz, sz = nx;
+  const mid = { x: (spot.x + foeAt.x) / 2, z: (spot.z + foeAt.z) / 2 };
+  const me = [
+    { x: spot.x, z: spot.z },
+    { x: spot.x + sx * SIDE_STEP / 2, z: spot.z + sz * SIDE_STEP / 2 },
+    { x: spot.x + sx * SIDE_STEP, z: spot.z + sz * SIDE_STEP },
+    { x: spot.x + nx * LOSER_STEP, z: spot.z + nz * LOSER_STEP },
+  ];
+  const it = [
+    { x: foeAt.x, z: foeAt.z },
+    { x: foeAt.x - nx * BACKUP_EASE / 2, z: foeAt.z - nz * BACKUP_EASE / 2 },
+    { x: foeAt.x - nx * BACKUP_EASE, z: foeAt.z - nz * BACKUP_EASE },
+    { x: foeAt.x - nx * LOSER_STEP, z: foeAt.z - nz * LOSER_STEP },
+  ];
+  if (gap <= FIGHT_GAP + CIRCLE_SLACK) {
+    for (let k = 0; k < TUMBLE_SPOTS; k++) {
+      const a = (k / TUMBLE_SPOTS) * Math.PI * 2;
+      me.push({ x: mid.x + Math.cos(a) * gap / 2, z: mid.z + Math.sin(a) * gap / 2 });
+    }
+  }
+  const keep = (p, i) => i === 0 || ok(p.x, p.z) === true;
+  return { mid, axis: { x: nx, z: nz }, me: me.filter(keep), it: it.filter(keep) };
+}
+
 
 const smooth = (u) => u * u * (3 - 2 * u);
 const clamp01 = (u) => Math.max(0, Math.min(1, u));
@@ -84,6 +125,7 @@ export function createClanFight({
   let line = null;
   let sheetKey = null;
   let sentVisit = null; // the visit whose 'intruder-fight' I sent and not yet closed
+  let camSubject = null; // the fight camera's subject (cameraSubject below)
   const attempts = new Map(); // visit -> fights this device started on it
   const locks = new Map();    // visit -> { away, until }
 
@@ -146,6 +188,7 @@ export function createClanFight({
     mode = 'idle';
     visit = null;
     foe = null;
+    camSubject = null;
     act = null;
     line = null;
     sheetKey = null;
@@ -176,6 +219,7 @@ export function createClanFight({
     s.fightGait = 0;
     player?.halt?.();
     foeAt = { x: cur.pos.x, z: cur.pos.z };
+    camSubject = walkoverSubject(cat);
     mode = 'walkover';
     walkT = 0;
     arrived = false;
@@ -197,6 +241,23 @@ export function createClanFight({
     const d = Math.hypot(dx, dz);
     if (d < 1e-6) { dx = 1; dz = 0; } else { dx /= d; dz /= d; }
     return { x: foeAt.x + dx * FIGHT_GAP, z: foeAt.z + dz * FIGHT_GAP };
+  }
+
+  // The walk-over for the fight camera: the fight round the spot my cat is
+  // running to, and the run itself (every 0.3 m of it, up to where it would
+  // leave clan ground, where walkOver stops it).
+  function walkoverSubject(from) {
+    const to = gapSpot(from);
+    const sub = fightReach(to, foeAt, ground);
+    const d = Math.hypot(to.x - from.x, to.z - from.z);
+    const n = Math.max(1, Math.ceil(d / 0.3));
+    sub.path = [{ x: from.x, z: from.z }];
+    for (let j = 1; j <= n; j++) {
+      const p = { x: from.x + ((to.x - from.x) * j) / n, z: from.z + ((to.z - from.z) * j) / n };
+      if (!ground(p.x, p.z)) break;
+      sub.path.push(p);
+    }
+    return sub;
   }
 
   // "Fight!": my cat runs over to the held intruder (it is already held, so
@@ -232,6 +293,7 @@ export function createClanFight({
     spot = { x: cat.x, z: cat.z };
     s.fightGait = 0;
     intruders.hold(visit, playerId, spot, { local: true }); // face me where I stand
+    camSubject = { ...fightReach(spot, foeAt, ground), path: [] };
     mode = 'fight';
     act = { kind: 'squareOff', t: 0 };
     stagePoses(s);
@@ -440,6 +502,9 @@ export function createClanFight({
       hideChallenge();
       return true;
     },
+    // What the fight camera keeps in view: null unless a fight is on (the
+    // walk-over included); the same object for a whole phase.
+    get cameraSubject() { return mode === 'walkover' || mode === 'fight' ? camSubject : null; },
     // The intruder this device is facing right now (pill or fight), or null.
     get engagedVisit() { return mode === 'idle' ? null : visit; },
     // A co-walker chased it off while I was mid-fight on the same visit: my

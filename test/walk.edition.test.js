@@ -360,6 +360,30 @@ describe('the clan in the walk (source pins)', () => {
     expect(cf).toBeLessThan(m.indexOf('updateAvatar(session, dt, t)'));
   });
 
+  it('main.js runs the fight camera after the fight places the cats and before the shadows read the camera', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const cf = m.indexOf('session.clanFight.update(dt, session)');
+    const cam = m.indexOf('session.fightCam?.update(dt, {');
+    expect(cam).toBeGreaterThan(cf);
+    expect(cam).toBeLessThan(m.indexOf('session.shadows.update()'));
+    const call = m.slice(cam, m.indexOf('});', cam));
+    expect(call).toContain('subject: session.clanFight.cameraSubject');
+    expect(call).toContain('cameraMode: session.cameraMode');
+    expect(m.split('session.fightCam?.update(')).toHaveLength(2);
+  });
+
+  it('walk.js builds the fight camera from the area\'s trees only where a fight can happen, and lets it go at the end', () => {
+    const s = readFileSync('src/game/walk.js', 'utf8');
+    const at = s.indexOf('session.fightCam = ');
+    expect(at).toBeGreaterThan(s.indexOf('session.clanFight = '));
+    const line = s.slice(at, s.indexOf(';\n', at));
+    expect(line).toContain('session.clanFight !== NO_CLAN_FIGHT');
+    expect(line).toContain('findOccluders(scene)');
+    expect(line).toContain('reducedMotion');
+    const end = s.indexOf('session.fightCam?.dispose()');
+    expect(end).toBeGreaterThan(s.indexOf('session.clanFight.abort()'));
+  });
+
   it("main.js's keydown hands every key to the fight sheet first", () => {
     const m = readFileSync('src/main.js', 'utf8');
     const at = m.indexOf("document.addEventListener('keydown', (e) => {");

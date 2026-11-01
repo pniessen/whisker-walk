@@ -794,6 +794,11 @@ function init() {
       // Clan Life Part 2: the clan fight, after everything that can move the
       // cat (player.update, a chase): it writes the fighting cat's spot.
       session.clanFight.update(dt, session);
+      // The fight camera, over the follow camera player.update placed: while a
+      // fight is on, no tree hides either cat (src/fightcam.js).
+      session.fightCam?.update(dt, {
+        subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
+      });
       const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');

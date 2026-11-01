@@ -1,8 +1,9 @@
 import { describe, test, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP,
+  createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP, fightReach,
 } from '../src/game/clanfight.js';
+import { createFightCam } from '../src/fightcam.js';
 import { COUNTER, MOVES, BUTTONS, CLUES } from '../src/fight.js';
 import { CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../src/intruders.js';
 import { clanName } from '../src/clanhomes.js';
@@ -507,6 +508,162 @@ describe('the fight on the network', () => {
     expect(h.cf.hideChallengeFor(8)).toBe(false);
     expect(h.cf.hideChallengeFor(7)).toBe(true);
     expect(h.ui.showing).toBeNull();
+  });
+});
+
+// The fight camera (src/fightcam.js) is fed by cameraSubject: every spot
+// either cat can stand on, from the "Fight!" tap to the fight's end.
+describe('the fight camera\'s subject', () => {
+  const near = (pts, p, tol) => pts.some((q) => Math.hypot(q.x - p.x, q.z - p.z) <= tol);
+
+  test('none while idle or while only the pill is up; one from "Fight!" to the end, steady within a phase', () => {
+    expect(NO_CLAN_FIGHT.cameraSubject).toBeNull();
+    const h = harness({ startAt: 3.4 });
+    expect(h.cf.cameraSubject).toBeNull();
+    h.challenge();
+    expect(h.cf.cameraSubject).toBeNull();
+    h.fight();
+    const walk = h.cf.cameraSubject;
+    expect(walk).not.toBeNull();
+    // the walk-over: the run from where I stand to the fight's spot, and the intruder
+    expect(near(walk.path, { x: 3.4, z: 0 }, 0.01)).toBe(true);
+    expect(near(walk.me, { x: FIGHT_GAP, z: 0 }, 0.01)).toBe(true);
+    expect(near(walk.it, { x: 0, z: 0 }, 0.01)).toBe(true);
+    h.fightFrame();
+    expect(h.cf.cameraSubject).toBe(walk); // the same object: the camera re-chooses only when it changes
+    for (let i = 0; i < 200 && h.cf.cameraSubject === walk; i++) h.fightFrame();
+    const rounds = h.cf.cameraSubject;
+    expect(rounds).not.toBe(walk);
+    expect(rounds.path).toEqual([]);
+    h.fightFrame();
+    expect(h.cf.cameraSubject).toBe(rounds);
+    h.runToEnd();
+    expect(h.cf.cameraSubject).toBeNull();
+  });
+
+  test('gone after a loss, an abort, a sibling\'s win and an intruder lost from under the fight', () => {
+    const lost = harness({ answers: 'wrong' });
+    lost.challenge(); lost.fight(); lost.runToEnd();
+    expect(lost.cf.cameraSubject).toBeNull();
+    const ab = harness();
+    ab.challenge(); ab.fight(); ab.fightFrame();
+    expect(ab.cf.cameraSubject).not.toBeNull();
+    ab.cf.abort();
+    expect(ab.cf.cameraSubject).toBeNull();
+    const tog = harness();
+    tog.challenge(); tog.fight(); tog.fightFrame();
+    tog.cf.chasedOffTogether(7, 'Robin');
+    expect(tog.cf.cameraSubject).toBeNull();
+    const gone = harness();
+    gone.challenge(); gone.fight(); gone.fightFrame();
+    gone.cur.state = 'gone';
+    gone.frame();
+    expect(gone.cf.cameraSubject).toBeNull();
+  });
+
+  test('every spot the fight stages either cat on is within 0.2 m of the subject\'s spots', () => {
+    for (const opts of [{ answers: 'right' }, { answers: 'wrong' }, { answers: 'dodge' }, { answers: 'right', reducedMotion: true }]) {
+      const h = harness(opts);
+      h.challenge(); h.fight();
+      let checked = 0;
+      h.runToEnd(() => {
+        const subj = h.cf.cameraSubject;
+        if (!subj) return;
+        const all = [...subj.me, ...subj.it, ...subj.path];
+        const me = h.s.cat.position;
+        expect(near(all, me, 0.2), `me ${me.x.toFixed(2)},${me.z.toFixed(2)}`).toBe(true);
+        const st = h.intruders.stage.mock.calls.at(-1)?.[1];
+        if (st && h.s.fight?.phase !== undefined && h.cf.cameraSubject.path.length === 0) {
+          expect(near(all, st, 0.2), `it ${st.x.toFixed(2)},${st.z.toFixed(2)}`).toBe(true);
+        }
+        checked++;
+      });
+      expect(checked).toBeGreaterThan(100);
+    }
+  });
+
+  test('fightReach: both anchors, the dodge, the step backs and the tumble circle', () => {
+    const r = fightReach({ x: FIGHT_GAP, z: 0 }, { x: 0, z: 0 });
+    expect(r.mid).toEqual({ x: FIGHT_GAP / 2, z: 0 });
+    expect(r.axis).toEqual({ x: 1, z: 0 });
+    expect(near(r.me, { x: FIGHT_GAP, z: SIDE_STEP }, 1e-9)).toBe(true);
+    for (let a = 0; a < Math.PI * 2; a += 0.05) {
+      expect(near([...r.me, ...r.it], { x: FIGHT_GAP / 2 + Math.cos(a) * FIGHT_GAP / 2, z: Math.sin(a) * FIGHT_GAP / 2 }, 0.2)).toBe(true);
+    }
+  });
+});
+
+describe('the fight camera follows the fight', () => {
+  const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  function camera() {
+    const cam = { aspect: 375 / 812, fov: 70, position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } } };
+    cam.lookAt = () => {};
+    return cam;
+  }
+  // One frame as main.js runs it: the follow camera, the fight, the fight camera.
+  function drive(h, fc, cam, step) {
+    const log = [];
+    const frame = () => {
+      const c = h.s.cat.position;
+      cam.position.set(c.x, 2.2, c.z + 4.5);
+      step();
+      const moved = fc.update(DT, { subject: h.cf.cameraSubject, cameraMode: h.s.cameraMode, camera: cam, cat: c });
+      log.push({ fighting: !!h.s.fight, moved, w: fc.weight });
+    };
+    return { log, frame };
+  }
+
+  for (const [label, opts, end] of [
+    ['a win', { answers: 'right' }, (h) => h.runToEnd()],
+    ['a loss', { answers: 'wrong' }, (h) => h.runToEnd()],
+    ['an abort', { answers: 'right' }, (h) => { for (let i = 0; i < 120; i++) h.fightFrame(); h.cf.abort(); }],
+  ]) {
+    test(`reduced motion: on exactly while the fight is, off after ${label}`, () => {
+      const h = harness({ ...opts, reducedMotion: true });
+      const fc = createFightCam({ bounds: BOUNDS, reducedMotion: true });
+      const cam = camera();
+      const d = drive(h, fc, cam, () => h.frame());
+      for (let i = 0; i < 5; i++) d.frame();
+      h.challenge(); d.frame();
+      h.fight();
+      const d2 = drive(h, fc, cam, () => h.fightFrame());
+      for (let i = 0; i < 2000 && h.s.fight; i++) d2.frame();
+      if (h.s.fight) end(h);
+      d.frame();
+      const all = [...d.log.slice(0, 6), ...d2.log];
+      for (const f of all.slice(0, 6)) expect(f.moved).toBe(false);
+      for (const f of d2.log) expect(f.moved).toBe(f.fighting);
+      expect(d.log.at(-1).moved).toBe(false);
+      expect(fc.weight).toBe(0);
+    });
+  }
+
+  test('eases back to the follow camera after the fight, within a second', () => {
+    const h = harness({ answers: 'right' });
+    const fc = createFightCam({ bounds: BOUNDS });
+    const cam = camera();
+    h.challenge(); h.fight();
+    const d = drive(h, fc, cam, () => h.fightFrame());
+    for (let i = 0; i < 2000 && h.s.fight; i++) d.frame();
+    expect(d.log.filter((f) => f.fighting).every((f) => f.moved)).toBe(true);
+    expect(d.log.filter((f) => f.fighting).at(-1).w).toBe(1);
+    const after = drive(h, fc, cam, () => h.frame());
+    for (let i = 0; i < 30; i++) after.frame();
+    expect(fc.weight).toBe(0);
+    expect(after.log.at(-1).moved).toBe(false);
+  });
+
+  test('never in photo mode', () => {
+    const h = harness({ answers: 'right' });
+    const fc = createFightCam({ bounds: BOUNDS, reducedMotion: true });
+    const cam = camera();
+    h.challenge(); h.fight();
+    const d = drive(h, fc, cam, () => h.fightFrame());
+    for (let i = 0; i < 30; i++) d.frame();
+    expect(d.log.at(-1).moved).toBe(true);
+    h.s.cameraMode = true;
+    d.frame();
+    expect(d.log.at(-1).moved).toBe(false);
   });
 });
 
