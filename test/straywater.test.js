@@ -125,3 +125,33 @@ describe('strays keep off the water', () => {
     expect(b).toEqual(a);
   });
 });
+
+describe('dryGroundPoint, review follow-ups', () => {
+  it('never pushes a point out of the bounds over a water running past them', () => {
+    // a lake out past the north edge: its near shore is z 10, its far edge
+    // z 80 is off the map
+    const area = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, waters: [{ id: 'l', kind: 'rect', minX: -60, maxX: 60, minZ: 10, maxZ: 80 }] };
+    for (let z = 10; z <= 49.5; z += 0.5) {
+      for (const x of [-40, 0, 33]) {
+        const p = dryGroundPoint(area, x, z);
+        expect(p.z, `${x},${z}`).toBeLessThanOrEqual(50 - 0.5 + 1e-9);
+        expect(p.z, `${x},${z}`).toBeGreaterThanOrEqual(-50);
+        expect(dry(area, p.x, p.z), `${x},${z}`).toBe(true);
+      }
+    }
+  });
+
+  it('a stray stepping off the side of a bridge lands on its edge, not a margin back in', () => {
+    // walking along the bridge (x 0..3) a hair past its east edge
+    const p = dryGroundPoint(AREA, 3.04, 23);
+    expect(p.x).toBeCloseTo(3, 9);
+    expect(p.z).toBeCloseTo(23, 9);
+    // so a walk along the edge moves smoothly: every step is a step
+    let q = { x: 2.9, z: 20.5 };
+    for (let i = 0; i < 100; i++) {
+      const n = dryGroundPoint(AREA, q.x + 0.01, q.z + 0.05);
+      expect(Math.hypot(n.x - q.x, n.z - q.z)).toBeLessThan(0.06);
+      q = n;
+    }
+  });
+});

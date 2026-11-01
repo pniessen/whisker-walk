@@ -26,7 +26,7 @@
 // not count it as in and start another one (the same reason as builder.js's
 // DRY_EPS).
 import { CAT_RADIUS } from './player.js';
-import { waterClearance, nearestDry } from './world/builder.js';
+import { waterClearance, nearestDry, waterGap } from './world/builder.js';
 
 const EPS = 1e-9;
 // Exits and ring samples must stay this far inside the bounds, the same inset
@@ -185,6 +185,10 @@ export function keepOutPoint(area, x, z) {
 const WATER_MARGIN = CAT_RADIUS;
 const DRY_PASSES = 8;
 const DRY_EPS = 1e-9;
+// The ring search may have to cross a lake from a target dropped deep in it
+// (a toy, a call): far wider than keepOutPoint's 30 m. Only reached when the
+// pushes fail or would leave the map, which a stray's own position never does.
+const DRY_RING_MAX = 150;
 
 function isDry(waters, x, z) {
   return waterClearance(waters, x, z) >= WATER_MARGIN - DRY_EPS;
@@ -192,9 +196,36 @@ function isDry(waters, x, z) {
 
 function isClear(area, x, z) {
   if (!isDry(area.waters, x, z)) return false;
-  if (!area.keepOut) return true;
-  const p = keepOutPoint(area, x, z);
-  return p.x === x && p.z === z;
+  return !area.keepOut || !insideAny(shapesOf(area.keepOut), x, z);
+}
+
+// The nearest point ON a deck (margin 0) of a water that (x, z) is in, or
+// null. nearestDry puts a point that stepped off a deck a whole margin back
+// in from its edge, so a stray walking along a bridge's edge hopped on and
+// off it; landing on the edge itself, the next step simply carries on.
+function deckEdge(waters, x, z) {
+  let best = null, bestD = Infinity;
+  for (const w of waters) {
+    if (!w.decks || waterGap(w, x, z) >= 0) continue;
+    for (const d of w.decks) {
+      let px, pz;
+      if (Number.isFinite(d.x1)) {
+        const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+        const ux = (d.x2 - d.x1) / len, uz = (d.z2 - d.z1) / len;
+        const rx = x - d.x1, rz = z - d.z1;
+        const t = Math.max(0, Math.min(len, rx * ux + rz * uz));
+        const sd = Math.max(-d.halfW, Math.min(d.halfW, rx * -uz + rz * ux));
+        px = d.x1 + t * ux - sd * uz;
+        pz = d.z1 + t * uz + sd * ux;
+      } else {
+        px = Math.max(d.minX, Math.min(d.maxX, x));
+        pz = Math.max(d.minZ, Math.min(d.maxZ, z));
+      }
+      const dd = Math.hypot(px - x, pz - z);
+      if (dd < bestD) { bestD = dd; best = { x: px, z: pz }; }
+    }
+  }
+  return best;
 }
 
 /**
@@ -210,17 +241,25 @@ export function dryGroundPoint(area, x, z) {
   const waters = area?.waters;
   if (!waters || waters.length === 0) return p;
   if (isDry(waters, p.x, p.z)) return p;
+  const b = area.bounds;
   for (let pass = 0; pass < DRY_PASSES; pass++) {
-    p = nearestDry(waters, p.x, p.z, WATER_MARGIN);
+    const prev = p;
+    const dry = nearestDry(waters, p.x, p.z, WATER_MARGIN);
+    const edge = deckEdge(waters, p.x, p.z);
+    if (edge && isDry(waters, edge.x, edge.z)
+      && Math.hypot(edge.x - p.x, edge.z - p.z) <= Math.hypot(dry.x - p.x, dry.z - p.z)) p = edge;
+    else p = dry;
+    // A push over a water's far edge can leave the map (a lake running out
+    // past the bounds): the ring search below keeps to the bounds.
+    if (!inBounds(b, p.x, p.z)) { p = prev; break; }
     if (!area.keepOut) return p;
     const q = keepOutPoint(area, p.x, p.z);
     if (q.x === p.x && q.z === p.z) return p;
     p = q;
     if (isDry(waters, p.x, p.z)) return p;
   }
-  const b = area.bounds;
   const ox = p.x, oz = p.z;
-  for (let k = 1; k * RING_STEP <= RING_MAX; k++) {
+  for (let k = 1; k * RING_STEP <= DRY_RING_MAX; k++) {
     const rad = k * RING_STEP;
     for (let j = 0; j < RING_ANGLES; j++) {
       const a = (j / RING_ANGLES) * Math.PI * 2;
