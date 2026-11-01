@@ -3272,7 +3272,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     const h = colonyHarness();
     h.press();                                // touch noses
     expect(h.stray.greeted).toBe(true);
-    h.session.areaId = 'pines';
+    h.session.areaId = 'island';
     h.scan();
     expect(h.kind()).not.toBe('stray-feed');
     h.session.areaId = 'park';

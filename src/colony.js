@@ -51,7 +51,7 @@ export const colonyCap = (members) => (members >= 2 ? COLONY_MAX : SOLO_MAX);
 // Cap for a stored/synced feed list (used by the sanitizers): room for both
 // siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
 export const FEEDS_MAX = 320;
-export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor'];
+export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines'];
 // The fixed territory ids (clan spec section 3). The colony feeds in the
 // built ones; a save may hold a cat from any of them, so a load must not
 // drop it.
