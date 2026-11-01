@@ -3921,7 +3921,7 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
 // ===========================================================================
 describe('endWalk: what the cat carried home', () => {
   const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const end = src.indexOf('function endWalk()');
+  const end = src.indexOf('function endWalk(');
   const a = src.indexOf('What the cat carried home', end);
   const b = src.indexOf('(end of what the cat carried home)', a);
   const block = src.slice(a, b);

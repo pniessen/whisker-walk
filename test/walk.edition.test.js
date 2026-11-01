@@ -317,3 +317,33 @@ describe('the border dressing in the walk (source pins)', () => {
     expect(Math.abs(push - scratch)).toBeLessThan(900);
   });
 });
+
+// Border crossings Task 6: the walk ends with a crossing (source pins).
+describe('a crossing ends the walk the normal way (source pins)', () => {
+  const src = () => readFileSync('src/game/walk.js', 'utf8');
+
+  it('endWalk takes { crossTo, ledBy, together } and tolerates a stray argument', () => {
+    const s = src();
+    expect(s).toContain('function endWalk({ crossTo = null, ledBy = null, together = null } = {})');
+  });
+
+  it('decides the outcome after completeWalk and before the summary, only when crossing', () => {
+    const s = src();
+    const done = s.indexOf('progression.completeWalk(');
+    const out = s.indexOf('crossingOutcome(');
+    expect(out).toBeGreaterThan(done);
+    expect(out).toBeLessThan(s.indexOf('const summaryHtml'));
+    expect(s).toMatch(/if \(crossTo\) \{[^}]*crossingOutcome\(/);
+    expect(s).toContain('together: together ?? walkedWithNames');
+    expect(s).toContain('const walkedWith = together ?? walkedWithNames;');
+  });
+
+  it('puts the escaped lines above Continue and keeps lastCrossing for takeCrossing', () => {
+    const s = src();
+    expect(s).toMatch(/crossLines\.map\(\(l\) => `<div class="best-line">\$\{escapeHtml\(l\)\}<\/div>`\)/);
+    expect(s.indexOf('${crossHtml}')).toBeLessThan(s.indexOf('id="btn-summary-continue"'));
+    expect(s).toContain('lastCrossing = { to: crossTo, picked: out.picked, clan }');
+    expect(s).toMatch(/function takeCrossing\(\)/);
+    expect(s).toMatch(/return \{ beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing/);
+  });
+});

@@ -76,6 +76,7 @@ import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
+import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { createEnemyWalkLog } from '../enemies.js';
@@ -1681,14 +1682,34 @@ export function createWalkLifecycle({
     music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
   }
 
-  function endWalk() {
+  // A crossing the last endWalk made, handed to main.js once (takeCrossing).
+  let lastCrossing = null;
+  function takeCrossing() {
+    const c = lastCrossing;
+    lastCrossing = null;
+    return c;
+  }
+
+  // (An Event passed by a stray onclick destructures to all-null: harmless.)
+  function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;
+    // Who was here, read before the teardown below drops the room.
+    const walkedWithNames = session.net ? session.remotes.list.map((r) => r.petName) : [];
     // session.areaId is the area actually walked (set in startWalk from
     // areaOverride ?? state.area) — pass it explicitly so a den walk (which
     // never persists state.area) increments walks.den, not whatever other
     // area state.area still points at.
     progression.completeWalk(session.areaId, { dusk: session.duskActive });
+    // A crossing: this walk counted toward the gate above; now pick the place.
+    let crossLines = [];
+    lastCrossing = null;
+    if (crossTo) {
+      const clan = isClanEdition(progression.state);
+      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition });
+      crossLines = out.lines;
+      lastCrossing = { to: crossTo, picked: out.picked, clan };
+    }
     // v18 Task 1.4: persist whatever this walk earned. Ordered AFTER
     // completeWalk on purpose — completeWalk is what bumps duskWalks, so the
     // fifth dusk walk unlocks Night Eyes at the end of that same walk rather
@@ -1723,7 +1744,7 @@ export function createWalkLifecycle({
     const isRecord = progression.recordWalkScore(earned);
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
-    const walkedWith = session.net ? session.remotes.list.map((r) => r.petName) : [];
+    const walkedWith = together ?? walkedWithNames;
     // kitten stage 2 is transient — set at the end of the "meet" walk (see
     // handleInteract's 'kitten' branch) and promoted to 3 right here, at
     // that same walk's summary, so "Mochi followed you home" lands on the
@@ -1738,6 +1759,7 @@ export function createWalkLifecycle({
       if (progression.addMark(area, mark) && mark.kind === 'den') broughtHome = mark.item;
     }
     // (end of what the cat carried home)
+    const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -1753,6 +1775,7 @@ export function createWalkLifecycle({
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
+      ${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
 
@@ -1864,5 +1887,5 @@ export function createWalkLifecycle({
     music.stop();
   }
 
-  return { beginWalkFromHomebase, beginDenWalk, startWalk, endWalk };
+  return { beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing };
 }
