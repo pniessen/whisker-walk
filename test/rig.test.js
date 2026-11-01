@@ -131,6 +131,25 @@ describe('assignShadowCasters honours noCast', () => {
   });
 });
 
+describe('assignShadowCasters and the Moor pieces', () => {
+  it('leaves the heather, the gorse and the burrows casting nothing, and the tor casting', async () => {
+    const b = await import('../src/world/builder.js');
+    const scene = new THREE.Scene();
+    const beds = [
+      b.heatherBed([{ x: 0, z: 0 }, { x: 3, z: 0 }], 1),
+      b.gorseBed([{ x: 0, z: 4 }, { x: 3, z: 4 }], 1),
+      b.burrows([{ x: 0, z: 8 }, { x: 3, z: 8 }], 1),
+    ];
+    const tor = b.tor(10, 0, { r: 1.4, h: 1.5 });
+    scene.add(...beds, tor);
+    assignShadowCasters(scene);
+    for (const bed of beds) {
+      bed.traverse((o) => { if (o.isMesh) expect(o.castShadow).toBe(false); });
+    }
+    expect(tor.castShadow).toBe(true);
+  });
+});
+
 describe('assignShadowCastersFor (one prop added after the sweep)', () => {
   it('gives one top-level child exactly what the whole-scene sweep would', () => {
     const make = () => {

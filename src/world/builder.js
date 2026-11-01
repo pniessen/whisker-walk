@@ -2446,6 +2446,126 @@ export function brambleBed(spots, seed) {
   return mergedNoCast(geoms, 0x3b5e2e, 'foliage');
 }
 
+// Heather, one merged mesh: each spot is two flat purple cushions, the second
+// shoved 0.3-0.5 m to one side. Under half a metre, so a cat pushes through it
+// as through any bed, and out of the caster sweep like the other beds.
+export function heatherBed(spots, seed) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    for (let k = 0; k < 2; k++) {
+      const r = 0.35 + 0.2 * hash01(i, k, seed + 1);
+      const cushion = new THREE.IcosahedronGeometry(r, 0);
+      cushion.scale(1, 0.5, 1);
+      cushion.computeBoundingBox();
+      // sat on the ground: its lowest point at y 0
+      cushion.translate(0, -cushion.boundingBox.min.y, 0);
+      const a = hash01(k, i, seed + 2) * Math.PI * 2;
+      const d = k === 0 ? 0 : 0.3 + 0.2 * hash01(i, k, seed + 3);
+      cushion.translate(sp.x + Math.cos(a) * d, 0, sp.z + Math.sin(a) * d);
+      geoms.push(cushion);
+    }
+  });
+  return mergedNoCast(geoms, 0x8a5a86, 'foliage');
+}
+
+// Gorse: brambleBed's huddle of squashed lobes in dark green, plus a second
+// merged mesh of yellow flecks on the upper half of each lobe. Two meshes
+// because one mesh has one colour. A bed a cat pushes through (no collider),
+// under 0.95 m, out of the caster sweep.
+export function gorseBed(spots, seed) {
+  const lobes = [];
+  const flecks = [];
+  spots.forEach((sp, i) => {
+    const count = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 2);
+    for (let k = 0; k < count; k++) {
+      const r = 0.4 + 0.2 * hash01(i, k, seed + 2);
+      const a = hash01(k, i, seed + 3) * Math.PI * 2;
+      const d = k === 0 ? 0 : 0.4 + 0.3 * hash01(i + k, k, seed + 4);
+      const cx = sp.x + Math.cos(a) * d;
+      const cy = r * 0.62 * 0.8;
+      const cz = sp.z + Math.sin(a) * d;
+      const lobe = new THREE.IcosahedronGeometry(r, 0);
+      lobe.scale(1, 0.62, 1);
+      lobe.rotateY(hash01(k, i, seed + 5) * Math.PI);
+      lobe.translate(cx, cy, cz);
+      lobes.push(lobe);
+      for (let f = 0; f < 2; f++) {
+        const fa = hash01(k + f, i, seed + 6 + f) * Math.PI * 2;
+        const el = 0.3 + 0.8 * hash01(i, k + f, seed + 8 + f); // upper half only
+        const fleck = new THREE.IcosahedronGeometry(0.07, 0);
+        fleck.translate(
+          cx + Math.cos(fa) * Math.cos(el) * r * 0.95,
+          cy + Math.sin(el) * r * 0.62 * 0.95,
+          cz + Math.sin(fa) * Math.cos(el) * r * 0.95,
+        );
+        flecks.push(fleck);
+      }
+    }
+  });
+  const g = new THREE.Group();
+  const gorse = mergedNoCast(lobes, 0x4d6630, 'foliage');
+  gorse.name = 'gorse';
+  const bloom = mergedNoCast(flecks, 0xe8c43a, 'foliage');
+  bloom.name = 'gorseBloom';
+  g.add(gorse, bloom);
+  return g;
+}
+
+// A tor: a granite outcrop of three stacked dodecahedron blocks in one
+// geometry, widest at the foot (radius r, the same r a collider would use) and
+// narrowing to a top at height h. A real solid a cat climbs, so unlike the
+// beds it casts a shadow.
+export function tor(x, z, { r = 1.2, h = 1.2, seed = 0 } = {}) {
+  // [radius share, bottom share of h, height share of h, sideways drift in r]
+  const blocks = [[1, 0, 0.5, 0], [0.7, 0.35, 0.45, 0.15], [0.5, 0.65, 0.35, 0.12]];
+  const geoms = blocks.map(([rs, bottom, tall, drift], i) => {
+    const g = new THREE.DodecahedronGeometry(1, 0);
+    // The foot stays unturned so its x and z reach is near its full radius.
+    if (i > 0) g.rotateY(hash01(x, z, seed + i) * Math.PI);
+    g.computeBoundingBox();
+    const pos = g.attributes.position;
+    let reach = 0;
+    for (let v = 0; v < pos.count; v++) reach = Math.max(reach, Math.hypot(pos.getX(v), pos.getZ(v)));
+    const { min, max } = g.boundingBox;
+    g.scale((r * rs) / reach, (h * tall) / (max.y - min.y), (r * rs) / reach);
+    g.translate(0, h * bottom - min.y * ((h * tall) / (max.y - min.y)), 0);
+    const a = hash01(x, z, seed + 10 + i) * Math.PI * 2;
+    g.translate(x + Math.cos(a) * r * drift, 0, z + Math.sin(a) * r * drift);
+    return g;
+  });
+  const geo = mergeGeometries(geoms, false);
+  for (const g of geoms) g.dispose();
+  const m = new THREE.Mesh(geo, surfNoMap(0x8e8c88, 'cobble'));
+  m.castShadow = true;
+  return m;
+}
+
+// Rabbit burrows: a dark hole laid flat on the ground and a low mound of
+// spoil 0.35 m to one side. Two merged meshes (two colours), both under 0.2 m
+// and out of the caster sweep; a hide for the Moor, not an obstacle.
+export function burrows(spots, seed) {
+  const spoil = [];
+  const holes = [];
+  spots.forEach((sp, i) => {
+    const hole = new THREE.CircleGeometry(0.22, 10);
+    hole.rotateX(-Math.PI / 2);
+    hole.translate(sp.x, 0.02, sp.z);
+    holes.push(hole);
+    const mound = new THREE.SphereGeometry(0.55, 8, 4);
+    mound.scale(1, 0.15 / 0.55, 1);
+    const a = hash01(sp.x, sp.z, seed + i + 1) * Math.PI * 2;
+    mound.translate(sp.x + Math.cos(a) * 0.35, 0, sp.z + Math.sin(a) * 0.35);
+    spoil.push(mound);
+  });
+  const g = new THREE.Group();
+  const mounds = mergedNoCast(spoil, 0xa08a62, 'sand');
+  mounds.name = 'burrowSpoil';
+  const dark = mergedNoCast(holes, 0x2a2420, 'sand');
+  dark.name = 'burrowHoles';
+  g.add(mounds, dark);
+  return g;
+}
+
 // A weeping willow: tree()'s trunk, a lower, wider crown, and one merged
 // curtain of thin strands hanging from the crown's rim. The curtain stops at
 // `curtainFloor` (local y) and never lower, so a cat walks under a willow and
