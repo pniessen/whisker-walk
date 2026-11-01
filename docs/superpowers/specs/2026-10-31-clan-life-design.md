@@ -79,17 +79,16 @@ that too, and wins about as often as she does.
 
 - **Depends on "pick your clan"** (plan
   `docs/superpowers/plans/2026-10-31-clan-edition-pick-your-clan.md`, on
-  branch `worktree-agent-aafb940cef98e4f92`, reviewed). That plan gives each
+  main and reviewed, not built yet). That plan gives each
   territory a home clan (StormClan in the Woods, GaleClan on the Moor,
   BrookClan by the River, DuskClan in the Pines; CliffClan for the Gorge
   later), each kid's pick, a camp disc per territory (Woods (2, −43) r 6,
   River (5, 1) r 6; the Moor and Pines add one each), and the rule for which
   clan patrols where. This design builds on top of it and lands after it.
-- **Depends on the new cat body** (branch `cat-body`, being built): the fight
-  poses and the clan cats' ranks (kit size, elder posture) use the new rig.
-  *Claude's call:* this waits for the cat body to merge. There are no
+- **Depends on the new cat body** (merged on main): the fight poses and the
+  clan cats' ranks (kit size, elder posture) use the new rig. There are no
   throwaway poses on the old rig.
-- **Kittypets** (plan on branch `worktree-agent-ab7d7ec177b6cff67`) keep
+- **Kittypets** (plan on main, not built) keep
   working: the wanderer still turns up 1 day in 5, and kittypets stay out of
   territory casts otherwise.
 - **The island** stays cat-free (owner decision). No clan cat, intruder or
@@ -236,7 +235,43 @@ existing audio module.
 *Open for the builder:* whether your clan's own territory still has the
 "neighbouring clan patrols at the same camp" rule from the pick-your-clan
 plan, or whether intruders replace it there. Claude's lean: intruders replace
-it.
+it. *Settled 2026-10-31 by the owner: intruders replace it (see below).*
+
+## Owner's answers (2026-10-31, after planning)
+
+Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
+(cast, camp, clanmates) and
+`docs/superpowers/plans/2026-10-31-clan-life-2-intruders-fights.md`
+(intruders, fights, co-walk sync).
+
+**Owner's decisions:**
+1. **Intruders replace the neighbour patrol at your own camp** (§5's open
+   question). On land where you are at home there is no patrol. This
+   supersedes pick-your-clan's D7 for the clan-life era.
+2. **Name words:** the 36 words the plan proposed.
+3. **Each clan has its own colours**, so its cats read as one family and an
+   intruder stands out: StormClan browns and tabbies, GaleClan light greys
+   and creams, BrookClan grey-blues and silvers, DuskClan blacks and dark
+   tortoiseshells (CliffClan later). Coats are derived from clan and slot,
+   never stored; intruders wear their own clan's colours.
+4. **A busier camp.**
+
+**Coordinator's rulings:**
+- HIGH cast: 1 leader, 1 deputy, 2 elders, 4 kits, 5 warriors, 3 apprentices
+  (16) + 1 intruder slot + 5 loners = 22. LOW: 9 + 1 + 4 = 14. On HIGH, fed
+  colony cats beyond 5 take the extra clan slots first, so up to 12 fed cats
+  stay at their spots.
+- An intruder from either kid's clan never starts a fight; it walks through.
+- The teach line shows in every fight.
+- No intruder dot on the corner map.
+- The personality edges and award values stay as the plan proposed.
+- After the plan review: when both kids fight the same intruder and one
+  wins, both get the award once; touch noses and boop pay for the first 4
+  cats a walk and patrols for 2 (about 96 points a walk from clan life at
+  most); the draw budget's levers, in order, are camp cats casting no
+  shadow, then merging the still cats, then 2 kits instead of 4; Root, Toad,
+  Trout and Mint move to warrior slots so no kit or apprentice name is a
+  book name.
 
 ## Goals
 

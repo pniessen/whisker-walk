@@ -78,6 +78,7 @@ The owner answered the clan questions on 2026-10-31. The coordinator ruled on th
   - the territory's own clan, if neither kid picked it;
   - otherwise the first neighbour, in the row's order, that neither kid picked;
   - otherwise no patrol.
+  - **Note (2026-10-31, owner's decision for clan life):** once Clan Life Part 1 lands, the owner has decided that intruders replace this neighbour patrol at your own camp: on land where you are at home (your clan's or your sibling's), no patrol runs. That supersedes D7 for the clan-life era. Build D7 here as written; Clan Life Part 1, Task 5 (`docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`) gates the patrol off at home, and Part 2 (`docs/superpowers/plans/2026-10-31-clan-life-2-intruders-fights.md`) adds the intruders.
 - **D8. Camp spots: coordinator's ruling. They stay as proposed.**
   - **Woods:** (2, −43), r 6. It sits in the north glade across the river, facing the Moor.
     - Its ring reaches z −49, about 1 m from the map's north edge (z −50). **Coordinator's ruling: accepted.**
