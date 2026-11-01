@@ -32,6 +32,7 @@ const { seedFromCode } = await import('../src/rng.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { inWater, waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
+const { ISLAND_WOODS } = await import('../src/world/lake.js');
 
 const {
   build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND, RIVER_KEEP_CLEAR,
@@ -242,7 +243,7 @@ describe('the River: water', () => {
 describe('the River: the island and the horizon', () => {
   it('the island stands where the Woods shows it (R2)', () => {
     // The Woods draws it at (-72, -72); the River's map sits 100 m west of the Woods'.
-    expect(RIVER_ISLAND).toMatchObject({ x: -72 + 100, z: -72 });
+    expect(RIVER_ISLAND).toMatchObject({ x: ISLAND_WOODS.x + 100, z: ISLAND_WOODS.z, r: ISLAND_WOODS.r });
     expect(Object.isFrozen(RIVER_ISLAND)).toBe(true);
   });
 

@@ -260,6 +260,21 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Pines and Swamp: only its hides for now, the three frog hides
+  // (src/world/pines.js's FROG_HIDES), each 0.4 m off the east rim of a bog,
+  // where a fleeing frog dives into the bog. The rest of a Pines prop set is
+  // deferred: nothing to carry, knock, mark or rest on yet.
+  pines: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [],
+    hides: [{ x: -36.1, z: 16 }, { x: -40.6, z: 30 }, { x: -34.1, z: -22 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   den: {
     carryables: [],
     knockables: [],

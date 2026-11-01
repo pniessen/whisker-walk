@@ -64,9 +64,9 @@ describe('the edition switch and the save', () => {
     expect(tamed(p.state)).toEqual(first);
   });
   test('no cat is dropped: cats in territories this build cannot walk yet survive', () => {
-    const cats = [{ ...TAMED_CAT, area: 'woods' }, { ...TAMED_CAT, name: OTHER_NAME, area: 'pines' }];
+    const cats = [{ ...TAMED_CAT, area: 'woods' }, { ...TAMED_CAT, name: OTHER_NAME, area: 'island' }];
     const c = sanitizeColony({ ...emptyColony(), cats }, known);
-    expect(c.cats.map((x) => x.area)).toEqual(['woods', 'pines']);
+    expect(c.cats.map((x) => x.area)).toEqual(['woods', 'island']);
     const remote = { id: null, partner: null, cats: [], feeds: [], trades: [] };
     const merged = mergeColony({ ...emptyColony(), cats: c.cats }, remote, known);
     expect(merged.cats.map((x) => x.name).sort()).toEqual([TAMED_NAME, OTHER_NAME].sort());
@@ -98,5 +98,9 @@ test('the caps are still unchanged with the Woods and the River feeding', () => 
 });
 
 test('the caps are still unchanged with the Moor feeding', () => {
+  expect([COLONY_MAX, SOLO_MAX]).toEqual([24, 12]);
+});
+
+test('the caps are still unchanged with the Pines feeding', () => {
   expect([COLONY_MAX, SOLO_MAX]).toEqual([24, 12]);
 });

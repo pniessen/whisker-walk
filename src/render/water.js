@@ -318,7 +318,153 @@ export function shoreDepth(w, x, z, shores = ALL_SHORES) {
     else if (edge === 'minZ') d = Math.min(d, z - w.minZ);
     else if (edge === 'maxZ') d = Math.min(d, w.maxZ - z);
   }
+  // An island's rim is always a shore, whatever `shores` says: it is ground
+  // the cat can stand on, right there in the water, never open horizon.
+  for (const i of w.islands ?? []) d = Math.min(d, Math.hypot(x - i.x, z - i.z) - i.r);
   return d;
+}
+
+/**
+ * A rect minus round discs, in world x/z: the outline to draw and the discs
+ * to cut out of it as holes.
+ *
+ * The outline walks the rect's perimeter from (minX, minZ) through
+ * (maxX, minZ), (maxX, maxZ) and (minX, maxZ). Each disc is one of three
+ * things:
+ *   - wholly inside (every edge at least 1e-6 beyond its rim): a hole;
+ *   - wholly outside: dropped, it has nothing to cut;
+ *   - crossing the perimeter: a notch. The stretch of perimeter inside the
+ *     disc is replaced by the disc's arc that lies inside the rect, sampled
+ *     no coarser than 2π / segments, from where the walk enters the disc to
+ *     where it leaves. A disc over one corner crosses two different edges and
+ *     its arc stands in for the corner.
+ *
+ * Why a crossing disc must be a notch and not a hole: ShapeGeometry's
+ * triangulator assumes every hole lies inside the outline. A hole that pokes
+ * through it drops triangles or fills the wrong ones, so the water would
+ * either cover part of the island or vanish beside it. The only correct way
+ * to draw a disc that crosses the edge is to bend the edge round it.
+ *
+ * It throws for a disc that crosses the perimeter other than twice (it would
+ * cut the rect apart, swallow two corners' worth of edge or the whole rect)
+ * and for two discs that overlap (a hole would cross a hole, or two notches
+ * would share a stretch). No map needs either, so neither is handled.
+ */
+export function rectMinusDiscs(box, discs, segments) {
+  const { minX, maxX, minZ, maxZ } = box;
+  const W = maxX - minX;
+  const H = maxZ - minZ;
+  const P = 2 * (W + H);
+  const EPS = 1e-6;
+  // Distance along the walk to a point on the perimeter.
+  const along = (x, z) => {
+    if (Math.abs(z - minZ) < 1e-9) return x - minX;
+    if (Math.abs(x - maxX) < 1e-9) return W + (z - minZ);
+    if (Math.abs(z - maxZ) < 1e-9) return W + H + (maxX - x);
+    return 2 * W + H + (maxZ - z);
+  };
+  const pointAt = (s) => {
+    const t = ((s % P) + P) % P;
+    if (t <= W) return [minX + t, minZ];
+    if (t <= W + H) return [maxX, minZ + (t - W)];
+    if (t <= 2 * W + H) return [maxX - (t - W - H), maxZ];
+    return [minX, maxZ - (t - 2 * W - H)];
+  };
+  const inRect = (x, z) => x >= minX - 1e-9 && x <= maxX + 1e-9 && z >= minZ - 1e-9 && z <= maxZ + 1e-9;
+  // Strictly between a and b, walking forward from a (wrapping past 0).
+  const between = (s, a, b) => (a <= b ? s > a && s < b : s > a || s < b);
+
+  const holes = [];
+  const notches = [];
+  const kept = [];
+  for (const d of discs) {
+    const { x: cx, z: cz, r } = d;
+    if (cx - r >= minX + EPS && cx + r <= maxX - EPS && cz - r >= minZ + EPS && cz + r <= maxZ - EPS) {
+      holes.push({ x: cx, z: cz, r });
+      kept.push(d);
+      continue;
+    }
+    const nx = Math.min(maxX, Math.max(minX, cx));
+    const nz = Math.min(maxZ, Math.max(minZ, cz));
+    if (Math.hypot(cx - nx, cz - nz) >= r) continue;
+    kept.push(d);
+
+    // Where the circle crosses each edge, deduplicated where two edges share
+    // a corner.
+    const cross = [];
+    const add = (x, z) => {
+      if (!inRect(x, z)) return;
+      if (cross.some(([px, pz]) => Math.hypot(px - x, pz - z) < 1e-9)) return;
+      cross.push([x, z]);
+    };
+    for (const z0 of [minZ, maxZ]) {
+      const dz = z0 - cz;
+      if (Math.abs(dz) < r) {
+        const dx = Math.sqrt(r * r - dz * dz);
+        add(cx - dx, z0);
+        add(cx + dx, z0);
+      }
+    }
+    for (const x0 of [minX, maxX]) {
+      const dx = x0 - cx;
+      if (Math.abs(dx) < r) {
+        const dz = Math.sqrt(r * r - dx * dx);
+        add(x0, cz - dz);
+        add(x0, cz + dz);
+      }
+    }
+    if (cross.length !== 2) {
+      throw new Error(`rectMinusDiscs: disc (${cx}, ${cz}, r ${r}) crosses the rect's edge ${cross.length} times; only a two-crossing notch is drawn`);
+    }
+
+    // Which way round is the perimeter inside the disc? Test the middle of
+    // the forward stretch from the first crossing to the second.
+    let [a, b] = cross.map(([x, z]) => along(x, z));
+    const mid = a < b ? (a + b) / 2 : (a + b + P) / 2;
+    const [mx, mz] = pointAt(mid);
+    if (Math.hypot(mx - cx, mz - cz) >= r) [a, b] = [b, a];
+    const [ex, ez] = pointAt(a);
+    const [xx, xz] = pointAt(b);
+
+    // The arc from entry to exit that lies inside the rect: of the two ways
+    // round, the one whose midpoint is in the rect.
+    const t0 = Math.atan2(ez - cz, ex - cx);
+    let sweep = Math.atan2(xz - cz, xx - cx) - t0;
+    sweep = ((sweep % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const midT = t0 + sweep / 2;
+    if (!inRect(cx + r * Math.cos(midT), cz + r * Math.sin(midT))) sweep -= 2 * Math.PI;
+    const n = Math.max(1, Math.ceil(Math.abs(sweep) / ((2 * Math.PI) / segments) - 1e-9));
+    const arc = [[ex, ez]];
+    for (let k = 1; k < n; k++) {
+      const t = t0 + (sweep * k) / n;
+      arc.push([cx + r * Math.cos(t), cz + r * Math.sin(t)]);
+    }
+    arc.push([xx, xz]);
+    notches.push({ start: a, end: b, arc });
+  }
+
+  for (let i = 0; i < kept.length; i++) {
+    for (let j = i + 1; j < kept.length; j++) {
+      const p = kept[i];
+      const q = kept[j];
+      if (Math.hypot(p.x - q.x, p.z - q.z) < p.r + q.r) {
+        throw new Error(`rectMinusDiscs: discs (${p.x}, ${p.z}) and (${q.x}, ${q.z}) overlap`);
+      }
+    }
+  }
+
+  // Walk the perimeter: each corner not inside a notch, and each notch's arc
+  // in its place.
+  const events = [
+    ...[0, W, W + H, 2 * W + H].map((s) => ({ s, corner: pointAt(s) })),
+    ...notches.map((nt) => ({ s: nt.start, notch: nt })),
+  ].sort((p, q) => p.s - q.s);
+  const outline = [];
+  for (const e of events) {
+    if (e.notch) outline.push(...e.notch.arc);
+    else if (!notches.some((nt) => between(e.s, nt.start, nt.end))) outline.push(e.corner);
+  }
+  return { outline, holes };
 }
 
 /**
@@ -520,6 +666,48 @@ function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoug
   };
 }
 
+// --- islands -----------------------------------------------------------------
+
+/**
+ * A rect footprint with islands, drawn as the rect minus its discs, in the
+ * mesh's local frame: (x - cx, -(z - cz)), because the flat rotation sends
+ * local +y to world -z.
+ *
+ * This is still the declaration verbatim, cut where the record says there is
+ * no water, with the area's ground plane showing through the cut. It is not a
+ * ground-coloured disc laid over an uncut lake: a cover disc would be a
+ * second record of the island's shape that could drift from the first, it
+ * would fight the water for depth at the rim, and it would hide the real
+ * ground, whose grass, race rings and shore foam are what make the island
+ * read as somewhere to walk.
+ *
+ * The uv is rewritten to PlaneGeometry's mapping, ((x + w/2)/w, (y + h/2)/h).
+ * ShapeGeometry's own uv is the raw local position, which would stretch the
+ * baked ramp and the ripple tiling to nothing; with the plane's mapping both
+ * line up exactly as they do on a rect without islands.
+ */
+function islandGeometry(w, box, segments) {
+  const cx = (box.minX + box.maxX) / 2;
+  const cz = (box.minZ + box.maxZ) / 2;
+  const width = box.maxX - box.minX;
+  const height = box.maxZ - box.minZ;
+  const { outline, holes } = rectMinusDiscs(box, w.islands, segments);
+  const shape = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x - cx, -(z - cz))));
+  for (const h of holes) {
+    const path = new THREE.Path();
+    path.absarc(h.x - cx, -(h.z - cz), h.r, 0, Math.PI * 2, false);
+    shape.holes.push(path);
+  }
+  const geometry = new THREE.ShapeGeometry(shape, segments);
+  const pos = geometry.attributes.position;
+  const uv = geometry.attributes.uv;
+  for (let k = 0; k < pos.count; k++) {
+    uv.setXY(k, (pos.getX(k) + width / 2) / width, (pos.getY(k) + height / 2) / height);
+  }
+  uv.needsUpdate = true;
+  return geometry;
+}
+
 // --- the factory -------------------------------------------------------------
 
 /**
@@ -600,7 +788,9 @@ export function createWater(footprint, options = {}) {
   const box = waterBox(w);
   const geometry = w.kind === 'circle'
     ? new THREE.CircleGeometry(w.r, segments)
-    : new THREE.PlaneGeometry(box.maxX - box.minX, box.maxZ - box.minZ);
+    : w.islands?.length
+      ? islandGeometry(w, box, segments)
+      : new THREE.PlaneGeometry(box.maxX - box.minX, box.maxZ - box.minZ);
 
   const ramp = buildRampTextures(w, {
     shelf,

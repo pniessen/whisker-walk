@@ -74,8 +74,22 @@ test('the shipped Legacy guards cover the Moor', () => {
   expect(rivalForWalk('moor', 'canon')).toBeNull();
   expect(areaInEdition(CATALOG.areas.moor, 'legacy')).toBe(false);
 });
+test('the shipped Legacy guards cover the Pines, and no patrol walks the truce', () => {
+  expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
+  expect(effectiveArea({ edition: 'canon', area: 'pines' }, CATALOG)).toBe('pines');
+  expect(roomAreaMove({ edition: 'legacy', area: 'pines' }, CATALOG, 'park')).toBe('override');
+  expect(rivalForWalk('pines', 'canon')).toBeNull();
+  expect(rivalForWalk('pines', 'legacy')).toBeNull();
+  expect(areaInEdition(CATALOG.areas.pines, 'legacy')).toBe(false);
+});
 test('the shipped Legacy guards cover the River', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'river' }, CATALOG)).toBe('neighborhood');
   expect(roomAreaMove({ edition: 'legacy', area: 'river' }, CATALOG, 'park')).toBe('override');
   expect(rivalForWalk('river', 'canon')).toBeNull();
+});
+
+test('the island is inside the Pines, so Legacy never walks it and no patrol is there', () => {
+  expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
+  expect(Object.hasOwn(CATALOG.areas, 'island')).toBe(false);
+  expect(rivalForWalk('pines', 'canon')).toBeNull();
 });

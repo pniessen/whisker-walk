@@ -190,6 +190,18 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     return { stop: () => src.stop() };
   }
 
+  // Bog frogs: now and then two low square-wave croaks, well under the 1500 Hz
+  // where birdsong starts, so a swamp never sounds like a hedge.
+  function frogLayer() {
+    const id = setInterval(() => {
+      if (!muted && Math.random() < 0.4) {
+        tone(180 + Math.random() * 60, 0.09, { type: 'square', gain: 0.016, slideTo: 140 });
+        tone(180 + Math.random() * 60, 0.09, { type: 'square', gain: 0.016, slideTo: 140, delay: 0.13 });
+      }
+    }, 3200);
+    return { stop: () => clearInterval(id) };
+  }
+
   // Occasional distant birdsong. Seaside doesn't use this (gulls instead);
   // callers also skip it during rain/dusk (birds go quiet).
   function birdsongLayer() {
@@ -644,6 +656,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         layers.push(windLayer({ gain: 0.06, cutoff: 480 }));
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
+      } else if (areaKey === 'pines') {
+        // The Pines and Swamp: a low hush of wind and the bog frogs, never
+        // birdsong at any hour. Crickets at dusk come from the shared line.
+        layers.push(windLayer({ gain: 0.035, cutoff: 220 }));
+        layers.push(frogLayer());
+        if (rain) layers.push(rainLayer());
       } else {
         layers.push(windLayer());
         // Birdsong is suppressed when it's raining (rainLayer takes its

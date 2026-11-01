@@ -2285,6 +2285,24 @@ export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
   return g;
 }
 
+// One long plank from (x1, z1) to (x2, z2), its top at about `y`: the lake's
+// island bridge. A plain box, not roundedBox, so its length and width can be
+// read straight off its geometry. Dock timber at the Seaside pier's scale, the
+// repeat taken from the top face's real w x len, so the boards run along it.
+export function plankBridge(x1, z1, x2, z2, w, y, thick) {
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, thick, len), surfMat(0x8a6a44, 'wood', w, len));
+  m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+  m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+  // A plank lying on the water: flat ground dressing, out of the shadow pass
+  // like reedBed and steppingStones. Its thickness sits right on rig.js's
+  // CAST_FLAT_HEIGHT, so without this flag whether it cast came down to float
+  // rounding in its bounding box.
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
 // A trunk laid across a stream as a bridge, its top hewn flat to walk on, the
 // way a real log bridge is. Like bridgeDeck it emits no collider: the walkable
 // part is the area's own crossing record, this is the picture of it. `w` is
@@ -2612,26 +2630,82 @@ export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
   return g;
 }
 
+// A pine's shape, shared by `pine` and `pineStand` so the two can never drift
+// apart: trunk radii, length and centre height, then each cone's
+// [radius, height, centre height]. Exported (frozen) so test/pines.test.js can
+// rebuild a pine's solid shape and keep the chase camera out of it.
+export const PINE_TRUNK = Object.freeze({ rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 });
+export const PINE_CONES = Object.freeze([[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map((c) => Object.freeze(c)));
+const PINE_TRUNK_COLOR = 0x7a5230;
+const PINE_FOLIAGE_COLOR = 0x2f5a3a;
+const PINE_TRUNK_SIDES = 6;
+const PINE_CONE_SIDES = 7;
+
+// One pine's unplaced geometry: the trunk (already lifted to its centre
+// height) and the three cones, built in one place for `pine` and `pineStand`.
+function pineParts() {
+  const trunk = new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, PINE_TRUNK_SIDES);
+  trunk.translate(0, PINE_TRUNK.y, 0);
+  const cones = PINE_CONES.map(([r, h, y]) => {
+    const c = new THREE.ConeGeometry(r, h, PINE_CONE_SIDES);
+    c.translate(0, y, 0);
+    return c;
+  });
+  return { trunk, cones };
+}
+
 // A pine: a short bark trunk under three stacked cones, merged into one
 // foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
 // carries no `canopy` tag. No collider here.
 export function pine(x, z, scale = 1, { wind } = {}) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.6, 6),
-    surfMat(0x7a5230, 'bark'));
-  trunk.position.y = 0.8;
+  const { trunk: trunkGeo, cones } = pineParts();
+  const trunk = new THREE.Mesh(trunkGeo, surfMat(PINE_TRUNK_COLOR, 'bark'));
   g.add(trunk);
-  const cones = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map(([r, h, y]) => {
-    const c = new THREE.ConeGeometry(r, h, 7);
-    c.translate(0, y, 0);
-    return c;
-  });
-  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(0x2f5a3a, 'foliage'));
+  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
   for (const c of cones) c.dispose();
   g.add(foliage);
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
+  return g;
+}
+
+// A stand of pines as two merged meshes, `standTrunks` and `standFoliage`: each
+// tree is exactly `pine(x, z, scale)`'s trunk and three cones, scaled, turned
+// about y by hash01(x, z, seed) x 2pi and put in place. One stand is two draw
+// calls and two shadow casters however many pines it holds, where a swaying
+// `pine` is two of each on its own. Dense forest is built this way. Both
+// meshes cast (they are tall solids), the stand is still (no wind), and no
+// collider is made here.
+export function pineStand(trees, seed) {
+  const trunks = [];
+  const cones = [];
+  for (const t of trees) {
+    const turn = hash01(t.x, t.z, seed) * Math.PI * 2;
+    const place = (geo) => {
+      geo.scale(t.scale, t.scale, t.scale);
+      geo.rotateY(turn);
+      geo.translate(t.x, 0, t.z);
+      return geo;
+    };
+    const parts = pineParts();
+    trunks.push(place(parts.trunk));
+    for (const c of parts.cones) cones.push(place(c));
+  }
+  const merge = (geoms) => {
+    const geo = geoms.length === 0 ? new THREE.BufferGeometry() : mergeGeometries(geoms, false);
+    for (const p of geoms) p.dispose();
+    return geo;
+  };
+  const g = new THREE.Group();
+  const trunkMesh = new THREE.Mesh(merge(trunks), surfMat(PINE_TRUNK_COLOR, 'bark'));
+  trunkMesh.name = 'standTrunks';
+  const foliageMesh = new THREE.Mesh(merge(cones), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
+  foliageMesh.name = 'standFoliage';
+  trunkMesh.castShadow = true;
+  foliageMesh.castShadow = true;
+  g.add(trunkMesh, foliageMesh);
   return g;
 }
 
@@ -2658,6 +2732,39 @@ function mergedNoCast(geoms, color, surface) {
   m.castShadow = false;
   m.userData.noCast = true;
   return m;
+}
+
+// Toadstools, two merged meshes: each spot is a cluster of two to four, within
+// 0.3 m of the spot, a pale stem under a red half-dome cap (about 30 triangles
+// each). Never taller than 0.3 m, so they dress the ground without hiding a
+// cat, and out of the caster sweep like the other low beds.
+export function toadstools(spots, seed) {
+  const stems = [];
+  const caps = [];
+  spots.forEach((sp, i) => {
+    const n = 2 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 3);
+    for (let k = 0; k < n; k++) {
+      const h = 0.08 + 0.08 * hash01(i, k, seed + 2);
+      const r = 0.07 + 0.05 * hash01(k, i, seed + 3);
+      const a = hash01(k, i, seed + 4) * Math.PI * 2;
+      const d = 0.3 * hash01(i + k, k, seed + 5);
+      const x = sp.x + Math.cos(a) * d;
+      const z = sp.z + Math.sin(a) * d;
+      const stem = new THREE.CylinderGeometry(0.03, 0.04, h, 5);
+      stem.translate(x, h / 2, z);
+      stems.push(stem);
+      const cap = new THREE.SphereGeometry(r, 6, 2, 0, Math.PI * 2, 0, Math.PI / 2);
+      cap.translate(x, h, z);
+      caps.push(cap);
+    }
+  });
+  const g = new THREE.Group();
+  const stemMesh = mergedNoCast(stems, 0xe8dcc0, 'foliage');
+  stemMesh.name = 'toadstoolStems';
+  const capMesh = mergedNoCast(caps, 0xc0392b, 'foliage');
+  capMesh.name = 'toadstoolCaps';
+  g.add(stemMesh, capMesh);
+  return g;
 }
 
 // LEFT FLAT, in all five areas. Corrugated board is uncoated pulp — it is
@@ -3314,6 +3421,17 @@ export function logBasket(x, z) {
 // must leave this hole in itself". Every function below treats a point on a
 // deck as dry land.
 //
+// A rect footprint may carry `islands: [{ x, z, r }]`: round holes of dry
+// ground cut out of the water. An island is not a deck, because a deck means
+// raised boards (ruling R42: carrying will not set things down on one, and
+// paw prints skip it); an island is ground, so it gets neither rule. A circle
+// footprint does not support islands.
+//
+// A deck may also be a strip `{ x1, z1, x2, z2, halfW }` — a centreline from
+// end 1 to end 2 and a half-width — instead of an axis-aligned rect, so a
+// bridge on a diagonal is still one deck. `Number.isFinite(d.x1)` tells the
+// two shapes apart.
+//
 // All of this is plain data and pure geometry: no THREE, no renderer, so the
 // world files stay unit-testable headless.
 // =============================================================================
@@ -3322,19 +3440,47 @@ export function logBasket(x, z) {
 // water, positive on dry land. For a rect the inside case reports the
 // SHALLOWEST penetration (the nearest way out), which is what makes the
 // push-out below take the short route to shore.
+//
+// Islands only exist on rects; a circle's `islands`, if one were ever given,
+// is ignored. An island is a hole in the water, so the gap is the larger of
+// the rect's own and each island's "how far inside its rim".
 export function waterGap(w, x, z) {
   if (w.kind === 'circle') return Math.hypot(x - w.x, z - w.z) - w.r;
   const dx = Math.max(w.minX - x, x - w.maxX);
   const dz = Math.max(w.minZ - z, z - w.maxZ);
-  if (dx > 0 || dz > 0) return Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
-  return Math.max(dx, dz);
+  let gap = (dx > 0 || dz > 0)
+    ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
+    : Math.max(dx, dz);
+  for (const i of w.islands ?? []) gap = Math.max(gap, i.r - Math.hypot(x - i.x, z - i.z));
+  return gap;
+}
+
+// A strip deck's frame: start point a, unit vector u along it, side normal n
+// = (-u.z, u.x), and its length. A strip is how a diagonal bridge stays one
+// deck rather than a staircase of axis-aligned rects.
+const isStrip = (d) => Number.isFinite(d.x1);
+function stripFrame(d) {
+  const len = Math.hypot(d.x2 - d.x1, d.z2 - d.z1);
+  const ux = (d.x2 - d.x1) / len, uz = (d.z2 - d.z1) / len;
+  return { ax: d.x1, az: d.z1, ux, uz, nx: -uz, nz: ux, len };
+}
+
+// A point built exactly on a strip's end or edge (a + t·u + s·n) comes back
+// from the dot products a few 1e-16 off, so the strip test allows 1e-9 of
+// slack. A rect deck needs none: its edges are compared as given.
+const STRIP_EPS = 1e-9;
+function onOneDeck(d, x, z) {
+  if (!isStrip(d)) return x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ;
+  const f = stripFrame(d);
+  const px = x - f.ax, pz = z - f.az;
+  const t = px * f.ux + pz * f.uz;
+  const s = px * f.nx + pz * f.nz;
+  return t >= -STRIP_EPS && t <= f.len + STRIP_EPS && Math.abs(s) <= d.halfW + STRIP_EPS;
 }
 
 // Is (x, z) standing on one of this footprint's dry decks?
 export function onDeck(w, x, z) {
-  return (w.decks ?? []).some(
-    (d) => x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ,
-  );
+  return (w.decks ?? []).some((d) => onOneDeck(d, x, z));
 }
 
 // Is (x, z) on any deck of any of these waters? The carry's "never put a
@@ -3369,13 +3515,35 @@ function pushOutOf(w, x, z, margin) {
     const need = w.r + margin;
     return { x: w.x + (dx / d) * need, z: w.z + (dz / d) * need };
   }
+  // An island is a way out too: onto the ground, `margin` inside its rim,
+  // straight along the line from its centre (a fixed +x at the dead centre).
+  const islandExits = (w.islands ?? []).map((i) => {
+    let dx = x - i.x, dz = z - i.z;
+    let d = Math.hypot(dx, dz);
+    if (d < 1e-6) { dx = 1; dz = 0; d = 1; }
+    const need = i.r - margin;
+    return { x: i.x + (dx / d) * need, z: i.z + (dz / d) * need };
+  });
   return nearestOf(x, z, [
     { x: w.minX - margin, z }, { x: w.maxX + margin, z },
     { x, z: w.minZ - margin }, { x, z: w.maxZ + margin },
+    ...islandExits,
   ]);
 }
 
 function clampInto(d, x, z, margin) {
+  if (isStrip(d)) {
+    // The strip's own frame: clamp along it and across it, then map back.
+    // Too short or too narrow for the margin, it takes the middle instead.
+    const f = stripFrame(d);
+    const px = x - f.ax, pz = z - f.az;
+    const t = f.len <= 2 * margin
+      ? f.len / 2
+      : Math.min(f.len - margin, Math.max(margin, px * f.ux + pz * f.uz));
+    const side = d.halfW - margin;
+    const s = d.halfW <= margin ? 0 : Math.min(side, Math.max(-side, px * f.nx + pz * f.nz));
+    return { x: f.ax + t * f.ux + s * f.nx, z: f.az + t * f.uz + s * f.nz };
+  }
   const cl = (v, lo, hi) => (lo + margin >= hi - margin
     ? (lo + hi) / 2
     : Math.min(hi - margin, Math.max(lo + margin, v)));

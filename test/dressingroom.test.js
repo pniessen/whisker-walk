@@ -158,7 +158,8 @@ describe('dressing-room renderer', () => {
     const html = render();
     expect(count(html, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
     expect(count(html, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
-    expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length);
+    // the map's island star is a second tap target for the Pines, so one more than the areas
+    expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length + 1);
     expect(count(html, /data-dr-pill=/g)).toBe(3);
     expect(html).toContain(`aria-pressed="true"`);
   });
@@ -272,6 +273,13 @@ describe('dressing-room places by edition', () => {
     expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
     expect(m.places.map((p) => p.id)).not.toContain('moor');
   });
+  it('dressingroom: Legacy lists today\'s four places and never the Pines', () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    s.walks.river = 5;
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).not.toContain('pines');
+  });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     s.walks.neighborhood = 1;
@@ -364,6 +372,17 @@ describe('the dressing room in each edition', () => {
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
     expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
     expect(s.area).toBe('moor');
+  });
+
+  it("Legacy with the Pines chosen marks the Cozy Neighborhood card \"today's walk\"", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('pines');
+    s.area = 'pines';
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
+    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(s.area).toBe('pines');
   });
 
   it("Legacy with the River chosen marks the Cozy Neighborhood card \"today's walk\"", () => {

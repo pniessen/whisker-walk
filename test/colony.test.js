@@ -1172,7 +1172,7 @@ describe('feeding a den kit', () => {
 describe('territories the colony feeds in', () => {
   it('feedsHere is true in the Woods and the River once the server accepts them', () => {
     for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river']) expect(feedsHere(a)).toBe(true);
-    expect(feedsHere('pines')).toBe(false);
+    expect(feedsHere('island')).toBe(false);
     expect(feedsHere('den')).toBe(false);
   });
   it('a Woods stray can be fed solo, and its spot is kept', () => {
@@ -1187,7 +1187,7 @@ describe('territories the colony feeds in', () => {
   });
   it('feedsHere is true on the Moor once the server accepts it', () => {
     expect(feedsHere('moor')).toBe(true);
-    expect(feedsHere('pines')).toBe(false);
+    expect(feedsHere('island')).toBe(false);
     expect(feedsHere('den')).toBe(false);
   });
   it('a Moor stray can be fed solo, and its spot is kept', () => {
@@ -1196,10 +1196,23 @@ describe('territories the colony feeds in', () => {
     expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'moor', x: 30.5, z: -24 });
   });
   it('feedCat still refuses a territory the colony does not feed in yet', () => {
-    expect(feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'pines', x: 0, z: 0 }).result).toBe('bad');
+    expect(feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'island', x: 0, z: 0 }).result).toBe('bad');
   });
   it('the repo SQL accepts the six territory ids', () => {
     const line = readFileSync('docs/supabase-colony.sql', 'utf8').split('\n')[383];
     expect(line).toContain("'neighborhood', 'park', 'seaside', 'docks', 'woods', 'moor', 'river', 'pines', 'island', 'gorge'");
+  });
+});
+
+describe('the Pines feeds', () => {
+  it('feedsHere is true in the Pines', () => {
+    expect(feedsHere('pines')).toBe(true);
+    expect(feedsHere('island')).toBe(false);
+    expect(feedsHere('den')).toBe(false);
+  });
+  it('a Pines stray can be fed solo, and its spot is kept', () => {
+    const r = feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'pines', x: -18.5, z: 6, head: 0 });
+    expect(r.result).toBe('ok');
+    expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'pines', x: -18.5, z: 6 });
   });
 });

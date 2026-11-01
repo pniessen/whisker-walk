@@ -190,3 +190,20 @@ describe('walk.js builds from the rig', () => {
     expect(walkSrc).toMatch(/^import \{[^}]*\} from '\.\.\/render\/rig\.js';$/m);
   });
 });
+
+describe('assignShadowCasters and the pine stand', () => {
+  it('casts the pine stand and leaves the toadstools out', async () => {
+    const b = await import('../src/world/builder.js');
+    const scene = new THREE.Scene();
+    const stand = b.pineStand([{ x: 0, z: 0, scale: 1 }, { x: 6, z: 2, scale: 1.4 }], 2);
+    const caps = b.toadstools([{ x: 0, z: 10 }, { x: 3, z: 10 }], 2);
+    scene.add(stand, caps);
+    assignShadowCasters(scene);
+    const names = {};
+    scene.traverse((o) => { if (o.isMesh) names[o.name] = o.castShadow; });
+    expect(names.standTrunks).toBe(true);
+    expect(names.standFoliage).toBe(true);
+    expect(names.toadstoolStems).toBe(false);
+    expect(names.toadstoolCaps).toBe(false);
+  });
+});

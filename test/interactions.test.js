@@ -2308,6 +2308,30 @@ describe('Gift Paws (v18 Task 3.2)', () => {
     expect(AWARDS.gift).toBe(10);
   });
 
+  it('a scenic marked gifts: false is never offered for a gift', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    // closer to the cat than the fountain, so only the flag can skip it
+    const rock = { id: 'rock', x: 3, z: 24.5, label: 'the rock', gifts: false };
+    h.session.areaData.scenics.push(rock);
+    try {
+      h.walkTo(3, 24.4);
+      expect(h.session.prompt.kind).toBe('gift-leave');
+      expect(h.session.prompt.data.id).toBe('fountain');
+      // 2.5 m from the rock and 4 m from the fountain: only the rock is
+      // within GIFT_LEAVE_RANGE (3 m) of here, and its flag skips it
+      h.walkTo(3, 27);
+      expect(h.session.prompt).toBe(null);
+      // the same spot with the flag taken off offers the rock, so the null
+      // above is the flag's doing and not the distance
+      delete rock.gifts;
+      h.walkTo(3, 27);
+      expect(h.session.prompt.kind).toBe('gift-leave');
+      expect(h.session.prompt.data.id).toBe('rock');
+    } finally {
+      h.session.areaData.scenics.pop();
+    }
+  });
+
   it('stops offering a spot that already holds a gift', () => {
     const h = giftHarness({ skills: ['gift-paws'] });
     h.walkTo(3, 23);
@@ -3272,7 +3296,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     const h = colonyHarness();
     h.press();                                // touch noses
     expect(h.stray.greeted).toBe(true);
-    h.session.areaId = 'pines';
+    h.session.areaId = 'island';
     h.scan();
     expect(h.kind()).not.toBe('stray-feed');
     h.session.areaId = 'park';

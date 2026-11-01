@@ -78,8 +78,9 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS } = await import('../src/world/moor.js');
+const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -157,6 +158,23 @@ describe('buildMapLayer', () => {
     expect(sea.decks[0].maxX).toBeGreaterThan(sea.decks[0].minX);
   });
 
+  it('buildMapLayer keeps a rect water\'s islands and a strip deck', () => {
+    const areaData = {
+      bounds: { minX: -30, maxX: 30, minZ: -30, maxZ: 30 },
+      waters: [{
+        id: 'w', kind: 'rect', minX: -20, maxX: 20, minZ: -20, maxZ: 20,
+        islands: [{ x: 0, z: 0, r: 5 }],
+        decks: [{ x1: -3, z1: -4, x2: -12, z2: -16, halfW: 0.9 }, { minX: 1, maxX: 2, minZ: 3, maxZ: 4 }],
+      }],
+    };
+    const [w] = buildMapLayer(areaData, new THREE.Scene()).water;
+    expect(w.islands).toEqual([{ x: 0, z: 0, r: 5 }]);
+    expect(w.decks).toEqual([
+      { kind: 'strip', x1: -3, z1: -4, x2: -12, z2: -16, halfW: 0.9 },
+      { minX: 1, maxX: 2, minZ: 3, maxZ: 4 },
+    ]);
+  });
+
   it('buildMapLayer for the Woods has ground, edge, four waters with their decks, and paths', () => {
     const { scene, areaData } = built('woods');
     const layer = buildMapLayer(areaData, scene);
@@ -202,6 +220,42 @@ describe('buildMapLayer', () => {
     // Every other Moor collider (a trunk, a chain boulder, the High Tor's
     // pillar, the hawthorn's root) is under the map's 1 m block cut.
     expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
+  });
+
+  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and the Old Ash as its one block', () => {
+    const { scene, areaData } = built('pines');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
+    expect(layer.edge).toEqual(areaData.bounds);
+    expect(layer.water).toHaveLength(10);
+    // mire-north carries the log bridge, mire-west the stepping stones, and
+    // lake-bay the island bridge's strip deck.
+    // The layer's waters keep the area's order (PINES_WATERS), without ids.
+    const ids = areaData.waters.map((w) => w.id);
+    const which = (pick) => layer.water.map((w, i) => (pick(w) ? ids[i] : null)).filter(Boolean);
+    expect(which((w) => w.decks.length > 0)).toEqual(['lake-bay', 'mire-north', 'mire-west']);
+    expect(layer.water[ids.indexOf('lake-bay')].decks).toEqual([
+      expect.objectContaining({ kind: 'strip', halfW: expect.closeTo(0.9, 9) }),
+    ]);
+    // The island is cut out of both the lake and the bay, so the map fills it
+    // like the land.
+    expect(which((w) => w.islands?.length > 0)).toEqual(['lake', 'lake-bay']);
+    // The twelve path segments, each a strip at its own midpoint, and three
+    // rectangular water planes that flatFootprints (src/render/grass.js)
+    // counts as strips because neither half-extent passes 50 m: mire-west
+    // (93 m by 5 m, so 46.5 m at most), the Moor's river and its mouth, all
+    // drawn under the water. The lake and the bay were two more until the
+    // island was cut out of them: each is now a notched ShapeGeometry, which
+    // flatFootprints doesn't read, so 17 became 15 (and grass now grows on
+    // the island, which is ground). Mire-north runs 114 m north to south,
+    // past the 50 m cut, and is skipped; the round bogs are discs, not strips.
+    const onPath = (f) => PINES_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onPath)).toHaveLength(12);
+    expect(layer.paths).toHaveLength(12 + 3);
+    // Every other Pines collider (a pine's trunk, a chain boulder, a pillar,
+    // a truce stone, the fallen pine, a meeting stone, the Watch Rock at
+    // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on it.
+    expect(layer.blocks).toEqual([{ x: 28, z: 28, r: 1.0 }]);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
@@ -326,6 +380,26 @@ describe('createMinimap', () => {
     const water = canvas.fills.indexOf('#86bcdc');
     expect(water).toBeGreaterThan(-1);
     expect(canvas.fills.slice(water + 1)).toContain('rgba(250,244,228,0.85)');
+  });
+
+  it('paints an island like the land, over its water', () => {
+    const layer = {
+      ...LAYER,
+      ground: '#5a8a4a',
+      water: [{
+        kind: 'rect', minX: -10, maxX: 10, minZ: -10, maxZ: 10,
+        islands: [{ x: 0, z: 0, r: 3 }],
+        decks: [{ kind: 'strip', x1: 1, z1: 1, x2: 6, z2: 6, halfW: 0.5 }],
+      }],
+    };
+    const { map, canvas } = makeMap({ layer });
+    map.update({ cx: 0, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const water = canvas.fills.indexOf('#86bcdc');
+    expect(water).toBeGreaterThan(-1);
+    const island = canvas.fills.indexOf('#5a8a4a', water + 1);
+    expect(island).toBeGreaterThan(water);
+    const deck = canvas.fills.indexOf('rgba(250,244,228,0.85)', island + 1);
+    expect(deck).toBeGreaterThan(island);
   });
 
   // coatColor hands back a number (0x2a2a30); a canvas ignores a number

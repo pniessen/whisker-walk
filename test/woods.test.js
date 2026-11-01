@@ -31,6 +31,7 @@ const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { clearSpot } = await import('../src/world/spots.js');
 const { raceCourse } = await import('../src/race.js');
 const { seedFromCode } = await import('../src/rng.js');
+const { ISLAND_WOODS } = await import('../src/world/lake.js');
 
 const { build, SPAWN, WOODS_WATERS, WOODS_PATHS, woodsTreeSpots, woodsUndergrowth } = woods;
 
@@ -305,7 +306,7 @@ describe('the Woods: undergrowth', () => {
 });
 
 describe('the Woods: the island and the horizon', () => {
-  const ISLAND = { x: -72, z: -72 };
+  const ISLAND = ISLAND_WOODS;
 
   it('the island on the horizon is out on the lake and out of reach', () => {
     const { bounds } = area;

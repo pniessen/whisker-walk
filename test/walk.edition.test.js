@@ -20,6 +20,7 @@ vi.mock('../src/world/neighborhood.js', (orig) => stubBuild('neighborhood', orig
 vi.mock('../src/world/woods.js', (orig) => stubBuild('woods', orig));
 vi.mock('../src/world/river.js', (orig) => stubBuild('river', orig));
 vi.mock('../src/world/moor.js', (orig) => stubBuild('moor', orig));
+vi.mock('../src/world/pines.js', (orig) => stubBuild('pines', orig));
 
 const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
@@ -106,6 +107,23 @@ function inTheMoor(edition) {
   return progression;
 }
 
+// A Legacy save whose chosen place is the Pines (two River walks open it).
+function inThePines(edition) {
+  const progression = createProgression(memStorage());
+  progression.completeWalk('neighborhood');
+  progression.completeWalk('neighborhood');
+  expect(progression.buy('areas', 'woods')).toBe(true);
+  progression.completeWalk('woods');
+  progression.completeWalk('woods');
+  expect(progression.buy('areas', 'river')).toBe(true);
+  progression.completeWalk('river');
+  progression.completeWalk('river');
+  expect(progression.buy('areas', 'pines')).toBe(true);
+  progression.setArea('pines');
+  progression.setEdition(edition);
+  return progression;
+}
+
 beforeEach(() => { builtAreas.length = 0; globalThis.document = fakeDocument(); });
 afterEach(() => { delete globalThis.document; });
 
@@ -143,6 +161,14 @@ describe('a Legacy walk', () => {
     expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
     expect(builtAreas).toEqual(['neighborhood']);
     expect(progression.state.area).toBe('moor');
+  });
+
+  it('a Legacy kid whose place is the Pines walks the Neighborhood and keeps the Pines', () => {
+    const progression = inThePines('legacy');
+    const life = lifecycle(progression);
+    expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
+    expect(builtAreas).toEqual(['neighborhood']);
+    expect(progression.state.area).toBe('pines');
   });
 
   it('in Clan Edition the same save walks the Woods', () => {

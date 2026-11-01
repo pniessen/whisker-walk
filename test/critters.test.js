@@ -169,6 +169,16 @@ describe('createCritters — Far Call (v18 CF-5)', () => {
     expect(rabbit.anchor.z).toBeCloseTo(0, 5);
   });
 
+  it('a frog never answers a Far Call: it only bolts', () => {
+    const c = createCritters(scene, [{ type: 'frog', x: 15, z: 0 }], {});
+    const frog = byType(c, 'frog');
+    expect(c.reactToMeow(V(0, 0), { far: true })).toBe(0);
+    expect(frog.anchorTo).toBe(null);
+    step(c, 2);
+    expect(frog.anchor.x).toBeCloseTo(15, 5);
+    expect(frog.anchor.z).toBeCloseTo(0, 5);
+  });
+
   it('still waves the villager and never draws it', () => {
     const c = createCritters(scene, spawns(), {});
     const v = byType(c, 'villager');
@@ -313,6 +323,55 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(rabbit.group.visible).toBe(false);
     expect(hidden).toHaveLength(1);
     expect(c.list).toContain(rabbit); // hidden, never removed
+  });
+
+  it('a frog bolts for its hide when the cat trots up, and stays hidden', () => {
+    const hidden = [];
+    const c = createCritters(scene, [still('frog')], { hides: [HIDE], onHide: (x) => hidden.push(x) });
+    const frog = byType(c, 'frog');
+    run(c, 1, V(-10, 0));
+    expect(frog.fleeing).toBe(false);
+    expect(frog.group.visible).toBe(true);
+
+    let x = -10;
+    while (!frog.fleeing && x < -1) { x += 0.06; frame(c, V(x, 0)); }
+    expect(frog.fleeing).toBe(true);
+    run(c, 0.3, V(x, 0));
+    // It runs TOWARD its cover (east), at its dash speed (5.0 m/s): 1.5 m in 0.3 s.
+    expect(frog.group.position.x).toBeGreaterThan(1.0);
+    expect(frog.group.position.x).toBeLessThan(2.0);
+    expect(frog.hidden).toBeFalsy();
+
+    run(c, 1.5, V(-3, 0));
+    expect(frog.hidden).toBe(true);
+    expect(frog.group.visible).toBe(false);
+    expect(frog.spottable).toBe(false);
+    expect(frog.group.position.distanceTo(V(5, 0))).toBeLessThanOrEqual(HIDE_REACH);
+    expect(hidden).toEqual([frog]);
+
+    run(c, 40, V(-30, 0));
+    expect(frog.hidden).toBe(true);
+    expect(hidden).toHaveLength(1);
+    expect(c.list).toContain(frog);
+  });
+
+  it('a fleeing frog hops, and lands', () => {
+    const c = createCritters(scene, [still('frog')], { hides: [HIDE] });
+    const frog = byType(c, 'frog');
+    run(c, 1, V(-10, 0));
+    expect(frog.group.position.y).toBe(0);
+    let x = -10;
+    while (!frog.fleeing && x < -1) { x += 0.06; frame(c, V(x, 0)); }
+    expect(frog.fleeing).toBe(true);
+    let peak = 0;
+    for (let i = 0; i < 90 && !frog.hidden; i++) {
+      frame(c, V(x, 0));
+      peak = Math.max(peak, frog.group.position.y);
+    }
+    expect(peak).toBeGreaterThan(0.05);
+    expect(peak).toBeLessThanOrEqual(0.12 + 1e-9);
+    expect(frog.hidden).toBe(true);
+    expect(frog.group.position.y).toBe(0);
   });
 
   it('runs to the nearest hide, and only to one within 15m', () => {
@@ -605,6 +664,16 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(new THREE.Box3().setFromObject(rabbit.group).max.y).toBeLessThan(0.35);
     const fiveWays = [0, 45, 90, 135, 180];
     const caught = fiveWays.filter((hideDeg) => approach({ hideDeg, stalking: true, reaction: 0.3, type: 'rabbit' })).length;
+    expect(caught).toBeGreaterThanOrEqual(4);
+  });
+
+  it('a frog is under 0.2 m tall and can be pounce-tagged', () => {
+    const c = createCritters(scene, [still('frog')], { hides: [HIDE] });
+    const frog = byType(c, 'frog');
+    frog.group.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(frog.group).max.y).toBeLessThan(0.2);
+    const fiveWays = [0, 45, 90, 135, 180];
+    const caught = fiveWays.filter((hideDeg) => approach({ hideDeg, stalking: true, reaction: 0.3, type: 'frog' })).length;
     expect(caught).toBeGreaterThanOrEqual(4);
   });
 

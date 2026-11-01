@@ -17,6 +17,12 @@ const CROSS_DIST = 1.2; // horizontal distance that counts as "through" a ring/o
 // mechanism for "siblings race the same course": no wire event ever needs
 // to describe the course itself, only the two inputs (date, area) both
 // sides already agree on.
+//
+// A POI may carry a `group` (the Pines' island POIs share 'island'). The
+// course takes at most one POI per group, so the island is one stop on a
+// course, never the whole of it. The shuffle is untouched (same draws), and a
+// POI with no group is never skipped, so every other area's course is the
+// same as before.
 export function raceCourse(pois, seed) {
   const rng = mulberry32(seed);
   const copy = pois.slice();
@@ -24,7 +30,17 @@ export function raceCourse(pois, seed) {
     const j = Math.floor(rng() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return copy.slice(0, 5);
+  const course = [];
+  const groups = new Set();
+  for (const p of copy) {
+    if (p.group !== undefined) {
+      if (groups.has(p.group)) continue;
+      groups.add(p.group);
+    }
+    course.push(p);
+    if (course.length === 5) break;
+  }
+  return course;
 }
 
 function disposeGroup(group) {
