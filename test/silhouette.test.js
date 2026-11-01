@@ -156,7 +156,9 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // before this wave landed), and the horizon band's +1 is subtracted out so
     // this case measures 4.1 and 4.2 alone.
     // Seaside 64 -> 65: Stream 4 round three's wet-sand band (one plane).
-    const expected = { neighborhood: 380, park: 171, docks: 519, seaside: 65, den: 284 };
+    // Park 171 -> 172: the oak's low limb, which golden mouse gm-park-2 now
+    // sits out on (it used to sit inside the trunk).
+    const expected = { neighborhood: 380, park: 172, docks: 519, seaside: 65, den: 284 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,
