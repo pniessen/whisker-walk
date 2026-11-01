@@ -148,7 +148,11 @@ export const NECK_FORWARD = -0.10;
 // onto the ruff's front, under the chin, and move only a little further
 // forward (head-local; `forward` adds to NECK_FORWARD, front is -z; `drop` is
 // taken off y). Moving them forward alone, past the ruff, put them in front of
-// the face: the ruff reaches almost to the muzzle. The hood bunch takes
-// `forward` but not `drop`: it is a wide roll round the whole neck, and dropped
-// its sides sink into the ruff. Signed off by screenshot (R5).
+// the face: the ruff reaches almost to the muzzle. Signed off by screenshot (R5).
 export const NECK_FLUFFY = { forward: -0.02, drop: 0.07 };
+// The hood bunched at the neck (under a hat) keeps its old head-relative spot,
+// HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
+// NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth
+// level). It is lowered by HOOD_BUNCH_DROP (head-local y) so that no part of
+// it reaches above the mouth (the bottom of the nose) on any cat.
+export const HOOD_BUNCH_DROP = 0.08;

@@ -605,20 +605,6 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const cat = posed({ [CATALOG.accessories.sparklecollar.slot]: 'sparklecollar' }, breed);
     onChest(cat, itemMeshes(cat, [0xf5c518]));     // beads behind the neck are skipped by onChest
   });
-  it.each(CHEST_BREEDS.flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunched at the neck (under a hat) lies on the chest', (breed, id, hex) => {
-    const cat = posed({ body: id, head: 'tophat' }, breed);
-    const bunch = itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry');
-    onChest(cat, bunch);
-    // A ring's min z alone cannot see it sunk into the chest at its sides: every
-    // vertex of its front half lies in front of the cat (fur, ruff, coat).
-    const p = bunch[0].geometry.attributes.position, mid = new THREE.Box3().setFromObject(bunch[0]).getCenter(new THREE.Vector3());
-    for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(bunch[0].matrixWorld);
-      if (v.z > mid.z) continue;
-      const hits = new THREE.Raycaster(new THREE.Vector3(v.x, v.y, -2), new THREE.Vector3(0, 0, 1)).intersectObjects([cat.userData.parts.body], true);
-      if (hits.length) expect(v.z).toBeLessThanOrEqual(hits[0].point.z);
-    }
-  });
   // ...and stays under the chin, not across the face (fluffy cats, Task 10 fix):
   // every mesh the item adds to the head tops out below the mouth — taken as the
   // bottom of the nose, where a cat's mouth begins — and is behind the nose tip.
@@ -630,25 +616,39 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const out = []; cat.userData.parts.head.traverse((o) => { if (o.isMesh && !have.has(sig(o))) out.push(o); });
     return out;
   };
-  const underChin = (bare, meshes, { mouth = true } = {}) => {
-    const nose = new THREE.Box3().setFromObject(bare.userData.parts.head.children[2]);   // skull, muzzle, nose
+  // The nose is tagged in model.js (userData.nose), so the lookup does not hang
+  // on the head's child order.
+  const noseBox = (cat) => {
+    const noses = []; cat.userData.parts.head.traverse((o) => { if (o.isMesh && o.userData.nose) noses.push(o); });
+    expect(noses).toHaveLength(1);
+    return new THREE.Box3().setFromObject(noses[0]);
+  };
+  const underChin = (bare, meshes) => {
+    const nose = noseBox(bare);
     expect(meshes.length).toBeGreaterThan(0);
     for (const m of meshes) {
       const b = new THREE.Box3().setFromObject(m);
-      if (mouth) expect(b.max.y).toBeLessThan(nose.min.y);   // below the mouth
-      expect(b.min.z).toBeGreaterThan(nose.min.z);            // behind the nose tip (front is -z)
+      expect(b.max.y).toBeLessThan(nose.min.y);       // below the mouth
+      expect(b.min.z).toBeGreaterThan(nose.min.z);    // behind the nose tip (front is -z)
     }
   };
   it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
     const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
-    expect(bare.userData.parts.head.children[2].material.color.getHex()).toBe(cat.userData.parts.head.children[2].material.color.getHex());
     underChin(bare, addedToHead(cat, bare));
   });
-  // The hood bunch is a wide roll around the whole neck: even the tabby's rises
-  // to mouth height, but behind the face. It is held only to the nose tip.
-  it.each(CHEST_BREEDS.flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunch stays behind the nose', (breed, id, hex) => {
-    const bare = posed({}, breed), cat = posed({ body: id, head: 'tophat' }, breed);
-    underChin(bare, itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry'), { mouth: false });
+  // The hood bunched at the neck (under a hat) sits at its old head-relative
+  // spot, mostly hidden in the neck fur, never across the face: every vertex of
+  // the roll is below the mouth and behind the nose tip.
+  it.each(['tabby', 'digit', 'persian', 'mainecoon'].flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunched at the neck stays below the mouth and behind the nose', (breed, id, hex) => {
+    const nose = noseBox(posed({}, breed)), cat = posed({ body: id, head: 'tophat' }, breed);
+    const bunch = itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry');
+    expect(bunch).toHaveLength(1);
+    const p = bunch[0].geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(bunch[0].matrixWorld);
+      expect(v.y).toBeLessThan(nose.min.y);
+      expect(v.z).toBeGreaterThan(nose.min.z);
+    }
   });
   it("Digit's built-in tag collar: the tag lies on the chest", () => {
     const cat = buildCat('digit'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -766,10 +766,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
   const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
   const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
-  // Neck items, the neck prize, the collar and the hood bunch sit NECK_FORWARD
-  // ahead of where they sat on the old torso. A fluffy cat's (not the bunch)
-  // drop onto the front of its ruff, under the chin (NECK_FLUFFY), rather than
-  // out past it.
+  // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
+  // they sat on the old torso. A fluffy cat's drop onto the front of its ruff,
+  // under the chin (NECK_FLUFFY), rather than out past it. (Not the hood bunch:
+  // see HOOD_BUNCH_DROP.)
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
   // The coat is painted into the torso's vertex colours (coat.js): tabby
@@ -807,6 +807,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   head.add(muzzle);
   const nose = ball(0.024, INNER_EAR, 1, 0.8, 0.8, 6, 5);
   nose.position.set(0, -0.02, -0.245);
+  nose.userData.nose = true;   // tests find the nose by this, not by child order
   head.add(nose);
   // `ears` grows the cone in its geometry (the animator writes ear rotation, so
   // the mesh transform is not ours to scale) and lifts it by half the added
@@ -1171,7 +1172,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     } else {
       const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
       bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(...headRel(0, -0.06, 0.08 + neckZ));   // forward only: see NECK_FLUFFY
+      bunch.position.set(...headRel(0, -0.06 - HOOD_BUNCH_DROP, 0.08));   // see HOOD_BUNCH_DROP
       hoodItems.push(bunch);
     }
   };
