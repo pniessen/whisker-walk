@@ -131,8 +131,11 @@ export function createHud() {
     },
   };
 
-  bus.on('discovery', ({ label, points, repeat }) => {
-    api.toast(`${repeat ? 'Again — ' : 'You spotted '}${label}`, points);
+  // A chased-off intruder's label is a whole sentence of its own ("You chased
+  // off Mossjaw! 🛡️"): a win is not something you spotted.
+  bus.on('discovery', ({ type, label, points, repeat }) => {
+    const lead = type === 'intruder' ? '' : repeat ? 'Again — ' : 'You spotted ';
+    api.toast(`${lead}${label}`, points);
   });
 
   return api;

@@ -158,3 +158,13 @@ describe('mapMarkers', () => {
     expect(ms).toEqual([]);
   });
 });
+
+describe('mapMarkers intruder', () => {
+  it('no intruder on the corner map: a frame carrying one gets no marker for it', () => {
+    const frame = {
+      race: null, quest: null, scenics: [], visitedScenics: new Set(), remotes: [],
+      intruder: { x: 4, z: 5, clan: 'moor' },
+    };
+    expect(mapMarkers(frame)).toEqual([]);
+  });
+});

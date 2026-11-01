@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createHud } from '../src/ui/hud.js';
+import { bus } from '../src/events.js';
 
 // The project has no DOM environment (no jsdom/happy-dom); like den.test.js and
 // nametag.test.js this installs a small recording fake `document`. It models
@@ -175,5 +176,24 @@ describe('hud corner map slot', () => {
     hud.setCamera(false);
     expect(byId.get('hud-map').classList.contains('hidden')).toBe(false);
     expect(byId.get('hud-viewfinder').classList.contains('hidden')).toBe(true);
+  });
+});
+
+describe('the discovery toast', () => {
+  it('leads with "You spotted" / "Again —", but a chased-off intruder reads as its own sentence', () => {
+    vi.useFakeTimers();
+    try {
+      const hud = createHud();
+      const toast = vi.spyOn(hud, 'toast');
+      bus.emit('discovery', { type: 'flower', key: 'f', label: 'a daisy 🌼', points: 2, repeat: false });
+      expect(toast).toHaveBeenLastCalledWith('You spotted a daisy 🌼', 2);
+      bus.emit('discovery', { type: 'flower', key: 'f', label: 'a daisy 🌼', points: 1, repeat: true });
+      expect(toast).toHaveBeenLastCalledWith('Again — a daisy 🌼', 1);
+      bus.emit('discovery', { type: 'intruder', key: 'intruder-7', label: 'You chased off Mossjaw! 🛡️', points: 12, repeat: false });
+      expect(toast).toHaveBeenLastCalledWith('You chased off Mossjaw! 🛡️', 12);
+    } finally {
+      vi.runAllTimers();
+      vi.useRealTimers();
+    }
   });
 });

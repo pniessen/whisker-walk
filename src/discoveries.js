@@ -11,6 +11,9 @@ export const AWARDS = {
   // Clan Life Part 1, Task 6: a patrol with a clanmate (once per cat per walk,
   // the first 2 a walk: interactions.js CLAN_PAY_CAP).
   patrol: 8,
+  // Clan Life Part 2, Task 4: an intruder chased off your land (once per
+  // visit, wins only). Its feat tally is the journal's "chased off" count.
+  intruder: 12,
 };
 
 export function createDiscoveryLog(progression) {

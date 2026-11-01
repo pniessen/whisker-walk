@@ -81,7 +81,8 @@ export function createAvatarUpdater({
     s.critters.markStalked(cat.position, player.stalking);
 
     if (s.freezeTime > 0) s.freezeTime -= dt;
-    player.speedFactor = (s.freezeTime > 0 || s.perched) ? 0 : player.stalking ? 0.45 : 1;
+    // Clan Life Part 2: a fight holds the cat still (game/clanfight.js moves it).
+    player.speedFactor = (s.freezeTime > 0 || s.perched || s.fight) ? 0 : player.stalking ? 0.45 : 1;
     const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
     if (wasPouncing && s.pounceTime <= 0) {
@@ -124,9 +125,11 @@ export function createAvatarUpdater({
 
     // A rival's chase moves the cat itself (player.halt() zeroes player.speed),
     // so feed the gait the scamper's pace and never let a long sit go to sleep.
-    const speed = s.chasing ? CHASE_GAIT_SPEED : player.speed;
+    // A fight's walk-over runs at the fight's own gait (s.fightGait).
+    const speed = s.chasing ? CHASE_GAIT_SPEED : s.fight ? (s.fightGait ?? 0) : player.speed;
     // Swimming: no groom, sit or nap in the water, so the idle clock holds.
-    if (speed > 0.3 || player.inWater) s.idleTime = 0;
+    // Nor in a fight.
+    if (speed > 0.3 || player.inWater || s.fight) s.idleTime = 0;
     else s.idleTime += dt;
 
     // soft footsteps: a near-subliminal tick each time the gait phase
@@ -181,6 +184,8 @@ export function createAvatarUpdater({
       pose = 'stretch';
     }
     if (s.chasing) { pose = 'follow'; s.stretchTime = 0; }
+    // Clan Life Part 2: the fight sets the pose (game/clanfight.js).
+    if (s.fight && s.fightPose) { pose = s.fightPose; s.stretchTime = 0; }
     // s.pose stays the LAND pose: it is what goes on the wire, and every
     // remote works out its own water look from where this cat is.
     s.pose = pose;
@@ -190,7 +195,7 @@ export function createAvatarUpdater({
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
     // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
-    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY, amount);
+    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount);
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)
