@@ -711,4 +711,56 @@ describe('the Woods builders', () => {
     expect(m.userData.noCast).toBe(true);
     expect(() => b.lilyPads([], 5)).not.toThrow();
   });
+
+  it('pineStand is two meshes that match the pines it stands for', () => {
+    const trees = [{ x: 0, z: 0, scale: 1 }, { x: 5, z: -3, scale: 1.5 }];
+    const g = b.pineStand(trees, 3);
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.map((m) => m.name).sort()).toEqual(['standFoliage', 'standTrunks']);
+    const foliage = meshes.find((m) => m.name === 'standFoliage');
+    const one = b.pine(0, 0);
+    const oneFoliage = one.children.find((o) => o.isMesh && o !== one.children[0]);
+    expect(foliage.geometry.attributes.position.count)
+      .toBe(2 * oneFoliage.geometry.attributes.position.count);
+    for (const m of meshes) expect(m.castShadow).toBe(true);
+    const box = new THREE.Box3().setFromObject(g);
+    const ref = new THREE.Box3().setFromObject(b.pine(0, 0, 1))
+      .union(new THREE.Box3().setFromObject(b.pine(5, -3, 1.5)));
+    expect(Math.abs(box.max.y - ref.max.y)).toBeLessThan(0.05);
+    expect(box.min.y).toBeGreaterThanOrEqual(-1e-6);
+    // turning a cone about y moves its corners by at most one cone radius (1.3 x scale)
+    expect(box.min.x).toBeGreaterThanOrEqual(ref.min.x - 1.3 * 1.5);
+    expect(box.max.x).toBeLessThanOrEqual(ref.max.x + 1.3 * 1.5);
+    expect(box.min.z).toBeGreaterThanOrEqual(ref.min.z - 1.3 * 1.5);
+    expect(box.max.z).toBeLessThanOrEqual(ref.max.z + 1.3 * 1.5);
+  });
+
+  it('pineStand is the same for the same trees and seed, and an empty stand builds', () => {
+    const trees = [{ x: 1, z: 2, scale: 1.2 }, { x: -4, z: 7, scale: 0.9 }];
+    const pos = (g) => {
+      const out = [];
+      g.traverse((o) => { if (o.isMesh) out.push(Array.from(o.geometry.attributes.position.array)); });
+      return out;
+    };
+    expect(pos(b.pineStand(trees, 4))).toEqual(pos(b.pineStand(trees, 4)));
+    let empty;
+    expect(() => { empty = b.pineStand([], 1); }).not.toThrow();
+    let n = 0;
+    empty.traverse((o) => { if (o.isMesh) n++; });
+    expect(n).toBe(2);
+  });
+
+  it('toadstools are two noCast meshes under 0.3 m', () => {
+    const g = b.toadstools([{ x: 0, z: 0 }, { x: 4, z: 2 }], 6);
+    const found = {};
+    g.traverse((o) => { if (o.isMesh) found[o.name] = o; });
+    expect(Object.keys(found).sort()).toEqual(['toadstoolCaps', 'toadstoolStems']);
+    for (const m of Object.values(found)) {
+      expect(m.castShadow).toBe(false);
+      expect(m.userData.noCast).toBe(true);
+    }
+    expect(new THREE.Box3().setFromObject(g).max.y).toBeLessThanOrEqual(0.3);
+    expect(() => b.toadstools([], 6)).not.toThrow();
+  });
 });

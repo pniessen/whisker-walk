@@ -2612,26 +2612,78 @@ export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
   return g;
 }
 
+// A pine's shape, shared by `pine` and `pineStand` so the two can never drift
+// apart: trunk radii, length and centre height, then each cone's
+// [radius, height, centre height].
+const PINE_TRUNK = { rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 };
+const PINE_CONES = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]];
+const PINE_TRUNK_COLOR = 0x7a5230;
+const PINE_FOLIAGE_COLOR = 0x2f5a3a;
+
 // A pine: a short bark trunk under three stacked cones, merged into one
 // foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
 // carries no `canopy` tag. No collider here.
 export function pine(x, z, scale = 1, { wind } = {}) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.6, 6),
-    surfMat(0x7a5230, 'bark'));
-  trunk.position.y = 0.8;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, 6),
+    surfMat(PINE_TRUNK_COLOR, 'bark'));
+  trunk.position.y = PINE_TRUNK.y;
   g.add(trunk);
-  const cones = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map(([r, h, y]) => {
+  const cones = PINE_CONES.map(([r, h, y]) => {
     const c = new THREE.ConeGeometry(r, h, 7);
     c.translate(0, y, 0);
     return c;
   });
-  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(0x2f5a3a, 'foliage'));
+  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
   for (const c of cones) c.dispose();
   g.add(foliage);
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
+  return g;
+}
+
+// A stand of pines as two merged meshes, `standTrunks` and `standFoliage`: each
+// tree is exactly `pine(x, z, scale)`'s trunk and three cones, scaled, turned
+// about y by hash01(x, z, seed) x 2pi and put in place. One stand is two draw
+// calls and two shadow casters however many pines it holds, where a swaying
+// `pine` is two of each on its own. Dense forest is built this way. Both
+// meshes cast (they are tall solids), the stand is still (no wind), and no
+// collider is made here.
+export function pineStand(trees, seed) {
+  const trunks = [];
+  const cones = [];
+  for (const t of trees) {
+    const turn = hash01(t.x, t.z, seed) * Math.PI * 2;
+    const place = (geo) => {
+      geo.scale(t.scale, t.scale, t.scale);
+      geo.rotateY(turn);
+      geo.translate(t.x, 0, t.z);
+      return geo;
+    };
+    const trunk = new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, 6);
+    trunk.translate(0, PINE_TRUNK.y, 0);
+    trunks.push(place(trunk));
+    for (const [r, h, y] of PINE_CONES) {
+      const c = new THREE.ConeGeometry(r, h, 7);
+      c.translate(0, y, 0);
+      cones.push(place(c));
+    }
+  }
+  const merge = (geoms) => {
+    const geo = geoms.length === 0 ? new THREE.BufferGeometry() : mergeGeometries(geoms, false);
+    for (const p of geoms) p.dispose();
+    return geo;
+  };
+  const g = new THREE.Group();
+  const trunkMesh = new THREE.Mesh(merge(trunks), surfMat(PINE_TRUNK_COLOR, 'bark'));
+  trunkMesh.name = 'standTrunks';
+  const foliageMesh = new THREE.Mesh(merge(cones), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
+  foliageMesh.name = 'standFoliage';
+  trunkMesh.castShadow = true;
+  foliageMesh.castShadow = true;
+  g.add(trunkMesh, foliageMesh);
   return g;
 }
 
@@ -2658,6 +2710,39 @@ function mergedNoCast(geoms, color, surface) {
   m.castShadow = false;
   m.userData.noCast = true;
   return m;
+}
+
+// Toadstools, two merged meshes: each spot is a cluster of two to four, within
+// 0.3 m of the spot, a pale stem under a red half-dome cap (about 30 triangles
+// each). Never taller than 0.3 m, so they dress the ground without hiding a
+// cat, and out of the caster sweep like the other low beds.
+export function toadstools(spots, seed) {
+  const stems = [];
+  const caps = [];
+  spots.forEach((sp, i) => {
+    const n = 2 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 3);
+    for (let k = 0; k < n; k++) {
+      const h = 0.08 + 0.08 * hash01(i, k, seed + 2);
+      const r = 0.07 + 0.05 * hash01(k, i, seed + 3);
+      const a = hash01(k, i, seed + 4) * Math.PI * 2;
+      const d = 0.3 * hash01(i + k, k, seed + 5);
+      const x = sp.x + Math.cos(a) * d;
+      const z = sp.z + Math.sin(a) * d;
+      const stem = new THREE.CylinderGeometry(0.03, 0.04, h, 5);
+      stem.translate(x, h / 2, z);
+      stems.push(stem);
+      const cap = new THREE.SphereGeometry(r, 6, 2, 0, Math.PI * 2, 0, Math.PI / 2);
+      cap.translate(x, h, z);
+      caps.push(cap);
+    }
+  });
+  const g = new THREE.Group();
+  const stemMesh = mergedNoCast(stems, 0xe8dcc0, 'foliage');
+  stemMesh.name = 'toadstoolStems';
+  const capMesh = mergedNoCast(caps, 0xc0392b, 'foliage');
+  capMesh.name = 'toadstoolCaps';
+  g.add(stemMesh, capMesh);
+  return g;
 }
 
 // LEFT FLAT, in all five areas. Corrugated board is uncoated pulp — it is
