@@ -381,8 +381,7 @@ begin
   -- abs() of NaN or Infinity is never <= 200
   if p_cat is null or p_cat !~ '^[A-Za-z][A-Za-z ]{0,23}$'
      or p_walk is null or p_walk !~ '^walk-[0-9]{1,16}$'
-     or p_area is null or p_area not in ('neighborhood', 'park', 'seaside', 'docks',
-                          'woods', 'moor', 'river', 'pines', 'island', 'gorge')
+     or p_area is null or p_area not in ('neighborhood', 'park', 'seaside', 'docks', 'woods', 'moor', 'river', 'pines', 'island', 'gorge')
      or p_x is null or p_z is null or not (abs(p_x) <= 200 and abs(p_z) <= 200)
      or p_head is null or p_head < 0 or p_head > 3 then
     return 'bad';

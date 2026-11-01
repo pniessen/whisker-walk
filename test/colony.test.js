@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { CAT_NAMES, KIT_NAMES, strayBreed, isStrayName } from '../src/straynames.js';
 import { CAT_NAMES as LEGACY } from '../src/straycats.js';
 import { TAME_FEEDS, COLONY_MAX, SOLO_MAX, FEEDS_MAX, HEAD_START_MAX, SHY_PARTNER_DAYS, emptyColony, headStartFor, isShy, tamingProgress,
@@ -1168,13 +1169,27 @@ describe('feeding a den kit', () => {
   });
 });
 
-describe('territories the colony does not feed in yet', () => {
-  it('feedsHere is true for the four colony areas and false for the Woods and the den', () => {
-    for (const a of ['neighborhood', 'park', 'seaside', 'docks']) expect(feedsHere(a)).toBe(true);
-    expect(feedsHere('woods')).toBe(false);
+describe('territories the colony feeds in', () => {
+  it('feedsHere is true in the Woods and the River once the server accepts them', () => {
+    for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river']) expect(feedsHere(a)).toBe(true);
+    expect(feedsHere('moor')).toBe(false);
     expect(feedsHere('den')).toBe(false);
   });
+  it('a Woods stray can be fed solo, and its spot is kept', () => {
+    const r = feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'woods', x: 3.5, z: -7, head: 0 });
+    expect(r.result).toBe('ok');
+    expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'woods', x: 3.5, z: -7 });
+  });
+  it('a River stray can be fed solo, and its spot is kept', () => {
+    const r = feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'river', x: -24.5, z: 6, head: 0 });
+    expect(r.result).toBe('ok');
+    expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'river', x: -24.5, z: 6 });
+  });
   it('feedCat still refuses a territory the colony does not feed in yet', () => {
-    expect(feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'woods', x: 0, z: 0 }).result).toBe('bad');
+    expect(feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'moor', x: 0, z: 0 }).result).toBe('bad');
+  });
+  it('the repo SQL accepts the six territory ids', () => {
+    const line = readFileSync('docs/supabase-colony.sql', 'utf8').split('\n')[383];
+    expect(line).toContain("'neighborhood', 'park', 'seaside', 'docks', 'woods', 'moor', 'river', 'pines', 'island', 'gorge'");
   });
 });

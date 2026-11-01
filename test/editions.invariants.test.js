@@ -92,3 +92,7 @@ describe('the edition switch and the save', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);
   });
 });
+
+test('the caps are still unchanged with the Woods and the River feeding', () => {
+  expect([COLONY_MAX, SOLO_MAX]).toEqual([24, 12]);
+});
