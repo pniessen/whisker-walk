@@ -188,6 +188,31 @@ describe('layered ambience', () => {
     for (const src of wet.bufferSources) expect(src.stopped).toBe(true);
   });
 
+  // The River: wind + a quiet water lap under the usual birdsong. Never gulls.
+  // Looped-noise layers are buffer sources (wind, lap, rain); birdsong and
+  // crickets are setInterval; gulls and the horn are setTimeout.
+  it('river ambience is wind, a water lap and birdsong, never gulls', () => {
+    const dry = ambienceProbe('river');
+    expect(dry.bufferSources).toHaveLength(2); // wind + lap
+    expect(dry.intervals).toBe(1); // birdsong
+    expect(dry.timeouts).toBe(0); // no gulls, no horn
+    dry.audio.stopAmbient();
+    for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
+    const dusk = ambienceProbe('river', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(2);
+    expect(dusk.intervals).toBe(1); // crickets replace birdsong
+    expect(dusk.timeouts).toBe(0);
+    dusk.audio.stopAmbient();
+  });
+
+  it('a rainy river swaps the birdsong for the rain wash', () => {
+    const wet = ambienceProbe('river', { rain: true });
+    expect(wet.bufferSources).toHaveLength(3); // wind + lap + rain
+    expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+    for (const src of wet.bufferSources) expect(src.stopped).toBe(true);
+  });
+
   it('routes every docks layer through the master bus, never to destination', () => {
     const { ctx, bufferSources } = ambienceProbe('docks');
     for (const node of [...ctx.created.oscs, ...ctx.created.gains, ...bufferSources]) {

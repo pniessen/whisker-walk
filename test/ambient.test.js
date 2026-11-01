@@ -28,6 +28,7 @@ const { build: buildNeighborhood } = await import('../src/world/neighborhood.js'
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -35,7 +36,7 @@ const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 
 const BUILDS = {
-  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, den: buildDen,
+  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, den: buildDen,
 };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN ambient.
@@ -63,6 +64,7 @@ const VIEW = {
   seaside: [20, 20], // beside the shoreline scenic
   docks: [-12, 10], // beside the north-quay lamps
   woods: [44, 12], // the spawn clearing
+  river: [-24, 4], // the bank path above the first pool
   den: [0, 0],
 };
 
@@ -97,13 +99,15 @@ describe('ambient kinds', () => {
     expect(ambientKind('docks')).toBe('motes');
     expect(ambientKind('woods')).toBe('leaves');
     expect(ambientKind('woods', { dusk: true })).toBe('leaves');
+    expect(ambientKind('river')).toBe('fluff');
+    expect(ambientKind('river', { dusk: true })).toBe('moths');
     expect(ambientKind('docks', { dusk: true })).toBe('moths');
     expect(ambientKind('neighborhood')).toBe('fluff');
     expect(ambientKind('den')).toBeNull();
   });
 
   it('builds one Points mesh per outdoor area, with no shadow draws', () => {
-    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods']) {
+    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river']) {
       const { scene, ambient } = make(areaId);
       const found = meshesNamed(scene, 'ambient');
       expect(found, areaId).toHaveLength(1);

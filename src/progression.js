@@ -273,6 +273,7 @@ export const CATALOG = {
     // see defaultState below, where forgetting it is a permanent NaN.
     docks: { name: 'The Old Docks', price: 200, requires: { area: 'seaside', walks: 2 } },
     woods: { name: 'The Woods', price: 0, requires: { area: 'neighborhood', walks: 2 }, edition: 'canon' },
+    river: { name: 'The River and Marshes', price: 0, requires: { area: 'woods', walks: 2 }, edition: 'canon' },
   },
 };
 
@@ -372,8 +373,9 @@ function defaultState() {
     // walks loop iterates the keys of THIS object, so a loaded save that
     // predates v18 picks the key up here with a 0 default.
     // The Woods joins them for the same reason: the first Woods walk on a save
-    // with no 'woods' key would pin state.walks.woods at NaN forever.
-    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0 },
+    // with no 'woods' key would pin state.walks.woods at NaN forever. So does
+    // the River: a save with no 'river' key would pin state.walks.river at NaN.
+    walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
     equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },

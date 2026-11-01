@@ -628,6 +628,14 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         layers.push(gullLayer());
         layers.push(hornLayer());
         if (rain) layers.push(rainLayer());
+      } else if (areaKey === 'river') {
+        // The River and Marshes: wind, a quiet water lap under the usual
+        // birdsong (owner's decision), and never gulls. Same rain/dusk rule
+        // as the generic branch; crickets come from the shared line below.
+        layers.push(windLayer());
+        layers.push(waterLapLayer());
+        if (rain) layers.push(rainLayer());
+        else if (!dusk) layers.push(birdsongLayer());
       } else {
         layers.push(windLayer());
         // Birdsong is suppressed when it's raining (rainLayer takes its
