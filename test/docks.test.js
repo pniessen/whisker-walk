@@ -312,9 +312,9 @@ describe('The Old Docks — perch chains', () => {
 });
 
 describe('The Old Docks — golden mice', () => {
-  it('adds three, keeping the three-per-area shape (the total is 21 since the Moor)', () => {
+  it('adds three, keeping the three-per-area shape (the total is 24 since the Pines)', () => {
     expect(GOLD_MICE.docks).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(21);
+    expect(GOLD_TOTAL).toBe(24);
   });
 
   it('sits two on real shipped perch coordinates and hides one at ground level', () => {

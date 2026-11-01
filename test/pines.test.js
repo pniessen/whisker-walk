@@ -28,11 +28,18 @@ const { RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND } = await import('../src/world/r
 const {
   build: buildMoor, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, ISLAND_BRIDGE_WOODS,
 } = await import('../src/world/moor.js');
-const { inWater } = await import('../src/world/builder.js');
+const { inWater, waterGap, waterClearance } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
+const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
+const { clearSpot } = await import('../src/world/spots.js');
+const { raceCourse } = await import('../src/race.js');
+const { seedFromCode } = await import('../src/rng.js');
+const { propsFor } = await import('../src/propsets.js');
 
 const {
   build, SPAWN, PINES_WATERS, PINES_PATHS, TRUCE_PATH, PINES_ISLAND, BRIDGE_FOOT, PINES_HORIZON,
+  PINES_KEEP_CLEAR, FROG_HIDES, pinesTrees,
 } = pines;
 
 const built = () => {
@@ -335,5 +342,261 @@ describe('the Pines: the area record', () => {
   it('nothing in the Pines reads the edition', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/world/pines.js', import.meta.url)), 'utf8');
     expect(src).not.toMatch(/edition/i);
+  });
+});
+
+describe('the Pines: things to find, climb and race', () => {
+  const POIS = [[-14, 30], [-34, 24], [-18, 6], [-6, -8], [-18, -42], [12, -40], [34, -30], [40, -4], [-44, -26]];
+  const perchAt = (x, z) => area.perches.find((p) => p.x === x && p.z === z && !p.requires);
+  const collider = (x, z) => area.colliders.find((c) => c.x === x && c.z === z);
+  const waterDist = (x, z) => Math.min(...PINES_WATERS.map((w) => waterGap(w, x, z)));
+  const GOLD_BUSHES = [[28, -40], [32, -40], [30, -45]];
+  // Where the race rings stand: each POI pushed clear of colliders and water,
+  // exactly as the game does.
+  const rings = () => area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
+
+  it('pines: nine POIs, all at least 2 m from water and clear of every collider by 1.6', () => {
+    expect(area.pois.map((p) => [p.x, p.z])).toEqual(POIS);
+    for (const p of area.pois) {
+      const at = `poi (${p.x}, ${p.z})`;
+      expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
+      // clear by clearSpot's own margin, so a race ring stands on the POI
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+      }
+    }
+    expect(rings().map((p) => [p.x, p.z])).toEqual(POIS);
+  });
+
+  it('pines: five collectibles, three scenics, at least two vantage perches', () => {
+    expect(area.collectibles).toEqual([
+      { id: 'pines-find-1', x: -20, z: 20, label: 'a fat pine cone' },
+      { id: 'pines-find-2', x: 24, z: -14, label: 'an owl feather' },
+      { id: 'pines-find-3', x: -46, z: 22, label: 'a tuft of bog cotton' },
+      { id: 'pines-find-4', x: -40, z: -36, label: 'a shiny beetle shell' },
+      { id: 'pines-find-5', x: -37, z: -15, y: 0.72, label: 'a mossy pebble on the low stone' },
+    ]);
+    expect(area.scenics).toEqual([
+      { id: 'island-bridge', x: 8, z: 1, label: 'the bridge to the island' },
+      { id: 'black-mire', x: -24, z: -22, label: 'the black mire' },
+      { id: 'swamp-heart', x: -45, z: -20, label: 'the heart of the swamp' },
+    ]);
+    const vantages = area.perches.filter((p) => p.vantage);
+    expect(vantages.length).toBeGreaterThanOrEqual(2);
+    for (const v of vantages) expect(typeof v.label).toBe('string');
+  });
+
+  it("pines: the Lightning Stump chain is two hops and its top can't be reached from the ground", () => {
+    const low = perchAt(4, -28);
+    const top = perchAt(3, -29);
+    expect(low).toEqual({ x: 4, z: -28, y: 0.72, kind: 'stone' });
+    expect(top).toEqual({ x: 3, z: -29, y: 1.9, kind: 'stone', label: 'lightning stump', vantage: true });
+    expect(collider(4, -28)?.r).toBe(0.7);
+    expect(collider(3, -29)?.r).toBe(0.9);
+    expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+    expect(canReach(top, { x: low.x, z: low.z }, low.y)).toBe(true);
+    expect(canReach(top, { x: top.x, z: top.z }, 0)).toBe(false);
+    expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it("pines: the Frog Stones chain is two hops and its top can't be reached from the ground", () => {
+    const low = perchAt(-37, -15);
+    const top = perchAt(-38, -16);
+    expect(low).toEqual({ x: -37, z: -15, y: 0.72, kind: 'stone' });
+    expect(top).toEqual({ x: -38, z: -16, y: 1.9, kind: 'stone', label: 'frog stones', vantage: true });
+    expect(collider(-37, -15)?.r).toBe(0.7);
+    expect(collider(-38, -16)?.r).toBe(0.9);
+    expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+    expect(canReach(top, { x: low.x, z: low.z }, low.y)).toBe(true);
+    expect(canReach(top, { x: top.x, z: top.z }, 0)).toBe(false);
+    expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('pines: the fallen pine is a perch and a seat', () => {
+    expect(perchAt(-14, 42)).toEqual({ x: -14, z: 42, y: 0.5, kind: 'tree' });
+    for (const [x, z] of [[-14.58, 40.63], [-14, 42], [-13.42, 43.37]]) expect(collider(x, z)?.r, `(${x}, ${z})`).toBe(0.4);
+    const log = scene.getObjectByName('fallenPine');
+    expect(log).toBeTruthy();
+    expect([log.position.x, log.position.z, log.rotation.y]).toEqual([-14, 42, 0.4]);
+  });
+
+  it('the tall pillars are as wide at the foot as their colliders', () => {
+    for (const name of ['lightningStump', 'frogStone']) {
+      const tall = scene.getObjectByName(name);
+      expect(tall, name).toBeTruthy();
+      expect(tall.geometry.parameters.radiusBottom, name).toBe(0.9);
+      expect(tall.geometry.parameters.radiusTop, name).toBe(0.75);
+      expect(tall.geometry.parameters.height, name).toBe(1.9);
+      expect(tall.geometry.parameters.radialSegments, name).toBe(7);
+    }
+    expect(scene.getObjectByName('lightningStump').position).toMatchObject({ x: 3, y: 0.95, z: -29 });
+    expect(scene.getObjectByName('frogStone').position).toMatchObject({ x: -38, y: 0.95, z: -16 });
+    // the stump charred, the stone mossy grey
+    expect(scene.getObjectByName('lightningStump').material.color.getHex()).toBe(0x3e342c);
+    expect(scene.getObjectByName('frogStone').material.color.getHex()).toBe(0x7a8270);
+    // the two boulders, one material made per build
+    const rocks = ['lightningStumpRock', 'frogStoneRock'].map((n) => scene.getObjectByName(n));
+    for (const r of rocks) expect(r).toBeTruthy();
+    expect([rocks[0].position.x, rocks[0].position.z]).toEqual([4, -28]);
+    expect([rocks[1].position.x, rocks[1].position.z]).toEqual([-37, -15]);
+    expect(rocks[0].material).toBe(rocks[1].material);
+    expect(built().scene.getObjectByName('frogStoneRock').material).not.toBe(rocks[0].material);
+  });
+
+  it('puts the climbing golden mice on the chain tops and hides the third among three bushes', () => {
+    const [stump, stones, hidden] = GOLD_MICE.pines;
+    expect(GOLD_MICE.pines).toEqual([
+      { id: 'gm-pines-1', x: 3, z: -29, y: 1.9 },
+      { id: 'gm-pines-2', x: -38, z: -16, y: 1.9 },
+      { id: 'gm-pines-3', x: 30, z: -42, y: 0 },
+    ]);
+    expect(perchAt(stump.x, stump.z)?.y).toBe(stump.y);
+    expect(perchAt(stones.x, stones.z)?.y).toBe(stones.y);
+    expect(hidden.y).toBe(0);
+    for (const [x, z] of GOLD_BUSHES) {
+      const bush = scene.children.find((o) => o.position.x === x && o.position.z === z);
+      expect(bush, `bush (${x}, ${z})`).toBeTruthy();
+      // a cat pushes through a bush: nothing stands in its way
+      expect(collider(x, z)).toBeUndefined();
+    }
+  });
+
+  // Everything a kid hunts for, with where a cat must stand to get it: on the
+  // spot itself for a POI, a race ring, a scenic, a ground find or a frog
+  // hide; within the climb reach of the first rock of the chain an elevated
+  // one sits on.
+  const targets = () => {
+    const firstStep = (x, z) => {
+      if (Math.hypot(x - 3, z - -29) < 1.5) return perchAt(4, -28);
+      if (Math.hypot(x - -38, z - -16) < 1.5) return perchAt(-37, -15);
+      return null;
+    };
+    const list = [
+      ...area.pois.map((p) => ({ what: `poi (${p.x}, ${p.z})`, ...p })),
+      ...rings().map((p) => ({ what: `race ring (${p.x}, ${p.z})`, ...p })),
+      ...area.scenics.map((p) => ({ what: p.id, ...p })),
+      ...area.collectibles.map((p) => ({ what: p.id, ...p })),
+      ...GOLD_MICE.pines.map((p) => ({ what: p.id, ...p })),
+      ...FROG_HIDES.map((p) => ({ what: `frog hide (${p.x}, ${p.z})`, ...p })),
+    ];
+    return list.map((t) => {
+      if (!(t.y > 0)) return t;
+      const step = firstStep(t.x, t.z);
+      expect(step, `${t.what} sits on no chain`).toBeTruthy();
+      return { ...t, step };
+    });
+  };
+
+  it('every find, POI, scenic, golden mouse, frog hide and race ring is reachable on foot from the spawn', () => {
+    const missed = [];
+    for (const t of targets()) {
+      const ok = t.step
+        ? reachesWithin(area, t.step.x, t.step.z, BASE_CLIMB_BUDGET.reachLow)
+        : reaches(area, t.x, t.z);
+      if (!ok) missed.push(t.what);
+    }
+    expect(missed).toEqual([]);
+  });
+
+  it('keeps every find, chain perch, bush, puddle, frog hide, truce stone, the bridge foot and the spawn in PINES_KEEP_CLEAR', () => {
+    const has = (x, z) => PINES_KEEP_CLEAR.some(([px, pz]) => Math.abs(px - x) < 1e-9 && Math.abs(pz - z) < 1e-9);
+    const chainPerches = area.perches.filter((p) => !p.requires && p.y > 0.6);
+    expect(chainPerches).toHaveLength(4);
+    const all = [
+      ...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.pines, ...chainPerches,
+      ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...area.puddles, ...FROG_HIDES,
+      { x: 9.0, z: 3.6 }, { x: 12.2, z: 3.6 }, BRIDGE_FOOT, SPAWN,
+    ];
+    for (const p of all) expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
+    // and nothing else: 9 POIs + 3 scenics + 5 collectibles + 3 golden mice +
+    // 4 chain perches + 3 gold bushes + 2 puddles + 3 frog hides + 2 truce
+    // stones + the bridge foot + the spawn
+    expect(all).toHaveLength(36);
+    expect(PINES_KEEP_CLEAR).toHaveLength(36);
+    expect(Object.isFrozen(PINES_KEEP_CLEAR)).toBe(true);
+    // the bridge foot is derived in floating point, so it is matched within a hair
+    expect(PINES_KEEP_CLEAR.some(([x, z]) => Math.abs(x - 10.6) < 1e-6 && Math.abs(z - 4.8) < 1e-6)).toBe(true);
+  });
+
+  // The chase camera at the default zoom step (camzoom step 1): a cat 3 m
+  // from the pillar, the camera 4.5 m further out and 2.2 m up. Nothing in the
+  // way: not the pillar, not its boulder, not the merged pine stand and not
+  // any near pine (both come with the scenery, and this runs again then,
+  // unchanged).
+  const blockers = (pillar, rock) => {
+    const list = [scene.getObjectByName(pillar), scene.getObjectByName(rock)];
+    for (const l of list) expect(l).toBeTruthy();
+    scene.traverse((o) => {
+      if (o.name === 'standTrunks' || o.name === 'standFoliage') list.push(o);
+    });
+    for (const t of pinesTrees().near) {
+      const tree = scene.children.find((o) => o.position.x === t.x && o.position.z === t.z);
+      expect(tree, `near pine (${t.x}, ${t.z})`).toBeTruthy();
+      list.push(tree);
+    }
+    return list;
+  };
+  const inSight = (m, sides, objects) => {
+    scene.updateMatrixWorld(true);
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    for (const [dx, dz] of sides) {
+      const cam = new THREE.Vector3(m.x + dx * 7.5, 2.2, m.z + dz * 7.5);
+      const dir = target.clone().sub(cam);
+      const ray = new THREE.Raycaster(cam, dir.clone().normalize(), 0, dir.length());
+      expect(ray.intersectObjects(objects, true).length, `camera ${dx},${dz}`).toBe(0);
+    }
+  };
+
+  it("the Lightning Stump's and the Frog Stones' golden mice are in sight from the chase camera", () => {
+    const [stump, stones] = GOLD_MICE.pines;
+    inSight(stump, [[0, -1], [0, 1], [-1, 0], [1, 0]], blockers('lightningStump', 'lightningStumpRock'));
+    // The Frog Stones from the north and the west only: its east camera is
+    // over mire-north and its south camera over mire-west, where no cat stands.
+    inSight(stones, [[0, -1], [-1, 0]], blockers('frogStone', 'frogStoneRock'));
+  });
+
+  it('carries its critters, one moment and two puddles, and no villagers', () => {
+    expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
+      { type: 'frog', x: -38, z: 20, x2: -36, z2: 13 },
+      { type: 'frog', x: -46, z: 26, x2: -42, z2: 34 },
+      { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
+      { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
+      { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
+      { type: 'mouse', x: 10, z: -36, x2: 16, z2: -30 },
+      { type: 'mouse', x: -20, z: -44, x2: -14, z2: -38 },
+    ]);
+    expect(area.critterSpawns.filter((c) => c.type === 'bird'))
+      .toEqual(pinesTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+    expect(area.critterSpawns.some((c) => c.type === 'villager' || c.type === 'butterfly')).toBe(false);
+    expect(area.moments).toEqual([
+      { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: -36.1, z: 16, from: { x: -30, z: 22 } },
+    ]);
+    expect(area.puddles).toEqual([{ x: -6, z: 38, r: 0.9 }, { x: 22, z: -6, r: 0.8 }]);
+    for (const p of area.puddles) {
+      expect(scene.children.some((o) => o.position.x === p.x && o.position.z === p.z && o.geometry?.type === 'CircleGeometry')).toBe(true);
+    }
+    expect(area.boxes).toEqual([]);
+    expect(area.tippables).toEqual([]);
+  });
+
+  it("the frog hides are the Pines' hides, each dry, reachable and 0.4 m off a bog", () => {
+    expect(FROG_HIDES).toEqual([{ x: -36.1, z: 16 }, { x: -40.6, z: 30 }, { x: -34.1, z: -22 }]);
+    const s = propsFor('pines');
+    expect(s.hides).toEqual(FROG_HIDES);
+    for (const h of s.hides) {
+      const at = `(${h.x}, ${h.z})`;
+      expect(inWater(PINES_WATERS, h.x, h.z), at).toBe(false);
+      expect(Math.abs(waterClearance(PINES_WATERS, h.x, h.z) - 0.4), at).toBeLessThan(0.01);
+      expect(reaches(area, h.x, h.z), at).toBe(true);
+    }
+    for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
+    expect(s.dogYard).toBeNull();
+  });
+
+  it('race: a Pines course of five rings is drawn from its POIs', () => {
+    const course = raceCourse(area.pois, seedFromCode('2026-11-01-pines'));
+    expect(course).toHaveLength(5);
+    expect(new Set(course).size).toBe(5);
+    for (const p of course) expect(area.pois).toContain(p);
   });
 });

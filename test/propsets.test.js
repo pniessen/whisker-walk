@@ -26,6 +26,7 @@ const { build: buildSea } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildDen, DEN_FIXTURES } = await import('../src/world/den.js');
 const { WARREN_BURROWS } = await import('../src/world/moor.js');
+const { FROG_HIDES } = await import('../src/world/pines.js');
 const { DEN_SPOTS } = await import('../src/den.js');
 const { DISCS, patrolPath, borderMarks } = await import('../src/rivalclans.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -452,6 +453,17 @@ test('the Moor: three warren burrows as hides, and nothing else yet', () => {
   // other sets
   const others = ['neighborhood', 'park', 'seaside', 'docks', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect(new Set(others).size).toBe(others.length);
+  expect([...allPropIds()].sort()).toEqual([...others].sort());
+});
+
+test('the Pines: three frog hides, and nothing else yet', () => {
+  const s = propsFor('pines');
+  expect(s.hides).toEqual(FROG_HIDES);
+  expect(s.hides).toEqual([{ x: -36.1, z: 16 }, { x: -40.6, z: 30 }, { x: -34.1, z: -22 }]);
+  for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
+  expect(s.dogYard).toBeNull();
+  // the Pines adds no prop with an id
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
 

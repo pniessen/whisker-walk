@@ -3,6 +3,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { ISLAND_BRIDGE_WOODS } from './moor.js';
+import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -210,6 +211,124 @@ export const PINES_HORIZON = Object.freeze({
   sideTints: Object.freeze({ north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }),
 });
 
+// --- the things to find ------------------------------------------------------
+// Laid out before the scenery (the pines, the undergrowth and the reeds),
+// because PINES_KEEP_CLEAR (below) is built from these very records: whatever
+// a kid hunts for, nothing grows on it.
+
+// The nine points of interest the race and the quests draw on. Each stands at
+// least 2 m from the water and far enough from every rock, stump and log that
+// spots.js's clearSpot leaves it exactly where it is, so a race ring stands on
+// its POI (test/pines.test.js checks both, and floods each one from the
+// spawn). The last is in the deep swamp, behind the Black Mire.
+const POIS = [
+  [-14, 30], [-34, 24], [-18, 6], [-6, -8], [-18, -42], [12, -40], [34, -30], [40, -4], [-44, -26],
+].map(([x, z]) => ({ x, z }));
+
+const SCENICS = [
+  { id: 'island-bridge', x: 8, z: 1, label: 'the bridge to the island' },
+  { id: 'black-mire', x: -24, z: -22, label: 'the black mire' },
+  { id: 'swamp-heart', x: -45, z: -20, label: 'the heart of the swamp' },
+];
+
+const COLLECTIBLES = [
+  { id: 'pines-find-1', x: -20, z: 20, label: 'a fat pine cone' },
+  { id: 'pines-find-2', x: 24, z: -14, label: 'an owl feather' },
+  { id: 'pines-find-3', x: -46, z: 22, label: 'a tuft of bog cotton' },
+  { id: 'pines-find-4', x: -40, z: -36, label: 'a shiny beetle shell' },
+  // on the Frog Stones' low stone, so one hop up
+  { id: 'pines-find-5', x: -37, z: -15, y: 0.72, label: 'a mossy pebble on the low stone' },
+];
+
+// The two climb chains, two hops each, the shape the Moor's High Tor uses: a
+// mossy boulder, then a tall pillar 1.41 m across and 1.18 m up from it. The
+// Lightning Stump, a charred pine snapped by lightning, stands by the east
+// path; the Frog Stones are in the deep swamp. A golden mouse sits on each top
+// (src/goldmice.js). The colliders sit under the perches, so a cat walks round
+// the rocks and up onto them. Each pillar is as wide at its foot as its
+// collider, so a cat walking round it never stops short of what it sees.
+const PILLAR = { y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9, sides: 7 };
+const LIGHTNING_STUMP = { x: 3, z: -29, color: 0x3e342c, surface: 'bark', name: 'lightningStump' };
+const FROG_STONE = { x: -38, z: -16, color: 0x7a8270, surface: 'cobble', name: 'frogStone' };
+const CHAIN_ROCKS = [
+  { x: 4, z: -28, r: 0.7, name: 'lightningStumpRock' },
+  { x: -37, z: -15, r: 0.7, name: 'frogStoneRock' },
+];
+const CHAIN_PERCHES = [
+  { x: 4, z: -28, y: 0.72, kind: 'stone' },
+  // 'stone', not 'tree': a 1.9 tree perch sits in Sure Claws' 1.6-2.0 band and would make the stump one hop.
+  { x: LIGHTNING_STUMP.x, z: LIGHTNING_STUMP.z, y: PILLAR.y, kind: 'stone', label: 'lightning stump', vantage: true },
+  { x: -37, z: -15, y: 0.72, kind: 'stone' },
+  { x: FROG_STONE.x, z: FROG_STONE.z, y: PILLAR.y, kind: 'stone', label: 'frog stones', vantage: true },
+];
+
+// The fallen pine by the truce path: a seat and a first hop. Three colliders
+// along it, so a cat walks round it rather than through it, and a perch on
+// top at its middle.
+const FALLEN_PINE = { x: -14, z: 42, length: 5, yaw: 0.4 };
+const FALLEN_COLLIDERS = [[-14.58, 40.63], [-14, 42], [-13.42, 43.37]];
+
+// The bushes the third golden mouse hides among. A bush has no collider, as
+// in the park: a cat pushes through to the mouse.
+const GOLD_BUSHES = [[28, -40], [32, -40], [30, -45]];
+
+const PUDDLES = [{ x: -6, z: 38, r: 0.9 }, { x: 22, z: -6, r: 0.8 }];
+
+// Where a fleeing frog dives into the bog: 0.4 m out from the east rim of
+// bog-1, bog-2 and bog-3, on dry ground. src/propsets.js carries the same
+// three as the Pines' hides.
+export const FROG_HIDES = Object.freeze([
+  { x: -36.1, z: 16 }, { x: -40.6, z: 30 }, { x: -34.1, z: -22 },
+].map((h) => Object.freeze(h)));
+
+// Places no scenery may stand on, nor hide: every POI (and so every race
+// ring), scenic, collectible, golden mouse, chain perch, the bushes the hidden
+// mouse needs, the puddles, the frog hides, the truce stones, the bridge foot
+// and the spawn. Built from the records themselves, so a find can never move
+// without its clearance moving with it. The pines, the undergrowth and the
+// reeds read this.
+export const PINES_KEEP_CLEAR = Object.freeze([
+  ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.pines, ...CHAIN_PERCHES,
+  ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, ...FROG_HIDES, ...TRUCE_STONES,
+  BRIDGE_FOOT, SPAWN,
+].map(({ x, z }) => Object.freeze([x, z])));
+
+// The Pines' trees: the near pines a kid walks past, each its own swaying
+// pine, and the dense stand behind them, merged into one still mesh. Both
+// come with the scenery pass; until then there are none.
+export function pinesTrees() {
+  return { near: [], stand: [] };
+}
+
+// The Pines' critters: birds in the first four near pines, frogs by the bogs
+// (one in the deep swamp), squirrels in the forest, ducks on the lake and two
+// mice in the undergrowth. No butterflies (too dark and wet under the pines)
+// and no villagers: no Twolegs walk here.
+function critterSpawns() {
+  return [
+    ...pinesTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
+    { type: 'frog', x: -38, z: 20, x2: -36, z2: 13 },
+    { type: 'frog', x: -46, z: 26, x2: -42, z2: 34 },
+    { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
+    { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
+    { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
+    { type: 'mouse', x: 10, z: -36, x2: 16, z2: -30 },
+    { type: 'mouse', x: -20, z: -44, x2: -14, z2: -38 },
+  ];
+}
+
+// A mossy boulder, the first step of each chain: builder.rock's shape and
+// height (its top is just over the 0.72 perch). build() makes one material per
+// scene and hands it to both boulders: walk.js disposes every material at the
+// end of a walk, so a module-level cache would hand the next walk a disposed
+// one.
+const MOSSY = 0x7f8a6c;
+function mossyBoulder(x, z, material) {
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), material);
+  m.position.set(x, 0.3, z);
+  return m;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9fb4c0, 0xc8d0c4);
   scene.add(b.ground(120, 0x56603e, { surface: 'grass' }));
@@ -258,6 +377,38 @@ export function build(scene, { water = {}, wind } = {}) {
   }
   scene.add(truceStones);
 
+  // --- the climb chains -------------------------------------------------------
+  // Named so test/pines.test.js can find them and see past them.
+  const mossy = litMaterial(MOSSY, surfaceProps('cobble'));
+  for (const { x, z, r, name } of CHAIN_ROCKS) {
+    const rock = mossyBoulder(x, z, mossy);
+    rock.name = name;
+    scene.add(rock);
+    addC(x, z, r);
+  }
+  for (const P of [LIGHTNING_STUMP, FROG_STONE]) {
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(PILLAR.rTop, PILLAR.rBottom, PILLAR.y, PILLAR.sides),
+      litMaterial(P.color, surfaceProps(P.surface)),
+    );
+    pillar.name = P.name;
+    pillar.position.set(P.x, PILLAR.y / 2, P.z);
+    scene.add(pillar);
+    addC(P.x, P.z, PILLAR.r);
+  }
+  perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
+
+  // --- the fallen pine --------------------------------------------------------
+  const fallen = b.fallenLog(FALLEN_PINE.x, FALLEN_PINE.z, FALLEN_PINE.length, FALLEN_PINE.yaw);
+  fallen.name = 'fallenPine';
+  scene.add(fallen);
+  for (const [x, z] of FALLEN_COLLIDERS) addC(x, z, 0.4);
+  perches.push({ x: FALLEN_PINE.x, z: FALLEN_PINE.z, y: 0.5, kind: 'tree' });
+
+  // --- the hidden mouse's bushes, and the puddles -----------------------------
+  for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
+  for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
+
   // --- the island -------------------------------------------------------------
   // A flattened sphere, so only a low dome shows above the lake, and the tree
   // stood on its crown.
@@ -293,14 +444,14 @@ export function build(scene, { water = {}, wind } = {}) {
     // Nothing Twoleg-made in the Pines.
     boxes: [],
     tippables: [],
-    // The things to find, the critters and the moments come with the content
-    // pass; the ground, the water and the crossings come first.
-    pois: [],
-    collectibles: [],
-    scenics: [],
-    critterSpawns: [],
-    moments: [],
-    puddles: [],
+    pois: POIS.map((p) => ({ ...p })),
+    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
+    scenics: SCENICS.map((c) => ({ ...c })),
+    critterSpawns: critterSpawns(),
+    moments: [
+      { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: -36.1, z: 16, from: { x: -30, z: 22 } },
+    ],
+    puddles: PUDDLES.map((p) => ({ ...p })),
     waters: PINES_WATERS,
     waterFx,
     groundBounce: 0x56603e,
