@@ -32,6 +32,20 @@ export function toMap(x, z, view) {
   return { u, v, inside: Math.hypot(dx, dz) <= view.radiusM };
 }
 
+// World direction of each compass facing, in x/z (north is -z).
+const FACE_DIR = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+
+// Canvas angle (radians, 0 = right, positive clockwise on screen) of a compass
+// facing on the map. Turns the world vector by the same rotation toMap applies
+// to positions, since a position alone carries no direction.
+export function faceAngle(faces, view) {
+  const [dx, dz] = FACE_DIR[faces] ?? FACE_DIR.north;
+  if (view.mode !== 'turn') return Math.atan2(dz, dx);
+  const sin = Math.sin(view.heading);
+  const cos = Math.cos(view.heading);
+  return Math.atan2(dx * sin + dz * cos, dx * cos - dz * sin);
+}
+
 // Pull a point that is past the rim back onto it, keeping its bearing, so
 // off-map targets can still show as an edge arrow.
 export function pinToRim(p, radiusPx, inset) {
@@ -50,6 +64,8 @@ export function mapMarkers(frame) {
   const out = [];
   // The clan's camp goes first so every other marker draws over it.
   if (frame.camp) out.push({ kind: 'camp', x: frame.camp.x, z: frame.camp.z, color: frame.camp.color });
+  // Border posts (Clan Edition only; the frame carries null elsewhere).
+  for (const p of frame.posts ?? []) out.push({ kind: 'post', x: p.x, z: p.z, faces: p.faces });
   const race = frame.race;
   if (race && race.state === 'running') {
     // currentRing is 1-based: bright for the next ring, dim for the one after.

@@ -71,6 +71,7 @@ import { createYardDog } from '../yarddog.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { addBorderDressing } from '../world/borderpost.js';
+import { postsFor } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
@@ -1171,6 +1172,8 @@ export function createWalkLifecycle({
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
+      // Border posts for the corner map: null in the den and in Legacy.
+      postMarkers: dressing ? postsFor(areaId).map(({ x, z, faces }) => ({ x, z, faces })) : null,
       // Per-walk pay caps for the clan verbs (interactions.js CLAN_PAY_CAP).
       clanPaid: { friend: 0, boop: 0, patrol: 0 },
       // Task 6: the clanmate on patrol with me, or null (interactions.js).
