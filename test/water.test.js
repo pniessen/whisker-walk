@@ -228,6 +228,21 @@ for (const [name, { scene, area }] of Object.entries(WATERED)) {
             return m.geometry.type === 'CircleGeometry' && Math.abs(p.radius - w.r) < 1e-6
               && Math.abs(m.position.x - w.x) < 1e-6 && Math.abs(m.position.z - w.z) < 1e-6;
           }
+          if (w.islands?.length) {
+            // A rect with islands is drawn as the rect minus its discs: a
+            // ShapeGeometry the rect's size, centred on it, with one hole per
+            // island wholly inside (an island crossing an edge is a notch).
+            if (m.geometry.type !== 'ShapeGeometry') return false;
+            m.geometry.computeBoundingBox();
+            const bb = m.geometry.boundingBox;
+            const inside = w.islands.filter((i) => i.x - i.r > w.minX && i.x + i.r < w.maxX
+              && i.z - i.r > w.minZ && i.z + i.r < w.maxZ).length;
+            return Math.abs(bb.max.x - bb.min.x - (w.maxX - w.minX)) < 1e-6
+              && Math.abs(bb.max.y - bb.min.y - (w.maxZ - w.minZ)) < 1e-6
+              && Math.abs(m.position.x - (w.minX + w.maxX) / 2) < 1e-6
+              && Math.abs(m.position.z - (w.minZ + w.maxZ) / 2) < 1e-6
+              && p.shapes.holes.length === inside;
+          }
           if (m.geometry.type !== 'PlaneGeometry') return false;
           const drawn = [p.width, p.height].sort((a, b) => a - b);
           const want = [w.maxX - w.minX, w.maxZ - w.minZ].sort((a, b) => a - b);

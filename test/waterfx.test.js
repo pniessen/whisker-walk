@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import {
   createWater, waterRig, waterRamp, waterBox, shoreDepth, rippleHeight, WATER_TUNING,
+  rectMinusDiscs,
 } from '../src/render/water.js';
 
 // The same headless stub every world test uses. It is here for ONE reason:
@@ -475,5 +476,191 @@ describe('a swapped-in water mesh still satisfies test/water.test.js', () => {
         handle.dispose();
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Islands: a rect of water with round dry ground cut out of it. A disc wholly
+// inside the rect is a hole; one crossing an edge is a notch in the outline.
+// ---------------------------------------------------------------------------
+
+// Total area of the drawn triangles, in the mesh's local frame (which is
+// world-scaled: the flat rotation and the translation keep areas).
+function triangleArea(g) {
+  const pos = g.attributes.position;
+  const idx = g.index;
+  const n = idx ? idx.count : pos.count;
+  const at = (k) => (idx ? idx.getX(k) : k);
+  let area = 0;
+  for (let k = 0; k < n; k += 3) {
+    const a = at(k);
+    const b = at(k + 1);
+    const c = at(k + 2);
+    const ux = pos.getX(b) - pos.getX(a);
+    const uy = pos.getY(b) - pos.getY(a);
+    const vx = pos.getX(c) - pos.getX(a);
+    const vy = pos.getY(c) - pos.getY(a);
+    area += Math.abs(ux * vy - uy * vx) / 2;
+  }
+  return area;
+}
+
+// The rect's area minus each island's overlap with it, the overlap counted on
+// a 0.05 m grid of cell centres. Independent of rectMinusDiscs on purpose.
+function expectedArea(w) {
+  const STEP = 0.05;
+  let wet = (w.maxX - w.minX) * (w.maxZ - w.minZ);
+  for (const i of w.islands ?? []) {
+    const x0 = Math.max(w.minX, i.x - i.r);
+    const x1 = Math.min(w.maxX, i.x + i.r);
+    const z0 = Math.max(w.minZ, i.z - i.r);
+    const z1 = Math.min(w.maxZ, i.z + i.r);
+    let n = 0;
+    for (let x = x0 + STEP / 2; x < x1; x += STEP) {
+      for (let z = z0 + STEP / 2; z < z1; z += STEP) {
+        if (Math.hypot(x - i.x, z - i.z) < i.r) n++;
+      }
+    }
+    wet -= n * STEP * STEP;
+  }
+  return wet;
+}
+
+// Does a ray straight down at world (x, z) hit the water surface?
+function rayDownHits(mesh, x, z) {
+  const ray = new THREE.Raycaster(new THREE.Vector3(x, 10, z), new THREE.Vector3(0, -1, 0));
+  return ray.intersectObject(mesh, false).length > 0;
+}
+
+const BOX40 = { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
+
+describe('islands', () => {
+  it('rectMinusDiscs makes a hole of an inside disc and a notch of an edge-crossing one', () => {
+    const holed = rectMinusDiscs(BOX40, [{ x: 0, z: 0, r: 5 }], 64);
+    expect(holed.holes).toEqual([{ x: 0, z: 0, r: 5 }]);
+    expect(holed.outline).toHaveLength(4);
+
+    const notched = rectMinusDiscs(BOX40, [{ x: 18, z: 0, r: 5 }], 64);
+    expect(notched.holes).toEqual([]);
+    const isCorner = ([x, z]) => Math.abs(Math.abs(x) - 20) < 1e-9 && Math.abs(Math.abs(z) - 20) < 1e-9;
+    const corners = notched.outline.filter(isCorner);
+    expect(corners).toHaveLength(4);
+    const arc = notched.outline.filter((p) => !isCorner(p));
+    expect(arc.length).toBeGreaterThan(8);
+    for (const [x, z] of arc) {
+      expect(Math.abs(Math.hypot(x - 18, z) - 5)).toBeLessThan(1e-9);
+      expect(x).toBeLessThanOrEqual(20 + 1e-9);
+    }
+
+    // a disc that swallows the whole rect would cut it into nothing
+    expect(() => rectMinusDiscs(BOX40, [{ x: 0, z: 0, r: 25 }], 64)).toThrow();
+    // two islands that touch would make one hole cross another
+    expect(() => rectMinusDiscs(BOX40, [{ x: -3, z: 0, r: 4 }, { x: 3, z: 0, r: 4 }], 64)).toThrow();
+  });
+
+  it('notches a disc that swallows one corner, the arc standing in for the corner', () => {
+    const { outline, holes } = rectMinusDiscs(BOX40, [{ x: 20, z: 20, r: 6 }], 64);
+    expect(holes).toEqual([]);
+    expect(outline.some(([x, z]) => x === 20 && z === 20)).toBe(false);
+    expect(outline.filter(([x, z]) => Math.abs(x) === 20 && Math.abs(z) === 20)).toHaveLength(3);
+  });
+
+  it('drops a disc wholly outside the rect', () => {
+    const { outline, holes } = rectMinusDiscs(BOX40, [{ x: 40, z: 0, r: 5 }], 64);
+    expect(holes).toEqual([]);
+    expect(outline).toHaveLength(4);
+  });
+
+  it("the Pines' lake and bay are drawn with the island notched out of both", () => {
+    const islands = [{ x: 28, z: 28, r: 13 }];
+    const lake = { id: 'lake', kind: 'rect', minX: 26, maxX: 86, minZ: 8, maxZ: 66, islands };
+    const bay = { id: 'lake-bay', kind: 'rect', minX: 0, maxX: 30, minZ: 5, maxZ: 44, islands };
+    for (const w of [lake, bay]) {
+      const fx = createWater(w, { quality: 'low' });
+      const g = fx.mesh.geometry;
+      expect(g.type).toBe('ShapeGeometry');
+      expect(Math.abs(triangleArea(g) - expectedArea(w)) / expectedArea(w)).toBeLessThan(0.005);
+      fx.mesh.updateMatrixWorld(true);
+      for (const [x, z] of [[28, 28], [27, 20], [29, 36], [17, 28], [39, 28]]) {
+        if (x < w.minX || x > w.maxX) continue;
+        expect(rayDownHits(fx.mesh, x, z), `${w.id} at (${x}, ${z})`).toBe(false);
+      }
+      for (const [x, z] of [[w.minX + 1, w.minZ + 1], [w.maxX - 1, w.maxZ - 1]]) {
+        expect(rayDownHits(fx.mesh, x, z)).toBe(true);
+      }
+      fx.dispose();
+    }
+  });
+
+  it('draws an inside island as a hole, ground showing through', () => {
+    const w = { id: 'holed', kind: 'rect', ...BOX40, islands: [{ x: 0, z: 0, r: 5 }] };
+    const fx = createWater(w, { quality: 'low' });
+    expect(fx.mesh.geometry.parameters.shapes.holes).toHaveLength(1);
+    expect(Math.abs(triangleArea(fx.mesh.geometry) - expectedArea(w)) / expectedArea(w)).toBeLessThan(0.005);
+    fx.mesh.updateMatrixWorld(true);
+    expect(rayDownHits(fx.mesh, 0, 0)).toBe(false);
+    expect(rayDownHits(fx.mesh, 10, 10)).toBe(true);
+    fx.dispose();
+  });
+
+  it("shoreDepth is 0 on an island's rim and grows away from it", () => {
+    const w = { id: 'holed', kind: 'rect', ...BOX40, islands: [{ x: 0, z: 0, r: 5 }] };
+    expect(shoreDepth(w, 5, 0)).toBeCloseTo(0, 12);
+    expect(shoreDepth(w, 6, 0)).toBeCloseTo(1, 12);
+    expect(shoreDepth(w, 0, -7, [])).toBeCloseTo(2, 12);
+    // with no shores, the rect's own edges don't count; the island's rim still does
+    expect(shoreDepth(w, 19, 0)).toBeCloseTo(1, 12);
+    expect(shoreDepth(w, 19, 0, [])).toBeCloseTo(14, 12);
+    // and a rect without islands is exactly what it was
+    expect(shoreDepth({ kind: 'rect', ...BOX40 }, 19, 0, [])).toBe(Infinity);
+  });
+
+  it("a holed plane's uv matches a plain plane's", () => {
+    const plain = createWater({ id: 'p', kind: 'rect', ...BOX40, minX: -20, maxX: 30 });
+    const holed = createWater({ id: 'p', kind: 'rect', ...BOX40, minX: -20, maxX: 30, islands: [{ x: 0, z: 0, r: 5 }] });
+    const uvAt = (g, x, y) => {
+      const pos = g.attributes.position;
+      const uv = g.attributes.uv;
+      for (let k = 0; k < pos.count; k++) {
+        if (Math.abs(pos.getX(k) - x) < 1e-9 && Math.abs(pos.getY(k) - y) < 1e-9) return [uv.getX(k), uv.getY(k)];
+      }
+      return null;
+    };
+    expect(holed.mesh.geometry.type).toBe('ShapeGeometry');
+    for (const [x, y] of [[-25, -20], [25, -20], [25, 20], [-25, 20]]) {
+      const want = uvAt(plain.mesh.geometry, x, y);
+      const got = uvAt(holed.mesh.geometry, x, y);
+      expect(want).not.toBe(null);
+      expect(got).not.toBe(null);
+      expect(got[0]).toBeCloseTo(want[0], 12);
+      expect(got[1]).toBeCloseTo(want[1], 12);
+    }
+    // and every other vertex follows the same mapping (to float32 precision,
+    // which is what the attribute stores)
+    const g = holed.mesh.geometry;
+    for (let k = 0; k < g.attributes.position.count; k++) {
+      expect(g.attributes.uv.getX(k)).toBeCloseTo((g.attributes.position.getX(k) + 25) / 50, 6);
+      expect(g.attributes.uv.getY(k)).toBeCloseTo((g.attributes.position.getY(k) + 20) / 40, 6);
+    }
+    plain.dispose();
+    holed.dispose();
+  });
+
+  it('the low tier draws the same notched geometry', () => {
+    const w = { id: 'lake', kind: 'rect', minX: 26, maxX: 86, minZ: 8, maxZ: 66, islands: [{ x: 28, z: 28, r: 13 }] };
+    const hi = createWater(w, { quality: 'high' });
+    const lo = createWater(w, { quality: 'low' });
+    expect(lo.mesh.geometry.type).toBe('ShapeGeometry');
+    expect(Array.from(lo.mesh.geometry.attributes.position.array))
+      .toEqual(Array.from(hi.mesh.geometry.attributes.position.array));
+    expect(Array.from(lo.mesh.geometry.index.array)).toEqual(Array.from(hi.mesh.geometry.index.array));
+    hi.dispose();
+    lo.dispose();
+  });
+
+  it('keeps a rect with an empty islands list on the plain PlaneGeometry path', () => {
+    const fx = createWater({ ...CANAL, islands: [] });
+    expect(fx.mesh.geometry.type).toBe('PlaneGeometry');
+    fx.dispose();
   });
 });
