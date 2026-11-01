@@ -2294,6 +2294,12 @@ export function plankBridge(x1, z1, x2, z2, w, y, thick) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, thick, len), surfMat(0x8a6a44, 'wood', w, len));
   m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
   m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+  // A plank lying on the water: flat ground dressing, out of the shadow pass
+  // like reedBed and steppingStones. Its thickness sits right on rig.js's
+  // CAST_FLAT_HEIGHT, so without this flag whether it cast came down to float
+  // rounding in its bounding box.
+  m.castShadow = false;
+  m.userData.noCast = true;
   return m;
 }
 

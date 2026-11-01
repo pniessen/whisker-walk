@@ -30,6 +30,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver, RIVER_ISLAND } = await import('../src/world/river.js');
 const { build: buildMoor, MOOR_ISLAND } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_ISLAND } = await import('../src/world/pines.js');
+const { assignShadowCasters } = await import('../src/render/rig.js');
 
 const BUILDERS = { woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
 
@@ -73,6 +74,21 @@ describe('the lake: one island and one bridge', () => {
       expect(plank.rotation.y).toBeCloseTo(Math.atan2(a.x - b.x, a.z - b.z), 6);
     });
   }
+
+  // The plank is 0.12 m thick, right on rig.js's CAST_FLAT_HEIGHT, so whether
+  // the sweep made it cast came down to float rounding in its bounding box.
+  // It is marked noCast, like the reed beds and the stepping stones.
+  it('the bridge never casts a shadow, in any of the four maps', () => {
+    for (const [id, build] of Object.entries(BUILDERS)) {
+      const scene = new THREE.Scene();
+      build(scene);
+      scene.updateMatrixWorld(true);
+      assignShadowCasters(scene);
+      const plank = scene.getObjectByName('islandBridge');
+      expect(plank.userData.noCast, id).toBe(true);
+      expect(plank.castShadow, id).toBe(false);
+    }
+  });
 
   it('the Woods, the River and the Moor paint the one island out of reach', () => {
     for (const id of ['woods', 'river', 'moor']) {
