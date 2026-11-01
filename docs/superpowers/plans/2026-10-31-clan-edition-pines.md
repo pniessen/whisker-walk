@@ -76,8 +76,11 @@ These are for the owner (the parent), not the implementer.
 - **Kittypets and wanderers** (decision 6; no Twolegplace path reaches the Pines anyway).
 - **Border crossings** (§8 step 6). The Moor has no path at its west edge, so a Moor-side way to the bridge is the border-crossing plan's to add, on both maps.
 - **Swaying the merged stand.** The stand is still; only the 30–40 pines near the paths sway. Vertex-shader sway for the stand is a later visual pass if it reads as dead on the iPhone.
+- **A contact shadow under the pine stand.** `contactshadows.js` drops anything wider than `MAX_SPAN` 6.5, so the stand gets none (the near pines do). Accepted for now (coordinator's ruling); Task 9 looks at it. If it looks bad, the follow-up is a per-tree footprint list in the stand's `userData` that `scanFootprints` reads.
 - **The island on the corner map** (the minimap draws water footprints, so the in-bounds island shows as lake).
-- **A known horizon-only mismatch:** the Moor's `LAKE_FAR` paints water 20 m further west than the Pines' shore (Pines x −20..0, z 4.8..8.5). It is beyond the Moor's bounds, 50 m from its edge and in fog; left as is.
+- **Horizon-only mismatches left as they are.** The Moor's far water is being changed on the `moor` branch to the bay in Moor coordinates (`{ minX: -100, maxX: -70, minZ: 5, maxZ: 44 }`), which Task 3 asserts equals `LAKE_BAY`. Two mismatches remain, both painted outside their own maps' bounds:
+  - the River's `LAKE` (Pines x 26..120, z 5..66) paints Pines z 5..8 for x 30..50 as water, where the Pines' lake starts at z 8;
+  - the Woods' lake covers Pines x −20..86, z −20..66, so the Woods paints water over much of the Pines' forest, 40 m and more outside the Woods' bounds and in fog.
 - In the Pines: carryables, knockables, rests, flaps and markables, a legendary cat, "Camp" wording.
 
 ## Files
@@ -122,7 +125,7 @@ Coordinates are metres, x east, z south (north is −z). **Frames:** the Pines s
 | The deep swamp | the land behind the Black Mire: x −50..−32, z −50..−11. Reached only over a deck |
 | `PINES_ISLAND` | `{ x: 28, z: 28, r: 9, rise: 1.4 }`: the Woods' `(-72, -72)` + 100, the River's `(28, -72)` + 100 in z, the Moor's `(-72, 28)` + 100 in x. In bounds but wholly in water: mound and `b.tree(28, 28, 2.6)` raised to `rise - 0.2`, no collider, no perch |
 | `BRIDGE_FOOT` | `{ x: 10.6, z: 4.8 }` = `ISLAND_BRIDGE_WOODS[1]` + (100, 100), 0.2 m onto dry land. The plank runs to `ISLAND_BRIDGE_WOODS[0]` + (100, 100) = `(22.6, 20.8)` on the island's rim: one `BoxGeometry(2, 0.12, 20)` at y 0.3, centre `(16.6, 12.8)`, named `islandBridge`. **No deck** |
-| Truce stones | two standing stones flanking the bridge foot on land, `(9.0, 3.6)` and `(12.2, 3.6)`, collider r 0.4 each, named `truceStones` (one merged mesh, 0.9 m tall) |
+| Truce stones | two standing stones flanking the bridge foot on land, `(9.0, 3.6)` and `(12.2, 3.6)`, collider r 0.4 each, in a group named `truceStones` of two meshes, one per stone, 0.9 m tall |
 | Lightning Stump chain | mossy boulder `(4, -28)` y 0.72 `'stone'` (collider r 0.7) → charred stump `(3, -29)` y 1.9 `'tree'` (collider r 0.9, `CylinderGeometry(0.75, 0.9, 1.9, 7)`, colour `0x3e342c`, `'bark'`, named `lightningStump`; boulder `lightningStumpRock`), label `'lightning stump'`, vantage |
 | Frog Stones chain | mossy boulder `(-37, -15)` y 0.72 `'stone'` (collider r 0.7) → tall stone `(-38, -16)` y 1.9 `'stone'` (collider r 0.9, `CylinderGeometry(0.75, 0.9, 1.9, 7)`, colour `0x7a8270`, `'cobble'`, named `frogStone`; boulder `frogStoneRock`), label `'frog stones'`, vantage. In the deep swamp |
 | Fallen pine | `b.fallenLog(-14, 42, 5, 0.4)`, perch `(-14, 42)` y 0.5 `'tree'`, colliders r 0.4 at `(-14.58, 40.63)`, `(-14, 42)`, `(-13.42, 43.37)` |
@@ -136,16 +139,16 @@ Coordinates are metres, x east, z south (north is −z). **Frames:** the Pines s
 | Pines | `pinesTrees() -> { near, stand }` (Task 5): near 30–40 swaying `b.pine`, stand 70–150 in one `b.pineStand` |
 | Undergrowth | `pinesUndergrowth() -> { ferns, toadstools }`: ferns 100–220 (not in the swamp), toadstool clusters 30–60 |
 | Reeds, lily pads | `pinesReeds()` 100–220 clumps; `pinesLilyPads()` 10–35 pads on the bogs |
-| Horizon (`PINES_HORIZON`) | `kind: 'hills'`, inner 56, outer 116, height 8, wavelength 30, colour `0x34503e`, salt 47, `avoid: [LAKE, MIRE_NORTH, MIRE_WEST, MOOR_RIVER]`, `sideTints: { north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }`, no rooftops. North: more dark pines (the colour the River and the Moor paint the Pines); east: the Moor's heather; south: the River's green; west: the swamp going on |
+| Horizon (`PINES_HORIZON`) | `kind: 'hills'`, inner 56, outer 116, height 8, wavelength 30, colour `0x34503e`, salt 47, `avoid: [LAKE, MIRE_NORTH, MIRE_WEST, MOOR_RIVER, MOOR_MOUTH]`, `sideTints: { north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }`, no rooftops. North: more dark pines (the colour the River and the Moor paint the Pines); east: the Moor's heather; south: the River's green; west: the swamp going on |
 | `critterSpawns` | birds at the first four `near` pines; frogs `(-38,20)→(-36,13)`, `(-46,26)→(-42,34)`, `(-34,-26)→(-40,-30)` (patrol `x2, z2` like mice); squirrels `(-12,-34)`, `(20,-20)`; ducks `(34,14)`, `(36,16)`, `(38,13)` on the lake; mice `(10,-36)→(16,-30)`, `(-20,-44)→(-14,-38)`. No butterflies, no villagers |
 | `moments` | `{ id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: -36.1, z: 16, from: { x: -30, z: 22 } }` |
 | `boxes`, `tippables` | `[]`, and no villager |
 | Grass | `GRASS_STYLES.pines = PINE_FLOOR`: `{ color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity }`; `pineFloorDensity(x, z) = 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61))` |
 | Paw prints | `AREA_RULES.pines = { ground: null, path: 'wetSand', strip: null }` (dark muddy prints) |
-| Ambient life | `ambientKind('pines')` is `'motes'` (sunlit motes in the shafts under the pines), `'moths'` at dusk; the game's own dusk fireflies come as everywhere |
+| Ambient life | `ambientKind('pines')` is `'fluff'` (drifting pollen) by day and `null` at dusk (coordinator's ruling: `'motes'` would sit over the far lake and `'moths'` need lamps); the game's own dusk fireflies come as everywhere |
 | Sound | `windLayer({ gain: 0.035, cutoff: 220 })` (a low hush), `frogLayer()` always, `rainLayer()` in rain, **no birdsong**; crickets at dusk from the shared line |
 
-Checked before writing with a standalone flood fill on a 0.5 m grid using the real `isWalkableAt` and the Task 5 tree rules: every POI, scenic, find, hide and golden mouse (or its chain's first step) is reached from the spawn; with no decks, exactly the deep-swamp ones are not, and either deck alone reaches all of them; every POI is clear of every collider by 1.6; every path keeps ≥ 2.5 m of centreline from open water (the truce path's last leg is the tightest, at 2.51); the island's whole rim is in water and the bridge foot is dry; the tree rules keep 40 near pines and 87 in the stand with the closest trunks 1.79 m apart; the undergrowth rules keep 133 ferns, 45 toadstool clusters and 142 reed clumps; 4 pines stand on the strip by the River's border (x −6..24, z ≥ 40), where the River plants its own (its ruling R1).
+Checked before writing with a standalone flood fill on a 0.5 m grid using the real `isWalkableAt` and the Task 5 tree rules: every POI, scenic, find, hide and golden mouse (or its chain's first step) is reached from the spawn; with no decks, exactly the deep-swamp ones are not, and either deck alone reaches all of them; every POI is clear of every collider by 1.6; every path keeps ≥ 2.5 m of centreline from open water (the truce path's last leg is the tightest, at 2.51); the island's whole rim is in water and the bridge foot is dry; the tree rules keep 40 near pines and 86 in the stand with the closest trunks 1.79 m apart; the undergrowth rules keep 133 ferns, 45 toadstool clusters and 142 reed clumps; 4 pines stand on the strip by the River's border (x −6..24, z ≥ 40), where the River plants its own (its ruling R1).
 
 ---
 
@@ -158,7 +161,7 @@ Checked before writing with a standalone flood fill on a 0.5 m grid using the re
 **Interfaces:**
 - Produces (no colliders emitted; placement by `hash01`, never `Math.random`):
   - `pineStand(trees: Array<{ x, z, scale }>, seed) -> THREE.Group` of two merged meshes, `standTrunks` and `standFoliage`: each tree is exactly `pine(x, z, scale)`'s trunk and three cones (same geometry, same colours `0x7a5230` / `0x2f5a3a`, same surfaces), scaled and placed, and turned about y by `hash01(x, z, seed) × 2π`. Both meshes cast (they are tall solids). No `wind`: the stand is still. An empty list gives two empty geometries without throwing. Comment why: one stand is two draw calls and two casters however many pines, where a swaying `pine` is two each.
-  - `toadstools(spots: Array<{ x, z }>, seed) -> THREE.Group` of two merged `noCast` meshes: `toadstoolStems` (`CylinderGeometry(0.03, 0.04, h, 6)`, `h = 0.08 + 0.08 × hash01`, colour `0xe8dcc0`) and `toadstoolCaps` (half-domes `SphereGeometry(r, 8, 4, 0, 2π, 0, π/2)`, `r = 0.07 + 0.05 × hash01`, on each stem, colour `0xc0392b`). Each spot is a cluster of 2–4 within 0.3 m. Never taller than 0.3 m.
+  - `toadstools(spots: Array<{ x, z }>, seed) -> THREE.Group` of two merged `noCast` meshes: `toadstoolStems` (`CylinderGeometry(0.03, 0.04, h, 5)`, `h = 0.08 + 0.08 × hash01`, colour `0xe8dcc0`) and `toadstoolCaps` (half-domes `SphereGeometry(r, 6, 2, 0, 2π, 0, π/2)`, `r = 0.07 + 0.05 × hash01`, on each stem, colour `0xc0392b`). Each spot is a cluster of 2–4 within 0.3 m, about 30 triangles a toadstool. Never taller than 0.3 m.
 
 - [ ] **Step 1: Write the failing tests** in `test/builder.test.js`:
   - `pineStand is two meshes that match the pines it stands for`: for `trees = [{ x: 0, z: 0, scale: 1 }, { x: 5, z: -3, scale: 1.5 }]`, the group holds exactly two meshes named `standTrunks` and `standFoliage`; the foliage's vertex count is `2 ×` the foliage vertex count of `pine(0, 0)`; the group's `Box3` equals the union of `pine(0, 0, 1)` and `pine(5, -3, 1.5)`'s boxes within 0.05 in y and within each tree's turned cone radius in x and z (assert `max.y` within 0.05 of the scale-1.5 pine's, and `min.y >= -1e-6`).
@@ -177,7 +180,7 @@ Checked before writing with a standalone flood fill on a 0.5 m grid using the re
 - Modify: `src/progression.js`: append `'frog'` to `JOURNAL_TYPES`.
 - Modify: `src/journal.js`: `CRITTER_INFO` gains `{ id: 'frog', emoji: '🐸', name: 'Bog Frog', hint: 'Creep up softly, or it plops into the bog!' }`.
 - Modify: `src/game/labels.js`: `labelFor` gains `frog: 'a croaking frog'`; new `hideToastFor(type) -> string`, `'The frog plopped into the bog! 🐸'` for a frog and today's `` `The ${type} dived under cover! 🐭` `` for anything else. `src/game/walk.js`'s `onHide` calls it, so every other critter's toast is unchanged.
-- Test: `test/critters.test.js`, `test/journal.test.js`, `test/docks.test.js` (`JOURNAL_TYPES` and `CRITTER_INFO` lengths 12 → 13), `test/progression.test.js`, `test/interactions.test.js` (where `labelFor` is tested)
+- Test: `test/critters.test.js`, `test/journal.test.js`, `test/docks.test.js` (`JOURNAL_TYPES` and `CRITTER_INFO` lengths 12 → 13), `test/progression.test.js`
 
 **Interfaces:**
 - Produces: `'frog'` as a critter type `createCritters` spawns from `critterSpawns` and a moment's `type`, a journal type, and `hideToastFor(type)`.
@@ -188,19 +191,19 @@ Checked before writing with a standalone flood fill on a 0.5 m grid using the re
   - `critters: a frog is under 0.2 m tall and can be pounce-tagged` (at least 4 catches in 5, in the style of "stalk straight in and pounce when it notices").
   - `critters: a frog never answers a Far Call` (in the style of "never draws the critters a meow scatters").
   - `journal: the frog's entry is the Bog Frog`, and every journal type has an entry.
-  - `labelFor('frog')` is `'a croaking frog'`; `hideToastFor('frog')` is `'The frog plopped into the bog! 🐸'`; `hideToastFor('mouse')` is `'The mouse dived under cover! 🐭'`.
+  - In `test/docks.test.js`, beside the other `labelFor` checks (around line 438): `labelFor('frog')` is `'a croaking frog'`; `hideToastFor('frog')` is `'The frog plopped into the bog! 🐸'`; `hideToastFor('mouse')` is `'The mouse dived under cover! 🐭'`; and a source check that `src/game/walk.js`'s `onHide` calls `hideToastFor(`.
   - `progression: a frog spotted is counted, and the count survives a reload`.
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run the full suite** and confirm it passes.
-- [ ] **Step 5: Commit.** `git add src/critters.js src/journal.js src/game/labels.js src/game/walk.js src/progression.js test/critters.test.js test/journal.test.js test/docks.test.js test/progression.test.js test/interactions.test.js`, then commit `feat(critters): a frog, and the Bog Frog in the journal`
+- [ ] **Step 5: Commit.** `git add src/critters.js src/journal.js src/game/labels.js src/game/walk.js src/progression.js test/critters.test.js test/journal.test.js test/docks.test.js test/progression.test.js`, then commit `feat(critters): a frog, and the Bog Frog in the journal`
 
 ### Task 3: The Pines: ground, water, crossings, paths, the island bridge and the horizon
 
 **Files:**
 - Create: `src/world/pines.js`
 - Modify: `verify-places.html` (`AREAS` gains `pines`; `VIEWS.pines = '-6,1.6,-2,28,1.0,28'`, from the truce path's last bend looking down the bay to the island and its bridge)
-- Test: `test/pines.test.js` (new; copy `test/moor.test.js`'s canvas stub, `segDist`, `rectDist`, `flood`, `reaches`, `reachesWithin`), `test/water.test.js`, `test/budget.test.js` (both tables)
+- Test: `test/pines.test.js` (new; copy `test/moor.test.js`'s canvas stub, `segDist`, `rectDist`, `flood`, `reaches`, `reachesWithin`), `test/water.test.js`, `test/budget.test.js` (the as-built table)
 
 **Interfaces:**
 - Consumes: `logBridge`, `steppingStones`, `horizonBand` (with `sideTints`), `waterGap`, `inWater`, `tree` from `src/world/builder.js`; `createWater`; `ISLAND_BRIDGE_WOODS` from `./moor.js` (P1). Tests only: `WOODS_WATERS`; `RIVER_WATERS`, `RIVER_PATHS`, `RIVER_ISLAND`; `MOOR_WATERS`, `MOOR_PATHS`, `MOOR_ISLAND`.
@@ -247,6 +250,9 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   // the bay round the island is the River's far lake; the corner is the Woods' (+100, +100)
   expect([bay.minX, bay.maxX, bay.minZ, bay.maxZ]).toEqual([rFar.minX, rFar.maxX, rFar.minZ + 100, rFar.maxZ + 100]);
   expect([lake.maxX, lake.maxZ]).toEqual([wLake.maxX + 100, wLake.maxZ + 100]);
+  // the Moor's far water round the island is the same bay, +100 in x
+  const mFar = w(MOOR_WATERS, 'lake-far');
+  expect([mFar.minX + 100, mFar.maxX + 100, mFar.minZ, mFar.maxZ]).toEqual([bay.minX, bay.maxX, bay.minZ, bay.maxZ]);
   // the Moor's river, pouring into the lake just past the east edge
   for (const [mine, theirs] of [['moor-river', 'river-west'], ['moor-mouth', 'river-mouth']]) {
     const p = w(PINES_WATERS, mine), m = w(MOOR_WATERS, theirs);
@@ -264,10 +270,10 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   - `the island and the bridge are where the Woods, the River and the Moor show them`: `PINES_ISLAND` matches `{ x: RIVER_ISLAND.x, z: RIVER_ISLAND.z + 100, r: 9, rise: 1.4 }` and `[MOOR_ISLAND.x + 100, MOOR_ISLAND.z]`, and minus 100 in both is `[-72, -72]`; `BRIDGE_FOOT` equals `ISLAND_BRIDGE_WOODS[1]` + (100, 100); `islandBridge`'s `position` x/z are within 0.01 of the midpoint of the two ends + (100, 100), its `geometry.parameters.depth` within 0.01 of the ends' distance, and its `rotation.y` within 1e-6 of `Math.atan2(dx, dz)` for dx, dz from the shore end to the island end (the River's convention).
   - `the cat walks to the bridge foot and stops at the shore` (Review Focus 5): `reaches(area, BRIDGE_FOOT.x, 4.3)` is true; at 20 points along the plank from 0.05 to 1 of the way to the island, `isWalkableAt` is false; `lake` and `lake-bay` carry no decks; no collider or perch lies within `PINES_ISLAND.r + 2` of the island's centre; all 16 points on the island's rim are `inWater`.
   - `the truce path runs from the River to the bridge`: `TRUCE_PATH` is four segments, each starting where the last ended; the first starts at `(-26, 50)`; the last ends within 2.5 m of `BRIDGE_FOOT`; the spawn is within 1.6 m of its first segment.
-  - `the horizon faces the Pines' neighbours`: one band; `PINES_HORIZON.sideTints` equals `{ north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }`; `rooftops` undefined; `avoid` holds `LAKE`, `MIRE_NORTH`, `MIRE_WEST`, `MOOR_RIVER`.
+  - `the horizon faces the Pines' neighbours`: one band; `PINES_HORIZON.sideTints` equals `{ north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }`; `rooftops` undefined; `avoid` holds `LAKE`, `MIRE_NORTH`, `MIRE_WEST`, `MOOR_RIVER`, `MOOR_MOUTH`.
   - `returns every key moor.js returns, named 'The Pines and Swamp'`; `is built the same every time`; `nothing in the Pines reads the edition`.
   - `test/water.test.js`: `WATERED.pines = buildWith(buildPines)`, and a block `nearestDry where the Pines' waters touch` with spots `[-32.6, -11.6]` (the deep swamp's bank at the mire's inside corner), `[-30, -8.5]` (in the corner's water), `[-26.4, -5.4]` (the bank at its outside corner), `[28, 6.5]` (the bay north of the lake), `[30.4, 7.6]` (the land pocket between the bay and the lake), `[25.6, 44.4]` (the pocket at the bay's south-east), `[-36.3, 16]` (bog-1's bank), each at margins 0.35, 0.5 and 0.6, with the Woods block's two expectations (clear by the margin, within 5 m).
-  - `test/budget.test.js`: `['pines', buildPines, 450, 380, 60000]` and `['pines', buildPines, 260, 205]`; the comment gains the Pines' measured rows once Task 5 lands. Expect about 120–150 meshes, 90–120 casters and 35,000–50,000 triangles.
+  - `test/budget.test.js`: `['pines', buildPines, 450, 380, 60000]` in the as-built table only. The merged row waits for Task 4, because nothing in the map merges yet and the merged test asserts that merging lowers the counts (the Moor did the same, 4c27452). The comment gains the Pines' measured rows once Task 5 lands. Expect about 120–150 meshes, 90–120 casters and 35,000–50,000 triangles.
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement** the sky, ground, waters (`createWater` per record), the two decks (named `logBridge`, `steppingStones`), the paths, the island mound and tree, `islandBridge`, the truce stones, and the horizon band.
 - [ ] **Step 4: Run the full suite** and confirm it passes.
@@ -279,7 +285,7 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
 - Modify: `src/world/pines.js` (POIs, scenics, collectibles, both chains, the fallen pine, the gold bushes, puddles, critters, the moment; `PINES_KEEP_CLEAR` built from these records and `BRIDGE_FOOT`, the truce stones and the frog hides)
 - Modify: `src/goldmice.js` (`pines` entry after `moor`; the header counts the areas)
 - Modify: `src/propsets.js` (`SETS.pines`: every list empty, `dogYard: null`, `keepSlots: []`, `hides` the three frog hides; a comment that the frog dives into the bog there and the rest of a Pines prop set is deferred)
-- Test: `test/pines.test.js`; `test/goldmice.test.js` (`Object.keys(GOLD_MICE)` ends `'woods', 'river', 'moor', 'pines'`; `GOLD_TOTAL` 24); `test/docks.test.js` (`GOLD_TOTAL` 24, "since the Pines"); `test/climbing.test.js` (`AREAS.pines`; `['pines-find-5', 'pines']` in `ELEVATED`; `SHIPPED_HOPS` gains `'gm-pines-1': 2, 'gm-pines-2': 2, 'gm-pines-3': 0, 'pines-find-5': 1`; every ground-mice list gains `'gm-pines-3'`; the skilled hop tables gain `'gm-pines-1': 1, 'gm-pines-2': 1`); `test/spots.test.js`, `test/goalsarea.test.js` (`pines` in their area lists); `test/propsets.test.js`
+- Test: `test/pines.test.js`; `test/goldmice.test.js` (`Object.keys(GOLD_MICE)` ends `'woods', 'river', 'moor', 'pines'`; `GOLD_TOTAL` 24); `test/docks.test.js` (`GOLD_TOTAL` 24, "since the Pines"); `test/climbing.test.js` (`AREAS.pines`; `['pines-find-5', 'pines']` in `ELEVATED`; `SHIPPED_HOPS` gains `'gm-pines-1': 2, 'gm-pines-2': 2, 'gm-pines-3': 0, 'pines-find-5': 1`; every ground-mice list gains `'gm-pines-3'`; the skilled hop tables gain `'gm-pines-1': 1, 'gm-pines-2': 1`); `test/spots.test.js`, `test/goalsarea.test.js` (`pines` in their area lists); `test/propsets.test.js`; `test/budget.test.js` (the merged row `['pines', buildPines, 260, 205]`, moved here from Task 3)
 
 **Interfaces:**
 - Consumes: Task 3's `build`; Task 2's `'frog'`; `b.bush`, `b.puddle`, `b.fallenLog`; `GOLD_MICE.pines` (read into `PINES_KEEP_CLEAR`).
@@ -292,7 +298,7 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   - `pines: the fallen pine is a perch and a seat`: the perch and its three colliders exactly.
   - `puts the climbing golden mice on the chain tops and hides the third among three bushes` (the bushes have no collider).
   - `every find, POI, scenic, golden mouse, frog hide and race ring is reachable on foot from the spawn` (the Moor's `targets()` with a `firstStep` for the two chains).
-  - `the Lightning Stump's and the Frog Stones' golden mice are in sight from the chase camera`: for each, a cat 3 m from the pillar to the north, south, east and west, the camera 4.5 m further out at 2.2 m up (camzoom step 1); a ray from each camera to the mouse (y + 0.12) hits nothing in the pillar or its boulder. Where a side has water or a trunk within 7.5 m (the Frog Stones' east, toward the mire), assert from the sides that stand on dry land and say why in a comment.
+  - `the Lightning Stump's and the Frog Stones' golden mice are in sight from the chase camera`: for each, a cat 3 m from the pillar to the north, south, east and west, the camera 4.5 m further out at 2.2 m up (camzoom step 1); a ray from each camera to the mouse (y + 0.12) hits nothing in the pillar, its boulder, `pineStand` or any near pine's foliage (both arrive in Task 5; the test runs again then, unchanged). For the Frog Stones assert from the north and west only, with a comment: its east camera is over mire-north and its south camera over mire-west.
   - `the tall pillars are as wide at the foot as their colliders`: `radiusBottom === 0.9` for both.
   - `goals: every goal drawn in the Pines can be finished there` (`pines` in `test/goalsarea.test.js`'s `AREAS`) and `the Pines never offers tipping, a box or head scratches` (over 400 seeds, `seen.size === GOAL_POOL.length - 3`).
   - `carries its critters, one moment and two puddles, and no villagers`: `critterSpawns.filter((c) => c.type !== 'bird')`, `moments`, `puddles` equal the numbers table exactly.
@@ -302,7 +308,7 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run the full suite** and confirm it passes.
-- [ ] **Step 5: Commit.** `git add src/world/pines.js src/goldmice.js src/propsets.js test/pines.test.js test/goldmice.test.js test/docks.test.js test/climbing.test.js test/spots.test.js test/goalsarea.test.js test/propsets.test.js`, then commit `feat(pines): POIs, finds, golden mice, the two climbs and the frogs`
+- [ ] **Step 5: Commit.** `git add src/world/pines.js src/goldmice.js src/propsets.js test/pines.test.js test/goldmice.test.js test/docks.test.js test/climbing.test.js test/spots.test.js test/goalsarea.test.js test/propsets.test.js test/budget.test.js`, then commit `feat(pines): POIs, finds, golden mice, the two climbs and the frogs`
 
 ### Task 5: The Pines: the forest, ferns, toadstools, reeds and lily pads
 
@@ -320,7 +326,7 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   - In `build`: each near pine `b.pine(x, z, scale, { wind })`; one `b.pineStand(stand, seedFromCode('pines-stand'))` named `pineStand`; a collider `r2(0.4 × scale)` for **every** pine, near or stand, and **no** fork perch (a pine has no low fork); one `b.fernBed` named `ferns`; one `b.toadstools` named `toadstools`; one `b.reedBed` named `reeds`; one `b.lilyPads` named `lilyPads`.
 
 - [ ] **Step 1: Write the failing tests**:
-  - `pinesTrees is deterministic, dense, and keeps its clearances`: two calls deep-equal; near 30–40, stand 70–150 (if a floor fails, add candidates rather than loosen a clearance); every pine inside bounds, ≥ 2.5 m from water, `1.5 + 1.3 × scale + 0.5` from every path centreline, ≥ 4 m from both decks and every `PINES_KEEP_CLEAR` point; every near pine within its near distance of a path or the spawn.
+  - `pinesTrees is deterministic, dense, and keeps its clearances`: two calls deep-equal; near 30–40, stand 70–150 (if a floor fails, add candidates rather than loosen a clearance); every pine inside bounds, ≥ 2.5 m from water, `1.5 + 1.3 × scale + 0.5` from every path centreline, ≥ 4 m from both decks and every `PINES_KEEP_CLEAR` point; every near pine within its near distance of a path or the spawn; and while `near` is under 40, no stand pine is within that distance (a pine a kid walks past never ends up still in the stand unless the 40 are full).
   - `leaves the forest walkable: no two trunks closer than a cat can pass between` (the Woods test over both lists, radius `0.4 × scale`, gap `> 2 × 0.35`).
   - `pines stand on the River's border where the River's own pines stand`: at least 2 pines with x −6..24 and z ≥ 40 (the River's ruling R1, from the other side).
   - `plants a collider for every pine, a swaying pine for each near one, and the rest in one stand`: the collider count is `near + stand + 9` (the four chain colliders, the two truce stones, the three fallen-pine colliders); `scene.getObjectByName('pineStand')` holds exactly two meshes; no perch is a Sure Claws fork.
@@ -330,7 +336,7 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   - `the ferns, toadstools, reeds and lily pads are merged meshes out of the shadow pass, with no colliders`.
   - The Task 4 reachability test runs again with the scenery in, unchanged.
   - `test/climbing.test.js`: `GATED.pines` is `[]` (no pine has a fork); `UNGATED.pines` has length 5 (the four chain perches and the fallen pine).
-  - `test/minimap.test.js`: `BUILDS.pines`; `buildMapLayer for the Pines has ground, edge, ten waters, two with decks, twelve paths, and no blocks`, with the comment that every Pines collider is under the map's 1 m block cut.
+  - `test/minimap.test.js`: `BUILDS.pines`; `buildMapLayer for the Pines has ground, edge, ten waters, two with decks, 16 strips, and no blocks`, with comments that the strip count is the twelve paths plus the four rectangular water planes `flatFootprints` (`src/render/grass.js`) counts as strips because neither half-extent passes 50 m: the lake, the bay, the Moor's river and its mouth (the two mire reaches run past 50 m and are skipped; the round bogs are discs, not strips). Also say that every Pines collider is under the map's 1 m block cut.
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run the full suite**, both budget tables included, and write the measured built and merged numbers into `test/budget.test.js`'s comment tables. If anything binds, lower the stand's cap toward 100 or the fern cap toward 120 before touching a clearance; the counts the tests pin are the contract.
@@ -341,9 +347,9 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
 **Files:**
 - Modify: `src/progression.js`: `CATALOG.areas.pines = { name: 'The Pines and Swamp', price: 0, requires: { area: 'river', walks: 2 }, edition: 'canon' }` after the Moor; `pines: 0` in `defaultState().walks`, with the NaN comment naming `pines`.
 - Modify: `src/game/walk.js` (`AREAS` gains `pines`), `src/marks.js` (`MARK_AREAS` gains `'pines'` before `'den'`; `emptyMarks` gains `pines: []`)
-- Modify: `src/render/grass.js` (`pineFloorDensity` exported, `PINE_FLOOR`, `GRASS_STYLES.pines`), `src/render/clouds.js` (`CLOUD_AREAS` gains `pines`), `src/render/pawprints.js` (`AREA_RULES.pines`), `src/render/ambient.js` (`case 'pines': return dusk ? 'moths' : 'motes';`)
+- Modify: `src/render/grass.js` (`pineFloorDensity` exported, `PINE_FLOOR`, `GRASS_STYLES.pines`), `src/render/clouds.js` (`CLOUD_AREAS` gains `pines`), `src/render/pawprints.js` (`AREA_RULES.pines`), `src/render/ambient.js` (`case 'pines': return dusk ? null : 'fluff';`)
 - Modify: `src/audio.js`: `frogLayer()`, an interval of 3200 ms that, when not muted and `Math.random() < 0.4`, plays two low croaks (`tone(180 + Math.random() * 60, 0.09, { type: 'square', gain: 0.016, slideTo: 140 })`, then the same at `delay: 0.13`); a `pines` branch: `windLayer({ gain: 0.035, cutoff: 220 })`, `frogLayer()`, and `rainLayer()` in rain. No birdsong at any hour; crickets at dusk from the shared line.
-- No dressing-room code (as for the Moor: the card shows under "Other places" between Tasks 6 and 7; the picture comes in Task 9).
+- No dressing-room code (as for the Moor: the card shows under "Other places" between Tasks 6 and 7; the picture comes in Task 9). `test/dressingroom.test.js` around line 282 asserts `otherPlaces` is `['park', 'seaside', 'docks']`; in this task change it to `['park', 'seaside', 'docks', 'pines']` with a comment that Task 7 moves the Pines onto the map, and Task 7 restores it (the River's precedent, 3116586 then 219a031).
 - Test: `test/progression.test.js` (every `walks` and `marks` deep-equal gains `pines`), `test/marks.test.js`, `test/grass.test.js`, `test/clouds.test.js`, `test/pawprints.test.js`, `test/ambient.test.js` (`VIEW.pines = [-26, 44]`), `test/audio.test.js`, `test/lobby.test.js`, `test/dressingroom.test.js`, `test/colonypanel.test.js`
 
 **Interfaces:**
@@ -356,8 +362,8 @@ it("the Pines' edges match the Moor's west edge and the River's north edge", () 
   - `progression: a fresh save counts Pines walks from 0`; `completeWalk('pines')` makes it 1; `an unlocked Pines survives a reload`; `a stored save with no pines keys loads with walks.pines 0 and marks.pines []`.
   - `marks: the Pines keeps marks like any area`.
   - `grass: the Pines grows a thin pine-floor grass`: `GRASS_STYLES.pines.density === pineFloorDensity`; over a 1 m grid on ±50 it stays within `[0, 0.7]`, is 0 somewhere and above 0.4 somewhere.
-  - `clouds`, `pawprints` (`{ ground: null, path: 'wetSand', strip: null }`), `ambient` (`'motes'`, `'moths'` at dusk).
-  - `audio: the Pines is a low wind and frogs, never birdsong, gulls or a horn`: with `ambienceProbe('pines')`, one buffer source (the wind), one interval, no timeouts; a gain node at 0.035; stubbing `Math.random` to 0 and running the interval once, every oscillator it starts has `frequency.value < 400` (frogs, where birdsong starts at 1500).
+  - `clouds`, `pawprints` (`{ ground: null, path: 'wetSand', strip: null }`), `ambient` (`ambientKind('pines')` is `'fluff'`, and `null` at dusk).
+  - `audio: the Pines is a low wind and frogs, never birdsong, gulls or a horn`: with `ambienceProbe('pines')`, one buffer source (the wind), one interval, no timeouts; a gain node at 0.035. Run the frog interval once by capturing its callback in `ambienceProbe` (record the function passed to the stubbed `setInterval`) and calling it with `Math.random` stubbed to 0; every oscillator started by that call has all its `frequency.scheduled` values below 400 (frogs, where birdsong starts at 1500). `tone()` sets frequency with `setValueAtTime`, so `frequency.value` stays at the default 440 and is not the thing to assert; leave the wind's LFO oscillator, started before the call, out of the check.
   - `audio: a rainy Pines adds the rain wash and keeps the frogs`: two buffer sources, one interval.
   - `lobby: a joiner who hasn't unlocked the Pines still accepts a Pines proposal as an override`.
   - `dressingroom: Legacy lists today's four places and never the Pines`.
@@ -416,7 +422,7 @@ test('the shipped Legacy guards cover the Pines, and no patrol walks the truce',
 });
 ```
 
-  - `dressingroom: Clan's Other places are still the Park, the Seaside and the Docks` (passes only once the Pines' territory carries `areaId: 'pines'`).
+  - `dressingroom: Clan's Other places are still the Park, the Seaside and the Docks`: restore the line-282 assertion Task 6 widened to `['park', 'seaside', 'docks']` (it passes only once the Pines' territory carries `areaId: 'pines'`).
   - `dressingroom: Legacy with the Pines chosen marks the Cozy Neighborhood card "today's walk"`.
   - `dressingroomcontroller: tapping the locked Pines buys nothing and keeps the area`; `tapping the opened Pines selects it` (a save at 1 and then 2 River walks).
   - `walk.edition: a Legacy kid whose place is the Pines walks the Neighborhood and keeps the Pines` (the Moor test of the same shape: two Neighborhood walks, buy the Woods, two Woods walks, buy the River, two River walks, buy the Pines, `setArea('pines')`, `setEdition('legacy')`; add `vi.mock('../src/world/pines.js', (orig) => stubBuild('pines', orig))` beside the file's other mocks).
@@ -432,8 +438,8 @@ test('the shipped Legacy guards cover the Pines, and no patrol walks the truce',
 **Files:**
 - Modify: `src/colony.js`: append `'pines'` to `COLONY_AREAS`. Tests assert membership, never the whole list.
 - Modify: `test/legendary.test.js` line 17: `const NO_LEGENDARY_YET = ['woods', 'river', 'moor', 'pines']; // their legendary cats come with a later plan`.
-- Modify: `test/colony.test.js`: every "the colony doesn't feed here yet" example that names `'pines'` (the Moor plan moved them there) now names `'island'`, which no map uses yet: the `feedsHere(...)` false assertions and `feedCat still refuses a territory the colony does not feed in yet`. Likewise the `'pines'` example in `test/editions.invariants.test.js` ("cats in territories this build cannot walk yet") becomes `'island'`.
-- Test: `test/colony.test.js`, `test/editions.invariants.test.js`, `test/legendary.test.js`
+- Modify: `test/colony.test.js`: every "the colony doesn't feed here yet" example that names `'pines'` (the Moor plan moved them there) now names `'island'`, which no map uses yet: the `feedsHere(...)` false assertions and `feedCat still refuses a territory the colony does not feed in yet`. Likewise the `'pines'` example in `test/editions.invariants.test.js` ("cats in territories this build cannot walk yet") becomes `'island'`, and so does the area in `test/interactions.test.js`'s "no feed prompt where the colony does not feed" (around line 3275, which uses `'pines'` once the Moor lands).
+- Test: `test/colony.test.js`, `test/editions.invariants.test.js`, `test/legendary.test.js`, `test/interactions.test.js`
 
 **Interfaces:**
 - Consumes: `feedsHere`, `feedCat`, `emptyColony`; the `boldName` and `ME` fixtures.
@@ -465,7 +471,7 @@ test('the caps are still unchanged with the Pines feeding', () => {
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement**, and update `test/legendary.test.js` line 17.
 - [ ] **Step 4: Run the full suite.**
-- [ ] **Step 5: Commit.** `git add src/colony.js test/colony.test.js test/editions.invariants.test.js test/legendary.test.js`, then commit `feat(pines): colony feeding in the Pines and Swamp`
+- [ ] **Step 5: Commit.** `git add src/colony.js test/colony.test.js test/editions.invariants.test.js test/legendary.test.js test/interactions.test.js`, then commit `feat(pines): colony feeding in the Pines and Swamp`
 
 ### Task 9: Check it live, and write it down
 
@@ -485,6 +491,7 @@ test('the caps are still unchanged with the Pines feeding', () => {
   - A frog by bog-1 hops for the bog and vanishes with "The frog plopped into the bog! 🐸"; it counts in the journal as a Bog Frog.
   - Sound: a low hush and frogs by day, no birdsong.
   - **The forest reads as dark and dense** from the paths and from the deep swamp; note whether the still stand looks dead beside the swaying near pines (the deferred sway pass).
+  - **Under the pine stand, the ground has no contact shadow** (the stand is wider than `contactshadows`' `MAX_SPAN` 6.5; the near pines have theirs). Note whether the stand's trunks look like they float; if so, write the follow-up (a per-tree footprint list in `userData` that `scanFootprints` reads) into the VISUAL-PASS entry.
   - `?perf`: the Pines' draw count on the same tier as the Woods', the River's and the Neighborhood's; record all four.
   - `verify-places.html?area=pines` builds; take the 640 × 360 `pines.jpg` from `VIEWS.pines`, moving the camera along the truce path if a trunk fills the frame and writing the final view into `VIEWS.pines`.
   - No console errors. Reset the viewport to desktop afterwards.
