@@ -165,8 +165,11 @@
     // pool-1 with its lily pads and reeds, willows behind (the card picture); the
     // bank-path view '-6,1.4,6,-20,0.4,-26' was mostly bare grass
     river: '-24,1.8,9,-33,0.5,15',
-    // from the high path, looking down over the river bend to the lake
-    moor: '24,3.0,-22,-10,0.4,12',
+    // over the river bend from its north-east bank: the log bridge, the bridge
+    // path, heather and thorns, the lake and the island's tree beyond (the card
+    // picture). The first view, high path '24,3.0,-22,-10,0.4,12', was half
+    // sky over bare grass
+    moor: '24,4.5,-14,4,0.3,6',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

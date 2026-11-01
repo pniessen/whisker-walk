@@ -1461,3 +1461,110 @@ mice it can't reach, a pattern left over from the Woods.
 - The pools read silver from above because they reflect the sky. Flat from
   the scenic and card angles; not seen from on foot.
 - The island bridge reads only as a thin line from the lake-island scenic.
+
+## The Moor — budget and live check (2026-10-31)
+
+Held to the same ceilings as the Woods and the River. Measured off
+`build(scene)` the way `test/budget.test.js` does, re-measured for this entry:
+
+| area | meshes built | casters built | triangles | meshes merged | casters merged |
+|---|---|---|---|---|---|
+| moor | **76** / 450 | **50** / 380 | 40,288 / 60,000 | **75** / 260 | **49** / 205 |
+| woods | 172 | 152 | 44,462 | 170 | 150 |
+| river | 159 | 133 | 45,344 | 157 | 131 |
+
+The comment in `test/budget.test.js` says 40,282 triangles; the build now
+gives 40,288 (the last lake-lip fix moved a few). It has 10 thorns, 7 pines,
+398 heather cushions, 19 gorse clumps and 127 reed clumps. The Moor is the
+cheapest of the three in meshes and casters: the heather, gorse and reeds are
+one bed mesh each, and there are only 17 trees against the Woods' 69.
+
+**In-game draw calls.** `?perf`, HIGH tier pinned in Settings, the spawn's
+Ready frame, one walk per reading (strays and finds re-roll, so rows are only
+roughly comparable). Desktop is 1024x768 css at 2x, as the River's row was:
+
+| area | draws | shadow | scene | triangles |
+|---|---|---|---|---|
+| **moor** | 701, 697 | 297, 290 | 390, 393 | 135,580, 132,782 |
+| woods | 451 | 271 | 166 | 93,580 |
+| neighborhood | 1,377 | 479 | 884 | 168,586 |
+| river (its entry) | 740 | 302 | 424 | 144,618 |
+
+On the phone portrait view (375x812 at 2x, touch) the Moor spawn was 376
+draws (shadow 242, scene 120, 86,852 triangles), against the River's 444.
+The Moor sits with the River, between the Woods and the Neighborhood, for the
+same reason the River does: its spawn (46, 44) looks up the long north path
+across most of the 100 m map, so more of the 22 strays are in frame. These are
+desktop and emulated-phone numbers; the iPhone reading is still the owner's.
+
+**Checked live** (a throwaway save on the worktree's own port, 2 Woods walks;
+the touch joystick and orbit driven with synthetic `TouchEvent`s, and the cat
+moved between spots by setting its position, then walking):
+
+- Home screen, Clan Edition, at 1280x720 and 375x812: the Moor is in colour
+  and says "Tap to explore"; a real tap unlocks and selects it (save
+  `area: 'moor'`, the region says "today's walk", the dock says "Walking in
+  The Moor" and, once `moor.jpg` was in place, shows it).
+- The Moor's tap area does not bleed: with another region selected, all
+  2,537 points on a 3 px grid that hit the Moor's target lie inside the Moor's
+  land shape and under no other tappable region (13 also lie under the Pines'
+  painted land where the two drawn shapes overlap; the Pines is not
+  tappable). While the Moor is selected its 9 px outline catches a thin rim
+  just outside the shape, as any selected region's does.
+- Legacy: four cards (Cozy Neighborhood, City Park, Seaside, The Old Docks),
+  no map, no Moor; with `area: 'moor'` the dock says Cozy Neighborhood and the
+  Cozy Neighborhood card says "today's walk"; flipping back selects the Moor
+  again.
+- **The stepping stones**, walked on their visible edges: at z 29.3 and at
+  z 30.7, west and east, the cat crossed the whole river (x 25.5 to 15 and
+  back) without a stop. A control at z 28.6, off the deck, stopped at x 23.35
+  (the water's edge plus the cat's radius). **The log**: crossed north and
+  south at x 4, and at its edges x 3.4 and x 4.6; a control at x 2.5 stopped at
+  z 1.35. The stones read as one grey causeway.
+- **No camera in a canopy.** Every path, sampled every 0.5 m on its centreline
+  and 1.2 m either side, looking along it both ways, at the close, default and
+  far zoom steps (7,380 camera spots, placed exactly where `cameraOffset` puts
+  them): no camera inside any mesh taller than 1.5 m, and no tree or tor within
+  6 m of any of them. The closest call is a POI ring: at the close zoom step the
+  camera passes through the (40, 8) ring beside the north path, as POI rings do
+  everywhere.
+- **gm-moor-2** is in plain sight on its limb from the chase camera: from
+  beside the boulder and from the north, south and west of the old hawthorn,
+  the first thing a ray from the camera to the mouse meets is the mouse. From
+  the east it is behind the trunk (the limb grows west), as `gm-woods-1` is.
+  **gm-moor-1** shows on the High Tor's top from the north, south, east, west
+  and the boulder side, small but clear from 5 m.
+- **The rabbits** at the warren: walking in from (26, -21), both rabbits
+  bolted for the burrow at (37.34, -30.97) and vanished into it. The journal
+  counts them as `rabbit` ("Moor Rabbit").
+- **The edges**: from the `moor-lake` scenic the lake shore runs along z 8,
+  with the island and its tree out on the lake and the island bridge a thin
+  line off its north-west side; the dark pines stand on the west strip; the
+  river leaves south at x 18-23 into the Woods' green horizon; the north path
+  meets the south edge at x 46.
+- `verify-places.html?area=moor` builds (`__calls` 62 at the card view, no
+  console errors). The first `VIEWS.moor` (high path, `24,3.0,-22`) was half sky
+  over bare grass, so the card picture is now taken over the river bend from
+  its north-east bank (`24,4.5,-14 → 4,0.3,6`): the log bridge, the bridge
+  path, heather and thorns, the lake and the island's tree beyond.
+- No console errors from the game anywhere above.
+
+**Seen, not fixed:**
+
+- **Shore foam over open water where waters overlap.** Each water paints foam
+  along whole edges, so at the overlaps a bank's foam runs on across water.
+  At the bend, river-west's `maxZ` bank (z 1) shows as a pale line straight
+  across river-south between x 18 and 23, visible from the chase camera on the
+  east bank. At the mouth, river-mouth's banks run on 2 m past the lake shore
+  (z 8 to 10) and its surface ends in a straight seam in the open lake at
+  z 10. The Woods and the River use the same per-edge `shores`, so they may
+  show the same at their own bends.
+- In the place-picture harness (no fog), the horizon hills cut away over the
+  lake leave a stair-stepped white notch on the skyline to the west and
+  north-west of the island. In the walk the haze softened it.
+
+**Not checked:** the wind and birdsong by ear; the corner map's waters, decks
+and tors as a whole (only the part round the cat was seen); the horizon's
+side tints by eye beyond the views above; holding keys on desktop (the
+automated browser can't lock the pointer); iPhone fps and thermals; dusk and
+rain.
