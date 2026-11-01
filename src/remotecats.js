@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
+import { wireLook } from './customcats.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
@@ -82,7 +83,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     const petName = validPetName(profile.petName) ? profile.petName : 'Mystery Cat';
     const accessories =
       profile.accessories && typeof profile.accessories === 'object' ? profile.accessories : {};
-    return { ...profile, breed, petName, accessories };
+    return { ...profile, breed, petName, accessories, look: wireLook(accessories) };
   }
 
   function upsert(rawProfile, now = defaultNow()) {
@@ -93,7 +94,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       remove(profile.playerId); // rejoined with a different pet — drop the stale mesh and rebuild
     }
 
-    const group = buildCat(profile.breed, profile.accessories, { simple: true });
+    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look });
     const tag = makeNameTag(profile.petName);
     if (tag) {
       tag.visible = true; // remote pets are always labeled, unlike strays
@@ -106,6 +107,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       petName: profile.petName,
       breed: profile.breed,
       accessories: profile.accessories,
+      look: profile.look,
       group,
       tag,
       fromPos: new THREE.Vector3(0, 0, 0),

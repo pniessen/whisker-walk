@@ -258,3 +258,21 @@ describe('the keep-out', () => {
     }
   }, 60000);
 });
+
+describe('a ghost with a custom look', () => {
+  const LOOK = { coat: 'apricot', marks: 'black', pattern: 'patches', fur: 'long', eyes: 'blue', size: 0.9 };
+  const firstColour = (g) => {
+    let out = null;
+    g.traverse((o) => {
+      if (!out && o.material?.vertexColors && o.geometry?.attributes?.color) out = Array.from(o.geometry.attributes.color.array.slice(0, 3));
+    });
+    return out;
+  };
+  const build = (look) => createGhosts(new THREE.Scene(), AREA,
+    [profile('a', { breed: 'calico', accessories: { collar: null, look } })], () => 0.5).list[0];
+  it('builds with that look; a non-object look builds the plain calico', () => {
+    const plain = firstColour(build(undefined).group);
+    expect(firstColour(build(LOOK).group)).not.toEqual(plain);
+    expect(firstColour(build(5).group)).toEqual(plain);
+  });
+});

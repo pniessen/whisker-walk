@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
+import { wireLook } from './customcats.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
@@ -43,7 +44,7 @@ function sanitizeGhostProfile(raw) {
   const petName = validPetName(raw?.petName) ? raw.petName : 'Mystery Cat';
   const accessories = raw?.accessories && typeof raw.accessories === 'object' ? raw.accessories : {};
   const greets = Number.isFinite(raw?.greets) ? raw.greets : 0;
-  return { playerId: raw?.playerId, petName, breed, accessories, greets };
+  return { playerId: raw?.playerId, petName, breed, accessories, look: wireLook(accessories), greets };
 }
 
 /**
@@ -76,7 +77,7 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
 
   for (const raw of profiles) {
     const profile = sanitizeGhostProfile(raw);
-    const group = buildCat(profile.breed, profile.accessories, { simple: true });
+    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look });
 
     // Half-opacity "ghost" look. buildCat's `mat()` helper constructs a
     // fresh MeshLambertMaterial per mesh — never shared/cached across calls

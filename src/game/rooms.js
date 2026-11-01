@@ -15,6 +15,7 @@
 import { rankFor, CATALOG } from '../progression.js';
 import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
 import { seedFromCode } from '../rng.js';
+import { catProfileFields } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
 
@@ -63,20 +64,14 @@ export function createRooms({
 
   function roomProfile() {
     const st = progression.state;
-    return {
-      playerId: pid,
-      petName: st.petName,
-      breed: st.equipped.cat,
-      accessories: {
-        collar: st.equipped.collar,
-        head: st.equipped.head,
-        face: st.equipped.face,
-        neck: st.equipped.neck,
-        body: st.equipped.body,
-        back: st.equipped.back,
-        feet: st.equipped.feet,
-      },
-    };
+    return { playerId: pid, petName: st.petName, ...catProfileFields(st) };
+  }
+
+  // Re-publish the room profile (a cat or accessory changed while a room is
+  // open). Fire-and-forget for callers; tests await it.
+  function retrackProfile() {
+    if (!pendingRoom) return Promise.resolve();
+    return pendingRoom.net.updateProfile(roomProfile()).catch((err) => console.warn('Whisker Walk: retrack failed', err));
   }
 
   // Cloud profile push (Task 3): publishes what's currently equipped under
@@ -95,19 +90,14 @@ export function createRooms({
     if (!st.petName) return Promise.resolve();
     const cloud = getCloud();
     if (!cloud) return Promise.resolve();
+    const fields = catProfileFields(st);
     return cloud.pushProfile({
       playerId: pid,
       secret: getPsecret(),
       petName: st.petName,
-      breed: st.equipped.cat,
+      breed: fields.breed,
       accessories: {
-        collar: st.equipped.collar,
-        head: st.equipped.head,
-        face: st.equipped.face,
-        neck: st.equipped.neck,
-        body: st.equipped.body,
-        back: st.equipped.back,
-        feet: st.equipped.feet,
+        ...fields.accessories,
         // The clan pick rides the PUBLIC profile row (not the room roster) so a
         // sibling's device can read it (colonysync.js); null before a pick.
         // No reader iterates this object's keys.
@@ -328,7 +318,7 @@ export function createRooms({
   };
 
   return {
-    rooms, roomProfile, pushProfileNow, notifyRoomChange,
+    rooms, roomProfile, retrackProfile, pushProfileNow, notifyRoomChange,
     getPendingRoom: () => pendingRoom,
     // The home base's Start in a room (game/walk.js's beginWalkFromHomebase):
     // anyone's Start starts everyone.

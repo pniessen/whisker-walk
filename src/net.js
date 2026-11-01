@@ -141,6 +141,12 @@ export function createNet(transport) {
     setRoster([]);
   }
 
+  // Re-publish this player's profile to the room (a cat or outfit changed).
+  async function updateProfile(profile) {
+    if (selfId == null) return;
+    await transport.updateProfile?.(profile);
+  }
+
   function sendState(state) {
     if (!isValidStateMsg(state)) return;
     transport.send('state', state);
@@ -185,7 +191,7 @@ export function createNet(transport) {
     return roster.length > 0 && selfId != null && roster[0].playerId === selfId;
   }
 
-  return { join, leave, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
+  return { join, leave, updateProfile, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
 }
 
 /**
@@ -224,6 +230,15 @@ export function createFakeHub() {
         joined = true;
         broadcastRoster(room);
         return { ok: true, roster: rosterFor(room) };
+      },
+
+      async updateProfile(profile) {
+        if (!joined) return;
+        const room = rooms.get(code);
+        const entry = room?.get(playerId);
+        if (!entry) return;
+        entry.profile = profile;
+        broadcastRoster(room);
       },
 
       send(kind, payload) {
@@ -346,6 +361,10 @@ export function createSupabaseTransport(url, key) {
           }
         });
       });
+    },
+
+    async updateProfile(profile) {
+      if (channel) await channel.track(profile);
     },
 
     send(kind, payload) {

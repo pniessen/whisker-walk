@@ -142,3 +142,18 @@ describe('chat broadcast kind', () => {
     expect(bGot).toHaveLength(1);
   });
 });
+
+describe('updateProfile', () => {
+  it('re-tracks: the partner sees the new profile in the roster', async () => {
+    const hub = createFakeHub();
+    const a = createNet(hub.transport()); const b = createNet(hub.transport());
+    await a.join('ROOM', { playerId: 'aaa', petName: 'Willow', breed: 'tabby', accessories: {} });
+    await b.join('ROOM', { playerId: 'bbb', petName: 'Rowan', breed: 'tabby', accessories: {} });
+    let seen = null; b.onRoster((r) => { seen = r; });
+    await a.updateProfile({ playerId: 'aaa', petName: 'Willow', breed: 'black', accessories: { look: { coat: 'cream' } } });
+    expect(seen.find((p) => p.playerId === 'aaa').breed).toBe('black');
+  });
+  it('does nothing before join', async () => {
+    await expect(createNet(createFakeHub().transport()).updateProfile({ playerId: 'x' })).resolves.toBeUndefined();
+  });
+});
