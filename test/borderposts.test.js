@@ -136,6 +136,9 @@ describe('border posts: where they stand', () => {
         for (const t of [...(area.pois ?? []), ...(area.collectibles ?? []), ...(area.scenics ?? []), ...(GOLD_MICE[areaId] ?? [])]) {
           expect(Math.hypot(p.x - t.x, p.z - t.z), at).toBeGreaterThanOrEqual(3.0);
         }
+        // The daily race: its start pad stands at spawn + (2, -3) (race.js); its rings
+        // are generated per walk but always on a point of interest, which is covered above.
+        expect(Math.hypot(p.x - (spawn.x + 2), p.z - (spawn.z - 3)), `${at} vs the race start pad`).toBeGreaterThanOrEqual(3.0);
         for (const t of area.perches ?? []) expect(Math.hypot(p.x - t.x, p.z - t.z), at).toBeGreaterThanOrEqual(2.0);
         const d = DISCS[areaId];
         if (d) expect(Math.hypot(p.x - d.cx, p.z - d.cz), at).toBeGreaterThanOrEqual(d.r + 3);

@@ -84,11 +84,18 @@ describe('addBorderDressing', () => {
           const box = new THREE.Box3().setFromObject(g);
           expect(box.max.y).toBeGreaterThan(1.1);
           expect(box.max.y).toBeLessThan(1.2);
-          // the arrow tip (the 3-sided cylinder) lies further toward `faces` than the post
-          const tip = meshes.find((m) => m.geometry.parameters?.radialSegments === 3);
+          // the arrow tip is a flat triangle in the board's vertical plane, ~0.04 m thick and
+          // ~1.6x the board's 0.14 m height, whose middle lies further toward `faces` than the post
+          const tip = meshes.find((m) => m.name === 'arrowTip');
           const [dx, dz] = DIR[p.faces];
-          const c = new THREE.Vector3().setFromMatrixPosition(tip.matrixWorld);
-          expect((c.x - p.x) * dx + (c.z - p.z) * dz).toBeGreaterThan(0.3);
+          const tb = new THREE.Box3().setFromObject(tip);
+          const c = tb.getCenter(new THREE.Vector3());
+          expect((c.x - p.x) * dx + (c.z - p.z) * dz).toBeGreaterThan(0.4);
+          const size = tb.getSize(new THREE.Vector3());
+          const [along, across] = dx !== 0 ? [size.x, size.z] : [size.z, size.x];
+          expect(across).toBeCloseTo(0.04, 2);
+          expect(size.y).toBeCloseTo(0.224, 2);
+          expect(along).toBeGreaterThan(0.15);
         }
       });
 

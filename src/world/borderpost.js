@@ -13,6 +13,7 @@
 // 0.95 m pointing out over the border, a band of cloth under the board in the
 // neighbour's map colour, and two small stones at the foot. No words.
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { path } from './builder.js';
 import { postsFor, POST_R, TOWN_FOOTPATH, FOOTPATH_W } from '../borderposts.js';
@@ -50,7 +51,17 @@ function buildPost(p) {
   mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 7), wood, 0, 0.575, 0);
   // The board runs along the facing direction; the tip's apex points the same way.
   mesh(new THREE.BoxGeometry(0.5, 0.14, 0.04), wood, dx * 0.22, 0.95, dz * 0.22, Math.atan2(-dz, dx));
-  mesh(new THREE.CylinderGeometry(0, 0.1, 0.04, 3), wood, dx * 0.47, 0.95, dz * 0.47, Math.atan2(dx, dz));
+  // The tip is a flat triangle in the board's own vertical plane (same 0.04 m
+  // thickness, about 1.6x its height), so board + tip read as a signpost arrow.
+  const tip = new THREE.Shape();
+  tip.moveTo(0, -0.112);
+  tip.lineTo(0, 0.112);
+  tip.lineTo(0.2, 0);
+  tip.closePath();
+  // Indexed like the post's other parts, so the static merge can fold it in.
+  const tipGeo = mergeVertices(new THREE.ExtrudeGeometry(tip, { depth: 0.04, bevelEnabled: false }));
+  tipGeo.translate(0, 0, -0.02);
+  mesh(tipGeo, wood, dx * 0.47, 0.95, dz * 0.47, Math.atan2(-dz, dx)).name = 'arrowTip';
   mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.12, 8), cloth, 0, 0.78, 0);
   // Two small stones at the foot, to either side of the facing direction.
   mesh(new THREE.DodecahedronGeometry(0.12, 0), stone, -dz * 0.16 - dx * 0.05, 0.08, dx * 0.16 - dz * 0.05);
