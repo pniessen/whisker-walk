@@ -307,8 +307,11 @@ export function pinesTrees() {
 function critterSpawns() {
   return [
     ...pinesTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
-    { type: 'frog', x: -38, z: 20, x2: -36, z2: 13 },
-    { type: 'frog', x: -46, z: 26, x2: -42, z2: 34 },
+    // The two bog-side frogs pace dry ground east of bog-1 and bog-2, ending
+    // by their frog hides, not the plan's lines through the bogs: a frog stays
+    // at y 0, so in a bog it would pace half-sunk, out of a stalking cat's reach.
+    { type: 'frog', x: -35, z: 21, x2: -35.5, z2: 16 },
+    { type: 'frog', x: -40, z: 35, x2: -40, z2: 30 },
     { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
     { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
     { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
@@ -449,7 +452,7 @@ export function build(scene, { water = {}, wind } = {}) {
     scenics: SCENICS.map((c) => ({ ...c })),
     critterSpawns: critterSpawns(),
     moments: [
-      { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: -36.1, z: 16, from: { x: -30, z: 22 } },
+      { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: FROG_HIDES[0].x, z: FROG_HIDES[0].z, from: { x: -30, z: 22 } },
     ],
     puddles: PUDDLES.map((p) => ({ ...p })),
     waters: PINES_WATERS,

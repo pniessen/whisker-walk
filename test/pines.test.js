@@ -557,8 +557,10 @@ describe('the Pines: things to find, climb and race', () => {
 
   it('carries its critters, one moment and two puddles, and no villagers', () => {
     expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
-      { type: 'frog', x: -38, z: 20, x2: -36, z2: 13 },
-      { type: 'frog', x: -46, z: 26, x2: -42, z2: 34 },
+      // dry beside bog-1 and bog-2, not through them as the plan drew them,
+      // so a cat can stalk them
+      { type: 'frog', x: -35, z: 21, x2: -35.5, z2: 16 },
+      { type: 'frog', x: -40, z: 35, x2: -40, z2: 30 },
       { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
       { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
       { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
@@ -577,6 +579,28 @@ describe('the Pines: things to find, climb and race', () => {
     }
     expect(area.boxes).toEqual([]);
     expect(area.tippables).toEqual([]);
+  });
+
+  it('every critter but a duck patrols dry ground, clear of the water, where a cat can reach it', () => {
+    // decks ignored: a log or a stone is no place for a frog to pace
+    const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+    const walkers = area.critterSpawns.filter((c) => c.type !== 'duck');
+    expect(walkers.filter((c) => c.x2 !== undefined).length).toBeGreaterThanOrEqual(5);
+    for (const c of walkers) {
+      const x2 = c.x2 ?? c.x, z2 = c.z2 ?? c.z;
+      for (let k = 0; k <= 40; k++) {
+        const x = c.x + (x2 - c.x) * (k / 40), z = c.z + (z2 - c.z) * (k / 40);
+        const at = `${c.type} (${c.x}, ${c.z}) at (${x.toFixed(2)}, ${z.toFixed(2)})`;
+        expect(inWater(PINES_WATERS, x, z), at).toBe(false);
+        expect(waterClearance(undecked, x, z), at).toBeGreaterThanOrEqual(0.6);
+      }
+      expect(reaches(area, c.x, c.z), `${c.type} (${c.x}, ${c.z})`).toBe(true);
+      expect(reaches(area, x2, z2), `${c.type} (${x2}, ${z2})`).toBe(true);
+    }
+    // each bog-side frog ends its patrol by its own hide
+    const frogs = area.critterSpawns.filter((c) => c.type === 'frog');
+    expect(Math.hypot(frogs[0].x2 - FROG_HIDES[0].x, frogs[0].z2 - FROG_HIDES[0].z)).toBeLessThanOrEqual(1);
+    expect(Math.hypot(frogs[1].x2 - FROG_HIDES[1].x, frogs[1].z2 - FROG_HIDES[1].z)).toBeLessThanOrEqual(1);
   });
 
   it("the frog hides are the Pines' hides, each dry, reachable and 0.4 m off a bog", () => {
