@@ -1147,20 +1147,33 @@ describe('createColonySync — the partner\'s clan pick', () => {
     expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
   });
 
-  it('freshPick joining a pull already in flight still applies', async () => {
+  it('freshPick joining a throttled pull already in flight still fetches', async () => {
     vi.useFakeTimers(); vi.setSystemTime(T0);
-    let release;
-    const gate = new Promise((r) => { release = r; });
-    const { cs, cloud } = setup({ script: { colonySync: async () => { await gate; return pairedSnap(); }, fetchProfiles: home('moor') } });
-    const a = cs.pull();
-    // a plain pull is mid-flight; the fresh one joins it
-    const b = cs.pull({ freshPick: true });
-    release();
-    await Promise.all([a, b]);
+    let gate = null;
+    const { cs, cloud } = setup({ script: { colonySync: async () => { if (gate) await gate; return pairedSnap(); }, fetchProfiles: home('moor') } });
+    await cs.pull();
     expect(cloud.fetchProfiles).toHaveBeenCalledTimes(1);
-    // the throttle was cleared before the fetch: a second fresh pull right after fetches again
-    await cs.pull({ freshPick: true });
+    vi.setSystemTime(T0 + 3000);
+    let release;
+    gate = new Promise((r) => { release = r; });
+    const plain = cs.pull();            // throttled, parked before the pick step
+    const fresh = cs.pull({ freshPick: true }); // joins it
+    release();
+    await Promise.all([plain, fresh]);
     expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('a new partner with no valid home resets the cached pick for that partner', async () => {
+    const SIB2 = 'cccccccc-3333';
+    for (const accessories of [{}, { home: 'park' }]) {
+      const { cs, progression, script } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('moor') } });
+      await cs.pull();
+      expect(progression.state.clanPick).toMatchObject({ partner: 'moor', partnerId: SIB });
+      script.colonySync = () => pairedSnap({ members: [{ player_id: ME, pet_name: 'Mittens', wardrobe: [] }, { player_id: SIB2, pet_name: 'Wren', wardrobe: [] }] });
+      script.fetchProfiles = () => [{ player_id: SIB2, accessories }];
+      await cs.pull();
+      expect(progression.state.clanPick).toMatchObject({ partner: null, partnerId: SIB2 });
+    }
   });
 
   it('a failed profile fetch never fails the pull', async () => {

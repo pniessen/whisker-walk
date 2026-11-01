@@ -30,7 +30,6 @@ import { sanitizeSnapshot, unsyncedFeeds, COLONY_MAX, isPlayerId } from '../colo
 import { CATALOG, isTradeableAccessory } from '../progression.js';
 import { validPetName } from '../net.js';
 import { clanTitleFor } from '../clannames.js';
-import { isClanId } from '../clanhomes.js';
 
 // A kept pending join (see trouble()) has no expiry of its own; give it the
 // invite's window so an offline player isn't polled at forever.
@@ -303,7 +302,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       const acc = row && row.accessories;
       if (!acc || typeof acc !== 'object' || Array.isArray(acc)) return;
       const home = Object.hasOwn(acc, 'home') ? acc.home : null;
-      if (isClanId(home)) progression.setPartnerClanPick(partnerId, home);
+      // setPartnerClanPick sanitises: a new partner with no valid home resets the
+      // cache to null for that partner; the same partner keeps their cached pick.
+      progression.setPartnerClanPick(partnerId, home);
     } catch (err) {
       warnOnce('partner pick fetch failed', err);
     }
