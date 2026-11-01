@@ -128,8 +128,12 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     const entry = remotes.get(state.id);
     if (!entry) return; // state before roster upsert — drop it, roster wins the race in practice
 
-    entry.fromPos.copy(entry.group.position);
     entry.toPos.set(state.pos[0], 0, state.pos[1]);
+    // The first state puts a new co-walker straight where it is. Sliding it in
+    // from the origin would carry it through any water on the way (the Moor's
+    // river-west holds the origin), and it would dip there on arrival.
+    if (!entry.water.placed) entry.group.position.copy(entry.toPos);
+    entry.fromPos.copy(entry.group.position);
     entry.fromYaw = entry.group.rotation.y;
     entry.toYaw = state.yaw;
     entry.pose = state.pose;

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { createRemoteCats } from '../src/remotecats.js';
+import { shallowExcess } from '../src/world/builder.js';
 
 function fakeScene() {
   const objects = new Set();
@@ -53,6 +54,9 @@ describe('createRemoteCats', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);
     remotes.upsert(PROFILE, 0);
+    // The first state places a new cat outright (Task 6); interpolation is
+    // from there on.
+    remotes.applyState({ v: 1, id: 'aaa', pos: [0, 0], yaw: 0, pose: 'follow', speed: 0 }, 0);
     remotes.applyState({ v: 1, id: 'aaa', pos: [10, 10], yaw: 0, pose: 'follow', speed: 1 }, 0);
     remotes.update(0.01, 0.01); // 10ms into the 150ms window
     const entry = remotes.list[0];
@@ -208,10 +212,28 @@ describe('remote cats in the water', () => {
     let k = 0;
     const modes = [];
     const frame = () => { now += 1 / 60; remotes.update(1 / 60, now, POND); modes.push(entry.water.mode); };
-    // 8 Hz states either side of the band line (x 23.8) for 3 s...
-    while (now < 3) {
+    // Find the band line along z 0 (about x 23.79: the shore is a polygon,
+    // so not quite 25 - 1.2) and straddle it by 0.05 either way.
+    let lo = 22;
+    let hi = 24.5;
+    for (let i = 0; i < 50; i++) {
+      const m = (lo + hi) / 2;
+      if (shallowExcess(POND, m, 0) > 0) lo = m; else hi = m;
+    }
+    const DEEP = lo - 0.05;
+    const SHALLOW = lo + 0.05;
+    expect(shallowExcess(POND, DEEP, 0)).toBeCloseTo(0.05, 2);
+    expect(shallowExcess(POND, SHALLOW, 0)).toBeCloseTo(-0.05, 2);
+    // Start in the wade band and settle there...
+    remotes.applyState(state(24.5), now);
+    for (let i = 0; i < 30; i++) frame();
+    expect(entry.water.mode).toBe('wade');
+    // ...then 8 Hz states either side of the band line for 3 s...
+    nextState = now;
+    const straddleEnd = now + 3;
+    while (now < straddleEnd) {
       if (now >= nextState) {
-        remotes.applyState(state(k % 2 === 0 ? 23.75 : 23.85), now);
+        remotes.applyState(state(k % 2 === 0 ? DEEP : SHALLOW), now);
         k += 1;
         nextState += 1 / 8;
       }
@@ -220,12 +242,15 @@ describe('remote cats in the water', () => {
     // ...then into the deep, and hold.
     remotes.applyState(state(22), now);
     for (let i = 0; i < 120; i++) frame();
+    // The arrival snaps, so the cat is never dry once placed in the band.
     const first = modes.findIndex((m) => m !== 'dry');
-    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBe(0);
     const after = modes.slice(first);
     let changes = 0;
     for (let i = 1; i < after.length; i++) if (after[i] !== after[i - 1]) changes += 1;
+    // one change, wade to swim, and it is the move to x 22, not the straddle
     expect(changes).toBe(1);
+    expect(after.at(-121)).toBe('wade');
     expect(after.at(-1)).toBe('swim');
   });
 
@@ -280,5 +305,41 @@ describe('remote cats in the water', () => {
     for (let i = 0; i < 90; i++) frame();
     expect(shook).toBe(true);
     expect(entry.water.mode).toBe('dry');
+  });
+});
+
+describe('a new co-walker arrives where it is', () => {
+  it('first position on dry land, with water at the origin: never wet, never sunk', () => {
+    // The Moor: river-west holds the origin in its wade band.
+    const AT_ORIGIN = [{ id: 'p', kind: 'circle', x: 0, z: 0, r: 5, shallow: 1.2 }];
+    const remotes = createRemoteCats(fakeScene());
+    const entry = remotes.upsert(PROFILE, 0);
+    remotes.applyState({ v: 1, id: 'aaa', pos: [12, 3], yaw: 0, pose: 'follow', speed: 1 }, 0);
+    let now = 0;
+    for (let i = 0; i < 60; i++) {
+      now += 1 / 60;
+      remotes.update(1 / 60, now, AT_ORIGIN);
+      expect(entry.water.mode).toBe('dry');
+      expect(entry.group.position.y).toBe(0);
+    }
+    expect(entry.group.position.x).toBeCloseTo(12, 6);
+    expect(entry.group.position.z).toBeCloseTo(3, 6);
+  });
+
+  it('a rebuilt co-walker (new breed) snaps too', () => {
+    const AT_ORIGIN = [{ id: 'p', kind: 'circle', x: 0, z: 0, r: 5, shallow: 1.2 }];
+    const remotes = createRemoteCats(fakeScene());
+    remotes.upsert(PROFILE, 0);
+    remotes.applyState({ v: 1, id: 'aaa', pos: [12, 3], yaw: 0, pose: 'follow', speed: 1 }, 0);
+    remotes.update(1 / 60, 1 / 60, AT_ORIGIN);
+    const entry = remotes.upsert({ ...PROFILE, breed: 'siamese' }, 0.1);
+    remotes.applyState({ v: 1, id: 'aaa', pos: [12, 3], yaw: 0, pose: 'follow', speed: 1 }, 0.1);
+    let now = 0.1;
+    for (let i = 0; i < 30; i++) {
+      now += 1 / 60;
+      remotes.update(1 / 60, now, AT_ORIGIN);
+      expect(entry.water.mode).toBe('dry');
+      expect(entry.group.position.y).toBe(0);
+    }
   });
 });
