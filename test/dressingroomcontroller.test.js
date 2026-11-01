@@ -4,6 +4,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CATALOG, createProgression } from '../src/progression.js';
 import { createDressingRoom } from '../src/ui/dressingroomview.js';
+import { territoryMapModel } from '../src/territories.js';
+import { renderTerritoryMapHtml } from '../src/ui/territorymap.js';
 
 const lockedCat = Object.keys(CATALOG.cats).find((id) => CATALOG.cats[id].price > 0);
 const accId = Object.keys(CATALOG.accessories)[0];
@@ -195,6 +197,25 @@ describe('createDressingRoom handleClick', () => {
     expect(JSON.stringify(t.progression.state)).toBe(before);
     expect(t.progression.state.area).toBe('river');
     expect(t.sync.autoSync).not.toHaveBeenCalled();
+  });
+
+  it('tapping the island before the Pines opens buys nothing; after, it selects the Pines', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    t.progression.state.walks.woods = 2;
+    t.dr.handleClick(click({ drPlace: 'river' }));
+    t.progression.state.walks.river = 1;
+    t.progression.state.points = 9999;
+    // the island's <g> carries data-dr-place="pines", so its tap is the Pines' tap
+    const html = renderTerritoryMapHtml(territoryMapModel(t.progression.state, CATALOG));
+    expect(html.match(/data-region="island"[^>]*data-dr-place="(\w+)"/)[1]).toBe('pines');
+    const before = JSON.stringify(t.progression.state);
+    expect(t.dr.handleClick(click({ drPlace: 'pines' }))).toBe(true);
+    expect(JSON.stringify(t.progression.state)).toBe(before);
+    t.progression.state.walks.river = 2;
+    t.dr.handleClick(click({ drPlace: 'pines' }));
+    expect(t.progression.state.area).toBe('pines');
   });
 
   it('tapping the opened Pines selects it', () => {

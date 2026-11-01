@@ -158,7 +158,8 @@ describe('dressing-room renderer', () => {
     const html = render();
     expect(count(html, /data-dr-cat=/g)).toBe(Object.keys(CATALOG.cats).length);
     expect(count(html, /data-dr-slot=/g)).toBe(new Set(Object.values(CATALOG.accessories).map((a) => a.slot)).size);
-    expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length);
+    // the map's island star is a second tap target for the Pines, so one more than the areas
+    expect(count(html, /data-dr-place=/g)).toBe(Object.keys(CATALOG.areas).length + 1);
     expect(count(html, /data-dr-pill=/g)).toBe(3);
     expect(html).toContain(`aria-pressed="true"`);
   });

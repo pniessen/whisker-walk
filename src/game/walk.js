@@ -653,6 +653,8 @@ export function createWalkLifecycle({
     const giver = isDen ? null : critters.list.find((c) => c.type === 'villager');
     if (giver) {
       questGiver = giver;
+      // createQuest draws one target from the list, so a quest never takes
+      // more than one island POI (group 'island'); it needs no group rule.
       quest = createQuest(walkRng, walkPois);
       const marker = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.4, 6),

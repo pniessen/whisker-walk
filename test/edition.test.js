@@ -87,3 +87,9 @@ test('the shipped Legacy guards cover the River', () => {
   expect(roomAreaMove({ edition: 'legacy', area: 'river' }, CATALOG, 'park')).toBe('override');
   expect(rivalForWalk('river', 'canon')).toBeNull();
 });
+
+test('the island is inside the Pines, so Legacy never walks it and no patrol is there', () => {
+  expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
+  expect(Object.hasOwn(CATALOG.areas, 'island')).toBe(false);
+  expect(rivalForWalk('pines', 'canon')).toBeNull();
+});

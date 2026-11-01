@@ -26,8 +26,10 @@ export const TERRITORIES = freezeAll([
 const pts = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
 
 export const LAKE = pts([[397, 370], [402, 281], [405, 241], [416, 220], [431, 209], [452, 207], [472, 209], [495, 220], [507, 237], [522, 327], [517, 352], [469, 415], [450, 426], [429, 425], [400, 408]]);
+// The island is walked as part of the Pines (owner's decision 1), so its star
+// is the Pines' way in and takes the Pines' state.
 export const ISLAND = Object.freeze({
-  name: 'The island', status: 'soon',
+  id: 'island', areaId: 'pines', name: 'The island', status: 'built',
   outline: pts([[437, 307], [444, 297], [456, 291], [476, 289], [485, 309], [478, 321], [464, 329], [449, 329], [440, 320]]),
 });
 export const STAR = Object.freeze({ x: 455, y: 314 });
@@ -62,10 +64,11 @@ export function territoryMapModel(state, catalog) {
   const area = typeof state?.area === 'string' && has(areas, state.area) ? state.area : Object.keys(areas)[0];
   const points = count(state?.points);
 
-  const regions = TERRITORIES.map((t) => {
-    const base = { id: t.id, name: t.name, areaId: t.areaId, x: t.x, y: t.y, r: t.r, status: t.status };
+  // owned, selected, locked, canOpen and line for one place, from its areaId.
+  // The island asks through its areaId, so it carries the Pines' state.
+  const stateOf = (t) => {
     if (t.status !== 'built' || !has(areas, t.areaId)) {
-      return { ...base, owned: false, selected: false, locked: false, canOpen: false, line: SOON_LINE[t.status] ?? SOON_LINE.soon };
+      return { owned: false, selected: false, locked: false, canOpen: false, line: SOON_LINE[t.status] ?? SOON_LINE.soon };
     }
     const a = areas[t.areaId];
     const owned = ownedAreas.includes(t.areaId);
@@ -79,8 +82,15 @@ export function territoryMapModel(state, catalog) {
     else if (owned) line = 'tap to walk here';
     else if (locked) line = opensAfterLine(req, have, edition, catalog);
     else line = 'Tap to explore'; // every built territory costs 0 paws, so open means free to take
-    return { ...base, name: placeName(t.areaId, edition, catalog) || t.name, owned, selected, locked, canOpen, line };
+    return { owned, selected, locked, canOpen, line };
+  };
+
+  const regions = TERRITORIES.map((t) => {
+    const base = { id: t.id, name: t.name, areaId: t.areaId, x: t.x, y: t.y, r: t.r, status: t.status };
+    const st = stateOf(t);
+    const builtHere = t.status === 'built' && has(areas, t.areaId);
+    return { ...base, ...(builtHere ? { name: placeName(t.areaId, edition, catalog) || t.name } : {}), ...st };
   });
 
-  return { regions, island: ISLAND, star: STAR, lake: LAKE, pond: POND, river: RIVER, paths: PATHS, bridge: BRIDGE };
+  return { regions, island: { ...ISLAND, ...stateOf(ISLAND) }, star: STAR, lake: LAKE, pond: POND, river: RIVER, paths: PATHS, bridge: BRIDGE };
 }

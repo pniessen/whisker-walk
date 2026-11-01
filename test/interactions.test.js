@@ -2308,6 +2308,22 @@ describe('Gift Paws (v18 Task 3.2)', () => {
     expect(AWARDS.gift).toBe(10);
   });
 
+  it('a scenic marked gifts: false is never offered for a gift', () => {
+    const h = giftHarness({ skills: ['gift-paws'] });
+    // closer to the cat than the fountain, so only the flag can skip it
+    const rock = { id: 'rock', x: 3, z: 24.5, label: 'the rock', gifts: false };
+    h.session.areaData.scenics.push(rock);
+    try {
+      h.walkTo(3, 24.4);
+      expect(h.session.prompt.kind).toBe('gift-leave');
+      expect(h.session.prompt.data.id).toBe('fountain');
+      h.walkTo(3, 28); // only the rock is within range of here
+      expect(h.session.prompt).toBe(null);
+    } finally {
+      h.session.areaData.scenics.pop();
+    }
+  });
+
   it('stops offering a spot that already holds a gift', () => {
     const h = giftHarness({ skills: ['gift-paws'] });
     h.walkTo(3, 23);
