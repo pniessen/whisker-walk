@@ -1568,3 +1568,200 @@ and tors as a whole (only the part round the cat was seen); the horizon's
 side tints by eye beyond the views above; holding keys on desktop (the
 automated browser can't lock the pointer); iPhone fps and thermals; dusk and
 rain.
+
+## The Pines and Swamp, with the island — budget and live check (2026-11-01)
+
+The island and its bridge are part of the Pines walk, so this one entry covers
+the finished Pines. Held to the Cozy Neighborhood's ceilings, like the Woods,
+the River and the Moor. Measured off `build(scene)` the way
+`test/budget.test.js` does, re-measured for this entry:
+
+| pines | meshes built | casters built | triangles | meshes merged | casters merged |
+|---|---|---|---|---|---|
+| without island content (db8777d) | 130 | 96 | 43,668 | 128 | 94 |
+| island as ground, bridge walkable (3078eab) | 127 | 93 | 43,248 | 125 | 91 |
+| **with the island (now, 25f5200)** | **138** / 450 | **101** / 380 | **45,180** / 60,000 | **135** / 260 | **98** / 205 |
+
+The island content (the Old Ash, the Meeting Ring as one merged mesh, the
+Watch Rock and its step, the boulder, the bushes, the puddle, the reeds) adds
+11 meshes, 8 casters and 1,932 triangles over 3078eab. The scenery: 40 near
+(swaying) pines and 86 in the merged still stand, 133 ferns, 45 toadstool
+clusters, 160 reed clumps (141 on the Pines' shores and bogs, 19 round the
+island) and 20 lily pads.
+
+**In-game draw calls.** `?perf`, HIGH tier pinned in Settings, the same
+method as the Moor's: desktop is 1024x768 css at 2x, phone portrait is
+375x812 at 2x with touch. Strays (22) and finds re-roll each walk, so rows are
+only roughly comparable. "Island" is the cat on the island's landing looking
+back up the bridge to the shore; "truce path" is the cat on the truce path's
+middle leg, looking along it toward the bridge.
+
+| area | view | desktop draws (shadow / scene) | desktop triangles | phone draws |
+|---|---|---|---|---|
+| **pines** | spawn | 824-870 (213-310 / 527-609) | 190,400-201,418 | 451-479 |
+| **pines** | island, looking back up the bridge | 799, 841, 940 (352-423 / 433-503) | 183,656-209,400 | 628, 646 |
+| **pines** | truce path, toward the bridge | 729, 843 (367-431 / 348-398) | 175,290-193,062 | 640 |
+| moor | spawn (its entry) | 701, 697 | 135,580 | 376 |
+| river | spawn (its entry) | 740 | 144,618 | 444 |
+
+The Pines is the busiest of the clan territories: 85 to 130 draws over the
+River at the spawn on desktop, and a little over the River on the phone. Most
+of the extra is the pines themselves (40 swaying pines are two meshes each,
+plus their shadows) and the spawn's long view down the truce path past most
+of the map. It is still well under the Neighborhood's 1,377. These are desktop
+and emulated-phone numbers; the iPhone reading is the owner's.
+
+**Checked live** (a throwaway save on the worktree's own port; the touch
+joystick and orbit driven with synthetic `TouchEvent`s, the cat moved between
+spots by setting its position, then walking; the automated browser's own
+frame clock was throttled while the app window was out of view, so frames were
+driven from a timer: draw counts are unaffected, fps readings are not used):
+
+- **Territory map**, at 1280x720 and 375x812. With 1 River walk the Pines and
+  the island star both say "opens after 2 walks in The River and Marshes ·
+  1/2 so far"; tapping either changes nothing. With 2 River walks both say
+  "Tap to explore"; tapping the star (a real tap on the phone) unlocks and
+  selects the Pines (save `area: 'pines'`, the dock says "Walking in The Pines
+  and Swamp", both the Pines and the star read "today's walk"), exactly what
+  tapping the Pines does. The star's line reads "in the Pines and Swamp".
+- **The star steals no taps.** Every 3 px over the island's outline plus 40 px
+  round it (1,190 points at 1280x720, 1,024 on the phone): no point inside the
+  island's shape goes anywhere but the star, and every point that reaches the
+  star outside its shape (5 at 1280x720, 3 on the phone; 20 and 10 while it is
+  selected, from the selection outline) is over no other tappable region.
+  The same sweep over the whole Pines region (6,241 / 3,844 points) finds
+  nothing inside the Pines going elsewhere and, unselected, no Pines tap
+  outside its shape; selected, its outline catches a thin rim (12 points over
+  the Moor and 14 over the River at 1280x720), as every selected region's
+  does. On the phone the star's target is about 14 px across: small, but a
+  real tap on it works.
+- **Legacy**: four cards (Cozy Neighborhood, City Park, Seaside, The Old
+  Docks), no map, no Pines; with `area: 'pines'` the Cozy Neighborhood card and
+  the dock say "today's walk"; flipping back selects the Pines again.
+- **The bridge.** Steering down the truce path from (-4, 2) to its end, up to
+  the foot and along the bridge onto the island, then all the way back: no
+  stop, no wet frame, no stall (a frame with the stick held and under 2 cm of
+  movement); the cat passes between the truce stones both ways (crossing
+  their line at x 11.2 going out, 10.5 coming back). Pushing straight off
+  either side from the middle of the plank holds the cat at the edge (at most
+  0.90 m and 0.86 m off the centreline, the deck being 0.9 m each side), never
+  wet, with the shipped edge bob of about 0.3 m. The four fixed-stick cases:
+  (1) south from (10.6, 2.5) for 6 s slides along the deck's edge onto the
+  island; (2) along the bridge from the foot for 8 s ends on the island;
+  (3) due east from the deck's middle for 3 s slides along the east edge (at
+  most 0.89 m off the centreline) and ends on the island, never wet;
+  (4) back up the bridge from the landing for 8 s passes between the truce
+  stones at x 9.98 and ends on dry land north of the shore. No case had a wet
+  frame.
+- **The corner map** (north-up): the island is filled like the land, out in
+  the lake; the bridge is a path-tone line from the shore to it; the N badge is
+  at the top; with the cat mid-bridge its dot sits on the bridge line.
+- **On the island**: the cat hops up and sits on the Meeting Ring's stones
+  (y 0.4, tried on two); three ducks paddle on the lake off the island's
+  north-east; the two birds are at the Old Ash's foot.
+- **Golden mice from the chase camera** (the cat 3.5 m out on each side, the
+  first thing a ray from the camera meets): gm-pines-1 on the Lightning Stump
+  from N, E, W, NE and SE; gm-pines-2 on the Frog Stones from S, NE and NW;
+  gm-pines-3 in its bushes from N, E, W, NE, NW and SE; gm-pines-4 on the Old
+  Ash's limb from S, W, NE, SW and NW (from the north the trunk is in the way,
+  as with gm-woods-1); gm-pines-5 on the Watch Rock from N, E, NE, SW and SE;
+  gm-pines-6 in the island's bushes from E, S, NE, NW and SW (bushes hide it
+  from the other three, by design). The remaining sides mostly missed the
+  mouse's thin top rather than hitting anything. gm-pines-6 was picked up by
+  the cat during the bridge runs, so it is reachable.
+- **Strays** (22): over 7.4 minutes sampled five times a second, none stood on
+  the island, the bridge, the lake or the bay; the closest any came to the lake
+  or bay boxes was 0.6 m (the keep-out margin). Strays waiting by the bridge
+  foot rest exactly on the bridge capsule's edge. **A yarn ball** thrown onto
+  the island's north rim (28, 15.5), with eight strays carried to the lake's
+  north shore and the bay's: none came closer than 8.5 m; the one in range
+  walked to the shore (z 7.4) and stopped. No stray on land can be within the
+  8 m a playful stray reacts at, so a ball on the island draws none across.
+  **A Far Call** from the island (Far Call skill on the save): the four strays
+  within 22 m walked toward the cat along the shore and stopped at the
+  keep-out's edge (z 7.4 and 4.4); none stepped onto the bridge or the island.
+- **The frog**: walking at the bog-1 frog, "You spotted a croaking frog", then
+  it hopped off and "The frog plopped into the bog! 🐸"; the journal gained
+  `frog` (Bog Frog).
+- **Gift Paws** (skill on the save): no prompt at any of the island's three
+  scenics (the end of the bridge, the meeting ring, the lake view);
+  "leave a gift at ..." at the Pines' three (the bridge to the island, the
+  black mire, the heart of the swamp).
+- **The race**: the courses for 1-21 November each have at most one ring on
+  the island or the bridge (none on 1 November, exactly one on the other 20).
+- **No camera in a canopy, except at four near pines.** Every path and the
+  bridge, sampled every 0.5 m on the centreline and 1.2 m either side (0.6 m
+  on the bridge), looking along it both ways, at the close, default and far
+  zoom steps, cameras placed exactly where `cameraOffset` and
+  `cameraPullScale` put them (9,522 spots), each tested for being inside a
+  mesh by rays: 10 spots were inside a near pine's lowest cone, 9 of them at
+  the far step. A finer pass round those pines (0.25 m, five offsets, all four
+  steps) found 26 spots, at most 0.51 m inside. The still stand never comes
+  within its cones' reach of any camera (closest margin +0.21 m) and the Old
+  Ash keeps 1.45 m; the bridge is clear. See "Seen, not fixed".
+- **The edges.** South at the spawn: the River's green hills over the border.
+  East from the east path: the Moor's river running in to the lake between the
+  Moor's heather hills. The lake's north shore at z 8 from (38, 4), with the
+  island, its stones and a stray on the shore. South-east from the island's
+  rim: the open lake to the horizon, the Woods' green hills to the south-east
+  and the Moor's heather to the north-east. From the bay's south shore: the
+  island and the lake.
+- `verify-places.html?area=pines` builds (`__calls` 100, no console errors).
+  At `VIEWS.pines` (`-6,1.6,-2 → 28,1.0,28`) no trunk fills the frame (truce
+  path, truce stones, the bridge, the island and the Old Ash), so the view is
+  unchanged and `public/places/pines.jpg` is taken from it.
+- **The suite and the build** pass (155 files, 4,336 tests).
+- No console errors from the game anywhere above.
+
+**Not checked by eye:**
+
+- **Sound.** Not heard. In code the Pines' ambience is a low wind hush and the
+  frogs with no birdsong at any hour (`audio.js`, the `pines` branch), and the
+  island is the same walk with no per-position switch, so it sounds the same.
+- **Whether the still stand looks dead beside the swaying near pines.** The
+  sway is motion; stills can't show it, and the browser here could not play the
+  walk in real time.
+- **Dark and dense.** From the paths the forest reads as an open, mid-green
+  pine wood under light fog, with bright grass between the trunks; it does not
+  read dark. The deep swamp reads open and grey-green. A taste call for the
+  owner.
+- **Floating stand trunks.** The stand's trunks have no contact-shadow disc
+  (the stand is over `contactshadows.js`'s `MAX_SPAN`), but the sun's shadow
+  map grounds them, and at walking distance they don't read as floating. If
+  the owner sees otherwise, the follow-up is a per-tree footprint list in the
+  stand's `userData` for `scanFootprints` to read.
+
+**Seen, not fixed:**
+
+- **The far zoom step puts the camera inside four near pines' lowest cone.**
+  At the truce path's first bend, cat at (-25.96, 32.27) walking south-east,
+  far step: the camera is in the pine at (-30.47, 37.88) and a quarter of the
+  frame is green cone. On the east path's east end, cat at (17.63, -26.51)
+  walking west, far step: up to 0.51 m inside the pine at (24.43, -29.21). At
+  the default step, cat at (-7.65, -16.85) on the pine/east-path junction
+  walking east: 0.37 m inside the pine at (-12.21, -15.16), a green wedge at
+  the frame's foot. The pine at (-3.78, 14.01) grazes at the far step. The
+  canopy rule keeps cones off a path's corridor, but the far camera sits 7 m
+  behind the cat and leaves the corridor at bends and segment ends. Looking
+  across a path at the far step (not checked systematically) does the same,
+  for example in the deep swamp at (-43, -25) looking east.
+- **Strays walk in the Black Mire and the bogs.** The keep-out covers the lake,
+  the bay and the bridge only. Over the 7.4 minutes, six strays spent time in
+  mire-north, mire-west or bog-1 (2,315 samples); one shows standing on the
+  mire in the deep-swamp picture. The Woods' and the River's strays were not
+  checked for the same.
+- **Shore foam.** No foam line runs up the bay from the lake's west edge: the
+  lake keeps only its north shore. The known short stripes (the lake's z 8
+  shore over the bay for x 26-30; the mire's corner at x -32, z -11..-6) were
+  not picked out at the browser's resolution. The lake's west shore at x 26,
+  z 44-50, by the bay's south-east pocket, has no foam, as its comment says.
+- **The horizon over the lake opening.** Where the hills stop for the lake and
+  the Moor's river, the heather hills end in flat-edged slabs with white sky
+  between them and the water, the same notch the Moor's entry saw in the
+  place-picture harness, here in the walk too, from the bridge and the east
+  path.
+
+**Not checked:** holding keys on desktop (the automated browser can't lock the
+pointer); iPhone fps and thermals; dusk and rain; the colony and co-walk on
+the island; the ducks' whole circuit round the island (seen paddling off its
+north-east only).
