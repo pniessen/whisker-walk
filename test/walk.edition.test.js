@@ -293,3 +293,27 @@ describe('the clan in the walk (source pins)', () => {
     expect(strays).toBeGreaterThan(-1);
   });
 });
+
+// Border crossings Task 3: the Clan-only posts and footpath (source pins; the
+// harness above stops inside the area build).
+describe('the border dressing in the walk (source pins)', () => {
+  const src = () => readFileSync('src/game/walk.js', 'utf8');
+
+  it('is added after the build and before the contact shadows, Clan Edition only', () => {
+    const s = src();
+    const build = s.indexOf('AREAS[areaId].build(');
+    const call = s.indexOf('addBorderDressing(scene, areaId)');
+    expect(call).toBeGreaterThan(build);
+    expect(call).toBeLessThan(s.indexOf('createContactShadows('));
+    expect(s).toMatch(/const dressing = !isDen && isClanEdition\(state\) \? addBorderDressing\(scene, areaId\) : null;/);
+  });
+
+  it('its colliders join the live list after clanArea is frozen and clearSpot, beside the scratch posts', () => {
+    const s = src();
+    const push = s.indexOf('for (const c of dressing?.colliders ?? []) areaData.colliders.push({ ...c });');
+    expect(push).toBeGreaterThan(s.indexOf('const clanArea = '));
+    expect(push).toBeGreaterThan(s.indexOf('clearSpot('));
+    const scratch = s.indexOf('for (const p of playerMarks.posts) areaData.colliders.push');
+    expect(Math.abs(push - scratch)).toBeLessThan(900);
+  });
+});

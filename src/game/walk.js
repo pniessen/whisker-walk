@@ -70,6 +70,7 @@ import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
+import { addBorderDressing } from '../world/borderpost.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
@@ -440,6 +441,11 @@ export function createWalkLifecycle({
     const areaData = isDen
       ? AREAS.den.build(scene, { placed: progression.state.den.placed, wind })
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
+    // Clan Edition only, and local to this screen (border crossings R13): the
+    // waymark posts and the town's footpath. Added before the fill light, contact
+    // shadows and the static-prop merge so they get all three; their colliders
+    // join the live list below, beside the scratch posts'.
+    const dressing = !isDen && isClanEdition(state) ? addBorderDressing(scene, areaId) : null;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at
@@ -1030,6 +1036,9 @@ export function createWalkLifecycle({
     // player.update every frame. Added AFTER the scent is laid, so the buried
     // treats land exactly where they always did.
     for (const p of playerMarks.posts) areaData.colliders.push({ ...p.collider });
+    // The border posts' colliders (R13): live list only, after clearSpot, the clan's
+    // frozen copy and the scent, so shared systems never see them.
+    for (const c of dressing?.colliders ?? []) areaData.colliders.push({ ...c });
     // v21 3b Task 14 — the cat flaps in garden gates and the gaps in hedges. A
     // cat that walks through one swings it the way it went, and it keeps a
     // gentle sway for the rest of the walk. Its frame is solid and its opening
