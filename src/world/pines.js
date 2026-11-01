@@ -551,7 +551,7 @@ export function pinesUndergrowth() {
         const x = r2(gx + (rng() * 2 - 1) * rule.jitter);
         const z = r2(gz + (rng() * 2 - 1) * rule.jitter);
         const keep = rng() < rule.keep;
-            if (keep && spots.length < rule.cap && allowed(x) && floorFits(x, z, trunks)) spots.push({ x, z });
+        if (keep && spots.length < rule.cap && allowed(x) && floorFits(x, z, trunks)) spots.push({ x, z });
       }
     }
     return spots.filter((s) => trailClear(s.x, s.z, BED_TRAIL_CLEAR)); // the trail clearing, last

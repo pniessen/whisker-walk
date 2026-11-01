@@ -44,6 +44,7 @@ export const BORDER_POSTS = {
     post('woods-town-short', 47.5, 14.5, 'east', 'neighborhood'),
     post('woods-town-long', 47.5, 37.6, 'east', 'neighborhood'),
     post('woods-river-long', -47.5, 37.6, 'west', 'river'),
+    // Off the plan's measured spot (z 5.5 -> 7) to clear the intruders' routes by >= 0.8 m; its twin river-woods-pond moves with it.
     post('woods-river-pond', -47.5, 7, 'west', 'river'),
     post('woods-moor-path', 43.4, -47.5, 'north', 'moor'),
     post('woods-moor-river', 25.5, -47.5, 'north', 'moor'),
@@ -51,6 +52,7 @@ export const BORDER_POSTS = {
   river: [
     post('river-woods-long', 47.5, 37.6, 'east', 'woods'),
     post('river-town-long', 47.5, 42.6, 'east', 'neighborhood'),
+    // Twin of woods-river-pond: off the plan's measured spot to clear the intruders' routes by >= 0.8 m.
     post('river-woods-pond', 47.5, 7, 'east', 'woods'),
     post('river-pines-path', -23, -47.5, 'north', 'pines'),
   ],
@@ -58,10 +60,12 @@ export const BORDER_POSTS = {
     post('moor-woods-path', 43.4, 47.5, 'south', 'woods'),
     post('moor-woods-river', 25.5, 47.5, 'south', 'woods'),
     post('moor-gorge', 47.5, -14, 'east', 'gorge'),
+    // Off the plan's measured spot (z -14.5 -> -15.5) to clear the intruders' routes by >= 0.8 m; its twin pines-moor-trail moves with it.
     post('moor-pines-trail', -47.5, -15.5, 'west', 'pines'),
   ],
   pines: [
     post('pines-river-path', -23, 47.5, 'south', 'river'),
+    // Twin of moor-pines-trail: off the plan's measured spot to clear the intruders' routes by >= 0.8 m.
     post('pines-moor-trail', 47.5, -15.5, 'east', 'moor'),
   ],
 };

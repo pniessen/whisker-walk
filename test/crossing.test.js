@@ -71,6 +71,13 @@ describe('the crossing card', () => {
     expect(overlay.innerHTML).toContain('The sock comes home to your den.');
   });
 
+  it('names whatever is carried, not always a sock', () => {
+    const { crossing, overlay, s } = setup({ session: { carry: { mouth: { held: { kind: 'pinecone' } } } } });
+    crossing.ask(s, goData());
+    expect(overlay.innerHTML).toContain('The pine cone comes home to your den.');
+    expect(overlay.innerHTML).not.toContain('The sock comes home');
+  });
+
   it('does nothing for a locked status, a fight, or an open card', () => {
     const a = setup();
     const d = goData();

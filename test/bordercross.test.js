@@ -77,6 +77,7 @@ describe('names and prompts', () => {
     ]);
     expect(crossExtras({ together: ['Pip', 'Max'] })).toEqual(['Pip and Max come too.']);
     expect(crossExtras({})).toEqual([]);
+    expect(crossExtras({ carried: 'pine cone' })).toEqual(['The pine cone comes home to your den.']);
   });
 });
 

@@ -1359,7 +1359,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   return {
-    show({ pill } = {}) {
+    show(opts) {
+      const pill = opts?.pill;
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       duskWanted = false; // as before: every visit starts with the dusk box clear
       shown = true;

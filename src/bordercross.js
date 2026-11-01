@@ -94,7 +94,7 @@ export function crossExtras({ raceRunning, questActive, carried, buddyName, toge
   const out = [];
   if (raceRunning) out.push('Your race stops here.');
   if (questActive) out.push('Your quest stops here.');
-  if (carried) out.push('The sock comes home to your den.');
+  if (carried) out.push(`The ${carried} comes home to your den.`);
   if (buddyName) out.push(`${buddyName} walks home.`);
   const names = Array.isArray(together) ? together.filter((n) => typeof n === 'string' && n) : [];
   if (names.length) out.push(`${joinNames(names)} ${names.length === 1 ? 'comes' : 'come'} too.`);
