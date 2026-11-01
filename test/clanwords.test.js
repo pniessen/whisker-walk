@@ -3,7 +3,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
-import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS } from '../src/clanwords.js';
+import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS, HOMAGE_CHOICES, HOMAGE_PREFIXES, HOME_LINES } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
@@ -219,4 +219,47 @@ test('outsideTag never throws on hostile input', () => {
 test('PLACE_WORDS is frozen, and the scanner flags its words', () => {
   expect(Object.isFrozen(PLACE_WORDS)).toBe(true);
   expect(borrowedIn("const a = 'Twolegplace';")).toContain('Twolegplace');
+});
+
+// Kept in the TEST only: src/ never spells a book clan's name.
+const CANON_CLAN_WORDS = ['thunder', 'wind', 'river', 'shadow', 'sky', 'star', 'blood', 'tiger', 'lion', 'leopard'];
+
+test('HOMAGE_CHOICES: frozen, 3-4 distinct words per clan, the chosen one among them', () => {
+  expect(Object.isFrozen(HOMAGE_CHOICES)).toBe(true);
+  expect(Object.isFrozen(HOMAGE_PREFIXES)).toBe(true);
+  for (const id of ['woods', 'moor', 'river', 'pines', 'gorge']) {
+    const list = HOMAGE_CHOICES[id];
+    expect(Object.isFrozen(list)).toBe(true);
+    expect(list.length).toBeGreaterThanOrEqual(3);
+    expect(list.length).toBeLessThanOrEqual(4);
+    expect(list).toContain(HOMAGE_PREFIXES[id]);
+    expect(typeof HOME_LINES[id]).toBe('string');
+  }
+  expect(Object.keys(HOMAGE_PREFIXES).sort()).toEqual(Object.keys(HOMAGE_CHOICES).sort());
+});
+
+test('the owner picked CliffClan for the Gorge', () => {
+  expect(HOMAGE_PREFIXES.gorge + CLAN_SUFFIX).toBe('CliffClan');
+});
+
+test('every homage word is our own: no canon clan word inside it, ever', () => {
+  for (const w of Object.values(HOMAGE_CHOICES).flat()) {
+    for (const c of CANON_CLAN_WORDS) expect(w.toLowerCase().includes(c), `${w} has ${c}`).toBe(false);
+  }
+});
+
+test('every homage word makes a valid, undenied, unclaimed clan title', () => {
+  const all = Object.values(HOMAGE_CHOICES).flat();
+  expect(new Set(all).size).toBe(all.length);
+  const strays = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES].map((n) => n.toLowerCase()));
+  const claimed = new Set([...PREFIXES, ...Object.values(CAT_PREFIXES), ...Object.values(RIVAL_PREFIXES)]
+    .map((w) => w.toLowerCase()));
+  for (const w of all) {
+    expect(validPetName(w + CLAN_SUFFIX), w).toBe(true);
+    expect(DENIED_NAMES.has(w + CLAN_SUFFIX) || DENIED_NAMES.has(w), w).toBe(false);
+    expect(strays.has(w.toLowerCase()), w).toBe(false);
+    expect(claimed.has(w.toLowerCase()), w).toBe(false);
+    expect(WARRIOR_SUFFIXES.includes(w.toLowerCase()), w).toBe(false);
+    expect(w.length).toBeLessThanOrEqual(10);
+  }
 });
