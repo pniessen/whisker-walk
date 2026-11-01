@@ -868,17 +868,18 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-place.cant img { filter: saturate(.55) brightness(.8); }
 .dr-place.cant { opacity: .85; cursor: default; }
 
-/* Clan Edition: the pick-your-clan cards, the .dr-place look (two to a row on a phone). */
-.dr-pickrow { margin: 0 0 12px; }
-.dr-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.dr .dr-pick { position: relative; border-radius: 12px; text-align: left; padding: 9px; min-height: 44px; color: #fff; font-weight: 700; font-size: 13px;
+/* Clan Edition: the pick-your-clan cards (own dr-home classes; two to a row on a phone). */
+.dr-homerow { margin: 0 0 12px; }
+.dr-homes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.dr .dr-home { position: relative; display: block; width: auto; border: 0; border-radius: 12px; text-align: left; padding: 9px; min-height: 44px; color: #fff; font-weight: 700; font-size: 13px;
   background: linear-gradient(165deg, #6f9a74, #3f6648); }
-.dr-pick small { display: block; font-weight: 400; font-size: 11px; opacity: .92; }
-.dr-pick .dr-pick-soon { font-style: italic; opacity: .8; }
-.dr-pick .dr-pick-tag { font-weight: 700; opacity: 1; }
-.dr-pick.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
-.dr-pick-both { margin: 8px 0 0; font-weight: 700; }
-@media (max-width: 480px) { .dr-picks { grid-template-columns: 1fr 1fr; gap: 8px; } }
+.dr-home small { display: block; font-weight: 400; font-size: 11px; opacity: .92; }
+.dr-home .dr-home-soon { font-style: italic; opacity: .8; }
+.dr-home .dr-home-tag { font-weight: 700; opacity: 1; }
+.dr-home.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
+.dr-home-both { margin: 8px 0 0; font-weight: 700; }
+@media (max-width: 480px) { .dr-homes { grid-template-columns: 1fr 1fr; gap: 8px; } }
+.home-welcome { margin: 0; font-weight: 700; }
 
 /* Clan Edition: her territory map in place of the cards (ui/territorymap.js).
    Board units are 1000 x 700, so on a phone 30 units is about 10 px. */

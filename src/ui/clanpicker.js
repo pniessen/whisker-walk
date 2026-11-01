@@ -42,14 +42,14 @@ export function clanPickerModel(state, territories = TERRITORIES) {
 export function renderClanPickerHtml(model, partnerName) {
   const mineCard = model.cards.find((c) => c.mine);
   const heading = model.mine === null ? `Pick your ${clanWord}` : `Your ${clanWord}: ${mineCard ? mineCard.name : clanName(model.mine)}`;
-  const buttons = model.cards.map((c) => `<button class="dr-pick ${c.mine ? 'sel' : ''}" ${PICK_ATTR}="${escapeHtml(c.id)}" aria-pressed="${c.mine}">`
-    + `<span class="dr-pick-name">${escapeHtml(c.name)}</span>`
+  const buttons = model.cards.map((c) => `<button class="dr-home ${c.mine ? 'sel' : ''}" ${PICK_ATTR}="${escapeHtml(c.id)}" aria-pressed="${c.mine}">`
+    + `<span class="dr-home-name">${escapeHtml(c.name)}</span>`
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`
-    + (c.soon ? '<small class="dr-pick-soon">territory coming soon</small>' : '')
-    + (c.mine ? '<small class="dr-pick-tag">✓ yours</small>' : '')
-    + (c.partner ? `<small class="dr-pick-tag">🤝 ${escapeHtml(partnerName)}'s</small>` : '')
+    + (c.soon ? '<small class="dr-home-soon">territory coming soon</small>' : '')
+    + (c.mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
+    + (c.partner ? `<small class="dr-home-tag">🤝 ${escapeHtml(partnerName)}'s</small>` : '')
     + '</button>').join('');
-  const both = model.both && mineCard ? `<p class="dr-pick-both">You're both ${escapeHtml(mineCard.name)}!</p>` : '';
-  return `<div class="dr-pickrow"><p class="dr-label">${escapeHtml(heading)}</p><div class="dr-picks">${buttons}</div>${both}</div>`;
+  const both = model.both && mineCard ? `<p class="dr-home-both">You're both ${escapeHtml(mineCard.name)}!</p>` : '';
+  return `<div class="dr-homerow"><p class="dr-label">${escapeHtml(heading)}</p><div class="dr-homes">${buttons}</div>${both}</div>`;
 }

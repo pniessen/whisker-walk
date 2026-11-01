@@ -57,7 +57,7 @@ describe('clanPickerModel', () => {
   it('every card is a data-clan-pick button with aria-pressed, place and line', () => {
     const m = clanPickerModel(save({ clanPick: { mine: 'river', partner: null, partnerId: null } }));
     const html = renderClanPickerHtml(m, 'Robin');
-    for (const id of pickableClans()) expect(html).toMatch(new RegExp(`<button class="dr-pick[^"]*" data-clan-pick="${id}" aria-pressed="(true|false)"`));
+    for (const id of pickableClans()) expect(html).toMatch(new RegExp(`<button class="dr-home[^"]*" data-clan-pick="${id}" aria-pressed="(true|false)"`));
     expect(html).toContain('data-clan-pick="river" aria-pressed="true"');
     expect(html).toContain('✓ yours');
     expect(html).toContain('of The Woods');

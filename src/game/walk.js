@@ -1280,7 +1280,6 @@ export function createWalkLifecycle({
       };
     }
     const welcome = isDen ? null : homeWelcome(areaId, progression.state);
-    if (welcome) hud.toast(welcome);
 
     // v21 3b Task 16 — The dog in its yard. One per outdoor area (propsets.js's
     // dogYard; the den has none, so this is the inert NO_DOG there). Trot onto
@@ -1542,6 +1541,7 @@ export function createWalkLifecycle({
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
+      ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
       <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
       <button id="btn-end">End walk &amp; head home</button>
       <p class="controls-hint">${getIsTouch()

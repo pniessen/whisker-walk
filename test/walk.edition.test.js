@@ -139,9 +139,11 @@ describe('a Legacy walk', () => {
     expect(src.indexOf('const picks = picksOf(')).toBeLessThan(src.indexOf("The rival's border and its patrol"));
   });
 
-  it('the home toast is gated on the den and comes from homeWelcome', () => {
+  it('the home welcome is gated on the den, comes from homeWelcome and sits on the Ready card', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
     expect(src).toMatch(/isDen \? null : homeWelcome\(areaId, progression\.state\)/);
+    expect(src).not.toContain('hud.toast(welcome)');
+    expect(src).toMatch(/<h1>Ready\?<\/h1>\s*\$\{welcome \? `<p class="home-welcome">/);
   });
 
   it('the dock names the place for the edition', () => {
