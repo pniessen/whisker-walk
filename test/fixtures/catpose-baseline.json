@@ -1,0 +1,752 @@
+{
+ "tabby": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6518
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "siamese": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6493
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "persian": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.599,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6493
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "black": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6493
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "calico": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5845
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4211
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6519
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.5817
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6167
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6167
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.5817
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.4817
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5606
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.5217
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6162
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4785
+  }
+ },
+ "mainecoon": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.599,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6493
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7858,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8901,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8919,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8327,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8184,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "zeetoo": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6518
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "robbie": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.5654,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6493
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "d2": {
+  "legLift": 0,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.0972,
+   "torsoMax": 0.5828
+  },
+  "nap": {
+   "min": 0.0601,
+   "max": 0.599,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.0583,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6518
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.7676,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.8709,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.8724,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.8467,
+   "torsoMin": 0.1,
+   "torsoMax": 0.58
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0432,
+   "max": 0.8132,
+   "torsoMin": 0.104,
+   "torsoMax": 0.5592
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.8019,
+   "torsoMin": 0.04,
+   "torsoMax": 0.52
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 0.9848,
+   "torsoMin": 0.104,
+   "torsoMax": 0.6144
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.8732,
+   "torsoMin": 0.1028,
+   "torsoMax": 0.4772
+  }
+ },
+ "digit": {
+  "legLift": 0.09100000000000003,
+  "follow": {
+   "min": 0.0031,
+   "max": 0.9412,
+   "torsoMin": 0.1882,
+   "torsoMax": 0.6738
+  },
+  "nap": {
+   "min": 0.0182,
+   "max": 0.598,
+   "torsoMin": 0.0601,
+   "torsoMax": 0.4199
+  },
+  "stretch": {
+   "min": -0.0266,
+   "max": 1.1493,
+   "torsoMin": 0.195,
+   "torsoMax": 0.7428
+  },
+  "groom": {
+   "min": 0.0031,
+   "max": 0.8915,
+   "torsoMin": 0.191,
+   "torsoMax": 0.671
+  },
+  "requestPet": {
+   "min": 0.0031,
+   "max": 0.9073,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "perch": {
+   "min": 0.0031,
+   "max": 0.9094,
+   "torsoMin": 0.0246,
+   "torsoMax": 0.6154
+  },
+  "sniff": {
+   "min": 0.0031,
+   "max": 0.9377,
+   "torsoMin": 0.191,
+   "torsoMax": 0.671
+  },
+  "stalk": {
+   "min": 0,
+   "max": 0.8467,
+   "torsoMin": 0,
+   "torsoMax": 0.48
+  },
+  "pounce": {
+   "min": 0.0446,
+   "max": 0.9412,
+   "torsoMin": 0.195,
+   "torsoMax": 0.6502
+  },
+  "scared": {
+   "min": 0.0031,
+   "max": 0.9271,
+   "torsoMin": 0.131,
+   "torsoMax": 0.611
+  },
+  "cross": {
+   "min": 0.0024,
+   "max": 1.0758,
+   "torsoMin": 0.195,
+   "torsoMax": 0.7054
+  },
+  "land": {
+   "min": 0.0031,
+   "max": 0.9642,
+   "torsoMin": 0.1938,
+   "torsoMax": 0.5682
+  }
+ }
+}
