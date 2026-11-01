@@ -3,11 +3,17 @@ import { PHRASES } from '../chat.js';
 // The in-walk chat control: a 💬 button that toggles a tray of curated
 // phrase/emote buttons plus a per-player mute list. Co-walk-only — main.js
 // calls setVisible(true) when in a room and setVisible(false) otherwise.
+// A mute row's accessible label: what pressing it will do. Its visible text
+// is only an emoji and a name, which says neither.
+export function muteRowLabel(name, muted) {
+  return `${muted ? 'Unmute' : 'Mute'} ${name}`;
+}
+
 export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute }) {
   const wrap = document.createElement('div');
   wrap.className = 'chat-wheel hidden';
   wrap.innerHTML = `
-    <button class="chat-toggle" type="button" aria-label="Chat">💬</button>
+    <button class="chat-toggle" type="button" aria-label="Chat" aria-expanded="false">💬</button>
     <div class="chat-tray hidden" role="menu">
       <div class="chat-phrases"></div>
       <div class="chat-mutes"></div>
@@ -37,13 +43,15 @@ export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute 
       row.className = 'chat-mute-row';
       const muted = isMuted && isMuted(pl.id);
       row.textContent = `${muted ? '🔇' : '🔈'} ${pl.name}`;
+      row.setAttribute('aria-label', muteRowLabel(pl.name, muted));
+      row.setAttribute('aria-pressed', muted ? 'true' : 'false');
       row.addEventListener('click', () => { toggleMute(pl.id); renderMutes(); });
       mutes.appendChild(row);
     }
   }
 
-  function openTray() { renderMutes(); tray.classList.remove('hidden'); }
-  function closeTray() { tray.classList.add('hidden'); }
+  function openTray() { renderMutes(); tray.classList.remove('hidden'); toggle.setAttribute('aria-expanded', 'true'); }
+  function closeTray() { tray.classList.add('hidden'); toggle.setAttribute('aria-expanded', 'false'); }
   toggle.addEventListener('click', () => {
     if (tray.classList.contains('hidden')) openTray(); else closeTray();
   });
