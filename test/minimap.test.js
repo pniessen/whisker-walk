@@ -19,6 +19,7 @@ class FakeEl {
     this.listeners = {};
     this.cls = new Set();
     this.calls = {}; // 2D context method name -> call count
+    this.arcs = []; // [x, y, r] of every arc() call
     this.fills = []; // the fillStyle in force at each fill() / fillRect()
     this.classList = {
       add: (c) => this.cls.add(c),
@@ -58,8 +59,9 @@ class FakeEl {
         if (key === 'createLinearGradient' || key === 'createRadialGradient') {
           return () => ({ addColorStop: () => {} });
         }
-        return () => {
+        return (...args) => {
           this.calls[key] = (this.calls[key] ?? 0) + 1;
+          if (key === 'arc') this.arcs.push(args.slice(0, 3));
           if (key === 'fill' || key === 'fillRect') this.fills.push(state.fillStyle);
         };
       },
@@ -79,6 +81,10 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
+const { campLayout } = await import('../src/world/camp.js');
+// The camp's den (r 1.1) is the one camp piece over the map's 1 m block cut;
+// the leader's rock (r 0.6) is under it.
+const denBlock = (a) => { const { x, z, r } = campLayout(a).den; return { x, z, r }; };
 
 const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
 
@@ -184,11 +190,12 @@ describe('buildMapLayer', () => {
     // The two rivers carry decks; the lake and pond have none of their own.
     expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
     expect(layer.paths.length).toBeGreaterThan(0);
-    // Every Woods collider is a trunk or a stone under 1 m, below the map's block cut.
-    expect(layer.blocks).toEqual([]);
+    // Every Woods collider is a trunk or a stone under 1 m, below the map's
+    // block cut, but the camp's den.
+    expect(layer.blocks).toEqual([denBlock('woods')]);
   });
 
-  it('buildMapLayer for the River has ground, edge, nine waters, two with decks, and paths, and no blocks', () => {
+  it('buildMapLayer for the River has ground, edge, nine waters, two with decks, and paths, and the camp\'s den as its one block', () => {
     const { scene, areaData } = built('river');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
@@ -198,11 +205,12 @@ describe('buildMapLayer', () => {
     expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
     expect(layer.paths.length).toBeGreaterThan(0);
     // Every River collider is a trunk or a rock under 1 m, below the map's
-    // block cut, so the corner map shows water, decks and paths only.
-    expect(layer.blocks).toEqual([]);
+    // block cut, so the corner map shows water, decks and paths, and the
+    // camp's den.
+    expect(layer.blocks).toEqual([denBlock('river')]);
   });
 
-  it('buildMapLayer for the Moor has ground, edge, five waters, two with decks, eight paths, and the four tors as blocks', () => {
+  it('buildMapLayer for the Moor has ground, edge, five waters, two with decks, eight paths, and the four tors and the camp\'s den as blocks', () => {
     const { scene, areaData } = built('moor');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
@@ -218,11 +226,12 @@ describe('buildMapLayer', () => {
     expect(layer.paths.filter(onPath)).toHaveLength(8);
     expect(layer.paths).toHaveLength(8 + 3);
     // Every other Moor collider (a trunk, a chain boulder, the High Tor's
-    // pillar, the hawthorn's root) is under the map's 1 m block cut.
-    expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
+    // pillar, the hawthorn's root) is under the map's 1 m block cut; the
+    // camp's den is over it.
+    expect(layer.blocks).toEqual([...TORS.map(({ x, z, r }) => ({ x, z, r })), denBlock('moor')]);
   });
 
-  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and the Old Ash as its one block', () => {
+  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and the Old Ash and the camp\'s den as its blocks', () => {
     const { scene, areaData } = built('pines');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
@@ -254,8 +263,9 @@ describe('buildMapLayer', () => {
     expect(layer.paths).toHaveLength(12 + 3);
     // Every other Pines collider (a pine's trunk, a chain boulder, a pillar,
     // a truce stone, the fallen pine, a meeting stone, the Watch Rock at
-    // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on it.
-    expect(layer.blocks).toEqual([{ x: 28, z: 28, r: 1.0 }]);
+    // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on
+    // it, and the camp's den is over it.
+    expect(layer.blocks).toEqual([{ x: 28, z: 28, r: 1.0 }, denBlock('pines')]);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
@@ -408,6 +418,19 @@ describe('createMinimap', () => {
     const { map, canvas } = makeMap();
     map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, remotes: [{ x: 5, z: 5, color: 0x2a2a30 }] });
     expect(canvas.fills).toContain('#2a2a30');
+  });
+
+  it('draws a camp past the rim at the rim, in its colour with a white outline', () => {
+    const { map, canvas } = makeMap();
+    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, camp: { x: 900, z: 0, color: '#3f7d3a' } });
+    expect(canvas.fills).toContain('#3f7d3a');
+    // The first arc is the rim disc (centre c, radius radiusPx); the camp's
+    // dome is the arc of radius 6, pinned 6 px inside the rim, due east.
+    const [c, , radiusPx] = canvas.arcs[0];
+    const dome = canvas.arcs.find((a) => a[2] === 6);
+    expect(dome).toBeTruthy();
+    expect(Math.hypot(dome[0] - c, dome[1] - 4 - c)).toBeCloseTo(radiusPx - 6, 3);
+    expect(dome[0]).toBeGreaterThan(c);
   });
 
   it('draws markers past the rim without throwing, and hide/show toggle the canvas', () => {

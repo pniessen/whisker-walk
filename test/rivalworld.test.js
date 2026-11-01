@@ -42,11 +42,15 @@ const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines, TRUCE_PATH, BRIDGE_FOOT, PINES_ISLAND } = await import('../src/world/pines.js');
 const { ISLAND_LAND, BRIDGE_DECK } = await import('../src/world/island.js');
 const { isClanId } = await import('../src/clanhomes.js');
-const { patrolPath, borderMarks, rivalFor, isTrespassing } = await import('../src/rivalclans.js');
+const { patrolPath, borderMarks, rivalFor, isTrespassing, DISCS } = await import('../src/rivalclans.js');
 const { patrolAt, chaseOutcome, findLanding } = await import('../src/rivalcats.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { waterClearance } = await import('../src/world/builder.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
+const { campLayout } = await import('../src/world/camp.js');
+const { clanWalkableFor } = await import('../src/world/clanground.js');
+const { castFor, roamHomes } = await import('../src/clancast.js');
+const { keepOutPoint } = await import('../src/keepout.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
@@ -184,6 +188,124 @@ describe('a chase in the real areas', () => {
         }
       }
       expect(n).toBeGreaterThan(20);
+    }
+  });
+});
+
+// The camp (den and leader's rock) and every spot the clan stands on, against
+// the REAL built territories. The clan's ground is clanWalkableFor: walkable,
+// out of the keep-out, and in the Pines clear of the truce path and the bridge.
+describe('the camp and the clan in the real territories', () => {
+  const CAMPED = AREAS.filter((a) => castFor(a).length > 0);
+  const circle = (x, z, rad, n) => Array.from({ length: n }, (_, i) => {
+    const t = (i / n) * Math.PI * 2;
+    return { x: x + Math.cos(t) * rad, z: z + Math.sin(t) * rad };
+  });
+  const homesOf = (a) => roamHomes(a, built[a], clanWalkableFor(built[a], a));
+  const seatsOf = (L) => [L.seats.deputy, ...L.seats.elders, ...L.seats.kits];
+  const segDist = (x, z, [x1, z1, x2, z2]) => {
+    const dx = x2 - x1, dz = z2 - z1;
+    const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+    return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+  };
+
+  it('covers every territory with a camp, the Pines included', () => {
+    for (const a of ['woods', 'river', 'moor', 'pines']) expect(CAMPED).toContain(a);
+    expect(CAMPED).not.toContain('park');
+  });
+
+  it('the den and the rock are colliders, clear of every other collider by 0.4m', () => {
+    for (const a of CAMPED) {
+      const L = campLayout(a);
+      const cs = built[a].colliders;
+      const mine = [L.den, L.rock].map((p) => cs.find((c) => c.x === p.x && c.z === p.z && c.r === p.r));
+      for (const c of mine) expect(c, a).toBeTruthy();
+      for (const c of mine) {
+        for (const o of cs) {
+          if (mine.includes(o)) continue;
+          expect(Math.hypot(c.x - o.x, c.z - o.z), `${a} camp ${c.x},${c.z} vs ${o.x},${o.z}`).toBeGreaterThanOrEqual(c.r + o.r + 0.4);
+        }
+      }
+    }
+  });
+
+  it('every ground seat is clan ground', () => {
+    for (const a of CAMPED) {
+      const ok = clanWalkableFor(built[a], a);
+      for (const s of seatsOf(campLayout(a))) expect(ok(s.x, s.z), `${a} seat ${s.x},${s.z}`).toBe(true);
+    }
+  });
+
+  it('eight roaming homes, each with its 2m circle on clan ground, outside the camp, 7m apart', () => {
+    for (const a of CAMPED) {
+      const ok = clanWalkableFor(built[a], a);
+      const { cx, cz, r } = DISCS[a];
+      const homes = homesOf(a);
+      expect(homes, a).toHaveLength(8);
+      for (const h of homes) {
+        expect(ok(h.x, h.z), `${a} home ${h.x},${h.z}`).toBe(true);
+        for (const p of circle(h.x, h.z, 2, 8)) expect(ok(p.x, p.z), `${a} home ring ${p.x},${p.z}`).toBe(true);
+        expect(Math.hypot(h.x - cx, h.z - cz)).toBeGreaterThanOrEqual(r + 3);
+      }
+      for (let i = 0; i < homes.length; i++) {
+        for (let j = i + 1; j < homes.length; j++) {
+          expect(Math.hypot(homes[i].x - homes[j].x, homes[i].z - homes[j].z), `${a} ${i}/${j}`).toBeGreaterThanOrEqual(7);
+        }
+      }
+    }
+  });
+
+  it('every roaming circle (6m, 16 samples) is at least 12/16 clan ground', () => {
+    for (const a of CAMPED) {
+      const ok = clanWalkableFor(built[a], a);
+      for (const h of homesOf(a)) {
+        const n = circle(h.x, h.z, 6, 16).filter((p) => ok(p.x, p.z)).length;
+        expect(n, `${a} home ${h.x.toFixed(1)},${h.z.toFixed(1)}`).toBeGreaterThanOrEqual(12);
+      }
+    }
+  });
+
+  it('no seat or roaming home is in water or a wade band, a keep-out, or on the Pines\' truce ground', () => {
+    for (const a of CAMPED) {
+      const area = built[a];
+      const L = campLayout(a);
+      const spots = [...seatsOf(L), ...homesOf(a).flatMap((h) => [h, ...circle(h.x, h.z, 2, 8)])];
+      for (const s of spots) {
+        expect(waterClearance(area.waters, s.x, s.z), `${a} ${s.x},${s.z}`).toBeGreaterThanOrEqual(CAT_RADIUS);
+        expect(keepOutPoint(area, s.x, s.z), `${a} keep-out ${s.x},${s.z}`).toEqual({ x: s.x, z: s.z });
+        if (a === 'pines') {
+          for (const seg of TRUCE_PATH) expect(segDist(s.x, s.z, seg) - 1.5, `truce ${s.x},${s.z}`).toBeGreaterThanOrEqual(3);
+          expect(Math.hypot(s.x - BRIDGE_FOOT.x, s.z - BRIDGE_FOOT.z)).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+
+  it('clanWalkableFor refuses water, the island and the truce path, and accepts open ground', () => {
+    const ok = clanWalkableFor(built.pines, 'pines');
+    const [x1, z1] = TRUCE_PATH[1];
+    expect(ok(x1, z1)).toBe(false); // on the truce path
+    expect(ok(BRIDGE_FOOT.x, BRIDGE_FOOT.z)).toBe(false);
+    expect(ok(PINES_ISLAND.x, PINES_ISLAND.z)).toBe(false);
+    const pond = built.woods.waters.find((w) => w.id === 'pond');
+    expect(clanWalkableFor(built.woods, 'woods')(pond.x, pond.z)).toBe(false);
+    expect(clanWalkableFor(built.woods, 'woods')(pond.x, pond.z + pond.r - 0.2)).toBe(false); // the wade band
+    const L = campLayout('woods');
+    expect(clanWalkableFor(built.woods, 'woods')(L.seats.deputy.x, L.seats.deputy.z)).toBe(true);
+    // an area with no keep-out passes on walkability alone
+    expect(clanWalkableFor({}, 'park')(1, 1)).toBe(true);
+  });
+
+  it('nothing the player must reach sits inside the den or the rock', () => {
+    for (const a of CAMPED) {
+      const L = campLayout(a);
+      const things = [
+        ...(built[a].collectibles || []), ...(built[a].scenics || []), ...GOLD_MICE[a],
+        ...(built[a].perches || []).filter((p) => p.label),
+      ];
+      for (const t of things) {
+        for (const p of [L.den, L.rock]) expect(Math.hypot(t.x - p.x, t.z - p.z), `${a} ${t.x},${t.z}`).toBeGreaterThan(p.r);
+      }
     }
   });
 });

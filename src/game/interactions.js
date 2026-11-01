@@ -27,6 +27,8 @@ import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
 import { isClanEdition } from '../edition.js';
+import { RANK_KEYS } from '../clanwords.js';
+import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
 // Renamed on import: doYarn already has a local `drop` (where the yarn lands).
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
@@ -60,6 +62,11 @@ import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js'
 // deliberate match cannot silently become a mismatch.
 // ---------------------------------------------------------------------------
 const STRAY_PROMPT_RANGE = 2.5;
+
+// Task 5 (the clanmates): the most a walk pays for each clan verb (touch noses for
+// the first 4 clan cats, boop for 4, patrols for 2). A verb past its cap
+// still happens; it just pays nothing. Counted in session.clanPaid.
+export const CLAN_PAY_CAP = Object.freeze({ friend: 4, boop: 4, patrol: 2 });
 // How close you stand to pet a tamed cat at home in the den.
 const DEN_CAT_PET_RANGE = 2.2;
 const SCUFFLE_RANGE = 1.4;
@@ -637,6 +644,8 @@ export function createInteractions({
     const full = { contested: false, item: null, ...mark, at: markStamp(s, markKey(mark)) };
     if (!progression.addMark(s.areaId, full)) return false;
     s.playerMarks?.sync(progression.marksIn(s.areaId));
+    // Task 6: a clanmate on patrol with me marks it too. Display only.
+    if (s.clanBuddy) { s.clanCats?.markBeside?.(s.clanBuddy); hud.toast(`${s.clanBuddy.name} marks it too 🐾`); }
     return true;
   }
 
@@ -880,6 +889,36 @@ export function createInteractions({
         }
       }
     }
+    if (!s.prompt && s.clanEdition && s.clanCats?.list.length) {
+      // Task 5 (the clanmates): the nearest clanmate that still has an offer. Below
+      // the stray slots (a stray standing nearer still gets its greet first),
+      // above the ghost. Touch noses anywhere; boop and patrol only at home.
+      // The clanmates are not in strayCats, so no feed prompt can ever see them.
+      // Task 6: a warrior or apprentice I have booped offers a patrol (once a
+      // walk per cat, one at a time; the leader, deputy, elders and kits keep
+      // the camp), and my patrol buddy offers goodbye while it walks with me.
+      const offerFor = (c) => {
+        if (c === s.clanBuddy) return 'clan-bye';
+        if (c.buddy) return null; // walking with a co-walker: nothing until it is free
+        if (!c.greeted) return 'clan-greet';
+        if (!s.clanHome) return null;
+        if (!c.booped) return 'clan-boop';
+        const roams = c.rank === RANK_KEYS.warrior || c.rank === RANK_KEYS.apprentice;
+        if (roams && !c.patrolled && !c.buddy && !s.clanBuddy) return 'clan-patrol';
+        return null;
+      };
+      const mate = s.clanCats.nearest(catP, STRAY_PROMPT_RANGE, { where: (c) => offerFor(c) !== null });
+      if (mate) {
+        const kind = offerFor(mate);
+        s.prompt = { kind, data: mate };
+        setPrompt(
+          kind === 'clan-greet' ? `E — touch noses with ${mate.name}`
+            : kind === 'clan-boop' ? `E — boop ${mate.name} 💕`
+              : kind === 'clan-patrol' ? `E — patrol with ${mate.name}`
+                : `E — say goodbye to ${mate.name}`,
+        );
+      }
+    }
     if (!s.prompt) {
       const ghost = s.ghosts.nearest(catP, 2.5);
       if (ghost) {
@@ -1104,6 +1143,32 @@ export function createInteractions({
   function spendablePoints() {
     const p = progression.state?.points;
     return typeof p === 'number' && Number.isFinite(p) && p >= 0 ? p : 0;
+  }
+
+  // A clan verb's award, under its per-walk cap. The count goes up only when
+  // awardOnce actually paid, so a repeat on the same cat never uses a slot.
+  function clanPay(s, type, key, label) {
+    const paid = s.clanPaid ?? (s.clanPaid = { friend: 0, boop: 0, patrol: 0 });
+    if (paid[type] >= CLAN_PAY_CAP[type]) return;
+    if (log.awardOnce(type, key, label) > 0) paid[type] += 1;
+  }
+
+  // Task 6: the end of a patrol with MY buddy (s.clanBuddy), however it ends:
+  // 'bye' from my E, or 'time' / 'camp' / 'edge' / 'far' from clancats.js's
+  // update (walk.js hands its onBuddyEnd here). Pays only a patrol of at least
+  // PATROL_MIN seconds, under the walk's cap. Any other cat (a co-walker's
+  // buddy, or one already ended) is a no-op, so nothing pays twice.
+  function endClanPatrol(s, cat, reason, seconds) {
+    if (!s || !cat || s.clanBuddy !== cat) return;
+    s.clanBuddy = null;
+    const paying = Number.isFinite(seconds) && seconds >= PATROL_MIN;
+    hud.toast(reason === 'far' ? `${cat.name} couldn't keep up!`
+      : paying ? `${cat.name} heads back to camp. Good patrol!`
+      : `${cat.name} heads back to camp. A longer patrol next time!`);
+    if (paying) {
+      clanPay(s, 'patrol', `patrol-${cat.id}`, `a patrol with ${cat.name}`);
+    }
+    if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: false });
   }
 
   // Shared greet-award body for a stray cat: friend-points award, progression
@@ -1525,6 +1590,30 @@ export function createInteractions({
       s.fx?.burst(stray.group.position, 0xe05a7a, 14);
       hud.toast(`${stray.name} takes the treat… and forgives you ♡`);
       catVoice();
+    } else if (s.prompt.kind === 'clan-greet') {
+      const cat = s.prompt.data;
+      s.clanCats.greet(cat, s.cat.position);
+      audio.trill();
+      clanPay(s, 'friend', `clan-friend-${cat.id}`, `a nose touch with ${cat.name}`);
+    } else if (s.prompt.kind === 'clan-boop') {
+      const cat = s.prompt.data;
+      s.clanCats.boop(cat, s.cat.position);
+      audio.purr();
+      hud.toast(`💕 boop with ${cat.name}!`);
+      clanPay(s, 'boop', `clan-boop-${cat.id}`, `a nose boop with ${cat.name} 💕`);
+    } else if (s.prompt.kind === 'clan-patrol') {
+      // Task 6: no award here; endClanPatrol pays at the end, if long enough.
+      const cat = s.prompt.data;
+      if (s.clanBuddy || cat.patrolled || !s.clanCats.startBuddy(cat, s.cat)) return;
+      cat.patrolled = true;
+      s.clanBuddy = cat;
+      hud.toast(`${cat.name} walks the border with you 🐾`);
+      if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: true });
+    } else if (s.prompt.kind === 'clan-bye') {
+      const cat = s.prompt.data;
+      if (s.clanBuddy !== cat) return;
+      const { seconds } = s.clanCats.endBuddy(cat);
+      endClanPatrol(s, cat, 'bye', seconds);
     } else if (s.prompt.kind === 'ghost') {
       const ghost = s.prompt.data;
       s.ghosts.greet(ghost, s.cat.position);
@@ -1657,6 +1746,8 @@ export function createInteractions({
   return {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
     setPrompt, updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
+    // Task 6: walk.js's onClanBuddyEnd calls it (patrol together).
+    endClanPatrol,
     // Exported for test/interactions.test.js. updateInteractions calls it
     // itself — main.js does not need to, and must not start, or the senses
     // would run twice a frame.

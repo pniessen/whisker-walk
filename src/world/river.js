@@ -6,6 +6,7 @@ import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, fromWoodsDisc } from './lake.js';
+import { addCamp } from './camp.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -597,6 +598,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // The mound, its tree and the plank bridge, drawn by lake.js the same way
   // every shore draws them. Out of reach and out of the colliders.
   addIslandView(scene, 'river', { wind });
+
+  // --- the camp -------------------------------------------------------------------
+  // The clan's den and the leader's rock, in the camp disc (camp.js). Every
+  // device draws it, Legacy too, whatever the picks.
+  addCamp(scene, { colliders }, 'river');
 
   return {
     name: 'The River and Marshes',

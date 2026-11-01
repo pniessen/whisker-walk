@@ -413,3 +413,15 @@ describe('the dressing room in each edition', () => {
     expect(s.area).toBe('river');
   });
 });
+
+describe('camps in the Where-to pill', () => {
+  const whereOf = (html) => html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+  it('Clan Edition with a woods pick shows tm-camp mine', () => {
+    const s = { ...defaultishState(), edition: 'canon', clanPick: { mine: 'woods', partner: null, partnerId: null } };
+    expect(whereOf(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG) }))).toContain('tm-camp mine');
+  });
+  it('Legacy shows no camps', () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    expect(renderDressingRoomHtml({ model: buildDressingModel(s, CATALOG) })).not.toContain('tm-camp');
+  });
+});

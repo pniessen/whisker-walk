@@ -6,6 +6,7 @@ import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView } from './lake.js';
+import { addCamp } from './camp.js';
 
 // =============================================================================
 // The Woods.
@@ -493,6 +494,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // lakeshore (lake.js). Painted scenery, well outside the bounds, so it has
   // no collider and no perch.
   addIslandView(scene, 'woods', { wind });
+
+  // --- the camp -------------------------------------------------------------------
+  // The clan's den and the leader's rock, in the camp disc (camp.js). Every
+  // device draws it, Legacy too, whatever the picks.
+  addCamp(scene, { colliders }, 'woods');
 
   return {
     name: 'The Woods',

@@ -34,6 +34,12 @@ describe('createDiscoveryLog', () => {
     expect(log.awardOnce('friend', 'friend-stray-0', 'a new cat friend')).toBe(0);
   });
 
+  it('patrolling with a clanmate is worth 8 (Clan Life Task 6)', () => {
+    expect(AWARDS.patrol).toBe(8);
+    expect(log.awardOnce('patrol', 'patrol-woods-4', 'a patrol with Thornfur')).toBe(8);
+    expect(log.awardOnce('patrol', 'patrol-woods-4', 'a patrol with Thornfur')).toBe(0);
+  });
+
   it('emits discovery events on the bus', () => {
     const fn = vi.fn();
     const off = bus.on('discovery', fn);

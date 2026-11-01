@@ -311,7 +311,7 @@ function init() {
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
-    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
+    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain, endClanPatrol,
   } = createInteractions({
     MP, pid, getCloud, getPsecret,
     getSession: () => session,
@@ -369,6 +369,7 @@ function init() {
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
+    endClanPatrol,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -632,7 +633,7 @@ function init() {
   const mapView = { cx: 0, cz: 0, heading: 0 };
   const mapRemotes = [];
   const mapRemotePool = [];
-  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes };
+  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -704,6 +705,7 @@ function init() {
         catSpeed: player.speed,
         toy: session.toy,
       });
+      session.clanCats.update(wdt, t, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.
       //
@@ -881,6 +883,7 @@ function init() {
         mapFrame.quest = session.quest;
         mapFrame.scenics = session.areaData.scenics;
         mapFrame.visitedScenics = session.scenicsVisited;
+        mapFrame.camp = session.campMarker;
         mapRemotes.length = 0;
         for (const r of session.remotes.list) {
           let dot = mapRemotePool[mapRemotes.length];

@@ -6,7 +6,9 @@
 // A 'built' territory is a walkable area (areaId names its CATALOG.areas
 // entry); 'soon' ones are drawn but not walkable yet; 'later' is unexplored.
 import { PLACE_WORDS } from './clanwords.js';
-import { placeName } from './edition.js';
+import { placeName, isClanEdition } from './edition.js';
+import { castFor, CLAN_COLOURS } from './clancast.js';
+import { picksOf, isClanId } from './clanhomes.js';
 
 export const BOARD = Object.freeze({ w: 1000, h: 700 });
 
@@ -22,6 +24,18 @@ export const TERRITORIES = freezeAll([
   { id: 'pines', areaId: 'pines', name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'built' },
   { id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' },
 ]);
+
+// Where each clan's camp is drawn on the board, inside its region, placed the
+// way the camp sits on that territory's walkable map (world north is board
+// north): the Woods' north glade facing the Moor, the River's meadow by the
+// bank, the Moor's heath on its north edge (nudged west of the name), the
+// Pines' swamp side of the south edge, west of the spawn.
+export const CAMP_AT = Object.freeze({
+  woods: Object.freeze([575, 400]),
+  river: Object.freeze([244, 470]),
+  moor: Object.freeze([540, 95]),
+  pines: Object.freeze([236, 288]),
+});
 
 const pts = (list) => Object.freeze(list.map((p) => Object.freeze(p)));
 
@@ -85,11 +99,23 @@ export function territoryMapModel(state, catalog) {
     return { owned, selected, locked, canOpen, line };
   };
 
+  // The camp mark, Clan Edition only, for a region whose territory has a clan.
+  const picks = picksOf(state);
+  // picksOf drops a missing own pick, so a partner-only save reads [partner]:
+  // take "mine" from the pick itself, then the sibling's is the other one.
+  const mine = isClanEdition(state) && isClanId(state?.clanPick?.mine) ? state.clanPick.mine : null;
+  const sibling = isClanEdition(state) ? picks.find((p) => p !== mine) ?? null : null;
+  const campOf = (t) => {
+    if (!isClanEdition(state) || !has(CAMP_AT, t.id) || !castFor(t.id).length) return null;
+    const [x, y] = CAMP_AT[t.id];
+    return { x, y, color: CLAN_COLOURS[t.id], mine: mine === t.id, ally: sibling === t.id && mine !== t.id };
+  };
+
   const regions = TERRITORIES.map((t) => {
     const base = { id: t.id, name: t.name, areaId: t.areaId, x: t.x, y: t.y, r: t.r, status: t.status };
     const st = stateOf(t);
     const builtHere = t.status === 'built' && has(areas, t.areaId);
-    return { ...base, ...(builtHere ? { name: placeName(t.areaId, edition, catalog) || t.name } : {}), ...st };
+    return { ...base, camp: campOf(t), ...(builtHere ? { name: placeName(t.areaId, edition, catalog) || t.name } : {}), ...st };
   });
 
   return { regions, island: { ...ISLAND, ...stateOf(ISLAND) }, star: STAR, lake: LAKE, pond: POND, river: RIVER, paths: PATHS, bridge: BRIDGE };

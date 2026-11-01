@@ -741,7 +741,13 @@ export function coatColor(breed) {
 
 export function buildCat(breed, accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, opts = {}) {
   if (breed === 'hagrid') return buildChicken(accessories);
-  const s = STYLE[breed];
+  // opts.style (Clan Life Part 1): a whole STYLE-shaped row, e.g. a clan coat
+  // (clancast.js CLAN_COATS). Everything below reads `s`, so the row paints the
+  // coat, points, paws, tail and markings and sets g.scale; `breed` still picks
+  // the eyes. With a style, STYLE[breed] is never read. Without one, nothing
+  // changes (the golden test pins it). The cat builder's lookToStyle(look)
+  // will come in through this same seam.
+  const s = opts.style ?? STYLE[breed];
   const g = new THREE.Group();
   const pointColor = s.points ? s.accent : s.base;
 

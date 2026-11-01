@@ -86,3 +86,17 @@ describe('painted coats', () => {
     expect(buildCat('digit').userData.parts.head.children[1].children).toHaveLength(1);
   });
 });
+
+describe('coatFromStyle: the second patch (patch2)', () => {
+  it('without patch2 the calico keeps its dark second patch', async () => {
+    const { coatFromStyle } = await import('../src/cat/coat.js');
+    const coat = coatFromStyle({ base: 0xffffff, belly: 0xffffff, accent: 0xd2803a, patches: true });
+    expect(coat.patches.map((p) => p.colour)).toEqual([0xd2803a, 0x333333]);
+  });
+
+  it('with patch2 the second patch takes it', async () => {
+    const { coatFromStyle } = await import('../src/cat/coat.js');
+    const coat = coatFromStyle({ base: 0x2e2622, belly: 0x4a3a30, accent: 0x9c5a2c, patches: true, patch2: 0x1a1410 });
+    expect(coat.patches.map((p) => p.colour)).toEqual([0x9c5a2c, 0x1a1410]);
+  });
+});

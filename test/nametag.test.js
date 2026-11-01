@@ -424,3 +424,76 @@ describe('tag heights follow the taller cat', () => {
     expect(CROSS_TAG_Y).toBeGreaterThan(TAG_Y);
   });
 });
+
+// Clan Life Part 1, Task 3: a clan cat's tag has a second, smaller line,
+// "warrior of StormClan". Every other tag is untouched.
+describe('the two-line tag (opts.sub)', () => {
+  const texts = (ops) => ops.filter((o) => o[0] === 'fillText');
+  const px = (op) => parseInt(op[1].replace(/^bold /, ''), 10);
+
+  it('a tag with no sub paints exactly what it always did', () => {
+    withFakeDocument((canvases) => {
+      const tag = makeNameTag('Thornfur');
+      expect([canvases[0].width, canvases[0].height]).toEqual([256, 64]);
+      expect(opsOf(tag)).toEqual([
+        ['clearRect', 0, 0, 256, 64],
+        ['beginPath'],
+        ['roundRect', 28, 8, 200, 48, 22],
+        ['fill', 'rgba(20,26,38,0.7)'],
+        ['fillText', 'bold 34px Avenir, sans-serif', '#fff', 'Thornfur', 128, 42],
+      ]);
+      expect(tag.scale.y).toBeCloseTo(0.35);
+      expect(tag.userData.sub).toBeUndefined();
+    });
+  });
+
+  it('paints the name on top and the sub smaller below, on a taller canvas and sprite', () => {
+    withFakeDocument((canvases) => {
+      const tag = makeNameTag('Thornfur', { sub: 'x of Y' });
+      expect([canvases[0].width, canvases[0].height]).toEqual([256, 96]);
+      const t = texts(opsOf(tag));
+      expect(t).toHaveLength(2);
+      expect(t[0][3]).toBe('Thornfur');
+      expect(t[1][3]).toBe('x of Y');
+      expect(t[1][5]).toBeGreaterThan(t[0][5]); // below
+      expect(px(t[1])).toBeLessThan(px(t[0]));
+      expect(px(t[1])).toBeCloseTo(px(t[0]) * 0.6, -1);
+      expect(tag.scale.x).toBeCloseTo(1.4);
+      expect(tag.scale.y).toBeCloseTo(0.525);
+      expect(tag.userData.sub).toBe('x of Y');
+    });
+  });
+
+  it('shrinks a long sub to fit inside the pill', () => {
+    withFakeDocument(() => {
+      const tag = makeNameTag('Thornfur', { sub: 'apprentice of StormClan' });
+      const ops = opsOf(tag);
+      const pill = ops.find((o) => o[0] === 'roundRect');
+      const sub = texts(ops)[1];
+      const w = [...sub[3]].length * 0.55 * px(sub);
+      expect(w).toBeLessThanOrEqual(pill[3]);
+    });
+  });
+
+  it('setNameTagMood repaints both lines', () => {
+    withFakeDocument(() => {
+      const tag = makeNameTag('Thornfur', { sub: 'x of Y' });
+      const ops = opsOf(tag);
+      ops.length = 0;
+      setNameTagMood(tag, { cross: true });
+      expect(texts(ops)).toHaveLength(2);
+      expect(texts(ops)[1][3]).toBe('x of Y');
+      expect(tag.scale.y).toBeCloseTo(0.525);
+      ops.length = 0;
+      setNameTagMood(tag, { cross: false });
+      expect(texts(ops).map((o) => o[3])).toEqual(['Thornfur', 'x of Y']);
+    });
+  });
+
+  it('an empty sub is no sub', () => {
+    withFakeDocument((canvases) => {
+      makeNameTag('Thornfur', { sub: '' });
+      expect(canvases[0].height).toBe(64);
+    });
+  });
+});

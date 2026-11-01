@@ -9,6 +9,8 @@
 // inside its <g data-dr-place>, so a tap anywhere in it (even on the lake)
 // reaches the dressing room's existing place handler.
 
+import { clanName } from '../clanhomes.js';
+
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -98,6 +100,21 @@ function labelHtml(r) {
   return `<text class="tm-label" x="${lx}" y="${n(ly - tall / 2 + 26)}" text-anchor="middle">${lines.join('')}</text>`;
 }
 
+// The clan's camp: a small dome with a dark door in the clan's colour. Mine
+// gets a gold ring and a larger icon, the sibling's a thin white ring. It
+// never takes a tap: the place under it stays tappable.
+function campHtml(r) {
+  const c = r.camp;
+  if (!c) return '';
+  const k = c.mine ? 1.35 : 1;
+  const ring = c.mine || c.ally ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>` : '';
+  const w = 15 * k;
+  const dome = `<path class="tm-camp-dome" fill="${escapeHtml(c.color)}" d="M${n(c.x - w)} ${n(c.y + 8 * k)} A${n(w)} ${n(w)} 0 0 1 ${n(c.x + w)} ${n(c.y + 8 * k)} Z"/>`
+    + `<path class="tm-camp-door" d="M${n(c.x - 5 * k)} ${n(c.y + 8 * k)} A${n(5 * k)} ${n(5 * k)} 0 0 1 ${n(c.x + 5 * k)} ${n(c.y + 8 * k)} Z"/>`;
+  const cls = `tm-camp${c.mine ? ' mine' : ''}${c.ally ? ' ally' : ''}`;
+  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${dome}</g>`;
+}
+
 const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected ? ' sel' : ''}`;
 
 export function renderTerritoryMapHtml(model) {
@@ -130,7 +147,7 @@ export function renderTerritoryMapHtml(model) {
     + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>${labelHtml(r)}</g>`).join('');
   const builtHtml = built.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}" data-dr-place="${escapeHtml(r.areaId)}">`
     + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>`
-    + `<path class="tm-hit" d="${blobPath(r.id, r.x, r.y, r.r)}"/>${labelHtml(r)}</g>`).join('');
+    + `<path class="tm-hit" d="${blobPath(r.id, r.x, r.y, r.r)}"/>${labelHtml(r)}${campHtml(r)}</g>`).join('');
 
   return `<svg viewBox="0 0 1000 700" class="territory-map" role="img" aria-label="Territory map" xmlns="http://www.w3.org/2000/svg">`
     + '<rect class="tm-paper" x="4" y="4" width="992" height="692" rx="34"/>'
