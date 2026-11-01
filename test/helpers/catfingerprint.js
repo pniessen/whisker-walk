@@ -8,7 +8,6 @@ import { LEGACY_BODY } from '../../src/cat/torso.js';
 export const PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit'];
 export const STATES = ['follow', 'nap', 'stretch', 'groom', 'requestPet', 'perch', 'sniff', 'stalk', 'pounce', 'scared', 'cross', 'land'];
 export const STANDING = ['follow', 'sniff', 'stretch', 'groom', 'pounce', 'scared', 'cross', 'land'];
-export const CROUCH = ['nap', 'stalk', 'perch', 'requestPet'];
 export const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
 
 // "+ 0" turns -0 into 0.

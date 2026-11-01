@@ -50,12 +50,13 @@ function standOff(spot) {
 
 const mat = (color) => new THREE.MeshLambertMaterial({ color });
 
-// An open-top cardboard box, 1.05 x 1.05 x 0.42, built from thin panels so it
-// is a hollow box (you see into it) rather than a solid block. Two flaps fold
-// out and down from the rim, and a strip of tape runs across the front.
 // How far a boxed cat sinks. It sits up (requestPet), whose torso top is 1.03 cm
 // lower than the old rig's (0.6051 vs 0.6154), so -0.2 + 0.0103 shows as much as before.
 export const BOX_SIT_Y = -0.19;
+
+// An open-top cardboard box, 1.05 x 1.05 x 0.42, built from thin panels so it
+// is a hollow box (you see into it) rather than a solid block. Two flaps fold
+// out and down from the rim, and a strip of tape runs across the front.
 export const BOX = Object.freeze({ w: 1.05, h: 0.42, t: 0.035 });
 function buildBox() {
   const g = new THREE.Group();

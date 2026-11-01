@@ -133,8 +133,9 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // CROSS_TAG_Y exists because of a collision found by looking at the thing
 // rather than by testing it: the 'cross' pose (animator.js) raises the tail
 // straight up into a bottlebrush, and at the stray's 0.85 scale the tail tip
-// reaches world y ~0.83 — squarely inside the tag sprite's band, which at
-// TAG_Y spans roughly 0.72 to 1.07. The tail drew straight through the label,
+// reaches a height inside the tag sprite's band at the neutral TAG_Y (the
+// sprite is 0.35 tall, centred on it; the figures here were measured on the
+// shorter cat, see the re-measure below). The tail drew straight through the label,
 // and did so from BEHIND the cat, which is the angle a player chasing one
 // spends nearly all their time at.
 //

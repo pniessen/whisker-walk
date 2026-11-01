@@ -43,10 +43,6 @@ export const PAW_Y = -(LEGS.HIP_Y - 0.3 + 0.2585);
 // The bare paw's half-height: radius 0.062, flattened to 0.62.
 export const PAW_HALF = 0.062 * 0.62;
 
-// A standing sole's height above the ground: the paw centre less the flattened
-// paw's half-height.
-export const PAW_SOLE_GAP = 0.3 - 0.2585 - PAW_HALF;
-
 // How much a coat is inflated over the fur (signed off by screenshot, Task 10):
 // SHELL_INFLATE on the back and flanks, SHELL_INFLATE_UNDER under the belly,
 // where the crouching poses sit on the ground. Blended on the undeformed unit y.
@@ -68,10 +64,10 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // The sit (requestPet, perch): with the shaped torso (deep chest, belly tucked
 // toward the hips) the tilted-back rump rests 0.0204 above ground at fit 0 against
 // 0.0246 for the old torso, so it comes UP by 0.004 and rests where the old one did.
-export const POSE_FIT = {
-  requestPet: { body: 0.004 },
-  perch: { body: 0.004 },
-};
+export const POSE_FIT = Object.freeze({
+  requestPet: Object.freeze({ body: 0.004 }),
+  perch: Object.freeze({ body: 0.004 }),
+});
 
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {

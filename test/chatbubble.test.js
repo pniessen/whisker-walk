@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createChatBubbles, BUBBLE_Y } from '../src/chatbubble.js';
 import { TAG_Y } from '../src/nametag.js';
 
@@ -87,7 +88,11 @@ describe('createChatBubbles', () => {
   });
 });
 
-it('the bubble stays half a metre above the tag', () => {
-  // makeBubbleSprite returns null without a document, so the constant is what is pinned
-  expect(BUBBLE_Y).toBeCloseTo(TAG_Y + 0.5, 6);
+it('the bubble clears the tag sprite: the gap holds half of each sprite', () => {
+  // Both makers return null without a document, so the sprite heights are
+  // read from the source that sets them.
+  const height = (file, re) => Number(readFileSync(new URL(file, import.meta.url), 'utf8').match(re)[1]);
+  const tagH = height('../src/nametag.js', /tag\.scale\.set\(1\.4, ([\d.]+), 1\)/);
+  const bubbleH = height('../src/chatbubble.js', /sprite\.scale\.set\(1\.9, ([\d.]+), 1\)/);
+  expect(BUBBLE_Y - TAG_Y).toBeGreaterThanOrEqual(tagH / 2 + bubbleH / 2);
 });

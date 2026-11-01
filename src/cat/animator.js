@@ -115,6 +115,7 @@ function applyPoseFit(cat, fit) {
   const dHead = fit.head ?? dBody;
   for (const child of cat.children) {
     if (legs.includes(child) || child.userData.liftY === undefined) continue;
+    // += is safe only because fitLongLegs has just reset every liftY child to its authored y this frame.
     child.position.y += child === head ? dHead : dBody;
   }
 }
@@ -259,7 +260,6 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     head.position.set(hx, hy - 0.16, hz - 0.08);
     head.rotation.x = 0.15;
     for (const leg of legs) leg.scale.y = 0.7;
-    tail.rotation.set(-0.12, 0, 0);
   }
 
   if (state === 'pounce') {

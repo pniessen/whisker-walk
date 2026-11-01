@@ -161,7 +161,8 @@ function shapedBall(r, color, sx, sy, sz, wSeg = BALL_W, hSeg = BALL_H) {
 // the body or skull mesh is made of, at the same radius plus a hair — and
 // parents it to that mesh. Two consequences fall out for free:
 //
-//   * The host's non-uniform scale (the body's 0.85/0.75/1.35 plush ellipsoid)
+//   * The host's non-uniform scale (the torso's TORSO.SCALE, or the cat's own
+//     STYLE.body narrowing of it, on the body; the head's uniform HEAD.SCALE)
 //     is applied to the patch by the scene graph, so the patch deforms exactly
 //     as the surface under it deforms. It cannot lift off, at any point, on any
 //     breed, because it is generated from the surface rather than fitted to it.
@@ -681,6 +682,10 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   return g;
 }
 
+// Where the camera looks on a cat: the head, plus the 4 cm the old 0.6 sat above
+// the old head (0.56). Follows the head if the body is reshaped again.
+export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
+
 // -----------------------------------------------------------------------------
 // THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff, merged
 // into one vertex-coloured geometry in TORSO-LOCAL space (the body mesh's own
@@ -690,10 +695,6 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 // `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
 // vertex range; userData.chestCentre the chest's centre, torso-local.
 // A simple build rounds the belly and chest at 12×8 (the triangle cap).
-// Where the camera looks on a cat: the head, plus the 4 cm the old 0.6 sat above
-// the old head (0.56). Follows the head if the body is reshaped again.
-export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
-
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const [fx, fy, fz] = f;
   const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
@@ -744,18 +745,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const g = new THREE.Group();
   const pointColor = s.points ? s.accent : s.base;
 
-  // body: plush ellipsoid + belly + chest
+  // body: the torso mesh (an undeformed unit sphere shaped by torsoGeometry), with the belly and chest on it
   //
   // STYLE.body reshapes the torso for one cat (Digit's narrow kitten frame).
   // BODY_SCALE is the ONE place that shape lives, and everything that has to
-  // match the torso reads it rather than the bare 0.85/0.75/1.35: the body
-  // mesh, the markings (dirOn divides by it, so an authored point lands on the
-  // narrowed surface, not off it), userData.base.bodyScale (the animator
+  // match the torso reads it rather than the bare TORSO.SCALE: the body
+  // mesh, the markings (they are patches of the host sphere, so they take the
+  // body's scale from the scene graph), userData.base.bodyScale (the animator
   // rewrites body.scale from it every frame — miss it and the cat is reset to
   // the standard torso on the first frame) and the belly below. Body- and
   // back-slot accessories take fx/fy/fz too. With no `body` the factors are
-  // exactly 1 and every product below is the old number bit-for-bit, which is
-  // what keeps the standard breeds byte-identical.
+  // exactly 1, so a standard breed's scale is TORSO.SCALE untouched.
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
@@ -1137,8 +1137,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const hoodItems = [];
   const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
-    // Same tessellation as the torso, so the shell is an exact offset of the
-    // fur (a coarser shell sags between its facets and thins the clearance).
+    // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
+    // the torso's simple grid), fine enough that the shell does not sag
+    // between its facets and thin the clearance to the fur.
     const geo = torsoGeometry(BODY_R, ...(opts.simple ? TORSO.SEG.simple : [32, 32]));
     const unit0 = geo.userData.unit, pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
@@ -1386,7 +1387,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // written for) and legReach (that rig's hip-to-sole drop) drive animator.js's
   // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
   g.userData.base = {
-    bodyY, bodyScale: [...BODY_SCALE], headPos, headScale: HEAD.SCALE, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
+    bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
   };
   return g;

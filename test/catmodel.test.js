@@ -662,6 +662,12 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // candle hat <= party crown + 0.02; Digit wears exactly one collar.
 });
 
-it('the camera looks at the new head height', () => {
-  expect(CAT_LOOK_Y).toBeCloseTo(buildCat('tabby').userData.base.headPos[1] + 0.04, 6);
+it('the camera looks inside the head: between its centre and its top (tabby, follow, world)', () => {
+  const cat = buildCat('tabby');
+  animateCat(cat, 'follow', 1.3, 0, false);
+  cat.updateMatrixWorld(true);
+  const head = new THREE.Box3().setFromObject(cat.userData.parts.head, true);
+  const centre = (head.min.y + head.max.y) / 2;
+  expect(CAT_LOOK_Y * cat.scale.y).toBeGreaterThanOrEqual(centre);
+  expect(CAT_LOOK_Y * cat.scale.y).toBeLessThanOrEqual(head.max.y);
 });
