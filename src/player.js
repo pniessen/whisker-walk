@@ -4,7 +4,7 @@ import { CAT_LOOK_Y } from './cat/model.js';
 import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
-import { inWater, waterClearance, nearestDry } from './world/builder.js';
+import { inWater, waterClearance, nearestDry, shallowExcess } from './world/builder.js';
 import {
   DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
 } from './camzoom.js';
@@ -318,6 +318,34 @@ export function isWalkableAt(area, x, z) {
     if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
   }
   return waterClearance(area?.waters, x, z) >= WATER_MARGIN;
+}
+
+// waterSets(waters) -> { walls, wades }: the footprints split on `shallow > 0`.
+// Cached per array identity, so pass the stable area.waters.
+const WATER_SETS = new WeakMap();
+export function waterSets(waters) {
+  let sets = WATER_SETS.get(waters);
+  if (!sets) {
+    sets = { walls: waters.filter((w) => !(w.shallow > 0)), wades: waters.filter((w) => w.shallow > 0) };
+    WATER_SETS.set(waters, sets);
+  }
+  return sets;
+}
+
+// isWadeableAt(area, x, z) -> may a cat WITHOUT Sea Legs end a frame here?
+// Inside the bounds, clear of every collider, WATER_MARGIN clear of every
+// footprint with no shallow width, and in the shallow band of the rest.
+export function isWadeableAt(area, x, z) {
+  if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+  const b = area?.bounds;
+  if (b && (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ)) return false;
+  for (const c of area?.colliders ?? []) {
+    if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
+  }
+  const waters = area?.waters;
+  if (!waters || waters.length === 0) return true;
+  if (waterClearance(waterSets(waters).walls, x, z) < WATER_MARGIN) return false;
+  return shallowExcess(waters, x, z) <= 0;
 }
 
 // Push `pos` (a THREE.Vector3, mutated in place) out to WATER_MARGIN clear of

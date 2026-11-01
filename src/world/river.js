@@ -79,25 +79,25 @@ const STEPPING_STONES = Object.freeze({
 // The waters. Every footprint runs on past the bounds where its water does, so
 // the lake opens out to the horizon and the river leaves the map west and
 // east rather than stopping at a wall.
-const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: 26, maxX: 120, minZ: -95, maxZ: -34 });
+const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: 26, maxX: 120, minZ: -95, maxZ: -34, shallow: 1.2 });
 // Open water north of the bounds, round the island. Nothing a cat can walk.
-const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: 0, maxX: 30, minZ: -95, maxZ: -56 });
+const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: 0, maxX: 30, minZ: -95, maxZ: -56, shallow: 1.2 });
 const RIVER_WEST = Object.freeze({
-  id: 'river-west', kind: 'rect', minX: -120, maxX: 19, minZ: -34, maxZ: -29,
+  id: 'river-west', kind: 'rect', minX: -120, maxX: 19, minZ: -34, maxZ: -29, shallow: 1.2,
   decks: Object.freeze([LOG_BRIDGE]),
 });
 // Her jog south; no deck of its own.
-const RIVER_BEND = Object.freeze({ id: 'river-bend', kind: 'rect', minX: 14, maxX: 19, minZ: -34, maxZ: -9 });
+const RIVER_BEND = Object.freeze({ id: 'river-bend', kind: 'rect', minX: 14, maxX: 19, minZ: -34, maxZ: -9, shallow: 1.2 });
 // On east into the Woods, at the Woods' z -14..-9.
 const RIVER_EAST = Object.freeze({
-  id: 'river-east', kind: 'rect', minX: 14, maxX: 120, minZ: -14, maxZ: -9,
+  id: 'river-east', kind: 'rect', minX: 14, maxX: 120, minZ: -14, maxZ: -9, shallow: 1.2,
   decks: Object.freeze([STEPPING_STONES]),
 });
 // 6 m inside the east edge, as the Woods' is 6 m inside its west edge.
-const POND = Object.freeze({ id: 'pond', kind: 'circle', x: 44, z: -6, r: 6 });
-const POOL_1 = Object.freeze({ id: 'pool-1', kind: 'circle', x: -30, z: 12, r: 3.5 });
-const POOL_2 = Object.freeze({ id: 'pool-2', kind: 'circle', x: -12, z: 34, r: 2.5 });
-const POOL_3 = Object.freeze({ id: 'pool-3', kind: 'circle', x: -40, z: 33, r: 3 });
+const POND = Object.freeze({ id: 'pond', kind: 'circle', x: 44, z: -6, r: 6, shallow: 1.2 });
+const POOL_1 = Object.freeze({ id: 'pool-1', kind: 'circle', x: -30, z: 12, r: 3.5, shallow: 1.0 });
+const POOL_2 = Object.freeze({ id: 'pool-2', kind: 'circle', x: -12, z: 34, r: 2.5, shallow: 1.0 });
+const POOL_3 = Object.freeze({ id: 'pool-3', kind: 'circle', x: -40, z: 33, r: 3, shallow: 1.0 });
 
 export const RIVER_WATERS = Object.freeze([
   LAKE, LAKE_FAR, RIVER_WEST, RIVER_BEND, RIVER_EAST, POND, POOL_1, POOL_2, POOL_3,

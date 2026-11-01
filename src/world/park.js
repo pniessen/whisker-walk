@@ -35,7 +35,7 @@ import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 // The pond footprint. The mesh below is BUILT from this record rather than
 // standing beside it, so the drawn water and the declared water cannot drift
 // apart.
-const POND = { id: 'pond', kind: 'circle', x: -14, z: 2, r: 7 };
+const POND = { id: 'pond', kind: 'circle', x: -14, z: 2, r: 7, shallow: 1.2 };
 
 // builder.js's own roughness-only helper, restated here because it is
 // module-local there and the fountain is the one assembly this file builds

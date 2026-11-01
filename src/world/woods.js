@@ -77,17 +77,17 @@ const STEPPING_STONES = Object.freeze({
 // The waters. Every footprint runs on past the bounds where its water does,
 // so the lake opens out to the horizon and the river leaves the map west and
 // north rather than stopping at a wall.
-const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: -120, maxX: -14, minZ: -120, maxZ: -34 });
-const POND = Object.freeze({ id: 'pond', kind: 'circle', x: -44, z: -6, r: 6 });
+const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: -120, maxX: -14, minZ: -120, maxZ: -34, shallow: 1.2 });
+const POND = Object.freeze({ id: 'pond', kind: 'circle', x: -44, z: -6, r: 6, shallow: 1.2 });
 // It runs past the west bound, so the river (not one tangent point of the
 // pond) is what separates the glade from the south along the west edge.
 const RIVER_WEST = Object.freeze({
-  id: 'river-west', kind: 'rect', minX: -120, maxX: 23, minZ: -14, maxZ: -9,
+  id: 'river-west', kind: 'rect', minX: -120, maxX: 23, minZ: -14, maxZ: -9, shallow: 1.2,
   decks: Object.freeze([LOG_BRIDGE]),
 });
 // Turns north to the Moor.
 const RIVER_NORTH = Object.freeze({
-  id: 'river-north', kind: 'rect', minX: 18, maxX: 23, minZ: -120, maxZ: -9,
+  id: 'river-north', kind: 'rect', minX: 18, maxX: 23, minZ: -120, maxZ: -9, shallow: 1.2,
   decks: Object.freeze([STEPPING_STONES]),
 });
 

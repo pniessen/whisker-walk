@@ -169,7 +169,7 @@ const PIER = { minX: 22, maxX: 46, minZ: -11.5, maxZ: -8.5 };
 // than standing beside them, so the drawn water and the declared water — and
 // the drawn pier and the declared deck — cannot drift apart.
 const SEA = {
-  id: 'sea', kind: 'rect', minX: 25, maxX: 105, minZ: -70, maxZ: 70, decks: [PIER],
+  id: 'sea', kind: 'rect', minX: 25, maxX: 105, minZ: -70, maxZ: 70, shallow: 1.5, decks: [PIER],
 };
 
 // -----------------------------------------------------------------------------

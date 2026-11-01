@@ -153,3 +153,21 @@ describe('deckDistance', () => {
     expect(deckDistance(undefined, 0, 0)).toBe(Infinity);
   });
 });
+
+describe('shallow widths', () => {
+  it('every shipped water declares a shallow width', async () => {
+    const builds = [
+      await import('../src/world/park.js'), await import('../src/world/seaside.js'),
+      await import('../src/world/docks.js'), await import('../src/world/woods.js'),
+      await import('../src/world/river.js'), await import('../src/world/moor.js'),
+    ];
+    for (const m of builds) {
+      const area = m.build(new THREE.Scene());
+      expect(area.waters.length).toBeGreaterThan(0);
+      for (const w of area.waters) {
+        expect(w.shallow, w.id).toBeGreaterThanOrEqual(0.8);
+        expect(w.shallow, w.id).toBeLessThanOrEqual(1.6);
+      }
+    }
+  });
+});
