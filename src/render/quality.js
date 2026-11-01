@@ -81,6 +81,12 @@ const HIGH = Object.freeze({
   // full, still sparse, count: 40 leaves at most). One draw call whatever
   // the value; 0 would switch the effect off and cost no draw at all.
   ambientScale: 1,
+  // Swimming and wading effects (render/splash.js): the ring-buffer sizes of
+  // the droplet and ripple pools. Two draw calls whatever the size, and none
+  // when no cat is in the water. A swimming wake alone keeps ~18 rings alive
+  // (a pair every 0.16 s for 1.2 s, plus the head rings), so 20 is the floor.
+  splashDrops: 64,
+  splashRings: 32,
 });
 
 const LOW = Object.freeze({
@@ -127,6 +133,9 @@ const LOW = Object.freeze({
   // the thing this rung is short of. Kept on rather than 0 because the
   // effect is a few dozen points and the low rung is where most phones live.
   ambientScale: 0.5,
+  // Half the droplets; 20 rings is the floor a swimming wake needs.
+  splashDrops: 32,
+  splashRings: 20,
 });
 
 // The adaptive ladder. Order is fill rate first (pixel ratio, then post-fx and

@@ -854,6 +854,12 @@ function init() {
       session.clouds.update(t);
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
       session.remotes.update(dt, nowSec(), session.areaData.waters);
+      // Splashes, ripples and the wake for my cat, then each placed co-walker.
+      session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt);
+      for (const r of session.remotes.list) {
+        if (r.water.placed) session.splash.track(r.water, r.group.position.x, r.group.position.z, r.group.rotation.y, r.speed, r.group.scale.y, dt);
+      }
+      session.splash.update(dt);
       // v21 3b Task 14: every cat on my screen pushes the flaps and gaps — mine
       // first, then my co-walkers' as remotecats.js has just placed them — so
       // a partner's push swings them here with no wire event. Only my own push

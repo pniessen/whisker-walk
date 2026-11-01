@@ -86,6 +86,7 @@ import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { createGrass, groundFinds } from '../render/grass.js';
 import { createPawPrints } from '../render/pawprints.js';
+import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
@@ -1027,6 +1028,9 @@ export function createWalkLifecycle({
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
     const paws = createPawPrints(scene, { areaId, areaData, tier });
+    // Swimming's splashes, ripples, wake and shake spray (render/splash.js):
+    // two pooled draws, 0 while no cat is in water; the den gets NO_SPLASH.
+    const splash = createSplash(scene, { areaData, tier, reducedMotion });
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and
@@ -1097,6 +1101,7 @@ export function createWalkLifecycle({
       // Lawn tufts, same shape again; updated beside wind in the render loop.
       grass,
       paws,
+      splash,
       // Stream 4 round four — drifting sky clouds (render/clouds.js), same
       // shape again: one InstancedMesh, built here after the caster sweep and
       // the prop merge so neither sees it. Laid out from a per-area seed, never
@@ -1657,6 +1662,7 @@ export function createWalkLifecycle({
     // geometry and material once.
     session.grass.dispose();
     session.paws.dispose();
+    session.splash.dispose();
     session.clouds.dispose();
     session.ambient.dispose();
     // A no-op today (the rig holds no GPU resource of its own — the shadow map
