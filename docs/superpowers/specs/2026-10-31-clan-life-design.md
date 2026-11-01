@@ -216,6 +216,16 @@ happens on the device of the kid who started it. Its outcome (fled or not)
 reaches the other device over the existing walk event channel
 (`applyRemoteEvent`), so the intruder flees on both screens. The builder
 confirms this is enough, or proposes something simpler.
+*As built (Part 2):* two events are enough, because the intruder's walk is
+already shared through the clock. `intruder-fight` says "I am holding this
+visit's cat": on her screen it stops and faces my cat, and her Fight pill
+for it goes away. `intruder-done` (`fled` true or false) says how my fight
+ended. The rounds themselves stay on the fighter's screen. Holds are counted
+per visit, so her loss never lets it walk on while I am still fighting it,
+and a hold with no word back lets go after 40 s. A win beats a loss in
+either order: once it flees on a screen, a later "walked on" is ignored. If
+both kids fight the same cat and either wins, it flees on both screens and
+each kid who was fighting it is paid once (the award is keyed per visit).
 
 **Reduced motion:** the tumble becomes a short dust puff, and the clue and
 buttons work the same.
@@ -278,6 +288,47 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
   313), River 645 (745), Moor 366 (263), Pines 873 (840); phone portrait
   396 (300), 662 (571), 381 (191), 532 (464); at most +190, inside lever
   1's expectation. Roaming spots: +25 to −188. No further lever needed.
+
+**Part 2 as built (intruders and fights):**
+- One visit slot per 120 s of wall clock; 3 slots in 4 bring a warrior of a
+  neighbouring clan, 10 s into the slot, walking at 0.9 m/s. One at a time.
+  Who and where come from the territory and the clock only, so co-walkers
+  agree without sending anything.
+- 8 routes, one per territory and neighbour: Woods (Moor, River), River
+  (Pines, Woods), Moor (Woods, Pines), Pines (River, Moor). Each is clan
+  ground all the way (never water, a wade band, a bog, the island or the
+  truce path), at most 90 m, and at least 3 m outside the camp.
+- It puffs up and hisses within 6 m; the Fight / Back off pill shows within
+  3.5 m and stays up to 10 m. No pill while your cat is wading or swimming
+  or off clan ground; never against either kid's clan, in Legacy, the old
+  areas, the island, or on land that isn't yours.
+- Counters: crouches → Dodge, raises a paw → Pounce, backs up → Swipe; the
+  teach line shows in every fight. Square-off 1.2 s, answer window 4 s
+  (first 0.25 s ignored), tumble 1.4 s (0.6 s puff with reduced motion),
+  0.8 s between rounds. Edges: +1 s window (`fearless`, `keenNose`,
+  `chaser`) or one second look (`steady`, `pouncer`, `napper`, `bird`).
+- Win: it runs home along its route to the nearer end at 4.5 m/s (a puff
+  with reduced motion), `intruder: 12` once per visit, and the journal's
+  "chased off" tally. Lose: it walks on (catching up at most 2.5 m/s), you
+  may try again after 20 s, and nothing in the save changes.
+- Part 2 live check (2026-11-01, headless Chromium): an intruder walked,
+  was fought, won and lost in all four territories; the save was
+  byte-identical after each loss; every flee stayed on clan ground and out
+  of the water; phone portrait buttons 88 px tall in the bottom third
+  (landscape stacks them 64 px tall up the right side: open question).
+- Part 2 draw reading (2026-11-01, headless Chromium, HIGH, Auto off, 10 s
+  average; fps about 2 to 4, not meaningful): the intruder is 24 to 25
+  meshes, all casting. Beside it, it adds about +50 draws (desktop Woods,
+  River, Pines +50 to +52, Moor +87; phone +48 to +72), roughly 25 main
+  pass plus 25 shadow. Seen behind the camp from 9 to 35 m, +19 to +49.
+  Mid-fight costs nothing measurable beyond that (the dust bursts are
+  short). Camp views with an intruder in view, desktop: Woods 676, River
+  656, Moor 573, Pines 416; phone 459, 556, 376, 441.
+- Still the owner's: the iPhone 18 reading (60 fps held at the camps,
+  mid-fight and with an intruder in view) and the fairness playtest (five
+  fights each for the 9- and 11-year-old; if he wins far fewer, lengthen
+  the answer window first, then the teach line's size; losing never costs
+  anything).
 
 ## Goals
 
