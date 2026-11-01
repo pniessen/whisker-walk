@@ -44,6 +44,13 @@ import { patrolClanFor, clanName } from './clanhomes.js';
 //   river (5,1) r 6: open ground south-west of the foot of the river bend and
 //     east of the bank path (the wet meadow itself centres on (2,28)), round
 //     the alder at (7.62,3.12) (builder.tree, scale 1.29); 26m from the nearest find.
+//   moor (-1,-43) r 6: the open heath on the north edge, facing the Woods,
+//     round the lone thorn (builder.tree, scale 0.89) at (-1.58,-46.25), whose
+//     Sure Claws fork is an unlabelled perch; 13m from the nearest find
+//     (moor-find-5) and the High Tor lookout, 4m off the nearest path, and the
+//     ring clears every collider by 1.9m beyond the cat. Like the Woods' camp
+//     it comes within 1m of the north edge (z -50), so a cat chased out
+//     northward is set down sideways by findLanding's fallback.
 export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
@@ -51,6 +58,7 @@ export const DISCS = Object.freeze({
   docks: Object.freeze({ cx: -30.5, cz: -9.5, r: 5 }),
   woods: Object.freeze({ cx: 2, cz: -43, r: 6 }),
   river: Object.freeze({ cx: 5, cz: 1, r: 6 }),
+  moor: Object.freeze({ cx: -1, cz: -43, r: 6 }),
 });
 
 const MARK_COUNT = 12;

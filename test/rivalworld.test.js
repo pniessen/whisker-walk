@@ -38,6 +38,7 @@ const { build: buildSea } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
 const { isClanId } = await import('../src/clanhomes.js');
 const { patrolPath, borderMarks, rivalFor, isTrespassing } = await import('../src/rivalclans.js');
 const { patrolAt, chaseOutcome, findLanding } = await import('../src/rivalcats.js');
@@ -47,7 +48,7 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
-const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver };
+const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor };
 const AREAS = Object.keys(BUILD);
 const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](new THREE.Scene())]));
 

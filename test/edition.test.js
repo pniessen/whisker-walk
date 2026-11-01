@@ -71,7 +71,9 @@ test('the shipped Legacy guards cover the Moor', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'moor' }, CATALOG)).toBe('neighborhood');
   expect(effectiveArea({ edition: 'canon', area: 'moor' }, CATALOG)).toBe('moor');
   expect(roomAreaMove({ edition: 'legacy', area: 'moor' }, CATALOG, 'park')).toBe('override');
-  expect(rivalForWalk('moor', 'canon')).toBeNull();
+  expect(rivalForWalk('moor', 'legacy')).toBeNull();
+  expect(rivalForWalk('moor', 'canon').clan).toBe('moor');
+  expect(rivalForWalk('moor', 'canon', ['moor']).clan).not.toBe('moor');
   expect(areaInEdition(CATALOG.areas.moor, 'legacy')).toBe(false);
 });
 test('the shipped Legacy guards cover the Pines, and no patrol walks the truce', () => {

@@ -9,9 +9,10 @@ import { SPAWN as SEA_SPAWN } from '../src/world/seaside.js';
 import { SPAWN as DOCKS_SPAWN } from '../src/world/docks.js';
 import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
 import { SPAWN as RIVER_SPAWN } from '../src/world/river.js';
+import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
 
 const AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
-const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN, woods: WOODS_SPAWN, river: RIVER_SPAWN };
+const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN, woods: WOODS_SPAWN, river: RIVER_SPAWN, moor: MOOR_SPAWN };
 
 test('each of the four areas has one rival clan with a usable name', () => {
   for (const a of AREAS) {
@@ -155,6 +156,15 @@ test('the Woods and the River have camps; the patrol follows the picks, the camp
     expect([home.cx, home.cz, home.r]).toEqual([own.cx, own.cz, own.r]);
     for (const m of borderMarks(a)) expect(Math.abs(Math.hypot(m.x - home.cx, m.z - home.cz) - home.r)).toBeLessThan(1e-9);
   }
+});
+
+test('the Moor has a camp; the patrol follows the picks, the camp never moves', () => {
+  const own = rivalFor('moor');
+  expect(own.clan).toBe('moor');
+  expect(own.name).toBe(clanName('moor'));
+  const home = rivalFor('moor', ['moor']);
+  expect(home.clan).not.toBe('moor');
+  expect([home.cx, home.cz, home.r]).toEqual([own.cx, own.cz, own.r]);
 });
 
 test('the old areas ignore picks entirely', () => {
