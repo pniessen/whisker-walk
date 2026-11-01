@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createCrossing } from '../src/game/crossing.js';
 import { pauseCardHtml } from '../src/game/walk.js';
 import { CATALOG } from '../src/progression.js';
@@ -98,3 +98,103 @@ describe('the crossing card', () => {
     expect(h.crossing.onRemote(h.s, {})).toBeUndefined();
   });
 });
+
+describe('crossing together', () => {
+  function room({ host = true, remotes = [{ playerId: 'b', petName: 'Pip' }], selfId = 'a', hostId = 'a' } = {}) {
+    vi.useFakeTimers();
+    const toasts = [];
+    const sent = [];
+    const overlay = { innerHTML: '' };
+    const s = {
+      welcome: 'x', race: null, quest: null, carry: { mouth: { held: null } },
+      areaId: 'woods', playerId: selfId, remotes: { list: [...remotes] },
+      net: { isHost: () => host, sendEvent: (e) => sent.push(e) },
+    };
+    const endWalk = vi.fn();
+    let current = s;
+    const crossing = createCrossing({
+      getSession: () => current, overlay, hud: { toast: (t) => toasts.push(t) },
+      releaseControl() {}, resumeWalk() {}, endWalk, getIsTouch: () => false,
+      catalog: CATALOG, setTimeout: globalThis.setTimeout,
+    });
+    return { crossing, s, sent, toasts, endWalk, overlay, replace: (o) => { current = o; } };
+  }
+  const ev = (o = {}) => ({ v: 1, id: 'b', type: 'border-cross', from: 'woods', to: 'moor', ...o });
+  const goData2 = () => goData();
+  afterEachRestore();
+
+  it("the host's yes tells the room, then ends", () => {
+    const { crossing, s, sent, endWalk, overlay } = room();
+    crossing.ask(s, goData2());
+    expect(overlay.innerHTML).toContain('Pip comes too.');
+    crossing.confirm();
+    expect(sent).toEqual([{ v: 1, id: 'a', type: 'border-cross', from: 'woods', to: 'moor' }]);
+    expect(overlay.innerHTML).toContain('<h1>Off we go! 🧭</h1>');
+    vi.advanceTimersByTime(150);
+    expect(sent).toHaveLength(2);
+    vi.advanceTimersByTime(249);
+    expect(endWalk).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor' }]]);
+  });
+
+  it('a second yes does not send or end twice', () => {
+    const { crossing, s, sent, endWalk } = room();
+    crossing.ask(s, goData2());
+    crossing.confirm();
+    crossing.confirm();
+    vi.advanceTimersByTime(1000);
+    expect(sent).toHaveLength(2);
+    expect(endWalk).toHaveBeenCalledTimes(1);
+  });
+
+  it("a guest's post never crosses", () => {
+    const { crossing, s, overlay } = room({ host: false });
+    crossing.ask(s, goData2());
+    expect(s.crossing).toBeUndefined();
+    expect(overlay.innerHTML).toBe('');
+  });
+
+  it('the guest follows the host', () => {
+    const { crossing, s, toasts, endWalk } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    crossing.onRemote(s, ev({ id: 'a' }));
+    expect(toasts).toEqual(['Pip is leading the way to the Moor! 🧭']);
+    vi.advanceTimersByTime(1499);
+    expect(endWalk).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(endWalk.mock.calls).toEqual([[{ crossTo: 'moor', ledBy: 'Pip', together: ['Pip'] }]]);
+  });
+
+  it('the guest keeps who it walked with', () => {
+    const { crossing, s, endWalk } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    crossing.onRemote(s, ev({ id: 'a' }));
+    s.remotes.list.length = 0;
+    vi.advanceTimersByTime(1500);
+    expect(endWalk.mock.calls[0][0].together).toEqual(['Pip']);
+  });
+
+  it('a duplicate or late border-cross ends the walk once', () => {
+    const a = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    a.crossing.onRemote(a.s, ev({ id: 'a' }));
+    a.crossing.onRemote(a.s, ev({ id: 'a' }));
+    vi.advanceTimersByTime(5000);
+    expect(a.endWalk).toHaveBeenCalledTimes(1);
+    const b = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    b.crossing.onRemote(b.s, ev({ id: 'a' }));
+    b.replace({});
+    vi.advanceTimersByTime(5000);
+    expect(b.endWalk).not.toHaveBeenCalled();
+  });
+
+  it('a forged or stale event is ignored', () => {
+    const { crossing, s, toasts, endWalk } = room({ selfId: 'c', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    crossing.onRemote(s, ev({ id: 'zzz' }));
+    crossing.onRemote(s, ev({ id: 'a', from: 'river' }));
+    crossing.onRemote(s, ev({ id: 'a', to: 'nowhere' }));
+    vi.advanceTimersByTime(5000);
+    expect(toasts).toEqual([]);
+    expect(endWalk).not.toHaveBeenCalled();
+    expect(s.crossLed).toBeUndefined();
+  });
+});
+function afterEachRestore() { afterEach(() => vi.useRealTimers()); }

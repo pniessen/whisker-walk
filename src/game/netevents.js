@@ -50,7 +50,7 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat) {
 
 // getPartner() → my colony partner ({ playerId, petName, wardrobe }) or null
 // (v21 Stream 2). Optional: without it no colony-feed is ever shown.
-export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner }) {
+export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {} }) {
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
   }
@@ -247,7 +247,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       applyRemoteCarry(s, ev);
     } else if (ev.type === 'clan-buddy') {
       applyRemoteBuddy(s, ev);
-    }
+    } else if (ev.type === 'border-cross') onBorderCross(s, ev);
   }
 
   // Clan Life Part 1, Task 6 — a co-walker started or ended a patrol with a

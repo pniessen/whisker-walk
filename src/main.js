@@ -280,6 +280,7 @@ function init() {
     applyGoalResult: (s, res) => applyGoalResult(s, res),
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
+    onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted

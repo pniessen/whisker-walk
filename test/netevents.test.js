@@ -685,3 +685,34 @@ describe('applyRemoteEvent: clan-buddy', () => {
     expect(() => none.apply(none.ev())).not.toThrow();
   });
 });
+
+describe('applyRemoteEvent: border-cross', () => {
+  function make() {
+    const calls = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: {}, hud: { toast() {} }, audio: {}, samples: { has: () => false },
+      catVoice() {}, applyGoalResult() {},
+      onBorderCross: (s, ev) => calls.push([s, ev]),
+    });
+    return { applyRemoteEvent, calls };
+  }
+  it('reaches onBorderCross with (s, ev)', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = {}; const ev = { type: 'border-cross', id: 'a' };
+    applyRemoteEvent(s, ev);
+    expect(calls).toEqual([[s, ev]]);
+  });
+  it('an unknown type still does nothing', () => {
+    const { applyRemoteEvent, calls } = make();
+    applyRemoteEvent({}, { type: 'nope' });
+    expect(calls).toEqual([]);
+  });
+  it('works with no onBorderCross dep', () => {
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: {}, audio: {},
+      samples: {}, catVoice() {}, applyGoalResult() {},
+    });
+    expect(() => applyRemoteEvent({}, { type: 'border-cross' })).not.toThrow();
+  });
+});
