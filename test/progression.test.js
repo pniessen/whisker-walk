@@ -31,7 +31,7 @@ describe('createProgression', () => {
     expect(p.state.unlocked.accessories).toEqual(['bell', 'bandana']);
     expect(p.state.unlocked.areas).toEqual(['neighborhood']);
     expect(p.state.equipped).toEqual({
-      cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null,
+      cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null,
     });
   });
 
@@ -652,7 +652,8 @@ describe('createProgression', () => {
         version: 4, points: 0, retired: ['rosa'], redeemed: [],
         walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0 },
         unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] },
-        equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
+        equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
+        customCats: [],
         area: 'neighborhood', lifetimePoints: 0, bestWalk: 0, friends: {}, petName: null,
         journal: {}, golden: [], streak: { last: null, count: 0 }, kitten: { stage: 0 },
         race: { date: null, area: null, bestMs: null },
@@ -701,7 +702,7 @@ describe('createProgression', () => {
       // unlocked lists were unusable
       expect(p.state.unlocked).toEqual({ cats: ['tabby', 'siamese', 'persian'], accessories: ['bell', 'bandana'], areas: ['neighborhood'] });
       expect(p.state.equipped).toEqual({
-        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null,
+        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null,
       });
       expect(p.state.area).toBe('neighborhood');
       expect(p.state.friends).toEqual({});
@@ -720,7 +721,7 @@ describe('createProgression', () => {
       });
 
       expect(p.state.equipped).toEqual({
-        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null,
+        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null,
       });
       expect(p.state.area).toBe('neighborhood');
     });
@@ -921,7 +922,7 @@ describe('v11 slots + save migration', () => {
       const p = createProgression(store);
       expect(p.state.version).toBe(4);
       expect(p.state.equipped).toEqual({
-        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null,
+        cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null,
       });
       expect(p.state.points).toBe(33);
       expect(p.state.unlocked.cats).toEqual(expect.arrayContaining(['tabby', 'black']));
@@ -2256,13 +2257,14 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, ...rest } = p.state;
     expect(edition).toBe('canon');
+    expect(customCats).toEqual([]);
     expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
-    expect(rest).toEqual({ ...v20, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0 } });
+    expect(rest).toEqual({ ...v20, equipped: { ...v20.equipped, custom: null }, walks: { ...v20.walks, woods: 0, river: 0, moor: 0, pines: 0 } });
   });
 
   it('a fresh save starts with the starter accessories and an empty colony', () => {

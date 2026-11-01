@@ -1,4 +1,6 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
+import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_PERSONALITIES } from './customcats.js';
+import { validPetName } from './net.js';
 import { AWARDS } from './discoveries.js';
 import { SKILL_IDS, friendRungs, hasSkill } from './skills.js';
 // v20 Ruffled Fur. enemies.js owns the RULES half of the enemy system and is
@@ -381,7 +383,10 @@ function defaultState() {
     walks: { neighborhood: 0, park: 0, seaside: 0, den: 0, docks: 0, woods: 0, river: 0, moor: 0, pines: 0 },
     // A COPY of STARTER_ACCESSORIES: buy() pushes into this array.
     unlocked: { cats: ['tabby', 'siamese', 'persian'], accessories: [...STARTER_ACCESSORIES], areas: ['neighborhood'] },
-    equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null },
+    equipped: { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null },
+    // Cat builder: up to three cats she made herself. Additive, so SAVE_VERSION
+    // stays 4 (equipped.custom is the same). equipped.cat always stays a preset.
+    customCats: [],
     area: 'neighborhood',
     lifetimePoints: 0,
     bestWalk: 0,
@@ -844,6 +849,12 @@ function sanitizeState(parsed) {
       ? v : null;
   }
 
+  // Cat builder: additive, so SAVE_VERSION stays 4. equipped.custom survives only
+  // if it names a custom cat that survived sanitising.
+  const customCats = sanitizeCustomCats(parsed.customCats);
+  const wantCustom = parsed.equipped?.custom;
+  const equippedCustom = typeof wantCustom === 'string' && customCats.some((c) => c.id === wantCustom) ? wantCustom : null;
+
   const area = typeof parsed.area === 'string' && unlockedAreas.includes(parsed.area) ? parsed.area : d.area;
 
   const walks = {};
@@ -854,7 +865,8 @@ function sanitizeState(parsed) {
     points: asFiniteNonNeg(parsed.points, 0),
     walks,
     unlocked: { cats: unlockedCats, accessories: unlockedAcc, areas: unlockedAreas },
-    equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots },
+    equipped: { cat: equippedCat, collar: equippedCollar, ...equippedSlots, custom: equippedCustom },
+    customCats,
     area,
     lifetimePoints: asFiniteNonNeg(parsed.lifetimePoints, 0),
     bestWalk: asFiniteNonNeg(parsed.bestWalk, 0),
@@ -977,7 +989,12 @@ export function createProgression(storage) {
   const adopt = (loaded) => {
     state = loaded.state;
     if (loaded.changed) save();
-    if (loaded.farewell) pendingFarewell = ROSA_FAREWELL(CATALOG.cats[state.equipped.cat].name);
+    if (loaded.farewell) {
+      // The line names the preset that takes over, so it must be the one walked.
+      state.equipped.custom = null;
+      pendingFarewell = ROSA_FAREWELL(CATALOG.cats[state.equipped.cat].name);
+      save();
+    }
   };
   adopt(loadState(storage));
 
@@ -1144,11 +1161,40 @@ export function createProgression(storage) {
       save();
       return true;
     },
+    // true when it equipped (a ready-made pick also ends a custom choice).
     equipCat(id) {
-      if (api.isUnlocked('cats', id)) {
-        state.equipped.cat = id;
-        save();
-      }
+      if (!api.isUnlocked('cats', id)) return false;
+      state.equipped.cat = id;
+      state.equipped.custom = null;
+      save();
+      return true;
+    },
+    // Cat builder. A custom cat is a name, a personality (one of the six
+    // CUSTOM_PERSONALITIES) and a look; ids come from CUSTOM_IDS in order.
+    createCustomCat({ name, personality, look } = {}) {
+      if (state.customCats.length >= CUSTOM_MAX) return null;
+      if (!validPetName(name) || !Object.hasOwn(CUSTOM_PERSONALITIES, personality)) return null;
+      const id = CUSTOM_IDS.find((i) => !state.customCats.some((c) => c.id === i));
+      if (!id) return null;
+      state.customCats.push({ id, name, personality, look: sanitizeLook(look) });
+      save();
+      return id;
+    },
+    updateCustomCat(id, { name, personality, look } = {}) {
+      const cat = state.customCats.find((c) => c.id === id);
+      if (!cat) return false;
+      if (!validPetName(name) || !Object.hasOwn(CUSTOM_PERSONALITIES, personality)) return false;
+      cat.name = name;
+      cat.personality = personality;
+      cat.look = sanitizeLook(look);
+      save();
+      return true;
+    },
+    equipCustom(id) {
+      if (!state.customCats.some((c) => c.id === id)) return false;
+      state.equipped.custom = id;
+      save();
+      return true;
     },
     equipAccessory(id) {
       const item = CATALOG.accessories[id];
@@ -1798,7 +1844,7 @@ export function createProgression(storage) {
         if (isTradeableAccessory(eff.remove) && owned.includes(eff.remove)) {
           owned = owned.filter((id) => id !== eff.remove);
           for (const slot of Object.keys(equipped)) {
-            if (slot !== 'cat' && equipped[slot] === eff.remove) equipped[slot] = null;
+            if (slot !== 'cat' && slot !== 'custom' && equipped[slot] === eff.remove) equipped[slot] = null;
           }
           if (cats.some((c) => c.finder === me && c.wear === eff.remove)) {
             cats = cats.map((c) => (c.finder === me && c.wear === eff.remove ? { ...c, wear: null } : c));
@@ -1881,6 +1927,7 @@ export function createProgression(storage) {
     replaceFromPayload(rawSaveObject) {
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
+      const localCustomCats = state.customCats;
       try {
         storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
       } catch (err) {
@@ -1889,6 +1936,11 @@ export function createProgression(storage) {
       adopt(loadState(storage));
       state.visits = Math.max(localVisits, state.visits);
       state.visitPrizesSeen = Math.max(localSeen, state.visitPrizesSeen);
+      // A payload from an older build has no customCats key: keep this phone's.
+      if (!(isPlainObject(rawSaveObject) && Object.hasOwn(rawSaveObject, 'customCats'))) {
+        state.customCats = localCustomCats;
+        state.equipped.custom = null;
+      }
       for (const id of prizesWonBy(state.visitPrizesSeen)) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
