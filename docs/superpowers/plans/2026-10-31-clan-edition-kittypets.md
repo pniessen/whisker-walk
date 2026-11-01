@@ -51,15 +51,32 @@ These four are settled by the owner. They are not defaults.
   - The first feed needs that territory's colony feeding to be switched on. The Woods and the River have it today. In the Moor you can only greet until the Moor's own step adds `'moor'` to `COLONY_AREAS`.
 - A cross kittypet gets no outsider word at all (never "the rogue"). A wanderer never turns cross when greeted.
 
+**Coordinator's rulings from the plan review (2026-10-31):**
+- **Kittypets stay out of the territories' ordinary cast.** Kittypets "mostly live in Twolegplace and only occasionally wander" (decision 6). So on a walk in any area in `TERRITORY_AREAS`, every `KITTYPET_NAMES` name is added to `excludeNames`.
+  - This filters the already-drawn shuffle, so it costs no rng draws.
+  - It is computed from the area id alone, so every co-walker gets the same cast in both editions.
+  - Colony kittypets (cast as `fixed` colony cats) still stand at their spots.
+  - This narrows spec §2 rule 4; the spec carries a dated note.
+- **One visitor at a time.** A kittypet already in the shared colony doesn't wander on a colony walk. The wanderer is picked from all of `WANDER_NAMES` first; if that pick is in the colony, there is no wanderer that day. There is never a re-pick, so partners can't disagree and a second kittypet never turns up the same day.
+- **Both new toasts are Clan Edition only** (the arrival line and "will wait for you here"). A Legacy kid on a co-walk sees the cat, with no toast.
+- **A full colony gets no new line.** The feed is refused as for every other cat today: no prompt, no toast.
+- **Legend vs wanderer (a note for the legendary plan; nothing to build now):** at most one visitor per walk. If territories ever get legendary cats, the legend wins and the wanderer stays home that walk. Today the two can't meet: legendary cats live only in the four old areas, and wanderers only in territories.
+- **The wander day is the UTC day**, the same boundary the game's other daily things use:
+  - the daily race, `new Date().toISOString().slice(0, 10)` at `src/game/walk.js:1347`;
+  - the streak at `walk.js:1585`;
+  - the den moments at `walk.js:835`;
+  - the home screen's `utcToday` at `src/ui/homebase.js:536`.
+
+  (The daily goals are seeded from `walkRng`, not a date.)
+
 ## Defaults this plan still picks (one-line changes)
 
 - **Where a wanderer stands:** about 6 m in from the walk's arrival point, which is on the Twolegplace path in each of these maps.
-- **Shared-colony rule:** a kittypet already in the shared colony doesn't wander on a colony walk (the same rule as the legendary cats).
-- **Wording:**
-  - Clan Edition: "You met Marmalade the kittypet! ♡".
-  - On arrival: "Marmalade the kittypet has wandered in from Twolegplace 🔔" (Legacy: "Marmalade has wandered in from the Cozy Neighborhood 🔔").
+- **Wording** (Clan Edition only):
+  - "You met Marmalade the kittypet! ♡".
+  - On arrival: "Marmalade the kittypet has wandered in from Twolegplace 🔔".
   - On the first feed: "Marmalade will wait for you here in The Woods 🐾".
-  - On taming, in Clan Edition: "Marmalade left Twolegplace to join you! She'll be waiting in the den 🏠".
+  - On taming: "Marmalade left Twolegplace to join you! She'll be waiting in the den 🏠".
 
 **Not in this plan:**
 - §2 rule 7's home-screen line ("Robbie, a kittypet who walks with …") needs the clan names from the "pick your clan" step, so it waits for that step.
@@ -70,17 +87,21 @@ These four are settled by the owner. They are not defaults.
 - **`src/clanwords.js`** (also edited by the "pick your clan" plan): **one additive key**, `OUTSIDE_WORDS.house = 'kittypet'`. No other line changes.
 - **`src/edition.js`**: **not edited.** This plan only imports `isClanEdition` and `placeName`.
 - **`src/cat/model.js`** (the cat body/builder work may be touching it): one line, `collar.name = 'collar'` in `buildCat`'s collar block (~line 1010). Rebase onto whichever lands first.
-- **`src/game/walk.js`** (the Moor branch `moor` registers its area elsewhere in this file): the edit is confined to the legendary/extras block (~lines 790–815) and one toast after `hud.setArea` (~line 1525).
-- **`src/colony.js`**: only `outsideTag` changes. `COLONY_AREAS` is not touched; the Moor branch adds `'moor'` there.
-- **Territory builds (Moor, Pines and Swamp, island):** nothing to do for them. `WANDER_AREAS` already lists `'moor'`, which is harmless until the Moor is walkable. `test/wanderspot.test.js` checks each wander area whose world file exists. When the Moor lands, add one line there (Task 3 says which).
+- **`src/game/walk.js`** (the Moor branch `moor` adds `moor` to `AREAS` elsewhere in this file): the edit is confined to the `excludeNames`/legendary/extras block (~lines 789–815) and one toast after `hud.setArea` (~line 1525).
+- **`src/colony.js`**: only `outsideTag` changes. `COLONY_AREAS` is not touched; the Moor branch already adds `'moor'` there.
+- **Territory builds (Moor, Pines and Swamp, island):** nothing to do for them.
+  - `WANDER_AREAS` already lists `'moor'`, which does nothing until the Moor is walkable.
+  - The territory cast rule reads `TERRITORY_AREAS`, which already lists every territory id.
+  - `test/wanderspot.test.js` checks each wander area whose world file exists. **Whichever of this branch and `moor` lands second adds the `moor: '../src/world/moor.js'` line to its builder map** (Task 3).
+- **`test/straycats.test.js:1240-1262`** reads `walk.js` as text. Task 4 rewrites that test for the new extras code.
 - **`test/editions.invariants.test.js`**: two new tests are appended. The existing "edition is the only new top-level key" test isn't touched (the clan-pick plan owns that line), and this plan adds no key.
 
 ## Review Focus
 
-1. **Co-walk agreement on the wanderer.** Two devices with different stray counts (22 vs 14) or different editions must see the same wanderer at the same spot. The wanderer's name is excluded from the ordinary cast on every walk, so a 22-stray device can't also draw it at a random spot.
+1. **Co-walk agreement on the wanderer.** Two devices with different stray counts (22 vs 14) or different editions must see the same wanderer at the same spot. In a territory every kittypet name is excluded from the ordinary cast, so a 22-stray device can't also draw the wanderer at a random spot.
 2. **A kittypet fixture in existing tests.** `CAT_NAMES[1..3]` (Marmalade, Baron von Fluff, Mochi) are kittypets, and older tests use them as "any cat". Where a test fails only because its fixture became a kittypet, swap the fixture to a non-kittypet name (Noodle, Pumpkin, Sardine…), not the expectation. List each swap in the commit body.
 3. **A wanderer the kid holds a grudge against.** It spawns cross, as any cross stray does, and the treat makes up as today. It must never turn cross on a greet.
-4. **A full colony.** Feeding a wanderer with the colony at the cap gives today's 'full' answer and no "will wait for you here" toast.
+4. **A full colony.** Feeding a wanderer with the colony at the cap gives today's 'full' answer and no toast at all (ruling: no new line).
 5. **The collar on a colony kittypet.** A kittypet already in the colony, tamed or not, wears its finder's accessory or nothing, never the kittypet collar. A Legacy walk shows no collar anywhere.
 
 ---
@@ -89,7 +110,7 @@ These four are settled by the owner. They are not defaults.
 
 **Files:**
 - Modify: `src/straynames.js` (add `KITTYPET_NAMES`, `isKittypetName` after `LEGENDARY_NAMES`)
-- Modify: `src/clanwords.js:184-188` (`OUTSIDE_WORDS`: add `house`)
+- Modify: `src/clanwords.js:188-192` (`OUTSIDE_WORDS`: add `house`)
 - Modify: `src/colony.js:805-816` (`outsideTag`)
 - Test: `test/housecats.test.js` (create), `test/clanwords.test.js`, `test/clannames.test.js`
 
@@ -139,7 +160,7 @@ test('a kittypet reads as the kittypet, never a loner or a rogue', () => {
 });
 ```
 
-Append to `test/clannames.test.js` (owner, 2026-10-31: a joined kittypet is an ordinary colony cat, so pin that nothing special happens):
+Append to `test/clannames.test.js` (owner, 2026-10-31: a joined kittypet is an ordinary colony cat, so pin that nothing special happens). Add `RANK_KEYS` to the file's existing `../src/clanwords.js` import.
 
 ```js
 test('a kittypet in the colony ranks like any other cat', () => {
@@ -161,6 +182,8 @@ Expected: FAIL (`KITTYPET_NAMES` is undefined; `OUTSIDE_WORDS.house` is undefine
     - add `isKittypetName(v)`, built from a Set like `isStrayName` (a Set, so `'__proto__'` is a stranger);
     - update the module header to note the subset rule ("a subset, never a new block; `CAT_NAMES` untouched").
   - `src/clanwords.js`: add `house: 'kittypet'` to `OUTSIDE_WORDS`, with a comment: "a stray who lives in Twolegplace (a kittypet name, straynames.js)". Nothing else in the file changes.
+    - `OUTSIDE_WORDS.player` is already `'kittypet'`. The duplicate value is deliberate: `player` is the player's own cat, `house` is a stray, and a later vocabulary swap may word them differently.
+    - Say so in the comment, so nobody "fixes" it by merging the keys.
   - `src/colony.js` `outsideTag`: before the word lookup, when `isKittypetName(name)`:
     - key `'met'` becomes `'house'`;
     - key `'grudge'` returns `''`.
@@ -198,7 +221,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `KITTYPET_COLLAR = 'bell'`;
   - `KITTYPET_COLLARS = Object.freeze({ Duchess: 'heart' })`;
   - `collarFor(state, name) => string | null`, from `src/housecats.js` (pure, no THREE). It returns null unless `isClanEdition(state)`, `isKittypetName(name)`, and `name` isn't in `state.colony.cats`. The lookup is an own-property read.
-  - `createStrayCats(..., { collarFor = () => null })`. A non-colony stray with a collar id builds with `{ collar: id }`. A colony cat (`fixed`) keeps its own wear and is never asked. Every mesh under the cat's `'collar'` group gets `userData.noCast = true`. That flag is the existing `assignShadowCastersFor` opt-out (`src/render/rig.js:388`); the sweep runs after the strays are built (walk.js ~1005).
+  - `createStrayCats(..., { collarFor = () => null })`:
+    - A non-colony stray with a collar id builds with `{ collar: id }`.
+    - A colony cat (`fixed`) keeps its own wear and is never asked.
+    - Every mesh under the cat's `'collar'` group gets `userData.noCast = true`. That flag is the existing `assignShadowCastersFor` opt-out (`src/render/rig.js:388`); the sweep runs after the strays are built (walk.js ~1005).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -264,8 +290,13 @@ Expected: FAIL (there's no `src/housecats.js`, and no collar group).
     - the three exports above. "In the colony" means any `colony.cats` entry with that name, tamed or not; read it defensively, as `legendary.js`'s `inColony` does.
   - `src/cat/model.js`: in `buildCat`'s collar block, `collar.name = 'collar';`. `buildChicken` doesn't need it (no stray is a chicken).
   - `src/straycats.js`:
-    - take `collarFor` in the options;
-    - in the main loop, for a non-`fixed` stray, `const id = collarFor(name); const wear = fixedWear ?? (typeof id === 'string' ? { collar: id } : undefined);`;
+    - take `collarFor` in the options.
+    - In the main loop, the existing `wear` (today built from `fixed?.wear` only) becomes:
+      ```js
+      const collarId = fixed ? null : collarFor(name);
+      const wear = fixed?.wear && /* existing slot/id checks */ ? { [fixed.wear.slot]: fixed.wear.id }
+        : typeof collarId === 'string' ? { collar: collarId } : undefined;
+      ```
     - after `buildCat`, mark every mesh under `group.getObjectByName('collar')` with `userData.noCast = true`;
     - give the extras loop the same collar rule;
     - draw nothing new from `rng`.
@@ -287,39 +318,44 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 3: The wander rules (pure)
+### Task 3: The wander rules and the territory cast (pure)
 
 **Files:**
 - Modify: `src/housecats.js`
+- Create: `test/fixtures/flood.js` (a shared flood fill, lifted from `test/woods.test.js:56-100`; `woods.test.js` itself is left alone)
 - Test: `test/housecats.test.js`, `test/wanderspot.test.js` (create)
 
 **Interfaces:**
 - Consumes:
   - `KITTYPET_NAMES`, `CAT_NAMES` (`src/straynames.js`);
   - `seedFromCode`, `mulberry32` (`src/rng.js`);
-  - `TERRITORY_AREAS` (`src/colony.js`, test only).
+  - `TERRITORY_AREAS` (`src/colony.js`, which is pure and doesn't import `housecats.js`, so there is no cycle).
 - Produces:
   - `WANDER_AREAS = Object.freeze(['woods', 'river', 'moor'])`;
   - `WANDER_ODDS = 1 / 5`;
-  - `WANDER_NAMES`: `KITTYPET_NAMES` that are in `CAT_NAMES` (the 12; Duchess excluded);
+  - `WANDER_NAMES`: `KITTYPET_NAMES` that are in `CAT_NAMES` (the 12; Duchess excluded).
   - `wandererFor(areaId: string, ymd: string, colonyNames: string[] = []) => string | null`:
     - `const r = mulberry32(seedFromCode(`${ymd}-wander-${areaId}`))`;
     - `u = r()`, then `pick = r()`;
     - null if the area isn't in `WANDER_AREAS`, `ymd` doesn't match `/^\d{4}-\d{2}-\d{2}$/`, or `u >= WANDER_ODDS`;
-    - otherwise `candidates = WANDER_NAMES` minus `colonyNames`. Null if none, else `candidates[Math.floor(pick * candidates.length)]`;
+    - otherwise `name = WANDER_NAMES[Math.floor(pick * WANDER_NAMES.length)]`, picked from **all** of `WANDER_NAMES`;
+    - **null if `colonyNames` includes `name`.** There is no re-pick (ruling: one visitor, and partners must agree).
   - `walkWanderer(state, areaId, { ymd, colonyWalk, isDen }) => string | null`:
     - null when `isDen`;
     - otherwise `wandererFor(areaId, ymd, colonyWalk ? names of state.colony.cats : [])`;
-    - a colony walk is partner-only, so the colony is shared. Off one, the decision may read only the date and the area, so every co-walker agrees;
+    - a colony walk is partner-only, so the colony is shared. Off one, the decision may read only the date and the area, so every co-walker agrees.
+  - `territoryCastExcludes(areaId) => readonly string[]`: `KITTYPET_NAMES` when `TERRITORY_AREAS.includes(areaId)`, else `[]` (ruling: kittypets stay out of a territory's ordinary cast).
   - `WANDER_STEP = 6`;
   - `wanderStart(spawn: {x, z}) => {x, z}`: a point `WANDER_STEP` m from `spawn` toward the map's middle (0, 0), or `spawn.x - WANDER_STEP` when `spawn` is the origin. The caller passes it through `clearSpot` (Task 4).
+- `test/fixtures/flood.js` exports `floodFrom(area, start, isWalkable) => { reaches(x, z), reachesWithin(x, z, r) }`, with the same 0.5 m grid and four-neighbour fill as `woods.test.js`.
 
 - [ ] **Step 1: Write the failing tests**
 
 `test/housecats.test.js`:
 
 ```js
-import { WANDER_AREAS, WANDER_ODDS, WANDER_NAMES, wandererFor, walkWanderer, wanderStart, WANDER_STEP } from '../src/housecats.js';
+import { WANDER_AREAS, WANDER_ODDS, WANDER_NAMES, wandererFor, walkWanderer, wanderStart, WANDER_STEP, territoryCastExcludes } from '../src/housecats.js';
+import { KITTYPET_NAMES } from '../src/straynames.js';
 import { TERRITORY_AREAS } from '../src/colony.js';
 
 const days = Array.from({ length: 730 }, (_, d) => new Date(Date.UTC(2026, 0, 1) + d * 864e5).toISOString().slice(0, 10));
@@ -347,17 +383,25 @@ test('the same day and territory give the same wanderer, and every one is a kitt
   expect(WANDER_NAMES).not.toContain('Duchess');
   expect(seen.size).toBeGreaterThan(6);
 });
-test('a kittypet already in the colony does not wander on a colony walk', () => {
+test('a kittypet already in the colony means no wanderer that day on a colony walk, never a second pick', () => {
   const d = days.find((x) => wandererFor('woods', x));
   const w = wandererFor('woods', d);
   const state = { colony: { cats: [{ name: w }] } };
-  expect(walkWanderer(state, 'woods', { ymd: d, colonyWalk: true, isDen: false })).not.toBe(w);
+  expect(walkWanderer(state, 'woods', { ymd: d, colonyWalk: true, isDen: false })).toBeNull();
   expect(walkWanderer(state, 'woods', { ymd: d, colonyWalk: false, isDen: false })).toBe(w);
   expect(walkWanderer(state, 'woods', { ymd: d, colonyWalk: true, isDen: true })).toBeNull();
+  const other = { colony: { cats: [{ name: WANDER_NAMES.find((n) => n !== w) }] } };
+  expect(walkWanderer(other, 'woods', { ymd: d, colonyWalk: true, isDen: false })).toBe(w);
 });
 test('bad input shows nobody and never throws', () => {
   for (const ymd of [undefined, null, 5, '', '2026-1-1', 'today']) expect(wandererFor('woods', ymd)).toBeNull();
   expect(walkWanderer(null, 'woods', { ymd: days[0], colonyWalk: true })).toBe(wandererFor('woods', days[0]));
+});
+test('kittypets stay out of every territory cast, and only there', () => {
+  for (const a of TERRITORY_AREAS) expect([...territoryCastExcludes(a)].sort()).toEqual([...KITTYPET_NAMES].sort());
+  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'den', '__proto__', undefined]) {
+    expect(territoryCastExcludes(a)).toEqual([]);
+  }
 });
 test('wanderStart steps WANDER_STEP metres toward the middle', () => {
   const p = wanderStart({ x: 44, z: 12 });
@@ -367,10 +411,10 @@ test('wanderStart steps WANDER_STEP metres toward the middle', () => {
 ```
 
 `test/wanderspot.test.js`:
-- Use the same headless `document` stub as `test/woods.test.js`.
-- Build each wander area that has a world file today: `{ woods: '../src/world/woods.js', river: '../src/world/river.js' }`. When the Moor merges, add `moor: '../src/world/moor.js'` to this map.
+- Use the same headless `document` stub as `test/woods.test.js`, and import `isWalkableAt` from `../src/player.js`, `clearSpot` from `../src/world/spots.js` and `floodFrom` from `./fixtures/flood.js`.
+- Build each wander area that has a world file today: `{ woods: '../src/world/woods.js', river: '../src/world/river.js' }`. **Whichever of this branch and `moor` lands second adds `moor: '../src/world/moor.js'` here.**
 - For each, `const spot = clearSpot(wanderStart(area.spawn), area.colliders, area.bounds, area.waters)`, then assert:
-  - `inWater(area.waters, spot.x, spot.z)` is false (or `onDeck`), using the imports `test/water.test.js` uses;
+  - **the spot is reachable on foot from the spawn**: `floodFrom(area, area.spawn, (x, z) => isWalkableAt(area, x, z)).reachesWithin(spot.x, spot.z, 0.75)` is true;
   - the spot is inside `area.bounds`;
   - `Math.hypot(spot.x - area.spawn.x, spot.z - area.spawn.z)` is between 3 and 12;
   - every key in the builder map is in `WANDER_AREAS`.
@@ -380,9 +424,11 @@ test('wanderStart steps WANDER_STEP metres toward the middle', () => {
 Run: `npx vitest run test/housecats.test.js test/wanderspot.test.js`
 Expected: FAIL (nothing is exported yet).
 
-- [ ] **Step 3: Implement the exports above in `src/housecats.js`**
+- [ ] **Step 3: Implement the exports above in `src/housecats.js`, and `test/fixtures/flood.js`**
 
-Header note: the roll is per UTC day and territory (spec §3 builder note), never `walkRng`, and it adds nothing on the wire.
+Header note in `src/housecats.js`:
+- The roll is per **UTC** day and territory (spec §3 builder note). That is the same day boundary as the daily race (`walk.js:1347`) and the streak (`walk.js:1585`).
+- It never draws from `walkRng` and adds nothing on the wire.
 
 - [ ] **Step 4: Run the tests**
 
@@ -392,8 +438,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/housecats.js test/housecats.test.js test/wanderspot.test.js
-git commit -m "feat(kittypets): the wander roll, one day in five per territory a Twolegplace path reaches
+git add src/housecats.js test/housecats.test.js test/wanderspot.test.js test/fixtures/flood.js
+git commit -m "feat(kittypets): the wander roll, and kittypets kept out of the territory casts
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -407,23 +453,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/game/walk.js` (~lines 789–813, and the toast after `hud.setArea` ~line 1525)
 - Modify: `src/game/interactions.js:1150` (the rupture gate)
 - Modify: `src/housecats.js` (`wanderArrivalLine`)
-- Test: `test/straycats.test.js`, `test/housecats.test.js`, `test/interactions.test.js`
+- Test: `test/straycats.test.js` (new cases, and a rewrite of the walk.js text test at lines 1240–1262), `test/housecats.test.js`, `test/interactions.test.js`
 
 **Interfaces:**
-- Consumes: `walkWanderer`, `wanderStart`, `collarFor` (Tasks 2–3); `clearSpot` (`src/world/spots.js`).
+- Consumes: `walkWanderer`, `territoryCastExcludes`, `wanderStart`, `collarFor` (Tasks 2–3); `clearSpot` (`src/world/spots.js`); `isClanEdition`.
 - Produces:
   - `createStrayCats` extras accept `{ name, rng, spot?: {x, z}, wanderer?: true }`:
     - a kittypet name is allowed when `wanderer: true` (a legendary name is allowed as before);
     - the extra still takes its five draws from `ex.rng`, but stands at `spot`, clamped to bounds like a colony cat, when `spot` is given;
     - it gets the legend glow and star only if `isLegendaryName`;
     - it has `wanderer: true` on its stray entry (`false` on every other stray).
-  - `wanderArrivalLine(name, edition, catalog) => string`:
-    - Clan: `${name} the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`;
-    - Legacy: `${name} has wandered in from ${placeName('neighborhood', 'legacy', catalog)} 🔔`.
+  - `wanderArrivalLine(name) => string`: `${name} the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`. It is Clan Edition only (ruling), so there is no Legacy branch.
 
 - [ ] **Step 1: Write the failing tests**
 
-`test/straycats.test.js`:
+`test/straycats.test.js`, new cases:
 
 ```js
 describe('createStrayCats — a kittypet wanderer', () => {
@@ -438,31 +482,36 @@ describe('createStrayCats — a kittypet wanderer', () => {
     expect(w.tag?.userData?.legend ?? false).toBe(false);
     expect(cats.strays.filter((s) => s.name === 'Marmalade')).toHaveLength(1);
   });
-  it('a non-kittypet without the legendary rule is still refused as an extra', () => {
+  it('a non-kittypet is refused as a wanderer extra', () => {
     const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(1), { extras: [{ name: 'Pickles', rng: mulberry32(2), wanderer: true }] });
-    expect(cats.strays.filter((s) => s.name === 'Pickles').length).toBeLessThanOrEqual(1);
-    expect(cats.strays.every((s) => !s.wanderer || s.name !== 'Pickles')).toBe(true);
+    expect(cats.strays).toHaveLength(3);
+    expect(cats.strays.some((s) => s.name === 'Pickles' && s.wanderer === true)).toBe(false);
   });
-  it('two devices with 22 and 14 strays place the same wanderer at the same spot', () => {
+  it('two devices with 22 and 14 strays place the same wanderer at the same spot and facing', () => {
     const a = createStrayCats(fakeScene(), AREA, 22, mulberry32(5), { extras: [wanderer(7)], excludeNames: ['Marmalade'] });
     const b = createStrayCats(fakeScene(), AREA, 14, mulberry32(5), { extras: [wanderer(7)], excludeNames: ['Marmalade'] });
-    const at = (c) => c.strays.find((s) => s.name === 'Marmalade').group.rotation.y;
-    expect(at(a)).toBe(at(b));
+    const w = (c) => c.strays.find((s) => s.name === 'Marmalade');
+    expect([w(a).home.x, w(a).home.z, w(a).group.rotation.y]).toEqual([w(b).home.x, w(b).home.z, w(b).group.rotation.y]);
   });
 });
 ```
 
 (Use the file's existing counting-rng helper and the pinned draw count it already uses for the legendary extra; `47 + 5 * count` is the figure in the `createStrayCats` header.)
 
-`test/housecats.test.js`:
+`test/straycats.test.js:1240-1262` ("a walk with a non-partner never passes extras") reads `walk.js` as text. Rewrite it for the new block, keeping every promise it pins:
+- **The legend stays behind `colonyWalk`.** Keep the `const legend = colonyWalk && !isDen ? legendaryFor(` assertion, the single `legendaryRoll(` call on that line, and `{ shared: roomSeed !== undefined }`.
+- **The wanderer comes only from `walkWanderer`**: `src` contains `walkWanderer(state, areaId, {`, with no `walkRng` between it and the `createStrayCats(` call.
+- **The legend wins:** `src` contains `const extras = legend ? [`, and the wanderer is the else-branch of that same expression.
+- **`extras` is still passed as shorthand:** keep the `/\n\s+extras,\n/` match on the `createStrayCats(` call.
+- **Each extra's rng is its own `mulberry32` over its name and the room seed:** `mulberry32((seedFromCode(legend) ^ (roomSeed ?? ` and `mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? ` both appear, and the slice from the extras line to the call contains no `walkRng`.
+- **`excludeNames` includes `territoryCastExcludes(areaId)`.**
+- **Nothing of either inside the rival's slice:** the existing `legend` regex, extended to `/legend|wander/i`.
+
+`test/housecats.test.js` (add `OUTSIDE_WORDS`, `PLACE_WORDS` from `../src/clanwords.js` and `wanderArrivalLine` to the imports):
 
 ```js
-test('the arrival line names Twolegplace in Clan Edition and the Cozy Neighborhood in Legacy', () => {
-  expect(wanderArrivalLine('Marmalade', 'canon', CATALOG)).toBe(`Marmalade the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`);
-  const legacy = wanderArrivalLine('Marmalade', 'legacy', CATALOG);
-  expect(legacy).toContain(CATALOG.areas.neighborhood.name);
-  expect(legacy).not.toContain(OUTSIDE_WORDS.house);
-  expect(legacy).not.toContain(PLACE_WORDS.town);
+test('the arrival line', () => {
+  expect(wanderArrivalLine('Marmalade')).toBe(`Marmalade the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`);
 });
 ```
 
@@ -480,16 +529,25 @@ Expected: FAIL.
     - glow and legend tag only `if (isLegendaryName(name))`. Today `glows.push(dressLegend(...))` would push `null`;
     - add `wanderer: ex.wanderer === true` to the extra's entry, and `wanderer: false` to the main loop's entry. Keep the "keep in step" comments true;
     - give extras the Task 2 collar rule.
-  - `src/game/walk.js`, beside the legendary block:
-    ```js
-    const today = new Date().toISOString().slice(0, 10);   // the race's UTC date
-    const wanderName = walkWanderer(state, areaId, { ymd: today, colonyWalk, isDen });
-    ```
-    - Push `{ name: wanderName, wanderer: true, spot: clearSpot(wanderStart(areaData.spawn), areaData.colliders ?? [], areaData.bounds, areaData.waters ?? []), rng: mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0) }` onto `extras`. Make `extras` a `let`/array built from both.
-    - Append `wanderName` to `excludeNames` **on every walk**, colony or not. Excluding filters the already-drawn shuffle and costs no draws. Every co-walker excludes the same name, so all casts still agree.
+  - `src/game/walk.js`:
+    - `excludeNames` becomes the colony names (on a colony walk, as today) **plus `territoryCastExcludes(areaId)` on every walk**.
+      - That list comes from the area id alone, so every co-walker in either edition filters the same names out of the already-drawn shuffle, at no draw cost.
+      - Colony kittypets are cast through `colonyCats` (`fixed`) and still stand at their spots.
+      - Every wanderer is a kittypet and every wander area is a territory, so the wanderer is never also in the ordinary cast.
+    - Beside the legendary block:
+      ```js
+      const today = new Date().toISOString().slice(0, 10);   // UTC, the race's and the streak's day
+      const wanderName = walkWanderer(state, areaId, { ymd: today, colonyWalk, isDen });
+      const extras = legend ? [ /* unchanged */ ] : wanderName ? [{
+        name: wanderName, wanderer: true,
+        spot: clearSpot(wanderStart(areaData.spawn), areaData.colliders ?? [], areaData.bounds, areaData.waters ?? []),
+        rng: mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
+      }] : [];
+      ```
+      The legend wins (ruling). Today the two never meet, because legends live only in the old areas.
     - The existing `today` at line ~1347 can be hoisted and reused rather than computed twice.
-    - After `hud.setArea(...)`: `if (wanderName) hud.toast(wanderArrivalLine(wanderName, progression.state.edition, CATALOG));`.
-    - Add a comment block in the legendary block's style: no `walkRng`, nothing on the wire, the same on every edition.
+    - After `hud.setArea(...)`: `if (wanderName && isClanEdition(progression.state) && !state.colony?.cats?.some((c) => c.name === wanderName)) hud.toast(wanderArrivalLine(wanderName));`.
+    - Add a comment block in the legendary block's style: no `walkRng`, nothing on the wire, the same on every edition (only the toast is Clan Edition).
   - `src/game/interactions.js` rupture: `if (grudgeable && !stray.wanderer && shouldTurnHostile(...) && ...)`, with a one-line comment: a wanderer is a harmless visitor (decision 6).
 
 - [ ] **Step 4: Run the full suite**
@@ -515,7 +573,7 @@ No new mechanics: this task only says out loud what the existing feed already do
 **Files:**
 - Modify: `src/housecats.js` (`wanderStayLine`, `kittypetTamedLine`)
 - Modify: `src/game/interactions.js` (`feedStray`, ~lines 1239–1280)
-- Test: `test/housecats.test.js`, `test/interactions.test.js`
+- Test: `test/housecats.test.js`, `test/interactions.test.js` (new cases, plus a fixture swap at lines 3401–3406)
 
 **Interfaces:**
 - Consumes: `isKittypetName`, `PLACE_WORDS.town`, `isClanEdition`, `placeName`.
@@ -534,11 +592,15 @@ test('the bring-home lines', () => {
 });
 ```
 
-`test/interactions.test.js`, with the file's feed harness:
-- feeding a `wanderer: true` stray whose `feedColonyCat` returns `'ok'` toasts the feed line **and** `wanderStayLine(name, placeName(areaId, edition, CATALOG))`;
-- the same stray with `feedColonyCat` returning `'full'` toasts neither;
-- a kittypet whose feed returns `tamedNow: true` toasts `kittypetTamedLine(name)` in Clan Edition and the existing "trusts you!" line in Legacy;
-- a non-kittypet toasts the existing "trusts you!" line in both editions.
+`test/interactions.test.js`:
+- **The fixture swap at 3401–3406.** "the taming feed toasts, grants the reward…" uses `colonyHarness({ name: 'Marmalade', … })` and expects `"Marmalade trusts you! …"`. Marmalade is now a kittypet, so in Clan Edition she gets the new line. Swap that test's name to `'Pickles'` everywhere in it, and keep its expectations.
+- **New cases**, with the file's feed harness:
+  - in Clan Edition, the **first** feed of a `wanderer: true` stray (not in the colony beforehand) toasts the feed line **and** `wanderStayLine(name, placeName(areaId, 'canon', CATALOG))`;
+  - a later feed of the same cat on another walk (already in the colony, so no longer a wanderer extra; to pin the guard, force `wanderer: true` with the cat already in `colony.cats`) does not toast the stay line;
+  - in Legacy, the first feed of a wanderer doesn't toast the stay line;
+  - with `feedColonyCat` returning `'full'`, there is no toast at all;
+  - a kittypet whose feed returns `tamedNow: true` toasts `kittypetTamedLine(name)` in Clan Edition and the existing "trusts you!" line in Legacy;
+  - a non-kittypet toasts the existing "trusts you!" line in both editions.
 
 - [ ] **Step 2: Run them to make sure they fail**
 
@@ -547,9 +609,10 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
   - The two helpers in `src/housecats.js`.
-  - In `feedStray`, after the existing feed toast:
-    - `if (stray.wanderer) hud.toast(wanderStayLine(name, placeName(s.areaId, progression.state.edition, CATALOG) || s.areaId));`
-    - In the `r.tamedNow` branch, the first toast becomes `isClanEdition(progression.state) && isKittypetName(name) ? kittypetTamedLine(name) : <the existing line>`.
+  - In `feedStray`:
+    - **before** `feedColonyCat`, `const wasColony = progression.state.colony.cats.some((c) => c.name === name);`;
+    - after the existing feed toast, `if (stray.wanderer && !wasColony && isClanEdition(progression.state)) hud.toast(wanderStayLine(name, placeName(s.areaId, progression.state.edition, CATALOG) || s.areaId));`;
+    - in the `r.tamedNow` branch, the first toast becomes `isClanEdition(progression.state) && isKittypetName(name) ? kittypetTamedLine(name) : <the existing line>`.
   - The feed itself is untouched: `feedColonyCat` still checks the caps and the area, records the cat at `stray.home` (the wanderer's spot), and the server path is unchanged.
 
 - [ ] **Step 4: Run the full suite**
@@ -575,13 +638,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Append the tests**
 
+The V4 fixture already holds Marmalade (tamed, in the park) and Mochi (untamed, in the park), so a kittypet test must not use either. **Clementine** is a kittypet, isn't shy, and is in neither fixture.
+
 ```js
 describe('kittypets keep every promise', () => {
   test('feeding and taming a kittypet stores its own name, and flipping the edition changes nothing', () => {
     const p = load();
-    for (let i = 0; i < 6; i++) p.feedColonyCat({ name: 'Marmalade', by: ME, walk: `walk-${900 + i}`, area: 'woods', x: 3, z: 4 });
-    const cat = p.state.colony.cats.find((c) => c.name === 'Marmalade');
-    expect(cat).toMatchObject({ name: 'Marmalade', area: 'woods' });
+    for (let i = 0; i < 6; i++) p.feedColonyCat({ name: 'Clementine', by: ME, walk: `walk-${900 + i}`, area: 'woods', x: 3, z: 4 });
+    const cat = p.state.colony.cats.find((c) => c.name === 'Clementine');
+    expect(cat).toMatchObject({ name: 'Clementine', area: 'woods', tamedBy: ME });
     const { edition: _a, ...before } = structuredClone(p.state);
     p.setEdition('legacy'); p.setEdition('canon');
     const { edition: _b, ...after } = p.state;
@@ -593,7 +658,7 @@ describe('kittypets keep every promise', () => {
 });
 ```
 
-If the first test hits `SOLO_MAX` because the fixture is full, it is not: the V4 fixture holds 3 cats. Feeding six times on different walk stamps is enough to tame from nothing (`TAME_FEEDS` 6). Assert `tamedBy === ME` too.
+The V4 fixture holds 3 cats, so a fourth is well under `SOLO_MAX`. Six feeds on different walk stamps tame from nothing (`TAME_FEEDS` 6). `'woods'` is in `COLONY_AREAS` on main.
 
 - [ ] **Step 2: Run the full suite**
 
@@ -604,10 +669,14 @@ Expected: PASS, with the file count and test count higher than at 32f204e.
 
 Start the dev server with the project's run skill or `.claude/launch.json`, then:
 - In Clan Edition, walk Twolegplace and find a kittypet (Marmalade, Mochi…). It wears a red collar with a gold bell. Greeting it says "…the kittypet! ♡".
-- Force a wander day by temporarily calling `walkWanderer` with a known wander `ymd` from the console, or by picking a date from the Task 3 test. Walk the Woods. The arrival toast shows, the cat stands a few metres up the path from the start, greet it, feed it, and see "will wait for you here in The Woods".
-- On the next Woods walk it stands at the same spot as a colony cat, with no collar.
+- Walk the Woods on a day with no wanderer: no kittypet is in the cast.
+- Force a wander day by temporarily calling `walkWanderer` with a known wander `ymd` from the console, or by picking a date from the Task 3 test. Walk the Woods:
+  - the arrival toast shows;
+  - the cat stands a few metres up the path from the start;
+  - greet it and feed it, and see "will wait for you here in The Woods".
+- On the next Woods walk it stands at the same spot as a colony cat, with no collar, and a second feed doesn't repeat the stay line.
 - Open the Colony tab. Its card reads like any other colony cat's (its clan name, e.g. "Amberkit", and its rank), with no "kittypet" anywhere on it.
-- Flip to Legacy: no collar, no "kittypet", the card reads "Marmalade".
+- Flip to Legacy: no collar, no "kittypet", no wander toasts, and the card reads "Marmalade".
 - Revert any console-only forcing; nothing is committed for it.
 
 - [ ] **Step 4: Commit**

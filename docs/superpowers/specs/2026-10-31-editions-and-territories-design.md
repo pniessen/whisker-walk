@@ -388,6 +388,14 @@ already). Good things follow:
    "Twolegplace, and kittypets who wander". The ordinary stray cast is not
    changed, because changing who spawns where would make co-walks drift
    apart.
+   *(Narrowed 2026-10-31, kittypets plan review:)*
+   - In the clan territories, every kittypet is left out of the ordinary
+     stray cast, so a kittypet there is only ever the day's wanderer or a
+     colony cat at its spot.
+   - This doesn't make co-walks drift: the left-out names come from the area
+     id alone, so every device filters the same names, in either edition, at
+     no cost to the seeded draws.
+   - The other areas' casts are unchanged.
 5. **They can be befriended, as today**: greet, friend, best friend.
 6. **They can join the clan, as today.** This is the book-one moment. A
    kittypet who joins gets a clan name on the Colony card, with the old name
