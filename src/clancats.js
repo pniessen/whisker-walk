@@ -50,6 +50,7 @@ const ROAM_MAX = 6;          // clancast.js ROAM_RADIUS: a leg's target is never
 const LEG_GIVE_UP = 8;       // seconds: an unreachable target ends the leg
 const KIT_HOP_TIME = 0.5;    // seconds for one hop between kit seats
 const KIT_HOP_HEIGHT = 0.12;
+const KIT_HOP_BOW = 0.3;     // sideways bow of a hop, metres
 const DEPUTY_LOOK = 0.6;     // radians either side of the camp's centre
 const DEPUTY_LOOK_RATE = 0.25;
 const GREET_HOLD = 3;
@@ -148,7 +149,13 @@ export function createClanCats(scene, area, cast, {
     // Lever 1 of the draw budget: camp-seated cats cast no shadow-map shadow.
     // Set on every mesh before walk.js's assignShadowCasters sweep, which
     // skips a noCast mesh. The tag (a sprite) is added after, and is no mesh.
-    if (camp) group.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
+    // They still RECEIVE shadows (a receiver costs no shadow-pass draw);
+    // rig.js skips a noCast mesh entirely, so receiveShadow is set here.
+    if (camp) {
+      group.traverse((o) => {
+        if (o.isMesh) { o.userData.noCast = true; o.castShadow = false; o.receiveShadow = true; }
+      });
+    }
     let tag = null;
     if (showNames) {
       tag = makeNameTag(member.name, { sub: tagSubFor(member) });
@@ -190,7 +197,7 @@ export function createClanCats(scene, area, cast, {
       hopFrom: null,
       hopTo: null,
       hopT: 0,
-      away: false,      // a kit sitting on its neighbour's seat
+      at: kitSeat,      // the kit seat this kit sits on, or is hopping to
       trail: null,      // a buddy's way back home (points it stood on)
     });
   }
@@ -226,8 +233,14 @@ export function createClanCats(scene, area, cast, {
     const p = c.group.position;
     if (c.state === 'hop') {
       c.hopT = Math.min(1, c.hopT + dt / KIT_HOP_TIME);
-      p.x = c.hopFrom.x + (c.hopTo.x - c.hopFrom.x) * c.hopT;
-      p.z = c.hopFrom.z + (c.hopTo.z - c.hopFrom.z) * c.hopT;
+      // A sideways bow of the path, so two kits swapping seats pass on
+      // opposite sides instead of through each other.
+      const dx = c.hopTo.x - c.hopFrom.x;
+      const dz = c.hopTo.z - c.hopFrom.z;
+      const dl = Math.hypot(dx, dz) || 1;
+      const bow = Math.sin(Math.PI * c.hopT) * KIT_HOP_BOW;
+      p.x = c.hopFrom.x + dx * c.hopT - (dz / dl) * bow;
+      p.z = c.hopFrom.z + dz * c.hopT + (dx / dl) * bow;
       p.y = Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT;
       animateCat(c.group, 'pounce', t, ROAM_SPEED);
       if (c.hopT >= 1) {
@@ -239,14 +252,30 @@ export function createClanCats(scene, area, cast, {
     }
     c.timer -= dt;
     if (c.timer <= 0) {
-      const mine = kitSeats[c.kitSeat];
-      const to = c.away ? mine : neighbourSeat(c.kitSeat);
-      c.away = !c.away;
-      c.hopFrom = { x: p.x, z: p.z };
-      c.hopTo = { x: to.x, z: to.z };
-      c.hopT = 0;
-      c.state = 'hop';
-      c.group.rotation.y = yawToward(p.x, p.z, to.x, to.z);
+      // Kits trade places with their pair partner (0<->1, 2<->3). A seat is
+      // never shared: if the partner sits on the target seat the two swap,
+      // hopping past each other on opposite sides; if the partner is still
+      // hopping, wait a beat. No random draw here, so streams are untouched.
+      const ti = c.at ^ 1;
+      const partner = list.find((o) => o !== c && o.kitSeat >= 0 && o.kitSeat === (c.kitSeat ^ 1));
+      if (!kitSeats[ti]) { c.timer = 2; return animateCat(c.group, 'pounce', t, 0); }
+      if (partner && partner.at === ti && partner.state !== 'post') {
+        c.timer = 0.5;
+        return animateCat(c.group, 'pounce', t, 0);
+      }
+      const swap = partner && partner.at === ti;
+      const startHop = (k, to) => {
+        const kp = k.group.position;
+        k.hopFrom = { x: kp.x, z: kp.z };
+        k.hopTo = { x: to.x, z: to.z };
+        k.hopT = 0;
+        k.state = 'hop';
+        k.group.rotation.y = yawToward(kp.x, kp.z, to.x, to.z);
+      };
+      const fromAt = c.at;
+      startHop(c, kitSeats[ti]);
+      c.at = ti;
+      if (swap) { startHop(partner, kitSeats[fromAt]); partner.at = fromAt; }
     }
     animateCat(c.group, 'pounce', t, 0);
   }

@@ -270,10 +270,43 @@ describe('createClanCats', () => {
   test('camp-seated cats are noCast; roamers are not', () => {
     for (const c of spawn().list) {
       const flags = [];
-      c.group.traverse((o) => { if (o.isMesh) flags.push(o.userData.noCast === true); });
+      c.group.traverse((o) => {
+        if (!o.isMesh) return;
+        flags.push(o.userData.noCast === true);
+        // rig.js skips a noCast mesh, so a camp cat must ask to receive.
+        if (CAMP_RANKS.has(c.rank)) {
+          expect(o.receiveShadow, c.id).toBe(true);
+          expect(o.castShadow, c.id).toBe(false);
+        }
+      });
       expect(flags.length).toBeGreaterThan(0);
       expect(flags.every((f) => f === CAMP_RANKS.has(c.rank)), c.id).toBe(true);
     }
+  });
+
+  test('paired kits never share a seat over a long run, and still trade places', () => {
+    const cats = spawn();
+    const kits = cats.list.filter((c) => c.rank === K.kit);
+    expect(kits).toHaveLength(4);
+    const seats = campLayout('woods').seats.kits;
+    const pairs = [[kits[0], kits[1]], [kits[2], kits[3]]];
+    let minGap = Infinity;
+    const everAway = new Set();
+    run(cats, 600, undefined, () => {
+      for (const [a, b] of pairs) {
+        minGap = Math.min(minGap, a.group.position.distanceTo(b.group.position));
+      }
+      for (const k of kits) {
+        const own = seats[k.kitSeat];
+        if (Math.hypot(k.group.position.x - own.x, k.group.position.z - own.z) > 0.5) everAway.add(k.id);
+      }
+    });
+    expect(minGap).toBeGreaterThan(0.4);
+    expect(everAway.size).toBe(4);
+    // deterministic
+    const twin = spawn(); const twin2 = spawn();
+    run(twin, 77); run(twin2, 77);
+    expect(twin.list.map((c) => c.group.position.toArray())).toEqual(twin2.list.map((c) => c.group.position.toArray()));
   });
 
   test('the wander asks only the isWalkable it was given', () => {

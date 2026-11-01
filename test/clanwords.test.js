@@ -159,13 +159,15 @@ function literalsIn(src) {
 // lowercase kebab id starting `clan-` (prompt kinds like 'clan-greet', award
 // key pieces like the `clan-friend-` before a template's ${id}). Anything
 // with a space, a capital or other text still counts as a borrowed word.
-export const INTERNAL_ID = /^clan-[a-z]+(-[a-z0-9]*)*-? ?$/;  // a trailing space is a template's ${...}
+const INTERNAL_ID = /^clan-[a-z]+(-[a-z0-9]*)*-? ?$/;  // a trailing space is a template's ${...}
 
 function borrowedIn(src) {
-  const lits = literalsIn(src).filter((l) => !INTERNAL_ID.test(l));
+  const lits = literalsIn(src);
   return BORROWED.filter((w) => {
     const re = new RegExp(`\\b${w}\\b`, 'i');
-    return lits.some((l) => re.test(l));
+    // An internal id is exempt from the Clan word ONLY; rank, outside and
+    // place words are still scanned in it.
+    return lits.some((l) => re.test(l) && !(w === CLAN_SUFFIX && INTERNAL_ID.test(l)));
   });
 }
 
@@ -324,6 +326,12 @@ test('no clan cat word is anyone else\'s word, and none holds a canon clan word'
     expect(strays.has(lw), w).toBe(false);
     for (const c of CANON_CLAN_WORDS) expect(lw.includes(c), `${w} has ${c}`).toBe(false);
   }
+});
+
+test('an exempt internal id is still scanned for rank, outside and place words', () => {
+  expect(borrowedIn(`const a = 'clan-warrior';`)).toContain('warrior');
+  expect(borrowedIn(`const a = 'clan-kit';`)).toContain('kit');
+  expect(borrowedIn(`const a = 'clan-greet';`)).toEqual([]);
 });
 
 test('the internal-id exemption covers only lowercase kebab ids', () => {

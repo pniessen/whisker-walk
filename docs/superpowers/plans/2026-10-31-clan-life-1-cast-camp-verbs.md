@@ -533,7 +533,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - at home, `booped`, not `patrolled`, `rank` is warrior or apprentice, no buddy active → `{ kind: 'clan-patrol' }` (Task 6 fills in the E branch; until then this offer is not produced).
   - `handleInteract`:
     - **Per-walk pay caps** (review ruling): `CLAN_PAY_CAP = { friend: 4, boop: 4, patrol: 2 }` in interactions.js, counted in `s.clanPaid = { friend: 0, boop: 0, patrol: 0 }` (set in walk.js's session literal). A verb past its cap still happens (pose, sound, toast); it just calls no `awardOnce`. The count goes up only when `awardOnce` actually paid (> 0).
-    - `clan-greet`: `s.clanCats.greet(cat, s.cat.position)`, `audio.trill()`, and, under the cap, `log.awardOnce('friend', `clan-friend-${cat.id}`, `touched noses with ${cat.name}`)`. No `recordGreet`, no colony call.
+    - `clan-greet`: `s.clanCats.greet(cat, s.cat.position)`, `audio.trill()`, and, under the cap, `log.awardOnce('friend', `clan-friend-${cat.id}`, `a nose touch with ${cat.name}`)`. No `recordGreet`, no colony call.
     - `clan-boop`: `s.clanCats.boop(cat, s.cat.position)`, `audio.purr()`, `hud.toast(`💕 boop with ${cat.name}!`)`, and, under the cap, `log.awardOnce('boop', `clan-boop-${cat.id}`, `a nose boop with ${cat.name} 💕`)`. It does **not** call `completeBoop` (that is the player-to-player handshake: it sends events and a server greet).
   - The stray feed scan already can't see clan cats (they aren't in `strayCats.strays`); no change there.
 

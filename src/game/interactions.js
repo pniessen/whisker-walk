@@ -1145,12 +1145,6 @@ export function createInteractions({
     return typeof p === 'number' && Number.isFinite(p) && p >= 0 ? p : 0;
   }
 
-  // Shared greet-award body for a stray cat: friend-points award, progression
-  // ladder toast, and marking the stray greeted (so nearest(...,
-  // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
-  // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
-  // there is exactly one path that can ever pay out a stray friendship
-  // award — talking never awards more than booping.
   // A clan verb's award, under its per-walk cap. The count goes up only when
   // awardOnce actually paid, so a repeat on the same cat never uses a slot.
   function clanPay(s, type, key, label) {
@@ -1167,13 +1161,22 @@ export function createInteractions({
   function endClanPatrol(s, cat, reason, seconds) {
     if (!s || !cat || s.clanBuddy !== cat) return;
     s.clanBuddy = null;
-    hud.toast(reason === 'far' ? `${cat.name} couldn't keep up!` : `${cat.name} heads back to camp. Good patrol!`);
-    if (Number.isFinite(seconds) && seconds >= PATROL_MIN) {
+    const paying = Number.isFinite(seconds) && seconds >= PATROL_MIN;
+    hud.toast(reason === 'far' ? `${cat.name} couldn't keep up!`
+      : paying ? `${cat.name} heads back to camp. Good patrol!`
+      : `${cat.name} heads back to camp. A longer patrol next time!`);
+    if (paying) {
       clanPay(s, 'patrol', `patrol-${cat.id}`, `a patrol with ${cat.name}`);
     }
     if (s.net) s.net.sendEvent({ v: 1, id: s.playerId, type: 'clan-buddy', catId: cat.id, on: false });
   }
 
+  // Shared greet-award body for a stray cat: friend-points award, progression
+  // ladder toast, and marking the stray greeted (so nearest(...,
+  // {ungreetedOnly:true}) stops surfacing it). Used by BOTH the E-to-boop
+  // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
+  // there is exactly one path that can ever pay out a stray friendship
+  // award — talking never awards more than booping.
   function awardStrayGreet(s, stray) {
     // -------------------------------------------------------------------
     // v20 Ruffled Fur — THE STRAYS-ONLY RULE IS ENFORCED HERE, not in enemies.js.
@@ -1591,7 +1594,7 @@ export function createInteractions({
       const cat = s.prompt.data;
       s.clanCats.greet(cat, s.cat.position);
       audio.trill();
-      clanPay(s, 'friend', `clan-friend-${cat.id}`, `touched noses with ${cat.name}`);
+      clanPay(s, 'friend', `clan-friend-${cat.id}`, `a nose touch with ${cat.name}`);
     } else if (s.prompt.kind === 'clan-boop') {
       const cat = s.prompt.data;
       s.clanCats.boop(cat, s.cat.position);

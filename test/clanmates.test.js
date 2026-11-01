@@ -66,8 +66,10 @@ function harness({ clanHome = true, clanEdition = true, count = 2, strayAt = nul
   log.startWalk();
   const awards = [];
   const realOnce = log.awardOnce.bind(log);
+  const awardLabels = [];
   log.awardOnce = (type, key, label) => {
     const pts = realOnce(type, key, label);
+    awardLabels.push(label);
     awards.push([type, key, pts]);
     return pts;
   };
@@ -108,7 +110,7 @@ function harness({ clanHome = true, clanEdition = true, count = 2, strayAt = nul
     catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
   });
   return {
-    api, progression, sent,
+    api, progression, sent, awardLabels,
     session, clanCats, awards, toasts, prompts, sounds, strayCats,
     scan: () => api.updateInteractions(session),
     pressE: () => api.handleInteract(session),
@@ -283,6 +285,7 @@ describe('patrol together (Clan Life Task 6)', () => {
     expect(h.paid('patrol')).toBe(1);
     expect(h.awards.at(-1)[1]).toBe(`patrol-${warrior.id}`);
     expect(h.toasts.at(-1)).toBe(`${warrior.name} heads back to camp. Good patrol!`);
+    expect(h.toasts.at(-1)).not.toMatch(/clan/i);
     expect(h.sent.at(-1)).toEqual({ v: 1, id: 'player-me-000001', type: 'clan-buddy', catId: warrior.id, on: false });
     // a second end for the same patrol is a no-op
     h.api.endClanPatrol(h.session, warrior, 'time', 35);
@@ -290,6 +293,33 @@ describe('patrol together (Clan Life Task 6)', () => {
     expect(h.sent.filter((e) => e.on === false)).toHaveLength(1);
     h.scan();
     expect(h.kind()).toBe(null);
+  });
+
+  it('award labels read after "You spotted ": touch noses, boop and patrol all start with "a "', () => {
+    const h = harness({ count: 16 });
+    const warrior = byRank(h, K.warrior);
+    only(h, warrior);
+    h.session.prompt = { kind: 'clan-greet', data: warrior };
+    h.pressE();
+    h.session.prompt = { kind: 'clan-boop', data: warrior };
+    h.pressE();
+    h.session.prompt = { kind: 'clan-patrol', data: warrior };
+    h.pressE();
+    h.api.endClanPatrol(h.session, warrior, 'time', PATROL_MIN + 5);
+    expect(h.awardLabels.length).toBe(3);
+    for (const l of h.awardLabels) expect(l.startsWith('a '), l).toBe(true);
+    expect(h.awardLabels[0]).toBe(`a nose touch with ${warrior.name}`);
+  });
+
+  it('a patrol shorter than the minimum says a longer one next time, and pays nothing', () => {
+    const h = harness({ count: 16 });
+    const warrior = byRank(h, K.warrior);
+    only(h, warrior);
+    h.press();
+    h.api.endClanPatrol(h.session, warrior, 'time', 10);
+    expect(h.toasts.at(-1)).toBe(`${warrior.name} heads back to camp. A longer patrol next time!`);
+    expect(h.toasts.at(-1)).not.toMatch(/clan/i);
+    expect(h.paid('patrol')).toBe(0);
   });
 
   it('an end after 10 s pays nothing; far says it could not keep up', () => {
