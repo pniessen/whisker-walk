@@ -117,6 +117,19 @@ describe('createStrayCats seeded-RNG determinism', () => {
     }
   });
 
+  // Clan Life Part 1, Task 3: a territory with a camp spawns fewer strays
+  // (lonersFor) from the same stream. That is safe only because a shorter cast
+  // is a prefix of the longer one, cat for cat.
+  it('fewer strays from the same stream are a prefix of today\'s cast', () => {
+    const view = (s) => [s.name, s.group.position.x, s.group.position.z, s.group.rotation.y, s.personality];
+    for (const [few, many] of [[5, 22], [12, 22], [4, 14]]) {
+      const a = createStrayCats(fakeScene(), AREA, few, strayStream(7), { roomSeed: 7 });
+      const b = createStrayCats(fakeScene(), AREA, many, strayStream(7), { roomSeed: 7 });
+      expect(a.strays).toHaveLength(few);
+      expect(a.strays.map(view)).toEqual(b.strays.slice(0, few).map(view));
+    }
+  });
+
   it('two different seeds do not spawn identical positions', () => {
     const a = createStrayCats(fakeScene(), AREA, 5, mulberry32(42));
     const b = createStrayCats(fakeScene(), AREA, 5, mulberry32(43));

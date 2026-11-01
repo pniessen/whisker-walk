@@ -208,3 +208,67 @@ describe('a Legacy walk', () => {
     expect(startRoomTogether).toHaveBeenCalledWith({ area: 'woods', dusk: true });
   });
 });
+
+// Clan Life Part 1, Task 3: the territory's clan in the walk. The harness
+// stops inside the area build, so these are source pins.
+describe('the clan in the walk (source pins)', () => {
+  const src = () => readFileSync('src/game/walk.js', 'utf8');
+
+  it('spawns the loners, not tier.strays, and counts the fed cats first', () => {
+    const s = src();
+    const strays = s.indexOf('createStrayCats(scene, areaData, isDen ? 0 : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed)');
+    const clan = s.indexOf('castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere))');
+    const fed = s.indexOf('const fedHere = colonyCats.length;');
+    expect(strays).toBeGreaterThan(-1);
+    expect(clan).toBeGreaterThan(-1);
+    expect(fed).toBeGreaterThan(-1);
+    expect(fed).toBeLessThan(strays);
+    expect(fed).toBeLessThan(clan);
+    expect(s.match(/lonersFor\(/g)).toHaveLength(1);
+    for (const call of s.match(/createStrayCats\([^)]*\)/g) ?? []) {
+      expect(call.replace('lonersFor(areaId, tier.strays', '')).not.toContain('tier.strays');
+    }
+  });
+
+  it('names the clan cats only in Clan Edition', () => {
+    const s = src();
+    const call = s.slice(s.indexOf('createClanCats(scene,'), s.indexOf('NO_CLAN_CATS', s.indexOf('createClanCats(scene,')));
+    expect(call).toContain('showNames: isClanEdition(');
+  });
+
+  it('joins clanCats to the session literal, never assigned before it exists', () => {
+    const s = src();
+    const literal = s.indexOf('const session = {');
+    expect(literal).toBeGreaterThan(-1);
+    expect(s.slice(0, literal)).not.toMatch(/session\.clanCats\s*=/);
+    const body = s.slice(literal, s.indexOf('};', literal));
+    expect(body).toMatch(/\bclanCats,/);
+    expect(s).toContain('session.clanCats.dispose()');
+  });
+
+  it('the clan walks on the map as built: clan ground, frozen before the scratch posts', () => {
+    const s = src();
+    const posts = s.indexOf('for (const p of playerMarks.posts) areaData.colliders.push(');
+    expect(posts).toBeGreaterThan(-1);
+    for (const pin of ['clanWalkableFor(clanArea, areaId)', 'roamHomes(areaId, clanArea, clanWalkable)', 'Object.freeze(areaData.colliders.map(']) {
+      const at = s.indexOf(pin);
+      expect(at, pin).toBeGreaterThan(-1);
+      expect(at, pin).toBeLessThan(posts);
+    }
+    expect(s).toContain('isWalkable: clanWalkable');
+  });
+
+  it('the clan cats get contact decals and are spawned before the shadow sweep', () => {
+    const s = src();
+    expect(s).toMatch(/for \(const c of clanCats\.list\) decals\.follow\(c\.group\);/);
+    expect(s.indexOf('createClanCats(scene,')).toBeLessThan(s.indexOf('assignShadowCasters(scene);'));
+  });
+
+  it('main.js updates the clan beside the strays', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const strays = m.indexOf('session.strayCats.update(');
+    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
+    expect(clan).toBeGreaterThan(strays);
+    expect(strays).toBeGreaterThan(-1);
+  });
+});

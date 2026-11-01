@@ -54,7 +54,9 @@ export function coatFromStyle(s) {
   const patches = [];
   if (s.patches) {
     patches.push({ at: [0.12, 0.54, -0.08], halfX: 0.62, halfZ: 0.72, colour: s.accent });
-    patches.push({ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64, colour: 0x333333 });
+    // patch2 (Clan Life Part 1): a row's own second patch colour, so a clan
+    // tortoiseshell stays in its palette. The calico has none: unchanged.
+    patches.push({ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64, colour: s.patch2 ?? 0x333333 });
   }
   if (s.cow) {
     // Robbie: white flanks low on each side, and the bib on the front of the chest.

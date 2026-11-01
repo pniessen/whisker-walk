@@ -32,6 +32,10 @@ import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
+import { createClanCats } from '../clancats.js';
+import { castFor, clanCountFor, lonersFor, roamHomes } from '../clancast.js';
+import { campLayout } from '../world/camp.js';
+import { clanWalkableFor } from '../world/clanground.js';
 import { createRemoteCats } from '../remotecats.js';
 import { takeHeldItemsWithRemotes } from './netevents.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
@@ -69,7 +73,7 @@ import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
-import { rivalForWalk, placeName, effectiveArea } from '../edition.js';
+import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
@@ -120,6 +124,9 @@ const NO_GHOSTS = { list: [], nearest: () => null, update() {}, dispose() {} };
 // Same idea for the den's tamed cats (v21 Stream 2): off the den walk the
 // render loop, the prompt scan and endWalk still call them unconditionally.
 const NO_DEN_CATS = { list: [], littles: [], nearest: () => null, pet() {}, update() {}, dispose() {} };
+// Clan Life Part 1: an area with no camp (the old areas, the den, the island)
+// has no clan; the render loop, the prompt scan and endWalk call it anyway.
+const NO_CLAN_CATS = { list: [], nearest: () => null, greet() {}, boop() {}, update() {}, dispose() {} };
 // Same idea for an area with no golden mice (the den today, a future area
 // before its three are placed): every goldMice method the walk calls, inert.
 // nearestUnfound is here because v18's Whisker Sense asks for it every frame.
@@ -811,7 +818,18 @@ export function createWalkLifecycle({
       name: legend,
       rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
     }] : [];
-    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : tier.strays, strayStream(roomSeed), {
+    // Clan Life Part 1 — in a territory with a camp, the clan's cats replace
+    // strays one for one: lonersFor gives tier.strays − the clan shown − the
+    // intruder slot (Part 2), and tier.strays itself everywhere else, so the
+    // old areas and the den spawn exactly what they always did. Fewer strays
+    // from the same stream are a PREFIX of the longer cast (createStrayCats
+    // draws each cat's x, z, facing, personality and timer in turn, after one
+    // name shuffle that does not depend on the count), so no cat that is
+    // spawned moves, and no draw shifts on any stream. fedHere is the colony
+    // cats already read for this area: empty off a colony walk, so a
+    // non-partner co-walk gets 0 on both devices and the two agree.
+    const fedHere = colonyCats.length;
+    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed), {
       grudges: progression.grudgeNames?.() ?? [],
       roomSeed,
       colonyCats,
@@ -819,6 +837,30 @@ export function createWalkLifecycle({
       extras,
       reducedMotion,
     });
+    // The clan walks on the map AS BUILT, frozen here, before anything is
+    // added to it: the live areaData.colliders later gains this device's own
+    // scratch posts and gate frames, which differ between devices, and the
+    // clan must not see them or co-walkers' cats would wander apart. Its
+    // ground is clan ground (world/clanground.js, ruling P2): never water or a
+    // wade band, never the island's keep-out or the Pines' truce path.
+    const clanArea = { ...areaData, colliders: Object.freeze(areaData.colliders.map((c) => ({ ...c }))) };
+    const clanWalkable = clanWalkableFor(clanArea, areaId);
+    // The prefix of the cast this tier shows (clancast.js): the core nine on
+    // every device, sixteen on HIGH less any slots fed colony cats took back.
+    // Derived, never stored, the same on every device; Legacy spawns the same
+    // cats in the same places, only without names.
+    const clanCast = isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere));
+    // Task 6 sets this (patrol together); a no-op until then.
+    let onClanBuddyEnd = () => {};
+    const clanCats = clanCast.length ? createClanCats(scene, areaData, clanCast, {
+      campLayout: campLayout(areaId),
+      roamHomes: roamHomes(areaId, clanArea, clanWalkable),
+      isWalkable: clanWalkable,
+      roomSeed,
+      showNames: isClanEdition(state),
+      reducedMotion,
+      onBuddyEnd: (cat, reason, secs) => onClanBuddyEnd(cat, reason, secs),
+    }) : NO_CLAN_CATS;
     const remotes = createRemoteCats(scene, { reducedMotion });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
@@ -992,6 +1034,7 @@ export function createWalkLifecycle({
     // class that only exists in a room walk. A later wave can add them.
     decals.follow(cat);
     for (const stray of strayCats.strays) decals.follow(stray.group);
+    for (const c of clanCats.list) decals.follow(c.group);
     for (const critter of critters.list) decals.follow(critter.group);
     for (const dc of denCats.list) decals.follow(dc.group);
 
@@ -1069,6 +1112,8 @@ export function createWalkLifecycle({
 
     const session = {
       scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      // Clan Life Part 1: the territory's clan, a list apart from the strays.
+      clanCats,
       // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
       // collar for solo walks — see where duskActive is computed above).
       // endWalk needs it for the duskWalks tally that Night Eyes reads;
@@ -1722,6 +1767,7 @@ export function createWalkLifecycle({
     session.kittenEnc.dispose();
     session.race.dispose();
     session.strayCats.dispose();
+    session.clanCats.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
     session.denCats.dispose();

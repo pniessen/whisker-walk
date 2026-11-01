@@ -160,6 +160,66 @@ export const CROSS_NAME_TAG_RANGE = 12;
 export const TAG_Y = 1.18;
 export const CROSS_TAG_Y = 1.38;
 
+// --- The two-line tag (Clan Life Part 1) ------------------------------
+// A clan cat's tag says who it is in the clan: its name on top and a smaller
+// line under it ("warrior of StormClan"), which is what teaches the ranks
+// (an elder's name and a warrior's look alike). Opt-in through opts.sub:
+// every other tag keeps the one-line canvas and sprite above, untouched.
+//
+// The canvas is taller by half (256x96) and the sprite's y scale grows by the
+// same ratio (0.35 -> 0.525), so the letters are exactly as big as on a
+// one-line tag. The sprite is lifted by half the added height (SUB_LIFT), so
+// its lower edge sits where a one-line tag's does and clears the tail by the
+// same margin (see TAG_Y below).
+const SUB_TAG_H = 96;
+const TAG_SCALE_Y = 0.35; // makeNameTag's one-line sprite height (1.4 x 0.35)
+const SUB_TAG_SCALE_Y = TAG_SCALE_Y * (SUB_TAG_H / TAG_H);
+const SUB_LIFT = (SUB_TAG_SCALE_Y - TAG_SCALE_Y) / 2;
+// The wide pill (as the legend's): "apprentice of StormClan" is long.
+const PILL_SUB = { x: 4, y: 6, w: 248, h: 84, r: 24 };
+const SUB_NAME_BASELINE = 44;
+const SUB_LINE_BASELINE = 78;
+// The second line at about 60% of the name's size, shrink-to-fit like it.
+const SUB_FONT_PX = 20;
+const SUB_MIN_FONT_PX = 14;
+const SUB_LINE_COLOR = 'rgba(255,255,255,0.85)';
+
+// Shrinks `ctx.font` from `px` until `label` fits `maxW`, never below `min`.
+function fitFont(ctx, label, px, min, maxW) {
+  ctx.font = font(px);
+  if (typeof ctx.measureText !== 'function') return px;
+  while (px > min && (ctx.measureText(label).width || 0) > maxW) {
+    px -= FONT_STEP_PX;
+    ctx.font = font(px);
+  }
+  return px;
+}
+
+// Paints the two-line tag. Same moods as paintTag (the cross pill, outline and
+// marker; a legend's gold edge) so setNameTagMood works on it unchanged.
+function paintTwoLine(ctx, name, cross, legend, sub) {
+  if (ctx.clearRect) ctx.clearRect(0, 0, TAG_W, SUB_TAG_H);
+  const label = cross ? `${CROSS_MARK} ${name}` : `${name}`;
+  const maxW = PILL_SUB.w - LABEL_PAD_PX * 2;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = cross ? PILL_CROSS : PILL_NEUTRAL;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(PILL_SUB.x, PILL_SUB.y, PILL_SUB.w, PILL_SUB.h, PILL_SUB.r);
+  else ctx.rect(PILL_SUB.x, PILL_SUB.y, PILL_SUB.w, PILL_SUB.h);
+  ctx.fill();
+  if ((cross || legend) && ctx.stroke) {
+    ctx.strokeStyle = cross ? PILL_CROSS_EDGE : STAR_FILL;
+    ctx.lineWidth = PILL_CROSS_EDGE_PX;
+    ctx.stroke();
+  }
+  fitFont(ctx, label, BASE_FONT_PX, MIN_FONT_PX, maxW);
+  ctx.fillStyle = LABEL_COLOR;
+  ctx.fillText(label, LABEL_X, SUB_NAME_BASELINE);
+  fitFont(ctx, sub, SUB_FONT_PX, SUB_MIN_FONT_PX, maxW);
+  ctx.fillStyle = SUB_LINE_COLOR;
+  ctx.fillText(sub, LABEL_X, SUB_LINE_BASELINE);
+}
+
 // Paints one mood into an existing 2D context. Used both by makeNameTag (on
 // a fresh canvas) and by setNameTagMood (over a painted one) — one painter,
 // so a repainted tag is pixel-identical to a freshly built one of the same
@@ -252,19 +312,27 @@ function paintTag(ctx, name, cross, legend = false) {
 // existing call site is unchanged. opts.legend (v21 3b) adds the drawn gold
 // star of a legendary cat; it also defaults to false, and survives every
 // mood repaint (setNameTagMood reads it back off the tag).
-export function makeNameTag(name, { cross = false, legend = false } = {}) {
+//
+// opts.sub (Clan Life Part 1): a non-empty string paints the two-line tag (see
+// paintTwoLine). It is kept on userData.sub, so a mood repaint keeps it. With
+// no sub (or an empty one) the tag is pixel-identical to before.
+export function makeNameTag(name, { cross = false, legend = false, sub = '' } = {}) {
   if (typeof document === 'undefined') return null;
+  const twoLine = typeof sub === 'string' && sub.length > 0;
   const tagCanvas = document.createElement('canvas');
   tagCanvas.width = TAG_W;
-  tagCanvas.height = TAG_H;
+  tagCanvas.height = twoLine ? SUB_TAG_H : TAG_H;
   const tctx = tagCanvas.getContext('2d');
   const isCross = !!cross;
   const isLegend = !!legend;
-  paintTag(tctx, name, isCross, isLegend);
+  if (twoLine) paintTwoLine(tctx, name, isCross, isLegend, sub);
+  else paintTag(tctx, name, isCross, isLegend);
   const tagTex = new THREE.CanvasTexture(tagCanvas);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
   tag.scale.set(1.4, 0.35, 1);
-  tag.position.y = isCross ? CROSS_TAG_Y : TAG_Y;
+  if (twoLine) tag.scale.y = SUB_TAG_SCALE_Y;
+  tag.position.y = (isCross ? CROSS_TAG_Y : TAG_Y) + (twoLine ? SUB_LIFT : 0);
+  if (twoLine) tag.userData.sub = sub;
   tag.visible = false;
   // The canvas and its context are kept ON the sprite so the texture can be
   // repainted later without rebuilding anything — see setNameTagMood.
@@ -304,13 +372,15 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   if (!tag || !tag.userData || !tag.userData.tagCtx) return tag ?? null;
   const next = !!cross;
   if (tag.userData.cross === next) return tag;
-  paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true);
+  const sub = tag.userData.sub;
+  if (sub) paintTwoLine(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, sub);
+  else paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true);
   tag.userData.cross = next;
   tag.userData.revealRange = next ? CROSS_NAME_TAG_RANGE : NAME_TAG_RANGE;
   // Height moves with the mood for the same reason the paint does — see
   // CROSS_TAG_Y. Without this the forgiven cat keeps the raised tag forever,
   // floating above a tail that has just come back down.
-  tag.position.y = next ? CROSS_TAG_Y : TAG_Y;
+  tag.position.y = (next ? CROSS_TAG_Y : TAG_Y) + (sub ? SUB_LIFT : 0);
   // The one line that actually gets the new pixels onto the GPU.
   if (tag.material && tag.material.map) tag.material.map.needsUpdate = true;
   return tag;

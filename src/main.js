@@ -704,6 +704,7 @@ function init() {
         catSpeed: player.speed,
         toy: session.toy,
       });
+      session.clanCats.update(wdt, t, session.cat.position);
       session.toy.update(dt, session.areaData.bounds);
       // THE YARN BALL FLOATS — v20.
       //

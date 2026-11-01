@@ -671,3 +671,50 @@ it('the camera looks inside the head: between its centre and its top (tabby, fol
   expect(CAT_LOOK_Y * cat.scale.y).toBeGreaterThanOrEqual(centre);
   expect(CAT_LOOK_Y * cat.scale.y).toBeLessThanOrEqual(head.max.y);
 });
+
+// Clan Life Part 1, Task 3: buildCat takes a whole STYLE row (opts.style), so a
+// clan cat wears its clan's palette while its breed only picks the eyes.
+describe('buildCat with opts.style (a clan coat)', () => {
+  const meshesOf = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
+  const torsoColours = (cat) => {
+    const col = cat.userData.parts.body.geometry.attributes.color;
+    const out = [];
+    for (let i = 0; i < col.count; i++) out.push(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+    return out;
+  };
+
+  it('paints the torso from the row, not from the breed', async () => {
+    const { CLAN_COATS } = await import('../src/clancast.js');
+    const row = CLAN_COATS.river[0];
+    const want = new THREE.Color(row.base);
+    const clan = torsoColours(buildCat('tabby', undefined, { simple: true, style: row }));
+    for (const c of clan) expect(colourDistance(c, want)).toBeLessThan(1e-6);
+    const tabby = torsoColours(buildCat('tabby', undefined, { simple: true }));
+    expect(tabby.some((c) => colourDistance(c, want) > 0.01)).toBe(true);
+  });
+
+  it('never reads the breed\'s own row when a style is given', async () => {
+    const { CLAN_COATS } = await import('../src/clancast.js');
+    expect(() => buildCat('not-a-breed', undefined, { simple: true })).toThrow();
+    const cat = buildCat('not-a-breed', undefined, { simple: true, style: CLAN_COATS.woods[0] });
+    expect(cat.userData.parts.body).toBeTruthy();
+  });
+
+  it('every clan coat builds, simple and full, at no more meshes than a stray', async () => {
+    const { CLAN_COATS } = await import('../src/clancast.js');
+    for (const [clan, rows] of Object.entries(CLAN_COATS)) {
+      for (const [i, row] of rows.entries()) {
+        expect(() => buildCat(row.eyes, undefined, { style: row }), `${clan}[${i}] full`).not.toThrow();
+        const simple = buildCat(row.eyes, undefined, { simple: true, style: row });
+        // 25 is the calico's simple count (tabby, persian and black are 24).
+        expect(meshesOf(simple), `${clan}[${i}] simple`).toBeLessThanOrEqual(25);
+      }
+    }
+  });
+
+  it('with no style the group carries exactly today\'s userData keys', () => {
+    expect(Object.keys(buildCat('tabby', undefined, { simple: true }).userData).sort())
+      .toEqual(['base', 'breed', 'noMerge', 'parts']);
+    expect(Object.keys(buildCat('calico').userData).sort()).toEqual(['base', 'breed', 'noMerge', 'parts']);
+  });
+});
