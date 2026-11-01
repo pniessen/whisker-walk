@@ -13,7 +13,7 @@
 import { isClanId, clanName, TRUCE_AREAS } from './clanhomes.js';
 import { DISCS } from './rivalclans.js';
 import { CLAN_CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, RANK_KEYS, RANK_WORDS, DENIED_NAMES } from './clanwords.js';
-import { seedFromCode } from './rng.js';
+import { seedFromCode, mulberry32 } from './rng.js';
 
 const K = RANK_KEYS;
 export const CAST_RANKS = Object.freeze([
@@ -144,4 +144,58 @@ export function clanHomeFor(areaId, edition, picks) {
 
 export function tagSubFor(member) {
   return `${RANK_WORDS[member.rank]} of ${clanName(member.clan)}`;
+}
+
+// Where the roaming ranks live: eight homes, for slots 4-8 then 13-15 in that
+// order, so the first five are the same whether or not the extras are shown.
+// Candidates come from the area's own seed (`${areaId}|roam`), never a shared
+// stream, inside the middle 70% of the bounds. A candidate is kept when it and
+// eight points on a 2 m circle round it are walkable, it is r + 3 or more from
+// the camp's centre, and 7 m or more from every home already kept; and, so the
+// wander round it (Task 3, ROAM_RADIUS) mostly stays on good ground, 12 or more
+// of 16 points on its 6 m roaming circle are walkable too (the Woods' river
+// bank had a home at 10/16 without this). At most 600 candidates. `isWalkable(x, z)` is the caller's (walk.js passes the clan's
+// ground, keep-out and all), so this module imports no world code and stays
+// pure. Deterministic for a given built map: both devices agree.
+export const ROAM_SLOTS = Object.freeze([4, 5, 6, 7, 8, 13, 14, 15]);
+const ROAM_TRIES = 600;
+const ROAM_SPREAD = 0.7;
+const ROAM_RING = 2;
+const ROAM_RING_N = 8;
+const ROAM_APART = 7;
+const ROAM_CAMP_GAP = 3;
+export const ROAM_RADIUS = 6;
+const ROAM_CIRCLE_N = 16;
+const ROAM_CIRCLE_MIN = 12;
+
+// How many of n points on the circle of radius rad round (x, z) pass ok.
+function circleCount(ok, x, z, rad, n) {
+  let k = 0;
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    if (ok(x + Math.cos(t) * rad, z + Math.sin(t) * rad)) k++;
+  }
+  return k;
+}
+
+export function roamHomes(areaId, area, isWalkable) {
+  if (castFor(areaId).length === 0) return [];
+  const { cx, cz, r } = DISCS[areaId];
+  const b = area?.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  const mx = (b.minX + b.maxX) / 2, hx = ((b.maxX - b.minX) / 2) * ROAM_SPREAD;
+  const mz = (b.minZ + b.maxZ) / 2, hz = ((b.maxZ - b.minZ) / 2) * ROAM_SPREAD;
+  const rng = mulberry32(seedFromCode(`${areaId}|roam`));
+  const ok = (x, z) => isWalkable(x, z) === true;
+  const homes = [];
+  for (let i = 0; i < ROAM_TRIES && homes.length < ROAM_SLOTS.length; i++) {
+    const x = mx + (rng() * 2 - 1) * hx;
+    const z = mz + (rng() * 2 - 1) * hz;
+    if (Math.hypot(x - cx, z - cz) < r + ROAM_CAMP_GAP) continue;
+    if (homes.some((h) => Math.hypot(h.x - x, h.z - z) < ROAM_APART)) continue;
+    if (!ok(x, z)) continue;
+    if (circleCount(ok, x, z, ROAM_RING, ROAM_RING_N) < ROAM_RING_N) continue;
+    if (circleCount(ok, x, z, ROAM_RADIUS, ROAM_CIRCLE_N) < ROAM_CIRCLE_MIN) continue;
+    homes.push({ x, z });
+  }
+  return homes;
 }

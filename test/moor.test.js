@@ -316,6 +316,17 @@ describe('the Moor: the island and the horizon', () => {
 });
 
 describe('the Moor: the area record', () => {
+  it('builds the same camp, a den and a leader\'s rock, every time', async () => {
+    const { campLayout } = await import('../src/world/camp.js');
+    const L = campLayout('moor');
+    const campOf = (cs) => cs.filter((c) => [L.den, L.rock].some((p) => c.x === p.x && c.z === p.z && c.r === p.r));
+    const one = campOf(build(new THREE.Scene()).colliders);
+    const two = campOf(build(new THREE.Scene()).colliders);
+    expect(one).toHaveLength(2);
+    expect(two).toEqual(one);
+    expect(scene.children.filter((o) => o.name === 'clanCamp')).toHaveLength(1);
+  });
+
   it("returns every key woods.js returns, named 'The Moor'", () => {
     const woods = buildWoods(new THREE.Scene());
     for (const k of Object.keys(woods)) expect(area, k).toHaveProperty(k);
@@ -729,8 +740,9 @@ describe('the Moor: heather, gorse, reeds and the warren', () => {
       expect(meshes, n).toBeGreaterThan(0);
     }
     // a collider for each tree, the four tors, and the two chain boulders,
-    // the High Tor's pillar, the old hawthorn and its root; none for a bed
+    // the High Tor's pillar, the old hawthorn and its root, and the camp's den
+    // and leader's rock; none for a bed
     const { thorns, pines } = moorTrees();
-    expect(area.colliders).toHaveLength(thorns.length + pines.length + 4 + 5);
+    expect(area.colliders).toHaveLength(thorns.length + pines.length + 4 + 5 + 2);
   });
 });

@@ -781,6 +781,17 @@ describe('the Pines: strays keep off the water', () => {
 });
 
 describe('the Pines: the area record', () => {
+  it('builds the same camp, a den and a leader\'s rock, every time', async () => {
+    const { campLayout } = await import('../src/world/camp.js');
+    const L = campLayout('pines');
+    const campOf = (cs) => cs.filter((c) => [L.den, L.rock].some((p) => c.x === p.x && c.z === p.z && c.r === p.r));
+    const one = campOf(build(new THREE.Scene()).colliders);
+    const two = campOf(build(new THREE.Scene()).colliders);
+    expect(one).toHaveLength(2);
+    expect(two).toEqual(one);
+    expect(scene.children.filter((o) => o.name === 'clanCamp')).toHaveLength(1);
+  });
+
   it("returns every key moor.js returns, named 'The Pines and Swamp'", () => {
     const moor = buildMoor(new THREE.Scene());
     for (const k of Object.keys(moor)) expect(area, k).toHaveProperty(k);
@@ -1541,8 +1552,9 @@ describe('the Pines: the forest', () => {
   it('plants a collider for every pine, a swaying pine for each near one, and the rest in one stand', () => {
     // the four chain colliders, the two truce stones and the three along the
     // fallen pine; then the island's ten: the Old Ash, its boulder, the six
-    // meeting stones, the Watch Rock and its low rock
-    expect(area.colliders).toHaveLength(near.length + stand.length + 19);
+    // meeting stones, the Watch Rock and its low rock; then the camp's den and
+    // leader's rock
+    expect(area.colliders).toHaveLength(near.length + stand.length + 19 + 2);
     for (const t of all) {
       expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(0.4 * t.scale * 100) / 100), `collider (${t.x}, ${t.z})`).toBe(true);
     }

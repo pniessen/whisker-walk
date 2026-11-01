@@ -11,6 +11,7 @@ import {
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { ZOOM_STEPS } from '../camzoom.js';
+import { addCamp } from './camp.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -749,6 +750,12 @@ export function build(scene, { water = {}, wind } = {}) {
   const isle = buildIsland(scene, { wind });
   colliders.push(...isle.colliders);
   perches.push(...isle.perches);
+
+  // --- the camp ---------------------------------------------------------------
+  // The clan's den and the leader's rock, in the camp disc between the two camp
+  // pines (camp.js), well off the truce path. Every device draws it, whatever
+  // the picks, and Legacy draws it too.
+  addCamp(scene, { colliders }, 'pines');
 
   return {
     name: 'The Pines and Swamp',

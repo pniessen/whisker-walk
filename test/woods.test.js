@@ -327,6 +327,17 @@ describe('the Woods: the island and the horizon', () => {
 });
 
 describe('the Woods: the area record', () => {
+  it('builds the same camp, a den and a leader\'s rock, every time', async () => {
+    const { campLayout } = await import('../src/world/camp.js');
+    const L = campLayout('woods');
+    const campOf = (cs) => cs.filter((c) => [L.den, L.rock].some((p) => c.x === p.x && c.z === p.z && c.r === p.r));
+    const one = campOf(build(new THREE.Scene()).colliders);
+    const two = campOf(build(new THREE.Scene()).colliders);
+    expect(one).toHaveLength(2);
+    expect(two).toEqual(one);
+    expect(scene.children.filter((o) => o.name === 'clanCamp')).toHaveLength(1);
+  });
+
   it("returns every key park.js returns, named 'The Woods'", () => {
     const park = buildPark(new THREE.Scene());
     for (const k of Object.keys(park)) expect(area, k).toHaveProperty(k);
