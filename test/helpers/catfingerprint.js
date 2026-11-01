@@ -91,9 +91,12 @@ export function poseMeasure(cat, state, t = 1.3) {
     return box;
   };
   const all = ext([cat]);
+  // The torso is the body mesh and everything on it (since Task 6 that
+  // includes the underside: belly, chest, ruff). The old rig, which recorded
+  // the baseline, hung its belly separately as the group's second child.
   const torso = [cat.userData.parts.body];
   const belly = cat.children[1];
-  if (belly && belly.isMesh) torso.push(belly);
+  if (!cat.userData.parts.underside && belly && belly.isMesh) torso.push(belly);
   const tb = ext(torso);
   return { min: r4(all.min.y / s), max: r4(all.max.y / s), torsoMin: r4(tb.min.y / s), torsoMax: r4(tb.max.y / s) };
 }

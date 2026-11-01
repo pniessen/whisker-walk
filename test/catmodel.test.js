@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, coatColor } from '../src/cat/model.js';
-import { samples, lum as lumC, meshCount, surfaceHit } from './helpers/catfingerprint.js';
+import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colourDistance } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
@@ -119,7 +119,7 @@ describe('cat model: markings lie ON the surface they mark', () => {
   it('an unmarked breed has no markings at all', () => {
     for (const breed of ['siamese', 'persian', 'black', 'mainecoon']) {
       const cat = buildCat(breed);
-      expect(cat.userData.parts.body.children).toHaveLength(0);
+      expect(cat.userData.parts.body.children).toEqual([cat.userData.parts.underside]);
     }
   });
 });
@@ -284,8 +284,8 @@ describe('cat model: budget and determinism', () => {
   // wave that adds meshes to the hero asset — which is on screen 100% of the
   // time, and is also cloned for every stray, ghost and co-walker — is spending
   // the scarce resource. Wave 6 spent triangles and RECLAIMED meshes.
-  // Interim ceilings after Task 4 (painted coats); Hagrid's ruff stays separate until Task 6.
-  const CEILING = { tabby: 30, siamese: 30, persian: 31, black: 30, calico: 31, mainecoon: 31, zeetoo: 30, robbie: 31, d2: 32, digit: 34, hagrid: 19 };
+  // The final ceilings (Global Constraints): the belly, chest and ruff are one mesh.
+  const CEILING = { tabby: 30, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 30, robbie: 31, d2: 31, digit: 34, hagrid: 19 };
   const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 6]));
 
   for (const breed of ALL) {
@@ -447,5 +447,53 @@ describe('cat model: strong hind legs and a tail that grows out of the rump (Tas
   });
   it('the tail is still five meshes (root, joints and tip merged in)', () => {
     expect(meshCount(buildCat('tabby').userData.parts.tail)).toBe(5);
+  });
+});
+
+describe('cat model: the chest, merged with the belly and ruff, kept under the head (Task 6)', () => {
+  const box = (o) => { o.updateWorldMatrix(true, true); return new THREE.Box3().setFromObject(o); };
+  it('the chest and belly are one mesh, a child of the torso', () => {
+    for (const b of PRESETS) {
+      const { body, underside } = buildCat(b).userData.parts;
+      expect(underside.parent).toBe(body);
+      expect(body.children).toEqual([underside]);
+    }
+  });
+  it('the chest bridges the head and the body', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false);
+    const { underside, head, body } = cat.userData.parts;
+    expect(box(underside).intersectsBox(box(head.children[0]))).toBe(true);
+    expect(box(underside).intersectsBox(box(body))).toBe(true);
+  });
+  it('the underside moves with the body when it naps', () => {
+    const at = (s) => { const c = buildCat('tabby'); animateCat(c, s, 1, 0, false); return box(c.userData.parts.underside).min.y; };
+    expect(at('nap')).toBeLessThan(at('follow') - 0.05);
+  });
+  it('the chest stays under the head when the torso turns cross (R4)', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'cross', 1.3, 0, false); cat.updateMatrixWorld(true);
+    const { underside, head } = cat.userData.parts;
+    const chest = new THREE.Vector3(...underside.userData.chestCentre).applyMatrix4(underside.matrixWorld);
+    expect(Math.abs(chest.x - head.getWorldPosition(new THREE.Vector3()).x)).toBeLessThan(0.02);
+  });
+  it("robbie's chest is white; a black cat's chest is its belly colour", () => {
+    const chestColours = (b) => {
+      const u = buildCat(b).userData.parts.underside, col = u.geometry.attributes.color, [a, z] = u.userData.ranges.chest;
+      return Array.from({ length: z - a }, (_, i) => new THREE.Color(col.getX(a + i), col.getY(a + i), col.getZ(a + i)));
+    };
+    for (const c of chestColours('robbie')) expect(colourDistance(c, new THREE.Color(0xf5f5f5))).toBeLessThan(1e-6);
+    for (const c of chestColours('black')) expect(colourDistance(c, new THREE.Color(0x3a3a42))).toBeLessThan(1e-6);
+  });
+  it('final mesh ceilings, fluffy cats included', () => {
+    const FINAL = { tabby: 30, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 30, robbie: 31, d2: 31, digit: 34 };
+    for (const [b, n] of Object.entries(FINAL)) {
+      expect(meshCount(buildCat(b))).toBe(n);
+      expect(meshCount(buildCat(b, undefined, { simple: true }))).toBe(n - 6);
+    }
+  });
+  it('stays inside the triangle budget', () => {
+    for (const b of PRESETS) {
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
+    }
   });
 });

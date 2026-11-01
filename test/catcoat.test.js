@@ -72,7 +72,10 @@ describe('painted coats', () => {
   });
 
   it('no breed carries a marking mesh on its body any more', () => {
-    for (const b of PRESETS) expect(buildCat(b).userData.parts.body.children).toHaveLength(0);
+    for (const b of PRESETS) {
+      const { body, underside } = buildCat(b).userData.parts;
+      expect(body.children).toEqual([underside]); // the underside (Task 6), not a marking
+    }
   });
 
   it('head marks are still meshes: the M, the blaze, the head patch, the chin', () => {

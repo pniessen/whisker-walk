@@ -680,6 +680,52 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   return g;
 }
 
+// -----------------------------------------------------------------------------
+// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff, merged
+// into one vertex-coloured geometry in TORSO-LOCAL space (the body mesh's own
+// frame: less (0, CENTRE_Y, 0), divided by the body scale), so it is hung on
+// the torso and posed with it. Each part is authored in the cat's frame
+// exactly as the separate meshes were, then carried into the torso's.
+// `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
+// vertex range; userData.chestCentre the chest's centre, torso-local.
+// A simple build rounds the belly and chest at 12×8 (the triangle cap).
+export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
+  const [fx, fy, fz] = f;
+  const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
+  const [w, h] = opts.simple ? [12, 8] : [BALL_W, BALL_H];
+  const toTorso = (geo) => geo.translate(0, -TORSO.CENTRE_Y, 0).scale(1 / BS[0], 1 / BS[1], 1 / BS[2]);
+  const painted = (geo, hex) => {
+    geo.deleteAttribute('uv');
+    const c = new THREE.Color(hex);
+    const col = new Float32Array(geo.attributes.position.count * 3);
+    for (let i = 0; i < col.length; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return geo;
+  };
+  const parts = {
+    belly: painted(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
+      .translate(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz)), s.belly),
+    chest: painted(toTorso(new THREE.SphereGeometry(0.15, w, h).scale(1.05 * fx, 1.1, 0.9)
+      .translate(0, TORSO.CENTRE_Y + 0.06, -0.33 * fz)), coat.chest),
+  };
+  if (s.fluffy) {
+    parts.ruff = painted(toTorso(new THREE.TorusGeometry(0.19, 0.075, 6, 12).rotateX(Math.PI / 2 - 0.35)
+      .translate(HEAD.POS[0], HEAD.POS[1] - 0.12, HEAD.POS[2] + 0.10)), s.belly);
+  }
+  const ranges = {};
+  let at = 0;
+  for (const [k, geo] of Object.entries(parts)) {
+    const n = geo.attributes.position.count;
+    ranges[k] = [at, at + n];
+    at += n;
+  }
+  const geo = mergeGeometries(Object.values(parts));
+  for (const p of Object.values(parts)) p.dispose();
+  geo.userData.ranges = ranges;
+  geo.userData.chestCentre = [0, 0.06 / BS[1], -0.33 * fz / BS[2]];
+  return geo;
+}
+
 // The corner map draws a remote sibling's dot in their cat's main coat colour.
 // Hagrid has no STYLE entry (he is built by buildChicken), so he is named here.
 export function coatColor(breed) {
@@ -708,8 +754,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // Interim (Tasks 7 and 8 re-place them): the ruff and every
-  // body- and back-slot item rise with the torso, which now sits 0.09 higher.
+  // Interim (Tasks 7 and 8 re-place them): every
+  // body- and back-slot item rises with the torso, which now sits 0.09 higher.
   const ITEM_RISE = 0.09;
   // How far a shallower torso brings the top of the back down: the back-slot
   // items sit on the spine and drop with it rather than float over it.
@@ -723,11 +769,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
   g.add(body);
-  // The belly hangs off the body's underside, so it narrows with it and its
-  // offset below the body centre (0.08) shrinks with the depth.
-  const belly = ball(0.26, s.belly, 0.74 * fx, 0.58 * fy, 0.95 * fz);
-  belly.position.set(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz);
-  g.add(belly);
+  // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
+  // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
+  // it. The animator counter-yaws it (R4) so the chest stays under the chin.
+  const underside = new THREE.Mesh(
+    undersideGeometry(s, coatFromStyle(s), [fx, fy, fz], opts),
+    litMaterial(0xffffff, { vertexColors: true }));
+  underside.userData.underside = true;
+  underside.userData.ranges = underside.geometry.userData.ranges;
+  underside.userData.chestCentre = underside.geometry.userData.chestCentre;
+  body.add(underside);
 
   // head
   const SKULL_R = 0.21;
@@ -802,13 +853,6 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   head.scale.setScalar(HEAD.SCALE);
   g.add(head);
 
-  if (s.fluffy) {
-    const ruff = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.075, 6, 12), mat(s.belly));
-    ruff.rotation.x = Math.PI / 2 - 0.35;
-    ruff.position.set(0, 0.46 + ITEM_RISE, -0.32);
-    g.add(ruff);
-  }
-
   // legs: hip-pivoted groups with paw spheres
   const legs = [];
   const legSpots = [
@@ -868,10 +912,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // +z. Open-ended; the balls below close every end.
     const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5), tailR(i / 5), TAIL.LINK, 12, 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
+    // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
+    // simple cat sits at the 5,500-triangle cap once the chest is in.
+    const [rw, rh, jw, jh] = opts.simple ? [8, 5, 8, 5] : [12, 8, 10, 6];
     parts.push(i === 0
-      ? new THREE.SphereGeometry(TAIL.ROOT_BALL, 12, 8)   // the root, into the rump
-      : new THREE.SphereGeometry(tailR(i / 5), 10, 6));   // a rounded joint
-    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1), 10, 6).translate(0, 0, TAIL.LINK)); // the tip
+      ? new THREE.SphereGeometry(TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
+      : new THREE.SphereGeometry(tailR(i / 5), jw, jh));   // a rounded joint
+    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1), jw, jh).translate(0, 0, TAIL.LINK)); // the tip
     const seg = new THREE.Mesh(mergeGeometries(parts), mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
     pivot.add(seg);
     parent.add(pivot);
@@ -1260,8 +1307,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // rises by Δ and its limb is rebuilt Δ longer, hanging from the pivot as
   // before; the paw (and any feet accessory hung on the leg) drops back by Δ,
   // so it lands where it always did and the cat still stands at y = 0. Every
-  // other direct child of g — body, belly, head, ruff, tail, body- and
-  // back-slot accessories — rises by Δ with the hips.
+  // other direct child of g — body (and the underside on it), head, tail,
+  // body- and back-slot accessories — rises by Δ with the hips.
   //
   // The animator writes body and head positions from userData.base every
   // frame, so base carries the lift too; it never writes a leg position, so
@@ -1301,7 +1348,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.userData.noMerge = true;
   g.userData.breed = breed;
   g.userData.parts = {
-    body, head, tail, tailPivots, legs,
+    body, head, tail, tailPivots, legs, underside,
     earL: head.userData.earL, earR: head.userData.earR, whiskers,
   };
   // hipY and legLift (the hip's rise over the reference rig the poses were

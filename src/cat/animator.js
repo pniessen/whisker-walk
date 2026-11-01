@@ -64,6 +64,11 @@ const CROSS = {
 // follows avatar.position every frame), leaving the leg gait itself intact.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
   pose(cat, state, t, moveSpeed, reducedMotion);
+  // R4: the underside hangs on the torso, so a yawed torso ('cross') would
+  // swing the chest out from under the chin; it turns back by the same angle.
+  // A rig without an underside (Hagrid) is untouched. Never writes -0.
+  const { underside, body } = cat.userData.parts;
+  if (underside) underside.rotation.y = body.rotation.y ? -body.rotation.y : 0;
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
@@ -71,7 +76,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
 
 // torso.js POSE_FIT: a per-state height correction, measured against the old
 // rig, for a pose that the new torso's shape leaves resting too high or too
-// low. It moves every part fitLongLegs moves — body, belly, tail, ruff, body-
+// low. It moves every part fitLongLegs moves — body (and the underside on it), tail, body-
 // and back-slot items — so the torso never pulls away from its tail and items;
 // the head gets its own `head` value when the fit gives one. A rig without
 // poseFit (Hagrid) never reaches here.

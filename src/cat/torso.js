@@ -58,9 +58,16 @@ export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };
 // The sit (requestPet, perch): with the shaped torso (deep chest, belly tucked
 // toward the hips) the tilted-back rump rests 0.0204 above ground at fit 0 against
 // 0.0246 for the old torso, so it comes UP by 0.004 and rests where the old one did.
+// The stretch and the pounce (Task 6): the belly now hangs on the torso, so it
+// tips with the stretch and squashes with the pounce instead of hanging level
+// below them as the old separate belly did. Their lowest torso point came out
+// 0.0382 and 0.0537 above the old rig's (plus the leg lift); each comes down
+// to about 1 cm above it, inside R1's 2 cm, rather than all the way.
 export const POSE_FIT = {
   requestPet: { body: 0.004 },
   perch: { body: 0.004 },
+  stretch: { body: -0.028 },
+  pounce: { body: -0.044 },
 };
 
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
