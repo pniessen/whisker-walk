@@ -13,22 +13,37 @@
 // collider. The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
-// If no spot is clear (it does not happen on the shipped maps:
-// test/fightcamworld.test.js), the best spot's blocking trees are hidden for
-// the fight (one Group's `visible`, so fewer draws, never more) and shown
-// again after it.
+// The solids grow by a margin and by as far as the wind can lean each tree.
+// If no spot is clear (on the shipped maps only where a cat stands beside a
+// trunk under leaves that can sway to its ears: test/fightcamworld.test.js
+// counts them), the best spot's blocking trees are hidden for the fight (one
+// Group's `visible`, so fewer draws, never more) and shown again after it;
+// with a stand pine in the way, the spot with the fewest blockers.
 //
 // createFightCam blends this view over the follow camera that player.update
-// has already placed this frame: in over a third of a second (cut at once
-// when the follow view is itself blocked), out over about half a second, and
-// both as cuts under reduced motion. It never touches the camera while no
-// fight is on, and never in photo mode. Purely local: it draws no rng and
-// moves no cat.
+// has already placed this frame: in over a third of a second, but only when
+// every step of the move keeps both cats framed and in sight (blendClear),
+// and otherwise as a cut; out over about half a second; both as cuts under
+// reduced motion. It never touches the camera while no fight is on, and never
+// in photo mode. Purely local: it draws no rng and moves no cat.
+
+import { SWAY_TREE } from './world/builder.js';
+import { GUST_DEPTH, MAX_INTENSITY, SIDE_AMPLITUDE_FRACTION } from './render/wind.js';
 
 // Where on a cat the camera must see: paws, body, and a head lifted by a pounce.
 export const CAT_HEIGHTS = Object.freeze([0.08, 0.4, 0.85]);
-// The solids grow by this much: the trees sway a little in the wind.
+// Every solid grows by this much, as a margin.
 export const OCCLUDER_PAD = 0.15;
+// ...and by as far as the wind can lean it on top. A swaying tree turns about
+// its foot (render/wind.js) by at most its amplitude (builder.js swayFor:
+// SWAY_TREE x sqrt(scale)) x the gust peak (1 + GUST_DEPTH) x the strongest
+// intensity wind.update accepts (MAX_INTENSITY; rain passes 1.7), on the main
+// axis, with SIDE_AMPLITUDE_FRACTION of that on the side axis at once. A solid
+// at height h moves at most h x that lean. A stand pine never sways.
+export function maxLean(scale) {
+  return SWAY_TREE * Math.sqrt(Math.max(0.01, scale)) * (1 + GUST_DEPTH) * MAX_INTENSITY
+    * Math.hypot(1, SIDE_AMPLITUDE_FRACTION);
+}
 // The frame the cats must stay in, in normalised device coordinates. The
 // fight sheet covers at most the lower 40% of the screen (to -0.2); the
 // bottom edge leaves a margin over it.
@@ -57,18 +72,22 @@ const REACH = Math.max(...RINGS.map((r) => r.d)) + 3;
 // --- the trees ---------------------------------------------------------------
 
 // Every tagged tree in the scene, in world space:
-//   [{ obj, x, z, R, top, shapes: [{ t: 'cyl', x, z, r, y0, y1 } | { t: 'ell', x, y, z, r, ry }] }]
+//   [{ obj, x, z, R, top, shapes: [{ t: 'cyl', x, z, r, y0, y1, p } | { t: 'ell', x, y, z, r, ry, p }] }]
 // `obj` is the tree's Group (hidden as a last resort), null for a stand's tree.
-// R and top bound the shapes, for a quick reject.
+// Each shape's `p` is its own pad: OCCLUDER_PAD plus the wind's furthest lean
+// at its height (the cylinder's top, the ellipsoid's centre: test/fightcam.test.js
+// leans each tree to the limit and checks), none for a stand
+// pine. R and top bound the padded shapes, for a quick reject.
 export function findOccluders(scene) {
   const out = [];
   scene.updateMatrixWorld?.(true);
-  const add = (obj, px, py, pz, s, shapes) => {
+  const add = (obj, px, py, pz, s, shapes, sways) => {
+    const lean = sways ? maxLean(s) : 0;
     const placed = shapes.map((sh) => (sh.t === 'cyl'
-      ? { t: 'cyl', x: px, z: pz, r: sh.r * s, y0: py + sh.y0 * s, y1: py + sh.y1 * s }
-      : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s }));
-    const R = Math.max(...placed.map((p) => p.r));
-    const top = Math.max(...placed.map((p) => (p.t === 'cyl' ? p.y1 : p.y + p.ry)));
+      ? { t: 'cyl', x: px, z: pz, r: sh.r * s, y0: py + sh.y0 * s, y1: py + sh.y1 * s, p: OCCLUDER_PAD + sh.y1 * s * lean }
+      : { t: 'ell', x: px, y: py + sh.y * s, z: pz, r: sh.r * s, ry: sh.ry * s, p: OCCLUDER_PAD + sh.y * s * lean }));
+    const R = Math.max(...placed.map((p) => p.r + p.p));
+    const top = Math.max(...placed.map((p) => (p.t === 'cyl' ? p.y1 : p.y + p.ry) + p.p));
     out.push({ obj, x: px, z: pz, R, top, shapes: placed });
   };
   scene.traverse((o) => {
@@ -77,8 +96,8 @@ export function findOccluders(scene) {
     if (!one && !stand) return;
     const e = o.matrixWorld.elements;
     const s = Math.hypot(e[0], e[1], e[2]);
-    if (one) add(o, e[12], e[13], e[14], s, one);
-    if (stand) for (const t of stand.trees) add(null, e[12] + t.x * s, e[13], e[14] + t.z * s, s * t.scale, stand.shapes);
+    if (one) add(o, e[12], e[13], e[14], s, one, true);
+    if (stand) for (const t of stand.trees) add(null, e[12] + t.x * s, e[13], e[14] + t.z * s, s * t.scale, stand.shapes, false);
   });
   return out;
 }
@@ -119,18 +138,21 @@ function hitsEll(a, b, e, pad) {
   return px * px + py * py + pz * pz <= r * r;
 }
 
-// Whether a→b passes through one tree.
-export function segmentBlocked(a, b, occ, pad = OCCLUDER_PAD) {
+// Whether a→b passes through one tree. With no `pad`, each shape grows by its
+// own (margin and sway); a number grows every shape by exactly that instead
+// (0 is the bare solids).
+export function segmentBlocked(a, b, occ, pad = null) {
   // the tree's bounding cylinder first: most trees are nowhere near the line
-  if (!hitsCyl(a, b, { x: occ.x, z: occ.z, r: occ.R, y0: -Infinity, y1: occ.top }, pad)) return false;
+  if (!hitsCyl(a, b, { x: occ.x, z: occ.z, r: occ.R, y0: -Infinity, y1: occ.top }, pad ?? 0)) return false;
   for (const s of occ.shapes) {
-    if (s.t === 'cyl' ? hitsCyl(a, b, s, pad) : hitsEll(a, b, s, pad)) return true;
+    const g = pad ?? s.p;
+    if (s.t === 'cyl' ? hitsCyl(a, b, s, g) : hitsEll(a, b, s, g)) return true;
   }
   return false;
 }
 
 // The first tree a→b passes through, or null.
-export function firstBlocker(a, b, occluders, pad = OCCLUDER_PAD) {
+export function firstBlocker(a, b, occluders, pad = null) {
   for (const o of occluders) if (segmentBlocked(a, b, o, pad)) return o;
   return null;
 }
@@ -223,7 +245,8 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= REACH + o.R);
   const framePts = subjectPoints(subject, false);
   const seePts = subjectPoints(subject, true);
-  let fallback = null;
+  let fallback = null; // the spot with the fewest blockers, every one of them hideable
+  let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
   for (const c of candidates(subject, yaw0, ring0)) {
     const ring = RINGS[c.ri];
     const pos = { x: mid.x + Math.sin(c.yaw) * ring.d, y: ring.h, z: mid.z + Math.cos(c.yaw) * ring.d };
@@ -234,22 +257,38 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
     if (!inFrame(view, framePts, aspect, fovY)) continue;
     const blockers = new Set();
     let hideable = true;
-    for (const p of seePts) {
+    let whole = true; // counted every blocker (not stopped early)
+    scan: for (const p of seePts) {
       for (const o of near) {
         if (blockers.has(o) || !segmentBlocked(pos, p, o)) continue;
         blockers.add(o);
         if (!o.obj) hideable = false;
+        // Stop once this spot can beat neither the fallback nor the least
+        // blocked spot (which counts only while there is no fallback).
+        const noFallback = !hideable || (fallback && blockers.size >= fallback.blockers.length);
+        const noLeast = !!fallback || (least && blockers.size >= least.count);
+        if (noFallback && noLeast) { whole = false; break scan; }
       }
-      if (!fallback && !hideable) break;
     }
     if (blockers.size === 0) return { ...view, yaw: c.yaw, ring: c.ri, clear: true, blockers: [] };
     if (hideable && (!fallback || blockers.size < fallback.blockers.length)) {
       fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers] };
     }
+    // ties keep the earlier spot, which is the one nearer the current view
+    if (!fallback && whole && (!least || blockers.size < least.count)) {
+      least = { view, yaw: c.yaw, ring: c.ri, count: blockers.size, blockers: [...blockers] };
+    }
   }
   if (fallback) return fallback;
-  // Nothing fits at all (a cat pinned in a corner of the map): the first ring
-  // straight back, as the follow camera would be.
+  // No spot is clear even with trees hidden (the blockers include stand
+  // pines, which cannot be hidden one by one): the spot with the fewest
+  // blockers, hiding those that can be.
+  if (least) {
+    return { ...least.view, yaw: least.yaw, ring: least.ring, clear: false,
+      blockers: least.blockers.filter((o) => o.obj), unhidden: least.blockers.filter((o) => !o.obj).length };
+  }
+  // No spot frames the pair at all (a cat pinned in a corner of the map): the
+  // first ring straight back, as the follow camera would be.
   const ring = RINGS[0];
   const pos = { x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h, z: mid.z + Math.cos(yaw0) * ring.d };
   return { ...viewFrom(pos, mid, fovY), yaw: yaw0, ring: 0, clear: false, blockers: [] };
@@ -259,19 +298,51 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
 
 const smooth = (u) => u * u * (3 - 2 * u);
 const lerp = (a, b, t) => a + (b - a) * t;
+const lerp3 = (a, b, t) => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), z: lerp(a.z, b.z, t) });
+// Where along a camera move it is checked: the start, and every eighth of the
+// way (the end is the chosen view, already checked).
+export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8, 6 / 8, 7 / 8]);
+
+// Whether a camera move from `from` to `to` (each { pos, look }; both points
+// move in a straight line, as the blend below moves them) keeps both cats in
+// the frame above the sheet and every line to them clear of the trees, at
+// every BLEND_SAMPLES point. If not, the camera cuts instead of easing.
+export function blendClear(from, to, subject, occluders, aspect, fovY) {
+  const framePts = subjectPoints(subject, false);
+  const seePts = subjectPoints(subject, true);
+  // only the trees within reach of the move's lines: inside a circle round
+  // the pair's middle that holds both ends of the move
+  const mid = subject.mid;
+  const span = Math.max(Math.hypot(from.pos.x - mid.x, from.pos.z - mid.z), Math.hypot(to.pos.x - mid.x, to.pos.z - mid.z)) + 3;
+  const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= span + o.R);
+  for (const t of BLEND_SAMPLES) {
+    const v = { pos: lerp3(from.pos, to.pos, t), look: lerp3(from.look, to.look, t) };
+    if (!inFrame(v, framePts, aspect, fovY)) return false;
+    for (const p of seePts) if (firstBlocker(v.pos, p, near)) return false;
+  }
+  return true;
+}
 
 // update(dt, { subject, cameraMode, camera, cat }) after player.update has
 // placed the follow camera and the fight has placed the cats. `subject` is
 // clanfight's cameraSubject (null when no fight is on); `cat` is my cat's
 // position, which the follow camera looks at. Returns whether it moved the
 // camera this frame.
+//
+// Every move into a fight view (the first one, and a new one when the rounds
+// begin or the phone turns) is an ease only when blendClear passes from what
+// is on screen now; otherwise it is a cut. An ease in goes from a still
+// snapshot of the follow view, so the move is exactly the straight line that
+// was checked; a move between fight views goes from what is on screen.
 export function createFightCam({ occluders = [], colliders = [], bounds = null, reducedMotion = false, lookY = 0.6 } = {}) {
   let w = 0;            // 0 follow camera .. 1 fight camera
   let view = null;      // the chosen view
   let cur = null;       // where the fight camera is, easing toward view
+  let from = null;      // the follow view an ease in started from (held still)
   let lastSubject = null;
   let lastAspect = 0;
   let hidden = [];
+  let cuts = 0;
 
   function show() {
     for (const o of hidden) o.obj.visible = true;
@@ -280,8 +351,8 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
 
   function choose(subject, camera) {
     const mid = subject.mid;
-    const from = cur ? cur.pos : camera.position;
-    const yaw0 = Math.atan2(from.x - mid.x, from.z - mid.z);
+    const at = cur ? cur.pos : camera.position;
+    const yaw0 = Math.atan2(at.x - mid.x, at.z - mid.z);
     const next = chooseFightView({
       subject, occluders, colliders, bounds, yaw0, ring0: view ? view.ring : null,
       aspect: camera.aspect, fovY: camera.fov,
@@ -291,49 +362,61 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
     return next;
   }
 
-  function followBlocked(subject, camera) {
-    const pos = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-    return subjectPoints(subject, false).some((p) => firstBlocker(pos, p, occluders));
-  }
+  const copy = (v) => ({ pos: { ...v.pos }, look: { ...v.look } });
 
   const api = {
     get weight() { return w; },
     get view() { return view; },
+    // How many moves into a fight view were cuts (for tests).
+    get cuts() { return cuts; },
     update(dt, { subject, cameraMode = false, camera, cat }) {
       const active = !!subject && !cameraMode;
+      const follow = {
+        pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        look: { x: cat.x, y: (cat.y ?? 0) + lookY, z: cat.z },
+      };
       if (!active) {
         lastSubject = null;
+        from = null;
         show();
         if (cameraMode || reducedMotion) w = 0;
         else w = Math.max(0, w - dt / EASE_OUT);
         if (w === 0) { view = null; cur = null; return false; }
       } else if (subject !== lastSubject || camera.aspect !== lastAspect) {
-        const entering = w === 0;
+        // what is on screen right now, before this frame's move
+        const base = from ?? follow;
+        const s0 = smooth(w);
+        const shown = w === 0 ? copy(follow) : { pos: lerp3(base.pos, cur.pos, s0), look: lerp3(base.look, cur.look, s0) };
         view = choose(subject, camera);
         lastSubject = subject;
         lastAspect = camera.aspect;
-        if (entering) {
-          cur = { pos: { ...view.pos }, look: { ...view.look } };
-          if (reducedMotion || followBlocked(subject, camera)) w = 1;
+        const left = occluders.filter((o) => !o.obj || o.obj.visible !== false);
+        if (reducedMotion || !blendClear(shown, view, subject, left, camera.aspect, camera.fov)) {
+          cur = copy(view); w = 1; from = null; cuts += 1;
+        } else if (w === 0) {
+          from = shown; cur = copy(view);
+        } else {
+          cur = shown; w = 1; from = null;
         }
       }
       if (active) {
         w = reducedMotion ? 1 : Math.min(1, w + dt / EASE_IN);
+        if (w === 1) from = null;
         const k = reducedMotion ? 1 : 1 - Math.exp(-FOLLOW_RATE * Math.max(dt, 0));
         for (const key of ['pos', 'look']) {
           for (const ax of ['x', 'y', 'z']) cur[key][ax] = lerp(cur[key][ax], view[key][ax], k);
         }
       }
       const s = smooth(w);
-      const fp = camera.position;
-      const fl = { x: cat.x, y: (cat.y ?? 0) + lookY, z: cat.z };
-      const px = lerp(fp.x, cur.pos.x, s), py = lerp(fp.y, cur.pos.y, s), pz = lerp(fp.z, cur.pos.z, s);
-      camera.position.set(px, py, pz);
-      camera.lookAt(lerp(fl.x, cur.look.x, s), lerp(fl.y, cur.look.y, s), lerp(fl.z, cur.look.z, s));
+      const base = from ?? follow;
+      const pos = lerp3(base.pos, cur.pos, s);
+      const look = lerp3(base.look, cur.look, s);
+      camera.position.set(pos.x, pos.y, pos.z);
+      camera.lookAt(look.x, look.y, look.z);
       return true;
     },
     // The walk ended: every hidden tree back, nothing held.
-    dispose() { show(); view = null; cur = null; w = 0; lastSubject = null; },
+    dispose() { show(); view = null; cur = null; from = null; w = 0; lastSubject = null; },
   };
   return api;
 }

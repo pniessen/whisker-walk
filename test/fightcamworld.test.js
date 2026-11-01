@@ -64,7 +64,7 @@ function walkover(from, foeAt, ok) {
 function check(view, subj, w, frame, at) {
   const left = w.occluders.filter((o) => !view.blockers.includes(o));
   for (const p of subjectPoints(subj, true)) {
-    const hit = firstBlocker(view.pos, p, left, OCCLUDER_PAD);
+    const hit = firstBlocker(view.pos, p, left);
     expect(hit, `${at}: a tree at ${hit?.x.toFixed(1)},${hit?.z.toFixed(1)} hides ${p.x.toFixed(2)},${p.y},${p.z.toFixed(2)}`).toBe(null);
   }
   // The last resort hides a tree only when a cat stands right under its
@@ -72,7 +72,7 @@ function check(view, subj, w, frame, at) {
   // it; and only a tree that can be hidden on its own.
   for (const b of view.blockers) {
     expect(b.obj, `${at}: a blocker that cannot be hidden`).not.toBe(null);
-    const under = subjectPoints(subj, true).some((p) => firstBlocker(p, { x: p.x + 1e-4, y: p.y, z: p.z }, [b], OCCLUDER_PAD));
+    const under = subjectPoints(subj, true).some((p) => firstBlocker(p, { x: p.x + 1e-4, y: p.y, z: p.z }, [b]));
     expect(under, `${at}: hid the tree at ${b.x.toFixed(1)},${b.z.toFixed(1)} with no cat under it`).toBe(true);
   }
   for (const p of subjectPoints(subj, false)) {
@@ -89,7 +89,7 @@ describe('the fight camera on every intruder route', () => {
     it(`${a}: both cats in sight past every tree, every ${STEP} m, from every side, portrait, landscape and desktop`, () => {
       const w = world(a);
       expect(w.occluders.length, `${a} has tagged trees`).toBeGreaterThan(10);
-      let fights = 0, followBlocked = 0;
+      let fights = 0, followBlocked = 0, hidViews = 0;
       const hidden = new Set();
       for (const [clan, route] of Object.entries(INTRUDER_ROUTES[a])) {
         const len = routeLength(route);
@@ -121,6 +121,9 @@ describe('the fight camera on every intruder route', () => {
               check(v2, fight, w, frame, `${at} rounds`);
               fights++;
               for (const b of [...v1.blockers, ...v2.blockers]) hidden.add(b);
+              hidViews += (v1.clear ? 0 : 1) + (v2.clear ? 0 : 1);
+              expect(v1.unhidden ?? 0, `${at}: a stand pine left in the way`).toBe(0);
+              expect(v2.unhidden ?? 0, `${at}: a stand pine left in the way`).toBe(0);
             }
           }
         }
@@ -129,10 +132,12 @@ describe('the fight camera on every intruder route', () => {
       // the problem this fixes is real on every map: the follow camera alone
       // lets a tree hide a cat somewhere along the routes
       expect(followBlocked, `${a}: follow-camera views a tree spoils`).toBeGreaterThan(0);
-      process.stderr.write(`\n${a}: ${fights} fight views; follow camera blocked in ${followBlocked} of ${fights / 3}; trees hidden ${hidden.size}\n`);
-      // Measured: none in the Woods and the Pines, one small tree each on the
-      // River and the Moor, whose leaves hang to a cat's ears beside its trunk.
-      expect(hidden.size, `${a}: trees ever hidden`).toBeLessThanOrEqual(1);
+      process.stderr.write(`\n${a}: ${fights} fight views; follow camera blocked in ${followBlocked} of ${fights / 3}; trees hidden ${hidden.size} in ${hidViews} views\n`);
+      // Measured, with each tree padded for the wind's furthest lean: the trees
+      // whose (padded) leaves reach a cat's ears where it can stand beside the
+      // trunk. Pinned so a map change that adds more is seen.
+      const MAX_HIDDEN = { woods: 12, river: 5, moor: 3, pines: 0 };
+      expect(hidden.size, `${a}: trees ever hidden`).toBeLessThanOrEqual(MAX_HIDDEN[a]);
     }, 120000);
   }
 });

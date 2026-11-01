@@ -20,8 +20,9 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints,
-  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD,
+  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear,
 } = await import('../src/fightcam.js');
+const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
 const PORTRAIT = { aspect: 375 / 812, fovY: 70 };
@@ -46,7 +47,7 @@ function sceneOf(trees) {
 
 function viewIsClear(view, subj, occluders) {
   for (const p of subjectPoints(subj, true)) {
-    if (firstBlocker(view.pos, p, occluders, OCCLUDER_PAD)) return false;
+    if (firstBlocker(view.pos, p, occluders)) return false;
   }
   return true;
 }
@@ -102,6 +103,53 @@ describe('occluder shapes hold the real trees', () => {
     const { occ } = everyVertexInside(scene);
     expect(occ).toHaveLength(60);
     expect(occ.filter((o) => o.obj === null)).toHaveLength(40); // stand trees cannot be hidden one by one
+  });
+});
+
+describe('the pads cover the wind', () => {
+  // Each tree leaned as far as the wind code can lean it (both axes at their
+  // peak at once, under the strongest intensity), scanned upright: every
+  // leaned vertex must still sit inside its upright shape grown by the shape's
+  // sway pad alone (its OCCLUDER_PAD margin not counted).
+  const insidePadded = (shapes, v) => shapes.some((sh) => {
+    const g = sh.p - OCCLUDER_PAD + 1e-3;
+    if (sh.t === 'cyl') return Math.hypot(v.x - sh.x, v.z - sh.z) <= sh.r + g && v.y >= sh.y0 - g && v.y <= sh.y1 + g;
+    const k = (sh.r + g) / (sh.ry + g);
+    return Math.hypot(v.x - sh.x, (v.y - sh.y) * k, v.z - sh.z) <= sh.r + g;
+  });
+  for (const [kind, scale] of [['tree', 1.6], ['tree', 1], ['willow', 1.5], ['pine', 1.9], ['pine', 1.2]]) {
+    test(`${kind} at scale ${scale}, leaned every way`, () => {
+      const scene = sceneOf([{ kind, x: 3, z: -2, scale }]);
+      const [occ] = findOccluders(scene);
+      const g = scene.children[0];
+      const main = maxLean(scale) / Math.hypot(1, SIDE_AMPLITUDE_FRACTION);
+      const v = new THREE.Vector3();
+      for (const [sz, sx] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        g.rotation.set(sx * main * SIDE_AMPLITUDE_FRACTION, 0, sz * main);
+        scene.updateMatrixWorld(true);
+        g.traverse((m) => {
+          if (!m.isMesh) return;
+          const pos = m.geometry.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+            if (!insidePadded(occ.shapes, v)) throw new Error(`${kind} ${scale}: ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)} outside`);
+          }
+        });
+      }
+    });
+  }
+
+  test('the Great Oak in rain gets well over the old flat 0.15 m on its canopy', () => {
+    const [occ] = findOccluders(sceneOf([{ kind: 'tree', x: 0, z: 0, scale: 1.6 }]));
+    const canopy = occ.shapes.find((sh) => sh.t === 'ell');
+    expect(canopy.p).toBeGreaterThan(OCCLUDER_PAD + 0.4);
+  });
+
+  test('a stand pine never sways, so it keeps the bare margin', () => {
+    const scene = new THREE.Scene();
+    scene.add(b.pineStand([{ x: 0, z: 0, scale: 1.5 }], 3));
+    const [occ] = findOccluders(scene);
+    for (const sh of occ.shapes) expect(sh.p).toBe(OCCLUDER_PAD);
   });
 });
 
@@ -218,6 +266,34 @@ describe('chooseFightView', () => {
     const left = occ.filter((o) => !v.blockers.includes(o));
     expect(viewIsClear(v, subj, left)).toBe(true);
   });
+
+  test('boxed in by stand pines (none can be hidden): the spot with the fewest blockers, not an unchecked one', () => {
+    const subj = subject(me, it);
+    const stand = [];
+    for (let k = 0; k < 20; k++) {
+      const a = (k / 20) * Math.PI * 2;
+      stand.push({ x: Math.cos(a) * 3.2, z: Math.sin(a) * 3.2, scale: 1.3 });
+    }
+    // and a thicket on the side the camera looks from now (yaw 0 is +z)
+    for (const [x, z] of [[-1.5, 5.5], [0, 5.2], [1.5, 5.5], [-0.8, 7], [0.8, 7], [0, 8.5]]) stand.push({ x, z, scale: 1.3 });
+    const scene = new THREE.Scene();
+    scene.add(b.pineStand(stand, 5));
+    const occ = findOccluders(scene);
+    const count = (pos) => occ.filter((o) => subjectPoints(subj, true).some((p) => segmentBlocked(pos, p, o))).length;
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(v.clear).toBe(false);
+    expect(v.unhidden).toBeGreaterThan(0);
+    expect(v.blockers).toEqual([]); // nothing it could hide
+    // the old last resort: the first ring straight back
+    const back = { x: subj.mid.x, y: 2.2, z: subj.mid.z + 5.5 };
+    expect(count(v.pos)).toBe(v.unhidden);
+    expect(count(v.pos)).toBeLessThan(count(back));
+    for (const p of subjectPoints(subj, false)) {
+      const q = projectPoint(v, p, PORTRAIT.aspect, PORTRAIT.fovY);
+      expect(q.y).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
+      expect(Math.abs(q.x)).toBeLessThanOrEqual(FIGHT_FRAME.x);
+    }
+  });
 });
 
 // A fake camera: what the follow camera wrote this frame, and where we point it.
@@ -322,4 +398,77 @@ describe('createFightCam (the blend)', () => {
 test('the cat heights cover paws to a pouncing head', () => {
   expect(Math.min(...CAT_HEIGHTS)).toBeLessThanOrEqual(0.1);
   expect(Math.max(...CAT_HEIGHTS)).toBeGreaterThanOrEqual(0.8);
+});
+
+describe('camera moves are checked: ease only when every step of it is clear', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const subj = subject(me, it);
+
+  test('blendClear: a clear straight move passes, one through a canopy or out of frame fails', () => {
+    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.6, ...DESK });
+    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: -0.6, ...DESK });
+    expect(blendClear(a, c, subj, [], DESK.aspect, DESK.fovY)).toBe(true);
+    // an oak whose canopy sits on the move's middle, clear of both ends' lines
+    const midPos = { x: (a.pos.x + c.pos.x) / 2, z: (a.pos.z + c.pos.z) / 2 };
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: midPos.x * 1.25, z: midPos.z * 1.25, scale: 0.8 }]));
+    expect(viewIsClear(a, subj, occ)).toBe(true);
+    expect(viewIsClear(c, subj, occ)).toBe(true);
+    expect(blendClear(a, c, subj, occ, DESK.aspect, DESK.fovY)).toBe(false);
+    // from a view that does not frame the pair (looking away)
+    const away = { pos: a.pos, look: { x: a.pos.x * 2, y: a.pos.y, z: a.pos.z * 2 } };
+    expect(blendClear(away, c, subj, [], DESK.aspect, DESK.fovY)).toBe(false);
+  });
+
+  // Drives a fight with the follow camera parked at `follow`, then the rounds'
+  // subject, and checks EVERY frame shows both cats in the frame above the
+  // sheet with every line to them clear of the (unhidden) trees.
+  function everyFrame(follow, occ, frame = PORTRAIT) {
+    const fc = createFightCam({ occluders: occ, colliders: [], bounds: BOUNDS });
+    const cam = fakeCamera(frame.aspect);
+    const rounds = subject({ x: 0.9, z: 0.3 }, it);
+    let frames = 0;
+    for (const [sj, n] of [[subj, 60], [rounds, 60]]) {
+      for (let i = 0; i < n; i++) {
+        cam.position.set(follow.x, follow.y, follow.z);
+        fc.update(1 / 60, { subject: sj, camera: cam, cat: me });
+        const shown = { pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z }, look: cam.looked };
+        const left = occ.filter((o) => !o.obj || o.obj.visible !== false);
+        for (const p of subjectPoints(sj, false)) {
+          const q = projectPoint(shown, p, frame.aspect, frame.fovY);
+          expect(Math.abs(q.x) <= FIGHT_FRAME.x && q.y >= FIGHT_FRAME.bottom && q.y <= FIGHT_FRAME.top, `frame ${frames} out of frame`).toBe(true);
+          expect(firstBlocker(shown.pos, p, left), `frame ${frames} a tree in the way`).toBe(null);
+        }
+        frames++;
+      }
+    }
+    return fc;
+  }
+
+  test('a far follow view that already frames the pair eases in, and every frame of it is good', () => {
+    const fc = everyFrame({ x: 6, y: 6.5, z: 11 }, []);
+    expect(fc.cuts).toBe(0);
+  });
+
+  test('the default follow view does not frame the pair above the sheet: a cut, and every frame is good', () => {
+    const fc = everyFrame({ x: 0.8, y: 2.2, z: 4.5 }, []);
+    expect(fc.cuts).toBeGreaterThan(0);
+  });
+
+  test('a tree on the way in: a cut, and every frame is good', () => {
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: 4.3, z: 7.9, scale: 1.4 }]));
+    const fc = everyFrame({ x: 6, y: 6.5, z: 11 }, occ);
+    expect(fc.cuts).toBeGreaterThan(0);
+  });
+
+  test('ringed by trees, portrait, landscape and desktop: every frame is good', () => {
+    const trees = [];
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2 + 0.3;
+      trees.push({ kind: k % 2 ? 'pine' : 'tree', x: Math.cos(a) * 4.6, z: Math.sin(a) * 4.6, scale: 1.2 });
+    }
+    const occ = findOccluders(sceneOf(trees));
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      for (const follow of [{ x: 0.8, y: 2.2, z: 4.5 }, { x: 6, y: 6.5, z: 11 }, { x: -5, y: 3.8, z: -5 }]) everyFrame(follow, occ, frame);
+    }
+  });
 });
