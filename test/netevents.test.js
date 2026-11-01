@@ -708,6 +708,21 @@ describe('applyRemoteEvent: border-cross', () => {
     applyRemoteEvent({}, { type: 'nope' });
     expect(calls).toEqual([]);
   });
+  it('an intruder event still reaches the fight code, not onBorderCross', () => {
+    const { applyRemoteEvent, calls } = make();
+    const held = [];
+    const s = {
+      areaId: 'woods',
+      remotes: { list: [{ playerId: 'a', group: { position: { x: 1, z: 2 } }, petName: 'Robin' }] },
+      intruders: { current: () => ({ visit: 3, member: { name: 'Mossjaw' } }), hold: (v, id) => held.push([v, id]), release() {}, flee() {} },
+    };
+    applyRemoteEvent(s, { v: 1, id: 'a', type: 'intruder-fight', area: 'woods', visit: 3 });
+    expect(held).toEqual([[3, 'a']]);
+    expect(calls).toEqual([]);
+    const ev = { type: 'border-cross', id: 'a' };
+    applyRemoteEvent(s, ev);
+    expect(calls).toEqual([[s, ev]]);
+  });
   it('works with no onBorderCross dep', () => {
     const { applyRemoteEvent } = createNetEvents({
       MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: {}, audio: {},

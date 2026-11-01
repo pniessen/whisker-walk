@@ -6,6 +6,7 @@ import { postStatus } from '../src/bordercross.js';
 import { placeName } from '../src/edition.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
 import { postsFor } from '../src/borderposts.js';
+import { createClanFight } from '../src/game/clanfight.js';
 
 function setup({ session = {}, touch = false } = {}) {
   const overlay = { innerHTML: '' };
@@ -95,6 +96,38 @@ describe('the crossing card', () => {
     e.overlay.innerHTML = 'x';
     e.crossing.ask(e.s, d);
     expect(e.overlay.innerHTML).toBe('x');
+  });
+
+  it('refuses while the real clan fight has its pill up or is fighting', () => {
+    const noop = () => {};
+    const cur = { visit: 2, clan: 'moor', member: { name: 'Mossjaw' }, pos: { x: 1, z: 0 }, state: 'walking' };
+    const { crossing, overlay, s, calls } = setup({
+      session: { cat: { position: { x: 0, y: 0, z: 0 }, rotation: { y: 0 } }, fight: null, perched: null, chasing: false, cameraMode: false },
+    });
+    const cf = createClanFight({
+      intruders: {
+        current: () => ({ ...cur, pos: { ...cur.pos } }),
+        hold: () => { cur.state = 'held'; }, release: () => { cur.state = 'walking'; }, flee: noop, stage: noop,
+      },
+      ui: { showChallenge: noop, showFight: noop, hide: noop, key: () => false },
+      audio: { hiss: noop, pounceWhoosh: noop, landThump: noop }, fx: { burst: noop }, hud: { toast: noop },
+      log: { awardOnce: noop }, areaId: 'woods', walkStamp: 'w', playerId: 'me', playerSpecial: null,
+      clanHome: true, picks: ['woods'],
+    });
+    s.clanFight = cf;
+    cf.update(1 / 30, s);
+    expect(cf.uiShowing).toBe('challenge');
+    crossing.ask(s, goData());
+    expect(s.crossing).toBeUndefined();
+    cf.startFight();
+    expect(s.fight).toBeTruthy();
+    crossing.ask(s, goData());
+    expect(s.crossing).toBeUndefined();
+    expect(overlay.innerHTML).toBe('');
+    expect(calls.release).toBe(0);
+    cf.abort();
+    crossing.ask(s, goData());
+    expect(s.crossing).toEqual({ to: 'moor', name: 'The Moor' });
   });
 
   it('a room guest never opens the card; a host may', () => {

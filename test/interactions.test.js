@@ -28,6 +28,7 @@ import { mulberry32 } from '../src/rng.js';
 import { createYardDog } from '../src/yarddog.js';
 import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
+import { createClanFight } from '../src/game/clanfight.js';
 import { onAnyDeck } from '../src/world/builder.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
@@ -1651,6 +1652,46 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       g.session.areaData.scenics = [];
       g.walkTo(POST.x, POST.z + 1);
       expect(g.session.prompt.kind).toBe('border');
+    });
+
+    it('the real clan fight at a post: no border prompt while its pill or the fight is up (R8)', () => {
+      // A real createClanFight on the same session, its intruder walking 1.5 m
+      // from the post, so its challenge pill and the post would both want the
+      // cat here. The pill wins; so does the fight (which sets s.fight); once
+      // it is aborted the post prompt comes back.
+      const h = postHarness();
+      const cur = { visit: 4, clan: 'moor', member: { name: 'Mossjaw' }, pos: { x: POST.x + 1.5, z: POST.z + 1 }, state: 'walking' };
+      const noop = () => {};
+      const cf = createClanFight({
+        intruders: {
+          current: () => ({ ...cur, pos: { ...cur.pos } }),
+          hold: () => { cur.state = 'held'; }, release: () => { cur.state = 'walking'; }, flee: noop, stage: noop,
+        },
+        ui: { showChallenge: noop, showFight: noop, hide: noop, key: () => false },
+        audio: { hiss: noop, pounceWhoosh: noop, landThump: noop }, fx: { burst: noop }, hud: { toast: noop },
+        log: { awardOnce: noop }, areaId: 'woods', walkStamp: 'w', playerId: 'me', playerSpecial: null,
+        clanHome: true, picks: ['woods'],
+      });
+      h.session.clanFight = cf;
+      h.session.cat.position.set(POST.x, 0, POST.z + 1);
+      cf.update(1 / 30, h.session);
+      expect(cf.uiShowing).toBe('challenge');
+      expect(h.session.fight ?? null).toBe(null);
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      expect(h.asked).toHaveLength(0);
+      cf.startFight();
+      expect(h.session.fight).toBeTruthy();
+      expect(cf.uiShowing).toBe('fight');
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.press();
+      expect(h.asked).toHaveLength(0);
+      cf.abort();
+      expect(h.session.fight).toBe(null);
+      expect(cf.uiShowing).toBe(null);
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt.kind).toBe('border');
     });
 
     it('the Gorge post says "not explored yet" and E calls nothing', () => {
