@@ -436,11 +436,14 @@ describe('cat model: the Version 2 proportions', () => {
       expect(stripe.position.y - paw(leg)).toBeCloseTo(-0.0115, 6);
     }
   });
-  it.each(['tabby', 'digit', 'mainecoon'])('%s: every feet item stays on the ground', (breed) => {
+  // R2 binds dressed cats too: no point of a cat more than 1 cm below y = 0, in every pose.
+  it.each(['tabby', 'digit', 'mainecoon'])('%s: every feet item stays on the ground in every pose', (breed) => {
     for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks']) {
-      const cat = buildCat(breed, { feet }); animateCat(cat, 'follow', 1.3, 0, false);
-      cat.updateMatrixWorld(true);
-      expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x).toBeGreaterThan(-0.02); // precise box
+      for (const state of STATES) {
+        const cat = buildCat(breed, { feet }); animateCat(cat, state, 1.3, 0, false);
+        cat.updateMatrixWorld(true);
+        expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x, `${feet} ${state}`).toBeGreaterThanOrEqual(-0.01); // precise box
+      }
     }
   });
 });

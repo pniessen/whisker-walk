@@ -1,4 +1,4 @@
-import { TORSO, HEAD } from './torso.js';
+import { TORSO, HEAD, PAW_HALF } from './torso.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
@@ -91,8 +91,10 @@ function applyPoseFit(cat, fit) {
 //     is left alone) gets the scale that lands its sole where a standard leg's
 //     sole would land: hip + Δ - s'·(R + Δ)·cosθ = hip - s·R·cosθ.
 //   * then every leg is capped so its sole cannot pass below the ground
-//     (ruling R2): s'·(R + Δ)·cosθ <= hip. This is what keeps the stretch's
-//     lengthened hind legs out of the ground.
+//     (ruling R2): s'·D·cosθ <= hip, where D is THIS leg's hip-to-sole drop
+//     read off its paw (a boot or sock makes the paw taller than the bare
+//     R + Δ). This is what keeps the stretch's lengthened hind legs out of
+//     the ground.
 //
 // A standing cat is untouched; a walking one has its swinging legs re-fit each
 // frame so its paws track the reference rig's. A rig without legLift (Hagrid)
@@ -118,7 +120,11 @@ function fitLongLegs(cat) {
     if (!(s === 1 && swing === 0) && swing <= LONG_LEG_MAX_SWING) {
       leg.scale.y = (s * reach * c + lift) / ((reach + lift) * c);
     }
-    if (c > 0) leg.scale.y = Math.min(leg.scale.y, hipY / ((reach + lift) * c));
+    if (c > 0) {
+      const { paw } = leg.userData;
+      const drop = PAW_HALF * paw.scale.y - paw.position.y; // hip to sole, unscaled
+      leg.scale.y = Math.min(leg.scale.y, hipY / (drop * c));
+    }
   }
 }
 

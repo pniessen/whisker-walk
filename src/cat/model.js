@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { TORSO, LEGACY_BODY, LEGS, PAW_Y, HEAD, REF_RIG, POSE_FIT } from './torso.js';
+import { TORSO, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -1277,6 +1277,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The balloons float on strings rather than sit on the back, and they were
   // placed to stay inside the shop's whole-cat thumbnail (top < 1.1): they keep
   // their height.
+  // Interim: Task 8 re-places the balloon strings' feet and keeps these heights.
   const floats = accessories.back === 'balloon' || accessories.back === 'balloonbunch';
   const risen = g.children.slice(firstBodyItem, floats ? firstBackItem : undefined);
   for (const item of risen) item.position.y += ITEM_RISE;
@@ -1314,6 +1315,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(SOCK_COLORS[i % SOCK_COLORS.length]);
       leg.userData.paw.scale.set(1.1, 1.3, 1.1);
     });
+  }
+
+  // A feet item that makes the paw taller (scale.y > 1) would push its sole
+  // into the ground (R2). Lift the paw, and whatever hangs with it, by the
+  // extra half-height, so the sole stays where a bare paw's is. A flatter
+  // shell (the sneaker, 0.95) is left alone: it clears the ground already.
+  for (const leg of legs) {
+    const lift = PAW_HALF * Math.max(0, leg.userData.paw.scale.y - 1);
+    if (lift) for (const part of leg.children.slice(1)) part.position.y += lift;
   }
 
   // -------------------------------------------------------------------------

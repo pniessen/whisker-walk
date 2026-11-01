@@ -16,9 +16,12 @@ export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRON
 // (old hip 0.3, old paw 0.2585 below it).
 export const PAW_Y = -(LEGS.HIP_Y - 0.3 + 0.2585);
 
+// The bare paw's half-height: radius 0.062, flattened to 0.62.
+export const PAW_HALF = 0.062 * 0.62;
+
 // A standing sole's height above the ground: the paw centre less the flattened
-// paw's half-height (0.062 * 0.62).
-export const PAW_SOLE_GAP = 0.3 - 0.2585 - 0.062 * 0.62;
+// paw's half-height.
+export const PAW_SOLE_GAP = 0.3 - 0.2585 - PAW_HALF;
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
 
