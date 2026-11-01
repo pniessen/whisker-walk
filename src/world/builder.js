@@ -1489,6 +1489,28 @@ export function horizonBand({
   return m;
 }
 
+// THE TREES' OCCLUDER SHAPES (src/fightcam.js). Each tree carries, in its
+// Group's own unscaled frame, a few simple solids that hold every vertex it
+// draws: vertical cylinders { t: 'cyl', r, y0, y1 } on the tree's axis and
+// ellipsoids { t: 'ell', y, r, ry } centred on it. The fight camera keeps its
+// lines to both cats clear of them. test/fightcam.test.js rebuilds trees at
+// many spots and scales and checks every vertex sits inside. Data only: no
+// mesh, no draw, nothing changes on screen.
+//
+// The oak's canopy blob reaches 1.90 of its 1.6 nominal radius (its second
+// lobe bulges out and down to y 0.9), hence the 1.95 sphere.
+const OAK_TRUNK = Object.freeze({ t: 'cyl', r: 0.35, y0: 0, y1: 2 });
+export const TREE_OCCLUDER = Object.freeze([OAK_TRUNK, Object.freeze({ t: 'ell', y: 2.8, r: 1.95, ry: 1.95 })]);
+function willowOccluder(curtainFloor) {
+  return Object.freeze([
+    OAK_TRUNK,
+    Object.freeze({ t: 'ell', y: 2.8, r: 1.95, ry: 1.95 * 0.75 }),
+    // the curtain: strands out to 1.55 (plus their own half-width), from the
+    // floor (or 0.1 under the top, whichever is lower) to the top
+    Object.freeze({ t: 'cyl', r: 1.6, y0: Math.min(curtainFloor, 2.8), y1: 2.9 }),
+  ]);
+}
+
 // `opts.wind` is the per-walk sway registry (see the WIND block at the top of
 // this file). Passing it plants the tree AND registers it in one line; leaving
 // it out is the tree this function has always returned.
@@ -1528,6 +1550,7 @@ export function tree(x, z, scale = 1, { wind } = {}) {
   // reads this off the scene at walk time to drop leaves from under real
   // canopies; it survives mergeStaticProps, which keeps every top-level Group.
   g.userData.canopy = { y: leaves.position.y, r: 1.6 };
+  g.userData.occluder = TREE_OCCLUDER;
   // Registered AFTER position/scale are set: wind.add derives this tree's
   // phase from its (x, z), so a tree registered at the origin would sway in
   // lockstep with every other tree in the area.
@@ -2626,6 +2649,7 @@ export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
   g.userData.canopy = { y: crown.position.y, r: 1.6 };
+  g.userData.occluder = willowOccluder(curtainFloor);
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
   return g;
 }
@@ -2636,6 +2660,16 @@ export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
 // rebuild a pine's solid shape and keep the chase camera out of it.
 export const PINE_TRUNK = Object.freeze({ rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 });
 export const PINE_CONES = Object.freeze([[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map((c) => Object.freeze(c)));
+// A pine's occluder shapes (see TREE_OCCLUDER): the trunk, and each cone as
+// two stacked cylinders, its full radius over its lower half and half of it
+// over the upper half, which holds the cone and wastes little round its tip.
+export const PINE_OCCLUDER = Object.freeze([
+  Object.freeze({ t: 'cyl', r: PINE_TRUNK.rBottom, y0: PINE_TRUNK.y - PINE_TRUNK.h / 2, y1: PINE_TRUNK.y + PINE_TRUNK.h / 2 }),
+  ...PINE_CONES.flatMap(([r, h, y]) => [
+    Object.freeze({ t: 'cyl', r, y0: y - h / 2, y1: y }),
+    Object.freeze({ t: 'cyl', r: r / 2, y0: y, y1: y + h / 2 }),
+  ]),
+]);
 const PINE_TRUNK_COLOR = 0x7a5230;
 const PINE_FOLIAGE_COLOR = 0x2f5a3a;
 const PINE_TRUNK_SIDES = 6;
@@ -2667,6 +2701,7 @@ export function pine(x, z, scale = 1, { wind } = {}) {
   g.add(foliage);
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
+  g.userData.occluder = PINE_OCCLUDER;
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
   return g;
 }
@@ -2706,6 +2741,9 @@ export function pineStand(trees, seed) {
   trunkMesh.castShadow = true;
   foliageMesh.castShadow = true;
   g.add(trunkMesh, foliageMesh);
+  // Each pine's spot for the fight camera (TREE_OCCLUDER): one merged pair
+  // cannot be told apart by mesh, so the stand lists its trees.
+  g.userData.occluderStand = { shapes: PINE_OCCLUDER, trees: trees.map(({ x, z, scale }) => ({ x, z, scale })) };
   return g;
 }
 

@@ -136,3 +136,9 @@ describe('v18 feat tallies', () => {
     expect(order).toEqual(['tally', 'emit']);
   });
 });
+
+describe('Clan Life Part 2: the intruder award', () => {
+  it('chasing off an intruder is worth 12, and its feat tally is the lifetime count', () => {
+    expect(AWARDS.intruder).toBe(12);
+  });
+});

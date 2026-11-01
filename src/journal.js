@@ -28,7 +28,10 @@ export const CRITTER_INFO = [
 // through in a context that skips it) — every count is coerced through
 // Number.isFinite so a non-numeric or malicious value (e.g. '<script>')
 // simply falls back to 0 (unspotted) rather than reaching the DOM.
-export function renderJournalHtml(journal, goldenFound, goldenTotal) {
+// chasedOff (Clan Life Part 2): the lifetime intruders-chased-off tally
+// (state.feats.intruder). The line shows only when it is passed (homebase does
+// so in Clan Edition); anything but a finite non-negative number reads 0.
+export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff } = {}) {
   const j = journal && typeof journal === 'object' ? journal : {};
   const found = Number.isFinite(goldenFound) ? goldenFound : 0;
   const total = Number.isFinite(goldenTotal) ? goldenTotal : 0;
@@ -47,6 +50,8 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal) {
       <span class="journal-hint">${c.hint}</span>
     </div>`;
   }).join('');
+  const chased = chasedOff === undefined ? ''
+    : `<div class="journal-footer">🛡️ Intruders chased off: ${Number.isFinite(chasedOff) && chasedOff > 0 ? Math.floor(chasedOff) : 0}</div>`;
   return `<div class="journal-grid">${cards}</div>
-    <div class="journal-footer">🥇 Golden mice: ${found}/${total}</div>`;
+    <div class="journal-footer">🥇 Golden mice: ${found}/${total}</div>${chased}`;
 }
