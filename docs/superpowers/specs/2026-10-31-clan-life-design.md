@@ -272,6 +272,12 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
   shadow, then merging the still cats, then 2 kits instead of 4; Root, Toad,
   Trout and Mint move to warrior slots so no kit or apprentice name is a
   book name.
+- Part 1 draw reading (2026-11-01, headless Chromium, HIGH, Auto off, 10 s
+  average; fps not meaningful there, about 3 to 4 on both builds; iPhone 18
+  reading still pending, the owner's): camp view desktop Woods 413 (was
+  313), River 645 (745), Moor 366 (263), Pines 873 (840); phone portrait
+  396 (300), 662 (571), 381 (191), 532 (464); at most +190, inside lever
+  1's expectation. Roaming spots: +25 to −188. No further lever needed.
 
 ## Goals
 
