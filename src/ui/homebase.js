@@ -792,7 +792,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         </section>`;
       case 'journal': return `
         <section class="journal-section"><h2>Critter Journal 📖</h2>
-          ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, KNOWN_GOLD), GOLD_TOTAL)}
+          ${renderJournalHtml(s.journal ?? {}, goldenFound(s.golden, KNOWN_GOLD), GOLD_TOTAL,
+    isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {})}
         </section>`;
       case 'album': return `
         <section><h2>Photo album 📸</h2><div class="photos">

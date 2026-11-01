@@ -535,6 +535,9 @@ export function createInteractions({
   // -------------------------------------------------------------------
   function maybeScuffle(s, stray, catP) {
     if (!stray.cross) return;
+    // Clan Life Part 2: never beside a fight, nor while its challenge is up,
+    // so a cross stray can't cost points while the kid is reading a move.
+    if (s.fight || s.clanFight?.uiShowing) return;
     // GUARD ONE, which enemies.js explicitly leaves to the call site because
     // it is a session read that module has no handle on: never fire while
     // the player is already frozen. Without it, a cross cat you happen to be
@@ -736,6 +739,12 @@ export function createInteractions({
       }
     }
     s.prompt = null;
+    // Clan Life Part 2: no prompts during a fight (the sheet owns the keys).
+    if (s.fight) {
+      setPrompt(null);
+      s.lastPromptKind = null;
+      return;
+    }
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
       if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6 &&
@@ -1472,7 +1481,7 @@ export function createInteractions({
   }
 
   function handleInteract(s) {
-    if (!s.prompt) return;
+    if (!s.prompt || s.fight) return;
     // v21 3b Task 15 — any other E action gets the cat up: pressing E to pet a
     // den cat or greet a stray beside the cushion ends the nap (or the sip)
     // first, so nothing is done by a cat still drawn asleep. The 'rest' prompt

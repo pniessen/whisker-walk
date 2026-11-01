@@ -716,3 +716,144 @@ describe('applyRemoteEvent: border-cross', () => {
     expect(() => applyRemoteEvent({}, { type: 'border-cross' })).not.toThrow();
   });
 });
+
+// Clan Life Part 2, Task 5: a co-walker's fight with the visiting clan cat.
+describe('applyRemoteEvent: intruder-fight and intruder-done', () => {
+  function intruderHarness({ intruders = true, clanFight = true, clanEdition = true } = {}) {
+    const toasts = [];
+    const awards = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: { awardOnce: (...a) => { awards.push(a); return 1; } },
+      hud: { toast: (t) => toasts.push(t) },
+      audio: {}, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
+      getPartner: () => null,
+    });
+    const calls = [];
+    const state = { visit: 3, held: new Set(), fled: false, local: false };
+    const intr = {
+      current: () => ({ visit: state.visit, member: { name: 'Mossjaw' }, clan: 'moor', state: 'walking' }),
+      hold: (v, id, face, o) => { calls.push(['hold', v, id, face, o]); state.held.add(id); },
+      release: (v, id) => { calls.push(['release', v, id]); if (!state.fled) state.held.delete(id); },
+      flee: (v) => { calls.push(['flee', v]); state.fled = true; state.held.clear(); },
+    };
+    const cf = {
+      pill: true, fighting: false, paid: false,
+      hideChallengeFor: (v) => { calls.push(['hide', v]); const was = cf.pill; cf.pill = false; return was; },
+      chasedOffTogether: (v, pet) => {
+        calls.push(['together', v, pet]);
+        if (!cf.fighting) return false;
+        cf.fighting = false;
+        awards.push(['intruder', `intruder-${v}`]);
+        return true;
+      },
+    };
+    const remoteGroup = new THREE.Group();
+    remoteGroup.position.set(4, 0, -2);
+    const s = {
+      playerId: ME, areaId: 'woods',
+      remotes: { list: [{ playerId: PARTNER, group: remoteGroup, petName: 'Robin' }] },
+      intruders: intruders ? intr : undefined,
+      clanFight: clanFight ? cf : undefined,
+      cat: { position: new THREE.Vector3() },
+    };
+    if (!clanEdition) s.clanEdition = false;
+    const fight = (o = {}) => ({ v: 1, id: PARTNER, type: 'intruder-fight', area: 'woods', visit: 3, ...o });
+    const done = (fled, o = {}) => ({ v: 1, id: PARTNER, type: 'intruder-done', area: 'woods', visit: 3, fled, ...o });
+    return { s, calls, state, cf, toasts, awards, fight, done, apply: (e) => applyRemoteEvent(s, e) };
+  }
+
+  it("the sister's fight holds the intruder on my screen, facing her cat", () => {
+    const h = intruderHarness();
+    h.apply(h.fight());
+    expect(h.calls[0]).toEqual(['hold', 3, PARTNER, { x: 4, z: -2 }, undefined]);
+    expect(h.toasts).toEqual(['Robin is already facing Mossjaw!']);
+  });
+
+  it('my pill is hidden with a toast only when it was up', () => {
+    const h = intruderHarness();
+    h.cf.pill = false;
+    h.apply(h.fight());
+    expect(h.toasts).toEqual([]);
+  });
+
+  it("a sibling's loss doesn't release the intruder while my fight is on", () => {
+    const h = intruderHarness();
+    h.state.held.add('me-player-0001'); // my own fight's hold
+    h.apply(h.fight());
+    h.apply(h.done(false));
+    expect(h.state.held.has(PARTNER)).toBe(false);
+    expect(h.state.held.has('me-player-0001')).toBe(true);
+    expect(h.calls.some((c) => c[0] === 'flee')).toBe(false);
+  });
+
+  it('fled wins over walked-on, in either order', () => {
+    for (const order of [[true, false], [false, true]]) {
+      const h = intruderHarness();
+      h.apply(h.fight());
+      for (const f of order) h.apply(h.done(f));
+      expect(h.state.fled).toBe(true);
+      expect(h.state.held.size).toBe(0);
+    }
+  });
+
+  it('fighting together: when either wins, both are paid once', () => {
+    const h = intruderHarness();
+    h.cf.fighting = true;
+    h.apply(h.done(true));
+    expect(h.awards).toEqual([['intruder', 'intruder-3']]);
+    expect(h.cf.fighting).toBe(false);
+    h.apply(h.done(true));
+    expect(h.awards).toHaveLength(1);
+    expect(h.calls.filter((c) => c[0] === 'together')[0]).toEqual(['together', 3, 'Robin']);
+  });
+
+  it('a watching device gets no award', () => {
+    const h = intruderHarness();
+    h.apply(h.done(true));
+    expect(h.state.fled).toBe(true);
+    expect(h.awards).toEqual([]);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it('hostile and stale events are ignored', () => {
+    const bad = [
+      { id: STRANGER }, { id: ME }, { area: 'river' }, { visit: '3' }, { visit: NaN }, { visit: -1 },
+      { visit: 2 }, { visit: 4 }, { visit: 3.5 }, { visit: undefined }, { id: '__proto__' },
+    ];
+    for (const b of bad) {
+      for (const mk of [(h) => h.fight(b), (h) => h.done(true, b), (h) => h.done(false, b)]) {
+        const h = intruderHarness();
+        expect(() => h.apply(mk(h)), JSON.stringify(b)).not.toThrow();
+        expect(h.calls, JSON.stringify(b)).toEqual([]);
+      }
+    }
+    for (const f of ['yes', 1, 0, null, undefined]) {
+      const h = intruderHarness();
+      h.apply(h.done(f));
+      expect(h.calls).toEqual([]);
+    }
+    for (const mk of [(h) => h.fight(), (h) => h.done(true)]) {
+      const h = intruderHarness({ intruders: false });
+      expect(() => h.apply(mk(h))).not.toThrow();
+    }
+    const h = intruderHarness({ clanFight: false });
+    expect(() => { h.apply(h.fight()); h.apply(h.done(true)); }).not.toThrow();
+    expect(h.state.fled).toBe(true);
+  });
+
+  it('Legacy screens follow too', () => {
+    const h = intruderHarness({ clanEdition: false });
+    h.apply(h.fight());
+    expect(h.state.held.has(PARTNER)).toBe(true);
+    h.apply(h.done(true));
+    expect(h.state.fled).toBe(true);
+  });
+
+  it('never awards or toasts beyond the together line', () => {
+    const h = intruderHarness();
+    h.apply(h.fight());
+    h.apply(h.done(false));
+    expect(h.awards).toEqual([]);
+  });
+});

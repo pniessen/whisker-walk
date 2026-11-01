@@ -92,7 +92,11 @@ import { litMaterial } from '../render/materials.js';
 import { setTextureTier } from '../render/textures.js';
 import { waterRig } from '../render/water.js';
 import { createWind } from '../render/wind.js';
-import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '../render/rig.js';
+import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
+import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
+import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
+import { createFightCam, findOccluders } from '../fightcam.js';
+import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
@@ -1318,6 +1322,36 @@ export function createWalkLifecycle({
     const clanHome = clanHomeFor(areaId, progression.state.edition, picks);
     session.clanHome = clanHome;
     session.clanEdition = isClanEdition(progression.state);
+    // Intruders (Clan Life Part 2): a neighbouring clan's warrior crossing this
+    // territory, from the wall clock alone. Built after the shadow sweep, so
+    // each visit's cat is swept on its own; its contact shadow follows the
+    // intruders' one anchor, registered once per walk.
+    session.intruders = castFor(areaId).length && !isDen ? createIntruders(scene, areaId, {
+      reducedMotion,
+      showNames: isClanEdition(state),
+      hostile: (clan) => isHostile({ clan }, { clanHome, picks }),
+      onNotice: () => audio.hiss(),
+      onBuild: (g) => { assignShadowCastersFor(g); },
+    }) : NO_INTRUDERS;
+    if (session.intruders.anchor) decals.follow(session.intruders.anchor, INTRUDER_DECAL_RADIUS);
+    // The clan fight (Part 2, Task 4): only at home, over these intruders. It
+    // is given no progression; it stands only on the clan cats' own ground
+    // (ruling R3). The sheet's buttons and keys call back into it.
+    session.clanFight = session.clanHome && session.intruders !== NO_INTRUDERS ? createClanFight({
+      intruders: session.intruders,
+      ui: createFightUi(document.getElementById('hud'), {
+        onFight: () => session.clanFight.startFight(),
+        onBackOff: () => session.clanFight.backOff(),
+        onMove: (m) => session.clanFight.answer(m),
+      }),
+      audio, fx: session.fx, hud, log, areaId, walkStamp, playerId: pid,
+      playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
+      reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
+      sendEvent: (ev) => session.net?.sendEvent(ev),
+    }) : NO_CLAN_FIGHT;
+    // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
+    // Read once from the trees' tags; null where no fight can happen.
+    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders: findOccluders(scene), colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y }) : null;
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
@@ -1587,7 +1621,7 @@ export function createWalkLifecycle({
         if (!session) return; // presence sync can land after endWalk tore the session down
         const liveIds = new Set(roster.map((p) => p.playerId));
         for (const r of remotes.list) {
-          if (!liveIds.has(r.playerId)) remotes.remove(r.playerId);
+          if (!liveIds.has(r.playerId)) { remotes.remove(r.playerId); session.intruders.dropHolder(r.playerId); }
         }
         for (const p of roster) {
           if (p.playerId === session.playerId) continue; // don't render yourself as a remote pet
@@ -1792,6 +1826,11 @@ export function createWalkLifecycle({
       session.net.sendEvent({ v: 1, id: session.playerId, type: 'clan-buddy', catId: session.clanBuddy.id, on: false });
     }
     session.clanBuddy = null;
+    // A fight still on ends here, while the room is still joined, so its
+    // intruder-done reaches the co-walker (whose intruder would otherwise
+    // stand held). Idempotent; solo it sends nothing.
+    session.clanFight.abort();
+    session.fightCam?.dispose();
 
     if (session.net) {
       const net = session.net;
@@ -1866,6 +1905,7 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
+    session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
     session.denCats.dispose();

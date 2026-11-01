@@ -51,6 +51,7 @@ const { campLayout } = await import('../src/world/camp.js');
 const { clanWalkableFor } = await import('../src/world/clanground.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { keepOutPoint } = await import('../src/keepout.js');
+const { INTRUDER_ROUTES, ROUTE_MAX, routeLength } = await import('../src/intruders.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
@@ -307,5 +308,92 @@ describe('the camp and the clan in the real territories', () => {
         for (const p of [L.den, L.rock]) expect(Math.hypot(t.x - p.x, t.z - p.z), `${a} ${t.x},${t.z}`).toBeGreaterThan(p.r);
       }
     }
+  });
+});
+
+// Every intruder route against the REAL built territories (Clan Life Part 2,
+// ruling R1). The flee runs back along the route, so these checks cover it too.
+describe('intruder routes in the real territories', () => {
+  // Which edge of each territory faces which neighbour, from each map's
+  // "WHERE ITS EDGES FACE" note (x east, z south, so north is -z).
+  const FACING = {
+    woods: { moor: 'north', river: 'west' },
+    river: { pines: 'north', woods: 'east' },
+    moor: { woods: 'south', pines: 'west' },
+    pines: { river: 'south', moor: 'east' },
+  };
+  const edgeGaps = (b, p) => ({ north: p.z - b.minZ, south: b.maxZ - p.z, west: p.x - b.minX, east: b.maxX - p.x });
+  const nearestEdge = (b, p) => Object.entries(edgeGaps(b, p)).sort((m, n) => m[1] - n[1])[0];
+  const routes = () => Object.entries(INTRUDER_ROUTES).flatMap(([a, byClan]) => Object.entries(byClan).map(([clan, route]) => ({ a, clan, route })));
+  const samples = (route) => {
+    const out = [];
+    for (let i = 0; i + 1 < route.length; i++) {
+      const p = route[i], q = route[i + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / 0.5));
+      for (let j = 0; j <= n; j++) out.push({ x: p.x + ((q.x - p.x) * j) / n, z: p.z + ((q.z - p.z) * j) / n });
+    }
+    return out;
+  };
+
+  it('covers every territory with a camp, with a route for each neighbour', () => {
+    expect(routes()).toHaveLength(8);
+    for (const a of ['woods', 'river', 'moor', 'pines']) expect(Object.keys(INTRUDER_ROUTES[a]).sort()).toEqual(Object.keys(FACING[a]).sort());
+  });
+
+  it('starts on the edge facing its clan and ends on an edge', () => {
+    for (const { a, clan, route } of routes()) {
+      const b = built[a].bounds;
+      const [edge, gap] = nearestEdge(b, route[0]);
+      expect(edge, `${a}.${clan} enters`).toBe(FACING[a][clan]);
+      expect(gap, `${a}.${clan} enters`).toBeLessThanOrEqual(1.5);
+      expect(nearestEdge(b, route[route.length - 1])[1], `${a}.${clan} leaves`).toBeLessThanOrEqual(1.5);
+    }
+  });
+
+  it('every point every 0.5m is clan ground and clears every collider by the cat\'s radius', () => {
+    for (const { a, clan, route } of routes()) {
+      const area = built[a];
+      const ok = clanWalkableFor(area, a);
+      for (const p of samples(route)) {
+        const at = `${a}.${clan} ${p.x.toFixed(2)},${p.z.toFixed(2)}`;
+        expect(isWalkableAt(area, p.x, p.z), at).toBe(true);
+        expect(ok(p.x, p.z), at).toBe(true);
+        for (const c of area.colliders) expect(Math.hypot(p.x - c.x, p.z - c.z), at).toBeGreaterThanOrEqual(c.r + CAT_RADIUS);
+      }
+    }
+  });
+
+  it('never crosses water, not even on a deck, so the intruder always walks on the ground', () => {
+    for (const { a, clan, route } of routes()) {
+      const undecked = built[a].waters.map((w) => ({ ...w, decks: [] }));
+      for (const p of samples(route)) {
+        expect(waterClearance(undecked, p.x, p.z), `${a}.${clan} ${p.x.toFixed(2)},${p.z.toFixed(2)}`).toBeGreaterThanOrEqual(CAT_RADIUS);
+      }
+    }
+  });
+
+  it('keeps 3m beyond the camp\'s edge, and off the Pines\' truce ground and the island', () => {
+    const segDist = (x, z, [x1, z1, x2, z2]) => {
+      const dx = x2 - x1, dz = z2 - z1;
+      const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+      return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+    };
+    for (const { a, clan, route } of routes()) {
+      const { cx, cz, r } = DISCS[a];
+      for (const p of samples(route)) {
+        const at = `${a}.${clan} ${p.x.toFixed(2)},${p.z.toFixed(2)}`;
+        expect(Math.hypot(p.x - cx, p.z - cz), at).toBeGreaterThanOrEqual(r + 3);
+        expect(keepOutPoint(built[a], p.x, p.z), at).toEqual({ x: p.x, z: p.z });
+        if (a === 'pines') {
+          for (const seg of TRUCE_PATH) expect(segDist(p.x, p.z, seg) - 1.5, at).toBeGreaterThanOrEqual(3);
+          expect(Math.hypot(p.x - BRIDGE_FOOT.x, p.z - BRIDGE_FOOT.z), at).toBeGreaterThanOrEqual(3);
+          expect(Math.hypot(p.x - PINES_ISLAND.x, p.z - PINES_ISLAND.z), at).toBeGreaterThan(PINES_ISLAND.r);
+        }
+      }
+    }
+  });
+
+  it('is no longer than ROUTE_MAX', () => {
+    for (const { a, clan, route } of routes()) expect(routeLength(route), `${a}.${clan}`).toBeLessThanOrEqual(ROUTE_MAX);
   });
 });

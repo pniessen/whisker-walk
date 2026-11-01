@@ -166,3 +166,69 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
     }
   });
 });
+
+// Clan Life Part 2, Task 4: the fight's two new poses.
+describe('animateCat: the fight poses (swipe, backUp)', () => {
+  const lowest = (obj) => new THREE.Box3().setFromObject(obj, true).min.y;
+  const posed = (breed, state, simple = false) => {
+    const cat = buildCat(breed, undefined, simple ? { simple: true } : undefined);
+    animateCat(cat, state, 1.3, 0, false);
+    cat.updateMatrixWorld(true);
+    return cat;
+  };
+
+  it('swipe raises one front paw well above the other, and no paw goes below the ground', () => {
+    for (const breed of ['tabby', 'digit']) {
+      for (const simple of [false, true]) {
+        const cat = posed(breed, 'swipe', simple);
+        const { legs } = cat.userData.parts;
+        const s = cat.scale.x;
+        const fl = lowest(legs[0].userData.paw) / s;
+        const fr = lowest(legs[1].userData.paw) / s;
+        expect(fl - fr).toBeGreaterThan(0.08);
+        expect(legs[0].rotation.x).toBeCloseTo(-1.2, 1);
+        expect(lowest(cat) / s).toBeGreaterThanOrEqual(-0.01);
+        // leaning back a little, head up
+        expect(cat.userData.parts.body.rotation.x).toBeLessThan(0);
+        expect(cat.userData.parts.head.position.y).toBeGreaterThan(cat.userData.base.headPos[1]);
+      }
+    }
+    expect(() => animateCat(buildCat('hagrid'), 'swipe', 1.3, 0, false)).not.toThrow();
+  });
+
+  it('backUp shifts the body back and down and differs from cross, stalk and swipe', () => {
+    for (const breed of ['tabby', 'digit']) {
+      const cat = posed(breed, 'backUp');
+      const { body, head, legs } = cat.userData.parts;
+      const base = cat.userData.base;
+      expect(body.position.z).toBeGreaterThan(0.05);
+      expect(body.position.y).toBeLessThan(base.bodyY);
+      // rear lowered: the torso tips nose-up
+      expect(body.rotation.x).toBeLessThan(0);
+      // front legs braced forward, head low and level
+      expect(legs[0].rotation.x).toBeLessThan(0);
+      expect(legs[1].rotation.x).toBeLessThan(0);
+      expect(head.position.y).toBeLessThan(base.headPos[1]);
+      expect(head.rotation.x).toBe(0);
+      expect(lowest(cat) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+      const sig = (c) => {
+        const p = c.userData.parts;
+        return [p.body.position.y, p.body.position.z, p.body.rotation.x, p.head.position.y, ...p.legs.map((l) => l.rotation.x)]
+          .map((v) => Math.round(v * 1e4)).join(',');
+      };
+      for (const other of ['cross', 'stalk', 'swipe']) expect(sig(posed(breed, other))).not.toBe(sig(cat));
+      // held still: the same at any moment of the clue
+      const later = buildCat(breed);
+      animateCat(later, 'backUp', 4.1, 0, false);
+      expect(sig(later)).toBe(sig(cat));
+    }
+    expect(() => animateCat(buildCat('hagrid'), 'backUp', 1.3, 0, false)).not.toThrow();
+  });
+
+  it('no other pose keeps the body moved back after a backUp', () => {
+    const cat = buildCat('tabby');
+    animateCat(cat, 'backUp', 1.3, 0, false);
+    animateCat(cat, 'follow', 1.3, 0, false);
+    expect(cat.userData.parts.body.position.z).toBe(0);
+  });
+});

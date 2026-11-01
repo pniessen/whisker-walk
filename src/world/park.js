@@ -302,7 +302,27 @@ export function build(scene, { water = {}, wind } = {}) {
   // the one that caps Sure Claws' tree ceiling and holds gm-park-2 and
   // feather-5 — is a record in `perches` at a fixed (x, z, y), and wind only
   // rotates the Group about its own trunk axis.
-  scene.add(b.tree(4.5, 27.3, 1.1, { wind }));
+  const oak = b.tree(4.5, 27.3, 1.1, { wind });
+  // The low limb golden mouse gm-park-2 sits out on (src/goldmice.js). The
+  // mouse used to sit on the branch perch's own (x, z), the trunk's axis,
+  // inside the trunk and the canopy and hidden from every side. The limb
+  // reaches from the trunk away from the bench (the bench side is where the
+  // villager critter at (4, 27) stands), under the canopy, to just past
+  // the mouse, its top under the mouse's belly. A child of the oak, in its
+  // scaled frame, so it sways with it (as the Woods' great oak's limb does).
+  const s = 1.1;
+  const oakLimb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05 / s, 0.09 / s, 0.6 / s, 6),
+    litMaterial(0x7a5230, surfaceProps('bark')),
+  );
+  oakLimb.name = 'oakLimb';
+  // Along the bench-to-trunk bearing, from 0.2 m out to 0.8 m, its axis at
+  // y 1.2 (top 1.28 at the mouse, whose belly is at 1.28).
+  const dir = new THREE.Vector3(4.5 - 3, 0, 27.3 - 26).normalize();
+  oakLimb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); // thin end out
+  oakLimb.position.set((dir.x * 0.5) / s, 1.2 / s, (dir.z * 0.5) / s);
+  oak.add(oakLimb);
+  scene.add(oak);
   addC(4.5, 27.3, 0.6);
   scene.add(b.bench(3, 26, -0.5));
   scene.add(b.bench(-4, 14, 0.7));

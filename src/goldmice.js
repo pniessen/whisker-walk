@@ -20,8 +20,13 @@ export const GOLD_MICE = {
   park: [
     // first step of the oak chain — the bench
     { id: 'gm-park-1', x: 3, z: 26, y: 0.58 },
-    // top of the oak chain — "oak branch lookout"
-    { id: 'gm-park-2', x: 4.5, z: 27.3, y: 2.1 },
+    // top of the oak chain — "oak branch lookout": ground -> bench 0.58 ->
+    // branch 2.1. Out on the oak's low limb, 0.6 m from the trunk on the far
+    // side from the bench, under the canopy: at the perch's own (4.5, 27.3) it
+    // sat inside the trunk and the canopy, hidden from every side. A cat on
+    // the branch perch is 0.6 m away and 0.7 m above it, inside checkFind's
+    // 1.0 / 0.9; the bench (2.6 m off) and the grass (1.4 m under) are not.
+    { id: 'gm-park-2', x: 4.95, z: 27.69, y: 1.4 },
     // hidden at ground level among the bushes at (-35, -20)
     { id: 'gm-park-3', x: -35.3, z: -20.4, y: 0 },
   ],
