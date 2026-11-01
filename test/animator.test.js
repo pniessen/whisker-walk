@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { animateCat } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
 
@@ -130,4 +131,38 @@ describe('animateCat: states other than cross are untouched', () => {
       for (const y of s.pivots) expect(Number.isFinite(y)).toBe(true);
     });
   }
+});
+
+describe('animateCat: the resting tail curl (Task 5, R3)', () => {
+  it('at rest the tail leaves level and curls up 0.28 per link to 1.12 rad at the tip', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false);
+    const { tail, tailPivots } = cat.userData.parts;
+    expect(tail.rotation.x).toBeCloseTo(0.28, 6);
+    for (const p of tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
+    const elev = (i) => -tail.rotation.x - tailPivots.slice(0, i + 1).reduce((a, p) => a + p.rotation.x, 0);
+    expect(elev(0)).toBeCloseTo(0, 6);
+    expect(elev(4)).toBeCloseTo(1.12, 6);
+  });
+  it('cross and scared keep today\'s straight tail (R3)', () => {
+    for (const s of ['cross', 'scared', 'stalk', 'pounce', 'stretch']) {
+      const cat = buildCat('tabby'); animateCat(cat, s, 1.3, 0, false);
+      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBe(0);
+    }
+    const cross = buildCat('tabby'); animateCat(cross, 'cross', 0, 0, false);
+    expect(cross.userData.parts.tail.rotation.x).toBeCloseTo(-1.5, 6);
+  });
+  it('lying down softens the curl to a fifth', () => {
+    for (const s of ['nap', 'perch', 'requestPet']) {
+      const cat = buildCat('tabby'); animateCat(cat, s, 1, 0, false);
+      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28 * 0.2, 6);
+    }
+  });
+  it('the curl survives reducedMotion and the gait', () => {
+    for (const s of ['follow', 'sniff']) {
+      const cat = buildCat('tabby'); animateCat(cat, s, 2.7, 2.0, true);
+      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
+      cat.updateMatrixWorld(true);
+      expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x).toBeGreaterThanOrEqual(-0.01); // precise box
+    }
+  });
 });

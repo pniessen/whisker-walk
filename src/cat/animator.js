@@ -3,6 +3,13 @@ import { TORSO, HEAD, PAW_HALF } from './torso.js';
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
 
+// R3: the tail's resting curl (base.tailCurl per link) by state. Standing,
+// walking, grooming and sniffing get the full curl; lying and sitting a fifth,
+// so the tail lies round the cat. Every other state (cross, scared, stalk,
+// pounce, stretch) keeps today's straight chain. A rig without tailCurl
+// (Hagrid) gets no curl in any state.
+const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, perch: 0.2, requestPet: 0.2 };
+
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
 // Derived from 'scared' below (raised tail, flattened ears) because a scared
@@ -134,6 +141,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
   const [bsx, bsy, bsz] = base.bodyScale;
   const [hx, hy, hz] = base.headPos;
   const walking = moveSpeed > 0.1;
+  // Each pivot bends the tail up by c. A pose that writes its own tail angle
+  // adds c back to it, so link 0 leaves at the angle it always did.
+  const c = (base.tailCurl ?? 0) * (TAIL_CURL_BY_STATE[state] ?? 0);
 
   // base pose reset
   body.position.y = base.bodyY;
@@ -146,7 +156,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     leg.rotation.set(0, 0, 0);
     leg.scale.set(1, 1, 1);
   }
-  for (const p of tailPivots) p.rotation.set(0, 0, 0);
+  for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
 
   // ear twitches: brief, occasional, alternating
   const twitchWindow = Math.sin(t * 0.37) > 0.965 ? 1 : 0;
@@ -160,7 +170,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
     head.rotation.set(0.55, 0.5, 0);
     for (const leg of legs) leg.scale.y = 0.25;
-    tail.rotation.set(-0.12, 0, 0);
+    tail.rotation.set(-0.12 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
     body.scale.y += Math.sin(t * 1.4) * 0.015; // slow sleepy breathing
     return;
@@ -176,7 +186,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     legs[1].rotation.x = 0.9;
     legs[2].scale.y = 1.1;
     legs[3].scale.y = 1.1;
-    tail.rotation.x = -1.15;
+    tail.rotation.x = -1.15 + c; // c = 0: a straight tail
     return;
   }
 
@@ -184,7 +194,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     head.rotation.set(0.5, 0.65, 0.1);
     head.position.y = hy - 0.06 + Math.sin(t * 7) * 0.02; // little licks
     legs[1].rotation.x = -1.15; // raised front paw
-    tail.rotation.x = -0.35;
+    tail.rotation.x = -0.35 + c;
     for (const p of tailPivots) p.rotation.y = Math.sin(t * 1.6) * 0.12;
     return;
   }
@@ -199,7 +209,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     legs[3].rotation.x = -0.5;
     head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
-    tail.rotation.set(-0.1, 0, 0);
+    tail.rotation.set(-0.1 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.5; // tail curled round the front
     tailPivots[0].rotation.y = 0.2 + Math.sin(t * 2.2) * 0.15; // tip flicks
     return;
@@ -225,7 +235,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
     legs[1].rotation.x = 0.8;
     legs[2].rotation.x = -0.8;
     legs[3].rotation.x = -0.8;
-    tail.rotation.x = -0.2;
+    tail.rotation.x = -0.2 + c; // c = 0: a straight tail
     return;
   }
 

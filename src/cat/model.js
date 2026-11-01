@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -244,11 +244,22 @@ function dirOn(point, centre, scale) {
 
 // A limb hanging from its hip pivot: a tapered cylinder whose top is at the
 // pivot (y = 0) and whose length runs down -y, baked into the geometry so the
-// mesh itself sits at 0. `hind` is for the hind leg's own shape (a later task).
+// mesh itself sits at 0. A hind limb (sketch) is stouter at the top, tipped
+// back toward the hock, and carries a thick thigh merged in: still one mesh.
 function limbGeometry(len, hind) {
-  const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
-  geo.translate(0, -len / 2, 0);
-  return geo;
+  if (!hind) {
+    const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
+    geo.translate(0, -len / 2, 0);
+    return geo;
+  }
+  const H = LEGS.HIND;
+  const limb = new THREE.CylinderGeometry(H.TOP_R, LEGS.BOTTOM_R, len, 12);
+  limb.rotateX(H.HOCK_X);
+  limb.translate(0, -len / 2, H.HOCK_Z);
+  const thigh = new THREE.SphereGeometry(H.THIGH_R, 12, 9);
+  thigh.scale(...H.THIGH_SCALE);
+  thigh.translate(...H.THIGH_AT);
+  return mergeGeometries([limb, thigh]);
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -697,7 +708,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // Interim (Tasks 5, 7 and 8 re-place them): the tail, the ruff and every
+  // Interim (Tasks 7 and 8 re-place them): the ruff and every
   // body- and back-slot item rise with the torso, which now sits 0.09 higher.
   const ITEM_RISE = 0.09;
   // How far a shallower torso brings the top of the back down: the back-slot
@@ -836,83 +847,40 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   }
 
   // -------------------------------------------------------------------------
-  // TAIL — 5 tapered segments on nested pivots. Wave 6 reshapes the segments
-  // and re-places the pivots; the CHAIN ITSELF is untouched, because the
-  // animator owns it: `animateCat` resets every pivot's ROTATION to zero each
-  // frame and then writes rotation.y (the lagged sway, the 'cross' lash) and
-  // tail.rotation.x (the raise). It never writes a pivot POSITION and never
-  // touches the segment meshes, so the shape below is expressed entirely in
-  // pivot positions and per-segment transforms and survives every pose.
+  // TAIL — 5 tapered links on nested pivots (torso.js TAIL, sketch). It grows
+  // out of the rump: rooted at the rump's surface, thick at the base, with a
+  // root ball rounding the join, rounded joints and a rounded tip, all MERGED
+  // into the five link meshes (mesh count is the budget).
   //
-  // Three things were wrong with the old tail, all visible in the chase frame:
-  //
-  //  1. It did not taper to anything. Radii ran 0.048 -> 0.018 and stopped, so
-  //     the tip was a 3.6cm flat disc — clearly visible end-on as a bright
-  //     circular cap in the raking sun.
-  //  2. The base was as thin as the tip was thick. A cat's tail is thickest
-  //     where it leaves the body; this one was a uniform 4-5cm rod, which reads
-  //     as wire, not fur.
-  //  3. It was dead straight. Nothing about a resting cat is dead straight, and
-  //     a straight line is the one shape the eye reads as manufactured.
-  //
-  // The taper now runs 13.2cm across at the root down to 1.2cm at the tip,
-  // ending in a hemispherical cap MERGED INTO THE LAST SEGMENT'S GEOMETRY rather
-  // than added as a sixth mesh — mesh count is the budget, so a rounded tip has
-  // to be free or it does not happen. The arc is a gentle 17 degrees over the
-  // whole length, on top of the -0.6 rad the tail group is already held at.
-  const TAIL_LINK = 0.132;   // link length; 5 links ~ 0.66, a touch under body length
-  const TAIL_ARC = 0.075;    // radians of upward curve per link (4 x 0.075 = 17 deg at the tip)
-  const tailR = (u) => 0.060 * Math.pow(1 - u, 0.62) + 0.006; // 0.066 root -> 0.006 tip
+  // The chain itself is the animator's: `animateCat` writes every pivot's
+  // ROTATION each frame (the resting curl, R3, the lagged sway, the 'cross'
+  // lash) and tail.rotation.x (the raise). It never writes a pivot POSITION, so
+  // the pivots are plain: 0 at the root, then one link along +z each. The root
+  // frame is tipped down by TAIL.ROOT_TILT (base.tailRotX) so that, with the
+  // full curl, link 0 leaves level and each further link bends up by CURL.
   const tail = new THREE.Group();
   const tailPivots = [];
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
-    // Each pivot sits at the END of the previous link. Pivot rotations are
-    // zeroed by the animator every frame, so a parent carries no rotation and
-    // these offsets can all be expressed in the same (tail-local) frame using
-    // the ABSOLUTE tilt of the preceding link.
-    if (i > 0) {
-      const prev = (i - 1) * TAIL_ARC;
-      pivot.position.set(0, Math.sin(prev) * TAIL_LINK, Math.cos(prev) * TAIL_LINK);
-    }
-    const far = tailR((i + 1) / 5);
-    const near = tailR(i / 5);
-    // 6 -> 10 radial segments: at the root this is now a 13cm-diameter tube and
-    // a hexagon reads as a hexagon.
-    let geo = new THREE.CylinderGeometry(far, near, TAIL_LINK, 10, 1, true);
-    if (i === 4) {
-      // The rounded tip, merged in. openEnded above so the two pieces do not
-      // leave a disc buried inside the cap.
-      const cap = new THREE.SphereGeometry(far, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-      cap.translate(0, TAIL_LINK / 2, 0);
-      geo = mergeGeometries([geo, cap]);
-    } else if (i === 0) {
-      // Every other link butts into the next one, so only the ROOT end is ever
-      // open to the air — and only on link 0, which is buried in the rump
-      // anyway. Capped for the sake of the poses that lift the tail clear.
-      const root = new THREE.SphereGeometry(near, 10, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-      root.translate(0, -TAIL_LINK / 2, 0);
-      geo = mergeGeometries([geo, root]);
-    }
-    const seg = new THREE.Mesh(geo, mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
-    // Cylinder's axis is +Y; rotation.x = PI/2 maps +Y onto +Z (straight back).
-    // Subtracting this link's tilt swings it up into the arc.
-    const tilt = i * TAIL_ARC;
-    seg.rotation.x = Math.PI / 2 - tilt;
-    seg.position.set(0, Math.sin(tilt) * TAIL_LINK / 2, Math.cos(tilt) * TAIL_LINK / 2);
+    if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
+    // The link runs from its pivot along +z: the cylinder's +y axis turned onto
+    // +z. Open-ended; the balls below close every end.
+    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5), tailR(i / 5), TAIL.LINK, 12, 1, true)
+      .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
+    parts.push(i === 0
+      ? new THREE.SphereGeometry(TAIL.ROOT_BALL, 12, 8)   // the root, into the rump
+      : new THREE.SphereGeometry(tailR(i / 5), 10, 6));   // a rounded joint
+    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1), 10, 6).translate(0, 0, TAIL.LINK)); // the tip
+    const seg = new THREE.Mesh(mergeGeometries(parts), mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
     pivot.add(seg);
     parent.add(pivot);
     tailPivots.push(pivot);
     parent = pivot;
   }
-  // Root moved in and down from (0, 0.44, 0.42). The body's surface at z = 0.42
-  // is only y = 0.396, so the OLD root floated 4cm clear of the rump — invisible
-  // on a 4.8cm rod, obvious on a 6.6cm one. At z = 0.38 the surface is at 0.454,
-  // which buries the thicker root inside the body where it belongs.
-  // Interim (Task 5): up with the torso, and in to the shorter rump.
-  tail.position.set(0, 0.42 + ITEM_RISE, 0.38 * (TORSO.SCALE[2] / LEGACY_BODY.SCALE[2]));
-  tail.rotation.x = -0.6;
+  tail.position.set(0, TORSO.CENTRE_Y + TAIL.ROOT_DY, TAIL.ROOT_Z);
+  tail.rotation.x = TAIL.ROOT_TILT;
+  tail.scale.setScalar(TAIL.SCALE);
   g.add(tail);
 
   // -------------------------------------------------------------------------
@@ -1340,7 +1308,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // written for) and legReach (that rig's hip-to-sole drop) drive animator.js's
   // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
   g.userData.base = {
-    bodyY, bodyScale: [...BODY_SCALE], headPos, headScale: HEAD.SCALE, tailRotX: -0.6,
+    bodyY, bodyScale: [...BODY_SCALE], headPos, headScale: HEAD.SCALE, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
   };
   return g;

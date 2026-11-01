@@ -22,6 +22,19 @@ export const LEGACY_BODY = { CENTRE: [0, 0.34, 0], SCALE: [0.85, 0.75, 1.35] };
 
 // Legs (sketch), except BOTTOM_R: the paw's width was tuned against 0.058.
 export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRONT_X: 0.11, HIND_X: 0.12, TOP_R: 0.046, BOTTOM_R: 0.058 };
+// The hind leg (sketch): a stouter top, the limb tipped back to the hock, and a
+// thick thigh merged into the limb mesh (no extra mesh).
+LEGS.HIND = { TOP_R: 0.05, HOCK_X: -0.18, HOCK_Z: 0.03, THIGH_R: 0.11, THIGH_SCALE: [0.85, 1.25, 1.05], THIGH_AT: [0, -0.015, 0.03] };
+
+// The tail (sketch): five links rooted at the rump surface, ROOT_DY above the
+// torso centre and ROOT_Z back, the root frame tipped down ROOT_TILT so link 0
+// leaves level once the animator curls each link up by CURL (R3: the curl is a
+// bend the animator owns, softened lying down and dropped when cross or scared).
+// A root ball rounds the join into the rump; the whole tail is SCALE of size.
+export const TAIL = { LINK: 0.14, R: 0.078, TAPER: 0.62, TIP: 0.006, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.08 };
+
+// The tail's radius at fraction u of its length (0 root, 1 tip).
+export const tailR = (u) => TAIL.R * Math.pow(1 - u, TAIL.TAPER) + TAIL.TIP;
 
 // The paw centre in leg-local space, so the sole stays exactly where it is today
 // (old hip 0.3, old paw 0.2585 below it).

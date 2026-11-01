@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, coatColor } from '../src/cat/model.js';
-import { samples, lum as lumC } from './helpers/catfingerprint.js';
+import { samples, lum as lumC, meshCount, surfaceHit } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
@@ -66,19 +66,14 @@ describe('cat model: the parts contract the animator depends on', () => {
     });
   }
 
-  it('the tail chain carries its shape in POSITIONS, which the animator never writes', () => {
-    // Wave 6 gave the tail an upward arc. That arc is expressed as pivot
-    // positions precisely because animateCat resets every pivot's ROTATION to
-    // zero on every frame — a curve stored in rotations would be wiped. This
-    // pins the division of ownership from the model's side.
-    const cat = buildCat('tabby');
-    const before = cat.userData.parts.tailPivots.map((p) => p.position.toArray());
-    for (const state of STATES) animateCat(cat, state, 2.2, 1.5, false);
-    const after = cat.userData.parts.tailPivots.map((p) => p.position.toArray());
-    expect(after).toEqual(before);
-    // ...and it really is a curve, not a straight chain.
-    const lifted = after.filter(([, y]) => y > 0.001);
-    expect(lifted.length).toBeGreaterThanOrEqual(3);
+  it('pivot positions are never written by the animator', () => {
+    // The tail's resting curl is a bend the animator applies each frame
+    // (Task 5, R3), so the pivots carry no shape in their positions: pivot 0
+    // sits at the tail's root, every other one at the end of the link before.
+    const cat = buildCat('tabby'); const before = cat.userData.parts.tailPivots.map((p) => p.position.toArray());
+    for (const s of STATES) animateCat(cat, s, 2.2, 1.5, false);
+    expect(cat.userData.parts.tailPivots.map((p) => p.position.toArray())).toEqual(before);
+    expect(before.slice(1).every(([x, y, z]) => x === 0 && y === 0 && z === 0.14)).toBe(true);
   });
 });
 
@@ -431,5 +426,26 @@ describe('cat model: the Version 2 proportions', () => {
         expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x, `${feet} ${state}`).toBeGreaterThanOrEqual(-0.01); // precise box
       }
     }
+  });
+});
+
+describe('cat model: strong hind legs and a tail that grows out of the rump (Task 5)', () => {
+  const W = (m) => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return b.max.x - b.min.x; };
+  it('a hind leg is one mesh with a thick thigh; a front leg is a plain limb', () => {
+    const { legs } = buildCat('tabby').userData.parts;
+    expect(W(legs[2].children[0])).toBeGreaterThan(0.18);   // 0.11 × 0.85 × 2 = 0.187
+    expect(W(legs[0].children[0])).toBeLessThan(0.12);       // 2 × 0.058
+    expect(meshCount(legs[2])).toBe(2);                       // limb + paw
+  });
+  it('the tail is rooted at the rump surface, not deep inside (no dorsal fin)', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+    const { body, tail } = cat.userData.parts;
+    const c = body.getWorldPosition(new THREE.Vector3()), r = tail.getWorldPosition(new THREE.Vector3());
+    const hit = surfaceHit([body], c, r);
+    expect(Math.abs(r.distanceTo(c) - hit.distanceTo(c))).toBeLessThan(0.03);
+    expect(tail.scale.x).toBe(0.85);
+  });
+  it('the tail is still five meshes (root, joints and tip merged in)', () => {
+    expect(meshCount(buildCat('tabby').userData.parts.tail)).toBe(5);
   });
 });
