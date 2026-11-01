@@ -7,7 +7,7 @@ import { mulberry32, seedFromCode } from './rng.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName, isKittypetName } from './straynames.js';
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
-import { keepOutPoint } from './keepout.js';
+import { dryGroundPoint } from './keepout.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -449,7 +449,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // Both the rolled spot and a colony cat's stored one go through the
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
-    const { x, z } = keepOutPoint(area,
+    const { x, z } = dryGroundPoint(area,
       fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
       fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
     group.position.set(x, 0, z);
@@ -529,7 +529,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng());
     const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng());
     const spot = ex.spot && Number.isFinite(ex.spot.x) && Number.isFinite(ex.spot.z) ? ex.spot : null;
-    const { x, z } = keepOutPoint(area,
+    const { x, z } = dryGroundPoint(area,
       spot ? THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
       spot ? THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
     group.position.set(x, 0, z);
@@ -563,9 +563,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   }
 
   // Moves a position or target (a Vector3, written in place and returned) out
-  // of the area's keep-out. With none it is left exactly as it was.
+  // of the area's keep-out and off its water (keepout.js's dryGroundPoint:
+  // CAT_RADIUS clear of every footprint, as clan cats keep, a deck counting
+  // as dry). Already dry and outside any keep-out, it is left exactly as it
+  // was. Draws nothing, so co-walkers still agree on every stray.
   function keepOut(v) {
-    const p = keepOutPoint(area, v.x, v.z);
+    const p = dryGroundPoint(area, v.x, v.z);
     v.x = p.x;
     v.z = p.z;
     return v;

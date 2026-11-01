@@ -8,6 +8,10 @@
 // ghosts.js pass every position and target they give a cat through
 // keepOutPoint.
 //
+// Strays also keep off the water now: they go through dryGroundPoint (at the
+// bottom of this file), which is keepOutPoint plus the water. Ghosts still
+// use keepOutPoint alone.
+//
 // Pure and deterministic, with no rng: both co-walkers compute the same push
 // from the same area record, and no stream shifts. An area without a keepOut
 // gets every point back untouched, so its cats stand where they always did.
@@ -21,6 +25,9 @@
 // A point pushed to exactly the margin is out; float rounding in the push must
 // not count it as in and start another one (the same reason as builder.js's
 // DRY_EPS).
+import { CAT_RADIUS } from './player.js';
+import { waterClearance, nearestDry } from './world/builder.js';
+
 const EPS = 1e-9;
 // Exits and ring samples must stay this far inside the bounds, the same inset
 // the strays' own clamps use.
@@ -157,6 +164,69 @@ export function keepOutPoint(area, x, z) {
       const px = ox + Math.cos(a) * rad;
       const pz = oz + Math.sin(a) * rad;
       if (inBounds(b, px, pz) && !insideAny(shapes, px, pz)) return { x: px, z: pz };
+    }
+  }
+  return p;
+}
+
+// -----------------------------------------------------------------------------
+// Dry ground: the keep-out, and the water too.
+//
+// Since the player's cat wades and swims, a stray strolling across a pond
+// looked wrong, so strays now keep off the water the way clan cats do
+// (src/world/clanground.js): CAT_RADIUS or more clear of every footprint, a
+// deck (a bridge, a pier) counting as dry ground. Critters and ducks still
+// ignore the water on purpose (ducks paddle), and ghosts are unchanged.
+//
+// Pure and rng-free like keepOutPoint, so co-walkers agree and no stream
+// shifts. A point that is already dry and outside the keep-out is handed back
+// as it is, after one waterClearance test: that is the per-frame path.
+// -----------------------------------------------------------------------------
+const WATER_MARGIN = CAT_RADIUS;
+const DRY_PASSES = 8;
+const DRY_EPS = 1e-9;
+
+function isDry(waters, x, z) {
+  return waterClearance(waters, x, z) >= WATER_MARGIN - DRY_EPS;
+}
+
+function isClear(area, x, z) {
+  if (!isDry(area.waters, x, z)) return false;
+  if (!area.keepOut) return true;
+  const p = keepOutPoint(area, x, z);
+  return p.x === x && p.z === z;
+}
+
+/**
+ * dryGroundPoint(area, x, z) -> { x, z }
+ *
+ * keepOutPoint, and then CAT_RADIUS clear of every water in area.waters. Where
+ * a keep-out and a water meet, the two pushes take turns until the point is
+ * clear of both; if they still disagree, a ring search outward finds the
+ * nearest point that is.
+ */
+export function dryGroundPoint(area, x, z) {
+  let p = keepOutPoint(area, x, z);
+  const waters = area?.waters;
+  if (!waters || waters.length === 0) return p;
+  if (isDry(waters, p.x, p.z)) return p;
+  for (let pass = 0; pass < DRY_PASSES; pass++) {
+    p = nearestDry(waters, p.x, p.z, WATER_MARGIN);
+    if (!area.keepOut) return p;
+    const q = keepOutPoint(area, p.x, p.z);
+    if (q.x === p.x && q.z === p.z) return p;
+    p = q;
+    if (isDry(waters, p.x, p.z)) return p;
+  }
+  const b = area.bounds;
+  const ox = p.x, oz = p.z;
+  for (let k = 1; k * RING_STEP <= RING_MAX; k++) {
+    const rad = k * RING_STEP;
+    for (let j = 0; j < RING_ANGLES; j++) {
+      const a = (j / RING_ANGLES) * Math.PI * 2;
+      const px = ox + Math.cos(a) * rad;
+      const pz = oz + Math.sin(a) * rad;
+      if (inBounds(b, px, pz) && isClear(area, px, pz)) return { x: px, z: pz };
     }
   }
   return p;
