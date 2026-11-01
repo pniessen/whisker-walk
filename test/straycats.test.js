@@ -8,7 +8,8 @@ import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
 import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
-import { collarFor as housecatCollar } from '../src/housecats.js';
+import { collarFor as housecatCollar, wanderStrayCount } from '../src/housecats.js';
+import { lonersFor } from '../src/clancast.js';
 import { PREFIXES, CAT_PREFIXES } from '../src/clanwords.js';
 import { prefixFor } from '../src/clannames.js';
 import { emptyColony, feedCat, canFeed, tamingProgress } from '../src/colony.js';
@@ -1284,10 +1285,12 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     expect(ex).toContain('mulberry32((seedFromCode(legend) ^ (roomSeed ?? ');
     expect(ex).toContain('mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? ');
     expect(ex).not.toContain('walkRng');
-    // Ruling R2: the wanderer takes a loner slot, and only when it is passed.
+    // Ruling R2 (amended): the wanderer takes an ordinary loner's slot, never
+    // a colony cat's, and only when it is passed.
     const callText = src.slice(call, src.indexOf('});', call));
-    expect(callText).toContain('Math.max(0, lonersFor(areaId, tier.strays, fedHere) - 1)');
-    expect(callText).toMatch(/isDen \? 0 : wanderSpot \? Math\.max\(0, lonersFor\(areaId, tier\.strays, fedHere\) - 1\) : lonersFor\(areaId, tier\.strays, fedHere\)/);
+    expect(callText).toContain('createStrayCats(scene, areaData, strayCount, strayStream(roomSeed)');
+    expect(src).toContain('const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);');
+    expect(src).toContain('const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);');
     // Kittypets are kept out of a territory's ordinary cast on every walk.
     const excl = src.slice(src.indexOf('const excludeNames = '), src.indexOf(';\n', src.indexOf('const excludeNames = ')));
     expect(excl).toContain('territoryCastExcludes(areaId)');
@@ -1296,15 +1299,28 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     expect(slice).not.toMatch(/legend|wander/i);
   });
 
-  it('the arrival toast: only when the wanderer was spawned, in Clan Edition, and not already in the colony', () => {
+  it('the arrival line: only when the wanderer was spawned, in Clan Edition, and not already in the colony', () => {
+    // Final review, finding 2: the line is kept on the session, not toasted
+    // under the Ready? card; main.js toasts it once the walk starts.
     const setArea = src.indexOf('hud.setArea(');
-    const toast = src.indexOf('hud.toast(wanderArrivalLine(wanderName))');
-    expect(toast).toBeGreaterThan(setArea);
-    const line = src.slice(src.lastIndexOf('\n', toast), toast);
+    const keep = src.indexOf('session.arrivalLine = ');
+    expect(keep).toBeGreaterThan(setArea);
+    const line = src.slice(keep, src.indexOf(';\n', keep));
     expect(line).toContain('strayCats.strays.some((s) => s.wanderer)');
     expect(line).toContain('isClanEdition(progression.state)');
     expect(line).toContain('!state.colony?.cats?.some((c) => c.name === wanderName)');
+    expect(line).toContain('wanderArrivalLine(wanderName) : null');
+    expect(src).not.toContain('hud.toast(wanderArrivalLine(');
     expect(src.split('wanderArrivalLine(').length - 1).toBe(1);
+    // main.js toasts it once, on the first engage after Ready? (pointer lock
+    // or the touch engage both emit player:lockchange with locked: true).
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    const on = main.indexOf("bus.on('player:lockchange'");
+    const handler = main.slice(on, main.indexOf('});', on));
+    expect(handler).toContain('if (session && locked) {');
+    expect(handler).toContain('const line = takeArrivalLine(session);');
+    expect(handler).toContain('if (line) hud.toast(line);');
+    expect(main.split('takeArrivalLine(').length - 1).toBe(1);
   });
 });
 
@@ -1544,6 +1560,53 @@ describe('createStrayCats — a kittypet wanderer', () => {
     const b = createStrayCats(fakeScene(), AREA, 14, mulberry32(5), { extras: [wanderer(7)], excludeNames: ['Marmalade'] });
     const w = (c) => c.strays.find((s) => s.name === 'Marmalade');
     expect([w(a).home.x, w(a).home.z, w(a).group.rotation.y]).toEqual([w(b).home.x, w(b).home.z, w(b).group.rotation.y]);
+  });
+});
+
+// Final review, finding 1: the wanderer takes an ordinary loner's slot, never a
+// colony cat's. createStrayCats counts the fed colony cats inside `count`, so
+// the walk's count is cut only when there is an ordinary loner to drop.
+describe('the wanderer and the fed colony cats', () => {
+  const FED = CAT_NAMES.filter((n) => n !== 'Marmalade');
+  const fed = (n) => FED.slice(0, n).map((name, i) => ({ name, x: i, z: 1, wear: null }));
+  const wanderer = () => ({ name: 'Marmalade', rng: mulberry32(3), spot: { x: 10, z: -4 }, wanderer: true });
+  const spawn = (fedHere, withWanderer) => {
+    const loners = lonersFor('woods', 22, fedHere);
+    return createStrayCats(fakeScene(), AREA, wanderStrayCount(loners, fedHere, withWanderer), mulberry32(1), {
+      colonyCats: fed(fedHere), excludeNames: ['Marmalade'], extras: withWanderer ? [wanderer()] : [],
+    }).strays;
+  };
+
+  it('HIGH tier, five fed cats and a wanderer: all five colony cats still spawn', () => {
+    expect(lonersFor('woods', 22, 5)).toBe(5);
+    const cats = spawn(5, true);
+    expect(cats.filter((s) => s.colony).map((s) => s.name)).toEqual(FED.slice(0, 5));
+    expect(cats.filter((s) => s.wanderer).map((s) => s.name)).toEqual(['Marmalade']);
+    expect(cats.filter((s) => !s.colony && !s.wanderer)).toEqual([]);
+  });
+
+  it('LOW tier, four fed cats and a wanderer: all four colony cats still spawn', () => {
+    const loners = lonersFor('woods', 14, 4);
+    expect(wanderStrayCount(loners, 4, true)).toBe(loners);
+  });
+
+  it('fewer fed cats than loners: the wanderer takes one ordinary loner', () => {
+    const without = spawn(2, false);
+    const withW = spawn(2, true);
+    expect(withW.filter((s) => s.colony)).toHaveLength(2);
+    expect(without.filter((s) => s.colony)).toHaveLength(2);
+    const ordinary = (cats) => cats.filter((s) => !s.colony && !s.wanderer).map((s) => s.name);
+    expect(ordinary(withW)).toHaveLength(ordinary(without).length - 1);
+    expect(ordinary(withW)).toEqual(ordinary(without).slice(0, -1));   // a prefix: nobody moves
+  });
+
+  it('wanderStrayCount: no wanderer, no change; never below the fed cats; never negative', () => {
+    for (const [l, f] of [[5, 0], [5, 3], [5, 5], [4, 6], [0, 0], [22, 0]]) {
+      expect(wanderStrayCount(l, f, false)).toBe(l);
+      expect(wanderStrayCount(l, f, true)).toBe(l > f ? l - 1 : l);
+      expect(wanderStrayCount(l, f, true)).toBeGreaterThanOrEqual(Math.min(l, f));
+      expect(wanderStrayCount(l, f, true)).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 

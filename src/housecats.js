@@ -9,9 +9,9 @@ import { TERRITORY_AREAS } from './colony.js';
 import { OUTSIDE_WORDS, PLACE_WORDS } from './clanwords.js';
 
 // The wander roll is per UTC day and territory (spec section 3 builder note):
-// the same day boundary as the daily race and the streak in game/walk.js
-// (around lines 1432 and 1671). It never draws from walkRng or the strays'
-// stream, and adds nothing on the wire.
+// the same day boundary as the daily race's date and the streak in
+// game/walk.js (both a UTC toISOString day). It never draws from walkRng or
+// the strays' stream, and adds nothing on the wire.
 
 export const KITTYPET_COLLAR = 'bell';
 export const KITTYPET_COLLARS = Object.freeze({ Duchess: 'heart' });
@@ -44,7 +44,7 @@ export function wandererFor(areaId, ymd, colonyNames = []) {
   const pick = r();
   if (u >= WANDER_ODDS) return null;
   const name = WANDER_NAMES[Math.floor(pick * WANDER_NAMES.length)];
-  return colonyNames.includes(name) ? null : name;
+  return Array.isArray(colonyNames) && colonyNames.includes(name) ? null : name;
 }
 
 // A colony walk is partner-only, so the colony is shared; off one the roll
@@ -59,6 +59,14 @@ export function walkWanderer(state, areaId, { ymd, colonyWalk, isDen } = {}) {
 // Kittypets stay out of a territory's ordinary cast.
 export function territoryCastExcludes(areaId) {
   return typeof areaId === 'string' && TERRITORY_AREAS.includes(areaId) ? KITTYPET_NAMES : [];
+}
+
+// How many cats walk.js hands createStrayCats. createStrayCats counts the fed
+// colony cats inside that number, so the wanderer takes an ordinary loner's
+// slot, never a colony cat's: the count drops by one only while there is an
+// ordinary loner to drop (loners > fedHere); otherwise the wanderer is extra.
+export function wanderStrayCount(loners, fedHere, hasWanderer) {
+  return hasWanderer && loners > fedHere ? loners - 1 : loners;
 }
 
 export const WANDER_STEP = 6;
@@ -94,6 +102,28 @@ export function wanderSpotFor(start, isWalkable, camp) {
 // caller checks), so there is no Legacy wording.
 export function wanderArrivalLine(name) {
   return `${name} the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`;
+}
+
+// The arrival line waits on the session (walk.js sets session.arrivalLine)
+// until the walk starts: under the Ready? card a toast would never be seen.
+// main.js takes it on the first engage; it is given once, then cleared.
+export function takeArrivalLine(session) {
+  const line = session?.arrivalLine;
+  if (session) session.arrivalLine = null;
+  return typeof line === 'string' && line ? line : null;
+}
+
+// Once fed, a kittypet's collar comes off for the rest of the walk (owner
+// decision 3); collarFor leaves it off from the next walk on. Only a
+// non-colony kittypet: a colony cat's own wear is never on a non-colony stray,
+// so any collar on one is the kittypet collar. It is only unhooked: its
+// geometry and materials may be shared, so nothing is disposed.
+export function shedKittypetCollar(stray) {
+  if (!stray || stray.colony || !isKittypetName(stray.name)) return false;
+  const collar = stray.group?.getObjectByName?.('collar');
+  if (!collar) return false;
+  collar.removeFromParent();
+  return true;
 }
 
 // Said once, on the first feed of a wanderer: she stays where she was found,

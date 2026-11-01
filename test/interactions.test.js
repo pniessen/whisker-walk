@@ -3576,6 +3576,52 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
       expect(legacy.toasts).not.toContain(kittypetTamedLine('Marmalade'));
     });
 
+    // Final review, finding 7 (owner decision 3): once fed, the kittypet's
+    // collar comes off for the rest of the walk. The harness spawns the cat
+    // as a colony cat, so it is made an ordinary stray wearing the collar here.
+    const collared = (h) => {
+      h.stray.colony = false;
+      const collar = new THREE.Group();
+      collar.name = 'collar';
+      h.stray.group.add(collar);
+      return collar;
+    };
+    it('the first feed of a kittypet takes its collar off', () => {
+      const h = colonyHarness({ name: 'Marmalade' });
+      h.stray.wanderer = true;
+      const collar = collared(h);
+      h.press();                                // greet
+      expect(h.stray.group.getObjectByName('collar')).toBe(collar);
+      h.press();                                // the first feed
+      expect(h.toasts).toContain('You fed Marmalade 🐟 — 1/6');
+      expect(h.stray.group.getObjectByName('collar')).toBeUndefined();
+    });
+
+    it('a refused feed leaves the collar on', () => {
+      const h = colonyHarness({ name: 'Marmalade' });
+      const collar = collared(h);
+      h.press();                                // greet
+      h.progression.feedColonyCat = () => ({ result: 'full' });
+      h.press();
+      expect(h.stray.group.getObjectByName('collar')).toBe(collar);
+    });
+
+    it('a cat already in the colony keeps what it wears', () => {
+      const h = colonyHarness({ name: 'Marmalade', feeds: [[ME, 1]] });
+      const collar = collared(h);
+      feedTwice(h);
+      expect(h.toasts).toContain('You fed Marmalade 🐟 — 2/6');
+      expect(h.stray.group.getObjectByName('collar')).toBe(collar);
+    });
+
+    it('a non-kittypet keeps its collar', () => {
+      const h = colonyHarness();
+      const collar = collared(h);
+      feedTwice(h);
+      expect(h.toasts).toContain('You fed Pickles 🐟 — 1/6');
+      expect(h.stray.group.getObjectByName('collar')).toBe(collar);
+    });
+
     it('a non-kittypet trusts you in both editions', () => {
       for (const ed of ['canon', 'legacy']) {
         const h = colonyHarness({ feeds: [[ME, 5]] });

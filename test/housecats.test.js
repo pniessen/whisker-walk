@@ -77,6 +77,18 @@ test('a kittypet already in the colony means no wanderer that day on a colony wa
 test('bad input shows nobody and never throws', () => {
   for (const ymd of [undefined, null, 5, '', '2026-1-1', 'today']) expect(wandererFor('woods', ymd)).toBeNull();
   expect(walkWanderer(null, 'woods', { ymd: days[0], colonyWalk: true })).toBe(wandererFor('woods', days[0]));
+  // Final review, finding 3: a missing or malformed colony list is no colony.
+  const d = days.find((x) => wandererFor('woods', x));
+  for (const bad of [null, undefined, 'Marmalade', 5, {}]) {
+    expect(() => wandererFor('woods', d, bad)).not.toThrow();
+    expect(wandererFor('woods', d, bad)).toBe(wandererFor('woods', d));
+  }
+});
+// Final review, finding 4: the order picks the day's cat, so a reorder would
+// split co-walkers on different builds. Pinned.
+test('WANDER_NAMES keeps its order', () => {
+  expect(WANDER_NAMES).toEqual(['Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine', 'Waffles',
+    'Petunia', 'Sir Pounce', 'Butterscotch', 'Truffle', 'Custard', 'Peaches']);
 });
 test('kittypets stay out of every territory cast, and only there', () => {
   for (const a of TERRITORY_AREAS) expect([...territoryCastExcludes(a)].sort()).toEqual([...KITTYPET_NAMES].sort());
@@ -126,4 +138,44 @@ test('the arrival line', () => {
 test('the bring-home lines', () => {
   expect(wanderStayLine('Marmalade', 'The Woods')).toBe('Marmalade will wait for you here in The Woods 🐾');
   expect(kittypetTamedLine('Marmalade')).toBe(`Marmalade left ${PLACE_WORDS.town} to join you! She'll be waiting in the den 🏠`);
+});
+
+// Final review, finding 2: the arrival line waits on the session for the walk to start.
+import { takeArrivalLine, shedKittypetCollar } from '../src/housecats.js';
+import * as THREE from 'three';
+test('takeArrivalLine gives the line once, then nothing', () => {
+  const session = { arrivalLine: 'hello' };
+  expect(takeArrivalLine(session)).toBe('hello');
+  expect(session.arrivalLine).toBeNull();
+  expect(takeArrivalLine(session)).toBeNull();
+  expect(takeArrivalLine({ arrivalLine: null })).toBeNull();
+  expect(takeArrivalLine({})).toBeNull();
+  expect(takeArrivalLine(null)).toBeNull();
+});
+
+// Final review, finding 7: a fed kittypet's collar comes off for the rest of the walk.
+test('shedKittypetCollar takes the collar off a non-colony kittypet only, and disposes nothing', () => {
+  const strayWith = (name, colony) => {
+    const group = new THREE.Group();
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    collar.name = 'collar';
+    group.add(collar);
+    return { stray: { name, colony, group }, collar };
+  };
+  const k = strayWith('Marmalade', false);
+  let disposed = false;
+  k.collar.geometry.addEventListener('dispose', () => { disposed = true; });
+  expect(shedKittypetCollar(k.stray)).toBe(true);
+  expect(k.stray.group.getObjectByName('collar')).toBeUndefined();
+  expect(k.collar.parent).toBeNull();
+  expect(disposed).toBe(false);
+  expect(shedKittypetCollar(k.stray)).toBe(false);          // nothing left to take off
+  const colonyCat = strayWith('Marmalade', true);             // a colony cat's own wear stays
+  expect(shedKittypetCollar(colonyCat.stray)).toBe(false);
+  expect(colonyCat.stray.group.getObjectByName('collar')).toBe(colonyCat.collar);
+  const plain = strayWith(CAT_NAMES.find((n) => !isKittypetName(n)), false);
+  expect(shedKittypetCollar(plain.stray)).toBe(false);
+  expect(plain.stray.group.getObjectByName('collar')).toBe(plain.collar);
+  expect(shedKittypetCollar({ name: 'Marmalade', colony: false, group: new THREE.Group() })).toBe(false);
+  for (const bad of [null, undefined, {}, { name: 'Marmalade' }]) expect(shedKittypetCollar(bad)).toBe(false);
 });
