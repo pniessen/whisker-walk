@@ -67,3 +67,8 @@ test('roomAreaMove never makes a canon-only place a Legacy kid\'s own', () => {
   expect(roomAreaMove({ edition: 'legacy', area: 'park' }, CATALOG, 'woods')).toBe('override');
   expect(roomAreaMove({ edition: 'canon', area: 'park' }, CATALOG, 'woods')).toBe('set');
 });
+test('the shipped Legacy guards cover the River', () => {
+  expect(effectiveArea({ edition: 'legacy', area: 'river' }, CATALOG)).toBe('neighborhood');
+  expect(roomAreaMove({ edition: 'legacy', area: 'river' }, CATALOG, 'park')).toBe('override');
+  expect(rivalForWalk('river', 'canon')).toBeNull();
+});
