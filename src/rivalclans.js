@@ -51,6 +51,16 @@ import { patrolClanFor, clanName } from './clanhomes.js';
 //     ring clears every collider by 1.9m beyond the cat. Like the Woods' camp
 //     it comes within 1m of the north edge (z -50), so a cat chased out
 //     northward is set down sideways by findLanding's fallback.
+//   pines (-38,41) r 6: the swamp side of the south edge, facing the River,
+//     west of the spawn and the truce path, round two pines (builder.pine):
+//     one at (-35.92,43.2), scale 1.66, and one of the stand at
+//     (-39.31,37.51), scale 1.69. The disc stays 6m from the truce path's
+//     centreline, 54m from the bridge foot and 48m from the island's land, so
+//     crossing to the island never starts a chase (the island is truce ground
+//     inside the Pines and never gets a disc of its own). The spawn (-26,44)
+//     is 6.4m beyond the ring, the nearest POI (-34,24) 11.5m; the ring keeps
+//     3.5m off bog-2 and clears every collider by 1.2m beyond the cat. The
+//     fallen pine by the truce path, a seat and a first hop, is left out.
 export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
@@ -59,6 +69,7 @@ export const DISCS = Object.freeze({
   woods: Object.freeze({ cx: 2, cz: -43, r: 6 }),
   river: Object.freeze({ cx: 5, cz: 1, r: 6 }),
   moor: Object.freeze({ cx: -1, cz: -43, r: 6 }),
+  pines: Object.freeze({ cx: -38, cz: 41, r: 6 }),
 });
 
 const MARK_COUNT = 12;
