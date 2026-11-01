@@ -962,6 +962,10 @@ describe('CF-9b — the gated perches themselves', () => {
     // Woods: a fork on every scenery tree, and nothing else.
     expect(GATED.woods.length).toBeGreaterThanOrEqual(60);
     for (const p of GATED.woods) expect(p.kind).toBe('tree');
+    // River: a fork on every willow and alder (a pine has no low fork), and
+    // nothing else.
+    expect(GATED.river.length).toBeGreaterThanOrEqual(20);
+    for (const p of GATED.river) expect(p.kind).toBe('tree');
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {

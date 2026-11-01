@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { sureClawsTreePerch } from '../climbing.js';
+import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
@@ -212,10 +214,235 @@ export const RIVER_KEEP_CLEAR = Object.freeze([
   ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, SPAWN,
 ].map(({ x, z }) => Object.freeze([x, z])));
 
-// The trees of the banks. Task 4 fills these lists; until then the River has
-// none, and the birds (which sit in the first four willows) have none either.
+// --- the scenery ----------------------------------------------------------------
+// Trees, reeds and lily pads, all seeded by name rather than drawn from the
+// walk's rng, so every walk and both co-walkers get the same marsh.
+
+// The wet meadow round the first POI: open sky, no trees, no reeds.
+const MEADOW = { x: 2, z: 28, r: 9 };
+// The west reedbed, the marsh's densest stand.
+const REEDBED = { minX: -50, maxX: -31, minZ: -27, maxZ: 22 };
+const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+// Every water with its decks taken away: a deck is dry for a cat, but it is
+// still a river for a tree or a reed.
+const OPEN_WATERS = RIVER_WATERS.map((w) => ({ ...w, decks: [] }));
+
+// Distance from (x, z) to a segment.
+function segDist(x, z, x1, z1, x2, z2) {
+  const dx = x2 - x1, dz = z2 - z1;
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+}
+
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(
+  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+
+// How far (x, z) is from the nearest water's edge, decks ignored.
+const waterDist = (x, z) => Math.min(...RIVER_WATERS.map((w) => b.waterGap(w, x, z)));
+
+const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
+
+// The fallen log's two ends: it lies along its local z, turned to `yaw`. Its
+// perch is not in RIVER_KEEP_CLEAR, so the scenery keeps clear of its whole
+// length here instead.
+function fallenLogEnds() {
+  const h = FALLEN_LOG.length / 2;
+  const sx = Math.sin(FALLEN_LOG.yaw), sz = Math.cos(FALLEN_LOG.yaw);
+  return [FALLEN_LOG.x - sx * h, FALLEN_LOG.z - sz * h, FALLEN_LOG.x + sx * h, FALLEN_LOG.z + sz * h];
+}
+const LOG_SEG = fallenLogEnds();
+
+// Rounded so the spots are clean data (they end up in colliders and perches).
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// Whether a tree fits at (x, z). Its clearance from a path's centreline is
+// the path's half-width, then the canopy's own reach, then half a metre, so
+// the chase camera following the cat down a path never ends up inside a
+// canopy (the Woods' shipped rule). The crossings stay open to see from the
+// paths and the banks, and a tree keeps 4 m from the trees already planted.
+function treeFits(x, z, reach, kept) {
+  if (!inBounds(x, z)) return false;
+  if (waterDist(x, z) < 3) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
+  if (RIVER_PATHS.some((s) => segDist(x, z, ...s) < PATH_W / 2 + reach + 0.5)) return false;
+  if (RIVER_KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 4)) return false;
+  if (segDist(x, z, ...LOG_SEG) < 4) return false;
+  if (Math.hypot(x - MEADOW.x, z - MEADOW.z) < MEADOW.r) return false;
+  return kept.every((t) => Math.hypot(x - t.x, z - t.z) >= 4);
+}
+
+// Willow candidates: every 8 m along lines 4 m out from the river's banks
+// (river-west's north bank only west of the pine stand), every 60 degrees on a
+// ring 4 m out from each pool, and on the pond's River side.
+function willowCandidates() {
+  const out = [];
+  const along = (from, to, step, at) => { for (let v = from; v <= to; v += step) out.push(at(v)); };
+  const ring = (c, from, to, step) => {
+    for (let a = from; a <= to; a += step) {
+      const t = (a * Math.PI) / 180;
+      out.push([c.x + Math.cos(t) * (c.r + 4), c.z + Math.sin(t) * (c.r + 4)]);
+    }
+  };
+  along(-48, -8, 8, (x) => [x, RIVER_WEST.minZ - 4]);
+  along(-48, 12, 8, (x) => [x, RIVER_WEST.maxZ + 4]);
+  along(-30, -12, 8, (z) => [RIVER_BEND.minX - 4, z]);
+  along(-30, -12, 8, (z) => [RIVER_BEND.maxX + 4, z]);
+  along(22, 36, 8, (x) => [x, RIVER_EAST.minZ - 4]);
+  along(22, 36, 8, (x) => [x, RIVER_EAST.maxZ + 4]);
+  for (const pool of [POOL_1, POOL_2, POOL_3]) ring(pool, 0, 300, 60);
+  ring(POND, 90, 270, 45);
+  return out;
+}
+
+// Alder candidates: a 10 m grid over the drier south-east toward the Woods.
+function alderCandidates() {
+  const out = [];
+  for (let z = 5; z < 50; z += 10) for (let x = -5; x < 50; x += 10) out.push([x, z]);
+  return out;
+}
+
+// Pine candidates: a 5 m grid on the stretch of the north edge her Pines
+// circle overlaps (R1), about x -6..24.
+function pineCandidates() {
+  const out = [];
+  for (const z of [-47.5, -42.5, -37.5]) for (const x of [-3.5, 1.5, 6.5, 11.5, 16.5, 21.5]) out.push([x, z]);
+  return out;
+}
+
+// How many of each, how big, how far each is jittered off its candidate,
+// how wide its canopy reaches (crown and curtain for a willow, builder.tree's
+// blob for an alder, the widest cone for a pine) and what share of the
+// candidates is tried at all. The caps keep the River inside its budget
+// (test/budget.test.js).
+const WILLOWS = { seed: 'river-willows', cap: 24, scale: [1.1, 0.4], jitter: 1.5, reach: 1.6, keep: 1 };
+const ALDERS = { seed: 'river-alders', cap: 14, scale: [0.9, 0.4], jitter: 3, reach: 1.6, keep: 0.6 };
+const PINES = { seed: 'river-pines', cap: 12, scale: [1.1, 0.5], jitter: 1.5, reach: 1.3, keep: 1 };
+
+// Every candidate draws its numbers whether or not its tree is kept, so
+// moving one clearance never reshuffles the rest.
+function plant(rule, candidates, kept) {
+  const rng = mulberry32(seedFromCode(rule.seed));
+  const spots = [];
+  for (const [cx, cz] of candidates) {
+    const x = r2(cx + (rng() * 2 - 1) * rule.jitter);
+    const z = r2(cz + (rng() * 2 - 1) * rule.jitter);
+    const scale = r2(rule.scale[0] + rule.scale[1] * rng());
+    const tried = rule.keep >= 1 || rng() < rule.keep;
+    if (tried && spots.length < rule.cap && treeFits(x, z, rule.reach * scale, kept)) {
+      const t = { x, z, scale };
+      spots.push(t);
+      kept.push(t);
+    }
+  }
+  return spots;
+}
+
+// The trees of the banks: willows along the river and round the pools and the
+// pond, alders in the drier south-east, pines on the north edge. Planted in
+// that order, each kept 4 m from every tree before it.
 export function riverTrees() {
-  return { willows: [], alders: [], pines: [] };
+  const kept = [];
+  const willows = plant(WILLOWS, willowCandidates(), kept);
+  const alders = plant(ALDERS, alderCandidates(), kept);
+  const pines = plant(PINES, pineCandidates(), kept);
+  return { willows, alders, pines };
+}
+
+// The reeds: the marsh's density (lesson 2). A thick bed in the west, then
+// clumps along every bank, the lakeshore and round the pools and the pond.
+// Each clump keeps REED_SPACING from every clump before it, so the bank reeds
+// never double the grid inside the west reedbed, and MAX_REEDS caps the
+// triangles (five blades a clump; test/budget.test.js). None has a collider:
+// a cat pushes through. Every clump keeps off the paths, the crossings, the
+// spawn, the meadow, every find and the fallen log, so nothing the kids walk
+// to or look for is hidden.
+export const MAX_REEDS = 480;
+export const REED_SPACING = 1.0;
+const REED_GRID = 1.8;
+const REED_JITTER = 0.6;
+const REED_KEEP = 0.8;
+function reedFits(x, z, trunks) {
+  if (!inBounds(x, z)) return false;
+  if (b.inWater(OPEN_WATERS, x, z)) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 2)) return false;
+  if (RIVER_PATHS.some((s) => segDist(x, z, ...s) < 2.3)) return false;
+  if (RIVER_KEEP_CLEAR.some(([px, pz]) => Math.hypot(x - px, z - pz) < 3)) return false;
+  if (segDist(x, z, ...LOG_SEG) < 3) return false;
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 4) return false;
+  if (Math.hypot(x - MEADOW.x, z - MEADOW.z) < MEADOW.r) return false;
+  return trunks.every((t) => Math.hypot(x - t.x, z - t.z) >= 0.8 * t.scale);
+}
+export function riverReeds() {
+  const rng = mulberry32(seedFromCode('river-reeds'));
+  const { willows, alders, pines } = riverTrees();
+  const trunks = [...willows, ...alders, ...pines];
+  const spots = [];
+  const add = (x, z) => {
+    x = r2(x); z = r2(z);
+    if (spots.length >= MAX_REEDS) return;
+    if (spots.some((p) => Math.hypot(x - p.x, z - p.z) < REED_SPACING)) return;
+    if (reedFits(x, z, trunks)) spots.push({ x, z });
+  };
+  // the west reedbed: a jittered grid, most cells kept, off the water's edge
+  for (let gz = REEDBED.minZ + REED_GRID / 2; gz < REEDBED.maxZ; gz += REED_GRID) {
+    for (let gx = REEDBED.minX + REED_GRID / 2; gx < REEDBED.maxX; gx += REED_GRID) {
+      const x = gx + (rng() * 2 - 1) * REED_JITTER;
+      const z = gz + (rng() * 2 - 1) * REED_JITTER;
+      if (rng() < REED_KEEP && waterDist(x, z) >= 0.5) add(x, z);
+    }
+  }
+  // every river bank, half a metre out
+  for (let x = BOUNDS.minX; x <= RIVER_WEST.maxX; x += 2) {
+    add(x, RIVER_WEST.minZ - 0.5);
+    add(x, RIVER_WEST.maxZ + 0.5);
+  }
+  for (let z = RIVER_BEND.minZ; z <= RIVER_BEND.maxZ; z += 2) {
+    add(RIVER_BEND.minX - 0.5, z);
+    add(RIVER_BEND.maxX + 0.5, z);
+  }
+  for (let x = RIVER_EAST.minX; x <= BOUNDS.maxX; x += 2) {
+    add(x, RIVER_EAST.minZ - 0.5);
+    add(x, RIVER_EAST.maxZ + 0.5);
+  }
+  // the lakeshore
+  for (let x = 26; x <= 50; x += 2) add(x, LAKE.maxZ + 0.5);
+  for (let z = -50; z <= -34; z += 2) add(LAKE.minX - 0.5, z);
+  // round each pool and the pond's west half, half a metre out
+  const ring = (c, from, sweep) => {
+    const r = c.r + 0.5;
+    const n = Math.round((sweep * r) / 1.5);
+    for (let i = 0; i <= n; i++) {
+      const a = from + (sweep * i) / n;
+      add(c.x + Math.cos(a) * r, c.z + Math.sin(a) * r);
+    }
+  };
+  for (const pool of [POOL_1, POOL_2, POOL_3]) ring(pool, 0, Math.PI * 2);
+  ring(POND, Math.PI / 2, Math.PI);
+  return spots;
+}
+
+// Lily pads on each pool and the pond's west half (the River's side of it):
+// every 1.2 m round a ring at 0.6 of the water's radius, each moved in or out
+// a little, about three in five kept.
+export function riverLilyPads() {
+  const rng = mulberry32(seedFromCode('river-lilies'));
+  const pads = [];
+  const ring = (c, from, sweep) => {
+    const ringR = 0.6 * c.r;
+    const n = Math.round((sweep * ringR) / 1.2);
+    for (let i = 0; i < n; i++) {
+      // half a step in from each end, so the pond's pads stay strictly west
+      const a = from + (sweep * (i + 0.5)) / n;
+      const rad = ringR + (rng() * 2 - 1) * 0.15 * c.r;
+      const keep = rng() < 0.6;
+      const r = r2(0.22 + 0.16 * rng());
+      if (keep) pads.push({ x: r2(c.x + Math.cos(a) * rad), z: r2(c.z + Math.sin(a) * rad), r });
+    }
+  };
+  for (const pool of [POOL_1, POOL_2, POOL_3]) ring(pool, 0, Math.PI * 2);
+  ring(POND, Math.PI / 2, Math.PI);
+  return pads;
 }
 
 // The River's critters: birds in the first four willows, ducks on the pond
@@ -233,13 +460,13 @@ function critterSpawns() {
 }
 
 // A mossy boulder, the first step of each chain: builder.rock's shape and
-// height (its top is just over the 0.72 perch), in a greener stone. One
-// material shared by both boulders.
+// height (its top is just over the 0.72 perch), in a greener stone. build()
+// makes one material per scene and hands it to both boulders: walk.js
+// disposes every material at the end of a walk, so a module-level cache would
+// hand the next walk a disposed one.
 const MOSSY = 0x7f8a6c;
-let mossyMaterial = null;
-function mossyBoulder(x, z) {
-  mossyMaterial ??= litMaterial(MOSSY, surfaceProps('cobble'));
-  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), mossyMaterial);
+function mossyBoulder(x, z, material) {
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), material);
   m.position.set(x, 0.3, z);
   return m;
 }
@@ -287,6 +514,34 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the paths --------------------------------------------------------------
   for (const s of RIVER_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
 
+  // --- the reeds and the lily pads -------------------------------------------------
+  const reeds = b.reedBed(riverReeds(), seedFromCode('river-reeds'));
+  reeds.name = 'reeds';
+  scene.add(reeds);
+  const lilies = b.lilyPads(riverLilyPads(), seedFromCode('river-lilies'));
+  lilies.name = 'lilyPads';
+  scene.add(lilies);
+
+  // --- the trees ----------------------------------------------------------------
+  // A collider a little wider than the trunk, growing with it. A willow and an
+  // alder each carry a Sure Claws fork (climbing.js caps it at 1.9, so no
+  // scenery tree out-tops the Old Willow's branch); a pine has no low fork.
+  const { willows, alders, pines } = riverTrees();
+  for (const { x, z, scale } of willows) {
+    scene.add(b.willow(x, z, scale, { wind }));
+    addC(x, z, r2(0.5 * scale));
+    perches.push(sureClawsTreePerch(x, z, scale));
+  }
+  for (const { x, z, scale } of alders) {
+    scene.add(b.tree(x, z, scale, { wind }));
+    addC(x, z, r2(0.5 * scale));
+    perches.push(sureClawsTreePerch(x, z, scale));
+  }
+  for (const { x, z, scale } of pines) {
+    scene.add(b.pine(x, z, scale, { wind }));
+    addC(x, z, r2(0.4 * scale));
+  }
+
   // --- the fallen log -----------------------------------------------------------
   scene.add(b.fallenLog(FALLEN_LOG.x, FALLEN_LOG.z, FALLEN_LOG.length, FALLEN_LOG.yaw));
   for (const [x, z] of LOG_COLLIDERS) addC(x, z, 0.4);
@@ -313,8 +568,9 @@ export function build(scene, { water = {}, wind } = {}) {
   willow.add(limb);
   scene.add(willow);
   addC(W.x, W.z, W.r);
+  const mossy = litMaterial(MOSSY, surfaceProps('cobble'));
   for (const { x, z, r } of CHAIN_ROCKS) {
-    scene.add(mossyBoulder(x, z));
+    scene.add(mossyBoulder(x, z, mossy));
     addC(x, z, r);
   }
   // The boulder sits in the willow's roots. The crevice between their

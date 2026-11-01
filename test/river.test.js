@@ -33,7 +33,10 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { inWater, waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
 
-const { build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND, RIVER_KEEP_CLEAR, riverTrees } = river;
+const {
+  build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND, RIVER_KEEP_CLEAR,
+  riverTrees, riverReeds, riverLilyPads, MAX_REEDS, REED_SPACING,
+} = river;
 const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
 
 const built = () => {
@@ -43,6 +46,22 @@ const built = () => {
 };
 const { scene, area } = built();
 const byId = (id) => RIVER_WATERS.find((w) => w.id === id);
+
+// Distance from (x, z) to the segment (x1, z1)-(x2, z2).
+function segDist(x, z, [x1, z1, x2, z2]) {
+  const dx = x2 - x1, dz = z2 - z1;
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+}
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+const DECKS = RIVER_WATERS.flatMap((w) => w.decks ?? []);
+// The wet meadow (no trees, no reeds), the west reedbed, and the fallen log's
+// segment: b.fallenLog(6, 20, 5, 1.2) lies along its local z, turned 1.2.
+const MEADOW = { x: 2, z: 28, r: 9 };
+const REEDBED = { minX: -50, maxX: -31, minZ: -27, maxZ: 22 };
+const FALLEN_LOG = [6 - Math.sin(1.2) * 2.5, 20 - Math.cos(1.2) * 2.5, 6 + Math.sin(1.2) * 2.5, 20 + Math.cos(1.2) * 2.5];
+const dryWaters = RIVER_WATERS.map((w) => ({ ...w, decks: [] }));
 
 // Flood-fill the cells a grounded cat may stand on (player.js's own rule) on a
 // 0.5 m grid from SPAWN. Each area record is flooded once and remembered.
@@ -427,6 +446,28 @@ describe('the River: things to find, climb and race', () => {
     for (const [x, z] of [[29, -29], [-30, -42], [24, -18]]) expect(reaches(area, x, z), `(${x}, ${z})`).toBe(true);
   });
 
+  it('no tree or reed stands on anything a kid looks for', () => {
+    const { willows, alders, pines } = riverTrees();
+    const trees = [...willows, ...alders, ...pines];
+    const reeds = riverReeds();
+    const spots = [
+      ...targets(),
+      ...area.perches.filter((p) => !p.requires && p.kind === 'stone').map((p) => ({ what: `rock (${p.x}, ${p.z})`, ...p })),
+    ];
+    for (const t of spots) {
+      for (const tr of trees) expect(Math.hypot(t.x - tr.x, t.z - tr.z), `tree (${tr.x}, ${tr.z}) on ${t.what}`).toBeGreaterThanOrEqual(4);
+      for (const r of reeds) expect(Math.hypot(t.x - r.x, t.z - r.z), `reed (${r.x}, ${r.z}) on ${t.what}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('keeps the trees 4 m and the reeds 3 m from the fallen log, all along it', () => {
+    const { willows, alders, pines } = riverTrees();
+    for (const t of [...willows, ...alders, ...pines]) {
+      expect(segDist(t.x, t.z, FALLEN_LOG), `tree (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(4);
+    }
+    for (const r of riverReeds()) expect(segDist(r.x, r.z, FALLEN_LOG), `reed (${r.x}, ${r.z})`).toBeGreaterThanOrEqual(3);
+  });
+
   it("the Old Willow's golden mouse is in sight from the ground", () => {
     const willow = scene.getObjectByName('oldWillow');
     expect(willow).toBeTruthy();
@@ -496,8 +537,9 @@ describe('the River: things to find, climb and race', () => {
     for (const p of [...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.river, ...area.puddles, SPAWN]) {
       expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
     }
-    // the fallen log is kept clear along its length by Task 4's scenery rules
-    for (const p of area.perches.filter((q) => q.x !== 6 || q.z !== 20)) expect(has(p.x, p.z), `perch (${p.x}, ${p.z})`).toBe(true);
+    // the fallen log is kept clear along its length by the scenery rules, and
+    // a tree's own Sure Claws fork is the tree, not something to find
+    for (const p of area.perches.filter((q) => !q.requires && (q.x !== 6 || q.z !== 20))) expect(has(p.x, p.z), `perch (${p.x}, ${p.z})`).toBe(true);
     for (const [x, z] of [[-30, 38], [-34, 38], [-32, 43]]) expect(has(x, z), `bush (${x}, ${z})`).toBe(true);
   });
 
@@ -506,5 +548,148 @@ describe('the River: things to find, climb and race', () => {
     expect(course).toHaveLength(5);
     expect(new Set(course).size).toBe(5);
     for (const p of course) expect(area.pois).toContain(p);
+  });
+});
+
+describe('the River: trees', () => {
+  const reach = { willows: 1.6, alders: 1.6, pines: 1.3 };
+
+  it('riverTrees is deterministic, keeps its clearances and its counts', () => {
+    const t = riverTrees();
+    expect(riverTrees()).toEqual(t);
+    // the riverbank willows are the River's trees; the alders stand in the
+    // drier south-east; the pines only where her Pines circle overlaps (R1)
+    expect(t.willows.length).toBeGreaterThanOrEqual(14);
+    expect(t.willows.length).toBeLessThanOrEqual(24);
+    expect(t.alders.length).toBeGreaterThanOrEqual(6);
+    expect(t.alders.length).toBeLessThanOrEqual(14);
+    expect(t.pines.length).toBeGreaterThanOrEqual(6);
+    expect(t.pines.length).toBeLessThanOrEqual(12);
+    for (const p of t.pines) {
+      expect(p.x, `pine (${p.x}, ${p.z})`).toBeGreaterThanOrEqual(-6);
+      expect(p.x, `pine (${p.x}, ${p.z})`).toBeLessThanOrEqual(24);
+    }
+    for (const [kind, list] of Object.entries(t)) {
+      for (const tr of list) {
+        const at = `${kind} (${tr.x}, ${tr.z})`;
+        for (const w of RIVER_WATERS) expect(waterGap(w, tr.x, tr.z), `${at} near ${w.id}`).toBeGreaterThanOrEqual(3);
+        // the canopy stays half a metre off the path's edge, so the chase
+        // camera never ends up inside one
+        const pathClear = 1.5 + reach[kind] * tr.scale + 0.5;
+        for (const seg of RIVER_PATHS) expect(segDist(tr.x, tr.z, seg), `${at} on a path`).toBeGreaterThanOrEqual(pathClear);
+        for (const d of DECKS) expect(rectDist(d, tr.x, tr.z), `${at} by a crossing`).toBeGreaterThanOrEqual(4);
+        expect(Math.hypot(tr.x - SPAWN.x, tr.z - SPAWN.z), `${at} on the spawn`).toBeGreaterThanOrEqual(4);
+        expect(Math.hypot(tr.x - MEADOW.x, tr.z - MEADOW.z), `${at} in the meadow`).toBeGreaterThanOrEqual(MEADOW.r);
+        for (const [px, pz] of RIVER_KEEP_CLEAR) expect(Math.hypot(tr.x - px, tr.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(4);
+        expect(tr.x).toBeGreaterThanOrEqual(area.bounds.minX);
+        expect(tr.x).toBeLessThanOrEqual(area.bounds.maxX);
+        expect(tr.z).toBeGreaterThanOrEqual(area.bounds.minZ);
+        expect(tr.z).toBeLessThanOrEqual(area.bounds.maxZ);
+      }
+    }
+    const scales = { willows: [1.1, 1.5], alders: [0.9, 1.3], pines: [1.1, 1.6] };
+    for (const [kind, [lo, hi]] of Object.entries(scales)) {
+      for (const tr of t[kind]) {
+        expect(tr.scale).toBeGreaterThanOrEqual(lo);
+        expect(tr.scale).toBeLessThanOrEqual(hi);
+      }
+    }
+  });
+
+  it('leaves the marsh walkable: no two trunks closer than a cat can pass between', () => {
+    const { willows, alders, pines } = riverTrees();
+    const a = [
+      ...willows.map((t) => ({ ...t, r: 0.5 * t.scale })),
+      ...alders.map((t) => ({ ...t, r: 0.5 * t.scale })),
+      ...pines.map((t) => ({ ...t, r: 0.4 * t.scale })),
+    ];
+    for (let i = 0; i < a.length; i++) {
+      for (let j = i + 1; j < a.length; j++) {
+        const gap = Math.hypot(a[i].x - a[j].x, a[i].z - a[j].z) - a[i].r - a[j].r;
+        expect(gap, `(${a[i].x}, ${a[i].z}) and (${a[j].x}, ${a[j].z})`).toBeGreaterThan(2 * 0.35);
+      }
+    }
+  });
+
+  it('plants each willow and alder with a collider and a Sure Claws fork, and each pine with a collider and no fork', () => {
+    const { willows, alders, pines } = riverTrees();
+    const r2 = (v) => Math.round(v * 100) / 100;
+    for (const t of [...willows, ...alders]) {
+      expect(area.colliders.find((c) => c.x === t.x && c.z === t.z)?.r, `collider (${t.x}, ${t.z})`).toBe(r2(0.5 * t.scale));
+      expect(area.perches.some((p) => p.x === t.x && p.z === t.z && p.requires), `fork (${t.x}, ${t.z})`).toBe(true);
+    }
+    for (const t of pines) {
+      expect(area.colliders.find((c) => c.x === t.x && c.z === t.z)?.r, `pine collider (${t.x}, ${t.z})`).toBe(r2(0.4 * t.scale));
+      expect(area.perches.some((p) => p.x === t.x && p.z === t.z), `pine fork (${t.x}, ${t.z})`).toBe(false);
+    }
+  });
+
+  it('the birds sit in the first four willows', () => {
+    const birds = area.critterSpawns.filter((c) => c.type === 'bird');
+    expect(birds).toHaveLength(4);
+    expect(birds).toEqual(riverTrees().willows.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+  });
+});
+
+describe('the River: reeds and lily pads', () => {
+  const reeds = riverReeds();
+  const pads = riverLilyPads();
+
+  it('riverReeds is seeded, and a real reedbed', () => {
+    expect(riverReeds()).toEqual(reeds);
+    expect(reeds.length).toBeGreaterThanOrEqual(300);
+    expect(reeds.length).toBeLessThanOrEqual(MAX_REEDS);
+    expect(MAX_REEDS).toBe(480);
+    expect(REED_SPACING).toBe(1.0);
+    const inBed = reeds.filter((r) => r.x >= REEDBED.minX && r.x <= REEDBED.maxX && r.z >= REEDBED.minZ && r.z <= REEDBED.maxZ);
+    expect(inBed.length).toBeGreaterThanOrEqual(150);
+    for (let i = 0; i < reeds.length; i++) {
+      for (let j = i + 1; j < reeds.length; j++) {
+        expect(Math.hypot(reeds[i].x - reeds[j].x, reeds[i].z - reeds[j].z), `(${reeds[i].x}, ${reeds[i].z})`).toBeGreaterThanOrEqual(REED_SPACING);
+      }
+    }
+  });
+
+  it('keeps every reed off the paths, the crossings, the spawn, the meadow and every find', () => {
+    const { willows, alders, pines } = riverTrees();
+    for (const r of reeds) {
+      const at = `reed (${r.x}, ${r.z})`;
+      for (const seg of RIVER_PATHS) expect(segDist(r.x, r.z, seg), at).toBeGreaterThanOrEqual(2.3);
+      for (const d of DECKS) expect(rectDist(d, r.x, r.z), at).toBeGreaterThanOrEqual(2);
+      expect(Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z), at).toBeGreaterThanOrEqual(4);
+      expect(Math.hypot(r.x - MEADOW.x, r.z - MEADOW.z), at).toBeGreaterThanOrEqual(MEADOW.r);
+      for (const [px, pz] of RIVER_KEEP_CLEAR) expect(Math.hypot(r.x - px, r.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(3);
+      expect(inWater(dryWaters, r.x, r.z), `${at} in the water`).toBe(false);
+      for (const t of [...willows, ...alders, ...pines]) {
+        expect(Math.hypot(r.x - t.x, r.z - t.z), `${at} in a trunk`).toBeGreaterThanOrEqual(0.8 * t.scale);
+      }
+    }
+  });
+
+  it('the reeds and the lily pads are single merged meshes out of the shadow pass, with no colliders', () => {
+    for (const n of ['reeds', 'lilyPads']) {
+      expect(scene.children.filter((o) => o.name === n), n).toHaveLength(1);
+      const m = scene.getObjectByName(n);
+      expect(m?.isMesh, n).toBe(true);
+      expect(m.userData.noCast, n).toBe(true);
+    }
+    for (const p of [...reeds, ...pads]) {
+      expect(area.colliders.some((c) => c.x === p.x && c.z === p.z)).toBe(false);
+    }
+  });
+
+  it("every lily pad floats on the pond's west half or a pool", () => {
+    expect(riverLilyPads()).toEqual(pads);
+    expect(pads.length).toBeGreaterThanOrEqual(15);
+    expect(pads.length).toBeLessThanOrEqual(40);
+    const pond = byId('pond');
+    const pools = ['pool-1', 'pool-2', 'pool-3'].map(byId);
+    for (const p of pads) {
+      const at = `pad (${p.x}, ${p.z})`;
+      expect(inWater([pond, ...pools], p.x, p.z), at).toBe(true);
+      if (inWater([pond], p.x, p.z)) expect(p.x, at).toBeLessThan(44);
+      expect(p.r).toBeGreaterThanOrEqual(0.22);
+      expect(p.r).toBeLessThanOrEqual(0.38);
+    }
   });
 });
