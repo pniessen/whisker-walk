@@ -743,3 +743,33 @@ describe("nearestDry where the Pines' waters touch", () => {
     }
   }
 });
+
+// The island cut out of the Pines' lake and bay, and the bridge deck over the
+// bay: a toy, a scent treat or a race ring landing beside the bridge, just off
+// the island or where the bay meets the lake must land on the island, the
+// deck or the shore, close by (island Review Focus 3). Same margins and the
+// same two expectations as the Woods block.
+describe('nearestDry round the island and its bridge', () => {
+  const waters = WATERED.pines.area.waters;
+  const SPOTS = [
+    [28, 41.3, "just off the island's south rim"],
+    [28, 14.7, 'just off its north rim, where the bay and the lake overlap'],
+    [14.6, 28, 'just off its west rim, in the bay only'],
+    [16.96, 10.78, "1.5 m beside the bridge's middle"],
+    [21.16, 16.88, '1.2 m beside the deck where it meets the rim'],
+    [10, 6.5, '1.5 m beside the deck on its west side, 1 m short of the foot'],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+
+  it('the spots are in the water today, so the block tests a real push', () => {
+    for (const [x, z, where] of SPOTS) expect(inWater(waters, x, z), where).toBe(true);
+  });
+});

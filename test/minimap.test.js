@@ -222,24 +222,36 @@ describe('buildMapLayer', () => {
     expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
   });
 
-  it('buildMapLayer for the Pines has ground, edge, ten waters, two with decks, 17 strips, and no blocks', () => {
+  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and no blocks', () => {
     const { scene, areaData } = built('pines');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
     expect(layer.edge).toEqual(areaData.bounds);
     expect(layer.water).toHaveLength(10);
-    // mire-north carries the log bridge, mire-west the stepping stones.
-    expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
-    // The twelve path segments, each a strip at its own midpoint, and five
+    // mire-north carries the log bridge, mire-west the stepping stones, and
+    // lake-bay the island bridge's strip deck.
+    // The layer's waters keep the area's order (PINES_WATERS), without ids.
+    const ids = areaData.waters.map((w) => w.id);
+    const which = (pick) => layer.water.map((w, i) => (pick(w) ? ids[i] : null)).filter(Boolean);
+    expect(which((w) => w.decks.length > 0)).toEqual(['lake-bay', 'mire-north', 'mire-west']);
+    expect(layer.water[ids.indexOf('lake-bay')].decks).toEqual([
+      expect.objectContaining({ kind: 'strip', halfW: expect.closeTo(0.9, 9) }),
+    ]);
+    // The island is cut out of both the lake and the bay, so the map fills it
+    // like the land.
+    expect(which((w) => w.islands?.length > 0)).toEqual(['lake', 'lake-bay']);
+    // The twelve path segments, each a strip at its own midpoint, and three
     // rectangular water planes that flatFootprints (src/render/grass.js)
-    // counts as strips because neither half-extent passes 50 m: the lake, the
-    // bay, mire-west (93 m by 5 m, so 46.5 m at most), the Moor's river and
-    // its mouth, all drawn under the water. Mire-north runs 114 m north to
-    // south, past the 50 m cut, and is skipped; the round bogs are discs, not
-    // strips.
+    // counts as strips because neither half-extent passes 50 m: mire-west
+    // (93 m by 5 m, so 46.5 m at most), the Moor's river and its mouth, all
+    // drawn under the water. The lake and the bay were two more until the
+    // island was cut out of them: each is now a notched ShapeGeometry, which
+    // flatFootprints doesn't read, so 17 became 15 (and grass now grows on
+    // the island, which is ground). Mire-north runs 114 m north to south,
+    // past the 50 m cut, and is skipped; the round bogs are discs, not strips.
     const onPath = (f) => PINES_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
     expect(layer.paths.filter(onPath)).toHaveLength(12);
-    expect(layer.paths).toHaveLength(12 + 5);
+    expect(layer.paths).toHaveLength(12 + 3);
     // Every Pines collider (a pine's trunk, a chain boulder, a pillar, a
     // truce stone, the fallen pine) is under the map's 1 m block cut.
     expect(layer.blocks).toEqual([]);

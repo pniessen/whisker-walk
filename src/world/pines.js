@@ -3,6 +3,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { ISLAND_BRIDGE_WOODS, fromWoods, fromWoodsDisc, islandBridgePlank } from './lake.js';
+import { ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX } from './island.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 
@@ -29,16 +30,16 @@ import { mulberry32, seedFromCode } from '../rng.js';
 //   * north is more pines, out to the edge of her map, so the hills are dark;
 //   * west is the swamp going on, in a wet olive.
 //
-// THE LAKE, THE ISLAND AND THE BRIDGE FOOT. The Woods, the River and the Moor
-// all paint the lake, the island and its plank bridge on their horizons, out
-// past their own bounds. In this frame all three fall inside the Pines'
-// bounds, in the south-east quarter, so this is the one map that holds them as
-// ground truth, and the other three are asserted against it in
-// test/pines.test.js. The island is in bounds but out of reach: its whole rim
-// is in the water, it has no ground, collider or perch, and the plank has no
-// deck, so the cat walks the truce path to the bridge foot and stops at the
-// shore. The bridge waits for the island: walking onto it is the island's own
-// map to add, not this one's.
+// THE LAKE, THE ISLAND AND THE BRIDGE. The Woods, the River and the Moor all
+// paint the lake, the island and its plank bridge on their horizons, out past
+// their own bounds. In this frame all three fall inside the Pines' bounds, in
+// the south-east quarter, so this is the one map that holds them as ground
+// truth, and the other three are asserted against it in test/pines.test.js.
+// The island is ground cut out of the lake and its bay (island.js), and the
+// bridge is walkable: its deck runs the plank's whole length, from the truce
+// path's end onto the island, and it is the only way there. No cat stands on
+// the lake, the bridge or the island (owner's decision 4): the area's keepOut
+// holds the strays and ghosts off all three.
 //
 // WHY THE DECKS EXIST. Water stops a cat (v19). The Black Mire, a dark creek,
 // comes in from the north edge (mire-north), turns at its corner and runs out
@@ -98,11 +99,21 @@ const STEPPING_STONES = Object.freeze({
 // The lake fills the south-east. Its north shore (minZ) is the Moor's, its
 // east end the Moor's (+100 in x), its west shore (minX) the River's and its
 // south end the River's (+100 in z), so each shore is one line over a border;
-// its south-east corner is the Woods' lake corner.
-const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: 26, maxX: 86, minZ: 8, maxZ: 66 });
+// its south-east corner is the Woods' lake corner. Its box is in island.js,
+// which keeps the strays off it with the same numbers.
+//
+// The island is cut out of both the lake and the bay: it crosses the lake's
+// west edge and the bay's east edge, so each is drawn with a notch (Island
+// Task 2) and each reads the island as dry ground.
+const ISLANDS = Object.freeze([ISLAND_LAND]);
+const LAKE = Object.freeze({ id: 'lake', kind: 'rect', ...LAKE_BOX, islands: ISLANDS });
 // The bay round the island: the River's far lake, +100 in z, and the Moor's,
-// +100 in x. Its north shore (z 5) is where the bridge starts.
-const LAKE_BAY = Object.freeze({ id: 'lake-bay', kind: 'rect', minX: 0, maxX: 30, minZ: 5, maxZ: 44 });
+// +100 in x. Its north shore (z 5) is where the bridge starts, and it carries
+// the bridge's deck, a strip on the bridge's diagonal (the deck lies wholly in
+// the bay, x < 26).
+const LAKE_BAY = Object.freeze({
+  id: 'lake-bay', kind: 'rect', ...BAY_BOX, islands: ISLANDS, decks: Object.freeze([BRIDGE_DECK]),
+});
 // The Black Mire, in from the north edge, then out to the west. The two
 // reaches share their south and east edges, so the corner is watertight.
 const MIRE_NORTH = Object.freeze({
@@ -138,10 +149,14 @@ export const PINES_WATERS = Object.freeze([
 // open water to the horizon, and an edge hidden under an overlapping water is
 // no bank either, so painting foam there would be a lie. The Moor's river is
 // all past the bounds, so it has none. A bog is a circle, banked all round.
+// The lake keeps only its north shore: its west edge (x 26) runs up through
+// the bay's water and into the island's own shore, so foam there would draw a
+// line across open water. That costs the 6 m of real lake shore at x 26, z
+// 44..50, by the bay's south-east pocket; the bay's south shore keeps its foam.
 const WATER_COLOR = 0x5f98a8;
 const MIRE_COLOR = 0x4a5a48;
 const WATER_LOOK = {
-  lake: { y: 0.03, shores: ['minX', 'minZ'] },
+  lake: { y: 0.03, shores: ['minZ'] },
   'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'] },
   'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'] },
   'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'] },
@@ -181,13 +196,14 @@ const PATH_STYLE = { surface: 'sand', color: 0x6a5640 };
 export const TRUCE_PATH = Object.freeze(PINES_PATHS.slice(0, 4));
 
 // The island out on the lake: the one island every shore shows, moved into
-// this frame by lake.js. A low grassy mound with one big tree. In bounds, but
-// wholly in the bay and the lake, so it has no collider and no perch.
+// this frame by lake.js. Here it is flat ground (ISLAND_LAND, island.js), cut
+// out of the lake and the bay; this record keeps the shared rise the
+// neighbours paint it with.
 export const PINES_ISLAND = fromWoodsDisc('pines');
 
 // The island bridge, written once in Woods coordinates (lake.js) so no two
 // maps can disagree about it. Its shore end is the bridge foot, 0.2 m onto
-// the bay's north shore: the end of the walk, for now.
+// the bay's north shore, where the truce path meets the deck.
 export const BRIDGE_FOOT = Object.freeze(fromWoods('pines', ...ISLAND_BRIDGE_WOODS[1]));
 
 // The two truce stones, standing either side of the bridge foot on dry land:
@@ -310,7 +326,18 @@ function segDist(x, z, x1, z1, x2, z2) {
 // Distance from (x, z) to an axis-aligned rectangle (0 inside it).
 const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
-const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+// The decks the fit rules keep clear of: the two mire crossings, named. Not
+// every water's decks: rectDist reads a rect's minX, which the island bridge's
+// strip deck doesn't have, so it would give NaN and every rule would pass.
+// The bridge has its own rule (bridgeDist).
+export const DECKS = Object.freeze([LOG_BRIDGE, STEPPING_STONES]);
+// Distance from (x, z) to the bridge deck's centreline.
+const bridgeDist = (x, z) => segDist(x, z, BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2);
+// Whether (x, z) is on the island or within a metre of its rim. The island is
+// ground now, so the water rules no longer keep scenery off it; this does.
+// It is the meeting place, not more of the forest. The extra metre keeps the
+// shore reeds' lines from running along its rim.
+const onIsland = (x, z) => Math.hypot(x - ISLAND_LAND.x, z - ISLAND_LAND.z) < ISLAND_LAND.r + 1;
 // The waters with their decks taken away: a deck is dry for a cat, but it is
 // still the mire for a tree or a reed.
 const UNDECKED = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
@@ -364,7 +391,10 @@ function pineFits(x, z, scale, kept) {
   if (!inBounds(x, z)) return false;
   if (waterDist(x, z) < 2.5) return false;
   if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
+  if (onIsland(x, z)) return false;
   if (pathDist(x, z) < canopyClear(scale)) return false;
+  // the bridge as a 2 m path: the canopy rule with its half-width of 1 m
+  if (bridgeDist(x, z) < 1 + PINE_REACH * scale + 0.5) return false;
   if (!clearOf(x, z, 4)) return false;
   if (fallenDist(x, z) < 3) return false;
   if ([LIGHTNING_STUMP, FROG_STONE].some((c) => Math.hypot(x - c.x, z - c.z) < 6)) return false;
@@ -407,6 +437,7 @@ function floorFits(x, z, trunks) {
   if (!inBounds(x, z)) return false;
   if (waterDist(x, z) < 1.0) return false;
   if (DECKS.some((d) => rectDist(d, x, z) < 3)) return false;
+  if (onIsland(x, z)) return false;
   if (pathDist(x, z) < 2.3) return false;
   if (!clearOf(x, z, 3)) return false;
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 4) return false;
@@ -442,16 +473,19 @@ export function pinesUndergrowth() {
 const REED_STEP = 2;
 export function pinesReeds() {
   const spots = [];
-  const add = (x, z) => {
+  const add = (x, z, shore = false) => {
     x = r2(x); z = r2(z);
     if (!inBounds(x, z)) return;
+    if (shore && onIsland(x, z)) return;
     if (b.inWater(UNDECKED, x, z)) return;
     if (DECKS.some((d) => rectDist(d, x, z) < 1.5)) return;
     if (pathDist(x, z) < 2.3) return;
     if (!clearOf(x, z, 3)) return;
     spots.push({ x, z });
   };
-  const along = (from, to, at) => { for (let v = from; v <= to; v += REED_STEP) add(...at(v)); };
+  const along = (from, to, at, shore = false) => {
+    for (let v = from; v <= to; v += REED_STEP) add(...at(v), shore);
+  };
   // round each bog
   for (const bog of [BOG_1, BOG_2, BOG_3, BOG_4]) {
     const r = bog.r + 0.5;
@@ -466,13 +500,14 @@ export function pinesReeds() {
   along(-50, -6, (z) => [MIRE_NORTH.maxX + 0.5, z]);
   along(-50, -27, (x) => [x, MIRE_WEST.minZ - 0.5]);
   along(-50, -27, (x) => [x, MIRE_WEST.maxZ + 0.5]);
-  // the bay's west, north and south shores
-  along(5, 44, (z) => [LAKE_BAY.minX - 0.5, z]);
-  along(0, 30, (x) => [x, LAKE_BAY.minZ - 0.5]);
-  along(0, 26, (x) => [x, LAKE_BAY.maxZ + 0.5]);
+  // the bay's west, north and south shores (kept off the island, which is
+  // ground now and gets its own ring of reeds)
+  along(5, 44, (z) => [LAKE_BAY.minX - 0.5, z], true);
+  along(0, 30, (x) => [x, LAKE_BAY.minZ - 0.5], true);
+  along(0, 26, (x) => [x, LAKE_BAY.maxZ + 0.5], true);
   // the lake's north shore, and its west shore below the bay
-  along(30, 50, (x) => [x, LAKE.minZ - 0.5]);
-  along(44, 50, (z) => [LAKE.minX - 0.5, z]);
+  along(30, 50, (x) => [x, LAKE.minZ - 0.5], true);
+  along(44, 50, (z) => [LAKE.minX - 0.5, z], true);
   return spots;
 }
 
@@ -510,7 +545,8 @@ function critterSpawns() {
     { type: 'frog', x: -40, z: 35, x2: -40, z2: 30 },
     { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
     { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
-    { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
+    // all three on open water, none within 2 m of the island's rim
+    { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 37, z: 15 }, { type: 'duck', x: 38, z: 13 },
     { type: 'mouse', x: 10, z: -36, x2: 16, z2: -30 },
     { type: 'mouse', x: -20, z: -44, x2: -14, z2: -38 },
   ];
@@ -635,23 +671,13 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
   for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
-  // --- the island -------------------------------------------------------------
-  // A flattened sphere, so only a low dome shows above the lake, and the tree
-  // stood on its crown.
-  const I = PINES_ISLAND;
-  const mound = new THREE.Mesh(
-    new THREE.SphereGeometry(I.r, 24, 8),
-    litMaterial(0x6a9a50, surfaceProps('grass')),
-  );
-  mound.scale.y = I.rise / I.r;
-  mound.position.set(I.x, 0, I.z);
-  scene.add(mound);
-  const islandTree = b.tree(I.x, I.z, 2.6, { wind });
-  islandTree.position.y = I.rise - 0.2;
-  scene.add(islandTree);
-
-  // The island bridge, the same plank every shore draws (lake.js). Scenery
-  // only for now: no deck, no collider.
+  // --- the island and its bridge ---------------------------------------------
+  // The island needs no mesh of its own: it is a hole in the lake's and the
+  // bay's water, and the ground plane shows through it, so it is the same
+  // grass as the shore. The bridge is the same plank every shore draws
+  // (lake.js); the bay's deck, BRIDGE_DECK, is what a cat walks on, and it
+  // lies inside the plank. No collider: the water either side holds the cat
+  // on it.
   scene.add(islandBridgePlank('pines'));
 
   return {
@@ -675,5 +701,7 @@ export function build(scene, { water = {}, wind } = {}) {
     groundBounce: 0x56603e,
     skyDusk: { top: 0x22304a, horizon: 0x5e5a6e },
     perches,
+    // no cat stands on the lake, the island or the bridge (src/keepout.js)
+    keepOut: ISLAND_KEEP_OUT,
   };
 }

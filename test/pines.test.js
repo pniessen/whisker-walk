@@ -4,8 +4,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // The same headless canvas stub every world test uses (see test/park.test.js
-// for why getImageData and the gradients need real answers).
+// for why getImageData and the gradients need real answers), plus the three
+// listener members createPlayer touches, so the fixed-stick drives below can
+// run the real player (the same shape as test/waterblock.test.js's).
 vi.stubGlobal('document', {
+  addEventListener() {},
+  pointerLockElement: null,
+  exitPointerLock() {},
   createElement: () => ({
     width: 0,
     height: 0,
@@ -29,8 +34,12 @@ const {
   build: buildMoor, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND,
 } = await import('../src/world/moor.js');
 const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
-const { inWater, waterGap, waterClearance } = await import('../src/world/builder.js');
-const { isWalkableAt } = await import('../src/player.js');
+const { inWater, waterGap, waterClearance, nearestDry, onDeck } = await import('../src/world/builder.js');
+const { isWalkableAt, createPlayer } = await import('../src/player.js');
+const {
+  ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
+} = await import('../src/world/island.js');
+const { keepOutPoint } = await import('../src/keepout.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
 const { clearSpot } = await import('../src/world/spots.js');
@@ -40,7 +49,7 @@ const { propsFor } = await import('../src/propsets.js');
 
 const {
   build, SPAWN, PINES_WATERS, PINES_PATHS, TRUCE_PATH, PINES_ISLAND, BRIDGE_FOOT, PINES_HORIZON,
-  PINES_KEEP_CLEAR, FROG_HIDES, pinesTrees, pinesUndergrowth, pinesReeds, pinesLilyPads,
+  PINES_KEEP_CLEAR, FROG_HIDES, DECKS, pinesTrees, pinesUndergrowth, pinesReeds, pinesLilyPads,
 } = pines;
 
 const built = () => {
@@ -131,6 +140,21 @@ describe('the Pines: water', () => {
         expect(m.geometry.type).toBe('CircleGeometry');
         expect(p.radius).toBe(w.r);
         expect([m.position.x, m.position.z]).toEqual([w.x, w.z]);
+      } else if (w.islands?.length) {
+        // The lake and the bay are each drawn as the rect minus the island
+        // (Island Task 2's rule): a ShapeGeometry the rect's size, centred on
+        // it. The island crosses the lake's west edge (x 26) and the bay's east
+        // edge (x 30), so in both it is a notch cut into the outline, not a
+        // hole: no holes, and more than the rect's four corners.
+        expect(['lake', 'lake-bay'], w.id).toContain(w.id);
+        expect(m.geometry.type, w.id).toBe('ShapeGeometry');
+        m.geometry.computeBoundingBox();
+        const bb = m.geometry.boundingBox;
+        expect(bb.max.x - bb.min.x, w.id).toBeCloseTo(w.maxX - w.minX, 6);
+        expect(bb.max.y - bb.min.y, w.id).toBeCloseTo(w.maxZ - w.minZ, 6);
+        expect([m.position.x, m.position.z]).toEqual([(w.minX + w.maxX) / 2, (w.minZ + w.maxZ) / 2]);
+        expect(p.shapes.holes, w.id).toHaveLength(0);
+        expect(p.shapes.getPoints().length, w.id).toBeGreaterThan(4);
       } else {
         expect(m.geometry.type).toBe('PlaneGeometry');
         expect([p.width, p.height]).toEqual([w.maxX - w.minX, w.maxZ - w.minZ]);
@@ -261,6 +285,14 @@ describe('the Pines: water', () => {
 });
 
 describe('the Pines: the island, the bridge and the truce path', () => {
+  // The bridge deck's frame: its middle, the unit vector from its land end to
+  // its island end (the bearing (0.6, 0.8)), and the side normal.
+  const deckSeg = [BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2];
+  const deckLen = Math.hypot(BRIDGE_DECK.x1 - BRIDGE_DECK.x2, BRIDGE_DECK.z1 - BRIDGE_DECK.z2);
+  const along = { x: (BRIDGE_DECK.x1 - BRIDGE_DECK.x2) / deckLen, z: (BRIDGE_DECK.z1 - BRIDGE_DECK.z2) / deckLen };
+  const side = { x: -along.z, z: along.x };
+  const deckMid = { x: (BRIDGE_DECK.x1 + BRIDGE_DECK.x2) / 2, z: (BRIDGE_DECK.z1 + BRIDGE_DECK.z2) / 2 };
+  const onIsland = (x, z) => Math.hypot(x - ISLAND_LAND.x, z - ISLAND_LAND.z) < ISLAND_LAND.r;
   it('the island and the bridge are where the Woods, the River and the Moor show them', () => {
     expect(PINES_ISLAND).toEqual({ x: RIVER_ISLAND.x, z: RIVER_ISLAND.z + 100, r: ISLAND_WOODS.r, rise: ISLAND_WOODS.rise });
     expect([PINES_ISLAND.x, PINES_ISLAND.z]).toEqual([MOOR_ISLAND.x + 100, MOOR_ISLAND.z]);
@@ -284,23 +316,258 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     expect(Math.abs(plank.rotation.y - Math.atan2(ix - sx, iz - sz))).toBeLessThan(1e-6);
   });
 
-  it('the cat walks to the bridge foot and stops at the shore', () => {
-    expect(reaches(area, BRIDGE_FOOT.x, 4.3)).toBe(true);
-    const [[ix, iz]] = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x + 100, z + 100]);
-    for (let k = 0; k < 20; k++) {
-      const t = 0.05 + (0.95 * k) / 19;
-      const x = BRIDGE_FOOT.x + (ix - BRIDGE_FOOT.x) * t, z = BRIDGE_FOOT.z + (iz - BRIDGE_FOOT.z) * t;
-      expect(isWalkableAt(area, x, z), `${t.toFixed(2)} of the way: (${x.toFixed(2)}, ${z.toFixed(2)})`).toBe(false);
+  it('the island is ground cut out of the lake, and the bridge is the only way to it', () => {
+    // the island the neighbours paint, as flat ground: the same centre and radius
+    expect(ISLAND_LAND).toEqual({ x: 28, z: 28, r: 13 });
+    expect([ISLAND_LAND.x, ISLAND_LAND.z, ISLAND_LAND.r]).toEqual([PINES_ISLAND.x, PINES_ISLAND.z, PINES_ISLAND.r]);
+    expect(Object.isFrozen(ISLAND_LAND)).toBe(true);
+    expect(byId('lake').islands).toEqual([ISLAND_LAND]);
+    expect(byId('lake-bay').islands).toEqual([ISLAND_LAND]);
+    for (const w of PINES_WATERS) {
+      if (w.id !== 'lake' && w.id !== 'lake-bay') expect(w.islands, w.id).toBeUndefined();
     }
+    // the bridge is the bay's one deck, and no other water carries it
+    expect(byId('lake-bay').decks).toEqual([BRIDGE_DECK]);
+    expect(PINES_WATERS.filter((w) => (w.decks ?? []).includes(BRIDGE_DECK)).map((w) => w.id)).toEqual(['lake-bay']);
     expect(byId('lake').decks ?? []).toEqual([]);
-    expect(byId('lake-bay').decks ?? []).toEqual([]);
-    const I = PINES_ISLAND;
-    for (const c of area.colliders) expect(Math.hypot(c.x - I.x, c.z - I.z)).toBeGreaterThan(I.r + 2);
-    for (const p of area.perches) expect(Math.hypot(p.x - I.x, p.z - I.z)).toBeGreaterThan(I.r + 2);
-    for (let k = 0; k < 16; k++) {
-      const a = (k / 16) * Math.PI * 2;
-      const x = I.x + Math.cos(a) * I.r, z = I.z + Math.sin(a) * I.r;
-      expect(inWater(PINES_WATERS, x, z), `rim ${k}`).toBe(true);
+
+    const island = [[28, 40], [40, 28], [deckMid.x, deckMid.z]];
+    for (const [x, z] of island) expect(reaches(area, x, z), `(${x}, ${z})`).toBe(true);
+
+    // Take the bridge away and none of it is reached, while everything a kid
+    // hunts for on the mainland still is.
+    const noBridge = { ...area, waters: PINES_WATERS.map((w) => (w.id === 'lake-bay' ? { ...w, decks: [] } : w)) };
+    for (const [x, z] of island) expect(reaches(noBridge, x, z), `(${x}, ${z}) without the bridge`).toBe(false);
+    const offIsland = (p) => !onIsland(p.x, p.z) && segDist(p.x, p.z, deckSeg) > BRIDGE_DECK.halfW + 1;
+    const ground = [
+      ...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.pines, ...FROG_HIDES,
+    ].filter((p) => !(p.y > 0) && offIsland(p));
+    expect(ground.length).toBeGreaterThanOrEqual(20);
+    for (const p of ground) expect(reaches(noBridge, p.x, p.z), `(${p.x}, ${p.z}) without the bridge`).toBe(true);
+    // the climbs' first rocks, from beside them
+    for (const [x, z] of [[4, -28], [-37, -15]]) {
+      expect(reachesWithin(noBridge, x, z, BASE_CLIMB_BUDGET.reachLow), `rock (${x}, ${z})`).toBe(true);
+    }
+  });
+
+  it('the truce path runs straight onto the bridge and the bridge onto the island', () => {
+    // the truce path ends at (10.6, 2.5), 2.3 m short of the foot, and the
+    // foot is on the deck's centreline
+    expect(TRUCE_PATH[3].slice(2)).toEqual([10.6, 2.5]);
+    expect(segDist(BRIDGE_FOOT.x, BRIDGE_FOOT.z, deckSeg)).toBeLessThan(1e-9);
+    // walked in 0.1 m steps: up to the foot, between the truce stones, then
+    // along the deck to 7.6 m from the island's centre
+    const pts = [];
+    for (let k = 0; k <= 23; k++) pts.push([10.6, 2.5 + k * 0.1]);
+    const end = [23.4, 21.9];
+    const n = Math.ceil(Math.hypot(end[0] - 10.6, end[1] - 4.8) / 0.1);
+    for (let k = 1; k <= n; k++) pts.push([10.6 + ((end[0] - 10.6) * k) / n, 4.8 + ((end[1] - 4.8) * k) / n]);
+    const dry = pts.filter(([x, z]) => !isWalkableAt(area, x, z)).map(([x, z]) => `(${x.toFixed(2)}, ${z.toFixed(2)})`);
+    expect(dry).toEqual([]);
+    expect(Math.hypot(end[0] - ISLAND_LAND.x, end[1] - ISLAND_LAND.z)).toBeCloseTo(7.6, 1);
+    // between the stones' faces, with a cat's width to spare on each side
+    expect(10.6 - (9.0 + 0.4 + 0.35)).toBeGreaterThan(0);
+    expect(12.2 - 0.4 - 0.35 - 10.6).toBeGreaterThan(0);
+
+    // 1.2 m to the side of the deck's middle is the bay, and the nearest dry
+    // spot from there is back on the deck
+    const off = { x: deckMid.x + side.x * 1.2, z: deckMid.z + side.z * 1.2 };
+    expect(isWalkableAt(area, off.x, off.z)).toBe(false);
+    const p = nearestDry(area.waters, off.x, off.z, 0.35);
+    expect(onDeck(byId('lake-bay'), p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
+    expect(isWalkableAt(area, p.x, p.z)).toBe(true);
+  });
+
+  // The real player, driven by a held touch stick on the built Pines: the
+  // harness test/waterblock.test.js's drive uses, run here against this area.
+  const FRAME = 1 / 60;
+  function hold(start, dir, seconds) {
+    const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
+    const cat = new THREE.Object3D();
+    player.setAvatar(cat, 3.5);
+    player.enable();
+    cat.position.set(start.x, 0, start.z);
+    player.setTouchMove({ x: dir.x, z: dir.z, mag: 1 });
+    const track = [];
+    for (let t = 0; t < seconds; t += FRAME) {
+      player.update(FRAME, area.colliders, area.bounds, area.waters);
+      track.push({ x: cat.position.x, z: cat.position.z });
+    }
+    player.disable();
+    const wet = track.filter((q) => inWater(area.waters, q.x, q.z)).map((q) => `(${q.x.toFixed(2)}, ${q.z.toFixed(2)})`);
+    expect(wet.slice(0, 5), 'frames in the water').toEqual([]);
+    return track;
+  }
+  const bay = () => byId('lake-bay');
+
+  it('holding the stick in one direction never puts the cat in the water', () => {
+    // From the truce path's end, due south: onto the deck, sliding along its
+    // edge toward the island, and ending on the deck or the island.
+    const south = hold({ x: 10.6, z: 2.5 }, { x: 0, z: 1 }, 6);
+    expect(south.some((q) => onDeck(bay(), q.x, q.z))).toBe(true);
+    const s = south.at(-1);
+    expect(onDeck(bay(), s.x, s.z) || onIsland(s.x, s.z), `ends at (${s.x}, ${s.z})`).toBe(true);
+
+    // From the foot, along the bridge: ends on the island.
+    const over = hold(BRIDGE_FOOT, along, 8).at(-1);
+    expect(onIsland(over.x, over.z), `ends at (${over.x}, ${over.z})`).toBe(true);
+
+    // From the island landing (Task 6's bridge-landing spot), back up the
+    // bridge: it passes between the truce stones and ends on dry land north
+    // of the shore. Not "ends between the stones": in 8 s the cat walks on
+    // some 16 m past them, so the test checks where it crossed their line.
+    const back = hold({ x: 22, z: 20.5 }, { x: -along.x, z: -along.z }, 8);
+    const i = back.findIndex((q) => q.z < 3.6);
+    expect(i).toBeGreaterThan(0);
+    expect(back[i].x).toBeGreaterThan(9.0 + 0.4);
+    expect(back[i].x).toBeLessThan(12.2 - 0.4);
+    const b = back.at(-1);
+    expect(b.z).toBeLessThan(BAY_BOX.minZ);
+    expect(isWalkableAt(area, b.x, b.z), `ends at (${b.x}, ${b.z})`).toBe(true);
+
+    // From the deck's middle, due east: never wet, ends on the deck or the
+    // island, and stays pressed to the deck's east edge through the last
+    // second. Not "holds still": the bridge runs on a diagonal, so a stick held
+    // due east has a part along it, and the cat slides along the edge toward
+    // the island, as it slides along a bank at the water's edge. The small
+    // bounce at a deck's edge (pushed back to 0.35 m in, then walking out to
+    // the edge again) is how every deck already behaves, the Woods' and the
+    // River's included.
+    const east = hold(deckMid, { x: 1, z: 0 }, 3);
+    const e = east.at(-1);
+    expect(onDeck(bay(), e.x, e.z) || onIsland(e.x, e.z), `ends at (${e.x}, ${e.z})`).toBe(true);
+    for (const q of east.slice(-60)) {
+      const at = `(${q.x.toFixed(2)}, ${q.z.toFixed(2)})`;
+      expect(onDeck(bay(), q.x, q.z) || onIsland(q.x, q.z), at).toBe(true);
+      // the east side of the deck is -side; on the island the edge no longer applies
+      if (onDeck(bay(), q.x, q.z) && !onIsland(q.x, q.z)) {
+        const off = -((q.x - deckMid.x) * side.x + (q.z - deckMid.z) * side.z);
+        expect(off, at).toBeGreaterThanOrEqual(0.5);
+      }
+    }
+
+  });
+
+  it('the bridge deck is no wider than the plank the kids see', () => {
+    const plank = scene.getObjectByName('islandBridge');
+    expect(plank).toBeTruthy();
+    expect(plank.geometry.parameters.width).toBe(BRIDGE_PLANK.w);
+    scene.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const D = BRIDGE_DECK;
+    const misses = [];
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      const cx = D.x1 + (D.x2 - D.x1) * t, cz = D.z1 + (D.z2 - D.z1) * t;
+      for (let j = 0; j <= 4; j++) {
+        const o = -D.halfW + (2 * D.halfW * j) / 4;
+        const x = cx + side.x * o, z = cz + side.z * o;
+        ray.set(new THREE.Vector3(x, 2, z), down);
+        if (!ray.intersectObject(plank, true)[0]) misses.push(`t ${t} side ${o.toFixed(2)}: (${x.toFixed(2)}, ${z.toFixed(2)})`);
+      }
+    }
+    expect(misses).toEqual([]);
+    // 1.8 m wide on a 2 m plank (float-derived, so within a hair)
+    expect(2 * D.halfW).toBeGreaterThanOrEqual(1.8 - 1e-9);
+    expect(2 * D.halfW).toBeLessThanOrEqual(BRIDGE_PLANK.w - 0.2 + 1e-9);
+    // its last metre, past the foot, is over dry land
+    const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+    const past = Math.hypot(D.x2 - BRIDGE_FOOT.x, D.z2 - BRIDGE_FOOT.z);
+    expect(past).toBeCloseTo(BRIDGE_PLANK.landRun, 9);
+    for (let k = 0; k <= 10; k++) {
+      const x = BRIDGE_FOOT.x + (D.x2 - BRIDGE_FOOT.x) * (k / 10), z = BRIDGE_FOOT.z + (D.z2 - BRIDGE_FOOT.z) * (k / 10);
+      expect(inWater(undecked, x, z), `(${x.toFixed(2)}, ${z.toFixed(2)})`).toBe(false);
+    }
+    // and its island end is on the island
+    expect(onIsland(D.x1, D.z1)).toBe(true);
+  });
+
+  it('the bridge deck and the keep-out come from lake.js', () => {
+    const [[ix, iz], [fx, fz]] = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x + 100, z + 100]);
+    const run = BRIDGE_PLANK.landRun / Math.hypot(fx - ix, fz - iz);
+    const D = BRIDGE_DECK;
+    for (const [got, want] of [[D.x1, 20.56], [D.z1, 18.08], [D.x2, 10.0], [D.z2, 4.0], [D.halfW, 0.9]]) {
+      expect(got).toBeCloseTo(want, 9);
+    }
+    expect([D.x1, D.z1]).toEqual([ix, iz]);
+    expect(D.x2).toBeCloseTo(fx + (fx - ix) * run, 12);
+    expect(D.z2).toBeCloseTo(fz + (fz - iz) * run, 12);
+    expect(Object.isFrozen(D)).toBe(true);
+  });
+
+  it('no pine, fern, toadstool or shore reed grows on the island, and the rest of the Pines is as it was', () => {
+    const { near, stand } = pinesTrees();
+    const { ferns, toadstools } = pinesUndergrowth();
+    const reeds = pinesReeds();
+    // The shore reeds are the five lines along the bay's and the lake's shores
+    // (pinesReeds): x -0.5, z 4.5 and z 44.5 round the bay, z 7.5 and x 25.5
+    // on the lake.
+    const shore = reeds.filter((r) => r.x === -0.5 || r.z === 4.5 || r.z === 44.5 || r.z === 7.5 || r.x === 25.5);
+    const lists = { near, stand, ferns, toadstools, shore };
+    for (const [kind, list] of Object.entries(lists)) {
+      for (const t of list) {
+        expect(Math.hypot(t.x - ISLAND_LAND.x, t.z - ISLAND_LAND.z), `${kind} (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(ISLAND_LAND.r + 1);
+      }
+    }
+    // The counts measured before the island became ground (the island was
+    // all water then, so nothing could grow there), unchanged: every
+    // candidate draws all its numbers whether kept or not, and the new rules
+    // only turn away candidates on the island itself.
+    expect({
+      near: near.length, stand: stand.length, ferns: ferns.length, toadstools: toadstools.length,
+      shore: shore.length, reeds: reeds.length, pads: pinesLilyPads().length,
+    }).toEqual({ near: 40, stand: 86, ferns: 133, toadstools: 45, shore: 58, reeds: 141, pads: 20 });
+    // the bridge treated as a 2 m path: a pine's canopy never reaches over it
+    for (const t of [...near, ...stand]) {
+      expect(segDist(t.x, t.z, deckSeg), `pine (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(1 + 1.3 * t.scale + 0.5);
+    }
+    // The fit rules' decks are the two mire crossings, named: their distance
+    // rule (rectDist) reads a rect's minX, which a strip deck doesn't have.
+    expect(DECKS).toEqual([byId('mire-north').decks[0], byId('mire-west').decks[0]]);
+    expect(DECKS).toHaveLength(2);
+  });
+
+  it('the Pines keeps its cats off the lake, the island and the bridge', () => {
+    expect(area.keepOut).toEqual(ISLAND_KEEP_OUT);
+    // the same numbers as the literal shapes in test/keepout.test.js
+    const KO = ISLAND_KEEP_OUT;
+    expect(KO.rects).toEqual([
+      { minX: 26, maxX: 86, minZ: 8, maxZ: 66 }, { minX: 0, maxX: 30, minZ: 5, maxZ: 44 },
+    ]);
+    expect(KO.margin).toBe(0.6);
+    expect(KO.capsules).toHaveLength(1);
+    const c = KO.capsules[0];
+    for (const [got, want] of [[c.x1, 20.56], [c.z1, 18.08], [c.x2, 10.0], [c.z2, 4.0], [c.r, 1.5]]) expect(got).toBeCloseTo(want, 9);
+    // derived: the lake and the bay as boxes, the bridge as its deck plus the margin
+    const box = (w) => ({ minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ });
+    expect(KO.rects).toEqual([box(byId('lake')), box(byId('lake-bay'))]);
+    expect(KO.rects).toEqual([LAKE_BOX, BAY_BOX]);
+    expect([c.x1, c.z1, c.x2, c.z2]).toEqual([BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2]);
+    expect(c.r).toBeCloseTo(BRIDGE_DECK.halfW + KO.margin, 12);
+    for (const o of [KO, KO.rects, KO.capsules, ...KO.rects, c]) expect(Object.isFrozen(o)).toBe(true);
+
+    const rectGap = (r, x, z) => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+    const outside = (p) => KO.rects.every((r) => rectGap(r, p.x, p.z) >= KO.margin - 1e-9)
+      && KO.capsules.every((k) => segDist(p.x, p.z, [k.x1, k.z1, k.x2, k.z2]) >= k.r - 1e-9);
+    const b = area.bounds;
+    const pts = [];
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      pts.push([ISLAND_LAND.x + Math.cos(a) * ISLAND_LAND.r, ISLAND_LAND.z + Math.sin(a) * ISLAND_LAND.r]);
+    }
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      const cx = BRIDGE_DECK.x1 + (BRIDGE_DECK.x2 - BRIDGE_DECK.x1) * t, cz = BRIDGE_DECK.z1 + (BRIDGE_DECK.z2 - BRIDGE_DECK.z1) * t;
+      for (const o of [-BRIDGE_DECK.halfW, 0, BRIDGE_DECK.halfW]) pts.push([cx + side.x * o, cz + side.z * o]);
+    }
+    pts.push([45, 37]); // the lake's middle, inside the bounds
+    for (const [x, z] of pts) {
+      const p = keepOutPoint(area, x, z);
+      const at = `(${x.toFixed(2)}, ${z.toFixed(2)}) -> (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
+      expect(inWater(area.waters, p.x, p.z), at).toBe(false);
+      expect(p.x >= b.minX && p.x <= b.maxX && p.z >= b.minZ && p.z <= b.maxZ, at).toBe(true);
+      expect(outside(p), at).toBe(true);
     }
   });
 
@@ -568,7 +835,9 @@ describe('the Pines: things to find, climb and race', () => {
       { type: 'frog', x: -40, z: 35, x2: -40, z2: 30 },
       { type: 'frog', x: -34, z: -26, x2: -40, z2: -30 },
       { type: 'squirrel', x: -12, z: -34 }, { type: 'squirrel', x: 20, z: -20 },
-      { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 36, z: 16 }, { type: 'duck', x: 38, z: 13 },
+      // the middle duck moved from (36, 16) to (37, 15), so none paddles within
+      // 2 m of the island's rim
+      { type: 'duck', x: 34, z: 14 }, { type: 'duck', x: 37, z: 15 }, { type: 'duck', x: 38, z: 13 },
       { type: 'mouse', x: 10, z: -36, x2: 16, z2: -30 },
       { type: 'mouse', x: -20, z: -44, x2: -14, z2: -38 },
     ]);
@@ -642,7 +911,8 @@ describe('the Pines: the forest', () => {
   const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
   const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
   const waterDist = (x, z) => Math.min(...undecked.map((w) => waterGap(w, x, z)));
-  const decks = PINES_WATERS.flatMap((w) => w.decks ?? []);
+  // the mire's two crossings; the island bridge has its own rule
+  const decks = DECKS;
   const pathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, s)));
   // builder.pine's lowest cone reaches 1.3 m per unit of scale; a path is 3 m wide
   const canopy = (t) => 1.5 + 1.3 * t.scale + 0.5;
@@ -727,7 +997,8 @@ describe('the Pines: the forest floor and the swamp edge', () => {
   const pads = pinesLilyPads();
   const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
   const waterDist = (x, z) => Math.min(...undecked.map((w) => waterGap(w, x, z)));
-  const decks = PINES_WATERS.flatMap((w) => w.decks ?? []);
+  // the mire's two crossings; the island bridge has its own rule
+  const decks = DECKS;
   const pathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, s)));
   const h = 5 / 2, sx = Math.sin(0.4), sz = Math.cos(0.4);
   const log = [-14 - sx * h, 42 - sz * h, -14 + sx * h, 42 + sz * h];
