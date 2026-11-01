@@ -81,7 +81,10 @@ const STEPPING_STONES = Object.freeze({
 // the lake opens out to the horizon and the river leaves the map west and
 // east rather than stopping at a wall.
 const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: 26, maxX: 120, minZ: -95, maxZ: -34, shallow: 1.2 });
-// Open water north of the bounds, round the island. Nothing a cat can walk.
+// Open water north of the bounds, round the island (no island hole here: the
+// island is only painted on this map's horizon). It is wholly outside the
+// River's bounds, so no cat walking the River reaches it; the same water is
+// the Pines' lake-bay, where the bridge and the island are walked.
 const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: 0, maxX: 30, minZ: -95, maxZ: -56, shallow: 1.2 });
 const RIVER_WEST = Object.freeze({
   id: 'river-west', kind: 'rect', minX: -120, maxX: 19, minZ: -34, maxZ: -29, shallow: 1.2,

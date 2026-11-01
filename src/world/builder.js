@@ -3432,7 +3432,8 @@ export function logBasket(x, z) {
 // ground cut out of the water. An island is not a deck, because a deck means
 // raised boards (ruling R42: carrying will not set things down on one, and
 // paw prints skip it); an island is ground, so it gets neither rule. A circle
-// footprint does not support islands.
+// footprint does not support islands. An island's rim is shore (outline
+// chords it), so depth near an island is measured to the island.
 //
 // A deck may also be a strip `{ x1, z1, x2, z2, halfW }` — a centreline from
 // end 1 to end 2 and a half-width — instead of an axis-aligned rect, so a

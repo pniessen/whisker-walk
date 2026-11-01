@@ -94,7 +94,9 @@ const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: -120, maxX: -14, mi
 // bridge crosses toward the Pines' shore. It reaches 3 m north of the lake's
 // shore line, so the bridge's north-west end (-89.4, 4.8) lands just north of
 // it, on the Pines' shore, and it stops 20 m short of the Moor's west edge, so
-// the Pines' dry strip north of the lake stays dry. Nothing a cat can walk.
+// the Pines' dry strip north of the lake stays dry. It is wholly outside the
+// Moor's bounds, so no cat walking the Moor reaches it; the same water is the
+// Pines' lake-bay, where the bridge and the island are walked.
 const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: -100, maxX: -70, minZ: 5, maxZ: 44, shallow: 1.2 });
 // In from the Woods at the Woods' river-north x.
 const RIVER_SOUTH = Object.freeze({

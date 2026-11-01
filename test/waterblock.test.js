@@ -401,11 +401,15 @@ describe('the decks stay walkable end to end', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. The whole-map sweep. This is the real "never gets stuck" proof: every
-//    standable cell of every watered area, run through the actual update.
+// 6. The whole-map sweep. This is the real "never gets stuck" proof for the
+//    three areas this file builds (the Park, the Seaside and the Docks): the
+//    cat is dropped on every cell of a 0.5 m grid over the bounds, in the
+//    water or out of it, and run through one actual update. The Woods, the
+//    River, the Moor and the Pines are not swept here; their waters are
+//    covered by test/wadingroutes.test.js and test/shore.test.js.
 // ---------------------------------------------------------------------------
 
-describe('every square metre of every watered area', () => {
+describe('every half-metre cell of the Park, the Seaside and the Docks', () => {
   let player, cat;
   beforeEach(() => { ({ player, cat } = harness()); });
   afterEach(() => player.disable());
