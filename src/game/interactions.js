@@ -36,6 +36,8 @@ import { nowSec } from './util.js';
 import { pick as pickUp, drop as putDown, tickRain, carryLabel } from '../carry.js';
 import { knockNoun, propsFor } from '../propsets.js';
 import { markKey, borderMarkId } from '../marks.js';
+import { postNear } from '../borderposts.js';
+import { postStatus, promptFor } from '../bordercross.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
 
 // ---------------------------------------------------------------------------
@@ -117,6 +119,8 @@ export function createInteractions({
   // it); the feed handler (feedStray) calls colonySync?.pushFeed, which is
   // fire-and-forget and a no-op while unpaired or offline.
   colonySync,
+  // Border crossings: the crossing card's opener (game/crossing.js). Optional.
+  askCrossing = () => {},
 }) {
   // Bodies extracted out of the keydown handlers below (pure move — same
   // logic, no behavior change) so both the keyboard path and the touch
@@ -1068,6 +1072,18 @@ export function createInteractions({
         setPrompt(REST_PROMPTS[spot.kind]);
       }
     }
+    // Border crossings: a waymark post, Clan Edition only. After the rest (so
+    // anything a kid walked up to comes first) and before gift-leave and the
+    // drop (so a held thing never hides a post). Never mid-fight.
+    if (!s.prompt && isClanEdition(progression.state) && !s.perched && !player.swimming && !s.fight && !s.clanFight?.uiShowing) {
+      const post = postNear(s.areaId, catP.x, catP.z);
+      if (post) {
+        const status = postStatus(post, progression.state, CATALOG, s.areaId);
+        const line = promptFor(status, { inRoom: !!s.net, isHost: !!s.net?.isHost?.() });
+        s.prompt = { kind: line.kind, data: { post, status } };
+        setPrompt(line.text);
+      }
+    }
     // v18 Gift Paws. LAST in the chain on purpose: every prompt above it is
     // something the player came over to do, and a scenic spot is a big
     // 3m-wide target that would otherwise shadow a stray standing on it. A
@@ -1725,6 +1741,10 @@ export function createInteractions({
         s.rival?.borderMarks?.setContested(d.index);
         s.fx?.burst({ x: d.x, y: 0.2, z: d.z }, 0xe0782f, 8);
       }
+    } else if (s.prompt.kind === 'border') {
+      askCrossing(s, s.prompt.data);
+    } else if (s.prompt.kind === 'border-info') {
+      // Says which way; nothing to do.
     } else if (s.prompt.kind === 'rest') {
       // v21 3b Task 15 — for nothing but the fun of it: no award, no feat, no
       // goal, no discovery, nothing saved, nothing on the wire (ruling P1).

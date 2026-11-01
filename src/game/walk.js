@@ -145,6 +145,17 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 // The key light, the fill, the shadow bias and the shadow-caster rule are one
 // calibrated rig, shared with the verify harnesses: see render/rig.js.
 
+// The pause / Ready? card, rebuilt on demand (the crossing card puts it back).
+export function pauseCardHtml({ welcome, touch }) {
+  return `<div class="pause-card"><h1>Ready?</h1>
+    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
+    <button id="btn-resume">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
+    <button id="btn-end">End walk &amp; head home</button>
+    <p class="controls-hint">${touch
+      ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
+      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+}
+
 export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
   renderer, camera, composerRig,
@@ -1649,13 +1660,8 @@ export function createWalkLifecycle({
     hud.setGoals(goals ? goals.goals : null);
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
-    overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
-      ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
-      <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
-      <button id="btn-end">End walk &amp; head home</button>
-      <p class="controls-hint">${getIsTouch()
-        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
-        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+    session.welcome = welcome;
+    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch() });
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
