@@ -1799,3 +1799,66 @@ and the live checks were not re-run):
 pointer); iPhone fps and thermals; dusk and rain; the colony and co-walk on
 the island; the ducks' whole circuit round the island (seen paddling off its
 north-east only).
+
+## Border posts — live check (2026-11-01)
+
+Headless Chromium (SwiftShader), Clan Edition unless noted, branch
+`border-crossings` at 61f9e8d.
+
+**Checked and right:**
+
+- All 19 posts give the right line from 1 m inside: "E — Head to …?" on a save
+  with everything owned (Twolegplace, the Woods, the Moor, the River and
+  Marshes, the Pines and Swamp), "The Gorge: not explored yet" at moor-gorge,
+  and the locked lines on a fresh save ("🔒 The River and Marshes opens after 2
+  walks in The Woods · 1/2 so far", "🔒 The Woods opens after 2 walks in
+  Twolegplace · 1/2 so far"). On touch the pill drops the "E — " as designed.
+- The crossing card at woods-moor-path, with a race running: "Head to the
+  Moor? / This walk ends here, and you keep everything you found. / Your race
+  stops here." Keep exploring puts the pause card back and the walk resumes; E
+  again, Yes, let's go! gives the summary with "Next stop: the Moor! 🧭" and
+  "It's picked on your map."; the Woods walk counted (3 → 4); Continue opens
+  the home screen on Where to with the Moor as today's walk; Start walks the
+  Moor.
+- Walked with arrow keys, no wading, never stuck (largest drift off the
+  centreline 0.7 m): the Moor trail (4, -7) → (-49.3, -11) and back, the Pines
+  trail (33, -11) ↔ (49.3, -11), and the town footpath from the spawn to its
+  west end and the post. The cleared strips read as trails; the joins are the
+  same overlapping-strip bends every path has.
+- Posts look right: cloth in the neighbour's map colour (lavender for the Moor,
+  green for the River, tan for Twolegplace); board on the outward side; no fern
+  or reed through any Woods post (one fern stands about a metre behind
+  woods-moor-path).
+- Corner map: brown arrows at the posts, pinned to the rim when off the disc,
+  pointing out over their edge in north-up and turning mode. At the Woods
+  spawn four of the six show, which isn't cluttered.
+- Legacy: no posts, no footpath, no post line anywhere, no arrows on the map.
+- No console or page errors.
+
+**Draws** (HIGH, 1280×720, `?perf`, 10 s average at the spawn; posts and
+footpath hidden for the second number): Neighborhood 1434 / 1427 at the spawn,
+724 / 714 looking at town-river; Woods 608 / 598 at the spawn, 660 / 650
+looking at woods-town-short. So the dressing costs about 7-10 draws. Each post
+is 3 meshes and none casts a shadow. Clan against Legacy in the Neighborhood
+(1371 against 1264) is mostly not the posts.
+
+**Seen, not fixed:**
+
+- **River: the race pad sits at the foot of river-woods-long.** The pad (46, 37)
+  is 1.6 m from the post (47.5, 37.6), 4 m from the spawn. Walking up from the
+  spawn side gives "E — start today's zoomies race! 🏁". The post line shows
+  only from its north, east or south, or once the race has started, and the
+  yellow ring is drawn round the post's foot.
+- **The board's tip doesn't read as an arrow.** It is a 4 cm-high flat
+  three-sided cone lying on its side. From walking height the board looks like
+  a plain plank with a small nub at the end.
+- **The corner-map arrowhead is almost equilateral** (7 × 6.4 px). In turning
+  mode at in-between headings it looks like it points the wrong way: at yaw
+  -1.2 the town's west arrows seem to point right. The angle maths is correct.
+  A longer, thinner head would fix it.
+- At the town spawn, town-moor's arrow is due north and hides under the N badge.
+- The post's prompt pill stays visible, dimmed, under the crossing card.
+
+**Not checked (left for the owner):** the co-walk crossing with two paired
+devices (the localhost-only browser can't reach the room transport; the logic
+is unit-tested), and the iPhone 18 reading in the Neighborhood and the Woods.
