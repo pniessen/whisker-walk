@@ -2446,6 +2446,87 @@ export function brambleBed(spots, seed) {
   return mergedNoCast(geoms, 0x3b5e2e, 'foliage');
 }
 
+// A weeping willow: tree()'s trunk, a lower, wider crown, and one merged
+// curtain of thin strands hanging from the crown's rim. The curtain stops at
+// `curtainFloor` (local y) and never lower, so a cat walks under a willow and
+// the chase camera can see in; the Old Willow passes a higher floor so the
+// camera sees under it to the golden mouse. Strand placement comes from
+// hash01, never Math.random, so every client builds the same tree. No collider
+// here; the area declares one, as for tree().
+const WILLOW_STRANDS = 18;
+export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, TRUNK_SIDES),
+    surfMat(0x7a5230, 'bark'));
+  trunk.position.y = 1;
+  g.add(trunk);
+  const crown = new THREE.Mesh(
+    blobGeometry(x, z, 1.6, { lobes: 2, saltBase: 40 }),
+    surfMat(organicTint(0x7fa04a, x, z, 10), 'foliage'),
+  );
+  crown.position.y = 2.8;
+  crown.scale.y = 0.75;
+  crown.rotation.y = hash01(x, z, 31) * Math.PI * 2;
+  g.add(crown);
+  const strands = [];
+  for (let i = 0; i < WILLOW_STRANDS; i++) {
+    // evenly spaced round the rim, each nudged so the ring is not a fence
+    const a = ((i + hash01(x, z, 50 + i) * 0.8) / WILLOW_STRANDS) * Math.PI * 2;
+    const rad = 1.35 + 0.2 * hash01(z, x, 70 + i);
+    const top = 2.9;
+    const bottom = Math.min(top - 0.1, Math.max(curtainFloor, top - (0.9 + 1.0 * hash01(x + i, z, 90))));
+    const len = top - bottom;
+    const strand = new THREE.BoxGeometry(0.06, len, 0.06);
+    strand.translate(Math.cos(a) * rad, bottom + len / 2, Math.sin(a) * rad);
+    strands.push(strand);
+  }
+  const curtain = new THREE.Mesh(mergeGeometries(strands, false), surfMat(0x8aaa52, 'foliage'));
+  for (const p of strands) p.dispose();
+  curtain.name = 'willowCurtain';
+  g.add(curtain);
+  g.scale.setScalar(scale);
+  g.position.set(x, 0, z);
+  g.userData.canopy = { y: crown.position.y, r: 1.6 };
+  if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
+  return g;
+}
+
+// A pine: a short bark trunk under three stacked cones, merged into one
+// foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
+// carries no `canopy` tag. No collider here.
+export function pine(x, z, scale = 1, { wind } = {}) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.6, 6),
+    surfMat(0x7a5230, 'bark'));
+  trunk.position.y = 0.8;
+  g.add(trunk);
+  const cones = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map(([r, h, y]) => {
+    const c = new THREE.ConeGeometry(r, h, 7);
+    c.translate(0, y, 0);
+    return c;
+  });
+  const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(0x2f5a3a, 'foliage'));
+  for (const c of cones) c.dispose();
+  g.add(foliage);
+  g.scale.setScalar(scale);
+  g.position.set(x, 0, z);
+  if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
+  return g;
+}
+
+// Lily pads: flat discs with a wedge missing, one merged mesh floating just
+// above the water. Thin and wide, so out of the caster sweep like the beds.
+export function lilyPads(pads, seed, y = 0.06) {
+  const geoms = pads.map((p, i) => {
+    const notch = hash01(p.x, p.z, seed + i) * Math.PI * 2;
+    const pad = new THREE.CircleGeometry(p.r, 10, notch, Math.PI * 2 - 0.5);
+    pad.rotateX(-Math.PI / 2);
+    pad.translate(p.x, y, p.z);
+    return pad;
+  });
+  return mergedNoCast(geoms, 0x4f8a3a, 'foliage');
+}
+
 // The shared tail of the ground-dressing beds: merge, map-less material, and
 // out of the caster sweep (see the reedBed note).
 function mergedNoCast(geoms, color, surface) {

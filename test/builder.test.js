@@ -596,4 +596,42 @@ describe('the Woods builders', () => {
     expect(m.castShadow).toBe(false);
     expect(m.userData.noCast).toBe(true);
   });
+  it('willow is three meshes and its curtain never hangs below 1.2', () => {
+    const g = b.willow(3, 4);
+    expect(g.children.filter((o) => o.isMesh)).toHaveLength(3);
+    const curtain = g.getObjectByName('willowCurtain');
+    curtain.geometry.computeBoundingBox();
+    expect(curtain.geometry.boundingBox.min.y).toBeGreaterThanOrEqual(1.2 - 1e-6);
+    expect(g.userData.canopy).toEqual({ y: 2.8, r: 1.6 });
+    const high = b.willow(3, 4, 1, { curtainFloor: 2.0 }).getObjectByName('willowCurtain');
+    high.geometry.computeBoundingBox();
+    expect(high.geometry.boundingBox.min.y).toBeGreaterThanOrEqual(2.0 - 1e-6);
+  });
+
+  it('willow is the same at the same spot', () => {
+    const a = b.willow(3, 4);
+    const c = b.willow(3, 4);
+    expect(a.children.length).toBe(c.children.length);
+    a.children.forEach((m, i) => {
+      expect(Array.from(m.geometry.attributes.position.array))
+        .toEqual(Array.from(c.children[i].geometry.attributes.position.array));
+    });
+  });
+
+  it('pine is two meshes, never taller than 4.4 at scale 1', () => {
+    const g = b.pine(0, 0);
+    expect(g.children.filter((o) => o.isMesh)).toHaveLength(2);
+    expect(new THREE.Box3().setFromObject(g).max.y).toBeLessThanOrEqual(4.4);
+    expect(g.userData.canopy).toBeUndefined();
+  });
+
+  it('lilyPads is one flat mesh out of the shadow pass', () => {
+    const m = b.lilyPads([{ x: 0, z: 0, r: 0.4 }, { x: 2, z: 1, r: 0.5 }], 5);
+    expect(m.isMesh).toBe(true);
+    const pos = m.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) expect(Math.abs(pos.getY(i) - 0.06)).toBeLessThan(1e-6);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(() => b.lilyPads([], 5)).not.toThrow();
+  });
 });
