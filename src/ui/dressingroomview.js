@@ -164,8 +164,13 @@ export function createDressingRoom({
     dispatch({ type: 'clear-preview' });
   }
 
+  // A walk that ended at a border post opens the home screen on Where to.
+  function setPill(pill) {
+    dispatch({ type: 'pill', pill });
+  }
+
   return {
-    html, afterRender, handleClick, clearPreview,
+    html, afterRender, handleClick, clearPreview, setPill,
     get ui() { return ui; },
   };
 }

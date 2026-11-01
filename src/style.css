@@ -419,6 +419,10 @@ body.left-handed .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+.cross-card h2 { font-size: 1.6rem; }
+.cross-card button { min-height: 48px; min-width: 200px; }
+.cross-card #btn-cross-yes { background: #f2c14e; color: #3a2a10; }
+.cross-card #btn-cross-yes:hover { filter: brightness(1.08); }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
