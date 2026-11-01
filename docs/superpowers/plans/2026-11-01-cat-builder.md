@@ -19,7 +19,7 @@ Built from main at 92a4d1b (the new cat body, Clan Edition, clan picks, clan cas
 - **A custom cat is never stronger than a ready-made one.** Its numbers are one of six `PERSONALITIES` rows, unchanged: keenNose → `tabby`, chaser → `siamese`, napper → `persian`, fearless → `black`, pouncer → `calico`, steady → `mainecoon`. Family rows (Zeetoo, Robbie, D2, Digit, Hagrid) can never be picked.
 - **All six personalities are open from the start** (owner). No locked state, no buy path.
 - **Up to 3 custom cats per kid. No delete, no removal API, no id reuse, no confirm UI** (owner). Ids are `'mine1'`, `'mine2'`, `'mine3'`, handed out in that order.
-- **Her brother sees her usual pet name** (owner). `petName` on the room profile, the cloud profile (`pet_name`), ghosts, the friend list, the walk log, reply seeds and the roster never changes when she switches cats. The custom cat's name shows only on her own screen: the builder, the dressing-room hero and strip, and the visit celebration.
+- **Her brother sees her usual pet name** (owner). `petName` on the room profile, the cloud profile (`pet_name`), ghosts, the friend list, the walk log, reply seeds and the roster never changes when she switches cats. The custom cat's name shows only on her own screen: the builder, the dressing-room hero and strip, the visit celebration, **the name tag over her own cat on her walks**, and her pouncer perk toast (owner, 2026-11-01). Nothing carries it to another player (it travels only inside her own cloud save).
 - **Names use `validPetName` (`src/net.js`)**: 2–16 characters, starts with a letter, letters/spaces/hyphens only, no `NAME_BLOCKLIST` substring. The hint is the pet-name sheet's exact words: `Pet names are 2–16 letters, spaces, or hyphens.`
 - **Mesh ceilings for every custom pattern × fur:** 31 full, 25 `simple` (the body patterns are painted, so the spec's 33/27 dropped to 31/25 after the cat body). Triangles: 8000 full, 5500 simple. Colours never change the count.
 - **Ready-made cats stay byte-identical.** `test/fixtures/catgolden.json` and `test/fixtures/hagrid-golden.json` must keep passing **unchanged**. Never run `UPDATE_GOLDEN=1` in this plan (it rewrites `catgolden.json`). `catpose-baseline.json` and `accessory-mesh-delta.json` are untouched too.
@@ -49,8 +49,10 @@ Built from main at 92a4d1b (the new cat body, Clan Edition, clan picks, clan cas
 9. **Thumbnails:** custom portraits are snapped by `customThumbnails(entries)` in `src/thumbnails.js`: one throwaway WebGL context per batch (released with `forceContextLoss`, as `menuThumbnails` does), cached in memory by `lookKey`, never saved. On failure the tile shows a coat-coloured circle with the name's first letter. The stage's WebGL fallback image for a custom cat is its preset's thumbnail (already true: `placeFallback` reads `thumbs.cats[breed]`).
 10. **The builder hides the Start dock** while open. If a room partner starts a walk mid-build, `clearPreview()` (already called on hide and before Start) also closes the builder: a new cat is not saved, an edit keeps the old version.
 11. **The builder stage always shows the cat bare** (new and edit), so the coat is easy to see; Done returns to the Wearing panel with the outfit on.
-12. **"a Calico masterclass":** the pouncer perk line stays `a Calico masterclass` for the ready-made Calico only; Robbie and a custom pouncer read `a pouncer's masterclass` (`cat.userData.custom` tells them apart, since a custom pouncer's `userData.breed` is `'calico'`). **This changes a family cat's line too** (Robbie reads "a Calico masterclass" today); flagged for the owner.
+12. **The pouncer perk line (owner, 2026-11-01):** every ready-made cat keeps its line exactly (`a Calico masterclass`, Robbie included). Only a custom pouncer changes, and it uses her cat's own name: `Ember's masterclass` (toast: "You spotted Ember's masterclass"; the name is shown exactly as she typed it, lower-case first letter included). It reads well because `validPetName` allows only letters, spaces and hyphens; a name that fails it (impossible after the save is sanitised, but the helper is total) reads `a pouncer's masterclass`. `cat.userData.custom` tells a custom pouncer from the Calico (both have `userData.breed === 'calico'`); the name is on `cat.userData.customName`. The toast is local (`hud.js` writes it with `textContent`), never sent.
 13. **A look on the wire that is not a plain object** (a string, an array) means the plain preset, the same as a missing look. A plain object is repaired field by field. Both co-walkers run the same `wireLook`, so they agree.
+14. **Her own walk tag (owner, 2026-11-01):** while she walks a custom cat, her own cat wears a plain one-line name tag with that cat's name, always visible, on her screen only. It is the existing `makeNameTag(name)` with no options (no rank sub-label, no cross mood, no star), hung on her cat at the standard `TAG_Y` like a co-walker's tag. A ready-made cat still wears no tag (unchanged). The name comes from `ownTagName(state)`: the active custom cat's name, re-checked with `validPetName` and clamped to 16 characters, else `FALLBACK_NAME`. Canvas text is drawn with `fillText`, so nothing is parsed as HTML, and `paintTag` already shrinks long names to fit the pill (floor 24 px). In Clan Edition nothing changes about it: the rank sub-label is only for the clan cast (`clancats.js`), and the borrowed-word scan reads `src/` literals, not kid-typed names, so a name like "Warrior" in her save trips nothing. The tag is a child of her cat, so it scales with her cat's size and sways with the swim shake, as a co-walker's tag does. It also appears in her album photos (`snapPhoto` renders the chase frame), exactly as a co-walker's tag does today: her own data, seen by no one else, and her cat's name in her album is a feature.
+15. **What a co-walker sees over her cat: her usual pet name, unchanged.** The wire does not carry the custom name, and this plan keeps it that way: the owner's first answer put her pet name on everything that leaves her phone; `petName` is also the cloud `pet_name` (ghosts, friend list, walk log, reply seeds), so reusing it would change all of those; and an older-build partner already shows `petName`, so both builds agree. Adding a second name field would be wire growth for no owner-requested benefit.
 
 ## Review Focus
 
@@ -64,10 +66,10 @@ Built from main at 92a4d1b (the new cat body, Clan Edition, clan picks, clan cas
 
 | File | Change | Responsibility |
 |---|---|---|
-| `src/customcats.js` | Create | Palette tables, personality→preset map, `sanitizeLook`, `sanitizeCustomCats`, `lookToStyle`, `lookKey`, `activeCat`, `wireLook`, `catProfileFields`. DOM-free, no THREE. |
+| `src/customcats.js` | Create | Palette tables, personality→preset map, `sanitizeLook`, `sanitizeCustomCats`, `lookToStyle`, `lookKey`, `activeCat`, `wireLook`, `catProfileFields`, `ownTagName` (Task 4). DOM-free, no THREE. |
 | `src/cat/model.js` | Modify | `opts.look`, `eyeColor`, `headPatch`, `tailFluff`; `coatColor(breed, look)`. |
 | `src/progression.js` | Modify | Save fields, `createCustomCat`, `updateCustomCat`, `equipCustom`, `equipCat` clears custom, `replaceFromPayload`, farewell guard. |
-| `src/game/walk.js`, `src/game/avatar.js` | Modify | Build and pace from `activeCat`; `userData.custom`; the masterclass line. |
+| `src/game/walk.js`, `src/game/avatar.js` | Modify | Build and pace from `activeCat`; `userData.custom`/`customName`; her own name tag; the masterclass line. |
 | `src/game/rooms.js`, `src/net.js` | Modify | Profiles from `catProfileFields`; `updateProfile` / `retrackProfile`. |
 | `src/remotecats.js`, `src/ghosts.js`, `src/main.js` | Modify | Receive and draw `look`; map dot colour. |
 | `src/ui/catstage.js`, `src/thumbnails.js` | Modify | `show(breed, accessories, look)`; `customThumbnails`. |
@@ -487,12 +489,15 @@ git commit -m "feat(builder): custom cats in the save, repaired field by field, 
 ### Task 4: The walk uses `activeCat`
 
 **Files:**
-- Modify: `src/game/walk.js:503-516`, `src/game/avatar.js:289`, `src/ui/homebase.js:691-695` (celebration name)
-- Test: `test/customcats.test.js` (append the source scan), `test/pounce.test.js` (the perk line; no test covers it today)
+- Modify: `src/game/walk.js:503-516`, `src/game/avatar.js:289`, `src/customcats.js` (`ownTagName`), `src/ui/homebase.js:691-695` (celebration name)
+- Test: `test/customcats.test.js` (append the source scan and `ownTagName`), `test/pounce.test.js` (the perk line; no test covers it today), `test/nametag.test.js` (a kid-typed name on the plain tag)
 
 **Interfaces:**
-- Consumes: `activeCat(state)` (Task 1); `buildCat(breed, accessories, { look })` (Task 2).
-- Produces: `pounceCatchLine(cat) → string` exported from `src/game/avatar.js` (pure; used at line 289). The walk's cat has `userData.breed = activeCat.breed` (a preset) and `userData.custom = activeCat.custom` (set only when not null); pace `2.2 + PERSONALITIES[activeCat(state).breed].speed * 0.8`.
+- Consumes: `activeCat(state)`, `FALLBACK_NAME` (Task 1); `buildCat(breed, accessories, { look })` (Task 2); `makeNameTag(name)` from `src/nametag.js`.
+- Produces:
+  - `ownTagName(state) → string|null` exported from `src/customcats.js`: null for a ready-made cat; for a custom cat its name if `validPetName`, else `FALLBACK_NAME`, always `.slice(0, 16)`.
+  - `pounceCatchLine(cat) → string` exported from `src/game/avatar.js` (pure; used at line 289): no `cat.userData.custom` → `'a Calico masterclass'` (today's line, for every ready-made pouncer); a custom cat → `` `${cat.userData.customName}'s masterclass` `` when `validPetName(customName)`, else `"a pouncer's masterclass"`.
+  - The walk's cat has `userData.breed = activeCat.breed` (a preset), and, only for a custom cat, `userData.custom = activeCat.custom`, `userData.customName = ownTagName(state)` and one child tag `makeNameTag(ownTagName(state))` with `visible = true` (skipped when `makeNameTag` returns null); pace `2.2 + PERSONALITIES[activeCat(state).breed].speed * 0.8`.
 
 - [ ] **Step 1: Write the failing tests.** Append to `test/customcats.test.js`:
 
@@ -510,24 +515,41 @@ And in `test/pounce.test.js`:
 
 ```js
 import { pounceCatchLine } from '../src/game/avatar.js';
-it('the pouncer perk line names the Calico only for the ready-made Calico', () => {
+it('ready-made pouncers keep their line; a custom pouncer uses its own name', () => {
   expect(pounceCatchLine({ userData: { breed: 'calico' } })).toBe('a Calico masterclass');
-  expect(pounceCatchLine({ userData: { breed: 'calico', custom: 'mine1' } })).toBe("a pouncer's masterclass");
-  expect(pounceCatchLine({ userData: { breed: 'robbie' } })).toBe("a pouncer's masterclass");
+  expect(pounceCatchLine({ userData: { breed: 'robbie' } })).toBe('a Calico masterclass');
+  expect(pounceCatchLine({ userData: { breed: 'calico', custom: 'mine1', customName: 'Ember' } })).toBe("Ember's masterclass");
+  expect(pounceCatchLine({ userData: { breed: 'calico', custom: 'mine1', customName: '<b>' } })).toBe("a pouncer's masterclass");
 });
 ```
 
-- [ ] **Step 2: Run them to see them fail.** Run: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**' test/customcats.test.js test/pounce.test.js`. Expected: FAIL listing `src/game/walk.js` and `src/game/rooms.js`; `pounceCatchLine` is not exported.
+Append to `test/customcats.test.js` (add `ownTagName` to the file's import from `../src/customcats.js`):
 
-- [ ] **Step 3: Implement.** `walk.js`: `const active = activeCat(state)`; `buildCat(active.breed, {seven slots}, { look: active.look })`; set `cat.userData.custom = active.custom` when not null; pace from `active.breed`. `avatar.js`: `export function pounceCatchLine(cat)` returns `cat.userData.breed === 'calico' && !cat.userData.custom ? 'a Calico masterclass' : "a pouncer's masterclass"`; line 289 awards `pounceCatchLine(cat)`. `homebase.js` `showVisit`: `petName: activeCat(progression.state).name || ''` (her own screen only). (`rooms.js` is Task 5; the scan stays red for it until then; that is expected, note it in the commit.)
+```js
+it('ownTagName: only a custom cat gets a tag, its name re-checked and clamped', () => {
+  const st = (name, custom = 'mine1') => ({ petName: 'Willow', equipped: { cat: 'tabby', custom }, customCats: [{ id: 'mine1', name, personality: 'chaser', look: DEFAULT_LOOK }] });
+  expect(ownTagName(st('Ember', null))).toBe(null);
+  expect(ownTagName(st('Ember'))).toBe('Ember');
+  expect(ownTagName(st('Warrior Star'))).toBe('Warrior Star');      // a kid may type a borrowed word; it is data, not a literal
+  expect(ownTagName(st('<img src=x>'))).toBe('My Cat');
+  expect(ownTagName(st('x'.repeat(40)))).toBe('My Cat');
+  for (const n of ['Ember', 'Abcdefghijklmnop']) expect(ownTagName(st(n)).length).toBeLessThanOrEqual(16);
+});
+```
 
-- [ ] **Step 4: Run.** The perk test passes; the scan lists only `src/game/rooms.js`.
+Append to `test/nametag.test.js` (with its existing fake document): `makeNameTag('Abcdefghijklmnop')` returns a one-line tag (`userData.sub` undefined, canvas height 64) whose painted font never drops below 24 px, read the same way the file's existing "shrinks a long name to fit on BOTH moods" test reads it.
+
+- [ ] **Step 2: Run them to see them fail.** Run: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**' test/customcats.test.js test/pounce.test.js test/nametag.test.js`. Expected: FAIL listing `src/game/walk.js` and `src/game/rooms.js`; `pounceCatchLine` and `ownTagName` are not exported. (The nametag cases may already pass: they pin today's behaviour for kid-typed names.)
+
+- [ ] **Step 3: Implement.** `walk.js`: `const active = activeCat(state)`; `buildCat(active.breed, {seven slots}, { look: active.look })`; for a custom cat set `userData.custom`, `userData.customName` and add the visible tag as in Interfaces; pace from `active.breed`. `customcats.js`: `ownTagName`. `avatar.js`: `export function pounceCatchLine(cat)` as in Interfaces (import `validPetName` from `../net.js`); line 289 awards `pounceCatchLine(cat)`. `homebase.js` `showVisit`: `petName: activeCat(progression.state).name || ''` (her own screen only). (`rooms.js` is Task 5; the scan stays red for it until then; that is expected, note it in the commit.)
+
+- [ ] **Step 4: Run.** The perk, `ownTagName` and nametag tests pass, plus `test/clanwords.test.js` and `test/clancats.test.js`; the scan lists only `src/game/rooms.js`.
 
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/game/walk.js src/game/avatar.js src/ui/homebase.js test/customcats.test.js test/pounce.test.js
-git commit -m "feat(builder): walks build and pace the active cat; a custom pouncer's own perk line"
+git add src/game/walk.js src/game/avatar.js src/customcats.js src/ui/homebase.js test/customcats.test.js test/pounce.test.js test/nametag.test.js
+git commit -m "feat(builder): walks build and pace the active cat; her cat's name on her own tag and pounce line"
 ```
 
 ---
@@ -1003,13 +1025,14 @@ Check the port is free first (`lsof -nP -iTCP:5187 -sTCP:LISTEN` prints nothing;
   - Type in the name field while a render fires (call the home base's render from the console mid-typing): the text, caret and focus survive.
   - ✕ Not now on a changed draft asks "Leave without saving?" once; Leave keeps the old version.
   - Make three cats; the ＋ tile reads "3 of 3 — change one of yours for a new look"; ✏️ Change my cat edits one; accessories stay on.
+  - Walking a custom cat: her cat wears its own name on a tag (both editions; a 16-letter name fits the pill); it does not hide the path ahead at the default and closest zoom; a ready-made cat still has no tag; the tag sways but stays readable after a swim shake; a photo snapped on the walk shows it; a pounce catch toasts "You spotted Ember's masterclass", and the ready-made Calico still toasts "a Calico masterclass".
   - Each pattern × fur on the stage and on a walk in the Neighborhood (chase camera and closest zoom): markings placed on the new body, no z-fighting, the long-haired tail, the bib under a ruff, socks on the paws, accessories placed (a hat, the scarf, the backpack, sneakers).
   - The custom portraits in the strip (and the coloured-dot fallback with WebGL disabled via `--disable-webgl`).
   - Both editions (the title toggle): the builder looks the same.
   - Reload: the cats and the choice persist. Paste a hostile save into `localStorage` (`customCats: 'x'`, `equipped.custom: 'mine9'`, a cat with `size: 99` and a 200-character name) and reload: the game loads, and the cat is repaired.
   - Console: no errors.
 
-- [ ] **Step 4: Co-walk.** Not testable headless without multiplayer. Ask the owner to try it on the two iPhones: she walks a custom cat; her brother (new build) sees the same coat, pattern, fur, eyes and size, her usual pet name on the tag, and a re-made cat after she taps Done while they are in a room. If one phone is on an older build, it shows the mapped ready-made cat in her outfit with her pet name.
+- [ ] **Step 4: Co-walk.** Not testable headless without multiplayer. Ask the owner to try it on the two iPhones: she walks a custom cat; her own screen shows the cat's name over her cat; her brother (new build) sees the same coat, pattern, fur, eyes and size, her usual pet name on the tag (ruling 15), and a re-made cat after she taps Done while they are in a room. If one phone is on an older build, it shows the mapped ready-made cat in her outfit with her pet name.
 
 - [ ] **Step 5: Swatches with her.** Show the eight coats, six markings colours and four eye colours on the iPhone in the walk's lighting; apply her picks to the hexes and bellies in `src/customcats.js` (ids stay; no test pins a hex outside Task 1's table assertions, which read the table). Re-run the whole suite.
 
@@ -1025,5 +1048,5 @@ git commit -m "chore(builder): swatches tuned with the playtester on the iPhone"
 ## Self-review
 
 1. **Spec coverage:** §1 choices → Tasks 1, 2, 7; free / both editions → Global Constraints, Task 7 edition test; 3 cats → Tasks 1, 3, 8; editable, accessories kept → Tasks 3, 8; §3 flow, markings dim, personality blurb, Done's four effects, Not now, editing, 3-of-3 tile, naming → Tasks 7, 8; §4.1 save, sanitising, API, cloud, known risk → Task 3 and ruling 4; §4.2 drawing table and palette → Tasks 1, 2; §4.3 personality rows, `activeCat`, readers → Tasks 1, 4; §4.4 wire, old and new builds, map dot, re-track → Task 5; §4.5 editions → Task 7; §4.6 dressing room, thumbnails, album (nothing to do), friends/ghosts, visit celebration, family cats → Tasks 4, 5, 6, 8; §5 constraints → Tasks 2, Global Constraints; §6 left to the builder → Task 9 (swatches, layout), rulings 8, 12, Task 2 (tail fluff 1.3, patch colours); owner's answers → Global Constraints; builder-check fixes → rulings 1–4.
-2. **The roster:** the owner's answer overrides spec §4.6's "walk roster takes `activeCat().name`": the roster shows remote `petName`s, which stay her pet name.
+2. **The roster and tags:** the owner's answers override spec §4.6's "walk roster takes `activeCat().name`": the roster and a co-walker's tag over her cat show her pet name (ruling 15); only her own screen shows the cat's name (ruling 14).
 3. **Types:** `Look`, `CustomCat`, `Builder` and the function names match across Tasks 1–8 (`activeCat`, `catProfileFields`, `wireLook`, `lookKey`, `presetFor`, `customThumbnails`, `retrackProfile`, `updateProfile`, `handleInput`, `onProfileChange`).
