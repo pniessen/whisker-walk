@@ -82,6 +82,89 @@ describe('the real shore', () => {
   });
 });
 
+describe('islands are shore', () => {
+  const ISLE = { x: 0, z: 0, r: 6 };
+  const lake = { id: 'l', kind: 'rect', minX: -30, maxX: 30, minZ: -20, maxZ: 20, shallow: 1.2, islands: [ISLE] };
+  const rim = (p) => [Math.hypot(p.ax - ISLE.x, p.az - ISLE.z), Math.hypot(p.bx - ISLE.x, p.bz - ISLE.z)];
+
+  it("an island's rim is CIRCLE_CHORDS chords, half a chord round like a circle's", () => {
+    const pieces = shorePieces([lake]);
+    expect(pieces).toHaveLength(4 + 64);
+    const chords = pieces.filter((p) => rim(p).every((d) => Math.abs(d - ISLE.r) < 1e-9));
+    expect(chords).toHaveLength(64);
+    for (const p of chords) expect(p.shallow).toBe(1.2);
+    // the same phase as a circle footprint's chords: a chord's midpoint, not a
+    // vertex, faces due east
+    const circle = shorePieces([{ id: 'c', kind: 'circle', x: 0, z: 0, r: 6 }]);
+    const key = (p) => [p.ax, p.az, p.bx, p.bz].map((v) => v.toFixed(9)).join();
+    expect(new Set(chords.map(key))).toEqual(new Set(circle.map(key)));
+  });
+
+  it('depth near an island is measured to its rim', () => {
+    const waters = [lake];
+    // 0.5 m off the rim, due east and on a diagonal: in the band
+    expect(Math.abs(shallowExcess(waters, 6.5, 0) - (0.5 - 1.2))).toBeLessThan(0.02);
+    const k = Math.SQRT1_2 * 6.5;
+    expect(Math.abs(shallowExcess(waters, k, k) - (0.5 - 1.2))).toBeLessThan(0.02);
+    // 3 m off: deep, and only by 1.8 (the far shore is 14 m away)
+    expect(Math.abs(shallowExcess(waters, 9, 0) - (3 - 1.2))).toBeLessThan(0.02);
+    // the island itself is dry
+    expect(shallowExcess(waters, 0, 0)).toBe(-Infinity);
+    expect(shallowExcess(waters, 5.9, 0)).toBe(-Infinity);
+  });
+
+  it('a non-swimmer off the island is held in the band beside the island, not thrown to a far one', () => {
+    const waters = [lake];
+    const out = { x: 0, z: 0 };
+    for (const a of [0, 0.3, 1.1, 2, 3.5, 5]) {
+      const x = Math.cos(a) * 9, z = Math.sin(a) * 9;
+      nearestShallow(waters, x, z, out);
+      expect(Math.abs(shallowExcess(waters, out.x, out.z)), `angle ${a}`).toBeLessThan(1e-9);
+      // back toward the island, along the radius, to 1.2 m off the rim
+      expect(Math.abs(Math.hypot(out.x, out.z) - (ISLE.r + 1.2)), `angle ${a}`).toBeLessThan(0.02);
+      expect(Math.abs(Math.atan2(out.z, out.x) - Math.atan2(z, x)), `angle ${a}`).toBeLessThan(0.01);
+    }
+  });
+
+  it('an island over its rect edge: only the rim facing its own water is shore, and the edge across the island is not', () => {
+    const w = { id: 'l', kind: 'rect', minX: -10, maxX: 10, minZ: -10, maxZ: 10, shallow: 1, islands: [{ x: 10, z: 0, r: 3 }] };
+    const pieces = shorePieces([w]);
+    for (const p of pieces) {
+      for (const [x, z] of [[p.ax, p.az], [p.bx, p.bz], [(p.ax + p.bx) / 2, (p.az + p.bz) / 2]]) {
+        // nothing east of the rect's edge, and nothing on the edge inside the island
+        expect(x, `(${x}, ${z})`).toBeLessThanOrEqual(10 + 1e-5);
+        if (Math.abs(x - 10) < 1e-6) expect(Math.abs(z), `(${x}, ${z})`).toBeGreaterThanOrEqual(3 - 1e-6);
+      }
+    }
+    // the west half of the rim is there, clipped exactly at the edge
+    // (the two chords that straddle the edge are cut at their middles, off the rim)
+    const nearRim = (x, z) => Math.abs(Math.hypot(x - 10, z) - 3) < 0.01;
+    const rimLen = pieces.filter((p) => nearRim(p.ax, p.az) && nearRim(p.bx, p.bz)).reduce((s, p) => s + len(p), 0);
+    expect(Math.abs(rimLen - Math.PI * 3)).toBeLessThan(0.01);
+    // the edge x 10 keeps only its two runs off the island: 7 m each
+    const edge = pieces.filter((p) => Math.abs(p.ax - 10) < 1e-9 && Math.abs(p.bx - 10) < 1e-9);
+    expect(Math.abs(edge.reduce((s, p) => s + len(p), 0) - 14)).toBeLessThan(1e-5);
+  });
+
+  it('two waters that share an island both see its rim', () => {
+    const a = { id: 'a', kind: 'rect', minX: -20, maxX: 2, minZ: -20, maxZ: 20, shallow: 1, islands: [ISLE] };
+    const b = { id: 'b', kind: 'rect', minX: -2, maxX: 20, minZ: -20, maxZ: 20, shallow: 1, islands: [ISLE] };
+    const waters = [a, b];
+    for (const [x, z] of [[-6.5, 0], [6.5, 0], [0, 6.5], [0, -6.5]]) {
+      expect(Math.abs(shallowExcess(waters, x, z) - (0.5 - 1)), `(${x}, ${z})`).toBeLessThan(0.02);
+    }
+    // a's east edge and b's west edge run under each other, or across the
+    // island: no shore (but for the 1e-6 stubs where each meets the other's
+    // outer edge, which is real shore)
+    const pieces = shorePieces(waters);
+    for (const p of pieces) {
+      if (len(p) > 1e-3 && Math.abs(p.ax - p.bx) < 1e-9 && (Math.abs(p.ax - 2) < 1e-9 || Math.abs(p.ax + 2) < 1e-9)) {
+        throw new Error(`shore along x ${p.ax}: (${p.az}..${p.bz})`);
+      }
+    }
+  });
+});
+
 describe('shallow excess', () => {
   it('the Moor ford is deep', () => {
     const waters = S(MOOR_WATERS, 1.2);

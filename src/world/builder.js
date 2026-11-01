@@ -3554,40 +3554,62 @@ const SHORE_STEP = 0.25;
 const SHORE_INSIDE = -1e-6;
 
 // Extending the shore: a new kind of water edge needs two things.
-//   1. Give outline(w) its segments. For the island plan, each `islands` disc
-//      adds CIRCLE_CHORDS chords.
-//   2. Make waterGap see it as not-water. The island plan's Task 1 does.
+//   1. Give outline(w) its segments. Each `islands` disc adds CIRCLE_CHORDS
+//      chords, phased as a circle footprint's are.
+//   2. Make waterGap see it as not-water (waterGap's island term does).
 // Decks are never shore, so strip decks need nothing here.
+//
+// Each segment is [ax, az, bx, bz, kind]. A rect's own edge ('edge') is not
+// shore where it runs across one of its own islands (that is dry ground), and
+// an island's rim ('rim') is shore only where it faces its own rect's water:
+// an island that overhangs its rect's edge, or one shared by two waters (the
+// Pines' lake and bay), gives each water just its own side of the rim.
+function circleChords(segs, cx, cz, r, kind) {
+  for (let k = 0; k < CIRCLE_CHORDS; k++) {
+    // Half a chord of phase, so a chord's midpoint (not a vertex) faces due east.
+    const a0 = ((k + 0.5) / CIRCLE_CHORDS) * Math.PI * 2;
+    const a1 = ((k + 1.5) / CIRCLE_CHORDS) * Math.PI * 2;
+    segs.push([
+      cx + Math.cos(a0) * r, cz + Math.sin(a0) * r,
+      cx + Math.cos(a1) * r, cz + Math.sin(a1) * r, kind,
+    ]);
+  }
+}
 function outline(w) {
   const segs = [];
   if (w.kind === 'circle') {
-    for (let k = 0; k < CIRCLE_CHORDS; k++) {
-      // Half a chord of phase, so a chord's midpoint (not a vertex) faces due east.
-      const a0 = ((k + 0.5) / CIRCLE_CHORDS) * Math.PI * 2;
-      const a1 = ((k + 1.5) / CIRCLE_CHORDS) * Math.PI * 2;
-      segs.push([
-        w.x + Math.cos(a0) * w.r, w.z + Math.sin(a0) * w.r,
-        w.x + Math.cos(a1) * w.r, w.z + Math.sin(a1) * w.r,
-      ]);
-    }
+    circleChords(segs, w.x, w.z, w.r, 'edge');
     return segs;
   }
-  segs.push([w.minX, w.minZ, w.maxX, w.minZ]);
-  segs.push([w.maxX, w.minZ, w.maxX, w.maxZ]);
-  segs.push([w.maxX, w.maxZ, w.minX, w.maxZ]);
-  segs.push([w.minX, w.maxZ, w.minX, w.minZ]);
+  segs.push([w.minX, w.minZ, w.maxX, w.minZ, 'edge']);
+  segs.push([w.maxX, w.minZ, w.maxX, w.maxZ, 'edge']);
+  segs.push([w.maxX, w.maxZ, w.minX, w.maxZ, 'edge']);
+  segs.push([w.minX, w.maxZ, w.minX, w.minZ, 'edge']);
+  for (const i of w.islands ?? []) circleChords(segs, i.x, i.z, i.r, 'rim');
   return segs;
 }
 
-// The runs of one outline segment that lie outside every other footprint.
-// Walk in steps of at most SHORE_STEP, bisect where "strictly inside" flips,
-// keep the outside runs. Clips by waterGap alone, so any shape waterGap
-// understands clips correctly.
+// Is a point of one of w's own outline segments not shore of w? A rect edge
+// inside one of w's islands, or an island rim outside w's rect.
+function offOwnWater(w, kind, x, z) {
+  if (w.kind === 'circle') return false;
+  if (kind === 'rim') {
+    return Math.max(w.minX - x, x - w.maxX, w.minZ - z, z - w.maxZ) > -SHORE_INSIDE;
+  }
+  for (const i of w.islands ?? []) if (i.r - Math.hypot(x - i.x, z - i.z) > -SHORE_INSIDE) return true;
+  return false;
+}
+
+// The runs of one outline segment that lie outside every other footprint (and
+// on w's own water, see offOwnWater). Walk in steps of at most SHORE_STEP,
+// bisect where "strictly inside" flips, keep the outside runs. Clips by
+// waterGap alone, so any shape waterGap understands clips correctly.
 function clipOutside(list, w, seg) {
-  const [ax, az, bx, bz] = seg;
+  const [ax, az, bx, bz, kind] = seg;
   const inside = (t) => {
     const x = ax + (bx - ax) * t;
     const z = az + (bz - az) * t;
+    if (offOwnWater(w, kind, x, z)) return true;
     for (const o of list) if (o !== w && waterGap(o, x, z) < SHORE_INSIDE) return true;
     return false;
   };
