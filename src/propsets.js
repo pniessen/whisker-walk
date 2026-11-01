@@ -247,7 +247,7 @@ const SETS = {
 
   // The Moor: only its hides for now, three of the rabbit warren's burrows
   // (src/world/moor.js's WARREN_BURROWS 0, 2 and 4), the holes a fleeing
-  // mouse dives into. The rest of a Moor prop set is deferred: nothing to
+  // rabbit dives into. The rest of a Moor prop set is deferred: nothing to
   // carry, knock, mark or rest on yet.
   moor: {
     carryables: [],

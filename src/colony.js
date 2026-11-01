@@ -52,8 +52,8 @@ export const colonyCap = (members) => (members >= 2 ? COLONY_MAX : SOLO_MAX);
 // siblings to fill every bar alone (24 cats x 2 x TAME_FEEDS = 288).
 export const FEEDS_MAX = 320;
 export const COLONY_AREAS = ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor'];
-// The fixed territory ids (clan spec section 3). The colony does not feed in
-// them yet, but a save may already hold a cat from one, so a load must not
+// The fixed territory ids (clan spec section 3). The colony feeds in the
+// built ones; a save may hold a cat from any of them, so a load must not
 // drop it.
 export const TERRITORY_AREAS = Object.freeze(['woods', 'moor', 'river', 'pines', 'island', 'gorge']);
 // True where a stray can be fed into the colony.

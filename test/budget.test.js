@@ -87,7 +87,7 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   den              284      173      ~13600
 //   woods            172      152      44462   (170 / 150 merged)
 //   river            159      133      45344   (157 / 131 merged)
-//   moor              76       50      40282   (75 / 49 merged; 10 thorns, 7 pines,
+//   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
 //                                               398 heather, 19 gorse, 127 reeds)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
