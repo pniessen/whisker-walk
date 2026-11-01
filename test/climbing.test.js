@@ -64,7 +64,7 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
-const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildMoor, moorTrees } = await import('../src/world/moor.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -976,6 +976,10 @@ describe('CF-9b — the gated perches themselves', () => {
     // nothing else.
     expect(GATED.river.length).toBeGreaterThanOrEqual(20);
     for (const p of GATED.river) expect(p.kind).toBe('tree');
+    // Moor: a fork on every thorn (a pine has no low fork), and nothing else.
+    expect(GATED.moor).toHaveLength(moorTrees().thorns.length);
+    expect(GATED.moor.length).toBeGreaterThanOrEqual(5);
+    for (const p of GATED.moor) expect(p.kind).toBe('tree');
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
@@ -996,6 +1000,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.woods).toHaveLength(5);
     // the fallen log and the four steps of the Old Willow and Sun-warmed Rocks
     expect(UNGATED.river).toHaveLength(5);
+    // the four steps of the Old Hawthorn and the High Tor, and the four tors
+    expect(UNGATED.moor).toHaveLength(8);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(

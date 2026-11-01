@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { sureClawsTreePerch } from '../climbing.js';
+import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
@@ -256,10 +258,174 @@ export const MOOR_KEEP_CLEAR = Object.freeze([
   ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, ...WARREN_BURROWS, SPAWN,
 ].map(({ x, z }) => Object.freeze([x, z])));
 
-// The Moor's trees: lone thorns and the pines on the west strip. Task 5
-// plants them; until then there are none, and so no birds.
+// --- the scenery ---------------------------------------------------------------
+// Every spot below is seeded by name rather than drawn from the walk's rng, so
+// every walk and both co-walkers get the same moor, and every candidate draws
+// all its numbers whether or not it is kept, so moving one clearance never
+// reshuffles the rest. Spots are rounded to the centimetre so they are clean
+// data (they end up in colliders and perches).
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// Distance from (x, z) to a segment.
+function segDist(x, z, x1, z1, x2, z2) {
+  const dx = x2 - x1, dz = z2 - z1;
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+}
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(
+  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+// The waters with their decks taken away: a deck is dry for a cat, but it is
+// still a river for a tree or a reed.
+const UNDECKED = MOOR_WATERS.map((w) => ({ ...w, decks: [] }));
+// How far (x, z) is from the nearest water's edge, decks ignored.
+const waterDist = (x, z) => Math.min(...UNDECKED.map((w) => b.waterGap(w, x, z)));
+const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
+const pathDist = (x, z) => Math.min(...MOOR_PATHS.map((seg) => segDist(x, z, ...seg)));
+const clearOf = (x, z, d) => MOOR_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
+
+// Where a tree may stand. Its clearance from a path's centreline grows with
+// its canopy: the path's half-width, then the canopy's reach, then half a
+// metre, so the camera following the cat down a path never ends up inside a
+// canopy. The crossings stay open to see from the paths and the banks, nothing
+// a kid looks for stands under a canopy, each tor keeps room to walk round
+// and climb, and the old hawthorn stands alone.
+function treeFits(x, z, reach) {
+  if (!inBounds(x, z)) return false;
+  if (waterDist(x, z) < 3) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
+  if (pathDist(x, z) < PATH_W / 2 + reach + 0.5) return false;
+  if (!clearOf(x, z, 4)) return false;
+  if (TORS.some((t) => Math.hypot(x - t.x, z - t.z) < t.r + 3)) return false;
+  return Math.hypot(x - OLD_HAWTHORN.x, z - OLD_HAWTHORN.z) >= 6;
+}
+
+// The Moor's trees: lone thorns about the moor (builder.tree), and the Pines'
+// pines reaching over the west border onto the strip inside it (builder.pine).
+// Thorns first, each at least 6 m from every other, because a moor's thorns
+// stand alone; then the pines, each 4 m from every tree already kept. The
+// caps keep the Moor's shadow casters low: each tree is two meshes that cast.
+const THORNS = { seed: 'moor-thorns', cell: 13, from: -43.5, jitter: 3, cap: 12, keep: 0.4, apart: 6 };
+const PINES = { seed: 'moor-pines', xs: [-47, -42], zs: [-36, -30, -24, -18, -12, -6], jitter: 1.5, cap: 8, keep: 0.75, apart: 4 };
+const THORN_REACH = 1.6; // builder.tree's canopy, per unit of scale
+const PINE_REACH = 1.3; // builder.pine's lowest cone, per unit of scale
 export function moorTrees() {
-  return { thorns: [], pines: [] };
+  const thorns = [];
+  const pines = [];
+  const apart = (list, x, z, d) => list.every((t) => Math.hypot(x - t.x, z - t.z) >= d);
+
+  const T = THORNS;
+  let rng = mulberry32(seedFromCode(T.seed));
+  for (let gz = T.from; gz < BOUNDS.maxZ; gz += T.cell) {
+    for (let gx = T.from; gx < BOUNDS.maxX; gx += T.cell) {
+      const x = r2(gx + (rng() * 2 - 1) * T.jitter);
+      const z = r2(gz + (rng() * 2 - 1) * T.jitter);
+      const scale = r2(0.8 + 0.35 * rng());
+      const keep = rng() < T.keep;
+      if (keep && thorns.length < T.cap && treeFits(x, z, THORN_REACH * scale) && apart(thorns, x, z, T.apart)) {
+        thorns.push({ x, z, scale });
+      }
+    }
+  }
+
+  const P = PINES;
+  rng = mulberry32(seedFromCode(P.seed));
+  for (const gz of P.zs) {
+    for (const gx of P.xs) {
+      const x = r2(gx + (rng() * 2 - 1) * P.jitter);
+      const z = r2(gz + (rng() * 2 - 1) * P.jitter);
+      const scale = r2(1.1 + 0.4 * rng());
+      const keep = rng() < P.keep;
+      if (keep && pines.length < P.cap && treeFits(x, z, PINE_REACH * scale)
+        && apart(thorns, x, z, P.apart) && apart(pines, x, z, P.apart)) {
+        pines.push({ x, z, scale });
+      }
+    }
+  }
+  return { thorns, pines };
+}
+
+// Every trunk a bed keeps off, scaled: the thorns, the pines and the old
+// hawthorn.
+function trunks() {
+  const { thorns, pines } = moorTrees();
+  return [...thorns, ...pines, { x: OLD_HAWTHORN.x, z: OLD_HAWTHORN.z, scale: OLD_HAWTHORN.scale }];
+}
+
+// The low beds: heather all over the moor and a few clumps of gorse, each on
+// its own jittered grid. None has a collider (a cat pushes through), and every
+// cushion and clump keeps off the water's edge, the paths, the crossings, the
+// spawn, every MOOR_KEEP_CLEAR place, the tors and the trunks, so nothing the
+// kids walk to or look for is hidden. The gorse stands taller (under a metre),
+// so it keeps further back, and well away from the crossings so the log and
+// the stones stay in sight from the paths. The heather's cap is the triangle
+// budget (test/budget.test.js).
+const HEATHER = { seed: 'moor-heather', cell: 2.6, jitter: 0.9, keep: 0.5, cap: 420,
+  water: 1.0, deck: 3, path: 2.3, clear: 3, spawn: 4, tor: 0.6, trunk: 1.0 };
+const GORSE = { seed: 'moor-gorse', cell: 11, jitter: 3, keep: 0.5, cap: 30,
+  water: 2.5, deck: 7, path: 3.8, clear: 4.5, spawn: 7, tor: 1.5, trunk: 1.6 };
+function bedFits(x, z, rule, trees) {
+  if (!inBounds(x, z)) return false;
+  if (waterDist(x, z) < rule.water) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < rule.deck)) return false;
+  if (pathDist(x, z) < rule.path) return false;
+  if (!clearOf(x, z, rule.clear)) return false;
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < rule.spawn) return false;
+  if (TORS.some((t) => Math.hypot(x - t.x, z - t.z) < t.r + rule.tor)) return false;
+  return trees.every((t) => Math.hypot(x - t.x, z - t.z) >= rule.trunk * t.scale);
+}
+function scatter(rule) {
+  const rng = mulberry32(seedFromCode(rule.seed));
+  const trees = trunks();
+  const spots = [];
+  for (let gz = BOUNDS.minZ + rule.cell / 2; gz < BOUNDS.maxZ; gz += rule.cell) {
+    for (let gx = BOUNDS.minX + rule.cell / 2; gx < BOUNDS.maxX; gx += rule.cell) {
+      const x = r2(gx + (rng() * 2 - 1) * rule.jitter);
+      const z = r2(gz + (rng() * 2 - 1) * rule.jitter);
+      const keep = rng() < rule.keep;
+      if (keep && spots.length < rule.cap && bedFits(x, z, rule, trees)) spots.push({ x, z });
+    }
+  }
+  return spots;
+}
+export const moorHeather = () => scatter(HEATHER);
+export const moorGorse = () => scatter(GORSE);
+
+// Reeds, a clump every 2.5 m, half a metre out on each bank of the river and
+// its mouth, and along the lake's north and east shores. None within 1.5 m of
+// a deck (the Woods' rule), so the crossings stay clear to see and to walk
+// onto, and none on a path or a place a kid looks for.
+const REED_STEP = 2.5;
+export function moorReeds() {
+  const spots = [];
+  const add = (x, z) => {
+    if (!inBounds(x, z)) return;
+    if (b.inWater(UNDECKED, x, z)) return;
+    if (DECKS.some((d) => x > d.minX - 1.5 && x < d.maxX + 1.5 && z > d.minZ - 1.5 && z < d.maxZ + 1.5)) return;
+    if (pathDist(x, z) < 2.3) return;
+    if (!clearOf(x, z, 3)) return;
+    spots.push({ x: r2(x), z: r2(z) });
+  };
+  // river-south's two banks, in from the Woods
+  for (let z = RIVER_SOUTH.minZ; z <= BOUNDS.maxZ; z += REED_STEP) {
+    add(RIVER_SOUTH.minX - 0.5, z);
+    add(RIVER_SOUTH.maxX + 0.5, z);
+  }
+  // river-west's two banks
+  for (let x = BOUNDS.minX; x <= RIVER_WEST.maxX; x += REED_STEP) {
+    add(x, RIVER_WEST.minZ - 0.5);
+    add(x, RIVER_WEST.maxZ + 0.5);
+  }
+  // the mouth's two banks
+  for (let z = RIVER_MOUTH.minZ; z <= RIVER_MOUTH.maxZ; z += REED_STEP) {
+    add(RIVER_MOUTH.minX - 0.5, z);
+    add(RIVER_MOUTH.maxX + 0.5, z);
+  }
+  // the lake's north shore, then its east shore
+  for (let x = -35; x <= -14; x += REED_STEP) add(x, LAKE.minZ - 0.5);
+  for (let z = 8; z <= 50; z += REED_STEP) add(LAKE.maxX + 0.5, z);
+  return spots;
 }
 
 // The Moor's critters: birds in the first four thorns, rabbits at the warren
@@ -373,6 +539,33 @@ export function build(scene, { water = {}, wind } = {}) {
     addC(x, z, r);
     perches.push({ x, z, y: h, kind: 'stone' });
   });
+
+  // --- the trees ----------------------------------------------------------------
+  // A thorn has a low fork (Sure Claws); a pine has none.
+  const { thorns, pines } = moorTrees();
+  for (const { x, z, scale } of thorns) {
+    scene.add(b.tree(x, z, scale, { wind }));
+    addC(x, z, r2(0.5 * scale));
+    perches.push(sureClawsTreePerch(x, z, scale));
+  }
+  for (const { x, z, scale } of pines) {
+    scene.add(b.pine(x, z, scale, { wind }));
+    addC(x, z, r2(0.4 * scale));
+  }
+
+  // --- the beds -----------------------------------------------------------------
+  // Each one merged mesh (or two, for two colours) out of the shadow pass, and
+  // no colliders: a cat pushes through.
+  const beds = [
+    ['heather', b.heatherBed(moorHeather(), seedFromCode('moor-heather'))],
+    ['gorse', b.gorseBed(moorGorse(), seedFromCode('moor-gorse'))],
+    ['reeds', b.reedBed(moorReeds(), seedFromCode('moor-reeds'))],
+    ['burrows', b.burrows(WARREN_BURROWS, seedFromCode('moor-warren'))],
+  ];
+  for (const [name, bed] of beds) {
+    bed.name = name;
+    scene.add(bed);
+  }
 
   // --- the hidden mouse's bushes, and the puddles -------------------------------
   for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));

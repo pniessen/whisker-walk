@@ -35,7 +35,7 @@ const { propsFor } = await import('../src/propsets.js');
 
 const {
   build, SPAWN, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, ISLAND_BRIDGE_WOODS, MOOR_HORIZON,
-  TORS, WARREN_BURROWS, MOOR_KEEP_CLEAR,
+  TORS, WARREN_BURROWS, MOOR_KEEP_CLEAR, moorTrees, moorHeather, moorGorse, moorReeds,
 } = moor;
 
 const built = () => {
@@ -586,10 +586,146 @@ describe('the Moor: things to find, climb and race', () => {
     expect(s.dogYard).toBeNull();
   });
 
+  it('the birds sit in the first four thorns', () => {
+    expect(area.critterSpawns.filter((c) => c.type === 'bird'))
+      .toEqual(moorTrees().thorns.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+  });
+
+  it('no tree, cushion, clump or reed stands on anything a kid looks for', () => {
+    const { thorns, pines } = moorTrees();
+    const heather = moorHeather(), gorse = moorGorse(), reeds = moorReeds();
+    // every target, and the two grey boulders the chains start on (the tors
+    // are rocks to climb, with their own clearances, so they are not here)
+    const chainRocks = area.perches.filter((p) => !p.requires && p.kind === 'stone'
+      && !TORS.some((t) => t.x === p.x && t.z === p.z));
+    const spots = [...targets(), ...chainRocks.map((p) => ({ what: `rock (${p.x}, ${p.z})`, ...p }))];
+    for (const t of spots) {
+      for (const tr of [...thorns, ...pines]) expect(Math.hypot(t.x - tr.x, t.z - tr.z), `tree (${tr.x}, ${tr.z}) on ${t.what}`).toBeGreaterThanOrEqual(4);
+      for (const h of heather) expect(Math.hypot(t.x - h.x, t.z - h.z), `heather (${h.x}, ${h.z}) on ${t.what}`).toBeGreaterThanOrEqual(3);
+      for (const g of gorse) expect(Math.hypot(t.x - g.x, t.z - g.z), `gorse (${g.x}, ${g.z}) on ${t.what}`).toBeGreaterThanOrEqual(4.5);
+      for (const r of reeds) expect(Math.hypot(t.x - r.x, t.z - r.z), `reeds (${r.x}, ${r.z}) on ${t.what}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it('race: a Moor course of five rings is drawn from its POIs', () => {
     const course = raceCourse(area.pois, seedFromCode('2026-11-01-moor'));
     expect(course).toHaveLength(5);
     expect(new Set(course).size).toBe(5);
     for (const p of course) expect(area.pois).toContain(p);
+  });
+});
+
+describe('the Moor: trees', () => {
+  const decks = MOOR_WATERS.flatMap((w) => w.decks ?? []);
+  const { thorns, pines } = moorTrees();
+  const trees = [...thorns.map((t) => ({ ...t, reach: 1.6 * t.scale, r: 0.5 * t.scale })),
+    ...pines.map((t) => ({ ...t, reach: 1.3 * t.scale, r: 0.4 * t.scale }))];
+
+  it('moorTrees is deterministic, keeps its clearances and its counts', () => {
+    expect(moorTrees()).toEqual({ thorns, pines });
+    // lone thorns, as a moor has, and the Pines' trees over the west border
+    expect(thorns.length).toBeGreaterThanOrEqual(5);
+    expect(thorns.length).toBeLessThanOrEqual(12);
+    expect(pines.length).toBeGreaterThanOrEqual(3);
+    expect(pines.length).toBeLessThanOrEqual(8);
+    for (const t of trees) {
+      const at = `(${t.x}, ${t.z})`;
+      for (const w of MOOR_WATERS) expect(waterGap(w, t.x, t.z), `${at} near ${w.id}`).toBeGreaterThanOrEqual(3);
+      // the canopy stays half a metre off the path's edge, so the camera
+      // following the cat down a path never ends up inside one
+      for (const seg of MOOR_PATHS) expect(segDist(t.x, t.z, seg), `${at} on a path`).toBeGreaterThanOrEqual(1.5 + t.reach + 0.5);
+      for (const d of decks) expect(rectDist(d, t.x, t.z), `${at} by a crossing`).toBeGreaterThanOrEqual(4);
+      expect(Math.hypot(t.x - SPAWN.x, t.z - SPAWN.z), `${at} on the spawn`).toBeGreaterThanOrEqual(4);
+      expect(t.x).toBeGreaterThanOrEqual(area.bounds.minX);
+      expect(t.x).toBeLessThanOrEqual(area.bounds.maxX);
+      expect(t.z).toBeGreaterThanOrEqual(area.bounds.minZ);
+      expect(t.z).toBeLessThanOrEqual(area.bounds.maxZ);
+    }
+    for (let i = 0; i < thorns.length; i++) {
+      for (let j = i + 1; j < thorns.length; j++) {
+        expect(Math.hypot(thorns[i].x - thorns[j].x, thorns[i].z - thorns[j].z), `thorns ${i}, ${j}`).toBeGreaterThanOrEqual(6);
+      }
+    }
+  });
+
+  it('leaves the moor walkable: no two trunks closer than a cat can pass between', () => {
+    for (let i = 0; i < trees.length; i++) {
+      for (let j = i + 1; j < trees.length; j++) {
+        const a = trees[i], c = trees[j];
+        const gap = Math.hypot(a.x - c.x, a.z - c.z) - a.r - c.r;
+        expect(gap, `(${a.x}, ${a.z}) and (${c.x}, ${c.z})`).toBeGreaterThan(2 * 0.35);
+      }
+    }
+  });
+
+  it('plants each thorn with a collider and a Sure Claws fork, and each pine with a collider and no fork', () => {
+    for (const t of thorns) {
+      expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(50 * t.scale) / 100), `collider (${t.x}, ${t.z})`).toBe(true);
+      expect(area.perches.some((p) => p.x === t.x && p.z === t.z && p.requires), `fork (${t.x}, ${t.z})`).toBe(true);
+    }
+    for (const t of pines) {
+      expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(40 * t.scale) / 100), `collider (${t.x}, ${t.z})`).toBe(true);
+      expect(area.perches.some((p) => p.x === t.x && p.z === t.z), `no fork (${t.x}, ${t.z})`).toBe(false);
+    }
+  });
+});
+
+describe('the Moor: heather, gorse, reeds and the warren', () => {
+  const decks = MOOR_WATERS.flatMap((w) => w.decks ?? []);
+  const heather = moorHeather(), gorse = moorGorse(), reeds = moorReeds();
+  const near = (p, [x, z]) => Math.hypot(p.x - x, p.z - z);
+
+  it('moorHeather is seeded, and a real heath', () => {
+    expect(moorHeather()).toEqual(heather);
+    expect(heather.length).toBeGreaterThanOrEqual(260);
+    expect(heather.length).toBeLessThanOrEqual(420);
+    const heath = heather.filter((h) => h.x >= -14 && h.x <= 18 && h.z >= 8 && h.z <= 50);
+    expect(heath.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it('moorGorse is seeded', () => {
+    expect(moorGorse()).toEqual(gorse);
+    expect(gorse.length).toBeGreaterThanOrEqual(10);
+    expect(gorse.length).toBeLessThanOrEqual(30);
+  });
+
+  it('keeps every cushion, clump and reed off the paths, the crossings, the spawn and every find', () => {
+    for (const [name, list, path, deck, spawn, clear] of [['heather', heather, 2.3, 3, 4, 3], ['gorse', gorse, 3.8, 7, 7, 4.5]]) {
+      for (const p of list) {
+        const at = `${name} (${p.x}, ${p.z})`;
+        for (const seg of MOOR_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(path);
+        for (const d of decks) expect(rectDist(d, p.x, p.z), at).toBeGreaterThanOrEqual(deck);
+        expect(near(p, [SPAWN.x, SPAWN.z]), at).toBeGreaterThanOrEqual(spawn);
+        for (const k of MOOR_KEEP_CLEAR) expect(near(p, k), `${at} by (${k})`).toBeGreaterThanOrEqual(clear);
+      }
+    }
+    expect(reeds.length).toBeGreaterThanOrEqual(60);
+    expect(reeds.length).toBeLessThanOrEqual(140);
+    const undecked = MOOR_WATERS.map((w) => ({ ...w, decks: [] }));
+    for (const p of reeds) {
+      const at = `reeds (${p.x}, ${p.z})`;
+      expect(inWater(undecked, p.x, p.z), at).toBe(false);
+      for (const d of decks) expect(rectDist(d, p.x, p.z), at).toBeGreaterThanOrEqual(1.5);
+      for (const seg of MOOR_PATHS) expect(segDist(p.x, p.z, seg), at).toBeGreaterThanOrEqual(2.3);
+      for (const k of MOOR_KEEP_CLEAR) expect(near(p, k), `${at} by (${k})`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('the heather, gorse, reeds and burrows are merged meshes out of the shadow pass, with no colliders', () => {
+    for (const n of ['heather', 'gorse', 'reeds', 'burrows']) {
+      const o = scene.getObjectByName(n);
+      expect(o, n).toBeTruthy();
+      let meshes = 0;
+      o.traverse((m) => {
+        if (!m.isMesh) return;
+        meshes++;
+        expect(m.userData.noCast, `${n} ${m.name}`).toBe(true);
+      });
+      expect(meshes, n).toBeGreaterThan(0);
+    }
+    // a collider for each tree, the four tors, and the two chain boulders,
+    // the High Tor's pillar, the old hawthorn and its root; none for a bed
+    const { thorns, pines } = moorTrees();
+    expect(area.colliders).toHaveLength(thorns.length + pines.length + 4 + 5);
   });
 });
