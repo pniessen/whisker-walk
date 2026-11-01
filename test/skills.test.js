@@ -40,6 +40,13 @@ describe('skills catalog', () => {
     expect(SKILL_FAMILIES.map((f) => f.id)).toEqual(['traversal', 'senses', 'social', 'mischief']);
   });
 
+  it('the Sea Legs copy says wading is for everyone', () => {
+    const { effect } = SKILLS.find((s) => s.id === 'sea-legs');
+    expect(effect).toContain('shallows');
+    expect(effect).toContain('deep water');
+    expect(effect).not.toContain('walls');
+  });
+
   it('carries Sea Legs as a real, reachable traversal ability', () => {
     // The reinstatement, asserted as the exact inverse of the descope
     // assertions it replaces: the id is in the catalog, skillProgress

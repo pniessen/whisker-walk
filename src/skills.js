@@ -236,7 +236,7 @@ export const SKILLS = [
     id: 'sea-legs',
     family: 'traversal',
     name: 'Sea Legs',
-    effect: 'Ponds, canals and the sea stop being walls — you wade in and swim across at a little over half your walking pace.',
+    effect: 'Every cat can paddle in the shallows. Sea Legs lets you swim out into deep water — across ponds, rivers, canals and the sea.',
     feat: 'Complete 5 seaside walks',
     // ---------------------------------------------------------------------
     // REINSTATED in v20. This is the spec's twelfth ability, descoped by v18's

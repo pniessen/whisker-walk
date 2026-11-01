@@ -360,7 +360,7 @@ describe('the park pond', () => {
   const pond = area.waters.find((w) => w.id === 'pond');
 
   it('is the 7m circle at (-14, 2) the ducks swim in', () => {
-    expect(pond).toEqual({ id: 'pond', kind: 'circle', x: -14, z: 2, r: 7 });
+    expect(pond).toEqual({ id: 'pond', kind: 'circle', x: -14, z: 2, r: 7, shallow: 1.2 });
     expect(area.critterSpawns.filter((c) => c.type === 'duck').length).toBeGreaterThan(0);
     for (const d of area.critterSpawns.filter((c) => c.type === 'duck')) {
       expect(inWater(area.waters, d.x, d.z)).toBe(true);

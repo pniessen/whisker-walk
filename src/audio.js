@@ -1,3 +1,11 @@
+// Swimming (Task 6): waterSplash(kind)'s three sounds. dur in seconds; the
+// bandpass sweeps from → to; flutter steps the gain on and off that many times.
+const WATER_SPLASHES = Object.freeze({
+  wade: Object.freeze({ dur: 0.12, from: 1400, to: 700, gain: 0.03 }),
+  paddle: Object.freeze({ dur: 0.16, from: 600, to: 350, gain: 0.025 }),
+  shake: Object.freeze({ dur: 0.5, from: 1800, to: 1800, gain: 0.035, flutter: 8 }),
+});
+
 export function createAudio({ contextFactory = () => new (window.AudioContext || window.webkitAudioContext)() } = {}) {
   let ctx = null;
   let muted = false;
@@ -564,6 +572,43 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       bp.frequency.linearRampToValueAtTime(300, t0 + dur);
       const g = ac.createGain();
       g.gain.value = 0.04;
+      src.connect(bp).connect(g).connect(master);
+      src.start(t0);
+      src.stop(t0 + dur);
+    },
+    // Swimming (Task 6): soft water sounds, each a short noise burst through
+    // a bandpass into the master bus. 'wade' is a stride in the shallows,
+    // 'paddle' a deep-water stroke (lower, slower), and 'shake' the shake-dry
+    // on climbing out: a brighter hiss fluttered on and off 8 times (16 Hz),
+    // so it reads as droplets flung off rather than one long splash. An
+    // unknown kind does nothing.
+    waterSplash(kind) {
+      const spec = Object.hasOwn(WATER_SPLASHES, kind) ? WATER_SPLASHES[kind] : null;
+      if (!spec || muted) return;
+      const ac = ensure();
+      const { dur } = spec;
+      const size = Math.floor(ac.sampleRate * dur);
+      const buffer = ac.createBuffer(1, size, ac.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+      const src = ac.createBufferSource();
+      src.buffer = buffer;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      const t0 = ac.currentTime;
+      bp.frequency.setValueAtTime(spec.from, t0);
+      if (spec.to !== spec.from) bp.frequency.linearRampToValueAtTime(spec.to, t0 + dur);
+      const g = ac.createGain();
+      if (spec.flutter) {
+        const step = dur / spec.flutter;
+        g.gain.setValueAtTime(0, t0);
+        for (let i = 0; i < spec.flutter; i++) {
+          g.gain.setValueAtTime(spec.gain, t0 + i * step);
+          g.gain.setValueAtTime(0, t0 + (i + 0.5) * step);
+        }
+      } else {
+        g.gain.value = spec.gain;
+      }
       src.connect(bp).connect(g).connect(master);
       src.start(t0);
       src.stop(t0 + dur);

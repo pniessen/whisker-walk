@@ -107,38 +107,57 @@ const STEPPING_STONES = Object.freeze({
 // its south-east corner is the Woods' lake corner. Its box is in island.js,
 // which keeps the strays off it with the same numbers.
 //
+// The wadeable band along each shore (swimming; see builder.js's WATER
+// FOOTPRINTS). Every cat may wade it; Sea Legs is for the deep water past it.
+//   * The lake and the bay share one width, so the island's rim (shore of
+//     both) has one band. 1.0, not the usual 1.2: the island's south rim is
+//     only 3.1 m from the mainland corner at (26, 44), and two 1.2 bands would
+//     leave 0.7 m of deep water between them; two 1.0 bands leave 1.1. It also
+//     keeps the long walk round the bay to the island under the route test's
+//     8 m of slack (test/wadingroutes.test.js: 7.7 m at 1.0, 8.1 at 1.2).
+//   * The Black Mire is 5 m across, like the Woods', the River's and the
+//     Moor's rivers, and gets their 1.2: a deep middle of 2.6 m. With the
+//     decks taken away, wading still reaches nothing in the deep swamp.
+//   * The bogs are small (r 2.5 to 3.5), so 1.0, as the River's pools.
+//   * The Moor's river and its mouth, out past the east edge, keep the Moor's
+//     own 1.2.
+const SHALLOW_LAKE = 1.0;
+const SHALLOW_MIRE = 1.2;
+const SHALLOW_BOG = 1.0;
+
 // The island is cut out of both the lake and the bay: it crosses the lake's
 // west edge and the bay's east edge, so each is drawn with a notch (Island
 // Task 2) and each reads the island as dry ground.
 const ISLANDS = Object.freeze([ISLAND_LAND]);
-const LAKE = Object.freeze({ id: 'lake', kind: 'rect', ...LAKE_BOX, islands: ISLANDS });
+const LAKE = Object.freeze({ id: 'lake', kind: 'rect', ...LAKE_BOX, islands: ISLANDS, shallow: SHALLOW_LAKE });
 // The bay round the island: the River's far lake, +100 in z, and the Moor's,
 // +100 in x. Its north shore (z 5) is where the bridge starts, and it carries
 // the bridge's deck, a strip on the bridge's diagonal (the deck lies wholly in
 // the bay, x < 26).
 const LAKE_BAY = Object.freeze({
-  id: 'lake-bay', kind: 'rect', ...BAY_BOX, islands: ISLANDS, decks: Object.freeze([BRIDGE_DECK]),
+  id: 'lake-bay', kind: 'rect', ...BAY_BOX, islands: ISLANDS, shallow: SHALLOW_LAKE,
+  decks: Object.freeze([BRIDGE_DECK]),
 });
 // The Black Mire, in from the north edge, then out to the west. The two
 // reaches share their south and east edges, so the corner is watertight.
 const MIRE_NORTH = Object.freeze({
-  id: 'mire-north', kind: 'rect', minX: -32, maxX: -27, minZ: -120, maxZ: -6,
+  id: 'mire-north', kind: 'rect', minX: -32, maxX: -27, minZ: -120, maxZ: -6, shallow: SHALLOW_MIRE,
   decks: Object.freeze([LOG_BRIDGE]),
 });
 const MIRE_WEST = Object.freeze({
-  id: 'mire-west', kind: 'rect', minX: -120, maxX: -27, minZ: -11, maxZ: -6,
+  id: 'mire-west', kind: 'rect', minX: -120, maxX: -27, minZ: -11, maxZ: -6, shallow: SHALLOW_MIRE,
   decks: Object.freeze([STEPPING_STONES]),
 });
 // Four bogs on the swamp side, two either side of the mire.
-const BOG_1 = Object.freeze({ id: 'bog-1', kind: 'circle', x: -40, z: 16, r: 3.5 });
-const BOG_2 = Object.freeze({ id: 'bog-2', kind: 'circle', x: -44, z: 30, r: 3 });
-const BOG_3 = Object.freeze({ id: 'bog-3', kind: 'circle', x: -37, z: -22, r: 2.5 });
-const BOG_4 = Object.freeze({ id: 'bog-4', kind: 'circle', x: -40, z: -44, r: 2.5 });
+const BOG_1 = Object.freeze({ id: 'bog-1', kind: 'circle', x: -40, z: 16, r: 3.5, shallow: SHALLOW_BOG });
+const BOG_2 = Object.freeze({ id: 'bog-2', kind: 'circle', x: -44, z: 30, r: 3, shallow: SHALLOW_BOG });
+const BOG_3 = Object.freeze({ id: 'bog-3', kind: 'circle', x: -37, z: -22, r: 2.5, shallow: SHALLOW_BOG });
+const BOG_4 = Object.freeze({ id: 'bog-4', kind: 'circle', x: -40, z: -44, r: 2.5, shallow: SHALLOW_BOG });
 // The Moor's river-west and river-mouth, +100 in x: they pour into the lake
 // just past the east edge, so a kid looking east sees the Moor's river arrive.
 // Wholly outside the bounds.
-const MOOR_RIVER = Object.freeze({ id: 'moor-river', kind: 'rect', minX: 60, maxX: 123, minZ: -4, maxZ: 1 });
-const MOOR_MOUTH = Object.freeze({ id: 'moor-mouth', kind: 'rect', minX: 60, maxX: 65, minZ: -4, maxZ: 10 });
+const MOOR_RIVER = Object.freeze({ id: 'moor-river', kind: 'rect', minX: 60, maxX: 123, minZ: -4, maxZ: 1, shallow: 1.2 });
+const MOOR_MOUTH = Object.freeze({ id: 'moor-mouth', kind: 'rect', minX: 60, maxX: 65, minZ: -4, maxZ: 10, shallow: 1.2 });
 
 export const PINES_WATERS = Object.freeze([
   LAKE, LAKE_BAY, MIRE_NORTH, MIRE_WEST, BOG_1, BOG_2, BOG_3, BOG_4, MOOR_RIVER, MOOR_MOUTH,

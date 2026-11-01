@@ -71,7 +71,7 @@ const CANAL_HALF = 3.5;
 // as rectangles: the main bridge is 5 wide at x 0 spanning z -6.5..6.5, and
 // the plank bridge is 2.2 wide at x -24 spanning z -5.5..5.5.
 const CANAL = {
-  id: 'canal', kind: 'rect', minX: -45, maxX: 45, minZ: -CANAL_HALF, maxZ: CANAL_HALF,
+  id: 'canal', kind: 'rect', minX: -45, maxX: 45, minZ: -CANAL_HALF, maxZ: CANAL_HALF, shallow: 1.2,
   decks: [
     { minX: -2.5, maxX: 2.5, minZ: -6.5, maxZ: 6.5 },
     { minX: -25.1, maxX: -22.9, minZ: -5.5, maxZ: 5.5 },

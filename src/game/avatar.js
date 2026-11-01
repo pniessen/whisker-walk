@@ -13,6 +13,8 @@
 import * as THREE from 'three';
 import { PERSONALITIES } from '../cat/brain.js';
 import { animateCat } from '../cat/animator.js';
+import { waterPose, applyWaterLook } from '../cat/waterlook.js';
+import { shakeProgress } from '../waterstate.js';
 import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
@@ -74,8 +76,12 @@ export function createAvatarUpdater({
     const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
     if (wasPouncing && s.pounceTime <= 0) {
-      s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
-      audio.landThump();
+      if (player.inWater) {
+        audio.waterSplash('wade'); // landed in water: a splash, no sandy poof or thump
+      } else {
+        s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+        audio.landThump();
+      }
       s.landTime = 0.12;
       // pounce-tag (Task 6.2, room walks only): landing within 1.3 of a
       // remote counts as a tag touch. Feed it through tagState — this is
@@ -110,16 +116,23 @@ export function createAvatarUpdater({
     // A rival's chase moves the cat itself (player.halt() zeroes player.speed),
     // so feed the gait the scamper's pace and never let a long sit go to sleep.
     const speed = s.chasing ? CHASE_GAIT_SPEED : player.speed;
-    if (speed > 0.3) s.idleTime = 0;
+    // Swimming: no groom, sit or nap in the water, so the idle clock holds.
+    if (speed > 0.3 || player.inWater) s.idleTime = 0;
     else s.idleTime += dt;
 
     // soft footsteps: a near-subliminal tick each time the gait phase
-    // wraps, while actually moving at a brisk pace
+    // wraps, while actually moving at a brisk pace. In the water the gate is
+    // lower (wading and swimming are slow) and the tick becomes a splash.
     s.stepPhase += speed * dt * 2.2;
-    if (s.stepPhase > 1 && speed > 1.5) {
+    if (s.stepPhase > 1 && speed > (player.inWater ? 0.3 : 1.5)) {
       s.stepPhase = 0;
-      audio.step();
+      if (player.wading) audio.waterSplash('wade');
+      else if (player.swimming) audio.waterSplash('paddle');
+      else audio.step();
     }
+    // Climbing out shakes dry. `shook` is never set on the perch path, so
+    // hopping straight up onto a perch from the water is silent.
+    if (player.waterState.shook) audio.waterSplash('shake');
 
     // idle charm: stand still and you groom, then sit, then curl up
     const napper = p.special === 'napper';
@@ -159,8 +172,16 @@ export function createAvatarUpdater({
       pose = 'stretch';
     }
     if (s.chasing) { pose = 'follow'; s.stretchTime = 0; }
+    // s.pose stays the LAND pose: it is what goes on the wire, and every
+    // remote works out its own water look from where this cat is.
     s.pose = pose;
-    animateCat(cat, pose, t, speed, settings.get('reducedMotion'));
+    const reducedMotion = settings.get('reducedMotion');
+    const ws = player.waterState;
+    const amount = Math.sin(Math.PI * shakeProgress(ws));
+    const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
+    animateCat(cat, drawn, t, speed, reducedMotion, amount);
+    // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
+    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY, amount);
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

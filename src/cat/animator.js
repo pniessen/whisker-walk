@@ -63,8 +63,10 @@ const CROSS = {
 // site (main.js) ever passes this — it skips the vertical body-bob + slight
 // roll below, which is what actually feeds into the camera (camera.position
 // follows avatar.position every frame), leaving the leg gait itself intact.
-export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
-  pose(cat, state, t, moveSpeed, reducedMotion);
+// amount (0..1) scales the 'shake' only (the swimming shake's envelope);
+// every other state ignores it, so existing callers are unchanged.
+export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amount = 1) {
+  pose(cat, state, t, moveSpeed, reducedMotion, amount);
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
@@ -170,7 +172,21 @@ function fitLongLegs(cat) {
   }
 }
 
-function pose(cat, state, t, moveSpeed, reducedMotion) {
+// The ordinary walk gait's legs, shared by the walk below and the shake (a cat
+// shaking as it walks still walks). Returns the stride frequency.
+function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
+  const freq = (4.5 + moveSpeed * 1.4) * freqK;
+  const amp = Math.min(ampMax, (0.25 + moveSpeed * 0.09) * ampK);
+  for (let i = 0; i < 4; i++) {
+    legs[i].rotation.x = Math.sin(t * freq + GAIT_PHASE[i]) * amp;
+  }
+  return freq;
+}
+
+// Swimming (sketch A): the legs paddle in diagonal pairs.
+const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
+
+function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const { body, head, tail, tailPivots, legs, earL, earR } = cat.userData.parts;
   const base = cat.userData.base ?? CAT_BASE;
   const [bsx, bsy, bsz] = base.bodyScale;
@@ -198,6 +214,58 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
   const twitch = twitchWindow * Math.max(0, Math.sin(t * 9)) * 0.3;
   earL.rotation.z = 0.22 + twitch;
   earR.rotation.z = -0.22 - (twitchWindow ? 0 : Math.max(0, Math.sin(t * 9 + 2)) * (Math.sin(t * 0.53) > 0.97 ? 0.3 : 0));
+
+  // Swimming and wading (Task 5). Each writes its parts and returns before the
+  // generic gait. waterlook.js sinks the whole group so the water hides the
+  // rest; these only shape what shows above it.
+  if (state === 'wade') {
+    // Sketch C: belly-deep, high careful steps — a slower, higher stride.
+    if (walking) {
+      const freq = walkGait(legs, t, moveSpeed, 0.7, 1.5, 0.75);
+      if (!reducedMotion) {
+        body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
+        body.rotation.z = Math.sin(t * freq * 0.5) * 0.03;
+      }
+    }
+    head.position.y = hy + 0.03;
+    head.rotation.x = -0.08;
+    tail.rotation.x = -1.0; // held up out of the water
+    const sway = walking ? 0.1 + moveSpeed * 0.03 : 0.16;
+    for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.y += Math.sin(t * 2.6 - i * 0.65) * sway;
+    return;
+  }
+
+  if (state === 'swim') {
+    // Sketch A: shoulders under, head and back up, the tail floating flat.
+    body.rotation.x = -0.12;
+    head.position.set(hx, hy + 0.06, hz - 0.04);
+    head.rotation.x = -0.3;
+    const f = walking ? 5.5 : 3;
+    const a = walking ? 0.7 : 0.35;
+    for (let i = 0; i < 4; i++) legs[i].rotation.x = Math.sin(t * f + PADDLE_PHASE[i]) * a;
+    tail.rotation.x = -0.08;
+    for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.y = Math.sin(t * 1.8 - i * 0.5) * 0.12;
+    return;
+  }
+
+  if (state === 'shake') {
+    // Sketch D. The body wobble is a roll of the whole group (waterlook.js),
+    // so back-slot items, the name tag and the bubble go with it.
+    if (walking) walkGait(legs, t, moveSpeed);
+    if (cat.userData.breed === 'hagrid') {
+      // A chicken fluffs its feathers instead.
+      const fluff = 1 + 0.12 * amount * (0.5 + 0.5 * Math.sin(t * 18));
+      body.scale.set(bsx * fluff, bsy * fluff, bsz);
+      head.rotation.x = 0.1 * amount;
+      return;
+    }
+    head.rotation.z = -Math.sin(t * 30 + 0.6) * 0.35 * amount;
+    const flop = Math.abs(Math.sin(t * 30)) * 0.4 * amount;
+    earL.rotation.z = 0.22 + flop;
+    earR.rotation.z = -0.22 - flop;
+    for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.y = Math.sin(t * 30 - i * 0.7) * 0.4 * amount;
+    return;
+  }
 
   if (state === 'nap') {
     body.position.y = base.bodyY - 0.1;
@@ -309,11 +377,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion) {
   }
 
   if (walking) {
-    const freq = 4.5 + moveSpeed * 1.4;
-    const amp = Math.min(0.6, 0.25 + moveSpeed * 0.09);
-    for (let i = 0; i < 4; i++) {
-      legs[i].rotation.x = Math.sin(t * freq + GAIT_PHASE[i]) * amp;
-    }
+    const freq = walkGait(legs, t, moveSpeed);
     if (!reducedMotion) {
       body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
       body.rotation.z = Math.sin(t * freq * 0.5) * 0.03;

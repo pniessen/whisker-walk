@@ -14,6 +14,7 @@ import { climbBudget } from '../src/climbing.js';
 import { createInteractions } from '../src/game/interactions.js';
 import { createAvatarUpdater } from '../src/game/avatar.js';
 import { createDiscoveryLog } from '../src/discoveries.js';
+import { createWaterState } from '../src/waterstate.js';
 
 // ---------------------------------------------------------------------------
 // v18 CF-9a — the pounce hop arc.
@@ -432,6 +433,8 @@ describe('updateAvatar measures from the paws, not the drawn body', () => {
       perchY: 0, speedFactor: 1, speed: 0,
       inputActive: false, stalking: false,
       forward: () => new THREE.Vector3(0, 0, -1),
+      // Swimming (Task 6): updateAvatar draws the water look too. A dry cat.
+      hopY: 0, inWater: false, wading: false, swimming: false, waterState: createWaterState(),
     };
     const hunted = [];
     const batted = [];

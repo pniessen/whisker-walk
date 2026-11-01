@@ -4,7 +4,8 @@ import { CAT_LOOK_Y } from './cat/model.js';
 import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
-import { inWater, waterClearance, nearestDry } from './world/builder.js';
+import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
+import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
   DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
 } from './camzoom.js';
@@ -258,12 +259,20 @@ export function hopOffset(elapsed, arc) {
 // same footprint helpers scent.js already reads — waterGap/onDeck/inWater/
 // nearestDry in world/builder.js. There is exactly one copy of that geometry.
 //
-// ONLY THE PLAYER CONSULTS THIS. Critters, stray cats, ghosts, remote co-walk
+// ONLY THE PLAYER IS PUSHED. Critters, stray cats, ghosts, remote co-walk
 // pets and the thrown toy are bounds-only and stay that way: the park and
 // Docks ducks paddle INSIDE the footprints deliberately and the seaside gulls
-// spawn over the sea. Water going solid must not touch them. (main.js floats a
-// SETTLED yarn ball ashore, which is a fetchability fix — the ball still has
-// no collision and still flies over the canal — see the note at that call.)
+// spawn over the sea. Water going solid must not touch them. Remote co-walk
+// cats LOOK wet (they wade and swim where they stand), but nothing moves them.
+// (main.js floats a SETTLED yarn ball ashore, which is a fetchability fix —
+// the ball still has no collision and still flies over the canal — see the
+// note at that call.)
+//
+// SINCE SWIMMING, every cat wades: a footprint with a `shallow` width lets a
+// cat without Sea Legs into the band that wide at its shore, and holds it at
+// the band's inner line (pushIntoShallow). A footprint without one is still a
+// wall (pushOutOfWater). src/waterstate.js says whether the cat is dry,
+// wading or swimming.
 // =============================================================================
 
 // How far clear of the waterline a blocked cat is held. CAT_RADIUS is the same
@@ -320,6 +329,37 @@ export function isWalkableAt(area, x, z) {
   return waterClearance(area?.waters, x, z) >= WATER_MARGIN;
 }
 
+// waterSets(waters) -> { walls, wades }: the footprints split on `shallow > 0`.
+// Cached per array identity, so pass the stable area.waters.
+const WATER_SETS = new WeakMap();
+export function waterSets(waters) {
+  let sets = WATER_SETS.get(waters);
+  if (!sets) {
+    sets = { walls: waters.filter((w) => !(w.shallow > 0)), wades: waters.filter((w) => w.shallow > 0) };
+    WATER_SETS.set(waters, sets);
+  }
+  return sets;
+}
+
+// isWadeableAt(area, x, z) -> may a cat WITHOUT Sea Legs end a frame here?
+// Inside the bounds, clear of every collider, WATER_MARGIN clear of every
+// footprint with no shallow width, and in the shallow band of the rest.
+// A point pushed exactly onto the band's line is in the band: float rounding
+// there (3.5 - 1.2 is not exactly 2.3) must not count as deep.
+const WADE_EPS = 1e-9;
+export function isWadeableAt(area, x, z) {
+  if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+  const b = area?.bounds;
+  if (b && (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ)) return false;
+  for (const c of area?.colliders ?? []) {
+    if (Math.hypot(x - c.x, z - c.z) < c.r + CAT_RADIUS) return false;
+  }
+  const waters = area?.waters;
+  if (!waters || waters.length === 0) return true;
+  if (waterClearance(waterSets(waters).walls, x, z) < WATER_MARGIN) return false;
+  return shallowExcess(waters, x, z) <= WADE_EPS;
+}
+
 // Push `pos` (a THREE.Vector3, mutated in place) out to WATER_MARGIN clear of
 // every water; returns whether it had to.
 //
@@ -339,6 +379,19 @@ function pushOutOfWater(pos, waters) {
   const dry = nearestDry(waters, pos.x, pos.z, WATER_MARGIN);
   pos.x = dry.x;
   pos.z = dry.z;
+  return true;
+}
+
+// Pull `pos` (mutated) back to the inner line of the shallow band, or onto
+// the nearer deck edge; returns whether it had to. No stand-off here: the band
+// line is not a wall the cat's body meets, and nearestShallow is a fixed point
+// on it, so a cat pressing into the deep stops on the line dead still.
+const SHALLOW_SCRATCH = { x: 0, z: 0 };
+function pushIntoShallow(pos, waters) {
+  if (!(shallowExcess(waters, pos.x, pos.z) > 0)) return false;
+  nearestShallow(waters, pos.x, pos.z, SHALLOW_SCRATCH);
+  pos.x = SHALLOW_SCRATCH.x;
+  pos.z = SHALLOW_SCRATCH.z;
   return true;
 }
 
@@ -409,17 +462,28 @@ export function createPlayer(camera, canvas) {
     return cur + Math.max(eased, -cap);
   }
   let reducedMotion = false;
+  // The water state (src/waterstate.js): one object for the player's whole
+  // life, reset in place by setAvatar, exposed as api.waterState.
+  const waterState = createWaterState();
 
   const api = {
     locked: false,
     speedFactor: 1, // 0 while frozen by a scare; 1 normally
     perchY: 0,
-    // True on the frames the cat is actually swimming (in water, with Sea
-    // Legs). Written by update, read by nothing in the game today — it exists
-    // so a test can watch the state without a scene, and so the HUD/pose work
-    // the Sea Legs agent may want has an honest flag to hang off instead of
-    // re-deriving one from the area's footprints.
+    // Written by update from the water state, read from where the cat stood at
+    // the top of the frame:
+    //   water    — 'dry' | 'wade' | 'swim';
+    //   swimming — deep water only (Sea Legs);
+    //   wading   — in the shallow band;
+    //   inWater  — wading or swimming;
+    //   shaking  — shaking itself dry after leaving the water;
+    //   waterState — the state object itself (the same one every frame).
+    water: 'dry',
     swimming: false,
+    wading: false,
+    inWater: false,
+    shaking: false,
+    waterState,
     setAvatar(cat, catPace) {
       avatar = cat;
       pace = catPace;
@@ -432,6 +496,7 @@ export function createPlayer(camera, canvas) {
       zoom = { charging: false, zooming: false, time: 0 };
       hopArc = null;
       hopTime = 0;
+      Object.assign(waterState, createWaterState());
     },
     forward() {
       return viewForward(yaw);
@@ -514,10 +579,8 @@ export function createPlayer(camera, canvas) {
       touchMode = !!mode;
     },
     // Metres the cat is currently rendered ABOVE api.perchY. 0 whenever the
-    // paws are down. Read-only, and read by nothing in the game — it exists
-    // so a test can watch the arc without a scene, and so a future camera or
-    // shadow effect has an honest number to hang off instead of re-deriving
-    // one from the pose timers.
+    // paws are down. Read-only. avatar.js reads it (perchY + hopY is the base
+    // y for the water look), and tests watch the arc through it.
     get hopY() {
       return hopOffset(hopTime, hopArc);
     },
@@ -577,14 +640,24 @@ export function createPlayer(camera, canvas) {
       // never pushed, anywhere, or the stand-off below would hold it 0.35
       // clear of the shore and it could never get IN. A cat without it is
       // pushed whether or not it is currently wet, because the push is what
-      // keeps it dry.
+      // keeps it dry, or in the shallow band.
       //
-      // SWIMMING is the position: the speed penalty applies only while the cat
-      // is actually in the drink, read from where it stands at the top of the
-      // frame so the penalty and this frame's movement agree.
+      // WADING AND SWIMMING are the position (src/waterstate.js): the pace
+      // applies only while the cat is actually in the drink, read from where
+      // it stands at the top of the frame so the pace and this frame's
+      // movement agree.
       const blocked = watered && !swim;
-      const swimming = watered && swim && inWater(waters, avatar.position.x, avatar.position.z);
+      const st = stepWaterState(waterState, watered ? waters : null, avatar.position.x, avatar.position.z, dt);
+      const swimming = st.mode === 'swim';
+      const wading = st.mode === 'wade';
+      api.water = st.mode;
       api.swimming = swimming;
+      api.wading = wading;
+      api.inWater = swimming || wading;
+      api.shaking = st.shake > 0;
+      // Ruling: zoomies stop in water. The charge is wiped on the frame the
+      // cat goes in, and (below) running charges it only while dry.
+      if (st.entered) zoom = { charging: false, zooming: false, time: 0 };
       const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
       // speedRatio must be read from velocity BEFORE the lerp below moves it
       // toward this frame's target — it reflects how close last frame's
@@ -593,7 +666,7 @@ export function createPlayer(camera, canvas) {
       const targetSpeedDenom = pace * api.speedFactor || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
       const speedRatio = velocity.length() / Math.max(Math.abs(targetSpeedDenom), 0.0001);
       zoom = zoomState(zoom, dt, {
-        active: api.inputActive,
+        active: api.inputActive && !api.inWater,
         stalking: api.stalking,
         speedRatio,
         speedFactor: api.speedFactor,
@@ -601,12 +674,10 @@ export function createPlayer(camera, canvas) {
         holdTime: zoomTune.holdTime,
       });
       // Swimming scales the TARGET speed, not speedFactor, so it composes with
-      // the scare freeze (speedFactor 0) instead of fighting it. Note what it
-      // does to the zoomies for free: speedRatio is measured against the dry
-      // pace, so a swimming cat tops out at 0.55 and never crosses the 0.85
-      // "full-speed running" line — no zoomies charge in the water, which is
-      // the right answer and needed no extra rule.
-      const zoomPace = (zoom.zooming ? pace * 1.55 : pace) * (swimming ? SWIM_SPEED : 1);
+      // the scare freeze (speedFactor 0) instead of fighting it. Wading and
+      // the shake do the same.
+      const waterPace = (swimming ? SWIM_SPEED : wading ? WADE_SPEED : 1) * (api.shaking ? SHAKE_PACE : 1);
+      const zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied
@@ -669,9 +740,12 @@ export function createPlayer(camera, canvas) {
       // frame rather than a frame later; BEFORE the bounds clamp, because
       // leaving the cat outside the map is worse than leaving it wet.
       //
-      // Blocked by default, skipped entirely for a cat that can swim.
-      // nearestDry does the work, which is what makes the stuck cases fall out:
-      // it is a fixed point on dry ground, so a cat that is ALREADY in the
+      // Without Sea Legs, a footprint with no `shallow` is a wall
+      // (pushOutOfWater) and the rest hold the cat in their shallow band
+      // (pushIntoShallow). Skipped entirely for a cat that can swim. For the
+      // walls, nearestDry does the work, which is what makes the stuck cases
+      // fall out (nearestShallow is the same for the band): it is a fixed
+      // point on dry ground, so a cat that is ALREADY in the
       // water when a walk starts, that lands there from a perch hop-down, or
       // that is pushed there by a collider, is out again on its first grounded
       // frame — no input required and no way to hold it under. A cat frozen in
@@ -683,7 +757,10 @@ export function createPlayer(camera, canvas) {
       // a wall"), and the right one here too: a lunge covers ~2.7m against a
       // 7m canal, so it could never clear water anyway. All an exemption would
       // buy is the cat landing in the middle of it.
-      if (blocked) pushOutOfWater(avatar.position, waters);
+      if (blocked) {
+        pushOutOfWater(avatar.position, waterSets(waters).walls);
+        pushIntoShallow(avatar.position, waters);
+      }
       if (bounds) {
         avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
         avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
@@ -695,7 +772,10 @@ export function createPlayer(camera, canvas) {
         // (test/water.test.js sweeps every cell of all three maps). It is here
         // so a future area that puts water against its own edge cannot
         // reintroduce a trap.
-        if (blocked && pushOutOfWater(avatar.position, waters)) {
+        // Both pushes run (no short-circuit): either can be the one that moved it.
+        const out = blocked && pushOutOfWater(avatar.position, waterSets(waters).walls);
+        const into = blocked && pushIntoShallow(avatar.position, waters);
+        if (out || into) {
           avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
           avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
         }

@@ -272,7 +272,7 @@ export function createInteractions({
       session.perched = null;                    // hop down
       player.perchY = 0;
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
-    } else if (session.pounceCooldown <= 0) {
+    } else if (session.pounceCooldown <= 0 && !player.swimming) {
       // v18 CF-9a: Spring Paws' OTHER half — "your pounce jump goes markedly
       // higher". Until now that clause described nothing: pounce() was a
       // purely horizontal lunge and the cat's Y was pinned to perchY, so
@@ -645,7 +645,7 @@ export function createInteractions({
   // on (no "curl up for a nap" over a sleeping cat), and only with the walk's
   // rests (a stand-in test session without them never offers one).
   function restInReach(s, catP) {
-    if (!s.rests || s.rest || s.perched || player.swimming) return null;
+    if (!s.rests || s.rest || s.perched || player.inWater) return null;
     return s.rests.nearest(catP, REST_REACH);
   }
 
@@ -1043,7 +1043,7 @@ export function createInteractions({
     // could land somewhere the cat cannot reach. Nor on a raised deck (the
     // pier, the Docks bridges; ruling R42): a drop is placed at ground height,
     // under the boards, where it cannot be seen. The cat just keeps holding it.
-    if (!s.prompt && carry?.mouth.held && !s.perched && !player.swimming && !overDeck(s)) {
+    if (!s.prompt && carry?.mouth.held && !s.perched && !player.inWater && !overDeck(s)) {
       s.prompt = { kind: 'drop' };
       setPrompt(`E — put the ${carryLabel(carry.mouth.held.kind)} down`);
     }
@@ -1368,7 +1368,7 @@ export function createInteractions({
   function tickCarryRain(s, dt) {
     const carry = s.carry;
     if (!carry?.mouth.held) return;
-    if (s.perched || player.swimming || overDeck(s)) return;
+    if (s.perched || player.inWater || overDeck(s)) return;
     const raining = s.weather?.isRaining?.() === true;
     if (!tickRain(carry.mouth, dt, raining)) return;
     const released = putDownCarried(s);
