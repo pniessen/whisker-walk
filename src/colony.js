@@ -73,7 +73,7 @@ const TRADES_APPLIED_MAX = 50;     // most recent applied trade ids kept
 const WARDROBE_MAX = 40;           // partner wardrobe entries kept
 const TRADE_STATUSES = new Set(['offered', 'accepted', 'declined', 'cancelled']);
 
-const isPlayerId = (v) => typeof v === 'string' && PLAYER_ID.test(v);
+export const isPlayerId = (v) => typeof v === 'string' && PLAYER_ID.test(v);
 // A usable colony id, the one rule sanitizeColony applies. Exported so
 // progression.mergeColonySnapshot can refuse a snapshot without one.
 export const isColonyId = (v) => typeof v === 'string' && COLONY_ID.test(v);

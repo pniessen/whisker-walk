@@ -55,6 +55,15 @@ describe('the edition switch and the save', () => {
     const { edition: _b, ...after } = p.state;
     expect(after).toEqual(before);
   });
+  test('a clan pick survives a flip to Legacy and back', () => {
+    const p = load();
+    p.setClanPick('woods');
+    const { edition: _a, ...before } = structuredClone(p.state);
+    p.setEdition('legacy'); p.setEdition('canon');
+    const { edition: _b, ...after } = p.state;
+    expect(after).toEqual(before);
+    expect(after.clanPick.mine).toBe('woods');
+  });
   test('no cat un-tames: load, a flip and a Legacy feed keep tamedBy and tamedWalk', () => {
     const p = load();
     const first = tamed(p.state);
@@ -85,8 +94,8 @@ describe('the edition switch and the save', () => {
     expect(s.marks.park).toHaveLength(2);
     expect(s.clan).toEqual({ name: 'MossClan', adopted: true });
   });
-  test('edition is the only new top-level key', () => {
-    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition'].sort());
+  test('edition and clanPick are the only new top-level keys', () => {
+    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick'].sort());
   });
   test('the caps are unchanged', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);
