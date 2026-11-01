@@ -146,7 +146,8 @@ describe('layered ambience', () => {
     const origSetTimeout = global.setTimeout;
     let intervals = 0;
     let timeouts = 0;
-    global.setInterval = (...args) => { intervals++; return origSetInterval(...args); };
+    const intervalFns = [];
+    global.setInterval = (...args) => { intervals++; intervalFns.push(args[0]); return origSetInterval(...args); };
     global.setTimeout = (...args) => { timeouts++; return origSetTimeout(...args); };
     const audio = createAudio({ contextFactory: () => ctx });
     try {
@@ -155,7 +156,7 @@ describe('layered ambience', () => {
       global.setInterval = origSetInterval;
       global.setTimeout = origSetTimeout;
     }
-    return { audio, ctx, bufferSources, intervals, timeouts };
+    return { audio, ctx, bufferSources, intervals, timeouts, intervalFns };
   };
 
   it('docks ambience is water lap + gulls + horn, and never birdsong', () => {
@@ -234,6 +235,35 @@ describe('layered ambience', () => {
     const wet = ambienceProbe('moor', { rain: true });
     expect(wet.bufferSources).toHaveLength(2); // wind + rain
     expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+  });
+
+  // The Pines: a low wind and frogs. The frog layer is the one interval; run it
+  // once with Math.random at 0 (always croaks) and read the pitches tone()
+  // scheduled. Frogs sit well under 400 Hz where birdsong starts at 1500.
+  it('the Pines is a low wind and frogs, never birdsong, gulls or a horn', () => {
+    const dry = ambienceProbe('pines');
+    expect(dry.bufferSources).toHaveLength(1); // the wind
+    expect(dry.intervals).toBe(1); // the frogs
+    expect(dry.timeouts).toBe(0);
+    expect(dry.ctx.created.gains.map((g) => g.gain.value)).toContain(0.035);
+    const before = dry.ctx.created.oscs.length;
+    const realRandom = Math.random;
+    Math.random = () => 0;
+    try { dry.intervalFns[0](); } finally { Math.random = realRandom; }
+    const croaks = dry.ctx.created.oscs.slice(before); // the wind's LFO started earlier
+    expect(croaks.length).toBeGreaterThanOrEqual(2);
+    for (const o of croaks) {
+      expect(o.frequency.scheduled.length).toBeGreaterThan(0);
+      for (const f of o.frequency.scheduled) expect(f).toBeLessThan(400);
+    }
+    dry.audio.stopAmbient();
+  });
+
+  it('a rainy Pines adds the rain wash and keeps the frogs', () => {
+    const wet = ambienceProbe('pines', { rain: true });
+    expect(wet.bufferSources).toHaveLength(2); // wind + rain
+    expect(wet.intervals).toBe(1); // the frogs
     wet.audio.stopAmbient();
   });
 

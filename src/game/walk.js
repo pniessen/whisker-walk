@@ -22,6 +22,7 @@ import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
 import * as river from '../world/river.js';
 import * as moor from '../world/moor.js';
+import * as pines from '../world/pines.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -109,7 +110,7 @@ import { nowSec, escapeHtml, hashName } from './util.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
