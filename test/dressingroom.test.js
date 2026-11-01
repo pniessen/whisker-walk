@@ -293,9 +293,7 @@ describe('the territory map in the dressing room', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
     expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
-    // The Pines' territory has no areaId until Task 7 moves it onto the map, so
-    // it is an ordinary card here for now; Task 7 restores this to the three.
-    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks', 'pines']);
+    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
     expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
     const html = renderDressingRoomHtml({ model: m });
     const where = html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
@@ -373,6 +371,17 @@ describe('the dressing room in each edition', () => {
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
     expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
     expect(s.area).toBe('moor');
+  });
+
+  it("Legacy with the Pines chosen marks the Cozy Neighborhood card \"today's walk\"", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('pines');
+    s.area = 'pines';
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
+    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(s.area).toBe('pines');
   });
 
   it("Legacy with the River chosen marks the Cozy Neighborhood card \"today's walk\"", () => {
