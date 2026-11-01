@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { createPlayer, canSwim, SWIM_SPEED } from '../src/player.js';
-import { inWater, onDeck, waterClearance, nearestDry } from '../src/world/builder.js';
+import { createPlayer, canSwim, SWIM_SPEED, isWadeableAt } from '../src/player.js';
+import { inWater, onDeck, waterClearance, nearestDry, shallowExcess } from '../src/world/builder.js';
 import { clearSpot } from '../src/world/spots.js';
 
 // ---------------------------------------------------------------------------
@@ -413,13 +413,18 @@ describe('every square metre of every watered area', () => {
   const STEP = 0.5;
 
   for (const [name, area] of Object.entries(AREAS)) {
-    it(`${name}: a grounded cat never ends a frame in the water, wherever it starts`, () => {
+    it(`${name}: a grounded cat never ends a frame deeper than its band, wherever it starts`, () => {
       const b = area.bounds;
       const wet = [];
+      // The water and bounds halves of isWadeableAt. Colliders are left out:
+      // a few cells where two colliders overlap stay inside one after the
+      // single collider pass, with or without water, and the next test pins
+      // that water never makes that worse.
+      const open = { ...area, colliders: [] };
       for (let x = b.minX; x <= b.maxX; x += STEP) {
         for (let z = b.minZ; z <= b.maxZ; z += STEP) {
           const p = settle(player, cat, area, x, z);
-          if (inWater(area.waters, p.x, p.z)) wet.push(`${x},${z} -> ${p.x},${p.z}`);
+          if (!isWadeableAt(open, p.x, p.z)) wet.push(`${x},${z} -> ${p.x},${p.z}`);
         }
       }
       expect(wet.slice(0, 5)).toEqual([]);
@@ -619,9 +624,11 @@ describe("the seaside's eleven metres of walkable sea", () => {
     // rectangle is open water. Nothing the player must reach was ever out
     // there (water.test.js pins that for every list), and the pier crosses the
     // whole strip — so what is lost is empty sea the cat could stand on.
+    // Since wading, a cat out there is put back into the shallows (the 1.5 m
+    // surf band), not onto the sand.
     expect(area.bounds.maxX - area.waters[0].minX).toBe(11);
     const p = settle(player, cat, area, 30, 0);
-    expect(p.x).toBeCloseTo(25 - CAT_RADIUS, 6); // put back on the sand
+    expect(p.x).toBeCloseTo(25 + 1.5, 2); // put back in the surf
     expect(settle(player, cat, area, 30, -10).x).toBe(30); // unless it is on the pier
   });
 
@@ -709,7 +716,7 @@ describe('the wiring the Sea Legs catalog entry activates', () => {
       let target = null;
       for (let x = area.bounds.minX; x <= area.bounds.maxX && !target; x += 1) {
         for (let z = area.bounds.minZ; z <= area.bounds.maxZ && !target; z += 1) {
-          if (inWater(wet, x, z) && !onDeck(wet, x, z)) target = { x, z };
+          if (shallowExcess(wet, x, z) > 0.5) target = { x, z };
         }
       }
       expect(target, `${name} has a wet, un-decked cell`).not.toBe(null);
@@ -725,7 +732,7 @@ describe('the wiring the Sea Legs catalog entry activates', () => {
       dry.player.setSwim(canSwim(NON_SWIMMER));
       dry.cat.position.set(target.x, 0, target.z);
       dry.player.update(FRAME, area.colliders, area.bounds, wet);
-      expect(inWater(wet, dry.cat.position.x, dry.cat.position.z), `${name} ejects a non-swimmer`).toBe(false);
+      expect(shallowExcess(wet, dry.cat.position.x, dry.cat.position.z), `${name} ejects a non-swimmer`).toBeLessThanOrEqual(1e-9);
       dry.player.disable();
     }
   });
