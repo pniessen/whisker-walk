@@ -172,6 +172,11 @@ export function intruderAt(areaId, t) {
 const INTRUDER_SCALE = 0.85;
 const PUFF_TIME = 0.6; // s: the reduced-motion flee's dust puff
 const PUFF_COLOR = 0xd9ccb4;
+// The contact-shadow radius walk.js gives the anchor (below), in metres. What
+// contactshadows.follow measures for itself on a clan warrior's coat at scale
+// 0.85 is 0.67-0.77 m, by breed and the yaw it happens to stand at; this is
+// that range's middle, fixed so it never depends on which visit came first.
+export const INTRUDER_DECAL_RADIUS = 0.7;
 
 // The rival scamper's easing (rivalcats.js), inlined (ruling R6): this file's
 // imports stay on their allow-list.
@@ -189,6 +194,7 @@ export function isHostile(intruder, { clanHome, picks } = {}) {
 
 // The inert stand-in for a walk with no intruders (the den, the old areas).
 export const NO_INTRUDERS = Object.freeze({
+  anchor: null,
   update() {},
   current: () => null,
   hold() {},
@@ -221,6 +227,21 @@ export function createIntruders(scene, areaId, {
   let done = null;    // a visit that walked off its route: not built again
   let animT = 0;
   const puffs = [];
+  // One empty group for the whole walk, standing where the visible intruder
+  // stands and hidden when there is none (ruling R10). walk.js gives IT the
+  // contact shadow, once: the decals have a fixed number of follower slots
+  // and no way to let one go, so following each visit's cat would use one up
+  // per visit.
+  const anchor = new THREE.Group();
+  anchor.name = 'intruder-anchor';
+  anchor.visible = false;
+  scene.add(anchor);
+
+  function syncAnchor() {
+    const showing = !!cur && cur.inScene;
+    anchor.visible = showing;
+    if (showing) anchor.position.copy(cur.group.position);
+  }
 
   function build(at) {
     const { member } = at;
@@ -272,6 +293,7 @@ export function createIntruders(scene, areaId, {
   function end() {
     removeMesh();
     cur = null;
+    syncAnchor();
   }
 
   function addPuff(x, z) {
@@ -339,7 +361,11 @@ export function createIntruders(scene, areaId, {
       const t = now();
       if (typeof t !== 'number' || !Number.isFinite(t)) return;
       const slot = Math.floor(t / INTRUDER_PERIOD);
-      if (cur && cur.visit !== slot) end();
+      // Ruling R9: a visit outlives its slot while it is held, fleeing, or
+      // catching up after a release (walking on to its route's end). Only a
+      // walking or gone one ends with its slot; the next visit is built only
+      // once this one is over, so there is one mesh at a time.
+      if (cur && cur.visit !== slot && (cur.state === 'walking' || cur.state === 'gone')) end();
       if (!cur) {
         if (done === slot) return;
         const at = intruderAt(areaId, t);
@@ -378,8 +404,9 @@ export function createIntruders(scene, areaId, {
         end();
         return;
       }
-      if (!cur.inScene) return;
+      if (!cur.inScene) { syncAnchor(); return; }
       place();
+      syncAnchor();
       const g = cur.group;
       let pose = 'follow';
       if (cur.state === 'held') {
@@ -399,6 +426,8 @@ export function createIntruders(scene, areaId, {
         cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range : false;
       }
     },
+    // The walk's one contact-shadow follower (see above).
+    anchor,
     current: snapshot,
     hold(visit, holderId, facePos, { local = false } = {}) {
       if (!isCurrent(visit) || cur.fled || cur.state === 'gone') return;
@@ -427,6 +456,7 @@ export function createIntruders(scene, areaId, {
         cur.s = to;
         cur.state = 'gone';
         removeMesh();
+        syncAnchor();
         return;
       }
       cur.s = from;
@@ -438,6 +468,7 @@ export function createIntruders(scene, areaId, {
     },
     dispose() {
       end();
+      scene.remove(anchor);
       for (const p of puffs) {
         scene.remove(p.mesh);
         freeObject(p.mesh);

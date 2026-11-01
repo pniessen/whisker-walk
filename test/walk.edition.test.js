@@ -306,7 +306,11 @@ describe('the clan in the walk (source pins)', () => {
     expect(call).toContain('audio.hiss()');
     const build = call.slice(call.indexOf('onBuild'));
     expect(build).toContain('assignShadowCastersFor(');
-    expect(build).toContain('decals.follow(');
+    // R10: the decals follow the intruders' one anchor, once per walk, never a visit's cat
+    expect(build).not.toContain('decals.follow(');
+    const follow = 'decals.follow(session.intruders.anchor, INTRUDER_DECAL_RADIUS)';
+    expect(s.split(follow)).toHaveLength(2);
+    expect(s.indexOf(follow)).toBeGreaterThan(at);
     expect(s).toContain('session.intruders.dispose()');
   });
 

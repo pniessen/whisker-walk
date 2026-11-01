@@ -4,7 +4,7 @@ import {
   intruderAt, visitAt, routePoint, routeLength, INTRUDER_ROUTES,
   INTRUDER_PERIOD, ENTER_AT, INTRUDER_SPEED, ROUTE_MAX, FLEE_SPEED, CATCH_UP_SPEED,
   NOTICE_RANGE, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY, HOLD_MAX,
-  createIntruders, isHostile, NO_INTRUDERS,
+  createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS,
 } from '../src/intruders.js';
 import * as THREE from 'three';
 import { animateCat } from '../src/cat/animator.js';
@@ -414,7 +414,7 @@ describe('the intruder in the world (Task 2)', () => {
     expect(intr.holders(k)).toEqual(['me']);
   });
 
-  test('the intruder is swept for shadows and followed by the decals', () => {
+  test('the intruder is swept for shadows on every visit', () => {
     const built = [];
     const { clock, step, meshes } = spawnIntruders({ onBuild: (g) => built.push(g) });
     const k = slotWith('woods', (j) => !!visitAt('woods', (j + 1) * INTRUDER_PERIOD));
@@ -428,6 +428,109 @@ describe('the intruder in the world (Task 2)', () => {
     expect(built[1]).toBe(meshes()[0]);
   });
 
+  test('one anchor for the contact shadow, all walk long: where the cat is, hidden when there is none', () => {
+    const { scene, clock, intr, step, meshes } = spawnIntruders();
+    const a = intr.anchor;
+    expect(a).toBeInstanceOf(THREE.Group);
+    expect(scene.objects.has(a)).toBe(true);
+    expect(a.visible).toBe(false);
+    expect(INTRUDER_DECAL_RADIUS).toBeGreaterThan(0.6);
+    expect(INTRUDER_DECAL_RADIUS).toBeLessThan(0.8);
+    const k = slotWith('woods', (j) => !!visitAt('woods', (j + 1) * INTRUDER_PERIOD));
+    for (const visit of [k, k + 1]) {
+      clock.T = enterOf(visit) + 4;
+      step(2);
+      expect(a.visible).toBe(true);
+      expect(a.position.x).toBeCloseTo(meshes()[0].position.x, 9);
+      expect(a.position.z).toBeCloseTo(meshes()[0].position.z, 9);
+      expect(intr.anchor).toBe(a);
+    }
+    intr.flee(k + 1);
+    step(40);
+    expect(intr.current().state).toBe('gone');
+    expect(a.visible).toBe(false);
+    clock.T = (k + 2) * INTRUDER_PERIOD + 1;
+    step(DT);
+    expect(a.visible).toBe(false);
+    intr.dispose();
+    expect(scene.objects.size).toBe(0);
+    expect(NO_INTRUDERS.anchor).toBeNull();
+  });
+
+  test('a held visit outlives its slot, and the next one waits for it (R9)', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods', (j) => !!visitAt('woods', (j + 1) * INTRUDER_PERIOD));
+    const route = INTRUDER_ROUTES.woods[visitAt('woods', enterOf(k)).clan];
+    const len = routeLength(route);
+    // held 30 m from its route's end, just before its clock walks off
+    const tHold = enterOf(k) + (len - 30) / INTRUDER_SPEED;
+    clock.T = tHold;
+    step(DT);
+    const g = meshes()[0];
+    const at = flat(g.position);
+    intr.hold(k, 'me', { x: 0, z: 0 }, { local: true });
+    const one = () => expect(meshes().length).toBeLessThanOrEqual(1);
+    // across the slot boundary and well into the next visit's walk
+    step(enterOf(k + 1) + 15 - clock.T, () => FAR, one);
+    expect(Math.floor(clock.T / INTRUDER_PERIOD)).toBe(k + 1);
+    expect(intr.current()).toMatchObject({ visit: k, state: 'held' });
+    expect(meshes()).toEqual([g]);
+    expect(flat(g.position)).toEqual(at);
+    // holds still count for the lingering visit, and the next one is ignored
+    intr.hold(k, 'sis', { x: 1, z: 1 });
+    expect(intr.holders(k).sort()).toEqual(['me', 'sis']);
+    intr.hold(k + 1, 'sis', { x: 1, z: 1 });
+    expect(intr.holders(k + 1)).toEqual([]);
+    intr.release(k, 'sis');
+    intr.release(k, 'me');
+    expect(intr.current()).toMatchObject({ visit: k, state: 'walking' });
+    // it walks on to its route's end, never faster than CATCH_UP_SPEED
+    let prev = flat(g.position);
+    let off = null;
+    const t0 = clock.T;
+    step(20, () => FAR, () => {
+      one();
+      if (off === null && intr.current()?.visit !== k) off = clock.T;
+      if (off === null) {
+        const p = flat(g.position);
+        expect(Math.hypot(p.x - prev.x, p.z - prev.z)).toBeLessThanOrEqual(CATCH_UP_SPEED * DT + 1e-6);
+        prev = p;
+      }
+    });
+    expect(off).not.toBeNull();
+    expect(off - t0).toBeGreaterThanOrEqual(30 / CATCH_UP_SPEED - 0.1);
+    expect(off - t0).toBeLessThan(30 / CATCH_UP_SPEED + 0.5);
+    // then the next visit, at its clock position
+    expect(intr.current()).toMatchObject({ visit: k + 1, state: 'walking' });
+    expect(meshes()).toHaveLength(1);
+    expect(meshes()[0]).not.toBe(g);
+    const want = intruderAt('woods', clock.T);
+    expect(meshes()[0].position.x).toBeCloseTo(want.x, 6);
+    expect(meshes()[0].position.z).toBeCloseTo(want.z, 6);
+    // the old visit is truly gone: calls for it are ignored
+    intr.hold(k, 'me', { x: 0, z: 0 });
+    intr.flee(k);
+    expect(intr.current()).toMatchObject({ visit: k + 1, state: 'walking' });
+  });
+
+  test('a fleeing visit runs on past its slot\'s end', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods', (j) => !!visitAt('woods', (j + 1) * INTRUDER_PERIOD));
+    const route = INTRUDER_ROUTES.woods[visitAt('woods', enterOf(k)).clan];
+    const mid = routeLength(route) / 2;
+    clock.T = enterOf(k) + mid / INTRUDER_SPEED;
+    step(DT);
+    intr.hold(k, 'me', { x: 0, z: 0 }, { local: true });
+    clock.T = (k + 1) * INTRUDER_PERIOD - 1;
+    step(DT);
+    intr.flee(k);
+    step(3, () => FAR, () => expect(meshes().length).toBeLessThanOrEqual(1));
+    expect(Math.floor(clock.T / INTRUDER_PERIOD)).toBe(k + 1);
+    expect(intr.current()).toMatchObject({ visit: k, state: 'fleeing' });
+    step(10);
+    expect(intr.current()?.visit).not.toBe(k);
+  });
+
   test('reduced motion: flee is a puff, not a run', () => {
     const { clock, intr, step, meshes, scene } = spawnIntruders({ reducedMotion: true });
     const k = slotWith('woods');
@@ -438,9 +541,11 @@ describe('the intruder in the world (Task 2)', () => {
     expect(intr.current().state).toBe('gone');
     expect(scene.objects.has(g)).toBe(false);
     // the puff is in the scene for a moment, then it too is gone
-    expect(scene.objects.size).toBe(1);
+    const others = () => [...scene.objects].filter((o) => o !== intr.anchor);
+    expect(others()).toHaveLength(1);
     step(2);
-    expect(scene.objects.size).toBe(0);
+    expect(others()).toHaveLength(0);
+    expect(intr.anchor.visible).toBe(false);
   });
 
   test('Legacy: no tag, but the same coat', () => {
