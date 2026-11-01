@@ -3314,6 +3314,13 @@ export function logBasket(x, z) {
 // must leave this hole in itself". Every function below treats a point on a
 // deck as dry land.
 //
+// A footprint may also carry `shallow`, in metres (missing means 0): the width
+// of the wadeable band along its REAL shore. Real shore means the footprint's
+// outline minus the parts that run under another water (see shorePieces), so
+// two touching bodies of water have one shore, not two. Depth is measured to
+// that shore (shallowExcess); waterGap, waterClearance, inWater and nearestDry
+// ignore `shallow` entirely.
+//
 // All of this is plain data and pure geometry: no THREE, no renderer, so the
 // world files stay unit-testable headless.
 // =============================================================================
@@ -3335,6 +3342,25 @@ export function onDeck(w, x, z) {
   return (w.decks ?? []).some(
     (d) => x >= d.minX && x <= d.maxX && z >= d.minZ && z <= d.maxZ,
   );
+}
+
+// Signed distance from (x, z) to the nearest deck of any of these waters:
+// negative inside (how far in from the nearest edge), positive outside, and
+// Infinity where there are no decks. Beside onDeck: when onDeck learns a new
+// kind of deck, this must too.
+export function deckDistance(waters, x, z) {
+  let min = Infinity;
+  for (const w of waters ?? []) {
+    for (const d of w.decks ?? []) {
+      const dx = Math.max(d.minX - x, x - d.maxX);
+      const dz = Math.max(d.minZ - z, z - d.maxZ);
+      const g = dx > 0 || dz > 0
+        ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
+        : Math.max(dx, dz);
+      if (g < min) min = g;
+    }
+  }
+  return min;
 }
 
 // Is (x, z) on any deck of any of these waters? The carry's "never put a
@@ -3359,6 +3385,170 @@ export function waterClearance(waters, x, z) {
 
 export function inWater(waters, x, z) {
   return waterClearance(waters, x, z) < 0;
+}
+
+// -----------------------------------------------------------------------------
+// THE REAL SHORE, AND DEPTH MEASURED TO IT (swimming). Contiguous block.
+// -----------------------------------------------------------------------------
+const CIRCLE_CHORDS = 64;
+const SHORE_STEP = 0.25;
+const SHORE_INSIDE = -1e-6;
+
+// Extending the shore: a new kind of water edge needs two things.
+//   1. Give outline(w) its segments. For the island plan, each `islands` disc
+//      adds CIRCLE_CHORDS chords.
+//   2. Make waterGap see it as not-water. The island plan's Task 1 does.
+// Decks are never shore, so strip decks need nothing here.
+function outline(w) {
+  const segs = [];
+  if (w.kind === 'circle') {
+    for (let k = 0; k < CIRCLE_CHORDS; k++) {
+      // Half a chord of phase, so a chord's midpoint (not a vertex) faces due east.
+      const a0 = ((k + 0.5) / CIRCLE_CHORDS) * Math.PI * 2;
+      const a1 = ((k + 1.5) / CIRCLE_CHORDS) * Math.PI * 2;
+      segs.push([
+        w.x + Math.cos(a0) * w.r, w.z + Math.sin(a0) * w.r,
+        w.x + Math.cos(a1) * w.r, w.z + Math.sin(a1) * w.r,
+      ]);
+    }
+    return segs;
+  }
+  segs.push([w.minX, w.minZ, w.maxX, w.minZ]);
+  segs.push([w.maxX, w.minZ, w.maxX, w.maxZ]);
+  segs.push([w.maxX, w.maxZ, w.minX, w.maxZ]);
+  segs.push([w.minX, w.maxZ, w.minX, w.minZ]);
+  return segs;
+}
+
+// The runs of one outline segment that lie outside every other footprint.
+// Walk in steps of at most SHORE_STEP, bisect where "strictly inside" flips,
+// keep the outside runs. Clips by waterGap alone, so any shape waterGap
+// understands clips correctly.
+function clipOutside(list, w, seg) {
+  const [ax, az, bx, bz] = seg;
+  const inside = (t) => {
+    const x = ax + (bx - ax) * t;
+    const z = az + (bz - az) * t;
+    for (const o of list) if (o !== w && waterGap(o, x, z) < SHORE_INSIDE) return true;
+    return false;
+  };
+  const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / SHORE_STEP));
+  const edge = (t0, t1, from) => {
+    let lo = t0, hi = t1;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      if (inside(mid) === from) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  const runs = [];
+  let prevT = 0;
+  let prevIn = inside(0);
+  let runStart = prevIn ? -1 : 0;
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    const cur = inside(t);
+    if (cur !== prevIn) {
+      const e = edge(prevT, t, prevIn);
+      if (cur) runs.push([runStart, e]); else runStart = e;
+    }
+    prevT = t;
+    prevIn = cur;
+  }
+  if (!prevIn) runs.push([runStart, 1]);
+  return runs.map(([t0, t1]) => [
+    ax + (bx - ax) * t0, az + (bz - az) * t0, ax + (bx - ax) * t1, az + (bz - az) * t1,
+  ]);
+}
+
+const shoreCache = new WeakMap();
+const NO_SHORE = Object.freeze([]);
+
+/**
+ * shorePieces(waters) — the real shore as segments { ax, az, bx, bz, shallow,
+ * id }: every footprint's outline, minus the stretches strictly inside another
+ * footprint. Not clipped by decks (water under a deck is still deep). Cached
+ * per `waters` array.
+ */
+export function shorePieces(waters) {
+  if (!waters || waters.length === 0) return NO_SHORE;
+  let pieces = shoreCache.get(waters);
+  if (pieces) return pieces;
+  pieces = [];
+  for (const w of waters) {
+    for (const seg of outline(w)) {
+      for (const [ax, az, bx, bz] of clipOutside(waters, w, seg)) {
+        if (Math.hypot(bx - ax, bz - az) < 1e-9) continue;
+        pieces.push({ ax, az, bx, bz, shallow: w.shallow ?? 0, id: w.id });
+      }
+    }
+  }
+  Object.freeze(pieces);
+  shoreCache.set(waters, pieces);
+  return pieces;
+}
+
+// Parameter (0..1) of the point on piece p nearest (x, z).
+function pieceParam(p, x, z) {
+  const dx = p.bx - p.ax, dz = p.bz - p.az;
+  const l2 = dx * dx + dz * dz;
+  if (l2 === 0) return 0;
+  const t = ((x - p.ax) * dx + (z - p.az) * dz) / l2;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+
+function pieceExcess(p, t, x, z) {
+  return Math.hypot(x - (p.ax + (p.bx - p.ax) * t), z - (p.az + (p.bz - p.az) * t)) - p.shallow;
+}
+
+/**
+ * shallowExcess(waters, x, z) — how far past the wadeable band (positive) or
+ * how far inside it (negative) a point in the water is. -Infinity on dry
+ * ground and on decks. <= 0 is the shallow band; > 0 is deep.
+ */
+export function shallowExcess(waters, x, z) {
+  if (waterClearance(waters, x, z) >= 0) return -Infinity;
+  let min = Infinity;
+  for (const p of shorePieces(waters)) {
+    const d = pieceExcess(p, pieceParam(p, x, z), x, z);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
+/**
+ * nearestShallow(waters, x, z, out) — fills `out` with the nearer of the
+ * shallow band's edge and the edge of any deck over the water the point is in.
+ * A point already in the band, or dry, is returned as it is. The deck margin
+ * is 0 on purpose: onDeck is inclusive, so a cat 5 cm off a deck lands exactly
+ * on its edge (a margin would throw it inward every frame).
+ */
+export function nearestShallow(waters, x, z, out) {
+  out.x = x;
+  out.z = z;
+  if (!(shallowExcess(waters, x, z) > 0)) return out;
+  let best = null, bestT = 0, bestD = Infinity;
+  for (const p of shorePieces(waters)) {
+    const t = pieceParam(p, x, z);
+    const d = pieceExcess(p, t, x, z);
+    if (d < bestD) { bestD = d; best = p; bestT = t; }
+  }
+  if (best) {
+    const qx = best.ax + (best.bx - best.ax) * bestT;
+    const qz = best.az + (best.bz - best.az) * bestT;
+    const dist = Math.hypot(x - qx, z - qz);
+    out.x = qx + ((x - qx) / dist) * best.shallow;
+    out.z = qz + ((z - qz) / dist) * best.shallow;
+  }
+  for (const w of waters ?? []) {
+    if (!w.decks || waterGap(w, x, z) >= 0) continue;
+    for (const d of w.decks) {
+      const c = clampInto(d, x, z, 0);
+      const dd = Math.hypot(c.x - x, c.z - z);
+      if (dd < bestD) { bestD = dd; out.x = c.x; out.z = c.z; }
+    }
+  }
+  return out;
 }
 
 function pushOutOf(w, x, z, margin) {
