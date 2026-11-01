@@ -198,6 +198,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   // base pose reset
   body.position.y = base.bodyY;
+  body.position.z = 0; // only backUp moves it
   body.scale.set(bsx, bsy, bsz);
   body.rotation.set(0, 0, 0);
   head.position.set(hx, hy, hz);
@@ -367,6 +368,45 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // tailPivots are deliberately left at the reset zero — no tuck.
     earL.rotation.z = CROSS.earPin;
     earR.rotation.z = -CROSS.earPin;
+  }
+
+  // Clan Life Part 2: the fight's clues and answers. Both hold still (no gait,
+  // no breathing, no twitch) so the clue reads the same for its whole window.
+  if (state === 'swipe') {
+    // The front-left paw swung forward and up, the torso leaning back a
+    // little, the head up and the ears pinned. 1.2 rad is past fitLongLegs'
+    // swing limit, so the raised leg keeps its length and only the ground cap
+    // touches it.
+    legs[0].rotation.x = -1.2;
+    legs[2].rotation.x = 0.12;
+    legs[3].rotation.x = 0.12;
+    body.rotation.x = -0.12;
+    head.position.set(hx, hy + 0.05, hz + 0.02);
+    head.rotation.x = -0.15;
+    tail.rotation.set(CROSS.tailRotX, 0, 0);
+    earL.rotation.z = CROSS.earPin;
+    earR.rotation.z = -CROSS.earPin;
+    return;
+  }
+
+  if (state === 'backUp') {
+    // Weight back: the torso moved back and lowered at the rear (nose-up
+    // tilt), front legs braced out in front, the head low and level. The
+    // clear "about to charge" look. Legs are only swung, never shortened, so
+    // fitLongLegs re-fits their soles to the ground and no crouch is implied.
+    body.position.y = base.bodyY - 0.04;
+    body.position.z = 0.08;
+    body.rotation.x = -0.1;
+    legs[0].rotation.x = -0.35;
+    legs[1].rotation.x = -0.35;
+    legs[2].rotation.x = 0.25;
+    legs[3].rotation.x = 0.25;
+    head.position.set(hx, hy - 0.08, hz + 0.04);
+    head.rotation.x = 0;
+    tail.rotation.set(-0.35, 0, 0);
+    earL.rotation.z = CROSS.earPin;
+    earR.rotation.z = -CROSS.earPin;
+    return;
   }
 
   if (state === 'land') {

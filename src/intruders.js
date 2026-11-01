@@ -200,6 +200,7 @@ export const NO_INTRUDERS = Object.freeze({
   hold() {},
   release() {},
   holders: () => [],
+  stage() {},
   flee() {},
   isFled: () => false,
   dispose() {},
@@ -270,6 +271,9 @@ export function createIntruders(scene, areaId, {
       state: 'walking', // 'walking' | 'catching' | 'held' | 'fleeing' | 'gone'
       holders: new Map(),
       face: null,
+      // My own fight's staging (Task 4): a pose and a spot for the held mesh,
+      // or null. Only ever set while a local holder holds it.
+      stage: null,
       hostile: isHostileHere,
       noticed: false,
       fled: false,
@@ -321,13 +325,16 @@ export function createIntruders(scene, areaId, {
     }
   }
 
-  // The mesh at cur.s, facing its way (or its newest holder when held).
+  // The mesh at cur.s, facing its way (or its holder when held). A held one
+  // my fight has staged stands where the stage puts it instead.
   function place() {
     const p = routePoint(cur.route, cur.s);
     const g = cur.group;
-    g.position.set(p.x, 0, p.z);
+    const st = cur.state === 'held' ? cur.stage : null;
+    if (st) g.position.set(st.x, st.y, st.z);
+    else g.position.set(p.x, 0, p.z);
     if (cur.state === 'held' && cur.face) {
-      g.rotation.y = yawToward(p.x, p.z, cur.face.x, cur.face.z);
+      g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {
       g.rotation.y = Math.atan2(-p.dx, -p.dz) + Math.PI;
     } else {
@@ -348,8 +355,10 @@ export function createIntruders(scene, areaId, {
   }
 
   const isCurrent = (visit) => !!cur && cur.visit === visit;
+  const heldByMe = () => [...cur.holders.values()].some((h) => h.local);
 
   function letGo() {
+    if (!heldByMe()) cur.stage = null;
     if (cur.state === 'held' && cur.holders.size === 0) cur.state = 'catching';
   }
 
@@ -410,7 +419,7 @@ export function createIntruders(scene, areaId, {
       const g = cur.group;
       let pose = 'follow';
       if (cur.state === 'held') {
-        pose = 'cross';
+        pose = cur.stage ? cur.stage.pose : 'cross';
         speed = 0;
       } else if (cur.state !== 'fleeing' && cur.hostile && catPos
         && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE) {
@@ -431,8 +440,13 @@ export function createIntruders(scene, areaId, {
     current: snapshot,
     hold(visit, holderId, facePos, { local = false } = {}) {
       if (!isCurrent(visit) || cur.fled || cur.state === 'gone') return;
+      // Ruling R11: while my own fight holds it, it keeps facing me; a
+      // co-walker's hold never turns it away. With no local holder, the
+      // newest holder's face is used.
+      const mineHeld = heldByMe();
       cur.holders.set(String(holderId), { since: now(), local: local === true });
-      if (facePos && Number.isFinite(facePos.x) && Number.isFinite(facePos.z)) cur.face = { x: facePos.x, z: facePos.z };
+      const faces = local === true || !mineHeld;
+      if (faces && facePos && Number.isFinite(facePos.x) && Number.isFinite(facePos.z)) cur.face = { x: facePos.x, z: facePos.z };
       cur.state = 'held';
       if (cur.inScene) place();
     },
@@ -444,9 +458,24 @@ export function createIntruders(scene, areaId, {
     holders(visit) {
       return isCurrent(visit) ? [...cur.holders.keys()] : [];
     },
+    // My fight's staging (Task 4): { pose, x, z, y, face? } puts the held mesh
+    // at that spot in that pose, facing `face` (my cat) or else its holder;
+    // null puts it back on its route.
+    // Ignored unless I hold it; dropped when my hold ends or it flees. The
+    // shared snapshot (current().pos) stays on the route.
+    stage(visit, st) {
+      if (!isCurrent(visit) || cur.state !== 'held' || !heldByMe()) return;
+      if (st === null) cur.stage = null;
+      else if (st && typeof st.pose === 'string' && Number.isFinite(st.x) && Number.isFinite(st.z)) {
+        cur.stage = { pose: st.pose, x: st.x, z: st.z, y: Number.isFinite(st.y) ? st.y : 0 };
+        if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) cur.face = { x: st.face.x, z: st.face.z };
+      } else return;
+      if (cur.inScene) { place(); syncAnchor(); }
+    },
     flee(visit) {
       if (!isCurrent(visit) || cur.fled || cur.state === 'gone') return;
       cur.holders.clear();
+      cur.stage = null;
       cur.fled = true;
       const from = Math.min(Math.max(cur.s, 0), cur.len);
       const to = from < cur.len - from ? 0 : cur.len;

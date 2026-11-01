@@ -590,3 +590,64 @@ describe('the intruder in the world (Task 2)', () => {
     for (const f of ['update', 'hold', 'release', 'flee', 'dispose']) expect(() => NO_INTRUDERS[f]()).not.toThrow();
   });
 });
+
+describe('the intruder in my fight (Task 4)', () => {
+  const yawTo = (from, to) => Math.atan2(to.x - from.x, to.z - from.z) + Math.PI;
+
+  test('R11: a co-walker\'s hold never turns the intruder away from my own fight', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    const g = meshes()[0];
+    const at = flat(g.position);
+    const mine = { x: at.x + 1.6, z: at.z };
+    const hers = { x: at.x, z: at.z - 1.6 };
+    intr.hold(k, 'me', mine, { local: true });
+    intr.hold(k, 'sis', hers);
+    step(DT);
+    expect(g.rotation.y).toBeCloseTo(yawTo(at, mine), 6);
+    // once I let go, the newest holder's face is used again
+    intr.release(k, 'me');
+    intr.hold(k, 'sis', hers);
+    step(DT);
+    expect(g.rotation.y).toBeCloseTo(yawTo(at, hers), 6);
+    // with no local holder, every hold still turns it to the newest holder
+    const third = { x: at.x - 1.6, z: at.z };
+    intr.hold(k, 'bro', third);
+    step(DT);
+    expect(g.rotation.y).toBeCloseTo(yawTo(at, third), 6);
+  });
+
+  test('stage: my fight poses and moves the held intruder, and only while I hold it', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    const g = meshes()[0];
+    // not held by me: ignored
+    intr.stage(k, { pose: 'backUp', x: g.position.x + 0.5, z: g.position.z, y: 0 });
+    step(DT);
+    expect(g.position.x).toBeCloseTo(intr.current().pos.x, 6);
+    expect(lastPoseOf(g)).toBe('follow');
+    const at = flat(g.position);
+    intr.hold(k, 'me', { x: at.x + 2, z: at.z }, { local: true });
+    intr.stage(k, { pose: 'backUp', x: at.x - 0.6, z: at.z, y: 0.1 });
+    step(DT);
+    expect(g.position.x).toBeCloseTo(at.x - 0.6, 6);
+    expect(g.position.y).toBeCloseTo(0.1, 6);
+    expect(lastPoseOf(g)).toBe('backUp');
+    // the shared snapshot stays on the route
+    expect(intr.current().pos.x).toBeCloseTo(at.x, 6);
+    intr.stage(k, null);
+    step(DT);
+    expect(flat(g.position)).toEqual(at);
+    expect(lastPoseOf(g)).toBe('cross');
+    // released: the stage is dropped
+    intr.stage(k, { pose: 'swipe', x: at.x + 0.3, z: at.z, y: 0 });
+    intr.release(k, 'me');
+    step(DT);
+    expect(lastPoseOf(g)).not.toBe('swipe');
+    expect(g.position.y).toBe(0);
+  });
+});
