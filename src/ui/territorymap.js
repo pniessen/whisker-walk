@@ -107,9 +107,7 @@ function campHtml(r) {
   const c = r.camp;
   if (!c) return '';
   const k = c.mine ? 1.35 : 1;
-  const ring = c.mine
-    ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>`
-    : c.ally ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>` : '';
+  const ring = c.mine || c.ally ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>` : '';
   const w = 15 * k;
   const dome = `<path class="tm-camp-dome" fill="${escapeHtml(c.color)}" d="M${n(c.x - w)} ${n(c.y + 8 * k)} A${n(w)} ${n(w)} 0 0 1 ${n(c.x + w)} ${n(c.y + 8 * k)} Z"/>`
     + `<path class="tm-camp-door" d="M${n(c.x - 5 * k)} ${n(c.y + 8 * k)} A${n(5 * k)} ${n(5 * k)} 0 0 1 ${n(c.x + 5 * k)} ${n(c.y + 8 * k)} Z"/>`;

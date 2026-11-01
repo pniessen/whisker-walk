@@ -8,7 +8,7 @@
 import { PLACE_WORDS } from './clanwords.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
-import { picksOf } from './clanhomes.js';
+import { picksOf, isClanId } from './clanhomes.js';
 
 export const BOARD = Object.freeze({ w: 1000, h: 700 });
 
@@ -101,8 +101,10 @@ export function territoryMapModel(state, catalog) {
 
   // The camp mark, Clan Edition only, for a region whose territory has a clan.
   const picks = picksOf(state);
-  const mine = isClanEdition(state) ? picks[0] ?? null : null;
-  const sibling = isClanEdition(state) ? picks[1] ?? null : null;
+  // picksOf drops a missing own pick, so a partner-only save reads [partner]:
+  // take "mine" from the pick itself, then the sibling's is the other one.
+  const mine = isClanEdition(state) && isClanId(state?.clanPick?.mine) ? state.clanPick.mine : null;
+  const sibling = isClanEdition(state) ? picks.find((p) => p !== mine) ?? null : null;
   const campOf = (t) => {
     if (!isClanEdition(state) || !has(CAMP_AT, t.id) || !castFor(t.id).length) return null;
     const [x, y] = CAMP_AT[t.id];

@@ -206,6 +206,11 @@ describe('camps on the territory map', () => {
     expect(clanOf(s, 'river')).toMatchObject({ mine: false, ally: true });
     expect(clanOf(s, 'moor').ally).toBe(false);
   });
+  it('a partner-only pick makes the sibling\'s camp the ally, never mine', () => {
+    const s = pick(null, 'river');
+    expect(clanOf(s, 'river')).toMatchObject({ mine: false, ally: true });
+    for (const id of ['woods', 'moor', 'pines']) expect(clanOf(s, id).mine).toBe(false);
+  });
   it('Legacy gives every region no camp', () => {
     const m = territoryMapModel({ ...pick('woods'), edition: 'legacy' }, CATALOG);
     for (const r of m.regions) expect(r.camp).toBeNull();

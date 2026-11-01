@@ -19,6 +19,7 @@ class FakeEl {
     this.listeners = {};
     this.cls = new Set();
     this.calls = {}; // 2D context method name -> call count
+    this.arcs = []; // [x, y, r] of every arc() call
     this.fills = []; // the fillStyle in force at each fill() / fillRect()
     this.classList = {
       add: (c) => this.cls.add(c),
@@ -58,8 +59,9 @@ class FakeEl {
         if (key === 'createLinearGradient' || key === 'createRadialGradient') {
           return () => ({ addColorStop: () => {} });
         }
-        return () => {
+        return (...args) => {
           this.calls[key] = (this.calls[key] ?? 0) + 1;
+          if (key === 'arc') this.arcs.push(args.slice(0, 3));
           if (key === 'fill' || key === 'fillRect') this.fills.push(state.fillStyle);
         };
       },
@@ -422,7 +424,13 @@ describe('createMinimap', () => {
     const { map, canvas } = makeMap();
     map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, camp: { x: 900, z: 0, color: '#3f7d3a' } });
     expect(canvas.fills).toContain('#3f7d3a');
-    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, camp: null });
+    // The first arc is the rim disc (centre c, radius radiusPx); the camp's
+    // dome is the arc of radius 6, pinned 6 px inside the rim, due east.
+    const [c, , radiusPx] = canvas.arcs[0];
+    const dome = canvas.arcs.find((a) => a[2] === 6);
+    expect(dome).toBeTruthy();
+    expect(Math.hypot(dome[0] - c, dome[1] - 4 - c)).toBeCloseTo(radiusPx - 6, 3);
+    expect(dome[0]).toBeGreaterThan(c);
   });
 
   it('draws markers past the rim without throwing, and hide/show toggle the canvas', () => {
