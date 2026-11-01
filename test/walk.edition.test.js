@@ -227,7 +227,8 @@ describe('the clan in the walk (source pins)', () => {
 
   it('spawns the loners, not tier.strays, and counts the fed cats first', () => {
     const s = src();
-    const strays = s.indexOf('createStrayCats(scene, areaData, isDen ? 0 : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed)');
+    // Kittypets (ruling R2): the wanderer, when there is one, takes a loner slot.
+    const strays = s.indexOf('createStrayCats(scene, areaData, isDen ? 0 : wanderSpot ? Math.max(0, lonersFor(areaId, tier.strays, fedHere) - 1) : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed)');
     const clan = s.indexOf('castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere))');
     const fed = s.indexOf('const fedHere = colonyCats.length;');
     expect(strays).toBeGreaterThan(-1);
@@ -235,7 +236,7 @@ describe('the clan in the walk (source pins)', () => {
     expect(fed).toBeGreaterThan(-1);
     expect(fed).toBeLessThan(strays);
     expect(fed).toBeLessThan(clan);
-    expect(s.match(/lonersFor\(/g)).toHaveLength(1);
+    expect(s.match(/lonersFor\(/g)).toHaveLength(2);   // both in the one createStrayCats call
     for (const call of s.match(/createStrayCats\([^)]*\)/g) ?? []) {
       expect(call.replace('lonersFor(areaId, tier.strays', '')).not.toContain('tier.strays');
     }

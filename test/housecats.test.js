@@ -115,3 +115,10 @@ test('wanderSpotFor: keeps a good start, moves off a bad one, null when nothing 
   expect(wanderSpotFor({ x: 8, z: 0 }, ok, camp)).toEqual(near);
   expect(wanderSpotFor({ x: 8, z: 0 }, (x, z) => Math.hypot(x - 8, z) > 6.2, null)).toBeNull();
 });
+
+import { wanderArrivalLine } from '../src/housecats.js';
+import { OUTSIDE_WORDS, PLACE_WORDS } from '../src/clanwords.js';
+
+test('the arrival line', () => {
+  expect(wanderArrivalLine('Marmalade')).toBe(`Marmalade the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`);
+});

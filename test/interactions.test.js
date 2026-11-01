@@ -3190,6 +3190,37 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
     });
   });
 
+  // --- 7b. a wandering kittypet (Kittypets Task 4) -------------------------
+
+  describe('a wandering kittypet', () => {
+    it('never turns hostile: a hostile roll still greets it normally', () => {
+      const h = enemyHarness({ count: 0, extras: [{ name: 'Marmalade', rng: mulberry32(3), spot: { x: 0, z: 1 }, wanderer: true }] });
+      const s = h.park(0, 1);
+      expect(s.name).toBe('Marmalade');
+      expect(s.wanderer).toBe(true);
+      const recorded = [];
+      const real = h.progression.recordGrudge;
+      h.progression.recordGrudge = (n) => { recorded.push(n); return real(n); };
+      h.session.walkStamp = stampFor('Marmalade', true);   // the roll SAYS hostile…
+      h.greet(s);
+      expect(recorded).toEqual([]);                          // …and the wanderer is spared
+      expect(h.progression.state.grudges).toEqual([]);
+      expect(s.cross).toBe(false);
+      expect(h.hisses).toHaveLength(0);
+      expect(h.progression.state.friends.Marmalade.greets).toBe(1);
+      expect(h.toasts.some((t) => t.startsWith('You met Marmalade'))).toBe(true);
+    });
+
+    it('the same roll on an ordinary stray still ruptures', () => {
+      const h = enemyHarness();
+      const s = h.park(0, 1);
+      expect(s.wanderer).toBe(false);
+      h.session.walkStamp = stampFor(s.name, true);
+      h.greet(s);
+      expect(h.progression.state.grudges).toEqual([s.name]);
+    });
+  });
+
   // --- 8. Legacy has no outsider word (Clan Edition Task 8) ----------------
 
   describe('the outsider word follows the edition', () => {

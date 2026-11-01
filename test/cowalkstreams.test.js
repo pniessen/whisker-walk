@@ -51,7 +51,8 @@ describe('strays and the shared walkRng', () => {
     const start = src.indexOf('createStrayCats(scene');
     const args = src.slice(start, src.indexOf('});', start));
     // Clan Life Part 1: the tier's count, less the clan in a territory with a camp.
-    expect(args).toContain('isDen ? 0 : lonersFor(areaId, tier.strays, fedHere)');
+    // Kittypets (ruling R2): a wanderer, when there is one, takes a loner slot.
+    expect(args).toContain('isDen ? 0 : wanderSpot ? Math.max(0, lonersFor(areaId, tier.strays, fedHere) - 1) : lonersFor(areaId, tier.strays, fedHere)');
     expect(src).not.toContain('coarse ? 14 : 22');
   });
 });

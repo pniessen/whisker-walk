@@ -4,7 +4,7 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag, setNameTagMood, NAME_TAG_RANGE } from './nametag.js';
 import { friendRungs } from './skills.js';
 import { mulberry32, seedFromCode } from './rng.js';
-import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName } from './straynames.js';
+import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName, isKittypetName } from './straynames.js';
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
 import { keepOutPoint } from './keepout.js';
@@ -467,7 +467,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
 
     scene.add(group);
     // Keep in step with the extras loop below: it builds the same entry for a
-    // legendary extra, field for field.
+    // legendary extra or the wanderer, field for field.
     strays.push({
       id: `stray-${i}`,
       breed,
@@ -486,6 +486,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       // Read by nothing that changes the world — only by what the prompt and
       // the name tag say about it.
       colony: !!fixed,
+      // Kittypets: the day's wandering kittypet, never an ordinary cast cat
+      // (only the extras loop below sets it). Read by the rupture gate.
+      wanderer: false,
       // This cat's own wander stream. Derived from (wanderBase, name) — never
       // drawn from `rng` — so it costs the shared walk stream nothing, and no
       // cat's draws can shift another's. update() below uses it for every
@@ -507,9 +510,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   // stream is done with. Same five draws in the same order as above, off the
   // extra's own rng; personality the colony cat's way (isShy by name, a rolled
   // 'shy' made 'bold'), with no per-index offset so the cat is the same on a
-  // 14-stray device and a 22-stray one.
+  // 14-stray device and a 22-stray one. Kittypets: the day's wanderer comes
+  // through here too, at the spot walk.js found for it.
   for (const ex of Array.isArray(extras) ? extras : []) {
-    if (!ex || !isLegendaryName(ex.name) || typeof ex.rng !== 'function') continue;
+    // A legendary name, or (Kittypets) a kittypet flagged as the day's wanderer.
+    if (!ex || typeof ex.rng !== 'function') continue;
+    if (!isLegendaryName(ex.name) && !(ex.wanderer === true && isKittypetName(ex.name))) continue;
     if (strays.some((s) => s.name === ex.name)) continue;
     const name = ex.name;
     const breed = strayBreed(name);
@@ -517,24 +523,32 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const group = buildCat(breed, typeof exCollar === 'string' ? { collar: exCollar } : undefined, { simple: true });
     noCastCollar(group);
     group.scale.multiplyScalar(0.85);
+    // Both position draws are taken either way, so an extra with a spot (the
+    // wanderer's, from walk.js) costs its rng the same five draws; the spot
+    // is clamped into bounds like a colony cat's.
+    const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng());
+    const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng());
+    const spot = ex.spot && Number.isFinite(ex.spot.x) && Number.isFinite(ex.spot.z) ? ex.spot : null;
     const { x, z } = keepOutPoint(area,
-      THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng()),
-      THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng()));
+      spot ? THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
+      spot ? THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
     group.position.set(x, 0, z);
     group.rotation.y = ex.rng() * Math.PI * 2;
     const roll = ex.rng();
     const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
     const personality = isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
     const cross = crossNames.has(name);
-    const tag = makeNameTag(name, { cross, legend: true });
+    const tag = makeNameTag(name, { cross, legend: isLegendaryName(name) });
     if (tag) group.add(tag);
-    glows.push(dressLegend(group, name));
+    const glow = dressLegend(group, name);   // null for a wanderer: no glow, no star
+    if (glow) glows.push(glow);
     scene.add(group);
     // Keep in step with the main loop's strays.push above.
     strays.push({
       id: `stray-${strays.length}`,
       breed, name, personality, group, tag, cross,
       colony: false,
+      wanderer: ex.wanderer === true,
       wanderRng: strayWanderRng(wanderBase, name),
       home: new THREE.Vector3(x, 0, z),
       target: null,

@@ -8,6 +8,7 @@ import { createProgression, CATALOG } from '../src/progression.js';
 import { NAME_TAG_RANGE, CROSS_NAME_TAG_RANGE } from '../src/nametag.js';
 import { hasSkill } from '../src/skills.js';
 import { mulberry32 } from '../src/rng.js';
+import { collarFor as housecatCollar } from '../src/housecats.js';
 import { PREFIXES, CAT_PREFIXES } from '../src/clanwords.js';
 import { prefixFor } from '../src/clannames.js';
 import { emptyColony, feedCat, canFeed, tamingProgress } from '../src/colony.js';
@@ -1259,19 +1260,51 @@ describe('game/walk.js — where a legendary cat may appear', () => {
     expect(src.indexOf('legendaryRoll(roomSeed)')).toBeLessThan(src.indexOf('\n', decide));
     // Ruling R40: a room walk decides on shared data only.
     expect(src.slice(decide, src.indexOf('\n', decide))).toContain('{ shared: roomSeed !== undefined }');
-    // The extra list is empty unless that guard found a cat...
+    // The extra list is empty unless the legend or the wanderer is there,
+    // and the legend wins: the wanderer is the else-branch of that one expression.
     expect(src).toContain('const extras = legend ? [');
+    const exStart = src.indexOf('const extras = legend ? [');
+    expect(src).toMatch(/const extras = legend \? \[\{[\s\S]*?\}\] : wanderSpot \? \[\{[\s\S]*?\}\] : \[\];/);
     // ...and it is what createStrayCats is handed.
     const call = src.indexOf('const strayCats = createStrayCats(');
     expect(call).toBeGreaterThan(decide);
     expect(src.slice(call, src.indexOf('});', call))).toMatch(/\n\s+extras,\n/);
-    // The extra's own rng: mulberry32 over its name and the room seed, never walkRng.
-    const ex = src.slice(src.indexOf('const extras = legend ? ['), call);
+    // The wanderer comes only from walkWanderer, with no walkRng between it and the call.
+    const wander = src.indexOf('walkWanderer(state, areaId, {');
+    expect(wander).toBeGreaterThan(-1);
+    expect(wander).toBeLessThan(call);
+    expect(src.slice(wander, call)).not.toContain('walkRng');
+    // Its spot (ruling R3): clan ground, away from the camp, off the as-built map.
+    const spotLine = src.slice(src.indexOf('const wanderSpot = '), src.indexOf(';\n', src.indexOf('const wanderSpot = ')));
+    expect(spotLine).toContain('wanderSpotFor(');
+    expect(spotLine).toContain('clanWalkableFor(');
+    expect(spotLine).toContain('clearSpot(wanderStart(areaData.spawn)');
+    // Each extra's own rng: mulberry32 over its name and the room seed, never walkRng.
+    const ex = src.slice(exStart, call);
     expect(ex).toContain('mulberry32((seedFromCode(legend) ^ (roomSeed ?? ');
+    expect(ex).toContain('mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? ');
     expect(ex).not.toContain('walkRng');
+    // Ruling R2: the wanderer takes a loner slot, and only when it is passed.
+    const callText = src.slice(call, src.indexOf('});', call));
+    expect(callText).toContain('Math.max(0, lonersFor(areaId, tier.strays, fedHere) - 1)');
+    expect(callText).toMatch(/isDen \? 0 : wanderSpot \? Math\.max\(0, lonersFor\(areaId, tier\.strays, fedHere\) - 1\) : lonersFor\(areaId, tier\.strays, fedHere\)/);
+    // Kittypets are kept out of a territory's ordinary cast on every walk.
+    const excl = src.slice(src.indexOf('const excludeNames = '), src.indexOf(';\n', src.indexOf('const excludeNames = ')));
+    expect(excl).toContain('territoryCastExcludes(areaId)');
     // And none of it inside the rival's slice.
     const slice = src.slice(src.indexOf("The rival's border and its patrol"), src.indexOf('session.rival = {'));
-    expect(slice).not.toMatch(/legend/i);
+    expect(slice).not.toMatch(/legend|wander/i);
+  });
+
+  it('the arrival toast: only when the wanderer was spawned, in Clan Edition, and not already in the colony', () => {
+    const setArea = src.indexOf('hud.setArea(');
+    const toast = src.indexOf('hud.toast(wanderArrivalLine(wanderName))');
+    expect(toast).toBeGreaterThan(setArea);
+    const line = src.slice(src.lastIndexOf('\n', toast), toast);
+    expect(line).toContain('strayCats.strays.some((s) => s.wanderer)');
+    expect(line).toContain('isClanEdition(progression.state)');
+    expect(line).toContain('!state.colony?.cats?.some((c) => c.name === wanderName)');
+    expect(src.split('wanderArrivalLine(').length - 1).toBe(1);
   });
 });
 
@@ -1454,5 +1487,92 @@ describe('createStrayCats — kittypet collars', () => {
       colonyCats: [{ name: 'Marmalade', x: 1, z: 1, wear: null }], collarFor: (n) => { asked.push(n); return 'bell'; },
     });
     expect(asked).not.toContain('Marmalade');
+  });
+});
+
+describe('createStrayCats — a kittypet wanderer', () => {
+  const wanderer = (seed = 3) => ({ name: 'Marmalade', rng: mulberry32(seed), spot: { x: 10, z: -4 }, wanderer: true });
+  it('stands at its spot, is flagged, and draws nothing from the walk rng', () => {
+    const calls = []; const r = mulberry32(9); const counting = () => { const v = r(); calls.push(v); return v; };
+    const cats = createStrayCats(fakeScene(), AREA, 22, counting, { extras: [wanderer()], excludeNames: ['Marmalade'] });
+    expect(calls.length).toBe(47 + 5 * 22);
+    const w = cats.strays.find((s) => s.name === 'Marmalade');
+    expect([w.home.x, w.home.z]).toEqual([10, -4]);
+    expect([w.group.position.x, w.group.position.z]).toEqual([10, -4]);
+    expect(w.wanderer).toBe(true);
+    expect(w.tag?.userData?.legend ?? false).toBe(false);
+    expect(cats.strays.filter((s) => s.name === 'Marmalade')).toHaveLength(1);
+    for (const s of cats.strays) if (s !== w) expect(s.wanderer).toBe(false);
+  });
+  it('still takes all five of its own draws when it has a spot', () => {
+    let n = 0; const own = () => { n++; return 0.5; };
+    createStrayCats(fakeScene(), AREA, 3, mulberry32(1), { extras: [{ name: 'Marmalade', rng: own, spot: { x: 1, z: 2 }, wanderer: true }], excludeNames: ['Marmalade'] });
+    expect(n).toBe(5);
+  });
+  it('a spot outside the bounds is clamped in, like a colony cat', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), { extras: [{ name: 'Marmalade', rng: mulberry32(2), spot: { x: 900, z: -900 }, wanderer: true }] });
+    const w = cats.strays[0];
+    expect([w.home.x, w.home.z]).toEqual([AREA.bounds.maxX - 0.5, AREA.bounds.minZ + 0.5]);
+  });
+  it('wears no legend glow or star; a legendary extra with a spot still does', () => {
+    withFakeDocument(() => {
+      const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), {
+        extras: [wanderer(), { name: 'Captain Barnacle', rng: mulberry32(4), spot: { x: -3, z: 3 } }],
+      });
+      const w = cats.strays.find((s) => s.name === 'Marmalade');
+      expect(w.tag.userData.legend).toBe(false);
+      expect(w.group.children.filter((o) => o.userData?.legendGlow)).toHaveLength(0);
+      const l = cats.strays.find((s) => s.name === 'Captain Barnacle');
+      expect(l.tag.userData.legend).toBe(true);
+      expect(l.group.children.filter((o) => o.userData?.legendGlow)).toHaveLength(1);
+      expect(l.wanderer).toBe(false);
+      expect([l.home.x, l.home.z]).toEqual([-3, 3]);
+      expect(() => cats.update(0.05, 0, FAR, NO_OPTS)).not.toThrow();
+    });
+  });
+  it('a non-kittypet is refused as a wanderer extra', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(1), { extras: [{ name: 'Pickles', rng: mulberry32(2), wanderer: true }] });
+    expect(cats.strays).toHaveLength(3);
+    expect(cats.strays.some((s) => s.name === 'Pickles' && s.wanderer === true)).toBe(false);
+  });
+  it('a kittypet without the wanderer flag is refused', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), { extras: [{ name: 'Marmalade', rng: mulberry32(2) }] });
+    expect(cats.strays).toHaveLength(0);
+  });
+  it('two devices with 22 and 14 strays place the same wanderer at the same spot and facing', () => {
+    const a = createStrayCats(fakeScene(), AREA, 22, mulberry32(5), { extras: [wanderer(7)], excludeNames: ['Marmalade'] });
+    const b = createStrayCats(fakeScene(), AREA, 14, mulberry32(5), { extras: [wanderer(7)], excludeNames: ['Marmalade'] });
+    const w = (c) => c.strays.find((s) => s.name === 'Marmalade');
+    expect([w(a).home.x, w(a).home.z, w(a).group.rotation.y]).toEqual([w(b).home.x, w(b).home.z, w(b).group.rotation.y]);
+  });
+});
+
+describe('createStrayCats — the extras wear the kittypet collar', () => {
+  const ringHex = (s) => s.group.getObjectByName('collar')?.children[0]?.material?.color?.getHex();
+  const clanCollar = (n) => housecatCollar({ edition: 'clan' }, n);
+  it('a legendary Duchess extra gets the heart charm through collarFor', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), { extras: [{ name: 'Duchess', rng: mulberry32(2) }], collarFor: clanCollar });
+    const d = cats.strays.find((s) => s.name === 'Duchess');
+    expect(clanCollar('Duchess')).toBe('heart');
+    expect(ringHex(d)).toBe(0xf27ab0);
+    expect(d.group.getObjectByName('collar').children).toHaveLength(4);   // ring, charm, two lobes
+  });
+  it('a wanderer extra gets the bell', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), {
+      extras: [{ name: 'Marmalade', rng: mulberry32(2), spot: { x: 0, z: 0 }, wanderer: true }], collarFor: clanCollar,
+    });
+    const m = cats.strays[0];
+    expect(clanCollar('Marmalade')).toBe('bell');
+    expect(m.group.getObjectByName('collar').children).toHaveLength(2);   // ring and bell
+    m.group.getObjectByName('collar').traverse((o) => { if (o.isMesh) expect(o.userData.noCast).toBe(true); });
+  });
+  it('in Legacy neither wears one', () => {
+    const legacy = (n) => housecatCollar({ edition: 'legacy' }, n);
+    const cats = createStrayCats(fakeScene(), AREA, 0, mulberry32(1), {
+      extras: [{ name: 'Duchess', rng: mulberry32(2) }, { name: 'Marmalade', rng: mulberry32(3), spot: { x: 0, z: 0 }, wanderer: true }],
+      collarFor: legacy,
+    });
+    expect(cats.strays).toHaveLength(2);
+    for (const s of cats.strays) expect(s.group.getObjectByName('collar')).toBeFalsy();
   });
 });

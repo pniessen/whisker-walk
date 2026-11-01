@@ -1217,6 +1217,8 @@ export function createInteractions({
     // with all 48 cats gets a normal greet rather than a silent dead end
     // that pays nothing and remembers nothing.
     if (grudgeable
+        // A wanderer is a harmless visitor (Kittypets decision 6): it never turns hostile.
+        && !stray.wanderer
         && shouldTurnHostile(progression.state, stray.name, s.walkStamp, {
           forgivenThisWalk: s.enemies?.wasForgiven(stray.name) ?? false,
         })

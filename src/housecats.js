@@ -6,6 +6,7 @@ import { isClanEdition } from './edition.js';
 import { isKittypetName, KITTYPET_NAMES, CAT_NAMES } from './straynames.js';
 import { seedFromCode, mulberry32 } from './rng.js';
 import { TERRITORY_AREAS } from './colony.js';
+import { OUTSIDE_WORDS, PLACE_WORDS } from './clanwords.js';
 
 // The wander roll is per UTC day and territory (spec section 3 builder note):
 // the same day boundary as the daily race and the streak in game/walk.js
@@ -87,4 +88,10 @@ export function wanderSpotFor(start, isWalkable, camp) {
     }
   }
   return null;
+}
+
+// The toast when the day's wanderer is in this walk. Clan Edition only (the
+// caller checks), so there is no Legacy wording.
+export function wanderArrivalLine(name) {
+  return `${name} the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`;
 }
