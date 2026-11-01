@@ -1,5 +1,7 @@
+import { TORSO, HEAD } from './torso.js';
+
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
-const CAT_BASE = { bodyY: 0.34, bodyScale: [0.85, 0.75, 1.35], headPos: [0, 0.56, -0.44], tailRotX: -0.6 };
+const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
 
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
@@ -55,28 +57,50 @@ const CROSS = {
 // follows avatar.position every frame), leaving the leg gait itself intact.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
   pose(cat, state, t, moveSpeed, reducedMotion);
-  if (cat.userData.base?.legLift) fitLongLegs(cat);
+  const base = cat.userData.base;
+  if (base?.legLift) fitLongLegs(cat);
+  if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
 }
 
-// A cat built with STYLE.legLen (Digit) stands on longer legs: model.js lifted
-// its hips, body, head and everything else by Δ = base.legLift. Every pose in
-// pose() below is written for a standard leg, and a longer leg scaled or swung about
-// a higher hip puts its paw somewhere else — the cat hovered in a sit, a nap
-// and a stalk. This pass, run after the pose, re-fits the cat to the pose:
+// torso.js POSE_FIT: a per-state height correction, measured against the old
+// rig, for a pose that the new torso's shape leaves resting too high or too
+// low. It moves every part fitLongLegs moves — body, belly, tail, ruff, body-
+// and back-slot items — so the torso never pulls away from its tail and items;
+// the head gets its own `head` value when the fit gives one. A rig without
+// poseFit (Hagrid) never reaches here.
+function applyPoseFit(cat, fit) {
+  const { head, legs } = cat.userData.parts;
+  const dBody = fit.body ?? 0;
+  const dHead = fit.head ?? dBody;
+  for (const child of cat.children) {
+    if (legs.includes(child) || child.userData.liftY === undefined) continue;
+    child.position.y += child === head ? dHead : dBody;
+  }
+}
+
+// Every cat now stands on longer legs than the reference rig (torso.js
+// REF_RIG, hip 0.3) that every pose in pose() below was written for: its hips,
+// body, head and everything else sit Δ = base.legLift higher (0.09 for a
+// standard cat, more for Digit's STYLE.legLen). A longer leg scaled or swung
+// about a higher hip puts its paw somewhere else — the cat hovered in a sit, a
+// nap and a stalk. This pass, run after the pose, re-fits the cat to the pose:
 //
 //   * a crouch (any leg folded, scale.y < 1) brings everything but the legs
 //     down by Δ, so the body rests exactly as low as a standard cat's does;
 //   * every leg the pose scaled or swung (up to ~57°, so a raised grooming paw
 //     is left alone) gets the scale that lands its sole where a standard leg's
 //     sole would land: hip + Δ - s'·(R + Δ)·cosθ = hip - s·R·cosθ.
+//   * then every leg is capped so its sole cannot pass below the ground
+//     (ruling R2): s'·(R + Δ)·cosθ <= hip. This is what keeps the stretch's
+//     lengthened hind legs out of the ground.
 //
 // A standing cat is untouched; a walking one has its swinging legs re-fit each
-// frame so its paws track a standard cat's. A standard cat never
-// reaches here at all. Deterministic: it reads only the pose just written.
+// frame so its paws track the reference rig's. A rig without legLift (Hagrid)
+// never reaches here at all. Deterministic: it reads only the pose just written.
 const LONG_LEG_MAX_SWING = 1.0;
 function fitLongLegs(cat) {
   const { body, head, legs } = cat.userData.parts;
-  const { legLift: lift, legReach: reach } = cat.userData.base;
+  const { legLift: lift, legReach: reach, hipY } = cat.userData.base;
   // Contract with pose(): it may only shrink a leg (scale.y < 1) when it also lowers the body.
   const crouch = legs.some((leg) => leg.scale.y < 1);
   for (const child of cat.children) {
@@ -90,9 +114,11 @@ function fitLongLegs(cat) {
   for (const leg of legs) {
     const s = leg.scale.y;
     const swing = Math.abs(leg.rotation.x);
-    if ((s === 1 && swing === 0) || swing > LONG_LEG_MAX_SWING) continue;
     const c = Math.cos(swing);
-    leg.scale.y = (s * reach * c + lift) / ((reach + lift) * c);
+    if (!(s === 1 && swing === 0) && swing <= LONG_LEG_MAX_SWING) {
+      leg.scale.y = (s * reach * c + lift) / ((reach + lift) * c);
+    }
+    if (c > 0) leg.scale.y = Math.min(leg.scale.y, hipY / ((reach + lift) * c));
   }
 }
 

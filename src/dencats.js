@@ -379,7 +379,7 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
       const breed = strayBreed(name);
       const body = buildCat(breed, {});
       body.scale.setScalar(LITTLE_SCALE);
-      body.userData.parts.head.scale.setScalar(LITTLE_HEAD);
+      body.userData.parts.head.scale.multiplyScalar(LITTLE_HEAD); // on top of the cat's own head scale
       holder.add(body);
       holder.rotation.y = mother.yaw + ((nameHash(name) % 100) / 100 - 0.5) * 0.8;
       const tag = makeNameTag(name);

@@ -415,3 +415,32 @@ describe('coatColor', () => {
     expect(coatColor('hagrid')).toBe(0xb06a30);
   });
 });
+
+describe('cat model: the Version 2 proportions', () => {
+  it('stands on longer legs with air under the belly', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(cat.userData.parts.body).min.y).toBeGreaterThan(0.18); // was 0.10
+    expect(cat.userData.parts.head.position.toArray()).toEqual([0, 0.70, -0.40]);
+    expect(cat.userData.parts.head.scale.x).toBe(1.06);
+    expect(cat.userData.base.legLift).toBeCloseTo(0.09, 6);
+    expect(cat.userData.base.hipY).toBeCloseTo(0.39, 6);
+  });
+  it.each(['tabby', 'digit'])('%s: feet items hang from the paw, not from the old leg', (breed) => {
+    const paw = (leg) => leg.userData.paw.position.y;
+    for (const leg of buildCat(breed, { feet: 'goldbooties' }).userData.parts.legs) {
+      const cuff = leg.children.find((m) => m.geometry?.type === 'CylinderGeometry' && m.geometry.parameters.height === 0.035);
+      expect(cuff.position.y - paw(leg)).toBeCloseTo(0.0385, 6);
+    }
+    for (const leg of buildCat(breed, { feet: 'sneakers' }).userData.parts.legs) {
+      const stripe = leg.children.find((m) => m.geometry?.type === 'BoxGeometry');
+      expect(stripe.position.y - paw(leg)).toBeCloseTo(-0.0115, 6);
+    }
+  });
+  it.each(['tabby', 'digit', 'mainecoon'])('%s: every feet item stays on the ground', (breed) => {
+    for (const feet of ['booties', 'goldbooties', 'sneakers', 'rainboots', 'socks']) {
+      const cat = buildCat(breed, { feet }); animateCat(cat, 'follow', 1.3, 0, false);
+      cat.updateMatrixWorld(true);
+      expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x).toBeGreaterThan(-0.02); // precise box
+    }
+  });
+});

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { buildCat } from '../src/cat/model.js';
 import { CATALOG } from '../src/progression.js';
-import { PRESETS, STATES, poseMeasure, meshCount } from './helpers/catfingerprint.js';
+import { PRESETS, STATES, STANDING, DRESSED, poseMeasure, meshCount } from './helpers/catfingerprint.js';
 
 // The old rig's pose heights and accessory mesh costs, recorded once before the reshape.
 // Record with RECORD_BASELINE=1 (write-once: only if the files are missing).
@@ -40,4 +40,22 @@ describe('old-rig pose baseline', () => {
   it('only digit has a leg lift today', () => {
     for (const b of PRESETS) expect(BASELINE[b].legLift).toBeCloseTo(b === 'digit' ? 0.091 : 0, 6);
   });
+});
+
+// R1/R2 on the reshaped body, measured against the old rig's baseline.
+const rise = (b) => buildCat(b).userData.base.legLift - BASELINE[b].legLift;
+describe('poses on the new body (R1, R2)', () => {
+  for (const b of PRESETS) for (const s of STATES) {
+    it(`${b} ${s}`, () => {
+      const now = poseMeasure(buildCat(b), s), was = BASELINE[b][s];
+      expect(now.min).toBeGreaterThanOrEqual(-0.01);                         // R2: never in the ground
+      expect(poseMeasure(buildCat(b, DRESSED), s).min).toBeGreaterThanOrEqual(-0.01);
+      if (STANDING.includes(s)) {
+        expect(Math.abs(now.torsoMin - (was.torsoMin + rise(b)))).toBeLessThanOrEqual(0.02); // R1
+      } else {
+        expect(now.torsoMin).toBeGreaterThanOrEqual(Math.max(was.torsoMin - 0.01, -0.01));
+        expect(now.torsoMin).toBeLessThanOrEqual(Math.max(was.torsoMin, 0) + 0.02);
+      }
+    });
+  }
 });

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
+import { TORSO, LEGACY_BODY, LEGS, PAW_Y, HEAD, REF_RIG, POSE_FIT } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -240,6 +241,15 @@ function dirOn(point, centre, scale) {
     (point[1] - centre[1]) / scale[1],
     (point[2] - centre[2]) / scale[2],
   ];
+}
+
+// A limb hanging from its hip pivot: a tapered cylinder whose top is at the
+// pivot (y = 0) and whose length runs down -y, baked into the geometry so the
+// mesh itself sits at 0. `hind` is for the hind leg's own shape (a later task).
+function limbGeometry(len, hind) {
+  const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
+  geo.translate(0, -len / 2, 0);
+  return geo;
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -685,20 +695,24 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // back-slot accessories take fx/fy/fz too. With no `body` the factors are
   // exactly 1 and every product below is the old number bit-for-bit, which is
   // what keeps the standard breeds byte-identical.
-  const BODY_R = 0.32;
+  const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
-  const BODY_SCALE = [0.85 * fx, 0.75 * fy, 1.35 * fz];
-  const BODY_CENTRE = [0, 0.34, 0];
+  const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
+  // The old torso's frame: markings were authored in it (see dirOn below).
+  const LEGACY_SCALE = [LEGACY_BODY.SCALE[0] * fx, LEGACY_BODY.SCALE[1] * fy, LEGACY_BODY.SCALE[2] * fz];
+  // Interim (Tasks 5, 7 and 8 re-place them): the tail, the ruff and every
+  // body- and back-slot item rise with the torso, which now sits 0.09 higher.
+  const ITEM_RISE = 0.09;
   // How far a shallower torso brings the top of the back down: the back-slot
   // items sit on the spine and drop with it rather than float over it.
   const BACK_DROP = BODY_R * 0.75 * (1 - fy);
   const body = ball(BODY_R, s.base, ...BODY_SCALE);
-  body.position.y = 0.34;
+  body.position.y = TORSO.CENTRE_Y;
   g.add(body);
   // The belly hangs off the body's underside, so it narrows with it and its
   // offset below the body centre (0.08) shrinks with the depth.
-  const belly = ball(0.26, s.belly, 0.78 * fx, 0.6 * fy, 1.15 * fz);
-  belly.position.set(0, fy === 1 ? 0.26 : 0.34 - 0.08 * fy, -0.02);
+  const belly = ball(0.26, s.belly, 0.74 * fx, 0.58 * fy, 0.95 * fz);
+  belly.position.set(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz);
   g.add(belly);
 
   // head
@@ -770,29 +784,29 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       }
     }
   }
-  head.position.set(0, 0.56, -0.44);
+  head.position.set(...HEAD.POS);
+  head.scale.setScalar(HEAD.SCALE);
   g.add(head);
 
   if (s.fluffy) {
     const ruff = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.075, 6, 12), mat(s.belly));
     ruff.rotation.x = Math.PI / 2 - 0.35;
-    ruff.position.set(0, 0.46, -0.32);
+    ruff.position.set(0, 0.46 + ITEM_RISE, -0.32);
     g.add(ruff);
   }
 
   // legs: hip-pivoted groups with paw spheres
   const legs = [];
   const legSpots = [
-    [-0.11, -0.3], [0.11, -0.3], // front L, R
-    [-0.11, 0.28], [0.11, 0.28], // back L, R
+    [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
+    [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
   ];
-  for (const [x, z] of legSpots) {
+  for (const [x, z, hind] of legSpots) {
     const leg = new THREE.Group();
     // 6 -> 12 radial segments. At 5cm across and a metre and a half from the
     // camera in the close-up shots, a 6-sided prism shows its flats; 12 costs
     // 24 triangles a leg and reads as a limb.
-    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.058, 0.26, 12), mat(s.whiteLegs ? s.belly : pointColor));
-    limb.position.y = -0.13;
+    const limb = new THREE.Mesh(limbGeometry(LEGS.LEN, hind), mat(s.whiteLegs ? s.belly : pointColor));
     leg.add(limb);
     // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
     // read as a knob on the end of a peg rather than as a foot; and it was
@@ -810,10 +824,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // not from the width.
     const pawColour = s.socks ? WHITE_FUR : s.points ? s.accent : s.belly;
     const paw = shapedBall(0.062, pawColour, 1.02, 0.62, 1.42, 12, 9);
-    paw.position.set(0, -0.2585, -0.012);
+    paw.position.set(0, PAW_Y, -0.012); // the sole stays where it always was
     leg.add(paw);
     leg.userData.paw = paw;
-    leg.position.set(x, 0.3, z);
+    leg.position.set(x, LEGS.HIP_Y, z);
     g.add(leg);
     legs.push(leg);
   }
@@ -893,7 +907,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // is only y = 0.396, so the OLD root floated 4cm clear of the rump — invisible
   // on a 4.8cm rod, obvious on a 6.6cm one. At z = 0.38 the surface is at 0.454,
   // which buries the thicker root inside the body where it belongs.
-  tail.position.set(0, 0.42, 0.38);
+  // Interim (Task 5): up with the torso, and in to the shorter rump.
+  tail.position.set(0, 0.42 + ITEM_RISE, 0.38 * (TORSO.SCALE[2] / LEGACY_BODY.SCALE[2]));
   tail.rotation.x = -0.6;
   g.add(tail);
 
@@ -920,7 +935,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!byColour.has(colour)) byColour.set(colour, []);
     byColour.get(colour).push(...pts.map((p) => ({ ...p, dir: dirOn(p.at, centre, scale) })));
   };
-  const onBody = queue(body, BODY_R, BODY_CENTRE, BODY_SCALE);
+  // Body points were authored on the old torso; converting them through ITS
+  // frame keeps each patch's direction on the new one.
+  const onBody = queue(body, BODY_R, LEGACY_BODY.CENTRE, LEGACY_SCALE);
   const onSkull = queue(skull, SKULL_R, [0, 0, 0], SKULL_SCALE);
   const onMuzzle = queue(muzzle, MUZZLE_R, MUZZLE_CENTRE, MUZZLE_SCALE);
 
@@ -1121,6 +1138,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
   addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08, ringR: 0.15 });
 
+  const firstBodyItem = g.children.length;
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
   // The three shells (and the sweater's knit rings) are scaled by the torso's
   // fx/fy/fz factors so a narrow cat's sweater is narrow too, not a barrel with
@@ -1199,6 +1217,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   }
 
+  const firstBackItem = g.children.length;
   // back: behind the shoulders. On a narrower, shallower torso these ride the
   // spine down by BACK_DROP and pull in (or slim) by fx, so a pack 18cm across
   // does not overhang a kitten's back and the wings stay at the shoulders.
@@ -1255,7 +1274,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     g.add(balloon);
   }
 
-  // feet: small shells on the paw positions
+  // The balloons float on strings rather than sit on the back, and they were
+  // placed to stay inside the shop's whole-cat thumbnail (top < 1.1): they keep
+  // their height.
+  const floats = accessories.back === 'balloon' || accessories.back === 'balloonbunch';
+  const risen = g.children.slice(firstBodyItem, floats ? firstBackItem : undefined);
+  for (const item of risen) item.position.y += ITEM_RISE;
+
+  // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   if (accessories.feet === 'booties') {
     for (const leg of legs) {
       leg.userData.paw.material = mat(0xf2c14e);
@@ -1267,7 +1293,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(PRIZE_GOLD);
       leg.userData.paw.scale.multiplyScalar(1.18);
       const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 8), mat(0xd9a000));
-      cuff.position.set(0, -0.22, 0);
+      cuff.position.set(0, PAW_Y + 0.0385, 0);
       leg.add(cuff);
     }
   } else if (accessories.feet === 'sneakers') {
@@ -1275,7 +1301,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(SNEAKER_WHITE);
       leg.userData.paw.scale.set(1.2, 0.95, 1.25);
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.09), mat(SNEAKER_ACCENT));
-      stripe.position.set(0, -0.27, 0);
+      stripe.position.set(0, PAW_Y - 0.0115, 0);
       leg.add(stripe);
     }
   } else if (accessories.feet === 'rainboots') {
@@ -1305,32 +1331,27 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   //
   // Standing is not the only pose, though. The animator folds legs by scaling
   // them about the hip and swings them by rotating about it, and both of those
-  // move a longer leg's paw further than a standard one's — a long-legged cat
-  // would hover when it sat or crouched. So base also carries `legLift` (Δ)
-  // and `legReach` (a standard leg's hip-to-sole drop), and every lifted child
-  // remembers its lifted height in userData.liftY: animator.js's fitLongLegs
-  // uses them to bring the cat down by Δ in a crouch and re-fit each posed
-  // leg so its sole lands where a standard cat's would.
+  // move a longer leg's paw further than the reference rig's (hip 0.3) that
+  // the poses were written for — and EVERY cat's hip is now above that rig's,
+  // by base.legLift (0.09 standard, more for Digit). So every lifted child
+  // remembers its lifted height in userData.liftY, and animator.js's
+  // fitLongLegs uses legLift and legReach to bring the cat down by legLift in
+  // a crouch and re-fit each posed leg so its sole lands where the reference
+  // rig's would (and never below the ground).
   const LEG_LEN = s.legLen ?? 1;
-  let bodyY = 0.34;
-  let headPos = [0, 0.56, -0.44];
-  let legLift = 0;
-  if (LEG_LEN !== 1) {
-    const dy = 0.26 * (LEG_LEN - 1);
-    legLift = dy;
-    for (const child of g.children) {
-      child.position.y += dy;
-      child.userData.liftY = child.position.y;
-      if (!legs.includes(child)) continue;
-      const [limb, ...hung] = child.children;
-      limb.geometry.dispose();
-      limb.geometry = new THREE.CylinderGeometry(0.046, 0.058, 0.26 * LEG_LEN, 12);
-      limb.position.y = -0.13 * LEG_LEN;
-      for (const part of hung) part.position.y -= dy; // the paw, a sneaker stripe
-    }
-    bodyY += dy;
-    headPos = [0, 0.56 + dy, -0.44];
+  const dy = LEGS.LEN * (LEG_LEN - 1);
+  const hipY = LEGS.HIP_Y + dy;
+  for (const child of g.children) {
+    child.position.y += dy;
+    child.userData.liftY = child.position.y;
+    if (!legs.includes(child) || LEG_LEN === 1) continue;
+    const [limb, ...hung] = child.children;
+    limb.geometry.dispose();
+    limb.geometry = limbGeometry(LEGS.LEN * LEG_LEN, legs.indexOf(child) >= 2);
+    for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
+  const bodyY = TORSO.CENTRE_Y + dy;
+  const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
 
   g.scale.setScalar(s.scale);
   // Never merged. render/mergeprops.js welds a top-level child's leaves into
@@ -1345,9 +1366,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     body, head, tail, tailPivots, legs,
     earL: head.userData.earL, earR: head.userData.earR, whiskers,
   };
-  g.userData.base = { bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: -0.6 };
-  // The sole of a standard paw: hip 0.3, paw centre 0.2585 below it, and the
-  // flattened paw's half-height (0.062 * 0.62) below that.
-  if (legLift) Object.assign(g.userData.base, { legLift, legReach: 0.2585 + 0.062 * 0.62 });
+  // hipY and legLift (the hip's rise over the reference rig the poses were
+  // written for) and legReach (that rig's hip-to-sole drop) drive animator.js's
+  // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
+  g.userData.base = {
+    bodyY, bodyScale: [...BODY_SCALE], headPos, headScale: HEAD.SCALE, tailRotX: -0.6,
+    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
+  };
   return g;
 }
