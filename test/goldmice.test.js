@@ -7,13 +7,14 @@ import { GOLD_MICE, KNOWN_GOLD, GOLD_TOTAL, createGoldMice } from '../src/goldmi
 const GOLD_ID_PATTERN = /^gm-[a-z]{1,24}-[1-9]$/;
 
 describe('GOLD_MICE', () => {
-  it('has exactly 18 mice total, 3 per area', () => {
+  it('has exactly 21 mice total, 3 per area', () => {
     const all = Object.values(GOLD_MICE).flat();
-    expect(all.length).toBe(18);
-    expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river']);
+    expect(all.length).toBe(21);
+    expect(Object.keys(GOLD_MICE)).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor']);
     for (const [area, mice] of Object.entries(GOLD_MICE)) expect(mice.length, area).toBe(3);
     expect(GOLD_MICE.woods.map((m) => m.id)).toEqual(['gm-woods-1', 'gm-woods-2', 'gm-woods-3']);
     expect(GOLD_MICE.river.map((m) => m.id)).toEqual(['gm-river-1', 'gm-river-2', 'gm-river-3']);
+    expect(GOLD_MICE.moor.map((m) => m.id)).toEqual(['gm-moor-1', 'gm-moor-2', 'gm-moor-3']);
   });
 
   it('has unique ids, each matching the sanitize id pattern', () => {
@@ -34,14 +35,14 @@ describe('GOLD_MICE', () => {
     }
   });
 
-  it('KNOWN_GOLD contains exactly the 18 GOLD_MICE ids, no more no less', () => {
+  it('KNOWN_GOLD contains exactly the 21 GOLD_MICE ids, no more no less', () => {
     const ids = Object.values(GOLD_MICE).flat().map((m) => m.id);
-    expect(KNOWN_GOLD.size).toBe(18);
+    expect(KNOWN_GOLD.size).toBe(21);
     for (const id of ids) expect(KNOWN_GOLD.has(id)).toBe(true);
   });
 
-  it('GOLD_TOTAL is 18', () => {
-    expect(GOLD_TOTAL).toBe(18);
+  it('GOLD_TOTAL is 21', () => {
+    expect(GOLD_TOTAL).toBe(21);
   });
 });
 

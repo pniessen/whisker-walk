@@ -178,6 +178,7 @@ const MERGED_AREAS = [
   ['den', buildDen, 185, 110],
   ['woods', buildWoods, 260, 205],
   ['river', buildRiver, 260, 205],
+  ['moor', buildMoor, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

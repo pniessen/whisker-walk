@@ -25,6 +25,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSea } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildDen, DEN_FIXTURES } = await import('../src/world/den.js');
+const { WARREN_BURROWS } = await import('../src/world/moor.js');
 const { DEN_SPOTS } = await import('../src/den.js');
 const { DISCS, patrolPath, borderMarks } = await import('../src/rivalclans.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -440,6 +441,15 @@ test('the den: three rests (drink, eat at the bowls), eight keep slots, nothing 
   for (let i = 0; i < 8; i++) {
     for (let j = i + 1; j < 8; j++) expect(dist(s.keepSlots[i], s.keepSlots[j])).toBeGreaterThanOrEqual(0.55);
   }
+});
+
+test('the Moor: three warren burrows as hides, and nothing else yet', () => {
+  const s = propsFor('moor');
+  expect(s.hides).toEqual([0, 2, 4].map((i) => WARREN_BURROWS[i]));
+  for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
+  expect(s.dogYard).toBeNull();
+  // the Moor adds no prop with an id
+  expect([...allPropIds()].filter((id) => id.startsWith('moor-'))).toEqual([]);
 });
 
 test('propsFor is total and returns fresh copies', () => {

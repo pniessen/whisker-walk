@@ -245,6 +245,21 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Moor: only its hides for now, three of the rabbit warren's burrows
+  // (src/world/moor.js's WARREN_BURROWS 0, 2 and 4), the holes a fleeing
+  // mouse dives into. The rest of a Moor prop set is deferred: nothing to
+  // carry, knock, mark or rest on yet.
+  moor: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [],
+    hides: [{ x: 37.34, z: -30.97 }, { x: 32.25, z: -28.97 }, { x: 31.44, z: -34.38 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   den: {
     carryables: [],
     knockables: [],

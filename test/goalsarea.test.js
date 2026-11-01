@@ -24,7 +24,7 @@ const { createGoals, GOAL_POOL } = await import('../src/goals.js');
 const { mulberry32 } = await import('../src/rng.js');
 
 const AREAS = {};
-for (const id of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river']) {
+for (const id of ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor']) {
   const { build } = await import(`../src/world/${id}.js`);
   AREAS[id] = build(new THREE.Scene());
 }
@@ -73,6 +73,15 @@ describe('goals fit the area', () => {
   it('the River never offers tipping, a box or head scratches', () => {
     const seen = new Set();
     for (const seed of SEEDS) for (const g of createGoals(mulberry32(seed), AREAS.river).goals) seen.add(g.id);
+    expect(seen.has('tip-things')).toBe(false);
+    expect(seen.has('box-sit')).toBe(false);
+    expect(seen.has('get-scratches')).toBe(false);
+    expect(seen.size).toBe(GOAL_POOL.length - 3);
+  });
+
+  it('the Moor never offers tipping, a box or head scratches', () => {
+    const seen = new Set();
+    for (const seed of SEEDS) for (const g of createGoals(mulberry32(seed), AREAS.moor).goals) seen.add(g.id);
     expect(seen.has('tip-things')).toBe(false);
     expect(seen.has('box-sit')).toBe(false);
     expect(seen.has('get-scratches')).toBe(false);

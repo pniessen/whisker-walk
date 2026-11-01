@@ -24,11 +24,18 @@ vi.stubGlobal('document', {
 
 const moor = await import('../src/world/moor.js');
 const { build: buildWoods, WOODS_WATERS, WOODS_PATHS } = await import('../src/world/woods.js');
-const { inWater } = await import('../src/world/builder.js');
+const { inWater, waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
+const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
+const { clearSpot } = await import('../src/world/spots.js');
+const { raceCourse } = await import('../src/race.js');
+const { seedFromCode } = await import('../src/rng.js');
+const { propsFor } = await import('../src/propsets.js');
 
 const {
   build, SPAWN, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, ISLAND_BRIDGE_WOODS, MOOR_HORIZON,
+  TORS, WARREN_BURROWS, MOOR_KEEP_CLEAR,
 } = moor;
 
 const built = () => {
@@ -317,5 +324,263 @@ describe('the Moor: the area record', () => {
   it('nothing in the Moor reads the edition', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/world/moor.js', import.meta.url)), 'utf8');
     expect(src).not.toMatch(/edition/i);
+  });
+});
+
+describe('the Moor: things to find, climb and race', () => {
+  const POIS = [[40, 8], [30, 24], [6, -14], [-30, -14], [-24, -40], [20, -40], [-6, 20], [8, 44], [40, -24]];
+  const perchAt = (x, z) => area.perches.find((p) => p.x === x && p.z === z && !p.requires);
+  const collider = (x, z) => area.colliders.find((c) => c.x === x && c.z === z);
+  const waterDist = (x, z) => Math.min(...MOOR_WATERS.map((w) => waterGap(w, x, z)));
+  // Where the race rings stand: each POI pushed clear of colliders and water,
+  // exactly as the game does.
+  const rings = () => area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
+
+  it('moor: nine POIs, all at least 2 m from water and clear of every collider', () => {
+    expect(area.pois.map((p) => [p.x, p.z])).toEqual(POIS);
+    for (const p of area.pois) {
+      const at = `poi (${p.x}, ${p.z})`;
+      expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
+      // clear by clearSpot's own margin, so a race ring stands on the POI
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+      }
+    }
+    expect(rings().map((p) => [p.x, p.z])).toEqual(POIS);
+  });
+
+  it('moor: five collectibles, three scenics, at least two vantage perches', () => {
+    expect(area.collectibles).toEqual([
+      { id: 'moor-find-1', x: 30, z: 14, label: 'a tuft of rabbit fur' },
+      { id: 'moor-find-2', x: -28, z: -26, label: 'a skylark feather' },
+      { id: 'moor-find-3', x: -6, z: 30, label: 'a smooth pebble from the lakeshore' },
+      { id: 'moor-find-4', x: 10, z: -20, label: 'a sprig of white heather' },
+      { id: 'moor-find-5', x: -18, z: -34, y: 0.72, label: 'a gorse flower on the low rock' },
+    ]);
+    expect(area.scenics).toEqual([
+      { id: 'moor-lake', x: -10, z: 12, label: 'the lake and the island' },
+      { id: 'river-bend', x: 28, z: -10, label: 'where the river turns west' },
+      { id: 'warren', x: 34, z: -32, label: 'the rabbit warren' },
+    ]);
+    const vantages = area.perches.filter((p) => p.vantage);
+    expect(vantages.length).toBeGreaterThanOrEqual(2);
+    for (const v of vantages) expect(typeof v.label).toBe('string');
+  });
+
+  it("moor: the High Tor chain is two hops and its top can't be reached from the ground", () => {
+    const low = perchAt(-18, -34);
+    const top = perchAt(-19, -35);
+    expect(low).toEqual({ x: -18, z: -34, y: 0.72, kind: 'stone' });
+    expect(top).toEqual({ x: -19, z: -35, y: 1.9, kind: 'stone', label: 'high tor', vantage: true });
+    expect(collider(-18, -34)?.r).toBe(0.7);
+    expect(collider(-19, -35)?.r).toBe(0.9);
+    expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+    expect(canReach(top, { x: low.x, z: low.z }, low.y)).toBe(true);
+    expect(canReach(top, { x: top.x, z: top.z }, 0)).toBe(false);
+    expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it("moor: the old hawthorn chain is two hops and its branch can't be reached from the ground", () => {
+    const boulder = perchAt(-3.6, 36.6);
+    const branch = perchAt(-2, 38);
+    expect(boulder).toEqual({ x: -3.6, z: 36.6, y: 0.72, kind: 'stone' });
+    expect(branch).toEqual({ x: -2, z: 38, y: 2.1, kind: 'tree', label: 'old hawthorn lookout', vantage: true });
+    expect(collider(-3.6, 36.6)?.r).toBe(0.7);
+    expect(collider(-2, 38)?.r).toBe(0.8);
+    // the root that closes the crevice between the boulder and the trunk
+    expect(collider(-2.83, 37.27)?.r).toBe(0.35);
+    expect(canReach(boulder, { x: boulder.x, z: boulder.z }, 0)).toBe(true);
+    expect(canReach(branch, { x: boulder.x, z: boulder.z }, boulder.y)).toBe(true);
+    expect(canReach(branch, { x: branch.x, z: branch.z }, 0)).toBe(false);
+    expect(reachesWithin(area, boulder.x, boulder.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('moor: each tor is one hop up, and its top is where its perch is', () => {
+    expect(TORS).toEqual([
+      { x: 28, z: -44, r: 1.4, h: 1.5 },
+      { x: -40, z: -22, r: 1.2, h: 1.2 },
+      { x: 42, z: -6, r: 1.3, h: 1.4 },
+      { x: 12, z: 18, r: 1.2, h: 1.1 },
+    ]);
+    scene.updateMatrixWorld(true);
+    TORS.forEach(({ x, z, r, h }, i) => {
+      const perch = perchAt(x, z);
+      expect(perch, `tor ${i}`).toEqual({ x, z, y: h, kind: 'stone' });
+      expect(collider(x, z), `tor ${i}`).toEqual({ x, z, r });
+      expect(canReach(perch, { x, z }, 0), `tor ${i}`).toBe(true);
+      // and a cat can walk up to it
+      expect(reachesWithin(area, x, z, BASE_CLIMB_BUDGET.reachHigh), `tor ${i}`).toBe(true);
+      const mesh = scene.getObjectByName(`tor-${i}`);
+      expect(mesh, `tor-${i}`).toBeTruthy();
+      const box = new THREE.Box3().setFromObject(mesh);
+      expect(Math.abs(box.max.y - h), `tor-${i} top`).toBeLessThanOrEqual(0.05);
+    });
+  });
+
+  it('the tall rock is as wide at its foot as its collider', () => {
+    const tall = scene.getObjectByName('highTor');
+    expect(tall).toBeTruthy();
+    expect(tall.geometry.parameters.radiusBottom).toBe(0.9);
+    expect(tall.geometry.parameters.radiusTop).toBe(0.75);
+    expect(tall.geometry.parameters.height).toBe(1.9);
+    expect(scene.getObjectByName('highTorRock')).toBeTruthy();
+  });
+
+  it('puts the climbing golden mice on the chain tops and hides the third among three bushes', () => {
+    const [tor, thorn, hidden] = GOLD_MICE.moor;
+    expect(GOLD_MICE.moor).toEqual([
+      { id: 'gm-moor-1', x: -19, z: -35, y: 1.9 },
+      { id: 'gm-moor-2', x: -2.75, z: 38, y: 2.1 },
+      { id: 'gm-moor-3', x: -38, z: -42, y: 0 },
+    ]);
+    expect(perchAt(tor.x, tor.z)?.y).toBe(tor.y);
+    // the hawthorn's mouse is out along the limb, inside checkFind's 1.0 m of
+    // a cat on the branch perch, and clear of the trunk (r 0.45 there)
+    const branch = perchAt(-2, 38);
+    expect(branch.y).toBe(thorn.y);
+    expect(Math.hypot(thorn.x - branch.x, thorn.z - branch.z)).toBeLessThan(1.0);
+    expect(Math.hypot(thorn.x - branch.x, thorn.z - branch.z)).toBeGreaterThan(0.45 + 0.12);
+    expect(hidden.y).toBe(0);
+    for (const [x, z] of [[-36, -44], [-40, -44], [-38, -39]]) {
+      const bush = scene.children.find((o) => o.position.x === x && o.position.z === z);
+      expect(bush, `bush (${x}, ${z})`).toBeTruthy();
+      // a cat pushes through a bush: nothing stands in its way
+      expect(collider(x, z)).toBeUndefined();
+    }
+  });
+
+  // Everything a kid hunts for, with where a cat must stand to get it: on the
+  // spot itself for a POI, a race ring, a scenic or a ground find; within the
+  // climb reach of the first rock of the chain an elevated one sits on.
+  const targets = () => {
+    const firstStep = (x, z) => {
+      if (Math.hypot(x - -2, z - 38) < 1) return perchAt(-3.6, 36.6);
+      if (Math.hypot(x - -19, z - -35) < 1.5) return perchAt(-18, -34);
+      return null;
+    };
+    const list = [
+      ...area.pois.map((p) => ({ what: `poi (${p.x}, ${p.z})`, ...p })),
+      ...rings().map((p) => ({ what: `race ring (${p.x}, ${p.z})`, ...p })),
+      ...area.scenics.map((p) => ({ what: p.id, ...p })),
+      ...area.collectibles.map((p) => ({ what: p.id, ...p })),
+      ...GOLD_MICE.moor.map((p) => ({ what: p.id, ...p })),
+    ];
+    return list.map((t) => {
+      if (!(t.y > 0)) return t;
+      const step = firstStep(t.x, t.z);
+      expect(step, `${t.what} sits on no chain`).toBeTruthy();
+      return { ...t, step };
+    });
+  };
+
+  it('every find, POI, scenic, golden mouse and race ring is reachable on foot from the spawn', () => {
+    const missed = [];
+    for (const t of targets()) {
+      const ok = t.step
+        ? reachesWithin(area, t.step.x, t.step.z, BASE_CLIMB_BUDGET.reachLow)
+        : reaches(area, t.x, t.z);
+      if (!ok) missed.push(t.what);
+    }
+    expect(missed).toEqual([]);
+    // the lakeshore heath, named, so a regression there says so
+    for (const [x, z] of [[-6, 20], [-6, 30], [-10, 12]]) expect(reaches(area, x, z), `(${x}, ${z})`).toBe(true);
+  });
+
+  it('keeps every find, perch, bush, puddle, burrow and the spawn in MOOR_KEEP_CLEAR', () => {
+    const has = (x, z) => MOOR_KEEP_CLEAR.some(([px, pz]) => px === x && pz === z);
+    const all = [
+      ...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.moor,
+      ...area.perches.filter((p) => !p.requires && !TORS.some((t) => t.x === p.x && t.z === p.z)),
+      ...[[-36, -44], [-40, -44], [-38, -39]].map(([x, z]) => ({ x, z })),
+      ...area.puddles, ...WARREN_BURROWS, SPAWN,
+    ];
+    for (const p of all) expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
+    expect(Object.isFrozen(MOOR_KEEP_CLEAR)).toBe(true);
+  });
+
+  it("the hawthorn's golden mouse is in sight from the ground and from the chase camera", () => {
+    const tree = scene.getObjectByName('oldHawthorn');
+    expect(tree).toBeTruthy();
+    const m = GOLD_MICE.moor.find((g) => g.id === 'gm-moor-2');
+    scene.updateMatrixWorld(true);
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    const clear = (eye) => {
+      const dir = target.clone().sub(eye);
+      const ray = new THREE.Raycaster(eye, dir.clone().normalize(), 0, dir.length());
+      return ray.intersectObject(tree, true).length === 0;
+    };
+    // a cat's eye on the boulder and on the heath in front of the tree
+    for (const [x, y, z] of [[-3.6, 0.72 + 0.9, 36.6], [-6, 0.9, 38]]) expect(clear(new THREE.Vector3(x, y, z)), `eye (${x}, ${z})`).toBe(true);
+    // the chase camera at the default zoom step (camzoom step 1: 4.5 m out, 2.2 m up),
+    // behind a cat 3 m from the trunk to the north, the south and the west (the limb's
+    // side). The east is behind the trunk, as for the Woods' oak, and is not asserted.
+    const T = { x: -2, z: 38 };
+    for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0]]) {
+      const cam = new THREE.Vector3(T.x + dx * 7.5, 2.2, T.z + dz * 7.5);
+      expect(clear(cam), `camera ${dx},${dz}`).toBe(true);
+    }
+    // and behind a cat on the boulder, looking at the trunk
+    const d = new THREE.Vector2(-3.6 - T.x, 36.6 - T.z).normalize();
+    expect(clear(new THREE.Vector3(-3.6 + d.x * 4.5, 0.72 + 2.2, 36.6 + d.y * 4.5)), 'camera behind the boulder').toBe(true);
+  });
+
+  it("the High Tor's golden mouse is in sight from the chase camera", () => {
+    const rocks = [scene.getObjectByName('highTor'), scene.getObjectByName('highTorRock')];
+    for (const r of rocks) expect(r).toBeTruthy();
+    const m = GOLD_MICE.moor.find((g) => g.id === 'gm-moor-1');
+    scene.updateMatrixWorld(true);
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    // a cat 3 m from the pillar on each of its four sides, the camera 4.5 m
+    // further out and 2.2 m up (camzoom's default step)
+    for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      const cam = new THREE.Vector3(m.x + dx * 7.5, 2.2, m.z + dz * 7.5);
+      const dir = target.clone().sub(cam);
+      const ray = new THREE.Raycaster(cam, dir.clone().normalize(), 0, dir.length());
+      expect(ray.intersectObjects(rocks, true).length, `camera ${dx},${dz}`).toBe(0);
+    }
+  });
+
+  it('carries its critters, one moment and two puddles, and no villagers', () => {
+    expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
+      { type: 'rabbit', x: 32, z: -30, x2: 37, z2: -35 },
+      { type: 'rabbit', x: 36, z: -29, x2: 30, z2: -24 },
+      { type: 'rabbit', x: 4, z: 40, x2: 10, z2: 34 },
+      { type: 'butterfly', x: -4, z: 24 }, { type: 'butterfly', x: 0, z: 26 }, { type: 'butterfly', x: -8, z: 26 },
+      { type: 'duck', x: -20, z: 14 }, { type: 'duck', x: -18, z: 16 }, { type: 'duck', x: -22, z: 17 },
+      { type: 'mouse', x: -26, z: -20, x2: -22, z2: -26 },
+      { type: 'mouse', x: 10, z: -36, x2: 14, z2: -30 },
+    ]);
+    expect(area.critterSpawns.some((c) => c.type === 'villager' || c.type === 'squirrel')).toBe(false);
+    expect(area.moments).toEqual([
+      { id: 'rabbit-bolt', type: 'rabbit', label: 'a rabbit bolting for its burrow', x: 34, z: -32, from: { x: 26, z: -22 } },
+    ]);
+    expect(area.puddles).toEqual([{ x: 30, z: 40, r: 0.9 }, { x: -20, z: -18, r: 0.8 }]);
+    for (const p of area.puddles) {
+      expect(scene.children.some((o) => o.position.x === p.x && o.position.z === p.z && o.geometry?.type === 'CircleGeometry')).toBe(true);
+    }
+  });
+
+  it("the warren's burrows are the Moor's hides, and every hide is dry and reachable", () => {
+    expect(WARREN_BURROWS).toEqual([
+      { x: 37.34, z: -30.97 }, { x: 35.28, z: -28.74 }, { x: 32.25, z: -28.97 }, { x: 30.54, z: -31.48 },
+      { x: 31.44, z: -34.38 }, { x: 34.26, z: -35.49 }, { x: 36.89, z: -33.97 },
+    ]);
+    // a 3.5 m ring round the warren scenic
+    for (const p of WARREN_BURROWS) expect(Math.hypot(p.x - 34, p.z - -32)).toBeCloseTo(3.5, 1);
+    const s = propsFor('moor');
+    expect(s.hides).toEqual([0, 2, 4].map((i) => WARREN_BURROWS[i]));
+    for (const h of s.hides) {
+      expect(inWater(MOOR_WATERS, h.x, h.z), `(${h.x}, ${h.z})`).toBe(false);
+      expect(reaches(area, h.x, h.z), `(${h.x}, ${h.z})`).toBe(true);
+    }
+    for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
+    expect(s.dogYard).toBeNull();
+  });
+
+  it('race: a Moor course of five rings is drawn from its POIs', () => {
+    const course = raceCourse(area.pois, seedFromCode('2026-11-01-moor'));
+    expect(course).toHaveLength(5);
+    expect(new Set(course).size).toBe(5);
+    for (const p of course) expect(area.pois).toContain(p);
   });
 });

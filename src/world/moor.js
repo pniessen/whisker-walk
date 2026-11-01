@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
 // The Moor.
@@ -163,12 +164,140 @@ export const MOOR_HORIZON = Object.freeze({
   sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x8a8478, south: 0x4f7a48, west: 0x3f5a46 }),
 });
 
+// --- the things to find ------------------------------------------------------
+// Laid out before the scenery (Task 5's thorns, pines, heather, gorse and
+// reeds), because MOOR_KEEP_CLEAR (below) is built from these very records:
+// whatever a kid hunts for, nothing grows on it.
+
+// The nine points of interest the race and the quests draw on. Each stands at
+// least 2 m from the water and far enough from every rock and trunk that
+// spots.js's clearSpot leaves it exactly where it is, so a race ring stands on
+// its POI (test/moor.test.js checks both, and floods each one from the spawn).
+const POIS = [
+  [40, 8], [30, 24], [6, -14], [-30, -14], [-24, -40], [20, -40], [-6, 20], [8, 44], [40, -24],
+].map(([x, z]) => ({ x, z }));
+
+const SCENICS = [
+  { id: 'moor-lake', x: -10, z: 12, label: 'the lake and the island' },
+  { id: 'river-bend', x: 28, z: -10, label: 'where the river turns west' },
+  { id: 'warren', x: 34, z: -32, label: 'the rabbit warren' },
+];
+
+const COLLECTIBLES = [
+  { id: 'moor-find-1', x: 30, z: 14, label: 'a tuft of rabbit fur' },
+  { id: 'moor-find-2', x: -28, z: -26, label: 'a skylark feather' },
+  { id: 'moor-find-3', x: -6, z: 30, label: 'a smooth pebble from the lakeshore' },
+  { id: 'moor-find-4', x: 10, z: -20, label: 'a sprig of white heather' },
+  // on the High Tor's low rock, so one hop up
+  { id: 'moor-find-5', x: -18, z: -34, y: 0.72, label: 'a gorse flower on the low rock' },
+];
+
+// The two climb chains, two hops each, the shape the Woods use. The High Tor
+// on the moor top: a grey boulder, then a tall granite pillar 1.41 m across
+// and 1.18 m up from it (the Woods' Lookout Rocks). The Old Hawthorn on the
+// lakeshore heath: a grey boulder at its foot, then its low branch, 2.13 m
+// across and 1.38 m up from the boulder (inside the 2.6 reach and the 1.6
+// climb), and at 2.1 too high to reach from the heather (the Woods' Great Oak,
+// the same offsets exactly). A golden mouse sits on each top
+// (src/goldmice.js). The colliders sit under the perches, so a cat walks round
+// the rocks and up onto them.
+const OLD_HAWTHORN = { x: -2, z: 38, scale: 1.6, r: 0.8 };
+const CHAIN_ROCKS = [
+  { x: -3.6, z: 36.6, r: 0.7 },
+  { x: -18, z: -34, r: 0.7, name: 'highTorRock' },
+];
+// The boulder sits in the hawthorn's roots. The crevice between their
+// colliders is narrower than a cat, so one more collider closes it rather than
+// leave a dead-end notch.
+const HAWTHORN_ROOT = { x: -2.83, z: 37.27, r: 0.35 };
+// The pillar is as wide at its foot as its collider, so a cat walking round it
+// never stops short of the stone it sees.
+const HIGH_TOR = { x: -19, z: -35, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9 };
+const CHAIN_PERCHES = [
+  { x: -3.6, z: 36.6, y: 0.72, kind: 'stone' },
+  { x: OLD_HAWTHORN.x, z: OLD_HAWTHORN.z, y: 2.1, kind: 'tree', label: 'old hawthorn lookout', vantage: true },
+  { x: -18, z: -34, y: 0.72, kind: 'stone' },
+  { x: HIGH_TOR.x, z: HIGH_TOR.z, y: HIGH_TOR.y, kind: 'stone', label: 'high tor', vantage: true },
+];
+
+// The scenery tors: granite outcrops about the moor, each a collider the size
+// of its foot and one hop up onto its top at h (builder.tor's top is h). Low
+// enough to climb from the ground in one go, so they are places to sit and
+// look out from, not chains.
+export const TORS = Object.freeze([
+  { x: 28, z: -44, r: 1.4, h: 1.5 },
+  { x: -40, z: -22, r: 1.2, h: 1.2 },
+  { x: 42, z: -6, r: 1.3, h: 1.4 },
+  { x: 12, z: 18, r: 1.2, h: 1.1 },
+].map((t) => Object.freeze(t)));
+
+// The rabbit warren: seven burrows on a 3.5 m ring round the warren scenic, at
+// angles 0.3 + k x 2pi/7, rounded to the centimetre. Task 5 draws them; three
+// of them are the Moor's hides (src/propsets.js), where a fleeing mouse dives.
+export const WARREN_BURROWS = Object.freeze([
+  [37.34, -30.97], [35.28, -28.74], [32.25, -28.97], [30.54, -31.48],
+  [31.44, -34.38], [34.26, -35.49], [36.89, -33.97],
+].map(([x, z]) => Object.freeze({ x, z })));
+
+// The bushes the third golden mouse hides among. A bush has no collider, as
+// in the park: a cat pushes through to the mouse.
+const GOLD_BUSHES = [[-36, -44], [-40, -44], [-38, -39]];
+
+const PUDDLES = [{ x: 30, z: 40, r: 0.9 }, { x: -20, z: -18, r: 0.8 }];
+
+// Places no scenery may stand on, nor hide: every POI (and so every race
+// ring), scenic, collectible, golden mouse, chain perch, the bushes the hidden
+// mouse needs, the puddles, the burrows and the spawn. Built from the records
+// themselves, so a find can never move without its clearance moving with it.
+// Task 5's thorns, pines, heather, gorse and reeds read this. (The tors keep
+// their own clearance there, scaled to each tor.)
+export const MOOR_KEEP_CLEAR = Object.freeze([
+  ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.moor, ...CHAIN_PERCHES,
+  ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, ...WARREN_BURROWS, SPAWN,
+].map(({ x, z }) => Object.freeze([x, z])));
+
+// The Moor's trees: lone thorns and the pines on the west strip. Task 5
+// plants them; until then there are none, and so no birds.
+export function moorTrees() {
+  return { thorns: [], pines: [] };
+}
+
+// The Moor's critters: birds in the first four thorns, rabbits at the warren
+// and on the heath, butterflies on the heath, ducks on the lake and two mice in
+// the heather. No squirrels (no wood for them) and no villagers: no Twolegs
+// walk the moor.
+function critterSpawns() {
+  return [
+    ...moorTrees().thorns.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
+    { type: 'rabbit', x: 32, z: -30, x2: 37, z2: -35 },
+    { type: 'rabbit', x: 36, z: -29, x2: 30, z2: -24 },
+    { type: 'rabbit', x: 4, z: 40, x2: 10, z2: 34 },
+    { type: 'butterfly', x: -4, z: 24 }, { type: 'butterfly', x: 0, z: 26 }, { type: 'butterfly', x: -8, z: 26 },
+    { type: 'duck', x: -20, z: 14 }, { type: 'duck', x: -18, z: 16 }, { type: 'duck', x: -22, z: 17 },
+    { type: 'mouse', x: -26, z: -20, x2: -22, z2: -26 },
+    { type: 'mouse', x: 10, z: -36, x2: 14, z2: -30 },
+  ];
+}
+
+// A grey boulder, the first step of each chain: builder.rock's shape and
+// height (its top is just over the 0.72 perch). build() makes one material per
+// scene and hands it to both boulders: walk.js disposes every material at the
+// end of a walk, so a module-level cache would hand the next walk a disposed
+// one.
+const BOULDER_GREY = 0x9a9aa2;
+function greyBoulder(x, z, material) {
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), material);
+  m.position.set(x, 0.3, z);
+  return m;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9cc4e4, 0xe4e6d8);
   scene.add(b.ground(120, 0x8a9558, { surface: 'grass' }));
   scene.add(b.horizonBand(MOOR_HORIZON));
 
   const colliders = [];
+  const addC = (x, z, r) => colliders.push({ x, z, r });
   const perches = [];
 
   // --- the water --------------------------------------------------------------
@@ -195,6 +324,59 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the paths --------------------------------------------------------------
   for (const s of MOOR_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+
+  // --- the climb chains -------------------------------------------------------
+  // The Old Hawthorn, with its grey boulder at the foot, and the High Tor on
+  // the moor top. The hawthorn is built with no wind, so the limb and the mouse
+  // on it never part. Named so test/moor.test.js can find them and see past
+  // them.
+  const H = OLD_HAWTHORN;
+  const hawthorn = b.tree(H.x, H.z, H.scale);
+  hawthorn.name = 'oldHawthorn';
+  // The low limb the golden mouse sits out on (src/goldmice.js), reaching west
+  // from the trunk to just past the mouse, its top under the mouse's belly. A
+  // child of the tree, in its scaled frame.
+  const s = H.scale;
+  const limb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07 / s, 0.12 / s, 0.75 / s, 6),
+    litMaterial(0x7a5230, surfaceProps('bark')),
+  );
+  limb.rotation.z = Math.PI / 2;
+  limb.position.set(-0.6 / s, 1.9 / s, 0);
+  hawthorn.add(limb);
+  scene.add(hawthorn);
+  addC(H.x, H.z, H.r);
+  const grey = litMaterial(BOULDER_GREY, surfaceProps('cobble'));
+  for (const { x, z, r, name } of CHAIN_ROCKS) {
+    const rock = greyBoulder(x, z, grey);
+    if (name) rock.name = name;
+    scene.add(rock);
+    addC(x, z, r);
+  }
+  addC(HAWTHORN_ROOT.x, HAWTHORN_ROOT.z, HAWTHORN_ROOT.r);
+  const T = HIGH_TOR;
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(T.rTop, T.rBottom, T.y, 7),
+    litMaterial(0x8e8c88, surfaceProps('cobble')),
+  );
+  pillar.name = 'highTor';
+  pillar.position.set(T.x, T.y / 2, T.z);
+  scene.add(pillar);
+  addC(T.x, T.z, T.r);
+  perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
+
+  // --- the tors ---------------------------------------------------------------
+  TORS.forEach(({ x, z, r, h }, i) => {
+    const t = b.tor(x, z, { r, h, seed: i });
+    t.name = `tor-${i}`;
+    scene.add(t);
+    addC(x, z, r);
+    perches.push({ x, z, y: h, kind: 'stone' });
+  });
+
+  // --- the hidden mouse's bushes, and the puddles -------------------------------
+  for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
+  for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
   // --- the island -------------------------------------------------------------
   // A flattened sphere, so only a low dome shows above the lake, and the tree
@@ -233,12 +415,14 @@ export function build(scene, { water = {}, wind } = {}) {
     // Nothing Twoleg-made on the Moor.
     boxes: [],
     tippables: [],
-    pois: [],
-    collectibles: [],
-    scenics: [],
-    critterSpawns: [],
-    moments: [],
-    puddles: [],
+    pois: POIS.map((p) => ({ ...p })),
+    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
+    scenics: SCENICS.map((c) => ({ ...c })),
+    critterSpawns: critterSpawns(),
+    moments: [
+      { id: 'rabbit-bolt', type: 'rabbit', label: 'a rabbit bolting for its burrow', x: 34, z: -32, from: { x: 26, z: -22 } },
+    ],
+    puddles: PUDDLES.map((p) => ({ ...p })),
     waters: MOOR_WATERS,
     waterFx,
     groundBounce: 0x8a9558,
