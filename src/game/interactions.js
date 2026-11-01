@@ -26,7 +26,9 @@ import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
-import { isClanEdition } from '../edition.js';
+import { isClanEdition, placeName } from '../edition.js';
+import { isKittypetName } from '../straynames.js';
+import { wanderStayLine, kittypetTamedLine } from '../housecats.js';
 import { RANK_KEYS } from '../clanwords.js';
 import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
@@ -1311,6 +1313,7 @@ export function createInteractions({
     if (progression.hasGrudge?.(stray.name) || !progression.feedColonyCat) return;
     if (livesElsewhere(progression.state.colony, stray.name, s.areaId)) return;
     const name = stray.name;
+    const wasColony = progression.state.colony.cats.some((c) => c.name === name);
     const r = progression.feedColonyCat({
       name, by: pid, walk: s.walkStamp, area: s.areaId, x: stray.home.x, z: stray.home.z,
     });
@@ -1328,6 +1331,9 @@ export function createInteractions({
       text += ` (you ${fedBy(pid)} · ${partner.petName} ${fedBy(partner.playerId)})`;
     }
     hud.toast(text);
+    if (stray.wanderer && !wasColony && isClanEdition(progression.state)) {
+      hud.toast(wanderStayLine(name, placeName(s.areaId, progression.state.edition, CATALOG) || s.areaId));
+    }
 
     // The durable copy goes to the server (fire-and-forget; a no-op offline
     // or unpaired — colonysync re-pushes anything the server lacks on its
@@ -1339,7 +1345,9 @@ export function createInteractions({
     if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
 
     if (r.tamedNow) {
-      hud.toast(`${name} trusts you! She'll be waiting in the den 🏠`);
+      hud.toast(isClanEdition(progression.state) && isKittypetName(name)
+        ? kittypetTamedLine(name)
+        : `${name} trusts you! She'll be waiting in the den 🏠`);
       audio.fanfare?.();
       // Cosmetic milestones (1/3/6/12 tamed). grantColonyRewards records each
       // milestone as it pays, so this toast can never repeat.

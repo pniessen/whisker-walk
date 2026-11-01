@@ -95,3 +95,14 @@ export function wanderSpotFor(start, isWalkable, camp) {
 export function wanderArrivalLine(name) {
   return `${name} the ${OUTSIDE_WORDS.house} has wandered in from ${PLACE_WORDS.town} 🔔`;
 }
+
+// Said once, on the first feed of a wanderer: she stays where she was found,
+// so tell the kid where to come back to. Clan Edition only (the caller checks).
+export function wanderStayLine(name, placeLabel) {
+  return `${name} will wait for you here in ${placeLabel} 🐾`;
+}
+
+// The tamed-now toast for a kittypet in Clan Edition.
+export function kittypetTamedLine(name) {
+  return `${name} left ${PLACE_WORDS.town} to join you! She'll be waiting in the den 🏠`;
+}

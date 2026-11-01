@@ -16,6 +16,8 @@ import { createMouth, RAIN_GRIP } from '../src/carry.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { OUTSIDE_WORDS } from '../src/clanwords.js';
 import { createProgression, CATALOG } from '../src/progression.js';
+import { placeName } from '../src/edition.js';
+import { wanderStayLine, kittypetTamedLine } from '../src/housecats.js';
 import { catsInArea } from '../src/colony.js';
 import { createGoals } from '../src/goals.js';
 import { createGifts } from '../src/gifts.js';
@@ -3522,13 +3524,75 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     expect(h.progression.state.colony.cats.find((c) => c.name === 'Pickles')).toMatchObject({ tamedBy: ME });
   });
 
+  describe('bringing a kittypet home', () => {
+    const feedTwice = (h) => { h.press(); h.press(); };
+    const stay = (h) => `${h.stray.name} will wait for you here in ${placeName(h.session.areaId, 'canon', CATALOG) || h.session.areaId} 🐾`;
+
+    it('the first feed of a wanderer toasts the stay line in Clan Edition', () => {
+      const h = colonyHarness();
+      h.stray.wanderer = true;
+      feedTwice(h);
+      expect(h.toasts).toContain('You fed Pickles 🐟 — 1/6');
+      expect(h.toasts).toContain(stay(h));
+      expect(h.toasts.indexOf(stay(h))).toBeGreaterThan(h.toasts.indexOf('You fed Pickles 🐟 — 1/6'));
+    });
+
+    it('a wanderer already in the colony gets no stay line', () => {
+      const h = colonyHarness({ feeds: [[ME, 1]] });
+      h.stray.wanderer = true;
+      feedTwice(h);
+      expect(h.toasts).toContain('You fed Pickles 🐟 — 2/6');
+      expect(h.toasts.some((t) => t.includes('will wait for you here'))).toBe(false);
+    });
+
+    it('Legacy toasts no stay line', () => {
+      const h = colonyHarness();
+      h.progression.setEdition('legacy');
+      h.stray.wanderer = true;
+      feedTwice(h);
+      expect(h.toasts).toContain('You fed Pickles 🐟 — 1/6');
+      expect(h.toasts.some((t) => t.includes('will wait for you here'))).toBe(false);
+    });
+
+    it('a full colony toasts nothing at all', () => {
+      const h = colonyHarness();
+      h.stray.wanderer = true;
+      h.press();                                // greet
+      const before = h.toasts.length;
+      h.progression.feedColonyCat = () => ({ result: 'full' });
+      h.press();
+      expect(h.toasts.length).toBe(before);
+    });
+
+    it('a tamed kittypet leaves the town to join you (Clan) and trusts you (Legacy)', () => {
+      const clan = colonyHarness({ name: 'Marmalade', feeds: [[ME, 5]] });
+      feedTwice(clan);
+      expect(clan.toasts).toContain(kittypetTamedLine('Marmalade'));
+      expect(clan.toasts).not.toContain("Marmalade trusts you! She'll be waiting in the den 🏠");
+      const legacy = colonyHarness({ name: 'Marmalade', feeds: [[ME, 5]] });
+      legacy.progression.setEdition('legacy');
+      feedTwice(legacy);
+      expect(legacy.toasts).toContain("Marmalade trusts you! She'll be waiting in the den 🏠");
+      expect(legacy.toasts).not.toContain(kittypetTamedLine('Marmalade'));
+    });
+
+    it('a non-kittypet trusts you in both editions', () => {
+      for (const ed of ['canon', 'legacy']) {
+        const h = colonyHarness({ feeds: [[ME, 5]] });
+        h.progression.setEdition(ed);
+        feedTwice(h);
+        expect(h.toasts).toContain("Pickles trusts you! She'll be waiting in the den 🏠");
+      }
+    });
+  });
+
   it('the taming feed toasts, grants the reward and does not spawn the cat again next walk', () => {
-    const h = colonyHarness({ name: 'Marmalade', feeds: [[ME, 5]] });
+    const h = colonyHarness({ name: 'Pickles', feeds: [[ME, 5]] });
     h.press();                                // greet
     h.press();                                // the sixth feed
     expect(h.progression.state.colony.cats[0]).toMatchObject({ tamedBy: ME, tamedWalk: h.session.walkStamp });
-    expect(h.toasts).toContain('You fed Marmalade 🐟 — 6/6');
-    expect(h.toasts).toContain("Marmalade trusts you! She'll be waiting in the den 🏠");
+    expect(h.toasts).toContain('You fed Pickles 🐟 — 6/6');
+    expect(h.toasts).toContain("Pickles trusts you! She'll be waiting in the den 🏠");
     expect(h.sounds).toContain('fanfare');
     expect(h.granted()).toBe(1);
     // First milestone: the first of its items not already owned.
