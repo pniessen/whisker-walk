@@ -3526,7 +3526,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
 
   describe('bringing a kittypet home', () => {
     const feedTwice = (h) => { h.press(); h.press(); };
-    const stay = (h) => `${h.stray.name} will wait for you here in ${placeName(h.session.areaId, 'canon', CATALOG) || h.session.areaId} 🐾`;
+    const stay = (h) => `${h.stray.name} will wait for you here in ${placeName(h.session.areaId, h.progression.state.edition, CATALOG) || h.session.areaId} 🐾`;
 
     it('the first feed of a wanderer toasts the stay line in Clan Edition', () => {
       const h = colonyHarness();
@@ -3598,7 +3598,7 @@ describe('Colony — the feed verb (v21 Stream 2)', () => {
     // First milestone: the first of its items not already owned.
     expect(h.progression.state.unlocked.accessories).toContain('heart');
     expect(h.toasts.at(-1)).toBe(`🎁 New for your wardrobe: ${CATALOG.accessories.heart.name}`);
-    expect(catsInArea(h.progression.state.colony, 'park').map((c) => c.name)).not.toContain('Marmalade');
+    expect(catsInArea(h.progression.state.colony, 'park').map((c) => c.name)).not.toContain('Pickles');
     // ...and nothing more to do with her this walk.
     h.scan();
     expect(h.kind()).toBe(null);
