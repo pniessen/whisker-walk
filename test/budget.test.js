@@ -32,6 +32,7 @@ const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -85,10 +86,20 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   docks            519      423      ~34100
 //   seaside           64       32       ~8700
 //   den              284      173      ~13600
-//   woods            172      152      44462   (170 / 150 merged)
+//   woods            173      152      44474   (171 / 150 merged; +1 mesh for the
+//                                               island plank, lake.js, too low to cast)
 //   river            159      133      45344   (157 / 131 merged)
 //   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
 //                                               398 heather, 19 gorse, 127 reeds)
+//   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,
+//                                               83 in the one merged stand, 136 ferns,
+//                                               47 toadstool clusters, 160 reeds (19
+//                                               of them round the island's rim),
+//                                               20 lily pads; the island is ground,
+//                                               with the Old Ash, the Meeting Ring,
+//                                               the Watch Rock and its finds; was
+//                                               138 / 101, before the canopy rule
+//                                               kept pines off the paths' bends)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -143,6 +154,7 @@ const AREAS = [
   ['woods', buildWoods, 450, 380, 60000],
   ['river', buildRiver, 450, 380, 60000],
   ['moor', buildMoor, 450, 380, 60000],
+  ['pines', buildPines, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -165,6 +177,7 @@ const AREAS = [
 //   docks            312      233    520 / 424
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
+//   pines            109       72    112 /  75
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is
@@ -181,6 +194,7 @@ const MERGED_AREAS = [
   ['woods', buildWoods, 260, 205],
   ['river', buildRiver, 260, 205],
   ['moor', buildMoor, 260, 205],
+  ['pines', buildPines, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

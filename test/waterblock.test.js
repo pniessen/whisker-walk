@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
-import { createPlayer, canSwim, SWIM_SPEED, isWadeableAt } from '../src/player.js';
-import { inWater, onDeck, waterClearance, nearestDry, shallowExcess } from '../src/world/builder.js';
+import { createPlayer, canSwim, SWIM_SPEED, isWadeableAt, isWalkableAt } from '../src/player.js';
+import { inWater, onDeck, waterClearance, nearestDry, shallowExcess, waterGap } from '../src/world/builder.js';
 import { clearSpot } from '../src/world/spots.js';
 
 // ---------------------------------------------------------------------------
@@ -760,5 +760,80 @@ describe('nearestDry at the cat radius', () => {
         }
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dry land in water: an island cut out of a rect footprint, and a strip deck
+// that runs on a diagonal. No shipped area uses either yet; the Pines' island
+// and its bridge will. An island is a hole of ground, not a deck (a deck is
+// raised boards, ruling R42); a strip is how a diagonal bridge stays one deck.
+// ---------------------------------------------------------------------------
+describe('islands and strip decks', () => {
+  const W = {
+    id: 'w', kind: 'rect', minX: -20, maxX: 20, minZ: -20, maxZ: 20,
+    islands: [{ x: 0, z: 0, r: 5 }],
+    decks: [{ x1: -3, z1: -4, x2: -12, z2: -16, halfW: 0.9 }],
+  };
+  // The strip's frame: unit vector along it (u), its side normal (n), length.
+  const S = W.decks[0];
+  const LEN = Math.hypot(S.x2 - S.x1, S.z2 - S.z1); // 15
+  const u = { x: (S.x2 - S.x1) / LEN, z: (S.z2 - S.z1) / LEN };
+  const n = { x: -u.z, z: u.x };
+  const at = (t, s) => ({ x: S.x1 + u.x * t + n.x * s, z: S.z1 + u.z * t + n.z * s });
+
+  it('an island in a rect is dry land, and the water round it is water', () => {
+    expect(inWater([W], 0, 0)).toBe(false);
+    expect(inWater([W], 4.9, 0)).toBe(false);
+    expect(inWater([W], 5.1, 0)).toBe(true);
+    expect(Math.abs(waterGap(W, 0, 6) - -1)).toBeLessThan(1e-9);
+    expect(Math.abs(waterGap(W, 0, 4) - 1)).toBeLessThan(1e-9);
+  });
+
+  it('isWalkableAt holds a cat 0.35 inside the island\'s rim', () => {
+    const area = { bounds: BIG, colliders: [], waters: [W] };
+    expect(isWalkableAt(area, 4.6, 0)).toBe(true);
+    expect(isWalkableAt(area, 4.7, 0)).toBe(false);
+  });
+
+  it('a strip deck is dry along its whole length and width, and nowhere past it', () => {
+    for (const f of [0, 0.5, 1]) {
+      for (const side of [0.85, -0.85]) {
+        const p = at(f * LEN, side);
+        expect(inWater([W], p.x, p.z), `t ${f}, side ${side}`).toBe(false);
+        expect(onDeck(W, p.x, p.z)).toBe(true);
+      }
+    }
+    const wide = at(LEN / 2, 0.95);
+    expect(inWater([W], wide.x, wide.z)).toBe(true);
+    const past = at(LEN + 0.1, 0);
+    expect(inWater([W], past.x, past.z)).toBe(true);
+  });
+
+  it('nearestDry lands a point beside the island on its rim, and a point beside the strip on the strip', () => {
+    const rim = nearestDry([W], 0, 6, 0.6);
+    expect(Math.abs(rim.x - 0)).toBeLessThan(1e-6);
+    expect(Math.abs(rim.z - 4.4)).toBeLessThan(1e-6);
+
+    const q = at(LEN / 2, 1.5);
+    const p = nearestDry([W], q.x, q.z, 0.6);
+    expect(onDeck(W, p.x, p.z)).toBe(true);
+    const side = Math.abs((p.x - S.x1) * n.x + (p.z - S.z1) * n.z);
+    expect(side).toBeLessThanOrEqual(0.3 + 1e-9);
+    expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeLessThanOrEqual(1.2 + 1e-9);
+
+    expect(nearestDry([W], 1, 1, 0.6)).toEqual({ x: 1, z: 1 });
+  });
+
+  it('onDeck still reads a rect deck exactly as before', () => {
+    // The Seaside pier, { minX: 22, maxX: 46, minZ: -11.5, maxZ: -8.5 }.
+    const sea = AREAS.seaside.waters.find((w) => (w.decks ?? []).length);
+    expect(sea.decks[0]).toEqual({ minX: 22, maxX: 46, minZ: -11.5, maxZ: -8.5 });
+    expect(onDeck(sea, 30, -10)).toBe(true);
+    expect(onDeck(sea, 22, -8.5)).toBe(true); // edges are inclusive
+    expect(onDeck(sea, 46, -11.5)).toBe(true);
+    expect(onDeck(sea, 21.9, -10)).toBe(false);
+    expect(onDeck(sea, 30, -11.6)).toBe(false);
+    expect(onDeck(sea, 30, -8.4)).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ export const CRITTER_INFO = [
   // never a mechanic the player hasn't met yet.
   { id: 'rat', emoji: '🐀', name: 'Dockside Rat', hint: 'Nose around the crates down at the old docks.' },
   { id: 'rabbit', emoji: '🐇', name: 'Moor Rabbit', hint: 'Watch it bolt for its burrow!' },
+  { id: 'frog', emoji: '🐸', name: 'Bog Frog', hint: 'Creep up softly, or it plops into the bog!' },
 ];
 
 // renderJournalHtml(journal, goldenFound, goldenTotal) → HTML string.

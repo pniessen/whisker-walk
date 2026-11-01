@@ -22,6 +22,8 @@ import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
 import * as river from '../world/river.js';
 import * as moor from '../world/moor.js';
+import * as pines from '../world/pines.js';
+import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
@@ -109,7 +111,7 @@ import { nowSec, escapeHtml, hashName } from './util.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -629,7 +631,7 @@ export function createWalkLifecycle({
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
       hides: propsFor(areaId).hides,
-      onHide: (c) => hud.toast(`The ${c.type} dived under cover! 🐭`),
+      onHide: (c) => hud.toast(hideToastFor(c.type)),
     });
 
     const collectibleMeshes = new Map();
@@ -652,6 +654,8 @@ export function createWalkLifecycle({
     const giver = isDen ? null : critters.list.find((c) => c.type === 'villager');
     if (giver) {
       questGiver = giver;
+      // createQuest draws one target from the list, so a quest never takes
+      // more than one island POI (group 'island'); it needs no group rule.
       quest = createQuest(walkRng, walkPois);
       const marker = new THREE.Mesh(
         new THREE.ConeGeometry(0.12, 0.4, 6),

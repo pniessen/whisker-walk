@@ -5,6 +5,7 @@ import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
+import { addIslandView } from './lake.js';
 
 // =============================================================================
 // The Woods.
@@ -346,11 +347,6 @@ function reedSpots() {
   return spots;
 }
 
-// The island out on the lake: a low grassy mound with one big tree, seen
-// across the water from the lakeshore. Painted scenery, well outside the
-// bounds, so it has no collider and no perch.
-const ISLAND = { x: -72, z: -72, r: 9, rise: 1.4 };
-
 // The wood's critters: birds in the first four trees, a squirrel on each
 // side of the river, butterflies in the clearing, ducks on the pond and two
 // mice in the leaf litter. No villagers: no Twolegs walk in the Woods.
@@ -493,18 +489,10 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
   // --- the island -----------------------------------------------------------------
-  // A flattened sphere, so only a low dome shows above the lake, and the
-  // tree stood on its crown.
-  const mound = new THREE.Mesh(
-    new THREE.SphereGeometry(ISLAND.r, 24, 8),
-    litMaterial(0x6a9a50, surfaceProps('grass')),
-  );
-  mound.scale.y = ISLAND.rise / ISLAND.r;
-  mound.position.set(ISLAND.x, 0, ISLAND.z);
-  scene.add(mound);
-  const islandTree = b.tree(ISLAND.x, ISLAND.z, 2.6, { wind });
-  islandTree.position.y = ISLAND.rise - 0.2;
-  scene.add(islandTree);
+  // The lake's island and its plank bridge, seen across the water from the
+  // lakeshore (lake.js). Painted scenery, well outside the bounds, so it has
+  // no collider and no perch.
+  addIslandView(scene, 'woods', { wind });
 
   return {
     name: 'The Woods',

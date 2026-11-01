@@ -7,6 +7,7 @@ import { mulberry32, seedFromCode } from './rng.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName } from './straynames.js';
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
+import { keepOutPoint } from './keepout.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -438,8 +439,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // colony).
     const rolledX = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
     const rolledZ = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
-    const x = fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX;
-    const z = fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ;
+    // Both the rolled spot and a colony cat's stored one go through the
+    // area's keep-out (keepout.js), which draws nothing, so the stream's
+    // count is the same either way.
+    const { x, z } = keepOutPoint(area,
+      fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
+      fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
     group.position.set(x, 0, z);
     group.rotation.y = rng() * Math.PI * 2;
 
@@ -503,8 +508,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const breed = strayBreed(name);
     const group = buildCat(breed, undefined, { simple: true });
     group.scale.multiplyScalar(0.85);
-    const x = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng());
-    const z = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng());
+    const { x, z } = keepOutPoint(area,
+      THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng()),
+      THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, ex.rng()));
     group.position.set(x, 0, z);
     group.rotation.y = ex.rng() * Math.PI * 2;
     const roll = ex.rng();
@@ -531,6 +537,15 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       scurryDir: null,
       batCooldown: 0,
     });
+  }
+
+  // Moves a position or target (a Vector3, written in place and returned) out
+  // of the area's keep-out. With none it is left exactly as it was.
+  function keepOut(v) {
+    const p = keepOutPoint(area, v.x, v.z);
+    v.x = p.x;
+    v.z = p.z;
+    return v;
   }
 
   // Turn a stray to face whoever is at `fromPos`. Lifted out of greet() so
@@ -613,6 +628,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       stray.group.position.addScaledVector(away.normalize(), RECOIL_STEP);
       stray.group.position.x = THREE.MathUtils.clamp(stray.group.position.x, b.minX + 0.5, b.maxX - 0.5);
       stray.group.position.z = THREE.MathUtils.clamp(stray.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
+      keepOut(stray.group.position);
       setNameTagMood(stray.tag, { cross: true });
     },
 
@@ -673,6 +689,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           const target = pos.clone().setY(0).addScaledVector(away.normalize(), FAR_CALL_STANDOFF);
           target.x = THREE.MathUtils.clamp(target.x, b.minX + 2, b.maxX - 2);
           target.z = THREE.MathUtils.clamp(target.z, b.minZ + 2, b.maxZ - 2);
+          keepOut(target);
           s.state = 'wander';
           s.target = target;
           s.timer = Math.max(s.timer, FAR_CALL_WALK_TIME);
@@ -728,6 +745,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.addScaledVector(s.scurryDir, SCURRY_SPEED * dt);
             s.group.position.x = THREE.MathUtils.clamp(s.group.position.x, b.minX + 0.5, b.maxX - 0.5);
             s.group.position.z = THREE.MathUtils.clamp(s.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
+            keepOut(s.group.position);
             s.group.rotation.y = Math.atan2(s.scurryDir.x, s.scurryDir.z) + Math.PI;
             animateCat(s.group, 'follow', t, SCURRY_SPEED);
             s.timer -= dt;
@@ -740,7 +758,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           const dToy = s.group.position.distanceTo(opts.toy.mesh.position);
           if (dToy < 8) {
             s.state = 'wander';
-            s.target = opts.toy.mesh.position.clone();
+            s.target = keepOut(opts.toy.mesh.position.clone());
             s.timer = Math.max(s.timer, 1.5);
             if (dToy < 0.5 && s.batCooldown <= 0) {
               opts.toy.bat(s.group.position);
@@ -781,6 +799,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
             s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
+            keepOut(s.target);
             s.timer = 12; // give up on unreachable targets eventually
           } else {
             s.state = 'idle';
@@ -803,6 +822,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             speed = WANDER_SPEED;
           }
         }
+        // The end of this stray's move for the frame: a straight line to a
+        // target outside the keep-out can still cut across it, so the cat is
+        // put back out wherever it ends up.
+        keepOut(s.group.position);
         // v20: a cross cat's RESTING pose is 'cross' — flattened ears, tail
         // up — whatever sniff/follow the wander FSM last picked for it, so it
         // reads as cross from further away than its tag is legible (spec

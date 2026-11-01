@@ -5,6 +5,7 @@ import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
+import { addIslandView, fromWoodsDisc } from './lake.js';
 
 // =============================================================================
 // The Moor.
@@ -144,19 +145,11 @@ export const MOOR_PATHS = Object.freeze([
 const PATH_W = 3;
 const PATH_STYLE = { surface: 'sand', color: 0x8c7a5c };
 
-// The island out on the lake: the Woods' (-72, -72), 100 m on in z, so both
-// maps show one island. A low grassy mound with one big tree. Painted
-// scenery, wholly outside the bounds, so it has no collider and no perch.
-export const MOOR_ISLAND = Object.freeze({ x: -72, z: 28, r: 9, rise: 1.4 });
-
-// The island's plank bridge, from its rim north-west to the Pines' shore,
-// written once in Woods coordinates so the two maps can't disagree about
-// where it is; the Moor adds 100 to each z. Out of reach and out of the
-// colliders.
-export const ISLAND_BRIDGE_WOODS = Object.freeze([
-  Object.freeze([-77.4, -79.2]), Object.freeze([-89.4, -95.2]),
-]);
-const ISLAND_BRIDGE = { y: 0.3, w: 2 };
+// The island out on the lake: the Woods' island, 100 m on in z (lake.js), so
+// both maps show one island. A low grassy mound with one big tree and its
+// plank bridge north-west to the Pines' shore. Painted scenery, wholly
+// outside the bounds, so it has no collider and no perch.
+export const MOOR_ISLAND = fromWoodsDisc('moor');
 
 // The horizon. Hills all round, taller and longer than the Woods' (open moor
 // rolls), each side tinted for the neighbour over it: heather to the north
@@ -577,33 +570,9 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
   // --- the island -------------------------------------------------------------
-  // A flattened sphere, so only a low dome shows above the lake, and the tree
-  // stood on its crown.
-  const I = MOOR_ISLAND;
-  const mound = new THREE.Mesh(
-    new THREE.SphereGeometry(I.r, 24, 8),
-    litMaterial(0x6a9a50, surfaceProps('grass')),
-  );
-  mound.scale.y = I.rise / I.r;
-  mound.position.set(I.x, 0, I.z);
-  scene.add(mound);
-  const islandTree = b.tree(I.x, I.z, 2.6, { wind });
-  islandTree.position.y = I.rise - 0.2;
-  scene.add(islandTree);
-
-  // The island bridge: one plank box from the island's rim to the Pines'
-  // shore, just above the lake.
-  const [[x1, wz1], [x2, wz2]] = ISLAND_BRIDGE_WOODS;
-  const z1 = wz1 + 100, z2 = wz2 + 100;
-  const len = Math.hypot(x2 - x1, z2 - z1);
-  const plank = new THREE.Mesh(
-    new THREE.BoxGeometry(ISLAND_BRIDGE.w, 0.12, len),
-    litMaterial(0x7a5a38, surfaceProps('bark')),
-  );
-  plank.name = 'islandBridge';
-  plank.position.set((x1 + x2) / 2, ISLAND_BRIDGE.y, (z1 + z2) / 2);
-  plank.rotation.y = Math.atan2(x2 - x1, z2 - z1);
-  scene.add(plank);
+  // The mound, its tree and the plank bridge, drawn by lake.js the same way
+  // every shore draws them. Out of reach and out of the colliders.
+  addIslandView(scene, 'moor', { wind });
 
   return {
     name: 'The Moor',

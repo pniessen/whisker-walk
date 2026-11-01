@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { climbBudget } from '../src/climbing.js';
 import { createProgression, CATALOG, JOURNAL_TYPES } from '../src/progression.js';
 import { CRITTER_INFO } from '../src/journal.js';
-import { labelFor } from '../src/game/labels.js';
+import { labelFor, hideToastFor } from '../src/game/labels.js';
 
 // Same headless stub every world test uses: the only DOM the builders touch
 // is document.createElement('canvas') for the billboard texture.
@@ -312,9 +312,9 @@ describe('The Old Docks — perch chains', () => {
 });
 
 describe('The Old Docks — golden mice', () => {
-  it('adds three, keeping the three-per-area shape (the total is 21 since the Moor)', () => {
+  it('adds three, keeping the three-per-area shape (the total is 27 since the Pines and its island)', () => {
     expect(GOLD_MICE.docks).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(21);
+    expect(GOLD_TOTAL).toBe(27);
   });
 
   it('sits two on real shipped perch coordinates and hides one at ground level', () => {
@@ -415,8 +415,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(12);
-    expect(CRITTER_INFO).toHaveLength(12);
+    expect(JOURNAL_TYPES).toHaveLength(13);
+    expect(CRITTER_INFO).toHaveLength(13);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();
@@ -432,6 +432,13 @@ describe('The Old Docks — the eleventh journal critter', () => {
     p.recordSighting('rat');
     p.recordSighting('rat');
     expect(p.state.journal.rat).toBe(2);
+  });
+
+  it('gives the frog a display name and its own hide toast', () => {
+    expect(labelFor('frog')).toBe('a croaking frog');
+    expect(hideToastFor('frog')).toBe('The frog plopped into the bog! 🐸');
+    expect(hideToastFor('mouse')).toBe('The mouse dived under cover! 🐭');
+    expect(readFileSync('src/game/walk.js', 'utf8')).toMatch(/onHide:[^\n]*hideToastFor\(/);
   });
 
   it('gives the rabbit a display name', () => {

@@ -99,6 +99,8 @@ export const AREA_RULES = Object.freeze({
   river: Object.freeze({ ground: null, path: 'wetSand', strip: null }),
   // Heath paths are worn earth; the heather and grass take no prints.
   moor: Object.freeze({ ground: null, path: 'sand', strip: null }),
+  // Muddy swamp paths take dark prints; the needles and ferns take none.
+  pines: Object.freeze({ ground: null, path: 'wetSand', strip: null }),
 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on

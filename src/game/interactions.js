@@ -474,6 +474,9 @@ export function createInteractions({
     let bestD = GIFT_LEAVE_RANGE;
     for (const sc of s.areaData.scenics ?? []) {
       if (taken.has(sc.id)) continue;
+      // The Pines' island finds are not gift spots: with no stash there, no
+      // ghost can ever bring a gift from it.
+      if (sc.gifts === false) continue;
       const d = Math.hypot(sc.x - catP.x, sc.z - catP.z);
       if (d < bestD) {
         bestD = d;

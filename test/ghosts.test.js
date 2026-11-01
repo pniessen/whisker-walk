@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { rollGhosts, createGhosts } from '../src/ghosts.js';
+import { mulberry32 } from '../src/rng.js';
 
 // a fake rng that replays a fixed queue of values, then falls back to a
 // constant — lets tests pin exactly which roll each friend gets without
@@ -200,4 +201,60 @@ describe('createGhosts', () => {
     expect(gifted.list[1].group.position.z).toBe(plain.list[1].group.position.z);
     expect(gifted.list[1].hasGift).toBe(plain.list[1].hasGift);
   });
+});
+
+// Island Task 3: ghosts keep out of the same places strays do. Literal
+// shapes, the same numbers the Pines' ISLAND_KEEP_OUT will carry.
+describe('the keep-out', () => {
+  const KO = {
+    rects: [{ minX: 26, maxX: 86, minZ: 8, maxZ: 66 }, { minX: 0, maxX: 30, minZ: 5, maxZ: 44 }],
+    capsules: [{ x1: 20.56, z1: 18.08, x2: 10.0, z2: 4.0, r: 1.5 }],
+    margin: 0.6,
+  };
+  const KO_AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, keepOut: KO };
+  const EPS = 1e-9;
+  function outside(x, z) {
+    for (const r of KO.rects) {
+      const dx = Math.max(r.minX - x, 0, x - r.maxX);
+      const dz = Math.max(r.minZ - z, 0, z - r.maxZ);
+      if (Math.hypot(dx, dz) < KO.margin - EPS) return false;
+    }
+    for (const c of KO.capsules) {
+      const sx = c.x2 - c.x1, sz = c.z2 - c.z1;
+      const t = Math.max(0, Math.min(1, ((x - c.x1) * sx + (z - c.z1) * sz) / (sx * sx + sz * sz)));
+      if (Math.hypot(x - (c.x1 + sx * t), z - (c.z1 + sz * t)) < c.r - EPS) return false;
+    }
+    return true;
+  }
+
+  it('ghosts on an area with a keep-out spawn and wander outside it', () => {
+    // The ghosts' wander rolls are Math.random; pin it so the run repeats.
+    const spy = vi.spyOn(Math, 'random').mockImplementation(mulberry32(11));
+    let bad = null;
+    try {
+      for (let seed = 1; seed <= 50; seed++) {
+        // The first ghost is handed a gift left out in the lake, so the gift
+        // spot is kept out of too.
+        const gift = seed % 5 === 0 ? { area: 'pines', spot: 'x', label: 'x', x: 40, z: 40 } : null;
+        const ghosts = createGhosts(fakeScene(), KO_AREA,
+          [profile('a'), profile('b'), profile('c'), profile('d')], mulberry32(seed), { gift });
+        for (const g of ghosts.list) {
+          expect(outside(g.group.position.x, g.group.position.z)).toBe(true);
+          expect(g.home.x).toBe(g.group.position.x);
+          expect(g.home.z).toBe(g.group.position.z);
+        }
+        for (let i = 0; i < 3600; i++) {
+          ghosts.update(1 / 30, i / 30);
+          // Checked by hand and reported once, after the run.
+          for (const g of ghosts.list) {
+            if (!outside(g.group.position.x, g.group.position.z)) bad ??= `seed ${seed} frame ${i}`;
+            if (g.target && !outside(g.target.x, g.target.z)) bad ??= `target seed ${seed} frame ${i}`;
+          }
+        }
+      }
+      expect(bad).toBe(null);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 60000);
 });

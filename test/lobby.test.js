@@ -36,7 +36,7 @@ describe('decideLobbyEvent', () => {
   const R = [{ playerId: 'a-host' }, { playerId: 'b-kid' }];
   const ctx = (o = {}) => ({
     roster: R, selfId: 'a-host', inWalk: false,
-    knownAreas: ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor'], unlockedAreas: ['neighborhood'], ...o,
+    knownAreas: ['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines'], unlockedAreas: ['neighborhood'], ...o,
   });
 
   it("the host answers a member's request with a config for THEIR area", () => {
@@ -88,6 +88,11 @@ describe('decideLobbyEvent', () => {
   it("a joiner who hasn't unlocked the Moor still accepts a Moor proposal as an override", () => {
     expect(decideLobbyEvent({ type: 'walk-config', id: 'a-host', area: 'moor', dusk: false, seed: 5 }, ctx({ selfId: 'b-kid' })))
       .toEqual({ kind: 'propose', from: 'a-host', area: 'moor', dusk: false, seed: 5, override: true });
+  });
+
+  it("a joiner who hasn't unlocked the Pines still accepts a Pines proposal as an override", () => {
+    expect(decideLobbyEvent({ type: 'walk-config', id: 'a-host', area: 'pines', dusk: false, seed: 5 }, ctx({ selfId: 'b-kid' })))
+      .toEqual({ kind: 'propose', from: 'a-host', area: 'pines', dusk: false, seed: 5, override: true });
   });
 
   it('a config from someone not in the room proposes nothing', () => {

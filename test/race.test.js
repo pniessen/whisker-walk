@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { raceCourse, createRace } from '../src/race.js';
+import { mulberry32 } from '../src/rng.js';
 
 // Mirrors the real world files' pois shape (8 entries, x/z only) — see
 // src/world/neighborhood.js's areaData.pois.
@@ -17,7 +18,33 @@ function fakeScene() {
   };
 }
 
+// The body raceCourse had before groups, copied here so a plain list is
+// proven byte-identical, not just "looks right".
+function oldRaceCourse(pois, seed) {
+  const rng = mulberry32(seed);
+  const copy = pois.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, 5);
+}
+
 describe('raceCourse', () => {
+  it('takes at most one POI from any group, with the same shuffle', () => {
+    const pois = [...Array.from({ length: 9 }, (_, i) => ({ x: i, z: 0 })),
+      ...Array.from({ length: 8 }, (_, i) => ({ x: i, z: 10, group: 'island' }))];
+    for (let seed = 1; seed <= 300; seed++) {
+      const c = raceCourse(pois, seed);
+      expect(c).toHaveLength(5);
+      expect(c.filter((p) => p.group === 'island').length).toBeLessThanOrEqual(1);
+    }
+    // no groups: identical to before
+    const plain = pois.slice(0, 9);
+    expect(raceCourse(plain, 42)).toEqual(oldRaceCourse(plain, 42));
+    expect(raceCourse(POIS, 7)).toEqual(oldRaceCourse(POIS, 7));
+  });
+
   it('returns exactly 5 waypoints', () => {
     expect(raceCourse(POIS, 42).length).toBe(5);
   });

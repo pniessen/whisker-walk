@@ -4,6 +4,7 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
+import { keepOutPoint } from './keepout.js';
 
 const WANDER_SPEED = 1.1; // ghosts amble slower than strays — they're just visiting
 
@@ -95,8 +96,9 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
     const rx = THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, rng());
     const rz = THREE.MathUtils.lerp(b.minZ * 0.7, b.maxZ * 0.7, rng());
     const carriesGift = gift && ghosts.length === 0;
-    const x = carriesGift ? gift.x : rx;
-    const z = carriesGift ? gift.z : rz;
+    // Kept out of the area's keep-out (keepout.js), the gift spot included;
+    // it draws nothing, so the other ghosts land where they always did.
+    const { x, z } = keepOutPoint(area, carriesGift ? gift.x : rx, carriesGift ? gift.z : rz);
     group.position.set(x, 0, z);
     group.rotation.y = rng() * Math.PI * 2;
 
@@ -191,6 +193,9 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
             g.target = g.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
             g.target.x = THREE.MathUtils.clamp(g.target.x, b.minX + 2, b.maxX - 2);
             g.target.z = THREE.MathUtils.clamp(g.target.z, b.minZ + 2, b.maxZ - 2);
+            const kt = keepOutPoint(area, g.target.x, g.target.z);
+            g.target.x = kt.x;
+            g.target.z = kt.z;
             g.timer = 12; // give up on unreachable targets eventually
           } else {
             g.state = 'idle';
@@ -213,6 +218,11 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
             speed = WANDER_SPEED;
           }
         }
+        // The end of this ghost's move: a straight line to a target outside
+        // the keep-out can still cut across it.
+        const kp = keepOutPoint(area, g.group.position.x, g.group.position.z);
+        g.group.position.x = kp.x;
+        g.group.position.z = kp.z;
         animateCat(g.group, g.state === 'idle' ? g.pose : 'follow', t, speed);
       }
     },

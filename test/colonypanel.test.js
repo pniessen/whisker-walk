@@ -898,6 +898,12 @@ describe('renderColonyHtml in each edition', () => {
     expect(render(colony, { edition: 'legacy' })).toContain('in The Moor');
   });
 
+  it("a Pines cat's place reads The Pines and Swamp in both editions", () => {
+    const colony = colonyOf({ cats: [cat(A, { area: 'pines' })] });
+    expect(render(colony, { edition: 'canon' })).toContain('in The Pines and Swamp');
+    expect(render(colony, { edition: 'legacy' })).toContain('in The Pines and Swamp');
+  });
+
   it("a River cat's place reads The River and Marshes in both editions", () => {
     const colony = colonyOf({ cats: [cat(A, { area: 'river' })] });
     expect(render(colony, { edition: 'canon' })).toContain('in The River and Marshes');

@@ -326,7 +326,16 @@ const MOOR = Object.freeze({
   color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity,
 });
 
-export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR });
+// The Pines: a thin, short, dark-green grass between the needles, so the forest
+// floor stays mostly bare and the ferns and toadstools carry the undergrowth.
+export function pineFloorDensity(x, z) {
+  return 0.7 * smooth01(0.35, 0.65, patchNoise(x, z, 5.0, 61));
+}
+const PINE_FLOOR = Object.freeze({
+  color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity,
+});
+
+export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR });
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.

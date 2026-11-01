@@ -65,6 +65,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, moorTrees } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -532,6 +533,7 @@ const AREAS = {
   woods: buildWoods(new THREE.Scene()),
   river: buildRiver(new THREE.Scene()),
   moor: buildMoor(new THREE.Scene()),
+  pines: buildPines(new THREE.Scene()),
 };
 // Every ELEVATED collectible in the game (y > 0), each named explicitly.
 //
@@ -550,6 +552,8 @@ const ELEVATED = [
   ['woods-find-5', 'woods'], // the ball of moss on the Lookout Rocks' first rock
   ['river-find-5', 'river'], // the sun-warmed pebble on the Sun-warmed Rocks' first rock
   ['moor-find-5', 'moor'], // the gorse flower on the High Tor's low rock
+  ['pines-find-5', 'pines'], // the mossy pebble on the Frog Stones' low stone
+  ['pines-find-10', 'pines'], // the beetle wing on the island's meeting stone, 0.4
 ].map(([id, area]) => {
   const c = AREAS[area].collectibles.find((x) => x.id === id);
   if (!c) throw new Error(`no collectible ${id} in ${area}`); // renamed or removed
@@ -621,6 +625,16 @@ const SHIPPED_HOPS = {
   'gm-moor-2': 2, // old hawthorn lookout: ground -> grey boulder 0.72 -> branch 2.1
   'gm-moor-3': 0, // hidden at ground level among three bushes
   'moor-find-5': 1, // on the High Tor's low rock, 0.72
+  // The Pines and Swamp. The same two-hop shape again.
+  'gm-pines-1': 2, // lightning stump: ground -> mossy boulder 0.72 -> stump 1.9
+  'gm-pines-2': 2, // frog stones: ground -> mossy boulder 0.72 -> tall stone 1.9
+  'gm-pines-3': 0, // hidden at ground level among three bushes
+  'pines-find-5': 1, // on the Frog Stones' low stone, 0.72
+  // The island, in the Pines: the same two-hop shape, and one low stone.
+  'gm-pines-4': 2, // old ash lookout: ground -> mossy boulder 0.72 -> limb 2.1
+  'gm-pines-5': 2, // watch rock: ground -> low rock 0.72 -> watch rock 1.9
+  'gm-pines-6': 0, // hidden at ground level among three bushes
+  'pines-find-10': 1, // on a meeting stone, 0.4
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
@@ -641,7 +655,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -706,6 +720,11 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       'gm-river-2': 1,
       'gm-moor-1': 1,
       'gm-moor-2': 1,
+      'gm-pines-1': 1,
+      'gm-pines-2': 1,
+      // the island's Old Ash limb (2.1) and Watch Rock (1.9), the same way
+      'gm-pines-4': 1,
+      'gm-pines-5': 1,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
@@ -873,7 +892,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -980,6 +999,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.moor).toHaveLength(moorTrees().thorns.length);
     expect(GATED.moor.length).toBeGreaterThanOrEqual(5);
     for (const p of GATED.moor) expect(p.kind).toBe('tree');
+    // Pines: nothing. Every tree is a pine, and a pine has no low fork.
+    expect(GATED.pines).toEqual([]);
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
@@ -1002,6 +1023,10 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.river).toHaveLength(5);
     // the four steps of the Old Hawthorn and the High Tor, and the four tors
     expect(UNGATED.moor).toHaveLength(8);
+    // the fallen pine and the four steps of the Lightning Stump and the Frog
+    // Stones; on the island, the Meeting Ring's six stones and the four steps
+    // of the Old Ash and the Watch Rock
+    expect(UNGATED.pines).toHaveLength(15);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
@@ -1168,7 +1193,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-moor-3', 'gm-neigh-3', 'gm-park-3', 'gm-pines-3', 'gm-pines-6', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }

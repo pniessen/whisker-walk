@@ -43,6 +43,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -164,6 +165,7 @@ const WATERED = {
   woods: buildWith(buildWoods),
   river: buildWith(buildRiver),
   moor: buildWith(buildMoor),
+  pines: buildWith(buildPines),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -193,10 +195,22 @@ for (const [name, { scene, area }] of Object.entries(WATERED)) {
         } else {
           expect(w.maxX).toBeGreaterThan(w.minX);
           expect(w.maxZ).toBeGreaterThan(w.minZ);
+          // Islands (round holes of dry ground) are a rect-only feature.
+          for (const i of w.islands ?? []) {
+            expect(Number.isFinite(i.x) && Number.isFinite(i.z) && i.r > 0).toBe(true);
+          }
         }
+        if (w.kind === 'circle') expect(w.islands).toBeUndefined();
         for (const d of w.decks ?? []) {
-          expect(d.maxX).toBeGreaterThan(d.minX);
-          expect(d.maxZ).toBeGreaterThan(d.minZ);
+          if (Number.isFinite(d.x1)) {
+            // A strip deck: two finite ends, apart, and a width.
+            expect([d.x1, d.z1, d.x2, d.z2].every(Number.isFinite)).toBe(true);
+            expect(Math.hypot(d.x2 - d.x1, d.z2 - d.z1)).toBeGreaterThan(0);
+            expect(d.halfW).toBeGreaterThan(0);
+          } else {
+            expect(d.maxX).toBeGreaterThan(d.minX);
+            expect(d.maxZ).toBeGreaterThan(d.minZ);
+          }
         }
       }
     });
@@ -213,6 +227,21 @@ for (const [name, { scene, area }] of Object.entries(WATERED)) {
           if (w.kind === 'circle') {
             return m.geometry.type === 'CircleGeometry' && Math.abs(p.radius - w.r) < 1e-6
               && Math.abs(m.position.x - w.x) < 1e-6 && Math.abs(m.position.z - w.z) < 1e-6;
+          }
+          if (w.islands?.length) {
+            // A rect with islands is drawn as the rect minus its discs: a
+            // ShapeGeometry the rect's size, centred on it, with one hole per
+            // island wholly inside (an island crossing an edge is a notch).
+            if (m.geometry.type !== 'ShapeGeometry') return false;
+            m.geometry.computeBoundingBox();
+            const bb = m.geometry.boundingBox;
+            const inside = w.islands.filter((i) => i.x - i.r > w.minX && i.x + i.r < w.maxX
+              && i.z - i.r > w.minZ && i.z + i.r < w.maxZ).length;
+            return Math.abs(bb.max.x - bb.min.x - (w.maxX - w.minX)) < 1e-6
+              && Math.abs(bb.max.y - bb.min.y - (w.maxZ - w.minZ)) < 1e-6
+              && Math.abs(m.position.x - (w.minX + w.maxX) / 2) < 1e-6
+              && Math.abs(m.position.z - (w.minZ + w.maxZ) / 2) < 1e-6
+              && p.shapes.holes.length === inside;
           }
           if (m.geometry.type !== 'PlaneGeometry') return false;
           const drawn = [p.width, p.height].sort((a, b) => a - b);
@@ -688,4 +717,59 @@ describe("nearestDry where the Moor's waters touch", () => {
       });
     }
   }
+});
+
+// The Pines has three overlap zones: the Black Mire's corner, where its two
+// reaches meet, the bay over the lake (and the two land pockets beside it),
+// and the bogs. Same margins as the Woods block.
+describe("nearestDry where the Pines' waters touch", () => {
+  const waters = WATERED.pines.area.waters;
+  const SPOTS = [
+    [-32.6, -11.6, "the deep swamp's bank at the mire's inside corner"],
+    [-30, -8.5, "the corner's water"],
+    [-26.4, -5.4, 'the bank at its outside corner'],
+    [28, 6.5, 'the bay north of the lake'],
+    [30.4, 7.6, 'the land pocket between the bay and the lake'],
+    [25.6, 44.4, "the pocket at the bay's south-east"],
+    [-36.3, 16, "bog-1's bank"],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+});
+
+// The island cut out of the Pines' lake and bay, and the bridge deck over the
+// bay: a toy, a scent treat or a race ring landing beside the bridge, just off
+// the island or where the bay meets the lake must land on the island, the
+// deck or the shore, close by (island Review Focus 3). Same margins and the
+// same two expectations as the Woods block.
+describe('nearestDry round the island and its bridge', () => {
+  const waters = WATERED.pines.area.waters;
+  const SPOTS = [
+    [28, 41.3, "just off the island's south rim"],
+    [28, 14.7, 'just off its north rim, where the bay and the lake overlap'],
+    [14.6, 28, 'just off its west rim, in the bay only'],
+    [16.96, 10.78, "1.5 m beside the bridge's middle"],
+    [21.16, 16.88, '1.2 m beside the deck where it meets the rim'],
+    [10, 6.5, '1.5 m beside the deck on its west side, 1 m short of the foot'],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+
+  it('the spots are in the water today, so the block tests a real push', () => {
+    for (const [x, z, where] of SPOTS) expect(inWater(waters, x, z), where).toBe(true);
+  });
 });
