@@ -906,6 +906,15 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(JOURNAL_TYPES).toContain('bird');
   });
 
+  it('a rabbit spotted is counted, and the count survives a reload', () => {
+    const storage = fakeStorage({});
+    const p = createProgression(storage);
+    p.recordSighting('rabbit');
+    p.recordSighting('rabbit');
+    expect(p.state.journal.rabbit).toBe(2);
+    expect(createProgression(storage).state.journal.rabbit).toBe(2);
+  });
+
   it('recordGolden returns true once per valid id, false for repeats or malformed ids', () => {
     const p = createProgression(fakeStorage({}));
     expect(p.recordGolden('gm-park-3')).toBe(true);

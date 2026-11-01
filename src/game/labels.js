@@ -8,6 +8,6 @@ export function labelFor(type) {
     duck: 'a paddling duck', seagull: 'a seagull', crab: 'a sideways crab',
     dog: 'the neighbor’s dog', villager: 'a friendly neighbor',
     firefly: 'a glowing firefly', mouse: 'a quick little mouse',
-    rat: 'a dockside rat',
+    rat: 'a dockside rat', rabbit: 'a bounding rabbit',
   }[type] ?? 'something interesting';
 }
