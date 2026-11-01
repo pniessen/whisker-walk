@@ -73,14 +73,17 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
     else if (move && showing === 'fight' && BUTTONS.includes(move)) onMove(move);
   };
 
+  // The body gets `fight-asking` / `fighting` too: the chat wheel is fixed in
+  // <body> above #hud's layer, and it must not cover the pill or a move button
+  // (style.css). #hud never gets `fighting` for the pill: the kid still needs
+  // the action buttons and the zoom while deciding.
+  const body = () => globalThis.document?.body ?? null;
   function dropAsk() {
     if (ask) ask.remove();
     ask = null;
     root.classList.remove('fight-asking');
+    body()?.classList?.remove('fight-asking');
   }
-  // The body gets `fighting` too: the chat wheel is fixed in <body> above
-  // #hud's layer, and it must not cover a move button (style.css).
-  const body = () => globalThis.document?.body ?? null;
   function dropSheet() {
     if (sheet) sheet.remove();
     sheet = null;
@@ -101,6 +104,7 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
       }
       ask.innerHTML = renderChallengeHtml(model);
       root.classList.add('fight-asking');
+      body()?.classList?.add('fight-asking');
       showing = 'challenge';
     },
     showFight(model) {

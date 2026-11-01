@@ -102,6 +102,22 @@ describe('the challenge pill', () => {
     expect(ui.showing).toBeNull();
     expect(root.children).toHaveLength(0);
   }));
+
+  test('the chat wheel steps aside for the pill: body.fight-asking, never #hud.fighting', () => withDoc(() => {
+    const root = new FakeEl();
+    const ui = createFightUi(root, {});
+    ui.showChallenge({ name: 'Mossjaw', clan: 'moor' });
+    expect(document.body.cls.has('fight-asking')).toBe(true);
+    expect(root.cls.has('fighting')).toBe(false);          // the action buttons and zoom stay
+    expect(document.body.cls.has('fighting')).toBe(false);
+    ui.hide();
+    expect(document.body.cls.has('fight-asking')).toBe(false);
+    ui.showChallenge({ name: 'Mossjaw', clan: 'moor' });
+    ui.showFight(PHASES[0]);
+    expect(document.body.cls.has('fight-asking')).toBe(false);
+    expect(document.body.cls.has('fighting')).toBe(true);
+    ui.hide();
+  }));
 });
 
 describe('the fight sheet', () => {
@@ -187,6 +203,8 @@ describe('the sheet on a phone (style.css)', () => {
     expect(rule('.hud-fight')).toMatch(/z-index: [6-9];/);
     expect(css).toMatch(/body\.fighting \.chat-wheel\s*\{[^}]*display: none/);
     expect(rule('.chat-wheel')).toContain('z-index: 5');
+    expect(css).toMatch(/body\.fight-asking \.chat-wheel\s*\{[^}]*display: none/);
+    expect(css).not.toMatch(/#hud\.fight-asking \.tui-(actions|zoom)/);
     expect(css).toMatch(/#hud\.fighting \.tui-actions[^{]*#hud\.fighting \.tui-zoom[^{]*\{[^}]*display: none/);
     expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*bottom:/);
   });
@@ -199,12 +217,32 @@ describe('the sheet on a phone (style.css)', () => {
     expect(rule('.fight-clue-icon')).toMatch(/font-size: (6[4-9]|[7-9]\d)px/);
   });
 
-  test('short screens and landscape: the buttons stack in a column on the right', () => {
+  test('short screens and landscape: a low sheet, the three moves in one row, the cats in view', () => {
     const at = css.indexOf('@media (max-height: 500px) {\n  .hud-fight');
     expect(at).toBeGreaterThan(-1);
     const block = css.slice(at, css.indexOf('\n}', at));
-    expect(block).toContain('.fight-moves');
-    expect(block).toContain('flex-direction: column');
-    expect(block).toMatch(/min-height: 6[4-9]px/);
+    const sub = (sel) => {
+      const i = block.indexOf(`${sel} {`);
+      return i < 0 ? '' : block.slice(i, block.indexOf('}', i));
+    };
+    // the sheet: at most ~40% of the height, safe area on every side
+    expect(sub('.hud-fight')).toMatch(/max-height: (3\d|40)vh/);
+    for (const side of ['left', 'right', 'bottom']) expect(sub('.hud-fight')).toContain(`env(safe-area-inset-${side})`);
+    // one row of moves, never a column
+    expect(sub('.hud-fight .fight-moves')).toContain('flex-direction: row');
+    expect(block).not.toMatch(/fight-moves[^}]*flex-direction: column/);
+    expect(sub('.hud-fight .fight-move')).toContain('min-height: clamp(64px, 22vh, 88px)');
+    // the teach line folds into the clue column, small, and still shows
+    expect(sub('.hud-fight .fight-teach')).toContain('grid-area: teach');
+    expect(sub('.hud-fight .fight-teach')).not.toContain('display: none');
+    expect(sub('.hud-fight')).toContain('"teach moves"');
+    // toasts above the sheet's top edge, centred
+    expect(sub('#hud.fighting .hud-toasts')).toMatch(/bottom: calc\(40vh/);
+    expect(sub('#hud.fighting .hud-toasts')).not.toContain('left: 32%');
+  });
+
+  test('the sheet keeps clear of the side safe areas everywhere', () => {
+    expect(rule('.hud-fight')).toContain('env(safe-area-inset-left)');
+    expect(rule('.hud-fight')).toContain('env(safe-area-inset-right)');
   });
 });

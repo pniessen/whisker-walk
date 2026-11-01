@@ -1215,7 +1215,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; /* over .touch-ui (1), the prompt (2), the chat wheel (5); under #overlay (10) */
   pointer-events: auto; touch-action: manipulation;
   display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 10px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
   background: linear-gradient(to top, rgba(20,26,38,0.92), rgba(20,26,38,0.72));
   border-radius: 18px 18px 0 0; color: #fff; user-select: none; -webkit-user-select: none;
 }
@@ -1241,6 +1241,10 @@ body.den-shop-open .chat-wheel { display: none !important; }
 /* The chat wheel (and its tray) is fixed in <body> at z-index 5, above the
    sheet's layer: it steps aside for the fight. */
 body.fighting .chat-wheel { display: none !important; }
+/* It steps aside for the challenge pill too (the pill sits where the wheel's
+   tray opens). Only the body is marked: #hud keeps its action buttons and
+   zoom while the kid decides. */
+body.fight-asking .chat-wheel { display: none !important; }
 #hud.fighting .hud-toasts { bottom: calc(290px + env(safe-area-inset-bottom)); }
 /* Each button's key, for a pointer-locked desktop cat; touch has no keys. */
 .fight-key {
@@ -1249,12 +1253,25 @@ body.fighting .chat-wheel { display: none !important; }
 }
 @media (pointer: coarse) { .fight-key { display: none; } }
 body.touch-mode .fight-key { display: none; }
+/* Short screens (a phone on its side): one low sheet, at most ~40% of the
+   height so both cats stay in view above it. The clue, the pips and the teach
+   line (small, but in every fight) share a column on the left; the three
+   moves sit in ONE row on the right, each clamp(64px, 22vh, 88px) tall (82 px
+   on a 375 px tall phone), all inside the bottom third. */
 @media (max-height: 500px) {
-  .hud-fight { flex-direction: row; align-items: flex-end; flex-wrap: wrap; }
-  .hud-fight .fight-top { flex: 1 1 40%; align-items: flex-start; min-height: 0; }
-  .hud-fight .fight-moves { flex-direction: column; width: 34%; }
-  .hud-fight .fight-move { min-height: 64px; min-width: 0; flex: 0 0 auto; }
-  .hud-fight .fight-teach { flex-basis: 100%; }
-  /* beside the button column, never over it */
-  #hud.fighting .hud-toasts { bottom: calc(80px + env(safe-area-inset-bottom)); left: 32%; max-width: 58vw; }
+  .hud-fight {
+    display: grid; grid-template-columns: minmax(150px, 40%) minmax(0, 1fr);
+    grid-template-areas: "top moves" "teach moves";
+    column-gap: 12px; row-gap: 2px; align-items: end; max-height: 40vh;
+    padding: 6px calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+  }
+  .hud-fight .fight-top { grid-area: top; align-items: flex-start; min-height: 0; gap: 2px; }
+  .hud-fight .fight-line { font-size: 1rem; }
+  .hud-fight .fight-clue-icon { font-size: 36px; }
+  .hud-fight .fight-clue-text { font-size: 1rem; }
+  .hud-fight .fight-moves { grid-area: moves; flex-direction: row; width: auto; }
+  .hud-fight .fight-move { min-height: clamp(64px, 22vh, 88px); min-width: 0; }
+  .hud-fight .fight-teach { grid-area: teach; font-size: 0.7rem; text-align: left; }
+  /* toasts centred just above the sheet's top edge, never over a move */
+  #hud.fighting .hud-toasts { bottom: calc(40vh + 8px); left: 50%; max-width: calc(100vw - 32px); }
 }

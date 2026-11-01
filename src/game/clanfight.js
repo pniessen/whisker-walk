@@ -36,8 +36,8 @@ export const LOSER_STEP = 0.4;     // m the round's loser steps back
 export const LOSER_TIME = 0.4;     // s it takes, in 'scared'
 const ANSWER_TIME = 0.35;          // s of the answer pose before the tumble
 const ANSWER_TIME_REDUCED = 0.2;
-const BACKUP_TIME = 0.5;
-const CIRCLE_SLACK = 0.05;         // m over FIGHT_GAP the tumble still circles           // s the charge's ease-back takes
+const BACKUP_TIME = 0.5;           // s the charge's ease-back takes
+const CIRCLE_SLACK = 0.05;         // m over FIGHT_GAP the tumble still circles
 const POUNCE_HOP = 0.25;           // m
 const TUMBLE_HOP = 0.12;           // m
 const DUST = 0xcbb8a0;
@@ -268,8 +268,9 @@ export function createClanFight({
     const { name, clan } = foe;
     if (won) {
       intruders.flee(v);
-      // Reads after the discovery toast's "You spotted …".
-      log.awardOnce('intruder', `intruder-${v}`, `${name} running home 🛡️`);
+      // The HUD shows an 'intruder' label as it is, with no "You spotted"
+      // lead (ui/hud.js); the second toast says where it ran.
+      log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
       hud.toast(`${name} ran back to ${clanName(clan)}'s land! 🏃`);
       sendDone(true);
       endFight();
@@ -447,7 +448,7 @@ export function createClanFight({
     chasedOffTogether(v, petName) {
       if ((mode !== 'walkover' && mode !== 'fight') || visit !== v) return false;
       const { name } = foe;
-      log.awardOnce('intruder', `intruder-${v}`, `${name} running home 🛡️`);
+      log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
       hud.toast(`You and ${petName} chased ${name} off together! 🏃`);
       sendDone(true);
       endFight();

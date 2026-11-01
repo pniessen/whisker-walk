@@ -268,7 +268,8 @@ describe('the fight', () => {
     expect(h.intruders.flee).toHaveBeenCalledWith(7);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0].slice(0, 2)).toEqual(['intruder', 'intruder-7']);
-    expect(spy.mock.calls[0][2]).toContain('Mossjaw');
+    expect(spy.mock.calls[0][2]).toBe('You chased off Mossjaw! 🛡️');
+    expect(spy.mock.calls[0][2]).not.toMatch(/spotted|running home/);
     expect(progression.state.points).toBe(AWARDS.intruder);
     expect(progression.state.feats.intruder).toBe(1);
     expect(h.hud.toast).toHaveBeenLastCalledWith(`Mossjaw ran back to ${clanName('moor')}'s land! 🏃`);
@@ -483,7 +484,7 @@ describe('the fight on the network', () => {
     expect(h.s.fight).toBeNull();
     expect(h.log.awardOnce).toHaveBeenCalledTimes(1);
     expect(h.log.awardOnce.mock.calls[0].slice(0, 2)).toEqual(['intruder', 'intruder-7']);
-    expect(h.log.awardOnce.mock.calls[0][2]).toBe('Mossjaw running home 🛡️');
+    expect(h.log.awardOnce.mock.calls[0][2]).toBe('You chased off Mossjaw! 🛡️');
     expect(h.hud.toast).toHaveBeenCalledWith('You and Robin chased Mossjaw off together! 🏃');
     expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(false);
     expect(h.log.awardOnce).toHaveBeenCalledTimes(1);

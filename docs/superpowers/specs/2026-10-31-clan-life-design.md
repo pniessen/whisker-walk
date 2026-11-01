@@ -314,8 +314,13 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
 - Part 2 live check (2026-11-01, headless Chromium): an intruder walked,
   was fought, won and lost in all four territories; the save was
   byte-identical after each loss; every flee stayed on clan ground and out
-  of the water; phone portrait buttons 88 px tall in the bottom third
-  (landscape stacks them 64 px tall up the right side: open question).
+  of the water; phone portrait buttons 88 px tall in the bottom third.
+  Landscape (fixed 2026-11-01): one low sheet along the bottom, the clue,
+  pips and a small teach line on the left and the three moves in one row on
+  the right, each clamp(64px, 22vh, 88px) tall (83 px at 812×375, top 285,
+  inside the bottom third from 250); the sheet is about a quarter of the
+  height (top 279) and both cats stand above it; the chat wheel steps aside
+  for the challenge pill as well as the sheet.
 - Part 2 draw reading (2026-11-01, headless Chromium, HIGH, Auto off, 10 s
   average; fps about 2 to 4, not meaningful): the intruder is 24 to 25
   meshes, all casting. Beside it, it adds about +50 draws (desktop Woods,
