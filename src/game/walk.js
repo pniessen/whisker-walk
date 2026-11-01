@@ -89,6 +89,8 @@ import { waterRig } from '../render/water.js';
 import { createWind } from '../render/wind.js';
 import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
+import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
+import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
@@ -1283,6 +1285,20 @@ export function createWalkLifecycle({
       onBuild: (g) => { assignShadowCastersFor(g); },
     }) : NO_INTRUDERS;
     if (session.intruders.anchor) decals.follow(session.intruders.anchor, INTRUDER_DECAL_RADIUS);
+    // The clan fight (Part 2, Task 4): only at home, over these intruders. It
+    // is given no progression; it stands only on the clan cats' own ground
+    // (ruling R3). The sheet's buttons and keys call back into it.
+    session.clanFight = session.clanHome && session.intruders !== NO_INTRUDERS ? createClanFight({
+      intruders: session.intruders,
+      ui: createFightUi(document.getElementById('hud'), {
+        onFight: () => session.clanFight.startFight(),
+        onBackOff: () => session.clanFight.backOff(),
+        onMove: (m) => session.clanFight.answer(m),
+      }),
+      audio, fx: session.fx, hud, log, areaId, walkStamp, playerId: pid,
+      playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
+      reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
+    }) : NO_CLAN_FIGHT;
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
@@ -1811,6 +1827,7 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
+    session.clanFight.abort();
     session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
@@ -59,5 +60,25 @@ describe('renderJournalHtml', () => {
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
     expect(html).not.toContain('<script>');
+  });
+});
+
+describe('the intruders line (Clan Life Part 2)', () => {
+  it('shows with a finite chasedOff, and not without', () => {
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: 3 })).toContain('🛡️ Intruders chased off: 3');
+    expect(renderJournalHtml({}, 1, 3)).not.toContain('Intruders chased off');
+    expect(renderJournalHtml({}, 1, 3, {})).not.toContain('Intruders chased off');
+  });
+  it('a hostile value renders 0', () => {
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: '<b>9</b>' })).not.toContain('<b>');
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: NaN })).toContain('🛡️ Intruders chased off: 0');
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: -4 })).toContain('🛡️ Intruders chased off: 0');
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: Infinity })).toContain('🛡️ Intruders chased off: 0');
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: '<b>9</b>' })).toContain('🛡️ Intruders chased off: 0');
+    expect(renderJournalHtml({}, 1, 3, { chasedOff: 2.7 })).toContain('🛡️ Intruders chased off: 2');
+  });
+  it('homebase passes the feat tally, in Clan Edition only', () => {
+    const src = readFileSync(new URL('../src/ui/homebase.js', import.meta.url), 'utf8');
+    expect(src).toContain('isClanEdition(progression.state) ? { chasedOff: s.feats?.intruder ?? 0 } : {}');
   });
 });

@@ -314,6 +314,55 @@ describe('the clan in the walk (source pins)', () => {
     expect(s).toContain('session.intruders.dispose()');
   });
 
+  it('the clan fight is built only at home, over the intruders, and ends before they are disposed', () => {
+    const s = src();
+    const at = s.indexOf('session.clanFight = ');
+    expect(at).toBeGreaterThan(s.indexOf('session.intruders = '));
+    expect(s.slice(0, at)).not.toMatch(/session\.clanFight\s*=/);
+    const line = s.slice(at, s.indexOf('NO_CLAN_FIGHT', at));
+    expect(line).toMatch(/^session\.clanFight = session\.clanHome && session\.intruders !== NO_INTRUDERS\s*\?/);
+    expect(s.split('createClanFight(')).toHaveLength(2);
+    expect(line).toContain('createClanFight(');
+    expect(line).toContain('PERSONALITIES[cat.userData.breed]?.special');
+    // R3: the clan cats' own ground predicate, and no progression
+    expect(line).toContain('isGround: clanWalkable');
+    expect(line).not.toContain('progression');
+    const abort = s.indexOf('session.clanFight.abort()');
+    expect(abort).toBeGreaterThan(s.indexOf('function endWalk('));
+    expect(abort).toBeLessThan(s.indexOf('session.intruders.dispose()'));
+  });
+
+  it('Legacy never shows the panel: it can never be at home', async () => {
+    const { clanHomeFor } = await import('../src/clancast.js');
+    expect(clanHomeFor('woods', 'legacy', ['woods'])).toBe(false);
+    expect(clanHomeFor('woods', 'canon', ['woods'])).toBe(true);
+  });
+
+  it('main.js updates the clan fight after the rival and the dog', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const dog = m.indexOf('session.dog.update(');
+    const cf = m.indexOf('session.clanFight.update(dt, session)');
+    expect(dog).toBeGreaterThan(m.indexOf('session.rival.update('));
+    expect(cf).toBeGreaterThan(dog);
+    expect(cf).toBeLessThan(m.indexOf('updateAvatar(session, dt, t)'));
+  });
+
+  it("main.js's keydown hands every key to the fight sheet first", () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const at = m.indexOf("document.addEventListener('keydown', (e) => {");
+    expect(at).toBeGreaterThan(-1);
+    const body = m.slice(at, m.indexOf('\n  });', at));
+    const gate = body.indexOf("if (session?.clanFight?.uiShowing === 'fight') { session.clanFight.key(e.key); e.preventDefault(); return; }");
+    expect(gate).toBeGreaterThan(-1);
+    for (const branch of ["e.code === 'KeyE'", "e.code === 'Space'", 'phraseIdForDigit(', "e.code === 'KeyM'"]) {
+      expect(body.indexOf(branch)).toBeGreaterThan(gate);
+    }
+    // the pill: E and Q go to it, before E's own interact
+    const pill = body.indexOf("session?.clanFight?.uiShowing === 'challenge'");
+    expect(pill).toBeGreaterThan(gate);
+    expect(pill).toBeLessThan(body.indexOf("e.code === 'KeyE' && session"));
+  });
+
   it('main.js updates the intruders right after the clan', () => {
     const m = readFileSync('src/main.js', 'utf8');
     const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');

@@ -554,9 +554,19 @@ function init() {
     }
   });
   document.addEventListener('keydown', (e) => {
+    // Clan Life Part 2: while the fight sheet is up, every key is the fight's
+    // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.
+    if (session?.clanFight?.uiShowing === 'fight') { session.clanFight.key(e.key); e.preventDefault(); return; }
     // Typing in a home-base box (code, pet name, friend code) must never fire
     // hotkeys like M, which would also rebuild the panel and steal focus.
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+    // While only the challenge pill is up, E is Fight! and Q is Back off;
+    // every other key behaves as normal.
+    if (session?.clanFight?.uiShowing === 'challenge' && (e.code === 'KeyE' || e.code === 'KeyQ')
+        && player.engaged && !e.repeat && !typing) {
+      session.clanFight.key(e.code === 'KeyE' ? 'e' : 'q');
+      return;
+    }
     if (e.code === 'KeyE' && session && player.engaged && !e.repeat) {
       if (session.prompt) handleInteract(session);
       else {
@@ -604,6 +614,11 @@ function init() {
       if (e.code === 'Enter') { session.chatWheel?.openFromKeyboard?.(); return; }
       if (e.code === 'Escape') { session.chatWheel?.closeFromKeyboard?.(); return; }
     }
+  });
+  // Clan Life Part 2: a fight never waits in a hidden tab. Hiding the page
+  // ends it the way the walk's end does: the intruder walks on, nothing paid.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) session?.clanFight?.abort();
   });
   // Mouse wheel / trackpad zoom. Only cancelled (and only acted on) during an
   // engaged walk, so the browser's own ctrl+wheel zoom still works everywhere
@@ -757,6 +772,9 @@ function init() {
       // v21 3b Task 16: the yard dog, after the rival (they share
       // session.chasing, so only one of them ever moves the cat at a time).
       session.dog.update(dt, session.cat.position, session.cat, { stalking: player.stalking });
+      // Clan Life Part 2: the clan fight, after everything that can move the
+      // cat (player.update, a chase): it writes the fighting cat's spot.
+      session.clanFight.update(dt, session);
       const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');

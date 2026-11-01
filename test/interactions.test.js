@@ -2881,6 +2881,33 @@ describe('Ruffled Fur — the enemy system (v20)', () => {
       return { h, s };
     }
 
+    it('no scuffle during a fight', () => {
+      // Clan Life Part 2: a cross stray beside the fight never swats and never
+      // costs points, whether the fight is on or only its challenge is up.
+      for (const during of [{ fight: {} }, { clanFight: { uiShowing: 'challenge' } }, { clanFight: { uiShowing: 'fight' } }]) {
+        const { h } = crowded();
+        const deduct = vi.spyOn(h.progression, 'deductPoints');
+        Object.assign(h.session, during);
+        for (let i = 0; i < 200; i++) {
+          h.session.freezeTime = 0;
+          h.scan();
+        }
+        expect(deduct).not.toHaveBeenCalled();
+        expect(h.progression.state.points).toBe(100);
+        expect(h.hisses).toHaveLength(0);
+      }
+      // ...and with the fight on, E does nothing and no prompt is offered
+      const { h } = crowded();
+      h.session.fight = {};
+      h.scan();
+      expect(h.session.prompt).toBeNull();
+      h.session.prompt = { kind: 'stray-gift', data: h.strayCats.strays[0] };
+      const before = JSON.stringify(h.progression.state);
+      h.pressE();
+      expect(JSON.stringify(h.progression.state)).toBe(before);
+      expect(h.toasts).toEqual([]);
+    });
+
     it('swats you: the dog scare, plus a spendable-point cost', () => {
       const { h, s } = crowded();
       h.scan();
