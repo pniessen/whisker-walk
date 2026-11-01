@@ -33,7 +33,7 @@ import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
-import { castFor, CLAN_COLOURS, clanCountFor, lonersFor, roamHomes } from '../clancast.js';
+import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
 import { campLayout } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { createRemoteCats } from '../remotecats.js';
@@ -1120,6 +1120,8 @@ export function createWalkLifecycle({
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
+      // Per-walk pay caps for the clan verbs (interactions.js CLAN_PAY_CAP).
+      clanPaid: { friend: 0, boop: 0, patrol: 0 },
       // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
       // collar for solo walks — see where duskActive is computed above).
       // endWalk needs it for the duskWalks tally that Night Eyes reads;
@@ -1257,6 +1259,9 @@ export function createWalkLifecycle({
     const myBorderIds = new Set(progression.marksIn(areaId).filter((m) => m.kind === 'border').map((m) => m.id));
 
     const picks = picksOf(progression.state);
+    const clanHome = clanHomeFor(areaId, progression.state.edition, picks);
+    session.clanHome = clanHome;
+    session.clanEdition = isClanEdition(progression.state);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
     // goldMice above; the den has no rival, so everything is a no-op there.
@@ -1270,7 +1275,10 @@ export function createWalkLifecycle({
     // The picks only choose the clan's name.
     // No patrol in Legacy: no border decals, border-mark prompt or mark
     // contest, so a Legacy walk writes no clan field.
-    if (isDen || !rivalForWalk(areaId, progression.state.edition, picks)) {
+    // At home, your clan's camp has no hostile patrol: intruders take its
+    // place (owner's decision 2026-10-31, superseding pick-your-clan's D7 for
+    // the clan-life era). Everywhere else today's patrol rules stand.
+    if (isDen || clanHome || !rivalForWalk(areaId, progression.state.edition, picks)) {
       session.rival = NO_RIVAL;
     } else {
       // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.

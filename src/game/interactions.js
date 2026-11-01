@@ -60,6 +60,11 @@ import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js'
 // deliberate match cannot silently become a mismatch.
 // ---------------------------------------------------------------------------
 const STRAY_PROMPT_RANGE = 2.5;
+
+// Task 5 (the clanmates): the most a walk pays for each clan verb (touch noses for
+// the first 4 clan cats, boop for 4, patrols for 2). A verb past its cap
+// still happens; it just pays nothing. Counted in session.clanPaid.
+export const CLAN_PAY_CAP = Object.freeze({ friend: 4, boop: 4, patrol: 2 });
 // How close you stand to pet a tamed cat at home in the den.
 const DEN_CAT_PET_RANGE = 2.2;
 const SCUFFLE_RANGE = 1.4;
@@ -880,6 +885,25 @@ export function createInteractions({
         }
       }
     }
+    if (!s.prompt && s.clanEdition && s.clanCats?.list.length) {
+      // Task 5 (the clanmates): the nearest clanmate that still has an offer. Below
+      // the stray slots (a stray standing nearer still gets its greet first),
+      // above the ghost. Touch noses anywhere; boop and patrol only at home.
+      // The clanmates are not in strayCats, so no feed prompt can ever see them.
+      const offerFor = (c) => {
+        if (!c.greeted) return 'clan-greet';
+        if (!s.clanHome) return null;
+        if (!c.booped) return 'clan-boop';
+        // Task 6 fills in the patrol offer; until then it is not produced.
+        return null;
+      };
+      const mate = s.clanCats.nearest(catP, STRAY_PROMPT_RANGE, { where: (c) => offerFor(c) !== null });
+      if (mate) {
+        const kind = offerFor(mate);
+        s.prompt = { kind, data: mate };
+        setPrompt(kind === 'clan-greet' ? `E — touch noses with ${mate.name}` : `E — boop ${mate.name} 💕`);
+      }
+    }
     if (!s.prompt) {
       const ghost = s.ghosts.nearest(catP, 2.5);
       if (ghost) {
@@ -1112,6 +1136,14 @@ export function createInteractions({
   // interact prompt (below) and chat greetings (sendPhrase in startWalk) so
   // there is exactly one path that can ever pay out a stray friendship
   // award — talking never awards more than booping.
+  // A clan verb's award, under its per-walk cap. The count goes up only when
+  // awardOnce actually paid, so a repeat on the same cat never uses a slot.
+  function clanPay(s, type, key, label) {
+    const paid = s.clanPaid ?? (s.clanPaid = { friend: 0, boop: 0, patrol: 0 });
+    if (paid[type] >= CLAN_PAY_CAP[type]) return;
+    if (log.awardOnce(type, key, label) > 0) paid[type] += 1;
+  }
+
   function awardStrayGreet(s, stray) {
     // -------------------------------------------------------------------
     // v20 Ruffled Fur — THE STRAYS-ONLY RULE IS ENFORCED HERE, not in enemies.js.
@@ -1525,6 +1557,17 @@ export function createInteractions({
       s.fx?.burst(stray.group.position, 0xe05a7a, 14);
       hud.toast(`${stray.name} takes the treat… and forgives you ♡`);
       catVoice();
+    } else if (s.prompt.kind === 'clan-greet') {
+      const cat = s.prompt.data;
+      s.clanCats.greet(cat, s.cat.position);
+      audio.trill();
+      clanPay(s, 'friend', `clan-friend-${cat.id}`, `touched noses with ${cat.name}`);
+    } else if (s.prompt.kind === 'clan-boop') {
+      const cat = s.prompt.data;
+      s.clanCats.boop(cat, s.cat.position);
+      audio.purr();
+      hud.toast(`💕 boop with ${cat.name}!`);
+      clanPay(s, 'boop', `clan-boop-${cat.id}`, `a nose boop with ${cat.name} 💕`);
     } else if (s.prompt.kind === 'ghost') {
       const ghost = s.prompt.data;
       s.ghosts.greet(ghost, s.cat.position);

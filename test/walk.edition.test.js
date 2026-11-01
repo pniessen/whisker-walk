@@ -139,6 +139,17 @@ describe('a Legacy walk', () => {
     expect(src.indexOf('const picks = picksOf(')).toBeLessThan(src.indexOf("The rival's border and its patrol"));
   });
 
+  it('at home there is no hostile patrol (Clan Life Task 5)', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const line = 'const clanHome = clanHomeFor(areaId, progression.state.edition, picks);';
+    expect(src).toContain(line);
+    expect(src.indexOf(line)).toBeLessThan(src.indexOf("The rival's border and its patrol"));
+    expect(src.indexOf(line)).toBeGreaterThan(src.indexOf('const picks = picksOf('));
+    expect(src).toContain('if (isDen || clanHome || !rivalForWalk(');
+    expect(src).toContain('session.clanHome = clanHome;');
+    expect(src).toContain('clanPaid: { friend: 0, boop: 0, patrol: 0 }');
+  });
+
   it('the home welcome is gated on the den, comes from homeWelcome and sits on the Ready card', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
     expect(src).toMatch(/isDen \? null : homeWelcome\(areaId, progression\.state\)/);

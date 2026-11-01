@@ -164,7 +164,12 @@ function borrowedIn(src) {
 }
 
 // Pre-existing literals where the word means something unrelated to the clan.
-const ALLOW = [];
+const ALLOW = [
+  // Never shown to a player: the internal prompt kinds ('clan-greet', 'clan-boop')
+  // and award keys ('clan-friend-<id>', 'clan-boop-<id>') of the clanmate verbs,
+  // fixed by the Task 5 brief. The words a player reads come from clanwords.js.
+  { file: 'src/game/interactions.js', words: ['Clan'] },
+];
 
 test('no borrowed word is hard-coded anywhere but clanwords.js', () => {
   const files = globSync('src/**/*.js').filter((f) => !f.endsWith('clanwords.js'));
