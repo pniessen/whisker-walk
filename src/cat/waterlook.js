@@ -85,7 +85,7 @@ export function waterPose(pose, st, { hagrid = false, reducedMotion = false } = 
 // the local cat passes player.perchY + player.hopY, a remote passes 0. y and
 // rotation.z are SET, never added, so nothing can accumulate; nothing else in
 // the game writes the group's rotation.z.
-export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount) {
+export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1) {
   const target = sinkTarget(cat, st.mode);
   const rate = target > st.sink ? SINK_RATE : RISE_RATE;
   st.sink += (target - st.sink) * (1 - Math.exp(-rate * dt));

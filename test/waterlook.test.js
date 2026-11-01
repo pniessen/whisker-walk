@@ -301,3 +301,15 @@ describe('the new poses', () => {
     }
   });
 });
+
+describe('applyWaterLook amount default', () => {
+  it('shaking without an amount leaves rotation.z finite', () => {
+    const cat = buildCat('tabby');
+    const st = createWaterState();
+    st.mode = 'wade';
+    st.shake = SHAKE_TIME;
+    applyWaterLook(cat, st, 0.37, 1 / 60, false, 0);
+    expect(Number.isFinite(cat.rotation.z)).toBe(true);
+    expect(cat.rotation.z).not.toBe(0);
+  });
+});

@@ -171,3 +171,37 @@ describe('shallow widths', () => {
     }
   });
 });
+
+describe('shape guard', () => {
+  it('every shipped water uses only shapes the shore and deck code understand', async () => {
+    const builds = [
+      await import('../src/world/park.js'), await import('../src/world/seaside.js'),
+      await import('../src/world/docks.js'), await import('../src/world/woods.js'),
+      await import('../src/world/river.js'), await import('../src/world/moor.js'),
+    ];
+    const fix = 'deckDistance must learn strip decks (as onDeck/onOneDeck does) and outline(w) must add CIRCLE_CHORDS chords per island disc — see the comment above outline()';
+    const check = (waters) => {
+      for (const w of waters) {
+        expect(['rect', 'circle'], `${w.id}: kind ${w.kind}. ${fix}`).toContain(w.kind);
+        expect(w.islands, `${w.id}: islands. ${fix}`).toBeUndefined();
+        expect(w.holes, `${w.id}: holes. ${fix}`).toBeUndefined();
+        for (const d of w.decks ?? []) {
+          for (const k of ['minX', 'maxX', 'minZ', 'maxZ']) {
+            expect(Number.isFinite(d[k]), `${w.id}: deck ${k}. ${fix}`).toBe(true);
+          }
+          for (const k of ['x1', 'z1', 'x2', 'z2', 'halfW']) {
+            expect(d[k], `${w.id}: strip deck field ${k}. ${fix}`).toBeUndefined();
+          }
+        }
+      }
+    };
+    for (const m of builds) {
+      const waters = m.build(new THREE.Scene()).waters;
+      expect(waters.length).toBeGreaterThan(0);
+      check(waters);
+    }
+    // scratch proof it bites (kept: the guard must reject these shapes)
+    expect(() => check([{ id: 'x', kind: 'circle', islands: [{}] }])).toThrow(/CIRCLE_CHORDS/);
+    expect(() => check([{ id: 'x', kind: 'rect', decks: [{ x1: 0, z1: 0, x2: 1, z2: 1, halfW: 1 }] }])).toThrow(/strip deck/);
+  });
+});

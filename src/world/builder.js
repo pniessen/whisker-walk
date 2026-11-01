@@ -3347,7 +3347,8 @@ export function onDeck(w, x, z) {
 // Signed distance from (x, z) to the nearest deck of any of these waters:
 // negative inside (how far in from the nearest edge), positive outside, and
 // Infinity where there are no decks. Beside onDeck: when onDeck learns a new
-// kind of deck, this must too.
+// kind of deck, this must too. It handles rect decks only; the guard in
+// test/shore.test.js ("uses only shapes the shore and deck code understand") enforces that.
 export function deckDistance(waters, x, z) {
   let min = Infinity;
   for (const w of waters ?? []) {

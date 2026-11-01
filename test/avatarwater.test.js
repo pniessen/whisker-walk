@@ -153,3 +153,37 @@ describe('my cat in the water', () => {
     expect(h.cat.position.y).toBeCloseTo(0.6, 3);
   });
 });
+
+describe('a pounce landing', () => {
+  const land = (h, x) => {
+    const bursts = [];
+    h.s.fx.burst = (...a) => bursts.push(a);
+    h.at(x);
+    h.tick(60); // settle into the water state
+    h.sounds.length = 0;
+    h.s.pounceTime = 0.01;
+    h.tick(2);
+    return bursts;
+  };
+
+  it('in water: a wade splash, no dust poof', () => {
+    const h = harness();
+    const bursts = land(h, WADE_X);
+    expect(h.player.inWater).toBe(true);
+    expect(bursts.filter((b) => b[1] === 0xcbb8a0)).toHaveLength(0);
+    expect(h.sounds).toContain('wade');
+  });
+
+  it('on land: the dust poof and thump are unchanged', () => {
+    const h = harness();
+    const bursts = [];
+    h.s.fx.burst = (...a) => bursts.push(a);
+    h.at(10);
+    h.tick(60);
+    h.sounds.length = 0;
+    h.s.pounceTime = 0.01;
+    h.tick(2);
+    expect(bursts.filter((b) => b[1] === 0xcbb8a0)).toHaveLength(1);
+    expect(h.sounds).not.toContain('wade');
+  });
+});

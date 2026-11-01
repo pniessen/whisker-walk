@@ -579,10 +579,8 @@ export function createPlayer(camera, canvas) {
       touchMode = !!mode;
     },
     // Metres the cat is currently rendered ABOVE api.perchY. 0 whenever the
-    // paws are down. Read-only, and read by nothing in the game — it exists
-    // so a test can watch the arc without a scene, and so a future camera or
-    // shadow effect has an honest number to hang off instead of re-deriving
-    // one from the pose timers.
+    // paws are down. Read-only. avatar.js reads it (perchY + hopY is the base
+    // y for the water look), and tests watch the arc through it.
     get hopY() {
       return hopOffset(hopTime, hopArc);
     },

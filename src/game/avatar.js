@@ -76,8 +76,12 @@ export function createAvatarUpdater({
     const wasPouncing = s.pounceTime > 0;
     if (s.pounceTime > 0) s.pounceTime -= dt;
     if (wasPouncing && s.pounceTime <= 0) {
-      s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
-      audio.landThump();
+      if (player.inWater) {
+        audio.waterSplash('wade'); // landed in water: a splash, no sandy poof or thump
+      } else {
+        s.fx.burst(cat.position, 0xcbb8a0, 8); // dust poof on landing
+        audio.landThump();
+      }
       s.landTime = 0.12;
       // pounce-tag (Task 6.2, room walks only): landing within 1.3 of a
       // remote counts as a tag touch. Feed it through tagState — this is
