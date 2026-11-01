@@ -209,7 +209,12 @@ export const TAG_EDGE_PX = 6;
 const _pos = new THREE.Vector3();
 const _size = new THREE.Vector2();
 
-export function fitTagToView(tag, camera, viewW, viewH) {
+// `minBottomY` (world y, optional): the sprite's lower edge is kept at or
+// above it. The chat bubble passes its own tag's fitted top, so a far tag
+// grown to TAG_PX_MIN never pushes up under the bubble (fitBubbleOnRender).
+// A sprite other than a name tag says how tall one of its "lines" is with
+// userData.fitLines (its height over a one-line tag's for the same letters).
+export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity) {
   if (!camera || !camera.isPerspectiveCamera || !(viewH > 0) || !(viewW > 0)) return;
   const mw = tag.matrixWorld;
   if (tag.parent) mw.multiplyMatrices(tag.parent.matrixWorld, tag.matrix);
@@ -223,9 +228,12 @@ export function fitTagToView(tag, camera, viewW, viewH) {
   if (!(depth > camera.near)) return;
   const tanHalf = Math.tan((camera.fov * Math.PI) / 360) / (camera.zoom || 1);
   const halfH = depth * tanHalf;
-  const halfW = halfH * (viewW / viewH);
+  // The camera's own shape, not the canvas's: the same today, and right for
+  // any render target of another shape.
+  const halfW = halfH * (camera.aspect > 0 ? camera.aspect : viewW / viewH);
   const k = viewH / (2 * halfH); // CSS px per world unit at this depth
-  const lineH = (tag.userData?.sub ? sy / (SUB_TAG_SCALE_Y / TAG_SCALE_Y) : sy) * k;
+  const lines = tag.userData?.fitLines ?? (tag.userData?.sub ? SUB_TAG_SCALE_Y / TAG_SCALE_Y : 1);
+  const lineH = (sy / lines) * k;
   const target = lineH < TAG_PX_MIN ? TAG_PX_MIN : lineH > TAG_PX_MAX ? TAG_PX_MAX : lineH;
   const f = target / lineH;
   const nsx = sx * f;
@@ -244,8 +252,9 @@ export function fitTagToView(tag, camera, viewW, viewH) {
   const maxY = halfH - nsy / 2 - m;
   if (_pos.y > maxY) { _pos.y = maxY; moved = true; }
   // Untouched: keep the natural matrix exactly as three built it.
-  if (!moved) return;
+  if (!moved && !(e[13] - sy / 2 < minBottomY)) return;
   _pos.applyMatrix4(camera.matrixWorld);
+  if (_pos.y - nsy / 2 < minBottomY) _pos.y = minBottomY + nsy / 2;
   mw.makeScale(nsx, nsy, 1);
   mw.setPosition(_pos);
 }
@@ -254,6 +263,28 @@ function fitOnRender(renderer, _scene, camera) {
   if (!renderer || typeof renderer.getSize !== 'function') return;
   renderer.getSize(_size);
   fitTagToView(this, camera, _size.x, _size.y);
+}
+
+// For a chat bubble (chatbubble.js): fit it like a tag, and keep it above
+// its cat's name tag as that tag was fitted this frame. The bubble draws after
+// the tag (renderOrder 10), so the tag's matrixWorld is already this frame's.
+// No allocation: a plain loop over the cat's children.
+const BUBBLE_GAP = 0.03;
+export function fitBubbleOnRender(renderer, _scene, camera) {
+  if (!renderer || typeof renderer.getSize !== 'function') return;
+  renderer.getSize(_size);
+  let minBottom = -Infinity;
+  const kids = this.parent ? this.parent.children : null;
+  if (kids) {
+    for (let i = 0; i < kids.length; i++) {
+      const c = kids[i];
+      if (c === this || !c.visible || !c.userData || !c.userData.tagCtx) continue;
+      const te = c.matrixWorld.elements;
+      const top = te[13] + Math.hypot(te[4], te[5], te[6]) / 2;
+      if (top + BUBBLE_GAP > minBottom) minBottom = top + BUBBLE_GAP;
+    }
+  }
+  fitTagToView(this, camera, _size.x, _size.y, minBottom);
 }
 
 // Shrinks `ctx.font` from `px` until `label` fits `maxW`, never below `min`.

@@ -164,3 +164,49 @@ describe('makeNameTag wires the fit in', () => {
     }
   });
 });
+
+describe('chat bubbles fit and stack above the fitted tag', () => {
+  it('a bubble right in front of the camera is capped like a tag, and sits above the tag', async () => {
+    const { fitBubbleOnRender } = await import('../src/nametag.js');
+    const tag = catWithTag(0, 0);
+    const cat = tag.parent;
+    tag.userData.tagCtx = {}; // what makeNameTag hangs on a real tag
+    const bubble = new THREE.Sprite(new THREE.SpriteMaterial());
+    bubble.scale.set(1.9, 0.57, 1);
+    bubble.position.y = 1.18 + 0.5;
+    bubble.userData.fitLines = (34 / 64) / (40 / 96);
+    cat.add(bubble);
+    cat.updateMatrixWorld(true);
+    const cam = camAt([0, 1.2, 1.4], [0, 1, 0]);
+    fitTagToView(tag, cam, W, H);
+    fitBubbleOnRender.call(bubble, renderer, null, cam);
+    const be = bubble.matrixWorld.elements;
+    const bsy = Math.hypot(be[4], be[5], be[6]);
+    const p = new THREE.Vector3().setFromMatrixPosition(bubble.matrixWorld);
+    const depth = -p.clone().applyMatrix4(cam.matrixWorldInverse).z;
+    const k = H / (2 * Math.tan(THREE.MathUtils.degToRad(35)) * depth);
+    expect((bsy / bubble.userData.fitLines) * k).toBeCloseTo(TAG_PX_MAX, 3);
+    const te = tag.matrixWorld.elements;
+    expect(be[13] - bsy / 2).toBeGreaterThanOrEqual(te[13] + Math.hypot(te[4], te[5], te[6]) / 2);
+  });
+
+  it('a far tag grown to TAG_PX_MIN pushes its bubble up, never under it', async () => {
+    const { fitBubbleOnRender } = await import('../src/nametag.js');
+    const tag = catWithTag(0, -30);
+    const cat = tag.parent;
+    tag.userData.tagCtx = {};
+    const bubble = new THREE.Sprite(new THREE.SpriteMaterial());
+    bubble.scale.set(1.9, 0.57, 1);
+    bubble.position.y = 1.68;
+    bubble.userData.fitLines = (34 / 64) / (40 / 96);
+    cat.add(bubble);
+    cat.updateMatrixWorld(true);
+    const cam = camAt([0, 2, 0], [0, 1.5, -30]);
+    fitTagToView(tag, cam, W, H);
+    fitBubbleOnRender.call(bubble, renderer, null, cam);
+    const be = bubble.matrixWorld.elements;
+    const te = tag.matrixWorld.elements;
+    expect(be[13] - Math.hypot(be[4], be[5], be[6]) / 2)
+      .toBeGreaterThanOrEqual(te[13] + Math.hypot(te[4], te[5], te[6]) / 2);
+  });
+});

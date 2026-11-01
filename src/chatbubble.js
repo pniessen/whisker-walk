@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TAG_Y } from './nametag.js';
+import { TAG_Y, fitBubbleOnRender } from './nametag.js';
 
 export const LIFETIME_MS = 3500;
 export const FADE_MS = 600;
@@ -40,6 +40,12 @@ export function makeBubbleSprite(text) {
   sprite.scale.set(1.9, 0.57, 1);
   sprite.position.y = BUBBLE_Y; // above the name tag
   sprite.renderOrder = 10;
+  // Fitted to the view like a name tag (capped on-screen size, kept inside the
+  // screen) and kept above its cat's fitted tag. Its letters fill 40/96 of
+  // its height, a tag's 34/64 of a line, so it counts as (34/64)/(40/96) lines
+  // tall: fitted, its letters match the tag's under it.
+  sprite.userData.fitLines = (34 / 64) / (40 / 96);
+  sprite.onBeforeRender = fitBubbleOnRender;
   return sprite;
 }
 
