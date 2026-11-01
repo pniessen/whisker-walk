@@ -108,6 +108,10 @@ export function createRooms({
         body: st.equipped.body,
         back: st.equipped.back,
         feet: st.equipped.feet,
+        // The clan pick rides the PUBLIC profile row (not the room roster) so a
+        // sibling's device can read it (colonysync.js); null before a pick.
+        // No reader iterates this object's keys.
+        home: st.clanPick?.mine ?? null,
       },
       rankTitle: rankFor(st.lifetimePoints).title,
     }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
@@ -307,7 +311,7 @@ export function createRooms({
       const id = progression.state.colony?.id;
       if (typeof id !== 'string' || !COLONY_ROOM_ID.test(id)) return { ok: false };
       const res = await joinRoom('P' + id, true);
-      if (res.ok) colonySync.pull();
+      if (res.ok) colonySync.pull({ freshPick: true });
       return { ok: res.ok };
     },
     async leave() {

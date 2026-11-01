@@ -72,6 +72,12 @@ describe('rooms.walkWithPartner', () => {
     expect(host.pull).toHaveBeenCalledTimes(1);
   });
 
+  it('calls the pull with { freshPick: true } after a successful join', async () => {
+    const { host } = pair(hub);
+    await host.rooms.walkWithPartner();
+    expect(host.pull).toHaveBeenCalledWith({ freshPick: true });
+  });
+
   it('a code room is not a pair room', async () => {
     const { host } = pair(hub);
     await host.rooms.join('ABCD');
@@ -329,5 +335,31 @@ describe('anyone can press Start, and it starts everyone', () => {
     old.sendEvent({ v: 1, id: 'bbbb-old-00009', type: 'walk-request', area: 'neighborhood', dusk: false });
     vi.advanceTimersByTime(START_GATHER_MS);
     expect(host.walks).toEqual([{ duskMode: false, roomSeed: expect.any(Number) }]);
+  });
+});
+
+describe('pushProfileNow shares the clan pick', () => {
+  function pushing() {
+    const cloud = { pushProfile: vi.fn(async () => 'ok') };
+    const progression = createProgression(fakeStorage());
+    progression.setPetName('Mittens');
+    const made = createRooms({
+      MP: 1, pid: HOST, supabaseUrl: 'x', supabaseAnonKey: 'y',
+      progression, getCloud: () => cloud, getPsecret: () => 'sec', getSession: () => null, startWalk() {},
+      colonySync: { status: () => ({ mode: 'unpaired' }), pull() {} },
+      createTransport: () => createFakeHub().transport(),
+    });
+    return { cloud, progression, made };
+  }
+
+  it('sends accessories.home: null before a pick, the pick after, beside the seven slots', async () => {
+    const { cloud, progression, made } = pushing();
+    await made.pushProfileNow();
+    expect(cloud.pushProfile.mock.calls[0][0].accessories.home).toBe(null);
+    expect(Object.keys(cloud.pushProfile.mock.calls[0][0].accessories)).toEqual(
+      expect.arrayContaining(['collar', 'head', 'face', 'neck', 'body', 'back', 'feet', 'home']));
+    progression.setClanPick('woods');
+    await made.pushProfileNow();
+    expect(cloud.pushProfile.mock.calls[1][0].accessories.home).toBe('woods');
   });
 });

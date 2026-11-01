@@ -4,7 +4,7 @@
 // progression over an in-memory storage, so the add-only merge, the trade
 // bookkeeping and the rewards are the shipping ones.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createColonySync, FEED_PUSH_MAX } from '../src/game/colonysync.js';
+import { createColonySync, FEED_PUSH_MAX, PICK_FETCH_MS } from '../src/game/colonysync.js';
 import { createProgression } from '../src/progression.js';
 import { isShy, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
@@ -25,7 +25,7 @@ function fakeStorage() {
 }
 
 const CLOUD_METHODS = ['colonySync', 'colonyFeed', 'colonyDress', 'colonyInviteOpen', 'colonyInviteJoin',
-  'colonyInviteAnswer', 'colonyTradeOffer', 'colonyTradeAnswer', 'colonyTradeCancel'];
+  'colonyInviteAnswer', 'colonyTradeOffer', 'colonyTradeAnswer', 'colonyTradeCancel', 'fetchProfiles'];
 
 // script[method] is a value (resolved), or a function (called with the args;
 // a throw becomes a rejection, like a failed supabase-js rpc).
@@ -1065,5 +1065,125 @@ describe('createColonySync — the clan name at pairing (R23)', () => {
     const p = createProgression(storage);
     expect('clanJoining' in p.state).toBe(false);
     expect(typeof p.setClanJoining).toBe('undefined');
+  });
+});
+
+describe('createColonySync — the partner\'s clan pick', () => {
+  const T0 = Date.UTC(2026, 10, 1, 12, 0, 0);
+  const home = (h) => () => [{ player_id: SIB, accessories: { collar: null, home: h } }];
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('a paired pull learns the partner\'s pick from their profile', async () => {
+    const { cs, progression, cloud } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('moor') } });
+    await cs.pull();
+    expect(cloud.fetchProfiles).toHaveBeenCalledWith([SIB]);
+    expect(progression.state.clanPick).toMatchObject({ partner: 'moor', partnerId: SIB });
+  });
+
+  it('a newly learned partner pick fires onChange exactly once', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(T0);
+    const { cs, onChange, script } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('moor') } });
+    await cs.pull();
+    onChange.mockClear();
+    vi.setSystemTime(T0 + PICK_FETCH_MS + 1);
+    await cs.pull();
+    expect(onChange).not.toHaveBeenCalled();
+    script.fetchProfiles = home('river');
+    vi.setSystemTime(T0 + 2 * PICK_FETCH_MS + 2);
+    await cs.pull();
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('an old-build profile without home keeps the cached pick', async () => {
+    const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: () => [{ player_id: SIB, accessories: {} }] } });
+    progression.setPartnerClanPick(SIB, 'moor');
+    await cs.pull();
+    expect(progression.state.clanPick).toMatchObject({ partner: 'moor', partnerId: SIB });
+  });
+
+  it('a hostile home is ignored', async () => {
+    for (const h of ['__proto__', 42, 'park', null, {}]) {
+      const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home(h) } });
+      await cs.pull();
+      expect(progression.state.clanPick.partner).toBe(null);
+    }
+    // an inherited (not own) home is not read
+    const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(),
+      fetchProfiles: () => [{ player_id: SIB, accessories: Object.create({ home: 'moor' }) }] } });
+    await cs.pull();
+    expect(progression.state.clanPick.partner).toBe(null);
+  });
+
+  it('a non-array fetchProfiles result is "no row": no change, no warning, pull resolves', async () => {
+    for (const r of [null, {}, 'x']) {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: () => r } });
+      await expect(cs.pull()).resolves.toBeTruthy();
+      expect(progression.state.clanPick.partner).toBe(null);
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    }
+  });
+
+  it('the partner pick is tried at most once a minute, failures included', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(T0);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, cloud } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: () => { throw new Error('down'); } } });
+    await cs.pull();
+    vi.setSystemTime(T0 + 3000);
+    await cs.pull();
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(T0 + PICK_FETCH_MS + 1);
+    await cs.pull();
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('pull({ freshPick: true }) skips the throttle', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(T0);
+    const { cs, cloud } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('moor') } });
+    await cs.pull();
+    vi.setSystemTime(T0 + 3000);
+    await cs.pull({ freshPick: true });
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('freshPick joining a pull already in flight still applies', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(T0);
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const { cs, cloud } = setup({ script: { colonySync: async () => { await gate; return pairedSnap(); }, fetchProfiles: home('moor') } });
+    const a = cs.pull();
+    // a plain pull is mid-flight; the fresh one joins it
+    const b = cs.pull({ freshPick: true });
+    release();
+    await Promise.all([a, b]);
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(1);
+    // the throttle was cleared before the fetch: a second fresh pull right after fetches again
+    await cs.pull({ freshPick: true });
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed profile fetch never fails the pull', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, progression } = setup({ script: { colonySync: () => pairedSnap({ cats: [serverCat(CAT)], feeds: [serverFeed(CAT, 'walk-1')] }),
+      fetchProfiles: () => { throw new Error('down'); } } });
+    await expect(cs.pull()).resolves.toBeTruthy();
+    expect(progression.state.colony.id).toBe(COLONY);
+    expect(progression.state.colony.cats.some((c) => c.name === CAT)).toBe(true);
+  });
+
+  it('unpaired and solo pulls fetch no profile', async () => {
+    const a = setup({ script: { colonySync: () => unpairedSnap() } });
+    await a.cs.pull();
+    expect(a.cloud.fetchProfiles).not.toHaveBeenCalled();
+    const b = setup({ MP: false });
+    await b.cs.pull();
+    expect(b.cloud.fetchProfiles).not.toHaveBeenCalled();
+  });
+
+  it('noteOwnPick pushes the profile now', async () => {
+    const { cs, pushProfileNow } = setup();
+    await cs.noteOwnPick();
+    expect(pushProfileNow).toHaveBeenCalledTimes(1);
   });
 });
