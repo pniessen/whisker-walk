@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 
-// Twenty-four hidden golden mice, three in each of eight areas, placed at parkour
+// Twenty-seven hidden golden mice: three in each of eight areas, and three more
+// on the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
 // destinations using the perch coordinates that actually ship in
 // src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
 // original coordinates, which Task 4.2 moved. Per area: two mice sit on
@@ -109,11 +110,20 @@ export const GOLD_MICE = {
     { id: 'gm-pines-2', x: -38, z: -16, y: 1.9 },
     // hidden at ground level among the three bushes round (30, -42)
     { id: 'gm-pines-3', x: 30, z: -42, y: 0 },
+    // The island (src/world/island.js), reached over the bridge: the same
+    // shape again, so these belong to the Pines too.
+    // top of the Old Ash chain: ground -> mossy boulder 0.72 -> limb 2.1. Out
+    // on the limb, 0.3 m past the perch at (28, 29.5), clear of the trunk.
+    { id: 'gm-pines-4', x: 28, z: 29.8, y: 2.1 },
+    // top of the Watch Rock chain: low rock 0.72 -> watch rock 1.9
+    { id: 'gm-pines-5', x: 38, z: 28, y: 1.9 },
+    // hidden at ground level among the three bushes round (21.5, 35)
+    { id: 'gm-pines-6', x: 21.5, z: 35.2, y: 0 },
   ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 24 (eight areas x three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 27 (eight areas x three, and the island's three)
 
 // Returns { group, material } rather than just the group: all 3 child
 // meshes share this single litMaterial instance, so disposeMouse below

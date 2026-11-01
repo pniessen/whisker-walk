@@ -3,7 +3,11 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { ISLAND_BRIDGE_WOODS, fromWoods, fromWoodsDisc, islandBridgePlank } from './lake.js';
-import { ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX } from './island.js';
+import {
+  ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
+  ISLAND_POIS, ISLAND_SCENICS, ISLAND_COLLECTIBLES, ISLAND_PERCHES, MEETING_STONES, ISLAND_BUSHES,
+  ISLAND_PUDDLES, ISLAND_CRITTERS, ISLAND_MOMENTS, islandReeds, buildIsland,
+} from './island.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 
@@ -298,13 +302,17 @@ export const FROG_HIDES = Object.freeze([
 // Places no scenery may stand on, nor hide: every POI (and so every race
 // ring), scenic, collectible, golden mouse, chain perch, the bushes the hidden
 // mouse needs, the puddles, the frog hides, the truce stones, the bridge foot
-// and the spawn. Built from the records themselves, so a find can never move
-// without its clearance moving with it. The pines, the undergrowth and the
-// reeds read this.
+// and the spawn; then the island's own records that aren't already in that
+// list (its golden mice are in GOLD_MICE.pines): its POIs, scenics, finds,
+// chain perches, meeting stones, bushes and puddle. Built from the records
+// themselves, so a find can never move without its clearance moving with it.
+// The pines, the undergrowth and the reeds read this.
 export const PINES_KEEP_CLEAR = Object.freeze([
   ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.pines, ...CHAIN_PERCHES,
   ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, ...FROG_HIDES, ...TRUCE_STONES,
   BRIDGE_FOOT, SPAWN,
+  ...ISLAND_POIS, ...ISLAND_SCENICS, ...ISLAND_COLLECTIBLES, ...ISLAND_PERCHES, ...MEETING_STONES,
+  ...ISLAND_BUSHES, ...ISLAND_PUDDLES,
 ].map(({ x, z }) => Object.freeze([x, z])));
 
 // --- the scenery ----------------------------------------------------------------
@@ -508,7 +516,8 @@ export function pinesReeds() {
   // the lake's north shore, and its west shore below the bay
   along(30, 50, (x) => [x, LAKE.minZ - 0.5], true);
   along(44, 50, (z) => [LAKE.minX - 0.5, z], true);
-  return spots;
+  // and the island's own ring, inside its rim (island.js), in the same bed
+  return [...spots, ...islandReeds()];
 }
 
 // Lily pads on each bog: the River's ring rule, every 1.2 m round a ring at
@@ -533,8 +542,9 @@ export function pinesLilyPads() {
 
 // The Pines' critters: birds in the first four near pines, frogs by the bogs
 // (one in the deep swamp), squirrels in the forest, ducks on the lake and two
-// mice in the undergrowth. No butterflies (too dark and wet under the pines)
-// and no villagers: no Twolegs walk here.
+// mice in the undergrowth. No butterflies under the pines (too dark and wet;
+// the island's open grass has its own, island.js) and no villagers: no
+// Twolegs walk here.
 function critterSpawns() {
   return [
     ...pinesTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
@@ -672,13 +682,17 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
   // --- the island and its bridge ---------------------------------------------
-  // The island needs no mesh of its own: it is a hole in the lake's and the
-  // bay's water, and the ground plane shows through it, so it is the same
-  // grass as the shore. The bridge is the same plank every shore draws
+  // The island's ground needs no mesh of its own: it is a hole in the lake's
+  // and the bay's water, and the ground plane shows through it, so it is the
+  // same grass as the shore. The bridge is the same plank every shore draws
   // (lake.js); the bay's deck, BRIDGE_DECK, is what a cat walks on, and it
   // lies inside the plank. No collider: the water either side holds the cat
-  // on it.
+  // on it. On the island stand the Old Ash, the Meeting Ring and the Watch
+  // Rock (island.js), their colliders and perches appended to the Pines'.
   scene.add(islandBridgePlank('pines'));
+  const isle = buildIsland(scene, { wind });
+  colliders.push(...isle.colliders);
+  perches.push(...isle.perches);
 
   return {
     name: 'The Pines and Swamp',
@@ -688,14 +702,17 @@ export function build(scene, { water = {}, wind } = {}) {
     // Nothing Twoleg-made in the Pines.
     boxes: [],
     tippables: [],
-    pois: POIS.map((p) => ({ ...p })),
-    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
-    scenics: SCENICS.map((c) => ({ ...c })),
-    critterSpawns: critterSpawns(),
+    // the island's lists after the Pines' own, so secrets.js's indices into
+    // the first nine POIs don't move
+    pois: [...POIS, ...ISLAND_POIS].map((p) => ({ ...p })),
+    collectibles: [...COLLECTIBLES, ...ISLAND_COLLECTIBLES].map((c) => ({ ...c })),
+    scenics: [...SCENICS, ...ISLAND_SCENICS].map((c) => ({ ...c })),
+    critterSpawns: [...critterSpawns(), ...ISLAND_CRITTERS.map((c) => ({ ...c }))],
     moments: [
       { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: FROG_HIDES[0].x, z: FROG_HIDES[0].z, from: { x: -30, z: 22 } },
+      ...ISLAND_MOMENTS.map((m) => ({ ...m, from: { ...m.from } })),
     ],
-    puddles: PUDDLES.map((p) => ({ ...p })),
+    puddles: [...PUDDLES, ...ISLAND_PUDDLES].map((p) => ({ ...p })),
     waters: PINES_WATERS,
     waterFx,
     groundBounce: 0x56603e,

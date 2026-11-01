@@ -36,9 +36,12 @@ const {
 const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
 const { inWater, waterGap, waterClearance, nearestDry, onDeck } = await import('../src/world/builder.js');
 const { isWalkableAt, createPlayer } = await import('../src/player.js');
+const island = await import('../src/world/island.js');
 const {
   ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
-} = await import('../src/world/island.js');
+  ISLAND_POIS, ISLAND_SCENICS, ISLAND_COLLECTIBLES, ISLAND_PERCHES, MEETING_STONES,
+  ISLAND_BUSHES, ISLAND_PUDDLES, ISLAND_CRITTERS, ISLAND_MOMENTS, islandReeds,
+} = island;
 const { keepOutPoint } = await import('../src/keepout.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
@@ -514,9 +517,13 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     // all water then, so nothing could grow there), unchanged: every
     // candidate draws all its numbers whether kept or not, and the new rules
     // only turn away candidates on the island itself.
+    // The island's own ring of reeds (Island Task 6) is appended after the
+    // Pines' 141, so the Pines' own reeds are counted without it.
+    const ring = islandReeds();
+    expect(reeds.slice(reeds.length - ring.length)).toEqual(ring);
     expect({
       near: near.length, stand: stand.length, ferns: ferns.length, toadstools: toadstools.length,
-      shore: shore.length, reeds: reeds.length, pads: pinesLilyPads().length,
+      shore: shore.length, reeds: reeds.length - ring.length, pads: pinesLilyPads().length,
     }).toEqual({ near: 40, stand: 86, ferns: 133, toadstools: 45, shore: 58, reeds: 141, pads: 20 });
     // the bridge treated as a 2 m path: a pine's canopy never reaches over it
     for (const t of [...near, ...stand]) {
@@ -619,6 +626,8 @@ describe('the Pines: the area record', () => {
 
 describe('the Pines: things to find, climb and race', () => {
   const POIS = [[-14, 30], [-34, 24], [-18, 6], [-6, -8], [-18, -42], [12, -40], [34, -30], [40, -4], [-44, -26]];
+  // the island's eight, appended so secrets.js's indices into the first nine don't move
+  const ISLAND_AT = [[34.7, 34.7], [25.5, 38], [18, 28], [19.8, 23.3], [28, 18], [34.7, 21.3], [25.5, 24.2], [15.76, 11.68]];
   const perchAt = (x, z) => area.perches.find((p) => p.x === x && p.z === z && !p.requires);
   const collider = (x, z) => area.colliders.find((c) => c.x === x && c.z === z);
   const waterDist = (x, z) => Math.min(...PINES_WATERS.map((w) => waterGap(w, x, z)));
@@ -627,9 +636,11 @@ describe('the Pines: things to find, climb and race', () => {
   // exactly as the game does.
   const rings = () => area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
 
-  it('pines: nine POIs, all at least 2 m from water and clear of every collider by 1.6', () => {
-    expect(area.pois.map((p) => [p.x, p.z])).toEqual(POIS);
-    for (const p of area.pois) {
+  it('pines: seventeen POIs, the Pines\' nine at least 2 m from water, all clear of every collider by 1.6', () => {
+    expect(area.pois.map((p) => [p.x, p.z])).toEqual([...POIS, ...ISLAND_AT]);
+    for (const p of area.pois.slice(0, 9)) expect(p.group, `poi (${p.x}, ${p.z})`).toBeUndefined();
+    for (const p of area.pois.slice(9)) expect(p.group, `poi (${p.x}, ${p.z})`).toBe('island');
+    for (const p of area.pois.slice(0, 9)) {
       const at = `poi (${p.x}, ${p.z})`;
       expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
       // clear by clearSpot's own margin, so a race ring stands on the POI
@@ -637,18 +648,27 @@ describe('the Pines: things to find, climb and race', () => {
         expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
       }
     }
-    expect(rings().map((p) => [p.x, p.z])).toEqual(POIS);
+    for (const p of area.pois.slice(9)) {
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `poi (${p.x}, ${p.z}) by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+      }
+    }
+    expect(rings().map((p) => [p.x, p.z])).toEqual([...POIS, ...ISLAND_AT]);
   });
 
-  it('pines: five collectibles, three scenics, at least two vantage perches', () => {
-    expect(area.collectibles).toEqual([
+  it('pines: ten collectibles, six scenics, at least two vantage perches', () => {
+    expect(area.collectibles.slice(5)).toEqual(ISLAND_COLLECTIBLES);
+    expect(area.scenics.slice(3)).toEqual(ISLAND_SCENICS);
+    expect(area.collectibles).toHaveLength(10);
+    expect(area.scenics).toHaveLength(6);
+    expect(area.collectibles.slice(0, 5)).toEqual([
       { id: 'pines-find-1', x: -20, z: 20, label: 'a fat pine cone' },
       { id: 'pines-find-2', x: 24, z: -14, label: 'an owl feather' },
       { id: 'pines-find-3', x: -46, z: 22, label: 'a tuft of bog cotton' },
       { id: 'pines-find-4', x: -40, z: -36, label: 'a shiny beetle shell' },
       { id: 'pines-find-5', x: -37, z: -15, y: 0.72, label: 'a mossy pebble on the low stone' },
     ]);
-    expect(area.scenics).toEqual([
+    expect(area.scenics.slice(0, 3)).toEqual([
       { id: 'island-bridge', x: 8, z: 1, label: 'the bridge to the island' },
       { id: 'black-mire', x: -24, z: -22, label: 'the black mire' },
       { id: 'swamp-heart', x: -45, z: -20, label: 'the heart of the swamp' },
@@ -717,10 +737,14 @@ describe('the Pines: things to find, climb and race', () => {
 
   it('puts the climbing golden mice on the chain tops and hides the third among three bushes', () => {
     const [stump, stones, hidden] = GOLD_MICE.pines;
+    // the Pines' three, then the island's three (the island describe below)
     expect(GOLD_MICE.pines).toEqual([
       { id: 'gm-pines-1', x: 3, z: -29, y: 1.9 },
       { id: 'gm-pines-2', x: -38, z: -16, y: 1.9 },
       { id: 'gm-pines-3', x: 30, z: -42, y: 0 },
+      { id: 'gm-pines-4', x: 28, z: 29.8, y: 2.1 },
+      { id: 'gm-pines-5', x: 38, z: 28, y: 1.9 },
+      { id: 'gm-pines-6', x: 21.5, z: 35.2, y: 0 },
     ]);
     expect(perchAt(stump.x, stump.z)?.y).toBe(stump.y);
     expect(perchAt(stones.x, stones.z)?.y).toBe(stones.y);
@@ -741,6 +765,12 @@ describe('the Pines: things to find, climb and race', () => {
     const firstStep = (x, z) => {
       if (Math.hypot(x - 3, z - -29) < 1.5) return perchAt(4, -28);
       if (Math.hypot(x - -38, z - -16) < 1.5) return perchAt(-37, -15);
+      // the island: the Old Ash's limb from its boulder, the Watch Rock from
+      // its low rock, and a meeting stone is its own first step
+      if (Math.hypot(x - 28, z - 29.65) < 1.5) return perchAt(28, 31.2);
+      if (Math.hypot(x - 38, z - 28) < 1.5) return perchAt(37, 29);
+      const stone = MEETING_STONES.find((m) => Math.hypot(x - m.x, z - m.z) < 0.1);
+      if (stone) return perchAt(stone.x, stone.z);
       return null;
     };
     const list = [
@@ -773,18 +803,20 @@ describe('the Pines: things to find, climb and race', () => {
   it('keeps every find, chain perch, bush, puddle, frog hide, truce stone, the bridge foot and the spawn in PINES_KEEP_CLEAR', () => {
     const has = (x, z) => PINES_KEEP_CLEAR.some(([px, pz]) => Math.abs(px - x) < 1e-9 && Math.abs(pz - z) < 1e-9);
     const chainPerches = area.perches.filter((p) => !p.requires && p.y > 0.6);
-    expect(chainPerches).toHaveLength(4);
+    expect(chainPerches).toHaveLength(8);
     const all = [
       ...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.pines, ...chainPerches,
       ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...area.puddles, ...FROG_HIDES,
       { x: 9.0, z: 3.6 }, { x: 12.2, z: 3.6 }, BRIDGE_FOOT, SPAWN,
+      ...MEETING_STONES, ...ISLAND_BUSHES,
     ];
     for (const p of all) expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
-    // and nothing else: 9 POIs + 3 scenics + 5 collectibles + 3 golden mice +
-    // 4 chain perches + 3 gold bushes + 2 puddles + 3 frog hides + 2 truce
-    // stones + the bridge foot + the spawn
-    expect(all).toHaveLength(36);
-    expect(PINES_KEEP_CLEAR).toHaveLength(36);
+    // and nothing else: 17 POIs + 6 scenics + 10 collectibles + 6 golden mice
+    // + 8 chain perches + 3 gold bushes + 3 puddles + 3 frog hides + 2 truce
+    // stones + the bridge foot + the spawn + the island's 6 meeting stones and
+    // 3 bushes
+    expect(all).toHaveLength(69);
+    expect(PINES_KEEP_CLEAR).toHaveLength(69);
     expect(Object.isFrozen(PINES_KEEP_CLEAR)).toBe(true);
     // the bridge foot is derived in floating point, so it is matched within a hair
     expect(PINES_KEEP_CLEAR.some(([x, z]) => Math.abs(x - 10.6) < 1e-6 && Math.abs(z - 4.8) < 1e-6)).toBe(true);
@@ -795,8 +827,8 @@ describe('the Pines: things to find, climb and race', () => {
   // way: not the pillar, not its boulder, not the merged pine stand and not
   // any near pine (both come with the scenery, and this runs again then,
   // unchanged).
-  const blockers = (pillar, rock) => {
-    const list = [scene.getObjectByName(pillar), scene.getObjectByName(rock)];
+  const blockers = (...names) => {
+    const list = names.map((n) => scene.getObjectByName(n));
     for (const l of list) expect(l).toBeTruthy();
     scene.traverse((o) => {
       if (o.name === 'standTrunks' || o.name === 'standFoliage') list.push(o);
@@ -827,8 +859,17 @@ describe('the Pines: things to find, climb and race', () => {
     inSight(stones, [[0, -1], [-1, 0]], blockers('frogStone', 'frogStoneRock'));
   });
 
-  it('carries its critters, one moment and two puddles, and no villagers', () => {
-    expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
+  it('carries its critters, two moments and three puddles, and no villagers', () => {
+    // the Pines' own, then the island's six after them
+    const own = area.critterSpawns.slice(0, area.critterSpawns.length - 6);
+    expect(area.critterSpawns.slice(-6)).toEqual([
+      // either side of the Old Ash's trunk
+      { type: 'bird', x: 26.5, z: 28 }, { type: 'bird', x: 29.5, z: 28 },
+      { type: 'butterfly', x: 31, z: 32 }, { type: 'butterfly', x: 25, z: 32 }, { type: 'butterfly', x: 30, z: 24 },
+      { type: 'mouse', x: 24, z: 37.5, x2: 27, z2: 39.5 },
+    ]);
+    expect(area.critterSpawns.slice(-6)).toEqual(ISLAND_CRITTERS);
+    expect(own.filter((c) => c.type !== 'bird')).toEqual([
       // dry beside bog-1 and bog-2, not through them as the plan drew them,
       // so a cat can stalk them
       { type: 'frog', x: -35, z: 21, x2: -35.5, z2: 16 },
@@ -841,13 +882,16 @@ describe('the Pines: things to find, climb and race', () => {
       { type: 'mouse', x: 10, z: -36, x2: 16, z2: -30 },
       { type: 'mouse', x: -20, z: -44, x2: -14, z2: -38 },
     ]);
-    expect(area.critterSpawns.filter((c) => c.type === 'bird'))
+    expect(own.filter((c) => c.type === 'bird'))
       .toEqual(pinesTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
-    expect(area.critterSpawns.some((c) => c.type === 'villager' || c.type === 'butterfly')).toBe(false);
+    // butterflies only out on the open island, none under the dark pines
+    expect(area.critterSpawns.some((c) => c.type === 'villager')).toBe(false);
+    expect(own.some((c) => c.type === 'butterfly')).toBe(false);
     expect(area.moments).toEqual([
       { id: 'frog-plop', type: 'frog', label: 'a frog hopping for the bog', x: -36.1, z: 16, from: { x: -30, z: 22 } },
+      { id: 'duck-ring', type: 'duck', label: 'ducks paddling past the island', x: 31, z: 17.6, from: { x: 38, z: 15 } },
     ]);
-    expect(area.puddles).toEqual([{ x: -6, z: 38, r: 0.9 }, { x: 22, z: -6, r: 0.8 }]);
+    expect(area.puddles).toEqual([{ x: -6, z: 38, r: 0.9 }, { x: 22, z: -6, r: 0.8 }, { x: 19.5, z: 26.5, r: 0.8 }]);
     for (const p of area.puddles) {
       expect(scene.children.some((o) => o.position.x === p.x && o.position.z === p.z && o.geometry?.type === 'CircleGeometry')).toBe(true);
     }
@@ -868,10 +912,12 @@ describe('the Pines: things to find, climb and race', () => {
         expect(inWater(PINES_WATERS, x, z), at).toBe(false);
         expect(waterClearance(undecked, x, z), at).toBeGreaterThanOrEqual(0.6);
       }
-      if (c.type === 'bird') {
+      if (c.type === 'bird' || c.type === 'butterfly') {
         // A bird sits at the foot of its pine, inside the trunk's collider:
-        // a cat reaches it from beside the trunk.
-        expect(reachesWithin(area, c.x, c.z, 1.5), `bird (${c.x}, ${c.z})`).toBe(true);
+        // a cat reaches it from beside the trunk. A butterfly hovers and
+        // drifts rather than standing on one cell, so it is checked the same
+        // way: within reach of where a cat can stand.
+        expect(reachesWithin(area, c.x, c.z, 1.5), `${c.type} (${c.x}, ${c.z})`).toBe(true);
         continue;
       }
       expect(reaches(area, c.x, c.z), `${c.type} (${c.x}, ${c.z})`).toBe(true);
@@ -897,11 +943,279 @@ describe('the Pines: things to find, climb and race', () => {
     expect(s.dogYard).toBeNull();
   });
 
+  // It pins no ring positions, only that five distinct POIs are drawn, so
+  // the island's eight (and Task 7's one-per-group cap) change nothing here.
   it('race: a Pines course of five rings is drawn from its POIs', () => {
     const course = raceCourse(area.pois, seedFromCode('2026-11-01-pines'));
     expect(course).toHaveLength(5);
     expect(new Set(course).size).toBe(5);
     for (const p of course) expect(area.pois).toContain(p);
+  });
+  // ---------------------------------------------------------------------------
+  // The island (Island Task 6): the Meeting Ring, the Old Ash, the Watch Rock
+  // and the things to find there, all built into the Pines from island.js.
+  describe('the island', () => {
+    const fromCentre = (p) => Math.hypot(p.x - ISLAND_LAND.x, p.z - ISLAND_LAND.z);
+    const deckSeg = [BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2];
+    const bay = () => byId('lake-bay');
+    const noBridge = { ...area, waters: PINES_WATERS.map((w) => (w.id === 'lake-bay' ? { ...w, decks: [] } : w)) };
+
+    it('eight island POIs, at least 2 m from water (the bridge one on its deck) and clear of every collider by 1.6', () => {
+      expect(ISLAND_POIS).toEqual(ISLAND_AT.map(([x, z]) => ({ x, z, group: 'island' })));
+      expect(area.pois.slice(9)).toEqual(ISLAND_POIS);
+      for (const p of ISLAND_POIS) {
+        const at = `poi (${p.x}, ${p.z})`;
+        if (p === ISLAND_POIS[7]) {
+          // on the bridge, 8 m from the island end
+          expect(onDeck(bay(), p.x, p.z), at).toBe(true);
+          expect(Math.hypot(p.x - BRIDGE_DECK.x1, p.z - BRIDGE_DECK.z1), at).toBeCloseTo(8, 6);
+          expect(waterClearance(area.waters, p.x, p.z), at).toBeGreaterThanOrEqual(2);
+        } else {
+          expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
+          // and 2.5 m inside the rim
+          expect(ISLAND_LAND.r - fromCentre(p), at).toBeGreaterThanOrEqual(2.5);
+        }
+        for (const c of area.colliders) {
+          expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+        }
+        // the race ring stands on it
+        const ring = clearSpot(p, area.colliders, area.bounds, area.waters);
+        expect([ring.x, ring.z], at).toEqual([p.x, p.z]);
+      }
+    });
+
+    it("the island's five finds, three scenics (no gifts), the Meeting Ring's six stones and two vantage perches", () => {
+      expect(ISLAND_COLLECTIBLES).toEqual([
+        { id: 'pines-find-6', x: 24.5, z: 35.5, label: 'a smooth white pebble' },
+        { id: 'pines-find-7', x: 33, z: 18.5, label: 'a grey goose feather' },
+        { id: 'pines-find-8', x: 17.5, z: 31, label: "a snail shell at the water's edge" },
+        { id: 'pines-find-9', x: 12.76, z: 7.68, label: 'a pine cone dropped on the planks' },
+        { id: 'pines-find-10', x: 28, z: 22, y: 0.4, label: 'a bright beetle wing on a meeting stone' },
+      ]);
+      expect(ISLAND_SCENICS).toEqual([
+        { id: 'bridge-landing', x: 22, z: 20.5, label: 'the end of the bridge', gifts: false },
+        { id: 'meeting-ring', x: 30.5, z: 25.5, label: 'the meeting ring under the old ash', gifts: false },
+        { id: 'lake-view', x: 35.5, z: 36, label: 'the lake, looking over to the Woods', gifts: false },
+      ]);
+      expect(MEETING_STONES).toEqual([
+        { x: 33.2, z: 31 }, { x: 28, z: 34 }, { x: 22.8, z: 31 }, { x: 22.8, z: 25 }, { x: 28, z: 22 }, { x: 33.2, z: 25 },
+      ]);
+      for (const s of MEETING_STONES) {
+        expect(fromCentre(s), `stone (${s.x}, ${s.z})`).toBeCloseTo(6, 1);
+        expect(perchAt(s.x, s.z), `stone (${s.x}, ${s.z})`).toEqual({ x: s.x, z: s.z, y: 0.4, kind: 'stone' });
+        expect(collider(s.x, s.z)?.r, `stone (${s.x}, ${s.z})`).toBe(0.6);
+      }
+      expect(ISLAND_PERCHES).toEqual([
+        { x: 28, z: 31.2, y: 0.72, kind: 'stone' },
+        { x: 28, z: 29.5, y: 2.1, kind: 'tree', label: 'old ash lookout', vantage: true },
+        { x: 37, z: 29, y: 0.72, kind: 'stone' },
+        { x: 38, z: 28, y: 1.9, kind: 'stone', label: 'watch rock', vantage: true },
+      ]);
+      expect(ISLAND_PERCHES.filter((p) => p.vantage)).toHaveLength(2);
+      // the beetle wing lies on the north stone, at its top
+      expect(perchAt(28, 22).y).toBe(ISLAND_COLLECTIBLES[4].y);
+      expect(ISLAND_PUDDLES).toEqual([{ x: 19.5, z: 26.5, r: 0.8 }]);
+      expect(ISLAND_MOMENTS).toEqual([
+        { id: 'duck-ring', type: 'duck', label: 'ducks paddling past the island', x: 31, z: 17.6, from: { x: 38, z: 15 } },
+      ]);
+      // the cat watches the ducks from the north shore, on dry ground
+      const m = ISLAND_MOMENTS[0];
+      expect(fromCentre(m)).toBeCloseTo(10.8, 1);
+      expect(inWater(area.waters, m.x, m.z)).toBe(false);
+      expect(inWater(area.waters, m.from.x, m.from.z)).toBe(true);
+      // one merged mesh for the ring, and the bridge comes in through the gap
+      // between the stones at (22.8, 25) and (28, 22)
+      const ring = scene.getObjectByName('meetingRing');
+      expect(ring?.isMesh).toBe(true);
+      expect(ring.material.color.getHex()).toBe(0x9a9488);
+      expect(ring.userData.noCast).toBeUndefined();
+      // (the bridge points at the Old Ash: its line passes between the two
+      // stones, each further off it than a stone's collider plus a cat)
+      const len = Math.hypot(BRIDGE_DECK.x1 - BRIDGE_DECK.x2, BRIDGE_DECK.z1 - BRIDGE_DECK.z2);
+      const ux = (BRIDGE_DECK.x1 - BRIDGE_DECK.x2) / len, uz = (BRIDGE_DECK.z1 - BRIDGE_DECK.z2) / len;
+      const sideOf = ({ x, z }) => (x - BRIDGE_DECK.x1) * uz - (z - BRIDGE_DECK.z1) * ux;
+      expect(Math.abs(sideOf({ x: 28, z: 28 }))).toBeLessThan(0.01);
+      const [w, n] = [sideOf({ x: 22.8, z: 25 }), sideOf({ x: 28, z: 22 })];
+      expect(Math.sign(w)).toBe(-Math.sign(n));
+      for (const d of [w, n]) expect(Math.abs(d)).toBeGreaterThan(0.6 + 0.35);
+    });
+
+    const chainTest = (name, low, top, lowR, topR) => {
+      expect(perchAt(low.x, low.z)).toEqual(low);
+      expect(perchAt(top.x, top.z)).toEqual(top);
+      expect(collider(low.x, low.z)?.r, name).toBe(lowR);
+      expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+      expect(canReach(top, { x: low.x, z: low.z }, low.y)).toBe(true);
+      expect(canReach(top, { x: top.x, z: top.z }, 0)).toBe(false);
+      expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+      if (topR !== undefined) expect(collider(top.x, top.z)?.r, name).toBe(topR);
+    };
+
+    it("the Old Ash chain is two hops and its limb can't be reached from the grass", () => {
+      chainTest('old ash',
+        { x: 28, z: 31.2, y: 0.72, kind: 'stone' },
+        { x: 28, z: 29.5, y: 2.1, kind: 'tree', label: 'old ash lookout', vantage: true }, 0.7);
+      // the trunk's collider, under the tree, not under the limb perch
+      expect(collider(28, 28)?.r).toBe(1.0);
+      // outside Sure Claws' 1.6-2.0 band for a 'tree' perch (src/climbing.js)
+      expect(perchAt(28, 29.5).y).toBeGreaterThan(2.0);
+      const ash = scene.getObjectByName('oldAsh');
+      expect(ash).toBeTruthy();
+      expect([ash.position.x, ash.position.y, ash.position.z, ash.scale.x]).toEqual([28, 0, 28, 2.6]);
+      const boulder = scene.getObjectByName('ashBoulder');
+      expect([boulder.position.x, boulder.position.z]).toEqual([28, 31.2]);
+    });
+
+    it("the Watch Rock chain is two hops and its top can't be reached from the grass", () => {
+      chainTest('watch rock',
+        { x: 37, z: 29, y: 0.72, kind: 'stone' },
+        { x: 38, z: 28, y: 1.9, kind: 'stone', label: 'watch rock', vantage: true }, 0.7, 0.9);
+      const rock = scene.getObjectByName('watchRock');
+      const step = scene.getObjectByName('watchRockStep');
+      expect(rock.position).toMatchObject({ x: 38, y: 0.95, z: 28 });
+      expect(rock.material.color.getHex()).toBe(0x8e8c88);
+      expect([step.position.x, step.position.z]).toEqual([37, 29]);
+      // the two chain boulders share one material, made per build
+      expect(step.material).toBe(scene.getObjectByName('ashBoulder').material);
+      expect(built().scene.getObjectByName('watchRockStep').material).not.toBe(step.material);
+    });
+
+    it('the Watch Rock is as wide at the foot as its collider', () => {
+      const p = scene.getObjectByName('watchRock').geometry.parameters;
+      expect(p.radiusBottom).toBe(0.9);
+      expect(p.radiusTop).toBe(0.75);
+      expect(p.height).toBe(1.9);
+      expect(p.radialSegments).toBe(7);
+      expect(collider(38, 28)?.r).toBe(p.radiusBottom);
+    });
+
+    it("the Old Ash's limb reaches out past the trunk", () => {
+      scene.updateMatrixWorld(true);
+      const ash = scene.getObjectByName('oldAsh');
+      const limb = ash.children.find((c) => c.geometry?.type === 'CylinderGeometry' && c.rotation.x !== 0);
+      expect(limb).toBeTruthy();
+      expect(limb.material.color.getHex()).toBe(0x7a5230);
+      const box = new THREE.Box3().setFromObject(limb);
+      expect(box.min.z).toBeCloseTo(28.6, 2);
+      expect(box.max.z).toBeCloseTo(30.2, 2);
+      expect(box.min.y).toBeGreaterThanOrEqual(1.85);
+      expect(box.max.y).toBeLessThanOrEqual(2.15);
+      expect(Math.abs(box.min.x - 28)).toBeLessThan(0.15);
+      // The trunk tapers from 0.35 to 0.25 over its 2 m, scaled by 2.6: at
+      // y 2.0 (local 2.0 / 2.6) it is this wide.
+      const s = 2.6;
+      const trunkAt2 = (0.35 - (0.1 * (2.0 / s)) / 2) * s;
+      const mouse = GOLD_MICE.pines[3];
+      expect(Math.hypot(mouse.x - 28, mouse.z - 28)).toBeGreaterThan(trunkAt2 + 0.3);
+      expect(Math.hypot(28 - 28, 29.5 - 28)).toBeGreaterThan(trunkAt2 + 0.3);
+      // and both sit over the limb
+      expect(mouse.z).toBeGreaterThan(box.min.z);
+      expect(mouse.z).toBeLessThan(box.max.z);
+    });
+
+    it('the climbing golden mice sit on the chain tops, and the third hides among three bushes', () => {
+      const [, , , ash, watch, hidden] = GOLD_MICE.pines;
+      expect(ash).toEqual({ id: 'gm-pines-4', x: 28, z: 29.8, y: 2.1 });
+      expect(watch).toEqual({ id: 'gm-pines-5', x: 38, z: 28, y: 1.9 });
+      expect(hidden).toEqual({ id: 'gm-pines-6', x: 21.5, z: 35.2, y: 0 });
+      // inside checkFind's 1.0 m of the perch it stands by
+      expect(Math.hypot(ash.x - 28, ash.z - 29.5)).toBeLessThan(1.0);
+      expect(perchAt(28, 29.5).y).toBe(ash.y);
+      expect(perchAt(watch.x, watch.z).y).toBe(watch.y);
+      expect(ISLAND_BUSHES).toEqual([{ x: 22, z: 33.5 }, { x: 20, z: 35 }, { x: 22.5, z: 36.5 }]);
+      for (const { x, z } of ISLAND_BUSHES) {
+        expect(scene.children.find((o) => o.position.x === x && o.position.z === z), `bush (${x}, ${z})`).toBeTruthy();
+        expect(collider(x, z)).toBeUndefined();
+        expect(Math.hypot(hidden.x - x, hidden.z - z)).toBeLessThan(2);
+      }
+    });
+
+    it("every island find, POI, scenic and golden mouse is reached on foot from the Pines' spawn, and only over the bridge", () => {
+      const ids = new Set([...ISLAND_COLLECTIBLES, ...ISLAND_SCENICS, ...GOLD_MICE.pines.slice(3)].map((p) => p.id));
+      const atIsland = (t) => ids.has(t.id) || ISLAND_POIS.some((p) => p.x === t.x && p.z === t.z && t.what.startsWith('poi'));
+      const mine = targets().filter(atIsland);
+      expect(mine).toHaveLength(8 + 5 + 3 + 3);
+      const missed = [], leaked = [];
+      for (const t of mine) {
+        const on = (a) => (t.step
+          ? reachesWithin(a, t.step.x, t.step.z, BASE_CLIMB_BUDGET.reachLow)
+          : reaches(a, t.x, t.z));
+        if (!on(area)) missed.push(t.what);
+        if (on(noBridge)) leaked.push(t.what);
+      }
+      expect(missed).toEqual([]);
+      expect(leaked).toEqual([]);
+    });
+
+    it("the island's golden mice are in sight from the chase camera", () => {
+      const [, , , ash, watch] = GOLD_MICE.pines;
+      const list = blockers('oldAsh', 'ashBoulder', 'meetingRing', 'watchRock', 'watchRockStep');
+      // The Old Ash's mouse from the south, east and west. From the north the
+      // trunk stands between the camera and the limb.
+      inSight(ash, [[0, 1], [1, 0], [-1, 0]], list);
+      // The Watch Rock's from the north, south and west. The lake is 3 m east
+      // of it, so no cat stands where an east camera would follow from.
+      inSight(watch, [[0, -1], [0, 1], [-1, 0]], list);
+    });
+
+    it("the island's birds stand either side of the Old Ash, clear of its trunk", () => {
+      const birds = ISLAND_CRITTERS.filter((c) => c.type === 'bird');
+      expect(birds).toHaveLength(2);
+      for (const b of birds) expect(Math.hypot(b.x - 28, b.z - 28), `bird (${b.x}, ${b.z})`).toBeGreaterThan(1.0 + 0.35);
+      expect(birds[0].x < 28 && birds[1].x > 28).toBe(true);
+    });
+
+    it('islandReeds is seeded and stands on the rim, clear of the bridge and every find', () => {
+      const ring = islandReeds();
+      expect(islandReeds()).toEqual(ring);
+      expect(ring.length).toBeGreaterThanOrEqual(18);
+      expect(ring.length).toBeLessThanOrEqual(30);
+      const records = [
+        ...ISLAND_POIS, ...ISLAND_SCENICS, ...ISLAND_COLLECTIBLES, ...ISLAND_PERCHES, ...MEETING_STONES,
+        ...ISLAND_BUSHES, ...ISLAND_PUDDLES, ...GOLD_MICE.pines.slice(3), ...ISLAND_MOMENTS,
+      ];
+      for (const r of ring) {
+        const at = `reed (${r.x}, ${r.z})`;
+        expect(fromCentre(r), at).toBeGreaterThanOrEqual(12.4);
+        expect(fromCentre(r), at).toBeLessThanOrEqual(12.8);
+        expect(inWater(area.waters, r.x, r.z), at).toBe(false);
+        expect(segDist(r.x, r.z, deckSeg), at).toBeGreaterThanOrEqual(2);
+        for (const p of records) expect(Math.hypot(r.x - p.x, r.z - p.z), `${at} by (${p.x}, ${p.z})`).toBeGreaterThanOrEqual(3);
+      }
+      // drawn in the Pines' one merged reed bed
+      expect(pinesReeds().slice(-ring.length)).toEqual(ring);
+      expect(scene.children.filter((o) => o.name === 'reeds')).toHaveLength(1);
+    });
+
+    it('goals: every goal drawn in the Pines can still be finished there', () => {
+      // The island adds no tippables, boxes or villagers, so nothing a goal
+      // needs is new. The shipped goal test runs unchanged; this pins the
+      // island's side of it.
+      expect(area.tippables).toEqual([]);
+      expect(area.boxes).toEqual([]);
+      expect(ISLAND_CRITTERS.some((c) => c.type === 'villager')).toBe(false);
+    });
+
+    it("the island's labels are our own words", () => {
+      const BOOK_PLACES = ['gathering', 'fourtrees', 'great rock', 'great oak', 'highrock', 'highstones',
+        'moonstone', 'moonpool', 'sunningrocks', 'tree-bridge', 'treebridge', 'starclan'];
+      const labels = [...ISLAND_SCENICS, ...ISLAND_COLLECTIBLES, ...ISLAND_PERCHES, ...ISLAND_MOMENTS].map((r) => r.label).filter(Boolean);
+      expect(labels.length).toBeGreaterThanOrEqual(10);
+      for (const l of labels) for (const w of BOOK_PLACES) expect(l.toLowerCase()).not.toContain(w);
+    });
+
+    it('nothing in island.js reads the edition', () => {
+      const src = readFileSync(fileURLToPath(new URL('../src/world/island.js', import.meta.url)), 'utf8');
+      expect(src).not.toMatch(/edition/i);
+    });
+
+    it('every island record is frozen', () => {
+      for (const list of [ISLAND_POIS, ISLAND_SCENICS, ISLAND_COLLECTIBLES, ISLAND_PERCHES, MEETING_STONES,
+        ISLAND_BUSHES, ISLAND_PUDDLES, ISLAND_CRITTERS, ISLAND_MOMENTS]) {
+        expect(Object.isFrozen(list)).toBe(true);
+        for (const r of list) expect(Object.isFrozen(r)).toBe(true);
+      }
+    });
   });
 });
 
@@ -965,8 +1279,10 @@ describe('the Pines: the forest', () => {
   });
 
   it('plants a collider for every pine, a swaying pine for each near one, and the rest in one stand', () => {
-    // the four chain colliders, the two truce stones and the three along the fallen pine
-    expect(area.colliders).toHaveLength(near.length + stand.length + 9);
+    // the four chain colliders, the two truce stones and the three along the
+    // fallen pine; then the island's ten: the Old Ash, its boulder, the six
+    // meeting stones, the Watch Rock and its low rock
+    expect(area.colliders).toHaveLength(near.length + stand.length + 19);
     for (const t of all) {
       expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(0.4 * t.scale * 100) / 100), `collider (${t.x}, ${t.z})`).toBe(true);
     }
@@ -982,8 +1298,9 @@ describe('the Pines: the forest', () => {
     expect(area.perches.some((p) => p.requires)).toBe(false);
   });
 
-  it('the birds sit in the first four near pines', () => {
-    const birds = area.critterSpawns.filter((c) => c.type === 'bird');
+  it('the birds sit in the first four near pines, and two more in the Old Ash', () => {
+    const birds = area.critterSpawns.filter((c) => c.type === 'bird' && Math.hypot(c.x - 28, c.z - 28) > 13);
+    expect(area.critterSpawns.filter((c) => c.type === 'bird')).toHaveLength(6);
     expect(birds).toHaveLength(4);
     expect(birds).toEqual(near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
   });

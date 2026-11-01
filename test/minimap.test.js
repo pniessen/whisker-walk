@@ -222,7 +222,7 @@ describe('buildMapLayer', () => {
     expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
   });
 
-  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and no blocks', () => {
+  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and the Old Ash as its one block', () => {
     const { scene, areaData } = built('pines');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
@@ -252,9 +252,10 @@ describe('buildMapLayer', () => {
     const onPath = (f) => PINES_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
     expect(layer.paths.filter(onPath)).toHaveLength(12);
     expect(layer.paths).toHaveLength(12 + 3);
-    // Every Pines collider (a pine's trunk, a chain boulder, a pillar, a
-    // truce stone, the fallen pine) is under the map's 1 m block cut.
-    expect(layer.blocks).toEqual([]);
+    // Every other Pines collider (a pine's trunk, a chain boulder, a pillar,
+    // a truce stone, the fallen pine, a meeting stone, the Watch Rock at
+    // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on it.
+    expect(layer.blocks).toEqual([{ x: 28, z: 28, r: 1.0 }]);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
