@@ -144,6 +144,11 @@ export const BACK_MIN_RHO = 1.04;
 // move forward (head-local z, front is -z) to lie on the new deeper chest
 // instead of inside it. Signed off by screenshot (R5, Task 10). Never Hagrid's.
 export const NECK_FORWARD = -0.10;
-// Fluffy cats (the ruff) need their neck items further forward still, on top
-// of NECK_FORWARD, to lie in front of the ruff. Also signed off by screenshot (R5).
-export const NECK_FORWARD_FLUFFY = -0.07;
+// Fluffy cats (the ruff): their neck items, neck prizes and collar drop DOWN
+// onto the ruff's front, under the chin, and move only a little further
+// forward (head-local; `forward` adds to NECK_FORWARD, front is -z; `drop` is
+// taken off y). Moving them forward alone, past the ruff, put them in front of
+// the face: the ruff reaches almost to the muzzle. The hood bunch takes
+// `forward` but not `drop`: it is a wide roll round the whole neck, and dropped
+// its sides sink into the ruff. Signed off by screenshot (R5).
+export const NECK_FLUFFY = { forward: -0.02, drop: 0.07 };

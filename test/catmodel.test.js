@@ -619,6 +619,37 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       if (hits.length) expect(v.z).toBeLessThanOrEqual(hits[0].point.z);
     }
   });
+  // ...and stays under the chin, not across the face (fluffy cats, Task 10 fix):
+  // every mesh the item adds to the head tops out below the mouth — taken as the
+  // bottom of the nose, where a cat's mouth begins — and is behind the nose tip.
+  // On a fluffy cat the items drop onto the ruff's front (NECK_FLUFFY) rather
+  // than moving out past it, which put the scarf across the mouth.
+  const sig = (m) => [m.geometry.type, m.material.color?.getHex(), ...m.position.toArray().map((v) => v.toFixed(5))].join();
+  const addedToHead = (cat, bare) => {
+    const have = new Set(); bare.userData.parts.head.traverse((o) => { if (o.isMesh) have.add(sig(o)); });
+    const out = []; cat.userData.parts.head.traverse((o) => { if (o.isMesh && !have.has(sig(o))) out.push(o); });
+    return out;
+  };
+  const underChin = (bare, meshes, { mouth = true } = {}) => {
+    const nose = new THREE.Box3().setFromObject(bare.userData.parts.head.children[2]);   // skull, muzzle, nose
+    expect(meshes.length).toBeGreaterThan(0);
+    for (const m of meshes) {
+      const b = new THREE.Box3().setFromObject(m);
+      if (mouth) expect(b.max.y).toBeLessThan(nose.min.y);   // below the mouth
+      expect(b.min.z).toBeGreaterThan(nose.min.z);            // behind the nose tip (front is -z)
+    }
+  };
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar'].map((id) => [b, id])))('%s: %s stays under the chin, below the mouth and behind the nose', (breed, id) => {
+    const bare = posed({}, breed), cat = posed({ [CATALOG.accessories[id].slot]: id }, breed);
+    expect(bare.userData.parts.head.children[2].material.color.getHex()).toBe(cat.userData.parts.head.children[2].material.color.getHex());
+    underChin(bare, addedToHead(cat, bare));
+  });
+  // The hood bunch is a wide roll around the whole neck: even the tabby's rises
+  // to mouth height, but behind the face. It is held only to the nose tip.
+  it.each(CHEST_BREEDS.flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunch stays behind the nose', (breed, id, hex) => {
+    const bare = posed({}, breed), cat = posed({ body: id, head: 'tophat' }, breed);
+    underChin(bare, itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry'), { mouth: false });
+  });
   it("Digit's built-in tag collar: the tag lies on the chest", () => {
     const cat = buildCat('digit'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     onChest(cat, itemMeshes(cat, [0xc8ccd4]));     // TAG_SILVER in model.js
