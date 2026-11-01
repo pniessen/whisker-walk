@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -755,12 +755,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // Interim (Tasks 7 and 8 re-place them): every
-  // body- and back-slot item rises with the torso, which now sits 0.09 higher.
-  const ITEM_RISE = 0.09;
-  // How far a shallower torso brings the top of the back down: the back-slot
-  // items sit on the spine and drop with it rather than float over it.
-  const BACK_DROP = BODY_R * 0.75 * (1 - fy);
+  // A back-slot point authored on the old torso, re-placed on the new one at
+  // the same distance from the fur (torso.js torsoRetarget).
+  const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
   // The coat is painted into the torso's vertex colours (coat.js): tabby
   // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
   // White material, so a painted base is exactly today's material colour.
@@ -1002,7 +999,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const collarStyle = accessories.collar ?? (s.tagCollar ? 'tag' : null);
   if (collarStyle) {
     const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
-    collar.position.set(0, -0.14, 0.1);
+    collar.position.set(0, -0.14, 0.1 + NECK_FORWARD);
     head.add(collar);
   }
 
@@ -1075,37 +1072,38 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(band);
   }
 
-  // neck: at the neck seam, where the collar also sits
+  // neck: at the neck seam, where the collar also sits, NECK_FORWARD ahead of
+  // where it sat on the old torso so it lies on the deeper chest
   if (accessories.neck === 'bandana') {
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.18, 0.02);
+    tri.position.set(0, -0.18, 0.02 + NECK_FORWARD);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.028, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
-    knot.position.set(0, -0.17, 0.04);
+    knot.position.set(0, -0.17, 0.04 + NECK_FORWARD);
     head.add(knot);
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.22, 4), mat(NECKTIE_COLOR));
     blade.rotation.x = Math.PI;
-    blade.position.set(0, -0.32, 0.08);
+    blade.position.set(0, -0.32, 0.08 + NECK_FORWARD);
     head.add(blade);
   } else if (accessories.neck === 'bowtie') {
     const knot = ball(0.026, BOWTIE_COLOR, 1, 1, 1, 6, 5);
-    knot.position.set(0, -0.17, 0.04);
+    knot.position.set(0, -0.17, 0.04 + NECK_FORWARD);
     head.add(knot);
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.05, 3), mat(BOWTIE_COLOR));
       wing.rotation.z = -side * (Math.PI / 2);
-      wing.position.set(side * 0.05, -0.17, 0.045);
+      wing.position.set(side * 0.05, -0.17, 0.045 + NECK_FORWARD);
       head.add(wing);
     }
   } else if (accessories.neck === 'scarf') {
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12), mat(SCARF_COLOR));
     band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, -0.15, 0.08);
+    band.position.set(0, -0.15, 0.08 + NECK_FORWARD);
     head.add(band);
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), mat(SCARF_COLOR));
-    tail.position.set(0.06, -0.28, 0.1);
+    tail.position.set(0.06, -0.28, 0.1 + NECK_FORWARD);
     tail.rotation.z = 0.15;
     head.add(tail);
   }
@@ -1113,16 +1111,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // visit prizes (collar prizes go through buildCollar above)
   addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
-  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08, ringR: 0.15 });
+  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08 + NECK_FORWARD, ringR: 0.15 });
 
-  const firstBodyItem = g.children.length;
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
   // The three shells are the torso's own geometry, inflated (more on the back
   // than under the belly), hung on the torso with no scale of their own: they
   // take its BODY_SCALE, so a narrow cat's coat is narrow too, and follow every
-  // pose. The cape hangs behind the rump. The hood and bunch sit relative to the
-  // head, so they join after the interim rise below.
-  const afterRise = [];
+  // pose. The cape hangs behind the rump, re-placed on the new one. The hood
+  // and bunch sit relative to the head.
+  const hoodItems = [];
   const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
     // Same tessellation as the torso, so the shell is an exact offset of the
@@ -1156,12 +1153,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!accessories.head) {
       const hood = ball(0.17, color, 1, 1, 0.9, 8, 6);
       hood.position.set(...headRel(0, 0.08, 0.16));
-      afterRise.push(hood);
+      hoodItems.push(hood);
     } else {
       const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
       bunch.rotation.x = Math.PI / 2 + 0.3;
       bunch.position.set(...headRel(0, -0.06, 0.08));
-      afterRise.push(bunch);
+      hoodItems.push(bunch);
     }
   };
   if (accessories.body === 'hoodie') {
@@ -1169,16 +1166,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     hoodOrBunch(HOODIE_COLOR);
   } else if (accessories.body === 'cape') {
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(CAPE_COLOR));
-    cape.position.set(0, 0.28, 0.45);
+    cape.position.set(...onBack(0, 0.28, 0.45));
     cape.rotation.x = -0.15;
     g.add(cape);
     const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
-    clasp.position.set(0, 0.48, 0.28);
+    clasp.position.set(...onBack(0, 0.48, 0.28));
     g.add(clasp);
   } else if (accessories.body === 'confetticape') {
     // a purple cape (not the hero's red) flecked with confetti dots on its outer face
     const capeGroup = new THREE.Group();
-    capeGroup.position.set(0, 0.28, 0.45);
+    capeGroup.position.set(...onBack(0, 0.28, 0.45));
     capeGroup.rotation.x = -0.15;
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(PRIZE_CAPE));
     capeGroup.add(cape);
@@ -1190,7 +1187,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
     g.add(capeGroup);
     const clasp = ball(0.032, PRIZE_GOLD, 1, 1, 1, 6, 5);
-    clasp.position.set(0, 0.48, 0.28);
+    clasp.position.set(...onBack(0, 0.48, 0.28));
     g.add(clasp);
   } else if (accessories.body === 'raincoat') {
     coatShell(RAINCOAT_COLOR);
@@ -1210,18 +1207,17 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     coatShell(null, true); // knit stripes are painted: one mesh
   }
 
-  const firstBackItem = g.children.length;
-  // back: behind the shoulders. On a narrower, shallower torso these ride the
-  // spine down by BACK_DROP and pull in (or slim) by fx, so a pack 18cm across
-  // does not overhang a kitten's back and the wings stay at the shoulders.
+  // back: behind the shoulders. Authored on the old torso and re-placed on the
+  // new one by onBack, which also follows a narrower or shallower torso; the
+  // pack slims by fx so 18cm across does not overhang a kitten's back.
   if (accessories.back === 'backpack') {
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18 * fx, 0.13, 0.1), mat(0x3a6ea5));
-    pack.position.set(0, 0.56 - BACK_DROP, 0.12);
+    pack.position.set(...onBack(0, 0.56, 0.12));
     g.add(pack);
   } else if (accessories.back === 'wings') {
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.02), mat(WING_COLORS[side === -1 ? 0 : 1]));
-      wing.position.set(side * 0.22 * fx, 0.44 - BACK_DROP, 0.3);
+      wing.position.set(...onBack(side * 0.22 * fx, 0.44, 0.3));
       wing.rotation.z = side * 0.5;
       wing.rotation.y = side * 0.3;
       g.add(wing);
@@ -1229,18 +1225,19 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   } else if (accessories.back === 'jetpack') {
     for (const side of [-1, 1]) {
       const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8), mat(JETPACK_SILVER));
-      tank.position.set(side * 0.07 * fx, 0.52 - BACK_DROP, 0.16);
+      tank.position.set(...onBack(side * 0.07 * fx, 0.52, 0.16));
       tank.rotation.x = 0.15;
       g.add(tank);
       const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.06, 8), mat(JETPACK_FLAME));
       nozzle.rotation.x = Math.PI;
-      nozzle.position.set(side * 0.07 * fx, 0.4 - BACK_DROP, 0.185);
+      nozzle.position.set(...onBack(side * 0.07 * fx, 0.4, 0.185));
       g.add(nozzle);
     }
   } else if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
-    // under ~y 1.05 so the whole-cat shop thumbnail still frames them
-    const tie = new THREE.Vector3(0.05, 0.58, 0.2);
+    // under ~y 1.05 so the whole-cat shop thumbnail still frames them. Only
+    // the tie moves onto the new back; the balloons keep their heights.
+    const tie = new THREE.Vector3(...onBack(0.05, 0.58, 0.2));
     const tops = [[-0.07, 0.79, 0.19], [0.1, 0.86, 0.22], [0.03, 0.74, 0.14]];
     tops.forEach(([bx, by, bz], i) => {
       const len = Math.hypot(bx - tie.x, by - tie.y, bz - tie.z);
@@ -1255,9 +1252,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
   } else if (accessories.back === 'balloon') {
     // hovers just over the tail — low enough to stay inside the shop
-    // thumbnail's whole-cat framing (~y 1.1 at this plane)
-    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 4), mat(0xf5f5f5));
-    string.position.set(0.06, 0.75, 0.2);
+    // thumbnail's whole-cat framing (~y 1.1 at this plane). The string's foot
+    // moves onto the new back; its top, the knot and the balloon keep their heights.
+    const foot = new THREE.Vector3(...onBack(0.06, 0.6, 0.2)), top = new THREE.Vector3(0.06, 0.9, 0.2);
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, foot.distanceTo(top), 4), mat(0xf5f5f5));
+    string.position.addVectors(foot, top).multiplyScalar(0.5);
+    string.rotation.z = -Math.atan2(top.x - foot.x, top.y - foot.y);
+    string.rotation.x = Math.atan2(top.z - foot.z, top.y - foot.y);
     g.add(string);
     const knot = ball(0.014, BALLOON_COLOR, 1, 1, 1, 5, 4);
     knot.position.set(0.06, 0.92, 0.2);
@@ -1267,14 +1268,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     g.add(balloon);
   }
 
-  // The balloons float on strings rather than sit on the back, and they were
-  // placed to stay inside the shop's whole-cat thumbnail (top < 1.1): they keep
-  // their height.
-  // Interim: Task 8 re-places the balloon strings' feet and keeps these heights.
-  const floats = accessories.back === 'balloon' || accessories.back === 'balloonbunch';
-  const risen = g.children.slice(firstBodyItem, floats ? firstBackItem : undefined);
-  for (const item of risen) item.position.y += ITEM_RISE;
-  for (const item of afterRise) g.add(item);
+  for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   if (accessories.feet === 'booties') {
