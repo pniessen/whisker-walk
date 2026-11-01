@@ -22,7 +22,7 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, groundFinds,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, groundFinds,
 } = await import('../src/render/grass.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
@@ -442,6 +442,25 @@ describe('marsh grass (the River)', () => {
     }
     expect(lo).toBeGreaterThanOrEqual(0);
     expect(hi).toBeLessThanOrEqual(0.9);
+    expect(bare).toBeGreaterThan(0);
+    expect(thick).toBeGreaterThan(0);
+  });
+});
+
+describe('moor grass (the Moor)', () => {
+  it('the Moor grows moor grass', () => {
+    expect(GRASS_STYLES.moor.density).toBe(moorDensity);
+    let lo = Infinity; let hi = -Infinity; let bare = 0; let thick = 0;
+    for (let x = -50; x <= 50; x++) {
+      for (let z = -50; z <= 50; z++) {
+        const d = moorDensity(x, z);
+        lo = Math.min(lo, d); hi = Math.max(hi, d);
+        if (d === 0) bare++;
+        if (d > 0.5) thick++;
+      }
+    }
+    expect(lo).toBeGreaterThanOrEqual(0);
+    expect(hi).toBeLessThanOrEqual(0.95);
     expect(bare).toBeGreaterThan(0);
     expect(thick).toBeGreaterThan(0);
   });

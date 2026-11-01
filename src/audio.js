@@ -152,14 +152,16 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
 
   // Same technique as wavesLayer, but lower-passed and much quieter — a
   // soft backdrop for neighborhood/park walks.
-  function windLayer() {
+  // gain and cutoff default to the generic wind, so every existing area sounds
+  // the same; the Moor passes a stronger, brighter one.
+  function windLayer({ gain = 0.03, cutoff = 300 } = {}) {
     const ac = ensure();
     const src = loopedNoiseSource(2);
     const filter = ac.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 300;
+    filter.frequency.value = cutoff;
     const g = ac.createGain();
-    g.gain.value = 0.03;
+    g.gain.value = gain;
     const lfo = ac.createOscillator();
     const lfoGain = ac.createGain();
     lfo.frequency.value = 0.07;
@@ -634,6 +636,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // as the generic branch; crickets come from the shared line below.
         layers.push(windLayer());
         layers.push(waterLapLayer());
+        if (rain) layers.push(rainLayer());
+        else if (!dusk) layers.push(birdsongLayer());
+      } else if (areaKey === 'moor') {
+        // The Moor: open ground, so a stronger wind (owner's decision), then
+        // birdsong or rain by the generic rule. No water, so no lap.
+        layers.push(windLayer({ gain: 0.06, cutoff: 480 }));
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
       } else {

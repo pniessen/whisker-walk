@@ -265,6 +265,13 @@ describe('dressing-room places by edition', () => {
     expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
     expect(m.places.map((p) => p.id)).not.toContain('river');
   });
+  it('Legacy lists today\'s four places and never the Moor', () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    s.walks.woods = 5;
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).not.toContain('moor');
+  });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     s.walks.neighborhood = 1;
@@ -346,6 +353,17 @@ describe('the dressing room in each edition', () => {
     expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
     expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
     expect(s.area).toBe('woods');
+  });
+
+  it("Legacy with the Moor chosen marks the Cozy Neighborhood card \"today's walk\"", () => {
+    const s = defaultishState();
+    s.unlocked.areas.push('moor');
+    s.area = 'moor';
+    s.edition = 'legacy';
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.filter((p) => p.selected).map((p) => p.id)).toEqual(['neighborhood']);
+    expect(renderDressingRoomHtml({ model: m })).toContain('today’s walk');
+    expect(s.area).toBe('moor');
   });
 
   it("Legacy with the River chosen marks the Cozy Neighborhood card \"today's walk\"", () => {

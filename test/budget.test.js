@@ -31,6 +31,7 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -86,6 +87,8 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   den              284      173      ~13600
 //   woods            172      152      44462   (170 / 150 merged)
 //   river            159      133      45344   (157 / 131 merged)
+//   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
+//                                               398 heather, 19 gorse, 127 reeds)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -139,6 +142,7 @@ const AREAS = [
   // was measured holding 60 fps in (plan Global Constraints).
   ['woods', buildWoods, 450, 380, 60000],
   ['river', buildRiver, 450, 380, 60000],
+  ['moor', buildMoor, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -176,6 +180,7 @@ const MERGED_AREAS = [
   ['den', buildDen, 185, 110],
   ['woods', buildWoods, 260, 205],
   ['river', buildRiver, 260, 205],
+  ['moor', buildMoor, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

@@ -588,6 +588,83 @@ describe('the Woods builders', () => {
     expect(m.userData.noCast).toBe(true);
   });
 
+  it('heatherBed is one flat-ish mesh out of the shadow pass', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 4, z: 1 }];
+    const m = b.heatherBed(spots, 5);
+    expect(m.isMesh).toBe(true);
+    const bb = bbox(m);
+    expect(bb.max.y).toBeLessThanOrEqual(0.5);
+    expect(bb.min.y).toBeGreaterThanOrEqual(-1e-6);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(b.heatherBed(spots, 5).geometry.attributes.position.array).toEqual(m.geometry.attributes.position.array);
+    expect(() => b.heatherBed([], 5)).not.toThrow();
+  });
+
+  it('gorseBed is two noCast meshes, gorse and gorseBloom, never taller than 0.95', () => {
+    const g = b.gorseBed([{ x: 0, z: 0 }, { x: 5, z: 2 }, { x: -3, z: 4 }], 9);
+    const found = {};
+    g.traverse((o) => { if (o.isMesh) found[o.name] = o; });
+    expect(Object.keys(found).sort()).toEqual(['gorse', 'gorseBloom']);
+    for (const o of Object.values(found)) {
+      expect(o.userData.noCast).toBe(true);
+      expect(o.castShadow).toBe(false);
+    }
+    expect(bbox(g).max.y).toBeLessThanOrEqual(0.95);
+    expect(bbox(g).max.y).toBeGreaterThan(0.4);
+    expect(found.gorseBloom.geometry.attributes.position.count).toBeGreaterThan(0);
+    const gb = bbox(found.gorse);
+    expect(bbox(found.gorseBloom).min.y).toBeGreaterThan((gb.min.y + gb.max.y) / 2);
+  });
+
+  it("tor's top is at h and its foot is as wide as its collider", () => {
+    const t = b.tor(5, -3, { r: 1.4, h: 1.5 });
+    expect(t.isMesh).toBe(true);
+    const bb = bbox(t);
+    expect(Math.abs(bb.max.y - 1.5)).toBeLessThanOrEqual(0.05);
+    expect(bb.min.y).toBeGreaterThanOrEqual(-1e-6);
+    const pos = t.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      expect(Math.hypot(pos.getX(i) - 5, pos.getZ(i) + 3)).toBeLessThanOrEqual(1.4 + 0.05);
+    }
+    expect((bb.max.x - bb.min.x) / 2).toBeGreaterThanOrEqual(0.8 * 1.4);
+    expect(b.tor(5, -3, { r: 1.4, h: 1.5 }).geometry.attributes.position.array).toEqual(pos.array);
+  });
+
+  it('burrow holes are clear of their spoil mound', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 6, z: 1 }, { x: -4, z: 7 }];
+    const g = b.burrows(spots, 2);
+    const mpos = g.getObjectByName('burrowSpoil').geometry.attributes.position;
+    const hpos = g.getObjectByName('burrowHoles').geometry.attributes.position;
+    // the mound is above the hole's y (0.02) wherever it stands, so no mound
+    // vertex may sit over any hole vertex (rim or centre) within 0.01 m
+    for (let i = 0; i < hpos.count; i++) {
+      for (let j = 0; j < mpos.count; j++) {
+        if (mpos.getY(j) <= 0.02) continue;
+        expect(Math.hypot(hpos.getX(i) - mpos.getX(j), hpos.getZ(i) - mpos.getZ(j))).toBeGreaterThan(0.01);
+      }
+    }
+    // each hole centre is at least the mound's footprint away from its mound centre
+    spots.forEach((sp) => {
+      let nearest = Infinity;
+      for (let j = 0; j < mpos.count; j++) {
+        if (mpos.getY(j) > 0.02) nearest = Math.min(nearest, Math.hypot(sp.x - mpos.getX(j), sp.z - mpos.getZ(j)));
+      }
+      expect(nearest).toBeGreaterThanOrEqual(0.22);
+    });
+  });
+
+  it('burrows are two noCast meshes under 0.2 m', () => {
+    const g = b.burrows([{ x: 0, z: 0 }, { x: 6, z: 1 }], 2);
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes.map((o) => o.name).sort()).toEqual(['burrowHoles', 'burrowSpoil']);
+    for (const o of meshes) {
+      expect(o.userData.noCast).toBe(true);
+      expect(bbox(o).max.y).toBeLessThan(0.2);
+    }
+  });
+
   it('reedBed is one mesh, never taller than 1.1', () => {
     const m = b.reedBed([{ x: 0, z: 0 }, { x: 1, z: 0.5 }, { x: -2, z: 3 }], 3);
     expect(m.isMesh).toBe(true);

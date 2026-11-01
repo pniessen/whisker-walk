@@ -113,6 +113,7 @@ export function ambientKind(areaId, { dusk = false } = {}) {
     case 'seaside': return 'spray';
     case 'docks': return dusk ? 'moths' : 'motes';
     case 'neighborhood': return 'fluff';
+    case 'moor': return 'fluff'; // seed down on the wind, day and dusk
     case 'river': return dusk ? 'moths' : 'fluff'; // reed seed by day, moths over the water at dusk
     default: return null; // the den, and anything new until it is given one
   }

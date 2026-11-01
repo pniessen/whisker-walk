@@ -892,6 +892,12 @@ describe('renderColonyHtml in each edition', () => {
     expect(legacy).not.toContain(PLACE_WORDS.town);
   });
 
+  it("a Moor cat's place reads The Moor in both editions", () => {
+    const colony = colonyOf({ cats: [cat(A, { area: 'moor' })] });
+    expect(render(colony, { edition: 'canon' })).toContain('in The Moor');
+    expect(render(colony, { edition: 'legacy' })).toContain('in The Moor');
+  });
+
   it("a River cat's place reads The River and Marshes in both editions", () => {
     const colony = colonyOf({ cats: [cat(A, { area: 'river' })] });
     expect(render(colony, { edition: 'canon' })).toContain('in The River and Marshes');

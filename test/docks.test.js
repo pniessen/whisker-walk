@@ -312,9 +312,9 @@ describe('The Old Docks — perch chains', () => {
 });
 
 describe('The Old Docks — golden mice', () => {
-  it('adds three, keeping the three-per-area shape (the total is 18 since the River)', () => {
+  it('adds three, keeping the three-per-area shape (the total is 21 since the Moor)', () => {
     expect(GOLD_MICE.docks).toHaveLength(3);
-    expect(GOLD_TOTAL).toBe(18);
+    expect(GOLD_TOTAL).toBe(21);
   });
 
   it('sits two on real shipped perch coordinates and hides one at ground level', () => {
@@ -415,8 +415,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(11);
-    expect(CRITTER_INFO).toHaveLength(11);
+    expect(JOURNAL_TYPES).toHaveLength(12);
+    expect(CRITTER_INFO).toHaveLength(12);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();
@@ -432,6 +432,10 @@ describe('The Old Docks — the eleventh journal critter', () => {
     p.recordSighting('rat');
     p.recordSighting('rat');
     expect(p.state.journal.rat).toBe(2);
+  });
+
+  it('gives the rabbit a display name', () => {
+    expect(labelFor('rabbit')).toBe('a bounding rabbit');
   });
 
   it('gives the rat a display name rather than the fallback', () => {

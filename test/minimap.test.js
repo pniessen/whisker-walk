@@ -77,8 +77,9 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor, TORS, MOOR_PATHS } = await import('../src/world/moor.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -181,6 +182,26 @@ describe('buildMapLayer', () => {
     // Every River collider is a trunk or a rock under 1 m, below the map's
     // block cut, so the corner map shows water, decks and paths only.
     expect(layer.blocks).toEqual([]);
+  });
+
+  it('buildMapLayer for the Moor has ground, edge, five waters, two with decks, eight paths, and the four tors as blocks', () => {
+    const { scene, areaData } = built('moor');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
+    expect(layer.edge).toEqual(areaData.bounds);
+    expect(layer.water).toHaveLength(5);
+    // river-west carries the log bridge, river-south the stepping stones.
+    expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
+    // The eight path segments, each a strip at its own midpoint. (A flat
+    // water plane under the 50 m half-length cut reads as a strip too, so
+    // lake-far, river-west and the mouth are in layer.paths as well, drawn
+    // under the water; the paths are counted by where they lie.)
+    const onPath = (f) => MOOR_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onPath)).toHaveLength(8);
+    expect(layer.paths).toHaveLength(8 + 3);
+    // Every other Moor collider (a trunk, a chain boulder, the High Tor's
+    // pillar, the hawthorn's root) is under the map's 1 m block cut.
+    expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {

@@ -12,7 +12,9 @@ const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', '
 // CHASEABLE, exactly like 'mouse' — a rat's answer to a cat is to bolt, so it
 // has no business in the chase prompt or (via CURIOUS, which is derived from
 // CHASEABLE) in the set of critters a Far Call draws toward the caller.
-const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat']);
+// The Moor's 'rabbit' follows the same rule: it only bolts, so it is STALKABLE
+// and PREY but never CHASEABLE, and a Far Call does not draw it.
+const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat', 'rabbit']);
 // v18 Far Call ('far-call') — critters curious enough to come and look when a
 // meow carries. Derived from CHASEABLE rather than listed fresh: everything a
 // cat can chase, MINUS the two types whose existing meow reaction is to bolt
@@ -42,7 +44,7 @@ const ANCHOR_SPEED = 2.2;
 // every way the cat can reach a critter. With no cover in reach it dashes away
 // and comes back, exactly as a pounce-tag sends it. Positions only — nothing
 // here rolls, so it never touches the injected rng or Math.random.
-const PREY = new Set(['mouse', 'rat', 'squirrel']);
+const PREY = new Set(['mouse', 'rat', 'squirrel', 'rabbit']);
 export const PREY_NOTICE = 3.5;
 export const PREY_NOTICE_STALKED = 1.2;
 export const HIDE_REACH = 0.4;
@@ -103,6 +105,22 @@ function buildCritter(type) {
       tailS.position.set(0, 0.2 * s, 0.16 * s);
       g.add(tailS);
     }
+  } else if (type === 'rabbit') {
+    // Low and long with upright ears and a white scut; under 0.35 m all told.
+    const body = box(0.16, 0.14, 0.26, 0x9a8466);
+    body.position.y = 0.1;
+    g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), mat(0x9a8466));
+    head.position.set(0, 0.18, -0.15);
+    g.add(head);
+    for (const side of [-1, 1]) {
+      const ear = box(0.025, 0.12, 0.04, 0x9a8466);
+      ear.position.set(side * 0.03, 0.29, -0.15);
+      g.add(ear);
+    }
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.045, 5, 5), mat(0xf2eee6));
+    tail.position.set(0, 0.12, 0.15);
+    g.add(tail);
   } else if (type === 'butterfly' || type === 'firefly') {
     const color = type === 'firefly' ? 0xf2e04e : 0xe070b0;
     for (const side of [-1, 1]) {
@@ -466,8 +484,9 @@ export function createCritters(scene, spawns, opts = {}) {
               c.cooldown = 18;
             }
           }
-        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat') {
-          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rat' ? 5.5 : 4.5;
+        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat' || c.type === 'rabbit') {
+          // Every flee speed stays under the 9 m/s pounce lunge, so a child can still tag one.
+          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rabbit' ? 6.0 : c.type === 'rat' ? 5.5 : 4.5;
           // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
           // A stalking or still cat is noticed late and startles it first
           // (R27, R29); a critter answering a Far Call came because it was

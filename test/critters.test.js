@@ -159,6 +159,16 @@ describe('createCritters — Far Call (v18 CF-5)', () => {
     expect(bird.anchorTo).toBe(null); // and no draw
   });
 
+  it('a rabbit never answers a Far Call: it only bolts', () => {
+    const c = createCritters(scene, [{ type: 'rabbit', x: 15, z: 0 }], {});
+    const rabbit = byType(c, 'rabbit');
+    expect(c.reactToMeow(V(0, 0), { far: true })).toBe(0);
+    expect(rabbit.anchorTo).toBe(null);
+    step(c, 2);
+    expect(rabbit.anchor.x).toBeCloseTo(15, 5);
+    expect(rabbit.anchor.z).toBeCloseTo(0, 5);
+  });
+
   it('still waves the villager and never draws it', () => {
     const c = createCritters(scene, spawns(), {});
     const v = byType(c, 'villager');
@@ -268,6 +278,41 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     expect(mouse.group.visible).toBe(false);
     expect(hidden).toHaveLength(1);
     expect(c.list).toContain(mouse); // hidden, never removed
+  });
+
+  it('a rabbit bolts for its hide when the cat trots up, and stays hidden', () => {
+    const hidden = [];
+    const c = createCritters(scene, [still('rabbit')], { hides: [HIDE], onHide: (x) => hidden.push(x) });
+    const rabbit = byType(c, 'rabbit');
+    run(c, 1, V(-10, 0));
+    expect(rabbit.fleeing).toBe(false);
+    expect(rabbit.group.visible).toBe(true);
+
+    let x = -10;
+    while (!rabbit.fleeing && x < -1) { x += 0.06; frame(c, V(x, 0)); } // trotting in, 3.6 m/s
+    expect(rabbit.fleeing).toBe(true);
+    expect(x).toBeGreaterThan(-PREY_NOTICE); // noticed at the trotting distance
+    expect(x).toBeLessThan(-PREY_NOTICE + 0.1);
+    run(c, 0.3, V(x, 0));
+    // It runs TOWARD its cover (east), at its dash speed (6.0m/s).
+    expect(rabbit.group.position.x).toBeGreaterThan(1.3);
+    expect(rabbit.group.position.x).toBeLessThan(2.3);
+    expect(rabbit.hidden).toBeFalsy();
+
+    run(c, 1, V(-3, 0));
+    expect(rabbit.hidden).toBe(true);
+    expect(rabbit.group.visible).toBe(false); // contactshadows collapses a hidden mover's decal
+    expect(rabbit.spottable).toBe(false);
+    expect(rabbit.group.position.distanceTo(V(5, 0))).toBeLessThanOrEqual(HIDE_REACH);
+    expect(hidden).toEqual([rabbit]);
+
+    // The cat walks away and a long time passes: it stays hidden, and the
+    // walk was told exactly once.
+    run(c, 40, V(-30, 0));
+    expect(rabbit.hidden).toBe(true);
+    expect(rabbit.group.visible).toBe(false);
+    expect(hidden).toHaveLength(1);
+    expect(c.list).toContain(rabbit); // hidden, never removed
   });
 
   it('runs to the nearest hide, and only to one within 15m', () => {
@@ -513,12 +558,12 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
   // critters.update -> markStalked -> pounceTime -= dt -> pounceCatch from the
   // paws. The cat creeps (or trots) straight at the mouse and pounces
   // `reaction` seconds after the frame the mouse notices it. One pounce.
-  function approach({ hideDeg, stalking, reaction }) {
+  function approach({ hideDeg, stalking, reaction, type = 'mouse' }) {
     const pace = 3.8; // tabby / black cat
     const target = stalking ? pace * 0.45 : pace;
     const a = (hideDeg * Math.PI) / 180; // 0 = cover straight behind the mouse
-    const c = createCritters(scene, [still()], { hides: [{ x: 5 * Math.cos(a), z: 5 * Math.sin(a) }] });
-    const mouse = byType(c, 'mouse');
+    const c = createCritters(scene, [still(type)], { hides: [{ x: 5 * Math.cos(a), z: 5 * Math.sin(a) }] });
+    const mouse = byType(c, type);
     c.markStalked(V(-8, 0), stalking);
     let x = -8, v = target, pounceT = 0, hopT = -1, t = 0, pounceAt = -1;
     for (let f = 0; f < 600; f++) {
@@ -551,6 +596,16 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     for (const reaction of [0, 0.3, 0.5]) expect(caught(true, reaction)).toBeGreaterThanOrEqual(4);
     // Trotting in almost never works — only when its cover is behind the cat.
     for (const reaction of [0, 0.3]) expect(caught(false, reaction)).toBeLessThanOrEqual(1);
+  });
+
+  it('a rabbit is under 0.35 m tall and can be pounce-tagged', () => {
+    const c = createCritters(scene, [still('rabbit')], { hides: [HIDE] });
+    const rabbit = byType(c, 'rabbit');
+    rabbit.group.updateMatrixWorld(true);
+    expect(new THREE.Box3().setFromObject(rabbit.group).max.y).toBeLessThan(0.35);
+    const fiveWays = [0, 45, 90, 135, 180];
+    const caught = fiveWays.filter((hideDeg) => approach({ hideDeg, stalking: true, reaction: 0.3, type: 'rabbit' })).length;
+    expect(caught).toBeGreaterThanOrEqual(4);
   });
 
   it('a critter answering a Far Call does not notice the cat while the call lasts (R28)', () => {
