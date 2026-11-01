@@ -7,7 +7,11 @@
 **Architecture:**
 - **Clan ids are the home territory ids:** `woods`, `moor`, `river`, `pines` and `gorge`. "Your clan's home" is then just `areaId === pick`.
 - **Homage words** live in `src/clanwords.js`. The **structural data** (each clan's neighbours, whether it can be picked yet, the truce places, the patrol rule) lives in a new leaf, `src/clanhomes.js`.
-- **`rivalFor(areaId, picks)` keeps one fixed disc per area.** Only the clan that owns the disc depends on the picks, and it is worked out from an unordered set of picks, so both devices agree.
+- **`rivalFor(areaId, picks)` keeps one fixed disc per area.** Only the clan that owns the disc depends on the picks, and it is worked out from an unordered set of picks. So two devices holding the same picks compute the same patrol.
+- **That is not a promise that two devices always agree.** Each device holds its own cached copy of the sibling's pick.
+  - A device may briefly hold a stale copy. The room-join pull refreshes it and skips the throttle (Task 5).
+  - In a co-walk with a friend who is not the colony partner, neither device knows the other's pick at all.
+  - Either way the mismatch is cosmetic: a different patrol clan name and coat on one screen. It takes nothing, and it never makes the sibling's own clan hostile to the sibling.
 - **The pick is an additive save field.** The sibling's pick reaches the other device through the public profile row that already exists, and is cached in the save. No SQL is needed.
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, plain ES modules.
@@ -55,17 +59,20 @@ The owner answered the clan questions on 2026-10-31. The coordinator ruled on th
     - it is not a stray, kit or legendary name, or a PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES or WARRIOR_SUFFIXES word;
     - it contains no book clan word.
   - It is not a RANK_WORDS, OUTSIDE_WORDS or PLACE_WORDS value, and `CliffClan` is only ever composed at runtime. So the borrowed-word scan has nothing to flag.
-- **D2. What can be picked: coordinator's ruling.** Four clans can be picked now: woods, moor, river and pines. CliffClan is named now, but it can only be picked once the Gorge is built (`pickable: false` in its `HOMES` row).
+- **D2. What can be picked: coordinator's ruling.**
+  - Four clans can be picked now: woods, moor, river and pines. That includes GaleClan and DuskClan, whose maps aren't built yet. Their cards carry a small "territory coming soon" note while their map's `TERRITORIES` status isn't `'built'`.
+  - CliffClan is named now, but it can only be picked once the Gorge is built (`pickable: false` in its `HOMES` row).
 - **D3. Same clan: decided by the owner.** Both kids may pick the same clan. It is celebrated ("You're both StormClan!"), never blocked.
 - **D4. Changing and not picking.** The first sub-point is decided by the owner. The second is how the plan behaves before a kid picks.
   - A pick can be changed any time on the home screen, for free. Changing loses nothing.
   - Before a kid picks, the minted pair name (MossClan and the like) still shows, and every territory's own clan patrols it.
 - **D5. Where picking happens.**
   - A "Pick your clan" row of cards in the **Where to** pill, above the territory map (Clan Edition only).
-  - A `Your clan` select in Settings (Clan Edition only).
+  - A select in Settings, labelled `` `Your ${CLAN_SUFFIX.toLowerCase()}` `` (Clan Edition only).
 - **D6. Reaching the sibling: coordinator's ruling. No SQL change.**
   - Each device publishes its pick as `home` inside the `accessories` jsonb of its public profile row. `upsert_profile` already stores any jsonb, and no reader iterates its keys.
   - A paired colony pull reads the partner's row, at most once a minute, and caches the pick in `state.clanPick`.
+  - **Coordinator's ruling:** the pull made on joining the siblings' room skips that minute's throttle.
   - A cached pick is only ever replaced by a valid one, never cleared, unless the partner changes. So a partner on an old build can't erase it.
 - **D7. Patrols: decided by the owner.** In your own clan's territory, a neighbouring clan patrols at the same camp. Each territory has one fixed disc (its "camp"). Its clan is:
   - the territory's own clan, if neither kid picked it;
@@ -73,14 +80,20 @@ The owner answered the clan questions on 2026-10-31. The coordinator ruled on th
   - otherwise no patrol.
 - **D8. Camp spots: coordinator's ruling. They stay as proposed.**
   - **Woods:** (2, −43), r 6. It sits in the north glade across the river, facing the Moor.
-  - **River:** (5, 1), r 6. It sits in the middle of the wet meadow.
-  - Both were probed against the built maps (2026-10-31). Each clears every POI, find, scenic, golden mouse, vantage and the spawn by 20 m or more, and each has one or two colliders inside it, as the Docks container is today.
+    - Its ring reaches z −49, about 1 m from the map's north edge (z −50). **Coordinator's ruling: accepted.**
+    - A cat chased out on that side has no room to land northward, so `findLanding` sets it down sideways, round the ring. That is the existing fallback, and `rivalworld`'s landing cases cover it.
+    - The camp tree inside the disc is at (3.44, −45.4). It is also a bird perch.
+  - **River:** (5, 1), r 6. It sits in open ground south-west of the foot of the river bend (16, −9) and about 20 m east of the bank path. It is not in the middle of the wet meadow, which centres on (2, 28).
+    - The camp tree inside the disc is at (7.62, 3.12).
+  - Both were probed against the built maps (2026-10-31). Each clears every POI, find, scenic, golden mouse, vantage and the spawn by 20 m or more.
+  - Each disc has its one camp tree inside it, as the Docks container sits inside the Docks disc today. Only unlabelled perches (the tree's own, and birds') may sit inside a camp (Task 3 test).
   - The Moor and the Pines add a row when they are built. The island never gets one (truce).
 - **D5 is the plan's own choice, which the coordinator did not reopen. D9, D10 and D11 are kept as written (coordinator's ruling).**
 - **D9. Old areas don't change.** The Neighborhood/Twolegplace, Park, Seaside and Docks keep HedgeClan, AlderClan, DuneClan and HeronClan, whatever the picks.
 - **D10. Colony title.**
   - It shows your clan, e.g. "StormClan".
   - When the sibling's pick differs, it shows "StormClan & GaleClan · allies".
+  - **Coordinator's ruling:** "· allies" shows only when `mine` is set. A kid who hasn't picked sees the minted name alone, even if the sibling has picked.
 - **D11. Coming home.** A walk that starts in your own clan's territory toasts once: "Home to StormClan's land 🏡".
 
 ## The questions, as answered (2026-10-31)
@@ -103,7 +116,7 @@ The chosen word is in bold; the rest are spares.
 ## Review Focus
 
 1. **The partner's pick is unknown or stale** (not paired, offline, or the sibling on an old build that pushes a profile without `home`). Expected: a known pick is never forgotten, and an unknown one simply isn't excluded. Test: Task 5, "an old-build profile without home keeps the cached pick".
-2. **Any pair of picks, the same pick, or only one pick.** Expected: the patrol clan is never a pick, and both devices compute the same clan. Test: Task 2, an exhaustive loop over every territory × every ordered pair of picks, asserting that the result is not a pick and that it is symmetric.
+2. **Any pair of picks, the same pick, or only one pick.** Expected: the patrol clan is never a pick, and the same set of picks gives the same clan in either order. Test: Task 2, an exhaustive loop over every territory × every ordered pair of picks, asserting that the result is not a pick and that it is symmetric. Devices whose cached picks differ may show different patrol names; that is cosmetic (see Architecture).
 3. **Legacy** (a Legacy save with a pick, or a Legacy kid in a co-walk). Expected: no patrol, no picker, no homage name, and the pick kept. Tests: Task 3 (`rivalForWalk` legacy null), Task 4 (the flip invariant still deep-equal), Task 7 (no picker in Legacy).
 4. **Hostile payloads.** A cloud save `clanPick` of `{ mine: '__proto__' }`, a profile `home` of `'constructor'`, `42` or `'gorge'` from a newer build, or a bad `partnerId`. Expected: sanitised, never thrown; a known id like `'gorge'` survives even though it can't be picked here. Tests: Tasks 4 and 5.
 5. **A territory with no row yet** (the Moor before its row, the island). Expected: no patrol, no crash, and the island never gets a patrol. Test: Task 3 (`rivalFor('island', anyPicks)` null, and `DISCS` has no truce key).
@@ -114,15 +127,15 @@ The chosen word is in bold; the rest are spares.
 
 | File | Change | Responsibility |
 |---|---|---|
-| `src/clanwords.js` | modify (additive) | `HOMAGE_CHOICES`, `HOMAGE_PREFIXES`, `HOME_LINES` (flavour copy) |
+| `src/clanwords.js` | modify (append at the END of the file) | `HOMAGE_CHOICES`, `HOMAGE_PREFIXES`, `HOME_LINES` (flavour copy) |
 | `src/clanhomes.js` | **create** | Leaf: `HOMES`, `TRUCE_AREAS`, `isClanId`, `pickableClans`, `clanName`, `patrolClanFor`, `picksOf`, `ownClanTitle`, `alliesName`, `homeWelcome` |
 | `src/rivalclans.js` | modify | `DISCS` rows `woods`, `river`; `rivalFor(areaId, picks = [])` |
 | `src/edition.js` | modify (additive) | `rivalForWalk(areaId, edition, picks = [])` |
 | `src/rivalcats.js`, `src/markcontest.js` | modify | take a `picks` option and pass it to `rivalFor` |
 | `src/colony.js` | modify (one word) | `export` the existing `isPlayerId` |
 | `src/progression.js` | modify | `clanPick` field, `sanitizeClanPick`, `setClanPick`, `setPartnerClanPick` |
-| `src/game/rooms.js` | modify | `pushProfileNow` publishes `accessories.home` |
-| `src/game/colonysync.js` | modify | read the partner's pick on paired pulls; `noteOwnPick()` |
+| `src/game/rooms.js` | modify | `pushProfileNow` publishes `accessories.home`; the room-join pull asks for a fresh pick |
+| `src/game/colonysync.js` | modify | read the partner's pick on paired pulls; `pull({ freshPick })`; `noteOwnPick()`; `clanPick` in `signature()` |
 | `src/game/walk.js` | modify | pass picks to the rival, the patrol and the contest; the home toast |
 | `src/ui/clanpicker.js` | **create** | Pure `clanPickerModel(state)` and `renderClanPickerHtml(model)` |
 | `src/ui/dressingroom.js`, `src/ui/homebase.js`, `src/ui/colonypanel.js` | modify | mount the picker, the Settings select, clicks, and the colony title |
@@ -133,7 +146,7 @@ The chosen word is in bold; the rest are spares.
 ### Task 1: Homage names in clanwords.js
 
 **Files:**
-- Modify: `src/clanwords.js` (append, after `RIVAL_PREFIXES`)
+- Modify: `src/clanwords.js` (append at the very END of the file, after `DENIED_NAMES`)
 - Test: `test/clanwords.test.js` (append)
 
 **Interfaces:**
@@ -257,9 +270,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `pickableClans(): ClanId[]`, in `HOMES` order.
   - `clanName(id): string`, which is `HOMAGE_PREFIXES[id] + CLAN_SUFFIX`, or `''` for a non-id.
   - `patrolClanFor(areaId, picks): ClanId | null`
-  - `picksOf(state): ClanId[]`. It returns `mine`, plus `partner` only when `state.clanPick.partnerId === state.colony?.partner?.playerId`. Invalid entries are dropped, and the function is total over junk.
+  - `picksOf(state): ClanId[]`. It returns `mine`, plus `partner` only when `state.clanPick.partnerId === state.colony?.partner?.playerId`.
+    - The partner check is plain equality of ids. It does not validate the id's shape; `sanitizeClanPick` already did that.
+    - Invalid clan ids are dropped, and the function is total over junk.
   - `ownClanTitle(state): string`. In Clan Edition with a valid `mine`, it is `clanName(mine)`. Otherwise it is `state.clan?.name ?? ''`. In Legacy it is `''`.
-  - `alliesName(state): string`. It is `clanName(partner)` when the partner's pick is current, valid and different from `mine`; otherwise `''`. In Legacy it is `''`.
+  - `alliesName(state): string`. It is `clanName(partner)` only when `mine` is set and the partner's pick is current, valid and different from `mine`. Otherwise, and in Legacy, it is `''`.
   - `homeWelcome(areaId, state): string | null`. In Clan Edition, when `areaId === mine`, it is `` `Home to ${clanName(mine)}'s land 🏡` ``; otherwise `null`.
 
 The rule, in order:
@@ -334,8 +349,9 @@ test('picksOf counts the partner only while they are still the partner', () => {
 });
 
 test('names on screen: own title, allies, the home toast; Legacy says none', () => {
-  const s = { edition: 'canon', clan: { name: 'MossClan' }, clanPick: { mine: null, partner: null, partnerId: null }, colony: { partner: { playerId: 'p2' } } };
+  const s = { edition: 'canon', clan: { name: 'MossClan' }, clanPick: { mine: null, partner: 'moor', partnerId: 'p2' }, colony: { partner: { playerId: 'p2' } } };
   expect(ownClanTitle(s)).toBe('MossClan');
+  expect(alliesName(s)).toBe(''); // no "· allies" until I have picked
   s.clanPick = { mine: 'woods', partner: 'moor', partnerId: 'p2' };
   expect(ownClanTitle(s)).toBe(clanName('woods'));
   expect(alliesName(s)).toBe(clanName('moor'));
@@ -382,7 +398,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/rivalclans.js`, `src/edition.js`, `src/rivalcats.js`, `src/markcontest.js`
-- Test: `test/rivalclans.test.js`, `test/rivalworld.test.js`, `test/edition.test.js`, `test/rivalcats.test.js` (one case), `test/markcontest.test.js` (one case)
+- Test: `test/rivalclans.test.js`, `test/rivalworld.test.js`, `test/edition.test.js` (two existing pins flip, one test added), `test/rivalcats.test.js` (one case), `test/markcontest.test.js` (one case)
 
 **Interfaces:**
 - Consumes: `patrolClanFor`, `clanName`, `TRUCE_AREAS` (Task 2).
@@ -399,7 +415,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Write the failing tests**
 
 In `test/rivalclans.test.js`:
-- add `woods` and `river` to `SPAWNS`, using `SPAWN` from `src/world/woods.js` and `src/world/river.js`, so the spawn test covers them;
+- add `woods` and `river` to `SPAWNS`, using `SPAWN` from `src/world/woods.js` and `src/world/river.js`;
+- change the spawn test (R19, "each area's player spawn point is outside its rival disc") to loop over `Object.keys(SPAWNS)` instead of `AREAS`, so it covers every map with a spawn entry;
 - replace "DISCS and RIVAL_PREFIXES cover the same areas" with:
 
 ```js
@@ -435,9 +452,14 @@ test('the old areas ignore picks entirely', () => {
 In `test/rivalworld.test.js`:
 - import `build` from `src/world/woods.js` and `src/world/river.js`;
 - add `woods` and `river` to `BUILD`, so every existing patrol, mark, chase and landing case runs on the real built territories;
-- extend "nothing the player must reach is inside a territory" to `built[a].collectibles` and `built[a].scenics` (the old areas pass already; this pins it for every map).
+- extend "nothing the player must reach is inside a territory" to `built[a].collectibles` and `built[a].scenics` (the old areas pass already; this pins it for every map);
+- add: "only unlabelled perches sit inside a camp". For every `a` in `BUILD` that `isClanId(a)`, every perch with `isTrespassing(a, p.x, p.z)` has no `label` and no `vantage`. The camp tree's own perch and its bird perch are unlabelled. A labelled lookout must never be inside.
 
-In `test/edition.test.js`:
+In `test/edition.test.js`, **flip two existing pins** that hold on main 32f204e:
+- line 52, inside "rivalForWalk: none in Legacy, the usual one in Clan Edition": `expect(rivalForWalk('woods', 'canon')).toBeNull();` becomes `expect(rivalForWalk('woods', 'canon').clan).toBe('woods');`
+- line 73, inside "the shipped Legacy guards cover the River": `expect(rivalForWalk('river', 'canon')).toBeNull();` becomes `expect(rivalForWalk('river', 'legacy')).toBeNull();` plus `expect(rivalForWalk('river', 'canon').clan).toBe('river');`
+
+Then add:
 
 ```js
 test('rivalForWalk: Legacy never, Clan Edition follows the picks', () => {
@@ -457,7 +479,11 @@ Expected: FAIL. There is no `woods` disc yet.
 
 - [ ] **Step 3: Implement**
 
-- Add the two `DISCS` rows. Each gets a header paragraph in the existing style giving the clearances measured: "the north glade beyond river-west, facing the Moor; 23 m from the nearest find" and "the middle of the wet meadow, 21 m from the nearest find".
+- Add the two `DISCS` rows. Each gets a header paragraph in the existing style, naming its camp tree and the clearances measured:
+  - **woods (2, −43) r 6:** "the north glade beyond river-west, facing the Moor, round the oak at (3.44, −45.4), which is also a bird perch; 23 m from the nearest find. The ring comes within about 1 m of the north edge (z −50), so a cat chased out northward is set down sideways, round the ring, by findLanding's fallback."
+  - **river (5, 1) r 6:** "open ground south-west of the foot of the river bend and east of the bank path (the wet meadow itself centres on (2, 28)), round the willow at (7.62, 3.12); 21 m from the nearest find."
+
+  Read each tree's species from the built map. If it isn't an oak or a willow, name what it is.
 - Then make the `rivalFor`/`rivalForWalk`/`picks` option changes listed under Interfaces.
 - If a ring point fails a collider check in `rivalworld`, nudge the centre by 1 m within the probed band (Woods x 0–3, z −45 to −42; River x 3–7, z 0–3) and write down the final numbers. Do not shrink r below 5.
 
@@ -576,12 +602,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `pushProfileNow` sends `accessories.home = st.clanPick.mine` (or `null`) beside the seven slots, in both editions.
   - `colonySync.noteOwnPick(): Promise<void>` calls `pushProfileNow()`.
   - `export const PICK_FETCH_MS = 60_000`
-  - On every **paired** pull, after `setColonyLink`, the partner's pick is fetched when either:
-    - the partner id differs from the last one fetched this session, or
-    - `PICK_FETCH_MS` has passed since the last fetch.
+  - **`pull({ freshPick = false } = {})`.**
+    - `freshPick: true` clears the throttle (`lastPickTry = -Infinity`) before the single-flight check, so it applies even when it joins a pull already in flight.
+    - Existing `pull()` calls are unchanged.
+    - `rooms.js` `walkWithPartner` calls `colonySync.pull({ freshPick: true })` after a successful join (coordinator's ruling: the room-join pull skips the throttle).
+  - **On every paired pull,** after `setColonyLink`, the partner's pick is fetched when either:
+    - the partner id differs from the last one tried this session, or
+    - `PICK_FETCH_MS` has passed since the last **attempt**.
 
-    The fetch is `cloud.fetchProfiles([partnerId])`. Take the row whose `player_id === partnerId`, read `accessories.home` with an own-property check on a plain object, and call `progression.setPartnerClanPick(partnerId, home)`.
+    `lastPickTry = Date.now()` is recorded on every attempt, before the request, whether it then succeeds, fails or finds nothing. So a failing server is retried at most once a minute.
+
+    The fetch is `cloud.fetchProfiles([partnerId])`.
+    - A result that is not an array means "no row", silently: no warning and no change.
+    - Otherwise take the row whose `player_id === partnerId`, read `accessories.home` with an own-property check on a plain object, and call `progression.setPartnerClanPick(partnerId, home)`.
   - A fetch failure is swallowed (`warnOnce`) and never fails the pull. Solo and `!MP` make no fetch.
+  - **`signature()`** becomes `JSON.stringify([status(), progression.state.colony, progression.state.unlocked.accessories, progression.state.clanPick])`. A newly learned partner pick then re-renders the home base, through `notifyIfChanged`, exactly once.
 
 - [ ] **Step 1: Write the failing tests** (add `'fetchProfiles'` to `CLOUD_METHODS`)
 
@@ -589,23 +624,46 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 test('a paired pull learns the partner\'s pick from their profile', async () => {
   const { cs, progression, cloud } = setup({ script: {
     colonySync: () => pairedSnap(),
-    fetchProfiles: () => [{ player_id: PARTNER_ID, accessories: { collar: null, home: 'moor' } }],
+    fetchProfiles: () => [{ player_id: SIB, accessories: { collar: null, home: 'moor' } }],
   } });
   await cs.pull();
-  expect(cloud.fetchProfiles).toHaveBeenCalledWith([PARTNER_ID]);
-  expect(progression.state.clanPick).toMatchObject({ partner: 'moor', partnerId: PARTNER_ID });
+  expect(cloud.fetchProfiles).toHaveBeenCalledWith([SIB]);
+  expect(progression.state.clanPick).toMatchObject({ partner: 'moor', partnerId: SIB });
+});
+
+test('a newly learned partner pick fires onChange exactly once', async () => {
+  const { cs, onChange } = setup({ script: {
+    colonySync: () => pairedSnap(),
+    fetchProfiles: () => [{ player_id: SIB, accessories: { home: 'moor' } }],
+  } });
+  await cs.pull(); // learns the link, the colony and the pick
+  onChange.mockClear();
+  // vi.setSystemTime past PICK_FETCH_MS; the same pick comes back: no change, no call
+  await cs.pull();
+  expect(onChange).not.toHaveBeenCalled();
+  // the sibling changes clan
+  // (script.fetchProfiles now returns home 'river'; vi.setSystemTime past PICK_FETCH_MS again)
+  await cs.pull();
+  expect(onChange).toHaveBeenCalledTimes(1);
 });
 
 test('an old-build profile without home keeps the cached pick', async () => { /* seed partner 'moor', fetch returns { accessories: {} }, still 'moor' */ });
 test('a hostile home is ignored', async () => { /* '__proto__', 42, 'park' -> partner stays null */ });
-test('the partner pick is fetched at most once a minute', async () => { /* two pulls 3 s apart -> one fetch; advance PICK_FETCH_MS -> two */ });
+test('a non-array fetchProfiles result is "no row": no change, no warning, pull resolves', async () => { /* null, {}, 'x' */ });
+test('the partner pick is tried at most once a minute, failures included', async () => {
+  /* vi.useFakeTimers(); vi.setSystemTime(T0). fetchProfiles throws.
+     Two pulls 3 s apart -> one attempt. vi.setSystemTime(T0 + PICK_FETCH_MS + 1) -> two attempts. vi.useRealTimers() in afterEach. */
+});
+test('pull({ freshPick: true }) skips the throttle', async () => { /* a pull, then pull({ freshPick: true }) 3 s later -> two fetches */ });
 test('a failed profile fetch never fails the pull', async () => { /* fetchProfiles throws -> pull resolves, colony merged */ });
 test('unpaired and solo pulls fetch no profile', async () => { /* unpairedSnap -> fetchProfiles not called */ });
 ```
 
-(`PARTNER_ID` is the partner id that `pairedSnap()` already uses. Use fake timers or an injected `now`, matching how the file already controls time.)
+`SIB` (`'bbbbbbbb-2222'`) is the partner id the file's `pairedSnap()` members already use. Control time with `vi.useFakeTimers()` and `vi.setSystemTime(...)`, and restore real timers after each test.
 
-In `test/rooms.test.js`: `pushProfileNow` sends `accessories.home === 'woods'` after `setClanPick('woods')`, and `null` before it.
+In `test/rooms.test.js`, give the `pushProfileNow` test **its own fake cloud**: a `{ pushProfile: vi.fn(async () => 'ok') }` returned by `getCloud`, and nothing shared with the file's other fixtures. Assert that it sends `accessories.home === 'woods'` after `setClanPick('woods')`, and `null` before it.
+
+Also in `test/rooms.test.js`: `walkWithPartner()` calls `colonySync.pull` with `{ freshPick: true }` after a successful join.
 
 - [ ] **Step 2: Run them and check they fail**
 
@@ -615,7 +673,8 @@ Expected: FAIL.
 - [ ] **Step 3: Implement** the interfaces above. The new block in `colonysync.js` gets a comment explaining:
   - why the public profile is used: no SQL step, and both devices already push it;
   - why a missing `home` never clears the cache;
-  - that nothing goes on the co-walk wire.
+  - that nothing goes on the co-walk wire;
+  - that two devices can briefly disagree on the patrol's name (a stale cache, or a room friend who isn't the partner), and that this is cosmetic.
 
 - [ ] **Step 4: Run them and check they pass**
 
@@ -636,41 +695,61 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 6: Walks use the picks
 
 **Files:**
-- Modify: `src/game/walk.js` (the rival block around line 1208, and the walk-start toasts)
-- Test: `test/walk.edition.test.js`
+- Modify: `src/game/walk.js` (the rival block around line 1208, and the line after the mark-contest block)
+- Test: `test/walk.edition.test.js` (source pins only), `test/rivalcats.test.js` (the strip at line 376)
 
 **Interfaces:**
 - Consumes: `picksOf`, `homeWelcome` (Task 2); `rivalForWalk(areaId, edition, picks)` and the `picks` options (Task 3).
 - Produces:
-  - `walk.js` computes `const picks = picksOf(progression.state)` once per walk start. It uses it in:
-    - `rivalForWalk(areaId, progression.state.edition, picks)`;
-    - `createRivalPatrol(..., { picks, ... })`;
-    - `createMarkContest({ picks, ... })`.
-  - In Clan Edition and outside the den, `homeWelcome(areaId, progression.state)` is toasted once at walk start when it isn't `null`.
+  - **`walk.js` computes `const picks = picksOf(progression.state);` once per walk start.**
+    - Put it on its own line **above** the `// The rival's border and its patrol (v21 Stream 3a).` comment, not inside the branch that comment opens. `test/rivalcats.test.js` slices the source from that comment to `session.rival = {` and forbids `progression.` in the slice.
+    - The value is used in `rivalForWalk(areaId, progression.state.edition, picks)`, in `createRivalPatrol(..., { picks, ... })` and in `createMarkContest({ picks, ... })`.
+  - **The home toast.** Put this line directly **after the mark-contest block** (the `if (session.rival.borderMarks) { ... }` that closes around line 1271), before the yard-dog comment:
+
+    ```js
+    const welcome = isDen ? null : homeWelcome(areaId, progression.state);
+    if (welcome) hud.toast(welcome);
+    ```
+
+    - It is deliberately far from the `hud.setArea(...)` line around 1525, where the kittypets plan puts its own walk-start toast.
+    - `homeWelcome` is already `null` in Legacy and for any area that isn't your clan's home (Task 2's unit tests).
 
 - [ ] **Step 1: Write the failing tests**
 
-In `test/walk.edition.test.js`, replace the first source pin with:
+The `test/walk.edition.test.js` harness throws `STOP` inside the area build. It can't reach a walk's toasts or patrol, so this task pins the source. The behaviour is covered by Task 2's `homeWelcome`/`picksOf` unit tests and Task 3's `rivalForWalk` tests.
+
+In `test/walk.edition.test.js`, replace the first source pin ("the rival patrol is gated on the edition") with:
 
 ```js
 it('the rival patrol is gated on the edition and the picks', () => {
   const src = readFileSync('src/game/walk.js', 'utf8');
+  expect(src).toMatch(/const picks = picksOf\(progression\.state\);/);
   expect(src).toMatch(/rivalForWalk\(areaId, progression\.state\.edition, picks\)/);
   expect(src).toMatch(/createRivalPatrol\([^)]*\{[\s\S]*?picks/);
   expect(src).toMatch(/createMarkContest\(\{[\s\S]*?picks/);
   expect(src).not.toMatch(/\brivalFor\(/);
+  // picks is computed before the rival's branch, not inside it
+  expect(src.indexOf('const picks = picksOf(')).toBeLessThan(src.indexOf("The rival's border and its patrol"));
+});
+
+it('the home toast is gated on the den and comes from homeWelcome', () => {
+  const src = readFileSync('src/game/walk.js', 'utf8');
+  expect(src).toMatch(/isDen \? null : homeWelcome\(areaId, progression\.state\)/);
 });
 ```
 
-Using the file's existing walk harness, add:
-- a Clan Edition walk in the Woods with `clanPick.mine = 'woods'` toasts `homeWelcome('woods', state)`;
-- a Legacy walk in the Neighborhood with a pick toasts nothing new;
-- a Legacy walk writes nothing to `clanPick`: the state is deep-equal before and after, apart from the fields a walk already writes.
+In `test/rivalcats.test.js` (the "the chase branch writes nothing" test, around line 376), change the strip to the new call:
+
+```js
+const code = branch.replace(/\/\/.*$/gm, '').replace('rivalForWalk(areaId, progression.state.edition, picks)', '');
+```
+
+Update the comment above it to say the edition and the picks gate the patrol and write nothing.
 
 - [ ] **Step 2: Run them and check they fail**
 
-Run: `npx vitest run test/walk.edition.test.js`
-Expected: FAIL.
+Run: `npx vitest run test/walk.edition.test.js test/rivalcats.test.js`
+Expected: FAIL. The `walk.edition` pins don't match yet. The `rivalcats` strip no longer matches the old call, so `progression.` is left in the slice.
 
 - [ ] **Step 3: Implement.** Keep the block's existing "THE CHASE TAKES NOTHING" comment, and add one line saying that the picks only choose the clan's name.
 
@@ -682,7 +761,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/game/walk.js test/walk.edition.test.js
+git add src/game/walk.js test/walk.edition.test.js test/rivalcats.test.js
 git commit -m "feat(clans): walks use both kids' picks for the patrol, and welcome you home
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -705,9 +784,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `pickableClans`, `clanName`, `HOME_LINES`, `ownClanTitle`, `alliesName`, `progression.setClanPick`, `colonySync.noteOwnPick`.
 - Produces:
-  - `clanPickerModel(state) -> { mine: ClanId|null, both: boolean, cards: [{ id, name, line, place, mine: boolean, partner: boolean }] }`:
+  - `clanPickerModel(state) -> { mine: ClanId|null, both: boolean, cards: [{ id, name, line, place, soon: boolean, mine: boolean, partner: boolean }] }`:
     - one card per `pickableClans()`;
     - `place` is the territory name from `TERRITORIES` (The Woods, The Moor, ...);
+    - `soon` is true when that territory's `TERRITORIES` status isn't `'built'` (today the Moor and the Pines). The card can still be picked (coordinator's ruling) and shows a small "territory coming soon" note;
     - `partner` is true only when the partner's pick is current (via `picksOf`);
     - `both` is true when `mine` equals the current partner pick.
   - `renderClanPickerHtml(model, partnerName) -> string`:
@@ -716,9 +796,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - when `both`, a line `` `You're both ${name}!` ``.
   - `homebase.js`:
     - a click on `[data-clan-pick]` calls `progression.setClanPick(id)`, then `colonySync?.noteOwnPick()` (fire-and-forget), then `render()`;
-    - Settings gains, in Clan Edition only, `<select id="set-clan-pick">`. Its first option is `— not picked yet —` (disabled, selected while unpicked), then one option per pickable clan, labelled `clanName(id)`. A `change` does the same as a click.
+    - Settings gains, in Clan Edition only, a row labelled `` `Your ${CLAN_SUFFIX.toLowerCase()}` `` holding `<select id="set-clan-pick">`. Its first option is `— not picked yet —` (disabled, selected while unpicked), then one option per pickable clan, labelled `clanName(id)`. A `change` does the same as a click.
     - The colony sheet passes `clanName: ownClanTitle(s)` and `alliesName: alliesName(s)`.
-  - `renderColonyHtml({ ..., alliesName })`. The title is `${clanName} & ${alliesName} · allies` when `alliesName` is set; otherwise it is as today. It is still empty in Legacy.
+  - `renderColonyHtml({ ..., alliesName })`. The title is `${clanName} & ${alliesName} · allies` when `alliesName` is set; otherwise it is as today. `alliesName` is already `''` until `mine` is set (D10 ruling). It is still empty in Legacy.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -728,7 +808,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - the partner's current pick marks `partner`, and a stale `partnerId` marks none;
 - the same pick for both gives `both` and the "You're both" line;
 - a hostile partner pet name is escaped;
-- the rendered HTML passes the borrowed-word scan helper. Import the scan by moving `borrowedIn` to `test/helpers/borrowed.js`, or copy the assertion: no literal "Clan" appears outside the composed names.
+- the Moor and Pines cards have `soon: true` and render "territory coming soon", and the Woods and River cards have `soon: false`. Write these as membership checks over the cards, not a whole-list equality.
+
+There is **no** rendered-HTML borrowed-word test: "Pick your clan" renders the word by design. The existing source scan in `test/clanwords.test.js` already covers `src/ui/clanpicker.js`'s literals. Leave `borrowedIn` where it is.
 
 `test/dressingroom.test.js`: the Where-to pill holds `data-clan-pick` in Clan Edition and not in Legacy.
 
@@ -740,6 +822,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 `test/colonypanel.test.js`:
 - the title reads "StormClan & GaleClan · allies" for different picks;
 - just "StormClan" for the same pick;
+- just the minted name when only the sibling has picked;
 - unchanged, the minted name, with no pick;
 - empty in Legacy.
 
@@ -761,6 +844,10 @@ Then check it in the app with `npm run dev`:
 - Flip to Legacy: there is no picker, no Woods card, and the colony title is plain.
 - Flip back: the pick is still there.
 - Check the cards at a 375 px width.
+- **iPhone draw-count reading.** On the iPhone 18, with the perf readout on (Settings → Performance readout), walk the Woods and the River on High and stand where the camp is in view.
+  - Note the draw calls and fps beside each map's reading from its own build.
+  - The camp adds the patrol cat and up to 12 border-mark decals. Expect a few draws more than before and 60 fps held.
+  - Record the numbers in the commit message body. If fps drops below 60, stop and report rather than trimming the camp.
 
 - [ ] **Step 5: Update the spec**
 
@@ -783,10 +870,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 8 (only once the Moor is on main): the Moor's camp
 
-The `moor` branch (`.worktrees/moor`) is being built in parallel and pins `rivalForWalk('moor', 'canon')` to `null` in `test/moor.test.js`. Do this task only after the Moor merges. If it hasn't merged when Task 7 is done, stop and report. The Pines does the same in its own plan.
+The `moor` branch (`.worktrees/moor`) is being built in parallel. It pins `rivalForWalk('moor', 'canon')` to `null` in `test/moor.test.js`, and in `test/edition.test.js` beside the Woods and River pins that Task 3 flips. Do this task only after the Moor merges. If it hasn't merged when Task 7 is done, stop and report. The Pines does the same in its own plan.
 
 **Files:**
-- Modify: `src/rivalclans.js` (one `DISCS` row), `test/rivalworld.test.js` (one `BUILD` entry), `test/rivalclans.test.js` (`SPAWNS` entry), `test/moor.test.js` (the `null` pin becomes a camp pin)
+- Modify:
+  - `src/rivalclans.js` (one `DISCS` row);
+  - `test/rivalworld.test.js` (one `BUILD` entry);
+  - `test/rivalclans.test.js` (`SPAWNS` entry);
+  - `test/moor.test.js` (the `null` pin becomes a camp pin);
+  - `test/edition.test.js` (flip the Moor branch's `rivalForWalk('moor', 'canon')` `null` pin the same way Task 3 flipped the Woods and River: Legacy `null`, Clan Edition `.clan === 'moor'`).
 - Possibly modify: `src/clanhomes.js`, only to reorder the `moor` row's neighbours so that `[0]` is the side the camp faces.
 
 **The recipe** (the same for the Pines later):
@@ -795,6 +887,8 @@ The `moor` branch (`.worktrees/moor`) is being built in parallel and pins `rival
    - every ring point walkable;
    - every ring point 0.4 m beyond `collider.r + CAT_RADIUS`;
    - the whole disc 3 m or more from every POI, collectible, scenic, golden mouse, labelled perch and the spawn.
+
+   Name the camp tree (or rock) inside the disc in the row's header comment, with its coordinates, as Task 3 does.
 
    Prefer the side facing `HOMES.moor.neighbours[0]`.
 2. **The Pines also keeps the disc clear of the truce path** to the island bridge (decision 8). Add a `rivalworld` case that the disc stays 3 m or more from every segment of the Pines' exported bridge path.
@@ -807,7 +901,7 @@ The `moor` branch (`.worktrees/moor`) is being built in parallel and pins `rival
 4. **Commit:**
 
    ```bash
-   git add src/rivalclans.js test/rivalworld.test.js test/rivalclans.test.js test/moor.test.js
+   git add src/rivalclans.js test/rivalworld.test.js test/rivalclans.test.js test/moor.test.js test/edition.test.js
    git commit -m "feat(clans): the Moor's camp
 
    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -817,13 +911,14 @@ The `moor` branch (`.worktrees/moor`) is being built in parallel and pins `rival
 
 ## Overlaps (parallel work: plan around these, don't edit their files)
 
-- **The kittypets planner** may also touch `src/clanwords.js` and `src/edition.js`.
-  - In `clanwords.js`, this plan **only appends** three new exports after `RIVAL_PREFIXES`: `HOMAGE_CHOICES`, `HOMAGE_PREFIXES` and `HOME_LINES`. No existing export changes, and `BORROWED` (in the test) is not touched.
-  - In `edition.js`, it **only adds an optional third parameter** to `rivalForWalk(areaId, edition, picks = [])`. Existing two-argument calls behave the same.
-  - If both plans append to the end of `clanwords.js`, the merge is a trivial adjacent-hunk resolve.
+- **The kittypets plan** edits `src/clanwords.js` and only **imports** from `src/edition.js` (it doesn't edit it).
+  - In `clanwords.js`, this plan **only appends** three new exports at the very **end of the file**, after `DENIED_NAMES`: `HOMAGE_CHOICES`, `HOMAGE_PREFIXES` and `HOME_LINES`. No existing export changes, and `BORROWED` (in the test) is not touched. If the kittypets plan also appends at the end, the merge is a trivial adjacent-hunk resolve.
+  - In `edition.js`, this plan **only adds an optional third parameter** to `rivalForWalk(areaId, edition, picks = [])`. Every existing export keeps its signature and behaviour, so the kittypets plan's imports are unaffected.
+  - **`src/game/walk.js`:** the kittypets plan adds a walk-start toast after `hud.setArea(...)` (around line 1525). This plan's home toast goes right after the mark-contest block (around line 1271), so the two hunks are far apart.
   - The kittypets line "Robbie, a kittypet who walks with …" should read the clan name from `ownClanTitle(state)` in `src/clanhomes.js` (Task 2).
-- **The Moor** (`moor` branch) touches `src/progression.js` (2 lines), `src/goldmice.js`, `src/world/builder.js` and its own files, and pins `rivalForWalk('moor', 'canon')` to `null`.
-  - This plan adds no Moor disc until Task 8, so the pin holds until then.
+- **The Moor** (`moor` branch) touches `src/progression.js` (2 lines), `src/goldmice.js`, `src/world/builder.js` and its own files, and pins `rivalForWalk('moor', 'canon')` to `null` (in `test/moor.test.js` and `test/edition.test.js`).
+  - This plan adds no Moor disc until Task 8, so those pins hold until Task 8 flips them.
+  - If the Moor merges before Task 3, its `test/edition.test.js` pin sits beside the two that Task 3 flips. Leave it alone in Task 3.
   - Both plans edit `src/progression.js` in different places: `defaultState`/the load path/api here, the catalog there.
 - **The Pines and the island** (being planned):
   - each adds one `DISCS` row by Task 8's recipe;
@@ -832,3 +927,6 @@ The `moor` branch (`.worktrees/moor`) is being built in parallel and pins `rival
 - **Shared test files edited here:**
   - `test/rivalworld.test.js` (`BUILD` map) and `test/rivalclans.test.js` (`SPAWNS` map): each later territory adds one line;
   - `test/editions.invariants.test.js`: the top-level key list gains `'clanPick'`. Another plan that adds a top-level key must add its key beside it.
+  - `test/edition.test.js`: Task 3 flips the Woods and River `null` pins; Task 8 flips the Moor's.
+  - `test/rivalcats.test.js`: Task 6 changes the strip in the "chase branch writes nothing" test to the new `rivalForWalk(..., picks)` call.
+- **Coming next, not in this plan:** the playtester also wants territories to feel more clan-like (clan-style names for every cat there, and the camp marked on the maps). That waits on an owner question. Nothing here starts it.
