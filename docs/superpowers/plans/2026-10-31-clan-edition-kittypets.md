@@ -2,17 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** In Clan Edition, twelve of the old strays (and Duchess) become kittypets: they read "Marmalade the kittypet", wear a collar, show "once a kittypet called Marmalade" on the Colony card, and now and then one wanders into a clan territory where a kid can befriend it and bring it home through the existing feeding and taming.
+**Goal:** In Clan Edition, twelve of the old strays (and Duchess) become kittypets: they read "Marmalade the kittypet" and wear a collar, and now and then one wanders into a clan territory where a kid can befriend it and bring it home through the existing feeding and taming. A kittypet that joins just takes its clan name, like any colony cat (owner, 2026-10-31).
 
 **Architecture:** Everything is derived from a cat's stored name, so nothing new is stored, sent or synced. One new pure module, `src/housecats.js`, holds the kittypet rules (collars, the wander roll, the wanderer's spot, the toast lines). The wanderer is a stray "extra", the same mechanism the legendary cats use: decided outside `walkRng`, drawn from its own stream, placed by a pure function of the map. "Bringing it home" is the ordinary feed: the first feed records it as a colony cat at its spot in that territory, and six feeds (less a head start) tame it into the den. **No server change.**
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, plain ES modules.
 
-**Spec:** `docs/superpowers/specs/2026-10-31-editions-and-territories-design.md`: "Owner's answers" (decisions 1, 6, 9), §1's "What differs" table ("Some strays" row), §2 Kittypets, §3 "Twolegplace, and kittypets who wander", §8 step 3. The clan spec (`docs/superpowers/specs/2026-10-25-whisker-walk-v21-the-clan-design.md`) §6.2 and §8 still hold.
+**Spec:** `docs/superpowers/specs/2026-10-31-editions-and-territories-design.md`: "Owner's answers" (decisions 1, 6, 9), §1's "What differs" table ("Some strays" row), §2 Kittypets, §3 "Twolegplace, and kittypets who wander", §8 step 3. **The owner dropped §2 rule 6's "once a kittypet called…" line and the -paw start on 2026-10-31** (noted in the spec). The clan spec (`docs/superpowers/specs/2026-10-25-whisker-walk-v21-the-clan-design.md`) §6.2 and §8 still hold.
 
 ## Global Constraints
 
-- **Legacy Edition never changes**: no "kittypet" word, no collar, no "once a kittypet" line. The wanderer still appears in Legacy in a co-walk (spawns must not depend on the edition), but it reads as plain "Marmalade".
+- **Legacy Edition never changes**: no "kittypet" word, no collar. The wanderer still appears in Legacy in a co-walk (spawns must not depend on the edition), but it reads as plain "Marmalade".
+- **The Colony card is not changed.** A kittypet in the colony shows its clan name and rank exactly like any other colony cat: no "once a kittypet called…" line, and `colonyRankFor` is not touched (owner, 2026-10-31).
 - **Nothing takes a kid's progress away.** No cat un-tames, no cat is dropped, no stored name changes. `SAVE_VERSION` stays 4. **This plan adds no save field at all.** Everything is derived from the stored name.
 - **The caps don't move:** `COLONY_MAX` 24 and `SOLO_MAX` 12. A wanderer joins the colony only through `feedColonyCat`, so a full colony refuses it with the existing 'full' answer.
 - **Nothing new on the wire.** The wanderer is a local extra decided from the UTC date, the area and the shared colony (decision 6).
@@ -24,28 +25,41 @@
 - Commit with an explicit `git add <files>`. Messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Test command: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`.
 
-## Defaults this plan picks (owner to confirm; each is a one-line change)
+## Owner's decisions (2026-10-31)
 
-1. **The kittypets:** **Baron von Fluff, Sir Pounce, Marmalade, Biscuit, Mochi, Clementine, Petunia, Butterscotch, Truffle, Custard, Peaches, Waffles**, plus **Duchess**. This is the spec §2 list. Duchess is a kittypet in the words and the collar, but she never wanders: she stays the Neighborhood's legendary cat, with her own find rules. Only Biscuit is shy (`isShy`), so with a partner she needs both kids to feed her, as today.
-2. **The collar:** the shop's **Bell Collar** (`bell`: red band, gold bell) on every kittypet. Duchess wears the **Heart Charm Collar** (`heart`), the grandest look. Clan Edition only. A kittypet wears it only while it is outside the kid's colony: once it has been fed it is "joining the clan" and wears whatever its finder gives it, as Rusty lost his collar. The collar meshes never cast shadows.
-3. **How often, and where:**
-   - Each **UTC day, each territory a Twolegplace path reaches (the Woods, the River and Marshes, the Moor)** has a 1-in-5 chance of a wanderer. A Twolegplace path reaches each of these (spec §3).
-   - On a wander day the same kittypet is there on every walk that day, so a kid who meets it can come back.
-   - At most one per walk. Never in Twolegplace, the Pines and Swamp, the island, the Gorge, the Park, the Seaside, the Docks or the den.
-   - It stands about 6 m in from the walk's arrival point, which is on the Twolegplace path in each of these maps.
-   - It never turns cross when greeted. A kittypet already in the shared colony doesn't wander (the same rule as the legendary cats).
-4. **What befriending takes:** exactly today's rules, nothing new.
-   - Greet it (met, friend, best friend), then **feed it once** while you're there. That makes it a colony cat that "waits for you here" at its spot in that territory, on every later walk.
-   - Five more feeds on later walks tame it (fewer with a head start from earlier greets), and it moves into the den.
-   - The first feed needs that territory's colony feeding to be switched on. The Woods and the River have it today. In the Moor you can only greet until the Moor's own step adds `'moor'` to `COLONY_AREAS`.
-5. **Wording:**
-   - Clan Edition: "You met Marmalade the kittypet! ♡".
-   - A cross kittypet gets no outsider word at all (never "the rogue"; she stays a kittypet).
-   - On arrival: "Marmalade the kittypet has wandered in from Twolegplace 🔔" (Legacy: "Marmalade has wandered in from the Cozy Neighborhood 🔔").
-   - On the first feed: "Marmalade will wait for you here in The Woods 🐾".
-   - On taming, in Clan Edition: "Marmalade left Twolegplace to join you! She'll be waiting in the den 🏠".
-   - On the Colony card: "*Amberpaw*: once a kittypet called Marmalade".
-   - A kittypet on the Colony card is never a "-kit": it starts at "-paw".
+These four are settled by the owner. They are not defaults.
+
+1. **The kittypets:** **Baron von Fluff, Sir Pounce, Marmalade, Biscuit, Mochi, Clementine, Petunia, Butterscotch, Truffle, Custard, Peaches, Waffles**, plus **Duchess**.
+   - Duchess is a kittypet in the words and the collar, but she **never wanders**. She stays the Neighborhood's legendary cat, with her own find rules.
+   - Only Biscuit is shy (`isShy`), so with a partner she needs both kids to feed her, as today.
+2. **Wandering:** 1 day in 5 per territory a Twolegplace path reaches: **the Woods, the River and Marshes, and the Moor**.
+   - The roll is once per UTC day per territory, so on a wander day the **same kittypet is there all day**.
+   - **Never in the Pines and Swamp.** Never in Twolegplace, the island, the Gorge, the Park, the Seaside, the Docks or the den either.
+   - At most one per walk.
+3. **The collar:** the shop's **Bell Collar** (`bell`: red band, gold bell) on every kittypet, and the **Heart Charm Collar** (`heart`) for Duchess.
+   - **Clan Edition only.**
+   - **Removed once the cat is fed**: a kittypet wears it only while it is outside the kid's colony. After the first feed it wears whatever its finder gives it, as Rusty lost his collar.
+   - The collar meshes never cast shadows.
+4. **No old name.** A kittypet that joins just takes its clan name, like any colony cat.
+   - There is **no "once a kittypet called…" line**, and the Colony card is not changed at all.
+   - There is **no special -paw start** either: `colonyRankFor` is untouched (coordinator's ruling).
+
+**Coordinator's rulings (2026-10-31):**
+- Befriending follows today's rules, unchanged.
+  - Greet it (met, friend, best friend), then **feed it once** while you're there. That makes it a colony cat that "waits for you here" at its spot in that territory, on every later walk.
+  - Five more feeds on later walks tame it (fewer with a head start from earlier greets), and it moves into the den.
+  - The first feed needs that territory's colony feeding to be switched on. The Woods and the River have it today. In the Moor you can only greet until the Moor's own step adds `'moor'` to `COLONY_AREAS`.
+- A cross kittypet gets no outsider word at all (never "the rogue"). A wanderer never turns cross when greeted.
+
+## Defaults this plan still picks (one-line changes)
+
+- **Where a wanderer stands:** about 6 m in from the walk's arrival point, which is on the Twolegplace path in each of these maps.
+- **Shared-colony rule:** a kittypet already in the shared colony doesn't wander on a colony walk (the same rule as the legendary cats).
+- **Wording:**
+  - Clan Edition: "You met Marmalade the kittypet! ♡".
+  - On arrival: "Marmalade the kittypet has wandered in from Twolegplace 🔔" (Legacy: "Marmalade has wandered in from the Cozy Neighborhood 🔔").
+  - On the first feed: "Marmalade will wait for you here in The Woods 🐾".
+  - On taming, in Clan Edition: "Marmalade left Twolegplace to join you! She'll be waiting in the den 🏠".
 
 **Not in this plan:**
 - §2 rule 7's home-screen line ("Robbie, a kittypet who walks with …") needs the clan names from the "pick your clan" step, so it waits for that step.
@@ -58,7 +72,7 @@
 - **`src/cat/model.js`** (the cat body/builder work may be touching it): one line, `collar.name = 'collar'` in `buildCat`'s collar block (~line 1010). Rebase onto whichever lands first.
 - **`src/game/walk.js`** (the Moor branch `moor` registers its area elsewhere in this file): the edit is confined to the legendary/extras block (~lines 790–815) and one toast after `hud.setArea` (~line 1525).
 - **`src/colony.js`**: only `outsideTag` changes. `COLONY_AREAS` is not touched; the Moor branch adds `'moor'` there.
-- **Territory builds (Moor, Pines and Swamp, island):** nothing to do for them. `WANDER_AREAS` already lists `'moor'`, which is harmless until the Moor is walkable. `test/wanderspot.test.js` checks each wander area whose world file exists. When the Moor lands, add one line there (Task 4 says which).
+- **Territory builds (Moor, Pines and Swamp, island):** nothing to do for them. `WANDER_AREAS` already lists `'moor'`, which is harmless until the Moor is walkable. `test/wanderspot.test.js` checks each wander area whose world file exists. When the Moor lands, add one line there (Task 3 says which).
 - **`test/editions.invariants.test.js`**: two new tests are appended. The existing "edition is the only new top-level key" test isn't touched (the clan-pick plan owns that line), and this plan adds no key.
 
 ## Review Focus
@@ -77,7 +91,7 @@
 - Modify: `src/straynames.js` (add `KITTYPET_NAMES`, `isKittypetName` after `LEGENDARY_NAMES`)
 - Modify: `src/clanwords.js:184-188` (`OUTSIDE_WORDS`: add `house`)
 - Modify: `src/colony.js:805-816` (`outsideTag`)
-- Test: `test/housecats.test.js` (create), `test/clanwords.test.js`
+- Test: `test/housecats.test.js` (create), `test/clanwords.test.js`, `test/clannames.test.js`
 
 **Interfaces:**
 - Produces:
@@ -125,6 +139,17 @@ test('a kittypet reads as the kittypet, never a loner or a rogue', () => {
 });
 ```
 
+Append to `test/clannames.test.js` (owner, 2026-10-31: a joined kittypet is an ordinary colony cat, so pin that nothing special happens):
+
+```js
+test('a kittypet in the colony ranks like any other cat', () => {
+  expect(colonyRankFor('Marmalade', { have: 1, tamed: false })).toBe(RANK_KEYS.kit);
+  expect(colonyRankFor('Duchess', { have: 0, tamed: false })).toBe(RANK_KEYS.kit);
+});
+```
+
+This one passes before and after Task 1. It is a guard against someone later adding the dropped -paw start.
+
 - [ ] **Step 2: Run them to make sure they fail**
 
 Run: `npx vitest run test/housecats.test.js test/clanwords.test.js`
@@ -150,7 +175,7 @@ Expected: all PASS. If an interactions test pins "Marmalade the loner", apply Re
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/straynames.js src/clanwords.js src/colony.js test/housecats.test.js test/clanwords.test.js
+git add src/straynames.js src/clanwords.js src/colony.js test/housecats.test.js test/clanwords.test.js test/clannames.test.js
 git commit -m "feat(kittypets): twelve strays and Duchess read as the kittypet in Clan Edition
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -158,77 +183,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 2: The Colony card: "once a kittypet called…" and the -paw floor
-
-**Files:**
-- Modify: `src/clannames.js:79-87` (`colonyRankFor`)
-- Modify: `src/ui/colonypanel.js` (`catCard`, the `titleLine`, ~lines 136–141)
-- Test: `test/clannames.test.js`, `test/colonypanel.test.js`
-
-**Interfaces:**
-- Consumes: `isKittypetName`, `OUTSIDE_WORDS.house` (Task 1).
-- Produces:
-  - `colonyRankFor(name, progress)` now floors a kittypet at apprentice, as it already does for `KIT_NAMES`;
-  - a Clan Edition card for a kittypet carries `<span class="colony-once">once a kittypet called Marmalade</span>` in its title line, in place of the bare stored name.
-
-- [ ] **Step 1: Write the failing tests**
-
-`test/clannames.test.js`:
-
-```js
-test('a kittypet in the colony is never a kit: it starts at apprentice, as Rusty did', () => {
-  expect(colonyRankFor('Marmalade', { have: 1, tamed: false })).toBe(RANK_KEYS.apprentice);
-  expect(colonyRankFor('Duchess', { have: 0, tamed: false })).toBe(RANK_KEYS.apprentice);
-  expect(colonyRankFor('Pickles', { have: 1, tamed: false })).toBe(RANK_KEYS.kit);
-  expect(colonyRankFor('Marmalade', { have: 6, tamed: true })).toBe(RANK_KEYS.warrior);
-});
-```
-
-`test/colonypanel.test.js` (use the file's own `render`, `colonyOf`, `cat`, `feed` helpers):
-
-```js
-it('a kittypet card says once a kittypet called <name> in Clan Edition only', () => {
-  const colony = colonyOf({ cats: [cat('Marmalade')], feeds: feed('Marmalade', ME, 1) });
-  const clan = render(colony, { edition: 'canon' });
-  expect(clan).toContain(`once a ${OUTSIDE_WORDS.house} called Marmalade`);
-  expect(clan).toContain(clanNameOf('Marmalade', { have: 1 }, RANK_KEYS.apprentice)); // Amberpaw
-  const legacy = render(colony, { edition: 'legacy' });
-  expect(legacy).not.toContain(OUTSIDE_WORDS.house);
-  expect(legacy).toMatch(/class="card-name">Marmalade<\/div>/);
-});
-it('a plain stray card is unchanged', () => {
-  const html = render(colonyOf({ cats: [cat('Pickles')] }), { edition: 'canon' });
-  expect(html).not.toContain('colony-once');
-});
-```
-
-- [ ] **Step 2: Run them to make sure they fail**
-
-Run: `npx vitest run test/clannames.test.js test/colonypanel.test.js`
-Expected: FAIL (the rank is still 'kit'; there's no `colony-once`).
-
-- [ ] **Step 3: Implement**
-  - `colonyRankFor`: the floor applies when `KIT_SET.has(name) || isKittypetName(name)`. Update its comment (spec §2 rule 6).
-  - `catCard`: when `!legacy && isKittypetName(cat.name)`, build `stored` as `` `<span class="colony-once">once a ${OUTSIDE_WORDS.house} called ${name}</span> ` `` (where `name` is the already-escaped stored name) in place of `` `${name} ` ``. The breed span follows as before.
-  - Add `.colony-once { font-style: italic; }` to `src/style.css` beside the other `.colony-*` rules.
-
-- [ ] **Step 4: Run the full suite**
-
-Run: `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`
-Expected: PASS. Older card tests use `B`/`C`/`D` (Marmalade, Baron von Fluff, Mochi) as "any cat". Where one fails only because of the new floor or line (for example `descriptor(...) === RANK_WORDS.kit`), swap that fixture to a non-kittypet name and note it in the commit body.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/clannames.js src/ui/colonypanel.js src/style.css test/clannames.test.js test/colonypanel.test.js
-git commit -m "feat(kittypets): Colony card says once a kittypet called…, kittypets start at -paw
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
----
-
-### Task 3: Collars in Clan Edition
+### Task 2: Collars in Clan Edition
 
 **Files:**
 - Create: `src/housecats.js`
@@ -332,7 +287,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: The wander rules (pure)
+### Task 3: The wander rules (pure)
 
 **Files:**
 - Modify: `src/housecats.js`
@@ -357,7 +312,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - otherwise `wandererFor(areaId, ymd, colonyWalk ? names of state.colony.cats : [])`;
     - a colony walk is partner-only, so the colony is shared. Off one, the decision may read only the date and the area, so every co-walker agrees;
   - `WANDER_STEP = 6`;
-  - `wanderStart(spawn: {x, z}) => {x, z}`: a point `WANDER_STEP` m from `spawn` toward the map's middle (0, 0), or `spawn.x - WANDER_STEP` when `spawn` is the origin. The caller passes it through `clearSpot` (Task 5).
+  - `wanderStart(spawn: {x, z}) => {x, z}`: a point `WANDER_STEP` m from `spawn` toward the map's middle (0, 0), or `spawn.x - WANDER_STEP` when `spawn` is the origin. The caller passes it through `clearSpot` (Task 4).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -445,7 +400,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: The wanderer in a walk
+### Task 4: The wanderer in a walk
 
 **Files:**
 - Modify: `src/straycats.js` (the extras loop, ~lines 495–535)
@@ -455,7 +410,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `test/straycats.test.js`, `test/housecats.test.js`, `test/interactions.test.js`
 
 **Interfaces:**
-- Consumes: `walkWanderer`, `wanderStart`, `collarFor` (Tasks 3–4); `clearSpot` (`src/world/spots.js`).
+- Consumes: `walkWanderer`, `wanderStart`, `collarFor` (Tasks 2–3); `clearSpot` (`src/world/spots.js`).
 - Produces:
   - `createStrayCats` extras accept `{ name, rng, spot?: {x, z}, wanderer?: true }`:
     - a kittypet name is allowed when `wanderer: true` (a legendary name is allowed as before);
@@ -524,7 +479,7 @@ Expected: FAIL.
     - position: if `ex.spot` has finite x and z, clamp it into bounds and use it after taking the two x/z draws, so the draw count is the same;
     - glow and legend tag only `if (isLegendaryName(name))`. Today `glows.push(dressLegend(...))` would push `null`;
     - add `wanderer: ex.wanderer === true` to the extra's entry, and `wanderer: false` to the main loop's entry. Keep the "keep in step" comments true;
-    - give extras the Task 3 collar rule.
+    - give extras the Task 2 collar rule.
   - `src/game/walk.js`, beside the legendary block:
     ```js
     const today = new Date().toISOString().slice(0, 10);   // the race's UTC date
@@ -553,7 +508,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Bringing a kittypet home
+### Task 5: Bringing a kittypet home
 
 No new mechanics: this task only says out loud what the existing feed already does, so a kid knows to come back.
 
@@ -613,7 +568,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: The invariants, and a look in the browser
+### Task 6: The invariants, and a look in the browser
 
 **Files:**
 - Modify: `test/editions.invariants.test.js` (append only)
@@ -649,9 +604,9 @@ Expected: PASS, with the file count and test count higher than at 32f204e.
 
 Start the dev server with the project's run skill or `.claude/launch.json`, then:
 - In Clan Edition, walk Twolegplace and find a kittypet (Marmalade, Mochi…). It wears a red collar with a gold bell. Greeting it says "…the kittypet! ♡".
-- Force a wander day by temporarily calling `walkWanderer` with a known wander `ymd` from the console, or by picking a date from the Task 4 test. Walk the Woods. The arrival toast shows, the cat stands a few metres up the path from the start, greet it, feed it, and see "will wait for you here in The Woods".
+- Force a wander day by temporarily calling `walkWanderer` with a known wander `ymd` from the console, or by picking a date from the Task 3 test. Walk the Woods. The arrival toast shows, the cat stands a few metres up the path from the start, greet it, feed it, and see "will wait for you here in The Woods".
 - On the next Woods walk it stands at the same spot as a colony cat, with no collar.
-- Open the Colony tab. Its card reads "Amberpaw" with "once a kittypet called Marmalade".
+- Open the Colony tab. Its card reads like any other colony cat's (its clan name, e.g. "Amberkit", and its rank), with no "kittypet" anywhere on it.
 - Flip to Legacy: no collar, no "kittypet", the card reads "Marmalade".
 - Revert any console-only forcing; nothing is committed for it.
 

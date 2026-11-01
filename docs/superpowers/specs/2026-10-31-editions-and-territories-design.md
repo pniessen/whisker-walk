@@ -393,7 +393,9 @@ already). Good things follow:
    kittypet who joins gets a clan name on the Colony card, with the old name
    kept underneath: ***Amberpaw*: once a kittypet called Marmalade.** A
    grown kittypet is never shown as a "-kit"; it starts at "-paw", as Rusty
-   did.
+   did. *(Stale, 2026-10-31: the owner dropped the old-name line and the
+   -paw start. A kittypet that joins just takes its clan name, like any
+   colony cat; see §8 step 3.)*
 7. **The family cats are always kittypets and always keep their names.**
    Robbie, D2, Digit, Zeetoo and Hagrid are the kids' real house cats. In Clan
    Edition the home screen can say *"Robbie, a kittypet who walks with
@@ -905,6 +907,10 @@ the island. **The Gorge comes later** (decision 4).
 3. **Kittypets.** The kittypet names, collars in Clan Edition, "the
    kittypet" wording, "once a kittypet called…" on the Colony card (§2), and
    the occasional wanderer into a territory (§3).
+   - *2026-10-31: the owner dropped "once a kittypet called…".* A kittypet
+     that joins just takes its clan name, ranks like any other colony cat (no
+     special -paw start), and the Colony card is unchanged. Plan:
+     `docs/superpowers/plans/2026-10-31-clan-edition-kittypets.md`.
 4. **The River and Marshes.** The pond on its east edge matches the Woods'.
 5. **The Moor.** The river crosses it into the lake; the north path from
    Twolegplace arrives on its east side.
