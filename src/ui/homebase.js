@@ -7,6 +7,9 @@ import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
 import { buildCat } from '../cat/model.js';
 import { candidateStarNames } from '../clannames.js';
+import { pickableClans, clanName, ownClanTitle, alliesName } from '../clanhomes.js';
+import { CLAN_SUFFIX } from '../clanwords.js';
+import { PICK_ATTR, PICK_SELECT_ID } from './clanpicker.js';
 import { editionTitle, gameTitle, isClanEdition, placeName, effectiveArea } from '../edition.js';
 import {
   renderColonyHtml, sanitizeInviteCode, shouldPollPairing, pairingPending, pairingErrorLine, PAIRING_POLL_MS,
@@ -323,6 +326,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
+          ${isClanEdition(progression.state) ? `<label class="settings-row settings-quality">
+            <span>Your ${CLAN_SUFFIX.toLowerCase()}</span>
+            <select id="${PICK_SELECT_ID}">
+              <option value="" disabled ${progression.state.clanPick?.mine ? '' : 'selected'}>— not picked yet —</option>
+              ${pickableClans().map((id) => `<option value="${id}" ${progression.state.clanPick?.mine === id ? 'selected' : ''}>${clanName(id)}</option>`).join('')}
+            </select>
+          </label>` : ''}
           <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
           <label class="settings-row"><input type="checkbox" id="set-perf-readout" ${s.perfReadout ? 'checked' : ''} /> Performance readout (fps counter)</label>
           <label class="settings-row settings-quality">
@@ -761,7 +771,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         <section class="colony-section"><h2>Your colony 🐈</h2>
           ${renderColonyHtml({
             colony: s.colony, me: myId, members: progression.colonyMembers(), now: Date.now(),
-            status: colonyStatus, clanRoles: s.clanRoles, clanName: s.clan.name, edition: s.edition,
+            status: colonyStatus, clanRoles: s.clanRoles, clanName: ownClanTitle(s), alliesName: alliesName(s), edition: s.edition,
             owned: s.unlocked.accessories, catalog: CATALOG,
             pairing: {
               busy: pairBusy, error: pairError, code: pairCode,
@@ -881,6 +891,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     syncPairingPoll();
   }
 
+  // A clan card or the Settings select: save the pick, then tell the sibling's
+  // device (fire-and-forget; a refusal changes nothing and sends nothing).
+  function pickClan(id) {
+    if (progression.setClanPick(id)) {
+      Promise.resolve(colonySync?.noteOwnPick()).catch(() => {});
+    }
+    render();
+  }
+
   root.addEventListener('click', async (e) => {
     // The dressing room's own controls (portraits, slots, picker, places,
     // pills, sheet buttons) go to its controller first.
@@ -894,6 +913,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.closest?.('[data-edition-toggle]')) {
       progression.setEdition(isClanEdition(progression.state) ? 'legacy' : 'canon');
       render();
+      return;
+    }
+    const clanCard = e.target.closest?.(`[${PICK_ATTR}]`);
+    if (clanCard) {
+      pickClan(clanCard.dataset.clanPick);
       return;
     }
     if (e.target.id === 'colony-pair-open') {
@@ -1300,6 +1324,10 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (e.target.id === 'set-map-mode') {
       progression.setMapMode(e.target.value);
       render();
+      return;
+    }
+    if (e.target.id === PICK_SELECT_ID) {
+      pickClan(e.target.value);
       return;
     }
     if (e.target.id === 'set-edition') {

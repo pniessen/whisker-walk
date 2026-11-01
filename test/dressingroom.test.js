@@ -318,6 +318,23 @@ describe('the territory map in the dressing room', () => {
   });
 });
 
+describe('the clan picker in the Where-to pill', () => {
+  const whereOf = (html) => html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));
+  it('Clan Edition puts the picker above the map', () => {
+    const m = buildDressingModel({ ...defaultishState(), edition: 'canon' }, CATALOG);
+    expect(m.clanPicker.cards.length).toBeGreaterThan(0);
+    const where = whereOf(renderDressingRoomHtml({ model: m }));
+    expect(where).toContain('data-clan-pick="woods"');
+    expect(where.indexOf('data-clan-pick')).toBeLessThan(where.indexOf('class="territory-map"'));
+  });
+  it('Legacy has no picker', () => {
+    const s = { ...defaultishState(), edition: 'legacy', clanPick: { mine: 'woods', partner: null, partnerId: null } };
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.clanPicker).toBeUndefined();
+    expect(renderDressingRoomHtml({ model: m })).not.toContain('data-clan-pick');
+  });
+});
+
 describe('the dressing room in each edition', () => {
   it('dressingroom: Legacy names the war paint without the clan word', () => {
     const s = defaultishState();

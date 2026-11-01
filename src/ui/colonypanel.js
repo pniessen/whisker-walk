@@ -283,7 +283,7 @@ export function renderPairingHtml(status, { busy = false, error = null, hasPetNa
 // `pairing` ({ busy, error, hasPetName, code }) feeds renderPairingHtml; the
 // pairing area sits right under the header so it is never buried under a long
 // list of cats. With nothing to show it is still the same empty placeholder.
-export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades, clanRoles, clanName, edition } = {}) {
+export function renderColonyHtml({ colony, me, members = 1, now, status, owned, catalog, pairing, trades, clanRoles, clanName, alliesName, edition } = {}) {
   const cats = Array.isArray(colony && colony.cats) ? colony.cats : [];
   const safeColony = { ...(colony || {}), cats, feeds: Array.isArray(colony && colony.feeds) ? colony.feeds : [] };
   const partner = colony && colony.partner && typeof colony.partner === 'object' ? colony.partner : null;
@@ -312,7 +312,9 @@ export function renderColonyHtml({ colony, me, members = 1, now, status, owned, 
   const trading = mode === 'paired'
     ? `<div id="colony-trading">${renderTradesHtml({ colony: safeColony, me, owned, catalog, state: trades })}</div>` : '';
   // Legacy hides the clan's name; it stays in the save for Clan Edition.
-  const title = edition !== 'legacy' && typeof clanName === 'string' && clanName ? escapeHtml(clanName) : '';
+  // With an allies name (the sibling picked a different clan) the title names both.
+  const allies = edition !== 'legacy' && typeof alliesName === 'string' && alliesName ? ` &amp; ${escapeHtml(alliesName)} · allies` : '';
+  const title = edition !== 'legacy' && typeof clanName === 'string' && clanName ? `${escapeHtml(clanName)}${allies}` : '';
   const heading = title ? `<h3 class="colony-banner">${title}</h3>` : '';
   return `${heading}${header}<div id="colony-pairing">${pair}</div>${trading}${list}${full}`;
 }

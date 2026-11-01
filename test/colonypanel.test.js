@@ -947,3 +947,31 @@ describe('renderColonyHtml in each edition', () => {
     expect(render(colony, { owned: ['warpaint'] })).toContain(`>${CLAN_SUFFIX} War Paint</option>`);
   });
 });
+
+describe('the colony title and its allies', () => {
+  const colony = () => colonyOf({ cats: [] });
+  it('names both clans for different picks', () => {
+    expect(render(colony(), { clanName: 'StormClan', alliesName: 'GaleClan' })).toContain('StormClan &amp; GaleClan · allies');
+  });
+  it('is just the one clan when the picks match', () => {
+    const html = render(colony(), { clanName: 'StormClan', alliesName: '' });
+    expect(html).toContain('<h3 class="colony-banner">StormClan</h3>');
+    expect(html).not.toContain('allies');
+  });
+  it('is just the minted name when only the sibling picked', () => {
+    const html = render(colony(), { clanName: 'MossClan', alliesName: '' });
+    expect(html).toContain('<h3 class="colony-banner">MossClan</h3>');
+    expect(html).not.toContain('allies');
+  });
+  it('is unchanged, the minted name, with no pick', () => {
+    expect(render(colony(), { clanName: 'MossClan' })).toContain('<h3 class="colony-banner">MossClan</h3>');
+  });
+  it('is empty in Legacy, even with an allies name', () => {
+    const html = render(colony(), { clanName: 'StormClan', alliesName: 'GaleClan', edition: 'legacy' });
+    expect(html).not.toContain('colony-banner');
+    expect(html).not.toContain('GaleClan');
+  });
+  it('escapes the allies name', () => {
+    expect(render(colony(), { clanName: 'A', alliesName: '<b>x</b>' })).not.toContain('<b>x</b>');
+  });
+});

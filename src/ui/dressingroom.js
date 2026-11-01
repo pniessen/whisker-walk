@@ -7,6 +7,7 @@ import { asFiniteNonNeg } from '../progression.js';
 import { areaInEdition, isClanEdition, placeName, effectiveArea, accessoryName } from '../edition.js';
 import { TERRITORIES, territoryMapModel, opensAfterLine } from '../territories.js';
 import { renderTerritoryMapHtml } from './territorymap.js';
+import { clanPickerModel, renderClanPickerHtml } from './clanpicker.js';
 import { SKILLS, hasSkill } from '../skills.js';
 import { prizeVisit } from '../visits.js';
 import { CAT_BLURBS } from './catblurbs.js';
@@ -118,6 +119,8 @@ export function buildDressingModel(state, catalog, { previewCat, tryOn } = {}) {
   // (the Park, Seaside, the Docks) stay picture cards under "Other places".
   const clanPlaces = isClanEdition(state) ? {
     territoryMap: territoryMapModel(state, catalog),
+    clanPicker: clanPickerModel(state),
+    clanPartnerName: typeof state?.colony?.partner?.petName === 'string' && state.colony.partner.petName ? state.colony.partner.petName : 'your partner',
     otherPlaces: places.filter((p) => !TERRITORIES.some((t) => t.areaId === p.id)),
   } : {};
 
@@ -224,6 +227,7 @@ export function renderDressingRoomHtml({ model, headerHtml = '', statsHtml = '',
   <section class="dr-abilities"><div class="dr-chip">🐾 ${num(m.abilities?.earned)} of ${num(m.abilities?.total)} earned</div></section>
   <section class="dr-where" data-panel="where">
     <p class="dr-label">Where to?</p>
+    ${m.clanPicker ? renderClanPickerHtml(m.clanPicker, m.clanPartnerName) : ''}
     ${m.territoryMap
     ? `${renderTerritoryMapHtml(m.territoryMap)}
     <p class="dr-label">Other places</p>
