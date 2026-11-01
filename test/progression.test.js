@@ -3249,3 +3249,32 @@ describe('clan pick in the save', () => {
     expect(p.state.clanPick).toMatchObject({ partner: null, partnerId: OTHER });
   });
 });
+
+describe('pickPlace', () => {
+  let p;
+  beforeEach(() => { p = createProgression(fakeStorage()); });
+  it('takes a free place whose gate this walk just met', () => {
+    p.completeWalk('neighborhood'); p.completeWalk('neighborhood');
+    expect(p.pickPlace('woods')).toBe('bought');
+    p.completeWalk('woods'); p.completeWalk('woods');
+    expect(p.pickPlace('river')).toBe('bought');
+    expect(p.state.area).toBe('river');
+  });
+  it('sets an owned place', () => {
+    expect(p.pickPlace('neighborhood')).toBe('set');
+    expect(p.state.area).toBe('neighborhood');
+  });
+  it('refuses a locked or unknown place and leaves the area alone', () => {
+    expect(p.pickPlace('woods')).toBe(false);
+    expect(p.pickPlace('__proto__')).toBe(false);
+    expect(p.pickPlace(7)).toBe(false);
+    expect(p.state.area).toBe('neighborhood');
+  });
+  it('refuses a Clan-only place in Legacy', () => {
+    p.completeWalk('neighborhood'); p.completeWalk('neighborhood');
+    p.setEdition('legacy');
+    expect(p.pickPlace('woods')).toBe(false);
+    expect(p.state.area).toBe('neighborhood');
+  });
+});
+

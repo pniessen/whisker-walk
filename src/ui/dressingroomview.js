@@ -137,12 +137,7 @@ export function createDressingRoom({
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
     if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
-    if (progression.isUnlocked('areas', id)) {
-      progression.setArea(id);
-    } else if (progression.buy('areas', id)) {
-      progression.setArea(id);
-      autoSync();
-    }
+    if (progression.pickPlace(id) === 'bought') autoSync();
   }
 
   // true when this was a dressing-room control (even if it changed nothing)
