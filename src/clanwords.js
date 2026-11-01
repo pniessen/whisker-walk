@@ -189,6 +189,10 @@ export const OUTSIDE_WORDS = Object.freeze({
   met: 'loner',
   grudge: 'rogue',
   player: 'kittypet',
+  // A stray who lives in Twolegplace (a kittypet name, straynames.js). The value
+  // equals `player` on purpose: `player` is the player's own cat, `house` is a
+  // stray, and a later vocabulary swap may word them differently. Do not merge.
+  house: 'kittypet',
 });
 
 // Place names borrowed from the books. Keyed by the game's own territory id

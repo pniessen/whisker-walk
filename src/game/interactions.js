@@ -26,7 +26,9 @@ import { labelFor } from './labels.js';
 import { questTrailStep } from '../questscent.js';
 import { canFeed, outsideTag, feedsHere } from '../colony.js';
 import { CATALOG } from '../progression.js';
-import { isClanEdition } from '../edition.js';
+import { isClanEdition, placeName } from '../edition.js';
+import { isKittypetName } from '../straynames.js';
+import { wanderStayLine, kittypetTamedLine, shedKittypetCollar } from '../housecats.js';
 import { RANK_KEYS } from '../clanwords.js';
 import { PATROL_MIN } from '../clancats.js';
 import { nowSec } from './util.js';
@@ -872,8 +874,10 @@ export function createInteractions({
       // excludes it from the cast); off one — a room with a non-partner — it
       // can be, as an ordinary stray, and feeding it would tame a cat whose
       // fixed spot is somewhere the player is not.
-      // No feed prompt in an area the colony does not feed (the Woods, the
-      // den): a feed there would settle nothing and tame a cat out of place.
+      // No feed prompt in an area the colony does not feed (feedsHere, i.e.
+      // not in colony.js's COLONY_AREAS — the den): a feed there would settle
+      // nothing and tame a cat out of place. The territories (the Woods, the
+      // River, the Moor, the Pines) are in COLONY_AREAS and are fed.
       const colony = progression.state?.colony;
       if (colony && progression.feedColonyCat && feedsHere(s.areaId)) {
         const members = progression.colonyMembers?.() ?? 1;
@@ -1226,6 +1230,8 @@ export function createInteractions({
     // with all 48 cats gets a normal greet rather than a silent dead end
     // that pays nothing and remembers nothing.
     if (grudgeable
+        // A wanderer is a harmless visitor (Kittypets decision 6): it never turns hostile.
+        && !stray.wanderer
         && shouldTurnHostile(progression.state, stray.name, s.walkStamp, {
           forgivenThisWalk: s.enemies?.wasForgiven(stray.name) ?? false,
         })
@@ -1318,6 +1324,7 @@ export function createInteractions({
     if (progression.hasGrudge?.(stray.name) || !progression.feedColonyCat) return;
     if (livesElsewhere(progression.state.colony, stray.name, s.areaId)) return;
     const name = stray.name;
+    const wasColony = progression.state.colony.cats.some((c) => c.name === name);
     const r = progression.feedColonyCat({
       name, by: pid, walk: s.walkStamp, area: s.areaId, x: stray.home.x, z: stray.home.z,
     });
@@ -1335,6 +1342,12 @@ export function createInteractions({
       text += ` (you ${fedBy(pid)} · ${partner.petName} ${fedBy(partner.playerId)})`;
     }
     hud.toast(text);
+    if (stray.wanderer && !wasColony && isClanEdition(progression.state)) {
+      hud.toast(wanderStayLine(name, placeName(s.areaId, progression.state.edition, CATALOG) || s.areaId));
+    }
+    // Fed, so it is no kittypet now: its collar comes off for the rest of the
+    // walk (collarFor leaves it off from the next walk on).
+    if (!wasColony) shedKittypetCollar(stray);
 
     // The durable copy goes to the server (fire-and-forget; a no-op offline
     // or unpaired — colonysync re-pushes anything the server lacks on its
@@ -1346,7 +1359,9 @@ export function createInteractions({
     if (s.net && s.colonyWalk) s.net.sendEvent({ v: 1, id: s.playerId, type: 'colony-feed', cat: name });
 
     if (r.tamedNow) {
-      hud.toast(`${name} trusts you! She'll be waiting in the den 🏠`);
+      hud.toast(isClanEdition(progression.state) && isKittypetName(name)
+        ? kittypetTamedLine(name)
+        : `${name} trusts you! She'll be waiting in the den 🏠`);
       audio.fanfare?.();
       // Cosmetic milestones (1/3/6/12 tamed). grantColonyRewards records each
       // milestone as it pays, so this toast can never repeat.

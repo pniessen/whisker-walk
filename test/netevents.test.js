@@ -88,6 +88,29 @@ describe('applyRemoteEvent: colony-feed', () => {
     expect(away.bursts).toEqual([]);
   });
 
+  // Final review, finding 7: my partner fed a kittypet, so its collar comes
+  // off on my screen too. Only a non-colony kittypet's (the kittypet collar).
+  it('a partner\'s feed takes a kittypet\'s collar off, and nothing else\'s', () => {
+    const withCollar = (name, colony) => {
+      const group = new THREE.Group();
+      const collar = new THREE.Group();
+      collar.name = 'collar';
+      group.add(collar);
+      return { name, colony, group, collar };
+    };
+    const k = withCollar('Marmalade', false);
+    const tamed = withCollar('Mochi', true);
+    const plain = withCollar(PICKLES, false);
+    h.s.strayCats.strays = [k, tamed, plain];
+    h.applyRemoteEvent(h.s, feed({ cat: 'Marmalade' }));
+    h.applyRemoteEvent(h.s, feed({ cat: 'Mochi' }));
+    h.applyRemoteEvent(h.s, feed({ cat: PICKLES }));
+    expect(k.group.getObjectByName('collar')).toBeUndefined();
+    expect(tamed.group.getObjectByName('collar')).toBe(tamed.collar);
+    expect(plain.group.getObjectByName('collar')).toBe(plain.collar);
+    expect(h.saveUntouched()).toBe(true);
+  });
+
   it('colony-feed from anyone else, or with a non-stray name, does nothing', () => {
     h.applyRemoteEvent(h.s, feed({ id: STRANGER }));
     h.applyRemoteEvent(h.s, feed({ id: ME }));

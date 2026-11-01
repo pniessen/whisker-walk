@@ -347,3 +347,13 @@ test('the internal-id exemption covers only lowercase kebab ids', () => {
   }
   expect(borrowedIn('const x = `clan-friend-${id}`;')).toEqual([]);
 });
+
+test('a kittypet reads as the kittypet, never a loner or a rogue', () => {
+  const colony = { cats: [] };
+  expect(OUTSIDE_WORDS.house).toBe('kittypet');
+  expect(outsideTag(colony, 'Marmalade', 'met')).toBe(` the ${OUTSIDE_WORDS.house}`);
+  expect(outsideTag(colony, 'Marmalade', 'grudge')).toBe('');
+  expect(outsideTag(colony, 'Marmalade', 'grudge', (w) => ` a ${w} now!`)).toBe('');
+  expect(outsideTag(colony, 'Pickles', 'met')).toBe(` the ${OUTSIDE_WORDS.met}`);
+  expect(outsideTag({ cats: [{ name: 'Marmalade' }] }, 'Marmalade', 'met')).toBe('');
+});

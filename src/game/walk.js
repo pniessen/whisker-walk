@@ -36,6 +36,7 @@ import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
 import { campLayout } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
+import { DISCS } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
 import { takeHeldItemsWithRemotes } from './netevents.js';
 import { rollGhosts, createGhosts } from '../ghosts.js';
@@ -61,6 +62,7 @@ import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { legendaryFor, legendaryRoll } from '../legendary.js';
+import { collarFor, walkWanderer, territoryCastExcludes, wanderStart, wanderSpotFor, wanderArrivalLine, wanderStrayCount } from '../housecats.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
@@ -805,7 +807,9 @@ export function createWalkLifecycle({
         name: c.name, x: c.x, z: c.z, wear: colonyWear(c.wear, CATALOG.accessories),
       }))
       : [];
-    const excludeNames = colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : [];
+    // Kittypets: a territory's ordinary cast never holds a kittypet, on every
+    // walk (the list is the area id's alone, so every co-walker agrees).
+    const excludeNames = [...(colonyWalk && !isDen && state.colony ? state.colony.cats.map((c) => c.name) : []), ...territoryCastExcludes(areaId)];
     // v21 3b — this area's legendary cat, on a colony walk only (ruling P6):
     // solo or partner-only, never with a non-partner (whose walk must be
     // exactly today's) and never in the den. legendary.js decides from the
@@ -819,9 +823,25 @@ export function createWalkLifecycle({
     // the shared roll and the shared colony, never my own greets, so both
     // sisters' screens give the same answer.
     const legend = colonyWalk && !isDen ? legendaryFor(state, areaId, legendaryRoll(roomSeed), { shared: roomSeed !== undefined }) : null;
+    // Kittypets — now and then a kittypet wanders into the Woods, the River or
+    // the Moor. housecats.js decides from the UTC day and the area (plus the
+    // shared colony on a colony walk), so it draws nothing from walkRng or the
+    // strays' stream and nothing goes on the wire. The roll and the spot are
+    // the same in every edition: a Legacy co-walker sees the same cat in the
+    // same place, only without the word, the collar or the toast. Its spot is
+    // clan ground near the spawn and away from the camp (wanderSpotFor), off
+    // the map as built; no spot means no wanderer this walk. It takes an
+    // ordinary loner's slot, never a fed colony cat's (wanderStrayCount), and
+    // the legend wins: at most one visitor a walk.
+    const wanderToday = new Date().toISOString().slice(0, 10);   // UTC, the race's and the streak's day
+    const wanderName = walkWanderer(state, areaId, { ymd: wanderToday, colonyWalk, isDen });
+    const wanderSpot = wanderName && !legend ? wanderSpotFor(clearSpot(wanderStart(areaData.spawn), areaData.colliders ?? [], areaData.bounds, areaData.waters ?? []), clanWalkableFor(areaData, areaId), DISCS[areaId]) : null;
     const extras = legend ? [{
       name: legend,
       rng: mulberry32((seedFromCode(legend) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
+    }] : wanderSpot ? [{
+      name: wanderName, wanderer: true, spot: wanderSpot,
+      rng: mulberry32((seedFromCode(wanderName) ^ (roomSeed ?? Math.floor(Math.random() * 2 ** 31))) >>> 0),
     }] : [];
     // Clan Life Part 1 — in a territory with a camp, the clan's cats replace
     // strays one for one: lonersFor gives tier.strays − the clan shown − the
@@ -834,8 +854,12 @@ export function createWalkLifecycle({
     // cats already read for this area: empty off a colony walk, so a
     // non-partner co-walk gets 0 on both devices and the two agree.
     const fedHere = colonyCats.length;
-    const strayCats = createStrayCats(scene, areaData, isDen ? 0 : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed), {
+    const loners = isDen ? 0 : lonersFor(areaId, tier.strays, fedHere);
+    // The wanderer takes an ordinary loner's slot, never a colony cat's.
+    const strayCount = wanderStrayCount(loners, fedHere, !!wanderSpot);
+    const strayCats = createStrayCats(scene, areaData, strayCount, strayStream(roomSeed), {
       grudges: progression.grudgeNames?.() ?? [],
+      collarFor: (name) => collarFor(progression.state, name),
       roomSeed,
       colonyCats,
       excludeNames,
@@ -1638,6 +1662,9 @@ export function createWalkLifecycle({
     log.startWalk();
     hud.show();
     hud.setArea(placeName(areaId, progression.state.edition, CATALOG) || areaData.name);
+    // Kittypets: the arrival line waits for the walk to start (the Ready? card
+    // covers the toasts); main.js toasts it on the first engage.
+    session.arrivalLine = strayCats.strays.some((s) => s.wanderer) && isClanEdition(progression.state) && !state.colony?.cats?.some((c) => c.name === wanderName) ? wanderArrivalLine(wanderName) : null;
     hud.setPoints(state.points);
     hud.setRank(session.rankTitle);
     hud.setGoals(goals ? goals.goals : null);
