@@ -25,7 +25,13 @@ const EPS = 1e-9;
 // Exits and ring samples must stay this far inside the bounds, the same inset
 // the strays' own clamps use.
 const INSET = 0.5;
-const PASSES = 4;
+// Up to sixteen pushes, stopping as soon as the point is clear. Four is
+// enough almost everywhere, but where the bay's edge meets the bridge's round
+// land end the pushes alternate between the two, closing in on the corner a
+// little each time; four leave the point a hair inside, and a ring search then
+// moves it a whole ring step, so a stray walking into that corner hopped a
+// quarter metre every frame. Sixteen reach the corner itself.
+const PASSES = 16;
 const RING_STEP = 0.25;
 const RING_ANGLES = 32;
 const RING_MAX = 30;
@@ -44,7 +50,20 @@ function segNearest(c, x, z) {
   return { x: c.x1 + sx * t, z: c.z1 + sz * t };
 }
 
+// The shapes are built once per keepOut record, not on every call: the strays
+// and ghosts ask several times a frame. Keyed weakly, so a dropped area takes
+// its entry with it.
+const SHAPES = new WeakMap();
 function shapesOf(ko) {
+  let cached = SHAPES.get(ko);
+  if (!cached) {
+    cached = buildShapes(ko);
+    SHAPES.set(ko, cached);
+  }
+  return cached;
+}
+
+function buildShapes(ko) {
   const margin = Number.isFinite(ko.margin) ? ko.margin : 0;
   const shapes = [];
   for (const r of ko.rects ?? []) shapes.push({ kind: 'rect', r, margin });
@@ -76,48 +95,56 @@ function exits(s, x, z) {
   return [{ x: q.x + (dx / d) * s.c.r, z: q.z + (dz / d) * s.c.r }];
 }
 
+function inBounds(b, x, z) {
+  return !b || (x >= b.minX + INSET && x <= b.maxX - INSET && z >= b.minZ + INSET && z <= b.maxZ - INSET);
+}
+
+function insideAny(shapes, x, z) {
+  for (const s of shapes) if (inside(s, x, z)) return true;
+  return false;
+}
+
 /**
  * keepOutPoint(area, x, z) -> { x, z }
  *
  * The point itself when it is outside every shape of area.keepOut (or the area
  * has none); otherwise the nearby point a cat should stand on instead. Settles
- * the way nearestDry does: up to four pushes out of whichever shape it is in,
- * then, if two shapes keep bouncing it between them, a ring search outward
- * from the original point.
+ * the way nearestDry does: pushes out of whichever shape it is in, then, if two
+ * shapes still have it bouncing between them, a ring search outward from where
+ * the pushes left it (close to the answer, so the search finds a point close
+ * to it too).
  */
 export function keepOutPoint(area, x, z) {
   const ko = area?.keepOut;
   if (!ko) return { x, z };
   const shapes = shapesOf(ko);
   const b = area.bounds;
-  const inBounds = (px, pz) => !b || (
-    px >= b.minX + INSET && px <= b.maxX - INSET && pz >= b.minZ + INSET && pz <= b.maxZ - INSET);
-  const insideAny = (px, pz) => shapes.some((s) => inside(s, px, pz));
-
   let p = { x, z };
   for (let pass = 0; pass < PASSES; pass++) {
-    const s = shapes.find((sh) => inside(sh, p.x, p.z));
+    let s = null;
+    for (const sh of shapes) if (inside(sh, p.x, p.z)) { s = sh; break; }
     if (!s) return p;
     let best = null;
     let bestD = Infinity;
     for (const e of exits(s, p.x, p.z)) {
-      if (!inBounds(e.x, e.z)) continue;
+      if (!inBounds(b, e.x, e.z)) continue;
       const d = Math.hypot(e.x - p.x, e.z - p.z);
       if (d < bestD) { best = e; bestD = d; }
     }
     if (!best) break;
     p = best;
   }
-  if (!insideAny(p.x, p.z)) return p;
+  if (!insideAny(shapes, p.x, p.z)) return p;
 
-  // Rings outward from the original point, each sampled from due east.
+  // Rings outward from where the pushes left it, each sampled from due east.
+  const ox = p.x, oz = p.z;
   for (let k = 1; k * RING_STEP <= RING_MAX; k++) {
     const rad = k * RING_STEP;
     for (let j = 0; j < RING_ANGLES; j++) {
       const a = (j / RING_ANGLES) * Math.PI * 2;
-      const px = x + Math.cos(a) * rad;
-      const pz = z + Math.sin(a) * rad;
-      if (inBounds(px, pz) && !insideAny(px, pz)) return { x: px, z: pz };
+      const px = ox + Math.cos(a) * rad;
+      const pz = oz + Math.sin(a) * rad;
+      if (inBounds(b, px, pz) && !insideAny(shapes, px, pz)) return { x: px, z: pz };
     }
   }
   return p;

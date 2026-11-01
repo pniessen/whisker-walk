@@ -85,6 +85,50 @@ describe('keepOutPoint', () => {
     }
   });
 
+  // Where the bay's south edge (z 4.4 with the margin) meets the round land
+  // end of the bridge, the pushes alternate between the two. They must reach
+  // the corner rather than hand over to the ring search, which used to hop a
+  // walking stray a quarter metre a frame here.
+  it('a stray walking into the corner by the bridge foot never hops', () => {
+    const step = 1.4 / 30; // a stray's wander speed, one frame
+    const target = { x: 12.02, z: 4.19 };
+    let p = { x: 2, z: 4.3 };
+    let worst = 0;
+    for (let i = 0; i < 600; i++) {
+      const dx = target.x - p.x, dz = target.z - p.z;
+      const d = Math.hypot(dx, dz);
+      const q = keepOutPoint(AREA, p.x + (dx / d) * step, p.z + (dz / d) * step);
+      expect(outsideAll(q)).toBe(true);
+      worst = Math.max(worst, Math.hypot(q.x - p.x, q.z - p.z));
+      p = q;
+    }
+    expect(worst).toBeLessThanOrEqual(step + 1e-6);
+    // It ends wedged in the corner, where the edge meets the arc.
+    expect(p.x).toBeCloseTo(10 - Math.sqrt(1.5 ** 2 - 0.4 ** 2), 3);
+    expect(p.z).toBeCloseTo(4.4, 3);
+  });
+
+  it('a point in that corner goes to the nearest way out, not a ring step away', () => {
+    // The true nearest clear point, by brute force: the first clear sample on
+    // rings 1 mm apart.
+    function nearestClear(x, z) {
+      for (let r = 0; r <= 1; r += 0.001) {
+        for (let k = 0; k < 720; k++) {
+          const a = (k / 720) * Math.PI * 2;
+          const q = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r };
+          if (outsideAll(q)) return q;
+        }
+      }
+      return null;
+    }
+    for (const [x, z] of [[8.55, 4.4], [8.57, 4.42], [8.6, 4.45], [8.65, 4.5], [8.7, 4.43]]) {
+      const p = keepOutPoint(AREA, x, z);
+      const best = nearestClear(x, z);
+      expect(outsideAll(p)).toBe(true);
+      expect(Math.hypot(p.x - best.x, p.z - best.z), `(${x}, ${z})`).toBeLessThan(0.1);
+    }
+  });
+
   it('never mentions the edition, so both editions keep cats out the same way', () => {
     const src = readFileSync(new URL('../src/keepout.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/edition/i);

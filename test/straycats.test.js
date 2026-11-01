@@ -1391,7 +1391,9 @@ describe('the keep-out — places a walk\'s strays never stand', () => {
         s.state = 'idle';
         s.timer = 0;
         cats.update(1 / 30, k, FAR, NO_OPTS);
-        expect(s.state).toBe('wander');
+        // A target pushed out close to the cat may be reached this same
+        // frame (the cat goes idle again), so the target is what is checked.
+        expect(s.target).not.toBe(null);
         expect(outside(s.target.x, s.target.z), `home (${hx}, ${hz}) target (${s.target.x}, ${s.target.z})`).toBe(true);
       }
     }
