@@ -42,6 +42,7 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -162,6 +163,7 @@ const WATERED = {
   docks: buildWith(buildDocks),
   woods: buildWith(buildWoods),
   river: buildWith(buildRiver),
+  moor: buildWith(buildMoor),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -651,6 +653,31 @@ describe("nearestDry where the River's waters touch", () => {
     [38.5, -8.6, 'the bank where the pond meets the river'],
     [40, -9.5, 'where the pond and the river overlap'],
     [44, -11, "the pond's north rim, inside the river"],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
+});
+
+// The Moor has three overlap zones: the inside of the river's bend where its
+// two reaches meet, the corner where river-west turns into the mouth, and the
+// mouth running out over the lake. Same margins as the Woods block.
+describe("nearestDry where the Moor's waters touch", () => {
+  const waters = WATERED.moor.area.waters;
+  const SPOTS = [
+    [17.6, 1.4, "the bank at the river's inside bend"],
+    [19, 0, "that corner's water"],
+    [21, -2, 'the middle of the bend'],
+    [-34.6, 1.4, 'the bank where the river turns into the mouth'],
+    [-36, 0, 'that corner'],
+    [-37.5, 9, 'where the mouth overlaps the lake'],
+    [-34.6, 7.6, 'the bank between the mouth and the lake'],
   ];
   for (const [x, z, where] of SPOTS) {
     for (const margin of [0.35, 0.5, 0.6]) {

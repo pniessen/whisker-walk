@@ -30,8 +30,9 @@
   import * as docks from '/src/world/docks.js';
   import * as woods from '/src/world/woods.js';
   import * as river from '/src/world/river.js';
+  import * as moor from '/src/world/moor.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -164,6 +165,8 @@
     // pool-1 with its lily pads and reeds, willows behind (the card picture); the
     // bank-path view '-6,1.4,6,-20,0.4,-26' was mostly bare grass
     river: '-24,1.8,9,-33,0.5,15',
+    // from the high path, looking down over the river bend to the lake
+    moor: '24,3.0,-22,-10,0.4,12',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();

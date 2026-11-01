@@ -1,0 +1,248 @@
+import * as THREE from 'three';
+import * as b from './builder.js';
+import { litMaterial, surfaceProps } from '../render/materials.js';
+import { createWater } from '../render/water.js';
+
+// =============================================================================
+// The Moor.
+//
+// The third clan territory from her territory map: open heather moor north of
+// the Woods, with tors, gorse and a rabbit warren, her river crossing it, and
+// the lake on its south-west corner. Coordinates are metres, x east and z
+// south, so north is -z, as the corner map draws it. The Moor sits directly
+// north of the Woods in the same x frame: its south edge (z 50) is the Woods'
+// north edge (z -50), so a Woods point (x, z) is the Moor point (x, z + 100).
+//
+// WHERE ITS EDGES FACE. Each edge looks like the place over it:
+//   * south is the Woods. The river, the lake and the north path all carry
+//     straight on over the border at the same x, so walking out of one map
+//     and into the other looks like one place. The cat spawns on the north
+//     path, 6 m in from the Woods, on the Moor's east side;
+//   * west is the Pines and Swamp. Their pines reach over the border onto a
+//     strip inside the edge, and the hills there are dark and pine-tinted;
+//   * east is the open moor, and south-east the Gorge's unexplored rock, so
+//     the hills that way are grey;
+//   * north is more moor: heather hills;
+//   * south-west is the lake, opening out past the map with the island and
+//     its plank bridge out on the water (the Woods' island, seen from here).
+//
+// WHY THE DECKS EXIST. Water stops a cat (v19). Her river comes in from the
+// Woods up the east side (river-south), turns west across the Moor south of
+// the middle (river-west) and pours into the lake (river-mouth), so the land
+// between the river and the lake, the lakeshore heath, is cut off from the
+// spawn. Each of the two long reaches carries one dry crossing, the
+// fallen-log bridge over river-west and the stepping stones over
+// river-south, and those two are the ONLY ways in; either one alone is
+// enough. Sea Legs is a shortcut, never a key: nothing a kid must reach is cut
+// off except through a deck. test/moor.test.js floods the walkable ground from
+// the spawn and proves it, and that with the decks taken away the heath can't
+// be reached.
+//
+// Each deck record is the part of its crossing the kids can SEE above the
+// water, not a wider rectangle around it, so a cat standing on a deck is
+// standing on log or stone, never on water beside it. Both are at least 1.5 m
+// wide, enough to steer onto with a thumb.
+//
+// Nothing here reads which way the game is being played: the Moor builds the
+// same for everyone.
+// =============================================================================
+
+// Where a walk places the cat: on the north path, 6 m in from the Woods.
+export const SPAWN = Object.freeze({ x: 46, z: 44 });
+
+const BOUNDS = Object.freeze({ minX: -50, maxX: 50, minZ: -50, maxZ: 50 });
+
+// The log bridge over river-west: the Woods' fallen trunk, 3 m through, its
+// top hewn flat and 1.9 m wide (builder.logBridge), level at LOG_TOP, moved to
+// x 4. The deck is the middle 1.8 m of that flat, so a cat on the deck is on
+// the log. The trunk runs 1.5 m onto each bank so the crossing starts on dry
+// ground. test/moor.test.js raycasts the built log across the whole deck.
+const LOG_X = 4;
+const LOG_W = 3.0;
+const LOG_FLAT = 1.9;
+const LOG_TOP = 0.16;
+const LOG_HALF = 0.9;
+const LOG_BRIDGE = Object.freeze({ minX: LOG_X - LOG_HALF, maxX: LOG_X + LOG_HALF, minZ: -5.5, maxZ: 2.5 });
+
+// The stepping stones over river-south: the Woods' shipped ford exactly
+// (fourteen broad flat stones, round, close and staggered in height so they
+// overlap with no open water between them), moved to z 30. The ±0.75 m deck
+// sits inside about ±0.83 m of visible stone, so the deck is never wider than
+// what is drawn.
+const STONES_Z = 30;
+const STONES = { n: 14, rMin: 0.88, rMax: 0.9, jitter: 0, stagger: 0.03, sides: 16 };
+const STONES_HALF = 0.75;
+const STEPPING_STONES = Object.freeze({
+  minX: 16.5, maxX: 24.5, minZ: STONES_Z - STONES_HALF, maxZ: STONES_Z + STONES_HALF,
+});
+
+// The waters. Every footprint runs on past the bounds where its water does, so
+// the lake opens out to the horizon and the river comes in from the Woods
+// rather than out of a wall.
+//
+// The lake's north-east shore. Over the south edge it spans the Woods' lake's
+// x, and its maxZ is the Woods' lake shore in Moor coordinates, so the shore
+// is one line across the border.
+const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: -120, maxX: -14, minZ: 8, maxZ: 66 });
+// A lip of open water west of the bounds, reaching north to where the island
+// bridge lands on the Pines' shore. Nothing a cat can walk.
+const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: -120, maxX: -51, minZ: 4.8, maxZ: 8.5 });
+// In from the Woods at the Woods' river-north x.
+const RIVER_SOUTH = Object.freeze({
+  id: 'river-south', kind: 'rect', minX: 18, maxX: 23, minZ: -4, maxZ: 120,
+  decks: Object.freeze([STEPPING_STONES]),
+});
+// West across the Moor, south of the middle.
+const RIVER_WEST = Object.freeze({
+  id: 'river-west', kind: 'rect', minX: -40, maxX: 23, minZ: -4, maxZ: 1,
+  decks: Object.freeze([LOG_BRIDGE]),
+});
+// Pours into the lake from the north, 10 m in from the Pines' border. No deck.
+const RIVER_MOUTH = Object.freeze({ id: 'river-mouth', kind: 'rect', minX: -40, maxX: -35, minZ: -4, maxZ: 10 });
+
+export const MOOR_WATERS = Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH, RIVER_WEST, RIVER_MOUTH]);
+
+// How each water is drawn. One peaty green-blue, the Woods' own, because the
+// river and the lake are one water across the border. Heights differ wherever
+// footprints overlap (the bend, the mouth's corner, the mouth over the lake,
+// the lake over its lip) so the planes never fight for a pixel; river-south
+// keeps the Woods' river-north height, so the two meet level at the border.
+//
+// `shores` lists only the edges a cat can see: an edge out past the bounds is
+// open water to the horizon, not a bank, and painting foam there would be a
+// lie. The far lip is all out of bounds, so it has none.
+const WATER_COLOR = 0x5f98a8;
+const WATER_LOOK = {
+  lake: { y: 0.03, shores: ['maxX', 'minZ'] },
+  'lake-far': { y: 0.025 },
+  'river-south': { y: 0.02, shores: ['minX', 'maxX'] },
+  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'] },
+  'river-mouth': { y: 0.045, shores: ['minX', 'maxX'] },
+};
+
+// The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The north
+// path comes in from the Woods on the east side (lined up with the Woods' own
+// north path) and climbs to the river bend; the high path runs on west over
+// the moor top toward the High Tor; the bridge path goes from the bend over
+// the log bridge down to the lakeshore (the bridge itself is the gap between
+// its two segments); the ford path crosses the stepping stones (the gap in it)
+// to meet it on the heath.
+export const MOOR_PATHS = Object.freeze([
+  [46, 50, 46, 22], [46, 22, 34, -8],
+  [34, -8, 14, -26], [14, -26, -12, -34],
+  [34, -8, 4, -7], [4, 4, -2, 24],
+  [46, 30, 26.5, 30], [14.5, 30, -2, 24],
+].map((s) => Object.freeze(s)));
+const PATH_W = 3;
+const PATH_STYLE = { surface: 'sand', color: 0x8c7a5c };
+
+// The island out on the lake: the Woods' (-72, -72), 100 m on in z, so both
+// maps show one island. A low grassy mound with one big tree. Painted
+// scenery, wholly outside the bounds, so it has no collider and no perch.
+export const MOOR_ISLAND = Object.freeze({ x: -72, z: 28, r: 9, rise: 1.4 });
+
+// The island's plank bridge, from its rim north-west to the Pines' shore,
+// written once in Woods coordinates so the two maps can't disagree about
+// where it is; the Moor adds 100 to each z. Out of reach and out of the
+// colliders.
+export const ISLAND_BRIDGE_WOODS = Object.freeze([
+  Object.freeze([-77.4, -79.2]), Object.freeze([-89.4, -95.2]),
+]);
+const ISLAND_BRIDGE = { y: 0.3, w: 2 };
+
+// The horizon. Hills all round, taller and longer than the Woods' (open moor
+// rolls), each side tinted for the neighbour over it: heather to the north
+// (the Woods paints the Moor this same colour), grey rock to the east (the
+// Gorge's unexplored edge), the Woods' deep green to the south, the dark
+// pines to the west. None where the lake and the river leave the map, so the
+// water opens out to the sky. No rooftops: Twolegplace is not next to the Moor.
+export const MOOR_HORIZON = Object.freeze({
+  kind: 'hills', inner: 56, outer: 116, height: 11, wavelength: 48,
+  color: 0x8f7f8a, salt: 41,
+  avoid: Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH]),
+  sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x8a8478, south: 0x4f7a48, west: 0x3f5a46 }),
+});
+
+export function build(scene, { water = {}, wind } = {}) {
+  b.applySky(scene, 0x9cc4e4, 0xe4e6d8);
+  scene.add(b.ground(120, 0x8a9558, { surface: 'grass' }));
+  scene.add(b.horizonBand(MOOR_HORIZON));
+
+  const colliders = [];
+  const perches = [];
+
+  // --- the water --------------------------------------------------------------
+  // Each mesh is built from its footprint record and added to the scene root
+  // directly (test/water.test.js matches against scene.children).
+  const waterFx = MOOR_WATERS.map((w) => {
+    const fx = createWater(w, {
+      color: WATER_COLOR,
+      ...WATER_LOOK[w.id],
+      quality: water.quality ?? 'high',
+      reducedMotion: water.reducedMotion ?? false,
+    });
+    scene.add(fx.mesh);
+    return fx;
+  });
+
+  // --- the crossings ----------------------------------------------------------
+  const bridge = b.logBridge(LOG_X, LOG_BRIDGE.minZ, LOG_X, LOG_BRIDGE.maxZ, LOG_W, LOG_TOP, LOG_FLAT);
+  bridge.name = 'logBridge';
+  scene.add(bridge);
+  const stones = b.steppingStones(17.0, STONES_Z, 24.0, STONES_Z, STONES.n, STONES);
+  stones.name = 'steppingStones';
+  scene.add(stones);
+
+  // --- the paths --------------------------------------------------------------
+  for (const s of MOOR_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+
+  // --- the island -------------------------------------------------------------
+  // A flattened sphere, so only a low dome shows above the lake, and the tree
+  // stood on its crown.
+  const I = MOOR_ISLAND;
+  const mound = new THREE.Mesh(
+    new THREE.SphereGeometry(I.r, 24, 8),
+    litMaterial(0x6a9a50, surfaceProps('grass')),
+  );
+  mound.scale.y = I.rise / I.r;
+  mound.position.set(I.x, 0, I.z);
+  scene.add(mound);
+  const islandTree = b.tree(I.x, I.z, 2.6, { wind });
+  islandTree.position.y = I.rise - 0.2;
+  scene.add(islandTree);
+
+  // The island bridge: one plank box from the island's rim to the Pines'
+  // shore, just above the lake.
+  const [[x1, wz1], [x2, wz2]] = ISLAND_BRIDGE_WOODS;
+  const z1 = wz1 + 100, z2 = wz2 + 100;
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const plank = new THREE.Mesh(
+    new THREE.BoxGeometry(ISLAND_BRIDGE.w, 0.12, len),
+    litMaterial(0x7a5a38, surfaceProps('bark')),
+  );
+  plank.name = 'islandBridge';
+  plank.position.set((x1 + x2) / 2, ISLAND_BRIDGE.y, (z1 + z2) / 2);
+  plank.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+  scene.add(plank);
+
+  return {
+    name: 'The Moor',
+    colliders,
+    bounds: { ...BOUNDS },
+    spawn: { x: SPAWN.x, z: SPAWN.z },
+    // Nothing Twoleg-made on the Moor.
+    boxes: [],
+    tippables: [],
+    pois: [],
+    collectibles: [],
+    scenics: [],
+    critterSpawns: [],
+    moments: [],
+    puddles: [],
+    waters: MOOR_WATERS,
+    waterFx,
+    groundBounce: 0x8a9558,
+    skyDusk: { top: 0x2a3554, horizon: 0x70647a },
+    perches,
+  };
+}
