@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
+import { clanName, patrolClanFor } from '../src/clanhomes.js';
 import { rivalFor, patrolPath, isTrespassing, borderMarks } from '../src/rivalclans.js';
 import {
   patrolAt, chaseOutcome, findLanding, createRivalPatrol, chaseAllowed,
@@ -381,4 +382,18 @@ test('the walk.js chase branch touches no progress, colony, log or points', () =
 
 test('patrolPath is what the patrol follows', () => {
   expect(patrolPath('park').length).toBeGreaterThan(3);
+});
+
+describe('createRivalPatrol: picks name the rival', () => {
+  test('in the Woods with the Woods picked, the chase toast names the neighbour who patrols', () => {
+    const { cx, cz } = rivalFor('woods');
+    const events = [];
+    const api = createRivalPatrol(new THREE.Scene(), 'woods', {
+      now: () => 1000, picks: ['woods'], onChase: (who) => events.push(who),
+    });
+    const p = patrolAt('woods', 1000);
+    api.update(0.016, new THREE.Vector3(p.x + (cx - p.x) * 0.2, 0, p.z + (cz - p.z) * 0.2));
+    expect(events).toEqual([clanName(patrolClanFor('woods', ['woods']))]);
+    expect(events[0]).not.toBe(clanName('woods'));
+  });
 });

@@ -49,7 +49,7 @@ test('effectiveArea sends a Legacy walk to the Neighborhood without writing', ()
 test('rivalForWalk: none in Legacy, the usual one in Clan Edition', () => {
   expect(rivalForWalk('park', 'legacy')).toBeNull();
   expect(rivalForWalk('park', 'canon')).toEqual(rivalFor('park'));
-  expect(rivalForWalk('woods', 'canon')).toBeNull();
+  expect(rivalForWalk('woods', 'canon').clan).toBe('woods');
 });
 test('accessoryName drops the clan word in Legacy only', () => {
   const paint = { name: `${CLAN_SUFFIX} War Paint`, legacyName: 'War Paint' };
@@ -85,11 +85,19 @@ test('the shipped Legacy guards cover the Pines, and no patrol walks the truce',
 test('the shipped Legacy guards cover the River', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'river' }, CATALOG)).toBe('neighborhood');
   expect(roomAreaMove({ edition: 'legacy', area: 'river' }, CATALOG, 'park')).toBe('override');
-  expect(rivalForWalk('river', 'canon')).toBeNull();
+  expect(rivalForWalk('river', 'legacy')).toBeNull();
+  expect(rivalForWalk('river', 'canon').clan).toBe('river');
 });
 
 test('the island is inside the Pines, so Legacy never walks it and no patrol is there', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
   expect(Object.hasOwn(CATALOG.areas, 'island')).toBe(false);
   expect(rivalForWalk('pines', 'canon')).toBeNull();
+});
+
+test('rivalForWalk: Legacy never, Clan Edition follows the picks', () => {
+  expect(rivalForWalk('woods', 'legacy', [])).toBeNull();
+  expect(rivalForWalk('woods', 'canon', []).clan).toBe('woods');
+  expect(rivalForWalk('woods', 'canon', ['woods']).clan).not.toBe('woods');
+  expect(rivalForWalk('island', 'canon', [])).toBeNull();
 });

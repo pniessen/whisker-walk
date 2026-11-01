@@ -36,6 +36,9 @@ const { build: buildNeigh } = await import('../src/world/neighborhood.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSea } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
+const { isClanId } = await import('../src/clanhomes.js');
 const { patrolPath, borderMarks, rivalFor, isTrespassing } = await import('../src/rivalclans.js');
 const { patrolAt, chaseOutcome, findLanding } = await import('../src/rivalcats.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -44,7 +47,7 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
-const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks };
+const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver };
 const AREAS = Object.keys(BUILD);
 const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](new THREE.Scene())]));
 
@@ -87,6 +90,19 @@ describe('the patrol ring in the real areas', () => {
     for (const a of AREAS) {
       for (const m of GOLD_MICE[a]) expect(isTrespassing(a, m.x, m.z)).toBe(false);
       for (const p of built[a].pois) expect(isTrespassing(a, p.x, p.z)).toBe(false);
+      for (const p of built[a].collectibles || []) expect(isTrespassing(a, p.x, p.z), `${a} collectible`).toBe(false);
+      for (const p of built[a].scenics || []) expect(isTrespassing(a, p.x, p.z), `${a} scenic`).toBe(false);
+    }
+  });
+
+  it('only unlabelled perches sit inside a camp', () => {
+    for (const a of AREAS.filter(isClanId)) {
+      for (const p of built[a].perches || []) {
+        if (isTrespassing(a, p.x, p.z)) {
+          expect(p.label, `${a} perch ${p.x},${p.z}`).toBeFalsy();
+          expect(p.vantage, `${a} perch ${p.x},${p.z}`).toBeFalsy();
+        }
+      }
     }
   });
 });
