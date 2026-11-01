@@ -79,7 +79,7 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
-const { build: buildMoor, TORS, MOOR_PATHS } = await import('../src/world/moor.js');
+const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
 const { campLayout } = await import('../src/world/camp.js');
 // The camp's den (r 1.1) is the one camp piece over the map's 1 m block cut;
@@ -224,14 +224,17 @@ describe('buildMapLayer', () => {
     // under the water; the paths are counted by where they lie.)
     const onPath = (f) => MOOR_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
     expect(layer.paths.filter(onPath)).toHaveLength(8);
-    expect(layer.paths).toHaveLength(8 + 3);
+    // The Pines trail's three segments are strips too (border-crossings Task 1).
+    const onTrail = (f) => MOOR_TRAIL.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onTrail)).toHaveLength(3);
+    expect(layer.paths).toHaveLength(8 + 3 + 3);
     // Every other Moor collider (a trunk, a chain boulder, the High Tor's
     // pillar, the hawthorn's root) is under the map's 1 m block cut; the
     // camp's den is over it.
     expect(layer.blocks).toEqual([...TORS.map(({ x, z, r }) => ({ x, z, r })), denBlock('moor')]);
   });
 
-  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 15 strips, and the Old Ash and the camp\'s den as its blocks', () => {
+  it('buildMapLayer for the Pines has ground, edge, ten waters, three with decks, two with the island, 16 strips, and the Old Ash and the camp\'s den as its blocks', () => {
     const { scene, areaData } = built('pines');
     const layer = buildMapLayer(areaData, scene);
     expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
@@ -260,7 +263,9 @@ describe('buildMapLayer', () => {
     // past the 50 m cut, and is skipped; the round bogs are discs, not strips.
     const onPath = (f) => PINES_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
     expect(layer.paths.filter(onPath)).toHaveLength(12);
-    expect(layer.paths).toHaveLength(12 + 3);
+    // Plus the one trail segment over the Moor border (border-crossings
+    // Task 1): 15 strips became 16.
+    expect(layer.paths).toHaveLength(12 + 1 + 3);
     // Every other Pines collider (a pine's trunk, a chain boulder, a pillar,
     // a truce stone, the fallen pine, a meeting stone, the Watch Rock at
     // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on
