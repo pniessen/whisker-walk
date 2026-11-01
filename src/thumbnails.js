@@ -9,31 +9,10 @@ import { CATALOG } from './progression.js';
 const SIZE = 160;
 let cache = null;
 
-function renderAll() {
-  try {
-    return renderAllUnsafe();
-  } catch (err) {
-    console.warn('Whisker Walk: thumbnail rendering unavailable', err);
-    return { cats: {}, accessories: {} }; // graceful: cards just show no image
-  }
-}
-
-function renderAllUnsafe() {
-  const canvas = document.createElement('canvas');
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-  renderer.setClearColor(0x000000, 0);
-  renderer.setSize(SIZE, SIZE);
-
-  const scene = new THREE.Scene();
-  const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
-  sun.position.set(2, 4, -3); // light from the camera side
-  scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
-
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
-
-  function snap(cat, closeUp, rotY = -0.45) {
+// Shared by the menu portraits and the custom-cat portraits: puts one cat in
+// the scene, frames it, renders, reads the data URL and frees the cat.
+function makeSnapper(renderer, scene, camera, canvas) {
+  return function snap(cat, closeUp, rotY = -0.45) {
     scene.add(cat);
     // camera sits at bearing ≈ -0.67 rad from the model's -z facing axis;
     // -0.45 gives a face-on three-quarter view, callers can override
@@ -58,7 +37,34 @@ function renderAllUnsafe() {
       }
     });
     return url;
+  };
+}
+
+function renderAll() {
+  try {
+    return renderAllUnsafe();
+  } catch (err) {
+    console.warn('Whisker Walk: thumbnail rendering unavailable', err);
+    return { cats: {}, accessories: {} }; // graceful: cards just show no image
   }
+}
+
+function renderAllUnsafe() {
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.setSize(SIZE, SIZE);
+
+  const scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
+  sun.position.set(2, 4, -3); // light from the camera side
+  scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+
+  const snap = makeSnapper(renderer, scene, camera, canvas);
 
   const cats = {};
   for (const breed of Object.keys(CATALOG.cats)) {
@@ -91,4 +97,41 @@ function renderAllUnsafe() {
 export function menuThumbnails() {
   if (!cache) cache = renderAll();
   return cache;
+}
+
+// Custom-cat portraits (ruling 9): snapped on demand, one throwaway context
+// per call, cached in memory by lookKey, never saved.
+const customCache = new Map();
+let customWarned = false;
+
+export function customThumbnails(entries) {
+  const fresh = entries.filter((e) => !customCache.has(e.key));
+  if (fresh.length) {
+    let renderer = null;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+      renderer.setClearColor(0x000000, 0);
+      renderer.setSize(SIZE, SIZE);
+      const scene = new THREE.Scene();
+      const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
+      sun.position.set(2, 4, -3);
+      scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+      const snap = makeSnapper(renderer, scene, camera, canvas);
+      for (const e of fresh) {
+        if (customCache.has(e.key)) continue;
+        customCache.set(e.key, snap(buildCat(e.breed, {}, { look: e.look }), false));
+      }
+    } catch (err) {
+      if (!customWarned) { customWarned = true; console.warn('Whisker Walk: custom portraits unavailable', err); }
+    } finally {
+      if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
+    }
+  }
+  const out = {};
+  for (const e of entries) if (customCache.has(e.key)) out[e.key] = customCache.get(e.key);
+  return out;
 }

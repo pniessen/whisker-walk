@@ -323,14 +323,14 @@ export function createCatStage({
     }
   };
 
-  stage.show = function show(nextBreed, accessories = {}) {
+  stage.show = function show(nextBreed, accessories = {}, look = null) {
     if (disposed) return;
     breed = nextBreed;
     if (stage.failed) { if (el) placeFallback(); return; }
     ensureRenderer();
     if (stage.failed) return;
     disposeCat();
-    cat = buildCat(breed, accessories);
+    cat = look ? buildCat(breed, accessories, { look }) : buildCat(breed, accessories);
     bounds = measure(cat);
     cat.rotation.y = spin.angle;
     scene.add(cat);

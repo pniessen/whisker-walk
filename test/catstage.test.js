@@ -62,6 +62,29 @@ describe('createCatStage', () => {
     expect(el.children).toContain(text);
   });
 
+  it('passes a custom look to buildCat; a preset call keeps exactly two arguments', () => {
+    const LOOK = { coat: 'ginger', pattern: 'stripes' };
+    const build = vi.fn(() => new THREE.Group());
+    const { stage } = setup({ buildCat: build });
+    stage.mount(fakeEl());
+    stage.show('calico', { collar: 'bell' }, LOOK);
+    expect(build).toHaveBeenLastCalledWith('calico', { collar: 'bell' }, { look: LOOK });
+    stage.show('tabby', {});
+    expect(build.mock.calls.at(-1)).toHaveLength(2);
+    stage.show('tabby', {}, null);
+    expect(build.mock.calls.at(-1)).toHaveLength(2);
+  });
+
+  it('a custom show falls back to the preset thumbnail when WebGL failed', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { stage } = setup({ createRenderer: () => { throw new Error('no webgl'); } });
+    const el = fakeEl();
+    stage.show('calico', {}, { coat: 'ginger' });
+    stage.mount(el);
+    expect(stage.failed).toBe(true);
+    expect(el.children.find((c) => c.className === 'dr-hero-img').src).toBe('data:calico');
+  });
+
   it('moves the same canvas into a new element, keeps the angle, and drops the old observer', () => {
     const { stage, canvas, observers } = setup();
     const a = fakeEl(); const b = fakeEl();
