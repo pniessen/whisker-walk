@@ -28,8 +28,8 @@ import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
 import { buildCat, CAT_LOOK_Y } from '../cat/model.js';
-import { activeCat, ownTagName } from '../customcats.js';
-import { makeNameTag } from '../nametag.js';
+import { activeCat } from '../customcats.js';
+import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
@@ -512,16 +512,8 @@ export function createWalkLifecycle({
       back: state.equipped.back,
       feet: state.equipped.feet,
     }, { look: active.look });
-    if (active.custom) {
-      // her own custom cat wears its name on her own screen, like a co-walker
-      cat.userData.custom = active.custom;
-      cat.userData.customName = ownTagName(state);
-      const ownTag = makeNameTag(cat.userData.customName);
-      if (ownTag) {
-        ownTag.visible = true;
-        cat.add(ownTag);
-      }
-    }
+    // her own custom cat wears its name on her own screen, like a co-walker
+    attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
     cat.rotation.y = 0; // rotation 0 faces -z, into the area
     scene.add(cat);

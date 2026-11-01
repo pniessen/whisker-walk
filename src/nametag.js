@@ -225,7 +225,7 @@ function paintTwoLine(ctx, name, cross, legend, sub) {
 // so a repainted tag is pixel-identical to a freshly built one of the same
 // mood. That matters for reconciliation: a forgiven cat must look exactly
 // like a cat that was never cross, not merely similar.
-function paintTag(ctx, name, cross, legend = false) {
+function paintTag(ctx, name, cross, legend = false, wide = false) {
   // Mandatory on the repaint path and harmless on the build path: both pill
   // fills are translucent, so without clearing, the OLD label bleeds through
   // the new pill.
@@ -262,7 +262,9 @@ function paintTag(ctx, name, cross, legend = false) {
   // measureText is guarded because the tag is built against fake 2D contexts
   // in headless tests.
   // A legend tag uses the wider pill, so the star costs the name nothing.
-  const pill = legend ? PILL_LEGEND : PILL;
+  // opts.fit (her own cat's tag) borrows the legend's wide pill: a 16-letter
+  // name overflows the plain one even at the MIN_FONT_PX floor.
+  const pill = legend || wide ? PILL_LEGEND : PILL;
   if (typeof ctx.measureText === 'function') {
     const maxW = pill.w - LABEL_PAD_PX * 2;
     while (px > MIN_FONT_PX && (ctx.measureText(label).width || 0) + starRoom(px) > maxW) {
@@ -316,7 +318,10 @@ function paintTag(ctx, name, cross, legend = false) {
 // opts.sub (Clan Life Part 1): a non-empty string paints the two-line tag (see
 // paintTwoLine). It is kept on userData.sub, so a mood repaint keeps it. With
 // no sub (or an empty one) the tag is pixel-identical to before.
-export function makeNameTag(name, { cross = false, legend = false, sub = '' } = {}) {
+//
+// opts.fit: the wide pill, so a long typed name (16 letters) fits at the
+// shrink-to-fit floor. Off by default; kept on userData.fit for repaints.
+export function makeNameTag(name, { cross = false, legend = false, sub = '', fit = false } = {}) {
   if (typeof document === 'undefined') return null;
   const twoLine = typeof sub === 'string' && sub.length > 0;
   const tagCanvas = document.createElement('canvas');
@@ -326,13 +331,14 @@ export function makeNameTag(name, { cross = false, legend = false, sub = '' } = 
   const isCross = !!cross;
   const isLegend = !!legend;
   if (twoLine) paintTwoLine(tctx, name, isCross, isLegend, sub);
-  else paintTag(tctx, name, isCross, isLegend);
+  else paintTag(tctx, name, isCross, isLegend, !!fit);
   const tagTex = new THREE.CanvasTexture(tagCanvas);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
   tag.scale.set(1.4, 0.35, 1);
   if (twoLine) tag.scale.y = SUB_TAG_SCALE_Y;
   tag.position.y = (isCross ? CROSS_TAG_Y : TAG_Y) + (twoLine ? SUB_LIFT : 0);
   if (twoLine) tag.userData.sub = sub;
+  if (fit) tag.userData.fit = true;
   tag.visible = false;
   // The canvas and its context are kept ON the sprite so the texture can be
   // repainted later without rebuilding anything — see setNameTagMood.
@@ -374,7 +380,7 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   if (tag.userData.cross === next) return tag;
   const sub = tag.userData.sub;
   if (sub) paintTwoLine(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, sub);
-  else paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true);
+  else paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, tag.userData.fit === true);
   tag.userData.cross = next;
   tag.userData.revealRange = next ? CROSS_NAME_TAG_RANGE : NAME_TAG_RANGE;
   // Height moves with the mood for the same reason the paint does — see

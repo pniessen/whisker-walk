@@ -507,3 +507,52 @@ describe('the two-line tag (opts.sub)', () => {
     });
   });
 });
+
+// Cat builder: her own cat's tag carries a typed name of up to 16 letters.
+describe('makeNameTag fit (her own cat)', () => {
+  const pxOf = (ops) => parseInt(labelFontOf(ops).replace(/^bold /, ''), 10);
+  const pillOf = (ops) => ops.find((o) => o[0] === 'roundRect');
+
+  it('a 16-letter name shrinks, stays at least 24 px and fits its pill', () => {
+    withFakeDocument(() => {
+      const tag = makeNameTag('Moonwhisker-Fern', { fit: true });
+      const ops = opsOf(tag);
+      const px = pxOf(ops);
+      expect(px).toBeLessThan(34);
+      expect(px).toBeGreaterThanOrEqual(24);
+      const pill = pillOf(ops);
+      expect(16 * 0.55 * px).toBeLessThanOrEqual(pill[3] - 20);
+      expect(tag.userData.fit).toBe(true);
+    });
+  });
+
+  it('the same name without fit overflows the plain pill at the floor (why fit exists)', () => {
+    withFakeDocument(() => {
+      const ops = opsOf(makeNameTag('Moonwhisker-Fern'));
+      expect(pxOf(ops)).toBe(24);
+      expect(16 * 0.55 * 24).toBeGreaterThan(pillOf(ops)[3] - 20);
+    });
+  });
+
+  it('no opts paints exactly what fit:false paints, and keeps no fit flag', () => {
+    withFakeDocument(() => {
+      const a = makeNameTag('Moonwhisker-Fern');
+      const b = makeNameTag('Moonwhisker-Fern', { fit: false });
+      expect(opsOf(a)).toEqual(opsOf(b));
+      expect(a.userData.fit).toBeUndefined();
+      expect(a.scale.x).toBe(1.4);
+    });
+  });
+
+  it('a mood repaint keeps the wide pill', () => {
+    withFakeDocument(() => {
+      const tag = makeNameTag('Moonwhisker-Fern', { fit: true });
+      const before = [...opsOf(tag)];
+      opsOf(tag).length = 0;
+      setNameTagMood(tag, { cross: true });
+      setNameTagMood(tag, { cross: false });
+      const after = opsOf(tag).slice(opsOf(tag).findLastIndex((o) => o[0] === 'clearRect'));
+      expect(after).toEqual(before);
+    });
+  });
+});
