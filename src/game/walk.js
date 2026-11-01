@@ -70,6 +70,7 @@ import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { rivalForWalk, placeName, effectiveArea } from '../edition.js';
+import { picksOf, homeWelcome } from '../clanhomes.js';
 import { createEnemyWalkLog } from '../enemies.js';
 import { kittenPlan, createKittenEncounter } from '../kitten.js';
 import { raceCourse, createRace } from '../race.js';
@@ -1199,6 +1200,8 @@ export function createWalkLifecycle({
     // only ever sees this set of ids.
     const myBorderIds = new Set(progression.marksIn(areaId).filter((m) => m.kind === 'border').map((m) => m.id));
 
+    const picks = picksOf(progression.state);
+
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
     // goldMice above; the den has no rival, so everything is a no-op there.
     // Only the LOCAL cat is ever chased: session.cat is passed to update, a
@@ -1208,9 +1211,10 @@ export function createWalkLifecycle({
     // THE CHASE TAKES NOTHING. This branch calls no progression, colony,
     // discoveries or points function: it moves the cat, shows one toast, and
     // that is all (spec section 10.1; rivalcats.js is pinned the same way).
+    // The picks only choose the clan's name.
     // No patrol in Legacy: no border decals, border-mark prompt or mark
     // contest, so a Legacy walk writes no clan field.
-    if (isDen || !rivalForWalk(areaId, progression.state.edition)) {
+    if (isDen || !rivalForWalk(areaId, progression.state.edition, picks)) {
       session.rival = NO_RIVAL;
     } else {
       // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.
@@ -1226,6 +1230,7 @@ export function createWalkLifecycle({
       // Walkable = player.js's own predicate (bounds, colliders, water).
       const isWalkable = (x, z) => isWalkableAt(areaData, x, z);
       const patrol = createRivalPatrol(scene, areaId, {
+        picks,
         reducedMotion,
         isWalkable,
         canChase: () => chaseAllowed(player, session),
@@ -1262,6 +1267,7 @@ export function createWalkLifecycle({
     // call the render loop already makes every frame; the den has none.
     if (session.rival.borderMarks) {
       const contest = createMarkContest({
+        picks,
         areaId, progression, playerMarks,
         patrolPos: session.rival.patrolPos,
         isChasing: () => session.chasing === true,
@@ -1273,6 +1279,8 @@ export function createWalkLifecycle({
         contest.tick(dt);
       };
     }
+    const welcome = isDen ? null : homeWelcome(areaId, progression.state);
+    if (welcome) hud.toast(welcome);
 
     // v21 3b Task 16 — The dog in its yard. One per outdoor area (propsets.js's
     // dogYard; the den has none, so this is the inert NO_DOG there). Trot onto
