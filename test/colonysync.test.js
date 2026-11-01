@@ -1102,7 +1102,7 @@ describe('createColonySync — the partner\'s clan pick', () => {
   });
 
   it('a hostile home is ignored', async () => {
-    for (const h of ['__proto__', 42, 'park', null, {}]) {
+    for (const h of ['__proto__', 'constructor', 42, 'park', null, {}]) {
       const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home(h) } });
       await cs.pull();
       expect(progression.state.clanPick.partner).toBe(null);
@@ -1112,6 +1112,12 @@ describe('createColonySync — the partner\'s clan pick', () => {
       fetchProfiles: () => [{ player_id: SIB, accessories: Object.create({ home: 'moor' }) }] } });
     await cs.pull();
     expect(progression.state.clanPick.partner).toBe(null);
+  });
+
+  it('a newer build\'s pick (valid id, not pickable here) is cached', async () => {
+    const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('gorge') } });
+    await cs.pull();
+    expect(progression.state.clanPick.partner).toBe('gorge');
   });
 
   it('a non-array fetchProfiles result is "no row": no change, no warning, pull resolves', async () => {

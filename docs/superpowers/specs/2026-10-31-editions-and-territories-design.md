@@ -617,9 +617,13 @@ would mostly hide.
   no patrol. So a patrol is never either kid's clan.
 - The camps (D8): the Woods camp is in the north glade across the river, and
   the River camp is in open ground south-west of the river bend. Each disc has
-  one camp tree inside it.
+  one camp tree inside it. The Moor camp is at (-1, -43), r 6, round a thorn
+  on the north heath, facing the Woods. The Pines camp is at (-38, 41), r 6,
+  round two pines on the swamp side, facing the River, and is kept at least 3 m
+  clear of the truce path, the bridge and the island.
 - The truce on the way to the island holds: no clan patrols the island, ever.
-- A later territory adds one row (its neighbours) and one camp disc.
+- All four built territories have camps. The Gorge adds its disc when it is
+  built, and the island stays a truce place with no disc.
 - Plan: `docs/superpowers/plans/2026-10-31-clan-edition-pick-your-clan.md`.
 
 ### Builder notes (skip if you're not building it)

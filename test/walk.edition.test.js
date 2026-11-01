@@ -132,8 +132,8 @@ describe('a Legacy walk', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
     expect(src).toMatch(/const picks = picksOf\(progression\.state\);/);
     expect(src).toMatch(/rivalForWalk\(areaId, progression\.state\.edition, picks\)/);
-    expect(src).toMatch(/createRivalPatrol\([^)]*\{[\s\S]*?picks/);
-    expect(src).toMatch(/createMarkContest\(\{[\s\S]*?picks/);
+    expect(src).toMatch(/createRivalPatrol\(scene, areaId, \{\s*picks,/);
+    expect(src).toMatch(/createMarkContest\(\{\s*picks,/);
     expect(src).not.toMatch(/\brivalFor\(/);
     // picks is computed before the rival's branch, not inside it
     expect(src.indexOf('const picks = picksOf(')).toBeLessThan(src.indexOf("The rival's border and its patrol"));

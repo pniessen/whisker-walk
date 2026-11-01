@@ -284,8 +284,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   // push that row and upsert_profile stores any jsonb. A paired pull reads the
   // partner's row at most once a minute (and at once for a new partner, or on
   // a freshPick pull such as joining the siblings' room). A row with no valid
-  // `home` (an old build, or no pick yet) NEVER clears the cached pick: only a
-  // valid pick replaces it (progression.setPartnerClanPick). Nothing goes on
+  // `home` (an old build, or no pick yet) NEVER clears the cached pick for the
+  // same partner: only a valid pick replaces it. A NEW partner resets the
+  // cache first (progression.setPartnerClanPick). Nothing goes on
   // the co-walk wire. Two devices can briefly disagree on the patrol's name (a
   // stale cache, or a room friend who isn't the partner); that is cosmetic.
   // Any failure is swallowed: a pick never fails a pull.
