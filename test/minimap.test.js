@@ -78,8 +78,9 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS } = await import('../src/world/moor.js');
+const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -202,6 +203,29 @@ describe('buildMapLayer', () => {
     // Every other Moor collider (a trunk, a chain boulder, the High Tor's
     // pillar, the hawthorn's root) is under the map's 1 m block cut.
     expect(layer.blocks).toEqual(TORS.map(({ x, z, r }) => ({ x, z, r })));
+  });
+
+  it('buildMapLayer for the Pines has ground, edge, ten waters, two with decks, 17 strips, and no blocks', () => {
+    const { scene, areaData } = built('pines');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
+    expect(layer.edge).toEqual(areaData.bounds);
+    expect(layer.water).toHaveLength(10);
+    // mire-north carries the log bridge, mire-west the stepping stones.
+    expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
+    // The twelve path segments, each a strip at its own midpoint, and five
+    // rectangular water planes that flatFootprints (src/render/grass.js)
+    // counts as strips because neither half-extent passes 50 m: the lake, the
+    // bay, mire-west (93 m by 5 m, so 46.5 m at most), the Moor's river and
+    // its mouth, all drawn under the water. Mire-north runs 114 m north to
+    // south, past the 50 m cut, and is skipped; the round bogs are discs, not
+    // strips.
+    const onPath = (f) => PINES_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onPath)).toHaveLength(12);
+    expect(layer.paths).toHaveLength(12 + 5);
+    // Every Pines collider (a pine's trunk, a chain boulder, a pillar, a
+    // truce stone, the fallen pine) is under the map's 1 m block cut.
+    expect(layer.blocks).toEqual([]);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {

@@ -39,7 +39,7 @@ const { propsFor } = await import('../src/propsets.js');
 
 const {
   build, SPAWN, PINES_WATERS, PINES_PATHS, TRUCE_PATH, PINES_ISLAND, BRIDGE_FOOT, PINES_HORIZON,
-  PINES_KEEP_CLEAR, FROG_HIDES, pinesTrees,
+  PINES_KEEP_CLEAR, FROG_HIDES, pinesTrees, pinesUndergrowth, pinesReeds, pinesLilyPads,
 } = pines;
 
 const built = () => {
@@ -594,6 +594,12 @@ describe('the Pines: things to find, climb and race', () => {
         expect(inWater(PINES_WATERS, x, z), at).toBe(false);
         expect(waterClearance(undecked, x, z), at).toBeGreaterThanOrEqual(0.6);
       }
+      if (c.type === 'bird') {
+        // A bird sits at the foot of its pine, inside the trunk's collider:
+        // a cat reaches it from beside the trunk.
+        expect(reachesWithin(area, c.x, c.z, 1.5), `bird (${c.x}, ${c.z})`).toBe(true);
+        continue;
+      }
       expect(reaches(area, c.x, c.z), `${c.type} (${c.x}, ${c.z})`).toBe(true);
       expect(reaches(area, x2, z2), `${c.type} (${x2}, ${z2})`).toBe(true);
     }
@@ -622,5 +628,166 @@ describe('the Pines: things to find, climb and race', () => {
     expect(course).toHaveLength(5);
     expect(new Set(course).size).toBe(5);
     for (const p of course) expect(area.pois).toContain(p);
+  });
+});
+
+describe('the Pines: the forest', () => {
+  const { near, stand } = pinesTrees();
+  const all = [...near, ...stand];
+  const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+  const waterDist = (x, z) => Math.min(...undecked.map((w) => waterGap(w, x, z)));
+  const decks = PINES_WATERS.flatMap((w) => w.decks ?? []);
+  const pathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, s)));
+  // builder.pine's lowest cone reaches 1.3 m per unit of scale; a path is 3 m wide
+  const canopy = (t) => 1.5 + 1.3 * t.scale + 0.5;
+  const nearDist = (t) => canopy(t) + 4;
+  const isNear = (t) => pathDist(t.x, t.z) < nearDist(t) || Math.hypot(t.x - SPAWN.x, t.z - SPAWN.z) < 12;
+
+  it('pinesTrees is deterministic, dense, and keeps its clearances', () => {
+    expect(pinesTrees()).toEqual({ near, stand });
+    expect(near.length).toBeGreaterThanOrEqual(30);
+    expect(near.length).toBeLessThanOrEqual(40);
+    expect(stand.length).toBeGreaterThanOrEqual(70);
+    expect(stand.length).toBeLessThanOrEqual(150);
+    for (const t of all) {
+      const at = `pine (${t.x}, ${t.z})`;
+      expect(t.x >= BOUNDS.minX && t.x <= BOUNDS.maxX && t.z >= BOUNDS.minZ && t.z <= BOUNDS.maxZ, at).toBe(true);
+      expect(waterDist(t.x, t.z), at).toBeGreaterThanOrEqual(2.5);
+      expect(pathDist(t.x, t.z), at).toBeGreaterThanOrEqual(canopy(t));
+      for (const d of decks) expect(rectDist(d, t.x, t.z), at).toBeGreaterThanOrEqual(4);
+      for (const [px, pz] of PINES_KEEP_CLEAR) expect(Math.hypot(t.x - px, t.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(4);
+    }
+    for (const t of near) expect(isNear(t), `near pine (${t.x}, ${t.z})`).toBe(true);
+    // A pine a kid walks past never ends up still in the stand, unless the
+    // forty swaying ones are full.
+    if (near.length < 40) for (const t of stand) expect(isNear(t), `stand pine (${t.x}, ${t.z})`).toBe(false);
+  });
+
+  it('keeps every pine off the fallen pine and clear round both climbs', () => {
+    const h = 5 / 2, sx = Math.sin(0.4), sz = Math.cos(0.4);
+    const log = [-14 - sx * h, 42 - sz * h, -14 + sx * h, 42 + sz * h];
+    for (const t of all) {
+      const at = `pine (${t.x}, ${t.z})`;
+      expect(segDist(t.x, t.z, log), at).toBeGreaterThanOrEqual(3);
+      expect(Math.hypot(t.x - 3, t.z - -29), at).toBeGreaterThanOrEqual(6);
+      expect(Math.hypot(t.x + 38, t.z + 16), at).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it('leaves the forest walkable: no two trunks closer than a cat can pass between', () => {
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        const gap = Math.hypot(all[i].x - all[j].x, all[i].z - all[j].z) - 0.4 * all[i].scale - 0.4 * all[j].scale;
+        expect(gap, `(${all[i].x}, ${all[i].z}) and (${all[j].x}, ${all[j].z})`).toBeGreaterThan(2 * 0.35);
+      }
+    }
+  });
+
+  it("pines stand on the River's border where the River's own pines stand", () => {
+    // the River's ruling R1, from the other side: its north-edge pines go on over the border
+    expect(all.filter((t) => t.x >= -6 && t.x <= 24 && t.z >= 40).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('plants a collider for every pine, a swaying pine for each near one, and the rest in one stand', () => {
+    // the four chain colliders, the two truce stones and the three along the fallen pine
+    expect(area.colliders).toHaveLength(near.length + stand.length + 9);
+    for (const t of all) {
+      expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(0.4 * t.scale * 100) / 100), `collider (${t.x}, ${t.z})`).toBe(true);
+    }
+    for (const t of near) {
+      expect(scene.children.some((o) => o.isGroup && o.position.x === t.x && o.position.z === t.z && o.scale.x === t.scale), `near pine (${t.x}, ${t.z})`).toBe(true);
+    }
+    const standObj = scene.getObjectByName('pineStand');
+    expect(standObj).toBeTruthy();
+    const meshes = [];
+    standObj.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes).toHaveLength(2);
+    // a pine has no low fork
+    expect(area.perches.some((p) => p.requires)).toBe(false);
+  });
+
+  it('the birds sit in the first four near pines', () => {
+    const birds = area.critterSpawns.filter((c) => c.type === 'bird');
+    expect(birds).toHaveLength(4);
+    expect(birds).toEqual(near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+  });
+});
+
+describe('the Pines: the forest floor and the swamp edge', () => {
+  const { near, stand } = pinesTrees();
+  const trunks = [...near, ...stand];
+  const { ferns, toadstools } = pinesUndergrowth();
+  const reeds = pinesReeds();
+  const pads = pinesLilyPads();
+  const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+  const waterDist = (x, z) => Math.min(...undecked.map((w) => waterGap(w, x, z)));
+  const decks = PINES_WATERS.flatMap((w) => w.decks ?? []);
+  const pathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, s)));
+  const h = 5 / 2, sx = Math.sin(0.4), sz = Math.cos(0.4);
+  const log = [-14 - sx * h, 42 - sz * h, -14 + sx * h, 42 + sz * h];
+  const inBounds = (x, z) => x >= -50 && x <= 50 && z >= -50 && z <= 50;
+
+  it('pinesUndergrowth and pinesReeds are seeded, and a real forest floor and swamp edge', () => {
+    expect(pinesUndergrowth()).toEqual({ ferns, toadstools });
+    expect(pinesReeds()).toEqual(reeds);
+    expect(pinesLilyPads()).toEqual(pads);
+    expect(ferns.length).toBeGreaterThanOrEqual(100);
+    expect(ferns.length).toBeLessThanOrEqual(220);
+    for (const f of ferns) expect(f.x, `fern (${f.x}, ${f.z}) in the swamp`).toBeGreaterThanOrEqual(-27);
+    expect(toadstools.length).toBeGreaterThanOrEqual(30);
+    expect(toadstools.length).toBeLessThanOrEqual(60);
+    expect(reeds.length).toBeGreaterThanOrEqual(100);
+    expect(reeds.length).toBeLessThanOrEqual(220);
+    expect(pads.length).toBeGreaterThanOrEqual(10);
+    expect(pads.length).toBeLessThanOrEqual(35);
+    const bogs = ['bog-1', 'bog-2', 'bog-3', 'bog-4'].map(byId);
+    for (const p of pads) {
+      expect(inWater(bogs, p.x, p.z), `pad (${p.x}, ${p.z})`).toBe(true);
+      expect(p.r).toBeGreaterThanOrEqual(0.22);
+      expect(p.r).toBeLessThanOrEqual(0.38);
+    }
+  });
+
+  it('keeps every fern, toadstool and reed off the paths, the crossings, the spawn, the bridge foot and every find', () => {
+    for (const [kind, list] of [['fern', ferns], ['toadstool', toadstools]]) {
+      for (const f of list) {
+        const at = `${kind} (${f.x}, ${f.z})`;
+        expect(inBounds(f.x, f.z), at).toBe(true);
+        expect(waterDist(f.x, f.z), at).toBeGreaterThanOrEqual(1.0);
+        for (const d of decks) expect(rectDist(d, f.x, f.z), at).toBeGreaterThanOrEqual(3);
+        expect(pathDist(f.x, f.z), at).toBeGreaterThanOrEqual(2.3);
+        for (const [px, pz] of PINES_KEEP_CLEAR) expect(Math.hypot(f.x - px, f.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(3);
+        expect(Math.hypot(f.x - SPAWN.x, f.z - SPAWN.z), at).toBeGreaterThanOrEqual(4);
+        expect(segDist(f.x, f.z, log), at).toBeGreaterThanOrEqual(2);
+        for (const t of trunks) expect(Math.hypot(f.x - t.x, f.z - t.z), `${at} in a trunk`).toBeGreaterThanOrEqual(0.9 * t.scale);
+      }
+    }
+    for (const r of reeds) {
+      const at = `reed (${r.x}, ${r.z})`;
+      expect(inBounds(r.x, r.z), at).toBe(true);
+      expect(inWater(undecked, r.x, r.z), `${at} in the water`).toBe(false);
+      for (const d of decks) expect(rectDist(d, r.x, r.z), at).toBeGreaterThanOrEqual(1.5);
+      expect(pathDist(r.x, r.z), at).toBeGreaterThanOrEqual(2.3);
+      // the spawn and the bridge foot are in PINES_KEEP_CLEAR
+      for (const [px, pz] of PINES_KEEP_CLEAR) expect(Math.hypot(r.x - px, r.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('the ferns, toadstools, reeds and lily pads are merged meshes out of the shadow pass, with no colliders', () => {
+    for (const n of ['ferns', 'toadstools', 'reeds', 'lilyPads']) {
+      expect(scene.children.filter((o) => o.name === n), n).toHaveLength(1);
+      const meshes = [];
+      scene.getObjectByName(n).traverse((o) => { if (o.isMesh) meshes.push(o); });
+      expect(meshes.length, n).toBeGreaterThanOrEqual(1);
+      expect(meshes.length, n).toBeLessThanOrEqual(2);
+      for (const m of meshes) {
+        expect(m.userData.noCast, n).toBe(true);
+        expect(m.castShadow, n).toBe(false);
+      }
+    }
+    for (const p of [...ferns, ...toadstools, ...reeds, ...pads]) {
+      expect(area.colliders.some((c) => c.x === p.x && c.z === p.z), `(${p.x}, ${p.z})`).toBe(false);
+    }
   });
 });

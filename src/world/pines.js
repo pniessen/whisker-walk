@@ -4,6 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { ISLAND_BRIDGE_WOODS } from './moor.js';
 import { GOLD_MICE } from '../goldmice.js';
+import { mulberry32, seedFromCode } from '../rng.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -293,11 +294,209 @@ export const PINES_KEEP_CLEAR = Object.freeze([
   BRIDGE_FOOT, SPAWN,
 ].map(({ x, z }) => Object.freeze([x, z])));
 
-// The Pines' trees: the near pines a kid walks past, each its own swaying
-// pine, and the dense stand behind them, merged into one still mesh. Both
-// come with the scenery pass; until then there are none.
+// --- the scenery ----------------------------------------------------------------
+// The pines, the ferns and toadstools under them, the reeds on the banks and
+// the lily pads on the bogs, all seeded by name rather than drawn from the
+// walk's rng, so every walk and both co-walkers get the same forest. Every
+// candidate draws all its numbers whether it is kept or not, so moving one
+// clearance never reshuffles the rest. Spots are rounded to the centimetre so
+// they are clean data (they end up in colliders).
+
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// Distance from (x, z) to a segment.
+function segDist(x, z, x1, z1, x2, z2) {
+  const dx = x2 - x1, dz = z2 - z1;
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
+}
+// Distance from (x, z) to an axis-aligned rectangle (0 inside it).
+const rectDist = (d, x, z) => Math.hypot(
+  Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
+const DECKS = [LOG_BRIDGE, STEPPING_STONES];
+// The waters with their decks taken away: a deck is dry for a cat, but it is
+// still the mire for a tree or a reed.
+const UNDECKED = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+// How far (x, z) is from the nearest water's edge, decks ignored.
+const waterDist = (x, z) => Math.min(...UNDECKED.map((w) => b.waterGap(w, x, z)));
+const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
+const pathDist = (x, z) => Math.min(...PINES_PATHS.map((seg) => segDist(x, z, ...seg)));
+const clearOf = (x, z, d) => PINES_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
+
+// The fallen pine's two ends: it lies along its local z, turned to `yaw`. Its
+// perch is not in PINES_KEEP_CLEAR, so the scenery keeps clear of its whole
+// length here instead, to keep the seat and the first hop open.
+function fallenPineEnds() {
+  const h = FALLEN_PINE.length / 2;
+  const sx = Math.sin(FALLEN_PINE.yaw), sz = Math.cos(FALLEN_PINE.yaw);
+  return [FALLEN_PINE.x - sx * h, FALLEN_PINE.z - sz * h, FALLEN_PINE.x + sx * h, FALLEN_PINE.z + sz * h];
+}
+const FALLEN_SEG = fallenPineEnds();
+const fallenDist = (x, z) => segDist(x, z, ...FALLEN_SEG);
+
+// The pines. A 4.5 m grid over the whole map, each candidate jittered and
+// kept by a roll against its zone's share: thin in the swamp west of the mire
+// (thinnest in the outer swamp, south of mire-west, where the two big bogs
+// lie open), thick everywhere else, so the Pines reads as a dark forest
+// beside an open bog.
+//
+// A pine keeps the canopy rule every territory keeps (a path's half-width,
+// its lowest cone's reach of 1.3 m per unit of scale, then half a metre), so
+// the chase camera following the cat down a path never ends up inside a
+// canopy. It keeps 4 m off the crossings so they stay in sight, 4 m off every
+// find, 3 m off the fallen pine and 6 m off both climbs, so a kid can walk
+// round each and see its golden mouse from the chase camera. Pines stand
+// 3.2 m apart at least, which leaves a cat room between any two trunks.
+//
+// The ones a kid walks past (by a path, or round the spawn) sway, each its
+// own b.pine, up to forty of them; every other pine joins the still stand,
+// one merged mesh pair however many it holds (lesson 7: dense pines are a
+// merged stand from the start).
+const PINE_GRID = { seed: 'pines-pines', from: -48, to: 48, cell: 4.5, jitter: 1.5 };
+const PINE_SPACING = 3.2;
+const MAX_NEAR = 40;
+const MAX_STAND = 150;
+const PINE_REACH = 1.3; // builder.pine's lowest cone, per unit of scale
+const canopyClear = (scale) => PATH_W / 2 + PINE_REACH * scale + 0.5;
+// The share of candidates kept in each zone.
+function pineShare(x, z) {
+  if (x < -27) return z < -6 ? 0.35 : 0.25; // the deep swamp, then the outer swamp
+  return 0.85;
+}
+function pineFits(x, z, scale, kept) {
+  if (!inBounds(x, z)) return false;
+  if (waterDist(x, z) < 2.5) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
+  if (pathDist(x, z) < canopyClear(scale)) return false;
+  if (!clearOf(x, z, 4)) return false;
+  if (fallenDist(x, z) < 3) return false;
+  if ([LIGHTNING_STUMP, FROG_STONE].some((c) => Math.hypot(x - c.x, z - c.z) < 6)) return false;
+  return kept.every((t) => Math.hypot(x - t.x, z - t.z) >= PINE_SPACING);
+}
 export function pinesTrees() {
-  return { near: [], stand: [] };
+  const G = PINE_GRID;
+  const rng = mulberry32(seedFromCode(G.seed));
+  const near = [];
+  const stand = [];
+  const kept = [];
+  for (let gz = G.from; gz <= G.to; gz += G.cell) {
+    for (let gx = G.from; gx <= G.to; gx += G.cell) {
+      const x = r2(gx + (rng() * 2 - 1) * G.jitter);
+      const z = r2(gz + (rng() * 2 - 1) * G.jitter);
+      const scale = r2(1.2 + 0.7 * rng());
+      const roll = rng();
+      if (roll >= pineShare(x, z) || !pineFits(x, z, scale, kept)) continue;
+      const t = { x, z, scale };
+      const byWalk = pathDist(x, z) < canopyClear(scale) + 4 || Math.hypot(x - SPAWN.x, z - SPAWN.z) < 12;
+      if (byWalk && near.length < MAX_NEAR) near.push(t);
+      else if (stand.length < MAX_STAND) stand.push(t);
+      else continue;
+      kept.push(t);
+    }
+  }
+  return { near, stand };
+}
+
+// The forest floor: ferns and toadstools, one rng between them, ferns first.
+// Neither has a collider (a cat pushes through), and both keep off the water's
+// edge, the paths, the crossings, every find, the spawn, the fallen pine and
+// the trunks, so nothing the kids walk to or look for is hidden. The ferns
+// grow under the pines and not in the swamp; the toadstools grow anywhere.
+// The caps are the triangle budget (test/budget.test.js).
+const FERNS = { from: -47.5, cell: 4, jitter: 1.5, keep: 0.6, cap: 220 };
+const TOADSTOOLS = { from: -46.5, cell: 7, jitter: 2.5, keep: 0.5, cap: 60 };
+const SWAMP_X = -27;
+function floorFits(x, z, trunks) {
+  if (!inBounds(x, z)) return false;
+  if (waterDist(x, z) < 1.0) return false;
+  if (DECKS.some((d) => rectDist(d, x, z) < 3)) return false;
+  if (pathDist(x, z) < 2.3) return false;
+  if (!clearOf(x, z, 3)) return false;
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 4) return false;
+  if (fallenDist(x, z) < 2) return false;
+  return trunks.every((t) => Math.hypot(x - t.x, z - t.z) >= 0.9 * t.scale);
+}
+export function pinesUndergrowth() {
+  const rng = mulberry32(seedFromCode('pines-undergrowth'));
+  const { near, stand } = pinesTrees();
+  const trunks = [...near, ...stand];
+  const scatter = (rule, allowed) => {
+    const spots = [];
+    for (let gz = rule.from; gz < BOUNDS.maxZ; gz += rule.cell) {
+      for (let gx = rule.from; gx < BOUNDS.maxX; gx += rule.cell) {
+        const x = r2(gx + (rng() * 2 - 1) * rule.jitter);
+        const z = r2(gz + (rng() * 2 - 1) * rule.jitter);
+        const keep = rng() < rule.keep;
+        if (keep && spots.length < rule.cap && allowed(x) && floorFits(x, z, trunks)) spots.push({ x, z });
+      }
+    }
+    return spots;
+  };
+  const ferns = scatter(FERNS, (x) => x >= SWAMP_X);
+  const toadstools = scatter(TOADSTOOLS, () => true);
+  return { ferns, toadstools };
+}
+
+// Reeds, a clump every 2 m, half a metre out round each bog, along both banks
+// of the mire, and along the bay's and the lake's shores on this side. None
+// within 1.5 m of a deck (the Woods' rule), so the crossings stay clear to see
+// and to walk onto, none on a path, and none on a find, the spawn or the
+// bridge foot (all in PINES_KEEP_CLEAR).
+const REED_STEP = 2;
+export function pinesReeds() {
+  const spots = [];
+  const add = (x, z) => {
+    x = r2(x); z = r2(z);
+    if (!inBounds(x, z)) return;
+    if (b.inWater(UNDECKED, x, z)) return;
+    if (DECKS.some((d) => rectDist(d, x, z) < 1.5)) return;
+    if (pathDist(x, z) < 2.3) return;
+    if (!clearOf(x, z, 3)) return;
+    spots.push({ x, z });
+  };
+  const along = (from, to, at) => { for (let v = from; v <= to; v += REED_STEP) add(...at(v)); };
+  // round each bog
+  for (const bog of [BOG_1, BOG_2, BOG_3, BOG_4]) {
+    const r = bog.r + 0.5;
+    const n = Math.round((2 * Math.PI * r) / REED_STEP);
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      add(bog.x + Math.cos(a) * r, bog.z + Math.sin(a) * r);
+    }
+  }
+  // the mire's banks: mire-north's west and east, mire-west's north and south
+  along(-50, -6, (z) => [MIRE_NORTH.minX - 0.5, z]);
+  along(-50, -6, (z) => [MIRE_NORTH.maxX + 0.5, z]);
+  along(-50, -27, (x) => [x, MIRE_WEST.minZ - 0.5]);
+  along(-50, -27, (x) => [x, MIRE_WEST.maxZ + 0.5]);
+  // the bay's west, north and south shores
+  along(5, 44, (z) => [LAKE_BAY.minX - 0.5, z]);
+  along(0, 30, (x) => [x, LAKE_BAY.minZ - 0.5]);
+  along(0, 26, (x) => [x, LAKE_BAY.maxZ + 0.5]);
+  // the lake's north shore, and its west shore below the bay
+  along(30, 50, (x) => [x, LAKE.minZ - 0.5]);
+  along(44, 50, (z) => [LAKE.minX - 0.5, z]);
+  return spots;
+}
+
+// Lily pads on each bog: the River's ring rule, every 1.2 m round a ring at
+// 0.6 of the bog's radius, each moved in or out a little, about three in five
+// kept.
+export function pinesLilyPads() {
+  const rng = mulberry32(seedFromCode('pines-lilies'));
+  const pads = [];
+  for (const c of [BOG_1, BOG_2, BOG_3, BOG_4]) {
+    const ringR = 0.6 * c.r;
+    const n = Math.round((2 * Math.PI * ringR) / 1.2);
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * (i + 0.5)) / n;
+      const rad = ringR + (rng() * 2 - 1) * 0.15 * c.r;
+      const keep = rng() < 0.6;
+      const r = r2(0.22 + 0.16 * rng());
+      if (keep) pads.push({ x: r2(c.x + Math.cos(a) * rad), z: r2(c.z + Math.sin(a) * rad), r });
+    }
+  }
+  return pads;
 }
 
 // The Pines' critters: birds in the first four near pines, frogs by the bogs
@@ -407,6 +606,33 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(fallen);
   for (const [x, z] of FALLEN_COLLIDERS) addC(x, z, 0.4);
   perches.push({ x: FALLEN_PINE.x, z: FALLEN_PINE.z, y: 0.5, kind: 'tree' });
+
+  // --- the pines -------------------------------------------------------------
+  // A collider a little wider than the trunk for every pine, near or in the
+  // stand, so the still stand is as solid as the swaying pines. No fork perch:
+  // a pine has no low fork. Each near pine stands at the scene root at its
+  // own (x, z) (test/pines.test.js looks them up there).
+  const { near, stand } = pinesTrees();
+  for (const { x, z, scale } of near) scene.add(b.pine(x, z, scale, { wind }));
+  const standMesh = b.pineStand(stand, seedFromCode('pines-stand'));
+  standMesh.name = 'pineStand';
+  scene.add(standMesh);
+  for (const { x, z, scale } of [...near, ...stand]) addC(x, z, r2(0.4 * scale));
+
+  // --- the beds ---------------------------------------------------------------
+  // Each one merged mesh (two for the toadstools' stems and caps) out of the
+  // shadow pass, and no colliders: a cat pushes through.
+  const { ferns, toadstools } = pinesUndergrowth();
+  const beds = [
+    ['ferns', b.fernBed(ferns, seedFromCode('pines-ferns'))],
+    ['toadstools', b.toadstools(toadstools, seedFromCode('pines-toadstools'))],
+    ['reeds', b.reedBed(pinesReeds(), seedFromCode('pines-reeds'))],
+    ['lilyPads', b.lilyPads(pinesLilyPads(), seedFromCode('pines-lilies'))],
+  ];
+  for (const [name, bed] of beds) {
+    bed.name = name;
+    scene.add(bed);
+  }
 
   // --- the hidden mouse's bushes, and the puddles -----------------------------
   for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));

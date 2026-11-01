@@ -990,6 +990,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.moor).toHaveLength(moorTrees().thorns.length);
     expect(GATED.moor.length).toBeGreaterThanOrEqual(5);
     for (const p of GATED.moor) expect(p.kind).toBe('tree');
+    // Pines: nothing. Every tree is a pine, and a pine has no low fork.
+    expect(GATED.pines).toEqual([]);
   });
 
   it('gates every one of them on Sure Claws and nothing else', () => {
