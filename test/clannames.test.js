@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
-import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
+import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from '../src/clanwords.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames, colonyRankFor } from '../src/clannames.js';
 import { validPetName } from '../src/net.js';
 import { seedFromCode } from '../src/rng.js';
@@ -231,4 +231,9 @@ test('no clan name doubles a letter at the join', () => {
       if (!'aeiou'.includes(join)) expect(p.at(-1).toLowerCase()).not.toBe(join);
     }
   }
+});
+
+test('a kittypet in the colony ranks like any other cat', () => {
+  expect(colonyRankFor('Marmalade', { have: 1, tamed: false })).toBe(RANK_KEYS.kit);
+  expect(colonyRankFor('Duchess', { have: 0, tamed: false })).toBe(RANK_KEYS.kit);
 });

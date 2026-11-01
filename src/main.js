@@ -36,6 +36,7 @@ import { createDenShopView } from './ui/denshopview.js';
 import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
+import { takeArrivalLine } from './housecats.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -533,6 +534,13 @@ function init() {
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
+    // Kittypets: a wanderer's arrival line, kept by walk.js until the walk
+    // starts (the Ready? card covers the toasts). Pointer lock and the touch
+    // engage both land here; the line is given once, then cleared.
+    if (session && locked) {
+      const line = takeArrivalLine(session);
+      if (line) hud.toast(line);
+    }
   });
   bus.on('villager:wave', ({ id }) => {
     if (session && progression.state.equipped.neck === 'bandana') {

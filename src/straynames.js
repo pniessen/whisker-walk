@@ -16,6 +16,7 @@
 // ordinary colony cat that walks as a stray and must stay feedable. The server needs no
 // change: colony_cats.name is plain text, and the feed RPC only requires
 // ^[A-Za-z][A-Za-z ]{0,23}$, which every name here obeys (pinned in tests).
+// KITTYPET_NAMES (below) is a subset of the blocks above, not a fourth block.
 // Tests pin that no kit name is itself a clan PREFIXES word, that the 12 kits
 // derive 12 distinct clan prefixes (so siblings never share a displayed name at
 // any rank), and that no kit's prefix equals another kit's stored name. They do
@@ -59,6 +60,19 @@ export const KIT_NAMES = [
 // entry in clanwords.js. No name contains a DENIED_NAMES word (a published
 // Warrior Cats character) as a whole word, so none reads as one (ruling R36).
 export const LEGENDARY_NAMES = ['Duchess', 'Professor Whiskers', 'Captain Barnacle', 'Lord Lantern'];
+
+// KITTYPET_NAMES is a SUBSET, never a new block: twelve CAT_NAMES (in CAT_NAMES
+// order) plus Duchess from LEGENDARY_NAMES. They read as "the kittypet" in Clan
+// Edition. CAT_NAMES stays untouched, and no kit is a kittypet.
+export const KITTYPET_NAMES = Object.freeze([
+  'Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine', 'Waffles',
+  'Petunia', 'Sir Pounce', 'Butterscotch', 'Truffle', 'Custard', 'Peaches',
+  'Duchess',
+]);
+const KITTYPET_SET = new Set(KITTYPET_NAMES);
+export function isKittypetName(v) {
+  return typeof v === 'string' && KITTYPET_SET.has(v);
+}
 
 // A Set (one union of all three blocks), so '__proto__' and other inherited keys read as plain strangers, and
 // anything that is not a string is rejected rather than coerced.

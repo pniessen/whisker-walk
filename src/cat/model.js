@@ -1021,6 +1021,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   if (collarStyle) {
     const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
+    collar.name = 'collar';
     head.add(collar);
   }
 

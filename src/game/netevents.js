@@ -11,6 +11,7 @@ import { tagState } from '../verbs.js';
 import { voiceFor } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
 import { isStrayName } from '../straynames.js';
+import { shedKittypetCollar } from '../housecats.js';
 
 // v21 3b Task 8 — a co-walker who disappears takes what she was carrying with
 // her. takeHeldItemsWithRemotes(remotes, items, localCat) wraps the walk's
@@ -328,6 +329,9 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
     hud.toast(`${who} fed ${ev.cat} 🐟`);
     const stray = s.strayCats?.strays?.find((c) => c.name === ev.cat);
     if (stray) s.fx?.burst(stray.group.position, 0xf2c14e, 12);
+    // Kittypets: fed, so the kittypet collar comes off on my screen too (a
+    // colony cat's own wear is left alone; a no-op in Legacy, which has none).
+    if (stray) shedKittypetCollar(stray);
   }
 
   return { petNameFor, turnToFace, completeBoop, completeTag, noteBat, maybeSnipeToast, applyRemoteEvent };
