@@ -12,7 +12,7 @@ import {
 } from '../src/player.js';
 import { climbBudget } from '../src/climbing.js';
 import { createInteractions } from '../src/game/interactions.js';
-import { createAvatarUpdater } from '../src/game/avatar.js';
+import { createAvatarUpdater, pounceCatchLine } from '../src/game/avatar.js';
 import { createDiscoveryLog } from '../src/discoveries.js';
 import { createWaterState } from '../src/waterstate.js';
 
@@ -515,5 +515,14 @@ describe('updateAvatar measures from the paws, not the drawn body', () => {
     h.cat.position.set(0.3, SPRING_PAWS_HOP, 0);
     h.updateAvatar(h.s, 1 / 60, 0);
     expect(h.batted).toHaveLength(1);
+  });
+});
+
+describe('pounceCatchLine', () => {
+  it('ready-made pouncers keep their line; a custom pouncer uses its own name', () => {
+    expect(pounceCatchLine({ userData: { breed: 'calico' } })).toBe('a Calico masterclass');
+    expect(pounceCatchLine({ userData: { breed: 'robbie' } })).toBe('a Calico masterclass');
+    expect(pounceCatchLine({ userData: { breed: 'calico', custom: 'mine1', customName: 'Ember' } })).toBe("Ember's masterclass");
+    expect(pounceCatchLine({ userData: { breed: 'calico', custom: 'mine1', customName: '<b>' } })).toBe("a pouncer's masterclass");
   });
 });

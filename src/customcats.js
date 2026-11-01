@@ -122,6 +122,14 @@ export function activeCat(state) {
   return { breed, look: null, name: state?.petName ?? '', custom: null };
 }
 
+// The name on her own walk tag: null for a ready-made cat (no tag), else the
+// custom cat's name re-checked and clamped.
+export function ownTagName(state) {
+  const a = activeCat(state);
+  if (!a.custom) return null;
+  return (validPetName(a.name) ? a.name : FALLBACK_NAME).slice(0, 16);
+}
+
 export function wireLook(accessories) {
   const l = own(accessories, 'look');
   return isObj(l) ? sanitizeLook(l) : null;

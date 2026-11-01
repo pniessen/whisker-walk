@@ -348,6 +348,16 @@ describe('setNameTagMood', () => {
     });
   });
 
+  it('a longest kid-typed name stays a one-line tag and never drops below the floor', () => {
+    withFakeDocument((canvases) => {
+      const tag = makeNameTag('Abcdefghijklmnop');
+      expect(tag.userData.sub).toBeUndefined();
+      expect(canvases[0].height).toBe(64);
+      const px = parseInt(labelFontOf(opsOf(tag)).replace(/^bold /, ''), 10);
+      expect(px).toBeGreaterThanOrEqual(24);
+    });
+  });
+
   it('repaints a LONG name back to a tag identical to one that was never cross', () => {
     withFakeDocument(() => {
       // The same round-trip the test above does for 'Marmalade', but with the

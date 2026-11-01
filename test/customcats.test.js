@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeLook, sanitizeCustomCats, lookToStyle, lookKey, activeCat, wireLook, catProfileFields, presetFor,
+import { sanitizeLook, sanitizeCustomCats, lookToStyle, lookKey, activeCat, ownTagName, wireLook, catProfileFields, presetFor,
   DEFAULT_LOOK, CUSTOM_PERSONALITIES, COATS, MARKS, EYES, PATTERNS, FURS, SIZE } from '../src/customcats.js';
 import { PERSONALITIES } from '../src/cat/brain.js';
+import { readFileSync, globSync } from 'node:fs';
 
 const cat = (over = {}) => ({ id: 'mine1', name: 'Ember', personality: 'keenNose', look: { ...DEFAULT_LOOK }, ...over });
 
@@ -107,4 +108,21 @@ describe('the wire', () => {
   it('lookKey is stable over field order', () => {
     expect(lookKey({ size: 1, eyes: 'green', fur: 'short', pattern: 'stripes', marks: 'chocolate', coat: 'ginger' })).toBe(lookKey(DEFAULT_LOOK));
   });
+});
+
+it('nothing outside progression, customcats and the dressing room reads equipped.cat', () => {
+  const allowed = new Set(['src/progression.js', 'src/customcats.js', 'src/ui/dressingroom.js']);
+  const hits = globSync('src/**/*.js').filter((f) => !allowed.has(f))
+    .filter((f) => /equipped(\?)?\.cat\b/.test(readFileSync(f, 'utf8')));
+  expect(hits).toEqual([]);
+});
+
+it('ownTagName: only a custom cat gets a tag, its name re-checked and clamped', () => {
+  const st = (name, custom = 'mine1') => ({ petName: 'Willow', equipped: { cat: 'tabby', custom }, customCats: [{ id: 'mine1', name, personality: 'chaser', look: DEFAULT_LOOK }] });
+  expect(ownTagName(st('Ember', null))).toBe(null);
+  expect(ownTagName(st('Ember'))).toBe('Ember');
+  expect(ownTagName(st('Warrior Star'))).toBe('Warrior Star');      // a kid may type a borrowed word; it is data, not a literal
+  expect(ownTagName(st('<img src=x>'))).toBe('My Cat');
+  expect(ownTagName(st('x'.repeat(40)))).toBe('My Cat');
+  for (const n of ['Ember', 'Abcdefghijklmnop']) expect(ownTagName(st(n)).length).toBeLessThanOrEqual(16);
 });

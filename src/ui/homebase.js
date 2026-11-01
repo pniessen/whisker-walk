@@ -1,6 +1,7 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
+import { activeCat } from '../customcats.js';
 import { renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
@@ -689,7 +690,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (milestone && !visitOpen()) {
       visitClosed = typeof onClosed === 'function' ? onClosed : null;
       const shownOk = celebration.show(milestone, {
-        petName: progression.state.petName || '',
+        petName: activeCat(progression.state).name || '',
         anchor: () => heroStage()?.getBoundingClientRect?.(),
         thumb: thumbs?.accessories?.[milestone.prize?.id],
       });
