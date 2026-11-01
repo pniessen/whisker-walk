@@ -118,21 +118,32 @@ export function torsoSurface(dir) {
 // A back-slot point authored against the old torso, moved onto the new one
 // with the same "how far from the fur": its unit-ellipsoid coordinates in
 // LEGACY_BODY (scaled by the cat's body factors f), radius ρ and direction d,
-// land on the new deformed torso at the same ρ along d. A point far off the
-// body (ρ > 1.5, e.g. something floating) just rises with the torso, 0.09.
-// Returned in the cat's rest frame (before the leg lift), as [x, y, z].
-export function torsoRetarget(point, f = [1, 1, 1]) {
+// land on the new deformed torso at the same ρ along d. `minRho` floors ρ, so
+// an item's main piece that sat sunk in the old fur is pushed out onto the new
+// surface (BACK_MIN_RHO). A point far off the body (ρ > 1.5, e.g. something
+// floating) just rises with the torso, 0.09.
+// Returned in the cat group's own frame (g-local, before g.scale and before the
+// leg lift), as [x, y, z].
+export function torsoRetarget(point, f = [1, 1, 1], minRho = 0) {
   const [px, py, pz] = point;
   const c = LEGACY_BODY.CENTRE, ls = LEGACY_BODY.SCALE;
   const u = [0, 1, 2].map((i) => ([px, py, pz][i] - c[i]) / (TORSO.R * ls[i] * f[i]));
   const rho = Math.hypot(...u);
   if (rho > 1.5) return [px, py + 0.09, pz];
   const [x, y, z] = deformTorso(u[0] / rho, u[1] / rho, u[2] / rho);
-  const k = TORSO.R * rho;
+  const k = TORSO.R * Math.max(rho, minRho);
   return [TORSO.SCALE[0] * f[0] * x * k, TORSO.CENTRE_Y + TORSO.SCALE[1] * f[1] * y * k, TORSO.SCALE[2] * f[2] * z * k];
 }
+
+// The least ρ a back item's main piece (pack, tank, wing, cape) sits at: its
+// centre just outside the fur, so it rests on the back rather than in it. Its
+// small parts (nozzles, clasps) keep their old offsets from it.
+export const BACK_MIN_RHO = 1.04;
 
 // How far the neck-slot items, the visit-prize neck items and the cat's collar
 // move forward (head-local z, front is -z) to lie on the new deeper chest
 // instead of inside it. Signed off by screenshot (R5, Task 10). Never Hagrid's.
 export const NECK_FORWARD = -0.10;
+// Fluffy cats (the ruff) need their neck items further forward still, on top
+// of NECK_FORWARD, to lie in front of the ruff. Also signed off by screenshot (R5).
+export const NECK_FORWARD_FLUFFY = -0.07;

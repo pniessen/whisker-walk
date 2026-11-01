@@ -555,24 +555,34 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     bell: [0xf2c14e], heart: [0xe0447a],
   };
   const itemMeshes = (cat, hexes) => { const out = []; cat.traverse((o) => { if (o.isMesh && !o.material.vertexColors && hexes.includes(o.material.color.getHex())) out.push(o); }); return out; };
-  const posed = (acc) => { const c = buildCat('tabby', acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
-  // AWAITING RULING (task-8-report.md): torsoRetarget keeps each item's OLD depth
-  // in the fur, and on the old torso the backpack (-1 cm), the jetpack tanks
-  // (-3.3 cm) and nozzles (-14 cm, buried), and both cape clasps (-4 cm) had
-  // their centres inside it. Only the wings pass this test as written; the
-  // others are skipped, not weakened, until the brief's test or formula is settled.
-  const backTouch = (id) => {
+  const posed = (acc, breed = 'tabby') => { const c = buildCat(breed, acc); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
+  // Each back item's main piece (its largest mesh: the pack, each tank, each
+  // wing, the cape) rests on the fur: centre outside it, touching within 2 cm.
+  // Its small parts (nozzles, clasps) move rigidly with it: each keeps its old
+  // authored offset from the main piece it hangs on (cat-group frame).
+  const SUB_OFFSET = { jetpack: [0, -0.12, 0.025], cape: [0, 0.2, -0.17], confetticape: [0, 0.2, -0.17] };
+  const vol = (m) => { const s = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
+  it.each(['backpack', 'jetpack', 'wings', 'cape', 'confetticape'])('%s rests on the back: main piece touching, not sinking; small parts ride it', (id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }), { body } = cat.userData.parts;
     const c = body.getWorldPosition(new THREE.Vector3());
-    for (const m of itemMeshes(cat, COLOURS[id])) {
+    const meshes = itemMeshes(cat, COLOURS[id]);
+    const big = Math.max(...meshes.map(vol));
+    const mains = meshes.filter((m) => vol(m) > big * 0.999), subs = meshes.filter((m) => !mains.includes(m));
+    expect(mains.length).toBeGreaterThan(0);
+    for (const m of mains) {
       const b = new THREE.Box3().setFromObject(m), mid = b.getCenter(new THREE.Vector3());
       const hit = surfaceHit([body], c, mid);
       expect(mid.distanceTo(c)).toBeGreaterThan(hit.distanceTo(c));      // centre outside the fur
       expect(b.distanceToPoint(hit)).toBeLessThanOrEqual(0.02);            // and touching it
     }
-  };
-  it.each(['wings'])('%s touches the back without sinking into it', backTouch);
-  it.skip.each(['backpack', 'jetpack', 'cape', 'confetticape'])('%s touches the back without sinking into it', backTouch);
+    expect(subs.length).toBe(SUB_OFFSET[id] ? mains.length : 0);
+    const inCat = (m) => cat.worldToLocal(m.getWorldPosition(new THREE.Vector3()));
+    for (const sub of subs) {
+      const p = inCat(sub);
+      const main = mains.map(inCat).sort((a, b) => a.distanceTo(p) - b.distanceTo(p))[0];
+      expect(p.sub(main).toArray()).toEqual(SUB_OFFSET[id].map((v) => expect.closeTo(v, 6)));
+    }
+  });
   const onChest = (cat, meshes) => {
     const { body } = cat.userData.parts;
     const zs = meshes.map((m) => new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).z);
@@ -585,13 +595,29 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       if (hits.length) expect(b.min.z).toBeLessThanOrEqual(hits[0].point.z - 0.005);
     }
   };
-  it.each(['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart'])('%s lies on the chest, not inside it', (id) => {
-    const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id });
+  // Tabby, and the two fluffy cats whose ruff stands out in front of the chest.
+  const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon'];
+  it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
+    const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }, breed);
     onChest(cat, itemMeshes(cat, COLOURS[id]));
   });
-  it('the sparkle collar: its charm and front beads lie on the chest', () => {
-    const cat = posed({ [CATALOG.accessories.sparklecollar.slot]: 'sparklecollar' });
+  it.each(CHEST_BREEDS)('%s: the sparkle collar: its charm and front beads lie on the chest', (breed) => {
+    const cat = posed({ [CATALOG.accessories.sparklecollar.slot]: 'sparklecollar' }, breed);
     onChest(cat, itemMeshes(cat, [0xf5c518]));     // beads behind the neck are skipped by onChest
+  });
+  it.each(CHEST_BREEDS.flatMap((b) => [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e]].map(([id, hex]) => [b, id, hex])))('%s: the %s bunched at the neck (under a hat) lies on the chest', (breed, id, hex) => {
+    const cat = posed({ body: id, head: 'tophat' }, breed);
+    const bunch = itemMeshes(cat, [hex]).filter((m) => m.geometry.type === 'TorusGeometry');
+    onChest(cat, bunch);
+    // A ring's min z alone cannot see it sunk into the chest at its sides: every
+    // vertex of its front half lies in front of the cat (fur, ruff, coat).
+    const p = bunch[0].geometry.attributes.position, mid = new THREE.Box3().setFromObject(bunch[0]).getCenter(new THREE.Vector3());
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(bunch[0].matrixWorld);
+      if (v.z > mid.z) continue;
+      const hits = new THREE.Raycaster(new THREE.Vector3(v.x, v.y, -2), new THREE.Vector3(0, 0, 1)).intersectObjects([cat.userData.parts.body], true);
+      if (hits.length) expect(v.z).toBeLessThanOrEqual(hits[0].point.z);
+    }
   });
   it("Digit's built-in tag collar: the tag lies on the chest", () => {
     const cat = buildCat('digit'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);

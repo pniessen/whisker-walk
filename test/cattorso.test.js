@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TORSO, deformTorso, torsoGeometry, torsoSurface } from '../src/cat/torso.js';
+import { TORSO, LEGACY_BODY, deformTorso, torsoGeometry, torsoSurface, torsoRetarget } from '../src/cat/torso.js';
 
 const surfY = (w, up) => torsoSurface([0, up * Math.sqrt(1 - w * w), w]).y;
 const halfW = (w) => torsoSurface([Math.sqrt(1 - w * w), 0, w]).x;
@@ -41,5 +41,29 @@ describe('cat torso shape', () => {
   it('costs 3120 triangles full and 1296 simple', () => {
     expect(torsoGeometry(0.32, 40, 40).index.count / 3).toBe(3120);
     expect(torsoGeometry(0.32, 24, 28).index.count / 3).toBe(1296);
+  });
+});
+
+describe('torsoRetarget', () => {
+  // A point on the old torso's surface (ρ = 1), along legacy unit direction d.
+  const legacyPoint = (d, f) => d.map((v, i) => LEGACY_BODY.CENTRE[i] + TORSO.R * LEGACY_BODY.SCALE[i] * f[i] * v);
+  it.each([[[1, 1, 1]], [[0.8, 1, 1]]])('a point on the old surface lands on the new surface along the same direction (f %j)', (f) => {
+    for (const raw of [[0, 1, 0], [0.4, 0.8, 0.3], [-0.5, 0.2, -0.7], [0.1, -0.6, 0.6]]) {
+      const L = Math.hypot(...raw), d = raw.map((v) => v / L);
+      const s = torsoSurface(d);   // body-local, before the mesh's scale
+      const want = [TORSO.SCALE[0] * f[0] * s.x, TORSO.CENTRE_Y + TORSO.SCALE[1] * f[1] * s.y, TORSO.SCALE[2] * f[2] * s.z];
+      expect(torsoRetarget(legacyPoint(d, f), f)).toEqual(want.map((v) => expect.closeTo(v, 9)));
+    }
+  });
+  it('a point far off the old body (ρ > 1.5) just rises 0.09 with the torso', () => {
+    const p = [0.06, 1.0, 0.2];   // well over the back, ρ ≈ 2.8
+    expect(torsoRetarget(p)).toEqual([0.06, 1.09, 0.2].map((v) => expect.closeTo(v, 12)));
+  });
+  it('minRho pushes a sunk point out to that depth, and leaves a deeper-out one alone', () => {
+    const d = [0, 1, 0], inside = legacyPoint(d, [1, 1, 1]).map((v, i) => (i === 1 ? LEGACY_BODY.CENTRE[1] + (v - LEGACY_BODY.CENTRE[1]) * 0.9 : v));
+    const atOne = torsoRetarget(legacyPoint(d, [1, 1, 1]));
+    const pushed = torsoRetarget(inside, [1, 1, 1], 1);
+    expect(pushed).toEqual(atOne.map((v) => expect.closeTo(v, 9)));
+    expect(torsoRetarget(legacyPoint(d, [1, 1, 1]), [1, 1, 1], 0.5)).toEqual(atOne.map((v) => expect.closeTo(v, 12)));
   });
 });
