@@ -43,17 +43,18 @@ export const BORDER_POSTS = {
   woods: [
     post('woods-town-short', 47.5, 14.5, 'east', 'neighborhood'),
     post('woods-town-long', 47.5, 37.6, 'east', 'neighborhood'),
-    // Off the plan's measured spot (z 37.6 -> 31) to clear the River's race start pad (3 m); its twin river-woods-long moves with it.
-    post('woods-river-long', -47.5, 31, 'west', 'river'),
+    // Off the plan's measured spot (z 37.6 -> 42.6, south of the path) to clear the River's race start pad by 3 m; its twin river-woods-long moves with it.
+    post('woods-river-long', -47.5, 42.6, 'west', 'river'),
     // Off the plan's measured spot (z 5.5 -> 7) to clear the intruders' routes by >= 0.8 m; its twin river-woods-pond moves with it.
     post('woods-river-pond', -47.5, 7, 'west', 'river'),
     post('woods-moor-path', 43.4, -47.5, 'north', 'moor'),
     post('woods-moor-river', 25.5, -47.5, 'north', 'moor'),
   ],
   river: [
-    // Twin of woods-river-long: off the plan's measured spot (z 37.6 -> 31) to clear the race start pad by 3 m or more.
-    post('river-woods-long', 47.5, 31, 'east', 'woods'),
-    post('river-town-long', 47.5, 42.6, 'east', 'neighborhood'),
+    // Twin of woods-river-long: off the plan's measured spot (z 37.6 -> 42.6, south of the path) to clear the race start pad by 3 m or more.
+    post('river-woods-long', 47.5, 42.6, 'east', 'woods'),
+    // Moved south (z 42.6 -> 44.8) to make room for river-woods-long; it has no twin.
+    post('river-town-long', 47.5, 44.8, 'east', 'neighborhood'),
     // Twin of woods-river-pond: off the plan's measured spot to clear the intruders' routes by >= 0.8 m.
     post('river-woods-pond', 47.5, 7, 'east', 'woods'),
     post('river-pines-path', -23, -47.5, 'north', 'pines'),
