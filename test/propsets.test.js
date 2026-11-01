@@ -448,8 +448,11 @@ test('the Moor: three warren burrows as hides, and nothing else yet', () => {
   expect(s.hides).toEqual([0, 2, 4].map((i) => WARREN_BURROWS[i]));
   for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
   expect(s.dogYard).toBeNull();
-  // the Moor adds no prop with an id
-  expect([...allPropIds()].filter((id) => id.startsWith('moor-'))).toEqual([]);
+  // the Moor adds no prop with an id: allPropIds is exactly the ids of the
+  // other sets
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  expect(new Set(others).size).toBe(others.length);
+  expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
 
 test('propsFor is total and returns fresh copies', () => {

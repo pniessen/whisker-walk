@@ -240,13 +240,18 @@ describe('the Moor: water', () => {
     expect(ends(MOOR_PATHS, 50)).toEqual(ends(WOODS_PATHS, -50));
     // the island and its bridge are the Woods' own, 100 m on in z
     expect([MOOR_ISLAND.x, MOOR_ISLAND.z - 100]).toEqual([-72, -72]);
-    const box = new THREE.Box3().setFromObject(scene.getObjectByName('islandBridge'));
-    const [[, az], [, bz]] = ISLAND_BRIDGE_WOODS;
-    // The plank's box reaches past its centreline ends by its half-width
-    // turned with it (0.6 m in z for a 2 m plank running at this slant), so
-    // the box is held to within a metre of the ends, not half a metre.
-    expect(Math.abs(box.min.z - (Math.min(az, bz) + 100))).toBeLessThan(1);
-    expect(Math.abs(box.max.z - (Math.max(az, bz) + 100))).toBeLessThan(1);
+    // the plank's two centreline ends: it runs along its local z, turned to its yaw
+    const plank = scene.getObjectByName('islandBridge');
+    const half = plank.geometry.parameters.depth / 2;
+    const plankEnds = [-1, 1].map((k) => [
+      plank.position.x + Math.sin(plank.rotation.y) * half * k,
+      plank.position.z + Math.cos(plank.rotation.y) * half * k,
+    ]).sort((a, c) => a[1] - c[1]);
+    const want = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x, z + 100]).sort((a, c) => a[1] - c[1]);
+    for (let i = 0; i < 2; i++) {
+      expect(plankEnds[i][0], `end ${i} x`).toBeCloseTo(want[i][0], 6);
+      expect(plankEnds[i][1], `end ${i} z`).toBeCloseTo(want[i][1], 6);
+    }
   });
 });
 
@@ -495,6 +500,10 @@ describe('the Moor: things to find, climb and race', () => {
       ...area.puddles, ...WARREN_BURROWS, SPAWN,
     ];
     for (const p of all) expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
+    // and nothing else: 9 POIs + 3 scenics + 5 collectibles + 3 golden mice +
+    // 4 chain perches + 3 gold bushes + 2 puddles + 7 burrows + the spawn
+    expect(all).toHaveLength(37);
+    expect(MOOR_KEEP_CLEAR).toHaveLength(37);
     expect(Object.isFrozen(MOOR_KEEP_CLEAR)).toBe(true);
   });
 
