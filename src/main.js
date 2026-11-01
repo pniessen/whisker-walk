@@ -387,6 +387,7 @@ function init() {
     releaseControl: () => handleTouchAction('pause'),
     resumeWalk, endWalk,
     getIsTouch: () => isTouch,
+    getEdition: () => progression.state.edition,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the

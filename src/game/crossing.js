@@ -1,7 +1,8 @@
 // The crossing card: a border post's "Head to ...?" question. Opens over the
 // pause overlay (the walk is paused like ⏸), and either ends the walk with the
 // crossing or puts the pause card back. Pure wiring; the words live in
-// bordercross.js. Room walks (host send, guest receive) are filled in later.
+// bordercross.js. In a room walk the host tells the room before it ends, and a
+// guest follows the host's event (onRemote).
 
 import { CATALOG } from '../progression.js';
 import { carryLabel } from '../carry.js';
@@ -13,7 +14,7 @@ export const CROSS_END_MS = 400;
 export const LED_DELAY_MS = 1500;
 
 export function createCrossing({
-  getSession, overlay, hud, releaseControl, resumeWalk, endWalk, getIsTouch,
+  getSession, overlay, hud, releaseControl, resumeWalk, endWalk, getIsTouch, getEdition,
   catalog = CATALOG, setTimeout = globalThis.setTimeout,
 }) {
   function restoreCard(s) {
@@ -85,7 +86,7 @@ export function createCrossing({
     s.crossLed = true;
     const together = remotes.map((r) => r.petName);
     const name = remotes.find((r) => r.playerId === ev.id)?.petName ?? 'A friend';
-    hud.toast(`${name} is leading the way to ${lower(targetName(d.to, s.edition, catalog))}! 🧭`);
+    hud.toast(`${name} is leading the way to ${lower(targetName(d.to, getEdition(), catalog))}! 🧭`);
     setTimeout(() => { if (getSession() === s) endWalk({ crossTo: d.to, ledBy: name, together }); }, LED_DELAY_MS);
   }
 

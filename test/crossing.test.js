@@ -3,6 +3,8 @@ import { createCrossing } from '../src/game/crossing.js';
 import { pauseCardHtml } from '../src/game/walk.js';
 import { CATALOG } from '../src/progression.js';
 import { postStatus } from '../src/bordercross.js';
+import { placeName } from '../src/edition.js';
+import { PLACE_WORDS } from '../src/clanwords.js';
 import { postsFor } from '../src/borderposts.js';
 
 function setup({ session = {}, touch = false } = {}) {
@@ -16,7 +18,7 @@ function setup({ session = {}, touch = false } = {}) {
     releaseControl: () => { calls.release += 1; },
     resumeWalk: () => { calls.resume += 1; },
     endWalk: (o) => calls.endWalk.push(o),
-    getIsTouch: () => touch,
+    getIsTouch: () => touch, getEdition: () => 'canon',
     catalog: CATALOG,
     setTimeout: (fn) => { fn(); return 0; },
   });
@@ -100,7 +102,7 @@ describe('the crossing card', () => {
 });
 
 describe('crossing together', () => {
-  function room({ host = true, remotes = [{ playerId: 'b', petName: 'Pip' }], selfId = 'a', hostId = 'a' } = {}) {
+  function room({ host = true, remotes = [{ playerId: 'b', petName: 'Pip' }], selfId = 'a', hostId = 'a', edition = 'canon' } = {}) {
     vi.useFakeTimers();
     const toasts = [];
     const sent = [];
@@ -114,7 +116,7 @@ describe('crossing together', () => {
     let current = s;
     const crossing = createCrossing({
       getSession: () => current, overlay, hud: { toast: (t) => toasts.push(t) },
-      releaseControl() {}, resumeWalk() {}, endWalk, getIsTouch: () => false,
+      releaseControl() {}, resumeWalk() {}, endWalk, getIsTouch: () => false, getEdition: () => edition,
       catalog: CATALOG, setTimeout: globalThis.setTimeout,
     });
     return { crossing, s, sent, toasts, endWalk, overlay, replace: (o) => { current = o; } };
@@ -184,6 +186,26 @@ describe('crossing together', () => {
     b.replace({});
     vi.advanceTimersByTime(5000);
     expect(b.endWalk).not.toHaveBeenCalled();
+  });
+
+  it('a Legacy guest is never told the Clan town word', () => {
+    const { crossing, s, toasts } = room({ selfId: 'c', edition: 'legacy', remotes: [{ playerId: 'a', petName: 'Pip' }] });
+    s.areaId = 'woods';
+    crossing.onRemote(s, ev({ id: 'a', to: 'neighborhood' }));
+    const name = placeName('neighborhood', 'legacy', CATALOG).replace(/^The /, 'the ');
+    expect(toasts[0]).toContain(name);
+    expect(toasts[0]).not.toContain(PLACE_WORDS.town);
+  });
+
+  it('cancel and a lock change after the host said yes leave Off we go, and it ends once', () => {
+    const { crossing, s, overlay, endWalk } = room();
+    crossing.ask(s, goData2());
+    crossing.confirm();
+    crossing.cancel();
+    crossing.onLockChange(true);
+    expect(overlay.innerHTML).toContain('Off we go!');
+    vi.advanceTimersByTime(1000);
+    expect(endWalk).toHaveBeenCalledTimes(1);
   });
 
   it('a forged or stale event is ignored', () => {
