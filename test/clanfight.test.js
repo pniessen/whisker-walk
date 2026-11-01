@@ -81,6 +81,7 @@ function harness({
       clueFrames += 1;
       if (clueFrames === 15) {
         if (answers === 'right') cf.answer(COUNTER[f.move]);
+        else if (BUTTONS.includes(answers)) cf.answer(answers);
         else if (answers === 'wrong') cf.answer(BUTTONS.find((b) => b !== COUNTER[f.move]));
       }
     },
@@ -353,6 +354,70 @@ describe('the fight', () => {
     const before = h.calls.length;
     h.cf.abort();
     expect(h.calls.length).toBe(before);
+  });
+
+  test('R3: the dodge, the tumble and the step back never put a cat off clan ground', () => {
+    // Clan ground is only the line z = 0 here: every side-step and circle
+    // point is off it (water, a bog, a collider).
+    const onLine = (x, z) => Math.abs(z) < 1e-6;
+    for (const answers of ['dodge', 'pounce', 'swipe']) {
+      const h = harness({ answers, ground: onLine });
+      h.challenge(); h.fight();
+      let frames = 0;
+      h.runToEnd(() => {
+        frames += 1;
+        expect(onLine(h.s.cat.position.x, h.s.cat.position.z)).toBe(true);
+        const st = h.intruders.stage.mock.calls.at(-1)?.[1];
+        if (st) expect(onLine(st.x, st.z)).toBe(true);
+      });
+      expect(frames).toBeGreaterThan(60);
+    }
+  });
+
+  test('a walk-over that stopped short: no circling across the gap it could not cross', () => {
+    // ground ends at x = 3: the cat stops 3 m out, and the circle would sweep
+    // it over the ground between (all of which the predicate accepts here, so
+    // only the gap rule keeps it out)
+    const h = harness({ answers: 'wrong', startAt: 3.4, ground: (x) => x >= 3 });
+    h.challenge(); h.fight();
+    let spot = null;
+    let far = 0;
+    h.runToEnd(() => {
+      if (!h.s.fight) return;
+      if (h.s.fight.round >= 1 && !spot) spot = { ...h.s.cat.position };
+      if (spot) far = Math.max(far, dist(h.s.cat.position, spot));
+    });
+    expect(spot.x).toBeGreaterThanOrEqual(3);
+    expect(far).toBeLessThanOrEqual(SIDE_STEP + 0.41);
+  });
+
+  test('winning: it flees from its held spot, with no jump', () => {
+    const h = harness({ answers: 'right' });
+    h.challenge(); h.fight(); h.runToEnd();
+    const fleeAt = h.calls.findIndex((c) => c.kind === 'flee');
+    const last = h.calls.slice(0, fleeAt).filter((c) => c.kind === 'stage' && c.st).at(-1).st;
+    expect(dist(last, h.cur.pos)).toBeLessThan(0.02);
+  });
+
+  test('reduced motion never circles, even if the tumble were long enough to', async () => {
+    const { TIMING } = await import('../src/fight.js');
+    const was = TIMING.tumbleReduced;
+    TIMING.tumbleReduced = TIMING.tumble;
+    try {
+      const h = harness({ answers: 'wrong', reducedMotion: true });
+      h.challenge(); h.fight();
+      let spot = null;
+      let far = 0;
+      h.runToEnd(() => {
+        if (!h.s.fight) return;
+        if (h.s.fight.round >= 1 && !spot) spot = { ...h.s.cat.position };
+        if (spot) far = Math.max(far, dist(h.s.cat.position, spot));
+      });
+      expect(far).toBeLessThanOrEqual(SIDE_STEP + 0.41);
+      expect(h.fx.burst.mock.calls.length).toBe(2);
+    } finally {
+      TIMING.tumbleReduced = was;
+    }
   });
 
   test('reduced motion: no circling, one puff per round', () => {

@@ -34,7 +34,8 @@ export const LOSER_STEP = 0.4;     // m the round's loser steps back
 export const LOSER_TIME = 0.4;     // s it takes, in 'scared'
 const ANSWER_TIME = 0.35;          // s of the answer pose before the tumble
 const ANSWER_TIME_REDUCED = 0.2;
-const BACKUP_TIME = 0.5;           // s the charge's ease-back takes
+const BACKUP_TIME = 0.5;
+const CIRCLE_SLACK = 0.05;         // m over FIGHT_GAP the tumble still circles           // s the charge's ease-back takes
 const POUNCE_HOP = 0.25;           // m
 const TUMBLE_HOP = 0.12;           // m
 const DUST = 0xcbb8a0;
@@ -309,15 +310,19 @@ export function createClanFight({
           const k = (1 - smooth(u)) * BACKUP_EASE;
           it = { x: foeAt.x - nx * k, z: foeAt.z - nz * k };
         }
-      } else if (ph === 'tumble' && tt < loserAt) {
-        // The tumble: round their midpoint once, with small hops.
+      } else if (!reducedMotion && ph === 'tumble' && tt < loserAt) {
+        // The tumble: round their midpoint once, with small hops. Never with
+        // reduced motion, and only at the fight's own gap: a walk-over that
+        // stopped short (R3) leaves them where they stand, hopping.
         const u = clamp01((tt - answerTime) / (loserAt - answerTime));
         const mx = (spot.x + foeAt.x) / 2;
         const mz = (spot.z + foeAt.z) / 2;
-        const rad = gap / 2;
-        const a = Math.atan2(spot.z - mz, spot.x - mx) + Math.PI * 2 * u;
-        me = { x: mx + Math.cos(a) * rad, z: mz + Math.sin(a) * rad };
-        it = { x: mx - Math.cos(a) * rad, z: mz - Math.sin(a) * rad };
+        if (gap <= FIGHT_GAP + CIRCLE_SLACK) {
+          const rad = gap / 2;
+          const a = Math.atan2(spot.z - mz, spot.x - mx) + Math.PI * 2 * u;
+          me = { x: mx + Math.cos(a) * rad, z: mz + Math.sin(a) * rad };
+          it = { x: mx - Math.cos(a) * rad, z: mz - Math.sin(a) * rad };
+        }
         myPose = 'pounce';
         itPose = 'pounce';
         myLift = TUMBLE_HOP * Math.abs(Math.sin(Math.PI * 3 * u));
@@ -336,7 +341,12 @@ export function createClanFight({
         const back = ph === 'tumble'
           ? smooth(clamp01((tt - loserAt) / LOSER_TIME))
           : 1 - smooth(clamp01((tt - tumbleTime) / TIMING.beat));
-        const k = back * LOSER_STEP;
+        // The round that wins the fight: the intruder steps back and in again
+        // before it flees, so it sets off from its held spot with no jump.
+        const decisive = r.won && fight.wins >= 2;
+        const k = (decisive && ph === 'tumble'
+          ? Math.sin(Math.PI * clamp01((tt - loserAt) / (LOSER_TIME * 0.75))) // home a frame or more before `over`
+          : back) * LOSER_STEP;
         if (r.won) it = { x: foeAt.x - nx * k, z: foeAt.z - nz * k };
         else me = { x: spot.x + nx * k, z: spot.z + nz * k };
         if (ph === 'tumble') {
@@ -345,6 +355,10 @@ export function createClanFight({
         }
       }
     }
+    // R3: a staged spot that is not clan ground (water, a bog, the truce
+    // buffer, a collider) is never stood on; that cat keeps its own spot.
+    if (!ground(me.x, me.z)) me = { x: spot.x, z: spot.z };
+    if (!ground(it.x, it.z)) it = { x: foeAt.x, z: foeAt.z };
     cat.x = me.x;
     cat.z = me.z;
     s.cat.rotation.y = yawToward(me.x, me.z, it.x, it.z);

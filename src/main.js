@@ -556,7 +556,14 @@ function init() {
   document.addEventListener('keydown', (e) => {
     // Clan Life Part 2: while the fight sheet is up, every key is the fight's
     // (1 / 2 / 3 answer): no E interact, no chat phrases, no Space pounce.
-    if (session?.clanFight?.uiShowing === 'fight') { session.clanFight.key(e.key); e.preventDefault(); return; }
+    // Only while the walk is being played (never from the pause card), and a
+    // Cmd / Ctrl / Alt combo (Cmd-R, say) is left to the browser untouched.
+    if (session?.clanFight?.uiShowing === 'fight') {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      if (player.engaged) session.clanFight.key(e.key);
+      return;
+    }
     // Typing in a home-base box (code, pet name, friend code) must never fire
     // hotkeys like M, which would also rebuild the panel and steal focus.
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');

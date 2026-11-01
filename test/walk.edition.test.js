@@ -352,8 +352,15 @@ describe('the clan in the walk (source pins)', () => {
     const at = m.indexOf("document.addEventListener('keydown', (e) => {");
     expect(at).toBeGreaterThan(-1);
     const body = m.slice(at, m.indexOf('\n  });', at));
-    const gate = body.indexOf("if (session?.clanFight?.uiShowing === 'fight') { session.clanFight.key(e.key); e.preventDefault(); return; }");
+    const gate = body.indexOf("if (session?.clanFight?.uiShowing === 'fight') {");
     expect(gate).toBeGreaterThan(-1);
+    const block = body.slice(gate, body.indexOf('\n    }', gate));
+    // modifier combos pass to the browser untouched; the rest are swallowed,
+    // and reach the fight only while the walk is being played (not paused)
+    expect(block).toContain('if (e.metaKey || e.ctrlKey || e.altKey) return;');
+    expect(block.indexOf('e.preventDefault();')).toBeGreaterThan(block.indexOf('e.altKey'));
+    expect(block).toContain('if (player.engaged) session.clanFight.key(e.key);');
+    expect(block).toContain('return;');
     for (const branch of ["e.code === 'KeyE'", "e.code === 'Space'", 'phraseIdForDigit(', "e.code === 'KeyM'"]) {
       expect(body.indexOf(branch)).toBeGreaterThan(gate);
     }

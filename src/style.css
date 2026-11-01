@@ -1212,7 +1212,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
 /* The sheet: only while a fight is on. Above .touch-ui (z1) and the prompt
    (z2); everything that matters sits in the bottom third. */
 .hud-fight {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; /* over .touch-ui (1), the prompt (2), the chat wheel (5); under #overlay (10) */
   pointer-events: auto; touch-action: manipulation;
   display: flex; flex-direction: column; gap: 8px;
   padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
@@ -1238,6 +1238,9 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .fight-moves.idle .fight-move { opacity: 0.6; }
 .fight-teach { font-size: 0.8rem; opacity: 0.8; text-align: center; }
 #hud.fighting .tui-actions, #hud.fighting .tui-zoom { display: none; }
+/* The chat wheel (and its tray) is fixed in <body> at z-index 5, above the
+   sheet's layer: it steps aside for the fight. */
+body.fighting .chat-wheel { display: none !important; }
 #hud.fighting .hud-toasts { bottom: calc(290px + env(safe-area-inset-bottom)); }
 /* Each button's key, for a pointer-locked desktop cat; touch has no keys. */
 .fight-key {

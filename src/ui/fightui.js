@@ -78,11 +78,15 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
     ask = null;
     root.classList.remove('fight-asking');
   }
+  // The body gets `fighting` too: the chat wheel is fixed in <body> above
+  // #hud's layer, and it must not cover a move button (style.css).
+  const body = () => globalThis.document?.body ?? null;
   function dropSheet() {
     if (sheet) sheet.remove();
     sheet = null;
     lastSheetHtml = null;
     root.classList.remove('fighting');
+    body()?.classList?.remove('fighting');
   }
 
   return {
@@ -115,6 +119,7 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
         lastSheetHtml = html;
       }
       root.classList.add('fighting');
+      body()?.classList?.add('fighting');
       showing = 'fight';
     },
     hide() {

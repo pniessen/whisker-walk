@@ -41,7 +41,7 @@ class FakeEl {
 
 function withDoc(fn) {
   const prev = globalThis.document;
-  globalThis.document = { createElement: (t) => new FakeEl(t) };
+  globalThis.document = { createElement: (t) => new FakeEl(t), body: new FakeEl('body') };
   try { return fn(); } finally {
     if (prev === undefined) delete globalThis.document; else globalThis.document = prev;
   }
@@ -157,6 +157,7 @@ describe('the fight sheet', () => {
     const sheet = root.children.find((c) => c.cls.has('hud-fight'));
     expect(sheet).toBeTruthy();
     expect(root.cls.has('fighting')).toBe(true);
+    expect(document.body.cls.has('fighting')).toBe(true);   // the chat wheel steps aside
     ui.showFight(PHASES[1]);
     expect(sheet.innerHTMLWrites).toBe(1);
     sheet.clickOn('data-move', 'swipe');
@@ -167,6 +168,7 @@ describe('the fight sheet', () => {
     expect(onFight).not.toHaveBeenCalled();
     ui.hide();
     expect(root.cls.has('fighting')).toBe(false);
+    expect(document.body.cls.has('fighting')).toBe(false);
     expect(root.children).toHaveLength(0);
     expect(ui.showing).toBeNull();
   }));
@@ -181,7 +183,10 @@ describe('the sheet on a phone (style.css)', () => {
 
   test('the sheet takes taps, sits over the touch layer, and hides the action buttons', () => {
     expect(rule('.hud-fight')).toContain('pointer-events: auto');
-    expect(rule('.hud-fight')).toMatch(/z-index: [3-9]/);
+    // over the chat wheel (5), under the pause card (#overlay, 10)
+    expect(rule('.hud-fight')).toMatch(/z-index: [6-9];/);
+    expect(css).toMatch(/body\.fighting \.chat-wheel\s*\{[^}]*display: none/);
+    expect(rule('.chat-wheel')).toContain('z-index: 5');
     expect(css).toMatch(/#hud\.fighting \.tui-actions[^{]*#hud\.fighting \.tui-zoom[^{]*\{[^}]*display: none/);
     expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*bottom:/);
   });
