@@ -37,7 +37,7 @@ const {
 } = await import('../src/world/moor.js');
 const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
 const { inWater, waterGap, waterClearance, nearestDry, onDeck } = await import('../src/world/builder.js');
-const { isWalkableAt, createPlayer, CAT_RADIUS } = await import('../src/player.js');
+const { isWalkableAt, isWadeableAt, createPlayer, CAT_RADIUS } = await import('../src/player.js');
 const island = await import('../src/world/island.js');
 const {
   ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
@@ -397,7 +397,14 @@ describe('the Pines: the island, the bridge and the truce path', () => {
 
   // The real player, driven by a held touch stick on the built Pines: the
   // harness test/waterblock.test.js's drive uses, run here against this area.
+  // The player is a fresh one, so a non-swimmer (no Sea Legs): it may wade
+  // the shallow band at a shore or off a deck's side, but never deeper, so
+  // every frame must be wadeable (isWadeableAt), not merely dry. Its water
+  // and bounds halves only, as the waterblock sweep reads it: the collider
+  // push is not what this checks (a cat held along the bridge ends pressed to
+  // the Old Ash's trunk, 2e-16 m inside its disc by float rounding).
   const FRAME = 1 / 60;
+  const open = { ...area, colliders: [] };
   function hold(start, dir, seconds) {
     const player = createPlayer(new THREE.PerspectiveCamera(), { addEventListener() {} });
     const cat = new THREE.Object3D();
@@ -411,13 +418,13 @@ describe('the Pines: the island, the bridge and the truce path', () => {
       track.push({ x: cat.position.x, z: cat.position.z });
     }
     player.disable();
-    const wet = track.filter((q) => inWater(area.waters, q.x, q.z)).map((q) => `(${q.x.toFixed(2)}, ${q.z.toFixed(2)})`);
-    expect(wet.slice(0, 5), 'frames in the water').toEqual([]);
+    const deep = track.filter((q) => !isWadeableAt(open, q.x, q.z)).map((q) => `(${q.x.toFixed(2)}, ${q.z.toFixed(2)})`);
+    expect(deep.slice(0, 5), 'frames deeper than the band').toEqual([]);
     return track;
   }
   const bay = () => byId('lake-bay');
 
-  it('holding the stick in one direction never puts the cat in the water', () => {
+  it('holding the stick in one direction never takes a non-swimmer deeper than its band', () => {
     // From the truce path's end, due south: onto the deck, sliding along its
     // edge toward the island, and ending on the deck or the island.
     const south = hold({ x: 10.6, z: 2.5 }, { x: 0, z: 1 }, 6);
@@ -442,14 +449,14 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     expect(b.z).toBeLessThan(BAY_BOX.minZ);
     expect(isWalkableAt(area, b.x, b.z), `ends at (${b.x}, ${b.z})`).toBe(true);
 
-    // From the deck's middle, due east: never wet, ends on the deck or the
-    // island, and stays pressed to the deck's east edge through the last
-    // second. Not "holds still": the bridge runs on a diagonal, so a stick held
-    // due east has a part along it, and the cat slides along the edge toward
-    // the island, as it slides along a bank at the water's edge. The small
-    // bounce at a deck's edge (pushed back to 0.35 m in, then walking out to
-    // the edge again) is how every deck already behaves, the Woods' and the
-    // River's included.
+    // From the deck's middle, due east: never deeper than its band, ends on
+    // the deck or the island, and stays pressed to the deck's east edge
+    // through the last second. Not "holds still": the bridge runs on a
+    // diagonal, so a stick held due east has a part along it, and the cat
+    // slides along the edge toward the island, as it slides along a bank at
+    // the water's edge. Mid-span the bay is deep, so the band push puts a
+    // non-swimmer back on the deck's very edge (nearestShallow clamps onto a
+    // deck with no margin), and it holds that line with no bounce.
     const east = hold(deckMid, { x: 1, z: 0 }, 3);
     const e = east.at(-1);
     expect(onDeck(bay(), e.x, e.z) || onIsland(e.x, e.z), `ends at (${e.x}, ${e.z})`).toBe(true);
@@ -463,6 +470,19 @@ describe('the Pines: the island, the bridge and the truce path', () => {
       }
     }
 
+    // From the island's south rim, toward the mainland's nearest corner
+    // (26, 44), 3.1 m off across the channel: the cat wades out into the
+    // island's band and stops there, 1 m off the rim, never thrown across to
+    // the far shore's band.
+    const dir = { x: 26 - ISLAND_LAND.x, z: 44 - ISLAND_LAND.z };
+    const dl = Math.hypot(dir.x, dir.z);
+    const rimStart = { x: ISLAND_LAND.x + (dir.x / dl) * 11, z: ISLAND_LAND.z + (dir.z / dl) * 11 };
+    const across = hold(rimStart, { x: dir.x / dl, z: dir.z / dl }, 4);
+    const reach = Math.max(...across.map((q) => Math.hypot(q.x - ISLAND_LAND.x, q.z - ISLAND_LAND.z)));
+    expect(reach).toBeLessThanOrEqual(ISLAND_LAND.r + byId('lake-bay').shallow + 0.02);
+    const last = across.at(-1);
+    expect(Math.hypot(last.x - ISLAND_LAND.x, last.z - ISLAND_LAND.z)).toBeGreaterThan(ISLAND_LAND.r + byId('lake-bay').shallow - 0.05);
+    expect(inWater(area.waters, last.x, last.z)).toBe(true);
   });
 
   it('the bridge deck is no wider than the plank the kids see', () => {
