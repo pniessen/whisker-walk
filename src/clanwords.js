@@ -231,6 +231,9 @@ export const DENIED_NAMES = new Set([
   'Leafstar', 'Sharpclaw', 'Cloudstar', 'Echosong', 'Rockshade', 'Billystorm',
   'Mapleshade', 'Spiderleg', 'Hollytuft', 'Smudge', 'Princess', 'Purdy', 'Barley',
   'Ravenpaw', 'Scourge', 'Sol', 'Midnight', 'Tinycloud', 'Jaggedtooth',
+  // Clan Life: names the clan cast could compose at a fixed suffix or a stepped
+  // one (Root, Toad, Trout and Mint sit in warrior slots because of these).
+  'Rootpaw', 'Toadkit', 'Troutkit', 'Mintpaw', 'Mintfur',
 ]);
 
 // ---- Homage clan names (decision 3) ----
@@ -259,4 +262,26 @@ export const HOME_LINES = Object.freeze({
   river: 'reeds, fishing and the pond',
   pines: 'dark pines and the swamp',
   gorge: 'rocks, cliff dens and tall pines',
+});
+
+// ---- Clan Life: the name words of each clan's camp cast ----
+// Sixteen hand-picked, our own words per clan, in SLOT order (see CAST_RANKS in
+// clancast.js): leader, elder, kit, kit, warrior x3, apprentice x2 | deputy,
+// elder, kit, kit, warrior x2, apprentice. The first nine of each list are the
+// owner's (decision 2); the last seven are the builder's picks for the busier
+// HIGH camp. Root, Toad, Trout and Mint sit in warrior slots (Rootpaw, Toadkit,
+// Troutkit and Mintpaw are book names); Glade, Slate, Shingle and Teal took
+// their old places. A word that fails a test is swapped for one that passes
+// the same tests, never the rule weakened. Once shipped, a value changes only
+// if the 11-year-old asks, because nothing stores it. No gorge row yet: the
+// Gorge adds one when its camp lands. Do not add these to the scanner's list.
+export const CLAN_CAT_PREFIXES = Object.freeze({
+  woods: Object.freeze(['Badger', 'Bark', 'Bluejay', 'Burr', 'Conker', 'Fawn', 'Root', 'Glade', 'Bryony',
+    'Thrush', 'Hollow', 'Nutmeg', 'Loam', 'Rook', 'Dormouse', 'Spindle']),
+  moor: Object.freeze(['Curlew', 'Lapwing', 'Peat', 'Grouse', 'Cotton', 'Tor', 'Bilberry', 'Stoat', 'Pipit',
+    'Cairn', 'Ling', 'Wisp', 'Snipe', 'Quill', 'Ridge', 'Whin']),
+  river: Object.freeze(['Minnow', 'Pike', 'Shingle', 'Newt', 'Vole', 'Trout', 'Mint', 'Dipper', 'Teal',
+    'Caddis', 'Gudgeon', 'Mayfly', 'Silt', 'Roach', 'Wader', 'Marigold']),
+  pines: Object.freeze(['Cone', 'Bog', 'Slate', 'Resin', 'Needle', 'Beetle', 'Toad', 'Frog', 'Adder',
+    'Sable', 'Mire', 'Gnat', 'Sloe', 'Fungus', 'Soot', 'Bat']),
 });

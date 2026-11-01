@@ -3,7 +3,7 @@ import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
-import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS, HOMAGE_CHOICES, HOMAGE_PREFIXES, HOME_LINES } from '../src/clanwords.js';
+import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS, HOMAGE_CHOICES, HOMAGE_PREFIXES, HOME_LINES, CLAN_CAT_PREFIXES } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
@@ -261,5 +261,61 @@ test('every homage word makes a valid, undenied, unclaimed clan title', () => {
     expect(claimed.has(w.toLowerCase()), w).toBe(false);
     expect(WARRIOR_SUFFIXES.includes(w.toLowerCase()), w).toBe(false);
     expect(w.length).toBeLessThanOrEqual(10);
+  }
+});
+
+// ---- Clan Life: the clan cast's name words (src/clanwords.js CLAN_CAT_PREFIXES) ----
+// Slot order is fixed: leader, elder, kit, kit, warrior x3, apprentice x2 | deputy, elder, kit, kit, warrior x2, apprentice.
+const CAST_SLOT_SUFFIX = { 0: 'leader', 2: 'kit', 3: 'kit', 7: 'apprentice', 8: 'apprentice', 11: 'kit', 12: 'kit', 15: 'apprentice' };
+const CLAN_IDS_WITH_WORDS = ['woods', 'moor', 'river', 'pines'];
+
+test('CLAN_CAT_PREFIXES is frozen, sixteen distinct words per clan, distinct across clans', () => {
+  expect(Object.isFrozen(CLAN_CAT_PREFIXES)).toBe(true);
+  const all = [];
+  for (const id of CLAN_IDS_WITH_WORDS) {
+    const list = CLAN_CAT_PREFIXES[id];
+    expect(Object.isFrozen(list), id).toBe(true);
+    expect(list).toHaveLength(16);
+    expect(new Set(list).size).toBe(16);
+    all.push(...list);
+  }
+  expect(new Set(all).size).toBe(64);
+});
+
+test('every clan cat word makes valid names at every rank', () => {
+  const suffixes = [...WARRIOR_SUFFIXES, RANK_SUFFIX.kit, RANK_SUFFIX.apprentice, RANK_SUFFIX.leader];
+  const bad = [];
+  for (const id of CLAN_IDS_WITH_WORDS) for (const w of CLAN_CAT_PREFIXES[id]) for (const s of suffixes) {
+    if (!validPetName(w + s)) bad.push(w + s);
+  }
+  expect(bad).toEqual([]);
+});
+
+test('no clan cat wears a book name', () => {
+  for (const n of ['Rootpaw', 'Toadkit', 'Troutkit', 'Mintpaw', 'Mintfur']) expect(DENIED_NAMES.has(n), n).toBe(true);
+  for (const id of CLAN_IDS_WITH_WORDS) CLAN_CAT_PREFIXES[id].forEach((w, slot) => {
+    const fixed = CAST_SLOT_SUFFIX[slot];
+    if (fixed) expect(DENIED_NAMES.has(w + RANK_SUFFIX[fixed]), w + RANK_SUFFIX[fixed]).toBe(false);
+  });
+});
+
+test('no doubled join where the suffix is fixed', () => {
+  for (const id of CLAN_IDS_WITH_WORDS) CLAN_CAT_PREFIXES[id].forEach((w, slot) => {
+    const fixed = CAST_SLOT_SUFFIX[slot];
+    if (fixed) expect(w.at(-1).toLowerCase(), w).not.toBe(RANK_SUFFIX[fixed][0]);
+  });
+});
+
+test('no clan cat word is anyone else\'s word, and none holds a canon clan word', () => {
+  const taken = new Set([
+    ...PREFIXES, ...Object.values(CAT_PREFIXES), ...Object.values(RIVAL_PREFIXES),
+    ...Object.values(HOMAGE_CHOICES).flat(), 'Thorn', 'Hare', 'Kestrel', 'Eagle',
+  ].map((w) => w.toLowerCase()));
+  const strays = new Set([...CAT_NAMES, ...KIT_NAMES, ...LEGENDARY_NAMES].map((n) => n.toLowerCase()));
+  for (const id of CLAN_IDS_WITH_WORDS) for (const w of CLAN_CAT_PREFIXES[id]) {
+    const lw = w.toLowerCase();
+    expect(taken.has(lw), w).toBe(false);
+    expect(strays.has(lw), w).toBe(false);
+    for (const c of CANON_CLAN_WORDS) expect(lw.includes(c), `${w} has ${c}`).toBe(false);
   }
 });
