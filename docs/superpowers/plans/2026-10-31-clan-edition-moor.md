@@ -19,7 +19,7 @@
 | Unlocks after (§3) | 2 Woods walks: playable the day it ships | 2 River walks: needs the River shipped and walked first |
 | Extra design it pulls in | none | the island bridge's shore and the truce path (decision 8) |
 
-So the Moor builds on what is shipped, not on a plan still under review, and the Pines naturally follows the River. **Flagged for the owner** (owner step 4).
+So the Moor builds on what is shipped, not on a plan still under review, and the Pines naturally follows the River. **Decided by the owner (2026-10-31): the Moor comes next, before the Pines and Swamp.**
 
 ## Global Constraints
 
@@ -35,6 +35,7 @@ So the Moor builds on what is shipped, not on a plan still under review, and the
 - **Tasks 1–7 and 9 deploy as one unit.** Task 8 deploys only after the owner's colony SQL edit is live (owner step 2), in any order relative to the Woods' and the River's colony tasks.
 - **Reuse the Legacy guards that shipped with the Woods; restate none.** `effectiveArea` (which also picks Legacy's "today's walk" card), `setArea`/`canBuy`/`onPlace` refusing a Clan-only area in Legacy, `roomAreaMove` with `rooms.js`'s fallback to an override, and the page title following the edition all key off `edition: 'canon'` in the catalog. The Moor gets them by being registered (Task 6); Task 7 only proves they cover it.
 - **Land in any order with the River.** Wherever both plans append to the same list (catalog, `walks`, `AREAS`, `MARK_AREAS`, `GRASS_STYLES`, `CLOUD_AREAS`, `AREA_RULES`, `GOLD_MICE`, the test tables), append `moor` after whatever territory is already last and before `'den'`. Tests assert membership, or derive from the list, never a whole list that names `river`.
+- **Owner decisions (2026-10-31, settled, not open):** the Moor comes next, before the Pines and Swamp; the places are named **"the High Tor"**, **"the Old Hawthorn"** and **"the rabbit warren"** (the labels in the numbers table carry these names, lower-cased like every other label); the Moor's sound is **twice the Woods' wind, with birdsong and no water sound** (Task 6).
 - Comments and docs are plain and say why. Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Tests: `npx vitest run --exclude '.claude/**'`. Build: `npm run build`.
 
@@ -82,11 +83,9 @@ These are for the owner (the parent), not the implementer.
 
    Expected: `true`. The Woods', the River's and the Moor's colony tasks can then ship in any order.
 3. **Check the Moor on the iPhone 18** after Task 9: a Moor walk on the HIGH tier holds 60 fps. Note its draw count beside the Woods' and the Neighborhood's.
-4. **Show her the Moor, and check five things with her** (none blocks the build; each is a one-line change):
-   - **the order:** the Moor before the Pines and Swamp (the table under "Why the Moor");
+4. **Show her the Moor.** The order, the three place names and the sound are already decided (Global Constraints). Still open, none blocking the build and each a one-line change:
    - **the unlock:** the Moor opens after 2 Woods walks, the same moment as the River (both are the Woods' neighbours in §3's table);
-   - **names:** "the high tor", "the old hawthorn" and "the rabbit warren", and the journal's "Moor Rabbit";
-   - **sound:** a stronger wind than the Woods', under the usual birdsong, and no water sound (the river is small here);
+   - **the journal name:** "Moor Rabbit";
    - **her map:** the river comes in from the Woods at the south, turns west south of the middle and pours into the lake from the north 10 m from the Pines border; the lake fills the south-west corner; the north path from Twolegplace arrives up the east side as the Woods' own north path carried on; the island and its bridge are seen across the lake, not walked to.
 
 ## What this plan defers (each gets its own plan)
@@ -160,7 +159,7 @@ Coordinates are metres, x east, z south (north is −z, as the corner map draws 
 | Grass | `GRASS_STYLES.moor = MOOR`: `{ color: 0x8f9a5a, hMin: 0.08, hMax: 0.24, width: 1.0, warm: 0.18, sway: 0.6, reach: 1.4, density: moorDensity }`; `moorDensity(x, z) = 0.95 * smooth01(0.25, 0.55, patchNoise(x, z, 6.0, 53))` |
 | Paw prints | `AREA_RULES.moor = { ground: null, path: 'sand', strip: null }` |
 | Ambient life | `ambientKind('moor')` is `'fluff'` (seed down on the wind), day and dusk |
-| Sound | `windLayer({ gain: 0.06, cutoff: 480 })` (twice the generic wind's 0.03 / 300), then rain in rain, else birdsong unless dusk; crickets at dusk from the shared line |
+| Sound (owner's decision) | `windLayer({ gain: 0.06, cutoff: 480 })` (twice the generic wind's 0.03 / 300), then rain in rain, else birdsong unless dusk; crickets at dusk from the shared line |
 
 All of this was checked before writing with a standalone flood fill on a 0.5 m grid (the `isWalkableAt` rule: colliders + 0.35, water clearance ≥ 0.35, decks dry for their own water): every POI, scenic, find and golden mouse (or its chain's first step) is reached from the spawn; every one is at least 4 m from water (the tightest is the `moor-lake` scenic, at 4.0); every path keeps at least 3.0 m of centreline clear of open water; the lakeshore heath is unreachable without decks and reachable with either one alone.
 
