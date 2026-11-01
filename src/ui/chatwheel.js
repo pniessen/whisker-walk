@@ -3,10 +3,12 @@ import { PHRASES } from '../chat.js';
 // The in-walk chat control: a 💬 button that toggles a tray of curated
 // phrase/emote buttons plus a per-player mute list. Co-walk-only — main.js
 // calls setVisible(true) when in a room and setVisible(false) otherwise.
-// A mute row's accessible label: what pressing it will do. Its visible text
-// is only an emoji and a name, which says neither.
-export function muteRowLabel(name, muted) {
-  return `${muted ? 'Unmute' : 'Mute'} ${name}`;
+// A mute row's accessible label. Its visible text is only an emoji and a
+// name. The label stays "Mute <name>" and aria-pressed carries whether that
+// is on, the usual toggle-button pattern (a flipping label as well would be
+// read as "Unmute Robin, pressed").
+export function muteRowLabel(name) {
+  return `Mute ${name}`;
 }
 
 export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute }) {
@@ -43,7 +45,7 @@ export function createChatWheel(root, { onPick, getPlayers, isMuted, toggleMute 
       row.className = 'chat-mute-row';
       const muted = isMuted && isMuted(pl.id);
       row.textContent = `${muted ? '🔇' : '🔈'} ${pl.name}`;
-      row.setAttribute('aria-label', muteRowLabel(pl.name, muted));
+      row.setAttribute('aria-label', muteRowLabel(pl.name));
       row.setAttribute('aria-pressed', muted ? 'true' : 'false');
       row.addEventListener('click', () => { toggleMute(pl.id); renderMutes(); });
       mutes.appendChild(row);

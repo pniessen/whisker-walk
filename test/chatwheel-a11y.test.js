@@ -4,20 +4,19 @@ import { muteRowLabel } from '../src/ui/chatwheel.js';
 
 // The chat tray's per-player mute rows are toggles whose visible text is an
 // emoji and a name ("🔈 Robin"): a screen reader heard "speaker Robin" and
-// nothing about what pressing it does, or whether Robin is muted. Each row now
-// says what it does and carries its state; the 💬 toggle says whether the tray
+// nothing about what pressing it does, or whether Robin is muted. Each row is
+// now a labelled toggle button ("Mute Robin", aria-pressed); the 💬 toggle says whether the tray
 // is open.
 const src = readFileSync(new URL('../src/ui/chatwheel.js', import.meta.url), 'utf8');
 
 describe('chat wheel toggles have accessible labels', () => {
-  it('a mute row says what pressing it will do', () => {
-    expect(muteRowLabel('Robin', false)).toBe('Mute Robin');
-    expect(muteRowLabel('Robin', true)).toBe('Unmute Robin');
+  it('a mute row is labelled "Mute <name>"; aria-pressed says whether it is on', () => {
+    expect(muteRowLabel('Robin')).toBe('Mute Robin');
   });
 
   it('each mute row sets its label and pressed state', () => {
     const render = src.slice(src.indexOf('function renderMutes'), src.indexOf('function openTray'));
-    expect(render).toContain("row.setAttribute('aria-label', muteRowLabel(pl.name, muted))");
+    expect(render).toContain("row.setAttribute('aria-label', muteRowLabel(pl.name))");
     expect(render).toContain("row.setAttribute('aria-pressed', muted ? 'true' : 'false')");
   });
 
