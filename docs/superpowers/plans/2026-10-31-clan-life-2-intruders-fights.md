@@ -9,7 +9,7 @@
 **Architecture:**
 - **An intruder belongs to the territory and the clock**, exactly as the rival patrol does. `intruderAt(areaId, t)` is pure over the wall clock: which visit it is, which neighbour clan, which of that clan's warriors, and where on a hand-probed route. Every device in a walk computes the same intruder in the same place, whatever its edition or picks. No stream, no save, nothing on the wire.
 - **Only the fight is local.** Hostility is per device: the intruder puffs up and offers a fight only to a kid who is at home there (`session.clanHome`) and whose picks don't include the intruder's clan. The fight runs on that kid's device.
-- **Two events keep co-walks in step:** `intruder-fight` (hold it still, facing the fighter) and `intruder-done` (flee, or walk on). That is enough: the rounds themselves are not shown on the other screen (spec §4 asked the builder to confirm; this is the confirmation, and Part 1's "Questions for the owner" lists the rest). After a loss the intruder glides back onto the clock's position, so both screens agree again.
+- **Two events keep co-walks in step:** `intruder-fight` (hold it still, facing the fighter) and `intruder-done` (flee, or walk on). That is enough: the rounds themselves are not shown on the other screen (spec §4 asked the builder to confirm; this is the confirmation). After a loss the intruder glides back onto the clock's position, so both screens agree again.
 - **Pure rules, thin wiring.** `src/fight.js` is the whole fight as a pure state machine, `src/ui/fightui.js` the DOM, `src/game/clanfight.js` the controller that joins them to the intruder, sound and awards. The controller is given no progression object at all, and its lose path calls nothing but the intruder's `release`.
 
 **Tech Stack:** Three.js 0.185, Vite 8, Vitest 4, plain ES modules.
@@ -31,7 +31,17 @@
 - **Budget:** one intruder mesh at a time, inside the slot Part 1 reserved (`INTRUDER_SLOTS = 1`). A fight adds only short-lived `fx` bursts and the DOM panel.
 - **Phone first:** the three move buttons sit in the bottom third of the screen, full width, each at least 88 px tall, with the safe-area inset. Desktop also takes keys.
 
-## Builder's defaults
+## Owner's decisions and rulings (2026-10-31)
+
+Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part builds on:
+- **Owner's decision:** at home, intruders replace the neighbour patrol at your own camp (supersedes pick-your-clan's D7 for the clan-life era).
+- **Owner's decision:** each clan has its own colours; **intruders wear their own clan's colours** (Part 1's `member.style`), so a GaleClan cream on StormClan's brown land stands out.
+- **Ruling:** an intruder from either kid's clan (own or sibling's) never starts a fight for anyone; it just walks through.
+- **Ruling:** the teach line shows in every fight.
+- **Ruling:** no intruder dot on the corner map; spotting it is part of the fun. (Nothing in this plan adds one; Task 2's test pins that `mapMarkers` has no intruder kind.)
+- **Ruling:** the personality edges and award values below stay as proposed.
+
+## Builder's defaults (all accepted, see the rulings above)
 
 | Thing | Default |
 |---|---|
@@ -154,14 +164,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/intruders.js` (the THREE half), `src/game/walk.js`, `src/main.js`
-- Test: `test/intruders.test.js`, `test/walk.edition.test.js`
+- Test: `test/intruders.test.js`, `test/walk.edition.test.js`, `test/minimapmath.test.js` (the no-dot pin)
 
 **Interfaces:**
 - Consumes: Task 1; `buildCat`, `animateCat`, `makeNameTag`, `tagSubFor`; `session.clanHome`, `picks`.
 - Produces:
   - `isHostile(intruder, { clanHome, picks }) -> boolean` (pure): `clanHome === true` and `picks` doesn't include `intruder.clan`.
   - `createIntruders(scene, areaId, { now = () => Date.now() / 1000, reducedMotion, showNames, hostile: (clan) => boolean, onNotice }) -> Intruders`:
-    - builds the visit's cat (`buildCat(member.breed, undefined, { simple: true })`, scale 0.85) when a visit starts and disposes it when the visit ends, so at most one mesh exists; tag only when `showNames`: `makeNameTag(member.name, { cross: hostile(clan), sub: tagSubFor(member) })`;
+    - builds the visit's cat (`buildCat(member.breed, undefined, { simple: true, style: member.style })`: its own clan's coat; scale 0.85) when a visit starts and disposes it when the visit ends, so at most one mesh exists; tag only when `showNames`: `makeNameTag(member.name, { cross: hostile(clan), sub: tagSubFor(member) })`;
     - `update(dt, catPos)`: in `walking`, the mesh sits at `intruderAt` (pose `follow`); when hostile and within `NOTICE_RANGE` of `catPos` it plays `cross` and calls `onNotice(current)` once per visit (walk.js plays `audio.hiss()`);
     - `current() -> { visit, clan, member, pos: {x, z}, state: 'walking' | 'held' | 'fleeing' | 'gone' } | null`;
     - `hold(visit, facePos)`: stops it where it is, facing `facePos`, pose `cross`; `release(visit)`: glides it to the clock's position over 1.5 s, then `walking`; `flee(visit)`: runs it back along its route towards the entry point at `FLEE_SPEED` (with reduced motion: a dust puff and it is gone), then `gone` until the visit ends; `isFled(visit)`. Each ignores a `visit` that isn't the current one. `hold` auto-releases after `HOLD_MAX`. Once fled, `hold`/`release` for that visit are ignored.
@@ -176,12 +186,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - `hostile and near: cross pose and one notice per visit`; `not hostile: it just walks past`;
 - `hold, release and flee`: hold freezes it facing the point; release ends back on the clock within 1.5 s; flee ends `gone` at the route's start and stays gone until the next visit; a release after a flee changes nothing; a hold with no release lets go after `HOLD_MAX`;
 - `reduced motion: flee is a puff, not a run`;
-- `Legacy: no tag` (`showNames: false`);
+- `Legacy: no tag` (`showNames: false`), but the same coat;
+- `an intruder wears its own clan's colours`: the mesh's torso base colour is `member.style.base`, and `member.style` is in `CLAN_COATS[member.clan]`;
+- `no intruder on the corner map`: `mapMarkers` given a frame with an `intruder` key returns no marker for it (ruling);
 - `walk.edition`: the source creates intruders after `const clanHome =` and passes `showNames: isClanEdition(`.
 
 - [ ] **Step 2: Run them and check they fail**
 
-Run: `npx vitest run test/intruders.test.js test/walk.edition.test.js`
+Run: `npx vitest run test/intruders.test.js test/walk.edition.test.js test/minimapmath.test.js`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement.** The flee reuses the rival scamper's easing (`smooth`) and its rule that a chased cat ends on walkable ground: it runs along the route it walked, which Task 1 proved walkable, so it needs no `findLanding`.
@@ -194,7 +206,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/intruders.js src/game/walk.js src/main.js test/intruders.test.js test/walk.edition.test.js
+git add src/intruders.js src/game/walk.js src/main.js test/intruders.test.js test/walk.edition.test.js test/minimapmath.test.js
 git commit -m "feat(clanlife): intruders walk across your land and puff up when you come close
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -429,7 +441,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - One kid fights: the other screen shows the intruder held, facing her cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder.
   - On Legacy: the intruder walks, holds and flees, with no tag and no panel.
   - Lose a fight: points, colony, marks and feats are unchanged (compare the save before and after in devtools).
-- [ ] **Step 2: Phone check** on the iPhone 18 (portrait): the three buttons are under the thumb, readable at arm's length, and nothing covers the two cats. With the perf readout on, note draws and fps mid-tumble beside Part 1's camp reading; expect 60 fps held. If not, stop and report.
+- [ ] **Step 2: Phone check** on the iPhone 18 (portrait): the three buttons are under the thumb, readable at arm's length, and nothing covers the two cats. With the perf readout on (HIGH, Auto off), note draws and fps mid-tumble, and once with an intruder walking past the busy camp in view, beside Part 1's camp reading. Expect the intruder to add about 24 draws (one simple cat) and the dust bursts a few; 60 fps held. If not, stop and report; Part 1's `CAST_HIGH` lever is the owner's call, not this task's.
 - [ ] **Step 3: The fairness note.** Ask the owner to let the 9-year-old play five fights and the 11-year-old five. Record the wins in the commit body. If he wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
 - [ ] **Step 4: Run the whole suite**
 
