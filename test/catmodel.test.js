@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat, coatColor } from '../src/cat/model.js';
-import { deformTorso } from '../src/cat/torso.js';
+import { samples, lum as lumC } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
@@ -89,43 +89,26 @@ describe('cat model: markings lie ON the surface they mark', () => {
   // shadow onto the fur beneath — the "stegosaurus plates" read. The fix is
   // structural, and so is this test: a marking must be a patch of the host
   // sphere, parented to the host mesh.
-  const marked = { tabby: 'body', zeetoo: 'body', calico: 'both', robbie: 'both' };
-
-  for (const [breed, where] of Object.entries(marked)) {
-    it(`${breed}'s markings are children of the mesh they mark, at its own radius`, () => {
-      const cat = buildCat(breed);
-      const body = cat.userData.parts.body;
-      const skull = cat.userData.parts.head.children[0];
-      const hosts = [];
-      if (where === 'body' || where === 'both') hosts.push([body, BODY_R]);
-      if (where === 'both') hosts.push([skull, SKULL_R]);
-
+  // Task 4 painted the body's coat into the torso's vertex colours, so the
+  // markings left as meshes are the head's: the M, the blaze, the calico's
+  // head patch (on the skull) and Digit's chin (on the muzzle).
+  for (const breed of ['calico', 'robbie', 'd2', 'digit']) {
+    it(`${breed}'s skull markings are children of the skull, at its own radius`, () => {
+      const skull = buildCat(breed).userData.parts.head.children[0];
+      expect(skull.children.length).toBeGreaterThan(0); // parented to the MESH...
       let checked = 0;
-      for (const [host, r] of hosts) {
-        expect(host.children.length).toBeGreaterThan(0); // parented to the MESH...
-        for (const mark of host.children) {
-          const pos = mark.geometry.attributes.position;
-          for (let i = 0; i < pos.count; i++) {
-            // ...and every vertex sits on that mesh's own sphere. Because the
-            // host's non-uniform scale is applied by the scene graph and not by
-            // the marking, this single property makes the patch follow the
-            // surface in every pose, including the animator's squash and
-            // stretch, on every breed, for free.
-            // The body is the deformed torso: its surface is the unit direction
-            // pushed through deformTorso, then x r x lift. The skull is a sphere.
-            const d = Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i));
-            if (host === body) {
-              const un = mark.geometry.userData.unit;
-              const [x, y, z] = deformTorso(un[i * 3], un[i * 3 + 1], un[i * 3 + 2]);
-              expect(pos.getX(i)).toBeCloseTo(x * r * PATCH_LIFT, 5);
-              expect(pos.getY(i)).toBeCloseTo(y * r * PATCH_LIFT, 5);
-              expect(pos.getZ(i)).toBeCloseTo(z * r * PATCH_LIFT, 5);
-            } else expect(d).toBeCloseTo(r * PATCH_LIFT, 5);
-            checked++;
-          }
+      for (const mark of skull.children) {
+        const pos = mark.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          // ...and every vertex sits on that mesh's own sphere. Because the
+          // host's non-uniform scale is applied by the scene graph and not by
+          // the marking, this single property makes the patch follow the
+          // surface in every pose, on every breed, for free.
+          expect(Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i))).toBeCloseTo(SKULL_R * PATCH_LIFT, 5);
+          checked++;
         }
       }
-      expect(checked).toBeGreaterThan(100);
+      expect(checked).toBeGreaterThan(50);
     });
   }
 
@@ -154,39 +137,26 @@ describe("cat model: Robbie's real coat", () => {
   // not what the STYLE table says.
   const lum = (m) => 0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b;
 
-  it('is a dark cat with white legs, white paws and white body markings', () => {
+  it('is a dark cat with white legs, white paws and a white-marked painted body', () => {
     const cat = buildCat('robbie');
-    const { body, legs } = cat.userData.parts;
-    expect(lum(body.material)).toBeLessThan(0.2);
+    const { legs } = cat.userData.parts;
     for (const leg of legs) {
       expect(lum(leg.children[0].material)).toBeGreaterThan(0.8); // the limb
       expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
     }
-    const white = body.children.filter((m) => lum(m.material) > 0.8);
-    expect(white.length).toBeGreaterThan(0);
+    // The coat is painted (Task 4): read the torso's own vertex colours.
+    const s = samples('robbie');
+    const back = s.filter(({ u: [, y] }) => y > 0.9).map(({ c }) => lumC(c));
+    expect(back.length).toBeGreaterThan(0);
+    expect(Math.max(...back)).toBeLessThan(0.2); // black saddle
+    expect(s.some(({ c }) => lumC(c) > 0.8)).toBe(true); // white flanks and bib
   });
 
-  it('has a white bib on the front of his chest, in the same mesh as his flanks, clear of them', () => {
-    // The eye check against the photo: his chest was black. The bib is a patch
-    // of the body sphere like every marking, so it is found in the body's own
-    // unit-sphere frame — front is -z. It must share the flanks' mesh (the
-    // white body markings stay ONE mesh), and no bib vertex may fall inside a
-    // flank patch: overlapping patches at one lift z-fight.
-    const cat = buildCat('robbie');
-    const white = cat.userData.parts.body.children.filter((m) => lum(m.material) > 0.8);
-    expect(white).toHaveLength(1);
-    const pos = white[0].geometry.attributes.position;
-    const dirs = [];
-    for (let i = 0; i < pos.count; i++) dirs.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize());
-    const front = dirs.filter((d) => d.z < -0.9 && Math.abs(d.x) < 0.1);
+  it('has a white bib on the front of his chest', () => {
+    // The eye check against the photo: his chest was black.
+    const front = samples('robbie').filter(({ u: [x, , z] }) => z < -0.9 && Math.abs(x) < 0.1);
     expect(front.length).toBeGreaterThan(0);
-    // Every vertex is either well forward (the bib, |x| small) or well out to a
-    // side (a flank): nothing in the band between, where the two would meet.
-    const between = dirs.filter((d) => Math.abs(d.x) > 0.5 && Math.abs(d.x) < 0.6 && d.z < -0.5);
-    expect(between).toHaveLength(0);
-    const bibMaxX = Math.max(...dirs.filter((d) => d.z < -0.75).map((d) => Math.abs(d.x)));
-    const flankMinFwd = Math.min(...dirs.filter((d) => Math.abs(d.x) > 0.6).map((d) => Math.atan2(Math.abs(d.x), -d.z)));
-    expect(Math.asin(bibMaxX)).toBeLessThan(flankMinFwd - 0.2); // > ~11 degrees of black between
+    for (const { c } of front) expect(lumC(c)).toBeGreaterThan(0.8);
   });
 });
 
@@ -319,13 +289,20 @@ describe('cat model: budget and determinism', () => {
   // wave that adds meshes to the hero asset — which is on screen 100% of the
   // time, and is also cloned for every stray, ghost and co-walker — is spending
   // the scarce resource. Wave 6 spent triangles and RECLAIMED meshes.
-  const CEILING = { tabby: 31, siamese: 30, persian: 31, black: 30, calico: 33, mainecoon: 31, zeetoo: 31, robbie: 32, d2: 34, digit: 35, hagrid: 19 };
+  // Interim ceilings after Task 4 (painted coats); Hagrid's ruff stays separate until Task 6.
+  const CEILING = { tabby: 30, siamese: 30, persian: 31, black: 30, calico: 31, mainecoon: 31, zeetoo: 30, robbie: 31, d2: 32, digit: 34, hagrid: 19 };
+  const CEILING_SIMPLE = Object.fromEntries(Object.entries(CEILING).map(([b, n]) => [b, b === 'hagrid' ? 19 : n - 6]));
 
   for (const breed of ALL) {
     it(`${breed} draws no more meshes than its ceiling (${CEILING[breed]})`, () => {
       let meshes = 0;
       buildCat(breed).traverse((o) => { if (o.isMesh) meshes++; });
       expect(meshes).toBeLessThanOrEqual(CEILING[breed]);
+    });
+    it(`${breed} built { simple: true } draws no more meshes than ${CEILING_SIMPLE[breed]}`, () => {
+      let meshes = 0;
+      buildCat(breed, undefined, { simple: true }).traverse((o) => { if (o.isMesh) meshes++; });
+      expect(meshes).toBeLessThanOrEqual(CEILING_SIMPLE[breed]);
     });
   }
 

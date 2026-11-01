@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
+import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -35,9 +36,8 @@ const STYLE = {
 //                 white stockings rather than white feet).
 //   socks       — paws are WHITE_FUR whatever `belly` is: four white socks on
 //                 a cat whose underside is not white.
-//   band        — a `belly` band across the shoulders. With `stripes` too, the
-//                 front-most stripe is skipped: it sits exactly where the band
-//                 goes, and two patches at one lift z-fight.
+//   band        — a `belly` band across the shoulders, painted over the
+//                 stripes (see coat.js).
 //   headStripes — three thin `accent` stripes up the forehead: the tabby "M".
 //   chin        — a small WHITE_FUR patch under the muzzle.
 //   ears        — ear-cone scale, default 1. Baked into the cone, not the mesh,
@@ -54,7 +54,6 @@ const STYLE = {
 //   tagCollar   — a built-in black collar with a round silver tag, drawn only
 //                 when no collar accessory is worn (never two collars).
 const INNER_EAR = 0xe8a0a8;
-const WHITE_FUR = 0xf5f5f5;
 const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048 };
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
@@ -183,7 +182,7 @@ const PATCH_UP = new THREE.Vector3(0, 1, 0);
 // halfX/halfZ are TANGENT half-extents at the pole, in units of the sphere
 // radius, so 1.0 is a patch that reaches 45 degrees from its centre — a stripe
 // wrapping well down the flank — and 0.2 is a small spot.
-function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, deform = null) {
+function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
   const pos = [0, r * PATCH_LIFT, 0]; // centre vertex at the pole
   const nor = [0, 1, 0];
   const idx = [];
@@ -218,19 +217,6 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, deform = null)
   // normal attribute with it.
   geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(
     PATCH_UP, new THREE.Vector3(...dir).normalize()));
-  if (deform) {
-    // Host surfaces that are not spheres (the torso): push each unit direction
-    // through the host's deformation, then out to r x lift.
-    const p = geo.attributes.position;
-    const unit = new Float32Array(p.count * 3);
-    geo.userData.unit = unit; // each vertex's undeformed direction
-    for (let i = 0; i < p.count; i++) {
-      const L = Math.hypot(p.getX(i), p.getY(i), p.getZ(i));
-      unit[i * 3] = p.getX(i) / L; unit[i * 3 + 1] = p.getY(i) / L; unit[i * 3 + 2] = p.getZ(i) / L;
-      const [x, y, z] = deform(unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]);
-      p.setXYZ(i, x * r * PATCH_LIFT, y * r * PATCH_LIFT, z * r * PATCH_LIFT);
-    }
-  }
   return geo;
 }
 
@@ -238,12 +224,9 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, deform = null)
 // wave's mesh delta is negative rather than zero: a tabby's stripes were three
 // meshes and are now one, and the cow cat's two body patches are now one.
 // Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
-function addMarking(host, r, color, patches, deform = null) {
-  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18, deform));
+function addMarking(host, r, color, patches) {
+  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18));
   const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
-  if (deform && geos.length > 1) {
-    geo.userData.unit = new Float32Array(geos.flatMap((g) => Array.from(g.userData.unit)));
-  }
   host.add(new THREE.Mesh(geo, mat(color)));
 }
 
@@ -714,15 +697,18 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
   const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
-  // The old torso's frame: markings were authored in it (see dirOn below).
-  const LEGACY_SCALE = [LEGACY_BODY.SCALE[0] * fx, LEGACY_BODY.SCALE[1] * fy, LEGACY_BODY.SCALE[2] * fz];
   // Interim (Tasks 5, 7 and 8 re-place them): the tail, the ruff and every
   // body- and back-slot item rise with the torso, which now sits 0.09 higher.
   const ITEM_RISE = 0.09;
   // How far a shallower torso brings the top of the back down: the back-slot
   // items sit on the spine and drop with it rather than float over it.
   const BACK_DROP = BODY_R * 0.75 * (1 - fy);
-  const body = new THREE.Mesh(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), mat(s.base));
+  // The coat is painted into the torso's vertex colours (coat.js): tabby
+  // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
+  // White material, so a painted base is exactly today's material colour.
+  const body = new THREE.Mesh(
+    paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coatFromStyle(s)),
+    litMaterial(0xffffff, { vertexColors: true }));
   body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
   g.add(body);
@@ -937,14 +923,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // directions on the host sphere by dirOn(), so nothing moves; only the
   // geometry stops floating.
   //
-  // `onBody` / `onSkull` / `onMuzzle` parent to the mesh, not to the group,
+  // `onSkull` / `onMuzzle` parent to the mesh, not to the group,
   // which is what makes a marking follow the animator's squash and stretch.
   //
   // They QUEUE rather than build: every patch of one colour on one host is
   // collected first and emitted as one addMarking call at the end, so two
-  // flags that both paint `belly` on the body (the shoulder band and a white
-  // flank, say) still cost one mesh, not two. Map keeps insertion order, so
-  // the build stays deterministic.
+  // flags that paint one colour on one host still cost one mesh, not two.
+  // Map keeps insertion order, so the build stays deterministic.
   const queued = new Map(); // host mesh -> { r, byColour: Map(colour -> patches) }
   const queue = (host, r, centre, scale) => (colour, pts) => {
     if (!queued.has(host)) queued.set(host, { r, byColour: new Map() });
@@ -952,33 +937,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!byColour.has(colour)) byColour.set(colour, []);
     byColour.get(colour).push(...pts.map((p) => ({ ...p, dir: dirOn(p.at, centre, scale) })));
   };
-  // Body points were authored on the old torso; converting them through ITS
-  // frame keeps each patch's direction on the new one.
-  const onBody = queue(body, BODY_R, LEGACY_BODY.CENTRE, LEGACY_SCALE);
   const onSkull = queue(skull, SKULL_R, [0, 0, 0], SKULL_SCALE);
   const onMuzzle = queue(muzzle, MUZZLE_R, MUZZLE_CENTRE, MUZZLE_SCALE);
 
-  if (s.stripes) {
-    // Four bands rather than three. They were three because each was a mesh;
-    // merged into one they are free, and four is the count at which a wrapped
-    // band pattern stops reading as "some marks on its back" and starts reading
-    // as a tabby. halfX 1.5 carries each band ~56 degrees down the flank —
-    // over the spine and well past the shoulder, the way a real tabby's do.
-    // A cat with a white shoulder `band` loses the front stripe: the band sits
-    // on exactly that spot, and two patches at the same lift z-fight.
-    onBody(s.accent, [
-      { at: [0, 0.58, -0.30], halfX: 1.42, halfZ: 0.15 },
-      { at: [0, 0.58, -0.10], halfX: 1.50, halfZ: 0.16 },
-      { at: [0, 0.58, 0.11], halfX: 1.50, halfZ: 0.16 },
-      { at: [0, 0.58, 0.30], halfX: 1.38, halfZ: 0.14 },
-    ].slice(s.band ? 1 : 0));
-  }
-  if (s.band) {
-    // White over the shoulders and down both sides, where a tabby-and-white's
-    // bib reaches up round the neck. Slightly wider than the stripe it
-    // replaces so it reads as a collar of fur, not as a pale stripe.
-    onBody(s.belly, [{ at: [0, 0.58, -0.30], halfX: 1.45, halfZ: 0.14 }]);
-  }
+  // The body's own markings (stripes, band, calico and cow patches) are
+  // painted into the torso instead — see coat.js. Only the head's remain here.
   if (s.headStripes) {
     // The tabby "M": three thin bars running up the forehead from between the
     // eyes. On a patch swung onto a direction in the skull's YZ plane, halfX
@@ -998,38 +961,18 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     onMuzzle(WHITE_FUR, [{ at: [0, -0.114, -0.209], halfX: 0.45, halfZ: 0.35 }]);
   }
   if (s.patches) {
-    onBody(s.accent, [{ at: [0.12, 0.54, -0.08], halfX: 0.62, halfZ: 0.72 }]);
-    onBody(0x333333, [{ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64 }]);
     onSkull(0xd88030, [{ at: [0.09, 0.14, -0.05], halfX: 0.50, halfZ: 0.56 }]);
   }
   if (s.cow) {
-    // Robbie's coat, from the photo: black on top, with a big white patch low
-    // on each flank and a narrow white blaze up between the eyes. The two
-    // flanks are one colour on one host, so they cost one mesh. On a patch
-    // swung onto a sideways direction, halfX runs UP the flank and halfZ along
-    // the body: ±35 degrees vertically from a centre ~16 degrees below the
-    // equator keeps the black saddle over the top of the back.
-    // The bib — the white chest under his chin that the photo shows plainly
-    // and the first build left black — is a third patch in the same colour on
-    // the same host, so it rides in the same mesh and costs nothing. Centred
-    // on the front of the chest just above the equator, so it runs up under
-    // the head into the white muzzle and down to the white belly. halfZ runs
-    // UP the chest here (±37 degrees) and halfX across it (±29 degrees); the
-    // flank patches reach no further forward than ~56 degrees off the front,
-    // which leaves a black gap of 25+ degrees between them at every height.
-    // That gap matters: two patches at one lift z-fight where they overlap.
-    onBody(s.belly, [
-      { at: [0.27, 0.27, 0.06], halfX: 0.70, halfZ: 0.90 },
-      { at: [-0.27, 0.27, 0.06], halfX: 0.70, halfZ: 0.90 },
-      { at: [0, 0.36, -0.43], halfX: 0.55, halfZ: 0.75 },
-    ]);
+    // Robbie's coat, from the photo: black on top with white flanks and bib
+    // (painted, coat.js) and a narrow white blaze up between the eyes.
     // The blaze: ~4cm wide, so it fits in the gap between the eyes, and long
     // enough to run from the muzzle up onto the forehead.
     onSkull(s.belly, [{ at: [0, 0.09, -0.17], halfX: 0.10, halfZ: 0.45 }]);
   }
 
   for (const [host, { r, byColour }] of queued) {
-    for (const [colour, patches] of byColour) addMarking(host, r, colour, patches, host === body ? deformTorso : null);
+    for (const [colour, patches] of byColour) addMarking(host, r, colour, patches);
   }
 
   // accessories — head/g-parented so they track poses; every item here is

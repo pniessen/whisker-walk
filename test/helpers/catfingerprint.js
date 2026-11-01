@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildCat } from '../../src/cat/model.js';
 import { animateCat } from '../../src/cat/animator.js';
+import { LEGACY_BODY } from '../../src/cat/torso.js';
 
 // Shared by the golden-fingerprint and pose-baseline tests (cat body reshape).
 
@@ -105,3 +106,43 @@ export function surfaceHit(objects, centre, towards) {
   const hits = ray.intersectObjects(Array.isArray(objects) ? objects : [objects], true);
   return hits.length ? hits[0].point.clone() : null;
 }
+
+// -----------------------------------------------------------------------------
+// Painted coats (Task 4): the torso's vertex colours, read back per vertex
+// against each vertex's undeformed unit direction.
+
+// Every torso vertex of a freshly built cat: `u` is its undeformed unit
+// direction (nose at -z), `c` its painted colour.
+export function samples(breed, opts = {}) {
+  const geo = buildCat(breed, undefined, opts).userData.parts.body.geometry;
+  const unit = geo.userData.unit;
+  const col = geo.attributes.color;
+  const out = [];
+  for (let i = 0; i < col.count; i++) {
+    out.push({ u: [unit[i * 3], unit[i * 3 + 1], unit[i * 3 + 2]], c: new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)) });
+  }
+  return out;
+}
+
+// The sample whose direction is closest to `dir`.
+export function nearest(list, dir) {
+  const L = Math.hypot(...dir);
+  let best = null;
+  let bestDot = -Infinity;
+  for (const s of list) {
+    const d = (s.u[0] * dir[0] + s.u[1] * dir[1] + s.u[2] * dir[2]) / L;
+    if (d > bestDot) { bestDot = d; best = s; }
+  }
+  return best;
+}
+
+// A point authored in the old torso's frame, as a unit direction on the torso
+// (model.js's dirOn through LEGACY_BODY, normalised).
+export function legacyDir(point) {
+  const d = point.map((v, i) => (v - LEGACY_BODY.CENTRE[i]) / LEGACY_BODY.SCALE[i]);
+  const L = Math.hypot(...d);
+  return d.map((v) => v / L);
+}
+
+export const colourDistance = (a, b) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+export const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
