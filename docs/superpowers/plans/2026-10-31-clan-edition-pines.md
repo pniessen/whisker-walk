@@ -61,12 +61,13 @@ These are for the owner (the parent), not the implementer.
 1. **Update both devices before either kid walks the Pines.** After the deploy that carries this plan, on **both** devices close every Whisker Walk tab (and the home-screen app), reopen it, and check that the home-screen map shows **The Pines and Swamp** in colour with an "opens after…" or "Tap to explore" line, not "coming soon". An old build drops the Pines unlock, its walk count, its marks and the journal's frog count, and its lobby ignores a Pines walk proposal.
 2. **No SQL this time.** The live `colony_feed` already accepts `'pines'` (run 2026-10-31). To double-check: `select prosrc like '%''pines''%' from pg_proc where proname = 'colony_feed';` → `true`.
 3. **Check the Pines on the iPhone 18** after Task 9: a Pines walk on the HIGH tier holds 60 fps, the dense forest included. Note its draw count beside the Woods', the River's and the Neighborhood's.
-4. **Show her the Pines.** These are defaults, each a one-line change (questions in the hand-off report):
-   - places: **"the Lightning Stump"** (a charred, lightning-snapped pine stump to climb), **"the Frog Stones"** (two mossy stones in the deep swamp), **"the Black Mire"** (the dark creek that cuts off the deep swamp), **"the heart of the swamp"**, **"the truce path"** and **"the truce stones"** (the path to the island bridge and the two stones at its foot);
-   - the swamp's critter: a **frog**, "Bog Frog" in the journal, that plops into a bog when a cat comes close;
-   - the sound: a **low hush of wind in the pines, frogs croaking, and no birdsong**; rain and dusk crickets as everywhere;
-   - the bridge: **seen, not walked** until the island exists;
-   - the layout: the lake fills the south-east, the bridge leaves from the bay's north shore, the swamp is the west side with its deep part behind the Black Mire in the north-west, the forest is everything else, and a kid arrives on the River's north path, carried on as the truce path.
+4. **Show her the Pines.** Settled, not open:
+   - **Owner's decision (2026-10-31):** the places are **"the Lightning Stump"** (a charred, lightning-snapped pine stump to climb), **"the Frog Stones"** (two mossy stones in the deep swamp), **"the Black Mire"** (the dark creek that cuts off the deep swamp), **"the heart of the swamp"**, **"the truce path"** and **"the truce stones"** (the path to the island bridge and the two stones at its foot);
+   - **Owner's decision (2026-10-31):** the swamp's critter is a **frog**, "Bog Frog" in the journal, that bolts into a bog when a cat comes close;
+   - **Owner's decision (2026-10-31):** the sound is a **low hush of wind in the pines plus frogs, and no birdsong**; rain and dusk crickets as everywhere;
+   - **Owner's decision (2026-10-31):** the bridge is **scenery, seen and not walked,** until the island plan;
+   - **Coordinator's ruling (2026-10-31):** the layout as proposed: the lake fills the south-east, the bridge leaves from the bay's north shore, the swamp is the west side with its deep part behind the Black Mire in the north-west, the forest is everything else, and a kid arrives on the River's north path, carried on as the truce path;
+   - **Coordinator's ruling (2026-10-31):** the merged pine stand stays still; only the near pines sway.
 
 ## What this plan defers (each gets its own plan)
 
