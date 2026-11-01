@@ -44,7 +44,7 @@ import { ZOOM_STEPS } from '../camzoom.js';
 // bridge is walkable: its deck runs the plank's whole length, from the truce
 // path's end onto the island, and it is the only way there. No cat stands on
 // the lake, the bridge or the island (owner's decision 4): the area's keepOut
-// holds the strays and ghosts off all three.
+// holds the strays and ghosts off all three, and off the mire and the bogs.
 //
 // WHY THE DECKS EXIST. Water stops a cat (v19). The Black Mire, a dark creek,
 // comes in from the north edge (mire-north), turns at its corner and runs out
@@ -143,6 +143,26 @@ const MOOR_MOUTH = Object.freeze({ id: 'moor-mouth', kind: 'rect', minX: 60, max
 export const PINES_WATERS = Object.freeze([
   LAKE, LAKE_BAY, MIRE_NORTH, MIRE_WEST, BOG_1, BOG_2, BOG_3, BOG_4, MOOR_RIVER, MOOR_MOUTH,
 ]);
+
+// Where the Pines' strays and ghosts never stand (src/keepout.js): the
+// island's keep-out (the lake, the bay and the bridge), and the Black Mire's
+// two reaches and the four bogs. Strays and ghosts don't stop at water (see
+// player.js), so without these they waded straight through the mire and the
+// bogs. A bog is a circle, so it is a capsule with both ends at its middle,
+// as wide as the bog plus the same margin as the rects.
+//
+// The cost: a stray can't walk the log bridge or the stepping stones either
+// (their water is kept out, decks and all), so a stray that starts on one
+// side of the mire stays on that side, and none crosses into the deep swamp.
+// ISLAND_KEEP_OUT stays as it was, for the patrols that will need only the
+// island's part.
+const bogCapsule = (w) => Object.freeze({ x1: w.x, z1: w.z, x2: w.x, z2: w.z, r: w.r + ISLAND_KEEP_OUT.margin });
+const mireRect = (w) => Object.freeze({ minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ });
+export const PINES_KEEP_OUT = Object.freeze({
+  rects: Object.freeze([...ISLAND_KEEP_OUT.rects, mireRect(MIRE_NORTH), mireRect(MIRE_WEST)]),
+  capsules: Object.freeze([...ISLAND_KEEP_OUT.capsules, ...[BOG_1, BOG_2, BOG_3, BOG_4].map(bogCapsule)]),
+  margin: ISLAND_KEEP_OUT.margin,
+});
 
 // How each water is drawn. The lake, the bay and the Moor's river in the
 // green-blue every neighbour paints them (one water across the borders); the
@@ -735,7 +755,8 @@ export function build(scene, { water = {}, wind } = {}) {
     groundBounce: 0x56603e,
     skyDusk: { top: 0x22304a, horizon: 0x5e5a6e },
     perches,
-    // no cat stands on the lake, the island or the bridge (src/keepout.js)
-    keepOut: ISLAND_KEEP_OUT,
+    // no cat stands on the lake, the island, the bridge, the mire or a bog
+    // (src/keepout.js)
+    keepOut: PINES_KEEP_OUT,
   };
 }

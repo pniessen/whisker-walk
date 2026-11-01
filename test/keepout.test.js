@@ -79,6 +79,34 @@ describe('keepOutPoint', () => {
     }
   });
 
+  // Past a rect's corner its margin is round, so the way out is straight away
+  // from the corner. An edge push there overshot: a stray walking round the
+  // Black Mire's corner in the Pines jumped 0.092 m in a 0.087 m step.
+  it("a point in a rect's rounded corner goes straight out from the corner", () => {
+    const solo = { bounds: BOUNDS, keepOut: { rects: [{ minX: -32, maxX: -27, minZ: -120, maxZ: -6 }], margin: 0.6 } };
+    for (const a of [0.2, 0.6, Math.PI / 4, 1.0, 1.4]) {
+      const x = -27 + Math.cos(a) * 0.4, z = -6 + Math.sin(a) * 0.4;
+      const p = keepOutPoint(solo, x, z);
+      expect(p.x).toBeCloseTo(-27 + Math.cos(a) * 0.6, 9);
+      expect(p.z).toBeCloseTo(-6 + Math.sin(a) * 0.6, 9);
+    }
+    // a walk round that corner never moves more than a step a frame
+    const step = 2.6 / 30;
+    let p = { x: -26.2, z: -9 };
+    let worst = 0;
+    const target = { x: -30, z: -4 };
+    for (let i = 0; i < 300; i++) {
+      const dx = target.x - p.x, dz = target.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < step) break;
+      const q = keepOutPoint(solo, p.x + (dx / d) * step, p.z + (dz / d) * step);
+      worst = Math.max(worst, Math.hypot(q.x - p.x, q.z - p.z));
+      p = q;
+    }
+    // round the margin's curve a step can come out a hair longer (under 1%)
+    expect(worst).toBeLessThanOrEqual(step * 1.01);
+  });
+
   it('the same input always gives the same output', () => {
     for (const [x, z] of [[40, 40], [20.56, 18.08], [10.4, 3.7], [28, 28]]) {
       expect(keepOutPoint(AREA, x, z)).toEqual(keepOutPoint(AREA, x, z));

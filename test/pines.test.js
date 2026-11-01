@@ -17,6 +17,8 @@ vi.stubGlobal('document', {
     getContext: () => new Proxy({}, {
       get: (_target, key) => {
         if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+        // a stray's name tag measures its label (the keep-out drive below)
+        if (key === 'measureText') return () => ({ width: 0 });
         if (key === 'createLinearGradient' || key === 'createRadialGradient') {
           return () => ({ addColorStop: () => {} });
         }
@@ -52,10 +54,11 @@ const { propsFor } = await import('../src/propsets.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { ZOOM_STEPS, MIN_CAMERA_Y } = await import('../src/camzoom.js');
 const { PINE_CONES, PINE_TRUNK } = await import('../src/world/builder.js');
+const { createStrayCats, strayStream } = await import('../src/straycats.js');
 
 const {
   build, SPAWN, PINES_WATERS, PINES_PATHS, TRUCE_PATH, PINES_ISLAND, BRIDGE_FOOT, PINES_HORIZON,
-  PINES_KEEP_CLEAR, FROG_HIDES, DECKS, pinesTrees, pinesUndergrowth, pinesReeds, pinesLilyPads,
+  PINES_KEEP_CLEAR, PINES_KEEP_OUT, FROG_HIDES, DECKS, pinesTrees, pinesUndergrowth, pinesReeds, pinesLilyPads,
 } = pines;
 
 const built = () => {
@@ -543,7 +546,12 @@ describe('the Pines: the island, the bridge and the truce path', () => {
   });
 
   it('the Pines keeps its cats off the lake, the island and the bridge', () => {
-    expect(area.keepOut).toEqual(ISLAND_KEEP_OUT);
+    // the island's keep-out is the first part of the Pines' (BUG 2 added the
+    // mire and the bogs after it; see 'strays keep off the water')
+    expect(area.keepOut).toBe(PINES_KEEP_OUT);
+    expect(PINES_KEEP_OUT.rects.slice(0, 2)).toEqual(ISLAND_KEEP_OUT.rects);
+    expect(PINES_KEEP_OUT.capsules.slice(0, 1)).toEqual(ISLAND_KEEP_OUT.capsules);
+    expect(PINES_KEEP_OUT.margin).toBe(ISLAND_KEEP_OUT.margin);
     // the same numbers as the literal shapes in test/keepout.test.js
     const KO = ISLAND_KEEP_OUT;
     expect(KO.rects).toEqual([
@@ -607,6 +615,141 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     }
     expect(Object.isFrozen(PINES_HORIZON)).toBe(true);
   });
+});
+
+// BUG 2 from the live check: strays waded the Black Mire and the bogs. Strays
+// and ghosts don't stop at water (player.js's note), so the Pines names the
+// mire and the bogs in its keepOut too. Driven on the real Pines area, the
+// same way test/straycats.test.js drives its keep-out.
+describe('the Pines: strays keep off the water', () => {
+  const src = readFileSync(fileURLToPath(new URL('../src/straycats.js', import.meta.url)), 'utf8');
+  // a stray's fastest step: a shy one scurrying
+  const SCURRY = Number(src.match(/const SCURRY_SPEED = ([\d.]+);/)[1]);
+  const DT = 1 / 30;
+  // A step, and 2% over: put back out of a round edge (a bog, or the margin
+  // round a rect's corner) a step can come out a hair longer than it went in,
+  // under 1% for the 0.6 m margin. A keep-out hop (the ring search) is a
+  // quarter metre or more, three times a step.
+  const MAX_STEP = SCURRY * DT * 1.02;
+  const undecked = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
+  const v = (x, z) => new THREE.Vector3(x, 0, z);
+  const scene3 = () => ({ add() {}, remove() {} });
+
+  it('names the mire and every bog, built from their own records', () => {
+    const KO = PINES_KEEP_OUT;
+    const box = (w) => ({ minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ });
+    expect(KO.rects).toEqual([...ISLAND_KEEP_OUT.rects, box(byId('mire-north')), box(byId('mire-west'))]);
+    const bogs = ['bog-1', 'bog-2', 'bog-3', 'bog-4'].map(byId);
+    expect(KO.capsules).toEqual([
+      ...ISLAND_KEEP_OUT.capsules,
+      ...bogs.map((w) => ({ x1: w.x, z1: w.z, x2: w.x, z2: w.z, r: w.r + ISLAND_KEEP_OUT.margin })),
+    ]);
+    expect(KO.margin).toBe(ISLAND_KEEP_OUT.margin);
+    for (const o of [KO, KO.rects, KO.capsules, ...KO.rects, ...KO.capsules]) expect(Object.isFrozen(o)).toBe(true);
+    // a bog's capsule has no length: keepout.js takes its one end as nearest,
+    // so a point in the bog goes straight out from its middle
+    const p = keepOutPoint(area, -40 + 1, 16 + 1);
+    expect(Math.hypot(p.x + 40, p.z - 16)).toBeCloseTo(3.5 + 0.6, 9);
+    expect(p.x + 40).toBeCloseTo(p.z - 16, 9);
+    // and the island's keep-out is left as it was, for the patrols to come
+    expect(ISLAND_KEEP_OUT.rects).toHaveLength(2);
+    expect(ISLAND_KEEP_OUT.capsules).toHaveLength(1);
+  });
+
+  it("the mire's inside corner settles on the nearest dry ground, with no ring-search hop", () => {
+    // Where the two reaches overlap (x -32..-27, z -11..-6) a point is pushed
+    // out by whole edges, one reach and then the other: its x ends on its own
+    // line or an edge of mire-north's margin (-32.6, -26.4), its z on its own
+    // line or an edge of mire-west's (-11.6, -5.4). West then north lands on
+    // the concave corner (-32.6, -11.6), where the two margins meet. Landing
+    // anywhere else would mean the pushes gave up and the ring search moved
+    // it, which is the quarter-metre hop.
+    const near = (a, b) => Math.abs(a - b) < 1e-9;
+    for (let x = -32; x <= -27; x += 0.25) {
+      for (let z = -11; z <= -6; z += 0.25) {
+        const p = keepOutPoint(area, x, z);
+        const at = `(${x}, ${z}) -> (${p.x}, ${p.z})`;
+        const onExit = [x, -32.6, -26.4].some((v) => near(p.x, v)) && [z, -11.6, -5.4].some((v) => near(p.z, v))
+          && !(near(p.x, x) && near(p.z, z));
+        expect(onExit, at).toBe(true);
+        expect(inWater(PINES_WATERS.map((w) => ({ ...w, decks: [] })), p.x, p.z), at).toBe(false);
+      }
+    }
+    for (const [x, z] of [[-32.5, -11.5], [-32.1, -11.5], [-32.5, -11.1], [-32.3, -11.3]]) {
+      const p = keepOutPoint(area, x, z);
+      expect(p.x, `(${x}, ${z})`).toBeCloseTo(-32.6, 9);
+      expect(p.z, `(${x}, ${z})`).toBeCloseTo(-11.6, 9);
+    }
+  });
+
+  it('over a minute of fifty walks no stray stands in the mire, a bog or the lake, and none hops', () => {
+    let wet = null;
+    let hop = null;
+    let worst = 0;
+    for (let seed = 1; seed <= 50; seed++) {
+      const cats = createStrayCats(scene3(), area, 3, strayStream(seed), { roomSeed: seed });
+      const [a, b, c] = cats.strays;
+      const where = (s, i) => `seed ${seed} frame ${i} ${s.name} at (${s.group.position.x.toFixed(3)}, ${s.group.position.z.toFixed(3)})`;
+      for (const s of cats.strays) if (inWater(undecked, s.group.position.x, s.group.position.z)) wet ??= where(s, -1);
+      // Each stray is sent at the water from dry ground: straight targets
+      // set inside the water (harsher than the game, which pushes every
+      // target out first), and a shy one scurrying from the cat into it.
+      const aim = (s, from, to) => {
+        // every start is dry ground clear of the keep-out, so the first step
+        // from it is a plain step
+        expect(keepOutPoint(area, from[0], from[1]), `start (${from})`).toEqual({ x: from[0], z: from[1] });
+        s.group.position.set(from[0], 0, from[1]);
+        s.state = 'wander';
+        s.target = v(to[0], to[1]);
+        s.timer = 12;
+      };
+      let catPos = v(999, 999);
+      let catSpeed = 0;
+      for (let i = 0; i < 1800; i++) {
+        if (i === 0) {
+          // into the mire's inside corner, where the two reaches overlap
+          aim(a, [-34, -13], [-29.5, -8.5]);
+          // into bog-1's middle
+          aim(b, [-40, 20.5], [-40, 16]);
+          // a shy stray east of mire-north, the cat running at it from the east
+          c.personality = 'shy';
+          c.state = 'idle';
+          c.scurry = 0;
+          c.group.position.set(-24, 0, -8);
+          catPos = v(-21, -8);
+          catSpeed = 3;
+        }
+        if (i === 600) {
+          catPos = v(999, 999);
+          catSpeed = 0;
+          // across mire-north, west to east, and into bog-3 and bog-4
+          aim(a, [-34, -18], [-24, -18]);
+          aim(b, [-37, -26], [-37, -22]);
+          aim(c, [-40, -40], [-40, -44]);
+        }
+        if (i === 1200) {
+          // along mire-west from the outer swamp, and into bog-2
+          aim(a, [-45, -4], [-35, -9]);
+          aim(b, [-44, 34], [-44, 30]);
+          // over the mire's other corner, from the deep swamp to the spawn side
+          aim(c, [-34, -4], [-25, -13]);
+        }
+        const before = cats.strays.map((s) => s.group.position.clone());
+        cats.update(DT, i * DT, catPos, { stalking: false, catSpeed, toy: null });
+        cats.strays.forEach((s, k) => {
+          const p = s.group.position;
+          if (inWater(undecked, p.x, p.z)) wet ??= where(s, i);
+          // measured from where the frame started, after any placing above
+          const d = Math.hypot(p.x - before[k].x, p.z - before[k].z);
+          worst = Math.max(worst, d);
+          if (d > MAX_STEP) hop ??= `${d.toFixed(3)} m: ${where(s, i)}`;
+        });
+      }
+    }
+    expect(wet).toBe(null);
+    expect(hop).toBe(null);
+    expect(worst).toBeLessThanOrEqual(MAX_STEP);
+  }, 60000);
 });
 
 describe('the Pines: the area record', () => {

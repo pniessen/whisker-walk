@@ -83,10 +83,22 @@ function inside(s, x, z) {
 function exits(s, x, z) {
   if (s.kind === 'rect') {
     const { r, margin } = s;
-    return [
+    const out = [
       { x: r.minX - margin, z }, { x: r.maxX + margin, z },
       { x, z: r.minZ - margin }, { x, z: r.maxZ + margin },
     ];
+    // Past a corner the margin is round (rectGap), so the way out is straight
+    // away from the corner. Pushed along an edge instead, a stray walking
+    // round the corner jumped up to about a fifth of the margin more than a
+    // step (seen at the Black Mire's corner in the Pines).
+    const cx = x < r.minX ? r.minX : x > r.maxX ? r.maxX : null;
+    const cz = z < r.minZ ? r.minZ : z > r.maxZ ? r.maxZ : null;
+    if (cx !== null && cz !== null) {
+      const dx = x - cx, dz = z - cz;
+      const d = Math.hypot(dx, dz);
+      out.push({ x: cx + (dx / d) * margin, z: cz + (dz / d) * margin });
+    }
+    return out;
   }
   const q = segNearest(s.c, x, z);
   let dx = x - q.x, dz = z - q.z;
