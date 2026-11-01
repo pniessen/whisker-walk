@@ -1444,6 +1444,14 @@ describe('v18 skills/feats save fields', () => {
     expect(Object.getPrototypeOf(p.state.feats)).toBe(Object.prototype);
   });
 
+  it('a cloud payload keeps a patrol tally as a sanitised feat (Clan Life Task 6)', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload(JSON.parse('{"version":4,"feats":{"patrol":3,"__proto__":1}}'));
+    expect(p.state.feats).toEqual({ patrol: 3 });
+    expect(Object.prototype.hasOwnProperty.call(p.state.feats, '__proto__')).toBe(false);
+    expect(Object.getPrototypeOf(p.state.feats)).toBe(Object.prototype);
+  });
+
   it('drops a non-object feats field wholesale', () => {
     for (const feats of ['<script>', 42, null, ['mischief'], true]) {
       const storage = fakeStorage({ 'whisker-walk-save': JSON.stringify({ version: 4, feats }) });

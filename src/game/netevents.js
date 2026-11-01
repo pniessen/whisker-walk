@@ -244,7 +244,29 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       showPartnerFeed(s, ev);
     } else if (ev.type === 'carry-pick' || ev.type === 'carry-drop') {
       applyRemoteCarry(s, ev);
+    } else if (ev.type === 'clan-buddy') {
+      applyRemoteBuddy(s, ev);
     }
+  }
+
+  // Clan Life Part 1, Task 6 — a co-walker started or ended a patrol with a
+  // clanmate (sent by game/interactions.js). WORLD STATE ONLY: the cat walks
+  // beside her cat on my screen; no prompt, no award, no toast, no save. The
+  // sender must be a remote in this walk; catId a string naming one of this
+  // walk's clan cats (found with list.find, so '__proto__' is just unknown);
+  // `on` exactly true or false. A cat already following my cat ignores her
+  // `on: true` (startBuddy refuses a cat with a buddy: first one wins on each
+  // screen), and her `on: false` lets go only of a cat following her.
+  function applyRemoteBuddy(s, ev) {
+    const cats = s.clanCats;
+    if (!cats || !Array.isArray(cats.list) || typeof ev.catId !== 'string') return;
+    if (ev.on !== true && ev.on !== false) return;
+    const remote = s.remotes?.list.find((r) => r.playerId === ev.id);
+    if (!remote) return;
+    const cat = cats.list.find((c) => c.id === ev.catId);
+    if (!cat) return;
+    if (ev.on) cats.startBuddy(cat, remote.group, { remote: true });
+    else if (cat.buddy?.target === remote.group) cats.endBuddy(cat);
   }
 
   // v21 3b Task 8 — a co-walker picked something up ('carry-pick') or put it

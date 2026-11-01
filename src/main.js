@@ -311,7 +311,7 @@ function init() {
   // Interactions/prompts + the shared action helpers (src/game/interactions.js).
   const {
     doMeow, doYarn, doPounceOrClimb, doCameraToggle, handleTouchAction,
-    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain,
+    updateInteractions, awardStrayGreet, handleInteract, tickCarryRain, endClanPatrol,
   } = createInteractions({
     MP, pid, getCloud, getPsecret,
     getSession: () => session,
@@ -369,6 +369,7 @@ function init() {
     getHomebase: () => homebase,
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
+    endClanPatrol,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the

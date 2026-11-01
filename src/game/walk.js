@@ -158,6 +158,8 @@ export function createWalkLifecycle({
   qualityAdapter,
   // v21 Stream 5: the den shop overlay (ui/denshopview.js), on den walks only.
   denShop,
+  // Clan Life Task 6: game/interactions.js's end of a patrol together.
+  endClanPatrol = () => {},
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -850,7 +852,9 @@ export function createWalkLifecycle({
     // Derived, never stored, the same on every device; Legacy spawns the same
     // cats in the same places, only without names.
     const clanCast = isDen ? [] : castFor(areaId).slice(0, clanCountFor(tier.strays, fedHere));
-    // Task 6 sets this (patrol together); a no-op until then.
+    // Task 6 (patrol together): set to interactions.js's endClanPatrol once
+    // `session` exists below. The clan cats only call it from update, which
+    // first runs after the session is built.
     let onClanBuddyEnd = () => {};
     const clanCats = clanCast.length ? createClanCats(scene, areaData, clanCast, {
       campLayout: campLayout(areaId),
@@ -860,6 +864,8 @@ export function createWalkLifecycle({
       showNames: isClanEdition(state),
       reducedMotion,
       onBuddyEnd: (cat, reason, secs) => onClanBuddyEnd(cat, reason, secs),
+      // A patrol ends at this territory's camp disc (rivalclans.isTrespassing).
+      areaId,
     }) : NO_CLAN_CATS;
     // The camp on the corner map (Clan Edition only; Legacy shows no clan layer).
     const campAt = clanCast.length ? campLayout(areaId) : null;
@@ -1122,6 +1128,8 @@ export function createWalkLifecycle({
       campMarker,
       // Per-walk pay caps for the clan verbs (interactions.js CLAN_PAY_CAP).
       clanPaid: { friend: 0, boop: 0, patrol: 0 },
+      // Task 6: the clanmate on patrol with me, or null (interactions.js).
+      clanBuddy: null,
       // v18 Task 1.4: the walk was ACTUALLY dusk (duskMode gated on the glow
       // collar for solo walks — see where duskActive is computed above).
       // endWalk needs it for the duskWalks tally that Night Eyes reads;
@@ -1262,6 +1270,7 @@ export function createWalkLifecycle({
     const clanHome = clanHomeFor(areaId, progression.state.edition, picks);
     session.clanHome = clanHome;
     session.clanEdition = isClanEdition(progression.state);
+    onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
     // goldMice above; the den has no rival, so everything is a no-op there.
@@ -1709,6 +1718,13 @@ export function createWalkLifecycle({
     // walk"/"Join" flow is available again next time everyone's back on the
     // home base screen. Fire-and-forget: endWalk must finish tearing down
     // the scene synchronously regardless of how the network leave resolves.
+    // Patrol together: a walk-along still going at walk end just stops and pays
+    // nothing (it never reached its end); the co-walker's screen lets the cat go.
+    if (session.clanBuddy && session.net) {
+      session.net.sendEvent({ v: 1, id: session.playerId, type: 'clan-buddy', catId: session.clanBuddy.id, on: false });
+    }
+    session.clanBuddy = null;
+
     if (session.net) {
       const net = session.net;
       clearPendingRoom();

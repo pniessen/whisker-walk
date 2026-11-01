@@ -1,7 +1,9 @@
 import { describe, it, test, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { createClanCats, CLAN_WANDER_SALT } from '../src/clancats.js';
+import {
+  createClanCats, CLAN_WANDER_SALT, BUDDY_TIME, PATROL_MIN, BUDDY_GIVE_UP, BUDDY_EDGE, buddyEnded,
+} from '../src/clancats.js';
 import { castFor, clanCountFor, lonersFor, roamHomes, RANK_SCALE, CLAN_COATS, ROAM_SLOTS, ROAM_RADIUS } from '../src/clancast.js';
 import { campLayout } from '../src/world/camp.js';
 import { RANK_KEYS } from '../src/clanwords.js';
@@ -24,7 +26,7 @@ const CAMP_RANKS = new Set([K.leader, K.deputy, K.elder, K.kit]);
 
 function spawn({
   areaId = 'woods', count = 16, showNames = true, roomSeed = 42, reducedMotion = false,
-  isWalkable = OPEN, homes, area = AREA, scene = fakeScene(),
+  isWalkable = OPEN, homes, area = AREA, scene = fakeScene(), onBuddyEnd = () => {},
 } = {}) {
   const cast = castFor(areaId).slice(0, count);
   return createClanCats(scene, area, cast, {
@@ -34,7 +36,8 @@ function spawn({
     roomSeed,
     showNames,
     reducedMotion,
-    onBuddyEnd: () => {},
+    areaId,
+    onBuddyEnd,
   });
 }
 
@@ -323,7 +326,11 @@ describe('createClanCats', () => {
     const specs = [...src.matchAll(/^\s*import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs.length).toBeGreaterThan(0);
     // clanwords.js is a leaf of words (RANK_KEYS, for comparing ranks).
-    const allowed = ['three', './cat/model.js', './cat/animator.js', './nametag.js', './rng.js', './clancast.js', './clanwords.js'];
+    // rivalclans.js is a leaf too (the camp disc, for a patrol's end).
+    const allowed = [
+      'three', './cat/model.js', './cat/animator.js', './nametag.js', './rng.js', './clancast.js', './clanwords.js',
+      './rivalclans.js',
+    ];
     for (const s of specs) expect(allowed).toContain(s);
   });
 });
@@ -331,5 +338,176 @@ describe('createClanCats', () => {
 describe('the roaming radius', () => {
   it('matches clancast.js ROAM_RADIUS', () => {
     expect(ROAM_RADIUS).toBe(6);
+  });
+});
+
+// Clan Life Part 1, Task 6: patrol together. A warrior or apprentice walks
+// beside a target (my cat, or a co-walker's) for up to a minute.
+describe('patrol together (the buddy)', () => {
+  const DT = 1 / 30;
+  const ROAMERS = new Set([K.warrior, K.apprentice]);
+
+  function buddyWorld(opts = {}) {
+    const ends = [];
+    const cats = spawn({ ...opts, onBuddyEnd: (cat, reason, secs) => ends.push([cat.id, reason, secs]) });
+    const cat = cats.list.find((c) => c.rank === K.warrior);
+    const target = new THREE.Object3D();
+    return { cats, cat, target, ends };
+  }
+
+  // Steps the world, moving the target with move(t) before each update.
+  function step(cats, target, secs, move = () => {}, each = () => {}, t0 = 0) {
+    const n = Math.round(secs / DT);
+    for (let i = 0; i < n; i++) {
+      const t = t0 + (i + 1) * DT;
+      move(t);
+      cats.update(DT, t, target.position);
+      each(t);
+    }
+    return t0 + n * DT;
+  }
+
+  it('the numbers', () => {
+    expect([BUDDY_TIME, PATROL_MIN, BUDDY_GIVE_UP, BUDDY_EDGE]).toEqual([60, 30, 12, 4]);
+  });
+
+  it('only a warrior or apprentice with no buddy can patrol', () => {
+    const { cats, target } = buddyWorld();
+    for (const c of cats.list) {
+      expect(cats.startBuddy(c, target)).toBe(ROAMERS.has(c.rank));
+      if (ROAMERS.has(c.rank)) {
+        expect(c.buddy).not.toBe(null);
+        expect(cats.startBuddy(c, new THREE.Object3D())).toBe(false); // already has one
+      } else {
+        expect(c.buddy).toBe(null);
+      }
+    }
+  });
+
+  it('follows a moving target within 2 m for 50 s, then ends with time at 60 s', () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    // A circle of radius 8 round (-20, 10): far from the woods camp and the edges.
+    const at = (t) => {
+      const a = (t * 1.5) / 8;
+      target.position.set(-20 + Math.sin(a) * 8, 0, 10 + Math.cos(a) * 8);
+      target.rotation.y = Math.atan2(Math.cos(a), -Math.sin(a)) + Math.PI;
+    };
+    at(0);
+    cat.group.position.copy(target.position);
+    expect(cats.startBuddy(cat, target)).toBe(true);
+    let worst = 0;
+    const t = step(cats, target, 50, at, (tt) => {
+      if (tt > 2) worst = Math.max(worst, cat.group.position.distanceTo(target.position));
+    });
+    expect(worst).toBeLessThan(2);
+    expect(ends).toEqual([]);
+    step(cats, target, 10.5, at, () => {}, t);
+    expect(ends).toHaveLength(1);
+    expect(ends[0][0]).toBe(cat.id);
+    expect(ends[0][1]).toBe('time');
+    expect(ends[0][2]).toBeGreaterThanOrEqual(BUDDY_TIME);
+    expect(ends[0][2]).toBeLessThan(BUDDY_TIME + 0.1);
+    expect(cat.buddy).toBe(null);
+  });
+
+  it("ends with 'camp' when the target steps into the camp disc", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(2, 0, -28);
+    cat.group.position.set(3, 0, -28);
+    cats.startBuddy(cat, target);
+    step(cats, target, 12, (t) => target.position.set(2, 0, -28 - t * 1.5));
+    expect(ends.map((e) => e[1])).toEqual(['camp']);
+  });
+
+  it("starting inside the camp disc does not end at once: 'camp' needs the target to come back in", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(2, 0, -43);
+    cat.group.position.set(3, 0, -43);
+    cats.startBuddy(cat, target);
+    step(cats, target, 1);
+    expect(ends).toEqual([]);
+  });
+
+  it("ends with 'edge' within BUDDY_EDGE of the map's bounds", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(-20, 0, 30);
+    cat.group.position.set(-19, 0, 30);
+    cats.startBuddy(cat, target);
+    step(cats, target, 20, (t) => target.position.set(-20, 0, 30 + t * 1.5));
+    expect(ends.map((e) => e[1])).toEqual(['edge']);
+    expect(target.position.z).toBeGreaterThan(50 - BUDDY_EDGE - 0.5);
+  });
+
+  it("ends with 'far' when the target teleports 15 m", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(-20, 0, 10);
+    cat.group.position.set(-19, 0, 10);
+    cats.startBuddy(cat, target);
+    let t = step(cats, target, 2);
+    target.position.set(-20 + 15, 0, 10);
+    step(cats, target, 2 * DT, () => {}, () => {}, t);
+    expect(ends.map((e) => e[1])).toEqual(['far']);
+  });
+
+  it('never follows onto ground its clan rejects (water): it stalls there and ends far behind', () => {
+    const dry = (x) => x < 0;
+    const { cats, cat, target, ends } = buddyWorld({ isWalkable: (x) => dry(x) });
+    target.position.set(-6, 0, 10);
+    cat.group.position.set(-6, 0, 11);
+    cats.startBuddy(cat, target);
+    let maxX = -Infinity;
+    step(cats, target, 20, (t) => target.position.set(-6 + t * 1.5, 0, 10), () => {
+      maxX = Math.max(maxX, cat.group.position.x);
+    });
+    expect(maxX).toBeLessThan(0);
+    expect(ends.map((e) => e[1])).toEqual(['far']);
+  });
+
+  it('buddyEnded reads the target and the clock', () => {
+    const bounds = AREA.bounds;
+    const at = (x, z) => ({ position: new THREE.Vector3(x, 0, z) });
+    const cat = (tx, tz, seconds = 5, cx = tx + 1, cz = tz) => ({
+      group: { position: new THREE.Vector3(cx, 0, cz) },
+      buddy: { target: at(tx, tz), seconds, armed: { camp: true, edge: true } },
+    });
+    expect(buddyEnded(cat(-20, 10), { areaId: 'woods', bounds })).toBe(null);
+    expect(buddyEnded(cat(-20, 10, 60), { areaId: 'woods', bounds })).toBe('time');
+    expect(buddyEnded(cat(2, -43), { areaId: 'woods', bounds })).toBe('camp');
+    expect(buddyEnded(cat(-48, 10), { areaId: 'woods', bounds })).toBe('edge');
+    expect(buddyEnded(cat(-20, 10, 5, -20, 23), { areaId: 'woods', bounds })).toBe('far');
+    expect(buddyEnded({ buddy: null }, { areaId: 'woods', bounds })).toBe(null);
+  });
+
+  it('endBuddy says goodbye and walks it home', () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    const home = cat.home.clone();
+    target.position.copy(home);
+    cat.group.position.copy(home).add(new THREE.Vector3(1, 0, 0));
+    cats.startBuddy(cat, target);
+    const t = step(cats, target, 8, (tt) => target.position.set(home.x + Math.min(tt, 6), 0, home.z));
+    const away = cat.group.position.distanceTo(home);
+    expect(away).toBeGreaterThan(4);
+    const { seconds } = cats.endBuddy(cat);
+    expect(seconds).toBeCloseTo(8, 1);
+    expect(cat.buddy).toBe(null);
+    expect(cats.endBuddy(cat)).toEqual({ seconds: 0 }); // no buddy: a no-op
+    step(cats, target, 30, () => {}, () => {}, t);
+    expect(cat.group.position.distanceTo(home)).toBeLessThan(6.5); // home, then its usual 2-6 m wander
+    expect(ends).toEqual([]); // endBuddy itself reports nothing: the caller does
+  });
+
+  it('markBeside: it stops a second where it stands, then catches up', () => {
+    const { cats, cat, target } = buddyWorld();
+    target.position.set(-20, 0, 10);
+    cat.group.position.set(-19, 0, 10);
+    cats.startBuddy(cat, target);
+    let t = step(cats, target, 1);
+    const at = cat.group.position.clone();
+    cats.markBeside(cat);
+    t = step(cats, target, 0.5, (tt) => target.position.set(-20 + (tt - 1) * 2, 0, 10), () => {}, t);
+    expect(cat.group.position.distanceTo(at)).toBeLessThan(1e-9);
+    step(cats, target, 1.5, () => {}, () => {}, t);
+    expect(cat.group.position.distanceTo(at)).toBeGreaterThan(0.5);
+    expect(cat.buddy).not.toBe(null);
   });
 });

@@ -16,6 +16,20 @@
 // so no feed, grudge, tame or colony path can reach it: those all start from
 // the strays' list. The imports below are leaves only (a structural test pins
 // them): nothing from progression, colony, discoveries, enemies or net.
+//
+// PATROL TOGETHER (Task 6). A warrior or apprentice can walk beside a target
+// (my cat, or a co-walker's remote cat) for up to BUDDY_TIME seconds:
+// startBuddy / endBuddy / markBeside below, and buddyEnded, checked in update.
+// Where it may walk: only where `isWalkable` (clan ground: no water, no wade
+// band, no keep-out, no truce path) allows, exactly as it wanders. A step the
+// clan's ground rejects is tried along each axis alone (so it slides along a
+// bank) and otherwise not taken: the buddy stalls at the water's edge, and if
+// the player swims or wades on, she leaves it behind and the patrol ends as
+// 'far' once she is BUDDY_GIVE_UP metres away. It goes home along its own
+// trail (every point of which it stood on) and then straight to its home spot.
+// A patrol is world state only: what it pays is interactions.js's business,
+// told through onBuddyEnd, and only for a buddy that follows MY cat (a remote
+// one, started from the wire, ends without a word).
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
@@ -23,6 +37,7 @@ import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagSubFor } from './clancast.js';
 import { RANK_KEYS } from './clanwords.js';
+import { isTrespassing } from './rivalclans.js';
 
 // Keeps this derivation apart from the strays' WANDER_SALT and every other
 // per-cat seed built from the same room seed.
@@ -41,6 +56,43 @@ const GREET_HOLD = 3;
 const BOOP_HOLD = 1.5;
 
 const CAMP_RANKS = new Set([K.leader, K.deputy, K.elder, K.kit]);
+// Who may patrol: the camp's own (leader, deputy, elders, kits) keep the camp.
+const PATROL_RANKS = new Set([K.warrior, K.apprentice]);
+
+// Patrol together (Task 6).
+export const BUDDY_TIME = 60;     // seconds: the longest walk-along
+export const PATROL_MIN = 30;     // seconds together before a patrol pays
+export const BUDDY_GIVE_UP = 12;  // metres: left this far behind, it gives up
+export const BUDDY_EDGE = 4;      // metres from the map's bounds: the border
+const BUDDY_SIDE = 1.2;           // metres to the target's right
+const BUDDY_MAX_SPEED = 4;        // m/s: it matches the target's pace up to this
+const BUDDY_SETTLE = 0.05;        // metres: close enough to its spot to stand
+const BYE_HOLD = 1.5;             // seconds of goodbye (requestPet, facing the target)
+const MARK_TIME = 1;              // seconds of stretch beside a mark
+const HOME_SPEED = 2;             // m/s back along its trail
+const TRAIL_STEP = 1;             // metres between trail points
+const TRAIL_MAX = 600;
+
+const nearEdge = (p, b) => !!b
+  && (p.x - b.minX < BUDDY_EDGE || b.maxX - p.x < BUDDY_EDGE || p.z - b.minZ < BUDDY_EDGE || b.maxZ - p.z < BUDDY_EDGE);
+
+// Why a walk-along ends now, or null. 'time' after BUDDY_TIME; 'camp' when the
+// target is inside the camp disc; 'edge' within BUDDY_EDGE of the bounds;
+// 'far' when the target is more than BUDDY_GIVE_UP away (flat distance).
+// 'camp' and 'edge' are armed only once the target has been outside them
+// (buddy.armed, set in update), so a patrol started at the camp or by the
+// border does not end the instant it begins.
+export function buddyEnded(cat, { areaId, bounds } = {}) {
+  const b = cat?.buddy;
+  if (!b) return null;
+  if (b.seconds >= BUDDY_TIME) return 'time';
+  const tp = b.target.position;
+  if (b.armed?.camp && isTrespassing(areaId, tp.x, tp.z)) return 'camp';
+  if (b.armed?.edge && nearEdge(tp, bounds)) return 'edge';
+  const p = cat.group.position;
+  if (Math.hypot(tp.x - p.x, tp.z - p.z) > BUDDY_GIVE_UP) return 'far';
+  return null;
+}
 
 // The how-manyth cat of its rank this slot is (0 for the first elder, 1 for
 // the second): the seat order in campLayout follows slot order.
@@ -70,8 +122,9 @@ const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 
 export function createClanCats(scene, area, cast, {
   campLayout = null, roamHomes = [], isWalkable = () => true, roomSeed, showNames = false,
-  reducedMotion = false, onBuddyEnd = () => {},
+  reducedMotion = false, onBuddyEnd = () => {}, areaId = area?.id ?? null,
 } = {}) {
+  const bounds = area?.bounds ?? null;
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
   const ok = (x, z) => isWalkable(x, z) === true;
   const cx = campLayout?.cx ?? 0;
@@ -138,6 +191,7 @@ export function createClanCats(scene, area, cast, {
       hopTo: null,
       hopT: 0,
       away: false,      // a kit sitting on its neighbour's seat
+      trail: null,      // a buddy's way back home (points it stood on)
     });
   }
 
@@ -238,6 +292,95 @@ export function createClanCats(scene, area, cast, {
     animateCat(c.group, c.pose, t, 0);
   }
 
+  // A buddy beside its target: BUDDY_SIDE to the target's right (the target's
+  // nose is at its local -z, as every cat's is), closing at up to
+  // BUDDY_MAX_SPEED, on clan ground only (see the header).
+  function updateBuddy(c, dt, t) {
+    const b = c.buddy;
+    if (Number.isFinite(dt) && dt > 0) b.seconds += dt;
+    const tp = b.target.position;
+    if (!b.armed.camp && !isTrespassing(areaId, tp.x, tp.z)) b.armed.camp = true;
+    if (!b.armed.edge && !nearEdge(tp, bounds)) b.armed.edge = true;
+    const p = c.group.position;
+    if (b.mark > 0) {
+      b.mark -= dt;
+      animateCat(c.group, 'stretch', t, 0);
+    } else {
+      const yaw = b.target.rotation?.y ?? 0;
+      const gx = tp.x + Math.cos(yaw) * BUDDY_SIDE;
+      const gz = tp.z - Math.sin(yaw) * BUDDY_SIDE;
+      const dx = gx - p.x;
+      const dz = gz - p.z;
+      const d = Math.hypot(dx, dz);
+      let speed = 0;
+      if (d > BUDDY_SETTLE && dt > 0) {
+        const step = Math.min(d, BUDDY_MAX_SPEED * dt);
+        const nx = p.x + (dx / d) * step;
+        const nz = p.z + (dz / d) * step;
+        let to = null;
+        if (ok(nx, nz)) to = [nx, nz];
+        else if (ok(nx, p.z)) to = [nx, p.z];
+        else if (ok(p.x, nz)) to = [p.x, nz];
+        if (to) {
+          const moved = Math.hypot(to[0] - p.x, to[1] - p.z);
+          if (moved > 1e-6) c.group.rotation.y = yawToward(p.x, p.z, to[0], to[1]);
+          p.x = to[0];
+          p.z = to[1];
+          speed = moved / dt;
+        }
+      }
+      if (speed < 0.3) c.group.rotation.y = yaw; // standing beside: looking where she looks
+      const last = c.trail[c.trail.length - 1];
+      if (!last || Math.hypot(p.x - last.x, p.z - last.z) >= TRAIL_STEP) {
+        if (c.trail.length < TRAIL_MAX) c.trail.push({ x: p.x, z: p.z });
+      }
+      animateCat(c.group, 'follow', t, speed);
+    }
+    const reason = buddyEnded(c, { areaId, bounds });
+    if (reason) {
+      const remote = b.remote;
+      const { seconds } = endBuddy(c);
+      if (!remote) onBuddyEnd(c, reason, seconds);
+    }
+  }
+
+  // Back along the trail, newest point first, then to its home spot.
+  function updateHomeward(c, dt, t) {
+    const p = c.group.position;
+    const trail = c.trail ?? [];
+    const to = trail.length ? trail[trail.length - 1] : c.home;
+    const dx = to.x - p.x;
+    const dz = to.z - p.z;
+    const d = Math.hypot(dx, dz);
+    const step = HOME_SPEED * dt;
+    if (d <= Math.max(step, 0.05)) {
+      p.x = to.x;
+      p.z = to.z;
+      if (trail.length) trail.pop();
+      else {
+        c.trail = null;
+        endLeg(c);
+      }
+    } else {
+      c.group.rotation.y = yawToward(p.x, p.z, to.x, to.z);
+      p.x += (dx / d) * step;
+      p.z += (dz / d) * step;
+    }
+    animateCat(c.group, 'follow', t, HOME_SPEED);
+  }
+
+  // Ends a walk-along: a goodbye facing the target, then home. Returns how
+  // long it lasted ({ seconds: 0 } for a cat with no buddy: a no-op).
+  function endBuddy(cat) {
+    const b = cat?.buddy;
+    if (!b) return { seconds: 0 };
+    cat.buddy = null;
+    cat.target = null;
+    cat.state = 'home';
+    hold(cat, BYE_HOLD, b.target.position);
+    return { seconds: b.seconds };
+  }
+
   function endLeg(c) {
     c.state = 'idle';
     c.target = null;
@@ -272,12 +415,44 @@ export function createClanCats(scene, area, cast, {
     },
     // Task 6 (patrol together) reports the end of a walk-along through this.
     onBuddyEnd,
+    // startBuddy(cat, target, { remote }) -> true when it starts: a warrior
+    // or apprentice of this walk with no buddy already. `remote` marks one
+    // started from the wire (a co-walker's patrol): its end calls no
+    // onBuddyEnd here.
+    startBuddy(cat, target, { remote = false } = {}) {
+      if (!cat || !list.includes(cat) || cat.buddy || !PATROL_RANKS.has(cat.rank)) return false;
+      const tp = target?.position;
+      if (!tp || !Number.isFinite(tp.x) || !Number.isFinite(tp.z)) return false;
+      cat.buddy = {
+        target,
+        seconds: 0,
+        remote: remote === true,
+        mark: 0,
+        armed: { camp: !isTrespassing(areaId, tp.x, tp.z), edge: !nearEdge(tp, bounds) },
+      };
+      cat.state = 'buddy';
+      cat.target = null;
+      cat.resume = null;
+      cat.hold = 0;
+      const p = cat.group.position;
+      cat.trail = [{ x: p.x, z: p.z }];
+      return true;
+    },
+    endBuddy,
+    // The paw-on-the-post look: a second's stretch where it stands. Display only.
+    markBeside(cat) {
+      if (cat?.buddy) cat.buddy.mark = MARK_TIME;
+    },
     update(dt, t, catPos) {
       if (Number.isFinite(dt) && dt > 0) clock += dt;
       for (const c of list) {
         if (c.tag) {
           const range = c.tag.userData?.revealRange ?? NAME_TAG_RANGE;
           c.tag.visible = catPos ? c.group.position.distanceTo(catPos) < range : false;
+        }
+        if (c.buddy) {
+          updateBuddy(c, dt, t);
+          continue;
         }
         if (c.state === 'greet') {
           c.hold -= dt;
@@ -301,6 +476,10 @@ export function createClanCats(scene, area, cast, {
             c.group.rotation.y = c.face + Math.sin(clock * DEPUTY_LOOK_RATE + phase) * DEPUTY_LOOK;
           }
           animateCat(c.group, postPose(c), t, 0);
+          continue;
+        }
+        if (c.state === 'home') {
+          updateHomeward(c, dt, t);
           continue;
         }
         updateRoamer(c, dt, t);

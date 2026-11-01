@@ -8,6 +8,9 @@ export const AWARDS = {
   rally: 6, nappile: 10, duet: 5, boop: 5,
   hunt: 12,
   tag: 8, groom: 6, duogoal: 20,
+  // Clan Life Part 1, Task 6: a patrol with a clanmate (once per cat per walk,
+  // the first 2 a walk: interactions.js CLAN_PAY_CAP).
+  patrol: 8,
 };
 
 export function createDiscoveryLog(progression) {

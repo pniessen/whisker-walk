@@ -579,3 +579,86 @@ describe('applyRemoteEvent: knock', () => {
     expect(h.toasts).toEqual([]);
   });
 });
+
+// Clan Life Part 1, Task 6: a co-walker's patrol, shown on my screen. World
+// state only: the cat walks beside her cat; no prompt, no award, no toast.
+describe('applyRemoteEvent: clan-buddy', () => {
+  function clanHarness({ clanCats = true } = {}) {
+    const toasts = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: {
+        awardOnce: () => { throw new Error('a co-walker\'s patrol must never award points'); },
+        award: () => { throw new Error('a co-walker\'s patrol must never award points'); },
+      },
+      hud: { toast: (t) => toasts.push(t) },
+      audio: {}, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
+      getPartner: () => null,
+    });
+    const calls = [];
+    const warrior = { id: 'woods-4', rank: 'warrior', buddy: null };
+    const mine = new THREE.Object3D();
+    const cats = {
+      list: [warrior, { id: 'woods-0', rank: 'leader', buddy: null }],
+      startBuddy(c, target, opts) {
+        calls.push(['start', c.id, target, opts]);
+        if (c.buddy) return false;
+        c.buddy = { target };
+        return true;
+      },
+      endBuddy(c) { calls.push(['end', c.id]); c.buddy = null; return { seconds: 0 }; },
+    };
+    const remoteGroup = new THREE.Group();
+    const s = {
+      playerId: ME,
+      remotes: { list: [{ playerId: PARTNER, group: remoteGroup }] },
+      clanCats: clanCats ? cats : undefined,
+      cat: { position: new THREE.Vector3() },
+    };
+    const ev = (o = {}) => ({ v: 1, id: PARTNER, type: 'clan-buddy', catId: 'woods-4', on: true, ...o });
+    return { s, ev, calls, warrior, mine, remoteGroup, toasts, apply: (e) => applyRemoteEvent(s, e) };
+  }
+
+  it("a valid on starts the buddy on that remote's group, marked remote, with no toast", () => {
+    const h = clanHarness();
+    h.apply(h.ev());
+    expect(h.calls).toEqual([['start', 'woods-4', h.remoteGroup, { remote: true }]]);
+    expect(h.warrior.buddy.target).toBe(h.remoteGroup);
+    expect(h.toasts).toEqual([]);
+  });
+
+  it('a valid off ends it, only when it follows that remote', () => {
+    const h = clanHarness();
+    h.apply(h.ev());
+    h.apply(h.ev({ on: false }));
+    expect(h.calls.at(-1)).toEqual(['end', 'woods-4']);
+    expect(h.warrior.buddy).toBe(null);
+    // a cat walking with MY cat is not let go by her off
+    h.warrior.buddy = { target: h.mine };
+    h.calls.length = 0;
+    h.apply(h.ev({ on: false }));
+    expect(h.calls).toEqual([]);
+    expect(h.warrior.buddy.target).toBe(h.mine);
+  });
+
+  it('a cat already following my cat ignores her on (first one wins)', () => {
+    const h = clanHarness();
+    h.warrior.buddy = { target: h.mine };
+    h.apply(h.ev());
+    expect(h.warrior.buddy.target).toBe(h.mine);
+  });
+
+  it('unknown catId, __proto__, a non-string id, a non-remote sender, a bad on, or no clan cats: no-op', () => {
+    for (const bad of [
+      { catId: 'woods-99' }, { catId: '__proto__' }, { catId: 4 }, { catId: undefined },
+      { id: STRANGER }, { id: ME }, { on: 'yes' }, { on: 1 },
+    ]) {
+      const h = clanHarness();
+      h.apply(h.ev(bad));
+      expect(h.calls, JSON.stringify(bad)).toEqual([]);
+      expect(h.warrior.buddy).toBe(null);
+    }
+    const none = clanHarness({ clanCats: false });
+    expect(() => none.apply(none.ev())).not.toThrow();
+  });
+});
