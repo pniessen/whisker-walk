@@ -763,8 +763,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // The coat is painted into the torso's vertex colours (coat.js): tabby
   // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
   // White material, so a painted base is exactly today's material colour.
+  const coat = coatFromStyle(s);
   const body = new THREE.Mesh(
-    paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coatFromStyle(s)),
+    paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coat),
     litMaterial(0xffffff, { vertexColors: true }));
   body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
@@ -773,7 +774,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
   // it. The animator counter-yaws it (R4) so the chest stays under the chin.
   const underside = new THREE.Mesh(
-    undersideGeometry(s, coatFromStyle(s), [fx, fy, fz], opts),
+    undersideGeometry(s, coat, [fx, fy, fz], opts),
     litMaterial(0xffffff, { vertexColors: true }));
   underside.userData.underside = true;
   underside.userData.ranges = underside.geometry.userData.ranges;

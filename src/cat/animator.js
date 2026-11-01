@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF } from './torso.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
@@ -64,14 +65,42 @@ const CROSS = {
 // follows avatar.position every frame), leaving the leg gait itself intact.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false) {
   pose(cat, state, t, moveSpeed, reducedMotion);
-  // R4: the underside hangs on the torso, so a yawed torso ('cross') would
-  // swing the chest out from under the chin; it turns back by the same angle.
-  // A rig without an underside (Hagrid) is untouched. Never writes -0.
-  const { underside, body } = cat.userData.parts;
-  if (underside) underside.rotation.y = body.rotation.y ? -body.rotation.y : 0;
+  const { underside } = cat.userData.parts;
+  if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+}
+
+// R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
+// the chest out from under the chin. It turns back by the yaw, but the torso's
+// scale is not uniform, so R_y(θ)·S·R_y(-θ) is not the identity: the chest
+// would still drift. So the underside is also moved (in the body's frame) by
+//   p = S⁻¹·Q⁻¹·S·c − R_y(-θ)·c,
+// c the chest centre, S the body's scale, Q its whole rotation (yaw and the
+// gait's roll), which lands the chest centre exactly where an unturned torso
+// carries it: Q·S·(p + R_y(-θ)·c) = S·c. With no yaw both are reset to 0, so
+// nothing accumulates. A rig without an underside (Hagrid) never gets here.
+// Never writes -0.
+const _c = new THREE.Vector3();
+const _p = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _yaw = new THREE.Quaternion();
+const _Y = new THREE.Vector3(0, 1, 0);
+function keepChestUnderHead(body, underside) {
+  const yaw = body.rotation.y;
+  if (!yaw) {
+    underside.rotation.y = 0;
+    underside.position.set(0, 0, 0);
+    return;
+  }
+  underside.rotation.y = -yaw;
+  const S = body.scale;
+  _c.fromArray(underside.userData.chestCentre);
+  _p.copy(_c).multiply(S).applyQuaternion(_q.copy(body.quaternion).invert()).divide(S); // S⁻¹·Q⁻¹·S·c
+  _c.applyQuaternion(_yaw.setFromAxisAngle(_Y, -yaw));                                  // R_y(-θ)·c
+  _p.sub(_c);
+  underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
 }
 
 // torso.js POSE_FIT: a per-state height correction, measured against the old

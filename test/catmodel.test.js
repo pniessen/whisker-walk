@@ -469,11 +469,20 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     const at = (s) => { const c = buildCat('tabby'); animateCat(c, s, 1, 0, false); return box(c.userData.parts.underside).min.y; };
     expect(at('nap')).toBeLessThan(at('follow') - 0.05);
   });
-  it('the chest stays under the head when the torso turns cross (R4)', () => {
-    const cat = buildCat('tabby'); animateCat(cat, 'cross', 1.3, 0, false); cat.updateMatrixWorld(true);
-    const { underside, head } = cat.userData.parts;
-    const chest = new THREE.Vector3(...underside.userData.chestCentre).applyMatrix4(underside.matrixWorld);
-    expect(Math.abs(chest.x - head.getWorldPosition(new THREE.Vector3()).x)).toBeLessThan(0.02);
+  it('the chest stays under the head when the torso turns cross (R4), standing and walking', () => {
+    for (const b of PRESETS) for (const [t, speed] of [[1.3, 0], [0.7, 1.5]]) {
+      const cat = buildCat(b); animateCat(cat, 'cross', t, speed, false); cat.updateMatrixWorld(true);
+      const { underside, head } = cat.userData.parts;
+      const chest = new THREE.Vector3(...underside.userData.chestCentre).applyMatrix4(underside.matrixWorld);
+      expect(Math.abs(chest.x - head.getWorldPosition(new THREE.Vector3()).x), `${b} speed ${speed}`).toBeLessThan(0.02);
+    }
+  });
+  it('the counter-yaw leaves nothing behind once the torso faces forward again', () => {
+    const cat = buildCat('tabby'); animateCat(cat, 'cross', 1.3, 0, false); animateCat(cat, 'follow', 1.3, 0, false);
+    const { underside } = cat.userData.parts;
+    expect(underside.rotation.y).toBe(0);
+    expect(underside.position.toArray()).toEqual([0, 0, 0]);
+    expect(Object.is(underside.rotation.y, -0)).toBe(false);
   });
   it("robbie's chest is white; a black cat's chest is its belly colour", () => {
     const chestColours = (b) => {
