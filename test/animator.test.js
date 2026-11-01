@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { animateCat } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
+import { DEFAULT_LOOK } from '../src/customcats.js';
 
 // The real rig, built exactly the way strays are ({ simple: true }, which
 // skips whiskers) — poses are only meaningful against the model's declared
@@ -170,8 +171,8 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
 // Clan Life Part 2, Task 4: the fight's two new poses.
 describe('animateCat: the fight poses (swipe, backUp)', () => {
   const lowest = (obj) => new THREE.Box3().setFromObject(obj, true).min.y;
-  const posed = (breed, state, simple = false) => {
-    const cat = buildCat(breed, undefined, simple ? { simple: true } : undefined);
+  const posed = (breed, state, simple = false, extra = {}) => {
+    const cat = buildCat(breed, undefined, simple || Object.keys(extra).length ? { ...(simple ? { simple: true } : {}), ...extra } : undefined);
     animateCat(cat, state, 1.3, 0, false);
     cat.updateMatrixWorld(true);
     return cat;
@@ -223,6 +224,33 @@ describe('animateCat: the fight poses (swipe, backUp)', () => {
       expect(sig(later)).toBe(sig(cat));
     }
     expect(() => animateCat(buildCat('hagrid'), 'backUp', 1.3, 0, false)).not.toThrow();
+  });
+
+  it('a long-haired, patched custom cat runs swipe and backUp with its paws above the ground', () => {
+    const look = { ...DEFAULT_LOOK, pattern: 'patches', fur: 'long' };
+    // a fingerprint of the build: mesh count plus every material colour
+    const count = (o) => {
+      const cols = [];
+      let n = 0;
+      o.traverse((m) => { n++; if (m.material && m.material.color) cols.push(m.material.color.getHexString()); });
+      return `${n}:${cols.join(',')}`;
+    };
+    for (const simple of [false, true]) {
+      // prove the look really is applied: the custom build is not the plain calico
+      const plain = buildCat('calico', undefined, simple ? { simple: true } : undefined);
+      const custom = buildCat('calico', undefined, { ...(simple ? { simple: true } : {}), look });
+      expect(count(custom)).not.toBe(count(plain));
+      for (const state of ['swipe', 'backUp']) {
+        const cat = posed('calico', state, simple, { look });
+        expect(count(cat)).toBe(count(custom));
+        expect(lowest(cat) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+        for (const leg of cat.userData.parts.legs) expect(lowest(leg.userData.paw) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+        if (state === 'swipe') {
+          const [fl, fr] = cat.userData.parts.legs;
+          expect(lowest(fl.userData.paw) - lowest(fr.userData.paw)).toBeGreaterThan(0.08 * cat.scale.x);
+        }
+      }
+    }
   });
 
   it('no other pose keeps the body moved back after a backUp', () => {
