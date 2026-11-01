@@ -338,6 +338,13 @@ describe('anyone can press Start, and it starts everyone', () => {
   });
 });
 
+const EMBER_LOOK = { coat: 'apricot', marks: 'black', pattern: 'patches', fur: 'long', eyes: 'blue', size: 0.9 };
+function equipEmber(c) {
+  const id = c.progression.createCustomCat({ name: 'Ember', personality: 'fearless', look: EMBER_LOOK });
+  c.progression.equipCustom(id);
+  return c.progression.state.customCats.find((x) => x.id === id).look;
+}
+
 describe('pushProfileNow shares the clan pick', () => {
   function pushing() {
     const cloud = { pushProfile: vi.fn(async () => 'ok') };
@@ -362,29 +369,10 @@ describe('pushProfileNow shares the clan pick', () => {
     await made.pushProfileNow();
     expect(cloud.pushProfile.mock.calls[1][0].accessories.home).toBe('woods');
   });
-});
 
-describe('a custom cat on the wire', () => {
-  const LOOK = { coat: 'apricot', marks: 'black', pattern: 'patches', fur: 'long', eyes: 'blue', size: 0.9 };
-  function equipEmber(c) {
-    const id = c.progression.createCustomCat({ name: 'Ember', personality: 'fearless', look: LOOK });
-    c.progression.equipCustom(id);
-    return c.progression.state.customCats.find((x) => x.id === id).look;
-  }
-
-  it('pushProfileNow and roomProfile send the preset breed, her usual pet name and the look', async () => {
-    const cloud = { pushProfile: vi.fn(async () => 'ok') };
-    const progression = createProgression(fakeStorage());
-    progression.setPetName('Mittens');
-    const made = createRooms({
-      MP: 1, pid: HOST, supabaseUrl: 'x', supabaseAnonKey: 'y',
-      progression, getCloud: () => cloud, getPsecret: () => 'sec', getSession: () => null, startWalk() {},
-      colonySync: { status: () => ({ mode: 'unpaired' }), pull() {} },
-      createTransport: () => createFakeHub().transport(),
-    });
-    const id = progression.createCustomCat({ name: 'Ember', personality: 'fearless', look: LOOK });
-    progression.equipCustom(id);
-    const saved = progression.state.customCats.find((x) => x.id === id).look;
+  it('a custom cat sends the preset breed, her usual pet name and the look', async () => {
+    const { cloud, progression, made } = pushing();
+    const saved = equipEmber({ progression });
     await made.pushProfileNow();
     const sent = cloud.pushProfile.mock.calls[0][0];
     expect(sent.breed).toBe('black');
@@ -394,14 +382,16 @@ describe('a custom cat on the wire', () => {
     const rp = made.roomProfile();
     expect([rp.breed, rp.petName, rp.accessories.look]).toEqual(['black', 'Mittens', saved]);
   });
+});
 
+describe('a custom cat on the wire', () => {
   it('retrackProfile shows the partner the new cat in the roster', async () => {
     const hub = createFakeHub();
     const { host, kid } = pair(hub);
     await host.rooms.walkWithPartner();
     await kid.rooms.walkWithPartner();
     equipEmber(host);
-    await host.retrackProfile();
+    await host.rooms.retrackProfile();
     const mine = kid.rooms.getState().roster.find((p) => p.playerId === HOST);
     expect(mine.breed).toBe('black');
     expect(mine.petName).toBe('Mittens');

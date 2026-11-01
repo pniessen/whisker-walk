@@ -253,6 +253,7 @@ export function createRooms({
 
   const rooms = {
     available: MP,
+    retrackProfile,
     getState() {
       if (!pendingRoom) return null;
       return {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createNet, createFakeHub, generateRoomCode, validPetName } from '../src/net.js';
 import { PHRASES } from '../src/chat.js';
 
@@ -153,7 +153,13 @@ describe('updateProfile', () => {
     await a.updateProfile({ playerId: 'aaa', petName: 'Willow', breed: 'black', accessories: { look: { coat: 'cream' } } });
     expect(seen.find((p) => p.playerId === 'aaa').breed).toBe('black');
   });
-  it('does nothing before join', async () => {
-    await expect(createNet(createFakeHub().transport()).updateProfile({ playerId: 'x' })).resolves.toBeUndefined();
+  it('does nothing before join: the transport is never called', async () => {
+    const updateProfile = vi.fn();
+    const net = createNet({ join: async () => ({}), send() {}, leave: async () => {}, updateProfile });
+    await expect(net.updateProfile({ playerId: 'x' })).resolves.toBeUndefined();
+    expect(updateProfile).not.toHaveBeenCalled();
+    await net.join('ROOM', { playerId: 'x', petName: 'A', breed: 'tabby', accessories: {} });
+    await net.updateProfile({ playerId: 'x' });
+    expect(updateProfile).toHaveBeenCalledTimes(1);
   });
 });
