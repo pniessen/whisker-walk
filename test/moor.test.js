@@ -107,7 +107,7 @@ function reaches(a, x, z) {
 }
 
 describe('the Moor: water', () => {
-  it('declares the lake, its far lip, the river\'s two reaches and its mouth', () => {
+  it('declares the lake, its bay round the island, the river\'s two reaches and its mouth', () => {
     expect(MOOR_WATERS.map((w) => w.id)).toEqual(['lake', 'lake-far', 'river-south', 'river-west', 'river-mouth']);
     expect(area.waters).toEqual(MOOR_WATERS);
     expect(Object.isFrozen(MOOR_WATERS)).toBe(true);
@@ -290,7 +290,7 @@ describe('the Moor: the island and the horizon', () => {
     ]);
     const [north, south] = ends.sort((a, c) => a[1] - c[1]);
     // the south-east end is on the island's rim; the north-west end is out
-    // past the far lip's north edge, inside its x range
+    // past the bay's north edge, inside its x range
     expect(Math.abs(Math.hypot(south[0] - I.x, south[1] - I.z) - I.r)).toBeLessThan(1);
     expect(south[0]).toBeGreaterThan(north[0]);
     const far = byId('lake-far');

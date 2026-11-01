@@ -22,7 +22,9 @@ import { GOLD_MICE } from '../goldmice.js';
 //     and into the other looks like one place. The cat spawns on the north
 //     path, 6 m in from the Woods, on the Moor's east side;
 //   * west is the Pines and Swamp. Their pines reach over the border onto a
-//     strip inside the edge, and the hills there are dark and pine-tinted;
+//     strip inside the edge, and the hills there are dark and pine-tinted.
+//     North of the lake that strip is dry land: the only water past the edge
+//     is the lake and its bay round the island;
 //   * east is the open moor, and south-east the Gorge's unexplored rock, so
 //     the hills that way are grey;
 //   * north is more moor: heather hills;
@@ -87,9 +89,12 @@ const STEPPING_STONES = Object.freeze({
 // x, and its maxZ is the Woods' lake shore in Moor coordinates, so the shore
 // is one line across the border.
 const LAKE = Object.freeze({ id: 'lake', kind: 'rect', minX: -120, maxX: -14, minZ: 8, maxZ: 66 });
-// A lip of open water west of the bounds, reaching north to where the island
-// bridge lands on the Pines' shore. Nothing a cat can walk.
-const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: -120, maxX: -51, minZ: 4.8, maxZ: 8.5 });
+// The bay round the island, west of the bounds: the open water the island
+// bridge crosses toward the Pines' shore. It reaches 3 m north of the lake's
+// shore line, so the bridge's north-west end (-89.4, 4.8) lands just north of
+// it, on the Pines' shore, and it stops 20 m short of the Moor's west edge, so
+// the Pines' dry strip north of the lake stays dry. Nothing a cat can walk.
+const LAKE_FAR = Object.freeze({ id: 'lake-far', kind: 'rect', minX: -100, maxX: -70, minZ: 5, maxZ: 44 });
 // In from the Woods at the Woods' river-north x.
 const RIVER_SOUTH = Object.freeze({
   id: 'river-south', kind: 'rect', minX: 18, maxX: 23, minZ: -4, maxZ: 120,
@@ -108,12 +113,12 @@ export const MOOR_WATERS = Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH, RIVER_WES
 // How each water is drawn. One peaty green-blue, the Woods' own, because the
 // river and the lake are one water across the border. Heights differ wherever
 // footprints overlap (the bend, the mouth's corner, the mouth over the lake,
-// the lake over its lip) so the planes never fight for a pixel; river-south
+// the lake over its bay) so the planes never fight for a pixel; river-south
 // keeps the Woods' river-north height, so the two meet level at the border.
 //
 // `shores` lists only the edges a cat can see: an edge out past the bounds is
 // open water to the horizon, not a bank, and painting foam there would be a
-// lie. The far lip is all out of bounds, so it has none.
+// lie. The bay is all out of bounds, so it has none.
 const WATER_COLOR = 0x5f98a8;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['maxX', 'minZ'] },
