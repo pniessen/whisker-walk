@@ -155,8 +155,14 @@ function literalsIn(src) {
 }
 
 // Borrowed words found inside a string literal of a source text.
+// Internal ids, never shown to a player: a literal whose ENTIRE text is a
+// lowercase kebab id starting `clan-` (prompt kinds like 'clan-greet', award
+// key pieces like the `clan-friend-` before a template's ${id}). Anything
+// with a space, a capital or other text still counts as a borrowed word.
+export const INTERNAL_ID = /^clan-[a-z]+(-[a-z0-9]*)*-? ?$/;  // a trailing space is a template's ${...}
+
 function borrowedIn(src) {
-  const lits = literalsIn(src);
+  const lits = literalsIn(src).filter((l) => !INTERNAL_ID.test(l));
   return BORROWED.filter((w) => {
     const re = new RegExp(`\\b${w}\\b`, 'i');
     return lits.some((l) => re.test(l));
@@ -164,12 +170,7 @@ function borrowedIn(src) {
 }
 
 // Pre-existing literals where the word means something unrelated to the clan.
-const ALLOW = [
-  // Never shown to a player: the internal prompt kinds ('clan-greet', 'clan-boop')
-  // and award keys ('clan-friend-<id>', 'clan-boop-<id>') of the clanmate verbs,
-  // fixed by the Task 5 brief. The words a player reads come from clanwords.js.
-  { file: 'src/game/interactions.js', words: ['Clan'] },
-];
+const ALLOW = [];
 
 test('no borrowed word is hard-coded anywhere but clanwords.js', () => {
   const files = globSync('src/**/*.js').filter((f) => !f.endsWith('clanwords.js'));
@@ -323,4 +324,18 @@ test('no clan cat word is anyone else\'s word, and none holds a canon clan word'
     expect(strays.has(lw), w).toBe(false);
     for (const c of CANON_CLAN_WORDS) expect(lw.includes(c), `${w} has ${c}`).toBe(false);
   }
+});
+
+test('the internal-id exemption covers only lowercase kebab ids', () => {
+  for (const ok of ['clan-greet', 'clan-boop', 'clan-friend-', 'clan-boop-', 'clan-patrol']) {
+    expect(INTERNAL_ID.test(ok)).toBe(true);
+  }
+  for (const bad of ['StormClan', 'Clan camp', 'clan camp', 'clan', 'Clan-greet', 'a clan-greet', 'clan-greet now']) {
+    expect(INTERNAL_ID.test(bad)).toBe(false);
+  }
+  // still caught by the scan as player-facing text
+  for (const bad of ['Clan camp', 'clan camp', 'Clan-greet', 'a clan-greet', 'clan-greet now']) {
+    expect(borrowedIn(`const x = '${bad}';`)).toContain('Clan');
+  }
+  expect(borrowedIn('const x = `clan-friend-${id}`;')).toEqual([]);
 });
