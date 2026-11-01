@@ -2619,22 +2619,30 @@ const PINE_TRUNK = { rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 };
 const PINE_CONES = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]];
 const PINE_TRUNK_COLOR = 0x7a5230;
 const PINE_FOLIAGE_COLOR = 0x2f5a3a;
+const PINE_TRUNK_SIDES = 6;
+const PINE_CONE_SIDES = 7;
+
+// One pine's unplaced geometry: the trunk (already lifted to its centre
+// height) and the three cones, built in one place for `pine` and `pineStand`.
+function pineParts() {
+  const trunk = new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, PINE_TRUNK_SIDES);
+  trunk.translate(0, PINE_TRUNK.y, 0);
+  const cones = PINE_CONES.map(([r, h, y]) => {
+    const c = new THREE.ConeGeometry(r, h, PINE_CONE_SIDES);
+    c.translate(0, y, 0);
+    return c;
+  });
+  return { trunk, cones };
+}
 
 // A pine: a short bark trunk under three stacked cones, merged into one
 // foliage mesh. Taller and narrower than an oak and it sheds no leaves, so it
 // carries no `canopy` tag. No collider here.
 export function pine(x, z, scale = 1, { wind } = {}) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, 6),
-    surfMat(PINE_TRUNK_COLOR, 'bark'));
-  trunk.position.y = PINE_TRUNK.y;
+  const { trunk: trunkGeo, cones } = pineParts();
+  const trunk = new THREE.Mesh(trunkGeo, surfMat(PINE_TRUNK_COLOR, 'bark'));
   g.add(trunk);
-  const cones = PINE_CONES.map(([r, h, y]) => {
-    const c = new THREE.ConeGeometry(r, h, 7);
-    c.translate(0, y, 0);
-    return c;
-  });
   const foliage = new THREE.Mesh(mergeGeometries(cones, false), surfMat(PINE_FOLIAGE_COLOR, 'foliage'));
   for (const c of cones) c.dispose();
   g.add(foliage);
@@ -2662,14 +2670,9 @@ export function pineStand(trees, seed) {
       geo.translate(t.x, 0, t.z);
       return geo;
     };
-    const trunk = new THREE.CylinderGeometry(PINE_TRUNK.rTop, PINE_TRUNK.rBottom, PINE_TRUNK.h, 6);
-    trunk.translate(0, PINE_TRUNK.y, 0);
-    trunks.push(place(trunk));
-    for (const [r, h, y] of PINE_CONES) {
-      const c = new THREE.ConeGeometry(r, h, 7);
-      c.translate(0, y, 0);
-      cones.push(place(c));
-    }
+    const parts = pineParts();
+    trunks.push(place(parts.trunk));
+    for (const c of parts.cones) cones.push(place(c));
   }
   const merge = (geoms) => {
     const geo = geoms.length === 0 ? new THREE.BufferGeometry() : mergeGeometries(geoms, false);

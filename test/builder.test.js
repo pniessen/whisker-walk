@@ -723,6 +723,8 @@ describe('the Woods builders', () => {
     const oneFoliage = one.children.find((o) => o.isMesh && o !== one.children[0]);
     expect(foliage.geometry.attributes.position.count)
       .toBe(2 * oneFoliage.geometry.attributes.position.count);
+    expect(meshes.find((m) => m.name === 'standTrunks').geometry.attributes.position.count)
+      .toBe(2 * one.children[0].geometry.attributes.position.count);
     for (const m of meshes) expect(m.castShadow).toBe(true);
     const box = new THREE.Box3().setFromObject(g);
     const ref = new THREE.Box3().setFromObject(b.pine(0, 0, 1))
