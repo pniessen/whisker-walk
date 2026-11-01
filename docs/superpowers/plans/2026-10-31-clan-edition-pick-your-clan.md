@@ -42,50 +42,63 @@
 - **Commits** use an explicit `git add <files>` and end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Test command:** `npx vitest run --exclude '.claude/**' --exclude '.worktrees/**'`
 
-## Defaults this plan takes (flagged for the owner; each is a one-line change)
+## Decisions (settled 2026-10-31: none of these is open)
 
-- **D1. Names.** The recommended homage per clan is: woods **StormClan**, moor **GaleClan**, river **BrookClan**, pines **DuskClan**, gorge **CloudClan**. The full lists are in Task 1. Her pick replaces the value in `HOMAGE_PREFIXES`. Every listed word already passes the tests.
-- **D2. What can be picked.** Four clans can be picked now: woods, moor, river and pines. The gorge clan gets its name now, but it can only be picked once the Gorge is built (`pickable: false` in its `HOMES` row).
-- **D3. Same clan.** Both kids may pick the same clan. It is celebrated ("You're both StormClan!"), never blocked.
-- **D4. Changing and not picking.**
+The owner answered the clan questions on 2026-10-31. The coordinator ruled on the rest the same day. Each item below says which. Build exactly this.
+
+- **D1. Names: decided by the owner.**
+  - Woods **StormClan**, Moor **GaleClan**, River **BrookClan**, Pines and Swamp **DuskClan**, Gorge **CliffClan**.
+  - The other words in each list stay in `HOMAGE_CHOICES` as spares (Task 1). So a later change is one line, and the spare is already tested.
+  - "Cliff" was checked against the clanwords rules on 2026-10-31:
+    - `CliffClan` passes validPetName;
+    - it is not in DENIED_NAMES;
+    - it is not a stray, kit or legendary name, or a PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES or WARRIOR_SUFFIXES word;
+    - it contains no book clan word.
+  - It is not a RANK_WORDS, OUTSIDE_WORDS or PLACE_WORDS value, and `CliffClan` is only ever composed at runtime. So the borrowed-word scan has nothing to flag.
+- **D2. What can be picked: coordinator's ruling.** Four clans can be picked now: woods, moor, river and pines. CliffClan is named now, but it can only be picked once the Gorge is built (`pickable: false` in its `HOMES` row).
+- **D3. Same clan: decided by the owner.** Both kids may pick the same clan. It is celebrated ("You're both StormClan!"), never blocked.
+- **D4. Changing and not picking.** The first sub-point is decided by the owner. The second is how the plan behaves before a kid picks.
   - A pick can be changed any time on the home screen, for free. Changing loses nothing.
   - Before a kid picks, the minted pair name (MossClan and the like) still shows, and every territory's own clan patrols it.
 - **D5. Where picking happens.**
   - A "Pick your clan" row of cards in the **Where to** pill, above the territory map (Clan Edition only).
   - A `Your clan` select in Settings (Clan Edition only).
-- **D6. Reaching the sibling.**
+- **D6. Reaching the sibling: coordinator's ruling. No SQL change.**
   - Each device publishes its pick as `home` inside the `accessories` jsonb of its public profile row. `upsert_profile` already stores any jsonb, and no reader iterates its keys.
   - A paired colony pull reads the partner's row, at most once a minute, and caches the pick in `state.clanPick`.
   - A cached pick is only ever replaced by a valid one, never cleared, unless the partner changes. So a partner on an old build can't erase it.
-- **D7. Patrols.** Each territory has one fixed disc (its "camp"). Its clan is:
+- **D7. Patrols: decided by the owner.** In your own clan's territory, a neighbouring clan patrols at the same camp. Each territory has one fixed disc (its "camp"). Its clan is:
   - the territory's own clan, if neither kid picked it;
   - otherwise the first neighbour, in the row's order, that neither kid picked;
   - otherwise no patrol.
-- **D8. Camp spots.**
+- **D8. Camp spots: coordinator's ruling. They stay as proposed.**
   - **Woods:** (2, −43), r 6. It sits in the north glade across the river, facing the Moor.
   - **River:** (5, 1), r 6. It sits in the middle of the wet meadow.
   - Both were probed against the built maps (2026-10-31). Each clears every POI, find, scenic, golden mouse, vantage and the spawn by 20 m or more, and each has one or two colliders inside it, as the Docks container is today.
   - The Moor and the Pines add a row when they are built. The island never gets one (truce).
+- **D5 is the plan's own choice, which the coordinator did not reopen. D9, D10 and D11 are kept as written (coordinator's ruling).**
 - **D9. Old areas don't change.** The Neighborhood/Twolegplace, Park, Seaside and Docks keep HedgeClan, AlderClan, DuneClan and HeronClan, whatever the picks.
 - **D10. Colony title.**
   - It shows your clan, e.g. "StormClan".
   - When the sibling's pick differs, it shows "StormClan & GaleClan · allies".
 - **D11. Coming home.** A walk that starts in your own clan's territory toasts once: "Home to StormClan's land 🏡".
 
-## Owner questions (most important first; the recommended answer is in bold)
+## The questions, as answered (2026-10-31)
 
-1. **Which name for each clan?**
-   - Woods (storm): **Storm**, Tempest, Lightning, Oak.
-   - Moor (wind): **Gale**, Gust, Heather, Swift.
+The chosen word is in bold; the rest are spares.
+
+1. **Names (owner):**
+   - Woods: **Storm**, Tempest, Lightning, Oak.
+   - Moor: **Gale**, Gust, Heather, Swift.
    - River: **Brook**, Ripple, Reed, Otter.
-   - Pines and Swamp (shadow): **Dusk**, Night, Murk, Gloom.
-   - Gorge (sky): **Cloud**, Hawk, Falcon, Cliff.
-2. **May both kids pick the same clan?** **Yes**, and it's celebrated.
-3. **Can the gorge clan be picked before the Gorge exists?** **No.** It is named now and can be picked when the Gorge lands.
-4. **Is it OK to send the sibling's pick through the public profile row (no SQL)?** **Yes.** The alternative is a `home` column on `colony_members`, which is an owner SQL step.
-5. **In your own clan's territory, who patrols?** **A neighbouring clan's patrol at the same camp spot.** The alternative is no hostile patrol at all in your home.
-6. **Can a kid change clans later?** **Yes, any time, for free.**
-7. **Are the camp spots right?** **Yes:** the Woods camp in the glade north of the river, and the River camp in the middle of the meadow.
+   - Pines and Swamp: **Dusk**, Night, Murk, Gloom.
+   - Gorge: **Cliff**, Cloud, Hawk, Falcon.
+2. **Can both kids pick the same clan?** Yes, and it's celebrated (owner).
+3. **Can the gorge clan be picked before the Gorge exists?** No. CliffClan becomes pickable when the Gorge is built (coordinator).
+4. **How is the pick shared?** Through the public profile row, with no SQL change (coordinator).
+5. **Who patrols your own clan's territory?** A neighbouring clan, at the same camp (owner).
+6. **Can a kid change clans later?** Yes, any time, for free (owner).
+7. **Are the camp spots right?** Yes, as proposed (coordinator).
 
 ## Review Focus
 
@@ -186,10 +199,10 @@ woods: ['Storm', 'Tempest', 'Lightning', 'Oak'],
 moor:  ['Gale', 'Gust', 'Heather', 'Swift'],
 river: ['Brook', 'Ripple', 'Reed', 'Otter'],
 pines: ['Dusk', 'Night', 'Murk', 'Gloom'],
-gorge: ['Cloud', 'Hawk', 'Falcon', 'Cliff'],
+gorge: ['Cliff', 'Cloud', 'Hawk', 'Falcon'],
 ```
 
-- `HOMAGE_PREFIXES` is `{ woods: 'Storm', moor: 'Gale', river: 'Brook', pines: 'Dusk', gorge: 'Cloud' }`.
+- `HOMAGE_PREFIXES` is `{ woods: 'Storm', moor: 'Gale', river: 'Brook', pines: 'Dusk', gorge: 'Cliff' }`. These are the owner's picks of 2026-10-31.
 - `HOME_LINES`:
   - woods: `'oak woods, ferns and sunny clearings'`
   - moor: `'open heather, wind and rabbits'`
@@ -201,10 +214,12 @@ Freeze each list and each object.
 
 The header comment says:
 - these are homages chosen with the 11-year-old (decision 3);
-- `HOMAGE_PREFIXES` is her pick, a one-line change;
+- `HOMAGE_PREFIXES` holds the names chosen on 2026-10-31, and the rest of each list are spares, so a change is one line;
 - once a name has shipped, change a value only if she asks, because nothing is stored by name (saves store the id).
 
-Do **not** add these words to the scanner's `BORROWED` list. "storm" and "cloud" are ordinary words used elsewhere in `src/` (the weather).
+Do **not** add these words to the scanner's `BORROWED` list. They are ordinary words that `src/` already uses for other things: "storm" (the weather) and `'CLIFF'` (a friend-code word list in `src/cloud.js`). Adding them would break the scan for no gain.
+
+Add one more test beside the others: `expect(HOMAGE_PREFIXES.gorge + CLAN_SUFFIX).toBe('CliffClan')`. It pins the owner's choice.
 
 - [ ] **Step 4: Run them and check they pass**
 
