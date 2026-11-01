@@ -20,7 +20,7 @@
 
 1. **Clan Life Part 1**, all tasks. Used by name: `clanCast`, `castFor`, `RAIDER_SLOTS`, `tagSubFor`, `CLAN_COLOURS` (`src/clancast.js`); `campLayout` (`src/world/camp.js`); `session.clanHome`, `session.clanEdition`, `session.clanCats`; the stray count `lonersFor` (it already reserves the intruder's slot); `makeNameTag(name, { cross, sub })`.
 2. **Pick your clan**, all tasks: `HOMES` (neighbours), `isClanId`, `clanName`, `picksOf`, `DISCS`, and the walk.js `picks` local.
-3. **The new cat body**: this plan adds one pose (`swipe`) to `src/cat/animator.js`.
+3. **The new cat body**: this plan adds two poses (`swipe`, a raised front paw, and `backUp`, weight shifted back with the head low) to `src/cat/animator.js`.
 
 ## Global Constraints
 
@@ -41,6 +41,13 @@ Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part
 - **Ruling:** no intruder dot on the corner map; spotting it is part of the fun. (Nothing in this plan adds one; Task 2's test pins that `mapMarkers` has no intruder kind.)
 - **Ruling:** the personality edges and award values below stay as proposed.
 
+**Rulings after the plan review (2026-10-31):**
+- **Fighting together (owner question 1):** when both kids fight the same intruder and one wins, **both** get the `intruder` award, toasted "chased off together", exactly once each (the per-visit `awardOnce` key makes a double impossible). A kid who was only watching gets nothing.
+- **Holds are counted per visit.** `hold(visit, holderId)` / `release(visit, holderId)`: the intruder walks on only when no holder is left. My own fight is a holder (`holderId` = my player id). `HOLD_MAX` expires only a *remote* holder that never sent `intruder-done`; it never expires my own fight's hold.
+- **No scuffle during a fight.** `maybeScuffle` (interactions.js:695) runs above the prompt scan; it is skipped while `s.fight` is set or the challenge is up, so a cross stray beside the fight can't take points.
+- **Phone UI:** the challenge is a pill with the `.hud-prompt` class (it gets the touch layer's prompt exemption), shown within `CHALLENGE_RANGE` and kept up to `CHALLENGE_KEEP = 10` m; "Fight!" walks your cat over to the intruder (so it never turns into a chase). The bottom sheet exists only during the fight: it has `pointer-events: auto` and a `z-index` above `.touch-ui`, and `.tui-actions` / `.tui-zoom` are hidden while it shows. `main.js`'s keydown returns early while the fight panel shows (no E interact, no 1–9 chat phrases, no Space pounce), apart from the panel's own keys. A short-screen / landscape layout (`@media (max-height: 500px)`) puts the clue to the left and the three buttons in a column on the right; toasts move above the sheet so they never cover it.
+- **The charge clue has its own pose.** Between rounds the intruder stands in a neutral pose (`follow`, still); the charge clue is `backUp`, held for the whole clue window. `cross` is used only at the square-off, never as a clue.
+
 ## Builder's defaults (all accepted, see the rulings above)
 
 | Thing | Default |
@@ -48,18 +55,19 @@ Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part
 | How often | one visit slot every `INTRUDER_PERIOD = 120` s of wall clock; 3 slots in 4 have an intruder (`h % 4 !== 0`); it enters `ENTER_AT = 10` s into its slot and walks at `INTRUDER_SPEED = 0.9` m/s. At most one at a time; about 3 in a 10-minute walk. |
 | Who | a warrior (slots 4–6) of one of `HOMES[area].neighbours`, chosen by the slot's hash. |
 | Where | one hand-probed route per (territory, neighbour clan): it enters at the map edge facing that clan and leaves at an edge; ≤ 90 m long; never within `r + 3` m of the camp centre (spec: "never at the camp's doorstep"). |
-| Noticing | within 6 m it puffs up (`cross` pose) and hisses once per visit; within `CHALLENGE_RANGE = 3.5` m the Fight / Back off panel shows; it hides beyond 6 m. The intruder keeps walking while the panel is up. |
+| Noticing | within 6 m it puffs up (`cross` pose) and hisses once per visit; within `CHALLENGE_RANGE = 3.5` m the Fight / Back off pill shows; it stays up to `CHALLENGE_KEEP = 10` m. The intruder keeps walking while the pill is up; "Fight!" walks your cat to it (at the player's run speed, up to 3 s) and the fight starts where they meet. |
 | Counters | crouches low → it will **pounce** → you **Dodge**; raises a paw → it will **swipe** → you **Pounce** (under the paw); backs up → it will **charge** → you **Swipe**. Teach line: "Crouch → Dodge · Paw up → Pounce · Backs up → Swipe". |
 | Timings | square-off 1.2 s; each round's clue stays up for the whole answer window of 4.0 s (taps in the first 0.25 s are ignored, so a tap meant for the last round can't land); tumble 1.4 s (0.6 s dust puff with reduced motion); 0.8 s between rounds. Longest fight about 20 s. |
 | Personality edge | `longerLook` (+1.0 s answer window) for `fearless`, `keenNose`, `chaser`; `secondLook` (once per fight, a round that times out replays its clue instead of being lost) for `steady`, `pouncer`, `napper`, `bird`. Every cat has one; neither changes what a wrong tap does, so neither decides a fight. |
-| Moves | each round's move is `MOVES[floor(rng() * 3)]` from `mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`))`: local, no shared stream. |
-| After | win: it runs back along its route to where it came in at `FLEE_SPEED = 4.5` m/s and is gone for the rest of its visit; `intruder: 12` points once per visit; the journal counts it. Lose: it glides back onto its route over 1.5 s and walks on; you can challenge it again after `RECHALLENGE_DELAY = 20` s. |
+| Moves | each round's move is `MOVES[floor(rng() * 3)]` from `mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`))`: local, no shared stream. `attempt` is how many fights this device has already started on this visit this walk (0 for the first, 1 after a loss and a re-challenge, …), so a re-challenge meets a fresh sequence. |
+| After | win: it runs along its route to **the nearer of the route's two ends** (both are on the map's edge and proven walkable) at `FLEE_SPEED = 4.5` m/s and is gone for the rest of its visit; `intruder: 12` points once per visit; the journal counts it. Lose: it catches up with its clock position at no more than `CATCH_UP_SPEED = 2.5` m/s (so a long fight never makes it zip across the map) and walks on; you can challenge it again after `RECHALLENGE_DELAY = 20` s. |
 | Sound | `audio.hiss()` on squaring off; each round `audio.pounceWhoosh()` then `audio.landThump()` 0.25 s later. |
-| Co-walk | `HOLD_MAX = 40` s: a hold with no `intruder-done` is released on its own. |
+| Co-walk | `HOLD_MAX = 40` s: a remote holder with no `intruder-done` is let go on its own; my own fight's hold never expires. |
+| Shadow | the intruder casts a shadow like a roaming warrior: `assignShadowCastersFor(group)` (render/rig.js) is called on each visit's mesh when it's built (it joins the scene after walk.js's sweep), and `decals.follow(group)` gives it a contact shadow. |
 
 ## Review Focus
 
-1. **Two kids at home press Fight on the same intruder at once.** Expected: both fights run; the intruder flees on both screens if either wins; a later "walked on" never un-flees it. Test: Task 5 "fled wins over walked-on, in either order".
+1. **Two kids at home press Fight on the same intruder at once.** Expected: both fights run; one's loss never lets it walk while the other still fights; it flees on both screens if either wins, and both are paid once; a later "walked on" never un-flees it. Tests: Task 2 "holds are counted", Task 5 "a sibling's loss doesn't release the intruder while my fight is on", "fighting together", "fled wins over walked-on, in either order".
 2. **The intruder belongs to a kid's clan** (sister picked GaleClan, a GaleClan warrior crosses StormClan's woods). Expected: no fight for either kid; it is a cat passing through. Test: Task 2 "an ally clan's cat is never hostile".
 3. **A kid who never taps.** Expected: each round is lost only after the full window (4 s, or 5 s with the longer look); the second look replays once. Test: Task 3 "timeouts lose slowly, and the second look replays once".
 4. **The fight is interrupted** (walk ends, the tab hides, the co-walker leaves, the device is Legacy). Expected: no award, no stuck input, intruder released; Legacy never shows the panel. Tests: Task 4 "ending the walk mid-fight releases the cat and pays nothing", "Legacy never shows the panel".
@@ -73,10 +81,11 @@ Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part
 |---|---|---|
 | `src/intruders.js` | **create** | pure: schedule, routes, `intruderAt`; THREE: the walking, held and fleeing intruder |
 | `src/fight.js` | **create**, pure | moves, counters, timings, edges, the best-of-three state machine |
-| `src/cat/animator.js` | modify | the `swipe` pose (a raised front paw) |
+| `src/cat/animator.js` | modify | the `swipe` pose (a raised front paw) and the `backUp` pose (the charge clue) |
+| `src/rivalcats.js` | modify | `chaseAllowed` also needs no fight on |
 | `src/ui/fightui.js` | **create** | challenge panel and fight panel: pure HTML renderers + a small DOM mount |
 | `src/game/clanfight.js` | **create** | the controller: challenge → fight → outcome, the world choreography, awards |
-| `src/game/walk.js`, `src/main.js`, `src/game/avatar.js`, `src/game/interactions.js` | modify | wiring; input held during a fight |
+| `src/game/walk.js`, `src/main.js`, `src/game/avatar.js`, `src/game/interactions.js` | modify | wiring; input held during a fight; keydown early return; no scuffle during a fight |
 | `src/discoveries.js` | modify | `AWARDS.intruder = 12` |
 | `src/journal.js`, `src/ui/homebase.js` | modify | "Intruders chased off" line (Clan Edition) |
 | `src/game/netevents.js` | modify | `intruder-fight` / `intruder-done` |
@@ -93,9 +102,9 @@ Recorded in full in Part 1's "Owner's decisions and rulings". The ones this part
 **Interfaces:**
 - Consumes: `HOMES`, `isClanId` (clanhomes); `castFor`, `clanCast`, `RAIDER_SLOTS` (clancast); `DISCS` (rivalclans); `seedFromCode` (rng).
 - Produces:
-  - Constants above: `INTRUDER_PERIOD`, `ENTER_AT`, `INTRUDER_SPEED`, `ROUTE_MAX = 90`, `FLEE_SPEED`, `NOTICE_RANGE = 6`, `CHALLENGE_RANGE`, `RECHALLENGE_DELAY`, `HOLD_MAX`.
+  - Constants above: `INTRUDER_PERIOD`, `ENTER_AT`, `INTRUDER_SPEED`, `ROUTE_MAX = 90`, `FLEE_SPEED`, `CATCH_UP_SPEED = 2.5`, `NOTICE_RANGE = 6`, `CHALLENGE_RANGE`, `CHALLENGE_KEEP = 10`, `RECHALLENGE_DELAY`, `HOLD_MAX`.
   - `INTRUDER_ROUTES: Readonly<Record<areaId, Readonly<Record<ClanId, readonly {x, z}[]>>>>`: one route per neighbour clan for `woods`, `river` and `moor` (six routes), hand-probed (Step 3).
-  - `visitAt(areaId, t) -> { visit: number, clan: ClanId, member: Member } | null`: `k = Math.floor(t / INTRUDER_PERIOD)`; `h = seedFromCode(`${areaId}|intruder|${k}`)`; `null` if `h % 4 === 0`, if `castFor(areaId)` is empty, or if there is no route for the clan. `clan = neighbours[(h >>> 2) % neighbours.length]` (only neighbours with a cast and a route); `member = clanCast(clan)[RAIDER_SLOTS[(h >>> 4) % 3]]`.
+  - `visitAt(areaId, t) -> { visit: number, clan: ClanId, member: Member } | null`: `k = Math.floor(t / INTRUDER_PERIOD)`; `h = seedFromCode(`${areaId}|intruder|${k}`)`; `null` if `h % 4 === 0`, if `castFor(areaId)` is empty, or if there is no route for the clan. `clan = neighbours[(h >>> 2) % neighbours.length]`, over only the neighbours `n` with `clanCast(n).length > 0` and a route (the neighbour needs no camp of its own: DuskClan raids before the Pines is built); `member = clanCast(clan)[RAIDER_SLOTS[(h >>> 4) % 3]]`.
   - `intruderAt(areaId, t) -> { visit, clan, member, x, z, dx, dz, s } | null`: on the map only while `0 ≤ s ≤ length`, where `s = (t − k·PERIOD − ENTER_AT) · SPEED`; `(dx, dz)` is the unit heading. `null` for a bad `t`, an unknown area or an empty slot.
   - `routePoint(route, s) -> { x, z, dx, dz }` and `routeLength(route) -> number` (exported for the flee and the tests).
 
@@ -170,13 +179,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: Task 1; `buildCat`, `animateCat`, `makeNameTag`, `tagSubFor`; `session.clanHome`, `picks`.
 - Produces:
   - `isHostile(intruder, { clanHome, picks }) -> boolean` (pure): `clanHome === true` and `picks` doesn't include `intruder.clan`.
-  - `createIntruders(scene, areaId, { now = () => Date.now() / 1000, reducedMotion, showNames, hostile: (clan) => boolean, onNotice }) -> Intruders`:
-    - builds the visit's cat (`buildCat(member.breed, undefined, { simple: true, style: member.style })`: its own clan's coat; scale 0.85) when a visit starts and disposes it when the visit ends, so at most one mesh exists; tag only when `showNames`: `makeNameTag(member.name, { cross: hostile(clan), sub: tagSubFor(member) })`;
+  - `createIntruders(scene, areaId, { now = () => Date.now() / 1000, reducedMotion, showNames, hostile: (clan) => boolean, onNotice, onBuild: (group) => void }) -> Intruders`:
+    - builds the visit's cat (`buildCat(member.breed, undefined, { simple: true, style: member.style })`: its own clan's coat; scale 0.85) when a visit starts and disposes it when the visit ends, so at most one mesh exists; tag only when `showNames`: `makeNameTag(member.name, { cross: hostile(clan), sub: tagSubFor(member) })`. After adding it to the scene it calls `onBuild(group)`; walk.js passes `(g) => { assignShadowCastersFor(g); decals.follow(g); }` (the cat joins the scene after the shadow sweep, so it is swept on its own, and gets a contact shadow like every cat);
     - `update(dt, catPos)`: in `walking`, the mesh sits at `intruderAt` (pose `follow`); when hostile and within `NOTICE_RANGE` of `catPos` it plays `cross` and calls `onNotice(current)` once per visit (walk.js plays `audio.hiss()`);
     - `current() -> { visit, clan, member, pos: {x, z}, state: 'walking' | 'held' | 'fleeing' | 'gone' } | null`;
-    - `hold(visit, facePos)`: stops it where it is, facing `facePos`, pose `cross`; `release(visit)`: glides it to the clock's position over 1.5 s, then `walking`; `flee(visit)`: runs it back along its route towards the entry point at `FLEE_SPEED` (with reduced motion: a dust puff and it is gone), then `gone` until the visit ends; `isFled(visit)`. Each ignores a `visit` that isn't the current one. `hold` auto-releases after `HOLD_MAX`. Once fled, `hold`/`release` for that visit are ignored.
+    - **Holds are counted per visit (review ruling).** `hold(visit, holderId, facePos, { local = false } = {})` adds a holder: it stops where it is, facing `facePos` (the newest holder's), pose `cross`. `release(visit, holderId)` removes that holder; only when **no holder is left** does it catch up with the clock's position at no more than `CATCH_UP_SPEED` (then `walking`). `holders(visit) -> string[]` (for tests). `HOLD_MAX` drops a non-local holder that has held that long; a `local: true` holder (my own fight) never expires.
+    - `flee(visit)`: clears every holder and runs it along its route to **the nearer of the route's two ends** (both on the map edge) at `FLEE_SPEED` (with reduced motion: a dust puff and it is gone), then `gone` until the visit ends. `isFled(visit)`. Once fled, `hold`/`release` for that visit are ignored. Each method ignores a `visit` that isn't the current one.
     - `dispose()`.
-  - `walk.js`: `session.intruders = castFor(areaId).length && !isDen ? createIntruders(scene, areaId, { reducedMotion, showNames: isClanEdition(state), hostile: (clan) => isHostile({ clan }, { clanHome, picks }), onNotice: () => audio.hiss() }) : NO_INTRUDERS`, placed after the `clanHome` line (it needs `clanHome` and `picks`); disposed in `endWalk`. `NO_INTRUDERS` is the inert stub.
+  - `walk.js`: `session.intruders = castFor(areaId).length && !isDen ? createIntruders(scene, areaId, { reducedMotion, showNames: isClanEdition(state), hostile: (clan) => isHostile({ clan }, { clanHome, picks }), onNotice: () => audio.hiss(), onBuild: (g) => { assignShadowCastersFor(g); decals.follow(g); } }) : NO_INTRUDERS`, placed after the `clanHome` line (it needs `clanHome` and `picks`). That line is around walk.js:1198, after the `session` literal (around 1061), so assigning `session.intruders` there is safe; a walk.edition pin checks the order. Disposed in `endWalk`. `NO_INTRUDERS` is the inert stub.
   - `main.js`: `session.intruders.update(dt, session.cat.position)` after the clan cats' update.
 
 - [ ] **Step 1: Write the failing tests** (headless THREE, a fake clock):
@@ -184,19 +194,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - `one mesh at a time: a new visit replaces the old one, and an empty slot has none in the scene`;
 - `an ally clan's cat is never hostile`: `isHostile({ clan: 'moor' }, { clanHome: true, picks: ['woods', 'moor'] })` is false; `{ clanHome: false }` is false; `picks: ['woods']` with clan `moor` is true;
 - `hostile and near: cross pose and one notice per visit`; `not hostile: it just walks past`;
-- `hold, release and flee`: hold freezes it facing the point; release ends back on the clock within 1.5 s; flee ends `gone` at the route's start and stays gone until the next visit; a release after a flee changes nothing; a hold with no release lets go after `HOLD_MAX`;
+- `hold, release and flee`: hold freezes it facing the point; release with no holder left catches up at ≤ `CATCH_UP_SPEED` (a 20 s hold puts it ~18 m behind its clock; it is back on the clock within ~12 s, never faster); flee ends `gone` at the nearer route end and stays gone until the next visit; a release after a flee changes nothing;
+- `holds are counted`: holders `me` (local) and `sis`; `release(visit, 'sis')` leaves it held; `release(visit, 'me')` then lets it walk;
+- `HOLD_MAX drops only a remote holder`: a `sis` hold with no release lets go after `HOLD_MAX`; a local hold lasting 60 s is still held;
+- `the intruder is swept for shadows and followed by the decals`: `onBuild` is called once per visit with the new group;
 - `reduced motion: flee is a puff, not a run`;
 - `Legacy: no tag` (`showNames: false`), but the same coat;
 - `an intruder wears its own clan's colours`: the mesh's torso base colour is `member.style.base`, and `member.style` is in `CLAN_COATS[member.clan]`;
 - `no intruder on the corner map`: `mapMarkers` given a frame with an `intruder` key returns no marker for it (ruling);
-- `walk.edition`: the source creates intruders after `const clanHome =` and passes `showNames: isClanEdition(`.
+- `walk.edition`: the source creates intruders after `const clanHome =` and after `const session = {`, passes `showNames: isClanEdition(`, and its `onBuild` calls `assignShadowCastersFor(` and `decals.follow(`.
 
 - [ ] **Step 2: Run them and check they fail**
 
 Run: `npx vitest run test/intruders.test.js test/walk.edition.test.js test/minimapmath.test.js`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement.** The flee reuses the rival scamper's easing (`smooth`) and its rule that a chased cat ends on walkable ground: it runs along the route it walked, which Task 1 proved walkable, so it needs no `findLanding`.
+- [ ] **Step 3: Implement.** The flee reuses the rival scamper's easing (`smooth`) and its rule that a chased cat ends on walkable ground: it runs along its own route, which Task 1 proved walkable, to whichever end is nearer, so it needs no `findLanding`.
 
 - [ ] **Step 4: Run the whole suite**
 
@@ -224,7 +237,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: nothing (zero imports).
 - Produces:
   - `MOVES = ['pounce', 'swipe', 'charge']`, `BUTTONS = ['pounce', 'swipe', 'dodge']`, `COUNTER = { pounce: 'dodge', swipe: 'pounce', charge: 'swipe' }`.
-  - `CLUES = { pounce: { pose: 'stalk', icon: '⬇️', text: 'It crouches low…' }, swipe: { pose: 'swipe', icon: '🐾', text: 'It raises a paw…' }, charge: { pose: 'cross', icon: '↩️', text: 'It backs up…' } }`.
+  - `CLUES = { pounce: { pose: 'stalk', icon: '⬇️', text: 'It crouches low…' }, swipe: { pose: 'swipe', icon: '🐾', text: 'It raises a paw…' }, charge: { pose: 'backUp', icon: '↩️', text: 'It backs up…' } }`, and `NEUTRAL_POSE = 'follow'` (standing still) for the beat between rounds. No clue is `cross`; that pose belongs to the square-off only.
   - `TIMING = { squareOff: 1.2, answer: 4.0, ignoreFirst: 0.25, tumble: 1.4, tumbleReduced: 0.6, beat: 0.8 }`, `LONGER_LOOK = 1.0`.
   - `EDGE_BY_SPECIAL = { fearless: 'longerLook', keenNose: 'longerLook', chaser: 'longerLook', steady: 'secondLook', pouncer: 'secondLook', napper: 'secondLook', bird: 'secondLook' }`; `edgeFor(special) -> 'longerLook' | 'secondLook' | null` (own-key read).
   - `createFight({ rng, edge = null, reducedMotion = false }) -> Fight`:
@@ -243,6 +256,12 @@ test('each counter is one line to teach, and every move has exactly one', () => 
   expect(new Set(Object.values(COUNTER)).size).toBe(3);
 });
 test('the clue is honest: the round plays the move its clue showed', () => { /* every 'clue' event's move equals the following 'round' event's move */ });
+test('three different clue poses, none of them the square-off\'s, and a neutral pose between', () => {
+  const poses = Object.values(CLUES).map((c) => c.pose);
+  expect(new Set(poses).size).toBe(3);
+  expect(poses).not.toContain('cross');
+  expect(poses).not.toContain(NEUTRAL_POSE);
+});
 test('right answers win two rounds and the fight', () => {
   const f = createFight({ rng: seq(['swipe', 'charge']) });
   run(f, TIMING.squareOff + 0.5);
@@ -292,15 +311,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: The fight on screen
 
 **Files:**
-- Modify: `src/cat/animator.js` (the `swipe` pose)
+- Modify: `src/cat/animator.js` (the `swipe` and `backUp` poses)
 - Create: `src/ui/fightui.js`, `src/game/clanfight.js`
-- Modify: `src/game/walk.js`, `src/main.js`, `src/game/avatar.js`, `src/game/interactions.js`, `src/discoveries.js`, `src/journal.js`, `src/ui/homebase.js`, `src/style.css`
-- Test: `test/animator.test.js`, `test/fightui.test.js`, `test/clanfight.test.js`, `test/discoveries.test.js`, `test/journal.test.js`
+- Modify: `src/game/walk.js`, `src/main.js`, `src/game/avatar.js`, `src/game/interactions.js`, `src/rivalcats.js`, `src/discoveries.js`, `src/journal.js`, `src/ui/homebase.js`, `src/style.css`
+- Test: `test/animator.test.js`, `test/fightui.test.js`, `test/clanfight.test.js`, `test/interactions.test.js`, `test/rivalcats.test.js`, `test/discoveries.test.js`, `test/journal.test.js`, `test/walk.edition.test.js`
+
+**Who sends what:** this task sends **no** network events; `createClanFight` takes no `sendEvent` yet. Task 5 adds both the sending (in `clanfight.js`) and the receiving (in `netevents.js`).
 
 **Interfaces:**
 - Consumes: Tasks 1–3; `PERSONALITIES` (`src/cat/brain.js`); `audio.hiss`, `audio.pounceWhoosh`, `audio.landThump`; `fx.burst`; `log.awardOnce`; `clanName`.
 - Produces:
-  - **`animateCat(cat, 'swipe', ...)`:** the front-left leg swung forward and up (about −1.2 rad), the body leaning back a little, head up. No paw goes below the ground; Hagrid's rig doesn't throw.
+  - **`animateCat(cat, 'swipe', ...)`:** the front-left leg swung forward and up (about −1.2 rad), the body leaning back a little, head up. **`animateCat(cat, 'backUp', ...)`:** the weight shifted back (body lowered at the rear and moved back about 0.08), front legs braced forward, head low and level: the clear "about to charge" look, held still for the whole clue. No paw goes below the ground in either; Hagrid's rig doesn't throw.
   - **`AWARDS.intruder = 12`** (so `state.feats.intruder` is the lifetime "chased off" tally, sanitised by the existing `FEAT_TYPES` path; no new save field).
   - **`renderChallengeHtml({ name, clan }) -> string`** and **`renderFightHtml({ phase, clue, round, wins, losses, line }) -> string`** in `fightui.js` (pure; names escaped). Copy, exactly:
     - challenge: `` `${name} of ${clanName(clan)} is on your land!` ``, buttons `Fight! 🐾` (`data-fight="go"`) and `Back off` (`data-fight="off"`);
@@ -309,25 +330,33 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     - three buttons `Pounce`, `Swipe`, `Dodge` (`data-move="pounce|swipe|dodge"`), always in that order;
     - round lines: won `Nice one! 🐾`, lost `It got that one!`, second look `Steady… look again 👀`;
     - round pips: two to win, shown as filled/empty paw marks.
-  - **`createFightUi(root, { onFight, onBackOff, onMove })`**: mounts one `div.hud-fight` in `#hud`; `showChallenge(model)`, `showFight(model)`, `hide()`. Pointer and touch call the handlers. Keys: E = Fight, Q = Back off, 1/2/3 = Pounce/Swipe/Dodge, only while the panel shows. CSS: a bottom sheet; the three move buttons share the full width in one row, each at least 88 px tall and 30% wide, above `env(safe-area-inset-bottom)`; the clue icon at least 64 px; nothing important in the top half.
-  - **`createClanFight({ intruders, ui, audio, fx, hud, log, areaId, walkStamp, playerSpecial, reducedMotion, sendEvent, now })`** in `src/game/clanfight.js`. No `progression` parameter, ever.
-    - `update(dt, s)`: shows the challenge when `intruders.current()` is hostile, `walking`, within `CHALLENGE_RANGE` of `s.cat.position`, not locked for that visit, and no fight is on; hides it beyond `NOTICE_RANGE`. While fighting it steps the fight, writes the local cat's position (1.6 m from the intruder, facing it) every frame after `player.update`, sets `s.fightPose`, and plays the world beats: clue pose on the intruder (`charge` also eases it back 0.6 m); the player's answer pose (`pounce` hop, `swipe`, `dodge` = a 0.8 m side-step with `land`); the tumble (both cats circle their midpoint once with small hops, `pounce`/`cross` poses, two dust bursts; with reduced motion one dust puff and no circling); the round's loser steps back 0.4 m in `scared` for 0.4 s.
-    - `startFight()`: `intruders.hold(visit, catPos)`, `audio.hiss()`, sends `intruder-fight` (Task 5), `s.fight = createFight({ rng: mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`)), edge: edgeFor(playerSpecial), reducedMotion })`.
-    - `backOff()`: hides the panel; locks that visit's challenge until the cat has been beyond `NOTICE_RANGE` once. Nothing else.
-    - On `over`, won: `intruders.flee(visit)`; `log.awardOnce('intruder', `intruder-${visit}`, `chased off ${name}`)`; toast `` `${name} ran back to ${clanName(clan)}'s land! 🏃` ``; send `intruder-done` `fled: true`.
-    - On `over`, lost: `intruders.release(visit)`; lock the visit for `RECHALLENGE_DELAY`; toast `` `${name} shook it off and walked on. Try again soon!` ``; send `intruder-done` `fled: false`. **Nothing else.**
-    - `abort()` (walk end, tab hidden): release the intruder, clear `s.fight` and `s.fightPose`, pay nothing, send `intruder-done` `fled: false`.
-  - **Input:** `avatar.js` sets `player.speedFactor = 0` while `s.fight` is set and uses `s.fightPose` as the pose; `interactions.js` returns early from the prompt scan and `handleInteract` while `s.fight` is set; `chaseAllowed` (`rivalcats.js`) also requires `session.fight == null` so a patrol or the yard dog never moves a fighting cat.
+  - **`createFightUi(root, { onFight, onBackOff, onMove })`**: `showChallenge(model)`, `showFight(model)`, `hide()`, `get showing -> 'challenge' | 'fight' | null`. Pointer and touch call the handlers. Keys: E = Fight, Q = Back off, 1/2/3 = Pounce/Swipe/Dodge, only while it shows.
+    - **The challenge is a pill**, a `div.hud-prompt.hud-fight-ask` in the prompt's place (so `touchui.js`'s `isPromptTarget` lets taps through), with the two buttons inside it.
+    - **The fight panel is a bottom sheet** (`div.hud-fight`) that exists only during a fight: `pointer-events: auto`, a `z-index` above `.touch-ui`, and while it shows `#hud` gets a `fighting` class that hides `.tui-actions` and `.tui-zoom`. The three move buttons share the full width in one row, each at least 88 px tall and 30% wide, above `env(safe-area-inset-bottom)`; the clue icon at least 64 px; nothing important in the top half. **Short screens and landscape** (`@media (max-height: 500px)`): the clue sits on the left and the three buttons stack in a column on the right, each at least 64 px tall. `.hud-toasts` gets a bottom offset above the sheet while `fighting`, so a toast never covers a button.
+  - **`main.js` keydown:** right at the top of the `document` keydown handler (main.js:555), `if (session?.clanFight?.uiShowing === 'fight') { session.clanFight.key(e.key); e.preventDefault(); return; }` — no E interact, no 1–9 chat phrases, no Space pounce while the sheet is up. While only the challenge pill is up, E and Q go to the pill and other keys behave as normal.
+  - **`createClanFight({ intruders, ui, audio, fx, hud, log, areaId, walkStamp, playerId, playerSpecial, reducedMotion, now })`** in `src/game/clanfight.js`. No `progression` parameter, ever.
+    - `get uiShowing`, `key(k)`.
+    - `update(dt, s)`: shows the challenge when `intruders.current()` is hostile, `walking`, within `CHALLENGE_RANGE` of `s.cat.position`, not locked for that visit, and no fight is on; keeps it up to `CHALLENGE_KEEP`, then hides it. After "Fight!", it first **walks the cat over** to the intruder (writing the cat's position toward it at the player's run speed, `follow` pose, up to 3 s; the intruder is already held, so this never becomes a chase), then starts the rounds. While fighting it steps the fight, writes the local cat's position (1.6 m from the intruder, facing it) every frame after `player.update`, sets `s.fightPose`, and plays the world beats: `cross` at the square-off; `NEUTRAL_POSE` between rounds; the clue's pose on the intruder for the whole clue (`backUp` also eases it back 0.6 m); the player's answer pose (`pounce` hop, `swipe`, `dodge` = a 0.8 m side-step with `land`); the tumble (both cats circle their midpoint once with small hops, `pounce` poses, two dust bursts; with reduced motion one dust puff and no circling); the round's loser steps back 0.4 m in `scared` for 0.4 s.
+    - `startFight()`: `attempt = attempts[visit]++` (fights this device has started on this visit, from 0); `intruders.hold(visit, playerId, catPos, { local: true })`; `audio.hiss()`; `s.fight = createFight({ rng: mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`)), edge: edgeFor(playerSpecial), reducedMotion })`.
+    - `backOff()`: hides the pill; locks that visit's challenge until the cat has been beyond `CHALLENGE_KEEP` once. Nothing else.
+    - On `over`, won: `intruders.flee(visit)`; `log.awardOnce('intruder', `intruder-${visit}`, `chased off ${name}`)`; toast `` `${name} ran back to ${clanName(clan)}'s land! 🏃` ``; clear `s.fight` and `s.fightPose`; hide the sheet.
+    - On `over`, lost (`// LOST:` … `// END LOST`): `intruders.release(visit, playerId)`; lock the visit for `RECHALLENGE_DELAY`; toast `` `${name} shook it off and walked on. Try again soon!` ``; clear `s.fight` and `s.fightPose`; hide the sheet. **Nothing else.**
+    - `abort()` (walk end, tab hidden): release my hold, clear `s.fight` and `s.fightPose`, hide the sheet, pay nothing.
+  - **Input:** `avatar.js` sets `player.speedFactor = 0` while `s.fight` is set and uses `s.fightPose` as the pose; `interactions.js` returns early from the prompt scan and `handleInteract` while `s.fight` is set; **`maybeScuffle` (interactions.js:695, above the prompt scan) is skipped while `s.fight` is set or `s.clanFight.uiShowing` is set**, so a cross stray beside the fight can't scuffle and cost points; `chaseAllowed` (`rivalcats.js`) also requires `session.fight == null` so a patrol or the yard dog never moves a fighting cat.
   - **walk.js**: `session.clanFight = session.clanHome && session.intruders !== NO_INTRUDERS ? createClanFight({ ..., playerSpecial: PERSONALITIES[cat.userData.breed]?.special }) : NO_CLAN_FIGHT`; `endWalk` calls `session.clanFight.abort()` before disposing the intruders. `main.js` calls `session.clanFight.update(dt, session)` after `session.rival.update` and the dog.
   - **Journal:** `renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff } = {})` adds `🛡️ Intruders chased off: ${n}` to the footer when `chasedOff` is a finite number. `homebase.js` passes `{ chasedOff: s.feats?.intruder ?? 0 }` in Clan Edition only.
 
 - [ ] **Step 1: Write the failing tests**
 
-`test/animator.test.js`: `'swipe raises one front paw well above the other, and no paw goes below the ground'`, over a standard breed and Digit; Hagrid doesn't throw.
+`test/animator.test.js`: `'swipe raises one front paw well above the other, and no paw goes below the ground'` and `'backUp shifts the body back and down and differs from cross, stalk and swipe'`, over a standard breed and Digit; Hagrid doesn't throw.
 
-`test/fightui.test.js`: the challenge names the cat and its clan and escapes a hostile name; the fight HTML always has the three `data-move` buttons in order Pounce, Swipe, Dodge; the teach line is present in every phase; the clue phase shows the clue's icon and text; nothing in the HTML spells a `RANK_WORDS` value (`borrowedIn` on the output is `[]` apart from the composed clan name).
+`test/fightui.test.js`: the challenge names the cat and its clan and escapes a hostile name, and its root has the `hud-prompt` class; the fight HTML always has the three `data-move` buttons in order Pounce, Swipe, Dodge; the teach line is present in every phase; the clue phase shows the clue's icon and text; nothing in the HTML spells a `RANK_WORDS` value (`borrowedIn` on the output is `[]` apart from the composed clan name); `style.css` holds a `max-height: 500px` rule for `.hud-fight`, `pointer-events: auto` on it, and `#hud.fighting .tui-actions` / `.tui-zoom` hidden (source checks).
 
-`test/clanfight.test.js` (fakes for intruders, ui, audio, fx, hud, log, sendEvent; a controllable clock):
+`test/interactions.test.js`: **`no scuffle during a fight`** — a cross stray standing beside the player with `s.fight` set (and again with only the challenge up): many frames of `updateInteractions`, and `progression.deductPoints` is never called; `handleInteract` does nothing.
+
+`test/walk.edition.test.js` (source): main.js's keydown handler returns early on `clanFight?.uiShowing === 'fight'` before any other key branch.
+
+`test/clanfight.test.js` (fakes for intruders, ui, audio, fx, hud, log; a controllable clock):
 
 ```js
 test('losing takes nothing: no award, no points, no save, only the intruder walks on', () => {
@@ -336,12 +365,15 @@ test('losing takes nothing: no award, no points, no save, only the intruder walk
   expect(h.log.awardOnce).not.toHaveBeenCalled();
   expect(h.intruders.release).toHaveBeenCalledTimes(1);
   expect(h.intruders.flee).not.toHaveBeenCalled();
-  expect(h.calls.filter((c) => !['release', 'toast', 'sendEvent', 'ui', 'audio', 'fx'].includes(c.kind))).toEqual([]);
+  expect(h.calls.filter((c) => !['hold', 'release', 'toast', 'ui', 'audio', 'fx'].includes(c.kind))).toEqual([]);
+  expect(h.s.fight).toBeNull(); expect(h.s.fightPose).toBeNull(); expect(h.ui.showing).toBeNull();
 });
+test('"Fight!" walks the cat over before the rounds start, and never chases', () => {});
+test('attempt counts fights on a visit: a re-challenge gets a different move sequence', () => {});
 test('clanfight.js is never given progression and imports nothing that stores progress', () => {
   /* source has no 'progression'; import specifiers ⊆ ['../fight.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js'] */
 });
-test('the lose branch, as written, calls nothing but release, toast and the event', () => {
+test('the lose branch, as written, calls nothing but release, lock, toast and clearing the fight', () => {
   /* slice clanfight.js between the markers `// LOST:` and `// END LOST`; strip comments; none of
      'log.', 'award', 'points', 'feat', 'colony', 'mark', 'grudge' appears */
 });
@@ -362,7 +394,7 @@ test('reduced motion: no circling, one puff per round', () => {});
 
 - [ ] **Step 2: Run them and check they fail**
 
-Run: `npx vitest run test/animator.test.js test/fightui.test.js test/clanfight.test.js test/discoveries.test.js test/journal.test.js test/walk.edition.test.js`
+Run: `npx vitest run test/animator.test.js test/fightui.test.js test/clanfight.test.js test/interactions.test.js test/rivalcats.test.js test/discoveries.test.js test/journal.test.js test/walk.edition.test.js`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement** the interfaces above. Mark the lose branch with `// LOST:` … `// END LOST` comments for the structural test, and say in the header why the controller has no progression.
@@ -377,7 +409,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cat/animator.js src/ui/fightui.js src/game/clanfight.js src/game/walk.js src/main.js src/game/avatar.js src/game/interactions.js src/rivalcats.js src/discoveries.js src/journal.js src/ui/homebase.js src/style.css test/animator.test.js test/fightui.test.js test/clanfight.test.js test/rivalcats.test.js test/discoveries.test.js test/journal.test.js test/walk.edition.test.js
+git add src/cat/animator.js src/ui/fightui.js src/game/clanfight.js src/game/walk.js src/main.js src/game/avatar.js src/game/interactions.js src/rivalcats.js src/discoveries.js src/journal.js src/ui/homebase.js src/style.css test/animator.test.js test/fightui.test.js test/clanfight.test.js test/interactions.test.js test/rivalcats.test.js test/discoveries.test.js test/journal.test.js test/walk.edition.test.js
 git commit -m "feat(clanlife): read the move and chase the intruder off; losing takes nothing
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -388,22 +420,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 5: The fight's outcome on both screens
 
 **Files:**
-- Modify: `src/game/clanfight.js` (send), `src/game/netevents.js` (receive)
+- Modify: `src/game/clanfight.js` (send, `chasedOffTogether`), `src/game/netevents.js` (receive), `src/game/walk.js` (pass `sendEvent`)
 - Test: `test/netevents.test.js`, `test/clanfight.test.js`
 
 **Interfaces:**
 - Consumes: Tasks 2 and 4; `s.remotes.list`; `s.net.sendEvent`.
 - Produces:
-  - Sent by `clanfight.js` (only if `s.net`): `{ v: 1, id, type: 'intruder-fight', area, visit }` at `startFight`; `{ v: 1, id, type: 'intruder-done', area, visit, fled }` at the end (and from `abort`).
-  - `applyRemoteEvent` handles both, on every device and edition (it is world state only, like `tip` and `carry-drop`): the sender must be a remote in this walk (`list.find`); `area === s.areaId`; `Number.isInteger(visit)` and `visit === s.intruders.current()?.visit`; `fled` a boolean. Then:
-    - `intruder-fight`: `s.intruders.hold(visit, remote.group.position)`; if my challenge panel is up for that visit, hide it and toast `` `${petName} is already facing ${name}!` ``; my own fight on the same visit (both pressed at once) carries on.
-    - `intruder-done`: `fled` → `s.intruders.flee(visit)`; else `s.intruders.release(visit)` (a no-op after a flee, so a win always beats a loss whichever order the two arrive in). If I'm mid-fight on that visit and it fled, my fight ends quietly: no award, no lock, panel hidden.
-  - No points, toasts beyond the one above, saves or feats on the receiving side.
+  - **Sending (this task):** `createClanFight` gains `sendEvent` (walk.js passes `(ev) => session.net?.sendEvent(ev)`; nothing is sent solo). It sends `{ v: 1, id, type: 'intruder-fight', area, visit }` at `startFight`, and `{ v: 1, id, type: 'intruder-done', area, visit, fled }` when its fight ends (won, lost or `abort`).
+  - **Receiving:** `applyRemoteEvent` handles both, on every device and edition (it is world state only, like `tip` and `carry-drop`): the sender must be a remote in this walk (`list.find`); `area === s.areaId`; `Number.isInteger(visit)` and `visit === s.intruders.current()?.visit`; `fled` a boolean. Then:
+    - `intruder-fight`: `s.intruders.hold(visit, ev.id, remote.group.position)` (a counted, non-local holder); if my challenge pill is up for that visit, hide it and toast `` `${petName} is already facing ${name}!` ``; my own fight on the same visit (both pressed at once) carries on.
+    - `intruder-done`, `fled: false`: `s.intruders.release(visit, ev.id)`. **My own fight is still a holder, so a sibling's loss never lets the intruder walk on while I'm fighting it.**
+    - `intruder-done`, `fled: true`: `s.intruders.flee(visit)` (a later release is a no-op, so a win beats a loss whichever order they arrive in). If I'm mid-fight on that visit, my fight ends and **I get the award too** (owner question 1 ruling): `s.clanFight.chasedOffTogether(visit)` pays `log.awardOnce('intruder', `intruder-${visit}`, `chased off ${name} together`)` and toasts `` `You and ${petName} chased ${name} off together! 🏃` ``. The per-visit key means each kid is paid exactly once: if I had already won, nothing more. A kid who was only watching gets nothing.
+  - Nothing else on the receiving side: no points beyond that one shared award, no saves, no feats besides the award's own tally.
 
 - [ ] **Step 1: Write the failing tests**
 - `the sister's fight holds the intruder on my screen, facing her cat`;
 - `fled wins over walked-on, in either order`;
-- `a remote win ends my own fight on that visit with nothing paid`;
+- **`a sibling's loss doesn't release the intruder while my fight is on`**: my fight holds it; a remote `intruder-done` `fled: false` arrives; it is still held until my own fight ends;
+- `fighting together: when either wins, both are paid once`: I'm mid-fight, a remote `fled: true` arrives → one `intruder` award for me, my fight ends; a second `fled: true`, or my own win on the same visit, pays nothing more; a watching device (no fight) gets no award;
 - `hostile and stale events are ignored`: a non-remote sender, another area, `visit` of `'3'`, `NaN`, `-1`, a past visit, `fled: 'yes'`, a missing `s.intruders`: no call, no throw;
 - `Legacy screens follow too` (a session with `clanEdition: false` still holds and flees);
 - `clanfight sends exactly one fight and one done per fight, and none solo`.
@@ -423,7 +457,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/game/clanfight.js src/game/netevents.js test/netevents.test.js test/clanfight.test.js
+git add src/game/clanfight.js src/game/netevents.js src/game/walk.js test/netevents.test.js test/clanfight.test.js
 git commit -m "feat(clanlife): a fight's outcome reaches the co-walker's screen
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -438,10 +472,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Two browsers, one co-walk** (siblings, StormClan and GaleClan; then one device on Legacy):
   - In the Woods, both screens show the same intruder on the same route. A GaleClan intruder is offered to nobody (it's the sister's clan); a BrookClan one is offered to both.
-  - One kid fights: the other screen shows the intruder held, facing her cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder.
+  - One kid fights: the other screen shows the intruder held, facing her cat, then fleeing (win) or walking on (loss). Both press Fight at once: no stuck intruder; one loses and one wins → it flees on both screens and both kids get the award once.
   - On Legacy: the intruder walks, holds and flees, with no tag and no panel.
   - Lose a fight: points, colony, marks and feats are unchanged (compare the save before and after in devtools).
-- [ ] **Step 2: Phone check** on the iPhone 18 (portrait): the three buttons are under the thumb, readable at arm's length, and nothing covers the two cats. With the perf readout on (HIGH, Auto off), note draws and fps mid-tumble, and once with an intruder walking past the busy camp in view, beside Part 1's camp reading. Expect the intruder to add about 24 draws (one simple cat) and the dust bursts a few; 60 fps held. If not, stop and report; Part 1's `CAST_HIGH` lever is the owner's call, not this task's.
+- [ ] **Step 2: Phone check** on the iPhone 18, portrait **and landscape**: the three buttons are under the thumb, readable at arm's length, no toast covers them, the joystick and zoom buttons are hidden during the fight, nothing covers the two cats, and "Fight!" walks the cat over. Then the draw reading, the same protocol as Part 1 (HIGH, Auto off, 10 s average after warm-up, draws recorded) at the **Woods, River and Moor** camps, mid-fight and once with an intruder walking past the busy camp in view, beside Part 1's camp readings. Expect the intruder to add about 24 main-pass draws plus its shadow draws (it casts, like a roaming warrior) and the dust bursts a few; 60 fps held. If not, stop and report; Part 1's lever order is the owner's call, not this task's.
 - [ ] **Step 3: The fairness note.** Ask the owner to let the 9-year-old play five fights and the 11-year-old five. Record the wins in the commit body. If he wins far fewer (the anti-goal), the first fix is `TIMING.answer`, then the teach line's size; never make losing cost anything.
 - [ ] **Step 4: Run the whole suite**
 

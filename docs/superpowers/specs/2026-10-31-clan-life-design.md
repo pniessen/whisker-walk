@@ -265,6 +265,13 @@ Plans: `docs/superpowers/plans/2026-10-31-clan-life-1-cast-camp-verbs.md`
 - The teach line shows in every fight.
 - No intruder dot on the corner map.
 - The personality edges and award values stay as the plan proposed.
+- After the plan review: when both kids fight the same intruder and one
+  wins, both get the award once; touch noses and boop pay for the first 4
+  cats a walk and patrols for 2 (about 96 points a walk from clan life at
+  most); the draw budget's levers, in order, are camp cats casting no
+  shadow, then merging the still cats, then 2 kits instead of 4; Root, Toad,
+  Trout and Mint move to warrior slots so no kit or apprentice name is a
+  book name.
 
 ## Goals
 
