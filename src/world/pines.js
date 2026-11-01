@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
-import { ISLAND_BRIDGE_WOODS } from './moor.js';
+import { ISLAND_BRIDGE_WOODS, fromWoods, fromWoodsDisc, islandBridgePlank } from './lake.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 
@@ -180,18 +180,15 @@ const PATH_STYLE = { surface: 'sand', color: 0x6a5640 };
 // Pines land to the bridge never starts a chase.
 export const TRUCE_PATH = Object.freeze(PINES_PATHS.slice(0, 4));
 
-// The island out on the lake: the Woods' (-72, -72), the River's (28, -72) and
-// the Moor's (-72, 28), each moved into this frame, so every map shows one
-// island. A low grassy mound with one big tree. In bounds, but wholly in the
-// bay and the lake, so it has no collider and no perch.
-export const PINES_ISLAND = Object.freeze({ x: 28, z: 28, r: 9, rise: 1.4 });
+// The island out on the lake: the one island every shore shows, moved into
+// this frame by lake.js. A low grassy mound with one big tree. In bounds, but
+// wholly in the bay and the lake, so it has no collider and no perch.
+export const PINES_ISLAND = fromWoodsDisc('pines');
 
-// The island bridge, written once in Woods coordinates (moor.js) so no two
+// The island bridge, written once in Woods coordinates (lake.js) so no two
 // maps can disagree about it. Its shore end is the bridge foot, 0.2 m onto
 // the bay's north shore: the end of the walk, for now.
-const [ISLAND_END, SHORE_END] = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x + 100, z + 100]);
-export const BRIDGE_FOOT = Object.freeze({ x: SHORE_END[0], z: SHORE_END[1] });
-const ISLAND_BRIDGE = { y: 0.3, w: 2 };
+export const BRIDGE_FOOT = Object.freeze(fromWoods('pines', ...ISLAND_BRIDGE_WOODS[1]));
 
 // The two truce stones, standing either side of the bridge foot on dry land:
 // a mark that the path ends here and the lake begins. Each a collider, so a
@@ -653,17 +650,9 @@ export function build(scene, { water = {}, wind } = {}) {
   islandTree.position.y = I.rise - 0.2;
   scene.add(islandTree);
 
-  // The island bridge: one plank box from the bridge foot to the island's
-  // north-west rim, just above the lake. Scenery only: no deck, no collider.
-  const [x1, z1] = SHORE_END, [x2, z2] = ISLAND_END;
-  const plank = new THREE.Mesh(
-    new THREE.BoxGeometry(ISLAND_BRIDGE.w, 0.12, Math.hypot(x2 - x1, z2 - z1)),
-    litMaterial(0x7a5a38, surfaceProps('bark')),
-  );
-  plank.name = 'islandBridge';
-  plank.position.set((x1 + x2) / 2, ISLAND_BRIDGE.y, (z1 + z2) / 2);
-  plank.rotation.y = Math.atan2(x2 - x1, z2 - z1);
-  scene.add(plank);
+  // The island bridge, the same plank every shore draws (lake.js). Scenery
+  // only for now: no deck, no collider.
+  scene.add(islandBridgePlank('pines'));
 
   return {
     name: 'The Pines and Swamp',

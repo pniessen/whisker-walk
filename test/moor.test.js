@@ -32,9 +32,10 @@ const { clearSpot } = await import('../src/world/spots.js');
 const { raceCourse } = await import('../src/race.js');
 const { seedFromCode } = await import('../src/rng.js');
 const { propsFor } = await import('../src/propsets.js');
+const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
 
 const {
-  build, SPAWN, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, ISLAND_BRIDGE_WOODS, MOOR_HORIZON,
+  build, SPAWN, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, MOOR_HORIZON,
   TORS, WARREN_BURROWS, MOOR_KEEP_CLEAR, moorTrees, moorHeather, moorGorse, moorReeds,
 } = moor;
 
@@ -239,7 +240,7 @@ describe('the Moor: water', () => {
     const ends = (paths, z) => paths.flatMap(([x1, z1, x2, z2]) => [[x1, z1], [x2, z2]]).filter(([, pz]) => pz === z).map(([x]) => x);
     expect(ends(MOOR_PATHS, 50)).toEqual(ends(WOODS_PATHS, -50));
     // the island and its bridge are the Woods' own, 100 m on in z
-    expect([MOOR_ISLAND.x, MOOR_ISLAND.z - 100]).toEqual([-72, -72]);
+    expect([MOOR_ISLAND.x, MOOR_ISLAND.z - 100]).toEqual([ISLAND_WOODS.x, ISLAND_WOODS.z]);
     // the plank's two centreline ends: it runs along its local z, turned to its yaw
     const plank = scene.getObjectByName('islandBridge');
     const half = plank.geometry.parameters.depth / 2;
@@ -247,7 +248,11 @@ describe('the Moor: water', () => {
       plank.position.x + Math.sin(plank.rotation.y) * half * k,
       plank.position.z + Math.cos(plank.rotation.y) * half * k,
     ]).sort((a, c) => a[1] - c[1]);
-    const want = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x, z + 100]).sort((a, c) => a[1] - c[1]);
+    // the island end, and the land end: the Pines' foot run on BRIDGE_PLANK.landRun along the bridge
+    const [[ix, iz], [fx, fz]] = ISLAND_BRIDGE_WOODS;
+    const span = Math.hypot(fx - ix, fz - iz), run = BRIDGE_PLANK.landRun / span;
+    const want = [[ix, iz], [fx + (fx - ix) * run, fz + (fz - iz) * run]]
+      .map(([x, z]) => [x, z + 100]).sort((a, c) => a[1] - c[1]);
     for (let i = 0; i < 2; i++) {
       expect(plankEnds[i][0], `end ${i} x`).toBeCloseTo(want[i][0], 6);
       expect(plankEnds[i][1], `end ${i} z`).toBeCloseTo(want[i][1], 6);
@@ -261,7 +266,7 @@ describe('the Moor: the island and the horizon', () => {
     const I = MOOR_ISLAND;
     const outside = (x, z) => x < bounds.minX || x > bounds.maxX || z < bounds.minZ || z > bounds.maxZ;
     expect(outside(I.x, I.z)).toBe(true);
-    expect(I.r).toBe(9);
+    expect(I.r).toBe(ISLAND_WOODS.r);
     const lakes = [byId('lake'), byId('lake-far')];
     expect(inWater(lakes, I.x, I.z)).toBe(true);
     for (let k = 0; k < 16; k++) {

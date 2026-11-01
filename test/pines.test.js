@@ -26,8 +26,9 @@ const pines = await import('../src/world/pines.js');
 const { WOODS_WATERS } = await import('../src/world/woods.js');
 const { RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND } = await import('../src/world/river.js');
 const {
-  build: buildMoor, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND, ISLAND_BRIDGE_WOODS,
+  build: buildMoor, MOOR_WATERS, MOOR_PATHS, MOOR_ISLAND,
 } = await import('../src/world/moor.js');
+const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
 const { inWater, waterGap, waterClearance } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
@@ -261,20 +262,24 @@ describe('the Pines: water', () => {
 
 describe('the Pines: the island, the bridge and the truce path', () => {
   it('the island and the bridge are where the Woods, the River and the Moor show them', () => {
-    expect(PINES_ISLAND).toEqual({ x: RIVER_ISLAND.x, z: RIVER_ISLAND.z + 100, r: 9, rise: 1.4 });
+    expect(PINES_ISLAND).toEqual({ x: RIVER_ISLAND.x, z: RIVER_ISLAND.z + 100, r: ISLAND_WOODS.r, rise: ISLAND_WOODS.rise });
     expect([PINES_ISLAND.x, PINES_ISLAND.z]).toEqual([MOOR_ISLAND.x + 100, MOOR_ISLAND.z]);
-    expect([PINES_ISLAND.x - 100, PINES_ISLAND.z - 100]).toEqual([-72, -72]);
+    expect([PINES_ISLAND.x - 100, PINES_ISLAND.z - 100]).toEqual([ISLAND_WOODS.x, ISLAND_WOODS.z]);
     expect(Object.isFrozen(PINES_ISLAND)).toBe(true);
 
     const [[ix, iz], [sx, sz]] = ISLAND_BRIDGE_WOODS.map(([x, z]) => [x + 100, z + 100]);
     expect(BRIDGE_FOOT).toEqual({ x: sx, z: sz });
+    // the plank runs on past the foot by BRIDGE_PLANK.landRun, onto the Pines' land
+    const run = BRIDGE_PLANK.landRun / Math.hypot(sx - ix, sz - iz);
+    const lx = sx + (sx - ix) * run, lz = sz + (sz - iz) * run;
     expect(Object.isFrozen(BRIDGE_FOOT)).toBe(true);
 
     const plank = scene.getObjectByName('islandBridge');
     expect(plank).toBeTruthy();
-    expect(Math.abs(plank.position.x - (ix + sx) / 2)).toBeLessThan(0.01);
-    expect(Math.abs(plank.position.z - (iz + sz) / 2)).toBeLessThan(0.01);
-    expect(Math.abs(plank.geometry.parameters.depth - Math.hypot(ix - sx, iz - sz))).toBeLessThan(0.01);
+    expect(Math.abs(plank.position.x - (ix + lx) / 2)).toBeLessThan(0.01);
+    expect(Math.abs(plank.position.z - (iz + lz) / 2)).toBeLessThan(0.01);
+    expect(Math.abs(plank.position.y - BRIDGE_PLANK.y)).toBeLessThan(1e-9);
+    expect(Math.abs(plank.geometry.parameters.depth - Math.hypot(ix - lx, iz - lz))).toBeLessThan(0.01);
     // the River's convention: the yaw from the shore end to the island end
     expect(Math.abs(plank.rotation.y - Math.atan2(ix - sx, iz - sz))).toBeLessThan(1e-6);
   });

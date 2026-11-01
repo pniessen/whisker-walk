@@ -2285,6 +2285,18 @@ export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
   return g;
 }
 
+// One long plank from (x1, z1) to (x2, z2), its top at about `y`: the lake's
+// island bridge. A plain box, not roundedBox, so its length and width can be
+// read straight off its geometry. Dock timber at the Seaside pier's scale, the
+// repeat taken from the top face's real w x len, so the boards run along it.
+export function plankBridge(x1, z1, x2, z2, w, y, thick) {
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, thick, len), surfMat(0x8a6a44, 'wood', w, len));
+  m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+  m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+  return m;
+}
+
 // A trunk laid across a stream as a bridge, its top hewn flat to walk on, the
 // way a real log bridge is. Like bridgeDeck it emits no collider: the walkable
 // part is the area's own crossing record, this is the picture of it. `w` is
