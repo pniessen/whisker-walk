@@ -1580,14 +1580,18 @@ the River and the Moor. Measured off `build(scene)` the way
 |---|---|---|---|---|---|
 | without island content (db8777d) | 130 | 96 | 43,668 | 128 | 94 |
 | island as ground, bridge walkable (3078eab) | 127 | 93 | 43,248 | 125 | 91 |
-| **with the island (now, 25f5200)** | **138** / 450 | **101** / 380 | **45,180** / 60,000 | **135** / 260 | **98** / 205 |
+| with the island (25f5200) | 138 | 101 | 45,180 | 135 | 98 |
+| **after the review (now)** | **112** / 450 | **75** / 380 | **44,642** / 60,000 | **109** / 260 | **72** / 205 |
 
 The island content (the Old Ash, the Meeting Ring as one merged mesh, the
 Watch Rock and its step, the boulder, the bushes, the puddle, the reeds) adds
-11 meshes, 8 casters and 1,932 triangles over 3078eab. The scenery: 40 near
-(swaying) pines and 86 in the merged still stand, 133 ferns, 45 toadstool
-clusters, 160 reed clumps (141 on the Pines' shores and bogs, 19 round the
-island) and 20 lily pads.
+11 meshes, 8 casters and 1,932 triangles over 3078eab. The scenery at
+25f5200: 40 near (swaying) pines and 86 in the merged still stand, 133 ferns,
+45 toadstool clusters, 160 reed clumps (141 on the Pines' shores and bogs, 19
+round the island) and 20 lily pads. After the review's canopy fix (below):
+27 near pines and 83 in the stand, 136 ferns, 47 toadstool clusters, the same
+160 reeds and 20 pads; 129 colliders (one per pine, 110, plus 19). Thirteen
+fewer swaying pines is 26 fewer meshes and casters.
 
 **In-game draw calls.** `?perf`, HIGH tier pinned in Settings, the same
 method as the Moor's: desktop is 1024x768 css at 2x, phone portrait is
@@ -1689,7 +1693,8 @@ driven from a timer: draw counts are unaffected, fps readings are not used):
   black mire, the heart of the swamp).
 - **The race**: the courses for 1-21 November each have at most one ring on
   the island or the bridge (none on 1 November, exactly one on the other 20).
-- **No camera in a canopy, except at four near pines.** Every path and the
+- **No camera in a canopy, except at four near pines** (before the review's
+  fix). Every path and the
   bridge, sampled every 0.5 m on the centreline and 1.2 m either side (0.6 m
   on the bridge), looking along it both ways, at the close, default and far
   zoom steps, cameras placed exactly where `cameraOffset` and
@@ -1710,8 +1715,35 @@ driven from a timer: draw counts are unaffected, fps readings are not used):
   At `VIEWS.pines` (`-6,1.6,-2 → 28,1.0,28`) no trunk fills the frame (truce
   path, truce stones, the bridge, the island and the Old Ash), so the view is
   unchanged and `public/places/pines.jpg` is taken from it.
-- **The suite and the build** pass (155 files, 4,336 tests).
+- **The suite and the build** pass (155 files, 4,336 tests; 4,342 after the
+  review's fixes).
 - No console errors from the game anywhere above.
+
+**After the review** (code and tests only; the in-game draw counts above
+and the live checks were not re-run):
+
+- **The canopy clip is fixed.** The canopy rule now measures from each path
+  stretched 7 m (the far step's distance) past both its ends, so no pine
+  stands where the camera swings at a bend or a path's end. A new test in
+  `test/pines.test.js` walks the cat down every path (on the centreline and
+  1.2 m either side, every 0.5 m, facing both ways and 0.17 rad either side)
+  and the bridge deck, places the camera as `cameraOffset` does at the close,
+  default and far steps (pitch -0.25, 0.18, 0.85) and the farthest step
+  (pitch 0.18), and finds no camera inside any pine's trunk or cone. The
+  farthest step with the view dragged right down can still graze; that is
+  not asserted. Near pines went from 40 to 27, the stand from 86 to 83.
+- **Strays keep off the mire and the bogs.** The Pines' keepOut is now
+  `PINES_KEEP_OUT`: the island's shapes plus both reaches of the Black Mire
+  and the four bogs. A test drives three strays on the real Pines area for a
+  minute on fifty seeds, sent straight at the mire's corner, across it and
+  into every bog: none stands in any water and none moves more than a step a
+  frame. The cost: no stray crosses the log bridge or the stepping stones, so
+  none walks between the deep swamp and the rest. `keepout.js` now pushes a
+  point out of a rect's rounded corner straight away from the corner, which
+  stopped a small overshoot at the mire's corner.
+- **The island plank is marked noCast** in all four maps, so it stays out of
+  the shadow pass on purpose rather than by float rounding.
+- Neither fix was looked at in the browser.
 
 **Not checked by eye:**
 
@@ -1734,6 +1766,7 @@ driven from a timer: draw counts are unaffected, fps readings are not used):
 **Seen, not fixed:**
 
 - **The far zoom step puts the camera inside four near pines' lowest cone.**
+  (Fixed after the review; see "After the review".)
   At the truce path's first bend, cat at (-25.96, 32.27) walking south-east,
   far step: the camera is in the pine at (-30.47, 37.88) and a quarter of the
   frame is green cone. On the east path's east end, cat at (17.63, -26.51)
@@ -1745,7 +1778,8 @@ driven from a timer: draw counts are unaffected, fps readings are not used):
   behind the cat and leaves the corridor at bends and segment ends. Looking
   across a path at the far step (not checked systematically) does the same,
   for example in the deep swamp at (-43, -25) looking east.
-- **Strays walk in the Black Mire and the bogs.** The keep-out covers the lake,
+- **Strays walk in the Black Mire and the bogs.** (Fixed after the review; see
+  "After the review".) The keep-out covered the lake,
   the bay and the bridge only. Over the 7.4 minutes, six strays spent time in
   mire-north, mire-west or bog-1 (2,315 samples); one shows standing on the
   mire in the deep-swamp picture. The Woods' and the River's strays were not

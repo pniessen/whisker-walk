@@ -91,13 +91,15 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   river            159      133      45344   (157 / 131 merged)
 //   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
 //                                               398 heather, 19 gorse, 127 reeds)
-//   pines            138      101      45180   (135 / 98 merged; 40 swaying pines,
-//                                               86 in the one merged stand, 133 ferns,
-//                                               45 toadstool clusters, 160 reeds (19
+//   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,
+//                                               83 in the one merged stand, 136 ferns,
+//                                               47 toadstool clusters, 160 reeds (19
 //                                               of them round the island's rim),
 //                                               20 lily pads; the island is ground,
 //                                               with the Old Ash, the Meeting Ring,
-//                                               the Watch Rock and its finds)
+//                                               the Watch Rock and its finds; was
+//                                               138 / 101, before the canopy rule
+//                                               kept pines off the paths' bends)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -175,7 +177,7 @@ const AREAS = [
 //   docks            312      233    520 / 424
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
-//   pines            135       98    138 / 101
+//   pines            109       72    112 /  75
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is
