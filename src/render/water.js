@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { shorePieces } from '../world/builder.js';
 
 // =============================================================================
 // WATER — the visual for one `waters` footprint record.
@@ -251,6 +252,23 @@ const ROUGH_LOW = 0.55;
 const ENV_INTENSITY = 0.85;
 const ENV_INTENSITY_LOW = 1.0;
 
+// GLARE — how strong the water's specular is, as a scale on its whole
+// Fresnel curve. At some sun angles the sun's highlight (and the probe's hot
+// facets) broke up through the ripple into white patches across the near half
+// of a lake or pond (the swim screenshots). Roughness was no good for it: up
+// to twice as rough, the patches only got broader. So the material is a
+// MeshPhysicalMaterial with specularIntensity = GLARE: for a dielectric that
+// scales both F0 and F90 (three's lights_physical_fragment), so the highlight
+// and the grazing sheen come down together and the ripple still sparkles. 0.4
+// was picked side by side against 1, 0.55 and 0.3 at the same moment of the
+// same walk: at 0.55 a low sun still nearly whited out the Pines lake, at
+// 0.3 the water went dull. No shader injection (see the header).
+//
+// The sea keeps closer to today's look (GLARE_SEA): its pale, sunny palette is
+// the Seaside's identity, and its glare reads as a bright day at the beach.
+const GLARE = 0.4;
+const GLARE_SEA = 0.8;
+
 // Segments around a circular footprint's rim. The shipped pond used 20, whose
 // 2.2m chords are plainly visible as a polygon once there is a light foam band
 // tracing the edge — the band draws the eye straight to the faceting. 48 costs
@@ -265,7 +283,7 @@ export const WATER_TUNING = Object.freeze({
   RIPPLE_TEX, RIPPLE_TILE_M, SLOPE, NORMAL_SCALE, DRIFT_U, DRIFT_V,
   SWELL_PERIOD, SWELL_DEPTH, RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX,
   SHELF_M, FOAM_M, FOAM_STRENGTH, ROUGH_DEEP, ROUGH_SHORE, ROUGH_FOAM,
-  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS,
+  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA,
 });
 
 // --- small pure helpers ------------------------------------------------------
@@ -322,6 +340,61 @@ export function shoreDepth(w, x, z, shores = ALL_SHORES) {
   // the cat can stand on, right there in the water, never open horizon.
   for (const i of w.islands ?? []) d = Math.min(d, Math.hypot(x - i.x, z - i.z) - i.r);
   return d;
+}
+
+// --- real shore --------------------------------------------------------------
+//
+// Where two footprints overlap (the Woods pond over its river, the Moor's
+// river mouth over the lake, the Pines lake under its bay, the Black Mire's
+// corner), a stretch of one water's outline runs under the other: open water,
+// not a bank. shoreDepth measures to the whole outline, so it painted a short
+// pale foam stripe across the open water there. With the area's `waters`
+// handed in, depth is measured instead to this water's own pieces of REAL
+// shore, the ones builder.js's shorePieces keeps (the same pieces the swim
+// code wades by), still limited to the `shores` edges the area lists.
+//
+// Only a water whose box meets another's takes this path: everything else
+// paints exactly the texels it always did. And only texels within `shelf` of
+// the outline pay for it, since real shore is part of the outline and can
+// only be further away.
+function boxesMeet(a, b) {
+  const p = waterBox(a), q = waterBox(b);
+  return p.minX <= q.maxX && q.minX <= p.maxX && p.minZ <= q.maxZ && q.minZ <= p.maxZ;
+}
+
+const ON_EDGE = 1e-6;
+function onAllowedEdge(w, piece, shores) {
+  if (w.kind === 'circle') return true;
+  const on = (a, b, v) => Math.abs(a - v) < ON_EDGE && Math.abs(b - v) < ON_EDGE;
+  const edges = [];
+  if (on(piece.ax, piece.bx, w.minX)) edges.push('minX');
+  if (on(piece.ax, piece.bx, w.maxX)) edges.push('maxX');
+  if (on(piece.az, piece.bz, w.minZ)) edges.push('minZ');
+  if (on(piece.az, piece.bz, w.maxZ)) edges.push('maxZ');
+  // Not on any rect edge: an island's rim, which is always shore.
+  return edges.length === 0 || edges.some((e) => shores.includes(e));
+}
+
+/**
+ * realShoreOf(w, waters, shores) — w's own real-shore segments on its allowed
+ * edges, or null when no other water overlaps w (shoreDepth is then exact).
+ */
+export function realShoreOf(w, waters, shores = ALL_SHORES) {
+  if (!waters || !waters.some((o) => o !== w && o.id !== w.id && boxesMeet(o, w))) return null;
+  return shorePieces(waters).filter((p) => p.id === w.id && onAllowedEdge(w, p, shores));
+}
+
+function distToPieces(pieces, x, z) {
+  let min = Infinity;
+  for (const p of pieces) {
+    const dx = p.bx - p.ax, dz = p.bz - p.az;
+    const l2 = dx * dx + dz * dz;
+    let t = l2 > 0 ? ((x - p.ax) * dx + (z - p.az) * dz) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - (p.ax + dx * t), z - (p.az + dz * t));
+    if (d < min) min = d;
+  }
+  return min;
 }
 
 /**
@@ -619,13 +692,14 @@ export function waterRamp(base) {
  * and the canal, whose ramps are symmetric in z — but not on the seaside,
  * whose only shore is minX and whose ramp is not symmetric in anything.
  */
-function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoughness }) {
+function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoughness, waters }) {
   const box = waterBox(w);
   const width = box.maxX - box.minX;
   const depth = box.maxZ - box.minZ;
   const nx = pow2Ceil(width / RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX);
   const nz = pow2Ceil(depth / RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX);
   const shores = w.kind === 'circle' ? ALL_SHORES : (w.shores ?? ALL_SHORES);
+  const real = realShoreOf(w, waters, shores);
   const col = new Uint8Array(nx * nz * 4);
   const rough = withRoughness ? new Uint8Array(nx * nz * 4) : null;
   const { deep, shallow, foam } = colors;
@@ -633,7 +707,10 @@ function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoug
     const z = box.maxZ - ((j + 0.5) / nz) * depth;
     for (let i = 0; i < nx; i++) {
       const x = box.minX + ((i + 0.5) / nx) * width;
-      const d = shoreDepth(w, x, z, shores);
+      let d = shoreDepth(w, x, z, shores);
+      // Near the outline, and the outline partly under another water: the
+      // distance to real shore instead (see realShoreOf).
+      if (real && d < shelf) d = Math.max(d, distToPieces(real, x, z));
       // t: 0 at the rim, 1 once we are `shelf` metres in. Infinity (no facing
       // shore) falls out of smoothstep as 1, i.e. open deep water.
       const t = smoothstep(0, shelf, d);
@@ -754,6 +831,12 @@ function islandGeometry(w, box, segments) {
  *                          art-directed rather than derived; nothing needs it
  *                          today, and using it gives up the property that one
  *                          hex per area is the whole integration.
+ *   waters       {object[]} the area's whole `waters` list. Optional; with
+ *                          it, foam and the shallow shelf follow REAL shore
+ *                          only, so where this water runs under another no
+ *                          pale stripe crosses the open water (realShoreOf).
+ *   glare        {number}  specular strength, 0..1 (default GLARE). The
+ *                          seaside passes GLARE_SEA.
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
  *                          id, so the three bodies ripple differently and each
  *                          one ripples identically on every walk and on every
@@ -774,6 +857,8 @@ export function createWater(footprint, options = {}) {
     foamStrength = FOAM_STRENGTH,
     colors,
     seed,
+    waters,
+    glare = GLARE,
   } = options;
 
   const tier = (typeof quality === 'string' ? quality : quality?.name) === 'low' ? 'low' : 'high';
@@ -798,6 +883,7 @@ export function createWater(footprint, options = {}) {
     foamStrength,
     colors: { ...waterRamp(color), ...colors },
     withRoughness: tier === 'high',
+    waters,
   });
 
   // THE LOW TIER. Adaptive Auto's floor rung (a device whose frames stayed
@@ -813,8 +899,10 @@ export function createWater(footprint, options = {}) {
   // a body of water, where a moving specular on a flat colour does not.
   const ripple = tier === 'high' ? buildRippleTexture(seed ?? seedFromCode(footprint.id ?? 'water')) : null;
 
-  const material = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshPhysicalMaterial({
     map: ramp.color,
+    // See GLARE: the whole specular, sun and probe alike, scaled down.
+    specularIntensity: glare,
     // metalness stays 0. Water is a dielectric, and metalness > 0 would tint
     // the IBL reflection with the base colour AND cancel the diffuse term —
     // i.e. throw away the depth ramp we just baked. The gloss comes entirely

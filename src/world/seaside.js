@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
-import { createWater } from '../render/water.js';
+import { createWater, WATER_TUNING } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
 
 // The same two opt-in helpers world/builder.js keeps at the top of itself, for
@@ -323,6 +323,7 @@ export function build(scene, { water = {}, wind } = {}) {
     y: 0.05,
     color: 0x4a90c0,
     shores: ['minX'],
+    glare: WATER_TUNING.GLARE_SEA,
     quality: water.quality ?? 'high',
     reducedMotion: water.reducedMotion ?? false,
   });
