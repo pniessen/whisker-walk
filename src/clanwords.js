@@ -232,3 +232,31 @@ export const DENIED_NAMES = new Set([
   'Mapleshade', 'Spiderleg', 'Hollytuft', 'Smudge', 'Princess', 'Purdy', 'Barley',
   'Ravenpaw', 'Scourge', 'Sol', 'Midnight', 'Tinycloud', 'Jaggedtooth',
 ]);
+
+// ---- Homage clan names (decision 3) ----
+// These are homages chosen with the 11-year-old: close in feel to the books,
+// never the book names themselves. HOMAGE_PREFIXES holds the names chosen on
+// 2026-10-31; the rest of each HOMAGE_CHOICES list are spares (checked by the
+// tests), so a change is one line. Once a name has shipped, change a value
+// only if she asks, because nothing is stored by name (saves store the id).
+// Keys are the clan's home territory id.
+export const HOMAGE_CHOICES = Object.freeze({
+  woods: Object.freeze(['Storm', 'Tempest', 'Lightning', 'Oak']),
+  moor: Object.freeze(['Gale', 'Gust', 'Heather', 'Swift']),
+  river: Object.freeze(['Brook', 'Ripple', 'Reed', 'Otter']),
+  pines: Object.freeze(['Dusk', 'Night', 'Murk', 'Gloom']),
+  gorge: Object.freeze(['Cliff', 'Cloud', 'Hawk', 'Falcon']),
+});
+
+export const HOMAGE_PREFIXES = Object.freeze({
+  woods: 'Storm', moor: 'Gale', river: 'Brook', pines: 'Dusk', gorge: 'Cliff',
+});
+
+// One plain flavour line per clan, for the pick cards.
+export const HOME_LINES = Object.freeze({
+  woods: 'oak woods, ferns and sunny clearings',
+  moor: 'open heather, wind and rabbits',
+  river: 'reeds, fishing and the pond',
+  pines: 'dark pines and the swamp',
+  gorge: 'rocks, cliff dens and tall pines',
+});

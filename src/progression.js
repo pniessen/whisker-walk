@@ -11,7 +11,8 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // no DOM; its imports are straynames/skills/rng/net, none of which imports
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
-import { emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
+import { isClanId, pickableClans } from './clanhomes.js';
+import { isPlayerId, emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
   feedKey, isColonyId, settleTaming, tamedCats } from './colony.js';
 import { isStrayName } from './straynames.js';
 // v21 Stream 3a: the two den-role SELECTION verdicts. clanroles.js is a leaf
@@ -506,7 +507,22 @@ function defaultState() {
     mapMode: 'north',
     // Additive: SAVE_VERSION stays 4. Missing or junk loads as Clan Edition.
     edition: DEFAULT_EDITION,
+    // Each kid's clan pick (mine) and the partner's cached pick, with the
+    // partner's player id so a new partner resets it. Additive, so
+    // SAVE_VERSION stays 4: an older save starts with no pick.
+    clanPick: { mine: null, partner: null, partnerId: null },
   };
+}
+
+// Total over any payload; ids are checked as own keys of HOMES, so a newer
+// build's clan survives and '__proto__' never does. A partner pick without a
+// valid partnerId is meaningless, so it is dropped.
+export function sanitizeClanPick(v) {
+  const o = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  const mine = isClanId(o.mine) ? o.mine : null;
+  const partnerId = isPlayerId(o.partnerId) ? o.partnerId : null;
+  const partner = partnerId && isClanId(o.partner) ? o.partner : null;
+  return { mine, partner, partnerId };
 }
 
 // A clan name is acceptable only if it is a title clanTitleFor could have
@@ -867,6 +883,7 @@ function sanitizeState(parsed) {
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
+    clanPick: sanitizeClanPick(parsed.clanPick),
   };
 }
 
@@ -1203,6 +1220,32 @@ export function createProgression(storage) {
         state.edition = edition;
         save();
       }
+    },
+    // Only a pickable clan, and never in Legacy (the pick stays stored there,
+    // hidden). Touches clanPick.mine and nothing else.
+    setClanPick(id) {
+      if (!isClanEdition(state) || !pickableClans().includes(id)) return false;
+      if (state.clanPick.mine !== id) {
+        state.clanPick.mine = id;
+        save();
+      }
+      return true;
+    },
+    // The partner's pick, cached. A new partner replaces both fields; the same
+    // partner with no valid id (an old build) never erases a known pick.
+    setPartnerClanPick(partnerId, id) {
+      if (!isPlayerId(partnerId)) return false;
+      const pick = isClanId(id) ? id : null;
+      const cur = state.clanPick;
+      if (cur.partnerId !== partnerId) {
+        state.clanPick = { ...cur, partner: pick, partnerId };
+      } else if (pick && cur.partner !== pick) {
+        state.clanPick = { ...cur, partner: pick };
+      } else {
+        return false;
+      }
+      save();
+      return true;
     },
     // A Clan-only place cannot be chosen in Legacy. Refusing leaves state.area
     // alone, so a kid already standing in the Woods keeps it for Clan Edition.

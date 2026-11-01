@@ -1,5 +1,6 @@
 import { describe, it, test, expect, beforeEach, vi } from 'vitest';
-import { createProgression, ROSA_FAREWELL, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan } from '../src/progression.js';
+import { createProgression, ROSA_FAREWELL, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan, sanitizeClanPick } from '../src/progression.js';
+import { isClanId } from '../src/clanhomes.js';
 import { clanTitleFor } from '../src/clannames.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
@@ -666,6 +667,7 @@ describe('createProgression', () => {
         marks: { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
         mapMode: 'north', edition: 'canon',
+        clanPick: { mine: null, partner: null, partnerId: null },
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -2246,8 +2248,9 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, ...rest } = p.state;
     expect(edition).toBe('canon');
+    expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });
     expect(clanRoles).toEqual({ medicine: null, deputy: null });
     expect(marks).toEqual({ neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], den: [] });
     expect([visits, visitPrizesSeen, visitPrizePending, mapMode]).toEqual([0, 0, null, 'north']);
@@ -3189,5 +3192,52 @@ describe('map mode', () => {
     const raw = rawSave();
     delete raw.mapMode;
     expect(createProgression(fakeStorage({ [SAVE_KEY]: JSON.stringify(raw) })).state.mapMode).toBe('north');
+  });
+});
+
+describe('clan pick in the save', () => {
+  const PARTNER = 'bbbbbbbb-2222', OTHER = 'cccccccc-3333';
+
+  test('clanPick: default, sanitised, additive', () => {
+    const p = createProgression(fakeStorage());
+    expect(p.state.clanPick).toEqual({ mine: null, partner: null, partnerId: null });
+    expect(p.state.version).toBe(4);
+    for (const junk of [null, 5, 'woods', [], { mine: '__proto__' }, { mine: 'park' }, { partner: 'moor' }, { partner: 'moor', partnerId: 'not an id!' }]) {
+      expect(sanitizeClanPick(junk).mine === null || isClanId(sanitizeClanPick(junk).mine)).toBe(true);
+      expect(sanitizeClanPick(junk).partner).toBeNull();
+    }
+    expect(sanitizeClanPick({ mine: 'gorge' }).mine).toBe('gorge'); // a newer build's pick survives
+  });
+
+  test('a cloud payload goes through the same sanitiser and never throws', () => {
+    const p = createProgression(fakeStorage());
+    p.replaceFromPayload({ version: 4, clanPick: { mine: '__proto__', partner: 'constructor', partnerId: PARTNER } });
+    expect(p.state.clanPick).toEqual({ mine: null, partner: null, partnerId: PARTNER });
+    p.replaceFromPayload({ version: 4, clanPick: { mine: 'moor', partner: 'river', partnerId: PARTNER } });
+    expect(p.state.clanPick).toEqual({ mine: 'moor', partner: 'river', partnerId: PARTNER });
+  });
+
+  test('setClanPick: pickable ids only, refused in Legacy, touches nothing else', () => {
+    const p = createProgression(fakeStorage());
+    const before = structuredClone(p.state);
+    expect(p.setClanPick('gorge')).toBe(false);
+    expect(p.setClanPick('park')).toBe(false);
+    expect(p.setClanPick('woods')).toBe(true);
+    expect({ ...p.state, clanPick: before.clanPick }).toEqual(before);
+    expect(p.setClanPick('woods')).toBe(true); // same id again is a no-op that still says yes
+    p.setEdition('legacy');
+    expect(p.setClanPick('moor')).toBe(false);
+    expect(p.state.clanPick.mine).toBe('woods'); // kept, hidden
+  });
+
+  test('setPartnerClanPick: learns, never forgets for the same partner, resets for a new one', () => {
+    const p = createProgression(fakeStorage());
+    p.setPartnerClanPick(PARTNER, 'moor');
+    p.setPartnerClanPick(PARTNER, undefined); // an old build's profile with no home
+    expect(p.state.clanPick).toMatchObject({ partner: 'moor', partnerId: PARTNER });
+    p.setPartnerClanPick(PARTNER, 'river');
+    expect(p.state.clanPick.partner).toBe('river');
+    p.setPartnerClanPick(OTHER, undefined);
+    expect(p.state.clanPick).toMatchObject({ partner: null, partnerId: OTHER });
   });
 });

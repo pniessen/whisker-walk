@@ -605,15 +605,26 @@ would mostly hide.
   listed under the territory map as "Other places". A kid never has to switch
   editions to reach an area they already own.
 
-### Where the clans live *(waits for the clan-pick step)*
+### Where the clans live
 
-- Each kid picks a clan (decision 2), and the two kids' clans are always
-  allies. A territory's computer-run patrol is its own clan's, or a
-  neighbouring clan's when a kid picked that territory's clan ("your clan's
-  home").
-- That needs the clan pick and the homage names first. **Until then, a new
-  territory has no rival patrol.** The truce on the way to the island holds
-  from the day the island exists.
+- Each kid picks a clan on the home screen (a row of cards in the Where-to
+  pill, and a select in Settings; Clan Edition only), and the two kids'
+  clans are always allies. Both may pick the same clan; that is celebrated,
+  never blocked.
+- The rule (D7): each territory has one fixed camp. Its patrol is the
+  territory's own clan if neither kid picked it; otherwise the first
+  neighbour, in the territory's row order, that neither kid picked; otherwise
+  no patrol. So a patrol is never either kid's clan.
+- The camps (D8): the Woods camp is in the north glade across the river, and
+  the River camp is in open ground south-west of the river bend. Each disc has
+  one camp tree inside it. The Moor camp is at (-1, -43), r 6, round a thorn
+  on the north heath, facing the Woods. The Pines camp is at (-38, 41), r 6,
+  round two pines on the swamp side, facing the River, and is kept at least 3 m
+  clear of the truce path, the bridge and the island.
+- The truce on the way to the island holds: no clan patrols the island, ever.
+- All four built territories have camps. The Gorge adds its disc when it is
+  built, and the island stays a truce place with no disc.
+- Plan: `docs/superpowers/plans/2026-10-31-clan-edition-pick-your-clan.md`.
 
 ### Builder notes (skip if you're not building it)
 
@@ -912,6 +923,7 @@ the island. **The Gorge comes later** (decision 4).
      (decision 2).
    - Each territory gets its clan's patrol at a camp, following the "your
      clan's home" rule.
+   - Plan: `docs/superpowers/plans/2026-10-31-clan-edition-pick-your-clan.md`.
 3. **Kittypets.** The kittypet names, collars in Clan Edition, "the
    kittypet" wording, "once a kittypet called…" on the Colony card (§2), and
    the occasional wanderer into a territory (§3).

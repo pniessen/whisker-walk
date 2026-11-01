@@ -128,10 +128,22 @@ beforeEach(() => { builtAreas.length = 0; globalThis.document = fakeDocument(); 
 afterEach(() => { delete globalThis.document; });
 
 describe('a Legacy walk', () => {
-  it('the rival patrol is gated on the edition', () => {
+  it('the rival patrol is gated on the edition and the picks', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
-    expect(src).toContain('rivalForWalk(areaId, progression.state.edition)');
+    expect(src).toMatch(/const picks = picksOf\(progression\.state\);/);
+    expect(src).toMatch(/rivalForWalk\(areaId, progression\.state\.edition, picks\)/);
+    expect(src).toMatch(/createRivalPatrol\(scene, areaId, \{\s*picks,/);
+    expect(src).toMatch(/createMarkContest\(\{\s*picks,/);
     expect(src).not.toMatch(/\brivalFor\(/);
+    // picks is computed before the rival's branch, not inside it
+    expect(src.indexOf('const picks = picksOf(')).toBeLessThan(src.indexOf("The rival's border and its patrol"));
+  });
+
+  it('the home welcome is gated on the den, comes from homeWelcome and sits on the Ready card', () => {
+    const src = readFileSync('src/game/walk.js', 'utf8');
+    expect(src).toMatch(/isDen \? null : homeWelcome\(areaId, progression\.state\)/);
+    expect(src).not.toContain('hud.toast(welcome)');
+    expect(src).toMatch(/<h1>Ready\?<\/h1>\s*\$\{welcome \? `<p class="home-welcome">/);
   });
 
   it('the dock names the place for the edition', () => {

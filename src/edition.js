@@ -72,8 +72,8 @@ export function roomAreaMove(state, catalog, area) {
   return clanOnly(state.area) || clanOnly(area) ? 'override' : 'set';
 }
 
-export function rivalForWalk(areaId, edition) {
-  return edition === 'legacy' ? null : rivalFor(areaId);
+export function rivalForWalk(areaId, edition, picks = []) {
+  return edition === 'legacy' ? null : rivalFor(areaId, picks);
 }
 
 export function accessoryName(entry, edition) {

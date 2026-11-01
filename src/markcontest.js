@@ -46,9 +46,9 @@ export function contestToast(name, kind) {
 // NEVER ON TOP OF THE CHASE TOAST (ruling R26). While isChasing() is true the
 // toast is held, and shown once the chase has settled. Still one per walk.
 export function createMarkContest({
-  areaId, progression, playerMarks, patrolPos, isChasing = () => false, toast,
+  areaId, progression, playerMarks, patrolPos, isChasing = () => false, toast, picks = [],
 }) {
-  const rival = rivalFor(areaId);
+  const rival = rivalFor(areaId, picks);
   if (!rival) return { tick() {} };
   let clock = 0;
   let told = false;

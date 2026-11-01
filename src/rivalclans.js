@@ -1,5 +1,6 @@
 import { RIVAL_PREFIXES, CLAN_SUFFIX } from './clanwords.js';
 import { seedFromCode } from './rng.js';
+import { patrolClanFor, clanName } from './clanhomes.js';
 
 // One rival clan per walk area, as a circular territory. Everything derives
 // from the area id alone, so both devices in a co-walk agree with no wire
@@ -35,11 +36,40 @@ import { seedFromCode } from './rng.js';
 //     (-16..-22.5,-9.8..-16.6) and its gold mouse (-17,-13), the tins
 //     (-30,-26), every POI and perch are all outside, and the far edge
 //     (x -35.5) leaves room for a landing inside the map (minX -38).
+//   woods (2,-43) r 6: the north glade beyond river-west, facing the Moor,
+//     round the scatter tree (builder.tree, scale 1.09) at (3.44,-45.4), which is also a bird perch; 29m from the
+//     nearest find. The ring comes within about 1m of the north edge (z -50),
+//     so a cat chased out northward is set down sideways, round the ring, by
+//     findLanding's fallback.
+//   river (5,1) r 6: open ground south-west of the foot of the river bend and
+//     east of the bank path (the wet meadow itself centres on (2,28)), round
+//     the alder at (7.62,3.12) (builder.tree, scale 1.29); 26m from the nearest find.
+//   moor (-1,-43) r 6: the open heath on the north edge, facing the Woods,
+//     round the lone thorn (builder.tree, scale 0.89) at (-1.58,-46.25), whose
+//     Sure Claws fork is an unlabelled perch; 13m from the nearest find
+//     (moor-find-5) and the High Tor lookout, 4m off the nearest path, and the
+//     ring clears every collider by 1.9m beyond the cat. Like the Woods' camp
+//     it comes within 1m of the north edge (z -50), so a cat chased out
+//     northward is set down sideways by findLanding's fallback.
+//   pines (-38,41) r 6: the swamp side of the south edge, facing the River,
+//     west of the spawn and the truce path, round two pines (builder.pine):
+//     one at (-35.92,43.2), scale 1.66, and one of the stand at
+//     (-39.31,37.51), scale 1.69. The disc stays 6m from the truce path's
+//     centreline, 54m from the bridge foot and 48m from the island's land, so
+//     crossing to the island never starts a chase (the island is truce ground
+//     inside the Pines and never gets a disc of its own). The spawn (-26,44)
+//     is 6.4m beyond the ring, the nearest POI (-34,24) 11.5m; the ring keeps
+//     3.5m off bog-2 and clears every collider by 1.2m beyond the cat. The
+//     fallen pine by the truce path, a seat and a first hop, is left out.
 export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
   seaside: Object.freeze({ cx: -34, cz: 36, r: 7 }),
   docks: Object.freeze({ cx: -30.5, cz: -9.5, r: 5 }),
+  woods: Object.freeze({ cx: 2, cz: -43, r: 6 }),
+  river: Object.freeze({ cx: 5, cz: 1, r: 6 }),
+  moor: Object.freeze({ cx: -1, cz: -43, r: 6 }),
+  pines: Object.freeze({ cx: -38, cz: 41, r: 6 }),
 });
 
 const MARK_COUNT = 12;
@@ -51,10 +81,18 @@ const discOf = (areaId) => (
   typeof areaId === 'string' && Object.hasOwn(DISCS, areaId) ? DISCS[areaId] : null
 );
 
-export function rivalFor(areaId) {
+// The four old areas keep their one rival whatever the picks (clan: null). A
+// territory's camp takes its clan from the allies rule; none means no patrol.
+// Geometry never depends on `picks`.
+export function rivalFor(areaId, picks = []) {
   const d = discOf(areaId);
-  if (!d || typeof RIVAL_PREFIXES[areaId] !== 'string') return null;
-  return { name: RIVAL_PREFIXES[areaId] + CLAN_SUFFIX, cx: d.cx, cz: d.cz, r: d.r };
+  if (!d) return null;
+  if (typeof RIVAL_PREFIXES[areaId] === 'string') {
+    return { name: RIVAL_PREFIXES[areaId] + CLAN_SUFFIX, clan: null, cx: d.cx, cz: d.cz, r: d.r };
+  }
+  const clan = patrolClanFor(areaId, picks);
+  if (!clan) return null;
+  return { name: clanName(clan), clan, cx: d.cx, cz: d.cz, r: d.r };
 }
 
 export function isTrespassing(areaId, x, z) {

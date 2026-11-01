@@ -201,3 +201,68 @@ describe('Legacy hides the clan layer on the home screen', () => {
     expect(progression.state.area).toBe('woods'); // hidden, not rewritten
   });
 });
+
+describe('picking a clan', () => {
+  // A click on a clan card: closest() finds the card.
+  function clickPick(id) {
+    const card = { dataset: { clanPick: id } };
+    const target = { id: '', dataset: {}, closest: (sel) => (sel === '[data-clan-pick]' ? card : null) };
+    return doc.root.listeners.click({ target });
+  }
+  function setupSync() {
+    const noteOwnPick = vi.fn();
+    const colonySync = { status: () => ({ mode: 'local' }), pull: () => {}, noteOwnPick };
+    const progression = createProgression(memStorage());
+    const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
+    createHomeBase(progression, { photos: [] }, () => {}, rooms, null, null, settings, () => {}, () => {}, colonySync, 'me', () => {}).show();
+    return { progression, noteOwnPick };
+  }
+
+  it('tapping a card sets the pick and tells the sync once', async () => {
+    const { progression, noteOwnPick } = setupSync();
+    await clickPick('moor');
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+  });
+
+  it('a refused pick (the gorge) neither changes the save nor pushes', async () => {
+    const { progression, noteOwnPick } = setupSync();
+    await clickPick('gorge');
+    expect(progression.state.clanPick.mine).toBeNull();
+    expect(noteOwnPick).not.toHaveBeenCalled();
+  });
+
+  it('Settings has the select in Clan Edition only, with pickable clans', () => {
+    const { progression } = setup();
+    openSheet('settings');
+    const html = doc.root.innerHTML;
+    expect(html).toContain('id="set-clan-pick"');
+    expect(html).toContain(`Your ${CLAN_SUFFIX.toLowerCase()}`);
+    expect(html).toContain('<option value="" disabled selected>— not picked yet —</option>');
+    expect(html).toContain('<option value="woods" >StormClan</option>');
+    expect(html).not.toContain('value="gorge"');
+    progression.setEdition('legacy');
+    openSheet('settings');
+    expect(doc.root.innerHTML).not.toContain('set-clan-pick');
+  });
+
+  it('the select selects the stored pick, and a change does what a tap does', () => {
+    const { progression, noteOwnPick } = setupSync();
+    doc.root.listeners.change({ target: { id: 'set-clan-pick', value: 'river', dataset: {} } });
+    expect(progression.state.clanPick.mine).toBe('river');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    openSheet('settings');
+    expect(doc.root.innerHTML).toContain('<option value="river" selected>BrookClan</option>');
+  });
+
+  it('Legacy shows no homage name on the home screen, with a pick stored', () => {
+    const { progression } = setup();
+    progression.setClanPick('woods');
+    progression.setEdition('legacy');
+    for (const sheet of ['settings', 'colony', 'together']) {
+      openSheet(sheet);
+      expect(doc.root.innerHTML).not.toContain('StormClan');
+    }
+    expect(progression.state.clanPick.mine).toBe('woods');
+  });
+});

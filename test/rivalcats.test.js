@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
+import { clanName, patrolClanFor } from '../src/clanhomes.js';
 import { rivalFor, patrolPath, isTrespassing, borderMarks } from '../src/rivalclans.js';
 import {
   patrolAt, chaseOutcome, findLanding, createRivalPatrol, chaseAllowed,
@@ -370,10 +371,10 @@ test('the walk.js chase branch touches no progress, colony, log or points', () =
   const branch = src.slice(a, b);
   expect(branch).toContain('hud.toast');
   // strip comments: they say what the branch must not do
-  // Reading the edition to gate the patrol (Clan Edition Task 8) is the one
-  // progression read allowed: it decides whether there is a patrol, and
-  // writes nothing.
-  const code = branch.replace(/\/\/.*$/gm, '').replace('rivalForWalk(areaId, progression.state.edition)', '');
+  // The edition and the picks gate the patrol (Clan Edition Task 8, pick your
+  // clan Task 6): that is the one progression read allowed, and it writes
+  // nothing. The picks are computed above the branch.
+  const code = branch.replace(/\/\/.*$/gm, '').replace('rivalForWalk(areaId, progression.state.edition, picks)', '');
   for (const bad of ['progression.', 'colony', 'recordGolden', 'log.', 'award', 'recordFeat', 'setPoints', 'discover']) {
     expect(code).not.toContain(bad);
   }
@@ -381,4 +382,18 @@ test('the walk.js chase branch touches no progress, colony, log or points', () =
 
 test('patrolPath is what the patrol follows', () => {
   expect(patrolPath('park').length).toBeGreaterThan(3);
+});
+
+describe('createRivalPatrol: picks name the rival', () => {
+  test('in the Woods with the Woods picked, the chase toast names the neighbour who patrols', () => {
+    const { cx, cz } = rivalFor('woods');
+    const events = [];
+    const api = createRivalPatrol(new THREE.Scene(), 'woods', {
+      now: () => 1000, picks: ['woods'], onChase: (who) => events.push(who),
+    });
+    const p = patrolAt('woods', 1000);
+    api.update(0.016, new THREE.Vector3(p.x + (cx - p.x) * 0.2, 0, p.z + (cz - p.z) * 0.2));
+    expect(events).toEqual([clanName(patrolClanFor('woods', ['woods']))]);
+    expect(events[0]).not.toBe(clanName('woods'));
+  });
 });

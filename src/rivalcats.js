@@ -198,6 +198,7 @@ export const chaseAllowed = (player, session) => player.perchY === 0 && !session
 //   canChase()     false while the cat is perched or in photo mode (chaseAllowed).
 //   onChase(who)   fires exactly once per chase, with the rival's display name.
 //   onSettled()    fires when the scamper ends.
+//   picks          the kids' clan picks; the rival's clan (and name) follow them.
 //
 // update mutates catPos (the LOCAL player's cat position) only during a
 // scamper, and, if an `avatar` (the cat's group) is passed, sets its facing
@@ -216,8 +217,9 @@ export function createRivalPatrol(scene, areaId, {
   canChase = () => true,
   onChase = () => {},
   onSettled = () => {},
+  picks = [],
 } = {}) {
-  const rival = rivalFor(areaId);
+  const rival = rivalFor(areaId, picks);
   if (!rival) return NO_PATROL;
   const { cx, cz } = rival;
 

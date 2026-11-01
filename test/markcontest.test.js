@@ -6,6 +6,7 @@ import { createPlayerMarks } from '../src/render/playermarks.js';
 import { markKey } from '../src/marks.js';
 import { propsFor } from '../src/propsets.js';
 import { rivalFor } from '../src/rivalclans.js';
+import { clanName, patrolClanFor } from '../src/clanhomes.js';
 import { createProgression } from '../src/progression.js';
 
 // v21 3b Task 12 — the rival clan scents over your marks near its border.
@@ -265,4 +266,23 @@ it('walk.js reads my saved border marks before the rival slice and contests afte
   // its own module now: walk.js does not reach into interactions.js for it
   expect(src).toContain("import { createMarkContest } from '../markcontest.js';");
   expect(src).not.toMatch(/from '\.\/interactions\.js'/);
+});
+
+describe('createMarkContest: picks name the rival', () => {
+  it('in the Woods with the Woods picked, the toast names the neighbour who patrols', () => {
+    const progression = createProgression(fakeStorage());
+    progression.replaceFromPayload({ version: 4 });
+    const { cx: wx, cz: wz, r: wr } = rivalFor('woods');
+    const mark = { kind: 'drop', id: 'woods-stick-1', x: wx + wr, z: wz, at: 1_000_001, contested: false, item: 'stick' };
+    progression.addMark('woods', mark);
+    const toasts = [];
+    const contest = createMarkContest({
+      areaId: 'woods', progression, playerMarks: null, picks: ['woods'],
+      patrolPos: () => ({ x: mark.x, z: mark.z }), toast: (t) => toasts.push(t),
+    });
+    contest.tick(CONTEST_EVERY);
+    const name = clanName(patrolClanFor('woods', ['woods']));
+    expect(name).not.toBe(clanName('woods'));
+    expect(toasts).toEqual([contestToast(name, 'drop')]);
+  });
 });

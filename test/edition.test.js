@@ -2,6 +2,8 @@ import { test, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { CLAN_SUFFIX, PLACE_WORDS } from '../src/clanwords.js';
 import { rivalFor } from '../src/rivalclans.js';
+import { TRUCE_AREAS } from '../src/clanhomes.js';
+import { ISLAND_LAND, BRIDGE_DECK } from '../src/world/island.js';
 import { EDITIONS, DEFAULT_EDITION, sanitizeEdition, isClanEdition, editionTitle, gameTitle, areaInEdition, placeName, effectiveArea, rivalForWalk, accessoryName, roomAreaMove } from '../src/edition.js';
 
 const CAT = { areas: { neighborhood: {}, park: {}, woods: { edition: 'canon' } } };
@@ -49,7 +51,7 @@ test('effectiveArea sends a Legacy walk to the Neighborhood without writing', ()
 test('rivalForWalk: none in Legacy, the usual one in Clan Edition', () => {
   expect(rivalForWalk('park', 'legacy')).toBeNull();
   expect(rivalForWalk('park', 'canon')).toEqual(rivalFor('park'));
-  expect(rivalForWalk('woods', 'canon')).toBeNull();
+  expect(rivalForWalk('woods', 'canon').clan).toBe('woods');
 });
 test('accessoryName drops the clan word in Legacy only', () => {
   const paint = { name: `${CLAN_SUFFIX} War Paint`, legacyName: 'War Paint' };
@@ -71,25 +73,48 @@ test('the shipped Legacy guards cover the Moor', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'moor' }, CATALOG)).toBe('neighborhood');
   expect(effectiveArea({ edition: 'canon', area: 'moor' }, CATALOG)).toBe('moor');
   expect(roomAreaMove({ edition: 'legacy', area: 'moor' }, CATALOG, 'park')).toBe('override');
-  expect(rivalForWalk('moor', 'canon')).toBeNull();
+  expect(rivalForWalk('moor', 'legacy')).toBeNull();
+  expect(rivalForWalk('moor', 'canon').clan).toBe('moor');
+  expect(rivalForWalk('moor', 'canon', ['moor']).clan).not.toBe('moor');
   expect(areaInEdition(CATALOG.areas.moor, 'legacy')).toBe(false);
 });
 test('the shipped Legacy guards cover the Pines, and no patrol walks the truce', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
   expect(effectiveArea({ edition: 'canon', area: 'pines' }, CATALOG)).toBe('pines');
   expect(roomAreaMove({ edition: 'legacy', area: 'pines' }, CATALOG, 'park')).toBe('override');
-  expect(rivalForWalk('pines', 'canon')).toBeNull();
   expect(rivalForWalk('pines', 'legacy')).toBeNull();
+  expect(rivalForWalk('pines', 'canon').clan).toBe('pines');
+  expect(rivalForWalk('pines', 'canon', ['pines']).clan).not.toBe('pines');
   expect(areaInEdition(CATALOG.areas.pines, 'legacy')).toBe(false);
 });
 test('the shipped Legacy guards cover the River', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'river' }, CATALOG)).toBe('neighborhood');
   expect(roomAreaMove({ edition: 'legacy', area: 'river' }, CATALOG, 'park')).toBe('override');
-  expect(rivalForWalk('river', 'canon')).toBeNull();
+  expect(rivalForWalk('river', 'legacy')).toBeNull();
+  expect(rivalForWalk('river', 'canon').clan).toBe('river');
 });
 
 test('the island is inside the Pines, so Legacy never walks it and no patrol is there', () => {
   expect(effectiveArea({ edition: 'legacy', area: 'pines' }, CATALOG)).toBe('neighborhood');
   expect(Object.hasOwn(CATALOG.areas, 'island')).toBe(false);
-  expect(rivalForWalk('pines', 'canon')).toBeNull();
+  expect(TRUCE_AREAS).toContain('island');
+  // The island is walked as part of the Pines, so "no patrol there" is
+  // geometry: the Pines' camp, whoever patrols it, stays well off the island
+  // and the bridge (test/rivalworld.test.js checks the truce path too).
+  expect(rivalForWalk('pines', 'canon', [])).not.toBeNull();
+  for (const picks of [[], ['pines'], ['pines', 'river']]) {
+    const camp = rivalForWalk('pines', 'canon', picks);
+    if (!camp) continue;
+    expect(Math.hypot(camp.cx - ISLAND_LAND.x, camp.cz - ISLAND_LAND.z) - ISLAND_LAND.r - camp.r).toBeGreaterThanOrEqual(3);
+    for (const [x, z] of [[BRIDGE_DECK.x1, BRIDGE_DECK.z1], [BRIDGE_DECK.x2, BRIDGE_DECK.z2]]) {
+      expect(Math.hypot(camp.cx - x, camp.cz - z) - camp.r).toBeGreaterThanOrEqual(3);
+    }
+  }
+});
+
+test('rivalForWalk: Legacy never, Clan Edition follows the picks', () => {
+  expect(rivalForWalk('woods', 'legacy', [])).toBeNull();
+  expect(rivalForWalk('woods', 'canon', []).clan).toBe('woods');
+  expect(rivalForWalk('woods', 'canon', ['woods']).clan).not.toBe('woods');
+  expect(rivalForWalk('island', 'canon', [])).toBeNull();
 });

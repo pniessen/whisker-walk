@@ -1,14 +1,19 @@
 import { test, expect } from 'vitest';
 import { DISCS, rivalFor, isTrespassing, borderMarks, patrolPath } from '../src/rivalclans.js';
 import { CLAN_SUFFIX, DENIED_NAMES, RIVAL_PREFIXES, PREFIXES } from '../src/clanwords.js';
+import { isClanId, clanName, TRUCE_AREAS } from '../src/clanhomes.js';
 import { GOLD_MICE } from '../src/goldmice.js';
 import { SPAWN as NEIGH_SPAWN } from '../src/world/neighborhood.js';
 import { SPAWN as PARK_SPAWN } from '../src/world/park.js';
 import { SPAWN as SEA_SPAWN } from '../src/world/seaside.js';
 import { SPAWN as DOCKS_SPAWN } from '../src/world/docks.js';
+import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
+import { SPAWN as RIVER_SPAWN } from '../src/world/river.js';
+import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
+import { SPAWN as PINES_SPAWN } from '../src/world/pines.js';
 
 const AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
-const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN };
+const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN, woods: WOODS_SPAWN, river: RIVER_SPAWN, moor: MOOR_SPAWN, pines: PINES_SPAWN };
 
 test('each of the four areas has one rival clan with a usable name', () => {
   for (const a of AREAS) {
@@ -59,7 +64,7 @@ test('no golden mouse is inside a rival territory', () => {
 
 // R19: the cat must not start a walk already trespassing.
 test('each area\'s player spawn point is outside its rival disc', () => {
-  for (const a of AREAS) {
+  for (const a of Object.keys(SPAWNS)) {
     expect(isTrespassing(a, SPAWNS[a].x, SPAWNS[a].z)).toBe(false);
   }
 });
@@ -130,9 +135,43 @@ test('the rival name is RIVAL_PREFIXES + the suffix, never a PREFIXES word', () 
   }
 });
 
-test('DISCS and RIVAL_PREFIXES cover the same areas', () => {
-  expect(Object.keys(DISCS).sort()).toEqual(Object.keys(RIVAL_PREFIXES).sort());
-  expect(Object.keys(DISCS).sort()).toEqual([...AREAS].sort());
+test('every disc belongs to an old area with a rival word, or to a clan home', () => {
+  for (const a of Object.keys(DISCS)) expect(Object.hasOwn(RIVAL_PREFIXES, a) || isClanId(a), a).toBe(true);
+  for (const a of Object.keys(RIVAL_PREFIXES)) expect(DISCS).toHaveProperty(a);
+});
+
+test('the truce places never get a disc', () => {
+  for (const a of TRUCE_AREAS) {
+    expect(Object.hasOwn(DISCS, a)).toBe(false);
+    expect(rivalFor(a, ['woods'])).toBeNull();
+  }
+});
+
+test('the Woods and the River have camps; the patrol follows the picks, the camp never moves', () => {
+  for (const a of ['woods', 'river']) {
+    const own = rivalFor(a);
+    expect(own.clan).toBe(a);
+    expect(own.name).toBe(clanName(a));
+    const home = rivalFor(a, [a]);
+    expect(home.clan).not.toBe(a);
+    expect([home.cx, home.cz, home.r]).toEqual([own.cx, own.cz, own.r]);
+    for (const m of borderMarks(a)) expect(Math.abs(Math.hypot(m.x - home.cx, m.z - home.cz) - home.r)).toBeLessThan(1e-9);
+  }
+});
+
+test('the Moor and the Pines have camps; the patrol follows the picks, the camp never moves', () => {
+  for (const a of ['moor', 'pines']) {
+    const own = rivalFor(a);
+    expect(own.clan).toBe(a);
+    expect(own.name).toBe(clanName(a));
+    const home = rivalFor(a, [a]);
+    expect(home.clan).not.toBe(a);
+    expect([home.cx, home.cz, home.r]).toEqual([own.cx, own.cz, own.r]);
+  }
+});
+
+test('the old areas ignore picks entirely', () => {
+  for (const a of ['neighborhood', 'park', 'seaside', 'docks']) expect(rivalFor(a, ['woods', 'moor'])).toEqual(rivalFor(a));
 });
 
 test('border marks are evenly spaced round the circle', () => {

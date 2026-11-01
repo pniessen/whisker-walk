@@ -36,6 +36,12 @@ const { build: buildNeigh } = await import('../src/world/neighborhood.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSea } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
+const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
+const { build: buildPines, TRUCE_PATH, BRIDGE_FOOT, PINES_ISLAND } = await import('../src/world/pines.js');
+const { ISLAND_LAND, BRIDGE_DECK } = await import('../src/world/island.js');
+const { isClanId } = await import('../src/clanhomes.js');
 const { patrolPath, borderMarks, rivalFor, isTrespassing } = await import('../src/rivalclans.js');
 const { patrolAt, chaseOutcome, findLanding } = await import('../src/rivalcats.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -44,7 +50,7 @@ const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
-const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks };
+const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
 const AREAS = Object.keys(BUILD);
 const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](new THREE.Scene())]));
 
@@ -87,6 +93,47 @@ describe('the patrol ring in the real areas', () => {
     for (const a of AREAS) {
       for (const m of GOLD_MICE[a]) expect(isTrespassing(a, m.x, m.z)).toBe(false);
       for (const p of built[a].pois) expect(isTrespassing(a, p.x, p.z)).toBe(false);
+      for (const p of built[a].collectibles || []) expect(isTrespassing(a, p.x, p.z), `${a} collectible`).toBe(false);
+      for (const p of built[a].scenics || []) expect(isTrespassing(a, p.x, p.z), `${a} scenic`).toBe(false);
+    }
+  });
+
+  it('only unlabelled perches sit inside a camp', () => {
+    for (const a of AREAS.filter(isClanId)) {
+      for (const p of built[a].perches || []) {
+        if (isTrespassing(a, p.x, p.z)) {
+          expect(p.label, `${a} perch ${p.x},${p.z}`).toBeFalsy();
+          expect(p.vantage, `${a} perch ${p.x},${p.z}`).toBeFalsy();
+        }
+      }
+    }
+  });
+});
+
+// Crossing Pines land to the island never starts a chase (decision 8): the
+// island is walked inside the Pines, so its truce is kept by distance.
+describe('the Pines\' camp keeps clear of the truce', () => {
+  const { cx, cz, r } = rivalFor('pines');
+  const segDist = (x1, z1, x2, z2) => {
+    const dx = x2 - x1, dz = z2 - z1;
+    const t = Math.max(0, Math.min(1, ((cx - x1) * dx + (cz - z1) * dz) / (dx * dx + dz * dz)));
+    return Math.hypot(cx - (x1 + t * dx), cz - (z1 + t * dz));
+  };
+
+  it('stays 3m or more from every segment of the truce path', () => {
+    expect(TRUCE_PATH.length).toBeGreaterThan(0);
+    for (const s of TRUCE_PATH) expect(segDist(...s) - r, s.join(',')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('stays 3m or more from the bridge foot and the whole bridge deck', () => {
+    expect(Math.hypot(cx - BRIDGE_FOOT.x, cz - BRIDGE_FOOT.z) - r).toBeGreaterThanOrEqual(3);
+    const D = BRIDGE_DECK;
+    expect(segDist(D.x1, D.z1, D.x2, D.z2) - D.halfW - r).toBeGreaterThanOrEqual(3);
+  });
+
+  it('stays 3m or more from the island\'s land', () => {
+    for (const I of [ISLAND_LAND, PINES_ISLAND]) {
+      expect(Math.hypot(cx - I.x, cz - I.z) - I.r - r).toBeGreaterThanOrEqual(3);
     }
   });
 });
