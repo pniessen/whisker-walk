@@ -64,6 +64,16 @@ describe('the builder', () => {
     expect(isDirty(changed)).toBe(true);
     expect(html(reduceBuilder(changed, { type: 'ask-leave' }))).toContain('Leave without saving?');
   });
+  it('the leave question is named for screen readers', () => {
+    const h = html(reduceBuilder(newBuilder(), { type: 'ask-leave' }));
+    const id = h.match(/role="alertdialog" aria-labelledby="([^"]+)"/)[1];
+    expect(h).toMatch(new RegExp(`id="${id}">Leave without saving\\?<`));
+  });
+  it('Not now and Done sit together in one footer band', () => {
+    const h = html(newBuilder());
+    const foot = h.slice(h.indexOf('<div class="cb-foot">'));
+    expect(foot).toMatch(/^<div class="cb-foot"><button data-cb-cancel>[^<]*<\/button><button class="cb-done" data-cb-done disabled>[^<]*<\/button><\/div>/);
+  });
   it('the builder is the same in both editions and has no borrowed word', () => {
     const src = readFileSync('src/ui/catbuilder.js', 'utf8');
     expect(src).not.toMatch(/edition/);

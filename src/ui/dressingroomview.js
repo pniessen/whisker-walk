@@ -70,15 +70,20 @@ export function reduceDressingUi(ui, action) {
 const DR_SELECTOR = '[data-dr-sheet],[data-dr-buy-cat],[data-dr-cat],[data-dr-acc],[data-dr-slot],[data-dr-place],[data-dr-pill],'
   + '[data-dr-mine],[data-dr-make],[data-dr-edit],[data-cb-pick],[data-cb-personality],[data-cb-cancel],[data-cb-done],[data-cb-leave],[data-cb-stay]';
 const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is empty
+const BLUR_RENDER_MS = 250; // a skipped render runs this long after the name box loses focus
 
 export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
   onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
+  onCatSaved = () => {}, later = (fn, ms) => setTimeout(fn, ms),
 }) {
   let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
   let ui = INITIAL_DRESSING_UI;
   let lastShown = null; // what the stage was last asked to show, to skip rebuilding the cat
   const failedSnaps = new Set(); // portrait keys a failing WebGL could not draw: not retried every render
+  let renderPending = false; // a render skipped while she typed her cat's name
+  let inClick = false; // a tap's own render is never deferred
+  let stripScroll = null; // the portrait strip's scroll, carried across a render
   const getThumbs = () => {
     if (!thumbs) thumbs = menuThumbnails();
     if (!thumbs.mine) thumbs.mine = {};
@@ -134,7 +139,24 @@ export function createDressingRoom({
 
   const builderKey = (bm) => JSON.stringify(['builder', bm.breed, lookKey(bm.look)]);
 
+  // The portrait strip: put back where she had scrolled it, then make sure the
+  // cat she is walking (or previewing) is in view: after Done or ✏️ Change
+  // her own cat sits at the far end. (Test fakes have no layout: skipped.)
+  function revealSelected(rootEl) {
+    const strip = rootEl.querySelector?.('.dr-strip');
+    if (!strip || typeof strip.getBoundingClientRect !== 'function') return;
+    if (stripScroll !== null) strip.scrollLeft = stripScroll;
+    const tile = strip.querySelector?.('.dr-portrait[aria-pressed="true"]');
+    if (!tile || typeof tile.getBoundingClientRect !== 'function') return;
+    const s = strip.getBoundingClientRect();
+    const t = tile.getBoundingClientRect();
+    const pad = 12;
+    if (t.left < s.left + pad) strip.scrollLeft += t.left - s.left - pad;
+    else if (t.right > s.right - pad) strip.scrollLeft += t.right - s.right + pad;
+  }
+
   function afterRender(rootEl) {
+    if (rootEl && !ui.builder) revealSelected(rootEl);
     if (!stage || !rootEl) return;
     const el = rootEl.id === 'dr-stage' ? rootEl : rootEl.querySelector?.('#dr-stage');
     if (!el) return;
@@ -221,6 +243,7 @@ export function createDressingRoom({
     doneAt = now();
     autoSync();
     profileChanged();
+    onCatSaved?.(); // the cloud profile too, so friends and ghosts see the new look
   }
 
   function onAcc(id, act) {
@@ -285,7 +308,8 @@ export function createDressingRoom({
     else if (d.cbLeave !== undefined) dispatch({ type: 'builder', builder: null });
     else if (d.cbStay !== undefined) builderOp({ type: 'stay' });
     else if (d.cbDone !== undefined) onDone();
-    onChange();
+    inClick = true;
+    try { onChange(); } finally { inClick = false; }
     return true;
   }
 
@@ -321,7 +345,10 @@ export function createDressingRoom({
   // Typing must never lose the keyboard: the owner re-renders the whole room
   // on a colony poll or a partner re-track, so the name box's focus and
   // caret are carried across. (No document in tests: read it off the root.)
+  // (It also notes the portrait strip's scroll, for afterRender.)
   function captureFocus(root) {
+    const strip = root?.querySelector?.('.dr-strip');
+    stripScroll = strip && typeof strip.scrollLeft === 'number' ? strip.scrollLeft : null;
     const a = root?.ownerDocument?.activeElement;
     if (!a || !a.dataset || a.dataset.cbName === undefined) return null;
     return { start: a.selectionStart ?? null, end: a.selectionEnd ?? null };
@@ -335,6 +362,32 @@ export function createDressingRoom({
     if (saved.start !== null && saved.end !== null) {
       try { el.setSelectionRange(saved.start, saved.end); } catch { /* not every input has a caret */ }
     }
+  }
+
+  // iOS can drop the keyboard when a render replaces the focused name box,
+  // whatever restoreFocus does. So while she types (the builder's name box
+  // has focus) a background render is skipped and remembered; onFocusOut
+  // runs it once she leaves the box. A tap's own render always goes ahead.
+  // true = skip this render.
+  function deferRender(root) {
+    const a = root?.ownerDocument?.activeElement;
+    const typing = !!ui.builder && !inClick && !!a && a.dataset?.cbName !== undefined
+      && (typeof root.contains !== 'function' || root.contains(a));
+    renderPending = typing;
+    return typing;
+  }
+
+  // The name box lost focus: run the skipped render a beat later, so it never
+  // replaces a button between the finger going down and the tap landing (the
+  // tap's own render, if it comes first, makes this a no-op).
+  function onFocusOut(e, rerender) {
+    if (!renderPending || e?.target?.dataset?.cbName === undefined) return false;
+    later(() => {
+      if (!renderPending) return;
+      renderPending = false;
+      rerender();
+    }, BLUR_RENDER_MS);
+    return true;
   }
 
   // Start, just after Done: the dock's Start sits where Done was, so the tail
@@ -351,6 +404,7 @@ export function createDressingRoom({
 
   return {
     html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
+    deferRender, onFocusOut,
     get ui() { return ui; },
   };
 }

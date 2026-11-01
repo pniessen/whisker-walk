@@ -382,6 +382,15 @@ describe('pushProfileNow shares the clan pick', () => {
     const rp = made.roomProfile();
     expect([rp.breed, rp.petName, rp.accessories.look]).toEqual(['black', 'Mittens', saved]);
   });
+
+  it('the rooms object the home base holds can push it too (the builder\'s Done)', async () => {
+    const { cloud, progression, made } = pushing();
+    const saved = equipEmber({ progression });
+    await made.rooms.pushProfileNow();
+    const sent = cloud.pushProfile.mock.calls[0][0];
+    expect(sent.petName).toBe('Mittens'); // ruling 15: her pet name, not the cat's
+    expect(sent.accessories.look).toEqual(saved);
+  });
 });
 
 describe('a custom cat on the wire', () => {

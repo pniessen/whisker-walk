@@ -123,10 +123,12 @@ function rowBody(row, model) {
 export function renderBuilderHtml(model) {
   const rows = model.rows.map((r) => `<section class="cb-row" data-cb-row="${r.key}"><h3>${e(r.title)}</h3>${rowBody(r, model)}</section>`).join('');
   const leave = model.confirmLeave
-    ? '<div class="cb-leave" role="alertdialog">Leave without saving? <button data-cb-leave>Leave</button> <button data-cb-stay>Keep going</button></div>'
+    ? '<div class="cb-leave" role="alertdialog" aria-labelledby="cb-leave-q"><span id="cb-leave-q">Leave without saving?</span> <button data-cb-leave>Leave</button> <button data-cb-stay>Keep going</button></div>'
     : '';
-  return `<div class="cb-head"><h2>${e(model.title)}</h2><button data-cb-cancel>✕ Not now</button></div>`
+  // Not now and Done share one solid band stuck to the bottom (.cb-foot)
+  return `<div class="cb-head"><h2>${e(model.title)}</h2></div>`
     + rows
-    + `<button class="cb-done" data-cb-done${model.canDone ? '' : ' disabled'}>Done, now dress it up →</button>`
+    + `<div class="cb-foot"><button data-cb-cancel>✕ Not now</button>`
+    + `<button class="cb-done" data-cb-done${model.canDone ? '' : ' disabled'}>Done, now dress it up →</button></div>`
     + leave;
 }

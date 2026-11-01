@@ -723,6 +723,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       onChange: render,
       onOpenSheet: (id) => setSheet(id),
       onProfileChange: () => rooms?.retrackProfile?.(),
+      onCatSaved: () => rooms?.pushProfileNow?.(),
     });
     return dressing;
   }
@@ -885,6 +886,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${duskHtml}
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
+    if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
     const f = room.captureFocus(root);
     root.innerHTML = room.html({
       headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
@@ -1354,6 +1356,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         .then((r) => { if (r && !r.ok) render(); }, () => render()); // a refusal puts the select back
     }
   });
+
+  root.addEventListener('focusout', (e) => { dressing?.onFocusOut?.(e, render); });
 
   // room state (roster arrivals, host migration) can change while sitting on
   // this screen waiting for friends — re-render to keep the roster/host

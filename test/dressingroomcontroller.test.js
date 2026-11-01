@@ -458,4 +458,126 @@ describe('createDressingRoom: her own cats and the builder', () => {
     expect(dr.ui.builder).toBe(null);
     expect(progression.state.customCats).toEqual([]);
   });
+
+  // I2: iOS can drop the keyboard when a background render replaces the
+  // focused name box, so the render waits until she leaves the box.
+  describe('a render while she types her cat\'s name', () => {
+    const nameBox = { dataset: { cbName: '' } };
+    const rootWith = (active) => ({ ownerDocument: { activeElement: active }, contains: () => true });
+    function typing() {
+      const timers = [];
+      const t = real();
+      const later = vi.fn((fn, ms) => timers.push({ fn, ms }));
+      const dr = createDressingRoom({
+        progression: t.progression, sync: t.sync, stage: t.stage, onChange: t.onChange, snapCustom: () => ({}),
+        thumbs: { cats: {}, accessories: {}, mine: {} }, later,
+      });
+      return { ...t, dr, later, timers };
+    }
+
+    it('is skipped while the builder\'s name box has focus, and runs once after it blurs', () => {
+      const { dr, timers } = typing();
+      dr.handleClick(click({ drMake: '' }));
+      expect(dr.deferRender(rootWith(nameBox))).toBe(true);
+      const rerender = vi.fn();
+      expect(dr.onFocusOut({ target: nameBox }, rerender)).toBe(true);
+      expect(rerender).not.toHaveBeenCalled(); // never between finger-down and the tap
+      expect(timers).toHaveLength(1);
+      timers[0].fn();
+      expect(rerender).toHaveBeenCalledTimes(1);
+      expect(dr.deferRender(rootWith(null))).toBe(false); // the flush itself renders
+    });
+    it('a render that went ahead in the meantime makes the flush a no-op', () => {
+      const { dr, timers } = typing();
+      dr.handleClick(click({ drMake: '' }));
+      dr.deferRender(rootWith(nameBox));
+      const rerender = vi.fn();
+      dr.onFocusOut({ target: nameBox }, rerender);
+      expect(dr.deferRender(rootWith(null))).toBe(false); // e.g. her tap on a pill
+      timers[0].fn();
+      expect(rerender).not.toHaveBeenCalled();
+    });
+    it('nothing is skipped with the builder closed, focus elsewhere, or for a tap\'s own render', () => {
+      const { dr, onChange } = typing();
+      expect(dr.deferRender(rootWith(nameBox))).toBe(false); // builder closed
+      dr.handleClick(click({ drMake: '' }));
+      expect(dr.deferRender(rootWith({ dataset: {} }))).toBe(false);
+      expect(dr.deferRender(rootWith(null))).toBe(false);
+      expect(dr.deferRender({ ownerDocument: { activeElement: nameBox }, contains: () => false })).toBe(false);
+      const seen = [];
+      onChange.mockImplementation(() => seen.push(dr.deferRender(rootWith(nameBox))));
+      dr.handleClick(click({ cbPick: 'coat', cbValue: 'black' }));
+      expect(seen).toEqual([false]);
+      expect(dr.deferRender(rootWith(nameBox))).toBe(true); // and back to deferring after the tap
+    });
+    it('a blur with nothing pending, or from another field, schedules nothing', () => {
+      const { dr, later } = typing();
+      dr.handleClick(click({ drMake: '' }));
+      expect(dr.onFocusOut({ target: nameBox }, () => {})).toBe(false);
+      dr.deferRender(rootWith(nameBox));
+      expect(dr.onFocusOut({ target: { dataset: {} } }, () => {})).toBe(false);
+      expect(dr.onFocusOut(null, () => {})).toBe(false);
+      expect(later).not.toHaveBeenCalled();
+    });
+  });
+
+  // m3: Done also pushes the cloud profile (friends and ghosts).
+  it('Done (and only Done) calls onCatSaved', () => {
+    const t = real();
+    const onCatSaved = vi.fn();
+    const dr = createDressingRoom({
+      progression: t.progression, sync: t.sync, stage: t.stage, onChange: t.onChange, snapCustom: () => ({}),
+      thumbs: { cats: {}, accessories: {}, mine: {} }, onCatSaved,
+    });
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    dr.handleClick(click({ cbPick: 'coat', cbValue: 'black' }));
+    expect(onCatSaved).not.toHaveBeenCalled();
+    dr.handleClick(click({ cbDone: '' }));
+    expect(onCatSaved).toHaveBeenCalledTimes(1);
+    dr.handleClick(click({ drMine: 'mine1' }));
+    dr.handleClick(click({ drCat: 'tabby' }));
+    dr.handleClick(click({ drAcc: 'bell', drAct: 'wear' }));
+    expect(onCatSaved).toHaveBeenCalledTimes(1);
+    dr.handleClick(click({ drEdit: 'mine1' }));
+    dr.handleClick(click({ cbCancel: '' }));
+    expect(onCatSaved).toHaveBeenCalledTimes(1);
+  });
+
+  // S1: after Done her cat (at the strip's far end) is scrolled into view.
+  describe('the portrait strip after a render', () => {
+    function stripRoot({ tileLeft, scrollLeft = 0 }) {
+      const strip = {
+        scrollLeft,
+        getBoundingClientRect: () => ({ left: 0, right: 390 }),
+        querySelector: (sel) => (sel.includes('aria-pressed="true"') ? tile : null),
+      };
+      const tile = {
+        getBoundingClientRect: () => ({ left: tileLeft - strip.scrollLeft, right: tileLeft - strip.scrollLeft + 70 }),
+      };
+      return { strip, root: { querySelector: (sel) => (sel === '.dr-strip' ? strip : null) } };
+    }
+    it('scrolls her selected tile into view, within the strip only', () => {
+      const { dr } = real();
+      const { strip, root } = stripRoot({ tileLeft: 900 });
+      dr.afterRender(root);
+      expect(strip.scrollLeft).toBe(900 + 70 - 390 + 12);
+    });
+    it('leaves a visible tile where it is, and keeps where she had scrolled', () => {
+      const { dr } = real();
+      const before = stripRoot({ tileLeft: 500, scrollLeft: 300 });
+      dr.captureFocus(before.root);
+      const after = stripRoot({ tileLeft: 500 });
+      dr.afterRender(after.root);
+      expect(after.strip.scrollLeft).toBe(300);
+    });
+    it('does nothing in the builder or without layout (test fakes)', () => {
+      const { dr } = real();
+      expect(() => dr.afterRender({ querySelector: () => ({}) })).not.toThrow();
+      dr.handleClick(click({ drMake: '' }));
+      const { strip, root } = stripRoot({ tileLeft: 900 });
+      dr.afterRender(root);
+      expect(strip.scrollLeft).toBe(0);
+    });
+  });
 });

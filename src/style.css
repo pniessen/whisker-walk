@@ -1248,13 +1248,14 @@ body.den-shop-open .chat-wheel { display: none !important; }
 .cb-row input[type="text"] { width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px 12px; font: inherit;
   font-size: 16px; color: var(--cream); background: var(--panel); border: 1.5px solid #5b6c88; border-radius: 10px; }
 .cb-row input[type="text"]:focus { outline: 2px solid var(--pink); border-color: transparent; }
-/* Not now and Done: one row stuck to the bottom (a navy band behind them
-   covers the rows scrolling under, down past the home indicator) */
-.dr .cb-head [data-cb-cancel], .dr .cb-done { position: sticky; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 2;
-  min-height: 48px; border-radius: 999px; font-weight: 700; order: 1;
-  box-shadow: 0 0 0 10px var(--navy), 0 48px 0 10px var(--navy); }
-.dr .cb-head [data-cb-cancel] { grid-column: 1; padding: 10px 16px; background: var(--panel); }
-.dr .cb-done { grid-column: 2; padding: 10px 18px; background: var(--pink); color: var(--navy); font-size: 16px; }
+/* Not now and Done: one solid navy band stuck to the bottom (.cb-foot), so
+   the rows scrolling under it never show between or below the buttons */
+.cb-foot { position: sticky; bottom: 0; z-index: 2; order: 1; display: grid;
+  grid-template-columns: auto minmax(0, 1fr); gap: 10px; background: var(--navy);
+  padding: 10px 0 max(10px, env(safe-area-inset-bottom)); }
+.dr .cb-foot [data-cb-cancel], .dr .cb-done { min-height: 48px; border-radius: 999px; font-weight: 700; }
+.dr .cb-foot [data-cb-cancel] { padding: 10px 16px; background: var(--panel); }
+.dr .cb-done { padding: 10px 18px; background: var(--pink); color: var(--navy); font-size: 16px; }
 .dr .cb-done:disabled { background: #6a6250; color: #a89e88; }
 .cb-leave { order: 2; position: sticky; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 4;
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px;
@@ -1266,6 +1267,7 @@ body.den-shop-open .chat-wheel { display: none !important; }
   .dr.dr-building { padding-bottom: 0; }
   /* the room's 14 px side padding: cover it too, so no row peeks past the stuck stage */
   .dr-building .dr-hero { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
+  .cb-foot { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
   .dr.dr-building .cb { order: 2; }
 }
 /* desktop: the stage on the left, the rows on the right, like the room */

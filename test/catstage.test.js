@@ -165,6 +165,70 @@ describe('createCatStage', () => {
   });
 });
 
+// The builder's size slider: the frame is the same for every size of one
+// look, so Small shows smaller and Big bigger; a ready-made cat still frames
+// on its own size.
+describe('createCatStage: framing a look', () => {
+  const box = () => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.9, 1.2));
+    m.position.set(0, 0.45, 0);
+    return m;
+  };
+  const sized = (breed, acc, opts) => {
+    const g = new THREE.Group();
+    g.add(box());
+    g.scale.setScalar(opts?.look?.size ?? 1);
+    return g;
+  };
+  function cameraFor(build, ...args) {
+    const { stage, renderer } = setup({ buildCat: build });
+    const el = fakeEl();
+    el.clientWidth = 390; el.clientHeight = 300;
+    stage.mount(el);
+    stage.show(...args);
+    const cam = renderer.render.mock.calls.at(-1)[1];
+    cam.updateMatrixWorld(true);
+    return cam;
+  }
+  const look = (size) => ({ coat: 'ginger', size });
+
+  it('every size of a look gets the same camera, so the size shows', () => {
+    const small = cameraFor(sized, 'tabby', {}, look(0.85));
+    const big = cameraFor(sized, 'tabby', {}, look(1.15));
+    expect(big.position.distanceTo(small.position)).toBeLessThan(1e-9);
+  });
+
+  it('the biggest look still fits at every spin angle', () => {
+    const cam = cameraFor(sized, 'tabby', {}, look(1.15));
+    const cat = sized('tabby', {}, { look: look(1.15) });
+    const mesh = cat.children[0];
+    const pos = mesh.geometry.attributes.position;
+    for (const angle of [0, 0.8, 1.6, 2.4, 3.1, 4.7]) {
+      cat.rotation.y = angle;
+      cat.updateMatrixWorld(true);
+      for (let i = 0; i < pos.count; i++) {
+        const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).project(cam);
+        expect(Math.abs(p.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(p.y)).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('a ready-made cat frames on its own (scaled) size, exactly as before', () => {
+    const scaled = () => { const g = new THREE.Group(); g.add(box()); g.scale.setScalar(1.3); return g; };
+    const baked = () => {
+      const g = new THREE.Group();
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.5 * 1.3, 0.9 * 1.3, 1.2 * 1.3));
+      m.position.set(0, 0.45 * 1.3, 0);
+      g.add(m);
+      return g;
+    };
+    const a = cameraFor(scaled, 'mainecoon', {});
+    const b = cameraFor(baked, 'mainecoon', {});
+    expect(a.position.distanceTo(b.position)).toBeLessThan(1e-6);
+  });
+});
+
 describe('fitFraming', () => {
   const t15 = Math.tan(Math.PI / 12);
   it('a taller cat sits farther back', () => {

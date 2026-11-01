@@ -254,6 +254,7 @@ export function createRooms({
   const rooms = {
     available: MP,
     retrackProfile,
+    pushProfileNow, // the builder's Done: friends and ghosts see the new look
     getState() {
       if (!pendingRoom) return null;
       return {
