@@ -2317,8 +2317,16 @@ describe('Gift Paws (v18 Task 3.2)', () => {
       h.walkTo(3, 24.4);
       expect(h.session.prompt.kind).toBe('gift-leave');
       expect(h.session.prompt.data.id).toBe('fountain');
-      h.walkTo(3, 28); // only the rock is within range of here
+      // 2.5 m from the rock and 4 m from the fountain: only the rock is
+      // within GIFT_LEAVE_RANGE (3 m) of here, and its flag skips it
+      h.walkTo(3, 27);
       expect(h.session.prompt).toBe(null);
+      // the same spot with the flag taken off offers the rock, so the null
+      // above is the flag's doing and not the distance
+      delete rock.gifts;
+      h.walkTo(3, 27);
+      expect(h.session.prompt.kind).toBe('gift-leave');
+      expect(h.session.prompt.data.id).toBe('rock');
     } finally {
       h.session.areaData.scenics.pop();
     }

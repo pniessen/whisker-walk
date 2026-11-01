@@ -37,7 +37,7 @@ const {
 } = await import('../src/world/moor.js');
 const { ISLAND_WOODS, ISLAND_BRIDGE_WOODS, BRIDGE_PLANK } = await import('../src/world/lake.js');
 const { inWater, waterGap, waterClearance, nearestDry, onDeck } = await import('../src/world/builder.js');
-const { isWalkableAt, createPlayer } = await import('../src/player.js');
+const { isWalkableAt, createPlayer, CAT_RADIUS } = await import('../src/player.js');
 const island = await import('../src/world/island.js');
 const {
   ISLAND_LAND, BRIDGE_DECK, ISLAND_KEEP_OUT, LAKE_BOX, BAY_BOX,
@@ -374,9 +374,17 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     const dry = pts.filter(([x, z]) => !isWalkableAt(area, x, z)).map(([x, z]) => `(${x.toFixed(2)}, ${z.toFixed(2)})`);
     expect(dry).toEqual([]);
     expect(Math.hypot(end[0] - ISLAND_LAND.x, end[1] - ISLAND_LAND.z)).toBeCloseTo(7.6, 1);
-    // between the stones' faces, with a cat's width to spare on each side
-    expect(10.6 - (9.0 + 0.4 + 0.35)).toBeGreaterThan(0);
-    expect(12.2 - 0.4 - 0.35 - 10.6).toBeGreaterThan(0);
+    // between the stones' faces, with a cat's half-width to spare on each
+    // side: the two truce stones as the area's own colliders, the two
+    // within 2.5 m of the foot, west then east
+    const stones = area.colliders.filter((c) => Math.hypot(c.x - BRIDGE_FOOT.x, c.z - BRIDGE_FOOT.z) < 2.5)
+      .sort((p, q) => p.x - q.x);
+    expect(stones).toHaveLength(2);
+    const [west, east] = stones;
+    expect(west.z).toBe(east.z);
+    expect(BRIDGE_FOOT.z).toBeGreaterThan(west.z); // the foot is past their line
+    expect(BRIDGE_FOOT.x - (west.x + west.r)).toBeGreaterThan(CAT_RADIUS);
+    expect((east.x - east.r) - BRIDGE_FOOT.x).toBeGreaterThan(CAT_RADIUS);
 
     // 1.2 m to the side of the deck's middle is the bay, and the nearest dry
     // spot from there is back on the deck
