@@ -30,6 +30,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
@@ -83,6 +84,7 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   docks            519      423      ~34100
 //   seaside           64       32       ~8700
 //   den              284      173      ~13600
+//   woods            172      152      44462   (170 / 150 merged)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -135,6 +137,7 @@ const AREAS = [
   // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
   // was measured holding 60 fps in (plan Global Constraints).
   ['woods', buildWoods, 450, 380, 60000],
+  ['river', buildRiver, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -171,6 +174,9 @@ const MERGED_AREAS = [
   ['seaside', buildSeaside, 60, 40],
   ['den', buildDen, 185, 110],
   ['woods', buildWoods, 260, 205],
+  // The River's merged row joins once its trees and reeds land (Task 4): a
+  // bare skeleton has nothing for mergeStaticProps to fold, and this block
+  // asserts that merging strictly reduces meshes and casters.
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
