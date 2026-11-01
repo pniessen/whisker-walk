@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
+import { GOLD_MICE } from '../goldmice.js';
 
 // =============================================================================
 // The River and Marshes.
@@ -142,6 +143,107 @@ const PATH_STYLE = { surface: 'sand', color: 0x8a7556 };
 export const RIVER_ISLAND = Object.freeze({ x: 28, z: -72, r: 9, rise: 1.4 });
 const ISLAND_BRIDGE = { x1: 10.6, z1: -95.2, x2: 22.6, z2: -79.2, y: 0.3, w: 2 };
 
+// --- the things to find ------------------------------------------------------
+// Laid out before the trees and the reeds, because KEEP_CLEAR (below) is built
+// from these very records: whatever a kid hunts for, nothing grows on it.
+
+// The nine points of interest the race and the quests draw on. Each stands at
+// least 2 m from the water and far enough from every trunk and rock that
+// spots.js's clearSpot leaves it exactly where it is, so a race ring stands on
+// its POI (test/river.test.js checks both, and floods each one from the spawn).
+const POIS = [
+  [2, 28], [-24, 4], [-16, -18], [-30, -42], [8, -42], [22, -22], [42, -22], [36, 24], [-40, -12],
+].map(([x, z]) => ({ x, z }));
+
+const SCENICS = [
+  { id: 'lake-island', x: 29, z: -29, label: 'the lake and the island' },
+  { id: 'river-pond', x: 34, z: 0, label: 'the pond on the border' },
+  { id: 'old-willow', x: -13.9, z: -21.9, label: 'under the old willow' },
+];
+
+const COLLECTIBLES = [
+  { id: 'river-find-1', x: -20, z: 14, label: 'a smooth pebble by the pool' },
+  { id: 'river-find-2', x: 24, z: -18, label: 'a kingfisher feather' },
+  { id: 'river-find-3', x: -38, z: -40, label: 'a mussel shell from the riverbank' },
+  { id: 'river-find-4', x: 30, z: 30, label: 'a silver fish scale' },
+  // on the Sun-warmed Rocks' first rock, so one hop up
+  { id: 'river-find-5', x: 34, z: -26, y: 0.72, label: 'a sun-warmed pebble on the low rock' },
+];
+
+// The two climb chains, two hops each, the shape the Woods use. The Old
+// Willow: a mossy boulder at its foot, then its low branch, 2.13 m across and
+// 1.38 m up from the boulder (inside the 2.6 reach and the 1.6 climb), and at
+// 2.1 too high to reach from the grass. The Sun-warmed Rocks above the lake: a
+// low rock, then a tall one 1.41 m across and 1.18 m up. A golden mouse sits
+// on each top (src/goldmice.js). The colliders sit under the perches, so a cat
+// walks round the rocks and up onto them.
+const OLD_WILLOW = { x: -12.4, z: -23.1, scale: 1.6, r: 0.8, curtainFloor: 2.0 };
+const CHAIN_ROCKS = [
+  { x: -14, z: -24.5, r: 0.7 },
+  { x: 34, z: -26, r: 0.7 },
+];
+const WILLOW_ROOT = { x: -13.23, z: -23.83, r: 0.35 };
+const WARM_TOP = { x: 33, z: -27, y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9 };
+const CHAIN_PERCHES = [
+  { x: -14, z: -24.5, y: 0.72, kind: 'stone' },
+  { x: OLD_WILLOW.x, z: OLD_WILLOW.z, y: 2.1, kind: 'tree', label: 'old willow lookout', vantage: true },
+  { x: 34, z: -26, y: 0.72, kind: 'stone' },
+  { x: WARM_TOP.x, z: WARM_TOP.z, y: WARM_TOP.y, kind: 'stone', label: 'sun-warmed rocks', vantage: true },
+];
+
+// The fallen log in the meadow's south: a seat and a first hop. Three
+// colliders 1.49 m apart along it, and a perch on top at its middle.
+const FALLEN_LOG = { x: 6, z: 20, length: 5, yaw: 1.2 };
+const LOG_COLLIDERS = [[4.51, 19.42], [6, 20], [7.49, 20.58]];
+
+// The bushes the third golden mouse hides among. A bush has no collider, as
+// in the park: a cat pushes through to the mouse.
+const GOLD_BUSHES = [[-30, 38], [-34, 38], [-32, 43]];
+
+const PUDDLES = [{ x: 18, z: 34, r: 0.9 }, { x: -4, z: 2, r: 0.8 }, { x: 40, z: 12, r: 0.7 }];
+
+// Places no tree or reed may stand on, nor hide: every POI (and so every race
+// ring), scenic, collectible, golden mouse, chain perch, the bushes the hidden
+// mouse needs, the puddles and the spawn. Built from the records themselves,
+// so a find can never move without its clearance moving with it. Task 4's
+// scenery reads this.
+export const RIVER_KEEP_CLEAR = Object.freeze([
+  ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.river, ...CHAIN_PERCHES,
+  ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, SPAWN,
+].map(({ x, z }) => Object.freeze([x, z])));
+
+// The trees of the banks. Task 4 fills these lists; until then the River has
+// none, and the birds (which sit in the first four willows) have none either.
+export function riverTrees() {
+  return { willows: [], alders: [], pines: [] };
+}
+
+// The River's critters: birds in the first four willows, ducks on the pond
+// and on the first pool, butterflies over the wet meadow and two mice in the
+// reeds. No squirrels, no villagers: no Twolegs walk the marshes.
+function critterSpawns() {
+  return [
+    ...riverTrees().willows.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
+    { type: 'duck', x: 42, z: -4 }, { type: 'duck', x: 40, z: -7 }, { type: 'duck', x: 45, z: -2 },
+    { type: 'duck', x: -31, z: 11 }, { type: 'duck', x: -29, z: 13 },
+    { type: 'butterfly', x: 0, z: 24 }, { type: 'butterfly', x: 5, z: 28 }, { type: 'butterfly', x: -1, z: 31 },
+    { type: 'mouse', x: -36, z: -2, x2: -40, z2: 8 },
+    { type: 'mouse', x: 24, z: 30, x2: 30, z2: 26 },
+  ];
+}
+
+// A mossy boulder, the first step of each chain: builder.rock's shape and
+// height (its top is just over the 0.72 perch), in a greener stone. One
+// material shared by both boulders.
+const MOSSY = 0x7f8a6c;
+let mossyMaterial = null;
+function mossyBoulder(x, z) {
+  mossyMaterial ??= litMaterial(MOSSY, surfaceProps('cobble'));
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), mossyMaterial);
+  m.position.set(x, 0.3, z);
+  return m;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0xa9d4e0, 0xdde8dc);
   scene.add(b.ground(120, 0x7d9c55, { surface: 'grass' }));
@@ -157,6 +259,7 @@ export function build(scene, { water = {}, wind } = {}) {
   }));
 
   const colliders = [];
+  const addC = (x, z, r) => colliders.push({ x, z, r });
   const perches = [];
 
   // --- the water --------------------------------------------------------------
@@ -183,6 +286,53 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the paths --------------------------------------------------------------
   for (const s of RIVER_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+
+  // --- the fallen log -----------------------------------------------------------
+  scene.add(b.fallenLog(FALLEN_LOG.x, FALLEN_LOG.z, FALLEN_LOG.length, FALLEN_LOG.yaw));
+  for (const [x, z] of LOG_COLLIDERS) addC(x, z, 0.4);
+  perches.push({ x: FALLEN_LOG.x, z: FALLEN_LOG.z, y: 0.5, kind: 'tree' });
+
+  // --- the climb chains ---------------------------------------------------------
+  // The Old Willow, with its mossy boulder at the foot, and the Sun-warmed
+  // Rocks above the lake. It is built with no wind, so the limb and the mouse
+  // on it never part, and its curtain is trimmed up so the chase camera sees
+  // under it. Named so test/river.test.js can find it and see past it.
+  const W = OLD_WILLOW;
+  const willow = b.willow(W.x, W.z, W.scale, { curtainFloor: W.curtainFloor });
+  willow.name = 'oldWillow';
+  // The low limb the golden mouse sits out on (src/goldmice.js), reaching west
+  // from the trunk to just past the mouse. A child of the willow, in its
+  // scaled frame.
+  const s = W.scale;
+  const limb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07 / s, 0.12 / s, 0.75 / s, 6),
+    litMaterial(0x7a5230, surfaceProps('bark')),
+  );
+  limb.rotation.z = Math.PI / 2;
+  limb.position.set(-0.6 / s, 1.9 / s, 0);
+  willow.add(limb);
+  scene.add(willow);
+  addC(W.x, W.z, W.r);
+  for (const { x, z, r } of CHAIN_ROCKS) {
+    scene.add(mossyBoulder(x, z));
+    addC(x, z, r);
+  }
+  // The boulder sits in the willow's roots. The crevice between their
+  // colliders is narrower than a cat, so one more collider closes it rather
+  // than leave a dead-end notch.
+  addC(WILLOW_ROOT.x, WILLOW_ROOT.z, WILLOW_ROOT.r);
+  const warm = new THREE.Mesh(
+    new THREE.CylinderGeometry(WARM_TOP.rTop, WARM_TOP.rBottom, WARM_TOP.y, 7),
+    litMaterial(0x9a9288, surfaceProps('cobble')),
+  );
+  warm.position.set(WARM_TOP.x, WARM_TOP.y / 2, WARM_TOP.z);
+  scene.add(warm);
+  addC(WARM_TOP.x, WARM_TOP.z, WARM_TOP.r);
+  perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
+
+  // --- the hidden mouse's bushes, and the puddles ---------------------------------
+  for (const [x, z] of GOLD_BUSHES) scene.add(b.bush(x, z, { wind }));
+  for (const p of PUDDLES) scene.add(b.puddle(p.x, p.z, p.r));
 
   // --- the island -------------------------------------------------------------
   // A flattened sphere, so only a low dome shows above the lake, and the tree
@@ -220,12 +370,15 @@ export function build(scene, { water = {}, wind } = {}) {
     // Nothing Twoleg-made in the River.
     boxes: [],
     tippables: [],
-    pois: [],
-    collectibles: [],
-    scenics: [],
-    critterSpawns: [],
-    moments: [],
-    puddles: [],
+    pois: POIS.map((p) => ({ ...p })),
+    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
+    scenics: SCENICS.map((c) => ({ ...c })),
+    critterSpawns: critterSpawns(),
+    moments: [
+      { id: 'duck-parade', type: 'duck', label: 'a duck leading her ducklings out of the pond', x: 36, z: 4, from: { x: 44, z: -6 } },
+      { id: 'mouse-dash', type: 'mouse', label: 'a harvest mouse dashing through the reeds', x: -28, z: -6, from: { x: -44, z: 2 } },
+    ],
+    puddles: PUDDLES.map((p) => ({ ...p })),
     waters: RIVER_WATERS,
     waterFx,
     groundBounce: 0x7d9c55,

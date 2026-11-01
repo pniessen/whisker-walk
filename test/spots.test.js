@@ -6,6 +6,7 @@ import * as park from '../src/world/park.js';
 import * as seaside from '../src/world/seaside.js';
 import * as docks from '../src/world/docks.js';
 import * as woods from '../src/world/woods.js';
+import * as river from '../src/world/river.js';
 
 // The area builders run headless here (no jsdom dep): the only DOM they
 // touch is document.createElement('canvas') for the billboard texture, so a
@@ -114,7 +115,7 @@ describe('cleared area POIs are reachable', () => {
   const stubScene = () => ({ add() {}, background: null, fog: null });
   // The Woods' POIs are also flooded from the spawn in test/woods.test.js,
   // which proves each one reachable dry over the decks.
-  const areas = { neighborhood, park, seaside, docks, woods };
+  const areas = { neighborhood, park, seaside, docks, woods, river };
 
   for (const [name, mod] of Object.entries(areas)) {
     it(`${name}: every cleared POI sits >= 1.2 outside every collider edge`, () => {

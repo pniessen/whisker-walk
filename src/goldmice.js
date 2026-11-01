@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 
-// Fifteen hidden golden mice, three in each of five areas, placed at parkour
+// Eighteen hidden golden mice, three in each of six areas, placed at parkour
 // destinations using the perch coordinates that actually ship in
 // src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
 // original coordinates, which Task 4.2 moved. Per area: two mice sit on
@@ -73,10 +73,23 @@ export const GOLD_MICE = {
     // hidden at ground level among the three bushes round (-38, 30)
     { id: 'gm-woods-3', x: -38, z: 30, y: 0 },
   ],
+  // The River and Marshes, the same shape as the Woods. The two climbing mice
+  // sit on the two chain tops in src/world/river.js's `perches`, and none is
+  // across the river except over a dry deck.
+  river: [
+    // top of the Old Willow chain: ground -> mossy boulder 0.72 -> branch 2.1.
+    // Out on the limb, 0.75 m west of the perch at the trunk (-12.4, -23.1),
+    // clear of the trunk and under the crown, for the same reason as the oak's.
+    { id: 'gm-river-1', x: -13.15, z: -23.1, y: 2.1 },
+    // top of the Sun-warmed Rocks chain: rock 0.72 -> rock 1.9
+    { id: 'gm-river-2', x: 33, z: -27, y: 1.9 },
+    // hidden at ground level among the three bushes round (-32, 40)
+    { id: 'gm-river-3', x: -32, z: 40, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 15 (five areas x three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 18 (six areas x three)
 
 // Returns { group, material } rather than just the group: all 3 child
 // meshes share this single litMaterial instance, so disposeMouse below

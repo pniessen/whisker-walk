@@ -24,11 +24,17 @@ vi.stubGlobal('document', {
 
 const river = await import('../src/world/river.js');
 const { WOODS_WATERS, WOODS_PATHS } = await import('../src/world/woods.js');
+const { GOLD_MICE } = await import('../src/goldmice.js');
+const { canReach, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
+const { clearSpot } = await import('../src/world/spots.js');
+const { raceCourse } = await import('../src/race.js');
+const { seedFromCode } = await import('../src/rng.js');
 const { build: buildPark } = await import('../src/world/park.js');
-const { inWater } = await import('../src/world/builder.js');
+const { inWater, waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
 
-const { build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND } = river;
+const { build, SPAWN, RIVER_WATERS, RIVER_PATHS, RIVER_ISLAND, RIVER_KEEP_CLEAR, riverTrees } = river;
+const { ZOOM_STEPS, DEFAULT_ZOOM_STEP } = await import('../src/camzoom.js');
 
 const built = () => {
   const scene = new THREE.Scene();
@@ -66,6 +72,19 @@ function flood(a) {
   const f = { minX, minZ, nx, nz, seen };
   floods.set(a, f);
   return f;
+}
+
+// Whether the flood reached any cell strictly within `r` of (x, z): where a
+// cat can stand to climb onto a perch, or to pick something up.
+function reachesWithin(a, x, z, r) {
+  const f = flood(a);
+  for (let i = Math.floor((x - r - f.minX) / STEP); i <= Math.ceil((x + r - f.minX) / STEP); i++) {
+    for (let j = Math.floor((z - r - f.minZ) / STEP); j <= Math.ceil((z + r - f.minZ) / STEP); j++) {
+      if (i < 0 || j < 0 || i >= f.nx || j >= f.nz || !f.seen[i * f.nz + j]) continue;
+      if (Math.hypot(f.minX + i * STEP - x, f.minZ + j * STEP - z) < r) return true;
+    }
+  }
+  return false;
 }
 
 // Whether the flood reached the grid cell at (x, z).
@@ -268,5 +287,224 @@ describe('the River: the area record', () => {
   it('nothing in the River reads the edition', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/world/river.js', import.meta.url)), 'utf8');
     expect(src).not.toMatch(/edition/i);
+  });
+});
+
+describe('the River: things to find, climb and race', () => {
+  const POIS = [[2, 28], [-24, 4], [-16, -18], [-30, -42], [8, -42], [22, -22], [42, -22], [36, 24], [-40, -12]];
+  const perchAt = (x, z) => area.perches.find((p) => p.x === x && p.z === z && !p.requires);
+  const collider = (x, z) => area.colliders.find((c) => c.x === x && c.z === z);
+  const waterDist = (x, z) => Math.min(...RIVER_WATERS.map((w) => waterGap(w, x, z)));
+  // Where the race rings stand: each POI pushed clear of colliders and water,
+  // exactly as the game does.
+  const rings = () => area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
+
+  it('river: nine POIs, all at least 2 m from water and clear of every collider', () => {
+    expect(area.pois.map((p) => [p.x, p.z])).toEqual(POIS);
+    for (const p of area.pois) {
+      const at = `poi (${p.x}, ${p.z})`;
+      expect(waterDist(p.x, p.z), at).toBeGreaterThanOrEqual(2);
+      for (const c of area.colliders) {
+        expect(Math.hypot(p.x - c.x, p.z - c.z) - c.r, `${at} by (${c.x}, ${c.z})`).toBeGreaterThanOrEqual(1.6);
+      }
+    }
+    expect(rings().map((p) => [p.x, p.z])).toEqual(POIS);
+  });
+
+  it('river: five collectibles, three scenics, at least one vantage perch', () => {
+    expect(area.collectibles).toEqual([
+      { id: 'river-find-1', x: -20, z: 14, label: 'a smooth pebble by the pool' },
+      { id: 'river-find-2', x: 24, z: -18, label: 'a kingfisher feather' },
+      { id: 'river-find-3', x: -38, z: -40, label: 'a mussel shell from the riverbank' },
+      { id: 'river-find-4', x: 30, z: 30, label: 'a silver fish scale' },
+      { id: 'river-find-5', x: 34, z: -26, y: 0.72, label: 'a sun-warmed pebble on the low rock' },
+    ]);
+    expect(area.scenics).toEqual([
+      { id: 'lake-island', x: 29, z: -29, label: 'the lake and the island' },
+      { id: 'river-pond', x: 34, z: 0, label: 'the pond on the border' },
+      { id: 'old-willow', x: -13.9, z: -21.9, label: 'under the old willow' },
+    ]);
+    const vantages = area.perches.filter((p) => p.vantage);
+    expect(vantages.length).toBeGreaterThanOrEqual(1);
+    for (const v of vantages) expect(typeof v.label).toBe('string');
+  });
+
+  it("river: the Old Willow chain is two hops and the branch can't be reached from the ground", () => {
+    const boulder = perchAt(-14, -24.5);
+    const branch = perchAt(-12.4, -23.1);
+    expect(boulder).toEqual({ x: -14, z: -24.5, y: 0.72, kind: 'stone' });
+    expect(branch).toEqual({ x: -12.4, z: -23.1, y: 2.1, kind: 'tree', label: 'old willow lookout', vantage: true });
+    expect(collider(-14, -24.5)?.r).toBe(0.7);
+    expect(collider(-12.4, -23.1)?.r).toBe(0.8);
+    expect(collider(-13.23, -23.83)?.r).toBe(0.35);
+    expect(canReach(boulder, { x: boulder.x, z: boulder.z }, 0)).toBe(true);
+    expect(canReach(branch, { x: boulder.x, z: boulder.z }, boulder.y)).toBe(true);
+    expect(canReach(branch, { x: branch.x, z: branch.z }, 0)).toBe(false);
+    expect(reachesWithin(area, boulder.x, boulder.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('river: the Sun-warmed Rocks chain is two hops', () => {
+    const low = perchAt(34, -26);
+    const high = perchAt(33, -27);
+    expect(low).toEqual({ x: 34, z: -26, y: 0.72, kind: 'stone' });
+    expect(high).toEqual({ x: 33, z: -27, y: 1.9, kind: 'stone', label: 'sun-warmed rocks', vantage: true });
+    expect(collider(34, -26)?.r).toBe(0.7);
+    expect(collider(33, -27)?.r).toBe(0.9);
+    expect(canReach(low, { x: low.x, z: low.z }, 0)).toBe(true);
+    expect(canReach(high, { x: low.x, z: low.z }, low.y)).toBe(true);
+    expect(canReach(high, { x: high.x, z: high.z }, 0)).toBe(false);
+    expect(reachesWithin(area, low.x, low.z, BASE_CLIMB_BUDGET.reachLow)).toBe(true);
+  });
+
+  it('the fallen log is a seat and a first hop, with three colliders along it', () => {
+    expect(perchAt(6, 20)).toEqual({ x: 6, z: 20, y: 0.5, kind: 'tree' });
+    for (const [x, z] of [[4.51, 19.42], [6, 20], [7.49, 20.58]]) expect(collider(x, z)?.r, `(${x}, ${z})`).toBe(0.4);
+  });
+
+  it('the tall rock is as wide at its foot as its collider', () => {
+    const pillar = scene.children.find((o) => o.position.x === 33 && o.position.z === -27 && o.geometry?.type === 'CylinderGeometry');
+    expect(pillar).toBeTruthy();
+    expect(pillar.geometry.parameters.radiusBottom).toBe(0.9);
+    expect(pillar.geometry.parameters.radiusTop).toBe(0.75);
+  });
+
+  it('the two chain boulders share one material', () => {
+    const boulders = [[-14, -24.5], [34, -26]].map(([x, z]) => scene.children.find((o) => o.position.x === x && o.position.z === z && o.geometry?.type === 'DodecahedronGeometry'));
+    for (const m of boulders) expect(m).toBeTruthy();
+    expect(boulders[0].material).toBe(boulders[1].material);
+  });
+
+  it('puts the climbing golden mice on the chain tops and hides the third among three bushes', () => {
+    expect(GOLD_MICE.river.map((m) => m.id)).toEqual(['gm-river-1', 'gm-river-2', 'gm-river-3']);
+    const [willow, rocks, hidden] = GOLD_MICE.river;
+    // out along the limb, inside checkFind's 1.0 m of a cat on the branch
+    // perch, and clear of the trunk (r 0.45 there) it would be hidden in
+    const branch = perchAt(-12.4, -23.1);
+    expect(branch.y).toBe(willow.y);
+    expect(Math.hypot(willow.x - branch.x, willow.z - branch.z)).toBeLessThan(1.0);
+    expect(Math.hypot(willow.x - branch.x, willow.z - branch.z)).toBeGreaterThan(0.45 + 0.12);
+    expect(perchAt(rocks.x, rocks.z)?.y).toBe(rocks.y);
+    expect(hidden.y).toBe(0);
+    for (const [x, z] of [[-30, 38], [-34, 38], [-32, 43]]) {
+      const bush = scene.children.find((o) => o.position.x === x && o.position.z === z);
+      expect(bush, `bush (${x}, ${z})`).toBeTruthy();
+      expect(collider(x, z)).toBeUndefined();
+    }
+  });
+
+  // Everything a kid hunts for, with where a cat must stand to get it.
+  const targets = () => {
+    const firstStep = (x, z) => {
+      if (Math.hypot(x - -12.4, z - -23.1) < 1) return perchAt(-14, -24.5);
+      if (Math.hypot(x - 33, z - -27) < 1.5) return perchAt(34, -26);
+      return null;
+    };
+    const list = [
+      ...area.pois.map((p) => ({ what: `poi (${p.x}, ${p.z})`, ...p })),
+      ...rings().map((p) => ({ what: `race ring (${p.x}, ${p.z})`, ...p })),
+      ...area.scenics.map((p) => ({ what: p.id, ...p })),
+      ...area.collectibles.map((p) => ({ what: p.id, ...p })),
+      ...GOLD_MICE.river.map((p) => ({ what: p.id, ...p })),
+    ];
+    return list.map((t) => {
+      if (!(t.y > 0)) return t;
+      const step = firstStep(t.x, t.z);
+      expect(step, `${t.what} sits on no chain`).toBeTruthy();
+      return { ...t, step };
+    });
+  };
+
+  it('every find, POI, scenic, golden mouse and race ring is reachable on foot from the spawn', () => {
+    const missed = [];
+    for (const t of targets()) {
+      const ok = t.step
+        ? reachesWithin(area, t.step.x, t.step.z, BASE_CLIMB_BUDGET.reachLow)
+        : reaches(area, t.x, t.z);
+      if (!ok) missed.push(t.what);
+    }
+    expect(missed).toEqual([]);
+    // north of the river, named, so a regression there says so
+    for (const [x, z] of [[29, -29], [-30, -42], [24, -18]]) expect(reaches(area, x, z), `(${x}, ${z})`).toBe(true);
+  });
+
+  it("the Old Willow's golden mouse is in sight from the ground", () => {
+    const willow = scene.getObjectByName('oldWillow');
+    expect(willow).toBeTruthy();
+    const m = GOLD_MICE.river[0];
+    scene.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    for (const [x, z] of [[-14, -24.5], [-13.9, -21.9]]) {
+      const eye = new THREE.Vector3(x, 0.9, z);
+      const dir = target.clone().sub(eye);
+      const len = dir.length();
+      ray.set(eye, dir.normalize());
+      ray.far = len;
+      expect(ray.intersectObject(willow, true), `from (${x}, ${z})`).toEqual([]);
+    }
+  });
+
+  it("the Old Willow's golden mouse is in sight from the chase camera", () => {
+    const willow = scene.getObjectByName('oldWillow');
+    const m = GOLD_MICE.river[0];
+    const trunk = { x: -12.4, z: -23.1 };
+    const { dist, height } = ZOOM_STEPS[DEFAULT_ZOOM_STEP];
+    scene.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const target = new THREE.Vector3(m.x, m.y + 0.12, m.z);
+    const see = (cam, what) => {
+      const dir = target.clone().sub(cam);
+      const len = dir.length();
+      ray.set(cam, dir.normalize());
+      ray.far = len;
+      expect(ray.intersectObject(willow, true).map((h) => h.distance.toFixed(2)), what).toEqual([]);
+    };
+    // a cat 3 m from the trunk on the north, south and west (the limb's side);
+    // the east side is behind the trunk, as live for the Woods' oak
+    for (const [side, dx, dz] of [['north', 0, -1], ['south', 0, 1], ['west', -1, 0]]) {
+      const cx = trunk.x + dx * 3, cz = trunk.z + dz * 3;
+      see(new THREE.Vector3(cx + dx * dist, height, cz + dz * dist), `cat on the ${side}`);
+    }
+    // a cat on the boulder, the camera behind it looking at the trunk
+    const bx = -14, bz = -24.5;
+    const away = new THREE.Vector2(bx - trunk.x, bz - trunk.z).normalize();
+    see(new THREE.Vector3(bx + away.x * dist, 0.72 + height, bz + away.y * dist), 'cat on the boulder');
+  });
+
+  it('carries its critters, two moments and three puddles, and no villagers', () => {
+    const birds = area.critterSpawns.filter((c) => c.type === 'bird');
+    expect(birds).toEqual(riverTrees().willows.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+    expect(area.critterSpawns.filter((c) => c.type !== 'bird')).toEqual([
+      { type: 'duck', x: 42, z: -4 }, { type: 'duck', x: 40, z: -7 }, { type: 'duck', x: 45, z: -2 },
+      { type: 'duck', x: -31, z: 11 }, { type: 'duck', x: -29, z: 13 },
+      { type: 'butterfly', x: 0, z: 24 }, { type: 'butterfly', x: 5, z: 28 }, { type: 'butterfly', x: -1, z: 31 },
+      { type: 'mouse', x: -36, z: -2, x2: -40, z2: 8 },
+      { type: 'mouse', x: 24, z: 30, x2: 30, z2: 26 },
+    ]);
+    expect(area.moments).toEqual([
+      { id: 'duck-parade', type: 'duck', label: 'a duck leading her ducklings out of the pond', x: 36, z: 4, from: { x: 44, z: -6 } },
+      { id: 'mouse-dash', type: 'mouse', label: 'a harvest mouse dashing through the reeds', x: -28, z: -6, from: { x: -44, z: 2 } },
+    ]);
+    expect(area.puddles).toEqual([{ x: 18, z: 34, r: 0.9 }, { x: -4, z: 2, r: 0.8 }, { x: 40, z: 12, r: 0.7 }]);
+    for (const p of area.puddles) {
+      expect(scene.children.some((o) => o.position.x === p.x && o.position.z === p.z && o.geometry?.type === 'CircleGeometry')).toBe(true);
+    }
+  });
+
+  it('exports its keep-clear list, built from the records', () => {
+    const has = (x, z) => RIVER_KEEP_CLEAR.some(([kx, kz]) => kx === x && kz === z);
+    for (const p of [...area.pois, ...area.scenics, ...area.collectibles, ...GOLD_MICE.river, ...area.puddles, SPAWN]) {
+      expect(has(p.x, p.z), `(${p.x}, ${p.z})`).toBe(true);
+    }
+    // the fallen log is kept clear along its length by Task 4's scenery rules
+    for (const p of area.perches.filter((q) => q.x !== 6 || q.z !== 20)) expect(has(p.x, p.z), `perch (${p.x}, ${p.z})`).toBe(true);
+    for (const [x, z] of [[-30, 38], [-34, 38], [-32, 43]]) expect(has(x, z), `bush (${x}, ${z})`).toBe(true);
+  });
+
+  it('race: a River course of five rings is drawn from its POIs', () => {
+    const course = raceCourse(area.pois, seedFromCode('2026-11-01-river'));
+    expect(course).toHaveLength(5);
+    expect(new Set(course).size).toBe(5);
+    for (const p of course) expect(area.pois).toContain(p);
   });
 });

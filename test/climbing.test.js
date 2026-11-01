@@ -63,6 +63,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -528,6 +529,7 @@ const AREAS = {
   seaside: buildSeaside(new THREE.Scene()),
   docks: buildDocks(new THREE.Scene()),
   woods: buildWoods(new THREE.Scene()),
+  river: buildRiver(new THREE.Scene()),
 };
 // Every ELEVATED collectible in the game (y > 0), each named explicitly.
 //
@@ -544,6 +546,7 @@ const ELEVATED = [
   ['feather-5', 'park'],
   ['fish-5', 'seaside'],
   ['woods-find-5', 'woods'], // the ball of moss on the Lookout Rocks' first rock
+  ['river-find-5', 'river'], // the sun-warmed pebble on the Sun-warmed Rocks' first rock
 ].map(([id, area]) => {
   const c = AREAS[area].collectibles.find((x) => x.id === id);
   if (!c) throw new Error(`no collectible ${id} in ${area}`); // renamed or removed
@@ -605,6 +608,11 @@ const SHIPPED_HOPS = {
   'gm-woods-2': 2, // lookout rocks: ground -> rock 0.72 -> top rock 1.9
   'gm-woods-3': 0, // hidden at ground level among three bushes
   'woods-find-5': 1, // on the Lookout Rocks' first rock, 0.72
+  // The River. The same two-hop shape as the Woods.
+  'gm-river-1': 2, // old willow lookout: ground -> mossy boulder 0.72 -> branch 2.1
+  'gm-river-2': 2, // sun-warmed rocks: ground -> rock 0.72 -> top rock 1.9
+  'gm-river-3': 0, // hidden at ground level among three bushes
+  'river-find-5': 1, // on the Sun-warmed Rocks' first rock, 0.72
 };
 
 describe('shipped golden mice and rooftop collectible — no skills', () => {
@@ -625,7 +633,7 @@ describe('shipped golden mice and rooftop collectible — no skills', () => {
   it('no mouse is reachable without a perch except the three deliberately-hidden ground ones', () => {
     const table = hopTable(STATES.none);
     const ground = Object.entries(table).filter(([, hops]) => hops === 0).map(([id]) => id);
-    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
+    expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
     for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
   });
 });
@@ -686,6 +694,8 @@ describe('shipped golden mice and rooftop collectible — with the v18 traversal
       // under 2.2.
       'gm-woods-1': 1,
       'gm-woods-2': 1,
+      'gm-river-1': 1,
+      'gm-river-2': 1,
     });
     expect(hopTable(BOTH)).toEqual(hopTable(SPRING));
   });
@@ -853,7 +863,7 @@ describe('Fence Runner — the shipped-content pin', () => {
     for (const state of Object.values(STATES)) {
       const table = hopTable(state, true);
       const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
+      expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
       for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
     }
   });
@@ -970,6 +980,8 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(UNGATED.docks).toHaveLength(16);
     // the fallen log and the four steps of the Great Oak and Lookout Rocks
     expect(UNGATED.woods).toHaveLength(5);
+    // the fallen log and the four steps of the Old Willow and Sun-warmed Rocks
+    expect(UNGATED.river).toHaveLength(5);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(
@@ -1136,7 +1148,7 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
       for (const fenceRun of [false, true]) {
         const table = hopTable(state, fenceRun);
         const ground = Object.entries(table).filter(([, h]) => h === 0).map(([id]) => id);
-        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-sea-3', 'gm-woods-3']);
+        expect(ground.sort()).toEqual(['gm-docks-3', 'gm-neigh-3', 'gm-park-3', 'gm-river-3', 'gm-sea-3', 'gm-woods-3']);
         for (const hops of Object.values(table)) expect(hops).toBeLessThan(Infinity);
       }
     }
