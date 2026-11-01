@@ -44,23 +44,33 @@ shallows.
   shore push that keeps it dry today becomes a push that keeps it out of deep
   water: it can walk into the shallow band and no further. A cat with Sea
   Legs is never pushed, as today.
-- **No new short cuts for non-swimmers.** Wading must never let a cat
-  without Sea Legs cross water it can't cross today. Any water narrower than
-  2 × SHALLOW (a stream, a creek, a channel between decks), or any place
-  where two shallow bands meet, would otherwise become a ford. So each water
-  footprint may carry its own shallow width, and a test proves, area by area,
-  that the set of places a non-swimmer can reach is unchanged except for the
-  shallow bands themselves. Narrow waters get a smaller band or none.
+- **No new crossings for non-swimmers.** Wading must never let a cat
+  without Sea Legs get from one bank of a water to the other bank. All dry
+  land is already one connected piece (test/water.test.js), so "reachable"
+  can't be the test. The test is about routes: for each water, no dry point
+  on one bank gets a shorter walking route to a dry point on the other bank
+  through the shallows. Small savings along the *same* bank (wading round a
+  prop or a fence end that meets the water, a few metres) are fine.
+  Each water footprint may carry its own shallow width, and narrow waters get
+  a smaller band or none.
+- **Depth is measured to a real shore.** Where footprints overlap (the
+  Moor's river mouth over the lake, the Woods' pond over the river),
+  `waterClearance`'s smallest distance can measure to an edge that runs under
+  open water. That made a 92 m ford across the Moor's river mouth in a grid
+  test. The depth used for shallow/deep must ignore footprint edges that lie
+  inside another water.
 - **Speeds.** Wading is a little slower than walking (about 0.8 of pace),
   swimming stays at `SWIM_SPEED` 0.55. Swimming must still beat every dry
   detour (the CF-12 rule in player.js).
 - **What the cat can do in water.** Today interactions skip a swimming cat
   (rest, marks, carry, pounce; `src/game/interactions.js`). Swimming keeps
-  that. Wading allows the usual verbs except resting and napping. A cat
-  carrying something in its mouth may wade but can't swim (it drops it on the
-  shore first, as it would today at the water's edge).
-- **The shake.** About 0.8 s, once per climb-out, not after a dip of less
-  than about a second. The player can move during it at reduced speed, or it
+  that. Wading allows the usual verbs except resting and napping. Carrying
+  stays as it is today: a cat with Sea Legs keeps hold of what it carries
+  while it swims (the drop prompt hides and the rain slip pauses, as now),
+  and a cat without Sea Legs can carry it into the shallows.
+- **The shake.** About 0.8 s, once per climb-out: always after swimming,
+  and after wading only when the cat was in the water for at least about 3
+  seconds (so running in and out of the surf doesn't shake every time). The player can move during it at reduced speed, or it
   can be skipped by moving (the builder decides which feels better). With
   reduced motion: a short puff of droplets, no body wobble.
 - **Look details.** Wading: legs hidden below the waterline, belly-deep, a
@@ -69,6 +79,10 @@ shallows.
   paddle cycle on the legs (mostly hidden), the tail lying on the surface,
   ripple rings and a V-wake while moving, a gentle bob while still. The
   water surface itself doesn't change.
+- **Hagrid** (the chicken avatar) gets a cheap version: he sits lower in
+  the shallows with his normal walk, floats and bobs at the surface in deep
+  water, and fluffs his feathers instead of shaking. His goldens stay
+  byte-identical.
 - **Sound.** Soft splashes while wading, a paddle sound while swimming, a
   shake sound, through the existing audio module (`src/audio.js`).
 - **Everywhere there's water.** The Park pond, the Seaside sea, the Docks
