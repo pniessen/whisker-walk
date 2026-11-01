@@ -263,7 +263,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
   const fakeRoot = { querySelector: (sel) => (sel.includes('cb-done') ? doneBtn : sel.includes('dr-hero-name') ? heroName : null) };
   const input = (dataset, value) => ({ target: { dataset, value, closest: () => fakeRoot } });
 
-  function real() {
+  function real({ now, snapCustom = () => ({}) } = {}) {
     doneBtn.disabled = true;
     heroName.textContent = '';
     const map = new Map();
@@ -273,7 +273,7 @@ describe('createDressingRoom: her own cats and the builder', () => {
     const onChange = vi.fn();
     const onProfileChange = vi.fn();
     const dr = createDressingRoom({
-      progression, sync, stage, onChange, onProfileChange, snapCustom: () => ({}),
+      progression, sync, stage, onChange, onProfileChange, snapCustom, ...(now ? { now } : {}),
       thumbs: { cats: {}, accessories: {}, mine: {} },
     });
     return { dr, progression, sync, stage, onChange, onProfileChange };
@@ -380,6 +380,75 @@ describe('createDressingRoom: her own cats and the builder', () => {
     expect(fresh.focus).toHaveBeenCalled();
     expect(fresh.setSelectionRange).toHaveBeenCalledWith(3, 3);
     expect(dr.captureFocus({ ownerDocument: { activeElement: { dataset: {} } } })).toBe(null);
+  });
+  it('a double tap on Done never starts a walk: Start waits out the tap after Done', () => {
+    let t = 1000;
+    const { dr } = real({ now: () => t });
+    expect(dr.startAllowed({ detail: 1 })).toBe(true);
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    dr.handleClick(click({ cbDone: '' }));
+    expect(dr.startAllowed({ detail: 1 })).toBe(false);
+    t += 300;
+    expect(dr.startAllowed({ detail: 1 })).toBe(false);
+    t += 400;
+    expect(dr.startAllowed({ detail: 1 })).toBe(true);
+    expect(dr.startAllowed({ detail: 2 })).toBe(false);
+    expect(dr.startAllowed()).toBe(true);
+  });
+  it('wearing, taking off and buying an accessory re-track; a change that changes nothing does not', () => {
+    const { dr, progression, onProfileChange } = real();
+    dr.handleClick(click({ drAcc: 'bell', drAct: 'wear' }));
+    expect(onProfileChange).toHaveBeenCalledTimes(1);
+    dr.handleClick(click({ drAcc: 'bell', drAct: 'wear' })); // already on
+    expect(onProfileChange).toHaveBeenCalledTimes(1);
+    dr.handleClick(click({ drAcc: 'bell', drAct: 'off' }));
+    expect(onProfileChange).toHaveBeenCalledTimes(2);
+    dr.handleClick(click({ drAcc: 'bell', drAct: 'off' })); // already off
+    expect(onProfileChange).toHaveBeenCalledTimes(2);
+    const locked = Object.keys(CATALOG.accessories).find((id) => !CATALOG.accessories[id].prize && !progression.isUnlocked('accessories', id));
+    dr.handleClick(click({ drAcc: locked, drAct: 'wear' })); // not hers: nothing is worn
+    expect(onProfileChange).toHaveBeenCalledTimes(2);
+    progression.state.points = 9999;
+    dr.handleClick(click({ drAcc: locked, drAct: 'buy' }));
+    expect(progression.state.equipped[CATALOG.accessories[locked].slot]).toBe(locked);
+    expect(onProfileChange).toHaveBeenCalledTimes(3);
+  });
+  it('a tap on the cat she is already walking does not re-track', () => {
+    const { dr, progression, onProfileChange } = real();
+    dr.handleClick(click({ drCat: 'tabby' }));
+    expect(onProfileChange).not.toHaveBeenCalled();
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    dr.handleClick(click({ drMine: 'mine1' }));
+    dr.handleClick(click({ drMine: 'mine1' }));
+    expect(onProfileChange).toHaveBeenCalledTimes(1);
+  });
+  it('her portraits are snapped once per key, and a failed key is not retried', () => {
+    const snap = vi.fn(() => ({}));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    progression.createCustomCat({ name: 'Fern', personality: 'steady', look: DEFAULT_LOOK }); // same key
+    dr.html();
+    expect(snap).toHaveBeenCalledTimes(1);
+    expect(snap.mock.calls[0][0]).toHaveLength(1);
+    expect(snap.mock.calls[0][0][0]).toMatchObject({ breed: 'mainecoon', look: DEFAULT_LOOK });
+    dr.html();
+    expect(snap).toHaveBeenCalledTimes(1);
+  });
+  it('a snapped portrait is kept and shown, never snapped again', () => {
+    const snap = vi.fn((entries) => Object.fromEntries(entries.map((e) => [e.key, 'data:image/png;base64,AAA'])));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    expect(dr.html()).toContain('src="data:image/png;base64,AAA"');
+    dr.html();
+    expect(snap).toHaveBeenCalledTimes(1);
+  });
+  it('walking her cat, the room stage shows its preset, her outfit and its look', () => {
+    const { dr, progression, stage } = real();
+    progression.equipAccessory('bell');
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show).toHaveBeenLastCalledWith('mainecoon', expect.objectContaining({ collar: 'bell' }), DEFAULT_LOOK);
   });
   it('clearPreview (a walk starting) closes the builder unsaved', () => {
     const { dr, progression } = real();

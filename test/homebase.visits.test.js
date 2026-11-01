@@ -8,6 +8,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
   createDressingRoom: () => ({
     html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
     afterRender() {}, handleClick() { return false; }, clearPreview() {},
+    handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
   }),
 }));
 

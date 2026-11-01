@@ -7,6 +7,7 @@
 import { CATALOG } from '../progression.js';
 import { areaInEdition } from '../edition.js';
 import { menuThumbnails, customThumbnails } from '../thumbnails.js';
+import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, resolveSheet } from './dressingroom.js';
 import { newBuilder, editBuilder, reduceBuilder, isDirty, buildBuilderModel, renderBuilderHtml } from './catbuilder.js';
@@ -72,8 +73,9 @@ const YOUR_CAT = 'Your cat'; // the builder's hero name while the name box is em
 
 export function createDressingRoom({
   progression, catalog = CATALOG, stage = null, sync = null, thumbs = null,
-  onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails,
+  onChange = () => {}, onOpenSheet = null, onProfileChange = () => {}, snapCustom = customThumbnails, now = () => Date.now(),
 }) {
+  let doneAt = null; // when Done last closed the builder (Start then sits under her finger)
   let ui = INITIAL_DRESSING_UI;
   let lastShown = null; // what the stage was last asked to show, to skip rebuilding the cat
   const failedSnaps = new Set(); // portrait keys a failing WebGL could not draw: not retried every render
@@ -182,9 +184,10 @@ export function createDressingRoom({
   const myCats = () => (Array.isArray(progression.state?.customCats) ? progression.state.customCats : []);
 
   function onMine(id) {
+    const already = progression.state?.equipped?.custom === id;
     if (progression.equipCustom(id)) {
       dispatch({ type: 'preview-cat', id: null, owned: true });
-      profileChanged();
+      if (!already) profileChanged(); // her tile again: nothing changed, no re-track
     }
   }
 
@@ -215,6 +218,7 @@ export function createDressingRoom({
     if (!id) { dispatch({ type: 'builder', builder: null }); return; }
     progression.equipCustom(id);
     dispatch({ type: 'builder-done' });
+    doneAt = now();
     autoSync();
     profileChanged();
   }
@@ -222,14 +226,16 @@ export function createDressingRoom({
   function onAcc(id, act) {
     if (!has(catalog.accessories, id)) return;
     const { slot } = catalog.accessories[id];
+    const worn = () => progression.state?.equipped?.[slot] ?? null;
+    const before = worn();
     if (act === 'wear') {
       progression.equipAccessory(id);
       dispatch({ type: 'try-on', slot, id: null });
-      profileChanged();
+      if (worn() !== before) profileChanged();
     } else if (act === 'off') {
       progression.unequip(slot);
       dispatch({ type: 'try-on', slot, id: null });
-      profileChanged();
+      if (worn() !== before) profileChanged();
     } else if (act === 'try') {
       if (!progression.isUnlocked('accessories', id)) dispatch({ type: 'try-on', slot, id });
     } else if (act === 'buy') {
@@ -237,7 +243,7 @@ export function createDressingRoom({
         progression.equipAccessory(id); // it was on the cat already as a try-on
         dispatch({ type: 'try-on', slot, id: null });
         autoSync();
-        profileChanged();
+        if (worn() !== before) profileChanged();
       }
     }
   }
@@ -331,12 +337,20 @@ export function createDressingRoom({
     }
   }
 
+  // Start, just after Done: the dock's Start sits where Done was, so the tail
+  // of a double-tap (detail > 1, or within CONFIRM_DELAY_MS of Done, like
+  // confirmClickAllowed) must not start a walk.
+  function startAllowed({ detail = 1 } = {}) {
+    if (typeof detail === 'number' && detail > 1) return false;
+    return doneAt === null || now() - doneAt >= CONFIRM_DELAY_MS;
+  }
+
   function clearPreview() {
     dispatch({ type: 'clear-preview' });
   }
 
   return {
-    html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, clearPreview,
+    html, afterRender, handleClick, handleInput, captureFocus, restoreFocus, startAllowed, clearPreview,
     get ui() { return ui; },
   };
 }

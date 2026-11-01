@@ -885,12 +885,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${duskHtml}
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
-    const f = dressing?.captureFocus?.(root);
+    const f = room.captureFocus(root);
     root.innerHTML = room.html({
       headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
     });
     room.afterRender(root);
-    dressing?.restoreFocus?.(root, f);
+    room.restoreFocus(root, f);
     stage.setVisible(shown);
     syncPairingPoll();
   }
@@ -976,6 +976,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return;
     }
     if (e.target.id === 'btn-start') {
+      if (dressing && !dressing.startAllowed({ detail: e.detail })) return; // the tail of a double-tap on Done
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
@@ -1280,7 +1281,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
-    if (dressing?.handleInput?.(e)) return;
+    if (dressing?.handleInput(e)) return;
     if (e.target.id === 'redeem-input') {
       redeemText = e.target.value;
       return;

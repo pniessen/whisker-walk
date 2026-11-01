@@ -1266,7 +1266,6 @@ body.den-shop-open .chat-wheel { display: none !important; }
   .dr.dr-building { padding-bottom: 0; }
   /* the room's 14 px side padding: cover it too, so no row peeks past the stuck stage */
   .dr-building .dr-hero { box-shadow: -14px 0 0 var(--navy), 14px 0 0 var(--navy); }
-  .dr-building .dr-stage { height: 38vh; max-height: 300px; }
   .dr.dr-building .cb { order: 2; }
 }
 /* desktop: the stage on the left, the rows on the right, like the room */
