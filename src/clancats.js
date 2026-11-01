@@ -302,6 +302,12 @@ export function createClanCats(scene, area, cast, {
     if (!b.armed.camp && !isTrespassing(areaId, tp.x, tp.z)) b.armed.camp = true;
     if (!b.armed.edge && !nearEdge(tp, bounds)) b.armed.edge = true;
     const p = c.group.position;
+    if (b.attached && !b.target.parent) {
+      // Her cat left the walk (remotecats removes its group from the scene):
+      // let go, as at the end of her patrol, with nothing to report.
+      endBuddy(c);
+      return;
+    }
     if (b.mark > 0) {
       b.mark -= dt;
       animateCat(c.group, 'stretch', t, 0);
@@ -344,27 +350,50 @@ export function createClanCats(scene, area, cast, {
     }
   }
 
-  // Back along the trail, newest point first, then to its home spot.
+  // Back along the trail, newest point first, then to its home spot. Trail
+  // points are places it stood (1 m apart), so retracing them needs no check.
+  // The last leg, from where its first patrol began to home, was never walked
+  // as such, so it is stepped on clan ground like the buddy (each axis alone
+  // if the straight step is rejected; only a step that gets closer counts, so
+  // it can never slide back and forth). If it truly cannot get closer, it
+  // stops trying where it stands and goes back to wandering: its legs aim
+  // 2-6 m from home and are themselves checked, so it works its way back
+  // without ever crossing water. Never a jump.
   function updateHomeward(c, dt, t) {
     const p = c.group.position;
     const trail = c.trail ?? [];
-    const to = trail.length ? trail[trail.length - 1] : c.home;
+    const last = !trail.length;
+    const to = last ? c.home : trail[trail.length - 1];
     const dx = to.x - p.x;
     const dz = to.z - p.z;
     const d = Math.hypot(dx, dz);
     const step = HOME_SPEED * dt;
-    if (d <= Math.max(step, 0.05)) {
+    if (d <= Math.max(step, 0.05) && (!last || ok(to.x, to.z))) {
       p.x = to.x;
       p.z = to.z;
-      if (trail.length) trail.pop();
+      if (!last) trail.pop();
       else {
         c.trail = null;
         endLeg(c);
       }
-    } else {
-      c.group.rotation.y = yawToward(p.x, p.z, to.x, to.z);
-      p.x += (dx / d) * step;
-      p.z += (dz / d) * step;
+    } else if (d > 0) {
+      const s1 = Math.min(step, d);
+      const nx = p.x + (dx / d) * s1;
+      const nz = p.z + (dz / d) * s1;
+      let next = [nx, nz];
+      if (last) {
+        // Only a step that is on clan ground AND brings it closer to home.
+        const closer = ([x, z]) => ok(x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
+        next = [[nx, nz], [nx, p.z], [p.x, nz]].find(closer) ?? null;
+      }
+      if (!next) {
+        c.trail = null;
+        endLeg(c);
+      } else {
+        c.group.rotation.y = yawToward(p.x, p.z, next[0], next[1]);
+        p.x = next[0];
+        p.z = next[1];
+      }
     }
     animateCat(c.group, 'follow', t, HOME_SPEED);
   }
@@ -428,14 +457,20 @@ export function createClanCats(scene, area, cast, {
         seconds: 0,
         remote: remote === true,
         mark: 0,
+        // A target in a scene (a remote cat) that later leaves it ends the buddy.
+        attached: !!target.parent,
         armed: { camp: !isTrespassing(areaId, tp.x, tp.z), edge: !nearEdge(tp, bounds) },
       };
       cat.state = 'buddy';
       cat.target = null;
       cat.resume = null;
       cat.hold = 0;
+      // A cat still on its way home from an earlier patrol keeps that trail and
+      // adds to it, so its walk home retraces both (never one long unchecked
+      // line from here to home).
       const p = cat.group.position;
-      cat.trail = [{ x: p.x, z: p.z }];
+      cat.trail = cat.trail ?? [];
+      cat.trail.push({ x: p.x, z: p.z });
       return true;
     },
     endBuddy,

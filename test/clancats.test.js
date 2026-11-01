@@ -438,6 +438,89 @@ describe('patrol together (the buddy)', () => {
     expect(target.position.z).toBeGreaterThan(50 - BUDDY_EDGE - 0.5);
   });
 
+  it("starting near the edge does not end at once: 'edge' needs the target to come back to it", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(-20, 0, 48);
+    cat.group.position.set(-19, 0, 48);
+    cats.startBuddy(cat, target);
+    let t = step(cats, target, 1);
+    expect(ends).toEqual([]);
+    t = step(cats, target, 6, (tt) => target.position.set(-20, 0, 48 - (tt - 1) * 1.5), () => {}, t);
+    expect(ends).toEqual([]); // now out of the band, armed
+    step(cats, target, 6, (tt) => target.position.set(-20, 0, 39 + (tt - 7) * 1.5), () => {}, t);
+    expect(ends.map((e) => e[1])).toEqual(['edge']);
+  });
+
+  it("a co-walker's buddy lets go when her cat leaves the scene, and reports nothing", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    const scene = new THREE.Scene();
+    scene.add(target);
+    target.position.set(-20, 0, 10);
+    cat.group.position.set(-19, 0, 10);
+    expect(cats.startBuddy(cat, target, { remote: true })).toBe(true);
+    let t = step(cats, target, 1);
+    expect(cat.buddy).not.toBe(null);
+    scene.remove(target);
+    step(cats, target, 2 * DT, () => {}, () => {}, t);
+    expect(cat.buddy).toBe(null);
+    expect(ends).toEqual([]);
+  });
+
+  it('a second patrol started on the way home keeps the first trail: the walk home never crosses water', () => {
+    // A pond at (-20, -20) r 4. Home (-30, -30). Patrol 1 goes east then north,
+    // round the pond; patrol 2 starts on the way back. The straight line from
+    // there to home crosses the pond.
+    const wet = (x, z) => Math.hypot(x + 20, z + 20) < 4;
+    const isWalkable = (x, z) => !wet(x, z);
+    const ends = [];
+    const homes = Array.from({ length: 16 }, () => ({ x: -30, z: -30 }));
+    const cats = createClanCats(fakeScene(), AREA, castFor('woods'), {
+      campLayout: campLayout('woods'), roamHomes: homes, isWalkable, roomSeed: 42, areaId: null,
+      onBuddyEnd: (c, reason, secs) => ends.push([c.id, reason, secs]),
+    });
+    const cat = cats.list.find((c) => c.rank === K.warrior);
+    const target = new THREE.Object3D();
+    cat.group.position.set(-30, 0, -30);
+    target.position.set(-30, 0, -30);
+    cats.startBuddy(cat, target);
+    const path1 = (tt) => (tt < 40 / 3
+      ? target.position.set(-30 + tt * 1.5, 0, -30)
+      : target.position.set(-10, 0, -30 + (tt - 40 / 3) * 1.5));
+    let t = step(cats, target, 26, path1);
+    cats.endBuddy(cat);
+    t = step(cats, target, 3, () => {}, () => {}, t);
+    expect(cat.state).toBe('home');
+    target.position.copy(cat.group.position);
+    expect(cats.startBuddy(cat, target)).toBe(true);
+    const z0 = target.position.z;
+    t = step(cats, target, 4, (tt) => target.position.z = z0 + (tt - t) * 1.5, () => {}, t);
+    cats.endBuddy(cat);
+    let bad = 0;
+    step(cats, target, 90, () => {}, () => { if (wet(cat.group.position.x, cat.group.position.z)) bad += 1; }, t);
+    expect(bad).toBe(0);
+    expect(cat.group.position.distanceTo(new THREE.Vector3(-30, 0, -30))).toBeLessThan(6.5);
+  });
+
+  it('the last leg home is stepped on clan ground: blocked, it stays put and wanders from there', () => {
+    // The wall x in [-26, -24] stands between where the patrol starts and home.
+    const wall = (x) => x > -26 && x < -24;
+    const homes = Array.from({ length: 16 }, () => ({ x: -30, z: -30 }));
+    const cats = createClanCats(fakeScene(), AREA, castFor('woods'), {
+      campLayout: campLayout('woods'), roamHomes: homes, isWalkable: (x) => !wall(x), roomSeed: 42, areaId: null,
+    });
+    const cat = cats.list.find((c) => c.rank === K.warrior);
+    const target = new THREE.Object3D();
+    cat.group.position.set(-20, 0, -30); // say it wandered here
+    target.position.set(-20, 0, -31);
+    cats.startBuddy(cat, target);
+    let t = step(cats, target, 3, (tt) => target.position.set(-20 + tt, 0, -31));
+    cats.endBuddy(cat);
+    let crossed = 0;
+    step(cats, target, 40, () => {}, () => { if (wall(cat.group.position.x)) crossed += 1; }, t);
+    expect(crossed).toBe(0);
+    expect(cat.state).not.toBe('home');
+  });
+
   it("ends with 'far' when the target teleports 15 m", () => {
     const { cats, cat, target, ends } = buddyWorld();
     target.position.set(-20, 0, 10);

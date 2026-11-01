@@ -899,6 +899,7 @@ export function createInteractions({
       // the camp), and my patrol buddy offers goodbye while it walks with me.
       const offerFor = (c) => {
         if (c === s.clanBuddy) return 'clan-bye';
+        if (c.buddy) return null; // walking with a co-walker: nothing until it is free
         if (!c.greeted) return 'clan-greet';
         if (!s.clanHome) return null;
         if (!c.booped) return 'clan-boop';

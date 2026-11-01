@@ -149,7 +149,6 @@ describe('clanmates: touch noses and boop (Clan Life Task 5)', () => {
     expect(h.paid('friend')).toBe(1);
   });
 
-
   it('touch noses and boop pay for the first 4 cats a walk, then keep working without pay', () => {
     const h = harness({ count: 6 });
     for (const cat of h.clanCats.list) {
@@ -343,7 +342,24 @@ describe('patrol together (Clan Life Task 6)', () => {
     expect(h.kind()).toBe(null);
   });
 
-  it("an end for a cat that isn't my buddy (a co-walker's) pays and sends nothing", () => {
+  it("a cat walking with a co-walker offers me nothing until it is free; my own buddy still offers goodbye", () => {
+    const h = harness({ count: 16 });
+    const warrior = byRank(h, K.warrior);
+    only(h, warrior);
+    warrior.greeted = false;
+    warrior.buddy = { target: new THREE.Object3D(), seconds: 0 }; // her patrol
+    h.scan();
+    expect(h.kind()).toBe(null);
+    warrior.buddy = null;
+    h.scan();
+    expect(h.kind()).toBe('clan-greet');
+    warrior.greeted = true;
+    h.press(); // my patrol now
+    h.scan();
+    expect(h.kind()).toBe('clan-bye');
+  });
+
+    it("an end for a cat that isn't my buddy (a co-walker's) pays and sends nothing", () => {
     const h = harness({ count: 16 });
     const warrior = byRank(h, K.warrior);
     h.api.endClanPatrol(h.session, warrior, 'time', 60);
