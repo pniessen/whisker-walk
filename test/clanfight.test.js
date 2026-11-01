@@ -26,9 +26,10 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 // them, and a clock the test moves.
 function harness({
   answers = 'right', clanHome = true, picks = ['woods'], clan = 'moor', reducedMotion = false,
-  special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5,
+  special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
 } = {}) {
   const calls = [];
+  const sent = [];
   const clock = { T: 5000 };
   const cur = { visit: 7, clan, member: { name: 'Mossjaw' }, pos: { x: 0, z: 0 }, state: 'walking' };
   const intruders = {
@@ -62,13 +63,13 @@ function harness({
   const cf = createClanFight({
     intruders, ui, audio, fx, hud, log: theLog, areaId: 'woods', walkStamp, playerId: 'me',
     playerSpecial: special, reducedMotion, now: () => clock.T, isGround: ground, player,
-    runSpeed: RUN, clanHome, picks,
+    runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
   });
   const frame = (dt = DT) => { clock.T += dt; cf.update(dt, s); };
   const moves = [];
   let clueFrames = 0;
   const h = {
-    calls, clock, cur, intruders, ui, audio, fx, hud, log: theLog, player, s, cf, frame, moves,
+    calls, sent, clock, cur, intruders, ui, audio, fx, hud, log: theLog, player, s, cf, frame, moves,
     challenge() { frame(); },
     fight() { cf.startFight(); },
     // One frame of a fight, answering half a second into each clue.
@@ -442,6 +443,72 @@ describe('the fight', () => {
   });
 });
 
+describe('the fight on the network', () => {
+  const FIGHT = { v: 1, id: 'me', type: 'intruder-fight', area: 'woods', visit: 7 };
+
+  test('sends exactly one fight and one done per fight: won, lost, aborted', () => {
+    const won = harness({ answers: 'right' });
+    won.challenge(); won.fight();
+    expect(won.sent).toEqual([FIGHT]);
+    won.runToEnd();
+    expect(won.sent).toEqual([FIGHT, { ...FIGHT, type: 'intruder-done', fled: true }]);
+
+    const lost = harness({ answers: 'wrong' });
+    lost.challenge(); lost.fight(); lost.runToEnd();
+    expect(lost.sent).toEqual([FIGHT, { ...FIGHT, type: 'intruder-done', fled: false }]);
+
+    const ab = harness({ answers: 'none' });
+    ab.challenge(); ab.fight(); ab.frame();
+    ab.cf.abort(); ab.cf.abort();
+    expect(ab.sent).toEqual([FIGHT, { ...FIGHT, type: 'intruder-done', fled: false }]);
+  });
+
+  test('a pill backed away from sends nothing', () => {
+    const h = harness();
+    h.challenge(); h.cf.backOff(); h.cf.abort();
+    expect(h.sent).toEqual([]);
+  });
+
+  test('sends nothing solo (no sendEvent given)', () => {
+    const h = harness({ solo: true });
+    h.challenge(); h.fight(); h.runToEnd();
+    expect(h.sent).toEqual([]);
+  });
+
+  test('chasedOffTogether pays once, ends my fight, tells her once, and a second call pays nothing', () => {
+    const h = harness({ answers: 'none' });
+    h.challenge(); h.fight(); h.frame();
+    expect(h.cf.engagedVisit).toBe(7);
+    expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(true);
+    expect(h.s.fight).toBeNull();
+    expect(h.log.awardOnce).toHaveBeenCalledTimes(1);
+    expect(h.log.awardOnce.mock.calls[0].slice(0, 2)).toEqual(['intruder', 'intruder-7']);
+    expect(h.log.awardOnce.mock.calls[0][2]).toBe('Mossjaw running home 🛡️');
+    expect(h.hud.toast).toHaveBeenCalledWith('You and Robin chased Mossjaw off together! 🏃');
+    expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(false);
+    expect(h.log.awardOnce).toHaveBeenCalledTimes(1);
+    expect(h.sent.filter((e) => e.type === 'intruder-done')).toHaveLength(1);
+  });
+
+  test('chasedOffTogether does nothing for a pill, an idle device or another visit', () => {
+    const h = harness();
+    expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(false);
+    h.challenge();
+    expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(false);
+    h.fight();
+    expect(h.cf.chasedOffTogether(8, 'Robin')).toBe(false);
+    expect(h.log.awardOnce).not.toHaveBeenCalled();
+  });
+
+  test('hideChallengeFor hides only my pill for that visit', () => {
+    const h = harness();
+    h.challenge();
+    expect(h.cf.hideChallengeFor(8)).toBe(false);
+    expect(h.cf.hideChallengeFor(7)).toBe(true);
+    expect(h.ui.showing).toBeNull();
+  });
+});
+
 describe('clanfight.js is pinned', () => {
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
@@ -465,5 +532,7 @@ describe('clanfight.js is pinned', () => {
     for (const w of ['log.', 'award', 'points', 'feat', 'colony', 'mark', 'grudge', 'flee']) expect(slice).not.toContain(w);
     expect(slice).toContain('intruders.release(');
     expect(slice).toContain('hud.toast(');
+    // The one thing it may add is telling the co-walker the fight is over.
+    expect(slice).toContain('sendDone(false)');
   });
 });

@@ -246,7 +246,45 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       applyRemoteCarry(s, ev);
     } else if (ev.type === 'clan-buddy') {
       applyRemoteBuddy(s, ev);
+    } else if (ev.type === 'intruder-fight' || ev.type === 'intruder-done') {
+      applyRemoteIntruder(s, ev);
     }
+  }
+
+  // Clan Life Part 2, Task 5 — a co-walker's fight with the visiting clan cat.
+  // Two events are enough because the intruder's walk is the shared clock
+  // (a pure function of the area and the wall clock): only "she is holding
+  // it" and "how it ended" need the wire; the rounds stay on the fighter's
+  // screen. WORLD STATE ONLY, on every device and edition, like tip and
+  // carry-drop. The sender must be a remote in this walk, the area this one,
+  // the visit the integer visit now on the map (a past or future one is
+  // stale), and `fled` exactly a boolean.
+  //   fight: a counted, non-local hold, so it faces her cat; if my pill is up
+  //     for it, it goes away with a toast. My own fight carries on.
+  //   done, fled false: her hold is released; my own fight is still a holder,
+  //     so her loss never lets it walk on while I am fighting it.
+  //   done, fled true: it flees (a later release is a no-op, so a win beats
+  //     a loss in either order). If I am mid-fight on it, I am paid too.
+  function applyRemoteIntruder(s, ev) {
+    const intruders = s.intruders;
+    if (!intruders || typeof intruders.current !== 'function') return;
+    const remote = s.remotes?.list.find((r) => r.playerId === ev.id);
+    if (!remote || ev.area !== s.areaId) return;
+    if (!Number.isInteger(ev.visit)) return;
+    const cur = intruders.current();
+    if (!cur || cur.visit !== ev.visit) return;
+    if (ev.type === 'intruder-fight') {
+      const p = remote.group.position;
+      intruders.hold(ev.visit, ev.id, { x: p.x, z: p.z });
+      if (s.clanFight?.hideChallengeFor?.(ev.visit)) {
+        hud.toast(`${petNameFor(s, ev.id)} is already facing ${cur.member.name}!`);
+      }
+      return;
+    }
+    if (typeof ev.fled !== 'boolean') return;
+    if (!ev.fled) { intruders.release(ev.visit, ev.id); return; }
+    intruders.flee(ev.visit);
+    s.clanFight?.chasedOffTogether?.(ev.visit, petNameFor(s, ev.id));
   }
 
   // Clan Life Part 1, Task 6 — a co-walker started or ended a patrol with a

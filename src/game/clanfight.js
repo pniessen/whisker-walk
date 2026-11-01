@@ -19,7 +19,9 @@
 // spot and pose each frame after player.update. "Back off" hides the pill
 // until the cat has been beyond CHALLENGE_KEEP once.
 //
-// This task sends nothing on the network (Task 5 adds that).
+// On the network (Task 5): startFight sends one 'intruder-fight' and the end
+// of that fight (won, lost, aborted, or ended by a sibling's win) sends one
+// 'intruder-done'. Nothing is sent solo. See netevents.js for the receiving side.
 import { createFight, edgeFor, CLUES, NEUTRAL_POSE, TIMING } from '../fight.js';
 import { isHostile, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../intruders.js';
 import { FIGHT_LINES } from '../ui/fightui.js';
@@ -47,6 +49,9 @@ export const NO_CLAN_FIGHT = Object.freeze({
   key: () => false,
   startFight() {},
   backOff() {},
+  hideChallengeFor: () => false,
+  engagedVisit: null,
+  chasedOffTogether: () => false,
   answer() {},
   abort() {},
 });
@@ -55,16 +60,16 @@ const smooth = (u) => u * u * (3 - 2 * u);
 const clamp01 = (u) => Math.max(0, Math.min(1, u));
 const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 
-// areaId is taken now for Task 5's co-walk events; nothing here reads it yet.
 export function createClanFight({
   intruders, ui, audio, fx, hud, log,
-  areaId: _areaId, walkStamp, playerId, playerSpecial, reducedMotion = false,
+  areaId, walkStamp, playerId, playerSpecial, reducedMotion = false,
   now = () => Date.now() / 1000,
   isGround = () => true,
   player = null,
   runSpeed = 3,
   clanHome = false,
   picks = [],
+  sendEvent = () => {},
 }) {
   let mode = 'idle'; // 'idle' | 'challenge' | 'walkover' | 'fight'
   let sess = null;
@@ -78,6 +83,7 @@ export function createClanFight({
   let act = null;      // the beat being played: { kind, t, ... }
   let line = null;
   let sheetKey = null;
+  let sentVisit = null; // the visit whose 'intruder-fight' I sent and not yet closed
   const attempts = new Map(); // visit -> fights this device started on it
   const locks = new Map();    // visit -> { away, until }
 
@@ -95,6 +101,15 @@ export function createClanFight({
   function canStand(s) {
     const p = s.cat.position;
     return !player?.inWater && !s.perched && !s.chasing && !s.cameraMode && ground(p.x, p.z);
+  }
+
+  // Tells the co-walker how my fight ended; once per fight, only if I told
+  // her it began.
+  function sendDone(fled) {
+    if (sentVisit === null) return;
+    const v = sentVisit;
+    sentVisit = null;
+    sendEvent({ v: 1, id: playerId, type: 'intruder-done', area: areaId, visit: v, fled });
   }
 
   function hideChallenge() {
@@ -148,6 +163,8 @@ export function createClanFight({
     const cat = s.cat.position;
     intruders.hold(visit, playerId, { x: cat.x, z: cat.z }, { local: true });
     audio.hiss();
+    sentVisit = visit;
+    sendEvent({ v: 1, id: playerId, type: 'intruder-fight', area: areaId, visit });
     fight = createFight({
       rng: mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`)),
       edge: edgeFor(playerSpecial),
@@ -254,6 +271,7 @@ export function createClanFight({
       // Reads after the discovery toast's "You spotted …".
       log.awardOnce('intruder', `intruder-${v}`, `${name} running home 🛡️`);
       hud.toast(`${name} ran back to ${clanName(clan)}'s land! 🏃`);
+      sendDone(true);
       endFight();
       return;
     }
@@ -261,6 +279,7 @@ export function createClanFight({
     intruders.release(v, playerId);
     locks.set(v, { away: false, until: now() + RECHALLENGE_DELAY });
     hud.toast(`${name} shook it off and walked on. Try again soon!`);
+    sendDone(false);
     endFight();
     // END LOST
   }
@@ -386,6 +405,7 @@ export function createClanFight({
         if (!cur || cur.visit !== visit) {
           // It is gone from under the fight (it cannot be, per R9): let go quietly.
           intruders.release(visit, playerId);
+          sendDone(false);
           endFight();
           return;
         }
@@ -412,10 +432,32 @@ export function createClanFight({
         ui.showChallenge({ name: cur.member.name, clan: cur.clan });
       }
     },
+    // A co-walker's fight on this visit (netevents): my pill goes away.
+    // True when it was up for that visit.
+    hideChallengeFor(v) {
+      if (mode !== 'challenge' || visit !== v) return false;
+      hideChallenge();
+      return true;
+    },
+    // The intruder this device is facing right now (pill or fight), or null.
+    get engagedVisit() { return mode === 'idle' ? null : visit; },
+    // A co-walker chased it off while I was mid-fight on the same visit: my
+    // fight ends and I am paid too (once, by the per-visit key). Anyone not
+    // fighting that visit gets nothing.
+    chasedOffTogether(v, petName) {
+      if ((mode !== 'walkover' && mode !== 'fight') || visit !== v) return false;
+      const { name } = foe;
+      log.awardOnce('intruder', `intruder-${v}`, `${name} running home 🛡️`);
+      hud.toast(`You and ${petName} chased ${name} off together! 🏃`);
+      sendDone(true);
+      endFight();
+      return true;
+    },
     // The walk ended (or the page went away) mid-fight: let go, pay nothing.
     abort() {
       if (mode === 'walkover' || mode === 'fight') {
         intruders.release(visit, playerId);
+        sendDone(false);
         endFight();
       } else if (mode === 'challenge') {
         hideChallenge();

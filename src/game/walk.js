@@ -1298,6 +1298,7 @@ export function createWalkLifecycle({
       audio, fx: session.fx, hud, log, areaId, walkStamp, playerId: pid,
       playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
       reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
+      sendEvent: (ev) => session.net?.sendEvent(ev),
     }) : NO_CLAN_FIGHT;
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
