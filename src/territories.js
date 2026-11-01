@@ -17,7 +17,7 @@ const freezeAll = (list) => Object.freeze(list.map((t) => Object.freeze(t)));
 export const TERRITORIES = freezeAll([
   { id: 'town', areaId: 'neighborhood', name: PLACE_WORDS.town, x: 843, y: 566, r: 110, status: 'built' },
   { id: 'woods', areaId: 'woods', name: 'The Woods', x: 565, y: 500, r: 170, status: 'built' },
-  { id: 'moor', areaId: null, name: 'The Moor', x: 620, y: 161, r: 165, status: 'soon' },
+  { id: 'moor', areaId: 'moor', name: 'The Moor', x: 620, y: 161, r: 165, status: 'built' },
   { id: 'river', areaId: 'river', name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'built' },
   { id: 'pines', areaId: null, name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'soon' },
   { id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' },

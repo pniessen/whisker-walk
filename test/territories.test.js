@@ -44,7 +44,7 @@ describe('territories', () => {
     expect(TERRITORIES.map(({ id, areaId, x, y, r, status }) => ({ id, areaId, x, y, r, status }))).toEqual([
       { id: 'town', areaId: 'neighborhood', x: 843, y: 566, r: 110, status: 'built' },
       { id: 'woods', areaId: 'woods', x: 565, y: 500, r: 170, status: 'built' },
-      { id: 'moor', areaId: null, x: 620, y: 161, r: 165, status: 'soon' },
+      { id: 'moor', areaId: 'moor', x: 620, y: 161, r: 165, status: 'built' },
       { id: 'river', areaId: 'river', x: 232, y: 488, r: 160, status: 'built' },
       { id: 'pines', areaId: null, x: 308, y: 199, r: 150, status: 'soon' },
       { id: 'gorge', areaId: null, x: 815, y: 353, r: 80, status: 'later' },
@@ -113,16 +113,31 @@ describe('territories', () => {
     expect(regionHtml(renderTerritoryMapHtml(m), 'woods')).toMatch(/class="tm-region[^"]*\bsel\b/);
   });
 
+  it('the Moor is locked until 2 Woods walks, then "Tap to explore", then "tap to walk here" once opened', () => {
+    const s = clanState();
+    s.walks.woods = 1; s.unlocked.areas.push('woods');
+    let moor = region(territoryMapModel(s, CATALOG), 'moor');
+    expect(moor).toMatchObject({ name: 'The Moor', areaId: 'moor', locked: true, canOpen: false, owned: false });
+    expect(moor.line).toBe('opens after 2 walks in The Woods · 1/2 so far');
+    expect(regionHtml(renderTerritoryMapHtml(territoryMapModel(s, CATALOG)), 'moor')).toContain('data-dr-place="moor"');
+    s.walks.woods = 2;
+    moor = region(territoryMapModel(s, CATALOG), 'moor');
+    expect(moor).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    s.unlocked.areas.push('moor');
+    expect(region(territoryMapModel(s, CATALOG), 'moor')).toMatchObject({ owned: true, line: 'tap to walk here' });
+  });
+
   it("coming soon and unexplored regions can't be tapped", () => {
     const m = territoryMapModel(clanState(), CATALOG);
-    for (const id of ['moor', 'pines']) expect(region(m, id)).toMatchObject({ status: 'soon', line: 'coming soon', canOpen: false });
+    for (const id of ['pines']) expect(region(m, id)).toMatchObject({ status: 'soon', line: 'coming soon', canOpen: false });
     expect(region(m, 'gorge')).toMatchObject({ status: 'later', line: 'unexplored', canOpen: false });
     const html = renderTerritoryMapHtml(m);
-    for (const id of ['moor', 'pines', 'gorge', 'island']) {
+    for (const id of ['pines', 'gorge', 'island']) {
       const part = regionHtml(html, id);
       expect(part).not.toContain('data-dr-place');
     }
-    expect((html.match(/data-dr-place=/g) || []).length).toBe(3);
+    // Twolegplace, the Woods, the River and the Moor
+    expect((html.match(/data-dr-place=/g) || []).length).toBe(4);
   });
 
   it('the map has the lake, the island, the pond, the river, three paths and the bridge', () => {
