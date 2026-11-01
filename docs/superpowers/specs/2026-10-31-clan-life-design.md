@@ -40,6 +40,13 @@ that too, and wins about as often as she does.
    the enemy's moves. The clue stays up for a couple of seconds: it is about
    noticing, not speed. A small personality edge on top is fine (the owner
    saw this offered with option 1).
+8. **The camp has its own leader cat** (2026-10-31). The clan in a territory
+   has a separate leader at the camp; the kid's cat is not that clan's
+   leader. The kid's own "-star" name from the v21 clan feature stays as it
+   is: it belongs to their colony, not to the territory's clan.
+9. **Allies share land** (2026-10-31). If the two kids picked different
+   clans, each is at home on the other's clan's land too: greet, boop and
+   patrol with its cats, and fight intruders there.
 
 ## What stays true (unchanged rules this design must keep)
 
@@ -80,6 +87,8 @@ that too, and wins about as often as she does.
   clan patrols where. This design builds on top of it and lands after it.
 - **Depends on the new cat body** (branch `cat-body`, being built): the fight
   poses and the clan cats' ranks (kit size, elder posture) use the new rig.
+  *Claude's call:* this waits for the cat body to merge. There are no
+  throwaway poses on the old rig.
 - **Kittypets** (plan on branch `worktree-agent-ab7d7ec177b6cff67`) keep
   working: the wanderer still turns up 1 day in 5, and kittypets stay out of
   territory casts otherwise.
@@ -93,7 +102,7 @@ that too, and wins about as often as she does.
 In Clan Edition, a territory's cast becomes:
 
 - **The home clan's cats**, the full range:
-  - **near the camp:** the leader, one or two elders and a few kits;
+  - **near the camp:** the clan's own leader (decision 8), one or two elders and a few kits;
   - **around the territory:** apprentices and warriors.
 - **Loners** *(Claude's call, flagged)*: a few loners stay, so colony feeding
   in the territories (shipped 2026-10-31) still has cats to feed and take
@@ -102,9 +111,23 @@ In Clan Edition, a territory's cast becomes:
   clan's land only (see §4).
 
 Which clan counts as "the home clan" follows the pick-your-clan plan's rules.
-Your own clan's territory is home to your clanmates. Any other territory is
-home to that territory's clan, and there you are the visitor: its patrol
-chases you off as rival patrols do today, and there are no fights.
+**You are at home** in your own clan's territory and in your sibling's
+clan's territory (decision 9): its cats are friendly, and you can fight
+intruders there. Any other territory is home to that territory's clan, and
+there you are the visitor: its patrol chases you off as rival patrols do
+today, and there are no fights.
+
+**Colony cats in a territory** *(Claude's call)*: a cat you have fed but not
+tamed still stands at its spot as a loner. Tamed cats live in the den, as
+today.
+
+**Legacy in a co-walk** *(Claude's call)*: Legacy can only be in a territory
+on a co-walk with a Clan Edition kid, and both screens must show the same
+cats. So the Legacy device spawns the same clan cats, shown as plain,
+unlabelled cats: no names, no ranks and no camp marks. They have no feed
+prompt on either device, so the shared colony is never touched through
+them. Intruders walk about on the Legacy screen too, but a fight can't be
+started there.
 
 **Names** show rank. Kits end in -kit, apprentices in -paw, the leader in
 -star; warriors and elders get a full name (prefix plus a `WARRIOR_SUFFIXES`
@@ -147,10 +170,14 @@ existing `AWARDS` table (e.g. `boop: 5`, `friend: 6`). *Claude's call.*
 
 ### 4. Intruders and fights
 
-**When:** sometimes a warrior from a neighbouring clan is on your clan's land
+**When:** sometimes a warrior from a neighbouring clan is in a territory
 (*Claude's call:* at most one intruder at a time, a few per walk, never at
-the camp's doorstep on arrival). It uses the patrol clan the pick-your-clan
-plan already works out. When you get close, it puffs up and hisses, and a
+the camp's doorstep on arrival). *Claude's call, for co-walk agreement:* an
+intruder belongs to the territory, not to anyone's pick. It is scheduled
+from the territory and the clock, like today's patrol, so every device in a
+walk shows the same intruder in the same place whatever it knows about the
+other kid's pick. Only a kid who is at home there (decision 9) gets the
+fight prompt. To anyone else it is just a cat passing through. When you get close, it puffs up and hisses, and a
 **Fight / Back off** choice appears. Backing off is always allowed and costs
 nothing. *Claude's call:* the kid chooses, so a fight never starts by
 surprise.
