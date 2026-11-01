@@ -142,7 +142,7 @@ describe('buildMapLayer', () => {
       gifts: [{ x: 6, z: 6 }],
     };
     const layer = buildMapLayer(areaData, new THREE.Scene());
-    expect(Object.keys(layer).sort()).toEqual(['blocks', 'edge', 'ground', 'paths', 'water']);
+    expect(Object.keys(layer).sort()).toEqual(['blocks', 'edge', 'ground', 'paths', 'trees', 'water']);
     const text = JSON.stringify(layer);
     for (const n of ['3', '4', '5', '6']) expect(text).not.toContain(`"x":${n}`);
     expect(layer.blocks).toEqual([{ x: 1, z: 2, r: 1.5 }]);
