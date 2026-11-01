@@ -34,14 +34,14 @@ import { rivalFor } from './rivalclans.js';
 
 export const MARK_KINDS = Object.freeze(['scratch', 'dig', 'drop', 'border', 'den']);
 export const MARKS_PER_AREA = 8;
-export const MARK_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'den']);
+export const MARK_AREAS = Object.freeze(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'den']);
 
 const COORD_LIMIT = 200;
 // Ranks 0-5 (newest first) are full strength; the two oldest fade.
 const FADE = Object.freeze([1, 1, 1, 1, 1, 1, 0.55, 0.3]);
 
 export function emptyMarks() {
-  return { neighborhood: [], park: [], seaside: [], docks: [], woods: [], den: [] };
+  return { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], den: [] };
 }
 
 function isCoord(n) {

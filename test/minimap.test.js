@@ -76,8 +76,9 @@ const { build: buildNeighborhood } = await import('../src/world/neighborhood.js'
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -165,6 +166,20 @@ describe('buildMapLayer', () => {
     expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
     expect(layer.paths.length).toBeGreaterThan(0);
     // Every Woods collider is a trunk or a stone under 1 m, below the map's block cut.
+    expect(layer.blocks).toEqual([]);
+  });
+
+  it('buildMapLayer for the River has ground, edge, nine waters, two with decks, and paths, and no blocks', () => {
+    const { scene, areaData } = built('river');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toMatch(/^#[0-9a-f]{6}$/);
+    expect(layer.edge).toEqual(areaData.bounds);
+    expect(layer.water).toHaveLength(9);
+    // river-west carries the log bridge, river-east the stepping stones.
+    expect(layer.water.filter((w) => w.decks.length > 0)).toHaveLength(2);
+    expect(layer.paths.length).toBeGreaterThan(0);
+    // Every River collider is a trunk or a rock under 1 m, below the map's
+    // block cut, so the corner map shows water, decks and paths only.
     expect(layer.blocks).toEqual([]);
   });
 

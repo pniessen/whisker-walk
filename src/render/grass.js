@@ -308,7 +308,16 @@ const WOODLAND = Object.freeze({
   color: 0x5a8f45, hMin: 0.1, hMax: 0.28, width: 1.1, warm: 0.06, sway: 0.25, reach: 1.2, density: woodsDensity,
 });
 
-export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND });
+// The River's marsh: taller, yellower-green tufts in broad patches, so the
+// wet ground reads as reedy meadow between the paths.
+export function marshDensity(x, z) {
+  return 0.9 * smooth01(0.3, 0.6, patchNoise(x, z, 4.4, 43));
+}
+const MARSH = Object.freeze({
+  color: 0x86a457, hMin: 0.14, hMax: 0.36, width: 1.0, warm: 0.14, sway: 0.4, reach: 1.4, density: marshDensity,
+});
+
+export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH });
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.

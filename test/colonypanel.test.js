@@ -892,6 +892,12 @@ describe('renderColonyHtml in each edition', () => {
     expect(legacy).not.toContain(PLACE_WORDS.town);
   });
 
+  it("a River cat's place reads The River and Marshes in both editions", () => {
+    const colony = colonyOf({ cats: [cat(A, { area: 'river' })] });
+    expect(render(colony, { edition: 'canon' })).toContain('in The River and Marshes');
+    expect(render(colony, { edition: 'legacy' })).toContain('in The River and Marshes');
+  });
+
   it('a Legacy card shows the stored name and no rank', () => {
     const colony = colonyOf({ cats: [tamed('Pickles')], feeds: feed('Pickles', ME, TAME_FEEDS) });
     const legacy = render(colony, { edition: 'legacy' });

@@ -33,11 +33,12 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const grassSrc = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/render/grass.js', import.meta.url), 'utf8'));
 
 const BUILDS = {
-  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, den: buildDen,
+  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, den: buildDen,
 };
 // main.js's game camera: PerspectiveCamera(70, aspect, 0.1, 300).
 const GAME_FAR = 300;
@@ -82,6 +83,9 @@ function puffBoxes(mesh) {
 describe('cloud areas', () => {
   it('the Woods has a sky', () => {
     expect(CLOUD_AREAS).toContain('woods');
+  });
+  it('the River has a sky', () => {
+    expect(CLOUD_AREAS).toContain('river');
   });
 });
 

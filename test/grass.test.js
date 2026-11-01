@@ -22,7 +22,7 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, groundFinds,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, groundFinds,
 } = await import('../src/render/grass.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
@@ -425,5 +425,24 @@ describe('groundFinds', () => {
       { x: 1, z: 2 }, { x: 5, z: 6 }, { x: 9, z: 10 }, { x: 7, z: 8 },
     ]);
     expect(groundFinds(undefined, undefined)).toEqual([]);
+  });
+});
+
+describe('marsh grass (the River)', () => {
+  it('the River grows marsh grass', () => {
+    expect(GRASS_STYLES.river.density).toBe(marshDensity);
+    let lo = Infinity; let hi = -Infinity; let bare = 0; let thick = 0;
+    for (let x = -50; x <= 50; x++) {
+      for (let z = -50; z <= 50; z++) {
+        const d = marshDensity(x, z);
+        lo = Math.min(lo, d); hi = Math.max(hi, d);
+        if (d === 0) bare++;
+        if (d > 0.5) thick++;
+      }
+    }
+    expect(lo).toBeGreaterThanOrEqual(0);
+    expect(hi).toBeLessThanOrEqual(0.9);
+    expect(bare).toBeGreaterThan(0);
+    expect(thick).toBeGreaterThan(0);
   });
 });

@@ -18,7 +18,7 @@ export const TERRITORIES = freezeAll([
   { id: 'town', areaId: 'neighborhood', name: PLACE_WORDS.town, x: 843, y: 566, r: 110, status: 'built' },
   { id: 'woods', areaId: 'woods', name: 'The Woods', x: 565, y: 500, r: 170, status: 'built' },
   { id: 'moor', areaId: null, name: 'The Moor', x: 620, y: 161, r: 165, status: 'soon' },
-  { id: 'river', areaId: null, name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'soon' },
+  { id: 'river', areaId: 'river', name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'built' },
   { id: 'pines', areaId: null, name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'soon' },
   { id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' },
 ]);
@@ -78,7 +78,7 @@ export function territoryMapModel(state, catalog) {
     if (selected) line = 'today’s walk';
     else if (owned) line = 'tap to walk here';
     else if (locked) line = opensAfterLine(req, have, edition, catalog);
-    else line = 'Tap to explore'; // both built places cost 0 paws, so open means free to take
+    else line = 'Tap to explore'; // every built territory costs 0 paws, so open means free to take
     return { ...base, name: placeName(t.areaId, edition, catalog) || t.name, owned, selected, locked, canOpen, line };
   });
 

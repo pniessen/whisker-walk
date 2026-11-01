@@ -18,6 +18,7 @@ const { STOP, builtAreas, stubBuild } = vi.hoisted(() => {
 });
 vi.mock('../src/world/neighborhood.js', (orig) => stubBuild('neighborhood', orig));
 vi.mock('../src/world/woods.js', (orig) => stubBuild('woods', orig));
+vi.mock('../src/world/river.js', (orig) => stubBuild('river', orig));
 
 const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
@@ -76,6 +77,20 @@ function inTheWoods(edition) {
   return progression;
 }
 
+// A Legacy save whose chosen place is the River (the Woods first: two Woods walks open it).
+function inTheRiver(edition) {
+  const progression = createProgression(memStorage());
+  progression.completeWalk('neighborhood');
+  progression.completeWalk('neighborhood');
+  expect(progression.buy('areas', 'woods')).toBe(true);
+  progression.completeWalk('woods');
+  progression.completeWalk('woods');
+  expect(progression.buy('areas', 'river')).toBe(true);
+  progression.setArea('river');
+  progression.setEdition(edition);
+  return progression;
+}
+
 beforeEach(() => { builtAreas.length = 0; globalThis.document = fakeDocument(); });
 afterEach(() => { delete globalThis.document; });
 
@@ -97,6 +112,14 @@ describe('a Legacy walk', () => {
     expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
     expect(builtAreas).toEqual(['neighborhood']);
     expect(progression.state.area).toBe('woods');
+  });
+
+  it('a Legacy kid whose place is the River walks the Neighborhood and keeps the River', () => {
+    const progression = inTheRiver('legacy');
+    const life = lifecycle(progression);
+    expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
+    expect(builtAreas).toEqual(['neighborhood']);
+    expect(progression.state.area).toBe('river');
   });
 
   it('in Clan Edition the same save walks the Woods', () => {

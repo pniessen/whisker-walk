@@ -125,6 +125,34 @@ describe('createDressingRoom handleClick', () => {
     expect(t.progression.state.area).toBe('woods');
   });
 
+  it('tapping the locked River buys nothing and keeps the area', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    t.progression.state.walks.woods = 1;
+    t.progression.state.points = 9999;
+    const before = JSON.stringify(t.progression.state);
+    t.sync.autoSync.mockClear();
+    expect(t.dr.handleClick(click({ drPlace: 'river' }))).toBe(true);
+    expect(JSON.stringify(t.progression.state)).toBe(before);
+    expect(t.progression.state.area).toBe('woods');
+    expect(t.sync.autoSync).not.toHaveBeenCalled();
+  });
+
+  it('tapping the opened River selects it', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    t.progression.state.walks.woods = 2;
+    t.dr.handleClick(click({ drPlace: 'river' }));
+    expect(t.progression.state.unlocked.areas).toContain('river');
+    expect(t.progression.state.area).toBe('river');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(t.progression.state.area).toBe('woods');
+    t.dr.handleClick(click({ drPlace: 'river' }));
+    expect(t.progression.state.area).toBe('river');
+  });
+
   it('a click outside the dressing room returns false and changes nothing', () => {
     const t = setup();
     expect(t.dr.handleClick({ target: { closest: () => null } })).toBe(false);

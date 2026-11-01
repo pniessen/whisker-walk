@@ -41,6 +41,7 @@ const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildRiver } = await import('../src/world/river.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -160,6 +161,7 @@ const WATERED = {
   seaside: buildWith(buildSeaside),
   docks: buildWith(buildDocks),
   woods: buildWith(buildWoods),
+  river: buildWith(buildRiver),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -635,4 +637,28 @@ describe('nearestDry where two waters touch (the Woods)', () => {
     // on the river's south bank far from the pond and the junction: straight out
     expect(nearestDry(waters, 0, -9.2, 0.35)).toEqual({ x: 0, z: -8.65 });
   });
+});
+
+// The River has three overlap zones: the two right-angle corners where its
+// reaches meet, and the pond over river-east. Same margins as the Woods block.
+describe("nearestDry where the River's waters touch", () => {
+  const waters = WATERED.river.area.waters;
+  const SPOTS = [
+    [13.6, -28.6, 'the bank at the south-west inside corner'],
+    [15, -30, "that corner's water"],
+    [19.4, -14.4, 'the bank at the north-east inside corner'],
+    [17, -12, "that corner's water"],
+    [38.5, -8.6, 'the bank where the pond meets the river'],
+    [40, -9.5, 'where the pond and the river overlap'],
+    [44, -11, "the pond's north rim, inside the river"],
+  ];
+  for (const [x, z, where] of SPOTS) {
+    for (const margin of [0.35, 0.5, 0.6]) {
+      it(`lands dry from ${where}, margin ${margin}`, () => {
+        const p = nearestDry(waters, x, z, margin);
+        expect(waterClearance(waters, p.x, p.z), `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+        expect(Math.hypot(p.x - x, p.z - z)).toBeLessThan(5);
+      });
+    }
+  }
 });
