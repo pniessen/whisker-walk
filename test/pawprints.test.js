@@ -29,13 +29,14 @@ const { build: buildSeaside, SPAWN: SEASIDE_SPAWN } = await import('../src/world
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
+const { build: buildMoor } = await import('../src/world/moor.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {
@@ -195,6 +196,10 @@ describe('paw print surfaces', () => {
   it('the Woods prints only on its worn paths', () => {
     expect(AREA_RULES.woods).toEqual({ ground: null, path: 'sand', strip: null });
     expect(AREA_RULES.river).toEqual({ ground: null, path: 'wetSand', strip: null });
+  });
+
+  it('the Moor prints only on its worn paths', () => {
+    expect(AREA_RULES.moor).toEqual({ ground: null, path: 'sand', strip: null });
   });
 
   it('never prints in water or in a puddle, in any area', () => {

@@ -265,6 +265,13 @@ describe('dressing-room places by edition', () => {
     expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
     expect(m.places.map((p) => p.id)).not.toContain('river');
   });
+  it('Legacy lists today\'s four places and never the Moor', () => {
+    const s = { ...defaultishState(), edition: 'legacy' };
+    s.walks.woods = 5;
+    const m = buildDressingModel(s, CATALOG);
+    expect(m.places.map((p) => p.id)).toEqual(['neighborhood', 'park', 'seaside', 'docks']);
+    expect(m.places.map((p) => p.id)).not.toContain('moor');
+  });
   it('Clan lists the Woods, locked behind two Twolegplace walks', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     s.walks.neighborhood = 1;
@@ -279,7 +286,8 @@ describe('the territory map in the dressing room', () => {
     const s = { ...defaultishState(), edition: 'canon' };
     const m = buildDressingModel(s, CATALOG);
     expect(m.territoryMap.regions.map((r) => r.id)).toEqual(['town', 'woods', 'moor', 'river', 'pines', 'gorge']);
-    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks']);
+    // The Moor's territory has no areaId until Task 7, so it is an ordinary card here for now.
+    expect(m.otherPlaces.map((p) => p.id)).toEqual(['park', 'seaside', 'docks', 'moor']);
     expect(m.otherPlaces.find((p) => p.id === 'park').lockLine).toBe('opens after 2 walks in Twolegplace · 0/2 so far');
     const html = renderDressingRoomHtml({ model: m });
     const where = html.slice(html.indexOf('<section class="dr-where"'), html.indexOf('<section class="dr-more"'));

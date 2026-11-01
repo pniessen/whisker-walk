@@ -213,6 +213,30 @@ describe('layered ambience', () => {
     for (const src of wet.bufferSources) expect(src.stopped).toBe(true);
   });
 
+  // The Moor: a stronger wind (twice the generic gain) and birdsong; never gulls,
+  // lap or horn. The wind is the only gain at 0.06; the generic wind's is 0.03.
+  it('moor ambience is a stronger wind and birdsong, never gulls, lap or horn', () => {
+    const dry = ambienceProbe('moor');
+    expect(dry.bufferSources).toHaveLength(1); // the wind
+    expect(dry.intervals).toBe(1); // birdsong
+    expect(dry.timeouts).toBe(0);
+    const gains = (p) => p.ctx.created.gains.map((g) => g.gain.value);
+    expect(gains(dry)).toContain(0.06);
+    expect(gains(dry)).not.toContain(0.03);
+    const park = ambienceProbe('park');
+    expect(gains(park)).toContain(0.03);
+    expect(gains(park)).not.toContain(0.06);
+    dry.audio.stopAmbient();
+    park.audio.stopAmbient();
+  });
+
+  it('a rainy moor swaps the birdsong for the rain wash', () => {
+    const wet = ambienceProbe('moor', { rain: true });
+    expect(wet.bufferSources).toHaveLength(2); // wind + rain
+    expect(wet.intervals).toBe(0);
+    wet.audio.stopAmbient();
+  });
+
   it('routes every docks layer through the master bus, never to destination', () => {
     const { ctx, bufferSources } = ambienceProbe('docks');
     for (const node of [...ctx.created.oscs, ...ctx.created.gains, ...bufferSources]) {
