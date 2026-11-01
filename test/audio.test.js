@@ -402,3 +402,70 @@ describe('hiss', () => {
     expect(ctx.created.compressors).toHaveLength(1);
   });
 });
+
+describe('waterSplash (swimming)', () => {
+  // A context that records the buffer sources, filters and gains each kind
+  // builds, and when each source stops.
+  function splashCtx() {
+    const ctx = fakeCtx();
+    ctx.sources = [];
+    ctx.filters = [];
+    const mkSrc = ctx.createBufferSource;
+    ctx.createBufferSource = () => {
+      const n = mkSrc();
+      n.stopAt = null;
+      n.stop = (at) => { n.stopped = true; n.stopAt = at; };
+      ctx.sources.push(n);
+      return n;
+    };
+    const mkFilter = ctx.createBiquadFilter;
+    ctx.createBiquadFilter = () => { const n = mkFilter(); ctx.filters.push(n); return n; };
+    return ctx;
+  }
+  const play = (kind, { muted = false } = {}) => {
+    const ctx = splashCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.chime(); // build the bus first, so only the splash's own nodes are counted below
+    const master = ctx.created.gains[0];
+    const before = ctx.sources.length;
+    if (muted) audio.setMuted(true);
+    audio.waterSplash(kind);
+    return { ctx, master, started: ctx.sources.slice(before) };
+  };
+
+  for (const kind of ['wade', 'paddle', 'shake']) {
+    it(`${kind}: one noise burst through a bandpass into the master bus`, () => {
+      const { ctx, master, started } = play(kind);
+      expect(started).toHaveLength(1);
+      const [src] = started;
+      expect(src.connections).not.toContain(ctx.destination);
+      const bp = src.connections[0];
+      expect(bp.type).toBe('bandpass');
+      expect(bp.connections).not.toContain(ctx.destination);
+      const g = bp.connections[0];
+      expect(g.gain).toBeDefined();
+      expect(g.connections).toContain(master);
+      expect(g.connections).not.toContain(ctx.destination);
+    });
+  }
+
+  it('the shake lasts longer than a wading splash', () => {
+    const wade = play('wade').started[0].stopAt;
+    const shake = play('shake').started[0].stopAt;
+    expect(wade).toBeCloseTo(0.12, 5);
+    expect(shake).toBeCloseTo(0.5, 5);
+    expect(shake).toBeGreaterThan(wade);
+  });
+
+  it('plays nothing while muted', () => {
+    for (const kind of ['wade', 'paddle', 'shake']) {
+      expect(play(kind, { muted: true }).started).toHaveLength(0);
+    }
+  });
+
+  it('an unknown kind plays nothing', () => {
+    expect(play('cannonball').started).toHaveLength(0);
+    expect(play(undefined).started).toHaveLength(0);
+    expect(play('toString').started).toHaveLength(0);
+  });
+});

@@ -181,3 +181,104 @@ describe('createRemoteCats', () => {
     expect(scene.objects.size).toBe(1);
   });
 });
+
+// Swimming (Task 6): a co-walker only LOOKS wet, worked out on this side from
+// where it is. Nothing new goes on the wire.
+describe('remote cats in the water', () => {
+  // A pond away from the origin, where a new remote starts.
+  const POND = [{ id: 'p', kind: 'circle', x: 20, z: 0, r: 5, shallow: 1.2 }];
+  const state = (x) => ({ v: 1, id: 'aaa', pos: [x, 0], yaw: 0, pose: 'follow', speed: 0 });
+
+  it('a remote cat looks wet from where it is', () => {
+    const remotes = createRemoteCats(fakeScene());
+    remotes.upsert(PROFILE, 0);
+    remotes.applyState(state(20), 0);
+    let now = 0;
+    for (let i = 0; i < 60; i++) { now += 1 / 60; remotes.update(1 / 60, now, POND); }
+    const entry = remotes.list[0];
+    expect(entry.water.mode).toBe('swim');
+    expect(entry.group.position.y).toBeLessThan(-0.2);
+  });
+
+  it('positions straddling the band line change its look once per crossing', () => {
+    const remotes = createRemoteCats(fakeScene());
+    const entry = remotes.upsert(PROFILE, 0);
+    let now = 0;
+    let nextState = 0;
+    let k = 0;
+    const modes = [];
+    const frame = () => { now += 1 / 60; remotes.update(1 / 60, now, POND); modes.push(entry.water.mode); };
+    // 8 Hz states either side of the band line (x 23.8) for 3 s...
+    while (now < 3) {
+      if (now >= nextState) {
+        remotes.applyState(state(k % 2 === 0 ? 23.75 : 23.85), now);
+        k += 1;
+        nextState += 1 / 8;
+      }
+      frame();
+    }
+    // ...then into the deep, and hold.
+    remotes.applyState(state(22), now);
+    for (let i = 0; i < 120; i++) frame();
+    const first = modes.findIndex((m) => m !== 'dry');
+    expect(first).toBeGreaterThanOrEqual(0);
+    const after = modes.slice(first);
+    let changes = 0;
+    for (let i = 1; i < after.length; i++) if (after[i] !== after[i - 1]) changes += 1;
+    expect(changes).toBe(1);
+    expect(after.at(-1)).toBe('swim');
+  });
+
+  it('with no waters, a remote is drawn exactly as before', () => {
+    const remotes = createRemoteCats(fakeScene());
+    const entry = remotes.upsert(PROFILE, 0);
+    remotes.applyState(state(20), 0);
+    let now = 0;
+    for (let i = 0; i < 60; i++) {
+      now += 1 / 60;
+      remotes.update(1 / 60, now, null);
+      expect(entry.group.position.y).toBe(0);
+      expect(entry.group.rotation.z).toBe(0);
+    }
+    expect(entry.water.mode).toBe('dry');
+    // and the two-argument call main.js used to make still works
+    remotes.update(1 / 60, now + 1 / 60);
+    expect(entry.group.position.y).toBe(0);
+  });
+
+  it('a new co-walker at the origin is not wet before its first position', () => {
+    const remotes = createRemoteCats(fakeScene());
+    const entry = remotes.upsert(PROFILE, 0);
+    const AT_ORIGIN = [{ id: 'p', kind: 'circle', x: 0, z: 0, r: 5, shallow: 1.2 }];
+    let now = 0;
+    for (let i = 0; i < 60; i++) { now += 1 / 60; remotes.update(1 / 60, now, AT_ORIGIN); }
+    expect(entry.group.position.y).toBe(0);
+    expect(entry.water.mode).toBe('dry');
+    expect(entry.water.placed).toBe(false);
+  });
+
+  it("the viewer's reduced motion stills a remote's shake and bob", () => {
+    const remotes = createRemoteCats(fakeScene(), { reducedMotion: true });
+    const entry = remotes.upsert(PROFILE, 0);
+    remotes.applyState(state(20), 0);
+    let now = 0;
+    const ys = [];
+    let shook = false;
+    const frame = () => {
+      now += 1 / 60;
+      remotes.update(1 / 60, now, POND);
+      expect(entry.group.rotation.z).toBe(0);
+      if (entry.water.shake > 0) shook = true;
+    };
+    // swim long enough to shake, and to settle
+    for (let i = 0; i < 180; i++) frame();
+    expect(entry.water.mode).toBe('swim');
+    for (let i = 0; i < 60; i++) { frame(); ys.push(entry.group.position.y); }
+    for (const y of ys) expect(y).toBeCloseTo(ys[0], 6);
+    // climb out and shake
+    remotes.applyState(state(27), now);
+    for (let i = 0; i < 90; i++) frame();
+    expect(shook).toBe(true);
+    expect(entry.water.mode).toBe('dry');
+  });
+});

@@ -813,7 +813,7 @@ export function createWalkLifecycle({
       extras,
       reducedMotion,
     });
-    const remotes = createRemoteCats(scene);
+    const remotes = createRemoteCats(scene, { reducedMotion });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
     // spots on earlier walks, rendered where they were left. Read off the

@@ -4,6 +4,8 @@ import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
+import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
+import { waterPose, applyWaterLook } from './cat/waterlook.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
@@ -56,7 +58,14 @@ function profileUnchanged(entry, profile) {
 // (applyState, driven by net.onState) — never by local input. Despawns
 // itself if a player's state goes quiet for DESPAWN_AFTER seconds (covers
 // both a clean leave, reported via remove(), and a silent drop).
-export function createRemoteCats(scene) {
+//
+// Swimming (Task 6): a remote only LOOKS wet. Nothing new is on the wire;
+// each entry runs its own water state from where it is drawn, against the
+// `waters` update() is given (null: always dry, the old look). Its shake and
+// bob follow THIS viewer's reducedMotion (the ruling), a snapshot taken at
+// the start of the walk.
+export function createRemoteCats(scene, { reducedMotion = false } = {}) {
+  const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
 
   // Remote profiles arrive over the network from other players' clients,
@@ -107,6 +116,9 @@ export function createRemoteCats(scene) {
       speed: 0,
       stateAt: now,
       lastSeenAt: now,
+      // Not placed until its first state: until then the group sits at the
+      // origin, which may well be in water, so it must not sink or shake there.
+      water: { ...createWaterState(), placed: false },
     };
     remotes.set(profile.playerId, entry);
     return entry;
@@ -124,6 +136,7 @@ export function createRemoteCats(scene) {
     entry.speed = state.speed;
     entry.stateAt = now;
     entry.lastSeenAt = now;
+    entry.water.placed = true;
   }
 
   // Every way a remote leaves the scene runs through remove(), and callers
@@ -140,7 +153,7 @@ export function createRemoteCats(scene) {
     remotes.delete(playerId);
   }
 
-  function update(dt, now) {
+  function update(dt, now, waters = null) {
     for (const entry of Array.from(remotes.values())) {
       if (now - entry.lastSeenAt > DESPAWN_AFTER) {
         remove(entry.playerId);
@@ -151,7 +164,16 @@ export function createRemoteCats(scene) {
       entry.group.position.lerpVectors(entry.fromPos, entry.toPos, frac);
       const delta = wrapAngleDelta(entry.toYaw - entry.fromYaw);
       entry.group.rotation.y = entry.fromYaw + delta * frac;
-      animateCat(entry.group, entry.pose, now, entry.speed);
+      if (!entry.water.placed) {
+        animateCat(entry.group, entry.pose, now, entry.speed, rm);
+        continue;
+      }
+      const { x, z } = entry.group.position;
+      stepWaterState(entry.water, waters, x, z, dt);
+      const amount = Math.sin(Math.PI * shakeProgress(entry.water));
+      const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
+      animateCat(entry.group, drawn, now, entry.speed, rm, amount);
+      applyWaterLook(entry.group, entry.water, now, dt, rm, 0, amount);
     }
   }
 
