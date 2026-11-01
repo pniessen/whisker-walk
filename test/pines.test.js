@@ -49,6 +49,9 @@ const { clearSpot } = await import('../src/world/spots.js');
 const { raceCourse } = await import('../src/race.js');
 const { seedFromCode } = await import('../src/rng.js');
 const { propsFor } = await import('../src/propsets.js');
+const { cameraOffset } = await import('../src/catcam.js');
+const { ZOOM_STEPS, MIN_CAMERA_Y } = await import('../src/camzoom.js');
+const { PINE_CONES, PINE_TRUNK } = await import('../src/world/builder.js');
 
 const {
   build, SPAWN, PINES_WATERS, PINES_PATHS, TRUCE_PATH, PINES_ISLAND, BRIDGE_FOOT, PINES_HORIZON,
@@ -524,7 +527,11 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     expect({
       near: near.length, stand: stand.length, ferns: ferns.length, toadstools: toadstools.length,
       shore: shore.length, reeds: reeds.length - ring.length, pads: pinesLilyPads().length,
-    }).toEqual({ near: 40, stand: 86, ferns: 133, toadstools: 45, shore: 58, reeds: 141, pads: 20 });
+    }).toEqual({ near: 27, stand: 83, ferns: 136, toadstools: 47, shore: 58, reeds: 141, pads: 20 });
+    // The BUG 1 fix (the canopy rule measured from the paths stretched by the
+    // far camera's 7 m) moved these from 40 near, 86 stand, 133 ferns and 45
+    // toadstools: fewer pines by the paths' bends and ends, and the floor
+    // fills in where they stood. The reeds and pads don't read the pines.
     // the bridge treated as a 2 m path: a pine's canopy never reaches over it
     for (const t of [...near, ...stand]) {
       expect(segDist(t.x, t.z, deckSeg), `pine (${t.x}, ${t.z})`).toBeGreaterThanOrEqual(1 + 1.3 * t.scale + 0.5);
@@ -1230,12 +1237,21 @@ describe('the Pines: the forest', () => {
   const pathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, s)));
   // builder.pine's lowest cone reaches 1.3 m per unit of scale; a path is 3 m wide
   const canopy = (t) => 1.5 + 1.3 * t.scale + 0.5;
+  // the canopy rule's paths: each stretched by the far camera's distance at
+  // both ends (pines.js's camPathDist)
+  const stretch = ([x1, z1, x2, z2]) => {
+    const len = Math.hypot(x2 - x1, z2 - z1), k = ZOOM_STEPS[2].dist / len;
+    return [x1 - (x2 - x1) * k, z1 - (z2 - z1) * k, x2 + (x2 - x1) * k, z2 + (z2 - z1) * k];
+  };
+  const camPathDist = (x, z) => Math.min(...PINES_PATHS.map((s) => segDist(x, z, stretch(s))));
   const nearDist = (t) => canopy(t) + 4;
   const isNear = (t) => pathDist(t.x, t.z) < nearDist(t) || Math.hypot(t.x - SPAWN.x, t.z - SPAWN.z) < 12;
 
   it('pinesTrees is deterministic, dense, and keeps its clearances', () => {
     expect(pinesTrees()).toEqual({ near, stand });
-    expect(near.length).toBeGreaterThanOrEqual(30);
+    // 25, not 30: the BUG 1 fix keeps pines off the paths' bends and ends
+    // (the far camera's swing), which took the near pines from 40 to 27
+    expect(near.length).toBeGreaterThanOrEqual(25);
     expect(near.length).toBeLessThanOrEqual(40);
     expect(stand.length).toBeGreaterThanOrEqual(70);
     expect(stand.length).toBeLessThanOrEqual(150);
@@ -1243,7 +1259,7 @@ describe('the Pines: the forest', () => {
       const at = `pine (${t.x}, ${t.z})`;
       expect(t.x >= BOUNDS.minX && t.x <= BOUNDS.maxX && t.z >= BOUNDS.minZ && t.z <= BOUNDS.maxZ, at).toBe(true);
       expect(waterDist(t.x, t.z), at).toBeGreaterThanOrEqual(2.5);
-      expect(pathDist(t.x, t.z), at).toBeGreaterThanOrEqual(canopy(t));
+      expect(camPathDist(t.x, t.z), at).toBeGreaterThanOrEqual(canopy(t));
       for (const d of decks) expect(rectDist(d, t.x, t.z), at).toBeGreaterThanOrEqual(4);
       for (const [px, pz] of PINES_KEEP_CLEAR) expect(Math.hypot(t.x - px, t.z - pz), `${at} on (${px}, ${pz})`).toBeGreaterThanOrEqual(4);
     }
@@ -1251,6 +1267,79 @@ describe('the Pines: the forest', () => {
     // A pine a kid walks past never ends up still in the stand, unless the
     // forty swaying ones are full.
     if (near.length < 40) for (const t of stand) expect(isNear(t), `stand pine (${t.x}, ${t.z})`).toBe(false);
+  });
+
+  // BUG 1 from the live check: at a path's bend or end the chase camera sat
+  // inside a pine's canopy. The far camera is 7 m behind the cat, so at a bend
+  // or a segment's end it leaves the path's corridor. This walks the cat down
+  // every path (and the bridge deck) and puts the camera exactly where
+  // catcam.cameraOffset puts it, then asks whether that spot is inside any
+  // pine: a trunk, or one of its three cones, each as wide as builder.js draws
+  // it at that height, scaled by the pine's scale.
+  //
+  // Not asserted: the farthest step (11 m) with the view dragged right down to
+  // pitch -0.25. There the camera hangs low and far enough out that it can
+  // still graze a cone; the in-game pull-in (camzoom.js) and the short time a
+  // kid holds that view make it rare, and keeping clear of it would empty the
+  // forest round every path.
+  it('the chase camera never ends up inside a pine, at a bend, an end or on the bridge', () => {
+    // the solid of a pine at local height y (unscaled): the widest of the
+    // cones whose span holds y, or the trunk below them
+    const solidR = (y) => {
+      let r = y >= 0 && y <= PINE_TRUNK.h ? PINE_TRUNK.rBottom : 0;
+      for (const [R, h, cy] of PINE_CONES) {
+        const top = cy + h / 2;
+        if (y >= cy - h / 2 && y <= top) r = Math.max(r, (R * (top - y)) / h);
+      }
+      return r;
+    };
+    const insidePine = (cx, cy, cz) => {
+      for (const t of all) {
+        const r = solidR(cy / t.scale) * t.scale;
+        if (r > 0 && Math.hypot(cx - t.x, cz - t.z) < r) return t;
+      }
+      return null;
+    };
+    const views = [];
+    for (const step of [0, 1, 2]) for (const pitch of [-0.25, 0.18, 0.85]) views.push({ step, pitch });
+    views.push({ step: 3, pitch: 0.18 });
+    const off = new THREE.Vector3();
+    const deck = [BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2];
+    const walks = [
+      ...PINES_PATHS.map((s) => ({ seg: s, sides: [0, 1.2, -1.2], what: `path [${s}]` })),
+      { seg: deck, sides: [0], what: 'the bridge deck' },
+    ];
+    const hits = [];
+    for (const { seg: [x1, z1, x2, z2], sides, what } of walks) {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const ux = (x2 - x1) / len, uz = (z2 - z1) / len;
+      // the cat faces along the segment, either way; yaw puts the camera at
+      // +sin(yaw), +cos(yaw) from the cat, so a cat facing (fx, fz) has yaw
+      // atan2(-fx, -fz)
+      const yaws = [];
+      for (const [fx, fz] of [[ux, uz], [-ux, -uz]]) {
+        const y0 = Math.atan2(-fx, -fz);
+        yaws.push(y0, y0 + 0.17, y0 - 0.17);
+      }
+      for (let d = 0; d <= len + 1e-9; d += 0.5) {
+        for (const o of sides) {
+          const catX = x1 + ux * d - uz * o, catZ = z1 + uz * d + ux * o;
+          for (const yaw of yaws) {
+            for (const { step, pitch } of views) {
+              const { dist, height } = ZOOM_STEPS[step];
+              cameraOffset(yaw, pitch, dist, height, off);
+              const cx = catX + off.x, cz = catZ + off.z;
+              const cy = Math.max(off.y, MIN_CAMERA_Y);
+              const t = insidePine(cx, cy, cz);
+              if (t && hits.length < 20) {
+                hits.push(`${what} cat (${catX.toFixed(1)}, ${catZ.toFixed(1)}) step ${step} pitch ${pitch} yaw ${yaw.toFixed(2)}: camera (${cx.toFixed(1)}, ${cy.toFixed(1)}, ${cz.toFixed(1)}) in pine (${t.x}, ${t.z}) x${t.scale}`);
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(hits).toEqual([]);
   });
 
   it('keeps every pine off the fallen pine and clear round both climbs', () => {

@@ -2626,9 +2626,10 @@ export function willow(x, z, scale = 1, { wind, curtainFloor = 1.2 } = {}) {
 
 // A pine's shape, shared by `pine` and `pineStand` so the two can never drift
 // apart: trunk radii, length and centre height, then each cone's
-// [radius, height, centre height].
-const PINE_TRUNK = { rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 };
-const PINE_CONES = [[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]];
+// [radius, height, centre height]. Exported (frozen) so test/pines.test.js can
+// rebuild a pine's solid shape and keep the chase camera out of it.
+export const PINE_TRUNK = Object.freeze({ rTop: 0.18, rBottom: 0.26, h: 1.6, y: 0.8 });
+export const PINE_CONES = Object.freeze([[1.3, 1.8, 2.0], [1.0, 1.6, 2.9], [0.65, 1.3, 3.7]].map((c) => Object.freeze(c)));
 const PINE_TRUNK_COLOR = 0x7a5230;
 const PINE_FOLIAGE_COLOR = 0x2f5a3a;
 const PINE_TRUNK_SIDES = 6;

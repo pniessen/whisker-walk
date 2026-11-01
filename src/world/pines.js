@@ -10,6 +10,7 @@ import {
 } from './island.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { ZOOM_STEPS } from '../camzoom.js';
 
 // =============================================================================
 // The Pines and Swamp.
@@ -353,6 +354,20 @@ const UNDECKED = PINES_WATERS.map((w) => ({ ...w, decks: [] }));
 const waterDist = (x, z) => Math.min(...UNDECKED.map((w) => b.waterGap(w, x, z)));
 const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
 const pathDist = (x, z) => Math.min(...PINES_PATHS.map((seg) => segDist(x, z, ...seg)));
+// The paths as the chase camera sees them. The far zoom step puts the camera
+// about 7 m behind the cat, so where a path bends or ends the camera leaves
+// the path's corridor: a cat at a segment's end looking back down it has the
+// camera out past that end, and one turning at a bend has it out over the
+// corner. Each segment is stretched that far at both ends, and the canopy
+// rule measures from these, so no pine stands where the camera can swing.
+const CAM_BACK = ZOOM_STEPS[2].dist;
+function stretched([x1, z1, x2, z2]) {
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const ux = ((x2 - x1) / len) * CAM_BACK, uz = ((z2 - z1) / len) * CAM_BACK;
+  return [x1 - ux, z1 - uz, x2 + ux, z2 + uz];
+}
+const CAM_PATHS = PINES_PATHS.map(stretched);
+const camPathDist = (x, z) => Math.min(...CAM_PATHS.map((seg) => segDist(x, z, ...seg)));
 const clearOf = (x, z, d) => PINES_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
 
 // The fallen pine's two ends: it lies along its local z, turned to `yaw`. Its
@@ -373,9 +388,10 @@ const fallenDist = (x, z) => segDist(x, z, ...FALLEN_SEG);
 // beside an open bog.
 //
 // A pine keeps the canopy rule every territory keeps (a path's half-width,
-// its lowest cone's reach of 1.3 m per unit of scale, then half a metre), so
-// the chase camera following the cat down a path never ends up inside a
-// canopy. It keeps 4 m off the crossings so they stay in sight, 4 m off every
+// its lowest cone's reach of 1.3 m per unit of scale, then half a metre),
+// measured from each path stretched 7 m past both its ends (camPathDist), so
+// the chase camera following the cat down a path, round a bend or up to a
+// path's end never ends up inside a canopy. It keeps 4 m off the crossings so they stay in sight, 4 m off every
 // find, 3 m off the fallen pine and 6 m off both climbs, so a kid can walk
 // round each and see its golden mouse from the chase camera. Pines stand
 // 3.2 m apart at least, which leaves a cat room between any two trunks.
@@ -400,7 +416,8 @@ function pineFits(x, z, scale, kept) {
   if (waterDist(x, z) < 2.5) return false;
   if (DECKS.some((d) => rectDist(d, x, z) < 4)) return false;
   if (onIsland(x, z)) return false;
-  if (pathDist(x, z) < canopyClear(scale)) return false;
+  // measured from the stretched paths, not the bare ones (camPathDist)
+  if (camPathDist(x, z) < canopyClear(scale)) return false;
   // the bridge as a 2 m path: the canopy rule with its half-width of 1 m
   if (bridgeDist(x, z) < 1 + PINE_REACH * scale + 0.5) return false;
   if (!clearOf(x, z, 4)) return false;
