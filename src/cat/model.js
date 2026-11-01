@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SHELL_INFLATE, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -1117,17 +1117,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
 
   const firstBodyItem = g.children.length;
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
-  // The three shells (and the sweater's knit rings) are scaled by the torso's
-  // fx/fy/fz factors so a narrow cat's sweater is narrow too, not a barrel with
-  // a kitten inside it. The cape hangs behind the rump and the hood sits on the
-  // head, so neither is resized.
-  // The coat shells are the torso's own shape, slightly inflated, hung on the
-  // torso with no scale of their own so they follow every pose. The hood and
-  // bunch sit relative to the head, so they join after the interim rise below.
+  // The three shells are the torso's own geometry, inflated (more on the back
+  // than under the belly), hung on the torso with no scale of their own: they
+  // take its BODY_SCALE, so a narrow cat's coat is narrow too, and follow every
+  // pose. The cape hangs behind the rump. The hood and bunch sit relative to the
+  // head, so they join after the interim rise below.
   const afterRise = [];
   const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
-    const geo = torsoGeometry(BODY_R * SHELL_INFLATE, 24, 28);
+    // Same tessellation as the torso, so the shell is an exact offset of the
+    // fur (a coarser shell sags between its facets and thins the clearance).
+    const geo = torsoGeometry(BODY_R, ...(opts.simple ? TORSO.SEG.simple : [32, 32]));
+    const unit0 = geo.userData.unit, pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const k = shellInflate(unit0[i * 3 + 1]);
+      pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k);
+    }
+    geo.computeVertexNormals();
     const shell = new THREE.Mesh(geo, paint ? litMaterial(0xffffff, { vertexColors: true }) : mat(color));
     if (paint) {
       const unit = geo.userData.unit, n = geo.attributes.position.count;
@@ -1190,9 +1196,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     coatShell(RAINCOAT_COLOR);
     hoodOrBunch(RAINCOAT_COLOR);
     for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
+      // on the shell, in body-local space, so it rides the coat; counter-scaled
+      // so the torso's own scale does not squash it
+      const dir = [0, 0.35 - i * 0.3, -1];
+      const L = Math.hypot(...dir), uy = dir[1] / L;
       const button = ball(0.02, 0x8a6a20, 1, 1, 0.6, 6, 5);
-      button.position.set(0, 0.42 - i * 0.09, -0.36 - i * 0.03);
-      g.add(button);
+      button.position.copy(torsoSurface(dir).multiplyScalar(shellInflate(uy)));
+      button.position.addScaledVector(new THREE.Vector3(...dir).divideScalar(L), 0.008);
+      button.scale.set(1 / BODY_SCALE[0], 1 / BODY_SCALE[1], 0.6 / BODY_SCALE[2]);
+      body.add(button);
     }
   } else if (accessories.body === 'sweater') {
     coatShell(null, true); // knit stripes are painted: one mesh

@@ -104,10 +104,16 @@ export function poseMeasure(cat, state, t = 1.3) {
 // Cast from outside the surface, back towards the centre; a ray from inside a
 // closed mesh misses its front faces.
 export function surfaceHit(objects, centre, towards) {
-  const dir = towards.clone().sub(centre).normalize();
-  const ray = new THREE.Raycaster(centre.clone().addScaledVector(dir, 3), dir.clone().negate(), 0, 10);
-  const hits = ray.intersectObjects(Array.isArray(objects) ? objects : [objects], true);
-  return hits.length ? hits[0].point.clone() : null;
+  const list = Array.isArray(objects) ? objects : [objects];
+  const cast = (to) => {
+    const dir = to.clone().sub(centre).normalize();
+    const ray = new THREE.Raycaster(centre.clone().addScaledVector(dir, 3), dir.clone().negate(), 0, 10);
+    const hits = ray.intersectObjects(list, true);
+    return hits.length ? hits[0].point.clone() : null;
+  };
+  // A ray straight along a mesh seam can slip between its two triangles: nudge
+  // the target 0.01 mm sideways and retry.
+  return cast(towards) ?? cast(towards.clone().add(new THREE.Vector3(1e-5, 0, 1e-5)));
 }
 
 // -----------------------------------------------------------------------------

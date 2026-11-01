@@ -509,18 +509,30 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
 
 describe('cat model: shells take the new torso shape (Task 7)', () => {
   const shellOf = (cat, hex) => cat.userData.parts.body.children.find((m) => m !== cat.userData.parts.underside && (m.material.color.getHex() === hex || m.material.vertexColors));
-  it.each([['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null]])('%s hugs the new torso: 5 mm-4 cm outside the fur', (id, hex) => {
-    const cat = buildCat('tabby', { body: id }); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+  const SHELLS = [['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null]];
+  it.each(PRESETS.flatMap((b) => SHELLS.map((s) => [b, ...s])))('%s %s hugs the new torso: 5 mm-4 cm outside the fur (belly side: not inside)', (breed, id, hex) => {
+    const cat = buildCat(breed, { body: id }); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     const { body } = cat.userData.parts, shell = shellOf(cat, hex), c = body.getWorldPosition(new THREE.Vector3());
     const torsoOnly = body.clone(false); torsoOnly.matrixWorld.copy(body.matrixWorld);
-    const p = shell.geometry.attributes.position;
-    for (let i = 0; i < p.count; i += Math.ceil(p.count / 200)) {
+    const p = shell.geometry.attributes.position, unit = shell.geometry.userData.unit;
+    for (let i = 0; i < p.count; i++) {
       const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(shell.matrixWorld);
-      // A ray straight up the torso's top seam runs exactly along a mesh edge and
-      // can slip between its two triangles; nudge it 0.01 mm sideways and retry.
-      const hit = surfaceHit([torsoOnly], c, v) ?? surfaceHit([torsoOnly], c, v.clone().add(new THREE.Vector3(1e-5, 0, 1e-5)));
-      const gap = v.distanceTo(c) - hit.distanceTo(c);
-      expect(gap).toBeGreaterThanOrEqual(0.005); expect(gap).toBeLessThanOrEqual(0.04);
+      const gap = v.distanceTo(c) - surfaceHit([torsoOnly], c, v).distanceTo(c);
+      if (unit[i * 3 + 1] > -0.3) { expect(gap).toBeGreaterThanOrEqual(0.005); expect(gap).toBeLessThanOrEqual(0.04); }
+      else expect(gap).toBeGreaterThanOrEqual(0);
+    }
+  });
+  it('raincoat buttons ride the coat: within 1.5 cm outside the shell in every state', () => {
+    for (const breed of ['tabby', 'digit']) for (const st of STATES) {
+      const cat = buildCat(breed, { body: 'raincoat' }); animateCat(cat, st, 1.3, 0, false); cat.updateMatrixWorld(true);
+      const { body } = cat.userData.parts, shell = shellOf(cat, 0xf2c94e), c = body.getWorldPosition(new THREE.Vector3());
+      const buttons = body.children.filter((m) => m !== shell && m !== cat.userData.parts.underside);
+      expect(buttons).toHaveLength(2);
+      for (const b of buttons) {
+        const bp = b.getWorldPosition(new THREE.Vector3());
+        const off = bp.distanceTo(c) - surfaceHit([shell], c, bp).distanceTo(c);
+        expect(off, `${breed} ${st}`).toBeGreaterThanOrEqual(-0.002); expect(off, `${breed} ${st}`).toBeLessThanOrEqual(0.015);
+      }
     }
   });
   it('a sweater is one mesh now, not four', () => {

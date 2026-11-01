@@ -47,8 +47,15 @@ export const PAW_HALF = 0.062 * 0.62;
 // paw's half-height.
 export const PAW_SOLE_GAP = 0.3 - 0.2585 - PAW_HALF;
 
-// How much a coat is inflated over the fur (signed off by screenshot, Task 10).
-export const SHELL_INFLATE = 1.025;
+// How much a coat is inflated over the fur (signed off by screenshot, Task 10):
+// SHELL_INFLATE on the back and flanks, SHELL_INFLATE_UNDER under the belly,
+// where the crouching poses sit on the ground. Blended on the undeformed unit y.
+export const SHELL_INFLATE = 1.06;
+export const SHELL_INFLATE_UNDER = 1.01;
+export function shellInflate(uy) {
+  const t = Math.min(1, Math.max(0, (uy + 0.55) / 0.5));
+  return SHELL_INFLATE_UNDER + (SHELL_INFLATE - SHELL_INFLATE_UNDER) * t * t * (3 - 2 * t);
+}
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
 
