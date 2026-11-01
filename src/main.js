@@ -848,7 +848,7 @@ function init() {
       // (hopY), not swimming. The trail itself ignores a cat that isn't moving.
       pawState.x = session.cat.position.x;
       pawState.z = session.cat.position.z;
-      pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.swimming;
+      pawState.grounded = !session.perched && player.perchY === 0 && !(player.hopY > 0) && !player.inWater;
       session.paws.update(dt, pawState);
       // Clouds take the same absolute t and follow the camera, so after player.update too.
       session.clouds.update(t);

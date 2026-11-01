@@ -279,6 +279,18 @@ describe('doPounceOrClimb — the climb budget (v18 CF-10a)', () => {
     expect(h.player.perchY).toBe(1.2);
   });
 
+  it('no pounce while swimming, but a wading cat pounces', () => {
+    const h = climbHarness({ skills: [], feats: {} });
+    h.player.swimming = true;
+    h.player.wading = false;
+    h.doPounceOrClimb();
+    expect(h.pounced()).toBe(false);
+    h.player.swimming = false;
+    h.player.wading = true;
+    h.doPounceOrClimb();
+    expect(h.pounced()).toBe(true);
+  });
+
   it('survives a garbage save by falling back to the baseline budget', () => {
     for (const state of [null, undefined, 'nope', { skills: 'x', feats: 7 }]) {
       const h = climbHarness(state);
@@ -412,7 +424,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
     cat.add(head);
     cat.userData = { breed: 'tabby', parts: { head } };
     new THREE.Scene().add(cat);
-    const player = realPlayer ?? { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false };
+    const player = realPlayer ?? { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false, wading: false, inWater: false };
     const purrs = [];
     const session = {
       areaId,
@@ -610,11 +622,28 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       h.walkTo(5, 0.5);
       h.press();
       h.player.swimming = true;
+      h.player.inWater = true;
       h.walkTo(20, 20);
       expect(h.session.prompt).toBe(null);
       h.press();
       expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
       h.player.swimming = false;
+      h.player.inWater = false;
+      h.walkTo(20, 20);
+      expect(h.prompts.at(-1)).toBe('E — put the stick down');
+    });
+
+    it('no drop prompt in the shallows: the cat keeps holding it', () => {
+      const h = carryHarness();
+      h.walkTo(5, 0.5);
+      h.press();
+      h.player.inWater = true;
+      h.player.wading = true;
+      h.player.swimming = false;
+      h.walkTo(20, 20);
+      expect(h.session.prompt).toBe(null);
+      h.player.inWater = false;
+      h.player.wading = false;
       h.walkTo(20, 20);
       expect(h.prompts.at(-1)).toBe('E — put the stick down');
     });
@@ -969,16 +998,29 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.carry.mouth.grip).toBe(0);
         h.session.perched = null;
         h.player.swimming = true;
+      h.player.inWater = true;
         rainFor(h, RAIN_GRIP * 3);
         expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
         expect(h.session.carry.mouth.grip).toBe(0);
         expect(h.toasts).toEqual([]);
         h.player.swimming = false;
+      h.player.inWater = false;
         rainFor(h, RAIN_GRIP - 0.5);
         expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
         rainFor(h, 0.5);
         expect(h.session.carry.mouth.held).toBe(null);
         expect(h.toasts).toHaveLength(1);
+      });
+
+      it('no rain slip in the shallows either', () => {
+        const h = holding();
+        h.player.inWater = true;
+        h.player.wading = true;
+        h.player.swimming = false;
+        rainFor(h, RAIN_GRIP * 3);
+        expect(h.session.carry.mouth.held?.id).toBe('park-stick-1');
+        expect(h.session.carry.mouth.grip).toBe(0);
+        expect(h.toasts).toEqual([]);
       });
 
       it('in a co-walk the slip sends one carry-drop, like a player drop', () => {
@@ -1401,6 +1443,19 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       }
     });
 
+    it('a wading cat can still scratch a mark', () => {
+      const h = markHarness();
+      try {
+        h.player.wading = true;
+        h.player.inWater = true;
+        h.player.swimming = false;
+        h.walkTo(POST.x + 0.6, POST.z);
+        expect(h.session.prompt?.kind).toBe('mark');
+      } finally {
+        h.off();
+      }
+    });
+
     it('never from a perch or while swimming, and never without a marks renderer', () => {
       const h = markHarness();
       try {
@@ -1409,9 +1464,11 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt).toBe(null);
         h.session.perched = null;
         h.player.swimming = true;
+      h.player.inWater = true;
         h.walkTo(POST.x + 0.6, POST.z);
         expect(h.session.prompt).toBe(null);
         h.player.swimming = false;
+      h.player.inWater = false;
         h.session.playerMarks = undefined;
         h.walkTo(POST.x + 0.6, POST.z);
         expect(h.session.prompt).toBe(null);
@@ -1508,9 +1565,11 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
         expect(h.session.prompt).toBe(null);
         h.session.perched = null;
         h.player.swimming = true;
+      h.player.inWater = true;
         h.walkTo(decal.x + 0.5, decal.z);
         expect(h.session.prompt).toBe(null);
         h.player.swimming = false;
+      h.player.inWater = false;
         h.session.rival = { borderMarks: null, patrolPos: () => null }; // the den's NO_RIVAL
         h.walkTo(decal.x + 0.5, decal.z);
         expect(h.session.prompt).toBe(null);
@@ -1613,9 +1672,20 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt).toBe(null);
       h.session.perched = null;
       h.player.swimming = true;
+      h.player.inWater = true;
       h.walkTo(r.x + 0.5, r.z);
       expect(h.session.prompt).toBe(null);
       h.player.swimming = false;
+      h.player.inWater = false;
+      // and not while wading either: rest is for dry ground
+      h.player.inWater = true;
+      h.player.wading = true;
+      h.walkTo(r.x + 0.5, r.z);
+      expect(h.session.prompt).toBe(null);
+      h.player.inWater = false;
+      h.player.wading = false;
+      h.walkTo(r.x + 0.5, r.z);
+      expect(h.session.prompt).toMatchObject({ kind: 'rest' });
       // and a session without rests (a stand-in) never offers it
       h.session.rests = undefined;
       expect(() => h.walkTo(r.x + 0.5, r.z)).not.toThrow();
