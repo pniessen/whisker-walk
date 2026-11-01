@@ -506,3 +506,30 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     }
   });
 });
+
+describe('cat model: shells take the new torso shape (Task 7)', () => {
+  const shellOf = (cat, hex) => cat.userData.parts.body.children.find((m) => m !== cat.userData.parts.underside && (m.material.color.getHex() === hex || m.material.vertexColors));
+  it.each([['hoodie', 0x6a4c93], ['raincoat', 0xf2c94e], ['sweater', null]])('%s hugs the new torso: 5 mm-4 cm outside the fur', (id, hex) => {
+    const cat = buildCat('tabby', { body: id }); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+    const { body } = cat.userData.parts, shell = shellOf(cat, hex), c = body.getWorldPosition(new THREE.Vector3());
+    const torsoOnly = body.clone(false); torsoOnly.matrixWorld.copy(body.matrixWorld);
+    const p = shell.geometry.attributes.position;
+    for (let i = 0; i < p.count; i += Math.ceil(p.count / 200)) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(shell.matrixWorld);
+      // A ray straight up the torso's top seam runs exactly along a mesh edge and
+      // can slip between its two triangles; nudge it 0.01 mm sideways and retry.
+      const hit = surfaceHit([torsoOnly], c, v) ?? surfaceHit([torsoOnly], c, v.clone().add(new THREE.Vector3(1e-5, 0, 1e-5)));
+      const gap = v.distanceTo(c) - hit.distanceTo(c);
+      expect(gap).toBeGreaterThanOrEqual(0.005); expect(gap).toBeLessThanOrEqual(0.04);
+    }
+  });
+  it('a sweater is one mesh now, not four', () => {
+    expect(meshCount(buildCat('tabby', { body: 'sweater' })) - meshCount(buildCat('tabby'))).toBe(1);
+  });
+  it.each(['hoodie', 'raincoat'])('%s hood sits on the head where it did', (id) => {
+    const cat = buildCat('tabby', { body: id });
+    const hood = cat.children.find((m) => m.isMesh && m.geometry.type === 'SphereGeometry' && m.geometry.parameters.radius === 0.17);
+    const h = cat.userData.parts.head.position;
+    expect(hood.position.toArray().map((v, i) => (v - h.getComponent(i)) / 1.06)).toEqual([0, 0.08, 0.16].map((v) => expect.closeTo(v, 6)));
+  });
+});

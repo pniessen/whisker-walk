@@ -47,6 +47,9 @@ export const PAW_HALF = 0.062 * 0.62;
 // paw's half-height.
 export const PAW_SOLE_GAP = 0.3 - 0.2585 - PAW_HALF;
 
+// How much a coat is inflated over the fur (signed off by screenshot, Task 10).
+export const SHELL_INFLATE = 1.025;
+
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
 
 // The rig the poses in animator.js were written for: hip 0.3, hip-to-sole 0.2969.

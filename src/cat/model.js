@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SHELL_INFLATE, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -82,6 +82,7 @@ const WIZARD_COLOR = 0x4a3b8c;
 const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
+const SWEATER_STRIPE_Z = [-0.324, 0.093, 0.509]; // the old rings' centres, legacy unit z
 const JETPACK_SILVER = 0xb8bcc4;
 const JETPACK_FLAME = 0xf2822e;
 const BALLOON_COLOR = 0xf25c8a;
@@ -1120,22 +1121,46 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // fx/fy/fz factors so a narrow cat's sweater is narrow too, not a barrel with
   // a kitten inside it. The cape hangs behind the rump and the hood sits on the
   // head, so neither is resized.
-  if (accessories.body === 'hoodie') {
-    const shell = ball(0.33, HOODIE_COLOR, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
+  // The coat shells are the torso's own shape, slightly inflated, hung on the
+  // torso with no scale of their own so they follow every pose. The hood and
+  // bunch sit relative to the head, so they join after the interim rise below.
+  const afterRise = [];
+  const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
+  const coatShell = (color, paint) => {
+    const geo = torsoGeometry(BODY_R * SHELL_INFLATE, 24, 28);
+    const shell = new THREE.Mesh(geo, paint ? litMaterial(0xffffff, { vertexColors: true }) : mat(color));
+    if (paint) {
+      const unit = geo.userData.unit, n = geo.attributes.position.count;
+      const base = new THREE.Color(SWEATER_BASE), stripe = new THREE.Color(SWEATER_STRIPE);
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        const z = unit[i * 3 + 2];
+        const on = SWEATER_STRIPE_Z.some((zi) => Math.abs(z - zi) < 0.088);
+        const c = on ? stripe : base;
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    body.add(shell);
+    return shell;
+  };
+  const hoodOrBunch = (color) => {
     // hood-up/hood-down rule: a hat needs the head clear, so the hood only
     // goes up when no head item is equipped — otherwise it bunches at the neck.
     if (!accessories.head) {
-      const hood = ball(0.17, HOODIE_COLOR, 1, 1, 0.9, 8, 6);
-      hood.position.set(0, 0.64, -0.28);
-      g.add(hood);
+      const hood = ball(0.17, color, 1, 1, 0.9, 8, 6);
+      hood.position.set(...headRel(0, 0.08, 0.16));
+      afterRise.push(hood);
     } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(HOODIE_COLOR));
+      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
       bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(0, 0.5, -0.36);
-      g.add(bunch);
+      bunch.position.set(...headRel(0, -0.06, 0.08));
+      afterRise.push(bunch);
     }
+  };
+  if (accessories.body === 'hoodie') {
+    coatShell(HOODIE_COLOR);
+    hoodOrBunch(HOODIE_COLOR);
   } else if (accessories.body === 'cape') {
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(CAPE_COLOR));
     cape.position.set(0, 0.28, 0.45);
@@ -1162,35 +1187,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     clasp.position.set(0, 0.48, 0.28);
     g.add(clasp);
   } else if (accessories.body === 'raincoat') {
-    const shell = ball(0.33, RAINCOAT_COLOR, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
-    // same hood-up/hood-down rule as the hoodie: hats need the head clear
-    if (!accessories.head) {
-      const hood = ball(0.17, RAINCOAT_COLOR, 1, 1, 0.9, 8, 6);
-      hood.position.set(0, 0.64, -0.28);
-      g.add(hood);
-    } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(RAINCOAT_COLOR));
-      bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(0, 0.5, -0.36);
-      g.add(bunch);
-    }
+    coatShell(RAINCOAT_COLOR);
+    hoodOrBunch(RAINCOAT_COLOR);
     for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
       const button = ball(0.02, 0x8a6a20, 1, 1, 0.6, 6, 5);
       button.position.set(0, 0.42 - i * 0.09, -0.36 - i * 0.03);
       g.add(button);
     }
   } else if (accessories.body === 'sweater') {
-    const shell = ball(0.33, SWEATER_BASE, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
-    for (let i = 0; i < 3; i++) { // knit stripes ring the torso
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.038, 6, 14), mat(SWEATER_STRIPE));
-      stripe.scale.set(fx, 0.88 * fy, 1);
-      stripe.position.set(0, 0.35, -0.14 + i * 0.18);
-      g.add(stripe);
-    }
+    coatShell(null, true); // knit stripes are painted: one mesh
   }
 
   const firstBackItem = g.children.length;
@@ -1257,6 +1262,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const floats = accessories.back === 'balloon' || accessories.back === 'balloonbunch';
   const risen = g.children.slice(firstBodyItem, floats ? firstBackItem : undefined);
   for (const item of risen) item.position.y += ITEM_RISE;
+  for (const item of afterRise) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   if (accessories.feet === 'booties') {
