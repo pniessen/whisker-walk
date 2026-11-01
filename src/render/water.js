@@ -252,6 +252,23 @@ const ROUGH_LOW = 0.55;
 const ENV_INTENSITY = 0.85;
 const ENV_INTENSITY_LOW = 1.0;
 
+// GLARE — how strong the water's specular is, as a scale on its whole
+// Fresnel curve. At some sun angles the sun's highlight (and the probe's hot
+// facets) broke up through the ripple into white patches across the near half
+// of a lake or pond (the swim screenshots). Roughness was no good for it: up
+// to twice as rough, the patches only got broader. So the material is a
+// MeshPhysicalMaterial with specularIntensity = GLARE: for a dielectric that
+// scales both F0 and F90 (three's lights_physical_fragment), so the highlight
+// and the grazing sheen come down together and the ripple still sparkles. 0.4
+// was picked side by side against 1, 0.55 and 0.3 at the same moment of the
+// same walk: at 0.55 a low sun still nearly whited out the Pines lake, at
+// 0.3 the water went dull. No shader injection (see the header).
+//
+// The sea keeps closer to today's look (GLARE_SEA): its pale, sunny palette is
+// the Seaside's identity, and its glare reads as a bright day at the beach.
+const GLARE = 0.4;
+const GLARE_SEA = 0.8;
+
 // Segments around a circular footprint's rim. The shipped pond used 20, whose
 // 2.2m chords are plainly visible as a polygon once there is a light foam band
 // tracing the edge — the band draws the eye straight to the faceting. 48 costs
@@ -266,7 +283,7 @@ export const WATER_TUNING = Object.freeze({
   RIPPLE_TEX, RIPPLE_TILE_M, SLOPE, NORMAL_SCALE, DRIFT_U, DRIFT_V,
   SWELL_PERIOD, SWELL_DEPTH, RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX,
   SHELF_M, FOAM_M, FOAM_STRENGTH, ROUGH_DEEP, ROUGH_SHORE, ROUGH_FOAM,
-  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS,
+  ROUGH_LOW, ENV_INTENSITY, ENV_INTENSITY_LOW, CIRCLE_SEGMENTS, GLARE, GLARE_SEA,
 });
 
 // --- small pure helpers ------------------------------------------------------
@@ -818,6 +835,8 @@ function islandGeometry(w, box, segments) {
  *                          it, foam and the shallow shelf follow REAL shore
  *                          only, so where this water runs under another no
  *                          pale stripe crosses the open water (realShoreOf).
+ *   glare        {number}  specular strength, 0..1 (default GLARE). The
+ *                          seaside passes GLARE_SEA.
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
  *                          id, so the three bodies ripple differently and each
  *                          one ripples identically on every walk and on every
@@ -839,6 +858,7 @@ export function createWater(footprint, options = {}) {
     colors,
     seed,
     waters,
+    glare = GLARE,
   } = options;
 
   const tier = (typeof quality === 'string' ? quality : quality?.name) === 'low' ? 'low' : 'high';
@@ -879,8 +899,10 @@ export function createWater(footprint, options = {}) {
   // a body of water, where a moving specular on a flat colour does not.
   const ripple = tier === 'high' ? buildRippleTexture(seed ?? seedFromCode(footprint.id ?? 'water')) : null;
 
-  const material = new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshPhysicalMaterial({
     map: ramp.color,
+    // See GLARE: the whole specular, sun and probe alike, scaled down.
+    specularIntensity: glare,
     // metalness stays 0. Water is a dielectric, and metalness > 0 would tint
     // the IBL reflection with the base colour AND cancel the diffuse term —
     // i.e. throw away the depth ramp we just baked. The gloss comes entirely
