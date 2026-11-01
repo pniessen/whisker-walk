@@ -9,7 +9,7 @@ import { createSpin } from './spin.js';
 
 // Framing from the signed-off mockup (verify-dressingroom-mockup.html).
 const CAM_DIR = new THREE.Vector3(1.85, 1.3, -2.45);
-const CAM_TARGET = new THREE.Vector3(0, 0.38, 0);
+const CAM_TARGET = new THREE.Vector3(0, 0.47, 0);
 
 const CAM_FOV = 30;
 const CAM_ELEVATION = Math.atan2(CAM_DIR.y - CAM_TARGET.y, Math.hypot(CAM_DIR.x - CAM_TARGET.x, CAM_DIR.z - CAM_TARGET.z));

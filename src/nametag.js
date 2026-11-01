@@ -151,8 +151,13 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // The tag does shift when a cat turns cross and settles back when forgiven.
 // That is deliberate: it happens on the same frame as the colour repaint, so
 // it reads as one change of mood rather than as a glitch.
-export const TAG_Y = 1.05;
-export const CROSS_TAG_Y = 1.32;
+//
+// The taller cat (Task 9 of the body reshape) moved both up by the amount the
+// tabby's highest point rose, rounded up to 1 cm, so the margins are kept:
+// TAG_Y = 1.05 + 0.13: tabby 'follow' max 0.9684 vs 0.8467 before (+0.1217).
+// CROSS_TAG_Y = 1.32 + 0.06: tabby 'cross' max 1.0382 vs 0.9848 (+0.0534).
+export const TAG_Y = 1.18;
+export const CROSS_TAG_Y = 1.38;
 
 // Paints one mood into an existing 2D context. Used both by makeNameTag (on
 // a fresh canvas) and by setNameTagMood (over a painted one) — one painter,

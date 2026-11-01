@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import { TAG_Y } from './nametag.js';
 
 export const LIFETIME_MS = 3500;
 export const FADE_MS = 600;
+// Half a metre above the name tag.
+export const BUBBLE_Y = TAG_Y + 0.50;
 
 // Rounded speech bubble drawn to a canvas, same CanvasTexture sprite technique
 // as nametag.js. Guards on `document` so it's a safe no-op headless (tests/SSR):
@@ -35,7 +38,7 @@ export function makeBubbleSprite(text) {
   const tex = new THREE.CanvasTexture(canvas);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
   sprite.scale.set(1.9, 0.57, 1);
-  sprite.position.y = 1.55; // above the name tag (which sits at 1.05)
+  sprite.position.y = BUBBLE_Y; // above the name tag
   sprite.renderOrder = 10;
   return sprite;
 }

@@ -690,6 +690,10 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 // `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
 // vertex range; userData.chestCentre the chest's centre, torso-local.
 // A simple build rounds the belly and chest at 12×8 (the triangle cap).
+// Where the camera looks on a cat: the head, plus the 4 cm the old 0.6 sat above
+// the old head (0.56). Follows the head if the body is reshaped again.
+export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
+
 export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const [fx, fy, fz] = f;
   const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];

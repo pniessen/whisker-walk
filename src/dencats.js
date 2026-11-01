@@ -53,6 +53,9 @@ const mat = (color) => new THREE.MeshLambertMaterial({ color });
 // An open-top cardboard box, 1.05 x 1.05 x 0.42, built from thin panels so it
 // is a hollow box (you see into it) rather than a solid block. Two flaps fold
 // out and down from the rim, and a strip of tape runs across the front.
+// How far a boxed cat sinks. It sits up (requestPet), whose torso top is 1.03 cm
+// lower than the old rig's (0.6051 vs 0.6154), so -0.2 + 0.0103 shows as much as before.
+export const BOX_SIT_Y = -0.19;
 export const BOX = Object.freeze({ w: 1.05, h: 0.42, t: 0.035 });
 function buildBox() {
   const g = new THREE.Group();
@@ -221,7 +224,8 @@ const LITTLE_SCALE = 0.5;
 const LITTLE_HEAD = 1.35;
 const LITTLE_R = 0.25;       // floor footprint, for furniture
 const LITTLE_APART = 0.7;    // to its mother, siblings and other cats
-const LITTLE_TAG_Y = 0.62;   // the adult tag floats at 1.05, far above a small cat
+// 0.62 + half the adult tag's 0.13 rise (the little one is half scale).
+const LITTLE_TAG_Y = 0.685;  // the adult tag floats at 1.18, far above a small cat
 const LITTLE_ANGLES = 16;    // directions tried round the mother
 const LITTLE_MARGIN = 0.2;   // a little one is this much nearer its mother than any other adult
 
@@ -332,7 +336,7 @@ export function createDenCats(scene, cats, { reducedMotion = false, obstacles = 
       box.position.set(at.x, 0, at.z);
       box.rotation.y = yaw;
       // The cat sits down inside it, so only its head and shoulders show.
-      group.position.y = -0.2;
+      group.position.y = BOX_SIT_Y;
       scene.add(box);
       props.push(box);
     } else if (act === 'knocked') {

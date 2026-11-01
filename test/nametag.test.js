@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { buildCat } from '../src/cat/model.js';
+import { readFileSync } from 'node:fs';
+import { poseMeasure } from './helpers/catfingerprint.js';
+const BASELINE = JSON.parse(readFileSync(new URL('./fixtures/catpose-baseline.json', import.meta.url), 'utf8'));
 import {
   makeNameTag,
   setNameTagMood,
@@ -83,7 +87,7 @@ describe('makeNameTag defaults', () => {
       expect(text).toEqual(['fillText', 'bold 34px Avenir, sans-serif', '#fff', 'Marmalade', 128, 42]);
       expect(tag.visible).toBe(false);
       expect(tag.scale.x).toBeCloseTo(1.4);
-      expect(tag.position.y).toBeCloseTo(1.05);
+      expect(tag.position.y).toBeCloseTo(TAG_Y);
       expect(tag.userData.cross).toBe(false);
       expect(tag.userData.revealRange).toBe(NAME_TAG_RANGE);
     });
@@ -410,5 +414,13 @@ describe('setNameTagMood', () => {
       setNameTagMood(tag, { cross: false });
       expect(tag.visible).toBe(true);
     });
+  });
+});
+
+describe('tag heights follow the taller cat', () => {
+  it('tags clear the taller cat by the same margins as before', () => {
+    expect(TAG_Y - poseMeasure(buildCat('tabby'), 'follow').max).toBeGreaterThanOrEqual(1.05 - BASELINE.tabby.follow.max - 1e-9);
+    expect(CROSS_TAG_Y - poseMeasure(buildCat('tabby'), 'cross').max).toBeGreaterThanOrEqual(1.32 - BASELINE.tabby.cross.max - 1e-9);
+    expect(CROSS_TAG_Y).toBeGreaterThan(TAG_Y);
   });
 });

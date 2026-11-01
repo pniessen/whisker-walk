@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createChatBubbles } from '../src/chatbubble.js';
+import { createChatBubbles, BUBBLE_Y } from '../src/chatbubble.js';
+import { TAG_Y } from '../src/nametag.js';
 
 function fakeTarget() {
   return { children: [], add(s) { this.children.push(s); }, remove(s) {
@@ -84,4 +85,9 @@ describe('createChatBubbles', () => {
     bubbles.show(cat, 'Hi!', 0);
     expect(bubbles.activeCount).toBe(0);
   });
+});
+
+it('the bubble stays half a metre above the tag', () => {
+  // makeBubbleSprite returns null without a document, so the constant is what is pinned
+  expect(BUBBLE_Y).toBeCloseTo(TAG_Y + 0.5, 6);
 });

@@ -47,16 +47,16 @@ const LINE = 0.01;        // m: closer than this to the panel's line is on neith
 const NEAR = 1;           // m: a side flip only counts this close to the line
 const QUIET = 0.35;       // s: a push this soon after the last one on the same flap still swings it, but makes no sound
 
-// A cat stands up to 0.89 m (its ears 0.83, its raised tail 0.89), so both
-// openings are clear to 1 m: nothing solid over the cat as it goes through,
-// only the leaf or the sprigs it pushes aside.
-const OPEN_H = 1.0;       // m: the top of a gate's flap opening (the lintel's underside)
+// A cat stands up to 0.97 m (tabby 'follow' max 0.9684: ears and raised tail),
+// so both openings are clear to 1.1 m: nothing solid over the cat as it goes
+// through, only the leaf or the sprigs it pushes aside.
+export const OPEN_H = 1.1;       // m: the top of a gate's flap opening (the lintel's underside)
 const GATE_H = 1.25;      // m: the gate's top rail
 const POST_H = 1.4;       // m: the end posts' tops
 const BURY = -0.6;        // m: how far the posts and jambs reach below the ground
 const HEDGE_H = 1.2;      // m: the hedge's height
 const HEDGE_D = 0.56;     // m: the hedge's depth (the colliders' is 0.6)
-const ARCH_Y = 1.0;       // m: the underside of the leaves grown over a gap
+export const ARCH_Y = OPEN_H;      // m: the underside of the leaves grown over a gap
 const SPRIGS = 5;
 const PLANTER_H = 0.3;    // m: the planter boxes along a gate's wings (they show 5 cm above the pier deck)
 const PLANTER_D = 0.56;   // m: their depth, inside the colliders' 0.6

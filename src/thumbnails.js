@@ -39,11 +39,11 @@ function renderAllUnsafe() {
     // -0.45 gives a face-on three-quarter view, callers can override
     cat.rotation.y = rotY;
     if (closeUp) {
-      camera.position.set(0.85, 0.85, -1.15);
-      camera.lookAt(0, 0.5, -0.25);
+      camera.position.set(0.85, 0.99, -1.11);
+      camera.lookAt(0, 0.64, -0.21);
     } else {
-      camera.position.set(1.35, 1.05, -1.7);
-      camera.lookAt(0, 0.35, 0);
+      camera.position.set(1.35, 1.14, -1.7);
+      camera.lookAt(0, 0.44, 0);
     }
     renderer.render(scene, camera);
     const url = canvas.toDataURL('image/png');

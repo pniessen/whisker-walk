@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
-import { buildCat, coatColor } from '../src/cat/model.js';
+import { buildCat, coatColor, CAT_LOOK_Y } from '../src/cat/model.js';
 import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colourDistance } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
 import { CATALOG } from '../src/progression.js';
@@ -629,4 +629,8 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   });
   // kept elsewhere in this file: balloon bunch top < 1.1 and above the bare cat;
   // candle hat <= party crown + 0.02; Digit wears exactly one collar.
+});
+
+it('the camera looks at the new head height', () => {
+  expect(CAT_LOOK_Y).toBeCloseTo(buildCat('tabby').userData.base.headPos[1] + 0.04, 6);
 });

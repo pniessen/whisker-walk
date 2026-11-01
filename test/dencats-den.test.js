@@ -115,6 +115,13 @@ describe('queens and their kits in the real den', () => {
     for (const e of dc.list) if (e !== mother) expect(d(mother), `${k.name} vs ${e.name}`).toBeLessThan(d(e));
   };
 
+  it('a little one keeps the new head size, enlarged', () => {
+    const area = build(new THREE.Scene(), { placed: {} });
+    const dc = createDenCats(scene, catsFor('2026-11-01'), { obstacles: obstaclesOf(area), kits });
+    expect(dc.littles.length).toBeGreaterThan(0);
+    for (const little of dc.littles) expect(little.body.userData.parts.head.scale.x).toBeCloseTo(1.35 * 1.06, 6);
+  });
+
   it('every kit is placed beside its mother, clear of her, each other, furniture and walls, over 20 days', () => {
     const items = Object.keys(DEN_ITEMS);
     const furnished = Object.fromEntries(DEN_SPOTS.map((s, i) => [s.id, items[(i * 5) % items.length]]));
