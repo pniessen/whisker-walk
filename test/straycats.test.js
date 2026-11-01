@@ -1434,3 +1434,25 @@ describe('the keep-out — places a walk\'s strays never stand', () => {
     }
   });
 });
+
+describe('createStrayCats — kittypet collars', () => {
+  const collarOf = (s) => s.group.getObjectByName('collar');
+  it('collarFor puts a non-casting collar on a non-colony stray, and draws nothing extra', () => {
+    const calls = []; const count = (r) => () => { const v = r(); calls.push(v); return v; };
+    const a = createStrayCats(fakeScene(), AREA, 22, count(mulberry32(4)));
+    const n = calls.length; calls.length = 0;
+    const b = createStrayCats(fakeScene(), AREA, 22, count(mulberry32(4)), { collarFor: () => 'bell' });
+    expect(calls.length).toBe(n);
+    expect(b.strays.map((s) => s.name)).toEqual(a.strays.map((s) => s.name));
+    const c = collarOf(b.strays[0]);
+    expect(c).toBeTruthy();
+    c.traverse((o) => { if (o.isMesh) expect(o.userData.noCast).toBe(true); });
+  });
+  it('a colony cat is never given the kittypet collar', () => {
+    const asked = [];
+    createStrayCats(fakeScene(), AREA, 3, mulberry32(1), {
+      colonyCats: [{ name: 'Marmalade', x: 1, z: 1, wear: null }], collarFor: (n) => { asked.push(n); return 'bell'; },
+    });
+    expect(asked).not.toContain('Marmalade');
+  });
+});

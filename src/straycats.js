@@ -303,6 +303,11 @@ function shuffled(arr, rng) {
   return a;
 }
 
+// A collar is too small to be worth a shadow draw (assignShadowCastersFor honours noCast).
+function noCastCollar(group) {
+  group.getObjectByName('collar')?.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
+}
+
 // createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
@@ -382,7 +387,7 @@ function shuffled(arr, rng) {
 // rng). Only a legendary name is an extra, once, and never one already cast.
 // `reducedMotion` holds a legendary glow still, at the top of its breath.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
-  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false,
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null,
 } = {}) {
   const strays = [];
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
@@ -417,10 +422,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
     // is always the same breed across walks
     const breed = strayBreed(name);
+    const collarId = fixed ? null : collarFor(name);
     const wear = fixed?.wear && typeof fixed.wear.slot === 'string' && typeof fixed.wear.id === 'string'
       ? { [fixed.wear.slot]: fixed.wear.id }
-      : undefined;
+      : typeof collarId === 'string' ? { collar: collarId } : undefined;
     const group = buildCat(breed, wear, { simple: true });
+    noCastCollar(group);
     group.scale.multiplyScalar(0.85); // strays read as slightly smaller than your cat
     // Position, facing and the personality roll below are drawn from `rng` in
     // this fixed order — x, then z, then facing, then personality — for every
@@ -506,7 +513,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     if (strays.some((s) => s.name === ex.name)) continue;
     const name = ex.name;
     const breed = strayBreed(name);
-    const group = buildCat(breed, undefined, { simple: true });
+    const exCollar = collarFor(name);
+    const group = buildCat(breed, typeof exCollar === 'string' ? { collar: exCollar } : undefined, { simple: true });
+    noCastCollar(group);
     group.scale.multiplyScalar(0.85);
     const { x, z } = keepOutPoint(area,
       THREE.MathUtils.lerp(b.minX * 0.7, b.maxX * 0.7, ex.rng()),

@@ -61,6 +61,7 @@ import { createDenCats } from '../dencats.js';
 import { placedKits } from '../clanroles.js';
 import { strayBreed } from '../straynames.js';
 import { legendaryFor, legendaryRoll } from '../legendary.js';
+import { collarFor } from '../housecats.js';
 import { rosterIsPartnerOnly } from './lobby.js';
 import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
@@ -833,6 +834,7 @@ export function createWalkLifecycle({
     const fedHere = colonyCats.length;
     const strayCats = createStrayCats(scene, areaData, isDen ? 0 : lonersFor(areaId, tier.strays, fedHere), strayStream(roomSeed), {
       grudges: progression.grudgeNames?.() ?? [],
+      collarFor: (name) => collarFor(progression.state, name),
       roomSeed,
       colonyCats,
       excludeNames,
