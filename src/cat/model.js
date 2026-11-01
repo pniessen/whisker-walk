@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
+import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -34,9 +36,8 @@ const STYLE = {
 //                 white stockings rather than white feet).
 //   socks       — paws are WHITE_FUR whatever `belly` is: four white socks on
 //                 a cat whose underside is not white.
-//   band        — a `belly` band across the shoulders. With `stripes` too, the
-//                 front-most stripe is skipped: it sits exactly where the band
-//                 goes, and two patches at one lift z-fight.
+//   band        — a `belly` band across the shoulders, painted over the
+//                 stripes (see coat.js).
 //   headStripes — three thin `accent` stripes up the forehead: the tabby "M".
 //   chin        — a small WHITE_FUR patch under the muzzle.
 //   ears        — ear-cone scale, default 1. Baked into the cone, not the mesh,
@@ -53,7 +54,6 @@ const STYLE = {
 //   tagCollar   — a built-in black collar with a round silver tag, drawn only
 //                 when no collar accessory is worn (never two collars).
 const INNER_EAR = 0xe8a0a8;
-const WHITE_FUR = 0xf5f5f5;
 const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbie: 0xb8b040, d2: 0xa8b040, digit: 0xa0a048 };
 
 // Cat Couture: palette for the twelve new per-slot accessory items (plus the
@@ -82,6 +82,7 @@ const WIZARD_COLOR = 0x4a3b8c;
 const RAINCOAT_COLOR = 0xf2c94e;
 const SWEATER_BASE = 0x2c6e63;
 const SWEATER_STRIPE = 0xf2ead9;
+const SWEATER_STRIPE_Z = [-0.324, 0.093, 0.509]; // the old rings' centres, legacy unit z
 const JETPACK_SILVER = 0xb8bcc4;
 const JETPACK_FLAME = 0xf2822e;
 const BALLOON_COLOR = 0xf25c8a;
@@ -160,7 +161,8 @@ function shapedBall(r, color, sx, sy, sz, wSeg = BALL_W, hSeg = BALL_H) {
 // the body or skull mesh is made of, at the same radius plus a hair — and
 // parents it to that mesh. Two consequences fall out for free:
 //
-//   * The host's non-uniform scale (the body's 0.85/0.75/1.35 plush ellipsoid)
+//   * The host's non-uniform scale (the torso's TORSO.SCALE, or the cat's own
+//     STYLE.body narrowing of it, on the body; the head's uniform HEAD.SCALE)
 //     is applied to the patch by the scene graph, so the patch deforms exactly
 //     as the surface under it deforms. It cannot lift off, at any point, on any
 //     breed, because it is generated from the surface rather than fitted to it.
@@ -225,7 +227,7 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
 // meshes and are now one, and the cow cat's two body patches are now one.
 // Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
 function addMarking(host, r, color, patches) {
-  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ));
+  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18));
   const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
   host.add(new THREE.Mesh(geo, mat(color)));
 }
@@ -240,6 +242,26 @@ function dirOn(point, centre, scale) {
     (point[1] - centre[1]) / scale[1],
     (point[2] - centre[2]) / scale[2],
   ];
+}
+
+// A limb hanging from its hip pivot: a tapered cylinder whose top is at the
+// pivot (y = 0) and whose length runs down -y, baked into the geometry so the
+// mesh itself sits at 0. A hind limb (sketch) is stouter at the top, tipped
+// back toward the hock, and carries a thick thigh merged in: still one mesh.
+function limbGeometry(len, hind) {
+  if (!hind) {
+    const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
+    geo.translate(0, -len / 2, 0);
+    return geo;
+  }
+  const H = LEGS.HIND;
+  const limb = new THREE.CylinderGeometry(H.TOP_R, LEGS.BOTTOM_R, len, 12);
+  limb.rotateX(H.HOCK_X);
+  limb.translate(0, -len / 2, H.HOCK_Z);
+  const thigh = new THREE.SphereGeometry(H.THIGH_R, 12, 9);
+  thigh.scale(...H.THIGH_SCALE);
+  thigh.translate(...H.THIGH_AT);
+  return mergeGeometries([limb, thigh]);
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -660,6 +682,56 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   return g;
 }
 
+// Where the camera looks on a cat: the head, plus the 4 cm the old 0.6 sat above
+// the old head (0.56). Follows the head if the body is reshaped again.
+export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
+
+// -----------------------------------------------------------------------------
+// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff, merged
+// into one vertex-coloured geometry in TORSO-LOCAL space (the body mesh's own
+// frame: less (0, CENTRE_Y, 0), divided by the body scale), so it is hung on
+// the torso and posed with it. Each part is authored in the cat's frame
+// exactly as the separate meshes were, then carried into the torso's.
+// `f` is STYLE.body (Digit's narrow frame). userData.ranges gives each part's
+// vertex range; userData.chestCentre the chest's centre, torso-local.
+// A simple build rounds the belly and chest at 12×8 (the triangle cap).
+export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
+  const [fx, fy, fz] = f;
+  const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
+  const [w, h] = opts.simple ? [12, 8] : [BALL_W, BALL_H];
+  const toTorso = (geo) => geo.translate(0, -TORSO.CENTRE_Y, 0).scale(1 / BS[0], 1 / BS[1], 1 / BS[2]);
+  const painted = (geo, hex) => {
+    geo.deleteAttribute('uv');
+    const c = new THREE.Color(hex);
+    const col = new Float32Array(geo.attributes.position.count * 3);
+    for (let i = 0; i < col.length; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return geo;
+  };
+  const parts = {
+    belly: painted(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
+      .translate(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz)), s.belly),
+    chest: painted(toTorso(new THREE.SphereGeometry(0.15, w, h).scale(1.05 * fx, 1.1, 0.9)
+      .translate(0, TORSO.CENTRE_Y + 0.06, -0.33 * fz)), coat.chest),
+  };
+  if (s.fluffy) {
+    parts.ruff = painted(toTorso(new THREE.TorusGeometry(0.19, 0.075, 6, 12).rotateX(Math.PI / 2 - 0.35)
+      .translate(HEAD.POS[0], HEAD.POS[1] - 0.12, HEAD.POS[2] + 0.10)), s.belly);
+  }
+  const ranges = {};
+  let at = 0;
+  for (const [k, geo] of Object.entries(parts)) {
+    const n = geo.attributes.position.count;
+    ranges[k] = [at, at + n];
+    at += n;
+  }
+  const geo = mergeGeometries(Object.values(parts));
+  for (const p of Object.values(parts)) p.dispose();
+  geo.userData.ranges = ranges;
+  geo.userData.chestCentre = [0, 0.06 / BS[1], -0.33 * fz / BS[2]];
+  return geo;
+}
+
 // The corner map draws a remote sibling's dot in their cat's main coat colour.
 // Hagrid has no STYLE entry (he is built by buildChicken), so he is named here.
 export function coatColor(breed) {
@@ -673,33 +745,53 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const g = new THREE.Group();
   const pointColor = s.points ? s.accent : s.base;
 
-  // body: plush ellipsoid + belly + chest
+  // body: the torso mesh (an undeformed unit sphere shaped by torsoGeometry), with the belly and chest on it
   //
   // STYLE.body reshapes the torso for one cat (Digit's narrow kitten frame).
   // BODY_SCALE is the ONE place that shape lives, and everything that has to
-  // match the torso reads it rather than the bare 0.85/0.75/1.35: the body
-  // mesh, the markings (dirOn divides by it, so an authored point lands on the
-  // narrowed surface, not off it), userData.base.bodyScale (the animator
+  // match the torso reads it rather than the bare TORSO.SCALE: the body
+  // mesh, the markings (they are patches of the host sphere, so they take the
+  // body's scale from the scene graph), userData.base.bodyScale (the animator
   // rewrites body.scale from it every frame — miss it and the cat is reset to
   // the standard torso on the first frame) and the belly below. Body- and
   // back-slot accessories take fx/fy/fz too. With no `body` the factors are
-  // exactly 1 and every product below is the old number bit-for-bit, which is
-  // what keeps the standard breeds byte-identical.
-  const BODY_R = 0.32;
+  // exactly 1, so a standard breed's scale is TORSO.SCALE untouched.
+  const BODY_R = TORSO.R;
   const [fx, fy, fz] = s.body ?? [1, 1, 1];
-  const BODY_SCALE = [0.85 * fx, 0.75 * fy, 1.35 * fz];
-  const BODY_CENTRE = [0, 0.34, 0];
-  // How far a shallower torso brings the top of the back down: the back-slot
-  // items sit on the spine and drop with it rather than float over it.
-  const BACK_DROP = BODY_R * 0.75 * (1 - fy);
-  const body = ball(BODY_R, s.base, ...BODY_SCALE);
-  body.position.y = 0.34;
+  const BODY_SCALE = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
+  // A back-slot point authored on the old torso, re-placed on the new one at
+  // the same distance from the fur (torso.js torsoRetarget). An item's main
+  // piece is never left sunk in the fur (BACK_MIN_RHO); its small parts keep
+  // their old offsets from it (`from`).
+  const onBack = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz]);
+  const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
+  const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
+  // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
+  // they sat on the old torso. A fluffy cat's drop onto the front of its ruff,
+  // under the chin (NECK_FLUFFY), rather than out past it. (Not the hood bunch:
+  // see HOOD_BUNCH_DROP.)
+  const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
+  const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
+  // The coat is painted into the torso's vertex colours (coat.js): tabby
+  // bands, the calico's patches, Robbie's bib and flanks, D2's shoulder band.
+  // White material, so a painted base is exactly today's material colour.
+  const coat = coatFromStyle(s);
+  const body = new THREE.Mesh(
+    paintCoat(torsoGeometry(BODY_R, ...TORSO.SEG[opts.simple ? 'simple' : 'full']), coat),
+    litMaterial(0xffffff, { vertexColors: true }));
+  body.scale.set(...BODY_SCALE);
+  body.position.y = TORSO.CENTRE_Y;
   g.add(body);
-  // The belly hangs off the body's underside, so it narrows with it and its
-  // offset below the body centre (0.08) shrinks with the depth.
-  const belly = ball(0.26, s.belly, 0.78 * fx, 0.6 * fy, 1.15 * fz);
-  belly.position.set(0, fy === 1 ? 0.26 : 0.34 - 0.08 * fy, -0.02);
-  g.add(belly);
+  // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
+  // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
+  // it. The animator counter-yaws it (R4) so the chest stays under the chin.
+  const underside = new THREE.Mesh(
+    undersideGeometry(s, coat, [fx, fy, fz], opts),
+    litMaterial(0xffffff, { vertexColors: true }));
+  underside.userData.underside = true;
+  underside.userData.ranges = underside.geometry.userData.ranges;
+  underside.userData.chestCentre = underside.geometry.userData.chestCentre;
+  body.add(underside);
 
   // head
   const SKULL_R = 0.21;
@@ -715,6 +807,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   head.add(muzzle);
   const nose = ball(0.024, INNER_EAR, 1, 0.8, 0.8, 6, 5);
   nose.position.set(0, -0.02, -0.245);
+  nose.userData.nose = true;   // tests find the nose by this, not by child order
   head.add(nose);
   // `ears` grows the cone in its geometry (the animator writes ear rotation, so
   // the mesh transform is not ours to scale) and lifts it by half the added
@@ -770,29 +863,22 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       }
     }
   }
-  head.position.set(0, 0.56, -0.44);
+  head.position.set(...HEAD.POS);
+  head.scale.setScalar(HEAD.SCALE);
   g.add(head);
-
-  if (s.fluffy) {
-    const ruff = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.075, 6, 12), mat(s.belly));
-    ruff.rotation.x = Math.PI / 2 - 0.35;
-    ruff.position.set(0, 0.46, -0.32);
-    g.add(ruff);
-  }
 
   // legs: hip-pivoted groups with paw spheres
   const legs = [];
   const legSpots = [
-    [-0.11, -0.3], [0.11, -0.3], // front L, R
-    [-0.11, 0.28], [0.11, 0.28], // back L, R
+    [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
+    [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
   ];
-  for (const [x, z] of legSpots) {
+  for (const [x, z, hind] of legSpots) {
     const leg = new THREE.Group();
     // 6 -> 12 radial segments. At 5cm across and a metre and a half from the
     // camera in the close-up shots, a 6-sided prism shows its flats; 12 costs
     // 24 triangles a leg and reads as a limb.
-    const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.058, 0.26, 12), mat(s.whiteLegs ? s.belly : pointColor));
-    limb.position.y = -0.13;
+    const limb = new THREE.Mesh(limbGeometry(LEGS.LEN, hind), mat(s.whiteLegs ? s.belly : pointColor));
     leg.add(limb);
     // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
     // read as a knob on the end of a peg rather than as a foot; and it was
@@ -810,91 +896,52 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // not from the width.
     const pawColour = s.socks ? WHITE_FUR : s.points ? s.accent : s.belly;
     const paw = shapedBall(0.062, pawColour, 1.02, 0.62, 1.42, 12, 9);
-    paw.position.set(0, -0.2585, -0.012);
+    paw.position.set(0, PAW_Y, -0.012); // the sole stays where it always was
     leg.add(paw);
     leg.userData.paw = paw;
-    leg.position.set(x, 0.3, z);
+    leg.position.set(x, LEGS.HIP_Y, z);
     g.add(leg);
     legs.push(leg);
   }
 
   // -------------------------------------------------------------------------
-  // TAIL — 5 tapered segments on nested pivots. Wave 6 reshapes the segments
-  // and re-places the pivots; the CHAIN ITSELF is untouched, because the
-  // animator owns it: `animateCat` resets every pivot's ROTATION to zero each
-  // frame and then writes rotation.y (the lagged sway, the 'cross' lash) and
-  // tail.rotation.x (the raise). It never writes a pivot POSITION and never
-  // touches the segment meshes, so the shape below is expressed entirely in
-  // pivot positions and per-segment transforms and survives every pose.
+  // TAIL — 5 tapered links on nested pivots (torso.js TAIL, sketch). It grows
+  // out of the rump: rooted at the rump's surface, thick at the base, with a
+  // root ball rounding the join, rounded joints and a rounded tip, all MERGED
+  // into the five link meshes (mesh count is the budget).
   //
-  // Three things were wrong with the old tail, all visible in the chase frame:
-  //
-  //  1. It did not taper to anything. Radii ran 0.048 -> 0.018 and stopped, so
-  //     the tip was a 3.6cm flat disc — clearly visible end-on as a bright
-  //     circular cap in the raking sun.
-  //  2. The base was as thin as the tip was thick. A cat's tail is thickest
-  //     where it leaves the body; this one was a uniform 4-5cm rod, which reads
-  //     as wire, not fur.
-  //  3. It was dead straight. Nothing about a resting cat is dead straight, and
-  //     a straight line is the one shape the eye reads as manufactured.
-  //
-  // The taper now runs 13.2cm across at the root down to 1.2cm at the tip,
-  // ending in a hemispherical cap MERGED INTO THE LAST SEGMENT'S GEOMETRY rather
-  // than added as a sixth mesh — mesh count is the budget, so a rounded tip has
-  // to be free or it does not happen. The arc is a gentle 17 degrees over the
-  // whole length, on top of the -0.6 rad the tail group is already held at.
-  const TAIL_LINK = 0.132;   // link length; 5 links ~ 0.66, a touch under body length
-  const TAIL_ARC = 0.075;    // radians of upward curve per link (4 x 0.075 = 17 deg at the tip)
-  const tailR = (u) => 0.060 * Math.pow(1 - u, 0.62) + 0.006; // 0.066 root -> 0.006 tip
+  // The chain itself is the animator's: `animateCat` writes every pivot's
+  // ROTATION each frame (the resting curl, R3, the lagged sway, the 'cross'
+  // lash) and tail.rotation.x (the raise). It never writes a pivot POSITION, so
+  // the pivots are plain: 0 at the root, then one link along +z each. The root
+  // frame is tipped down by TAIL.ROOT_TILT (base.tailRotX) so that, with the
+  // full curl, link 0 leaves level and each further link bends up by CURL.
   const tail = new THREE.Group();
   const tailPivots = [];
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
-    // Each pivot sits at the END of the previous link. Pivot rotations are
-    // zeroed by the animator every frame, so a parent carries no rotation and
-    // these offsets can all be expressed in the same (tail-local) frame using
-    // the ABSOLUTE tilt of the preceding link.
-    if (i > 0) {
-      const prev = (i - 1) * TAIL_ARC;
-      pivot.position.set(0, Math.sin(prev) * TAIL_LINK, Math.cos(prev) * TAIL_LINK);
-    }
-    const far = tailR((i + 1) / 5);
-    const near = tailR(i / 5);
-    // 6 -> 10 radial segments: at the root this is now a 13cm-diameter tube and
-    // a hexagon reads as a hexagon.
-    let geo = new THREE.CylinderGeometry(far, near, TAIL_LINK, 10, 1, true);
-    if (i === 4) {
-      // The rounded tip, merged in. openEnded above so the two pieces do not
-      // leave a disc buried inside the cap.
-      const cap = new THREE.SphereGeometry(far, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-      cap.translate(0, TAIL_LINK / 2, 0);
-      geo = mergeGeometries([geo, cap]);
-    } else if (i === 0) {
-      // Every other link butts into the next one, so only the ROOT end is ever
-      // open to the air — and only on link 0, which is buried in the rump
-      // anyway. Capped for the sake of the poses that lift the tail clear.
-      const root = new THREE.SphereGeometry(near, 10, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-      root.translate(0, -TAIL_LINK / 2, 0);
-      geo = mergeGeometries([geo, root]);
-    }
-    const seg = new THREE.Mesh(geo, mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
-    // Cylinder's axis is +Y; rotation.x = PI/2 maps +Y onto +Z (straight back).
-    // Subtracting this link's tilt swings it up into the arc.
-    const tilt = i * TAIL_ARC;
-    seg.rotation.x = Math.PI / 2 - tilt;
-    seg.position.set(0, Math.sin(tilt) * TAIL_LINK / 2, Math.cos(tilt) * TAIL_LINK / 2);
+    if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
+    // The link runs from its pivot along +z: the cylinder's +y axis turned onto
+    // +z. Open-ended; the balls below close every end.
+    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5), tailR(i / 5), TAIL.LINK, 12, 1, true)
+      .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
+    // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
+    // simple cat sits at the 5,500-triangle cap once the chest is in.
+    const [rw, rh, jw, jh] = opts.simple ? [8, 5, 8, 5] : [12, 8, 10, 6];
+    parts.push(i === 0
+      ? new THREE.SphereGeometry(TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
+      : new THREE.SphereGeometry(tailR(i / 5), jw, jh));   // a rounded joint
+    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1), jw, jh).translate(0, 0, TAIL.LINK)); // the tip
+    const seg = new THREE.Mesh(mergeGeometries(parts), mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
     pivot.add(seg);
     parent.add(pivot);
     tailPivots.push(pivot);
     parent = pivot;
   }
-  // Root moved in and down from (0, 0.44, 0.42). The body's surface at z = 0.42
-  // is only y = 0.396, so the OLD root floated 4cm clear of the rump — invisible
-  // on a 4.8cm rod, obvious on a 6.6cm one. At z = 0.38 the surface is at 0.454,
-  // which buries the thicker root inside the body where it belongs.
-  tail.position.set(0, 0.42, 0.38);
-  tail.rotation.x = -0.6;
+  tail.position.set(0, TORSO.CENTRE_Y + TAIL.ROOT_DY, TAIL.ROOT_Z);
+  tail.rotation.x = TAIL.ROOT_TILT;
+  tail.scale.setScalar(TAIL.SCALE);
   g.add(tail);
 
   // -------------------------------------------------------------------------
@@ -905,14 +952,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // directions on the host sphere by dirOn(), so nothing moves; only the
   // geometry stops floating.
   //
-  // `onBody` / `onSkull` / `onMuzzle` parent to the mesh, not to the group,
+  // `onSkull` / `onMuzzle` parent to the mesh, not to the group,
   // which is what makes a marking follow the animator's squash and stretch.
   //
   // They QUEUE rather than build: every patch of one colour on one host is
   // collected first and emitted as one addMarking call at the end, so two
-  // flags that both paint `belly` on the body (the shoulder band and a white
-  // flank, say) still cost one mesh, not two. Map keeps insertion order, so
-  // the build stays deterministic.
+  // flags that paint one colour on one host still cost one mesh, not two.
+  // Map keeps insertion order, so the build stays deterministic.
   const queued = new Map(); // host mesh -> { r, byColour: Map(colour -> patches) }
   const queue = (host, r, centre, scale) => (colour, pts) => {
     if (!queued.has(host)) queued.set(host, { r, byColour: new Map() });
@@ -920,31 +966,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!byColour.has(colour)) byColour.set(colour, []);
     byColour.get(colour).push(...pts.map((p) => ({ ...p, dir: dirOn(p.at, centre, scale) })));
   };
-  const onBody = queue(body, BODY_R, BODY_CENTRE, BODY_SCALE);
   const onSkull = queue(skull, SKULL_R, [0, 0, 0], SKULL_SCALE);
   const onMuzzle = queue(muzzle, MUZZLE_R, MUZZLE_CENTRE, MUZZLE_SCALE);
 
-  if (s.stripes) {
-    // Four bands rather than three. They were three because each was a mesh;
-    // merged into one they are free, and four is the count at which a wrapped
-    // band pattern stops reading as "some marks on its back" and starts reading
-    // as a tabby. halfX 1.5 carries each band ~56 degrees down the flank —
-    // over the spine and well past the shoulder, the way a real tabby's do.
-    // A cat with a white shoulder `band` loses the front stripe: the band sits
-    // on exactly that spot, and two patches at the same lift z-fight.
-    onBody(s.accent, [
-      { at: [0, 0.58, -0.30], halfX: 1.42, halfZ: 0.15 },
-      { at: [0, 0.58, -0.10], halfX: 1.50, halfZ: 0.16 },
-      { at: [0, 0.58, 0.11], halfX: 1.50, halfZ: 0.16 },
-      { at: [0, 0.58, 0.30], halfX: 1.38, halfZ: 0.14 },
-    ].slice(s.band ? 1 : 0));
-  }
-  if (s.band) {
-    // White over the shoulders and down both sides, where a tabby-and-white's
-    // bib reaches up round the neck. Slightly wider than the stripe it
-    // replaces so it reads as a collar of fur, not as a pale stripe.
-    onBody(s.belly, [{ at: [0, 0.58, -0.30], halfX: 1.45, halfZ: 0.14 }]);
-  }
+  // The body's own markings (stripes, band, calico and cow patches) are
+  // painted into the torso instead — see coat.js. Only the head's remain here.
   if (s.headStripes) {
     // The tabby "M": three thin bars running up the forehead from between the
     // eyes. On a patch swung onto a direction in the skull's YZ plane, halfX
@@ -964,31 +990,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     onMuzzle(WHITE_FUR, [{ at: [0, -0.114, -0.209], halfX: 0.45, halfZ: 0.35 }]);
   }
   if (s.patches) {
-    onBody(s.accent, [{ at: [0.12, 0.54, -0.08], halfX: 0.62, halfZ: 0.72 }]);
-    onBody(0x333333, [{ at: [-0.12, 0.54, 0.14], halfX: 0.56, halfZ: 0.64 }]);
     onSkull(0xd88030, [{ at: [0.09, 0.14, -0.05], halfX: 0.50, halfZ: 0.56 }]);
   }
   if (s.cow) {
-    // Robbie's coat, from the photo: black on top, with a big white patch low
-    // on each flank and a narrow white blaze up between the eyes. The two
-    // flanks are one colour on one host, so they cost one mesh. On a patch
-    // swung onto a sideways direction, halfX runs UP the flank and halfZ along
-    // the body: ±35 degrees vertically from a centre ~16 degrees below the
-    // equator keeps the black saddle over the top of the back.
-    // The bib — the white chest under his chin that the photo shows plainly
-    // and the first build left black — is a third patch in the same colour on
-    // the same host, so it rides in the same mesh and costs nothing. Centred
-    // on the front of the chest just above the equator, so it runs up under
-    // the head into the white muzzle and down to the white belly. halfZ runs
-    // UP the chest here (±37 degrees) and halfX across it (±29 degrees); the
-    // flank patches reach no further forward than ~56 degrees off the front,
-    // which leaves a black gap of 25+ degrees between them at every height.
-    // That gap matters: two patches at one lift z-fight where they overlap.
-    onBody(s.belly, [
-      { at: [0.27, 0.27, 0.06], halfX: 0.70, halfZ: 0.90 },
-      { at: [-0.27, 0.27, 0.06], halfX: 0.70, halfZ: 0.90 },
-      { at: [0, 0.36, -0.43], halfX: 0.55, halfZ: 0.75 },
-    ]);
+    // Robbie's coat, from the photo: black on top with white flanks and bib
+    // (painted, coat.js) and a narrow white blaze up between the eyes.
     // The blaze: ~4cm wide, so it fits in the gap between the eyes, and long
     // enough to run from the muzzle up onto the forehead.
     onSkull(s.belly, [{ at: [0, 0.09, -0.17], halfX: 0.10, halfZ: 0.45 }]);
@@ -1008,7 +1014,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const collarStyle = accessories.collar ?? (s.tagCollar ? 'tag' : null);
   if (collarStyle) {
     const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(0, -0.06, -0.12));
-    collar.position.set(0, -0.14, 0.1);
+    collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     head.add(collar);
   }
 
@@ -1081,37 +1087,38 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(band);
   }
 
-  // neck: at the neck seam, where the collar also sits
+  // neck: at the neck seam, where the collar also sits, NECK_FORWARD ahead of
+  // where it sat on the old torso so it lies on the deeper chest
   if (accessories.neck === 'bandana') {
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.18, 0.02);
+    tri.position.set(0, -0.18 + neckY, 0.02 + neckZ);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.028, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
-    knot.position.set(0, -0.17, 0.04);
+    knot.position.set(0, -0.17 + neckY, 0.04 + neckZ);
     head.add(knot);
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.22, 4), mat(NECKTIE_COLOR));
     blade.rotation.x = Math.PI;
-    blade.position.set(0, -0.32, 0.08);
+    blade.position.set(0, -0.32 + neckY, 0.08 + neckZ);
     head.add(blade);
   } else if (accessories.neck === 'bowtie') {
     const knot = ball(0.026, BOWTIE_COLOR, 1, 1, 1, 6, 5);
-    knot.position.set(0, -0.17, 0.04);
+    knot.position.set(0, -0.17 + neckY, 0.04 + neckZ);
     head.add(knot);
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.05, 3), mat(BOWTIE_COLOR));
       wing.rotation.z = -side * (Math.PI / 2);
-      wing.position.set(side * 0.05, -0.17, 0.045);
+      wing.position.set(side * 0.05, -0.17 + neckY, 0.045 + neckZ);
       head.add(wing);
     }
   } else if (accessories.neck === 'scarf') {
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.035, 6, 12), mat(SCARF_COLOR));
     band.rotation.x = Math.PI / 2 + 0.35;
-    band.position.set(0, -0.15, 0.08);
+    band.position.set(0, -0.15 + neckY, 0.08 + neckZ);
     head.add(band);
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.02), mat(SCARF_COLOR));
-    tail.position.set(0.06, -0.28, 0.1);
+    tail.position.set(0.06, -0.28 + neckY, 0.1 + neckZ);
     tail.rotation.z = 0.15;
     head.add(tail);
   }
@@ -1119,41 +1126,74 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // visit prizes (collar prizes go through buildCollar above)
   addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
-  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15, z: 0.08, ringR: 0.15 });
+  addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15 });
 
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
-  // The three shells (and the sweater's knit rings) are scaled by the torso's
-  // fx/fy/fz factors so a narrow cat's sweater is narrow too, not a barrel with
-  // a kitten inside it. The cape hangs behind the rump and the hood sits on the
-  // head, so neither is resized.
-  if (accessories.body === 'hoodie') {
-    const shell = ball(0.33, HOODIE_COLOR, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
+  // The three shells are the torso's own geometry, inflated (more on the back
+  // than under the belly), hung on the torso with no scale of their own: they
+  // take its BODY_SCALE, so a narrow cat's coat is narrow too, and follow every
+  // pose. The cape hangs behind the rump, re-placed on the new one. The hood
+  // and bunch sit relative to the head.
+  const hoodItems = [];
+  const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
+  const coatShell = (color, paint) => {
+    // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
+    // the torso's simple grid), fine enough that the shell does not sag
+    // between its facets and thin the clearance to the fur.
+    const geo = torsoGeometry(BODY_R, ...(opts.simple ? TORSO.SEG.simple : [32, 32]));
+    const unit0 = geo.userData.unit, pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const k = shellInflate(unit0[i * 3 + 1]);
+      pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k);
+    }
+    geo.computeVertexNormals();
+    const shell = new THREE.Mesh(geo, paint ? litMaterial(0xffffff, { vertexColors: true }) : mat(color));
+    if (paint) {
+      const unit = geo.userData.unit, n = geo.attributes.position.count;
+      const base = new THREE.Color(SWEATER_BASE), stripe = new THREE.Color(SWEATER_STRIPE);
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        const z = unit[i * 3 + 2];
+        const on = SWEATER_STRIPE_Z.some((zi) => Math.abs(z - zi) < 0.088);
+        const c = on ? stripe : base;
+        col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    body.add(shell);
+    return shell;
+  };
+  const hoodOrBunch = (color) => {
     // hood-up/hood-down rule: a hat needs the head clear, so the hood only
     // goes up when no head item is equipped — otherwise it bunches at the neck.
     if (!accessories.head) {
-      const hood = ball(0.17, HOODIE_COLOR, 1, 1, 0.9, 8, 6);
-      hood.position.set(0, 0.64, -0.28);
-      g.add(hood);
+      const hood = ball(0.17, color, 1, 1, 0.9, 8, 6);
+      hood.position.set(...headRel(0, 0.08, 0.16));
+      hoodItems.push(hood);
     } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(HOODIE_COLOR));
+      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(color));
       bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(0, 0.5, -0.36);
-      g.add(bunch);
+      bunch.position.set(...headRel(0, -0.06 - HOOD_BUNCH_DROP, 0.08));   // see HOOD_BUNCH_DROP
+      hoodItems.push(bunch);
     }
+  };
+  if (accessories.body === 'hoodie') {
+    coatShell(HOODIE_COLOR);
+    hoodOrBunch(HOODIE_COLOR);
   } else if (accessories.body === 'cape') {
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(CAPE_COLOR));
-    cape.position.set(0, 0.28, 0.45);
+    const at = onBackMain(0, 0.28, 0.45);
+    cape.position.set(...at);
     cape.rotation.x = -0.15;
     g.add(cape);
     const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
-    clasp.position.set(0, 0.48, 0.28);
+    clasp.position.set(...from(at, 0, 0.2, -0.17));
     g.add(clasp);
   } else if (accessories.body === 'confetticape') {
     // a purple cape (not the hero's red) flecked with confetti dots on its outer face
     const capeGroup = new THREE.Group();
-    capeGroup.position.set(0, 0.28, 0.45);
+    const at = onBackMain(0, 0.28, 0.45);
+    capeGroup.position.set(...at);
     capeGroup.rotation.x = -0.15;
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(PRIZE_CAPE));
     capeGroup.add(cape);
@@ -1165,51 +1205,37 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
     g.add(capeGroup);
     const clasp = ball(0.032, PRIZE_GOLD, 1, 1, 1, 6, 5);
-    clasp.position.set(0, 0.48, 0.28);
+    clasp.position.set(...from(at, 0, 0.2, -0.17));
     g.add(clasp);
   } else if (accessories.body === 'raincoat') {
-    const shell = ball(0.33, RAINCOAT_COLOR, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
-    // same hood-up/hood-down rule as the hoodie: hats need the head clear
-    if (!accessories.head) {
-      const hood = ball(0.17, RAINCOAT_COLOR, 1, 1, 0.9, 8, 6);
-      hood.position.set(0, 0.64, -0.28);
-      g.add(hood);
-    } else {
-      const bunch = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 6, 10), mat(RAINCOAT_COLOR));
-      bunch.rotation.x = Math.PI / 2 + 0.3;
-      bunch.position.set(0, 0.5, -0.36);
-      g.add(bunch);
-    }
+    coatShell(RAINCOAT_COLOR);
+    hoodOrBunch(RAINCOAT_COLOR);
     for (let i = 0; i < 2; i++) { // toggle buttons down the chest (front is -z)
+      // on the shell, in body-local space, so it rides the coat; counter-scaled
+      // so the torso's own scale does not squash it
+      const dir = [0, 0.35 - i * 0.3, -1];
+      const L = Math.hypot(...dir), uy = dir[1] / L;
       const button = ball(0.02, 0x8a6a20, 1, 1, 0.6, 6, 5);
-      button.position.set(0, 0.42 - i * 0.09, -0.36 - i * 0.03);
-      g.add(button);
+      button.position.copy(torsoSurface(dir).multiplyScalar(shellInflate(uy)));
+      button.position.addScaledVector(new THREE.Vector3(...dir).divideScalar(L), 0.008);
+      button.scale.set(1 / BODY_SCALE[0], 1 / BODY_SCALE[1], 0.6 / BODY_SCALE[2]);
+      body.add(button);
     }
   } else if (accessories.body === 'sweater') {
-    const shell = ball(0.33, SWEATER_BASE, 0.88 * fx, 0.78 * fy, 1.32 * fz, 10, 8);
-    shell.position.set(0, 0.35, 0.02);
-    g.add(shell);
-    for (let i = 0; i < 3; i++) { // knit stripes ring the torso
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.038, 6, 14), mat(SWEATER_STRIPE));
-      stripe.scale.set(fx, 0.88 * fy, 1);
-      stripe.position.set(0, 0.35, -0.14 + i * 0.18);
-      g.add(stripe);
-    }
+    coatShell(null, true); // knit stripes are painted: one mesh
   }
 
-  // back: behind the shoulders. On a narrower, shallower torso these ride the
-  // spine down by BACK_DROP and pull in (or slim) by fx, so a pack 18cm across
-  // does not overhang a kitten's back and the wings stay at the shoulders.
+  // back: behind the shoulders. Authored on the old torso and re-placed on the
+  // new one by onBack, which also follows a narrower or shallower torso; the
+  // pack slims by fx so 18cm across does not overhang a kitten's back.
   if (accessories.back === 'backpack') {
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.18 * fx, 0.13, 0.1), mat(0x3a6ea5));
-    pack.position.set(0, 0.56 - BACK_DROP, 0.12);
+    pack.position.set(...onBackMain(0, 0.56, 0.12));
     g.add(pack);
   } else if (accessories.back === 'wings') {
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.02), mat(WING_COLORS[side === -1 ? 0 : 1]));
-      wing.position.set(side * 0.22 * fx, 0.44 - BACK_DROP, 0.3);
+      wing.position.set(...onBackMain(side * 0.22 * fx, 0.44, 0.3));
       wing.rotation.z = side * 0.5;
       wing.rotation.y = side * 0.3;
       g.add(wing);
@@ -1217,18 +1243,20 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   } else if (accessories.back === 'jetpack') {
     for (const side of [-1, 1]) {
       const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8), mat(JETPACK_SILVER));
-      tank.position.set(side * 0.07 * fx, 0.52 - BACK_DROP, 0.16);
+      const at = onBackMain(side * 0.07 * fx, 0.52, 0.16);
+      tank.position.set(...at);
       tank.rotation.x = 0.15;
       g.add(tank);
       const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.06, 8), mat(JETPACK_FLAME));
       nozzle.rotation.x = Math.PI;
-      nozzle.position.set(side * 0.07 * fx, 0.4 - BACK_DROP, 0.185);
+      nozzle.position.set(...from(at, 0, -0.12, 0.025));
       g.add(nozzle);
     }
   } else if (accessories.back === 'balloonbunch') {
     // three balloons on three strings tied at one point over the tail; kept
-    // under ~y 1.05 so the whole-cat shop thumbnail still frames them
-    const tie = new THREE.Vector3(0.05, 0.58, 0.2);
+    // under ~y 1.05 so the whole-cat shop thumbnail still frames them. Only
+    // the tie moves onto the new back; the balloons keep their heights.
+    const tie = new THREE.Vector3(...onBack(0.05, 0.58, 0.2));
     const tops = [[-0.07, 0.79, 0.19], [0.1, 0.86, 0.22], [0.03, 0.74, 0.14]];
     tops.forEach(([bx, by, bz], i) => {
       const len = Math.hypot(bx - tie.x, by - tie.y, bz - tie.z);
@@ -1243,9 +1271,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
   } else if (accessories.back === 'balloon') {
     // hovers just over the tail — low enough to stay inside the shop
-    // thumbnail's whole-cat framing (~y 1.1 at this plane)
-    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 4), mat(0xf5f5f5));
-    string.position.set(0.06, 0.75, 0.2);
+    // thumbnail's whole-cat framing (~y 1.1 at this plane). The string's foot
+    // moves onto the new back; its top, the knot and the balloon keep their heights.
+    const foot = new THREE.Vector3(...onBack(0.06, 0.6, 0.2)), top = new THREE.Vector3(0.06, 0.9, 0.2);
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, foot.distanceTo(top), 4), mat(0xf5f5f5));
+    string.position.addVectors(foot, top).multiplyScalar(0.5);
+    string.rotation.z = -Math.atan2(top.x - foot.x, top.y - foot.y);
+    string.rotation.x = Math.atan2(top.z - foot.z, top.y - foot.y);
     g.add(string);
     const knot = ball(0.014, BALLOON_COLOR, 1, 1, 1, 5, 4);
     knot.position.set(0.06, 0.92, 0.2);
@@ -1255,7 +1287,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     g.add(balloon);
   }
 
-  // feet: small shells on the paw positions
+  for (const item of hoodItems) g.add(item);
+
+  // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
   if (accessories.feet === 'booties') {
     for (const leg of legs) {
       leg.userData.paw.material = mat(0xf2c14e);
@@ -1267,7 +1301,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(PRIZE_GOLD);
       leg.userData.paw.scale.multiplyScalar(1.18);
       const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 8), mat(0xd9a000));
-      cuff.position.set(0, -0.22, 0);
+      cuff.position.set(0, PAW_Y + 0.0385, 0);
       leg.add(cuff);
     }
   } else if (accessories.feet === 'sneakers') {
@@ -1275,7 +1309,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       leg.userData.paw.material = mat(SNEAKER_WHITE);
       leg.userData.paw.scale.set(1.2, 0.95, 1.25);
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.09), mat(SNEAKER_ACCENT));
-      stripe.position.set(0, -0.27, 0);
+      stripe.position.set(0, PAW_Y - 0.0115, 0);
       leg.add(stripe);
     }
   } else if (accessories.feet === 'rainboots') {
@@ -1290,14 +1324,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
   }
 
+  // A feet item that makes the paw taller (scale.y > 1) would push its sole
+  // into the ground (R2). Lift the paw, and whatever hangs with it, by the
+  // extra half-height, so the sole stays where a bare paw's is. A flatter
+  // shell (the sneaker, 0.95) is left alone: it clears the ground already.
+  for (const leg of legs) {
+    const lift = PAW_HALF * Math.max(0, leg.userData.paw.scale.y - 1);
+    if (lift) for (const part of leg.children.slice(1)) part.position.y += lift;
+  }
+
   // -------------------------------------------------------------------------
   // LEG LENGTH. Done last, once every part and accessory is in place, so one
   // pass can lift the whole cat. Δ is the extra limb length: each hip pivot
   // rises by Δ and its limb is rebuilt Δ longer, hanging from the pivot as
   // before; the paw (and any feet accessory hung on the leg) drops back by Δ,
   // so it lands where it always did and the cat still stands at y = 0. Every
-  // other direct child of g — body, belly, head, ruff, tail, body- and
-  // back-slot accessories — rises by Δ with the hips.
+  // other direct child of g — body (and the underside on it), head, tail,
+  // body- and back-slot accessories — rises by Δ with the hips.
   //
   // The animator writes body and head positions from userData.base every
   // frame, so base carries the lift too; it never writes a leg position, so
@@ -1305,32 +1348,27 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   //
   // Standing is not the only pose, though. The animator folds legs by scaling
   // them about the hip and swings them by rotating about it, and both of those
-  // move a longer leg's paw further than a standard one's — a long-legged cat
-  // would hover when it sat or crouched. So base also carries `legLift` (Δ)
-  // and `legReach` (a standard leg's hip-to-sole drop), and every lifted child
-  // remembers its lifted height in userData.liftY: animator.js's fitLongLegs
-  // uses them to bring the cat down by Δ in a crouch and re-fit each posed
-  // leg so its sole lands where a standard cat's would.
+  // move a longer leg's paw further than the reference rig's (hip 0.3) that
+  // the poses were written for — and EVERY cat's hip is now above that rig's,
+  // by base.legLift (0.09 standard, more for Digit). So every lifted child
+  // remembers its lifted height in userData.liftY, and animator.js's
+  // fitLongLegs uses legLift and legReach to bring the cat down by legLift in
+  // a crouch and re-fit each posed leg so its sole lands where the reference
+  // rig's would (and never below the ground).
   const LEG_LEN = s.legLen ?? 1;
-  let bodyY = 0.34;
-  let headPos = [0, 0.56, -0.44];
-  let legLift = 0;
-  if (LEG_LEN !== 1) {
-    const dy = 0.26 * (LEG_LEN - 1);
-    legLift = dy;
-    for (const child of g.children) {
-      child.position.y += dy;
-      child.userData.liftY = child.position.y;
-      if (!legs.includes(child)) continue;
-      const [limb, ...hung] = child.children;
-      limb.geometry.dispose();
-      limb.geometry = new THREE.CylinderGeometry(0.046, 0.058, 0.26 * LEG_LEN, 12);
-      limb.position.y = -0.13 * LEG_LEN;
-      for (const part of hung) part.position.y -= dy; // the paw, a sneaker stripe
-    }
-    bodyY += dy;
-    headPos = [0, 0.56 + dy, -0.44];
+  const dy = LEGS.LEN * (LEG_LEN - 1);
+  const hipY = LEGS.HIP_Y + dy;
+  for (const child of g.children) {
+    child.position.y += dy;
+    child.userData.liftY = child.position.y;
+    if (!legs.includes(child) || LEG_LEN === 1) continue;
+    const [limb, ...hung] = child.children;
+    limb.geometry.dispose();
+    limb.geometry = limbGeometry(LEGS.LEN * LEG_LEN, legs.indexOf(child) >= 2);
+    for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
+  const bodyY = TORSO.CENTRE_Y + dy;
+  const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
 
   g.scale.setScalar(s.scale);
   // Never merged. render/mergeprops.js welds a top-level child's leaves into
@@ -1342,12 +1380,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   g.userData.noMerge = true;
   g.userData.breed = breed;
   g.userData.parts = {
-    body, head, tail, tailPivots, legs,
+    body, head, tail, tailPivots, legs, underside,
     earL: head.userData.earL, earR: head.userData.earR, whiskers,
   };
-  g.userData.base = { bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: -0.6 };
-  // The sole of a standard paw: hip 0.3, paw centre 0.2585 below it, and the
-  // flattened paw's half-height (0.062 * 0.62) below that.
-  if (legLift) Object.assign(g.userData.base, { legLift, legReach: 0.2585 + 0.062 * 0.62 });
+  // hipY and legLift (the hip's rise over the reference rig the poses were
+  // written for) and legReach (that rig's hip-to-sole drop) drive animator.js's
+  // fitLongLegs; poseFit is the per-state correction applyPoseFit adds after it.
+  g.userData.base = {
+    bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
+    hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
+  };
   return g;
 }

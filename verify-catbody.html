@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cat body harness</title>
+<!-- Cat-body live-check sheet: a LINEUP of real buildCat() rigs posed by the real
+     animateCat(), on a neutral ground, one static frame. No params = an index of
+     links. URL params:
+       breeds=tabby,digit,...   default: the ten presets + hagrid
+       state=follow|sniff|stretch|groom|pounce|scared|cross|land|nap|stalk|perch|requestPet|walk
+                                walk = follow at moveSpeed 1.5; every other state at speed 0
+       t=1.3                    animation time, seconds
+       view=side|front|back|three   side = from +x (row runs along z), front = from -z,
+                                back = from +z, three = 3/4 from front-right
+       acc=slot:id,slot:id      e.g. body:sweater,neck:bowtie      dressed=1 = the full kit
+       simple=1                 opts.simple builds
+       zoom=1                   multiplier on camera distance
+       variants=shell|neck      first breed x3, d = -0.02, 0, +0.02: APPROXIMATE preview of R5 tuning
+     window.__ready is true after the first frame; window.__render() redraws. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #d9dce0; overflow: hidden; font: 12px/1.3 system-ui, sans-serif; color: #222; }
+  #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  #labels span { position: absolute; transform: translate(-50%, 0); background: rgba(255,255,255,.82); padding: 1px 5px;
+                 border-radius: 4px; white-space: nowrap; font-size: 11px; }
+  #caption { position: fixed; left: 0; right: 0; top: 0; padding: 4px 8px; background: rgba(255,255,255,.88); font-size: 11px; word-break: break-all; }
+  #index { max-width: 760px; margin: 0 auto; padding: 16px; height: 100%; overflow: auto; box-sizing: border-box; }
+  #index h1 { font-size: 18px; } #index h2 { font-size: 14px; margin: 18px 0 6px; }
+  #index a { display: inline-block; margin: 2px 8px 2px 0; color: #174ea6; }
+</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { CATALOG } from '/src/progression.js';
+
+  const params = new URLSearchParams(location.search);
+  const PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit', 'hagrid'];
+  const STATES = ['follow', 'sniff', 'stretch', 'groom', 'pounce', 'scared', 'cross', 'land', 'nap', 'stalk', 'perch', 'requestPet'];
+  const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
+  const SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
+
+  if ([...params.keys()].length === 0) {
+    const q = (o) => '?' + Object.entries(o).map(([k, v]) => `${k}=${v}`).join('&');
+    const links = (title, items) => `<h2>${title}</h2>` + items.map(([label, o]) => `<a href="${q(o)}">${label}</a>`).join('');
+    const views = ['side', 'front', 'back', 'three'];
+    document.body.innerHTML = '<div id="index"><h1>Cat body harness</h1>'
+      + '<p>Every link renders one static frame. Params: breeds, state, t, view, acc, dressed, simple, zoom, variants (see the comment at the top of this file).</p>'
+      + links('Bare, every preset, per pose (side view)', [...STATES, 'walk'].map((s) => [s, { state: s, view: 'side' }]))
+      + links('Bare, standing, per view', views.map((v) => [v, { state: 'follow', view: v }]))
+      + links('Dressed (full kit), per pose (side view)', [...STATES, 'walk'].map((s) => [s, { state: s, view: 'side', dressed: 1 }]))
+      + links('Dressed, standing, per view', views.map((v) => [v, { state: 'follow', view: v, dressed: 1 }]))
+      + links('Sweater + bowtie, per view', views.map((v) => [v, { state: 'follow', view: v, acc: 'body:sweater,neck:bowtie' }]))
+      + links('R5 shell variants (approximate), tabby and digit', ['tabby', 'digit'].flatMap((b) => ['side', 'three', 'front'].map((v) => [`${b} ${v}`, { variants: 'shell', breeds: b, view: v }])))
+      + links('R5 neck variants (approximate), tabby and digit', ['tabby', 'digit'].flatMap((b) => ['side', 'three', 'front'].map((v) => [`${b} ${v}`, { variants: 'neck', breeds: b, view: v }])))
+      + links('Simple builds (strays)', views.map((v) => [v, { state: 'follow', view: v, simple: 1 }]))
+      + '</div>';
+    window.__ready = true;
+    window.__render = () => {};
+  } else {
+    run();
+  }
+
+  function run() {
+    const view = ['side', 'front', 'back', 'three'].includes(params.get('view')) ? params.get('view') : 'side';
+    const stateParam = params.get('state') || 'follow';
+    const walk = stateParam === 'walk';
+    const state = walk ? 'follow' : stateParam;
+    const moveSpeed = walk ? 1.5 : 0;
+    const t = Number(params.get('t') ?? 1.3) || 0;
+    const zoom = Number(params.get('zoom') ?? 1) || 1;
+    const simple = params.get('simple') === '1';
+    const variants = params.get('variants');
+    const notes = [];
+
+    let breeds = (params.get('breeds') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!breeds.length) breeds = PRESETS;
+    let acc = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
+    if (params.get('dressed') === '1') acc = { ...acc, ...DRESSED };
+    for (const pair of (params.get('acc') || '').split(',').filter(Boolean)) {
+      const [slot, id] = pair.split(':');
+      if (!SLOTS.includes(slot)) { notes.push(`bad slot ${slot}`); continue; }
+      if (id && !CATALOG.accessories[id]) notes.push(`unknown accessory ${id}`);
+      acc[slot] = id || null;
+    }
+
+    // the lineup: [{ breed, label, d }]
+    const D = [-0.02, 0, 0.02];
+    let rows;
+    if (variants === 'shell' || variants === 'neck') {
+      if (variants === 'shell' && !acc.body) { acc.body = 'sweater'; notes.push('body defaulted to sweater'); }
+      if (variants === 'neck') {
+        if (!acc.neck) { acc.neck = 'scarf'; notes.push('neck defaulted to scarf'); }
+        if (!acc.collar) { acc.collar = 'bell'; notes.push('collar defaulted to bell'); }
+      }
+      rows = D.map((d) => ({ breed: breeds[0], d, label: `${breeds[0]} ${variants} ${d > 0 ? '+' : ''}${d}` }));
+      notes.push('APPROXIMATE preview of R5 tuning');
+    } else {
+      rows = breeds.map((b) => ({ breed: b, d: 0, label: b }));
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'gl';
+    document.body.appendChild(canvas);
+    const labelsEl = document.createElement('div'); labelsEl.id = 'labels'; document.body.appendChild(labelsEl);
+    const cap = document.createElement('div'); cap.id = 'caption'; document.body.appendChild(cap);
+    cap.textContent = `${location.search.slice(1) || '(defaults)'}${notes.length ? '  |  ' + notes.join('; ') : ''}`;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd9dce0);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.1));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(2, 4, -3); // front-right-ish, so faces (-z) are lit
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+    fill.position.set(-3, 2, 4);
+    scene.add(fill);
+
+    // ground: a 1 m checker plus a fine grid so contact reads
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#eceef0'; cx.fillRect(0, 0, 64, 64);
+    cx.fillStyle = '#dfe2e6'; cx.fillRect(0, 0, 32, 32); cx.fillRect(32, 32, 32, 32);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(20, 20);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: tex }));
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+    const grid = new THREE.GridHelper(40, 160, 0xb4b9c0, 0xc9cdd2);
+    grid.position.y = 0.002;
+    scene.add(grid);
+
+    // cats
+    const SP = 1.4, n = rows.length;
+    const alongZ = view === 'side';
+    const cats = rows.map((row, i) => {
+      const cat = buildCat(row.breed, { ...acc }, { simple });
+      if (row.d !== 0 && variants === 'shell') {
+        // body-slot shells: body's children that are neither the underside nor the (sphere) buttons
+        const f = (1.06 + row.d) / 1.06;
+        for (const m of cat.userData.parts.body.children) {
+          if (m.userData.underside || m.geometry?.type === 'SphereGeometry') continue;
+          m.scale.multiplyScalar(f);
+        }
+      }
+      if (row.d !== 0 && variants === 'neck') {
+        // neck-slot items and the collar group: head children hanging below the chin line
+        for (const m of cat.userData.parts.head.children) if (m.position.y < -0.1) m.position.z += row.d;
+      }
+      const c = (n - 1) / 2;
+      // lay the row out so index 0 is on the screen-left for each camera
+      if (alongZ) cat.position.z = (c - i) * SP;
+      else if (view === 'back') cat.position.x = (i - c) * SP;
+      else cat.position.x = (c - i) * SP;
+      scene.add(cat);
+      return cat;
+    });
+
+    const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+    const target = new THREE.Vector3(0, 0.38, 0);
+    const dirs = { side: [1, 0.12, 0], front: [0, 0.12, -1], back: [0, 0.12, 1], three: [0.65, 0.3, -0.75] };
+
+    function layout() {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      const extW = (n - 1) * SP + 1.5, extH = 1.5;
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const dist = Math.max(extH / 2 / tanV, extW / 2 / (tanV * camera.aspect)) * 1.08 * zoom;
+      const dir = new THREE.Vector3(...dirs[view]).normalize();
+      camera.position.copy(target).addScaledVector(dir, dist);
+      camera.lookAt(target);
+      camera.updateProjectionMatrix();
+    }
+
+    function render() {
+      layout();
+      rows.forEach((row, i) => {
+        const cat = cats[i];
+        animateCat(cat, state, t, moveSpeed, false);
+      });
+      renderer.render(scene, camera);
+      labelsEl.innerHTML = '';
+      const w = window.innerWidth, h = window.innerHeight;
+      rows.forEach((row, i) => {
+        const p = new THREE.Vector3(cats[i].position.x, 0, cats[i].position.z).project(camera);
+        const s = document.createElement('span');
+        s.textContent = row.label;
+        s.style.left = `${(p.x * 0.5 + 0.5) * w}px`;
+        s.style.top = `${(-p.y * 0.5 + 0.5) * h + 6}px`;
+        labelsEl.appendChild(s);
+      });
+    }
+
+    window.__render = render;
+    window.addEventListener('resize', render);
+    render();
+    requestAnimationFrame(() => { render(); window.__ready = true; });
+  }
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
+import { CAT_LOOK_Y } from './cat/model.js';
 import { cameraOffset, moveDirection, viewForward } from './catcam.js';
 import { isStalkMag } from './touchinput.js';
 import { hasSkill } from './skills.js';
@@ -714,7 +715,7 @@ export function createPlayer(camera, canvas) {
       camOff.multiplyScalar(camPull);
       camera.position.copy(avatar.position).add(camOff);
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
-      camera.lookAt(avatar.position.x, avatar.position.y + 0.6, avatar.position.z);
+      camera.lookAt(avatar.position.x, avatar.position.y + CAT_LOOK_Y, avatar.position.z);
     },
   };
 

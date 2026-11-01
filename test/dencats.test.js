@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { createDenCats } from '../src/dencats.js';
+import { createDenCats, BOX_SIT_Y } from '../src/dencats.js';
 import { clearsCamera } from '../src/den.js';
 import { buildCat } from '../src/cat/model.js';
+import { readFileSync } from 'node:fs';
+import { poseMeasure } from './helpers/catfingerprint.js';
+const BASELINE = JSON.parse(readFileSync(new URL('./fixtures/catpose-baseline.json', import.meta.url), 'utf8'));
+
 
 // Headless scene, like test/catnames.test.js: the module only add()s and remove()s.
 function makeScene() {
@@ -109,6 +113,11 @@ describe('createDenCats', () => {
     dc.update(0.1, 1);
     dc.dispose();
     expect(scene.added.size).toBe(0);
+  });
+
+  it('a boxed cat, sitting up, shows exactly as much as it used to', () => {
+    const now = poseMeasure(buildCat('tabby'), 'requestPet');
+    expect(BOX_SIT_Y + now.torsoMax).toBeCloseTo(-0.2 + BASELINE.tabby.requestPet.torsoMax, 2);
   });
 
   it('builds the full cat model, not the simple rig (a lying cat must read as a cat)', () => {

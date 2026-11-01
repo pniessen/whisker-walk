@@ -210,7 +210,7 @@ export const SUN_BIAS = -0.00015;
 // own shadow. Judged as the one group the builders actually author (a
 // house, a tree, a bollard, the whole cat), the composite reads as what it
 // visually is. MEASURED (measure-tmp.mjs against the live builders):
-// tabby cat 0.56 x 0.85 x 1.67 (nose-to-tail, tail out, easily the widest
+// tabby cat 0.56 x 0.97 x 1.67 (nose-to-tail, tail out, easily the widest
 // axis), bollard 0.62 x 0.73 x 0.59, barrel 0.57 x 0.75 x 0.60, lamp post
 // ~0.44 wide by ~3.52 tall, mailbox ~0.5 wide by ~1.23 tall.
 //
@@ -276,7 +276,7 @@ export const SUN_BIAS = -0.00015;
 //   - CAST_WIDE_SPAN: wide enough to throw a real shadow regardless of
 //     height — a car, a bench, a market stall, a fence run, and (this is
 //     the one that matters most) the cat itself, whose 1.67m nose-to-tail
-//     span clears it easily even though its 0.85m height does not clear
+//     span clears it easily even though its 0.97m height does not clear
 //     CAST_TALL_HEIGHT. Strays and ghosts are the same buildCat geometry
 //     (0.85x scale for strays) so they clear it the same way, with no
 //     special-casing needed. Set to 1.0, above the bollard/barrel's ~0.6

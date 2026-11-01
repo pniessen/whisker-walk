@@ -133,8 +133,9 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // CROSS_TAG_Y exists because of a collision found by looking at the thing
 // rather than by testing it: the 'cross' pose (animator.js) raises the tail
 // straight up into a bottlebrush, and at the stray's 0.85 scale the tail tip
-// reaches world y ~0.83 — squarely inside the tag sprite's band, which at
-// TAG_Y spans roughly 0.72 to 1.07. The tail drew straight through the label,
+// reaches a height inside the tag sprite's band at the neutral TAG_Y (the
+// sprite is 0.35 tall, centred on it; the figures here were measured on the
+// shorter cat, see the re-measure below). The tail drew straight through the label,
 // and did so from BEHIND the cat, which is the angle a player chasing one
 // spends nearly all their time at.
 //
@@ -151,8 +152,13 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // The tag does shift when a cat turns cross and settles back when forgiven.
 // That is deliberate: it happens on the same frame as the colour repaint, so
 // it reads as one change of mood rather than as a glitch.
-export const TAG_Y = 1.05;
-export const CROSS_TAG_Y = 1.32;
+//
+// The taller cat (Task 9 of the body reshape) moved both up by the amount the
+// tabby's highest point rose, rounded up to 1 cm, so the margins are kept:
+// TAG_Y = 1.05 + 0.13: tabby 'follow' max 0.9684 vs 0.8467 before (+0.1217).
+// CROSS_TAG_Y = 1.32 + 0.06: tabby 'cross' max 1.0382 vs 0.9848 (+0.0534).
+export const TAG_Y = 1.18;
+export const CROSS_TAG_Y = 1.38;
 
 // Paints one mood into an existing 2D context. Used both by makeNameTag (on
 // a fresh canvas) and by setNameTagMood (over a painted one) — one painter,

@@ -31,7 +31,7 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
 
   function popup(position, text) {
     const obj = makeText(text);
-    obj.position.copy(position).add(_tmpVec.set(0, 0.9, 0));
+    obj.position.copy(position).add(_tmpVec.set(0, 1.03, 0));
     scene.add(obj);
     effects.push({ obj, life: 0, ttl: 1.1, kind: 'popup' });
   }

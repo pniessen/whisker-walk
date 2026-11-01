@@ -93,6 +93,18 @@ describe('createGhosts', () => {
     }
   });
 
+  it("a ghost cat's painted torso goes half-transparent too", () => {
+    // The coat is painted into the torso's vertex colours (cat body Task 4);
+    // that material must be caught by the same traverse as every other one.
+    const scene = fakeScene();
+    const ghosts = createGhosts(scene, AREA, [profile('a')], () => 0.5);
+    const ghostGroup = ghosts.list[0].group;
+    const painted = [];
+    ghostGroup.traverse((o) => { if (o.material?.vertexColors) painted.push(o.material); });
+    expect(painted.length).toBeGreaterThanOrEqual(1);
+    for (const m of painted) { expect(m.transparent).toBe(true); expect(m.opacity).toBe(0.5); }
+  });
+
   it('falls back to a safe breed and petName for untrusted/malformed profile data', () => {
     const scene = fakeScene();
     const ghosts = createGhosts(scene, AREA, [

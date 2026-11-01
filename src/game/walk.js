@@ -25,7 +25,7 @@ import * as moor from '../world/moor.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
-import { buildCat } from '../cat/model.js';
+import { buildCat, CAT_LOOK_Y } from '../cat/model.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
@@ -526,7 +526,7 @@ export function createWalkLifecycle({
     player.setCameraZoom(zoomStep, { instant: true });
     const startView = zoomView(zoomStep);
     camera.position.copy(cat.position).add(cameraOffset(0, 0.18, startView.dist, startView.height));
-    camera.lookAt(cat.position.x, 0.6, cat.position.z);
+    camera.lookAt(cat.position.x, CAT_LOOK_Y, cat.position.z);
 
     const equipped = state.equipped;
     // In a room walk (roomSeed set), duskMode was already gated on the

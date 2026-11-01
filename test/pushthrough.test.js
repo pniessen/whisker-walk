@@ -30,7 +30,9 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { createPushThroughs } = await import('../src/pushthrough.js');
+const { createPushThroughs, OPEN_H, ARCH_Y } = await import('../src/pushthrough.js');
+const { buildCat } = await import('../src/cat/model.js');
+const { animateCat } = await import('../src/cat/animator.js');
 const { propsFor, frameColliders } = await import('../src/propsets.js');
 const { isWalkableAt, createPlayer } = await import('../src/player.js');
 const { build: buildNeigh } = await import('../src/world/neighborhood.js');
@@ -376,7 +378,7 @@ describe('createPushThroughs', () => {
         expect(box.max.z).toBeLessThanOrEqual(0.3 + 1e-6);
         expect(box.min.z).toBeGreaterThanOrEqual(-0.3 - 1e-6);
         // the opening is open: nothing solid stands in it below a cat's height
-        // (ears 0.83, raised tail 0.89) except what swings out of the way
+        // (raised tail 0.97) except what swings out of the way
         const rc = new THREE.Raycaster();
         const solid = [];
         p.list[0].group.traverse((o) => {
@@ -384,7 +386,7 @@ describe('createPushThroughs', () => {
         });
         p.list[0].group.updateMatrixWorld(true);
         for (let s = -width / 2 + 0.05; s <= width / 2 - 0.05; s += 0.05) {
-          for (const y of [0.1, 0.3, 0.5, 0.7, 0.9]) { // the cat stands up to 0.89
+          for (const y of [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]) { // the cat stands up to 0.97
             rc.set(new THREE.Vector3(s, y, -1), new THREE.Vector3(0, 0, 1));
             rc.far = 2;
             expect(rc.intersectObjects(solid, false), `${f.kind} opening at ${s.toFixed(2)},${y}`).toEqual([]);
@@ -527,4 +529,34 @@ test('the walk wires push-throughs in: solid frames, every cat a mover, no wire,
   // the module itself never awards, records or sends anything
   const mod = readFileSync(new URL('../src/pushthrough.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
   expect(mod).not.toMatch(/award|recordFeat|progression|netevents|send\(|Math\.random|walkRng/);
+});
+
+// World-space tops (cat.scale applied) of the playable presets, standing in
+// 'follow' and walking at speed 1.5 sampled over a stride. Mainecoon is left
+// out on purpose: spec §9.3 says Maine Coons already brush through the
+// openings, and sizing the openings to it would make them absurdly tall.
+const OPENING_PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'zeetoo', 'robbie', 'd2', 'digit'];
+function worldTop(cat, state, t, speed) {
+  animateCat(cat, state, t, speed, false);
+  cat.updateMatrixWorld(true);
+  return new THREE.Box3().setFromObject(cat, true).max.y;
+}
+function worldTops(breed) {
+  const cat = buildCat(breed);
+  const follow = worldTop(cat, 'follow', 1.3, 0);
+  let walk = -Infinity;
+  for (let i = 0; i < 24; i++) walk = Math.max(walk, worldTop(cat, 'follow', 0.1 + i * 0.07, 1.5));
+  return { follow, walk };
+}
+
+test('openings clear every playable cat at world scale by 1 cm, standing and walking', () => {
+  const tops = {};
+  for (const breed of OPENING_PRESETS) {
+    const { follow, walk } = worldTops(breed);
+    tops[breed] = { follow, walk };
+    expect(follow + 0.01, `${breed} follow`).toBeLessThanOrEqual(OPEN_H);
+    expect(walk + 0.01, `${breed} walk`).toBeLessThanOrEqual(OPEN_H);
+  }
+
+  expect(ARCH_Y).toBe(OPEN_H);
 });
