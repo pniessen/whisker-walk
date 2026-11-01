@@ -22,6 +22,7 @@ import * as docks from '../world/docks.js';
 import * as woods from '../world/woods.js';
 import * as river from '../world/river.js';
 import * as moor from '../world/moor.js';
+import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
@@ -628,7 +629,7 @@ export function createWalkLifecycle({
       // for this cover and stays hidden for the walk (the den has none). Local
       // to this device like every critter position; nothing rides the wire.
       hides: propsFor(areaId).hides,
-      onHide: (c) => hud.toast(`The ${c.type} dived under cover! 🐭`),
+      onHide: (c) => hud.toast(hideToastFor(c.type)),
     });
 
     const collectibleMeshes = new Map();

@@ -14,7 +14,7 @@ const CHASEABLE = new Set(['bird', 'squirrel', 'butterfly', 'seagull', 'crab', '
 // CHASEABLE) in the set of critters a Far Call draws toward the caller.
 // The Moor's 'rabbit' follows the same rule: it only bolts, so it is STALKABLE
 // and PREY but never CHASEABLE, and a Far Call does not draw it.
-const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat', 'rabbit']);
+const STALKABLE = new Set(['squirrel', 'bird', 'mouse', 'rat', 'rabbit', 'frog']);
 // v18 Far Call ('far-call') — critters curious enough to come and look when a
 // meow carries. Derived from CHASEABLE rather than listed fresh: everything a
 // cat can chase, MINUS the two types whose existing meow reaction is to bolt
@@ -44,7 +44,7 @@ const ANCHOR_SPEED = 2.2;
 // every way the cat can reach a critter. With no cover in reach it dashes away
 // and comes back, exactly as a pounce-tag sends it. Positions only — nothing
 // here rolls, so it never touches the injected rng or Math.random.
-const PREY = new Set(['mouse', 'rat', 'squirrel', 'rabbit']);
+const PREY = new Set(['mouse', 'rat', 'squirrel', 'rabbit', 'frog']);
 export const PREY_NOTICE = 3.5;
 export const PREY_NOTICE_STALKED = 1.2;
 export const HIDE_REACH = 0.4;
@@ -121,6 +121,20 @@ function buildCritter(type) {
     const tail = new THREE.Mesh(new THREE.SphereGeometry(0.045, 5, 5), mat(0xf2eee6));
     tail.position.set(0, 0.12, 0.15);
     g.add(tail);
+  } else if (type === 'frog') {
+    // Squat and green, under 0.2 m: eye bumps on top and two folded back legs.
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(0x5e8a3a));
+    body.scale.set(1.2, 0.7, 1.3);
+    body.position.y = 0.06;
+    g.add(body);
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), mat(0x5e8a3a));
+      eye.position.set(side * 0.04, 0.12, -0.06);
+      g.add(eye);
+      const leg = box(0.05, 0.04, 0.1, 0x5e8a3a);
+      leg.position.set(side * 0.1, 0.03, 0.06);
+      g.add(leg);
+    }
   } else if (type === 'butterfly' || type === 'firefly') {
     const color = type === 'firefly' ? 0xf2e04e : 0xe070b0;
     for (const side of [-1, 1]) {
@@ -274,6 +288,7 @@ export function createCritters(scene, spawns, opts = {}) {
     c.hideAt = null;
     c.spottable = false;
     c.stalkClose = false;
+    if (c.type === 'frog') c.group.position.y = 0; // never left mid-hop
     c.group.visible = false; // contactshadows.js collapses a hidden mover's decal
     if (!c.tagged && onHide) onHide(c);
   }
@@ -484,9 +499,9 @@ export function createCritters(scene, spawns, opts = {}) {
               c.cooldown = 18;
             }
           }
-        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat' || c.type === 'rabbit') {
+        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat' || c.type === 'rabbit' || c.type === 'frog') {
           // Every flee speed stays under the 9 m/s pounce lunge, so a child can still tag one.
-          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rabbit' ? 6.0 : c.type === 'rat' ? 5.5 : 4.5;
+          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rabbit' ? 6.0 : c.type === 'frog' ? 5.0 : c.type === 'rat' ? 5.5 : 4.5;
           // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
           // A stalking or still cat is noticed late and startles it first
           // (R27, R29); a critter answering a Far Call came because it was
@@ -529,6 +544,10 @@ export function createCritters(scene, spawns, opts = {}) {
             const bPt = a.clone().add(c.patrolSpan);
             const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
             p.lerpVectors(a, bPt, k);
+          }
+          // A bolting frog hops; every other frame (patrol, startle, hidden) it sits on the ground.
+          if (c.type === 'frog') {
+            p.y = c.fleeing && !(c.startleT > 0) ? 0.12 * Math.abs(Math.sin(12 * t)) : 0;
           }
         } else if (c.type === 'butterfly' || c.type === 'firefly') {
           const cx = c.trail ? catPos.x : c.anchor.x;
