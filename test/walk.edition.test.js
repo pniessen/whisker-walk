@@ -290,4 +290,31 @@ describe('the clan in the walk (source pins)', () => {
     expect(clan).toBeGreaterThan(strays);
     expect(strays).toBeGreaterThan(-1);
   });
+
+  it('intruders come after the session literal and the clanHome line, named only in Clan Edition', () => {
+    const s = src();
+    const at = s.indexOf('session.intruders = ');
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeGreaterThan(s.indexOf('const session = {'));
+    expect(at).toBeGreaterThan(s.indexOf('const clanHome = '));
+    expect(s.slice(0, at)).not.toMatch(/session\.intruders\s*=/);
+    const call = s.slice(at, s.indexOf('NO_INTRUDERS', at));
+    expect(call).toContain('createIntruders(scene, areaId,');
+    expect(call).toContain('!isDen');
+    expect(call).toContain('showNames: isClanEdition(');
+    expect(call).toContain('isHostile({ clan }, { clanHome, picks })');
+    expect(call).toContain('audio.hiss()');
+    const build = call.slice(call.indexOf('onBuild'));
+    expect(build).toContain('assignShadowCastersFor(');
+    expect(build).toContain('decals.follow(');
+    expect(s).toContain('session.intruders.dispose()');
+  });
+
+  it('main.js updates the intruders right after the clan', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const clan = m.indexOf('session.clanCats.update(wdt, t, session.cat.position)');
+    const intr = m.indexOf('session.intruders.update(dt, session.cat.position)');
+    expect(intr).toBeGreaterThan(clan);
+    expect(m.slice(clan, intr).split('\n')).toHaveLength(2);
+  });
 });

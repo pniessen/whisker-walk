@@ -87,7 +87,8 @@ import { litMaterial } from '../render/materials.js';
 import { setTextureTier } from '../render/textures.js';
 import { waterRig } from '../render/water.js';
 import { createWind } from '../render/wind.js';
-import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '../render/rig.js';
+import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
+import { createIntruders, isHostile, NO_INTRUDERS } from '../intruders.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
 import { mergeStaticProps } from '../render/mergeprops.js';
@@ -1270,6 +1271,16 @@ export function createWalkLifecycle({
     const clanHome = clanHomeFor(areaId, progression.state.edition, picks);
     session.clanHome = clanHome;
     session.clanEdition = isClanEdition(progression.state);
+    // Intruders (Clan Life Part 2): a neighbouring clan's warrior crossing this
+    // territory, from the wall clock alone. Built after the shadow sweep, so
+    // each visit's cat is swept on its own and given a contact shadow.
+    session.intruders = castFor(areaId).length && !isDen ? createIntruders(scene, areaId, {
+      reducedMotion,
+      showNames: isClanEdition(state),
+      hostile: (clan) => isHostile({ clan }, { clanHome, picks }),
+      onNotice: () => audio.hiss(),
+      onBuild: (g) => { assignShadowCastersFor(g); decals.follow(g); },
+    }) : NO_INTRUDERS;
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
@@ -1798,6 +1809,7 @@ export function createWalkLifecycle({
     session.race.dispose();
     session.strayCats.dispose();
     session.clanCats.dispose();
+    session.intruders.dispose();
     session.remotes.dispose();
     session.ghosts.dispose();
     session.denCats.dispose();
