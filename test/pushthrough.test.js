@@ -32,7 +32,7 @@ vi.stubGlobal('document', {
 
 const { createPushThroughs, OPEN_H, ARCH_Y } = await import('../src/pushthrough.js');
 const { buildCat } = await import('../src/cat/model.js');
-const { poseMeasure } = await import('./helpers/catfingerprint.js');
+const { animateCat } = await import('../src/cat/animator.js');
 const { propsFor, frameColliders } = await import('../src/propsets.js');
 const { isWalkableAt, createPlayer } = await import('../src/player.js');
 const { build: buildNeigh } = await import('../src/world/neighborhood.js');
@@ -531,7 +531,32 @@ test('the walk wires push-throughs in: solid frames, every cat a mover, no wire,
   expect(mod).not.toMatch(/award|recordFeat|progression|netevents|send\(|Math\.random|walkRng/);
 });
 
-test('openings clear the tallest standing part of a cat by 10 cm', () => {
-  expect(OPEN_H).toBeGreaterThanOrEqual(poseMeasure(buildCat('tabby'), 'follow').max + 0.1);
+// World-space tops (cat.scale applied) of the playable presets, standing in
+// 'follow' and walking at speed 1.5 sampled over a stride. Mainecoon is left
+// out on purpose: spec §9.3 says Maine Coons already brush through the
+// openings, and sizing the openings to it would make them absurdly tall.
+const OPENING_PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'zeetoo', 'robbie', 'd2', 'digit'];
+function worldTop(cat, state, t, speed) {
+  animateCat(cat, state, t, speed, false);
+  cat.updateMatrixWorld(true);
+  return new THREE.Box3().setFromObject(cat, true).max.y;
+}
+function worldTops(breed) {
+  const cat = buildCat(breed);
+  const follow = worldTop(cat, 'follow', 1.3, 0);
+  let walk = -Infinity;
+  for (let i = 0; i < 24; i++) walk = Math.max(walk, worldTop(cat, 'follow', 0.1 + i * 0.07, 1.5));
+  return { follow, walk };
+}
+
+test('openings clear every playable cat at world scale by 1 cm, standing and walking', () => {
+  const tops = {};
+  for (const breed of OPENING_PRESETS) {
+    const { follow, walk } = worldTops(breed);
+    tops[breed] = { follow, walk };
+    expect(follow + 0.01, `${breed} follow`).toBeLessThanOrEqual(OPEN_H);
+    expect(walk + 0.01, `${breed} walk`).toBeLessThanOrEqual(OPEN_H);
+  }
+
   expect(ARCH_Y).toBe(OPEN_H);
 });

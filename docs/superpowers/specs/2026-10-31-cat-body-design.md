@@ -142,6 +142,6 @@ The builder (design on branch `cat-builder-design`) feeds a STYLE-row-shaped coa
 
 1. **Digit's legs.** He keeps "1.35× longer legs" on top of the new, longer standard leg (0.47 instead of 0.35). That may read as stilts. The live check shows 1.35 against 1.2; he chooses.
 2. **Name tags rise about 14 cm**, so they stay clear of the taller head and ears. This also changes how co-walk partners' tags sit.
-3. **Hedge arches and gate flaps:** the clearance over the cat goes from 1.0 m to 1.1 m, so a standard cat's ears still pass under them. Maine Coons already brush through today.
+3. **Hedge arches and gate flaps:** the clearance over the cat goes from 1.0 m to 1.14 m (the gate top rail and hedge height rise with it), so every playable cat's ears still pass under them; D2 (1.114 m in world scale) now sets the height. Maine Coons already brush through today.
 4. **Siamese stays plain cream on the body.** A faint darker shading over the hips is possible at no cost if he wants it.
 5. **The family cats' painted stripes** (Zeetoo, D2, Digit) use the same soft mackerel pattern as the tabby. Compare them to their photos in the live check.

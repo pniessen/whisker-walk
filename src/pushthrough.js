@@ -47,14 +47,17 @@ const LINE = 0.01;        // m: closer than this to the panel's line is on neith
 const NEAR = 1;           // m: a side flip only counts this close to the line
 const QUIET = 0.35;       // s: a push this soon after the last one on the same flap still swings it, but makes no sound
 
-// A cat stands up to 0.97 m (tabby 'follow' max 0.9684: ears and raised tail),
-// so both openings are clear to 1.1 m: nothing solid over the cat as it goes
-// through, only the leaf or the sprigs it pushes aside.
-export const OPEN_H = 1.1;       // m: the top of a gate's flap opening (the lintel's underside)
-const GATE_H = 1.25;      // m: the gate's top rail
+// The tallest playable cat is D2 (scale 1.15): 1.114 m in 'follow' (ears and
+// raised tail), standing or walking; the tabby is 0.97 m. Both openings are
+// clear to 1.14 m, so nothing solid is over any of them as they go through,
+// only the leaf or the sprigs they push aside. The slabs above stay at least
+// 4 cm thick (gate panel 1.22 to 1.28, hedge arch 1.14 to 1.19).
+// Maine Coons are taller still and brush through (spec 2026-10-31 §9.3).
+export const OPEN_H = 1.14;      // m: the top of a gate's flap opening (the lintel's underside)
+const GATE_H = 1.3;       // m: the gate's top rail
 const POST_H = 1.4;       // m: the end posts' tops
 const BURY = -0.6;        // m: how far the posts and jambs reach below the ground
-const HEDGE_H = 1.2;      // m: the hedge's height
+const HEDGE_H = 1.25;     // m: the hedge's height
 const HEDGE_D = 0.56;     // m: the hedge's depth (the colliders' is 0.6)
 export const ARCH_Y = OPEN_H;      // m: the underside of the leaves grown over a gap
 const SPRIGS = 5;
