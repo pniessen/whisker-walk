@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { shorePieces } from '../world/builder.js';
 
 // =============================================================================
 // WATER — the visual for one `waters` footprint record.
@@ -324,6 +325,61 @@ export function shoreDepth(w, x, z, shores = ALL_SHORES) {
   return d;
 }
 
+// --- real shore --------------------------------------------------------------
+//
+// Where two footprints overlap (the Woods pond over its river, the Moor's
+// river mouth over the lake, the Pines lake under its bay, the Black Mire's
+// corner), a stretch of one water's outline runs under the other: open water,
+// not a bank. shoreDepth measures to the whole outline, so it painted a short
+// pale foam stripe across the open water there. With the area's `waters`
+// handed in, depth is measured instead to this water's own pieces of REAL
+// shore, the ones builder.js's shorePieces keeps (the same pieces the swim
+// code wades by), still limited to the `shores` edges the area lists.
+//
+// Only a water whose box meets another's takes this path: everything else
+// paints exactly the texels it always did. And only texels within `shelf` of
+// the outline pay for it, since real shore is part of the outline and can
+// only be further away.
+function boxesMeet(a, b) {
+  const p = waterBox(a), q = waterBox(b);
+  return p.minX <= q.maxX && q.minX <= p.maxX && p.minZ <= q.maxZ && q.minZ <= p.maxZ;
+}
+
+const ON_EDGE = 1e-6;
+function onAllowedEdge(w, piece, shores) {
+  if (w.kind === 'circle') return true;
+  const on = (a, b, v) => Math.abs(a - v) < ON_EDGE && Math.abs(b - v) < ON_EDGE;
+  const edges = [];
+  if (on(piece.ax, piece.bx, w.minX)) edges.push('minX');
+  if (on(piece.ax, piece.bx, w.maxX)) edges.push('maxX');
+  if (on(piece.az, piece.bz, w.minZ)) edges.push('minZ');
+  if (on(piece.az, piece.bz, w.maxZ)) edges.push('maxZ');
+  // Not on any rect edge: an island's rim, which is always shore.
+  return edges.length === 0 || edges.some((e) => shores.includes(e));
+}
+
+/**
+ * realShoreOf(w, waters, shores) — w's own real-shore segments on its allowed
+ * edges, or null when no other water overlaps w (shoreDepth is then exact).
+ */
+export function realShoreOf(w, waters, shores = ALL_SHORES) {
+  if (!waters || !waters.some((o) => o !== w && o.id !== w.id && boxesMeet(o, w))) return null;
+  return shorePieces(waters).filter((p) => p.id === w.id && onAllowedEdge(w, p, shores));
+}
+
+function distToPieces(pieces, x, z) {
+  let min = Infinity;
+  for (const p of pieces) {
+    const dx = p.bx - p.ax, dz = p.bz - p.az;
+    const l2 = dx * dx + dz * dz;
+    let t = l2 > 0 ? ((x - p.ax) * dx + (z - p.az) * dz) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - (p.ax + dx * t), z - (p.az + dz * t));
+    if (d < min) min = d;
+  }
+  return min;
+}
+
 /**
  * A rect minus round discs, in world x/z: the outline to draw and the discs
  * to cut out of it as holes.
@@ -619,13 +675,14 @@ export function waterRamp(base) {
  * and the canal, whose ramps are symmetric in z — but not on the seaside,
  * whose only shore is minX and whose ramp is not symmetric in anything.
  */
-function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoughness }) {
+function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoughness, waters }) {
   const box = waterBox(w);
   const width = box.maxX - box.minX;
   const depth = box.maxZ - box.minZ;
   const nx = pow2Ceil(width / RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX);
   const nz = pow2Ceil(depth / RAMP_TEXEL_M, RAMP_MIN, RAMP_MAX);
   const shores = w.kind === 'circle' ? ALL_SHORES : (w.shores ?? ALL_SHORES);
+  const real = realShoreOf(w, waters, shores);
   const col = new Uint8Array(nx * nz * 4);
   const rough = withRoughness ? new Uint8Array(nx * nz * 4) : null;
   const { deep, shallow, foam } = colors;
@@ -633,7 +690,10 @@ function buildRampTextures(w, { shelf, foamWidth, foamStrength, colors, withRoug
     const z = box.maxZ - ((j + 0.5) / nz) * depth;
     for (let i = 0; i < nx; i++) {
       const x = box.minX + ((i + 0.5) / nx) * width;
-      const d = shoreDepth(w, x, z, shores);
+      let d = shoreDepth(w, x, z, shores);
+      // Near the outline, and the outline partly under another water: the
+      // distance to real shore instead (see realShoreOf).
+      if (real && d < shelf) d = Math.max(d, distToPieces(real, x, z));
       // t: 0 at the rim, 1 once we are `shelf` metres in. Infinity (no facing
       // shore) falls out of smoothstep as 1, i.e. open deep water.
       const t = smoothstep(0, shelf, d);
@@ -754,6 +814,10 @@ function islandGeometry(w, box, segments) {
  *                          art-directed rather than derived; nothing needs it
  *                          today, and using it gives up the property that one
  *                          hex per area is the whole integration.
+ *   waters       {object[]} the area's whole `waters` list. Optional; with
+ *                          it, foam and the shallow shelf follow REAL shore
+ *                          only, so where this water runs under another no
+ *                          pale stripe crosses the open water (realShoreOf).
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
  *                          id, so the three bodies ripple differently and each
  *                          one ripples identically on every walk and on every
@@ -774,6 +838,7 @@ export function createWater(footprint, options = {}) {
     foamStrength = FOAM_STRENGTH,
     colors,
     seed,
+    waters,
   } = options;
 
   const tier = (typeof quality === 'string' ? quality : quality?.name) === 'low' ? 'low' : 'high';
@@ -798,6 +863,7 @@ export function createWater(footprint, options = {}) {
     foamStrength,
     colors: { ...waterRamp(color), ...colors },
     withRoughness: tier === 'high',
+    waters,
   });
 
   // THE LOW TIER. Adaptive Auto's floor rung (a device whose frames stayed
