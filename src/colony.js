@@ -23,7 +23,7 @@
 // ADD-ONLY rule is enforced: the save key's hostile-input sanitizer, the merge
 // with the server's snapshot, trades and the cosmetic rewards. progression.js
 // is still the only thing that writes the save; it calls these.
-import { isStrayName } from './straynames.js';
+import { isStrayName, isKittypetName } from './straynames.js';
 import { friendRungs } from './skills.js';
 import { seedFromCode } from './rng.js';
 import { OUTSIDE_WORDS } from './clanwords.js';
@@ -806,11 +806,16 @@ export function colonyNews(colony, { me, ymd, rewards = [], accessories } = {}) 
 // or '' when the cat is in the player's colony: a colony cat has a clan rank
 // on its Colony card and must never read as an outsider. `make` shapes the
 // phrase around the word; the default is ' the loner'. A non-string name
-// claims nothing, so it gets ''. Never throws.
+// claims nothing, so it gets ''. A kittypet name reads as the kittypet ('met'
+// becomes 'house') and never as a rogue ('grudge' is ''). Never throws.
 export function outsideTag(colony, name, key, make = (w) => ` the ${w}`) {
   if (typeof name !== 'string') return '';
   const cats = Array.isArray(colony?.cats) ? colony.cats : [];
   if (cats.some((c) => c && c.name === name)) return '';
+  if (isKittypetName(name)) {
+    if (key === 'grudge') return '';
+    if (key === 'met') key = 'house';
+  }
   const word = OUTSIDE_WORDS[key];
   return typeof word === 'string' ? make(word) : '';
 }
