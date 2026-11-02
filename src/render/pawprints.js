@@ -102,6 +102,8 @@ export const AREA_RULES = Object.freeze({
   moor: Object.freeze({ ground: null, path: 'sand', strip: null }),
   // Muddy swamp paths take dark prints; the needles and ferns take none.
   pines: Object.freeze({ ground: null, path: 'wetSand', strip: null }),
+  // The Gorge's floor paths are worn earth; the rock and the ledges take none.
+  gorge: Object.freeze({ ground: null, path: 'sand', strip: null }),
 });
 
 // Where the Seaside's wet band takes over from dry sand: wetness() is 0 on

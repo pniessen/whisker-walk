@@ -20,11 +20,18 @@ describe('postStatus', () => {
     expect(postStatus(p, save(undefined), CATALOG, 'woods').kind).toBe('locked');
     expect(postStatus(p, { unlocked: { areas: [] } }, CATALOG, 'woods').line).toMatch(/· 1\/2 so far$/);
   });
-  it('an owned target is go; the Gorge is unexplored', () => {
+  it('an owned target is go; the Gorge opens after 2 Moor walks', () => {
     expect(postStatus(post('woods-river-long'), save({}, ['river']), CATALOG, 'woods').kind).toBe('go');
     const g = postStatus(post('moor-gorge'), save({}), CATALOG, 'moor');
-    expect(g).toMatchObject({ kind: 'unexplored', name: 'The Gorge' });
-    expect(promptFor(g, {}).text).toBe('The Gorge: not explored yet');
+    expect(g).toMatchObject({ kind: 'locked', name: 'The Gorge' });
+    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
+    expect(promptFor(g, {}).kind).toBe('border-info');
+    expect(postStatus(post('moor-gorge'), save({ moor: 1 }), CATALOG, 'moor').kind).toBe('go');
+    expect(postStatus(post('moor-gorge'), save({}, ['gorge']), CATALOG, 'moor').kind).toBe('go');
+  });
+  it('a place not in the catalog is unexplored', () => {
+    const g = postStatus({ to: 'island' }, save({}), CATALOG, 'pines');
+    expect(g).toMatchObject({ kind: 'unexplored', to: 'island' });
     expect(promptFor(g, {}).kind).toBe('border-info');
   });
   it('first Neighborhood walk is still locked for the Woods', () => {

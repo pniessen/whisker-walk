@@ -36,11 +36,12 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const grassSrc = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/render/grass.js', import.meta.url), 'utf8'));
 
 const BUILDS = {
-  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, den: buildDen,
+  neighborhood: buildNeighborhood, park: buildPark, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen,
 };
 // main.js's game camera: PerspectiveCamera(70, aspect, 0.1, 300).
 const GAME_FAR = 300;
@@ -94,6 +95,9 @@ describe('cloud areas', () => {
   });
   it('the Pines has a sky', () => {
     expect(CLOUD_AREAS).toContain('pines');
+  });
+  it('the Gorge has a sky', () => {
+    expect(CLOUD_AREAS).toContain('gorge');
   });
 });
 

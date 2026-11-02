@@ -1694,11 +1694,11 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt.kind).toBe('border');
     });
 
-    it('the Gorge post says "not explored yet" and E calls nothing', () => {
+    it('the Gorge post on a first Moor walk says when it opens, and E calls nothing', () => {
       const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
       h.walkTo(47.5, -13);
       expect(h.session.prompt.kind).toBe('border-info');
-      expect(h.prompts.at(-1)).toBe('The Gorge: not explored yet');
+      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
       expect(() => h.press()).not.toThrow();
     });
   });

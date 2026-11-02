@@ -117,6 +117,9 @@ export function ambientKind(areaId, { dusk = false } = {}) {
     case 'pines': return dusk ? null : 'fluff'; // pollen by day; motes would hang over the far lake and moths need lamps
     case 'moor': return 'fluff'; // seed down on the wind, day and dusk
     case 'river': return dusk ? 'moths' : 'fluff'; // reed seed by day, moths over the water at dusk
+    // Seed down by day, nothing at dusk. Not 'motes': they take the first
+    // rectangular water for a canal and would all hang over the 1.5 m stream.
+    case 'gorge': return dusk ? null : 'fluff';
     default: return null; // the den, and anything new until it is given one
   }
 }

@@ -31,13 +31,14 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 const { inWater } = await import('../src/world/builder.js');
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN prints.
 function walkScene(areaId) {
@@ -205,6 +206,10 @@ describe('paw print surfaces', () => {
 
   it('the Pines takes dark muddy prints on its paths and none on the needles', () => {
     expect(AREA_RULES.pines).toEqual({ ground: null, path: 'wetSand', strip: null });
+  });
+
+  it('the Gorge takes prints on its earth paths and none on the rock or the ledges', () => {
+    expect(AREA_RULES.gorge).toEqual({ ground: null, path: 'sand', strip: null });
   });
 
   it('never prints in water or in a puddle, in any area', () => {

@@ -1216,3 +1216,16 @@ describe('the Pines feeds', () => {
     expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'pines', x: -18.5, z: 6 });
   });
 });
+
+describe('the Gorge feeds', () => {
+  it('feedsHere is true in the Gorge', () => {
+    expect(feedsHere('gorge')).toBe(true);
+    expect(feedsHere('island')).toBe(false);
+    expect(feedsHere('den')).toBe(false);
+  });
+  it('a Gorge stray fed on the clifftop can be fed solo, and its spot is kept', () => {
+    const r = feedCat(emptyColony(), { name: boldName, by: ME, walk: 'walk-1', area: 'gorge', x: 20.5, z: -30, head: 0 });
+    expect(r.result).toBe('ok');
+    expect(r.colony.cats[0]).toMatchObject({ name: boldName, area: 'gorge', x: 20.5, z: -30 });
+  });
+});

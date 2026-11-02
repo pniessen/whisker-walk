@@ -84,6 +84,8 @@ const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
 const { build: buildGorge, GORGE_PATHS, gorgeTors } = await import('../src/world/gorge.js');
+const { mapShapes, LOOKOUT } = await import('../src/world/gorgeshape.js');
+const { flatFootprints } = await import('../src/render/grass.js');
 const { campLayout } = await import('../src/world/camp.js');
 // The camp's den (r 1.1) is the one camp piece over the map's 1 m block cut;
 // the leader's rock (r 0.6) is under it.
@@ -145,7 +147,7 @@ describe('buildMapLayer', () => {
       gifts: [{ x: 6, z: 6 }],
     };
     const layer = buildMapLayer(areaData, new THREE.Scene());
-    expect(Object.keys(layer).sort()).toEqual(['blocks', 'edge', 'ground', 'paths', 'trees', 'water']);
+    expect(Object.keys(layer).sort()).toEqual(['blocks', 'edge', 'ground', 'paths', 'rock', 'trees', 'water']);
     const text = JSON.stringify(layer);
     for (const n of ['3', '4', '5', '6']) expect(text).not.toContain(`"x":${n}`);
     expect(layer.blocks).toEqual([{ x: 1, z: 2, r: 1.5 }]);
@@ -301,6 +303,44 @@ describe('buildMapLayer', () => {
     // and its pines, near and in the stand, are on the map as crowns
     expect(layer.trees.length).toBeGreaterThanOrEqual(38);
   });
+
+  it('buildMapLayer for the Gorge copies its map shapes as the rock layer', () => {
+    const { scene, areaData } = built('gorge');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.rock).toEqual(mapShapes());
+    expect(new Set(layer.rock.map((r) => r.tone))).toEqual(new Set(['rock', 'ledge']));
+  });
+
+  it('buildMapLayer reads path strips off the Gorge\'s own ground, so a strip on a ledge is a path', () => {
+    const { scene, areaData } = built('gorge');
+    // A 2 m flat strip on the Lookout Ledge (4 m up), lying on its ground.
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial());
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(5.6, LOOKOUT + 0.02, -5);
+    scene.add(strip);
+    const onLedge = (f) => Math.hypot(f.x - 5.6, f.z + 5) < 0.01;
+    expect(buildMapLayer(areaData, scene).paths.filter(onLedge)).toHaveLength(1);
+    // Measured from flat ground it would be a raised plane, and left off.
+    expect(flatFootprints(scene).filter(onLedge)).toHaveLength(0);
+  });
+
+  for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines']) {
+    it(`buildMapLayer on ${areaId} has no rock, the flat paths, and paints exactly as before`, () => {
+      const { scene, areaData } = built(areaId);
+      const layer = buildMapLayer(areaData, scene);
+      expect(layer.rock).toEqual([]);
+      expect(layer.paths).toEqual(flatFootprints(scene).filter((f) => f.kind === 'strip'));
+      // The same layer without the rock key (what every map was before the
+      // Gorge) paints the very same calls.
+      const { rock, ...before } = layer;
+      const paintOf = (l) => {
+        const { map, canvas } = makeMap({ areaId, layer: l });
+        map.update({ cx: areaData.spawn.x, cz: areaData.spawn.z, heading: 0.3 }, EMPTY_FRAME);
+        return canvas.ops;
+      };
+      expect(paintOf(layer)).toEqual(paintOf(before));
+    });
+  }
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
     it(`buildMapLayer on ${areaId} returns blocks with r >= 1`, () => {
@@ -489,6 +529,33 @@ describe('createMinimap', () => {
     expect(at).toBeGreaterThan(-1);
     expect(canvas.ops.slice(at + 1).some((o) => o.op === 'fillRect' && o.fillStyle === 'rgba(250,244,228,0.85)'
       && o.args.join() === '-1,-6,2,12')).toBe(true);
+  });
+
+  it('paints the Gorge\'s rock in its two tones, under the paths and clipped to the edge', () => {
+    const layer = {
+      ...LAYER,
+      paths: [{ kind: 'strip', x: 0, z: 0, ux: 0, uz: 1, halfW: 1, halfL: 5 }],
+      rock: [
+        { minX: 40, maxX: 62, minZ: -10, maxZ: 10, tone: 'rock' },
+        { minX: 5, maxX: 8, minZ: -4, maxZ: 4, tone: 'ledge' },
+      ],
+    };
+    const { map, canvas } = makeMap({ layer });
+    map.update({ cx: 0, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const ops = canvas.ops;
+    const rockAt = ops.findIndex((o) => o.op === 'fillRect' && o.fillStyle === 'rgba(92,86,80,0.55)');
+    const ledgeAt = ops.findIndex((o) => o.op === 'fillRect' && o.fillStyle === 'rgba(214,198,170,0.85)');
+    expect(ops[rockAt].args).toEqual([40, -10, 22, 20]);
+    expect(ops[ledgeAt].args).toEqual([5, -4, 3, 8]);
+    // clipped to the map's edge, and the clip lifted before the paths
+    const before = ops.slice(0, rockAt);
+    const edge = before.findLastIndex((o) => o.op === 'rect' && o.args.join() === '-50,-50,100,100');
+    expect(edge).toBeGreaterThan(-1);
+    expect(before.slice(edge).some((o) => o.op === 'clip')).toBe(true);
+    const restore = ops.findIndex((o, i) => i > ledgeAt && o.op === 'restore');
+    const path = ops.findIndex((o) => o.op === 'fillRect' && o.fillStyle === 'rgba(250,244,228,0.85)');
+    expect(restore).toBeGreaterThan(ledgeAt);
+    expect(path).toBeGreaterThan(restore);
   });
 
   it("keeps a border post's arrow out from under the N badge (Polish 3)", () => {

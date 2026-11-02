@@ -31,6 +31,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
 const { build: buildDen } = await import('../src/world/den.js');
 const { createContactShadows } = await import('../src/render/contactshadows.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
@@ -38,7 +39,7 @@ const { assignShadowCasters } = await import('../src/render/rig.js');
 const { LADDER } = await import('../src/render/quality.js');
 
 const BUILDS = {
-  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, den: buildDen,
+  park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge, den: buildDen,
 };
 
 // walk.js's order: build, contact shadows, merge, casters, THEN ambient.
@@ -69,6 +70,7 @@ const VIEW = {
   river: [-24, 4], // the bank path above the first pool
   moor: [46, 44], // the spawn on the north path
   pines: [-26, 44], // the spawn clearing
+  gorge: [-44, -11], // the spawn in the Narrows
   den: [0, 0],
 };
 
@@ -110,12 +112,14 @@ describe('ambient kinds', () => {
     expect(ambientKind('moor', { dusk: true })).toBe('fluff');
     expect(ambientKind('pines')).toBe('fluff'); // pollen drifting through the trees
     expect(ambientKind('pines', { dusk: true })).toBeNull();
+    expect(ambientKind('gorge')).toBe('fluff'); // seed down; motes would all hang over the stream
+    expect(ambientKind('gorge', { dusk: true })).toBeNull();
     expect(ambientKind('neighborhood')).toBe('fluff');
     expect(ambientKind('den')).toBeNull();
   });
 
   it('builds one Points mesh per outdoor area, with no shadow draws', () => {
-    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines']) {
+    for (const areaId of ['park', 'neighborhood', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge']) {
       const { scene, ambient } = make(areaId);
       const found = meshesNamed(scene, 'ambient');
       expect(found, areaId).toHaveLength(1);

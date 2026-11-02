@@ -7,24 +7,52 @@ import { readFileSync } from 'node:fs';
 // walk builds, then stop it: the area is built before anything else that
 // matters here (walk.js, the AREAS[areaId].build call).
 // vi.mock is hoisted above plain consts, so the shared pieces are hoisted too.
-const { STOP, builtAreas, stubBuild } = vi.hoisted(() => {
+const { STOP, builtAreas, stubBuild, gorgeWalk } = vi.hoisted(() => {
   const STOP = new Error('stop: area built');
   const builtAreas = [];
   const stubBuild = async (id, orig) => {
     const real = await orig();
     return { ...real, build: () => { builtAreas.push(id); throw STOP; } };
   };
-  return { STOP, builtAreas, stubBuild };
+  // The goat's day (below) needs a real Gorge build and the walk to go one
+  // step further: with `through` set, the Gorge is really built, its areaData
+  // kept, and the walk stops at the border dressing instead, the first thing
+  // after the goat's line.
+  const gorgeWalk = { through: false, areaData: null };
+  return { STOP, builtAreas, stubBuild, gorgeWalk };
 });
 vi.mock('../src/world/neighborhood.js', (orig) => stubBuild('neighborhood', orig));
 vi.mock('../src/world/woods.js', (orig) => stubBuild('woods', orig));
 vi.mock('../src/world/river.js', (orig) => stubBuild('river', orig));
 vi.mock('../src/world/moor.js', (orig) => stubBuild('moor', orig));
 vi.mock('../src/world/pines.js', (orig) => stubBuild('pines', orig));
+vi.mock('../src/world/gorge.js', async (orig) => {
+  const real = await orig();
+  return {
+    ...real,
+    build: (...args) => {
+      builtAreas.push('gorge');
+      if (!gorgeWalk.through) throw STOP;
+      gorgeWalk.areaData = real.build(...args);
+      return gorgeWalk.areaData;
+    },
+  };
+});
+vi.mock('../src/world/borderpost.js', async (orig) => {
+  const real = await orig();
+  return {
+    ...real,
+    addBorderDressing: (...args) => {
+      if (gorgeWalk.through) throw STOP;
+      return real.addBorderDressing(...args);
+    },
+  };
+});
 
 const { createWalkLifecycle } = await import('../src/game/walk.js');
 const { createProgression } = await import('../src/progression.js');
 const { resolveQuality } = await import('../src/render/quality.js');
+const { goatToday } = await import('../src/critters.js');
 
 function memStorage() {
   const map = new Map();
@@ -124,8 +152,30 @@ function inThePines(edition) {
   return progression;
 }
 
-beforeEach(() => { builtAreas.length = 0; globalThis.document = fakeDocument(); });
-afterEach(() => { delete globalThis.document; });
+// A save whose chosen place is the Gorge (two Moor walks open it).
+function inTheGorge(edition) {
+  const progression = createProgression(memStorage());
+  progression.completeWalk('neighborhood');
+  progression.completeWalk('neighborhood');
+  expect(progression.buy('areas', 'woods')).toBe(true);
+  progression.completeWalk('woods');
+  progression.completeWalk('woods');
+  expect(progression.buy('areas', 'moor')).toBe(true);
+  progression.completeWalk('moor');
+  progression.completeWalk('moor');
+  expect(progression.buy('areas', 'gorge')).toBe(true);
+  progression.setArea('gorge');
+  progression.setEdition(edition);
+  return progression;
+}
+
+beforeEach(() => {
+  builtAreas.length = 0;
+  gorgeWalk.through = false;
+  gorgeWalk.areaData = null;
+  globalThis.document = fakeDocument();
+});
+afterEach(() => { delete globalThis.document; vi.useRealTimers(); });
 
 describe('a Legacy walk', () => {
   it('the rival patrol is gated on the edition and the picks', () => {
@@ -192,6 +242,35 @@ describe('a Legacy walk', () => {
     expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
     expect(builtAreas).toEqual(['neighborhood']);
     expect(progression.state.area).toBe('pines');
+  });
+
+  // Review Focus 5: a save with the Gorge open, played in Legacy.
+  it('a Legacy kid whose place is the Gorge walks the Neighborhood and keeps the Gorge', () => {
+    const progression = inTheGorge('legacy');
+    const life = lifecycle(progression);
+    expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
+    expect(builtAreas).toEqual(['neighborhood']);
+    expect(progression.state.area).toBe('gorge');
+  });
+
+  it('in Clan Edition a save whose place is the Gorge walks the Gorge', () => {
+    const progression = inTheGorge('canon');
+    const life = lifecycle(progression);
+    expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
+    expect(builtAreas).toEqual(['gorge']);
+    expect(progression.state.area).toBe('gorge');
+  });
+
+  // Review Focus 5: a Legacy kid joining a Gorge co-walk walks the Gorge as an
+  // override (the lobby hands startWalk areaOverride), and keeps their place.
+  it('a Legacy joiner who has never opened the Gorge walks it as an override', () => {
+    const progression = createProgression(memStorage());
+    progression.setEdition('legacy');
+    const life = lifecycle(progression);
+    expect(() => life.startWalk({ areaOverride: 'gorge', roomSeed: 5 })).toThrow(STOP);
+    expect(builtAreas).toEqual(['gorge']);
+    expect(progression.state.area).toBe('neighborhood');
+    expect(progression.state.unlocked.areas).not.toContain('gorge');
   });
 
   it('in Clan Edition the same save walks the Woods', () => {
@@ -544,5 +623,37 @@ describe('fights teach moves and leave scars (source pins)', () => {
 
   it('ghosts stay unscarred (R12)', () => {
     expect(readFileSync('src/ghosts.js', 'utf8')).not.toContain('scars');
+  });
+});
+
+// Gorge G9, end to end: walk.js drops the goat and its leap on a no-goat day,
+// by the UTC date, right after the build (Task 7 tested goatForDay alone).
+describe("the goat's day in a Gorge walk", () => {
+  const days = Array.from({ length: 40 }, (_, i) => `2026-11-${String((i % 30) + 1).padStart(2, '0')}`);
+  const goatDay = days.find((d) => goatToday(d));
+  const noGoatDay = days.find((d) => !goatToday(d));
+
+  function gorgeWalkOn(day) {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${day}T12:00:00Z`));
+    gorgeWalk.through = true;
+    const life = lifecycle(inTheGorge('canon'));
+    expect(() => life.beginWalkFromHomebase({})).toThrow(STOP);
+    expect(builtAreas).toEqual(['gorge']);
+    return gorgeWalk.areaData;
+  }
+
+  it('on a goat day the walk has the goat and its leap', () => {
+    expect(goatDay).toBeDefined();
+    const a = gorgeWalkOn(goatDay);
+    expect(a.critterSpawns.some((s) => s.type === 'goat')).toBe(true);
+    expect(a.moments.some((m) => m.id === 'goat-leap')).toBe(true);
+  });
+
+  it('on a no-goat day the walk has neither, and keeps every other critter', () => {
+    expect(noGoatDay).toBeDefined();
+    const a = gorgeWalkOn(noGoatDay);
+    expect(a.critterSpawns.map((s) => s.type)).toEqual(['bird', 'bird', 'bird', 'bird', 'mouse', 'mouse']);
+    expect(a.moments).toEqual([]); // the leap is the Gorge's one moment
   });
 });
