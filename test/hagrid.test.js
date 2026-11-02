@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { sinkTarget } from '../src/cat/waterlook.js';
-import { HEN } from '../src/cat/hen.js';
+import { HEN, HEN_BODY, henBodyGeometry, henBodyHalfWidth } from '../src/cat/hen.js';
 import { CATALOG } from '../src/progression.js';
 import { fingerprintCat, meshCount, triangles } from './helpers/catfingerprint.js';
 
@@ -412,9 +412,12 @@ describe('Hagrid rebuilt (Task 8)', () => {
     });
 
     it('face items keep today\'s positions', () => {
+      // polish-catlooks Task 3 (2026-11-02): the glasses are now three merged
+      // meshes built in head space (frames, lenses, glints), each at the head's
+      // origin; where the rims sit over his eyes is asserted in glasses.test.js
       const today = {
-        glasses: [[-0.09, 0.03, -0.1], [0.09, 0.03, -0.1], [0, 0.03, -0.1]],
-        sunglasses: [[-0.09, 0.03, -0.1], [0.09, 0.03, -0.1], [0, 0.03, -0.1]],
+        glasses: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+        sunglasses: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         monocle: [[0.09, 0.03, -0.1], [0.105, 0, -0.09], [0.115, -0.024, -0.09]],
         eyepatch: [[0.09, 0.03, -0.105], [0, 0.05, 0]],
       };
@@ -506,5 +509,64 @@ describe('Hagrid rebuilt (Task 8)', () => {
         expect(pa.earR.rotation.z + 0.22).toBeCloseTo(0.25 * (pb.earR.rotation.z + 0.22), 12);
       }
     }
+  });
+
+  // polish-catlooks (2026-11-02), Task 4: the folded wing was one flat brown
+  // oval pasted on his side; now a shoulder covert over four layered, tapered
+  // feather blades with dark tips, still inside the body mesh.
+  describe('his wing is layered feathers', () => {
+    const geo = henBodyGeometry();
+    const P = geo.attributes.position, C = geo.attributes.color;
+    const [SX, SY, SZ] = HEN_BODY.SCALE;
+    // the cat's frame about the body centre (the geometry is divided by SCALE)
+    const at = (i) => new THREE.Vector3(P.getX(i) * SX, P.getY(i) * SY, P.getZ(i) * SZ);
+    const lum = (i) => 0.2126 * C.getX(i) + 0.7152 * C.getY(i) + 0.0722 * C.getZ(i);
+    const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const trianglesIn = ([s, n]) => {
+      const idx = geo.index.array;
+      let t = 0;
+      for (let i = 0; i < idx.length; i += 3) if ([0, 1, 2].every((j) => idx[i + j] >= s && idx[i + j] < s + n)) t++;
+      return t;
+    };
+
+    it('the wing is four layered feathers with darker tips', () => {
+      const { wingR, wingFeathersR } = geo.userData.ranges;
+      expect(wingFeathersR.length).toBeGreaterThanOrEqual(4);
+      let prevTip = null;
+      for (const [s, n] of wingFeathersR) {
+        expect(s).toBeGreaterThanOrEqual(wingR[0]);
+        expect(s + n).toBeLessThanOrEqual(wingR[0] + wingR[1]);
+        const ids = Array.from({ length: n }, (_, k) => s + k).sort((a, b) => at(a).z - at(b).z);
+        const q = Math.max(1, Math.floor(n / 4));
+        const front = mean(ids.slice(0, q).map(lum)), rear = mean(ids.slice(-q).map(lum));
+        expect(rear).toBeLessThanOrEqual(0.85 * front);
+        const tip = at(ids[n - 1]);
+        if (prevTip) {
+          expect(tip.y).toBeLessThan(prevTip.y);
+          expect(tip.z).toBeGreaterThan(prevTip.z);
+        }
+        prevTip = tip;
+      }
+    });
+
+    it('the wing lies on the flank', () => {
+      const { wingL, wingR } = geo.userData.ranges;
+      for (const [s, n] of [wingL, wingR]) {
+        for (let i = s; i < s + n; i++) {
+          const v = at(i), hw = henBodyHalfWidth(v.y, v.z);
+          expect(Math.abs(v.x)).toBeGreaterThanOrEqual(hw - 0.02);
+          expect(Math.abs(v.x)).toBeLessThanOrEqual(hw + 0.03);
+        }
+      }
+    }, 120_000);
+
+    it('the wing costs no more triangles than before', () => {
+      // today's (before Task 4): 312 triangles per side; Hagrid 4,306 full and simple
+      const { wingL, wingR } = geo.userData.ranges;
+      expect(trianglesIn(wingL)).toBeLessThanOrEqual(312);
+      expect(trianglesIn(wingR)).toBeLessThanOrEqual(312);
+      expect(triangles(buildCat('hagrid'))).toBeLessThanOrEqual(9000);
+      expect(triangles(buildCat('hagrid', undefined, { simple: true }))).toBeLessThanOrEqual(5500);
+    });
   });
 });

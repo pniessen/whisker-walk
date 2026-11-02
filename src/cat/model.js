@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt } from './coat.js';
+import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, UNDER_BLEND, BELLY_BLEND, UNDER_FRONT } from './coat.js';
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
+import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -72,8 +73,6 @@ const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbi
 // four re-homed ones, which keep their original colors inline below).
 const HAT_BLACK = 0x1c1c22;        // tophat
 const BEANIE_COLOR = 0xd6602f;     // cozy rust knit
-const GLASSES_FRAME = 0xd4a24c;    // thin warm frame
-const SUNGLASSES_DARK = 0x26262e;  // dark lens
 const NECKTIE_COLOR = 0x7a2436;    // maroon
 const BOWTIE_COLOR = 0x2c3e6b;     // navy
 const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
@@ -693,22 +692,15 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(star);
   }
 
-  // face: two small frames at eye level plus a bridge
+  // face: glasses fitted to his side-set eyes, each rim facing out of the
+  // skull over its eye, the bridge arcing over the beak's root (glasses.js;
+  // polish-catlooks 2026-11-02: the old forward-facing rings were edge-on to
+  // anyone looking at his eyes, so they never showed)
   if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
-    const dark = accessories.face === 'sunglasses';
-    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
-    for (const side of [-1, 1]) {
-      const lens = dark
-        ? ball(0.024, frameColor, 1, 1, 0.4, 8, 6)
-        : new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.005, 6, 10), mat(frameColor));
-      lens.position.set(side * 0.09, 0.03, -0.1);
-      head.add(lens);
-    }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.005, 0.005), mat(frameColor));
-    bridge.position.set(0, 0.03, -0.1);
-    head.add(bridge);
+    for (const m of buildGlasses(accessories.face, GLASSES.hen)) head.add(m);
   } else if (accessories.face === 'monocle') {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.005, 6, 10), mat(GLASSES_FRAME));
+    // polish-catlooks (2026-11-02): the rim as thick as the glasses' frames
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.026, GLASSES.hen.tube, 6, 10), mat(GLASSES_FRAME));
     rim.position.set(0.09, 0.03, -0.1);
     head.add(rim);
     for (let i = 0; i < 2; i++) {
@@ -828,19 +820,37 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const BS = [TORSO.SCALE[0] * fx, TORSO.SCALE[1] * fy, TORSO.SCALE[2] * fz];
   const [w, h] = opts.simple ? [12, 8] : [BALL_W, BALL_H];
   const toTorso = (geo) => geo.translate(0, -TORSO.CENTRE_Y, 0).scale(1 / BS[0], 1 / BS[1], 1 / BS[2]);
-  const painted = (geo, hex) => {
+  // The chest and belly ease from their pale front into the coat painted under
+  // them (polish-catlooks, 2026-11-02; coat.js undersideColourAt), instead of
+  // one solid colour with a hard disc edge. Per vertex: its direction from the
+  // part's centre (cat frame) against the part's front axis, and the coat under
+  // it. The coat is painted by UNDEFORMED torso direction, so the vertex's
+  // torso-local direction is carried back through the deformation exactly
+  // (torsoUnitAt), not just normalised: the deformation bends directions by up
+  // to ~6° under the chest and belly, enough to shift a tabby band under the
+  // rim (a band is ~25° wide, its edge ~4°).
+  const eased = (geo, hex, centre, front, band) => {
     geo.deleteAttribute('uv');
-    const c = new THREE.Color(hex);
-    const col = new Float32Array(geo.attributes.position.count * 3);
-    for (let i = 0; i < col.length; i += 3) { col[i] = c.r; col[i + 1] = c.g; col[i + 2] = c.b; }
+    const p = geo.attributes.position;
+    const c = new THREE.Color();
+    const col = new Float32Array(p.count * 3);
+    const local = [0, 0, 0], unit = [0, 0, 0], dir = [0, 0, 0], fromCentre = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+      local[0] = p.getX(i); local[1] = p.getY(i); local[2] = p.getZ(i);
+      fromCentre.set(local[0] * BS[0] - centre[0], local[1] * BS[1] + TORSO.CENTRE_Y - centre[1], local[2] * BS[2] - centre[2]).normalize();
+      undersideColourAt(coat, hex, fromCentre.toArray(dir), torsoUnitAt(local, unit), c, front, band);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return geo;
   };
+  const bellyAt = [0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz];
+  const chestAt = [0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * fz];
   const parts = {
-    belly: painted(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
-      .translate(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz)), s.belly),
-    chest: painted(toTorso(new THREE.SphereGeometry(CHEST.R, w, h).scale(CHEST.SCALE[0] * fx, CHEST.SCALE[1], CHEST.SCALE[2])
-      .translate(0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * fz)), coat.chest),
+    belly: eased(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
+      .translate(...bellyAt)), s.belly, bellyAt, UNDER_FRONT.belly, BELLY_BLEND),
+    chest: eased(toTorso(new THREE.SphereGeometry(CHEST.R, w, h).scale(CHEST.SCALE[0] * fx, CHEST.SCALE[1], CHEST.SCALE[2])
+      .translate(...chestAt)), coat.chest, chestAt, UNDER_FRONT.chest, UNDER_BLEND),
   };
   if (s.fluffy) {
     // a small bib under the chin, jaw fluff and a fringe (ruff.js), already
@@ -1236,22 +1246,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(star);
   }
 
-  // face: eye level — two small frames plus a bridge
+  // face: eye level — thick frames, a faint tinted lens and a glint, the
+  // rims just in front of the eyes (glasses.js; polish-catlooks 2026-11-02:
+  // the old 6 mm rings barely showed)
   if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
-    const dark = accessories.face === 'sunglasses';
-    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
-    for (const side of [-1, 1]) {
-      const lens = dark
-        ? ball(0.032, frameColor, 1, 1, 0.4, 8, 6)
-        : new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 10), mat(frameColor));
-      lens.position.set(side * 0.083, 0.03, -0.17);
-      head.add(lens);
-    }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.006), mat(frameColor));
-    bridge.position.set(0, 0.03, -0.17);
-    head.add(bridge);
+    for (const m of buildGlasses(accessories.face, GLASSES.cat)) head.add(m);
   } else if (accessories.face === 'monocle') {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 6, 10), mat(GLASSES_FRAME));
+    // polish-catlooks (2026-11-02): the rim as thick as the glasses' frames
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.032, GLASSES.cat.tube, 6, 10), mat(GLASSES_FRAME));
     rim.position.set(0.083, 0.03, -0.17);
     head.add(rim);
     for (let i = 0; i < 3; i++) { // chain dangles toward the cheek

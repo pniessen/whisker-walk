@@ -33,6 +33,7 @@
                                 them: pin = loser 'pinned', winner 'pinning' on the loser's spot lifted by
                                 catDims(loser).pinnedBackY; roll = both 'roll', rolled 1.2 rad through placeFrame
        scars=1                  two scars (face + side, full, right side) on every cat, through setCatScars
+       scarsites=a,b            with scars=1: the two sites instead (face|shoulder|back|side|hind; right side)
        at=x,y,z                 camera target (default 0,0.38,0); with zoom<1 for close-ups
      Lineup: breeds (if given), then looks, then clan cats; none of the three = the ten presets + hagrid.
      window.__ready is true after the first frame; window.__render() redraws. -->
@@ -121,6 +122,8 @@
     const gameLight = params.get('light') === 'game';
     const pairKind = ['pin', 'roll'].includes(params.get('pair')) ? params.get('pair') : null;
     const scarred = params.get('scars') === '1';
+    const scarSites = (params.get('scarsites') || '').split(',').filter(Boolean);
+    const scarList = scarSites.length ? scarSites.map((site) => ({ site, stage: 'full', side: 'r' })) : SCARS;
     const water = WATER_STATES.includes(state) ? state : null;
     const atParam = (params.get('at') || '').split(',').map(Number);
     const notes = [];
@@ -246,7 +249,7 @@
     const alongZ = view === 'side';
     const cats = rows.map((row, i) => {
       const cat = buildCat(row.breed, { ...acc }, { simple, ...(row.opts ?? {}) });
-      if (scarred) setCatScars(cat, SCARS);
+      if (scarred) setCatScars(cat, scarList);
       // measured at the origin, unturned, as intruders.measure() does
       if (pairKind) row.dims = catDims(cat);
       if (row.d !== 0 && variants === 'shell') {

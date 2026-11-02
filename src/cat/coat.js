@@ -123,3 +123,44 @@ export function paintCoat(geo, coat) {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return geo;
 }
+
+// The underside's chest and belly (polish-catlooks, 2026-11-02). Painted one
+// solid pale colour, each ball showed a hard disc where it left the torso (the
+// "snowman"). Now each is its pale colour only where it faces out along its
+// front axis, easing (smoothstep) to the coat painted on the torso under it by
+// its rim, so stripes, patches, Robbie's bib and D2's band run on over it.
+// `inner`/`outer` are cosine distances off the front axis (0 on the axis, 1 at
+// 90° off it).
+// The chest's axis looks forward and a little UP, (0, 0.15, -1): the sit
+// pitches the torso nose-down by 0.5 rad, and an axis tilted down (the first
+// try, (0, -0.35, -1)) put the pale part at the very bottom of the ball there,
+// under a striped top. Tilted up it points 8° up standing and 20° down in the
+// sit, so a front camera sees the bib's middle in both. On this axis the chest
+// meets the torso no nearer than 1.13 off it (its lower edge, ~97°), so the bib
+// holds full colour out to 0.25 (~41°) and fades to the coat by 1.0 (90°).
+// The belly hugs the torso (never more than ~4 mm proud) and sinks under the
+// coat from ~0.2-0.45 off straight down, so its band is tight: a soft pale
+// smudge, mostly hidden. Brief's starting values were { inner: 0.35, outer:
+// 0.85 } on the down-tilted axis: past that axis's rim (0.67), so it kept a
+// pale edge.
+export const UNDER_BLEND = Object.freeze({ inner: 0.25, outer: 1 });
+export const BELLY_BLEND = Object.freeze({ inner: 0, outer: 0.38 });
+// The parts' front axes, cat frame (nose at -z).
+export const UNDER_FRONT = Object.freeze({
+  chest: Object.freeze(new THREE.Vector3(0, 0.15, -1).normalize().toArray()),
+  belly: Object.freeze([0, -1, 0]),
+});
+
+const paleC = new THREE.Color();
+// The colour at an underside vertex: `bellyHex` where the unit direction from
+// the part's centre (`unitFromPartCentre`, cat frame) lies on `front`, easing
+// over `band` to coatColourAt(coat, unitOnTorso) — `unitOnTorso` being the
+// UNDEFORMED torso direction under the vertex (torso.js torsoUnitAt).
+export function undersideColourAt(coat, bellyHex, unitFromPartCentre, unitOnTorso, out = new THREE.Color(),
+  front = UNDER_FRONT.chest, band = UNDER_BLEND) {
+  const cd = 1 - (unitFromPartCentre[0] * front[0] + unitFromPartCentre[1] * front[1] + unitFromPartCentre[2] * front[2]);
+  const x = Math.min(1, Math.max(0, (cd - band.inner) / (band.outer - band.inner)));
+  const t = x * x * (3 - 2 * x);
+  coatColourAt(coat, unitOnTorso, out);
+  return t >= 1 ? out : out.lerp(paleC.set(bellyHex), 1 - t);
+}
