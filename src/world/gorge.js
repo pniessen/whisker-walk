@@ -12,6 +12,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
+import { withLocalUuids } from './localuuids.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -579,6 +580,9 @@ function meadowMesh() {
   mesh.castShadow = false;
   mesh.receiveShadow = true;
   mesh.userData.noCast = true;
+  // The rain finds ground by this tag and swaps in a darker clone (the vertex
+  // colours stay, the original material is put back afterwards).
+  mesh.userData.ground = true;
   return mesh;
 }
 
@@ -849,7 +853,10 @@ export function build(scene, { water = {}, wind } = {}) {
   scene.add(scree);
 
   // --- the meadow ---------------------------------------------------------------
-  scene.add(meadowMesh());
+  // Built under local uuids: the meadow's mesh, geometry and material would
+  // otherwise add 12 Math.random draws to the Gorge build (pinned at 5108 by
+  // waterlooks.test.js). It stays a top-level scene child.
+  scene.add(withLocalUuids('gorge-uuids-meadow', meadowMesh));
 
   // --- inside the deep caves ----------------------------------------------------
   // One group each, at the scene root, hidden until her cat is near its cave

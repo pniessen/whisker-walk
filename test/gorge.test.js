@@ -190,6 +190,11 @@ describe('the Gorge: the rock and the view', () => {
     expect(scene.getObjectByName('groundPlane')).toBeTruthy();
   });
 
+  it('tags the ground plane and the meadow so the rain wets them', () => {
+    expect(scene.getObjectByName('groundPlane').userData.ground).toBe(true);
+    expect(scene.getObjectByName('gorgeMeadow').userData.ground).toBe(true);
+  });
+
   // Review Focus 4: the goat leaps along the shoulder (3.5..7.5, -16) and
   // lands and hides at (8, -12.5). The drawn top under it is the ground's
   // 14 (GORGE_ROCK_KEEP holds it still; the crest jag stays out).

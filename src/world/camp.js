@@ -24,6 +24,8 @@ import { DISCS } from '../rivalclans.js';
 import { castFor } from '../clancast.js';
 import { seatOnGround } from '../ground.js';
 import { seedFromCode, mulberry32 } from '../rng.js';
+import { withLocalUuids as localUuids } from './localuuids.js';
+const withLocalUuids = (areaId, fn) => localUuids(`camp-uuids-${areaId}`, fn);
 
 // One turn per camp (radians): the direction from the camp's centre to the den.
 // Hand-probed against the built maps in 15-degree steps, starting from the
@@ -463,15 +465,6 @@ function highrockGeometry(rockSpot, cx, cz) {
 // id, so its uuids are the same on every device and the build's draws are
 // what they were. A uuid is only a name: nothing in the WebGL renderer keys a
 // mesh, geometry or opaque material by it.
-function withLocalUuids(areaId, fn) {
-  const real = Math.random;
-  Math.random = mulberry32(seedFromCode(`camp-uuids-${areaId}`));
-  try {
-    return fn();
-  } finally {
-    Math.random = real;
-  }
-}
 
 // A geometry made under withLocalUuids, handed over to a fresh one (one uuid
 // on Math.random) that keeps its attributes.
