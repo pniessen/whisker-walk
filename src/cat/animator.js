@@ -271,7 +271,7 @@ function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
 // The stalk's stride as a share of the walk's (amplitude and its cap; the
 // frequency is the walk's): tabby to Digit, every crouched point stays under
 // the back's top at every phase and speed (folds.test.js).
-const STALK_SWING = 0.3;
+export const STALK_SWING = 0.3;
 
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
@@ -601,8 +601,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   if (walking) {
     // A creeping stalk: a folded (crouched) leg takes the walk's stride damped
     // to STALK_SWING of it, small low steps. At the full swing a crouched
-    // thigh or hock rose out of the shoulder or rump (Digit's up to ~3.6 cm,
-    // about 2 cm over the back's own top) as the leg rocked about its hip. A
+    // thigh or hock rose out of the shoulder or rump as the leg rocked about
+    // its hip (Digit at speed 1.5: 5.5 cm by Task 1's single ray, 1.8 cm over
+    // the back's own top nearby; folds.test.js). A
     // rig without folds (Hagrid) keeps today's full swing.
     const freq = state === 'stalk' && folds
       ? walkGait(legs, t, moveSpeed, 1, STALK_SWING, 0.6 * STALK_SWING)

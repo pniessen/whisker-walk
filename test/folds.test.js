@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
 import { buildCat, catDims } from '../src/cat/model.js';
-import { animateCat } from '../src/cat/animator.js';
+import { animateCat, STALK_SWING } from '../src/cat/animator.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from '../src/cat/limbs.js';
 import { POSE_FIT } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
@@ -206,8 +206,11 @@ describe('legs fold at the joints (Task 5)', () => {
     // Measured with a 5 mm reach (helpers/catpoke.js): a crouched thigh top
     // sits beside the flank at the torso's silhouette edge, where Task 1's
     // single ray grazes the steep side and swings 1-2 cm with a 0.01 rad step
-    // of the leg, at rest too. Before the fix Digit read 0.0175 full, 0.0104
-    // simple here (0.055 / 0.060 by the single ray) at the stride's peak.
+    // of the leg, at rest too. Before the fix, by that measure, Digit read
+    // 0.0175 full / 0.0104 simple at its worst phase (speed 1.5, dense t) and
+    // 0.0073 on this test's samples; by the single ray, 0.055 / 0.060. The
+    // swing itself is pinned too: no crouched leg past the damped cap, so a
+    // half-undone damping fails here even where the poke would let it by.
     const cats = [...[...PRESETS, 'fluffy', 'socks'].map((name) => [name, false]), ['tabby', true], ['digit', true]];
     for (const [name, simple] of cats) {
       const cat = make(name, simple);
@@ -220,6 +223,7 @@ describe('legs fold at the joints (Task 5)', () => {
           pose(cat, 'stalk', (k / 16) * period, speed);
           worst = Math.max(worst, pokes(cat, 'stalk', { reach: 0.005 }).folded);
           legs.forEach((leg, i) => {
+            expect(Math.abs(leg.rotation.x), `${name} stalk speed ${speed} leg ${i} swing`).toBeLessThanOrEqual(0.6 * STALK_SWING + 1e-9);
             const z = leg.userData.paw.getWorldPosition(_v).z;
             lo[i] = Math.min(lo[i], z); hi[i] = Math.max(hi[i], z);
           });
