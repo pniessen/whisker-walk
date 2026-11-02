@@ -35,7 +35,7 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
-import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
+import { makeNameTag, NAME_TAG_RANGE, tagBudget } from './nametag.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagSubFor } from './clancast.js';
 import { RANK_KEYS } from './clanwords.js';
@@ -621,10 +621,25 @@ export function createClanCats(scene, area, cast, {
     },
     update(dt, t, catPos) {
       if (Number.isFinite(dt) && dt > 0) clock += dt;
+      // Render-only: at most CAMP_TAG_MAX tags show (nearest two, the buddy's
+      // always one), fading at the range edge. No cat state, no rng.
+      const entries = [];
+      if (catPos) {
+        for (const c of list) {
+          if (!c.tag) continue;
+          const e = c.tagEntry ??= { d: 0, range: NAME_TAG_RANGE, keep: false };
+          e.d = c.group.position.distanceTo(catPos);
+          e.range = c.tag.userData?.revealRange ?? NAME_TAG_RANGE;
+          e.keep = !!c.buddy;
+          entries.push(e);
+        }
+      }
+      const shown = tagBudget(entries);
       for (const c of list) {
         if (c.tag) {
-          const range = c.tag.userData?.revealRange ?? NAME_TAG_RANGE;
-          c.tag.visible = catPos ? c.group.position.distanceTo(catPos) < range : false;
+          const op = c.tagEntry ? shown.get(c.tagEntry) : undefined;
+          c.tag.visible = op !== undefined;
+          if (op !== undefined && c.tag.material) c.tag.material.opacity = op;
         }
         if (c.buddy) {
           updateBuddy(c, dt, t);

@@ -157,6 +157,31 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // tabby's highest point rose, rounded up to 1 cm, so the margins are kept:
 // TAG_Y = 1.05 + 0.13: tabby 'follow' max 0.9684 vs 0.8467 before (+0.1217).
 // CROSS_TAG_Y = 1.32 + 0.06: tabby 'cross' max 1.0382 vs 0.9848 (+0.0534).
+// Camp declutter: at a camp only the CAMP_TAG_MAX tags nearest her cat show
+// (the buddy's always one of them), and a shown tag fades over the last
+// TAG_FADE_M metres of its reveal range. Pure; render-only callers.
+export const CAMP_TAG_MAX = 2;
+export const TAG_FADE_M = 1;
+// entries: [{ d, range, keep }] -> Map<entry, opacity>. Entries absent from the
+// map are hidden. In range only; `keep` first, then nearest; at most `max`.
+// The nearest shown entry is always fully opaque.
+export function tagBudget(entries, max = CAMP_TAG_MAX) {
+  const out = new Map();
+  if (!entries || !(max > 0)) return out;
+  const inRange = entries.filter((e) => e && e.d < e.range);
+  const order = inRange.map((e, i) => ({ e, i }))
+    .sort((a, b) => (b.e.keep ? 1 : 0) - (a.e.keep ? 1 : 0) || a.e.d - b.e.d || a.i - b.i)
+    .slice(0, max)
+    .map((x) => x.e);
+  let nearest = null;
+  for (const e of order) if (!nearest || e.d < nearest.d) nearest = e;
+  for (const e of order) {
+    const f = (e.range - e.d) / TAG_FADE_M;
+    out.set(e, e === nearest ? 1 : Math.min(1, Math.max(0, f)));
+  }
+  return out;
+}
+
 export const TAG_Y = 1.18;
 export const CROSS_TAG_Y = 1.38;
 

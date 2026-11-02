@@ -5,6 +5,9 @@ import { poseMeasure } from './helpers/catfingerprint.js';
 const BASELINE = JSON.parse(readFileSync(new URL('./fixtures/catpose-baseline.json', import.meta.url), 'utf8'));
 import {
   makeNameTag,
+  tagBudget,
+  CAMP_TAG_MAX,
+  TAG_FADE_M,
   setNameTagMood,
   NAME_TAG_RANGE,
   CROSS_NAME_TAG_RANGE,
@@ -556,5 +559,37 @@ describe('makeNameTag fit (her own cat)', () => {
       const after = opsOf(tag).slice(opsOf(tag).findLastIndex((o) => o[0] === 'clearRect'));
       expect(after).toEqual(before);
     });
+  });
+});
+
+describe('tagBudget (camp declutter)', () => {
+  const mk = (d, keep = false, range = 4) => ({ d, range, keep });
+  it('constants', () => { expect([CAMP_TAG_MAX, TAG_FADE_M]).toEqual([2, 1]); });
+  it('shows only the two nearest of eight; the nearest is opaque', () => {
+    const es = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 3.9].map((d) => mk(d)).reverse();
+    const m = tagBudget(es);
+    expect(m.size).toBe(2);
+    expect([...m.keys()].map((e) => e.d).sort((a, b) => a - b)).toEqual([0.5, 1]);
+    expect(m.get(es.find((e) => e.d === 0.5))).toBe(1);
+  });
+  it('a keep entry far out is shown alongside the nearest', () => {
+    const es = [mk(0.5), mk(1), mk(1.5), mk(3.5, true)];
+    const m = tagBudget(es);
+    expect(m.size).toBe(2);
+    expect(m.has(es[3])).toBe(true);
+    expect(m.has(es[0])).toBe(true);
+    expect(m.get(es[0])).toBe(1);
+    expect(m.get(es[3])).toBeCloseTo(0.5, 9);
+  });
+  it('out of range is never shown; empty gives empty', () => {
+    expect(tagBudget([mk(4), mk(5)]).size).toBe(0);
+    expect(tagBudget([]).size).toBe(0);
+    const far = mk(3.5);
+    const m = tagBudget([mk(1), far]);
+    expect(m.get(far)).toBeCloseTo(0.5, 9);
+  });
+  it('a lone tag near the range edge is still fully shown', () => {
+    const e = mk(3.9);
+    expect(tagBudget([e]).get(e)).toBe(1);
   });
 });
