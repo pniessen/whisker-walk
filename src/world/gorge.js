@@ -445,9 +445,9 @@ const CLIFF_INSET = 0.6;
 const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
 const TUFT_TRIES = 420;
 const TUFT_CAP = 140;
-const MEADOW_SAND = 0xc2ad86;
-const MEADOW_DRY = 0xa8a46a;
-const MEADOW_GREEN = 0x8a9a5c;
+export const MEADOW_SAND = 0xc8b28a;
+export const MEADOW_DRY = 0xb0a46e;
+export const MEADOW_GREEN = 0x7f9a52;
 const BANK_GREEN = 0x7f9358;
 const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
 const NOISE_N = 16;
@@ -520,8 +520,11 @@ function meadowNoise(x, z) {
 }
 
 const _ca = new THREE.Color(), _cb = new THREE.Color();
-function topColor(out, x, z) {
-  const v = meadowNoise(x, z);
+// Value noise sits near 0.5, so stretch the middle band to the full 0..1 range;
+// otherwise nearly everything renders as the dry tone.
+const smoothstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+export function topColor(out, x, z) {
+  const v = smoothstep(0.3, 0.7, meadowNoise(x, z));
   if (v < 0.5) out.set(MEADOW_SAND).lerp(_cb.set(MEADOW_DRY), v * 2);
   else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
   return out;
