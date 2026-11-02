@@ -10,6 +10,7 @@ import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
+import { createGorgeLife } from '../gorgelife.js';
 
 // =============================================================================
 // The Gorge.
@@ -422,9 +423,9 @@ const ROCK_WALKS = Object.freeze([...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => 
 
 const GROUND_COLOR = 0x5f5d52;
 
-// The run-time hook for what only the Gorge does on a walk (Task 8). Nothing
-// yet.
-const noLife = () => ({ update() {}, dispose() {} });
+// The sky's passing flock flies here, over every 20 m rim and the highest
+// camera (G11); gorgelife.js's wheeling birds share the height band.
+export const GORGE_BIRD_Y = 34;
 
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
@@ -543,6 +544,9 @@ export function build(scene, { water = {}, wind } = {}) {
     raceCourse: RACE_COURSE.map((r) => ({ ...r })),
     mapShapes: mapShapes(),
     caves: GORGE_CAVES,
-    life: noLife,
+    // What only the Gorge does on a walk: shade by height, wheeling birds and
+    // the ambience mix (gorgelife.js). walk.js calls it once per walk.
+    life: (ctx) => createGorgeLife(ctx),
+    skyBirdY: GORGE_BIRD_Y,
   };
 }

@@ -79,6 +79,14 @@ describe('sky life birds', () => {
     expect(() => sky.dispose()).not.toThrow();
   });
 
+  it('the flock flies at birdY when given (the Gorge: 34), at 14 when not', () => {
+    for (const [opts, y] of [[{ birdY: 34 }, 34], [{}, 14]]) {
+      const { scene, sky } = make(opts);
+      while (birdsIn(scene).length === 0) sky.update(0.25);
+      for (const b of birdsIn(scene)) expect(b.position.y).toBe(y);
+    }
+  });
+
   it('reduced motion: no birds at all', () => {
     const { scene, sky } = make({ reducedMotion: true });
     for (let s = 0; s < 600; s++) sky.update(0.5);

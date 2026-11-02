@@ -260,10 +260,18 @@ describe('the Gorge: the area record', () => {
     ]);
     expect(area.mapShapes).toEqual(mapShapes());
     expect(area.caves).toBe(GORGE_CAVES);
-    const life = area.life({});
+    // the per-walk life (gorgelife.js), built on its own scene and lights
+    expect(area.skyBirdY).toBe(34);
+    const lifeScene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    const fill = new THREE.HemisphereLight(0xffffff, 0x5f5d52, 1);
+    const life = area.life({ scene: lifeScene, sun, fill, ground: area.ground, reducedMotion: false });
     expect(typeof life.update).toBe('function');
     expect(typeof life.dispose).toBe('function');
-    expect(() => { life.update(0.016); life.dispose(); }).not.toThrow();
+    life.update(0.016, 0, new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
+    expect(sun.intensity).toBeCloseTo(3 * 0.6, 10); // shaded on the floor
+    life.dispose();
+    expect(sun.intensity).toBe(3);
   });
 
   it('is built the same every time', () => {

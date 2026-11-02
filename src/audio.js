@@ -137,6 +137,9 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // startAmbient() composes a set of these per area/weather/dusk and keeps
   // them in `ambient` (an array) so stopAmbient() can tear every one down —
   // no leaked intervals or dangling buffer sources across walks.
+  // A layer may also return mix(m): setAmbientMix(m) hands it the area's live
+  // mix (the Gorge's { high }, 0 on the floor to 1 on the clifftop). A layer
+  // without one ignores it, so every other area sounds as it always has.
 
   function loopedNoiseSource(durationSec) {
     const ac = ensure();
@@ -176,8 +179,9 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // Same technique as wavesLayer, but lower-passed and much quieter — a
   // soft backdrop for neighborhood/park walks.
   // gain and cutoff default to the generic wind, so every existing area sounds
-  // the same; the Moor passes a stronger, brighter one.
-  function windLayer({ gain = 0.03, cutoff = 300 } = {}) {
+  // the same; the Moor passes a stronger, brighter one. `scale(m)`, when given,
+  // multiplies the gain by the live mix (the Gorge's wind rises up high).
+  function windLayer({ gain = 0.03, cutoff = 300, scale = null } = {}) {
     const ac = ensure();
     const src = loopedNoiseSource(2);
     const filter = ac.createBiquadFilter();
@@ -193,7 +197,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     src.connect(filter).connect(g).connect(master);
     src.start();
     lfo.start();
-    return { stop: () => { src.stop(); lfo.stop(); } };
+    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, g, gain, scale);
+  }
+
+  // A mix(m) for a layer whose gain follows the live mix; none without a scale.
+  function withMix(layer, g, gain, scale) {
+    if (scale) layer.mix = (m) => { g.gain.value = gain * scale(m); };
+    return layer;
   }
 
   // Looping noise band-passed to a hiss = rain wash.
@@ -261,8 +271,9 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // is no surf hiss, and the LFO runs faster with a deeper swing (0.26Hz /
   // 0.03 on a 0.038 floor) so it reads as short chop slapping woodwork
   // instead of long rollers arriving. Quieter than the seaside too — the
-  // canal is a narrow strip of water, not the sea.
-  function waterLapLayer() {
+  // canal is a narrow strip of water, not the sea. `scale(m)` as windLayer's
+  // (the Gorge's stream fades as she climbs away from it).
+  function waterLapLayer({ scale = null } = {}) {
     const ac = ensure();
     const src = loopedNoiseSource(2);
     const filter = ac.createBiquadFilter();
@@ -271,7 +282,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     const g = ac.createGain();
     // Through the master bus like every other long-lived layer, so a later
     // setVolume() moves it instead of leaving it frozen at start volume.
-    g.gain.value = 0.038;
+    const gain = 0.038;
+    g.gain.value = gain;
     const lfo = ac.createOscillator();
     const lfoGain = ac.createGain();
     lfo.frequency.value = 0.26;
@@ -280,7 +292,24 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     src.connect(filter).connect(g).connect(master);
     src.start();
     lfo.start();
-    return { stop: () => { src.stop(); lfo.stop(); } };
+    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, g, gain, scale);
+  }
+
+  // The Gorge's far cries, from up high only (mix.high over 0.5): about every
+  // 9 s a hawk's falling two-tone cry far off, or 1 time in 4 a short nasal
+  // bleat from a goat on the crags. Both quiet: they are across the gorge.
+  function cryLayer() {
+    let high = 0;
+    const id = setInterval(() => {
+      if (muted || high <= 0.5) return;
+      if (Math.random() < 0.25) {
+        vocal({ f0: 520, f1: 560, f2: 470, filt0: 1100, filt1: 900, dur: 0.35, gain: 0.03, vibrato: 14 });
+      } else {
+        tone(2500, 0.45, { type: 'sawtooth', gain: 0.012, slideTo: 1700 });
+        tone(2100, 0.5, { type: 'sawtooth', gain: 0.01, slideTo: 1400, delay: 0.5 });
+      }
+    }, 9000);
+    return { stop: () => clearInterval(id), mix: (m) => { high = m.high ?? 0; } };
   }
 
   // A distant ship's horn — the Docks' signature (Task 4.0). Two long low
@@ -712,6 +741,15 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         layers.push(windLayer({ gain: 0.06, cutoff: 480 }));
         if (rain) layers.push(rainLayer());
         else if (!dusk) layers.push(birdsongLayer());
+      } else if (areaKey === 'gorge') {
+        // The Gorge: wind that rises as she climbs (x2.2 on the clifftop), the
+        // stream's lap that fades away above it (x0.2 up there), and the far
+        // cries, heard only from up high; gorgelife.js sets the mix from her
+        // height. Rain and dusk as the generic branch, but never birdsong.
+        layers.push(windLayer({ gain: 0.03, cutoff: 300, scale: (m) => 1 + 1.2 * (m.high ?? 0) }));
+        layers.push(waterLapLayer({ scale: (m) => 1 - 0.8 * (m.high ?? 0) }));
+        layers.push(cryLayer());
+        if (rain) layers.push(rainLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
         // birdsong at any hour. Crickets at dusk come from the shared line.
@@ -727,6 +765,11 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       }
       if (dusk && areaKey !== 'den') layers.push(cricketLayer());
       ambient = layers;
+    },
+    // The live mix for the ambience now playing (the Gorge's { high }): each
+    // layer that has a mix(m) follows it; the rest ignore it.
+    setAmbientMix(m) {
+      for (const layer of ambient ?? []) layer.mix?.(m);
     },
     stopAmbient() {
       if (ambient) {

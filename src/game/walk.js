@@ -152,6 +152,9 @@ const NO_GOLD_MICE = {
 // The den has no rival border: every call the render loop makes is inert, and
 // there is no patrol to scent over a mark and no decal to scent over (Task 12).
 const NO_RIVAL = { update() {}, dispose() {}, patrolPos: () => null, borderMarks: null };
+// An area's own per-walk life (areaData.life, the Gorge's shade, birds and
+// ambience mix); every area without one gets this, so nothing changes there.
+const NO_AREA_LIFE = { update() {}, dispose() {} };
 const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 // The key light, the fill, the shadow bias and the shadow-caster rule are one
@@ -490,7 +493,9 @@ export function createWalkLifecycle({
     // `bounds` and `waters` already are. createFill (src/render/rig.js) falls
     // back to DEFAULT_GROUND_BOUNCE, so an area that has not been threaded (or
     // a test's bare build(scene)) still lights correctly rather than throwing.
-    scene.add(createFill(areaData.groundBounce));
+    // Held, not added inline: the area's life (the Gorge's shade) scales it.
+    const fill = createFill(areaData.groundBounce);
+    scene.add(fill);
     // Wave 2.1 — contact shadows. HERE, and nowhere later, because the rig
     // scans scene.children for its static footprints and this is the exact
     // moment the scene contains the area's props and NOTHING ELSE: the cat,
@@ -668,6 +673,12 @@ export function createWalkLifecycle({
         });
       }
     }
+
+    // The area's own life on this walk (the Gorge: shade by height, wheeling
+    // birds, the ambience mix). Here, after weather and dusk have set the sun,
+    // so their values are the base it shades; before the caster sweep, so its
+    // noCast birds are skipped. Draws on no rng. endWalk disposes it.
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio }) ?? NO_AREA_LIFE;
 
     // Secrets (unicorn/UFO) are outdoor-only sight gags — skip them indoors
     // rather than have one spawn inside the den's 16x16 room.
@@ -1243,6 +1254,7 @@ export function createWalkLifecycle({
       catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
+      areaLife,
       fx: createFx(scene, { reducedMotion }),
       // The area's water surfaces, bundled into the one { update, dispose }
       // shape the session already uses. Safe on an area with no water at all
@@ -1289,6 +1301,9 @@ export function createWalkLifecycle({
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
         reducedMotion,
+        // the flock's height: the area's own (the Gorge flies it over its
+        // rims), else skylife's default 14
+        birdY: areaData.skyBirdY,
       }),
       secrets,
       tippables,
@@ -1906,6 +1921,9 @@ export function createWalkLifecycle({
     composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
+    // Hands the sun and fill back and takes the area's birds out, before the
+    // traversal below. Every way a walk ends comes through here.
+    session.areaLife.dispose();
     // Water frees the normal and roughness maps the traversal below cannot
     // reach (it only looks at `m.map`); wind puts every swayed object back on
     // the rotation — and under the parent — it had before it was registered.

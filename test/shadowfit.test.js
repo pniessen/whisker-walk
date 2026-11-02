@@ -347,7 +347,8 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     expect(walkSrc).not.toMatch(/new THREE\.AmbientLight\(/);
     expect(rigSrc).not.toMatch(/new THREE\.AmbientLight\(/);
     expect(rigSrc).toMatch(/new THREE\.HemisphereLight\(\s*HEMI_SKY,\s*groundBounce \?\? DEFAULT_GROUND_BOUNCE,\s*HEMI_INTENSITY,\s*\)/);
-    expect(walkSrc).toContain('scene.add(createFill(areaData.groundBounce));');
+    // Held in `fill` (Gorge Task 8: the area's life scales it), then added.
+    expect(walkSrc).toContain('const fill = createFill(areaData.groundBounce);\n    scene.add(fill);');
   });
 
   it('adds the fill AFTER the world is built, because only areaData knows the bounce', () => {
