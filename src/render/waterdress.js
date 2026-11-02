@@ -13,7 +13,7 @@ import { bankPieces, waterRamp } from './water.js';
 //
 // THE BUDGET. At most three meshes, one per material, created by walk.js AFTER
 // the caster sweep, the contact-shadow scan and the prop merge, so none of
-// them sees it: castShadow and receiveShadow false, no shadow-pass draw.
+// them sees it: castShadow false (no shadow-pass draw); the band and stones receive shadows.
 //   - the band: wet earth + foam line, ONE transparent mesh (vertex colour
 //     with alpha, depthWrite off, polygon offset);
 //   - the stones: one opaque merged mesh (none on the LOW tier);
@@ -119,9 +119,11 @@ const SEA_OUT_MAX = 0.95;
 const APRON_M = 240;
 const APRON_TUCK = 0.5;
 const APRON_DROP = 0.015;
+const APRON_ROUGHNESS = 0.3;
 
 // Stones: low-poly, grey-brown, about one every STONE_EVERY metres of bank.
 const STONE_EVERY = 4;
+const STONE_KEEP_GAP = 0.5;
 const STONE_COLORS = [0x8a8378, 0x7a7266, 0x958c7e, 0x6f6a60];
 
 // ---------------------------------------------------------------------------
@@ -424,7 +426,7 @@ function bandMaterial(breathe, swash) {
 
 // --- stones ------------------------------------------------------------------
 
-function stoneSpots(runs, areaData) {
+function stoneSpots(runs, areaData, keepOut = []) {
   const b = areaData.bounds;
   const colliders = areaData.colliders ?? [];
   const spots = [];
@@ -445,6 +447,8 @@ function stoneSpots(runs, areaData) {
       if (waterClearance(ctx.undecked, x, z) < 0.1) continue;
       if (deckDistance(areaData.waters, x, z) < 1.5) continue;
       if (colliders.some((k) => Math.hypot(x - k.x, z - k.z) <= k.r + 0.1)) continue;
+      // rest spots, finds and the like have no collider: stay clear of them too
+      if (keepOut.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + STONE_KEEP_GAP)) continue;
       spots.push({ x, z, r, spin, tone });
     }
   }
@@ -491,10 +495,14 @@ function genericRuns(h, { areaId, areaData, box, undecked }) {
   const pieces = bankPieces(w, h.waters ?? areaData.waters);
   if (pieces.length === 0) return [];
   const bog = h.style === 'bog';
-  const seed = seedFromCode(`waterdress-${areaId}-${w.id}`);
+  const seed0 = seedFromCode(`waterdress-${areaId}-${w.id}`);
   const out = [];
-  for (const ch of chains(pieces)) {
+  // Each chain (each bank of a stream, each ring of a water) has its own
+  // wobble and stone seed, so two banks of one water don't share a profile.
+  // The first chain keeps the water's own seed.
+  for (const [ci, ch] of chains(pieces).entries()) {
     const sampled = sampleChain(ch, w);
+    const seed = ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : seed0;
     const ctx = {
       seed,
       stoneSeed: seed + 7,
@@ -532,7 +540,7 @@ function seaRuns(h, { areaId, areaData }) {
     foamC: new THREE.Color(SEA_FOAM),
   };
   const out = [];
-  for (const ch of chains(pieces)) {
+  for (const [ci, ch] of chains(pieces).entries()) {
     const a = ch.pts[0], z = ch.pts[ch.pts.length - 1];
     const len = Math.hypot(z.x - a.x, z.z - a.z);
     if (len < 1e-6) continue;
@@ -556,7 +564,10 @@ function seaRuns(h, { areaId, areaData }) {
       const s = s0 + ((s1 - s0) * i) / n;
       samples.push({ x: a.x + tx * s, z: a.z + tz * s, s, nx, nz });
     }
-    out.push({ samples, closed: false, w, ctx: { ...ctx0, fadeFrom: s0, fadeTo: s1 } });
+    out.push({
+      samples, closed: false, w,
+      ctx: { ...ctx0, seed: ci ? seedFromCode(`waterdress-${areaId}-${w.id}-${ci}`) : ctx0.seed, fadeFrom: s0, fadeTo: s1 },
+    });
   }
   return out;
 }
@@ -620,22 +631,20 @@ function apronMesh(quads, color) {
   m.name = 'waterdress:apron';
   return m;
 }
-const APRON_ROUGHNESS = 0.3;
-
 // One builder per water style.
 const STYLE_BUILDERS = { clear: genericRuns, bog: genericRuns, sea: seaRuns };
 
 // ---------------------------------------------------------------------------
 
 /**
- * createWaterDressing(scene, { areaId, areaData, tier, reducedMotion })
+ * createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut })
  *   → { meshes, update(dt), dispose() }
  *
  * Reads areaData.waterFx (water.js's handles). Areas not in DRESSED_AREAS —
  * the park, the docks, the gorge, the den, the neighbourhood — get a no-op
  * stub and add nothing to the scene.
  */
-export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false } = {}) {
+export function createWaterDressing(scene, { areaId, areaData, tier, reducedMotion = false, keepOut = [] } = {}) {
   if (!DRESSED_AREAS.includes(areaId) || !areaData?.waterFx?.length) return NO_DRESSING;
   const low = (typeof tier === 'string' ? tier : tier?.name) === 'low';
   const bounds = areaData.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -667,6 +676,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
     return { x: p.x + p.nx * lip, z: p.z + p.nz * lip };
   }));
   if (seaLine.length) band.userData.waterline = seaLine;
+  band.userData.runSeeds = runs.map((r) => ({ water: r.w.id, seed: r.ctx.seed }));
   meshes.push(band);
 
   // The far-sea apron, on every tier: without it the sea ends in a corner.
@@ -675,7 +685,7 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   if (quads.length) meshes.push(apronMesh(quads, waterRamp(seas[0].color ?? 0x4a90c0).deep));
 
   if (!low) {
-    const spots = stoneSpots(runs, areaData);
+    const spots = stoneSpots(runs, areaData, keepOut);
     if (spots.length) {
       const stones = new THREE.Mesh(
         stonesGeometry(spots),
@@ -688,8 +698,10 @@ export function createWaterDressing(scene, { areaId, areaData, tier, reducedMoti
   }
 
   for (const m of meshes) {
+    // nothing in the shadow pass, but the band and stones take tree shadows
+    // (the far apron is nowhere near a tree)
     m.castShadow = false;
-    m.receiveShadow = false;
+    m.receiveShadow = m.name !== 'waterdress:apron';
     // rig.js / mergeprops.js skip these, should anything sweep again
     m.userData.noCast = true;
     m.matrixAutoUpdate = false;

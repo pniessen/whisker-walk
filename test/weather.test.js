@@ -517,7 +517,8 @@ describe('createWeather — rain that reads', () => {
     expect(scene.fog.near).toBeCloseTo(14, 0);
     expect(scene.fog.far).toBeCloseTo(75, 0);
     expect(sun.intensity).toBeCloseTo(0.9, 1);
-    expect(scene.fog.color.getHex()).not.toBe(0x123456);
+    const want = new THREE.Color(0x123456).lerp(new THREE.Color(RAIN_LOOK.skyHorizon), RAIN_LOOK.fogMix);
+    expect(scene.fog.color.getHex()).toBe(want.getHex());
   });
 
   it('dispose() mid-rain gives back the entry sun, fog and background', () => {
@@ -532,6 +533,29 @@ describe('createWeather — rain that reads', () => {
     expect(scene.fog.color.getHex()).toBe(f);
     expect([scene.fog.near, scene.fog.far]).toEqual([40, 130]);
     expect(scene.background.getHex?.()).toBe(bg.getHex?.());
+  });
+
+  it('dispose() after the rainbow leaves an externally changed sun, fog and background alone', () => {
+    const scene = mkScene();
+    const sun = mkSun();
+    const w = createWeather(scene, sun, 'rain', () => 0, true, undefined, { tier: TIER_HIGH });
+    w.update(61, cam());
+    const bg = new THREE.Color(0x778899);
+    const fog = new THREE.Fog(0x998877, 12, 34);
+    scene.background = bg;
+    scene.fog = fog;
+    sun.intensity = 0.33;
+    w.dispose();
+    expect(scene.background).toBe(bg);
+    expect(scene.fog).toBe(fog);
+    expect(sun.intensity).toBe(0.33);
+  });
+
+  it('the drops draw in one pass: front faces only (the quads always face the camera)', () => {
+    const scene = mkScene();
+    createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    const mat = dropsOf(scene).material;
+    expect(mat.side === THREE.FrontSide || mat.forceSinglePass === true).toBe(true);
   });
 
   it('puddle rings: one InstancedMesh, capped, gone at the rainbow, fewer on low', () => {

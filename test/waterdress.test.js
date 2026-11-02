@@ -154,12 +154,12 @@ describe('water dressing', () => {
       for (const m of fx.meshes) {
         expect(m.parent).toBe(scene);
         expect(m.castShadow).toBe(false);
-        expect(m.receiveShadow).toBe(false);
+        // the band and stones take tree shadows; none of them casts
+        expect(m.receiveShadow).toBe(m.name !== 'waterdress:apron');
       }
       tris[id] = fx.meshes.reduce((n, m) => n + triangles(m), 0);
       expect(tris[id]).toBeLessThanOrEqual(12_000);
     }
-    console.log('waterdress triangles', JSON.stringify(tris));
   }, 120_000);
 
   it('the band is transparent, fogged, depth-write off and polygon-offset', () => {
@@ -227,6 +227,32 @@ describe('water dressing', () => {
           expect(Math.hypot(c.x - k.x, c.z - k.z), at).toBeGreaterThan(k.r);
         }
       }
+    }
+  }, 120_000);
+
+  it('separate shore chains of one water get their own wobble seeds', () => {
+    let multi = 0;
+    for (const id of DRESSED_AREAS) {
+      const { fx } = dress(id);
+      const seeds = new Map();
+      for (const r of byName(fx, 'waterdress:band').userData.runSeeds) {
+        if (!seeds.has(r.water)) seeds.set(r.water, new Set());
+        seeds.get(r.water).add(r.seed);
+      }
+      // a water with two or more banks must not give them all one seed
+      for (const set of seeds.values()) if (set.size > 1) multi++;
+    }
+    expect(multi).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('stones keep at least r + 0.5 m off the keep-out circles handed in', () => {
+    const base = byName(dress('woods').fx, 'waterdress:stones').userData.centres;
+    expect(base.length).toBeGreaterThan(2);
+    const keepOut = base.slice(0, 3).map((c) => ({ x: c.x, z: c.z, r: 1 }));
+    const after = byName(dress('woods', { keepOut }).fx, 'waterdress:stones').userData.centres;
+    expect(after.length).toBeLessThan(base.length);
+    for (const c of after) {
+      for (const k of keepOut) expect(Math.hypot(c.x - k.x, c.z - k.z)).toBeGreaterThanOrEqual(k.r + 0.5);
     }
   }, 120_000);
 

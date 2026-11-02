@@ -1196,7 +1196,7 @@ export function createWalkLifecycle({
     // and the prop merge, so it is neither decaled nor merged and casts
     // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
     // water (the den, the park, the docks, the gorge) get the no-op stub.
-    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion });
+    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and

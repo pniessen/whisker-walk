@@ -61,7 +61,7 @@ export const RAIN_LOOK = Object.freeze({
   // Rain ADJUSTS whatever sky and light it finds (the day, a dusk Gorge...),
   // so these are factors on the entry state, not absolute numbers. On a
   // standard day (fog 40/130, sun 2.2) they reproduce the old look: 14/75, 0.9.
-  fogMix: 0.7,         // entry fog colour -> the rain grey (skyHorizon)
+  fogMix: 0.8,         // entry fog colour -> the rain grey (skyHorizon)
   fogNearK: 0.35, fogFarK: 0.5769,
   sunK: 0.9 / 2.2,
   topDarken: 0.85,     // sky top when the background is a texture: fog, a bit deeper
@@ -130,7 +130,10 @@ function buildDrops(count) {
   for (let i = 0; i < count; i++) writeDrop(i);
   const mat = new THREE.MeshBasicMaterial({
     color: L.dropColor, transparent: true, opacity: L.dropOpacity,
-    depthWrite: false, fog: true, side: THREE.DoubleSide,
+    // FrontSide: the quads are wound to face +z and the column is yawed to
+    // look back at the camera, so they are always front-on; DoubleSide would
+    // make three draw this transparent mesh in two passes.
+    depthWrite: false, fog: true, side: THREE.FrontSide,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'rain-drops';
@@ -263,6 +266,9 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   scene.background = skyBackground(rainTop.getHex(), fogColor.getHex());
   scene.fog = new THREE.Fog(fogColor, prevFog.near * L.fogNearK, prevFog.far * L.fogFarK);
   sun.intensity = prevSun * L.sunK;
+  // True while the rain look is on the scene; cleared when the rainbow gives
+  // the entry look back, so dispose() never undoes what someone else changed since.
+  let lookApplied = true;
   const fill = opts.fill ?? null;
   const fillBase = fill ? fill.intensity : 0;
   let fillDimmed = false;
@@ -336,7 +342,8 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
     dry();
     // Dispose in the middle of the rain: the sky and light go back as found
     // (after the rainbow they already have, and are not touched again).
-    if (!rainbow && schedule.phase(elapsed) === 'rain') {
+    if (lookApplied) {
+      lookApplied = false;
       scene.background = prevBackground;
       scene.fog = new THREE.Fog(prevFog.color, prevFog.near, prevFog.far);
       sun.intensity = prevSun;
@@ -383,6 +390,7 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
         if (rain) rain.visible = false;
         if (rings) rings.visible = false;
         dry();
+        lookApplied = false;
         scene.background = prevBackground;
         scene.fog = new THREE.Fog(prevFog.color, prevFog.near, prevFog.far);
         sun.intensity = prevSun;
