@@ -61,7 +61,12 @@ export const RAIN_LOOK = Object.freeze({
   fogNear: 14, fogFar: 75,
   sun: 0.9,
   fillScale: 0.8,
-  wetColor: 0.72, wetRough: 0.6, wetRoughFloor: 0.35,
+  // Wet is told by colour, not gloss: dropping roughness made the lawn pick up
+  // a pale sky sheen from the environment light, so roughness stays put.
+  wetColor: 0.6, wetRough: 1, wetRoughFloor: 0.35,
+  // Blades: darker and a touch cooler, tinted in place (grass.js's material is
+  // patched with onBeforeCompile and must not be cloned) and put back exactly.
+  grassTint: [0.5, 0.62, 0.72],
   ringGrow: 0.9, ringMin: 0.05, ringMax: 0.45, ringY: 0.03,
   ringPale: 0xdfe9f2, ringFade: 0x6f8798,
   dropsHigh: 900, dropsMedium: 650, dropsLow: 400,
@@ -202,7 +207,7 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   // setSheltered(on) (Gorge part 3, C6): the camera is under a ceiling, so
   // the rain column hides; a no-op on every walk without one. The rain's
   // sound is unchanged: you hear rain from a cave mouth.
-  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false, setSheltered() {}, addPuddles() {}, dispose() {} };
+  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false, setSheltered() {}, addPuddles() {}, tintWet() {}, dispose() {} };
   if (condition === 'clear') return api;
 
   if (condition === 'sunset') {
@@ -246,7 +251,8 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   sun.intensity = L.sun;
   const fill = opts.fill ?? null;
   const fillBase = fill ? fill.intensity : 0;
-  if (fill) fill.intensity = fillBase * L.fillScale;
+  let fillDimmed = false;
+  if (fill) { fill.intensity = fillBase * L.fillScale; fillDimmed = true; }
 
   // Wet ground: each wet mesh gets its own darker, glossier clone for the
   // rain; the original material goes straight back on afterwards, never edited.
@@ -262,13 +268,24 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
     mesh.material = wet;
     wetSwaps.push({ mesh, orig, wet });
   }
+  // Materials tinted in place (the grass blades): original colour kept to the bit.
+  const tints = [];
+  api.tintWet = (material) => {
+    if (disposed || !material?.color || tints.some((t) => t.material === material)) return;
+    if (schedule.phase(elapsed) !== 'rain') return;
+    tints.push({ material, color: material.color.clone() });
+    material.color.multiply(new THREE.Color(...L.grassTint));
+  };
   const dry = () => {
+    for (const t of tints) t.material.color.copy(t.color);
+    tints.length = 0;
     for (const w of wetSwaps) {
       if (w.mesh.material === w.wet) w.mesh.material = w.orig;
       w.wet.dispose();
     }
     wetSwaps.length = 0;
-    if (fill) fill.intensity = fillBase;
+    if (fill && fillDimmed) fill.intensity = fillBase;
+    fillDimmed = false;
   };
 
   const schedule = createRainSchedule(rng);
@@ -313,7 +330,6 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
     rain = null;
     rings = null;
   };
-
 
   const viewDir = new THREE.Vector3();
   api.isRaining = () => schedule.phase(elapsed) === 'rain';

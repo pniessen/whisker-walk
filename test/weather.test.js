@@ -115,6 +115,42 @@ describe('createWeather — rain background save/restore', () => {
   });
 });
 
+describe('createWeather — grass tint and fill guard', () => {
+  const mk = () => { const s = new THREE.Scene(); s.background = new THREE.Color(0x445566); s.fog = new THREE.Fog(0x123456, 40, 130); return s; };
+  const sun = () => ({ color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) });
+  const cam = () => new THREE.Vector3();
+  it('darkens a grass material in place in the rain and restores it exactly at the rainbow', () => {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6cb058 });
+    const hex = mat.color.getHex();
+    const r = mat.color.r;
+    const w = createWeather(mk(), sun(), 'rain', () => 0, false);
+    const same = mat;
+    w.tintWet(mat);
+    expect(mat).toBe(same);
+    expect(mat.color.r).toBeLessThan(r * 0.8);
+    expect(mat.color.b / mat.color.r).toBeGreaterThan(0.1);
+    w.update(61, cam());
+    expect(mat.color.getHex()).toBe(hex);
+    expect(mat.color.r).toBe(r);
+  });
+  it('restores the grass on dispose mid-rain', () => {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6cb058 });
+    const r = mat.color.r;
+    const w = createWeather(mk(), sun(), 'rain', () => 0.5, false);
+    w.tintWet(mat);
+    w.dispose();
+    expect(mat.color.r).toBe(r);
+  });
+  it('leaves the fill alone after the rainbow restored it', () => {
+    const fill = new THREE.HemisphereLight(0xffffff, 0, 0.7);
+    const w = createWeather(mk(), sun(), 'rain', () => 0, false, undefined, { fill });
+    w.update(61, cam());
+    fill.intensity = 0.3; // someone else's later write
+    w.dispose();
+    expect(fill.intensity).toBe(0.3);
+  });
+});
+
 describe('createWeather — the rainbow is anti-solar', () => {
   // A rainbow's centre is the ANTI-SOLAR point: directly opposite the sun from
   // the viewer. That is why you always have the sun behind you when you see
@@ -404,8 +440,8 @@ describe('createWeather — rain that reads', () => {
     expect(original.roughness).toBe(r0);
     expect(mesh.material).not.toBe(original);
     for (const ch of ['r', 'g', 'b']) expect(mesh.material.color[ch]).toBeLessThanOrEqual(c0[ch] * 0.8);
-    expect(mesh.material.roughness).toBeLessThan(r0);
-    expect(mesh.material.roughness).toBeGreaterThanOrEqual(0.35);
+    // colour tells wet, not gloss (a lower roughness lit the lawn with a pale sky sheen)
+    expect(mesh.material.roughness).toBeLessThanOrEqual(r0);
     w.update(61, cam()); // rainbow
     expect(mesh.material).toBe(original);
     expect(original.color.getHex()).toBe(c0.getHex());

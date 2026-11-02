@@ -643,7 +643,7 @@ export function createWalkLifecycle({
       envIntensity: tier.envIntensity,
     });
 
-    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, dispose() {} };
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
       // The ground and paths in the scene right now (the area's own, before
       // anything else is added) are what the rain darkens; the fill is dimmed.
@@ -1180,6 +1180,8 @@ export function createWalkLifecycle({
       ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    // The blades dominate a lawn's look, so a rainy walk darkens them too.
+    if (grass.mesh) weather.tintWet?.(grass.mesh.material);
     // Stream 4 round four — paw prints (render/pawprints.js). After the same
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
