@@ -17,6 +17,8 @@ import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 export const CAT_RADIUS = 0.35;
 // The camera's pitch at the start of a walk (radians).
 export const DEFAULT_PITCH = 0.18;
+// The highest the camera may be pitched up over the cat (radians).
+export const PITCH_MAX = 0.85;
 // Camera pull-in tuning (see stepPull in createPlayer).
 const PULL_IN_SPEED = 12; // metres per second, at most
 const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
@@ -667,7 +669,7 @@ export function createPlayer(camera, canvas) {
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
       pitch += (invertY ? -dy : dy) * 0.004;
-      pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
+      pitch = THREE.MathUtils.clamp(pitch, -0.25, PITCH_MAX);
     },
     setInvertY(v) {
       invertY = !!v;
@@ -951,7 +953,7 @@ export function createPlayer(camera, canvas) {
     if (!api.locked || !enabled) return;
     yaw -= e.movementX * 0.0024;
     pitch += (invertY ? -e.movementY : e.movementY) * 0.002;
-    pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
+    pitch = THREE.MathUtils.clamp(pitch, -0.25, PITCH_MAX);
   });
   document.addEventListener('keydown', (e) => {
     if (!enabled) return;

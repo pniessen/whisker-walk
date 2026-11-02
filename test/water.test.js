@@ -44,6 +44,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
 const { createScent } = await import('../src/scent.js');
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,7 @@ const WATERED = {
   river: buildWith(buildRiver),
   moor: buildWith(buildMoor),
   pines: buildWith(buildPines),
+  gorge: buildWith(buildGorge),
 };
 
 // The proximity gate each kind of content is actually consumed through, so a
@@ -772,4 +774,20 @@ describe('nearestDry round the island and its bridge', () => {
   it('the spots are in the water today, so the block tests a real push', () => {
     for (const [x, z, where] of SPOTS) expect(inWater(waters, x, z), where).toBe(true);
   });
+});
+
+// The Gorge's stream is narrow (1.5 m) and runs down the floor between rock
+// walls: a push out of its middle lands just over a bank, on the floor, never
+// up on the rock (part 1's R14: water lies only on base ground).
+describe("nearestDry out of the Gorge's stream", () => {
+  const { area } = WATERED.gorge;
+  for (const margin of [0.35, 0.5, 0.6]) {
+    it(`lands within 1 m of the bank, on base ground, margin ${margin}`, () => {
+      const p = nearestDry(area.waters, -8.75, 20, margin);
+      const clear = waterClearance(area.waters, p.x, p.z);
+      expect(clear, `(${p.x}, ${p.z})`).toBeGreaterThanOrEqual(margin - 1e-9);
+      expect(clear, `(${p.x}, ${p.z})`).toBeLessThanOrEqual(1);
+      expect(area.ground.y(p.x, p.z)).toBe(0);
+    });
+  }
 });
