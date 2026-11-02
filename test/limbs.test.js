@@ -342,8 +342,11 @@ describe('the foot', () => {
       expect(peaks.length, simple ? 'simple' : 'full').toBe(4);
       peaks.forEach((q, i) => expect(Math.abs(q.x - FOOT.TOES[i] * width / 2)).toBeLessThanOrEqual(0.012));
     }
-    // The same foot on every bare cat.
-    for (const [cat, simple] of bareCats().slice(0, 3)) {
+    // The same foot on bare cats, full and simple, presets and custom looks.
+    const spread = bareCats().filter((c, i) => i % 5 === 0);
+    expect(spread.some(([, simple]) => simple)).toBe(true);
+    expect(spread.some(([, simple]) => !simple)).toBe(true);
+    for (const [cat, simple] of spread) {
       for (const leg of cat.userData.parts.legs) expect(toeMaxima(leg.userData.paw.geometry).peaks.length, `${simple}`).toBe(4);
     }
   });

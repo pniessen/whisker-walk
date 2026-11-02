@@ -208,29 +208,40 @@ const FOOT_FRONT = 1.3 * FOOT.R;
 const FOOT_BACK = 1.4 * FOOT.R;
 const FOOT_TOP = 0.75 * FOOT.R;
 // The front edge in the oval's unit outline: u across (-1 left .. 1 right),
-// v forward (1 is the toes' base line). Each toe is a rounded tip (its centre
-// and two flanks) and between neighbouring toes is a scallop; the middle toes
-// reach furthest, the outer two sit a little back, as on a real paw. Left to
-// right, from the side of the foot round the front to the other side.
-const TOE_V = [1.0, 1.1, 1.1, 1.0]; // each toe's tip
-const TOE_FLANK = [0.075, 0.03];       // a flank: this far across, this much behind the tip
-const SCALLOP_V = [0.86, 0.98, 0.86]; // between toes 1|2, 2|3, 3|4
+// v forward (1 is the toes' base line), as [u, v scalloped, v plain]. Each
+// toe is a soft lobe and between neighbouring toes is a scallop; the middle
+// toes reach furthest, the outer two sit a little back, as on a real paw. The
+// plain v is the smooth oval the toes sit on (a superellipse through the
+// shoulders), which the rings above the toes ease back to, so the scallops
+// live low at the front and the top stays smooth (the sketch's lobe · front²).
+// Left to right, from the side of the foot round the front to the other side.
+const TOE_V = [1.0, 1.08, 1.08, 1.0]; // each toe's tip
+const SCALLOP_V = [0.89, 0.96, 0.89]; // between toes 1|2, 2|3, 3|4
+const ovalV = (u) => 1.06 * Math.pow(1 - Math.pow(Math.abs(u), 2.5), 1 / 2.5);
 const FRONT_EDGE = (() => {
   const pts = [[-1, 0], [-0.86, 0.66]];
   FOOT.TOES.forEach((u, i) => {
-    pts.push([u - TOE_FLANK[0], TOE_V[i] - TOE_FLANK[1]], [u, TOE_V[i]], [u + TOE_FLANK[0], TOE_V[i] - TOE_FLANK[1]]);
+    pts.push([u, TOE_V[i]]);
     if (i < 3) pts.push([(u + FOOT.TOES[i + 1]) / 2, SCALLOP_V[i]]);
   });
   pts.push([0.86, 0.66], [1, 0]);
-  return pts;
+  return pts.map(([u, v]) => [u, v, Math.abs(u) > 0.8 ? v : ovalV(u)]);
 })();
 // Points round the heel, between the two sides (full / simple): the only
-// difference between the two feet, so both have the same toes.
-const HEEL_PTS = { full: 9, simple: 5 };
-// The rings up the side, as [outline scale, height]: the flat sole's edge,
-// the widest ring a little below the middle, a shoulder under the low top.
+// difference between the two feet, so both have the same toes. An odd count
+// puts a point on the heel's centre line.
+const HEEL_PTS = { full: 9, simple: 7 };
+// The rings up the side, as [outline scale, height, toes]: the flat sole's
+// edge, the widest ring low down where the toes are, a ring above the middle
+// and a shoulder under the low top, rounding the side like an egg on its side.
+// `toes` is how much of the scallop each ring carries (0 is the plain oval).
 // The sole's centre and the top's apex close it.
-const FOOT_RINGS = [[0.72, -PAW_HALF], [1, -0.25 * PAW_HALF], [0.78, 0.55 * FOOT_TOP]];
+const FOOT_RINGS = [
+  [0.72, -PAW_HALF, 0.7],
+  [1, -0.45 * PAW_HALF, 1],
+  [0.92, 0.35 * FOOT_TOP, 0.3],
+  [0.56, 0.85 * FOOT_TOP, 0],
+];
 // R6: a claw is a 3-sided open cone, radius 0.0045 and 0.018 long, angled
 // forward and down 0.5 rad, its tip CLAW_OUT beyond the toe's front point:
 // the rest is inside the toe.
@@ -243,7 +254,7 @@ function footOutline(simple) {
   const n = HEEL_PTS[simple ? 'simple' : 'full'];
   for (let k = 1; k <= n; k++) {
     const a = (k / (n + 1)) * Math.PI;
-    pts.push([Math.cos(a), -Math.sin(a)]);
+    pts.push([Math.cos(a), -Math.sin(a), -Math.sin(a)]);
   }
   return pts;
 }
@@ -257,7 +268,9 @@ export function footGeometry(pawHex, simple = false) {
   const put = (x, y, z) => { pos.push(x, y, z); return pos.length / 3 - 1; };
   const sole = put(0, -PAW_HALF, 0);
   const ring0 = pos.length / 3;
-  for (const [s, y] of FOOT_RINGS) for (const [u, v] of outline) put(outlineX(u) * s, y, outlineZ(v) * s);
+  for (const [s, y, toes] of FOOT_RINGS) {
+    for (const [u, v, plain] of outline) put(outlineX(u) * s, y, outlineZ(plain + (v - plain) * toes) * s);
+  }
   const apex = put(0, FOOT_TOP, 0);
   const idx = [];
   const at = (k, j) => ring0 + k * n + (j % n);
