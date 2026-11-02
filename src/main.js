@@ -792,7 +792,8 @@ function init() {
       // the waterline itself would leave it half in the water and exactly on
       // the edge of the bat range.
       const toyPos = session.toy.mesh.position;
-      if (session.toy.active && toyPos.y <= 0.2 &&
+      // Gorge part 1: "on the surface" is measured from the ground under it.
+      if (session.toy.active && toyPos.y - session.ground.y(toyPos.x, toyPos.z) <= 0.2 &&
           waterClearance(session.areaData.waters, toyPos.x, toyPos.z) < 0.5) {
         const dry = nearestDry(session.areaData.waters, toyPos.x, toyPos.z, 0.5);
         const dx = dry.x - toyPos.x;

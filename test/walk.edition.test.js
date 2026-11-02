@@ -430,10 +430,10 @@ describe('the border dressing in the walk (source pins)', () => {
   it('is added after the build and before the contact shadows, Clan Edition only', () => {
     const s = src();
     const build = s.indexOf('AREAS[areaId].build(');
-    const call = s.indexOf('addBorderDressing(scene, areaId)');
+    const call = s.search(/addBorderDressing\(scene, areaId(, \{ ground \})?\)/);
     expect(call).toBeGreaterThan(build);
     expect(call).toBeLessThan(s.indexOf('createContactShadows('));
-    expect(s).toMatch(/const dressing = !isDen && isClanEdition\(state\) \? addBorderDressing\(scene, areaId\) : null;/);
+    expect(s).toMatch(/const dressing = !isDen && isClanEdition\(state\) \? addBorderDressing\(scene, areaId(, \{ ground \})?\) : null;/);
   });
 
   it('its colliders join the live list after clanArea is frozen and clearSpot, beside the scratch posts', () => {

@@ -467,7 +467,7 @@ export function createWalkLifecycle({
     // waymark posts and the town's footpath. Added before the fill light, contact
     // shadows and the static-prop merge so they get all three; their colliders
     // join the live list below, beside the scratch posts'.
-    const dressing = !isDen && isClanEdition(state) ? addBorderDressing(scene, areaId) : null;
+    const dressing = !isDen && isClanEdition(state) ? addBorderDressing(scene, areaId, { ground }) : null;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at
@@ -495,7 +495,7 @@ export function createWalkLifecycle({
     // shadow map is 1024 against 2048, so its contact shadows are the half as
     // sharp ones. A grounding pass that switches off on the hardware least
     // able to ground things by other means would be exactly backwards.
-    const decals = createContactShadows(scene);
+    const decals = createContactShadows(scene, { ground });
     // Wave 3.1 — merge each top-level prop's own leaves down to one mesh per
     // material. See render/mergeprops.js for why it never crosses a top-level
     // child, which is what makes it safe next to everything above and below it.
@@ -625,7 +625,7 @@ export function createWalkLifecycle({
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
     if (!duskActive && !isDen) {
-      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion);
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground);
       if (weather.condition === 'rain') {
         // Extra puddles. These are the only props in the game that EVERY area
         // gets whether it authored them or not, which is why their surface is
@@ -735,6 +735,10 @@ export function createWalkLifecycle({
       }
       questObject.position.x = t.x;
       questObject.position.z = t.z;
+      // Gorge part 1: the y offsets above are metres above the ground at the
+      // target. The beacon below is placed from that RELATIVE y, so the column
+      // spans 1.6 m to 10 m over the target's own ground, never inside rock;
+      // the ground is added to the object after it.
       // Objective beacon: a glowing column so the target reads from across the
       // area, not just once you are on top of it. The top is 10m world height —
       // the tallest props here (house gables, tree crowns) top out near 5.5m,
@@ -772,6 +776,7 @@ export function createWalkLifecycle({
       beacon.position.y = ((BEACON_BASE + BEACON_TOP) / 2 - questObject.position.y) / parentScale;
       questObject.add(beacon);
       questObject.userData.beacon = beacon;
+      questObject.position.y += ground.y(t.x, t.z);
       questObject.visible = false;
       scene.add(questObject);
     }
@@ -938,7 +943,7 @@ export function createWalkLifecycle({
     // save, joined onto THIS area's scenics by gifts.js (a spot id that no
     // longer exists is skipped, never defaulted to the origin). The den has
     // no scenics, so it gets the inert stub.
-    const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId));
+    const gifts = isDen ? NO_GIFTS : createGifts(scene, areaData.scenics ?? [], progression.giftsIn(areaId), { ground });
 
     // v21 Stream 2: the colony's tamed cats live in the den, each at its fixed
     // home spot (taming order -> DEN_HOMES index), and each UTC day gets into
@@ -995,7 +1000,7 @@ export function createWalkLifecycle({
         if (finder) finder.foundGift = found;
       }
     }
-    const toy = createToy(scene);
+    const toy = createToy(scene, { ground });
     // yarn-rally ghost ball: a single shared marker rendered wherever a
     // REMOTE player's state message currently reports an active toy
     // position (session.remoteToy, kept in sync by net.onState below) — it's
@@ -1018,6 +1023,7 @@ export function createWalkLifecycle({
     // Big Swat on the very next swat instead of after a reload.
     const tippables = createTippables(scene, areaData.tippables ?? [], {
       getState: () => progression.state,
+      ground,
     });
     // v21 3b — the things a cat can pick up in its mouth, and the mouth that
     // holds one. Created long after mergeStaticProps, so nothing here is
@@ -1029,7 +1035,7 @@ export function createWalkLifecycle({
     // netevents.js ignores a co-walker's drop onto one.
     const carry = {
       mouth: createMouth(),
-      items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables),
+      items: createCarryables(scene, isDen ? [] : propsFor(areaId).carryables, { ground }),
       onDeck: (x, z) => onAnyDeck(areaData.waters, x, z),
     };
     // Task 8 — in a co-walk, a remote cat that leaves or goes quiet takes what
@@ -1057,6 +1063,7 @@ export function createWalkLifecycle({
       colliders: areaData.colliders,
       isWalkable: (x, z) => isWalkableAt(areaData, x, z),
       spawn: areaData.spawn,
+      ground,
     });
     const scent = createScent(scene, areaData, walkRng);
     // The posts playerMarks put up are solid: the cat stops at them, as at any
@@ -1077,7 +1084,7 @@ export function createWalkLifecycle({
     // so nothing here is merged; the den has none. Pays nothing, saves
     // nothing, and sends nothing: main.js hands it every cat on my screen, so
     // a partner's push swings it here too.
-    const pushThroughs = createPushThroughs(scene, propsFor(areaId).flaps, { reducedMotion });
+    const pushThroughs = createPushThroughs(scene, propsFor(areaId).flaps, { reducedMotion, ground });
     for (const c of pushThroughs.colliders) areaData.colliders.push({ ...c });
     // v21 3b Task 15 — somewhere to drink, eat and nap: a bowl or a birdbath,
     // a dish or a fish crate, a cushion or a doormat. The den's are the bowls
@@ -1086,7 +1093,7 @@ export function createWalkLifecycle({
     // (as the flaps' do). Nothing animates, created after mergeStaticProps
     // (nothing merged). Pays nothing, saves nothing, sends nothing;
     // session.rest is the one in progress.
-    const rests = createRests(scene, propsFor(areaId).rests);
+    const rests = createRests(scene, propsFor(areaId).rests, { ground });
     for (const c of rests.colliders) areaData.colliders.push({ ...c });
 
     // Live contact decals for everything that moves, registered now that the
@@ -1386,7 +1393,7 @@ export function createWalkLifecycle({
       session.rival = NO_RIVAL;
     } else {
       // maxMarks is an upper bound: the ring stays even, so 12 marks become 6.
-      const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8 } : {});
+      const marks = createBorderMarks(scene, areaId, tier.name === 'low' ? { maxMarks: 8, ground } : { ground });
       // My saved paws (Task 12) turn their decals pale from the first frame.
       // A saved id names the RING index; the low tier draws only every other
       // ring point, so each drawn decal is matched by its own `ring` and
@@ -1528,7 +1535,7 @@ export function createWalkLifecycle({
     // throwing if a future area (e.g. the den) ever ships with fewer than 5.
     const today = new Date().toISOString().slice(0, 10);
     session.race = walkPois.length >= 5
-      ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn)
+      ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn, { ground })
       : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
     session.raceDate = today;

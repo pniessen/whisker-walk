@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FLAT_GROUND } from '../ground.js';
 
 // =============================================================================
 // CONTACT SHADOWS — a soft dark blob on the ground under every prop, drawn as
@@ -236,10 +237,13 @@ export const MAX_BASE_Y = 0.35;
 export const MIN_SPAN = 0.2;
 export const MAX_SPAN = 6.5;
 
-export function qualifies(box) {
+// Gorge part 1: rule 2 is measured from the ground under the box's centre
+// (0 on every shipped map, where it is exactly the test it always was).
+export function qualifies(box, ground = FLAT_GROUND) {
   if (!box || box.isEmpty()) return false;                    // lights, empty groups
   if (box.max.y - box.min.y < MIN_HEIGHT) return false;       // 1. lying flat
-  if (box.min.y > MAX_BASE_Y) return false;                   // 2. not on the ground
+  const base = ground.flat ? 0 : ground.y((box.min.x + box.max.x) / 2, (box.min.z + box.max.z) / 2);
+  if (box.min.y - base > MAX_BASE_Y) return false;            // 2. not on the ground
   const spanX = box.max.x - box.min.x;
   const spanZ = box.max.z - box.min.z;
   const span = Math.max(spanX, spanZ);
@@ -330,7 +334,7 @@ export function footprintFor(box) {
 // the scene. Recursing would give a house five decals — one under each wall
 // panel and one under the roof — which is both wrong and 380 instances instead
 // of ~90.
-export function scanFootprints(root) {
+export function scanFootprints(root, ground = FLAT_GROUND) {
   const out = [];
   const box = new THREE.Box3();
   for (const child of root.children) {
@@ -338,7 +342,7 @@ export function scanFootprints(root) {
     // correct even on a scene that has never been rendered — which is exactly
     // the case at build time, and the case a test runs in.
     box.setFromObject(child);
-    if (!qualifies(box)) continue;
+    if (!qualifies(box, ground)) continue;
     out.push(footprintFor(box));
   }
   return out;
@@ -446,6 +450,22 @@ function writeInstance(mesh, i, x, z, halfX, halfZ) {
   mesh.setMatrixAt(i, _m);
 }
 
+// Gorge part 1: off flat ground a decal sits DECAL_Y over ground.y and lies
+// on the slope, tilted to the normal (-gx, 1, -gz). Only ever called when
+// !ground.flat, so every flat matrix is writeInstance's, bit for bit.
+const _gr = { x: 0, z: 0 };
+const _n = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+function writeGroundInstance(mesh, i, ground, x, z, halfX, halfZ) {
+  ground.gradient(x, z, _gr);
+  _q.setFromUnitVectors(_up, _n.set(-_gr.x, 1, -_gr.z).normalize());
+  _v.set(x, ground.y(x, z) + DECAL_Y, z);
+  _m.compose(_v, _q, _s.set(halfX * 2, 1, halfZ * 2));
+  mesh.setMatrixAt(i, _m);
+}
+
 /**
  * createContactShadows(scene, opts) -> { update, dispose, follow, ... }
  *
@@ -462,8 +482,9 @@ export function createContactShadows(scene, {
   staticOpacity = STATIC_OPACITY,
   moverOpacity = MOVER_OPACITY,
   moverCapacity = MOVER_CAPACITY,
+  ground = FLAT_GROUND,
 } = {}) {
-  const footprints = scanFootprints(scene);
+  const footprints = scanFootprints(scene, ground);
 
   let staticMesh = null;
   function buildStatic() {
@@ -472,7 +493,8 @@ export function createContactShadows(scene, {
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     for (let i = 0; i < footprints.length; i++) {
       const f = footprints[i];
-      writeInstance(mesh, i, f.x, f.z, f.halfX, f.halfZ);
+      if (ground.flat) writeInstance(mesh, i, f.x, f.z, f.halfX, f.halfZ);
+      else writeGroundInstance(mesh, i, ground, f.x, f.z, f.halfX, f.halfZ);
     }
     mesh.instanceMatrix.needsUpdate = true;
     prepare(mesh);
@@ -504,7 +526,7 @@ export function createContactShadows(scene, {
   function footprintOf(object3d) {
     if (!object3d || !object3d.isObject3D) return null;
     _box.setFromObject(object3d);
-    return qualifies(_box) ? footprintFor(_box) : null;
+    return qualifies(_box, ground) ? footprintFor(_box) : null;
   }
   function rebuildStatic() {
     if (staticMesh) freeMesh(staticMesh);
@@ -602,9 +624,11 @@ export function createContactShadows(scene, {
       // explicitly hidden: collapse the instance rather than leaving its last
       // blob painted on the ground forever.
       const live = o.parent !== null && o.visible;
-      const lift = Math.max(0, _v.y - LIFT_START);
+      // Gorge part 1: lift is measured from the ground under the mover.
+      const lift = Math.max(0, (ground.flat ? _v.y : _v.y - ground.y(_v.x, _v.z)) - LIFT_START);
       const r = live ? f.radius * Math.max(0, 1 - lift / LIFT_RANGE) : 0;
-      writeInstance(moverMesh, i, _v.x, _v.z, r, r);
+      if (ground.flat) writeInstance(moverMesh, i, _v.x, _v.z, r, r);
+      else writeGroundInstance(moverMesh, i, ground, _v.x, _v.z, r, r);
     }
     moverMesh.instanceMatrix.needsUpdate = true;
   }

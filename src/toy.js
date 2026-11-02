@@ -1,11 +1,17 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 const GRAVITY = -14;
 const BOUNCE = 0.45;
 const RADIUS = 0.13;
+export const TOY_RADIUS = RADIUS;
+const RIM_BOUNCE = 0.5; // a rim turns the ball back at half speed (R12)
 
-export function createToy(scene) {
+// Gorge part 1 (R12): the ball's floor is ground.y + RADIUS, and a rim
+// bounces it back, so it never rolls off a clifftop. On FLAT_GROUND every
+// line runs exactly as before.
+export function createToy(scene, { ground = FLAT_GROUND } = {}) {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(RADIUS, 8, 8),
     litMaterial(0xe05c8a)
@@ -58,7 +64,8 @@ export function createToy(scene) {
     // "the ball is here now" rather than a fresh throw every time.
     setPosition(pos) {
       mesh.position.copy(pos);
-      if (mesh.position.y < RADIUS) mesh.position.y = RADIUS;
+      const floor = ground.flat ? RADIUS : ground.y(pos.x, pos.z) + RADIUS;
+      if (mesh.position.y < floor) mesh.position.y = floor;
       mesh.visible = true;
       api.active = true;
       api.idleTime = 0;
@@ -66,10 +73,26 @@ export function createToy(scene) {
     },
     update(dt, bounds) {
       if (!api.active) return;
+      const px = mesh.position.x;
+      const pz = mesh.position.z;
       velocity.y += GRAVITY * dt;
       mesh.position.addScaledVector(velocity, dt);
-      if (mesh.position.y < RADIUS) {
-        mesh.position.y = RADIUS;
+      let floor = RADIUS;
+      if (!ground.flat) {
+        if (bounds) {
+          mesh.position.x = THREE.MathUtils.clamp(mesh.position.x, bounds.minX, bounds.maxX);
+          mesh.position.z = THREE.MathUtils.clamp(mesh.position.z, bounds.minZ, bounds.maxZ);
+        }
+        if (!ground.canStep(px, pz, mesh.position.x, mesh.position.z)) {
+          mesh.position.x = px;
+          mesh.position.z = pz;
+          velocity.x *= -RIM_BOUNCE;
+          velocity.z *= -RIM_BOUNCE;
+        }
+        floor = ground.y(mesh.position.x, mesh.position.z) + RADIUS;
+      }
+      if (mesh.position.y < floor) {
+        mesh.position.y = floor;
         if (Math.abs(velocity.y) > 1) velocity.y = -velocity.y * BOUNCE;
         else velocity.y = 0;
         const f = Math.pow(0.15, dt); // ground friction
@@ -81,7 +104,7 @@ export function createToy(scene) {
         mesh.position.z = THREE.MathUtils.clamp(mesh.position.z, bounds.minZ, bounds.maxZ);
       }
       const speed = velocity.length();
-      if (speed < 0.2 && mesh.position.y <= RADIUS + 0.01) api.idleTime += dt;
+      if (speed < 0.2 && mesh.position.y <= floor + 0.01) api.idleTime += dt;
       else api.idleTime = 0;
       mesh.rotation.x += speed * dt * 2;
     },

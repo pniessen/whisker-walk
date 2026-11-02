@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { fitCentre } from './shadowfit.js';
 import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
 import { waterClearance } from '../world/builder.js';
+import { FLAT_GROUND, groundOf } from '../ground.js';
 
 // ---------------------------------------------------------------------------
 // GRASS — low swaying tufts on the lawn near the camera (Stream 4 round two,
@@ -149,7 +150,7 @@ const _o = new THREE.Vector3();
 const _ax = new THREE.Vector3();
 const _ay = new THREE.Vector3();
 const _n = new THREE.Vector3();
-export function flatFootprints(scene) {
+export function flatFootprints(scene, ground = FLAT_GROUND) {
   const out = [];
   for (const child of scene.children) {
     if (!child.isMesh || !child.geometry) continue;
@@ -159,7 +160,8 @@ export function flatFootprints(scene) {
     child.updateMatrixWorld(true);
     const e = child.matrixWorld.elements;
     _o.setFromMatrixPosition(child.matrixWorld);
-    if (_o.y > 0.1) continue; // a raised plane (a sign, a window) is not ground cover
+    // Gorge part 1: measured from the ground under it (0 on every shipped map).
+    if (_o.y - ground.y(_o.x, _o.z) > 0.1) continue; // a raised plane (a sign, a window) is not ground cover
     _ax.set(e[0], e[1], e[2]);
     _ay.set(e[4], e[5], e[6]);
     _n.crossVectors(_ax, _ay).normalize();
@@ -452,7 +454,8 @@ export function createGrass(scene, { areaId, areaData, tier, camera, reducedMoti
   const masked = keepOut.length
     ? { ...areaData, colliders: [...(areaData.colliders ?? []), ...keepOut] }
     : areaData;
-  const mask = buildGrassMask(masked, flatFootprints(scene));
+  const ground = groundOf(areaData); // Gorge part 1: tufts stand on it
+  const mask = buildGrassMask(masked, flatFootprints(scene, ground));
   const maskMs = performance.now() - t0;
   const chunk = chunkCellsFor(spacing);
   const capacity = capacityFor(radius, spacing);
@@ -538,7 +541,7 @@ uniform vec2 uWindDir;`)
   function relay(cx, cz) {
     const n = layoutTufts(cx, cz, { radius, spacing }, mask, (t, i) => {
       q.setFromAxisAngle(up, t.rot);
-      p3.set(t.x, 0, t.z);
+      p3.set(t.x, ground.y(t.x, t.z), t.z);
       s3.set(t.s, t.h, t.s);
       m4.compose(p3, q, s3);
       mesh.setMatrixAt(i, m4);

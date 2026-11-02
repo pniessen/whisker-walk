@@ -839,3 +839,181 @@ describe('the walk’s other cats and critters stand on the ground', () => {
     expect(dog.group.position.y).toBe(2);
   });
 });
+
+// Task 7: things on the ground. Prints, contact shadows, marks, race rings,
+// the yarn ball and every prop placed per walk sit on ground.y; decals lie on
+// the slope. On flat ground every matrix is today's (the flat trace pins it).
+const { createPawPrints, PRINT_Y } = await import('../src/render/pawprints.js');
+const { createContactShadows, scanFootprints } = await import('../src/render/contactshadows.js');
+const { seatOnGround } = await import('../src/ground.js');
+const { createRace, RING_Y } = await import('../src/race.js');
+const { createToy, TOY_RADIUS } = await import('../src/toy.js');
+const { createPlayerMarks } = await import('../src/render/playermarks.js');
+const { createBorderMarks } = await import('../src/render/bordermarks.js');
+const { addBorderDressing } = await import('../src/world/borderpost.js');
+const { createGifts } = await import('../src/gifts.js');
+const { createRests } = await import('../src/rests.js');
+const { createTippables } = await import('../src/tippables.js');
+const { createCarryables } = await import('../src/carryables.js');
+const { createScent } = await import('../src/scent.js');
+const { createSecrets } = await import('../src/secrets.js');
+const { createPushThroughs } = await import('../src/pushthrough.js');
+const { propsFor } = await import('../src/propsets.js');
+
+const RAMP_UP = new THREE.Vector3(-1 / 3, 1, 0).normalize();
+const _mt = new THREE.Matrix4();
+const _pt = new THREE.Vector3();
+const _qt = new THREE.Quaternion();
+const _st = new THREE.Vector3();
+function instanceAt(mesh, i) {
+  mesh.getMatrixAt(i, _mt);
+  _mt.decompose(_pt, _qt, _st);
+  return { p: _pt.clone(), up: new THREE.Vector3(0, 1, 0).applyQuaternion(_qt), s: _st.clone() };
+}
+// Every scene child's y on `ground` minus the same child's y on flat ground.
+function lifts(build, ground) {
+  const flat = new THREE.Scene();
+  const up = new THREE.Scene();
+  build(flat, FLAT_GROUND);
+  build(up, ground);
+  expect(up.children.length).toBe(flat.children.length);
+  expect(up.children.length).toBeGreaterThan(0);
+  return up.children.map((o, i) => o.position.y - flat.children[i].position.y);
+}
+const BASE2 = createGround({ base: 2 });
+
+describe('things on the ground sit on the ground', () => {
+  it('paw prints and contact shadows lie on the slope', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const paws = createPawPrints(new THREE.Scene(), { areaId: 'seaside', areaData: area, tier: { pawPrints: 64, pawFade: 10 } });
+    let checked = 0;
+    for (let f = 0; f < 90; f++) {
+      const x = -3 + f * 0.04;
+      const pr = paws.update(DT, { x, z: 0, grounded: true });
+      if (!pr) continue;
+      const { p, up } = instanceAt(paws.mesh, (paws.laid - 1) % paws.capacity);
+      expect(p.y).toBeCloseTo(area.ground.y(pr.x, pr.z) + PRINT_Y, 5);
+      expect(up.angleTo(RAMP_UP)).toBeLessThan(Math.PI / 180);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
+    // at (-1.5, 0) the ramp is 1.5 m up
+    expect(area.ground.y(-1.5, 0) + PRINT_Y).toBeCloseTo(1.5 + PRINT_Y, 12);
+
+    // her cat's contact shadow on the plateau: at 3 + DECAL_Y, not shrunk
+    const DECAL_Y = 0.015;
+    const flatCat = new THREE.Group();
+    const flatScene = new THREE.Scene();
+    flatScene.add(flatCat);
+    flatCat.position.set(8, 0, 0);
+    const flatDecals = createContactShadows(flatScene);
+    flatDecals.follow(flatCat, 0.4);
+    flatDecals.update();
+    const upCat = new THREE.Group();
+    const upScene = new THREE.Scene();
+    upScene.add(upCat);
+    upCat.position.set(8, 3, 0);
+    const upDecals = createContactShadows(upScene, { ground: area.ground });
+    upDecals.follow(upCat, 0.4);
+    upDecals.update();
+    const a = instanceAt(flatDecals.moverMesh, 0);
+    const b = instanceAt(upDecals.moverMesh, 0);
+    expect(b.p.y).toBeCloseTo(3 + DECAL_Y, 5);
+    expect(b.s.x).toBeCloseTo(a.s.x, 5);
+    expect(b.s.x).toBeGreaterThan(0.5);
+    // on the ramp the mover decal lies on the slope
+    upCat.position.set(-1.5, 1.5, 0);
+    upDecals.update();
+    const c = instanceAt(upDecals.moverMesh, 0);
+    expect(c.p.y).toBeCloseTo(1.5 + DECAL_Y, 5);
+    expect(c.up.angleTo(RAMP_UP)).toBeLessThan(Math.PI / 180);
+    expect(c.s.x).toBeCloseTo(a.s.x, 5);
+  });
+
+  it('a prop on the plateau still gets a contact shadow', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const root = new THREE.Scene();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5));
+    box.position.set(8, 0.25, 0);
+    root.add(seatOnGround(box, area.ground));
+    expect(box.position.y).toBe(3.25);
+    expect(scanFootprints(root)).toHaveLength(0); // measured from 0 it floats
+    expect(scanFootprints(root, area.ground)).toHaveLength(1);
+    const decals = createContactShadows(root, { ground: area.ground });
+    expect(decals.staticCount).toBe(1);
+    expect(instanceAt(decals.staticMesh, 0).p.y).toBeCloseTo(3.015, 5);
+  });
+
+  it('race rings float over the ground', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const race = createRace(new THREE.Scene(), [{ x: 8, z: 0 }, { x: -10, z: 0 }], { x: 6, z: 1 }, { ground: area.ground });
+    const rings = race.group.children.filter((m) => m.geometry.type === 'TorusGeometry');
+    expect(rings[0].position.y).toBe(3 + RING_Y);
+    expect(rings[1].position.y).toBe(RING_Y);
+    const pad = race.group.children.find((m) => m.geometry.type === 'RingGeometry');
+    expect(pad.position.y).toBe(3 + 0.02);
+  });
+
+  it('the yarn ball never rolls off a rim', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const toy = createToy(new THREE.Scene(), { ground: area.ground });
+    toy.throwFrom(new THREE.Vector3(8, 3.3, 4), new THREE.Vector3(0, 0, 1), 5);
+    for (let f = 0; f < 4 * 60; f++) {
+      toy.update(DT, area.bounds);
+      const p = toy.mesh.position;
+      expect(Math.hypot(p.x - 8, p.z)).toBeLessThanOrEqual(5);
+      expect(p.y).toBeGreaterThanOrEqual(3 + TOY_RADIUS - 1e-9);
+    }
+    expect(toy.mesh.position.y).toBeCloseTo(3 + TOY_RADIUS, 9);
+    // a set-down ball rests on the ground under it, not at 0
+    toy.setPosition(new THREE.Vector3(8, 0, 0));
+    expect(toy.mesh.position.y).toBeCloseTo(3 + TOY_RADIUS, 9);
+  });
+
+  it('marks, gifts, rests, tippables and posts sit on the ground', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const all3 = (ys) => ys.forEach((y) => expect(y).toBeCloseTo(3, 9));
+    const all2 = (ys) => ys.forEach((y) => expect(y).toBeCloseTo(2, 9));
+
+    // my marks: a dig and a paw on the plateau, and the park's scratch posts
+    all3(lifts((s, ground) => createPlayerMarks(s, 'woods', [
+      { kind: 'dig', id: null, x: 8, z: 0, at: 2 },
+      { kind: 'border', id: 'b1', x: 9, z: 1, at: 1 },
+    ], { ground }), g));
+    all2(lifts((s, ground) => createPlayerMarks(s, 'park', [], { ground }), BASE2));
+    // rival border marks and the Clan Edition's waymark posts
+    all2(lifts((s, ground) => createBorderMarks(s, 'park', { ground }), BASE2));
+    all2(lifts((s, ground) => addBorderDressing(s, 'neighborhood', { ground }), BASE2));
+    // a gift on a plateau scenic
+    all3(lifts((s, ground) => createGifts(s, [{ id: 'sc', x: 8, z: 0 }], [{ area: 'fixture', spot: 'sc' }], { ground }), g));
+    // rests, carryables and push-throughs
+    all3(lifts((s, ground) => createRests(s, [{ id: 'r', kind: 'drink', x: 8, z: 0, mesh: true }], { ground }), g));
+    all3(lifts((s, ground) => createCarryables(s, [{ id: 'c', kind: 'sock', x: 8, z: 0 }], { ground }), g));
+    all2(lifts((s, ground) => createPushThroughs(s, propsFor('neighborhood').flaps, { ground }), BASE2));
+    // the gnome and the unicorn, the scent mounds
+    const secretsUp = new THREE.Scene();
+    const sec = createSecrets(secretsUp, area, { unicorn: true, ufo: false }, () => 0.5);
+    expect(sec.list.map((e) => e.group.position.y)).toEqual([3, 3]);
+    sec.update(DT, 1, new THREE.Vector3(-19, 0, -19), 0);
+    expect(sec.list[1].group.position.y).toBe(3);
+    const scentUp = new THREE.Scene();
+    const scent = createScent(scentUp, area, () => 0.5);
+    for (const tr of scent.treats) expect(tr.mound.position.y).toBeCloseTo(g.y(tr.x, tr.z) + 0.02, 9);
+    expect(scent.treats.some((tr) => g.y(tr.x, tr.z) === 3)).toBe(true);
+    // a carryable put down on the plateau lands on it
+    const carry = createCarryables(new THREE.Scene(), [{ id: 'c', kind: 'sock', x: 0, z: 10 }], { ground: g });
+    const lift = carry.list[0].mesh.position.y;
+    carry.placeAt('c', 8, 1);
+    expect(carry.list[0].mesh.position.y).toBeCloseTo(3 + lift, 9);
+
+    // a tippable's little hop is measured from the ground, not from 0
+    const tips = createTippables(new THREE.Scene(), [{ kind: 'pot', x: 8, z: 0 }], { ground: g });
+    const e = tips.list[0];
+    expect(e.group.position.y).toBe(3);
+    tips.tip(e);
+    tips.update(0.25);
+    const k = 1 - Math.max(0, e.anim) / 0.5;
+    expect(e.group.position.y).toBeCloseTo(3 + Math.sin(k * Math.PI) * 0.12, 9);
+  });
+});

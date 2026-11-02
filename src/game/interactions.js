@@ -1751,7 +1751,7 @@ export function createInteractions({
       // the cat's own body hides the patch at the foot of the post.
       const m = s.prompt.data;
       if (leaveMark(s, { kind: 'scratch', id: m.id, x: m.x, z: m.z })) {
-        s.fx?.burst({ x: m.x, y: 0.3, z: m.z }, 0x9c7a55, 8);
+        s.fx?.burst({ x: m.x, y: (s.ground ?? FLAT_GROUND).y(m.x, m.z) + 0.3, z: m.z }, 0x9c7a55, 8);
       }
     } else if (s.prompt.kind === 'border-mark') {
       // v21 3b Task 12 — pays nothing, says nothing. My paw goes down on their
@@ -1760,7 +1760,7 @@ export function createInteractions({
       const d = s.prompt.data;
       if (leaveMark(s, { kind: 'border', id: borderMarkId(s.areaId, d.ring), x: d.x, z: d.z })) {
         s.rival?.borderMarks?.setContested(d.index);
-        s.fx?.burst({ x: d.x, y: 0.2, z: d.z }, 0xe0782f, 8);
+        s.fx?.burst({ x: d.x, y: (s.ground ?? FLAT_GROUND).y(d.x, d.z) + 0.2, z: d.z }, 0xe0782f, 8);
       }
     } else if (s.prompt.kind === 'border') {
       askCrossing(s, s.prompt.data);

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 import { frameColliders } from './propsets.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { FLAT_GROUND } from './ground.js';
 
 // =============================================================================
 // Push-throughs — the cat flap in a garden gate, the cat-sized gap in a hedge
@@ -184,7 +185,8 @@ function buildHedge(group, half, end, id) {
 // With reducedMotion a push still swings it (that is the answer to what the
 // cat did), but it then comes to rest instead of swaying for good: the same
 // rule wind.js applies to the foliage.
-export function createPushThroughs(scene, flaps, { reducedMotion = false } = {}) {
+// Gorge part 1: each gate or hedge gap stands on `ground` (FLAT_GROUND: y 0).
+export function createPushThroughs(scene, flaps, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const items = [];
   const rigs = new Map(); // entry → its geometry and its pieces, kept off the public shape
   const colliders = [];
@@ -203,7 +205,7 @@ export function createPushThroughs(scene, flaps, { reducedMotion = false } = {})
     const half = f.width / 2;
     const end = Math.max(...frameC.map((c) => Math.abs((c.x - f.x) * ax + (c.z - f.z) * az) + c.r));
     const group = new THREE.Group();
-    group.position.set(f.x, 0, f.z);
+    group.position.set(f.x, ground.y(f.x, f.z), f.z);
     group.rotation.y = f.rotY;
     const parts = f.kind === 'flap' ? buildGate(group, half, end) : buildHedge(group, half, end, f.id);
     scene.add(group);

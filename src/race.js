@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { mulberry32 } from './rng.js';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 const RING_RADIUS = 1.1;
 const RING_TUBE = 0.08;
-const RING_Y = 1.1;
+export const RING_Y = 1.1; // metres above the ground under the ring
 const CROSS_DIST = 1.2; // horizontal distance that counts as "through" a ring/on the pad
 
 // raceCourse(pois, seed) — pure. mulberry32(seed)-seeded Fisher-Yates
@@ -68,7 +69,8 @@ function disposeGroup(group) {
 // raceCourse; spawn is the area's own spawn point (areaData.spawn). Builds a
 // start pad just off spawn plus one upright ring per waypoint, and returns
 // the live race controller main.js drives from the per-frame loop.
-export function createRace(scene, course, spawn) {
+// Gorge part 1: the pad and the rings sit on `ground` (FLAT_GROUND: y 0).
+export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) {
   const group = new THREE.Group();
 
   // start pad: a flat ring lying on the ground, offset from spawn so it
@@ -76,7 +78,7 @@ export function createRace(scene, course, spawn) {
   const padMat = litMaterial(0xf2e04e, { emissive: 0x8a7020 });
   const pad = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.3, 24), padMat);
   pad.rotation.x = -Math.PI / 2;
-  pad.position.set(spawn.x + 2, 0.02, spawn.z - 3);
+  pad.position.set(spawn.x + 2, ground.y(spawn.x + 2, spawn.z - 3) + 0.02, spawn.z - 3);
   group.add(pad);
 
   // Two shared materials, swapped onto whichever ring mesh is "current"
@@ -91,7 +93,7 @@ export function createRace(scene, course, spawn) {
 
   const rings = course.map((wp) => {
     const mesh = new THREE.Mesh(new THREE.TorusGeometry(RING_RADIUS, RING_TUBE, 12, 24), dimMat);
-    mesh.position.set(wp.x, RING_Y, wp.z);
+    mesh.position.set(wp.x, ground.y(wp.x, wp.z) + RING_Y, wp.z);
     group.add(mesh);
     return { x: wp.x, z: wp.z, mesh };
   });

@@ -3,6 +3,7 @@ import { buildCarryMesh } from '../carryables.js';
 import { markKey, markOpacity, MARKS_PER_AREA, MARK_KINDS } from '../marks.js';
 import { propsFor } from '../propsets.js';
 import { litMaterial } from './materials.js';
+import { FLAT_GROUND } from '../ground.js';
 
 // =============================================================================
 // Player marks — the renderer half of the private per-area marks (v21 Stream
@@ -323,7 +324,9 @@ function buildPost() {
   return post;
 }
 
-export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], colliders = [], isWalkable, spawn } = {}) {
+// Gorge part 1: every mark and post sits on `ground` (FLAT_GROUND: y 0); a
+// keep slot's at.y is metres above the ground there (R4).
+export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], colliders = [], isWalkable, spawn, ground = FLAT_GROUND } = {}) {
   const list = [];
   const posts = [];
   let disposed = false;
@@ -338,6 +341,7 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
     const post = buildPost();
     post.position.x = m.x;
     post.position.z = m.z;
+    post.position.y += ground.y(m.x, m.z);
     scene.add(post);
     // The circle walk.js adds to the area's colliders, so the cat stops at
     // the post instead of walking through it.
@@ -433,20 +437,22 @@ export function createPlayerMarks(scene, areaId, marks, { keepSlots = [], collid
     const mesh = entry.mesh;
     switch (mark.kind) {
       case 'den':
-        mesh.position.set(at.x, (at.y ?? 0) + mesh.userData.lift, at.z);
+        mesh.position.set(at.x, ground.y(at.x, at.z) + (at.y ?? 0) + mesh.userData.lift, at.z);
         break;
       case 'drop':
-        mesh.position.set(at.x, mesh.userData.lift, at.z);
+        mesh.position.set(at.x, ground.y(at.x, at.z) + mesh.userData.lift, at.z);
         break;
       case 'dig':
-        mesh.position.set(at.x, DIG_Y + FLAT_LIFT, at.z);
+        mesh.position.set(at.x, ground.y(at.x, at.z) + DIG_Y + FLAT_LIFT, at.z);
         break;
       case 'border':
-        mesh.position.set(at.x, PAW_Y + FLAT_LIFT, at.z);
+        mesh.position.set(at.x, ground.y(at.x, at.z) + PAW_Y + FLAT_LIFT, at.z);
         break;
       case 'scratch': {
         const out = (SCRATCH[at.propKind] ?? SCRATCH.post).out + SCRATCH_GAP;
-        mesh.position.set(at.x + at.face.x * out, 0, at.z + at.face.z * out);
+        const sx = at.x + at.face.x * out;
+        const sz = at.z + at.face.z * out;
+        mesh.position.set(sx, ground.y(sx, sz), sz);
         mesh.rotation.y = Math.atan2(at.face.x, at.face.z);
         break;
       }
