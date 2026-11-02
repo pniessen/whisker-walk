@@ -936,7 +936,7 @@ describe('the Gorge: every random spot stands where a cat can walk', () => {
       for (const c of critters.list) check(`seed ${seed} firefly`, c.def.x, c.def.z);
 
       // The gnome (a POI's spot, +/-1.5 m), and the unicorn: spooked from four
-    // sides in turn, grazing in between.
+      // sides in turn, grazing in between.
       const secrets = createSecrets(new THREE.Scene(), area, { unicorn: true, ufo: false }, mulberry32(seed));
       const gnome = secrets.list.find((s) => s.key === 'gnome').group;
       check(`seed ${seed} gnome`, gnome.position.x, gnome.position.z);
@@ -951,6 +951,64 @@ describe('the Gorge: every random spot stands where a cat can walk', () => {
     }
     expect([...new Set(bad)].slice(0, 20)).toEqual([]);
     expect(targets).toBeGreaterThan(SEEDS * STRAYS); // the strays did wander
+  });
+
+  // Review fix F30: onlyOn's margin is for spots a walk CHOOSES. A cat's
+  // position, clamped every frame, is held at the edge (margin 0); thrown
+  // back 0.4 m it walked into the edge again and again, a sawtooth.
+  it('a walking stray, ghost or fleeing unicorn never jumps at an edge', () => {
+    const FPS_DT = 1 / 60;
+    const FRAMES = 1800; // 30 s
+    const EPS_STEP = 0.01;
+    const STRAY_STEP = 1.4 * FPS_DT + EPS_STEP; // WANDER_SPEED; nothing scurries with the cat far away
+    const GHOST_STEP = 1.1 * FPS_DT + EPS_STEP;
+    const UNICORN_STEP = 3.5 * FPS_DT + EPS_STEP;
+    const DECK = STREAM.decks[0];
+    const jumps = [];
+    const random = vi.spyOn(Math, 'random');
+    try {
+      for (let seed = 1; seed <= 6; seed++) {
+        random.mockImplementation(mulberry32(1000 + seed)); // the ghosts' wander, seeded
+        const strays = createStrayCats(new THREE.Scene(), area, STRAYS, strayStream(seed), { roomSeed: seed });
+        const ghosts = createGhosts(new THREE.Scene(), area, [ghostProfile('g1'), ghostProfile('g2')], mulberry32(seed));
+        const secrets = createSecrets(new THREE.Scene(), area, { unicorn: true, ufo: false }, mulberry32(seed));
+        const u = secrets.list.find((s) => s.key === 'unicorn').group;
+        const movers = [
+          ...strays.strays.map((s, i) => ({ what: `stray ${i}`, g: s.group, max: STRAY_STEP })),
+          ...ghosts.list.map((g, i) => ({ what: `ghost ${i}`, g: g.group, max: GHOST_STEP })),
+        ];
+        const was = new Map(movers.map((m) => [m, { x: m.g.position.x, z: m.g.position.z }]));
+        for (let f = 0; f < FRAMES; f++) {
+          const t = f * FPS_DT;
+          strays.update(FPS_DT, t, FAR_CAT, {});
+          ghosts.update(FPS_DT, t);
+          // the unicorn is spooked toward a different side every 5 s
+          const a = Math.floor(f / 300) * (Math.PI / 2) + seed;
+          const spook = f % 300 < 2;
+          const ux = u.position.x, uz = u.position.z;
+          const cat = u.position.clone().add(new THREE.Vector3(Math.sin(a) * 2, 0, Math.cos(a) * 2));
+          secrets.update(FPS_DT, t, spook ? cat : FAR_CAT, spook ? 6 : 0);
+          const ud = Math.hypot(u.position.x - ux, u.position.z - uz);
+          if (f % 300 > 2 && f % 300 < 180 && ud > UNICORN_STEP) {
+            jumps.push(`seed ${seed} f${f} unicorn (${ux.toFixed(2)}, ${uz.toFixed(2)}) ${ud.toFixed(3)} m`);
+          }
+          for (const m of movers) {
+            const p = m.g.position;
+            const q = was.get(m);
+            const d = Math.hypot(p.x - q.x, p.z - q.z);
+            // (A stray stepping off the stepping stones' deck edge can hop
+            // about 0.35 m: dryGroundPoint's deck-edge push, older than onlyOn
+            // and the same without it. Not this test's edge.)
+            if (d > m.max && rectDist(DECK, q.x, q.z) > 1) jumps.push(`seed ${seed} f${f} ${m.what} (${q.x.toFixed(2)}, ${q.z.toFixed(2)}) ${d.toFixed(3)} m`);
+            q.x = p.x;
+            q.z = p.z;
+          }
+        }
+      }
+    } finally {
+      random.mockRestore();
+    }
+    expect(jumps.length, jumps.slice(0, 12).join('\n')).toBe(0);
   });
 
   it('the stray stream is not drawn any more than before', () => {

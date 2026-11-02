@@ -215,6 +215,21 @@ describe('keepOut.onlyOn', () => {
     }
   });
 
+  it('hold: a position just past an edge is held on the edge, a chosen spot goes the margin in', () => {
+    // 0.02 m past the floor's west edge, on the rock
+    expect(keepOutPoint(GORGE, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    expect(keepOutPoint(GORGE, -18.02, 20)).toEqual({ x: -18 + ONLY.margin, z: 20 });
+    expect(standSpot(GORGE, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    expect(dryGroundPoint({ bounds: BOUNDS, keepOut: ONLY }, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    // in the rock beside the Narrows mouth, the nearest edge point of all
+    const p = keepOutPoint(GORGE, -18.1, -5.95, true);
+    expect(Math.hypot(p.x + 18.1, p.z + 5.95)).toBeCloseTo(0.05, 9);
+    // inside stays inside, and an area without onlyOn ignores hold
+    expect(keepOutPoint(GORGE, -10, 0, true)).toEqual({ x: -10, z: 0 });
+    expect(keepOutPoint(AREA, 40, 40, true)).toEqual(keepOutPoint(AREA, 40, 40));
+    expect(standSpot(AREA, 40, 40, true)).toEqual({ x: 40, z: 40 });
+  });
+
   it('standSpot moves a spot only where the area has onlyOn', () => {
     expect(standSpot(GORGE, -30, 20)).toEqual(keepOutPoint(GORGE, -30, 20));
     // the Pines' keep-out (no onlyOn): a puddle on the lake stays where it fell

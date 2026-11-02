@@ -226,7 +226,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
         }
         // The end of this ghost's move: a straight line to a target outside
         // the keep-out can still cut across it.
-        const kp = keepOutPoint(area, g.group.position.x, g.group.position.z);
+        // (`hold`: held at an onlyOn edge, never thrown back its margin.)
+        const kp = keepOutPoint(area, g.group.position.x, g.group.position.z, true);
         g.group.position.x = kp.x;
         g.group.position.z = kp.z;
         // ...and a step over a rim slides along it (never inside the keep-out

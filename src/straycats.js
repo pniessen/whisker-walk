@@ -627,9 +627,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   // of the area's keep-out and off its water (keepout.js's dryGroundPoint:
   // CAT_RADIUS clear of every footprint, as clan cats keep, a deck counting
   // as dry). Already dry and outside any keep-out, it is left exactly as it
-  // was. Draws nothing, so co-walkers still agree on every stray.
-  function keepOut(v) {
-    const p = dryGroundPoint(area, v.x, v.z);
+  // was. Draws nothing, so co-walkers still agree on every stray. `hold` for
+  // the cat's own position, clamped every frame: held at an onlyOn edge, not
+  // thrown back the margin (keepout.js). Targets keep the margin.
+  function keepOut(v, hold = false) {
+    const p = dryGroundPoint(area, v.x, v.z, hold);
     v.x = p.x;
     v.z = p.z;
     return v;
@@ -727,7 +729,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       stray.group.position.addScaledVector(away.normalize(), RECOIL_STEP);
       stray.group.position.x = THREE.MathUtils.clamp(stray.group.position.x, b.minX + 0.5, b.maxX - 0.5);
       stray.group.position.z = THREE.MathUtils.clamp(stray.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
-      keepOut(stray.group.position);
+      keepOut(stray.group.position, true);
       onGround(stray.group.position, px, pz);
       setNameTagMood(stray.tag, { cross: true });
     },
@@ -848,7 +850,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.addScaledVector(s.scurryDir, SCURRY_SPEED * dt);
             s.group.position.x = THREE.MathUtils.clamp(s.group.position.x, b.minX + 0.5, b.maxX - 0.5);
             s.group.position.z = THREE.MathUtils.clamp(s.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
-            keepOut(s.group.position);
+            keepOut(s.group.position, true);
             onGround(s.group.position, px, pz);
             s.group.rotation.y = Math.atan2(s.scurryDir.x, s.scurryDir.z) + Math.PI;
             animateCat(s.group, 'follow', t, SCURRY_SPEED);
@@ -926,7 +928,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.addScaledVector(dir, dt);
             s.group.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             speed = WANDER_SPEED;
-            keepOut(s.group.position);
+            keepOut(s.group.position, true);
             onGround(s.group.position, px, pz); // a rim holds it like an edge (no-op on flat ground)
             const gained = before - Math.hypot(s.target.x - s.group.position.x, s.target.z - s.group.position.z);
             s.stuck = gained < STUCK_PROGRESS * WANDER_SPEED * dt ? (s.stuck ?? 0) + dt : 0;
@@ -940,7 +942,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         // The end of this stray's move for the frame: a straight line to a
         // target outside the keep-out can still cut across it, so the cat is
         // put back out wherever it ends up.
-        keepOut(s.group.position);
+        keepOut(s.group.position, true);
         onGround(s.group.position, px, pz);
         // v20: a cross cat's RESTING pose is 'cross' — flattened ears, tail
         // up — whatever sniff/follow the wander FSM last picked for it, so it

@@ -29,6 +29,13 @@
 // nearest one, `margin` in from its edges. It runs after the rects and
 // capsules, so every caller of keepOutPoint (and dryGroundPoint) inherits it.
 // An area without onlyOn is unchanged.
+//
+// The margin is for a spot being CHOSEN (a spawn, a wander target, a puddle).
+// A cat's own position, clamped every frame, passes `hold` instead: outside
+// every rectangle it goes to the nearest point ON the nearest one's edge
+// (margin 0), so a cat walking into an edge is held there. Thrown back the
+// whole margin, it walked into the edge again a few frames later, a 0.4 m
+// sawtooth (review F30). `hold` changes nothing in an area without onlyOn.
 
 // A point pushed to exactly the margin is out; float rounding in the push must
 // not count it as in and start another one (the same reason as builder.js's
@@ -131,7 +138,7 @@ function insideAny(shapes, x, z) {
 }
 
 /**
- * keepOutPoint(area, x, z) -> { x, z }
+ * keepOutPoint(area, x, z, hold) -> { x, z }
  *
  * The point itself when it is outside every shape of area.keepOut (or the area
  * has none); otherwise the nearby point a cat should stand on instead. Settles
@@ -140,11 +147,14 @@ function insideAny(shapes, x, z) {
  * the pushes left it (close to the answer, so the search finds a point close
  * to it too).
  */
-export function keepOutPoint(area, x, z) {
+export function keepOutPoint(area, x, z, hold = false) {
   const ko = area?.keepOut;
   if (!ko) return { x, z };
   const p = pushOut(area, ko, x, z);
-  return ko.onlyOn ? onlyOnPoint(ko, p.x, p.z) : p;
+  // onlyOn's result is not checked against the rects and capsules again: an
+  // area with both would need it (the Gorge's rects and capsules are empty).
+  if (!ko.onlyOn) return p;
+  return onlyOnPoint(ko, p.x, p.z, hold ? 0 : (Number.isFinite(ko.margin) ? ko.margin : 0));
 }
 
 // standSpot(area, x, z) -> { x, z }
@@ -153,9 +163,9 @@ export function keepOutPoint(area, x, z) {
 // puddles, the dusk fireflies, the unicorn's next step): keepOutPoint where
 // the area names where cats may stand (keepOut.onlyOn), and the point itself
 // everywhere else, so on every shipped map these spots land where they always
-// did. Draws nothing.
-export function standSpot(area, x, z) {
-  return area?.keepOut?.onlyOn ? keepOutPoint(area, x, z) : { x, z };
+// did. Draws nothing. `hold` for a position clamped every frame (above).
+export function standSpot(area, x, z, hold = false) {
+  return area?.keepOut?.onlyOn ? keepOutPoint(area, x, z, hold) : { x, z };
 }
 
 // Inside one of onlyOn's rectangles, edges included.
@@ -169,10 +179,9 @@ function onAllowed(rects, x, z) {
 // A point in none of onlyOn's rectangles goes to the nearest point of the
 // nearest one, `margin` in from its edges (its middle, across a rectangle
 // narrower than twice the margin). A point in one comes back as it is.
-function onlyOnPoint(ko, x, z) {
+function onlyOnPoint(ko, x, z, margin) {
   const rects = ko.onlyOn;
   if (rects.length === 0 || onAllowed(rects, x, z)) return { x, z };
-  const margin = Number.isFinite(ko.margin) ? ko.margin : 0;
   let best = null;
   let bestD = Infinity;
   for (const r of rects) {
@@ -281,15 +290,15 @@ function deckEdge(waters, x, z) {
 }
 
 /**
- * dryGroundPoint(area, x, z) -> { x, z }
+ * dryGroundPoint(area, x, z, hold) -> { x, z }
  *
  * keepOutPoint, and then CAT_RADIUS clear of every water in area.waters. Where
  * a keep-out and a water meet, the two pushes take turns until the point is
  * clear of both; if they still disagree, a ring search outward finds the
- * nearest point that is.
+ * nearest point that is. `hold` is keepOutPoint's (a cat's own position).
  */
-export function dryGroundPoint(area, x, z) {
-  let p = keepOutPoint(area, x, z);
+export function dryGroundPoint(area, x, z, hold = false) {
+  let p = keepOutPoint(area, x, z, hold);
   const waters = area?.waters;
   if (!waters || waters.length === 0) return p;
   if (isDry(waters, p.x, p.z)) return p;
@@ -305,7 +314,7 @@ export function dryGroundPoint(area, x, z) {
     // past the bounds): the ring search below keeps to the bounds.
     if (!inBounds(b, p.x, p.z)) { p = prev; break; }
     if (!area.keepOut) return p;
-    const q = keepOutPoint(area, p.x, p.z);
+    const q = keepOutPoint(area, p.x, p.z, hold);
     if (q.x === p.x && q.z === p.z) return p;
     p = q;
     if (isDry(waters, p.x, p.z)) return p;

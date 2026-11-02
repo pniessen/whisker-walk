@@ -140,8 +140,9 @@ export function createSecrets(scene, area, rolls, rng) {
         }
         // Gorge part 2 (G7): where the flee (or the grazing circle) takes it
         // goes onto ground a cat can stand on first, then a step over a rim
-        // slides along it. Untouched on every map without onlyOn.
-        const to = standSpot(area, u.position.x, u.position.z);
+        // slides along it. Held at an edge (`hold`), not thrown back the
+        // margin. Untouched on every map without onlyOn.
+        const to = standSpot(area, u.position.x, u.position.z, true);
         u.position.x = to.x;
         u.position.z = to.z;
         if (!ground.flat) {
