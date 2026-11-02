@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { buildCat, coatColor, CAT_LOOK_Y } from '../src/cat/model.js';
 import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colourDistance } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
+import { LEG_BLEND } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 
@@ -137,7 +138,13 @@ describe("cat model: Robbie's real coat", () => {
     const cat = buildCat('robbie');
     const { legs } = cat.userData.parts;
     for (const leg of legs) {
-      expect(lum(leg.children[0].material)).toBeGreaterThan(0.8); // the limb
+      // The limb is vertex-coloured (body refinement Task 3): white below its
+      // top blend, which meets his dark coat at the hip (R7).
+      const limb = leg.children[0].geometry;
+      const col = limb.attributes.color;
+      limb.userData.t.forEach((t, i) => {
+        if (t >= LEG_BLEND) expect(lumC(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)))).toBeGreaterThan(0.8);
+      });
       expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
     }
     // The coat is painted (Task 4): read the torso's own vertex colours.
@@ -308,7 +315,7 @@ describe('cat model: budget and determinism', () => {
     it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
-      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
       expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
     });
   }
@@ -443,11 +450,13 @@ describe('cat model: the Version 2 proportions', () => {
 
 describe('cat model: strong hind legs and a tail that grows out of the rump (Task 5)', () => {
   const W = (m) => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return b.max.x - b.min.x; };
-  it('a hind leg is one mesh with a thick thigh; a front leg is a plain limb', () => {
+  it('a hind leg has a thick thigh, a front leg a shoulder (one limb mesh + paw each)', () => {
     const { legs } = buildCat('tabby').userData.parts;
-    expect(W(legs[2].children[0])).toBeGreaterThan(0.18);   // 0.11 × 0.85 × 2 = 0.187
-    expect(W(legs[0].children[0])).toBeLessThan(0.12);       // 2 × 0.058
-    expect(meshCount(legs[2])).toBe(2);                       // limb + paw
+    expect(W(legs[2].children[0])).toBeGreaterThan(0.18);   // the thigh: 2 × 0.10
+    const front = W(legs[0].children[0]);                     // the shoulder: 2 × 0.085
+    expect(front).toBeGreaterThanOrEqual(0.15);
+    expect(front).toBeLessThanOrEqual(0.19);
+    for (const leg of legs) expect(meshCount(leg)).toBe(2);   // limb + paw
   });
   it('the tail is rooted at the rump surface, not deep inside (no dorsal fin)', () => {
     const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
@@ -513,7 +522,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
   });
   it('stays inside the triangle budget', () => {
     for (const b of PRESETS) {
-      expect(triangles(buildCat(b))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
       expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });

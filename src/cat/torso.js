@@ -20,11 +20,9 @@ export const TORSO = {
 // this frame, so markings convert their points through it to keep their direction.
 export const LEGACY_BODY = { CENTRE: [0, 0.34, 0], SCALE: [0.85, 0.75, 1.35] };
 
-// Legs (sketch), except BOTTOM_R: the paw's width was tuned against 0.058.
-export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRONT_X: 0.11, HIND_X: 0.12, TOP_R: 0.046, BOTTOM_R: 0.058 };
-// The hind leg (sketch): a stouter top, the limb tipped back to the hock, and a
-// thick thigh merged into the limb mesh (no extra mesh).
-LEGS.HIND = { TOP_R: 0.05, HOCK_X: -0.18, HOCK_Z: 0.03, THIGH_R: 0.11, THIGH_SCALE: [0.85, 1.25, 1.05], THIGH_AT: [0, -0.015, 0.03] };
+// Legs (sketch): hip pivots and the limb length. Each limb's shape is in
+// limbs.js (LEG_SHAPE).
+export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRONT_X: 0.11, HIND_X: 0.12 };
 
 // The tail (sketch): five links rooted at the rump surface, ROOT_DY above the
 // torso centre and ROOT_Z back, the root frame tipped down ROOT_TILT so link 0

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
+import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt } from './coat.js';
+import { limbGeometry, paintLimb, legTopDir } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
@@ -35,7 +36,7 @@ const STYLE = {
 };
 // Optional coat flags, all off unless a row sets them. They exist for the
 // family cats, who are drawn from photos rather than from a breed:
-//   whiteLegs   — limb cylinders take `belly`, not the point colour (a cat in
+//   whiteLegs   — limbs take `belly`, not the point colour (a cat in
 //                 white stockings rather than white feet).
 //   socks       — paws are WHITE_FUR whatever `belly` is: four white socks on
 //                 a cat whose underside is not white.
@@ -251,26 +252,6 @@ function dirOn(point, centre, scale) {
     (point[1] - centre[1]) / scale[1],
     (point[2] - centre[2]) / scale[2],
   ];
-}
-
-// A limb hanging from its hip pivot: a tapered cylinder whose top is at the
-// pivot (y = 0) and whose length runs down -y, baked into the geometry so the
-// mesh itself sits at 0. A hind limb (sketch) is stouter at the top, tipped
-// back toward the hock, and carries a thick thigh merged in: still one mesh.
-function limbGeometry(len, hind) {
-  if (!hind) {
-    const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
-    geo.translate(0, -len / 2, 0);
-    return geo;
-  }
-  const H = LEGS.HIND;
-  const limb = new THREE.CylinderGeometry(H.TOP_R, LEGS.BOTTOM_R, len, 12);
-  limb.rotateX(H.HOCK_X);
-  limb.translate(0, -len / 2, H.HOCK_Z);
-  const thigh = new THREE.SphereGeometry(H.THIGH_R, 12, 9);
-  thigh.scale(...H.THIGH_SCALE);
-  thigh.translate(...H.THIGH_AT);
-  return mergeGeometries([limb, thigh]);
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -802,6 +783,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     litMaterial(0xffffff, { vertexColors: true }));
   body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
+  body.userData.coat = coat; // the limbs' tops blend from it (limbs.js)
   g.add(body);
   // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
   // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
@@ -888,18 +870,23 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   head.scale.setScalar(HEAD.SCALE);
   g.add(head);
 
-  // legs: hip-pivoted groups with paw spheres
+  // legs: hip-pivoted groups, each one smooth limb (limbs.js) and a paw.
+  // The limb is today's leg colour, its top blending into the torso's own
+  // painted colour at that hip (R7), on the body's vertex-coloured material.
   const legs = [];
+  const legHex = s.whiteLegs ? s.belly : pointColor;
+  const limbTop = [];
   const legSpots = [
     [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
     [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
   ];
   for (const [x, z, hind] of legSpots) {
     const leg = new THREE.Group();
-    // 6 -> 12 radial segments. At 5cm across and a metre and a half from the
-    // camera in the close-up shots, a 6-sided prism shows its flats; 12 costs
-    // 24 triangles a leg and reads as a limb.
-    const limb = new THREE.Mesh(limbGeometry(LEGS.LEN, hind), mat(s.whiteLegs ? s.belly : pointColor));
+    const topColour = coatColourAt(coat, legTopDir(x, z, [fx, fy, fz]));
+    limbTop.push(topColour);
+    const limb = new THREE.Mesh(
+      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour),
+      litMaterial(0xffffff, { vertexColors: true }));
     leg.add(limb);
     // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
     // read as a knob on the end of a peg rather than as a foot; and it was
@@ -1387,7 +1374,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!legs.includes(child) || LEG_LEN === 1) continue;
     const [limb, ...hung] = child.children;
     limb.geometry.dispose();
-    limb.geometry = limbGeometry(LEGS.LEN * LEG_LEN, legs.indexOf(child) >= 2);
+    const k = legs.indexOf(child);
+    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k]);
     for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
   const bodyY = TORSO.CENTRE_Y + dy;
