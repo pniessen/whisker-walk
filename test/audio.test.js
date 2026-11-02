@@ -147,8 +147,9 @@ describe('layered ambience', () => {
     let intervals = 0;
     let timeouts = 0;
     const intervalFns = [];
+    const timeoutFns = [];
     global.setInterval = (...args) => { intervals++; intervalFns.push(args[0]); return origSetInterval(...args); };
-    global.setTimeout = (...args) => { timeouts++; return origSetTimeout(...args); };
+    global.setTimeout = (...args) => { timeouts++; timeoutFns.push(args[0]); return origSetTimeout(...args); };
     const audio = createAudio({ contextFactory: () => ctx });
     try {
       audio.startAmbient(areaKey, opts);
@@ -156,7 +157,7 @@ describe('layered ambience', () => {
       global.setInterval = origSetInterval;
       global.setTimeout = origSetTimeout;
     }
-    return { audio, ctx, bufferSources, intervals, timeouts, intervalFns };
+    return { audio, ctx, bufferSources, intervals, timeouts, intervalFns, timeoutFns };
   };
 
   it('docks ambience is water lap + gulls + horn, and never birdsong', () => {
@@ -285,7 +286,7 @@ describe('layered ambience', () => {
     const dry = ambienceProbe('gorge');
     expect(dry.bufferSources).toHaveLength(2); // wind + lap
     expect(dry.intervals).toBe(1); // the cries
-    expect(dry.timeouts).toBe(0);
+    expect(dry.timeouts).toBe(1); // the cave drips (silent out of a cave)
     const gains = dry.ctx.created.gains.map((g) => g.gain.value);
     expect(gains).toContain(0.03); // the wind
     expect(gains).toContain(0.038); // the lap
@@ -377,6 +378,54 @@ describe('layered ambience', () => {
     expect(bleat[0].type).toBe('sawtooth');
     expect(bleat.flatMap((o) => o.frequency.scheduled).every((f) => f < 1000)).toBe(true);
     p.audio.stopAmbient();
+  });
+
+  // Gorge part 3, C7: drips, by depth. One self-rescheduling setTimeout at
+  // random gaps of 0.8-2.2 s; a soft high plink, gain 0.02 x cave at most.
+  it('drips only in a cave, and soft', () => {
+    const p = ambienceProbe('gorge');
+    expect(p.timeoutFns).toHaveLength(1);
+    const drip = p.timeoutFns[0];
+    const origSetTimeout = global.setTimeout;
+    const waits = [];
+    const run = (r) => {
+      const before = p.ctx.created.oscs.length;
+      const beforeGains = p.ctx.created.gains.length;
+      const realRandom = Math.random;
+      Math.random = () => r;
+      global.setTimeout = (fn, wait) => { waits.push(wait); return 0; };
+      try { drip(); } finally { Math.random = realRandom; global.setTimeout = origSetTimeout; }
+      return { oscs: p.ctx.created.oscs.slice(before), gains: p.ctx.created.gains.slice(beforeGains) };
+    };
+    expect(run(0).oscs).toHaveLength(0); // no mix yet: cave 0
+    p.audio.setAmbientMix({ high: 0, cave: 0 });
+    expect(run(0.5).oscs).toHaveLength(0);
+    for (const cave of [0.3, 1]) {
+      p.audio.setAmbientMix({ high: 0, cave });
+      for (const r of [0, 0.5, 0.999]) {
+        const { oscs, gains } = run(r);
+        expect(oscs.length).toBeGreaterThan(0);
+        for (const o of oscs) for (const f of o.frequency.scheduled) {
+          expect(f).toBeGreaterThanOrEqual(1800);
+          expect(f).toBeLessThanOrEqual(2400);
+        }
+        expect(gains.length).toBeGreaterThan(0);
+        for (const g of gains) {
+          expect(g.gain.scheduled.length).toBeGreaterThan(0);
+          for (const v of g.gain.scheduled) expect(v).toBeLessThanOrEqual(0.02 * cave + 1e-12);
+        }
+      }
+    }
+    // random gaps of 0.8-2.2 s, never a beat
+    for (const w of waits) {
+      expect(w).toBeGreaterThanOrEqual(800);
+      expect(w).toBeLessThanOrEqual(2200);
+    }
+    expect(new Set(waits).size).toBeGreaterThan(1);
+    p.audio.stopAmbient();
+    // once stopped, a timer already queued plays nothing
+    p.audio.setAmbientMix({ high: 0, cave: 1 });
+    expect(run(0.5).oscs).toHaveLength(0);
   });
 
   it('a rainy or dusk Gorge works as the generic branch, and never adds birdsong', () => {

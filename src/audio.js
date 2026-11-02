@@ -141,7 +141,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // them in `ambient` (an array) so stopAmbient() can tear every one down —
   // no leaked intervals or dangling buffer sources across walks.
   // A layer may also return mix(m): setAmbientMix(m) hands it the area's live
-  // mix (the Gorge's { high }, 0 on the floor to 1 on the clifftop). A layer
+  // mix (the Gorge's { high, cave }: high 0 on the floor to 1 on the
+  // clifftop, cave 0 outside to 1 at a cave's far end). A layer
   // without one ignores it, so every other area sounds as it always has.
 
   function loopedNoiseSource(durationSec) {
@@ -317,6 +318,28 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       }
     }, 9000);
     return { stop: () => clearInterval(id), mix: (m) => { high = m.high ?? 0; } };
+  }
+
+  // Gorge part 3 (C7): soft drips in a cave. A high plink at random gaps of
+  // 0.8-2.2 s, never a beat, at gain 0.02 x mix.cave: silent while cave is 0
+  // (everywhere outside a cave), and never louder than 0.02. Math.random is
+  // right here: audio is per-device and never on the wire.
+  function dripLayer() {
+    let cave = 0;
+    let id = null;
+    let stopped = false;
+    const schedule = () => {
+      id = setTimeout(() => {
+        if (stopped) return;
+        if (!muted && cave > 0) tone(1800 + 600 * Math.random(), 0.05, { gain: 0.02 * cave });
+        schedule();
+      }, 800 + Math.random() * 1400);
+    };
+    schedule();
+    return {
+      stop: () => { stopped = true; clearTimeout(id); },
+      mix: (m) => { cave = Math.min(1, Math.max(0, m.cave ?? 0)); },
+    };
   }
 
   // A distant ship's horn — the Docks' signature (Task 4.0). Two long low
@@ -753,9 +776,11 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // stream's lap that fades away above it (x0.2 up there), and the far
         // cries, heard only from up high; gorgelife.js sets the mix from her
         // height. Rain and dusk as the generic branch, but never birdsong.
+        // Soft drips by how deep into a cave she is (mix.cave, part 3).
         layers.push(windLayer({ gain: 0.03, cutoff: 300, scale: (m) => 1 + 1.2 * (m.high ?? 0) }));
         layers.push(waterLapLayer({ scale: (m) => 1 - 0.8 * (m.high ?? 0) }));
         layers.push(cryLayer());
+        layers.push(dripLayer());
         if (rain) layers.push(rainLayer());
       } else if (areaKey === 'pines') {
         // The Pines and Swamp: a low hush of wind and the bog frogs, never
@@ -774,7 +799,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },
-    // The live mix for the ambience now playing (the Gorge's { high }): each
+    // The live mix for the ambience now playing (the Gorge's { high, cave }): each
     // layer that has a mix(m) follows it; the rest ignore it.
     setAmbientMix(m) {
       ambientMix = m;

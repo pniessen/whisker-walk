@@ -20,7 +20,8 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife } = await import('../src/gorgelife.js');
+const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor } = await import('../src/gorgelife.js');
+const { GORGE_CAVES, gorgeGround } = await import('../src/world/gorgeshape.js');
 
 // A ground whose height is the cat's x: the tests walk her up by moving x.
 const RAMP = { flat: false, y: (x) => x };
@@ -116,11 +117,11 @@ describe('gorge life: shade by height', () => {
     for (let i = 0; i < 60; i++) life.update(1 / 60, i / 60, at(0));
     expect(audio.setAmbientMix.mock.calls.length).toBeGreaterThan(0);
     expect(audio.setAmbientMix.mock.calls.length).toBeLessThanOrEqual(4);
-    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 0 });
+    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 0, cave: 0 });
     for (let i = 0; i < 60; i++) life.update(1 / 60, 1 + i / 60, at(12));
-    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 1 });
+    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 1, cave: 0 });
     for (let i = 0; i < 60; i++) life.update(1 / 60, 2 + i / 60, at(6));
-    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 0.5 });
+    expect(audio.setAmbientMix).toHaveBeenLastCalledWith({ high: 0.5, cave: 0 });
   });
 });
 
@@ -163,5 +164,241 @@ describe('gorge life: wheeling birds', () => {
     life.dispose();
     expect(birdMeshes(scene)).toHaveLength(0);
     for (const s of spies) expect(s).toHaveBeenCalled();
+  });
+});
+
+// --- Gorge part 3: the caves (C2, C3, C6, C7) ---------------------------------
+// The real Gorge ground and caves; the sun and fill are plain { intensity }.
+const GROUND = gorgeGround();
+const ECHO = GORGE_CAVES.find((c) => c.id === 'echo');
+const OUTSIDE = [-10, 23.5]; // on the gorge floor, in front of the Echo Cave's mouth
+const CHAMBER = ECHO.path[ECHO.path.length - 1]; // the far end: depth 1
+
+function makeCave({ sunIntensity = 3, fillIntensity = 1, weather = { setSheltered: vi.fn() } } = {}) {
+  const scene = new THREE.Scene();
+  const sun = { intensity: sunIntensity };
+  const fill = { intensity: fillIntensity };
+  const audio = { setAmbientMix: vi.fn() };
+  const life = createGorgeLife({ scene, sun, fill, ground: GROUND, reducedMotion: true, audio, caves: GORGE_CAVES, weather });
+  return { scene, sun, fill, audio, weather, life, base: sunIntensity };
+}
+const glowOf = (scene) => scene.children.find((c) => c.isPointLight);
+const catAt = (x, z) => new THREE.Vector3(x, GROUND.y(x, z), z);
+// The sun's light factor: what it holds over what it would hold outside at the same shade.
+const factorOf = (k) => k.sun.intensity / (k.base * k.life.shade);
+
+// Points every `step` metres along a polyline, first point first.
+function walkLine(points, step) {
+  const out = [];
+  for (let i = 1; i < points.length; i++) {
+    const [ax, az] = points[i - 1];
+    const [bx, bz] = points[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / step));
+    for (let k = i === 1 ? 0 : 1; k <= n; k++) out.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]);
+  }
+  return out;
+}
+
+function settle(k, [x, z], seconds, t0 = 0) {
+  let t = t0;
+  for (let i = 0; i < seconds * 60; i++) { t += 1 / 60; k.life.update(1 / 60, t, catAt(x, z)); }
+  return t;
+}
+
+describe('gorge life: the caves', () => {
+  it('the constants', () => {
+    expect(DARK_FLOOR).toBe(0.3);
+    expect(GLOW_MAX).toBe(2.0);
+    expect(darkFor(0)).toBe(1);
+    expect(darkFor(1)).toBeCloseTo(0.3, 12);
+    expect(darkFor(0.5)).toBeCloseTo(0.65, 12);
+  });
+
+  it('deeper is darker, never below the floor', () => {
+    const k = makeCave();
+    let last = Infinity;
+    let t = 0;
+    // in from the floor at a slow walk, then a rest in the chamber
+    for (const [x, z] of walkLine([OUTSIDE, ...ECHO.path], 1.5 / 60)) {
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(x, z));
+      const f = factorOf(k);
+      expect(f).toBeLessThanOrEqual(last + 1e-12);
+      expect(f).toBeGreaterThanOrEqual(DARK_FLOOR - 1e-12);
+      last = f;
+    }
+    settle(k, CHAMBER, 2, t);
+    expect(Math.abs(factorOf(k) - DARK_FLOOR)).toBeLessThanOrEqual(0.02);
+    expect(factorOf(k)).toBeGreaterThanOrEqual(DARK_FLOOR - 1e-12);
+    // the fill: (0.85 + 0.15 shade) x dark
+    expect(k.fill.intensity).toBeCloseTo((0.85 + 0.15 * k.life.shade) * darkFor(1), 10);
+  });
+
+  it('the glow comes on as she goes in and sits on her cat', () => {
+    const k = makeCave();
+    const glow = glowOf(k.scene);
+    // there from the start, so the shaders compile with it; never a shadow
+    expect(glow).toBeDefined();
+    expect(glow.castShadow).toBe(false);
+    expect(glow.color.getHex()).toBe(0xffd9a8);
+    expect(glow.distance).toBe(6);
+    expect(glow.decay).toBe(1.5);
+    expect(glow.intensity).toBe(0);
+    settle(k, OUTSIDE, 1);
+    expect(glow.intensity).toBe(0);
+    let t = 1;
+    for (const [x, z] of walkLine([OUTSIDE, ...ECHO.path], 3 / 60)) {
+      t += 1 / 60;
+      const cat = catAt(x, z);
+      k.life.update(1 / 60, t, cat);
+      expect(glow.position.x).toBe(cat.x);
+      expect(glow.position.y).toBeCloseTo(cat.y + 0.7, 12);
+      expect(glow.position.z).toBe(cat.z);
+      expect(glow.intensity).toBeGreaterThanOrEqual(0);
+      expect(glow.intensity).toBeLessThanOrEqual(GLOW_MAX);
+    }
+    settle(k, CHAMBER, 2, t);
+    expect(glow.intensity).toBeGreaterThanOrEqual(GLOW_MAX - 0.05);
+    expect(glow.castShadow).toBe(false);
+  });
+
+  it('the light comes back at a linear rate', () => {
+    const k = makeCave();
+    settle(k, CHAMBER, 3);
+    expect(factorOf(k)).toBeCloseTo(0.3, 12);
+    // out onto the floor (the same shade as the chamber's floor)
+    const dt = 0.05;
+    for (let i = 1; i <= 10; i++) {
+      k.life.update(dt, 3 + i * dt, catAt(...OUTSIDE));
+      expect(factorOf(k)).toBeCloseTo(Math.min(1, 0.3 + 2.0 * i * dt), 9);
+    }
+  });
+
+  it('a bend\'s inner diagonal never jumps the light', () => {
+    // part 3 Task 2: depth jumps ~0.15 across a bend's inner corner; the
+    // linear rate smooths it to at most rate x dt a frame.
+    for (const cave of GORGE_CAVES) {
+      const k = makeCave();
+      const [, corner, , end] = cave.path;
+      const [mx, mz] = cave.path[0];
+      // in along the path to just short of the bend, then across the inner corner on a diagonal
+      const before = [corner[0] + Math.sign(mx - corner[0]) * 2, corner[1] + Math.sign(mz - corner[1]) * 0];
+      const after = [corner[0] + Math.sign(end[0] - corner[0]) * 0, corner[1] + Math.sign(end[1] - corner[1]) * 2];
+      let t = 0;
+      let last = null;
+      for (const [x, z] of walkLine([cave.path[0], before, after, before, cave.path[0]], 6 / 60)) {
+        t += 1 / 60;
+        k.life.update(1 / 60, t, catAt(x, z));
+        const f = factorOf(k);
+        if (last !== null) expect(Math.abs(f - last)).toBeLessThanOrEqual(2.0 / 60 + 1e-12);
+        last = f;
+      }
+    }
+  });
+
+  it('leaving a cave brings the light and the camera back', () => {
+    // Review Focus 1: from the chamber, out at a zoomies pace (8 m/s, over
+    // the fastest the cat runs), and 1 s after the mouth it is all back.
+    const k = makeCave();
+    let t = settle(k, CHAMBER, 3);
+    const glow = glowOf(k.scene);
+    expect(glow.intensity).toBe(GLOW_MAX);
+    for (const [x, z] of walkLine([...ECHO.path].reverse(), 8 / 60)) {
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(x, z));
+    }
+    // a second out on the floor, still running
+    for (const [x, z] of walkLine([ECHO.path[0], [ECHO.path[0][0] + 8, ECHO.path[0][1]]], 8 / 60).slice(1, 61)) {
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(x, z));
+    }
+    expect(factorOf(k)).toBeGreaterThanOrEqual(0.98);
+    expect(glow.intensity).toBeLessThanOrEqual(0.05);
+    expect(k.life.depth).toBeLessThanOrEqual(0.03);
+  });
+
+  it('a weather write in a cave becomes the new base and stays dimmed', () => {
+    // Review Focus 3: the rainbow writes the sun while she is in the chamber.
+    const k = makeCave();
+    const t = settle(k, CHAMBER, 3);
+    k.sun.intensity = 2.2;
+    k.life.update(1 / 60, t + 1 / 60, catAt(...CHAMBER));
+    expect(Math.abs(k.sun.intensity - 2.2 * k.life.shade * darkFor(k.life.depth))).toBeLessThanOrEqual(1e-6);
+    expect(k.sun.intensity).toBeLessThan(2.2 * 0.6 * 0.31);
+  });
+
+  it('dispose removes the glow and restores both lights', () => {
+    // Review Focus 2: a walk that ends in a cave hands the next walk full light.
+    const k = makeCave();
+    settle(k, CHAMBER, 3);
+    const glow = glowOf(k.scene);
+    const spy = vi.spyOn(glow, 'dispose');
+    expect(k.sun.intensity).toBeLessThan(3);
+    k.life.dispose();
+    expect(k.scene.children).not.toContain(glow);
+    expect(glowOf(k.scene)).toBeUndefined();
+    expect(spy).toHaveBeenCalled();
+    expect(k.sun.intensity).toBe(3);
+    expect(k.fill.intensity).toBe(1);
+  });
+
+  it('a dusk walk\'s chamber is never darker than the floor rule', () => {
+    // Review Focus 4, by numbers: dusk's sun 0.7, the floor's shade, the chamber.
+    const k = makeCave({ sunIntensity: 0.7 });
+    let t = 0;
+    for (const [x, z] of walkLine([OUTSIDE, ...ECHO.path], 3 / 60)) {
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(x, z));
+      expect(k.sun.intensity).toBeGreaterThanOrEqual(0.7 * 0.6 * 0.3 - 1e-12);
+    }
+    settle(k, CHAMBER, 3, t);
+    expect(k.sun.intensity).toBeGreaterThanOrEqual(0.7 * 0.6 * 0.3 - 1e-12);
+    expect(glowOf(k.scene).intensity).toBe(GLOW_MAX);
+  });
+
+  it('rain is hidden under a ceiling', () => {
+    const k = makeCave();
+    const cam = { position: new THREE.Vector3() };
+    let t = 0;
+    const frame = (camX, camY, camZ, catXZ = OUTSIDE) => {
+      cam.position.set(camX, camY, camZ);
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(...catXZ), cam);
+    };
+    for (let i = 0; i < 30; i++) frame(-10, 2, 23.5);
+    expect(k.weather.setSheltered).not.toHaveBeenCalled();
+    // into the Echo Cave's corridor, along the 1 mm strip by its wall too
+    for (let i = 0; i < 30; i++) frame(-22, 1, 23.5, [-21, 23.5]);
+    for (let i = 0; i < 30; i++) frame(-25 + i * 0.1, 1, 22.0005, [-21, 23.5]);
+    expect(k.weather.setSheltered.mock.calls).toEqual([[true]]);
+    // back out on the floor
+    for (let i = 0; i < 30; i++) frame(-10, 2, 23.5);
+    expect(k.weather.setSheltered.mock.calls).toEqual([[true], [false]]);
+    // dispose hands the rain back only if it had hidden it
+    k.life.dispose();
+    expect(k.weather.setSheltered.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('the ambience hears the cave by depth', () => {
+    const k = makeCave();
+    settle(k, CHAMBER, 3);
+    const last = k.audio.setAmbientMix.mock.calls.at(-1)[0];
+    expect(last.cave).toBeCloseTo(1, 10);
+    expect(last.high).toBe(0);
+  });
+
+  it('on any other area none of this exists', async () => {
+    // Only the Gorge hands walk.js a `life`, so no other area gets a light.
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const dir = new URL('../src/world/', import.meta.url);
+    const withLife = readdirSync(dir).filter((f) => f.endsWith('.js') && /\blife\s*:/.test(readFileSync(new URL(f, dir), 'utf8')));
+    expect(withLife).toEqual(['gorge.js']);
+    const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(walk).toMatch(/areaData\.life\?\.\(\{[^}]*\bweather\b[^}]*\}\) \?\? NO_AREA_LIFE/);
+    expect(walk).toMatch(/const NO_AREA_LIFE = \{ update\(\) \{\}, dispose\(\) \{\} \};/);
+    // and a life handed no caves never dims for one
+    const { scene, sun, life } = make();
+    for (let i = 0; i < 60; i++) life.update(1 / 60, i / 60, at(0));
+    expect(sun.intensity).toBeCloseTo(3 * 0.6, 10);
   });
 });

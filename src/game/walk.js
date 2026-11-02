@@ -642,7 +642,7 @@ export function createWalkLifecycle({
       envIntensity: tier.envIntensity,
     });
 
-    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {} };
     if (!duskActive && !isDen) {
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground);
       if (weather.condition === 'rain') {
@@ -1212,12 +1212,15 @@ export function createWalkLifecycle({
     }
 
     // The area's own life on this walk (the Gorge: shade by height, wheeling
-    // birds, the ambience mix). Long after weather and dusk have set the sun,
+    // birds, the ambience mix; the caves' dark, warm glow and rain shelter,
+    // which is why it takes the weather). Long after weather and dusk have set the sun,
     // so their values are the base it shades; built here, beside the session
     // that holds it, so little can throw between its birds joining the scene
     // and endWalk being able to dispose them. Its birds are noCast and cast no
-    // shadow of their own (built after the caster sweep). Draws on no rng.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio }) ?? NO_AREA_LIFE;
+    // shadow of their own (built after the caster sweep); the cave glow is a
+    // PointLight with castShadow false, added here so shaders compile with it
+    // once. Draws on no rng.
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather }) ?? NO_AREA_LIFE;
     const session = {
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.

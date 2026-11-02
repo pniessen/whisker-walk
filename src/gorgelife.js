@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { caveDepth, underCeiling } from './caves.js';
 
 // =============================================================================
 // The Gorge's life on a walk: what only the Gorge does at run time.
 //
 // gorge.js's build() hands walk.js `life: (ctx) => createGorgeLife(ctx)`;
 // walk.js calls it once per walk, after weather and dusk have set the sun, and
-// main.js calls update(dt, t, catPos) every frame after the weather's update.
+// main.js calls update(dt, t, catPos, camera) every frame after the weather's
+// update.
 // endWalk calls dispose(). Every other area has no `life` and runs walk.js's
 // NO_AREA_LIFE instead, so nothing changes there.
 //
@@ -21,8 +23,21 @@ import { litMaterial } from './render/materials.js';
 //     every rim and above the highest camera: one InstancedMesh, no shadow,
 //     driven by time alone (no rng, so every device agrees). None with
 //     reducedMotion.
-//   * THE AMBIENCE MIX. audio.setAmbientMix({ high }) at most 4 times a
-//     second: the wind rises and the stream's lap fades as she climbs.
+//   * THE AMBIENCE MIX. audio.setAmbientMix({ high, cave }) at most 4 times
+//     a second: the wind rises and the stream's lap fades as she climbs, and
+//     soft drips come in by how deep into a cave she is (part 3, C7).
+//
+// And, from part 3 (the caves), never scary:
+//   * DARKER DEEPER (C2). The light factor is darkFor(caveDepth(her spot)),
+//     never under DARK_FLOOR, and moves toward it at a LINEAR 1.2 a second
+//     going in and 2.0 coming out (a bend's small depth jump never flickers).
+//     The sun gets shade x dark, the fill (0.85 + 0.15 shade) x dark, through
+//     the same composeIntensity state, so a weather write is still the base.
+//   * A WARM GLOW (C3). One PointLight round her cat, no shadow, added here
+//     before the first frame (so no shader recompiles mid-walk) and always
+//     there on a Gorge walk, at 0 outside. Removed by dispose.
+//   * RAIN OUTSIDE (C6). While the camera is under a ceiling the weather
+//     hides its rain column (weather.setSheltered, only on a change).
 // =============================================================================
 
 // The sun's share on the gorge floor; 1 from y 10 up.
@@ -35,6 +50,30 @@ const SHADE_RATE = 1.5;
 const FILL_FLOOR = 0.85;
 // The ambience mix is sent at most this often (seconds).
 const MIX_EVERY = 0.25;
+
+// --- The caves (part 3) ---------------------------------------------------------
+// Lights never fall below this share of what they were outside.
+export const DARK_FLOOR = 0.3;
+// The glow's intensity at full depth.
+export const GLOW_MAX = 2.0;
+// The light factor's linear rates, per second: in (darker) and out (lighter).
+const DARK_IN_RATE = 1.2;
+const DARK_OUT_RATE = 2.0;
+// The glow reaches GLOW_MAX by this depth.
+const GLOW_FULL_DEPTH = 0.35;
+// The glow sits this far over her cat.
+const GLOW_LIFT = 0.7;
+
+// The light factor at a depth: 1 outside, DARK_FLOOR at the far end.
+export function darkFor(depth) {
+  return 1 - (1 - DARK_FLOOR) * depth;
+}
+
+// `value` moved toward `target` by at most `up` (rising) or `down` (falling).
+function approach(value, target, up, down) {
+  if (target > value) return Math.min(target, value + up);
+  return Math.max(target, value - down);
+}
 
 function smoothstep(e0, e1, x) {
   const k = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -121,47 +160,93 @@ function createBirds(scene) {
   };
 }
 
+// The warm glow round her cat (C3). Never a shadow: castShadow stays false,
+// and the caster sweep (render/rig.js) only ever touches meshes.
+function createGlow(scene) {
+  const glow = new THREE.PointLight(0xffd9a8, 0, 6, 1.5);
+  glow.castShadow = false;
+  glow.name = 'caveGlow';
+  scene.add(glow);
+  return glow;
+}
+
 // --- The life ---------------------------------------------------------------
-// ctx: { scene, sun, fill, ground, reducedMotion, audio }. `audio` is the
-// game's audio (setAmbientMix); without it the mix is skipped.
-export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null }) {
+// ctx: { scene, sun, fill, ground, reducedMotion, audio, caves, weather }.
+// `audio` is the game's audio (setAmbientMix); without it the mix is skipped.
+// `caves` is gorge.js's GORGE_CAVES (none: nowhere is a cave). `weather` is
+// the walk's weather (setSheltered); without it the shelter is skipped.
+// update(dt, t, catPos, camera): `camera` (its position) for the shelter.
+export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null }) {
   const sunState = lightState(sun);
   const fillState = lightState(fill);
   const birds = reducedMotion ? null : createBirds(scene);
+  const glow = createGlow(scene);
   let shade = 1;
+  // The eased light factor (1 outside, DARK_FLOOR at full depth) and glow.
+  let dark = 1;
+  let glowLevel = 0;
+  let sheltered = false;
   let started = false;
   let mixTimer = 0;
 
   function light() {
-    composeIntensity(sunState, sun, shade);
-    composeIntensity(fillState, fill, FILL_FLOOR + (1 - FILL_FLOOR) * shade);
+    composeIntensity(sunState, sun, shade * dark);
+    composeIntensity(fillState, fill, (FILL_FLOOR + (1 - FILL_FLOOR) * shade) * dark);
   }
 
   return {
     get shade() { return shade; },
-    update(dt, t, catPos) {
+    // How deep she is, eased: the depth the light factor stands for.
+    get depth() { return (1 - dark) / (1 - DARK_FLOOR); },
+    update(dt, t, catPos, camera) {
       const groundY = ground.y(catPos.x, catPos.z);
       const target = shadeFor(groundY);
+      const depth = caveDepth(caves, catPos.x, catPos.z);
+      const darkTarget = darkFor(depth);
+      const glowTarget = GLOW_MAX * smoothstep(0, GLOW_FULL_DEPTH, depth);
       // The walk starts in the light she stands in; after that, eased.
-      if (!started) { shade = target; started = true; }
-      else {
+      if (!started) {
+        shade = target;
+        dark = darkTarget;
+        glowLevel = glowTarget;
+        started = true;
+      } else {
         const step = SHADE_RATE * dt;
         shade = Math.abs(target - shade) <= step ? target : shade + Math.sign(target - shade) * step;
+        dark = approach(dark, darkTarget, DARK_OUT_RATE * dt, DARK_IN_RATE * dt);
+        glowLevel = approach(glowLevel, glowTarget, DARK_IN_RATE * GLOW_MAX * dt, DARK_OUT_RATE * GLOW_MAX * dt);
       }
       light();
+      glow.position.set(catPos.x, catPos.y + GLOW_LIFT, catPos.z);
+      glow.intensity = glowLevel;
+      if (weather && camera) {
+        const p = camera.position;
+        const under = underCeiling(ground, p.x, p.y, p.z);
+        if (under !== sheltered) {
+          sheltered = under;
+          weather.setSheltered(under);
+        }
+      }
       birds?.place(t);
       mixTimer -= dt;
       if (mixTimer <= 0) {
         mixTimer = MIX_EVERY;
-        audio?.setAmbientMix({ high: highFor(groundY) });
+        audio?.setAmbientMix({ high: highFor(groundY), cave: (1 - dark) / (1 - DARK_FLOOR) });
       }
     },
     // Hands the lights back at full strength (keeping any weather write made
-    // since the last frame) and takes the birds out.
+    // since the last frame), the rain back if it was hidden, and takes the
+    // birds and the glow out.
     dispose() {
       composeIntensity(sunState, sun, 1);
       composeIntensity(fillState, fill, 1);
+      if (sheltered) {
+        sheltered = false;
+        weather?.setSheltered(false);
+      }
       birds?.dispose();
+      scene.remove(glow);
+      glow.dispose();
     },
   };
 }

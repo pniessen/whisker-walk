@@ -53,7 +53,10 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   // isRaining(): true only while a rainy walk is still in its rain phase (not
   // the rainbow, not after). Reads the schedule's clock; draws nothing from
   // any rng. v21 3b: falling rain loosens the grip on whatever the cat carries.
-  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false };
+  // setSheltered(on) (Gorge part 3, C6): the camera is under a ceiling, so
+  // the rain column hides; a no-op on every walk without one. The rain's
+  // sound is unchanged: you hear rain from a cave mouth.
+  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false, setSheltered() {} };
   if (condition === 'clear') return api;
 
   if (condition === 'sunset') {
@@ -116,7 +119,14 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   let elapsed = 0;
   let rainbow = null;
 
+  let sheltered = false;
+
   api.isRaining = () => schedule.phase(elapsed) === 'rain';
+  // Only the rain phase ever shows the column again; the rainbow hid it for good.
+  api.setSheltered = (on) => {
+    sheltered = on;
+    if (rain && api.isRaining()) rain.visible = !sheltered;
+  };
   api.update = (dt, cameraPos) => {
     elapsed += dt;
     const phase = schedule.phase(elapsed);

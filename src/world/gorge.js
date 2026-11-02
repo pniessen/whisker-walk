@@ -559,9 +559,10 @@ export function build(scene, { water = {}, wind } = {}) {
     raceCourse: RACE_COURSE.map((r) => ({ ...r })),
     mapShapes: mapShapes(),
     caves: GORGE_CAVES,
-    // What only the Gorge does on a walk: shade by height, wheeling birds and
-    // the ambience mix (gorgelife.js). walk.js calls it once per walk.
-    life: (ctx) => createGorgeLife(ctx),
+    // What only the Gorge does on a walk: shade by height, wheeling birds,
+    // the ambience mix, and the caves' dark, glow and shelter (gorgelife.js).
+    // walk.js calls it once per walk.
+    life: (ctx) => createGorgeLife({ ...ctx, caves: GORGE_CAVES }),
     skyBirdY: GORGE_BIRD_Y,
   };
 }

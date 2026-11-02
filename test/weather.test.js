@@ -212,3 +212,51 @@ describe('isRaining', () => {
     expect(calls).toBe(after);
   });
 });
+
+// Gorge part 3, C6: rain stays outside. gorgeLife hides the rain column while
+// the camera is under a ceiling; the rain sound is unchanged.
+describe('setSheltered', () => {
+  const scene = () => {
+    const children = [];
+    return { children, background: new THREE.Color(0x445566), fog: new THREE.Fog(0x123456, 40, 130), add: (o) => children.push(o) };
+  };
+  const sun = () => ({ color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) });
+  const cam = () => new THREE.Vector3(0, 0, 0);
+
+  it('a sheltered camera sees no rain, and the rain comes back outside', () => {
+    const s = scene();
+    const w = createWeather(s, sun(), 'rain', () => 0, false);
+    const rain = s.children.find((c) => c.isPoints);
+    expect(rain.visible).toBe(true);
+    w.setSheltered(true);
+    expect(rain.visible).toBe(false);
+    w.update(1, cam());
+    expect(rain.visible).toBe(false); // the rain phase's update keeps it hidden
+    expect(w.isRaining()).toBe(true); // still raining: only the column is hidden
+    w.setSheltered(false);
+    expect(rain.visible).toBe(true);
+    w.update(1, cam());
+    expect(rain.visible).toBe(true);
+    // after the rain, coming out never brings the column back
+    w.setSheltered(true);
+    w.update(60, cam()); // the rainbow
+    w.setSheltered(false);
+    expect(rain.visible).toBe(false);
+  });
+
+  it('every weather shape has setSheltered', async () => {
+    for (const condition of ['clear', 'sunset', 'rain']) {
+      for (const reducedMotion of [false, true]) {
+        const w = createWeather(scene(), sun(), condition, () => 0, reducedMotion);
+        expect(typeof w.setSheltered, `${condition} ${reducedMotion}`).toBe('function');
+        expect(() => { w.setSheltered(true); w.update(1, cam()); w.setSheltered(false); }).not.toThrow();
+      }
+    }
+    // the dusk (and den) walk's no-op weather, built in walk.js
+    const { readFileSync } = await import('node:fs');
+    const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    const still = walk.match(/let weather = (\{[^\n]*\});/);
+    expect(still).not.toBeNull();
+    expect(still[1]).toMatch(/setSheltered\(\) \{\}/);
+  });
+});
