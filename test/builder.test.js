@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import * as THREE from 'three';
 
 // The same headless stub every world test uses — see test/docks.test.js for
@@ -764,5 +764,245 @@ describe('the Woods builders', () => {
     }
     expect(new THREE.Box3().setFromObject(g).max.y).toBeLessThanOrEqual(0.3);
     expect(() => b.toadstools([], 6)).not.toThrow();
+  });
+});
+
+// The Gorge's real shape records (builder.js itself imports nothing from the
+// Gorge: the shapes are passed in).
+const gorgeShape = await import('../src/world/gorgeshape.js');
+const { floodGorge } = await import('./helpers/gorgeflood.js');
+
+describe('the Gorge rock: rockTerrain and scree', () => {
+  const { WALK_SHAPES, MASSES, GORGE_CAVES, GORGE_DENS, CEILINGS } = gorgeShape;
+  const CAVE_RECTS = GORGE_CAVES.flatMap((c) => c.rects);
+  const WALKS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS];
+  const build = () => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7 });
+
+  // Raycasts see both sides of every face, so a face wound the wrong way can
+  // still be found (the rim test checks the winding on its own).
+  let terrain;
+  const meshes = {};
+  beforeAll(() => {
+    terrain = build();
+    terrain.traverse((o) => { if (o.isMesh) meshes[o.name] = o; });
+    for (const m of Object.values(meshes)) m.material.side = THREE.DoubleSide;
+    terrain.updateMatrixWorld(true);
+  });
+  const { ground, reached, forEachReached } = floodGorge();
+  const ray = new THREE.Raycaster();
+  const cast = (origin, dir, names, far = Infinity) => {
+    ray.set(origin, dir);
+    ray.far = far;
+    return ray.intersectObjects(names.map((n) => meshes[n]), false);
+  };
+  const ALL = ['rockFaces', 'ledgeTops', 'lips'];
+  const tris = (m) => m.geometry.attributes.position.count / 3;
+  // An even pick of n from a list, the same every run.
+  const pick = (list, n) => Array.from({ length: Math.min(n, list.length) }, (_, i) => list[Math.floor((i * list.length) / Math.min(n, list.length))]);
+
+  it('rockTerrain is three merged meshes, the same every time', () => {
+    expect(Object.keys(meshes).sort()).toEqual(['ledgeTops', 'lips', 'rockFaces']);
+    expect(terrain.children.filter((o) => o.isMesh)).toHaveLength(3);
+    const again = build();
+    const pos = (g) => {
+      const out = {};
+      g.traverse((o) => { if (o.isMesh) out[o.name] = Array.from(o.geometry.attributes.position.array); });
+      return out;
+    };
+    const a = pos(terrain);
+    const c = pos(again);
+    for (const n of ALL) {
+      expect(c[n].length, n).toBe(a[n].length);
+      expect(c[n], n).toEqual(a[n]);
+    }
+  });
+
+  it('every rim is drawn where the cat stops', () => {
+    const OUT = 0.05;
+    const cands = [];
+    for (const s of WALKS.filter((w) => w.kind !== 'lip')) {
+      const edges = [
+        { nx: -1, nz: 0, x: s.minX, z0: s.minZ, z1: s.maxZ },
+        { nx: 1, nz: 0, x: s.maxX, z0: s.minZ, z1: s.maxZ },
+        { nx: 0, nz: -1, z: s.minZ, x0: s.minX, x1: s.maxX },
+        { nx: 0, nz: 1, z: s.maxZ, x0: s.minX, x1: s.maxX },
+      ];
+      for (const e of edges) {
+        const len = e.nx ? e.z1 - e.z0 : e.x1 - e.x0;
+        for (let d = 0.2; d <= len - 0.2; d += 0.23) {
+          const ex = e.nx ? e.x : e.x0 + d;
+          const ez = e.nx ? e.z0 + d : e.z;
+          const ix = ex - e.nx * 0.1;
+          const iz = ez - e.nz * 0.1;
+          if (!reached(ix, iz) && !reached(ex - e.nx * 0.25, ez - e.nz * 0.25)) continue;
+          const gy = ground.y(ix, iz);
+          if (ground.y(ex + e.nx * OUT, ez + e.nz * OUT) - gy < 0.3) continue;
+          cands.push({ ix, iz, y: gy + 0.15, nx: e.nx, nz: e.nz });
+        }
+      }
+    }
+    const points = pick(cands, 400);
+    expect(points.length).toBe(400);
+    for (const p of points) {
+      const dir = new THREE.Vector3(p.nx, 0, p.nz);
+      const hits = cast(new THREE.Vector3(p.ix, p.y, p.iz), dir, ['rockFaces', 'lips'], 0.15);
+      expect(hits.length, `(${p.ix}, ${p.iz}) toward (${p.nx}, ${p.nz})`).toBeGreaterThan(0);
+      // and the face is turned toward the cat (its front side faces her)
+      const n = hits[0].face.normal.clone().transformDirection(hits[0].object.matrixWorld);
+      expect(n.dot(dir), `(${p.ix}, ${p.iz}) winding`).toBeLessThan(0);
+    }
+  });
+
+  it('no rock hangs over walkable ground', () => {
+    // A grid point can sit exactly on a wall's line (the ground counts it as
+    // the lower side), where a vertical ray runs in the wall's own plane and
+    // grazes the top's edge. So each point is tested by four rays 2 mm round
+    // it, each one that stands on the same ground as the point. 2 mm also
+    // clears the 1 mm inset of the ground's ceilings (CEIL_INSET): there
+    // ground.ceil is the full-size cap the rock draws (Infinity where nothing
+    // is overhead).
+    const D = 0.002;
+    let n = 0;
+    let open = 0;
+    forEachReached((x, z) => {
+      if (!Number.isInteger(x) || !Number.isInteger(z)) return;
+      n++;
+      const gy = ground.y(x, z);
+      let tested = 0;
+      for (const [dx, dz] of [[D, D], [D, -D], [-D, D], [-D, -D]]) {
+        const px = x + dx;
+        const pz = z + dz;
+        const py = ground.y(px, pz);
+        if (Math.abs(py - gy) > 0.01) continue;
+        tested++;
+        const c = ground.ceil(px, pz);
+        const hits = cast(new THREE.Vector3(px, py + 0.05, pz), new THREE.Vector3(0, 1, 0), ALL);
+        if (c === Infinity) {
+          open++;
+          expect(hits.length, `(${px}, ${pz}) open sky`).toBe(0);
+        } else if (hits.length) {
+          expect(hits[0].point.y, `(${px}, ${pz})`).toBeGreaterThanOrEqual(c - 1e-6);
+        }
+      }
+      expect(tested, `(${x}, ${z})`).toBeGreaterThan(0);
+    });
+    expect(n).toBeGreaterThan(2000);
+    expect(open).toBeLessThan(4 * n);
+  });
+
+  it('the walkable tops are drawn at the ground\'s height', () => {
+    const raised = WALK_SHAPES.filter((s) => s.kind === 'walk');
+    const cands = [];
+    forEachReached((x, z) => {
+      const gy = ground.y(x, z);
+      if (gy < 0.05 || ground.ceil(x, z) !== Infinity) return;
+      // well inside a raised shape: a ray down a wall's own line grazes its top
+      const M = 0.05;
+      if (raised.some((s) => x > s.minX + M && x < s.maxX - M && z > s.minZ + M && z < s.maxZ - M)) cands.push([x, z, gy]);
+    });
+    const points = pick(cands, 200);
+    expect(points.length).toBe(200);
+    for (const [x, z, gy] of points) {
+      const hits = cast(new THREE.Vector3(x, 30, z), new THREE.Vector3(0, -1, 0), ALL);
+      expect(hits.length, `(${x}, ${z})`).toBeGreaterThan(0);
+      expect(['ledgeTops', 'lips'], `(${x}, ${z})`).toContain(hits[0].object.name);
+      expect(Math.abs(hits[0].point.y - gy), `(${x}, ${z})`).toBeLessThanOrEqual(0.02);
+    }
+  });
+
+  it('only exposed rock is drawn, within its triangle cap', () => {
+    const rock = meshes.rockFaces;
+    expect(tris(rock)).toBeLessThanOrEqual(15000);
+    const pos = rock.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += 3) {
+      for (const axis of ['getX', 'getZ']) {
+        const v = [pos[axis](i), pos[axis](i + 1), pos[axis](i + 2)];
+        const onEdge = v.every((c) => Math.abs(Math.abs(c) - 62) < 1e-9);
+        expect(onEdge, `triangle ${i / 3} on the ${axis === 'getX' ? 'x' : 'z'} = ±62 edge`).toBe(false);
+      }
+    }
+    // Seams between two masses of equal height: nothing is drawn there.
+    const seams = [];
+    for (let i = 0; i < MASSES.length; i++) {
+      for (let j = i + 1; j < MASSES.length; j++) {
+        const a = MASSES[i];
+        const c = MASSES[j];
+        if (a.y0 !== c.y0) continue;
+        for (const [ax, cx, dir] of [[a.maxX, c.minX, 'x'], [c.maxX, a.minX, 'x'], [a.maxZ, c.minZ, 'z'], [c.maxZ, a.minZ, 'z']]) {
+          if (ax !== cx) continue;
+          const lo = dir === 'x' ? Math.max(a.minZ, c.minZ) : Math.max(a.minX, c.minX);
+          const hi = dir === 'x' ? Math.min(a.maxZ, c.maxZ) : Math.min(a.maxX, c.maxX);
+          if (hi - lo > 0.5) seams.push({ dir, at: ax, lo, hi, h: a.y0 });
+        }
+      }
+    }
+    expect(seams.length).toBeGreaterThan(5);
+    const points = [];
+    for (let k = 0; points.length < 200; k++) {
+      const s = seams[k % seams.length];
+      const f = ((k * 0.618034) % 1);
+      const t = s.lo + 0.2 + f * (s.hi - s.lo - 0.4);
+      const y = 0.1 + (((k * 0.414214) % 1) * (s.h - 0.2));
+      points.push({ ...s, t, y });
+    }
+    for (const p of points) {
+      const o = p.dir === 'x' ? new THREE.Vector3(p.at - 0.05, p.y, p.t) : new THREE.Vector3(p.t, p.y, p.at - 0.05);
+      const d = p.dir === 'x' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      expect(cast(o, d, ['rockFaces'], 0.1).length, `${p.dir} ${p.at} at ${p.t}, y ${p.y}`).toBe(0);
+    }
+  });
+
+  it('a lip closes the gap between legs', () => {
+    // from leg A (x 2.4..5.4) east toward leg B, and from leg B (5.8..8.8) toward leg C
+    for (const [edge, label] of [[5.4, 'A to B'], [8.8, 'B to C']]) {
+      const x = edge - 0.1;
+      const z = 10;
+      const hits = cast(new THREE.Vector3(x, ground.y(x, z) + 0.2, z), new THREE.Vector3(1, 0, 0), ['lips', 'rockFaces'], 0.1 + 0.15);
+      expect(hits.length, label).toBeGreaterThan(0);
+      expect(hits[0].point.x, label).toBeGreaterThanOrEqual(edge - 1e-6);
+    }
+  });
+
+  it('rock is darker and cooler at the bottom', () => {
+    const geo = meshes.rockFaces.geometry;
+    expect(meshes.rockFaces.material.vertexColors).toBe(true);
+    const pos = geo.attributes.position;
+    const col = geo.attributes.color;
+    const mean = (pred) => {
+      const s = [0, 0, 0];
+      let n = 0;
+      for (let i = 0; i < pos.count; i++) {
+        if (!pred(pos.getY(i))) continue;
+        s[0] += col.getX(i); s[1] += col.getY(i); s[2] += col.getZ(i); n++;
+      }
+      expect(n).toBeGreaterThan(0);
+      return s.map((v) => v / n);
+    };
+    const lum = ([r, g, bl]) => 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    const low = mean((y) => y < 2);
+    const high = mean((y) => y > 10);
+    expect(lum(low)).toBeLessThan(lum(high));
+    expect(low[2] / low[0]).toBeGreaterThan(high[2] / high[0]);
+  });
+
+  it('scree is low, noCast and merged', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 3, z: -2 }, { x: -5, z: 6 }];
+    const g = b.scree(spots, 4);
+    const found = [];
+    g.traverse((o) => { if (o.isMesh) found.push(o); });
+    expect(found).toHaveLength(1);
+    const m = found[0];
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.max.y).toBeLessThanOrEqual(0.25);
+    expect(box.min.y).toBeGreaterThanOrEqual(-1e-6);
+    // 3 to 6 stones a spot: an icosahedron (detail 0) is 20 triangles
+    const stones = tris(m) / 20;
+    expect(stones).toBeGreaterThanOrEqual(3 * spots.length);
+    expect(stones).toBeLessThanOrEqual(6 * spots.length);
+    const pos = (x) => Array.from(x.children[0].geometry.attributes.position.array);
+    expect(pos(b.scree(spots, 4))).toEqual(pos(g));
+    expect(() => b.scree([], 4)).not.toThrow();
   });
 });

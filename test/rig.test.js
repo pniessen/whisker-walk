@@ -207,3 +207,22 @@ describe('assignShadowCasters and the pine stand', () => {
     expect(names.toadstoolCaps).toBe(false);
   });
 });
+
+describe('assignShadowCasters and the Gorge rock', () => {
+  it('assignShadowCasters casts the rock and ledges and leaves lips and scree out', async () => {
+    const b = await import('../src/world/builder.js');
+    const s = await import('../src/world/gorgeshape.js');
+    const scene = new THREE.Scene();
+    const walks = [...s.WALK_SHAPES, ...s.GORGE_CAVES.flatMap((c) => c.rects), ...s.GORGE_DENS];
+    const rock = b.rockTerrain({ walks, masses: s.MASSES, ceilings: s.CEILINGS, seed: 1 });
+    const stones = b.scree([{ x: 0, z: 0 }, { x: 4, z: 1 }], 1);
+    scene.add(rock, stones);
+    assignShadowCasters(scene);
+    const names = {};
+    scene.traverse((o) => { if (o.isMesh) names[o.name] = o.castShadow; });
+    expect(names.rockFaces).toBe(true);
+    expect(names.ledgeTops).toBe(true);
+    expect(names.lips).toBe(false);
+    expect(names.scree).toBe(false);
+  });
+});
