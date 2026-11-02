@@ -60,3 +60,25 @@ export function caveDepth(caves, x, z) {
   const cave = caveAt(caves, x, z);
   return cave ? pathFraction(cave.path, x, z) : 0;
 }
+
+// Gorge part 3, C4 and C-F3: under a ceiling.
+//
+// The ground's ceilings are inset 1 mm from their cave's or den's walls, so
+// ground.ceil is Infinity on a 1 mm strip along every wall. "Under a ceiling"
+// therefore also looks this far away on the four diagonals: one of them is
+// always inward, even in a corner, so walking along a wall never flickers the
+// view. Only a ceiling over her counts (not rock she might stand on top of).
+const CEIL_PROBE = 0.05; // metres
+function ceilOver(g, x, z, y) {
+  const c = g.ceil(x, z);
+  return c !== Infinity && c > y;
+}
+// underCeiling(ground, x, y, z): is there a ceiling over a cat (or a camera)
+// standing at (x, y, z)? Used by the cave camera (player.js) and the rain
+// shelter.
+export function underCeiling(g, x, y, z) {
+  const r = CEIL_PROBE;
+  return ceilOver(g, x, z, y)
+    || ceilOver(g, x + r, z + r, y) || ceilOver(g, x - r, z + r, y)
+    || ceilOver(g, x + r, z - r, y) || ceilOver(g, x - r, z - r, y);
+}

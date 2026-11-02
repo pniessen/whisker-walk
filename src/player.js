@@ -10,6 +10,7 @@ import {
   DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView, caveView,
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
+import { underCeiling } from './caves.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
@@ -29,25 +30,13 @@ const PULL_HOLD = 0.3; // seconds
 const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
 // Gorge part 3 (C4): how fast the cave view eases in under a ceiling and back
-// out once she is out, as a linear rate of the 0..1 blend per second.
+// out once she is out, as a linear rate of the 0..1 blend per second. Going
+// out waits PULL_HOLD first, so stepping back and forth over a mouth does not
+// pump the camera; and what the cave view takes off the zoom view moves at no
+// more than PULL_IN_SPEED metres a second going in and PULL_OUT_SPEED coming
+// out (ruling C-F6).
 const CAVE_IN_RATE = 3;
 const CAVE_OUT_RATE = 1.5;
-// The ground's ceilings are inset 1 mm from their cave's or den's walls, so
-// ground.ceil is Infinity on a 1 mm strip along every wall. "Under a ceiling"
-// therefore also looks this far away on the four diagonals: one of them is
-// always inward, even in a corner, so walking along a wall never flickers the
-// view. Only a ceiling over her counts (not rock she might stand on top of).
-const CEIL_PROBE = 0.05; // metres
-function ceilOver(g, x, z, y) {
-  const c = g.ceil(x, z);
-  return c !== Infinity && c > y;
-}
-export function underCeiling(g, x, y, z) {
-  const r = CEIL_PROBE;
-  return ceilOver(g, x, z, y)
-    || ceilOver(g, x + r, z + r, y) || ceilOver(g, x - r, z + r, y)
-    || ceilOver(g, x + r, z - r, y) || ceilOver(g, x - r, z - r, y);
-}
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
 // rotated by yaw exactly like moveDirection does for keys. Because
@@ -580,17 +569,57 @@ export function createPlayer(camera, canvas) {
   // Gorge part 3 (C4): 0 in the open, 1 under a ceiling; the zoom view eases
   // toward camzoom.js's CAVE_VIEW by it. Raised ground only. setAvatar resets
   // it, and it snaps (rather than eases) wherever snapPull is set.
+  //  - caveHold: seconds she has been out while the blend is still up; the
+  //    blend only eases out after PULL_HOLD of them in a row.
+  //  - cutDist, cutHeight: what the cave view takes off the zoom view's
+  //    distance and height, as shown. They follow the blend's cut at no more
+  //    than PULL_IN_SPEED m/s going in and PULL_OUT_SPEED coming out (the two
+  //    together, as one vector), the same paces as a wall's pull, so even the
+  //    far step glides. Only the cut is limited: a zoom press on raised
+  //    ground eases exactly as anywhere.
   let caveBlend = 0;
+  let caveHold = 0;
   let snapCave = true;
+  let cutDist = 0;
+  let cutHeight = 0;
   function stepCaveBlend(dt) {
     const p = avatar.position;
     const target = underCeiling(ground, p.x, p.y, p.z) ? 1 : 0;
     if (reducedMotion || snapCave) {
-      snapCave = false;
+      caveHold = 0;
       return target;
     }
-    if (target > caveBlend) return Math.min(target, caveBlend + CAVE_IN_RATE * dt);
+    if (target >= caveBlend) {
+      caveHold = 0;
+      return Math.min(target, caveBlend + CAVE_IN_RATE * dt);
+    }
+    caveHold += dt;
+    if (caveHold < PULL_HOLD) return caveBlend;
     return Math.max(target, caveBlend - CAVE_OUT_RATE * dt);
+  }
+  // Writes the cave view into camView (raised ground only).
+  function applyCaveView(dt) {
+    caveBlend = stepCaveBlend(dt);
+    const d = camView.dist;
+    const h = camView.height;
+    caveView(camView, caveBlend, camView);
+    const wantD = d - camView.dist;
+    const wantH = h - camView.height;
+    if (reducedMotion || snapCave) {
+      snapCave = false;
+      cutDist = wantD;
+      cutHeight = wantH;
+    } else {
+      const ed = wantD - cutDist;
+      const eh = wantH - cutHeight;
+      const e = Math.sqrt(ed * ed + eh * eh);
+      const cap = (ed > 0 || eh > 0 ? PULL_IN_SPEED : PULL_OUT_SPEED) * dt; // a growing cut is going in
+      const k = e > cap ? cap / e : 1;
+      cutDist += ed * k;
+      cutHeight += eh * k;
+    }
+    camView.dist = d - cutDist;
+    camView.height = h - cutHeight;
   }
   let reducedMotion = false;
   // The water state (src/waterstate.js): one object for the player's whole
@@ -623,6 +652,9 @@ export function createPlayer(camera, canvas) {
       rockHold = 0;
       snapRock = true;
       caveBlend = 0;
+      caveHold = 0;
+      cutDist = 0;
+      cutHeight = 0;
       snapCave = true;
       yaw = 0;
       pitch = DEFAULT_PITCH;
@@ -963,10 +995,7 @@ export function createPlayer(camera, canvas) {
 
       camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
       zoomView(camLevel, camView);
-      if (!ground.flat) {
-        caveBlend = stepCaveBlend(Math.max(dt, 0));
-        caveView(camView, caveBlend, camView);
-      }
+      if (!ground.flat) applyCaveView(Math.max(dt, 0));
       cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
       // At or inside the default distance this is exactly 1, so the shipped
       // camera is untouched; beyond it the camera is kept out of buildings

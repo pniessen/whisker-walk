@@ -1717,7 +1717,7 @@ const UP_Y = new THREE.Vector3(0, 1, 0);
 const TURN_RATE = 3; // rad/s: how fast the test's "kid" turns the view
 const WALK_MAG = 0.6; // a walk, not a stalk (stalk is under 0.45)
 
-function gorgeRig(x, z, zoomStep) {
+function gorgeRig(x, z, zoomStep, { dt = DT, mag = WALK_MAG } = {}) {
   gorgeArea ??= buildGorge(new THREE.Scene());
   const area = gorgeArea;
   const camera = new THREE.PerspectiveCamera();
@@ -1733,21 +1733,21 @@ function gorgeRig(x, z, zoomStep) {
     player.addOrbit((yaw - y) / 0.0045, 0);
     yaw = y;
   };
-  const step = () => player.update(DT, area.colliders, area.bounds, area.waters);
+  const step = () => player.update(dt, area.colliders, area.bounds, area.waters);
   const dir = new THREE.Vector3();
   // Walks to (tx, tz), turning the view toward the way she goes at TURN_RATE
   // (the camera follows behind her), calling onFrame after every frame.
   const walkTo = (tx, tz, onFrame) => {
-    for (let f = 0; f < 30 * 60; f++) {
+    for (let f = 0; f < 30 / dt; f++) {
       const hx = tx - cat.position.x;
       const hz = tz - cat.position.z;
       if (Math.hypot(hx, hz) < 0.15) break;
       const want = Math.atan2(-hx, -hz);
       let d = want - yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      setYaw(yaw + Math.max(-TURN_RATE * DT, Math.min(TURN_RATE * DT, d)));
+      setYaw(yaw + Math.max(-TURN_RATE * dt, Math.min(TURN_RATE * dt, d)));
       dir.set(hx, 0, hz).normalize().applyAxisAngle(UP_Y, -yaw);
-      player.setTouchMove({ x: dir.x, z: dir.z, mag: WALK_MAG });
+      player.setTouchMove({ x: dir.x * mag, z: dir.z * mag, mag });
       step();
       onFrame?.();
     }
@@ -1756,22 +1756,22 @@ function gorgeRig(x, z, zoomStep) {
   };
   // Stands still, turning the view to `want` at TURN_RATE.
   const turnTo = (want, onFrame) => {
-    for (let f = 0; f < 5 * 60; f++) {
+    for (let f = 0; f < 5 / dt; f++) {
       let d = want - yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       if (Math.abs(d) < 1e-9) break;
-      setYaw(yaw + Math.max(-TURN_RATE * DT, Math.min(TURN_RATE * DT, d)));
+      setYaw(yaw + Math.max(-TURN_RATE * dt, Math.min(TURN_RATE * dt, d)));
       step();
       onFrame?.();
     }
   };
   const wait = (seconds, onFrame) => {
-    for (let f = 0; f < seconds * 60; f++) {
+    for (let f = 0; f < Math.round(seconds / dt); f++) {
       step();
       onFrame?.();
     }
   };
-  return { area, ground: area.ground, player, cat, camera, walkTo, turnTo, wait, setYaw, get yaw() { return yaw; } };
+  return { area, ground: area.ground, player, cat, camera, step, walkTo, turnTo, wait, setYaw, get yaw() { return yaw; } };
 }
 
 // A spot `back` metres outside a cave's mouth, on the line of its first leg.
@@ -1812,31 +1812,82 @@ describe('the camera in a cave', () => {
   });
 
   it('the camera walks each cave without entering rock', () => {
-    for (const cave of GORGE_CAVES) {
-      for (let zoomStep = 0; zoomStep < ZOOM_STEPS.length; zoomStep++) {
-        const [sx, sz] = outsideMouth(cave, 2);
-        const r = gorgeRig(sx, sz, zoomStep);
-        const { ground, camera } = r;
-        r.setYaw(Math.atan2(-(cave.path[0][0] - sx), -(cave.path[0][1] - sz)));
-        r.wait(0.5);
-        const prev = camera.position.clone();
-        let worst = 0;
-        const onFrame = () => {
-          const c = camera.position;
-          const where = `${cave.id} step ${zoomStep} at (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`;
-          expect(c.y, where).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + CAM_ROCK_CLEAR - 1e-6);
-          expect(c.y, where).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - CAM_CEIL_CLEAR + 1e-6);
-          worst = Math.max(worst, c.distanceTo(prev));
-          expect(c.distanceTo(prev), where).toBeLessThanOrEqual(0.6);
-          prev.copy(c);
-        };
-        for (let i = 1; i < cave.path.length; i++) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
-        r.turnTo(r.yaw + Math.PI, onFrame); // turn round in the chamber
-        for (let i = cave.path.length - 2; i >= 0; i--) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
-        r.walkTo(sx, sz, onFrame);
-        expect(worst).toBeGreaterThan(0);
+    // At 60 and 30 fps, walking and running: the camera never enters rock or
+    // goes above a ceiling, never moves over 0.6 m in a frame, and never moves
+    // faster than she does plus the pull-in pace (PULL_IN_SPEED, 12 m/s) plus
+    // the view turning (TURN_RATE at the cave view's 2.4 m) — so the far step
+    // glides in, it does not dash.
+    const SPEED_CAP = 12 + TURN_RATE * 2.5;
+    let fastest = 0;
+    for (const fps of [60, 30]) {
+      for (const mag of [WALK_MAG, 1]) {
+        for (const cave of GORGE_CAVES) {
+          for (let zoomStep = 0; zoomStep < ZOOM_STEPS.length; zoomStep++) {
+            const dt = 1 / fps;
+            const [sx, sz] = outsideMouth(cave, 2);
+            const r = gorgeRig(sx, sz, zoomStep, { dt, mag });
+            const { ground, camera, cat } = r;
+            r.setYaw(Math.atan2(-(cave.path[0][0] - sx), -(cave.path[0][1] - sz)));
+            r.wait(0.5);
+            const prev = camera.position.clone();
+            const prevCat = cat.position.clone();
+            let worst = 0;
+            const onFrame = () => {
+              const c = camera.position;
+              const where = `${cave.id} step ${zoomStep} ${fps} fps mag ${mag} at (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`;
+              expect(c.y, where).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + CAM_ROCK_CLEAR - 1e-6);
+              expect(c.y, where).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - CAM_CEIL_CLEAR + 1e-6);
+              const jump = c.distanceTo(prev);
+              worst = Math.max(worst, jump);
+              expect(jump, where).toBeLessThanOrEqual(0.6);
+              const speed = Math.max(0, jump - cat.position.distanceTo(prevCat)) / dt;
+              fastest = Math.max(fastest, speed);
+              expect(speed, where).toBeLessThanOrEqual(SPEED_CAP);
+              prev.copy(c);
+              prevCat.copy(cat.position);
+            };
+            for (let i = 1; i < cave.path.length; i++) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
+            r.turnTo(r.yaw + Math.PI, onFrame); // turn round in the chamber
+            for (let i = cave.path.length - 2; i >= 0; i--) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
+            r.walkTo(sx, sz, onFrame);
+            expect(worst).toBeGreaterThan(0);
+          }
+        }
       }
     }
+    expect(fastest).toBeGreaterThan(5); // the glide really was measured
+  });
+
+  it('stepping back and forth over a mouth does not pump the camera', () => {
+    // A kid dithering at the Echo Cave's mouth at the far step: she crosses
+    // it every ~0.25 s for 5 s. The out-hold keeps the close view, so the
+    // camera distance settles and does not swing in and out.
+    const echo = GORGE_CAVES.find((c) => c.id === 'echo');
+    const [mx, mz] = echo.path[0];
+    const r = gorgeRig(mx + 0.3, mz, 3);
+    const { player, cat, camera, step } = r;
+    r.setYaw(Math.PI / 2); // facing -x, into the cave
+    r.wait(1);
+    let lo = Infinity;
+    let hi = -Infinity;
+    let crossings = 0;
+    let wasIn = cat.position.x < mx;
+    for (let f = 0; f < 6 * 60; f++) {
+      const into = Math.floor(f / 15) % 2 === 0; // a quarter second each way
+      player.setTouchMove({ x: 0, z: (into ? -1 : 1) * WALK_MAG, mag: WALK_MAG });
+      step();
+      const isIn = cat.position.x < mx;
+      if (isIn !== wasIn) crossings++;
+      wasIn = isIn;
+      if (f >= 90) { // once the first glide in has landed
+        const d = Math.hypot(camera.position.x - cat.position.x, camera.position.z - cat.position.z);
+        lo = Math.min(lo, d);
+        hi = Math.max(hi, d);
+        expect(player.cameraCaveBlend).toBe(1);
+      }
+    }
+    expect(crossings).toBeGreaterThanOrEqual(10); // she really did cross it, again and again
+    expect(hi - lo).toBeLessThan(0.1);
   });
 
   it('out of the cave the chosen zoom comes back', () => {
@@ -1872,7 +1923,7 @@ describe('the camera in a cave', () => {
     expect(player.cameraCaveBlend).toBe(1); // a walk start snaps it
     let frames = 0;
     for (let f = 0; f < 3 * 60; f++) {
-      player.setTouchMove({ x: 0, z: -1, mag: WALK_MAG });
+      player.setTouchMove({ x: 0, z: -WALK_MAG, mag: WALK_MAG });
       r.wait(1 / 60);
       cat.position.z = z; // hug the wall
       expect(player.cameraCaveBlend).toBe(1);
@@ -1880,11 +1931,22 @@ describe('the camera in a cave', () => {
     }
     expect(cat.position.x).toBeLessThan(corridor.maxX - 3); // she walked along it
     expect(frames).toBe(180);
-    // and every den: on each wall's strip the view is the close one
+    // and every den: walking along its back-left wall's strip, the view
+    // stays the close one
     for (const den of GORGE_DENS) {
-      const rr = gorgeRig(den.minX + 0.0005, (den.minZ + den.maxZ) / 2, 3);
+      const x = den.minX + 0.0005;
+      const rr = gorgeRig(x, den.minZ + 0.2, 3);
+      expect(rr.ground.ceil(x, den.minZ + 0.2)).toBe(Infinity);
+      rr.setYaw(Math.PI); // facing +z, along the wall
       rr.wait(0.1);
       expect(rr.player.cameraCaveBlend).toBe(1);
+      for (let f = 0; f < 60 && rr.cat.position.z < den.maxZ - 0.2; f++) {
+        rr.player.setTouchMove({ x: 0, z: -WALK_MAG, mag: WALK_MAG });
+        rr.step();
+        rr.cat.position.x = x; // hug the wall
+        expect(rr.player.cameraCaveBlend, den.id).toBe(1);
+      }
+      expect(rr.cat.position.z, den.id).toBeGreaterThan(den.minZ + 1.5); // she walked along it
     }
   });
 

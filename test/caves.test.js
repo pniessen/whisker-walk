@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { caveDepth, caveAt } from '../src/caves.js';
-import { GORGE_CAVES, GORGE_DENS } from '../src/world/gorgeshape.js';
+import { caveDepth, caveAt, underCeiling } from '../src/caves.js';
+import { GORGE_CAVES, GORGE_DENS, gorgeGround } from '../src/world/gorgeshape.js';
+import { FLAT_GROUND } from '../src/ground.js';
 import { GORGE_BOUNDS } from './helpers/gorgeflood.js';
 
 // Gorge part 3, ruling C1: how deep into a cave a spot is.
@@ -78,5 +79,36 @@ describe('cave depth', () => {
     forGrid((x, z) => {
       expect(Object.is(caveDepth(GORGE_CAVES, x, z), caveDepth(GORGE_CAVES, x, z))).toBe(true);
     });
+  });
+});
+
+describe('under a ceiling', () => {
+  it('holds on the 1 mm strip along every wall and in every corner, and nowhere outside', () => {
+    const ground = gorgeGround();
+    const e = 0.0005;
+    let onStrip = 0;
+    for (const r of [...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS]) {
+      const y = ground.y((r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2);
+      for (const [x, z] of [
+        [r.minX + e, r.minZ + e], [r.maxX - e, r.minZ + e], [r.minX + e, r.maxZ - e], [r.maxX - e, r.maxZ - e],
+        [(r.minX + r.maxX) / 2, r.minZ + e], [r.minX + e, (r.minZ + r.maxZ) / 2],
+      ]) {
+        if (ground.ceil(x, z) === Infinity) onStrip++; // (a seam between two of a cave's rects is bridged)
+        expect(underCeiling(ground, x, y, z), `${r.tag} (${x}, ${z})`).toBe(true);
+      }
+      // a cat standing on the rock above it is not under it
+      expect(underCeiling(ground, (r.minX + r.maxX) / 2, y + 50, (r.minZ + r.maxZ) / 2)).toBe(false);
+    }
+    // 10 cm out of a mouth is the open
+    for (const cave of GORGE_CAVES) {
+      const [ax, az] = cave.path[0];
+      const [bx, bz] = cave.path[1];
+      const l = Math.hypot(bx - ax, bz - az);
+      const x = ax - ((bx - ax) / l) * 0.1;
+      const z = az - ((bz - az) / l) * 0.1;
+      expect(underCeiling(ground, x, ground.y(x, z), z)).toBe(false);
+    }
+    expect(onStrip).toBeGreaterThan(40); // most of the probes really were on the strip
+    expect(underCeiling(FLAT_GROUND, 0, 0, 0)).toBe(false);
   });
 });
