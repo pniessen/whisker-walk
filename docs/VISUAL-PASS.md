@@ -2145,3 +2145,42 @@ floor at the stream, the path, the stepping stones and pines, with far less
 bare rock than before. `public/places/gorge.jpg` is 640x360, rendered from the
 shipped view and byte-identical to the trial render. Part 2's suggested
 `1.5,15,-38 → -7,1,2` was close but showed more rock on the left.
+
+**Final fix wave (2026-11-02, branch `gorge-design`).** The four issues
+above, fixed and re-checked live (same method: Vite on 5197, headless
+Chromium, SwiftShader, 1280x720, HIGH, weather forced clear for the luma).
+
+- **The camera no longer jams after a zoom press in a cave.** The repro
+  (zoom step 3, Echo Cave corridor (-24, 23.5), `=` three times, walk out):
+  in the corridor the view holds the cave view (2.36 m out, 1.29 m up); after
+  walking out onto the floor it is back at step 0 (2.95 m out, 1.98 m up).
+  Step 3 to step 1, and step 0 to step 3, come back to 4.43 m and 10.8 m. The
+  camera was never nearer than 2.08 m to her head from the press to the end.
+- **Bends:** with a fresh walk for each zoom step (no zoom press inside), the
+  camera turned all the way round at both bends of every cave. It never came
+  nearer than 1.03 m to her head (1.28 m at rest) and was never in front of
+  her. The "inside her head" readings were the jam above. A bend at step 3
+  after zooming in the corridor holds 1.56-2.42 m.
+- **Darker deeper, with a cosy glow.** The scene's image-based light now dims
+  with depth too, to 0.55 of what it was outside. The glow is a soft pool
+  (intensity 1.0, 5 m reach, 1.3 m above her) instead of a lamp on her back.
+  Mean luma (0-255, HUD hidden), chamber against the floor outside:
+
+  | | day | dusk |
+  |---|---|---|
+  | Echo Cave floor / **chamber** | 98.9 / **51.2 (52%)** | 100.2 / **51.1 (51%)** |
+  | Snug Cave ledge / chamber | 169.3 / 100.1 (59%) | 143.0 / 99.8 (70%) |
+  | Glitter Cave ledge / chamber | 158.9 / 108.3 (68%) | 145.1 / 108.3 (75%) |
+
+  Before: Echo 83-86%, Snug 84%. Near-black pixels (luma < 16): at most
+  0.28% of any chamber frame. No clipped pixels on her coat. Before, the Snug
+  chamber had 0.1% clipped (luma 254) on her back. The A/B confirmed the
+  image-based light is the big lever (Echo 83% → 44% with it alone; the
+  gentler glow alone, 83% → 79%).
+- **?perf after the retune** (one walk): Echo chamber 138 draws (67/57),
+  69,780 tris; the look-down (4, -24) south, zoom 3, top pitch: 543 draws
+  (168/366), 144,470 tris (SwiftShader 228 ms, against 322-334 ms in the
+  check above; relative only).
+- Shots: `final-*` in the scratchpad's snaps-gorge folder (Echo chamber by
+  day and at dusk, the Snug chamber with its cat, the Echo bend at step 3
+  after zooming in the cave, the floor).
