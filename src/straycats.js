@@ -23,6 +23,14 @@ const MEOW_RADIUS = 8;
 const FAR_CALL_RADIUS = 22;
 const FAR_CALL_STANDOFF = 1.6;
 const FAR_CALL_WALK_TIME = 12;
+// A wandering stray whose straight line to its target runs into water or a
+// keep-out is held at the edge by keepOut() below. After STUCK_GIVE_UP
+// seconds of making less than STUCK_PROGRESS of its stride towards the
+// target it gives up on it the way it would on arriving (idle, a pose and a
+// timer from its own stream), rather than leaning on the shore for the full
+// 12 s. Measured from positions only, so it draws nothing extra.
+const STUCK_GIVE_UP = 1.5;
+const STUCK_PROGRESS = 0.25;
 
 // How long a freshly-ruptured cat holds the recoil before its ordinary wander
 // FSM takes over again. It stays cross the whole time — this is only the pose
@@ -718,6 +726,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           keepOut(target);
           s.state = 'wander';
           s.target = target;
+          s.stuck = 0;
           s.timer = Math.max(s.timer, FAR_CALL_WALK_TIME);
         }
         count += 1;
@@ -823,6 +832,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             const a = s.wanderRng() * Math.PI * 2;
             const r = 4 + s.wanderRng() * 8;
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+            s.stuck = 0;
             s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
             keepOut(s.target);
@@ -842,11 +852,20 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.pose = s.wanderRng() < 0.4 ? 'sniff' : 'follow';
             s.timer = 2 + s.wanderRng() * 4;
           } else {
+            const before = dir.length();
             dir.normalize().multiplyScalar(WANDER_SPEED);
             s.group.position.addScaledVector(dir, dt);
             s.group.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             speed = WANDER_SPEED;
+            keepOut(s.group.position);
+            const gained = before - Math.hypot(s.target.x - s.group.position.x, s.target.z - s.group.position.z);
+            s.stuck = gained < STUCK_PROGRESS * WANDER_SPEED * dt ? (s.stuck ?? 0) + dt : 0;
+            // Held at an edge: end the wander on the next frame's timer check,
+            // which goes idle with the same two draws an arrival makes.
+            if (s.stuck >= STUCK_GIVE_UP) { s.timer = 0; s.stuck = 0; }
           }
+        } else {
+          s.stuck = 0;
         }
         // The end of this stray's move for the frame: a straight line to a
         // target outside the keep-out can still cut across it, so the cat is
