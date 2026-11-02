@@ -45,13 +45,14 @@ export const HEN_BODY = Object.freeze({ Y: 0.42, SCALE: Object.freeze([0.9, 0.85
 // 'swim' pulling it up and 'stretch' tipping the breast down past it), and P1
 // well back keeps the lower neck from swinging out of the breast when sniff
 // nods the head. Radius R = [top, middle, base] (a quadratic in u): fullest
-// where it shows (a hen's thick neck), slim at the hidden base.
+// at the nape, where it shows (a hen's thick neck), slimming down to the
+// hidden base, so the part sniff swings out of the breast is slim.
 export const HEN_SKULL = Object.freeze([0.13, 0.1365, 0.13]);
 export const HEN_NECK = Object.freeze({
   P0: Object.freeze([0, -0.03, 0.01]),
   P1: Object.freeze([0, -0.12, 0.13]),
   P2: Object.freeze([0, -0.24, 0.2]),
-  R: Object.freeze([0.088, 0.098, 0.05]),
+  R: Object.freeze([0.095, 0.085, 0.045]),
 });
 
 // The comb's two halves both turn about this head-local point; REST is the
@@ -218,24 +219,65 @@ function henHackles() {
   return mergeGeometries(parts.splice(0), false);
 }
 
-// One folded wing (s = -1 left, +1 right): coverts, a shoulder and four
-// primaries tapering to feather tips at the back, in the cat's frame.
+// The core's deformation (henCore) of a unit-sphere point's y and z.
+function coreY(uy, uz) {
+  const front = Math.max(0, -uz), back = Math.max(0, uz);
+  let y = uy;
+  if (y < 0.2) y -= 0.18 * front * (1 - y);
+  if (y > 0) y += 0.18 * back * back;
+  return y * HEN_BODY.R[1];
+}
+const coreZ = (uz) => uz * (1 + 0.08 * Math.max(0, -uz)) * HEN_BODY.R[2];
+function invert(f, target, lo, hi) {
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (f(mid) < target) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+// The core's half-width at (y, z) in the cat's frame (its surface's x there),
+// held to a sliver past the silhouette so a wing tip there stays on the body.
+export function henBodyHalfWidth(y, z) {
+  const uz = invert(coreZ, z, -1, 1);
+  const lim = Math.sqrt(Math.max(0, 1 - uz * uz));
+  const uy = invert((v) => coreY(v, uz), y, -lim, lim);
+  const ux = Math.sqrt(Math.max(0.04 * (1 - uz * uz), 1 - uy * uy - uz * uz));
+  return ux * (1 - 0.18 * Math.max(0, uz) ** 2) * HEN_BODY.R[0];
+}
+
+// One folded wing (s = -1 left, +1 right): long coverts, a shoulder and four
+// primaries stepping down and back to separate feather tips, in the cat's
+// frame, shrink-wrapped onto the flank: each vertex's x is the body's
+// half-width at its (y, z) plus its depth in the wing, so the wing follows
+// the body as it narrows toward the tail instead of standing off in the air.
+const WING_SINK = 0.012; // how far the wing's inner face sits inside the flank
 function henWing(s) {
   const k = 0.85;
   const parts = [
-    ball(0.16 * k, 10, 7, { scale: [0.22, 0.46, 1.25], rot: [0.22, 0, 0], pos: [0, 0.04 * k, -0.06 * k] }, HEN.DARK),
+    ball(0.16 * k, 10, 7, { scale: [0.17, 0.4, 1.4], rot: [0.16, 0, 0], pos: [0, 0.04 * k, -0.04 * k] }, HEN.DARK),
     ball(0.08 * k, 6, 5, { scale: [0.3, 0.7, 0.9], pos: [0, 0.07 * k, -0.17 * k] }, mix(HEN.FEATHER, HEN.DARK, 0.4)),
   ];
+  const zs = [1.15, 1.05, 0.95, 0.85];
   for (let i = 0; i < 4; i++) {
     parts.push(ball(0.11 * k, 6, 4, {
-      scale: [0.1, 0.16, 1.15],
-      rot: [0.3 + i * 0.03, 0, 0],
-      pos: [s * 0.008 * k, (-0.03 - i * 0.016) * k, (0.1 + i * 0.03) * k],
+      scale: [0.1, 0.16, zs[i]],
+      rot: [0.3 + i * 0.08, 0, 0],
+      pos: [-0.004 * k, (-0.03 - i * 0.025) * k, (0.1 + i * 0.03) * k],
     }, mix(HEN.DARK, HEN.TAIL, 0.3 + i / 8)));
   }
   const g = mergeGeometries(parts, false);
-  // hung on the body's side, rolled out a little (the sketch's 0.12)
-  place(g, { rot: [0, -s * 0.04, s * 0.12], pos: [s * 0.285, 0.02, 0.02] });
+  parts.forEach((x) => x.dispose());
+  // the wing's inner face (min local x) goes WING_SINK inside the flank
+  g.computeBoundingBox();
+  const inner = g.boundingBox.min.x;
+  g.boundingBox = null;
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i) + 0.02, z = p.getZ(i) + 0.02;
+    p.setXYZ(i, s * (henBodyHalfWidth(y, z) - WING_SINK + p.getX(i) - inner), y, z);
+  }
+  if (s < 0) g.index.array.reverse(); // mirrored: keep the faces outward
+  g.computeVertexNormals();
   return g;
 }
 
@@ -275,12 +317,16 @@ export function henSkullNeckGeometry(neck = HEN_NECK) {
   const skull = paint(ball(0.13, 14, 10, { scale: [1, sy / 0.13, 1] }), (v, out) => {
     out.copy(hexColour(HEN.FEATHER)).lerp(hexColour(HEN.HACKLE), smooth(0.02, 0.12, v.z * 0.6 - v.y * 0.6) * 0.5);
   });
-  const tubeGeo = tube(henNeckCurve(neck), 6, 10, (u) => henNeckRadius(u, neck), { closeEnd: 0.04 });
+  const tubeGeo = tube(henNeckCurve(neck), 9, 12, (u) => henNeckRadius(u, neck), { closeEnd: 0.04 });
   const feather = hexColour(HEN.FEATHER), hackle = hexColour(HEN.HACKLE), dark = hexColour(HEN.DARK);
   const P0y = neck.P0[1], P2y = neck.P2[1];
+  // golden at the nape, blending down into the breast's russet and cream so
+  // the lower neck, where sniff swings it out of the breast, reads as breast
+  const breast = mix(HEN.FEATHER, HEN.CREAM, 0.45);
   paint(tubeGeo, (v, out) => {
     const k = smooth(0, 1, (v.y - P0y) / (P2y - P0y));
-    out.copy(feather).lerp(hackle, 0.55 + 0.3 * k).lerp(dark, 0.1 * Math.sin(v.x * 60 + v.y * 40) ** 2);
+    out.copy(feather).lerp(hackle, 0.55 + 0.3 * k).lerp(dark, 0.06 * Math.sin(v.x * 60 + v.y * 40) ** 2);
+    out.lerp(breast, 0.85 * smooth(0.35, 0.85, k));
   });
   const { geo, ranges } = merge([skull, tubeGeo]);
   geo.userData.ranges = { skull: ranges[0], neck: ranges[1] };
@@ -322,14 +368,15 @@ export function henWattlesGeometry() {
 // blade on the crown and fanning out above it, split into a front half (the
 // blade's front, three points) and a back half (the blade's back, two points),
 // each in its pivot's frame and counter-rolled by ∓REST (R11). The fan keeps
-// every point under the beanie's shell and its top under the hat brims.
+// every point under the beanie's drawn shell (the outer points stop 4.6 cm
+// out; 5.4 shows through the cap's flat facets) and its top under the brims.
 export const COMB_POINTS = Object.freeze([
   // [base z, tip z, tip y]
-  [-0.008, -0.054, 0.168],
+  [-0.008, -0.046, 0.168],
   [-0.004, -0.027, 0.173],
   [0, 0, 0.176],
   [0.004, 0.027, 0.173],
-  [0.008, 0.054, 0.168],
+  [0.008, 0.046, 0.168],
 ]);
 function combPoint([bz, tz, ty]) {
   const base = new THREE.Vector3(0, 0.128, bz), tip = new THREE.Vector3(0, ty - 0.012, tz);
@@ -373,13 +420,45 @@ export function henEyeGeometry() {
 // longest, dark with a faint green sheen. [middle three, left pair (x < 0),
 // right pair (x > 0)].
 
+// One feather: a flat blade along a quadratic curve in its y-z plane, as the
+// sketch's (a tube flattened sideways and thinned toward the tip), keeping its
+// width in its own plane (falling only to 0.6) and closing in a rounded tip.
+// Rings are bunched toward the tip so the round reads.
+const FEATHER_U = [0, 0.15, 0.3, 0.45, 0.6, 0.72, 0.82, 0.9, 0.96];
 function tailFeather(len, rise, colour) {
   const curve = new THREE.QuadraticBezierCurve3(
     new THREE.Vector3(0, 0, -0.03),
     new THREE.Vector3(0, rise, len * 0.55),
     new THREE.Vector3(0, rise * 0.35, len),
   );
-  const g = tube(curve, 8, 5, (u) => 0.0255 * (1 - 0.85 * smooth(0.25, 1, u)), { flatX: 0.35, closeEnd: 0.015 });
+  const R = 0.03 * 0.85, sides = 6;
+  const X = new THREE.Vector3(1, 0, 0), w = new THREE.Vector3();
+  const pos = [], idx = [];
+  for (const u of FEATHER_U) {
+    const c = curve.getPoint(u);
+    w.crossVectors(curve.getTangent(u), X).normalize(); // in the feather's plane
+    const tip = u > 0.8 ? Math.sqrt(1 - ((u - 0.8) / 0.2) ** 2) : 1;
+    const width = R * (1 - 0.4 * smooth(0.3, 0.8, u)) * tip;
+    const thick = R * 0.35 * (1 - 0.75 * Math.max(0, u - 0.3)) * tip;
+    for (let s = 0; s < sides; s++) {
+      const a = (s / sides) * Math.PI * 2;
+      pos.push(c.x + Math.sin(a) * thick, c.y + w.y * Math.cos(a) * width, c.z + w.z * Math.cos(a) * width);
+    }
+  }
+  const rings = FEATHER_U.length;
+  for (let r = 0; r < rings - 1; r++) {
+    for (let s = 0; s < sides; s++) {
+      const a = r * sides + s, b = r * sides + (s + 1) % sides;
+      idx.push(a, a + sides, b, b, a + sides, b + sides);
+    }
+  }
+  const end = curve.getPoint(1), last = (rings - 1) * sides, at = pos.length / 3;
+  pos.push(end.x, end.y, end.z);
+  for (let s = 0; s < sides; s++) idx.push(last + s, at, last + (s + 1) % sides);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
   const sheen = hexColour(HEN.SHEEN);
   return paint(g, (v, out) => out.copy(colour).lerp(sheen, 0.25 * smooth(0, len, v.z)));
 }

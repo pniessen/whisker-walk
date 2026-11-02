@@ -441,9 +441,9 @@ const HAGRID_FEATHER = HEN.FEATHER;
 // front surface at their own height. A ring square to the neck stands up
 // behind his head like a sash, so each is leaned HEN_RING_LEAN back toward
 // level; leaned, a ring needs R/cos(lean) to clear a neck of radius R, so
-// each is a size up (collar 0.135, scarf ×1.45, streamer band 0.145).
+// each is a size up (collar 0.135, scarf ×1.3, streamer band 0.155).
 const HEN_COLLAR_U = 0.5;
-const HEN_SCARF_U = 0.36;
+const HEN_SCARF_U = 0.45;
 const HEN_RING_LEAN = 0.4;
 const HEN_SCARF_LEAN = 0.25; // higher up, a leaned scarf's front would rise into his throat
 const _Z = new THREE.Vector3(0, 0, 1);
@@ -565,9 +565,17 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     // the ring goes square round the neck; the charm hangs at its front
     const { axis, front } = neckRing(HEN_COLLAR_U);
     const q = new THREE.Quaternion().setFromUnitVectors(_Z, axis);
-    const charm = front.clone().multiplyScalar(0.14).addScaledVector(axis, 0.03).applyQuaternion(q.clone().invert());
+    const charm = front.clone().multiplyScalar(0.17).addScaledVector(axis, 0.01).applyQuaternion(q.clone().invert());
     const collar = buildCollar(accessories.collar, 0.135, 0.024, charm);
     collar.children[0].rotation.set(0, 0, 0);
+    // the charms are built facing forward (-z) in the head's frame: undo the
+    // ring's turn on each, about the charm's spot, so the tag, star and heart
+    // still face forward rather than down the neck
+    const qInv = q.clone().invert();
+    for (const piece of collar.children.slice(1)) {
+      piece.position.sub(charm).applyQuaternion(qInv).add(charm);
+      piece.quaternion.premultiply(qInv);
+    }
     head.add(ringTheNeck(collar, HEN_COLLAR_U));
   }
 
@@ -587,11 +595,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     crownPart.position.set(0, 0.24, 0);
     head.add(crownPart);
   } else if (accessories.head === 'beanie') {
+    // low enough that the cap's faceted underside meets the skull all round
+    // the comb's base, so no red shows in a gap between them
     const cap = ball(0.11, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
-    cap.position.set(0, 0.2, 0);
+    cap.position.set(0, 0.19, 0);
     head.add(cap);
     const pompom = ball(0.026, 0xf5f5f5, 1, 1, 1, 6, 5);
-    pompom.position.set(0, 0.28, 0);
+    pompom.position.set(0, 0.27, 0);
     head.add(pompom);
   } else if (accessories.head === 'wizard') {
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.015, 10), mat(WIZARD_COLOR));
@@ -676,12 +686,12 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   } else if (accessories.neck === 'scarf') {
     // today's band, a size up so it clears the neck, round it
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.024, 6, 12), mat(SCARF_COLOR));
-    band.scale.setScalar(1.55);
+    band.scale.setScalar(1.3);
     head.add(ringTheNeck(band, HEN_SCARF_U, HEN_SCARF_LEAN));
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.1, 0.015), mat(SCARF_COLOR));
-    // the loose end lies down the neck's front, which leans back as it goes down
-    tail.position.set(0.04, -0.145, henNeckFrontZ(-0.145) - 0.045);
-    tail.rotation.set(-0.8, 0, 0.15);
+    // the loose end hangs from the ring's front down onto the breast
+    tail.position.set(0.04, -0.22, -0.045);
+    tail.rotation.set(0.5, 0, 0.15);
     head.add(tail);
   }
 

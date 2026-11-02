@@ -49,6 +49,23 @@ function tris(meshes) {
   }
   return out;
 }
+// World-space triangles of the part of a mesh whose vertices lie in [from, to).
+function trisIn(m, from, to) {
+  m.updateMatrixWorld(true);
+  const out = [];
+  const v = new THREE.Vector3();
+  const g = m.geometry, p = g.attributes.position, idx = g.index;
+  const n = idx ? idx.count : p.count;
+  for (let i = 0; i < n; i += 3) {
+    const vs = [0, 1, 2].map((j) => (idx ? idx.getX(i + j) : i + j));
+    if (!vs.every((k) => k >= from && k < to)) continue;
+    for (const k of vs) {
+      v.fromBufferAttribute(p, k).applyMatrix4(m.matrixWorld);
+      out.push(v.x, v.y, v.z);
+    }
+  }
+  return out;
+}
 // Distances along `dir` (unit) from `o` at which the ray crosses a triangle.
 function hits(T, o, dir) {
   const res = [];
@@ -323,18 +340,27 @@ describe('Hagrid rebuilt (Task 8)', () => {
     });
 
     it('the beanie covers the comb', () => {
+      // ray-tested against the triangles actually drawn: the cap's flat
+      // facets sit inside its mathematical ellipsoid. Both shells are convex,
+      // so a point bracketed along y and z lies inside.
       const c = hen({ ...BARE, head: 'beanie' });
       const { head, earL, earR } = c.userData.parts;
       const cap = head.children.find((o) => o.isMesh && hex(o) === 0xd6602f);
-      const r = cap.geometry.parameters.radius;
-      const [ax, ay, az] = cap.scale.toArray().map((s) => s * r);
-      const skull = head.children[0].geometry.userData.skull; // [rx, ry, rz] at the head origin
-      const exposed = [...pointsIn(earL, head), ...pointsIn(earR, head)].filter((v) => {
-        const inCap = ((v.x - cap.position.x) / ax) ** 2 + ((v.y - cap.position.y) / ay) ** 2 + ((v.z - cap.position.z) / az) ** 2 <= 1;
-        const inSkull = (v.x / skull[0]) ** 2 + (v.y / skull[1]) ** 2 + (v.z / skull[2]) ** 2 <= 1;
-        return !inCap && !inSkull;
-      });
-      expect(exposed.map((v) => v.toArray().map((n) => +n.toFixed(4)))).toEqual([]);
+      const skullNeck = head.children[0];
+      const [s, n] = skullNeck.geometry.userData.ranges.skull;
+      const capT = tris(cap), skullT = trisIn(skullNeck, s, s + n);
+      // every comb triangle's corners, edge midpoints and centre: a triangle
+      // running from inside the skull to inside the cap can cross the gap
+      // between them with all three corners covered
+      const T = tris([earL, earR]);
+      const exposed = [];
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3();
+      for (let i = 0; i < T.length; i += 9) {
+        a.fromArray(T, i); b.fromArray(T, i + 3); d.fromArray(T, i + 6);
+        const pts = [a, b, d, a.clone().add(b).multiplyScalar(0.5), b.clone().add(d).multiplyScalar(0.5), d.clone().add(a).multiplyScalar(0.5), a.clone().add(b).add(d).multiplyScalar(1 / 3)];
+        for (const v of pts) if (!inside(capT, v) && !inside(skullT, v)) exposed.push(v.clone());
+      }
+      expect(exposed.map((v) => v.toArray().map((x) => +x.toFixed(4)))).toEqual([]);
     });
 
     it('face items keep today\'s positions', () => {
