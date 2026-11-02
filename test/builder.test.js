@@ -839,7 +839,7 @@ describe('the Woods builders', () => {
 // The Gorge's real shape records (builder.js itself imports nothing from the
 // Gorge: the shapes are passed in).
 const gorgeShape = await import('../src/world/gorgeshape.js');
-const { ROCK_WALKS: gorgeRockWalks } = await import('../src/world/gorge.js');
+const { ROCK_WALKS: gorgeRockWalks, GORGE_ROCK_MOUTHS } = await import('../src/world/gorge.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
 const { findTJunctions } = await import('./helpers/meshcheck.js');
 const { createRockRelief, ROCK_PROUD, CAVE_PROUD } = await import('../src/world/rockrelief.js');
@@ -849,7 +849,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
   // The walks gorge.js draws the rock from: every walkable shape, cave and
   // den floor, the camp den's too (the masses are cut round it).
   const WALKS = gorgeRockWalks;
-  const build = (opts = {}) => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7, ...opts });
+  const build = (opts = {}) => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7, mouths: GORGE_ROCK_MOUTHS, ...opts });
   // The relief field the build moves its vertices by (keep [] here, as in build()).
   const relief = createRockRelief({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7 });
 
@@ -953,7 +953,8 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(t[n], n).toBeGreaterThan(0);
       expect(t[n], n).toBeLessThanOrEqual(tris(meshes[n]));
     }
-    expect(t.rockFaces + t.ledgeTops + t.lips).toBeLessThanOrEqual(16000);
+    // the whole rock, its dressing included
+    expect(tris(meshes.rockFaces) + tris(meshes.ledgeTops) + tris(meshes.lips)).toBeLessThanOrEqual(16000);
   });
 
   // ROCK_PROUD (Global Constraints): no drawn rock vertex over walkable
@@ -967,8 +968,9 @@ describe('the Gorge rock: rockTerrain and scree', () => {
   // those columns just under their tops. Rock columns are open rectangles
   // here, so a vertex on a wall's own line (a wall foot, a cave wall the
   // relief left in place) is tested too, and is within r of that wall.
+  // Every vertex, the dressing (lip stones, foot boulders) included.
   it('no drawn rock stands proud over walkable ground', () => {
-    const shell = shellOf(terrain);
+    const shell = Object.fromEntries(ALL.map((n) => [n, meshes[n].geometry.attributes.position.array]));
     const rockCols = [...MASSES, ...WALKS.filter((w) => w.kind === 'lip')];
     const walkCols = WALKS.filter((w) => w.kind !== 'lip');
     const allCols = [...rockCols, ...walkCols, ...CAPS];
@@ -1292,6 +1294,98 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(worst).toBeGreaterThan(0);
     expect(worst).toBeLessThanOrEqual(0.42);
   });
+
+  // ---- The dressing: appended to the merged meshes after their shells ----
+  const LIPS = WALKS.filter((w) => w.kind === 'lip');
+  // The part of a mesh after its shell.
+  const dressingOf = (name) => meshes[name].geometry.attributes.position.array.subarray(terrain.userData.shellTris[name] * 9);
+  // The foot boulders: 20 triangles each, in order after the rockFaces shell;
+  // each one's centre is the mean of its 12 distinct vertices.
+  const boulders = () => {
+    const arr = dressingOf('rockFaces');
+    const out = [];
+    for (let s = 0; s < arr.length; s += 20 * 9) {
+      const uniq = new Map();
+      eachVertex(arr.subarray(s, s + 20 * 9), (x, y, z) => uniq.set(keyOf(x, y, z), [x, y, z]));
+      const vs = [...uniq.values()];
+      const c = [0, 1, 2].map((k) => vs.reduce((a, v) => a + v[k], 0) / vs.length);
+      out.push({ vs, c });
+    }
+    return out;
+  };
+
+  it('the dressing is counted, and appended after the shells', () => {
+    const d = terrain.userData.dressing;
+    expect(d).toBeTruthy();
+    const t = terrain.userData.shellTris;
+    expect(tris(meshes.lips) - t.lips).toBe(12 * d.lipStones);
+    expect(tris(meshes.rockFaces) - t.rockFaces).toBe(20 * d.footBoulders);
+    expect(tris(meshes.ledgeTops)).toBe(t.ledgeTops);
+    expect(d.lipStones).toBeGreaterThanOrEqual(200);
+    expect(d.lipStones).toBeLessThanOrEqual(360);
+    expect(d.footBoulders).toBeGreaterThanOrEqual(40);
+    expect(d.footBoulders).toBeLessThanOrEqual(90);
+    // dressing: false draws the shell alone
+    const bare = build({ dressing: false });
+    let n = 0;
+    bare.traverse((o) => { if (o.isMesh) { n++; expect(tris(o), o.name).toBe(t[o.name]); } });
+    expect(n).toBe(3);
+    expect(bare.userData.dressing).toEqual({ lipStones: 0, footBoulders: 0 });
+  }, 120_000);
+
+  it('lip stones sit on their lips', () => {
+    const arr = dressingOf('lips');
+    expect(arr.length).toBeGreaterThan(0);
+    const bad = [];
+    eachVertex(arr, (x, y, z) => {
+      const ok = LIPS.some((l) => {
+        if (!inRectE(l, x, z, 0.1)) return false;
+        const top = shapeY(l, Math.min(Math.max(x, l.minX), l.maxX), Math.min(Math.max(z, l.minZ), l.maxZ));
+        return y >= top - 0.2 && y <= top + 0.13;
+      });
+      if (!ok) bad.push(`(${x}, ${y}, ${z})`);
+    });
+    expect(bad.slice(0, 12)).toEqual([]);
+  });
+
+  it('cave and den mouths stay open: no foot boulder within 1 m of one', () => {
+    const mouths = [...gorgeShape.GORGE_CAVES.map((c) => c.mouth), ...gorgeShape.GORGE_DENS.map((d) => d.mouth), gorgeShape.CAMP_DEN.mouth];
+    expect(GORGE_ROCK_MOUTHS.map(({ x, z }) => ({ x, z }))).toEqual(mouths.map(({ x, z }) => ({ x, z })));
+    const bs = boulders();
+    expect(bs.length).toBe(terrain.userData.dressing.footBoulders);
+    for (const { vs, c } of bs) {
+      expect(vs).toHaveLength(12);
+      for (const m of mouths) expect(Math.sqrt((c[0] - m.x) ** 2 + (c[2] - m.z) ** 2), `${c} by ${m.x}, ${m.z}`).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  // A foot boulder shows only at the foot of a wall that rises a metre over
+  // the ground in front of it: every vertex is in rock, or within 0.12 m of
+  // rock that still stands a metre over that vertex's ground, and never in a
+  // cave or den (so none pokes through a lip onto the walk behind it, into a
+  // void, or out of thin rock's far side).
+  it('every foot boulder shows only at the foot of a tall wall', () => {
+    const walkTops = WALKS.filter((w) => w.kind !== 'lip');
+    const bad = [];
+    let exposed = 0;
+    for (const { vs } of boulders()) {
+      for (const [x, y, z] of vs) {
+        if (relief.rockAt(x, y, z)) continue;
+        exposed++;
+        let g = 0;
+        for (const s of walkTops) {
+          if (!inRectE(s, x, z)) continue;
+          const t = shapeY(s, x, z);
+          if (t <= y + 1e-6 && t > g) g = t;
+        }
+        const inVoid = CEILINGS.some((c) => inRectE(c, x, z) && y < c.y0);
+        const near = relief.wallNear(x, y, z, 0.12 + 1e-6) && relief.wallNear(x, g + 1.0 - 1e-3, z, 0.12 + 1e-6);
+        if (inVoid || !near) bad.push(`(${x}, ${y}, ${z}) ground ${g}${inVoid ? ' in a void' : ''}`);
+      }
+    }
+    expect(exposed).toBeGreaterThan(40);
+    expect(bad.slice(0, 12)).toEqual([]);
+  }, 120_000);
 
   it('scree is low, noCast and merged', () => {
     const spots = [{ x: 0, z: 0 }, { x: 3, z: -2 }, { x: -5, z: 6 }];

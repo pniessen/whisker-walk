@@ -574,13 +574,21 @@ const GROUND_COLOR = 0x5f5d52;
 
 // Where things stand on the rock's top, the relief leaves the top still (no
 // crest jag, no move): the goat's leap along the shoulder, (3.5..7.5, -16),
-// and where it lands and hides, (8, -12.5).
+// and where it lands and hides, (8, -12.5). Kept small (the relief fades back
+// in over a further metre): at r 1.2 the three goat-line discs froze the
+// shoulder's west crest dead straight.
 export const GORGE_ROCK_KEEP = Object.freeze([
-  { x: 8, z: -12.5, r: 1.2 },
-  { x: 3.5, z: -16, r: 1.2 },
-  { x: 5.5, z: -16, r: 1.2 },
-  { x: 7.5, z: -16, r: 1.2 },
+  { x: 8, z: -12.5, r: 1.0 },
+  { x: 3.5, z: -16, r: 0.6 },
+  { x: 5.5, z: -16, r: 0.6 },
+  { x: 7.5, z: -16, r: 0.6 },
 ].map(Object.freeze));
+
+// Every cave and den mouth, the camp den's too: no foot boulder is set
+// within a metre of one (builder.rockTerrain's `mouths`).
+export const GORGE_ROCK_MOUTHS = Object.freeze([
+  ...GORGE_CAVES.map((c) => c.mouth), ...GORGE_DENS.map((d) => d.mouth), CAMP_DEN.mouth,
+]);
 
 // The sky's passing flock flies at GORGE_BIRD_Y (34), over every 20 m rim and
 // the highest camera (G11); defined in gorgelife.js beside the wheeling birds.
@@ -599,6 +607,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the rock ---------------------------------------------------------------
   const rock = b.rockTerrain({
     walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
+    mouths: GORGE_ROCK_MOUTHS,
   });
   rock.name = 'gorgeRock';
   scene.add(rock);

@@ -2984,6 +2984,10 @@ export function toadstools(spots, seed) {
 //              sides, warm sand-grey, one plain material. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
 //              noCast: they are thin, and the sweep would cast anything wide.
+// The dressing (rockDressing, below) is appended to rockFaces and lips after
+// their shells: lip stones along every lip, boulders at the wall feet.
+// userData.shellTris counts the shells alone; userData.dressing counts
+// { lipStones, footBoulders }.
 // G4 names a 'stone' surface; materials.js has no such preset (it would warn
 // and fall back), so the rock takes 'cobble's light response, as tor() does.
 export const ROCK_LOW = 0x6f6a66;
@@ -3055,7 +3059,7 @@ function crossing(u0, u1, f0, f1) {
   return u0 + ((u1 - u0) * f0) / (f0 - f1);
 }
 
-export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, keep = [] }) {
+export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, keep = [], dressing = true, mouths = [] }) {
   const groundShapes = [...walks, ...masses];
   const caps = ceilings
     .map((c) => ({ ...c, top: capTopFor(c, masses) }))
@@ -3287,9 +3291,15 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
     return m;
   };
 
-  const meshOf = (verts, coloured) => {
-    const pos = new Float32Array(verts.length * 3);
-    const col = coloured ? new Float32Array(verts.length * 3) : null;
+  // The dressing, appended after the shells (see rockDressing below).
+  const dress = dressing
+    ? rockDressing({ walks, masses, ceilings, seed, mouths, field: field ?? createRockRelief({ walks, masses, ceilings, seed, keep }), rockColour })
+    : { rock: { pos: [], col: [] }, lip: { pos: [], col: [] }, lipStones: 0, footBoulders: 0 };
+
+  const meshOf = (verts, coloured, extra = { pos: [], col: [] }) => {
+    const n = verts.length * 3;
+    const pos = new Float32Array(n + extra.pos.length);
+    const col = coloured ? new Float32Array(n + extra.col.length) : null;
     verts.forEach((v, i) => {
       const m = moveOf(v);
       pos[3 * i] = v[0] + m.dx;
@@ -3297,6 +3307,8 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
       pos[3 * i + 2] = v[2] + m.dz;
       if (col) col.set(rockColour(v[0], v[1], v[2], m.recess), 3 * i);
     });
+    pos.set(extra.pos, n);
+    if (col) col.set(extra.col, n);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     if (col) geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -3306,20 +3318,239 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
   const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
   const group = new THREE.Group();
   group.name = 'rockTerrain';
-  const rockFaces = new THREE.Mesh(meshOf(conf.rock, true), rockMat());
+  const rockFaces = new THREE.Mesh(meshOf(conf.rock, true, dress.rock), rockMat());
   rockFaces.name = 'rockFaces';
   rockFaces.castShadow = true;
   const ledgeTops = new THREE.Mesh(meshOf(conf.ledge, false), surfNoMap(LEDGE_COLOR, 'cobble'));
   ledgeTops.name = 'ledgeTops';
   ledgeTops.castShadow = true;
-  const lips = new THREE.Mesh(meshOf(conf.lip, true), rockMat());
+  const lips = new THREE.Mesh(meshOf(conf.lip, true, dress.lip), rockMat());
   lips.name = 'lips';
   lips.castShadow = false;
   lips.userData.noCast = true;
   group.add(rockFaces, ledgeTops, lips);
   // The shell's triangles per mesh, before any dressing (appended after them).
   group.userData.shellTris = { rockFaces: conf.rock.length / 3, ledgeTops: conf.ledge.length / 3, lips: conf.lip.length / 3 };
+  group.userData.dressing = { lipStones: dress.lipStones, footBoulders: dress.footBoulders };
   return group;
+}
+
+// The rock's dressing (`dressing: false` leaves it out). Written as raw
+// triangles, already where they stand (after the shell's conforming and
+// relief: nothing here moves), appended to the merged meshes after their
+// shells, so no new mesh and no new draw call. Every choice is from the
+// integer hash (noise3 on whole lattice points), no trig, no random.
+//
+//   Lip stones (into `lips`): each lip is laid along its long axis with
+//   stones LIP_STONE_LEN long, LIP_JOINT apart (the last ones fitted to its
+//   end). A stone is a box of 12 triangles across the lip's 0.4 m plus 0.04
+//   to 0.10 each side, from 0.18 under the lip's top to 0.04..0.12 over it,
+//   following its ramp; its eight corners pulled toward the box's centre by
+//   0..0.05 per axis (never pushed out). Coloured as the rock at that
+//   height, x 0.9..1.05 a stone.
+//
+//   Foot boulders (into `rockFaces`): candidates every FOOT_STEP (+-1 m) along
+//   each mass and lip wall whose outward foot is walkable ground (a walk, or
+//   the floor) with no ceiling over it, where the rock rises 1 m or more
+//   over it. A boulder is the 12 icosahedron vertices (golden-ratio
+//   constants), each scaled 0.8..1.1, flattened x0.7 in y, re-centred on
+//   their mean, of radius 0.45..0.9; set so its farthest vertex stands
+//   FOOT_PROUD outward of the true wall plane, 30% of its height sunk below
+//   the ground. It is kept only where rock is at its centre 0.3 m up, it is
+//   a metre or more from every cave and den mouth, and every vertex is
+//   either in rock (and 0.3 m inside it along the wall and inward, so
+//   another face's relief can't bare it) or on its wall's open side, within
+//   FOOT_PROUD of the plane, over no cave or den, and with the wall still
+//   rock behind it at its height and a metre over its own ground. So none
+//   pokes through a lip onto the walk behind it, into a void, or out of
+//   thin rock's far side. At most FOOT_MAX, evenly picked.
+const LIP_STONE_LEN = [0.35, 0.75];
+const LIP_JOINT = [0.03, 0.08];
+const FOOT_STEP = 3.2;
+const FOOT_PROUD = 0.1195; // under 0.12 m, with room for the float32 positions
+const FOOT_MAX = 90;
+const PHI = (1 + Math.sqrt(5)) / 2;
+// The 12 icosahedron vertices (THREE's order) on the unit sphere, and its 20 faces.
+const ICO = [
+  [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0],
+  [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
+  [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1],
+].map((v) => v.map((c) => c / Math.sqrt(1 + PHI * PHI)));
+const ICO_FACES = [
+  [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+  [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+];
+// A box's 12 triangles over its corners, corner index iu + 2 iv + 4 iw.
+const STONE_FACES = [[0, 2, 6, 4], [1, 3, 7, 5], [0, 1, 5, 4], [2, 3, 7, 6], [0, 1, 3, 2], [4, 5, 7, 6]];
+
+function rockDressing({ walks, masses, ceilings, seed, mouths, field, rockColour }) {
+  const out = { rock: { pos: [], col: [] }, lip: { pos: [], col: [] }, lipStones: 0, footBoulders: 0 };
+  // A hash in [0, 1) at a whole lattice point.
+  const H = (i, j, k, salt) => noise3(i, j, k, seed + salt);
+  // One triangle wound outward of c, coloured as the rock at each vertex's height x shade.
+  const put = (bin, a, p, q, c, shade) => {
+    const ux = p[0] - a[0], uy = p[1] - a[1], uz = p[2] - a[2];
+    const vx = q[0] - a[0], vy = q[1] - a[1], vz = q[2] - a[2];
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    const mx = (a[0] + p[0] + q[0]) / 3 - c[0];
+    const my = (a[1] + p[1] + q[1]) / 3 - c[1];
+    const mz = (a[2] + p[2] + q[2]) / 3 - c[2];
+    const tri = nx * mx + ny * my + nz * mz >= 0 ? [a, p, q] : [a, q, p];
+    for (const v of tri) {
+      out[bin].pos.push(v[0], v[1], v[2]);
+      const k = rockColour(v[0], v[1], v[2], 0);
+      out[bin].col.push(k[0] * shade, k[1] * shade, k[2] * shade);
+    }
+  };
+
+  // ---- lip stones ----
+  walks.filter((w) => w.kind === 'lip').forEach((l, li) => {
+    const alongZ = l.maxZ - l.minZ >= l.maxX - l.minX;
+    const u1 = alongZ ? l.maxZ : l.maxX;
+    const v0 = alongZ ? l.minX : l.minZ;
+    const v1 = alongZ ? l.maxX : l.maxZ;
+    // (along, across, height over the lip's top) to the world
+    const world = (u, v, w) => {
+      const x = alongZ ? v : u;
+      const z = alongZ ? u : v;
+      return [x, shapeY(l, x, z) + w, z];
+    };
+    const [LMIN, LMAX] = LIP_STONE_LEN;
+    let u = alongZ ? l.minZ : l.minX;
+    for (let k = 0; u1 - u > 1e-6; k++) {
+      const r = u1 - u;
+      let len = LMIN + (LMAX - LMIN) * H(li, k, 0, 101);
+      let joint = LIP_JOINT[0] + (LIP_JOINT[1] - LIP_JOINT[0]) * H(li, k, 1, 101);
+      if (r <= LMAX) {
+        len = r; // the last stone takes the rest (never under LMIN: see below)
+        joint = 0;
+      } else {
+        // leave at least LMIN for the stones after this one
+        joint = Math.min(joint, r - 2 * LMIN);
+        len = Math.min(len, r - joint - LMIN);
+      }
+      const a0 = [u, v0 - (0.04 + 0.06 * H(li, k, 2, 101)), -0.18];
+      const a1 = [u + len, v1 + (0.04 + 0.06 * H(li, k, 3, 101)), 0.04 + 0.08 * H(li, k, 4, 101)];
+      const mid = [0, 1, 2].map((d) => (a0[d] + a1[d]) / 2);
+      const corners = [];
+      for (let i = 0; i < 8; i++) {
+        const p = [i & 1 ? a1[0] : a0[0], i & 2 ? a1[1] : a0[1], i & 4 ? a1[2] : a0[2]];
+        for (let d = 0; d < 3; d++) p[d] += Math.sign(mid[d] - p[d]) * 0.05 * H(li, k, 10 + 3 * i + d, 101);
+        corners.push(world(...p));
+      }
+      const c = world(...mid);
+      const shade = 0.9 + 0.15 * H(li, k, 5, 101);
+      for (const [p, q, s, t] of STONE_FACES) {
+        put('lip', corners[p], corners[q], corners[s], c, shade);
+        put('lip', corners[p], corners[s], corners[t], c, shade);
+      }
+      out.lipStones++;
+      u += len + joint;
+    }
+  });
+
+  // ---- foot boulders ----
+  const groundShapes = [...walks, ...masses];
+  const walkable = (s) => s.kind === 'walk' || s.kind === 'cave' || s.kind === 'den';
+  const inside = (s, x, z) => x > s.minX && x < s.maxX && z > s.minZ && z < s.maxZ;
+  const inClosed = (s, x, z) => x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ;
+  const covered = (x, z) => ceilings.some((c) => inClosed(c, x, z));
+  // the highest walkable top under (x, z) at or below y, else the floor
+  const walkTop = (x, y, z) => {
+    let g = 0;
+    for (const s of walks) {
+      if (s.kind === 'lip' || !inClosed(s, x, z)) continue;
+      const t = shapeY(s, x, z);
+      if (t <= y + 1e-6 && t > g) g = t;
+    }
+    return g;
+  };
+  const frame = {
+    minX: Math.min(...groundShapes.map((s) => s.minX)),
+    maxX: Math.max(...groundShapes.map((s) => s.maxX)),
+    minZ: Math.min(...groundShapes.map((s) => s.minZ)),
+    maxZ: Math.max(...groundShapes.map((s) => s.maxZ)),
+  };
+  const kept = [];
+  const walls = [...masses, ...walks.filter((w) => w.kind === 'lip')];
+  walls.forEach((s, si) => {
+    const edges = [
+      { axis: 'x', at: s.minX, dir: -1, t0: s.minZ, t1: s.maxZ, onFrame: s.minX <= frame.minX },
+      { axis: 'x', at: s.maxX, dir: 1, t0: s.minZ, t1: s.maxZ, onFrame: s.maxX >= frame.maxX },
+      { axis: 'z', at: s.minZ, dir: -1, t0: s.minX, t1: s.maxX, onFrame: s.minZ <= frame.minZ },
+      { axis: 'z', at: s.maxZ, dir: 1, t0: s.minX, t1: s.maxX, onFrame: s.maxZ >= frame.maxZ },
+    ];
+    edges.forEach((e, ei) => {
+      if (e.onFrame) return;
+      // world (x, z) of t along the edge, `off` outward of it
+      const xz = (t, off) => (e.axis === 'x' ? [e.at + e.dir * off, t] : [t, e.at + e.dir * off]);
+      for (let k = 0; ; k++) {
+        const t = e.t0 + FOOT_STEP / 2 + FOOT_STEP * k + (2 * H(si, ei, k, 202) - 1);
+        if (t >= e.t1) break;
+        if (t <= e.t0) continue;
+        // the foot: walkable ground just outside, no ceiling over it
+        const [fx, fz] = xz(t, 0.05);
+        let top = 0;
+        let ok = true;
+        for (const g of groundShapes) {
+          if (!inside(g, fx, fz)) continue;
+          const y = shapeY(g, fx, fz);
+          if (y > top + 1e-9) { top = y; ok = walkable(g); } else if (y > top - 1e-9 && !walkable(g)) ok = false;
+        }
+        if (!ok || covered(fx, fz)) continue;
+        const [wx, wz] = xz(t, -0.05);
+        if (shapeY(s, wx, wz) - top < 1.0) continue;
+        // the shape, about its own mean
+        const R = 0.45 + 0.45 * H(si, ei, k, 203);
+        let local = ICO.map((v, i) => {
+          const sc = R * (0.8 + 0.3 * H(si * 16 + ei, k, i, 204));
+          return [v[0] * sc, v[1] * sc * 0.7, v[2] * sc];
+        });
+        const mean = [0, 1, 2].map((d) => local.reduce((a, v) => a + v[d], 0) / local.length);
+        local = local.map((v) => [v[0] - mean[0], v[1] - mean[1], v[2] - mean[2]]);
+        const ai = e.axis === 'x' ? 0 : 2; // the outward axis
+        let maxOut = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (const v of local) {
+          maxOut = Math.max(maxOut, v[ai] * e.dir);
+          minY = Math.min(minY, v[1]);
+          maxY = Math.max(maxY, v[1]);
+        }
+        const [cx, cz] = xz(t, FOOT_PROUD - maxOut);
+        const cy = top - minY - 0.3 * (maxY - minY);
+        if (!field.rockAt(cx, top + 0.3, cz)) continue;
+        if (mouths.some((m) => (cx - m.x) ** 2 + (cz - m.z) ** 2 < 1.01 * 1.01)) continue;
+        const verts = local.map((v) => [cx + v[0], cy + v[1], cz + v[2]]);
+        const safe = verts.every((v) => {
+          const [x, y, z] = v.map(Math.fround); // as drawn
+          const d = ((ai === 0 ? x : z) - e.at) * e.dir; // outward of the plane
+          const inward = (dd) => (ai === 0 ? [x - e.dir * dd, z] : [x, z - e.dir * dd]);
+          if (field.rockAt(x, y, z)) {
+            // buried: 0.3 m inside along the wall both ways and inward
+            const side = ai === 0 ? [[x, z + 0.3], [x, z - 0.3]] : [[x + 0.3, z], [x - 0.3, z]];
+            const [ix, iz] = inward(Math.max(0, d) + 0.3);
+            return field.rockAt(ix, y, iz) && side.every(([sx, sz]) => field.rockAt(sx, y, sz));
+          }
+          if (d < 0 || d > FOOT_PROUD + 1e-6 || covered(x, z)) return false;
+          const [px, pz] = inward(d + 0.01); // just behind the plane, at its height
+          return field.rockAt(px, y, pz) && field.rockAt(px, walkTop(x, y, z) + 1.0, pz);
+        });
+        if (!safe) continue;
+        kept.push({ verts, c: [cx, cy, cz], shade: 0.9 + 0.15 * H(si, ei, k, 205) });
+      }
+    });
+  });
+  // at most FOOT_MAX, evenly picked from the list
+  const n = Math.min(FOOT_MAX, kept.length);
+  for (let i = 0; i < n; i++) {
+    const { verts, c, shade } = kept[Math.floor((i * kept.length) / n)];
+    for (const [a, p, q] of ICO_FACES) put('rock', verts[a], verts[p], verts[q], c, shade);
+    out.footBoulders++;
+  }
+  return out;
 }
 
 // Scree: loose stones at the foot of the rock. Each spot is a cluster of three
