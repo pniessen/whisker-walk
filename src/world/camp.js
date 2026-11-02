@@ -23,6 +23,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { DISCS } from '../rivalclans.js';
 import { castFor } from '../clancast.js';
 import { seatOnGround } from '../ground.js';
+import { seedFromCode, mulberry32 } from '../rng.js';
 
 // One turn per camp (radians): the direction from the camp's centre to the den.
 // Hand-probed against the built maps in 15-degree steps, starting from the
@@ -147,6 +148,106 @@ export function campDiscs(areaId) {
   if (!L) return [];
   const rock = { x: L.rock.x, z: L.rock.z, r: L.rock.r };
   return L.den.cave ? [rock] : [{ x: L.den.x, z: L.den.z, r: L.den.r }, rock];
+}
+
+// ---------------------------------------------------------------------------
+// The camp's dressing (polish-camps): a low bramble ring round the camp with
+// one gap, a sandy clearing inside it, a moss nest under each elder and kit,
+// and a fresh-kill pile beside the leader's rock. All of it is visual only:
+// no collider, no seat, no route changes. campDressing is pure (no THREE) and
+// seeded from the area id alone (never walkRng), so every device agrees.
+const RING_IN = 0.6;          // the ring's radius: disc.r - 0.6
+const RING_GAP_HALF = 0.33;   // radians either side of the gap's centre
+const RING_STEP = 0.55;       // metres of arc per clump
+const RING_JITTER = 0.12;     // ± radial jitter, metres
+const CLUMP_S = [0.8, 1.2];
+const CLUMP_H = [0.3, 0.55];
+// A clump's footprint at s = 1 (the drawn clump's horizontal radius is
+// CLUMP_R · s). A clump is dropped where it would meet a collider, with
+// 0.25 m at least (CLUMP_R · s + 0.05, which is 0.21 to 0.29 m).
+export const CLUMP_R = 0.2;
+const CLUMP_SEAT_GAP = 0.5;   // from any seat, and from the den's and rock's edges
+const CLEARING_IN = 0.7;      // the clearing's radius: ring.r - 0.7
+const NEST_R = 0.4;
+// The fresh-kill pile: tried at these distances from the rock's centre and
+// turns off its centre-ward direction, first fit wins (the deputy stands
+// straight centre-ward, so the pile sits to one side of her).
+const KILL_D = [1.1, 1.3, 1.5];
+const KILL_TURNS = [0.9, -0.9, 1.2, -1.2, 0.6, -0.6, 1.45, -1.45];
+const KILL_SEAT_GAP = 0.6;
+const KILL_EDGE_GAP = 0.3;
+// A ledge camp's pile is authored: on the Wide Ledge (y 8), 1.2 m off the
+// deputy and 1.03 m off the rock's edge, to the deputy's south.
+const LEDGE_KILL = frozen({ gorge: frozen({ x: 9.4, z: 42.7 }) });
+
+/**
+ * campDressing(areaId, colliders = []) -> null | {
+ *   ring: null | { r, gap: { a, half }, clumps: [{ x, z, s, h, rot }] },
+ *   clearing: null | { x, z, r }, nests: [{ x, z, r }], kill: { x, z } }
+ *
+ * The camp's dressing, positions only. `colliders` is the area's collider
+ * list as addCamp sees it: a clump that would meet one is dropped (every slot
+ * draws its numbers first, so a dropped clump never shifts the others). Every
+ * clump keeps 0.5 m off every seat and off the den's and the rock's edges. The
+ * ring's gap is centred on CAMP_TURN + π, the side away from the den. A ledge
+ * camp has no ring and no clearing. Null where campLayout is null. A fresh
+ * object every call.
+ */
+export function campDressing(areaId, colliders = []) {
+  const L = campLayout(areaId);
+  if (!L) return null;
+  const seats = [L.seats.leader, L.seats.deputy, ...L.seats.elders, ...L.seats.kits];
+  const nests = [...L.seats.elders, ...L.seats.kits].map((s) => ({ x: s.x, z: s.z, r: NEST_R }));
+  if (L.den.cave) {
+    return { ring: null, clearing: null, nests, kill: { ...LEDGE_KILL[areaId] } };
+  }
+  const { cx, cz, r } = DISCS[areaId];
+  const near = (p, q) => Math.hypot(p.x - q.x, p.z - q.z);
+  const cols = Array.isArray(colliders) ? colliders : [];
+
+  const ringR = r - RING_IN;
+  const gapA = CAMP_TURN[areaId] + Math.PI;
+  const span = Math.PI * 2 - RING_GAP_HALF * 2;
+  const n = Math.round((span * ringR) / RING_STEP);
+  const rng = mulberry32(seedFromCode(`camp-${areaId}`));
+  const lerp = ([lo, hi], t) => lo + (hi - lo) * t;
+  const clumps = [];
+  for (let i = 0; i < n; i++) {
+    // slot centres strictly inside the arc, half a step in from each gap edge
+    const a = gapA + RING_GAP_HALF + ((i + 0.5) / n) * span;
+    const d = ringR + (rng() * 2 - 1) * RING_JITTER;
+    const s = lerp(CLUMP_S, rng());
+    const h = lerp(CLUMP_H, rng());
+    const rot = rng() * Math.PI * 2;
+    const c = { x: cx + Math.cos(a) * d, z: cz + Math.sin(a) * d, s, h, rot };
+    if (seats.some((p) => near(c, p) < CLUMP_SEAT_GAP)) continue;
+    if ([L.den, L.rock].some((p) => near(c, p) - p.r < CLUMP_SEAT_GAP)) continue;
+    if (cols.some((k) => near(c, k) < k.r + CLUMP_R * s + 0.05)) continue;
+    clumps.push(c);
+  }
+
+  const toCentre = Math.atan2(cz - L.rock.z, cx - L.rock.x);
+  let kill = null;
+  for (const d of KILL_D) {
+    for (const t of KILL_TURNS) {
+      const p = { x: L.rock.x + Math.cos(toCentre + t) * d, z: L.rock.z + Math.sin(toCentre + t) * d };
+      if (seats.some((q) => near(p, q) < KILL_SEAT_GAP)) continue;
+      if ([L.den, L.rock, ...cols].some((k) => near(p, k) - k.r < KILL_EDGE_GAP)) continue;
+      kill = p;
+      break;
+    }
+    if (kill) break;
+  }
+  // Every camp fits at the first try (campdressing.test.js); the fallback is
+  // the first spot, so a future layout change still draws a pile.
+  if (!kill) kill = { x: L.rock.x + Math.cos(toCentre + KILL_TURNS[0]) * KILL_D[0], z: L.rock.z + Math.sin(toCentre + KILL_TURNS[0]) * KILL_D[0] };
+
+  return {
+    ring: { r: ringR, gap: { a: gapA, half: RING_GAP_HALF }, clumps },
+    clearing: { x: cx, z: cz, r: ringR - CLEARING_IN },
+    nests,
+    kill,
+  };
 }
 
 const BRAMBLE = 0x3b5e2e; // builder.brambleBed's green
