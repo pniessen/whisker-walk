@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import { fingerprintCat, buildFor, goldenKeys, hagridKeys } from './helpers/catfingerprint.js';
 
 // Pins today's cat model. Regenerate deliberately: UPDATE_GOLDEN=1 npx vitest run test/catgolden.test.js
-// hagrid-golden.json is write-once (the chicken must never change).
+// hagrid-golden.json is write-once. The chicken changed once, on purpose, in the
+// 2026-11-01 body refinement (regenerated 2026-11-02 with the owner's
+// sign-off); it is write-once again from here (written only if missing).
 const GOLDEN_FILE = new URL('./fixtures/catgolden.json', import.meta.url);
 const HAGRID_FILE = new URL('./fixtures/hagrid-golden.json', import.meta.url);
 
@@ -19,7 +21,7 @@ describe('cat golden fingerprints', () => {
   it.each(goldenKeys())('%s matches its golden fingerprint', (key) => {
     expect(fingerprintCat(buildFor(key))).toEqual(GOLDEN[key]);
   });
-  it.each(hagridKeys())('%s never changes (built and animated)', (key) => {
+  it.each(hagridKeys())('%s matches its golden (write-once since the 2026-11-01 body refinement; built and animated)', (key) => {
     expect(fingerprintCat(buildFor(key))).toEqual(HAGRID[key]);
   });
   it('every key builds byte-identically twice', () => {

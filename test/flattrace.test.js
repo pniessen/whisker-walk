@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 // yarn ball), and records every 10th frame as Number#toString strings. Every
 // later task re-proves the fixture byte-identical. NEVER re-record it after
 // Task 1 (UPDATE_TRACE=1 is for Task 1 only).
+// 2026-11-02: re-recorded once for the body refinement, after an isolation
+// check proved the change came only from three.js id draws in cat builds.
 //
 // What runs, in main.js's frame order: player.update, critters, strays, clan
 // cats (the four territories), intruders (a fixed clock with a visit on the
