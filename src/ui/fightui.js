@@ -45,7 +45,7 @@ const pips = (n) => {
   const on = count(n);
   return [0, 1].map((i) => (i < on ? `<span class="pip on">${PAW_ON}</span>` : `<span class="pip">${PAW_OFF}</span>`)).join('');
 };
-const side = (who, n) => `<span class="fight-side" aria-label="${who}: ${count(n)} of 2">${who} ${pips(n)}</span>`;
+const side = (who, n) => `<span class="fight-side" role="img" aria-label="${who}: ${count(n)} of 2">${who} ${pips(n)}</span>`;
 
 // The clue icon a special answers, shown on its own button so the hint is
 // always there (Rolling Tumble answers anything).

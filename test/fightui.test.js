@@ -178,6 +178,9 @@ describe('the fight sheet', () => {
     expect(html).not.toMatch(/class="pip[^"]*">🐾/);
     expect(you).toContain('aria-label="You: 1 of 2"');
     expect(it).toContain('aria-label="It: 0 of 2"');
+    // a plain span's aria-label is not read out; as an image it is
+    expect(you).toMatch(/^<span class="fight-side" role="img" aria-label=/);
+    expect(it).toMatch(/^<span class="fight-side" role="img" aria-label=/);
     expect(you).toContain('You');
   });
 
