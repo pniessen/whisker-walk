@@ -1027,3 +1027,138 @@ describe('the Gorge: every random spot stands where a cat can walk', () => {
     expect(walkSrc).toMatch(/createCritters\(scene, areaData\.critterSpawns, \{[\s\S]*?area: areaData,\n    \}\);/);
   });
 });
+
+// Final review I1: the rain's extra puddles land on the clifftop and the
+// ledges as well as the floor, so each is drawn on the ground under it, none
+// is ever under a roof, and a puddle only chills the paws on its own level.
+const { puddle: puddleMesh } = await import('../src/world/builder.js');
+const { createAvatarUpdater } = await import('../src/game/avatar.js');
+const { buildCat } = await import('../src/cat/model.js');
+const { createProgression } = await import('../src/progression.js');
+const { createWaterState } = await import('../src/waterstate.js');
+const { surfaceAt } = await import('../src/render/pawprints.js');
+describe('the Gorge: rain puddles sit on their own ground', () => {
+  // A puddle on the clifftop just past its west lip, and a floor spot 0.7 m
+  // west of it, under the cliff: inside the puddle on the map.
+  const TOP_PUDDLE = Object.freeze({ x: 2.6, z: -30, r: 0.8 });
+  const UNDER = { x: 1.9, z: -30 };
+
+  it('every rain puddle is drawn on the ground under it, and none under a roof', () => {
+    const bad = [];
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const p of rainPuddleSpots(area, mulberry32(seed))) {
+        const y = area.ground.y(p.x, p.z);
+        const mesh = puddleMesh(p.x, p.z, p.r, p.y);
+        if (Math.abs(mesh.position.y - y) > 0.05) bad.push(`seed ${seed} (${p.x.toFixed(2)}, ${p.z.toFixed(2)}) drawn at ${mesh.position.y.toFixed(2)} over ground ${y}`);
+        if (area.ground.ceil(p.x, p.z) !== Infinity) bad.push(`seed ${seed} (${p.x.toFixed(2)}, ${p.z.toFixed(2)}) under a roof`);
+      }
+    }
+    expect(bad.slice(0, 12)).toEqual([]);
+  });
+
+  it('walk.js draws each rain puddle at its spot\'s height', () => {
+    const walkSrc = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
+    expect(walkSrc).toContain('scene.add(puddleProp(p.x, p.z, p.r, p.y))');
+  });
+
+  // updateAvatar driven for real with a stand-in session (the
+  // test/avatarwater.test.js harness, on the Gorge's ground).
+  function puddleHarness() {
+    const cat = buildCat('tabby');
+    const toasts = [];
+    const player = {
+      perchY: 0, hopY: 0, speed: 0, speedFactor: 1, inputActive: false, stalking: false,
+      swimming: false, wading: false, inWater: false, shaking: false, waterState: createWaterState(),
+      forward: () => new THREE.Vector3(0, 0, -1),
+    };
+    const { updateAvatar } = createAvatarUpdater({
+      player, progression: createProgression({ getItem: () => null, setItem() {} }),
+      settings: { get: () => false }, log: { awardOnce: () => 0, award: () => 0 },
+      hud: { toast: (m) => toasts.push(m) },
+      audio: { landThump() {}, bell() {}, fanfare() {}, purr() {}, step() {}, waterSplash() {} },
+      petNameFor: () => 'x', completeTag() {}, noteBat() {},
+    });
+    const s = {
+      cat, perched: null, net: null, chasing: null, rest: null, ground: area.ground,
+      freezeTime: 0, pounceTime: 0, pounceCooldown: 0, landTime: 0, idleTime: 0,
+      stepPhase: 0, stretchTime: 0, sniffTime: 0, boxTime: 0, pose: 'follow',
+      balkedPuddles: new Set(), toy: { active: false }, toyGhost: { visible: false },
+      groomTimers: new Map(), remotes: { list: [] }, fx: { burst() {} },
+      areaData: { puddles: [TOP_PUDDLE], boxes: [] },
+      critters: { setFleeModifier() {}, markStalked() {}, catchAt: () => null, pounceCatch: () => null },
+    };
+    const standAt = (x, z) => {
+      cat.position.set(x, area.ground.y(x, z), z);
+      updateAvatar(s, 1 / 60, 1);
+    };
+    return { s, toasts, standAt };
+  }
+
+  it('a cat on the floor under a clifftop puddle feels no cold paws', () => {
+    expect(area.ground.y(TOP_PUDDLE.x, TOP_PUDDLE.z)).toBe(CLIFFTOP);
+    expect(area.ground.y(UNDER.x, UNDER.z)).toBe(0);
+    expect(Math.hypot(TOP_PUDDLE.x - UNDER.x, TOP_PUDDLE.z - UNDER.z)).toBeLessThan(TOP_PUDDLE.r);
+    const under = puddleHarness();
+    under.standAt(UNDER.x, UNDER.z);
+    expect(under.toasts).toEqual([]);
+    expect(under.s.freezeTime).toBe(0);
+    // ...and one on the clifftop, in it, does
+    const inIt = puddleHarness();
+    inIt.standAt(TOP_PUDDLE.x + 0.3, TOP_PUDDLE.z);
+    expect(inIt.toasts).toEqual(['Brrr — cold paws! 💦']);
+    expect(inIt.s.freezeTime).toBeCloseTo(0.8, 6);
+  });
+
+  it('a print on the floor under a clifftop puddle is still pressed', () => {
+    // a path strip over both spots, so a print there is 'sand' unless a puddle takes it
+    const strip = { x: 2, z: -30, ux: 1, uz: 0, halfL: 3, halfW: 3, path: true };
+    const areaData = { ground: area.ground, puddles: [TOP_PUDDLE] };
+    expect(surfaceAt('gorge', areaData, [strip], UNDER.x, UNDER.z)).toBe('sand');
+    expect(surfaceAt('gorge', areaData, [strip], TOP_PUDDLE.x + 0.3, TOP_PUDDLE.z)).toBeNull();
+  });
+});
+
+// Final review I2 (ruling F35): the Snug Cave is out of STAND_ON until part 3
+// gives its homed cave cat a rectangle of its own, so no stray or ghost
+// spawns, wanders to or walks into a cave or den.
+describe('the Gorge: no stray or ghost goes under a roof', () => {
+  const ghostProfile = (id) => ({ playerId: id, petName: id, breed: 'tabby', accessories: {}, greets: 2 });
+  const FAR_CAT = new THREE.Vector3(-44, 0, -11);
+  const roofed = (x, z) => area.ground.ceil(x, z) !== Infinity;
+
+  it('none is ever under a finite ceiling: spawns, targets and a short walk, over 200 seeds', () => {
+    const bad = [];
+    const check = (what, x, z) => { if (roofed(x, z)) bad.push(`${what} (${x.toFixed(2)}, ${z.toFixed(2)})`); };
+    const random = vi.spyOn(Math, 'random');
+    try {
+      for (let seed = 1; seed <= 200; seed++) {
+        random.mockImplementation(mulberry32(2000 + seed)); // the ghosts' wander, seeded
+        const strays = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed });
+        const ghosts = createGhosts(new THREE.Scene(), area, [ghostProfile('g1'), ghostProfile('g2')], mulberry32(seed));
+        for (const [i, s] of strays.strays.entries()) check(`seed ${seed} stray ${i} spawn`, s.group.position.x, s.group.position.z);
+        for (const [i, g] of ghosts.list.entries()) check(`seed ${seed} ghost ${i} spawn`, g.group.position.x, g.group.position.z);
+        for (let f = 0; f < 100; f++) {
+          strays.update(0.1, f * 0.1, FAR_CAT, {});
+          ghosts.update(0.1, f * 0.1);
+          for (const [i, s] of strays.strays.entries()) {
+            check(`seed ${seed} stray ${i}`, s.group.position.x, s.group.position.z);
+            if (s.target) check(`seed ${seed} stray ${i} target`, s.target.x, s.target.z);
+          }
+          for (const [i, g] of ghosts.list.entries()) check(`seed ${seed} ghost ${i}`, g.group.position.x, g.group.position.z);
+        }
+      }
+    } finally {
+      random.mockRestore();
+    }
+    expect([...new Set(bad)].slice(0, 12)).toEqual([]);
+  });
+
+  it('STAND_ON holds no cave or den', () => {
+    for (const r of STAND_ON) {
+      for (const h of GORGE_KEEP_CLEAR_RECTS) {
+        const overlap = Math.min(r.maxX, h.maxX) > Math.max(r.minX, h.minX) && Math.min(r.maxZ, h.maxZ) > Math.max(r.minZ, h.minZ);
+        expect(overlap, `STAND_ON ${JSON.stringify(r)} over ${JSON.stringify(h)}`).toBe(false);
+      }
+    }
+  });
+});

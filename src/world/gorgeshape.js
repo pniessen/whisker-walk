@@ -252,14 +252,15 @@ function groundCeilings() {
   return out.map(Object.freeze);
 }
 
-// Where strays and ghosts may stand (G7).
+// Where strays and ghosts may stand (G7): open ground only, under no roof.
+// No cave or den is here (ruling F35): the Snug Cave's corridor isn't, so a
+// stray let into its bend and chamber was held there all walk. Part 3 gives
+// only the cave's homed cat a rectangle of its own.
 export const STAND_ON = Object.freeze([
   { minX: -18, maxX: 2, minZ: -50, maxZ: 50 }, // the floor
   { minX: 2, maxX: 5.4, minZ: 34, maxZ: 50 }, // the approach
   { minX: -50, maxX: -18, minZ: -16, maxZ: -6 }, // the Narrows
   { minX: 2.4, maxX: 34, minZ: -40, maxZ: -18 }, // the clifftop
-  { minX: 21, maxX: 24, minZ: 12, maxZ: 21.7 }, // the Snug Cave's bend...
-  { minX: 19, maxX: 26, minZ: 7, maxZ: 12 }, // ...and chamber, for part 3's cave cat
 ].map(Object.freeze));
 
 export const GORGE_GROUND_SPEC = Object.freeze({

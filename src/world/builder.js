@@ -1792,10 +1792,11 @@ export function lampPost(x, z) {
 // an animated normal map, a depth ramp and a foam band, all of which are for a
 // body of water with a shoreline, and none of which a 0.8m disc can afford or
 // wants.
-export function puddle(x, z, r = 0.8) {
+// `y` is the ground under it (0 on a flat map; the rain's puddles pass it).
+export function puddle(x, z, r = 0.8, y = 0) {
   const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), surfMat(0x8ab8d8, 'water'));
   m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.02, z);
+  m.position.set(x, y + 0.02, z);
   return m;
 }
 

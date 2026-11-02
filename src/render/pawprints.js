@@ -165,8 +165,10 @@ export function surfaceAt(areaId, areaData, strips, x, z) {
     if (onAnyDeck(waters, x, z)) return null;
     if (waterClearance(waters, x, z) < 0) return null;
   }
+  // a puddle on another level (a ledge over the floor) doesn't wet this paw
+  const ground = groundOf(areaData);
   for (const p of areaData?.puddles ?? []) {
-    if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r) return null;
+    if ((x - p.x) ** 2 + (z - p.z) ** 2 < p.r * p.r && ground.sameLevel(x, z, p.x, p.z)) return null;
   }
   // A non-path strip (a sidewalk, the boardwalk) sits ON TOP of any path it
   // crosses, so it wins; among paths any one will do.

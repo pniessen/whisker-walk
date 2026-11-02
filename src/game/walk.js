@@ -658,9 +658,9 @@ export function createWalkLifecycle({
         // and three of them per rainy walk would be three more animated
         // materials on the per-frame update list for no visible gain.
         // Their spots: weather.js's rainPuddleSpots, on ground a cat can
-        // stand on (G7).
+        // stand on (G7), each drawn on the ground under it (p.y).
         const extra = rainPuddleSpots(areaData, walkRng);
-        for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r));
+        for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r, p.y));
         areaData.puddles = [...areaData.puddles, ...extra];
         // birds shelter from rain: halve bird-type spawns
         let keep = false;

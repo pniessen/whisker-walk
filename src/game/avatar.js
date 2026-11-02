@@ -298,6 +298,9 @@ export function createAvatarUpdater({
     for (const pd of s.areaData.puddles) {
       const inPuddle = Math.hypot(pd.x - cat.position.x, pd.z - cat.position.z) < pd.r + 0.2;
       if (!inPuddle) continue;
+      // A puddle on a ledge or the clifftop is not underfoot for a cat on
+      // the floor below it (or above it). Always true on flat ground.
+      if (s.ground && !s.ground.sameLevel(cat.position.x, cat.position.z, pd.x, pd.z)) continue;
       const key = `puddle-${pd.x}-${pd.z}`;
       if (progression.state.equipped.feet === 'booties') {
         log.awardOnce('perk', key, 'a joyful puddle splash');

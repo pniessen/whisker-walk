@@ -247,8 +247,8 @@ describe('the Gorge shape', () => {
 
   it('STAND_ON and the corner map shapes', () => {
     expect(STAND_ON.map((r) => [r.minX, r.maxX, r.minZ, r.maxZ])).toEqual([
-      [-18, 2, -50, 50], [2, 5.4, 34, 50], [-50, -18, -16, -6], [2.4, 34, -40, -18], [21, 24, 12, 21.7], [19, 26, 7, 12],
-    ]);
+      [-18, 2, -50, 50], [2, 5.4, 34, 50], [-50, -18, -16, -6], [2.4, 34, -40, -18],
+    ]); // no Snug Cave (ruling F35): part 3 gives its homed cat its own rectangle
     const shapes = mapShapes();
     expect(shapes.every((s) => s.tone === 'rock' || s.tone === 'ledge')).toBe(true);
     expect(shapes.filter((s) => s.tone === 'rock').length).toBeGreaterThanOrEqual(MASSES.length);
