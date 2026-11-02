@@ -1270,6 +1270,42 @@ describe('the Gorge: the Snug Cave\'s cat', () => {
     expect(names.size).toBeGreaterThan(1);
   });
 
+  it('a fed cave cat keeps its cave, and the cave is not given to another', () => {
+    // Ruling C-F10: she feeds the Snug Cave's cat, so it joins the colony,
+    // saved where she fed it. Next walk it stands at home under the roof and
+    // stays within its roam, and no ordinary stray is homed. The stream is
+    // drawn exactly as before, and two co-walkers see the same cats.
+    const [home] = area.strayHomes;
+    const FAR_CAT = new THREE.Vector3(-44, 0, -11);
+    const counted = (seed) => { const r = strayStream(seed); let n = 0; const f = () => { n++; return r(); }; f.count = () => n; return f; };
+    for (const seed of [12345, 1, 2]) {
+      for (const [fx, fz] of [[22.5, 9.5], [23.2, 10.4], [22.4, 13]]) { // fed in the chamber, and in the bend
+        const first = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+        const caveCat = first.strays.find((c) => c.roam !== null);
+        const colonyCats = [{ name: caveCat.name, x: fx, z: fz, wear: null }];
+        const rngs = [counted(seed), counted(seed)];
+        const [one, two] = rngs.map((rng) => createStrayCats(new THREE.Scene(), area, 22, rng, { roomSeed: seed, homes: area.strayHomes, colonyCats }));
+        const where = `seed ${seed} fed at (${fx}, ${fz})`;
+        for (const rng of rngs) expect(rng.count(), where).toBe(47 + 5 * 22);
+        const s = one.strays.find((c) => c.name === caveCat.name);
+        expect(s.colony, where).toBe(true);
+        expect([s.group.position.x, s.group.position.z], where).toEqual([home.x, home.z]);
+        expect(s.group.position.y, where).toBe(snug.y);
+        expect(s.roam, where).toBe(home.roam);
+        // no ordinary stray is homed: the cave is still its cat's
+        expect(one.strays.filter((c) => c.roam !== null).map((c) => c.name), where).toEqual([caveCat.name]);
+        const look = (c) => [c.name, c.group.position.x, c.group.position.z, c.roam];
+        expect(two.strays.map(look), where).toEqual(one.strays.map(look));
+        for (let f = 0; f < 3000; f++) {
+          one.update(1 / 30, f / 30, FAR_CAT, {});
+          const p = s.group.position;
+          expect(Math.hypot(p.x - home.x, p.z - home.z), `${where} frame ${f}`).toBeLessThanOrEqual(home.roam + 1e-6);
+          expect(area.ground.ceil(p.x, p.z), `${where} frame ${f}`).not.toBe(Infinity);
+        }
+      }
+    }
+  });
+
   it('walk.js gives the strays the area\'s homes', () => {
     const walkSrc = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
     expect(walkSrc).toMatch(/createStrayCats\(scene, areaData, strayCount, strayStream\(roomSeed\), \{[\s\S]*?homes: areaData\.strayHomes \?\? \[\],[\s\S]*?\}\);/);

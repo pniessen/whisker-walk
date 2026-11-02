@@ -372,6 +372,11 @@ function homeOf(h) {
 // in the Gorge's STAND_ON (ruling F35), so no other stray can go in, and the
 // cave cat, kept to the cave, is never clamped out of it or into rock. Built
 // once at spawn, so keepout.js's per-record cache holds.
+// Is (x, z) on one of the home's own rectangles? (A home with none: no.)
+function onHomeRects(home, x, z) {
+  return !!home.onlyOn && home.onlyOn.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+}
+
 function homeArea(area, home) {
   if (!home.onlyOn) return area;
   return { ...area, keepOut: { rects: [], capsules: [], margin: 0, ...area.keepOut, onlyOn: home.onlyOn } };
@@ -473,10 +478,11 @@ function leash(v, home, roam) {
 // nothing, so the stream count above is unchanged.
 //
 // `homes` (Gorge part 3, C8) is the area's `strayHomes`,
-// `[{ x, z, roam, onlyOn }]` (empty everywhere but the Gorge). After the
-// colony cats, the first ordinary stray of the cast takes the first home, the
-// next the second, and so on; never a colony cat, never an extra. A homed
-// stray:
+// `[{ x, z, roam, onlyOn }]` (empty everywhere but the Gorge). A colony cat
+// saved on a home's own rectangles keeps that home (she fed the cave cat in
+// its cave, ruling C-F10); then, after the colony cats, the first ordinary
+// stray of the cast takes the first home still free, the next the next, and
+// so on; never another colony cat, never an extra. A homed stray:
 //   * stands at its home, and its `home` is there, so its wander targets,
 //     drawn round home, are pulled within `roam` of it (`roam` is on the
 //     stray; null on every other one), as are a Far Call's and a toy's;
@@ -522,10 +528,22 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
   const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
   const homeList = (Array.isArray(homes) ? homes : []).map(homeOf).filter(Boolean);
+  // Who lives where (ruling C-F10). A colony cat saved on a home's own
+  // rectangles (she fed the cave cat there) keeps that home; then each
+  // ordinary stray, in cast order, takes the next home still free. Draws
+  // nothing.
+  const homeFor = new Array(count).fill(null);
+  const taken = new Set();
+  for (let i = 0; i < colony.length; i++) {
+    const h = homeList.find((home) => !taken.has(home) && onHomeRects(home, colony[i].x, colony[i].z));
+    if (h) { homeFor[i] = h; taken.add(h); }
+  }
+  const free = homeList.filter((h) => !taken.has(h));
+  for (let i = colony.length; i < count && free.length > 0; i++) homeFor[i] = free.shift();
 
   for (let i = 0; i < count; i++) {
     const fixed = i < colony.length ? colony[i] : null;
-    const homed = fixed ? null : homeList[i - colony.length] ?? null;
+    const homed = homeFor[i];
     const stand = homed ? homeArea(area, homed) : area;
     const name = fixed ? fixed.name : cast[i % cast.length];
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
@@ -559,9 +577,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
     // A rolled spot pushed off the water is spread back from the shore
-    // (spreadOffShore); a colony cat stands where it was fed, a homed one at
-    // home (on its own rectangles).
-    const spot = fixed ?? homed;
+    // (spreadOffShore); a colony cat stands where it was fed, a homed one
+    // (a colony cat that keeps its cave too) at home, on its own rectangles.
+    const spot = homed ?? fixed;
     const { x, z } = spot
       ? dryGroundPoint(stand,
         THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5),
