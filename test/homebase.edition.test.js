@@ -255,29 +255,19 @@ describe('picking a clan', () => {
     expect(noteOwnPick).toHaveBeenCalledTimes(2);
   });
 
-  it("tapping CliffClan's card picks nothing", async () => {
+  it("tapping CliffClan's card picks it", async () => {
     const { progression, noteOwnPick } = setupSync();
     const html = renderClanPickerHtml(clanPickerModel(progression.state), 'Robin');
     const markup = html.split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
     expect(markup).toBeTruthy();
-    // The card as the click finds it: closest() matches an attribute only if
-    // the rendered card carries it.
-    const card = { dataset: {} };
-    const target = {
-      id: '', dataset: {},
-      closest: (sel) => {
-        const attr = sel.match(/^\[([a-z-]+)\]$/)?.[1];
-        return attr && markup.includes(`${attr}=`) ? card : null;
-      },
-    };
-    await doc.root.listeners.click({ target });
-    expect(progression.state.clanPick.mine).toBeNull();
-    expect(noteOwnPick).not.toHaveBeenCalled();
+    await clickPick('gorge');
+    expect(progression.state.clanPick.mine).toBe('gorge');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
   });
 
-  it('a refused pick (the gorge) neither changes the save nor pushes', async () => {
+  it('a refused pick (the island) neither changes the save nor pushes', async () => {
     const { progression, noteOwnPick } = setupSync();
-    await clickPick('gorge');
+    await clickPick('island');
     expect(progression.state.clanPick.mine).toBeNull();
     expect(noteOwnPick).not.toHaveBeenCalled();
   });
@@ -290,7 +280,7 @@ describe('picking a clan', () => {
     expect(html).toContain(`Your ${CLAN_SUFFIX.toLowerCase()}`);
     expect(html).toContain('<option value="" disabled selected>— not picked yet —</option>');
     expect(html).toContain('<option value="woods" >StormClan</option>');
-    expect(html).not.toContain('value="gorge"');
+    expect(html).toContain('value="gorge"');
     progression.setEdition('legacy');
     openSheet('settings');
     expect(doc.root.innerHTML).not.toContain('set-clan-pick');

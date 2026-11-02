@@ -33,7 +33,7 @@ export const HOMES = Object.freeze({
   river: row(['pines', 'woods'], true),
   moor: row(['woods', 'pines', 'gorge'], true),
   pines: row(['river', 'moor'], true),
-  gorge: row(['moor'], false), // pickable once its camp is on the map (Task 5)
+  gorge: row(['moor'], true),
 });
 
 // Places where no clan patrols, ever.

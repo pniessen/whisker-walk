@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { clanPickerModel, renderClanPickerHtml, PICK_ATTR } from '../src/ui/clanpicker.js';
 import { TERRITORIES } from '../src/territories.js';
-import { clanName, pickableClans } from '../src/clanhomes.js';
+import { clanName, pickableClans, HOMES } from '../src/clanhomes.js';
 import { CLAN_SUFFIX, HOME_LINES } from '../src/clanwords.js';
 
 const PARTNER = 'robin-player-02';
@@ -16,17 +16,33 @@ const save = (over = {}) => ({
 const cardOf = (m, id) => m.cards.find((c) => c.id === id);
 
 describe('clanPickerModel', () => {
-  it('an unpicked save gets five cards: the four to pick, then the gorge', () => {
+  it('an unpicked save gets five cards, all of them pickable', () => {
     const m = clanPickerModel(save());
     expect(m.mine).toBeNull();
     expect(m.cards).toHaveLength(5);
-    expect(m.cards.map((c) => c.id)).toEqual([...pickableClans(), 'gorge']);
-    expect(m.cards.filter((c) => c.pickable).map((c) => c.id)).toEqual(pickableClans());
+    expect(m.cards.map((c) => c.id)).toEqual(pickableClans());
+    expect(m.cards.every((c) => c.pickable)).toBe(true);
     expect(renderClanPickerHtml(m, 'Robin')).toContain(`Pick your ${word}`);
   });
 
-  it("CliffClan shows as a card that can't be picked yet", () => {
+  it("CliffClan's card can be picked, with its own line", () => {
     const m = clanPickerModel(save());
+    expect(cardOf(m, 'gorge')).toMatchObject({
+      id: 'gorge', name: clanName('gorge'), place: 'The Gorge', pickable: true, soon: false, line: HOME_LINES.gorge,
+      mine: false, partner: false,
+    });
+    expect(HOME_LINES.gorge).toBe('rocks, cliff dens and tall pines');
+    const html = renderClanPickerHtml(m, 'Robin');
+    const card = html.split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
+    expect(card).toContain(`${PICK_ATTR}="gorge"`);
+    expect(card).not.toContain('aria-disabled');
+    expect(card).toContain('<small>rocks, cliff dens and tall pines</small>');
+    expect(html.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(5);
+  });
+
+  it('a clan that is not pickable shows greyed with camp coming soon', () => {
+    const homes = { ...HOMES, gorge: { neighbours: ['moor'], pickable: false } };
+    const m = clanPickerModel(save(), TERRITORIES, homes);
     expect(cardOf(m, 'gorge')).toMatchObject({
       id: 'gorge', name: clanName('gorge'), place: 'The Gorge', pickable: false, soon: true, line: 'camp coming soon',
       mine: false, partner: false,
@@ -98,7 +114,7 @@ describe('clanPickerModel', () => {
 
   it('the moor and pines are built now, so no card is soon', () => {
     const m = clanPickerModel(save());
-    for (const id of ['moor', 'pines', 'woods', 'river']) expect(cardOf(m, id).soon).toBe(false);
+    for (const id of ['moor', 'pines', 'woods', 'river', 'gorge']) expect(cardOf(m, id).soon).toBe(false);
     expect(renderClanPickerHtml(m, 'Robin')).not.toContain('territory coming soon');
   });
 

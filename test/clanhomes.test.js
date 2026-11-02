@@ -12,9 +12,9 @@ test('every clan has a homage name and its neighbours are clans', () => {
   }
 });
 
-test('the four first-release clans can be picked; the gorge cannot yet', () => {
-  for (const id of ['woods', 'moor', 'river', 'pines']) expect(pickableClans()).toContain(id);
-  expect(pickableClans()).not.toContain('gorge');
+test('all five clans can be picked', () => {
+  for (const id of ['woods', 'moor', 'river', 'pines', 'gorge']) expect(pickableClans()).toContain(id);
+  expect(pickableClans()).toHaveLength(5);
 });
 
 test('ALLIES: a patrol is never a kid\'s clan, for every territory and every pair of picks', () => {

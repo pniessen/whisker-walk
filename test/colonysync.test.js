@@ -1114,7 +1114,7 @@ describe('createColonySync — the partner\'s clan pick', () => {
     expect(progression.state.clanPick.partner).toBe(null);
   });
 
-  it('a newer build\'s pick (valid id, not pickable here) is cached', async () => {
+  it('a partner\'s CliffClan pick is cached', async () => {
     const { cs, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('gorge') } });
     await cs.pull();
     expect(progression.state.clanPick.partner).toBe('gorge');
