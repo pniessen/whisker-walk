@@ -34,6 +34,27 @@ test("a territory's own clan patrols it unless a kid picked it (your clan's home
   expect(patrolClanFor('river', ['river', 'river'])).toBe('pines');
 });
 
+// K9: the Gorge joined the Moor's row last, so every pair of picks the four
+// first-release clans can make finds the same Moor patrol as before it did
+// (the table is today's rule, written out: the Moor's own clan unless picked,
+// then the Woods, then the Pines).
+test("the Moor's patrols are what they were for every pair of picks", () => {
+  const OLD = ['woods', 'moor', 'river', 'pines'];
+  const NOT_MOOR = {
+    'moor+': 'woods', 'moor+moor': 'woods', 'moor+woods': 'pines', 'moor+river': 'woods', 'moor+pines': 'woods',
+  };
+  for (const a of [null, ...OLD]) for (const b of [null, ...OLD]) {
+    const picks = [a, b].filter(Boolean);
+    const key = [...picks].sort((x, y) => (x === 'moor' ? -1 : y === 'moor' ? 1 : 0)).join('+') + (picks.length === 1 ? '+' : '');
+    const want = picks.includes('moor') ? NOT_MOOR[key] : 'moor';
+    expect(patrolClanFor('moor', picks), key).toBe(want);
+  }
+  expect(patrolClanFor('gorge', ['gorge', 'moor'])).toBeNull();
+  expect(patrolClanFor('gorge', ['gorge'])).toBe('moor');
+  expect(HOMES.gorge.neighbours).toEqual(['moor']);
+  expect(HOMES.moor.neighbours).toEqual(['woods', 'pines', 'gorge']);
+});
+
 test('the island is a truce place, and an unknown area has no patrol', () => {
   expect(TRUCE_AREAS).toContain('island');
   for (const picks of [[], ['woods'], ['pines', 'moor']]) expect(patrolClanFor('island', picks)).toBeNull();

@@ -10,6 +10,17 @@
 // So a patrol is never either kid's clan, and both devices agree whatever the
 // order of the picks.
 //
+// The rows are mutual: a neighbour's row names this territory back.
+//
+// The Moor's row gained the Gorge LAST (Gorge part 4, K9). Appending keeps
+// every pair of picks the four first-release clans can make finding the same
+// Moor patrol as before: two picks can block at most two of its three
+// neighbours, and the first two are the ones they always were. (Since clan
+// life a patrol only runs where neither kid is at home, so on a walk this
+// only ever answers the territory's own clan anyway.) What the third
+// neighbour does change is who visits the Moor: three clans now share its
+// intruder slots (intruders.js).
+//
 // To add a territory later: edit its HOMES row only if its neighbours change;
 // add its camp disc in rivalclans.js; a truce place needs nothing here except
 // an entry in TRUCE_AREAS.
@@ -20,9 +31,9 @@ const row = (neighbours, pickable) => Object.freeze({ neighbours: Object.freeze(
 export const HOMES = Object.freeze({
   woods: row(['moor', 'river'], true),
   river: row(['pines', 'woods'], true),
-  moor: row(['woods', 'pines'], true),
+  moor: row(['woods', 'pines', 'gorge'], true),
   pines: row(['river', 'moor'], true),
-  gorge: row([], false), // named now; pickable once its camp is built
+  gorge: row(['moor'], false), // pickable once its camp is on the map (Task 5)
 });
 
 // Places where no clan patrols, ever.

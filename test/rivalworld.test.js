@@ -369,8 +369,9 @@ describe('intruder routes in the real territories', () => {
   const FACING = {
     woods: { moor: 'north', river: 'west' },
     river: { pines: 'north', woods: 'east' },
-    moor: { woods: 'south', pines: 'west' },
+    moor: { woods: 'south', pines: 'west', gorge: 'east' },
     pines: { river: 'south', moor: 'east' },
+    gorge: { moor: 'west' },
   };
   const edgeGaps = (b, p) => ({ north: p.z - b.minZ, south: b.maxZ - p.z, west: p.x - b.minX, east: b.maxX - p.x });
   const nearestEdge = (b, p) => Object.entries(edgeGaps(b, p)).sort((m, n) => m[1] - n[1])[0];
@@ -386,8 +387,8 @@ describe('intruder routes in the real territories', () => {
   };
 
   it('covers every territory with a camp, with a route for each neighbour', () => {
-    expect(routes()).toHaveLength(8);
-    for (const a of ['woods', 'river', 'moor', 'pines']) expect(Object.keys(INTRUDER_ROUTES[a]).sort()).toEqual(Object.keys(FACING[a]).sort());
+    expect(routes()).toHaveLength(10);
+    for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(Object.keys(INTRUDER_ROUTES[a]).sort()).toEqual(Object.keys(FACING[a]).sort());
   });
 
   it('starts on the edge facing its clan and ends on an edge', () => {

@@ -18,7 +18,7 @@
 // that it has left before the next slot begins, so there is never more than
 // one at a time.
 //
-// Only the four clan territories get intruders. The old areas (Neighborhood,
+// Only the five clan territories get intruders. The old areas (Neighborhood,
 // Park, Seaside, Docks), the den and the island never do: the island is truce
 // ground walked inside the Pines, and no route ever touches it.
 //
@@ -94,6 +94,10 @@ export const INTRUDER_ROUTES = Object.freeze({
     // the heath, then north-west and out the north edge, wide of the camp.
     // 78.1 m.
     pines: route([-49.5, -14], [-30, -10], [-12, -14], [-20, -30], [-30, -49.5]),
+    // The Gorge is east. In from the Gorge side of the east edge, 12 m south
+    // of the moor-gorge post, west over the heath, then north and out the
+    // north edge, far wide of the camp. 66.2 m.
+    gorge: route([49.5, -2], [30, -5], [20, -30], [20, -49.5]),
   }),
   pines: Object.freeze({
     // The River is south. In from the River side west of the camp (east of the
@@ -104,6 +108,14 @@ export const INTRUDER_ROUTES = Object.freeze({
     // The Moor is east. In from the Moor side north of the lake, west through
     // the pines, then north and out the north edge. 71.9 m.
     moor: route([49.5, -20], [25, -15], [8, -24], [0, -38], [0, -49.5]),
+  }),
+  gorge: Object.freeze({
+    // The Moor is west. In from the Moor side through the Narrows, 4.1 m north
+    // of the spawn (outside CHALLENGE_RANGE, so no Fight pill as a walk
+    // starts), across to the floor's west half between the west wall and the
+    // column of tors, and north out the north edge. All on the floor (K11):
+    // never on the path, a ledge or in a cave, 2.1 m off denW2. 73.2 m.
+    moor: route([-49.5, -6.9], [-20, -6.9], [-15.9, -14], [-15.9, -49.5]),
   }),
 });
 

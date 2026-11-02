@@ -220,3 +220,121 @@ describe('CliffClan at home in the Gorge', () => {
     }
   });
 });
+
+// K10/K11: GaleClan's way through the Gorge, and the fights it can start.
+const { INTRUDER_ROUTES, intruderAt, isHostile, routeLength, routePoint, CHALLENGE_KEEP } = await import('../src/intruders.js');
+const { GORGE_CAVES, GORGE_DENS } = await import('../src/world/gorgeshape.js');
+const { fightReach, reachYFor, FIGHT_GAP } = await import('../src/game/clanfight.js');
+const { findOccluders, chooseFightView, subjectPoints, liftedPoints } = await import('../src/fightcam.js');
+const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { CAM_ROCK_CLEAR, CAM_CEIL_CLEAR } = await import('../src/camzoom.js');
+const { buildCat, catDims } = await import('../src/cat/model.js');
+const { clanCast } = await import('../src/clancast.js');
+
+// Every 0.5 m along a route, both ends included.
+const routeSamples = (route) => {
+  const out = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const p = route[i], q = route[i + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / 0.5));
+    for (let j = 0; j <= n; j++) out.push({ x: p.x + ((q.x - p.x) * j) / n, z: p.z + ((q.z - p.z) * j) / n });
+  }
+  return out;
+};
+const rectGap = (r, x, z) => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+
+describe("GaleClan's way through the Gorge", () => {
+  it("the Gorge's route is on flat floor, wide of the path, the caves and the dens", () => {
+    const area = built.gorge;
+    const { ground } = area;
+    const ok = clanWalkableFor(area, 'gorge');
+    const samples = routeSamples(INTRUDER_ROUTES.gorge.moor);
+    const g = { x: 0, z: 0 };
+    const bad = [];
+    const flat = (p, what) => {
+      if (ground.y(p.x, p.z) !== 0) bad.push(`${what} y ${ground.y(p.x, p.z)} at ${p.x},${p.z}`);
+      ground.gradient(p.x, p.z, g);
+      if (g.x !== 0 || g.z !== 0) bad.push(`${what} gradient at ${p.x},${p.z}`);
+    };
+    for (const p of samples) {
+      flat(p, 'route');
+      for (const s of WALK_SHAPES) if (rectGap(s, p.x, p.z) < 12) bad.push(`route ${p.x},${p.z} ${rectGap(s, p.x, p.z).toFixed(2)} m from ${s.tag}`);
+      for (const r of [...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN]) {
+        if (rectGap(r, p.x, p.z) < 2) bad.push(`route ${p.x},${p.z} ${rectGap(r, p.x, p.z).toFixed(2)} m from ${r.tag}`);
+      }
+    }
+    // every point of clan ground a challenge can stand on (within CHALLENGE_KEEP of the route)
+    let near = 0;
+    for (const p of cells(-50, 50, -50, 50)) {
+      if (!ok(p.x, p.z) || !samples.some((q) => Math.hypot(q.x - p.x, q.z - p.z) <= CHALLENGE_KEEP)) continue;
+      near++;
+      flat(p, 'near');
+    }
+    expect(near).toBeGreaterThan(1000);
+    expect(bad.slice(0, 10)).toEqual([]);
+  });
+
+  // fightcamworld.test.js runs every route on flat ground (no `ground`): this
+  // is the Gorge's own rock check, with the real ground.
+  it("a fight on the Gorge's route stands on flat floor and its camera stays out of rock", () => {
+    const scene = new THREE.Scene();
+    const area = WORLDS.gorge.build(scene, {});
+    mergeStaticProps(scene);
+    const occluders = findOccluders(scene);
+    const { ground } = area;
+    const ok = clanWalkableFor(area, 'gorge');
+    const intruderCat = buildCat('tabby', undefined, { simple: true, style: clanCast('moor')[4].style });
+    intruderCat.scale.multiplyScalar(0.85);
+    const reachY = reachYFor(catDims(buildCat('mainecoon')), catDims(intruderCat), FIGHT_GAP);
+    const FRAMES = [{ aspect: 375 / 812, fovY: 70 }, { aspect: 1280 / 720, fovY: 70 }];
+    const route = INTRUDER_ROUTES.gorge.moor;
+    const len = routeLength(route);
+    const bad = [];
+    let fights = 0;
+    for (let s = 0; s <= len; s += 2) {
+      const foeAt = routePoint(route, s);
+      for (let k = 0; k < 8; k++) {
+        const ang = (k / 8) * Math.PI * 2;
+        const ux = Math.cos(ang), uz = Math.sin(ang);
+        const spot = { x: foeAt.x + ux * FIGHT_GAP, z: foeAt.z + uz * FIGHT_GAP };
+        if (!ok(spot.x, spot.z)) continue;
+        const fight = { ...fightReach(spot, { x: foeAt.x, z: foeAt.z }, ok, { actions: true, reachY, terrain: ground }), path: [] };
+        const at = `s=${s} from ${k}`;
+        for (const p of [...fight.me, ...fight.it]) if (ground.y(p.x, p.z) !== 0) bad.push(`${at}: staged at y ${ground.y(p.x, p.z)} (${p.x},${p.z})`);
+        expect(subjectPoints(fight, false).length + liftedPoints(fight).length).toBeGreaterThan(0);
+        for (const frame of FRAMES) {
+          const v = chooseFightView({ subject: fight, occluders, colliders: area.colliders, bounds: area.bounds, yaw0: Math.atan2(-ux, -uz), ground, ...frame });
+          const { x, y, z } = v.pos;
+          if (y < ground.y(x, z) + CAM_ROCK_CLEAR) bad.push(`${at}: camera ${y.toFixed(2)} in rock ${ground.y(x, z)} at ${x.toFixed(1)},${z.toFixed(1)}`);
+          if (y > ground.ceil(x, z) - CAM_CEIL_CLEAR) bad.push(`${at}: camera ${y.toFixed(2)} over a ceiling at ${x.toFixed(1)},${z.toFixed(1)}`);
+          fights++;
+        }
+      }
+    }
+    expect(fights).toBeGreaterThan(300);
+    expect(bad.slice(0, 10)).toEqual([]);
+  }, 180_000);
+
+  it('sisters in CliffClan and GaleClan: same visitor, never hostile to either', () => {
+    let gale = null, cliff = null;
+    for (let k = 0; k < 400; k++) {
+      const t = k * INTRUDER_PERIOD + 30;
+      for (const a of ['gorge', 'moor']) {
+        expect(intruderAt(a, t), `${a} ${k}`).toEqual(intruderAt(a, t));
+        const v = visitAt(a, t);
+        if (!v) continue;
+        // the Gorge's visitors are all GaleClan; the Moor's StormClan and
+        // Pines visitors are still rivals to a CliffClan-GaleClan pair
+        if (a === 'gorge') expect(v.clan).toBe('moor');
+        if (v.clan === 'gorge' || v.clan === 'moor') expect(isHostile(v, { clanHome: true, picks: ['gorge', 'moor'] }), `${a} ${k}`).toBe(false);
+        else expect(isHostile(v, { clanHome: true, picks: ['gorge', 'moor'] }), `${a} ${k}`).toBe(true);
+        if (a === 'gorge' && v.clan === 'moor') gale ??= v;
+        if (a === 'moor' && v.clan === 'gorge') cliff ??= v;
+      }
+    }
+    expect(gale).not.toBeNull();
+    expect(cliff).not.toBeNull();
+    expect(isHostile(gale, { clanHome: true, picks: ['gorge'] })).toBe(true);
+    expect(isHostile(cliff, { clanHome: true, picks: ['moor'] })).toBe(true);
+  });
+});

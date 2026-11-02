@@ -36,6 +36,7 @@ const BUILD = {
   river: (await import('../src/world/river.js')).build,
   moor: (await import('../src/world/moor.js')).build,
   pines: (await import('../src/world/pines.js')).build,
+  gorge: (await import('../src/world/gorge.js')).build,
 };
 const FRAMES = { portrait: { aspect: 375 / 812, fovY: 70 }, landscape: { aspect: 812 / 375, fovY: 70 }, desktop: { aspect: 1280 / 720, fovY: 70 } };
 const STEP = 2;    // m along each route
@@ -65,13 +66,19 @@ const REACH_Y = reachYFor(catDims(buildCat('mainecoon')), catDims(intruderCat), 
 // be hidden (a leap or a rear-up beside them rises into them). (Was 3229
 // before the final review's rear-up step, which steps in as the cats rear and
 // leaves their lifted tops nearer the middle; every other count unchanged.)
+// Gorge part 4: the Moor's new CliffClan route (east edge, over the heath)
+// takes the Moor's actions-mode trees hidden from 3 to 5; its other counts
+// hold. The Gorge's one route (GaleClan's, on the floor) hides no tree today
+// and 4 with actions, none not under, none brushed. This file runs every map
+// flat (no `ground`): the Gorge's rock check, with its real ground, is in
+// test/gorgeclan.test.js.
 const MODES = {
-  today: { opts: {}, maxHidden: { woods: 12, river: 6, moor: 5, pines: 0 }, maxNotUnder: { woods: 0, river: 3, moor: 4, pines: 0 }, maxBrushed: { woods: 0, river: 0, moor: 0, pines: 0 } },
+  today: { opts: {}, maxHidden: { woods: 12, river: 6, moor: 5, pines: 0, gorge: 0 }, maxNotUnder: { woods: 0, river: 3, moor: 4, pines: 0, gorge: 0 }, maxBrushed: { woods: 0, river: 0, moor: 0, pines: 0, gorge: 0 } },
   actions: {
     opts: { actions: true, reachY: REACH_Y },
-    maxHidden: { woods: 14, river: 9, moor: 3, pines: 1 },
-    maxNotUnder: { woods: 0, river: 0, moor: 0, pines: 0 },
-    maxBrushed: { woods: 0, river: 0, moor: 0, pines: 3186 },
+    maxHidden: { woods: 14, river: 9, moor: 5, pines: 1, gorge: 4 },
+    maxNotUnder: { woods: 0, river: 0, moor: 0, pines: 0, gorge: 0 },
+    maxBrushed: { woods: 0, river: 0, moor: 0, pines: 3186, gorge: 0 },
   },
 };
 

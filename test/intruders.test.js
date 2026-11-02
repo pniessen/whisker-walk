@@ -17,7 +17,7 @@ vi.mock('../src/cat/animator.js', async (orig) => {
   return { ...real, animateCat: vi.fn(real.animateCat) };
 });
 
-const TERRITORIES = ['woods', 'river', 'moor', 'pines'];
+const TERRITORIES = ['woods', 'river', 'moor', 'pines', 'gorge'];
 
 test('the numbers the plan fixes', () => {
   expect([INTRUDER_PERIOD, ENTER_AT, INTRUDER_SPEED, ROUTE_MAX]).toEqual([120, 10, 0.9, 90]);
@@ -25,7 +25,7 @@ test('the numbers the plan fixes', () => {
   expect([CHALLENGE_KEEP, RECHALLENGE_DELAY, HOLD_MAX]).toEqual([10, 20, 40]);
 });
 
-test('eight routes: one per neighbouring clan in each of the four territories, the Pines included', () => {
+test('ten routes: one per neighbouring clan in each of the five territories, the Pines and the Gorge included', () => {
   expect(Object.keys(INTRUDER_ROUTES).sort()).toEqual([...TERRITORIES].sort());
   let n = 0;
   for (const a of TERRITORIES) {
@@ -36,7 +36,7 @@ test('eight routes: one per neighbouring clan in each of the four territories, t
       n++;
     }
   }
-  expect(n).toBe(8);
+  expect(n).toBe(10);
   expect(Object.isFrozen(INTRUDER_ROUTES)).toBe(true);
 });
 
@@ -58,7 +58,8 @@ test('an intruder is always a warrior of a neighbouring clan, never the land\'s 
       expect(v.member).toBe(clanCast(v.clan)[v.member.slot]);
       seen.add(v.clan);
     }
-    // both neighbours come visiting, sooner or later
+    // every neighbour comes visiting sooner or later: both of them, or the
+    // Moor's three, or the Gorge's one
     expect([...seen].sort(), a).toEqual([...HOMES[a].neighbours].sort());
   }
 });
@@ -120,7 +121,7 @@ test('routePoint and routeLength', () => {
 });
 
 test('no intruders outside the territories with camps', () => {
-  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'den', 'island', 'gorge', '__proto__', 'constructor', undefined, null, 7]) {
+  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'den', 'island', '__proto__', 'constructor', undefined, null, 7]) {
     expect(intruderAt(a, 1e9 + 40)).toBeNull();
     for (let k = 0; k < 40; k++) expect(visitAt(a, k * INTRUDER_PERIOD + 30)).toBeNull();
   }
@@ -133,6 +134,16 @@ test('the Pines gets intruders from the River and the Moor', () => {
     if (v) seen.add(v.clan);
   }
   expect([...seen].sort()).toEqual(['moor', 'river']);
+});
+
+test('the Gorge is visited by GaleClan only, and the Moor by all three', () => {
+  const seen = { gorge: new Set(), moor: new Set() };
+  for (const a of Object.keys(seen)) for (let k = 0; k < 400; k++) {
+    const v = visitAt(a, k * INTRUDER_PERIOD + 30);
+    if (v) seen[a].add(v.clan);
+  }
+  expect([...seen.gorge]).toEqual(['moor']);
+  expect([...seen.moor].sort()).toEqual(['gorge', 'pines', 'woods']);
 });
 
 test('bad clocks give no intruder and never throw', () => {
