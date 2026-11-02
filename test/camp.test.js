@@ -101,27 +101,136 @@ describe('campLayout', () => {
 });
 
 describe('addCamp', () => {
-  it('adds one group of three meshes and two colliders in a camp area', () => {
+  // Every vertex of a mesh, in world space.
+  const worldVerts = (mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    const pos = mesh.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    const out = [];
+    for (let i = 0; i < pos.count; i++) out.push(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).clone());
+    return out;
+  };
+
+  it('adds the camp, its bramble ring and its clearing, and the same two colliders', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       const area = { colliders: [] };
       addCamp(scene, area, a);
-      expect(scene.children).toHaveLength(1);
-      const group = scene.children[0];
+      expect(scene.children.map((o) => o.name).sort(), a).toEqual(['campClearing', 'campRing', 'clanCamp']);
+      const group = scene.getObjectByName('clanCamp');
       expect(group.isGroup).toBe(true);
-      const meshes = [];
-      group.traverse((o) => { if (o.isMesh) meshes.push(o); });
-      expect(meshes).toHaveLength(3);
-      expect(group.children).toHaveLength(3);
       const L = campLayout(a);
       expect(area.colliders).toEqual([
         { x: L.den.x, z: L.den.z, r: L.den.r },
         { x: L.rock.x, z: L.rock.z, r: L.rock.r },
       ]);
-      // the doorway is a flat disc: out of the shadow pass
-      const door = group.children.find((m) => m.name === 'campDoor');
-      expect(door.userData.noCast).toBe(true);
+      // the ring and the clearing are low and wide: out of the shadow pass,
+      // but they take the trees' shadows
+      for (const name of ['campRing', 'campClearing']) {
+        const m = scene.getObjectByName(name);
+        expect(m.isMesh, name).toBe(true);
+        expect(m.userData.noCast, `${a} ${name}`).toBe(true);
+        expect(m.receiveShadow, `${a} ${name}`).toBe(true);
+      }
+      // the flat doorway, the nests and the fresh-kill pile stay out of it too
+      for (const name of ['campDoor', 'campNests', 'campKill']) {
+        expect(group.getObjectByName(name)?.userData.noCast, `${a} ${name}`).toBe(true);
+      }
+      expect(group.getObjectByName('campDen').userData.noCast).toBeFalsy();
+      expect(group.getObjectByName('campRock').userData.noCast).toBeFalsy();
     }
+  });
+
+  it('keeps the den inside its footprint and gives the Highrock a tall back stone', () => {
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const L = campLayout(a);
+      const group = scene.getObjectByName('clanCamp');
+      for (const name of ['campDen', 'campDoor']) {
+        for (const v of worldVerts(group.getObjectByName(name))) {
+          expect(Math.hypot(v.x - L.den.x, v.z - L.den.z), `${a} ${name}`).toBeLessThanOrEqual(1.25);
+          expect(v.y, `${a} ${name}`).toBeLessThan(1.0);
+        }
+      }
+      let top = -Infinity;
+      for (const v of worldVerts(group.getObjectByName('campRock'))) {
+        expect(Math.hypot(v.x - L.rock.x, v.z - L.rock.z), `${a} rock`).toBeLessThanOrEqual(0.75);
+        top = Math.max(top, v.y);
+      }
+      expect(top, a).toBeGreaterThanOrEqual(1.3);
+    }
+  });
+
+  it("keeps the camp group under the contact-shadow scan's MAX_SPAN, so den and rock keep their decal", async () => {
+    const { MAX_SPAN } = await import('../src/render/contactshadows.js');
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      const box = new THREE.Box3().setFromObject(scene.getObjectByName('clanCamp'));
+      expect(box.max.x - box.min.x, a).toBeLessThan(MAX_SPAN);
+      expect(box.max.z - box.min.z, a).toBeLessThan(MAX_SPAN);
+    }
+  });
+
+  it('costs 8 main-pass meshes or fewer once the props are merged', async () => {
+    const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      mergeStaticProps(scene);
+      let meshes = 0;
+      scene.traverse((o) => { if (o.isMesh && o.visible) meshes++; });
+      expect(meshes, a).toBeLessThanOrEqual(8);
+      // a merge would drop noCast: the flat pieces come through it whole
+      for (const name of ['campDoor', 'campNests', 'campKill', 'campRing', 'campClearing']) {
+        expect(scene.getObjectByName(name)?.userData.noCast, `${a} ${name}`).toBe(true);
+      }
+    }
+  });
+
+  it('draws the ring and the clearing as the dressing lays them out', async () => {
+    const { campDressing } = await import('../src/world/camp.js');
+    for (const a of CAMPS) {
+      const scene = new THREE.Scene();
+      addCamp(scene, { colliders: [] }, a);
+      scene.updateMatrixWorld(true);
+      const D = campDressing(a);
+      const { cx, cz } = DISCS[a];
+      // every ring vertex is near a clump, inside its footprint
+      const verts = worldVerts(scene.getObjectByName('campRing'));
+      for (const v of verts) {
+        const fits = D.ring.clumps.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= 0.2 * c.s + 1e-6 && v.y <= c.h + 1e-6);
+        expect(fits, `${a} ${v.x.toFixed(2)},${v.z.toFixed(2)}`).toBe(true);
+      }
+      // ...and every clump is drawn
+      for (const c of D.ring.clumps) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= 0.2 * c.s)).toBe(true);
+      // the clearing lies flat just over the ground, within its radius
+      const clearing = scene.getObjectByName('campClearing');
+      for (const v of worldVerts(clearing)) {
+        expect(v.y).toBeCloseTo(0.015, 6);
+        expect(Math.hypot(v.x - cx, v.z - cz)).toBeLessThanOrEqual(D.clearing.r + 1e-6);
+      }
+      expect(clearing.material.polygonOffset).toBe(true);
+    }
+  });
+
+  it('takes exactly the 44 Math.random draws (THREE uuids) a flat camp took before polish-camps', () => {
+    // flattrace.test.js seeds Math.random per build, and the critters, gold
+    // mice and ghosts draw after it: one more object here moves them all
+    const real = Math.random;
+    for (const a of CAMPS) {
+      let draws = 0;
+      Math.random = () => { draws++; return real(); };
+      try {
+        addCamp(new THREE.Scene(), { colliders: [] }, a);
+      } finally {
+        Math.random = real;
+      }
+      expect(draws, a).toBe(44);
+    }
+    expect(Math.random).toBe(real);
   });
 
   it('adds nothing where there is no camp', () => {
