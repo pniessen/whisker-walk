@@ -9,6 +9,7 @@ import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
+import { SKULL } from '../src/cat/torso.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -1008,5 +1009,168 @@ describe('buildCat with opts.style (a clan coat)', () => {
     expect(Object.keys(buildCat('tabby', undefined, { simple: true }).userData).sort())
       .toEqual(['base', 'breed', 'noMerge', 'parts']);
     expect(Object.keys(buildCat('calico').userData).sort()).toEqual(['base', 'breed', 'noMerge', 'parts']);
+  });
+});
+
+// Polish pass 1a, Task 5 (2026-11-02): the cat from behind. The walk camera
+// sees the cat from behind ~90% of the time, and from there it read as a plain
+// lump: whiskers bunched into a white bar poking past the head like a bone, a
+// smooth ball of a head, a horn-like tail with a dark spike, and (from the side)
+// the far eye's pupil and shine poking out of the head's outline.
+describe('cat model: the cat reads from behind (polish 1a, Task 5)', () => {
+  // The skull's silhouette from behind, head space: its half-width at height y.
+  const skullHalfWidth = (y) => SKULL.R * SKULL.SCALE[0] * Math.sqrt(Math.max(0, 1 - (y / (SKULL.R * SKULL.SCALE[1])) ** 2));
+  const whiskerEnds = (cat) => cat.userData.parts.whiskers.map((w) => {
+    const p = w.geometry.attributes.position;
+    const a = new THREE.Vector3().fromBufferAttribute(p, 0), b = new THREE.Vector3().fromBufferAttribute(p, 1);
+    return Math.abs(a.x) > Math.abs(b.x) ? { outer: a, inner: b, w } : { outer: b, inner: a, w };
+  });
+
+  it('whiskers end near the head and sweep forward, faint (tabby, digit)', () => {
+    for (const breed of ['tabby', 'digit']) {
+      const cat = buildCat(breed), ends = whiskerEnds(cat);
+      expect(ends).toHaveLength(6);
+      for (const { outer, inner, w } of ends) {
+        // whiskers are head children at the head's origin: geometry is head space
+        expect(w.parent).toBe(cat.userData.parts.head);
+        expect(w.position.toArray()).toEqual([0, 0, 0]);
+        // From behind they end within 4 cm of the skull's outline at their height...
+        expect(Math.abs(outer.x), `${breed} whisker reach`).toBeLessThanOrEqual(skullHalfWidth(outer.y) + 0.04);
+        // ...and run forward from the root (front is -z), so the head hides most of them.
+        expect(outer.z, `${breed} whisker sweep`).toBeLessThan(inner.z);
+        expect(w.material.opacity).toBeLessThanOrEqual(0.5);
+      }
+    }
+    expect(buildCat('tabby', undefined, { simple: true }).userData.parts.whiskers).toHaveLength(0);
+  });
+
+  // Each link's radius at its start and end, read off the built geometry (the
+  // links run along +z from their pivot; the root ball, joints and tip are
+  // spheres merged in, so they are measured too).
+  const tailRadii = (cat) => {
+    const L = 0.14; // TAIL.LINK
+    const rho = (m, at) => {
+      const p = m.geometry.attributes.position; let r = 0;
+      for (let i = 0; i < p.count; i++) if (Math.abs(p.getZ(i) - at) < 1e-6) r = Math.max(r, Math.hypot(p.getX(i), p.getY(i)));
+      return r;
+    };
+    const links = cat.userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
+    return [rho(links[0], 0), ...links.map((m) => rho(m, L))];
+  };
+
+  it('the tail tapers evenly from root to a rounded tip: no bulb, no spike', () => {
+    for (const breed of ['tabby', 'digit', 'persian']) for (const simple of [false, true]) {
+      const r = tailRadii(buildCat(breed, undefined, { simple }));
+      const drops = r.slice(1).map((v, i) => r[i] - v);
+      for (const d of drops) expect(d, `${breed} ${simple}: radii ${r}`).toBeGreaterThan(0); // never wider than the link before
+      expect(Math.max(...drops), `${breed}: an even taper, radii ${r}`).toBeLessThanOrEqual(1.5 * Math.min(...drops));
+      expect(r[5], `${breed}: a rounded tip, not the old 6 mm spike`).toBeGreaterThanOrEqual(0.012);
+    }
+  });
+
+  // A vertex's colour as drawn: the material colour, times the vertex colour on
+  // a vertex-coloured material.
+  const drawn = (m, i) => {
+    const c = m.material.color.clone();
+    const col = m.material.vertexColors ? m.geometry.attributes.color : null;
+    if (col) c.multiply(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+    return c;
+  };
+
+  it("a dark-tipped tail is dark over its last third only (digit, tabby, siamese)", () => {
+    const L = 0.14;
+    for (const [breed, base, tip] of [['digit', 0x7a6248, 0x2a2018], ['tabby', 0x9c7a4f, 0x6f5636], ['siamese', 0xe8dcc8, 0x4a3b32]]) {
+      const links = buildCat(breed).userData.parts.tailPivots.map((pv) => pv.children.find((o) => o.isMesh));
+      let nBase = 0, nTip = 0;
+      links.forEach((m, k) => {
+        const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const u = (k * L + Math.min(L, Math.max(0, p.getZ(i)))) / (5 * L);
+          if (u <= 0.6 + 1e-9) { expect(colourDistance(drawn(m, i), new THREE.Color(base)), `${breed} link ${k} u ${u}`).toBeLessThan(1e-6); nBase++; }
+          if (u >= 2 / 3 - 1e-9) { expect(colourDistance(drawn(m, i), new THREE.Color(tip)), `${breed} link ${k} u ${u}`).toBeLessThan(1e-6); nTip++; }
+        }
+      });
+      expect(nBase).toBeGreaterThan(100);
+      expect(nTip).toBeGreaterThan(50);
+    }
+  });
+
+  it('the backs of the ears are darker than their fronts, so the ears read from behind', () => {
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    for (const breed of ['tabby', 'digit', 'black']) for (const simple of [false, true]) {
+      const { earL, earR } = buildCat(breed, undefined, { simple }).userData.parts;
+      for (const ear of [earL, earR]) {
+        const n = ear.geometry.attributes.normal, back = [], front = [];
+        for (let i = 0; i < n.count; i++) {
+          if (n.getZ(i) > 0.5) back.push(lum(drawn(ear, i)));
+          if (n.getZ(i) < -0.5) front.push(lum(drawn(ear, i)));
+        }
+        const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+        expect(back.length).toBeGreaterThan(0);
+        expect(mean(back), `${breed} ${simple}`).toBeLessThanOrEqual(0.85 * mean(front));
+      }
+    }
+  });
+
+  it('head stripes run back over the crown to the back of the head (digit, d2, a striped custom cat), at no extra mesh', () => {
+    const cases = [['digit', {}], ['d2', {}], ['custom', { look: { ...DEFAULT_LOOK, pattern: 'stripes' } }]];
+    for (const [breed, o] of cases) for (const simple of [false, true]) {
+      const cat = buildCat(breed === 'custom' ? 'tabby' : breed, undefined, { ...o, simple });
+      const skull = cat.userData.parts.head.children[0];
+      const marks = skull.children.filter((m) => m.isMesh);
+      expect(marks.length, `${breed} ${simple}`).toBeGreaterThan(0);
+      let back = -Infinity, top = -Infinity;
+      for (const m of marks) {
+        const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) { back = Math.max(back, p.getZ(i)); top = Math.max(top, p.getY(i)); }
+      }
+      const r = SKULL_R * PATCH_LIFT;
+      expect(back / r, `${breed} ${simple}: the stripes reach the back`).toBeGreaterThanOrEqual(0.85);
+      expect(top / r, `${breed} ${simple}: over the crown`).toBeGreaterThanOrEqual(0.95);
+    }
+  });
+
+  // How far a mesh pokes out of the skull's outline when seen along `dir`
+  // (world): the most any vertex's line of sight passes outside the skull
+  // ellipsoid, in metres (<= 0: hidden behind or inside the outline).
+  const poke = (skull, mesh, dir) => {
+    const inv = skull.matrixWorld.clone().invert();
+    const e = dir.clone().applyMatrix3(new THREE.Matrix3().setFromMatrix4(inv)).divideScalar(SKULL_R).normalize();
+    const p = mesh.geometry.attributes.position; let worst = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv).divideScalar(SKULL_R);
+      worst = Math.max(worst, v.addScaledVector(e, -v.dot(e)).length() - 1);
+    }
+    return worst * SKULL_R * skull.getWorldScale(new THREE.Vector3()).x;
+  };
+  const eyeParts = (head, side) => [0.036, 0.017, 0.007].map((r) => head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === r && Math.sign(m.position.x) === side));
+
+  it('from the side, the far eye (eye, pupil, shine) stays inside the head outline, standing and stalking', () => {
+    for (const breed of ['tabby', 'digit']) for (const state of ['follow', 'stalk']) {
+      const cat = buildCat(breed); animateCat(cat, state, 1.3, 0, false); cat.updateMatrixWorld(true);
+      const { head } = cat.userData.parts, skull = head.children[0];
+      const far = eyeParts(head, -1); // seen from +x, the cat's left (-x) eye is the far one
+      expect(far.every(Boolean)).toBe(true);
+      for (const yaw of [0, 10, 20, 30]) for (const up of [0, 0.12]) {
+        const a = (yaw * Math.PI) / 180, dir = new THREE.Vector3(Math.cos(a), up, Math.sin(a)); // from the side, round toward the rear
+        for (const m of far) expect(poke(skull, m, dir), `${breed} ${state} yaw ${yaw} up ${up} r ${m.geometry.parameters.radius}`).toBeLessThanOrEqual(0.001);
+      }
+    }
+  });
+
+  it('the eyes still stand out of the face: eye proud of the skull, pupil proud of the eye', () => {
+    const head = buildCat('tabby').userData.parts.head;
+    const frontZ = (m) => { m.updateMatrix(); const b = new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position).applyMatrix4(m.matrix); return b.min.z; };
+    for (const side of [-1, 1]) {
+      const [eye, pupil, shine] = eyeParts(head, side);
+      const [ax, ay, az] = SKULL.SCALE.map((s) => s * SKULL_R);
+      const skullZ = -az * Math.sqrt(1 - (eye.position.x / ax) ** 2 - (eye.position.y / ay) ** 2);
+      expect(frontZ(eye)).toBeLessThanOrEqual(skullZ - 0.005);
+      expect(frontZ(pupil)).toBeLessThanOrEqual(frontZ(eye) - 0.001);
+      // the shine stands out of the eye's surface where it sits
+      const [ex, ey, ez] = [0.036, 0.036 * 1.15, 0.036 * 0.7];
+      const dx = (shine.position.x - eye.position.x) / ex, dy = (shine.position.y - eye.position.y) / ey;
+      expect(frontZ(shine)).toBeLessThanOrEqual(eye.position.z - ez * Math.sqrt(1 - dx * dx - dy * dy) - 0.002);
+    }
   });
 });

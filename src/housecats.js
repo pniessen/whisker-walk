@@ -124,7 +124,10 @@ export function shedKittypetCollar(stray) {
   if (!stray || stray.colony || !isKittypetName(stray.name)) return false;
   const collar = stray.group?.getObjectByName?.('collar');
   if (!collar) return false;
+  // the head forgets it too, so the animator never carries it on the neck again
+  const head = collar.parent;
   collar.removeFromParent();
+  if (head?.userData?.collar === collar) delete head.userData.collar;
   return true;
 }
 

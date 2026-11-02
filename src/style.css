@@ -68,7 +68,7 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
 }
 /* No map in the den: the roster goes back under the caption pill, where it
    sat before the map, instead of under an empty corner. */
-.hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: 64px; }
+.hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: calc(max(16px, env(safe-area-inset-top)) + 48px); }
 .hud-roster-chip {
   background: rgba(20,26,38,0.55); padding: 3px 10px; border-radius: 999px;
   font-size: 0.8rem;
@@ -77,7 +77,7 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
    band the rank pill is centred in), so a long objective never runs under
    the map or the roster below it. */
 .hud-objective {
-  position: absolute; top: 64px;
+  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 48px);
   left: max(16px, env(safe-area-inset-left));
   right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 12px);
   width: fit-content; margin: 0 auto; text-align: center;
@@ -88,16 +88,22 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   margin-left: 0.6em; font-size: 0.8em; font-weight: 600; opacity: 0.65;
   white-space: nowrap; /* "24 m" never splits across a wrapped objective */
 }
+/* 48px under the top row, which rides the safe-area inset (a standalone PWA). */
 .hud-goals {
-  position: absolute; top: 64px; left: 16px;
+  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 48px); left: 16px;
   background: rgba(20,26,38,0.55); border-radius: 10px; padding: 8px 12px;
   font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px;
 }
 .goal.done { color: #7ee2a0; }
+/* Desktop: the interact prompt (.hud-prompt, bottom 96px, ~40px tall) tops out
+   near 136px, so a toast's bottom edge sits at 146px, ~10px clear of it. While
+   the fight challenge pill is up (two 48px buttons, ~100px tall, same bottom
+   96px) the toasts rise to 210px. Touch overrides both further down. */
 .hud-toasts {
-  position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: 146px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
+#hud.fight-asking .hud-toasts { bottom: 210px; }
 .toast {
   background: rgba(20,26,38,0.75); padding: 8px 18px; border-radius: 999px;
   transition: opacity 0.8s; font-size: 1.05rem;
@@ -127,32 +133,47 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
    touchstart (see onFirstTouch in main.js), where the media query never
    matches. */
 body.touch-mode .hud-controls { display: none; }
-/* On touch the toast stack sits ABOVE the yellow prompt pill (bottom 96px) and
-   the 2x2 round action cluster (.tui-actions: bottom 88px + two 56px rows and
-   a 10px gap = 210px), so a toast such as the rain slip is never hidden under
-   them. 224px clears the cluster with a small gap; the width is capped to the
-   screen so a long toast wraps inside it instead of being squeezed into the
-   half-screen left of the toasts' 50% anchor. Desktop keeps 110px above. */
+/* On touch (portrait) the 2x2 round action cluster (.tui-actions: bottom 88px
+   + two 56px rows and a 10px gap = 210px) covers the right side of the
+   screen, where the centred prompt pill (and the fight pill, which is also a
+   .hud-prompt) used to sit underneath it. So the prompt rises to 222px, 12px
+   above the cluster; its max-width keeps a long pill on screen. Toasts then
+   stack above the prompt: 292px clears the ~60px touch prompt (222 + 60 = 282)
+   with a small gap, and 360px clears the fight pill (~130px tall with its
+   buttons). The width is capped to the screen so a long toast wraps inside it
+   instead of being squeezed into the half-screen left of the toasts' 50%
+   anchor. The fight rule is written with #hud and body.touch-mode so it
+   outranks the desktop #hud.fight-asking rule (210px). Desktop keeps 146px. */
 @media (pointer: coarse) {
+  .hud-prompt { bottom: calc(222px + env(safe-area-inset-bottom)); max-width: calc(100vw - 32px); }
   .hud-toasts {
-    bottom: calc(224px + env(safe-area-inset-bottom));
+    bottom: calc(292px + env(safe-area-inset-bottom));
     width: max-content; max-width: calc(100vw - 32px);
   }
+  #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-area-inset-bottom)); }
 }
+body.touch-mode .hud-prompt { bottom: calc(222px + env(safe-area-inset-bottom)); max-width: calc(100vw - 32px); }
 body.touch-mode .hud-toasts {
-  bottom: calc(224px + env(safe-area-inset-bottom));
+  bottom: calc(292px + env(safe-area-inset-bottom));
   width: max-content; max-width: calc(100vw - 32px);
 }
+body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-area-inset-bottom)); }
 /* Short (landscape) touch screens: the action cluster sits at the right edge,
-   horizontally clear of the centred toasts, so they only need to clear the
-   prompt pill. 165px keeps a single toast's top at ~171px on a 375px-tall
-   screen, under the goals panel (bottom 142px); the 60px touch prompt pill tops
-   out at 219px, which the lowest toast clears. Portrait and desktop unchanged. */
+   horizontally clear of the centred prompt, so the prompt keeps its old 96px
+   and the toasts only need to clear it. 165px keeps a single toast's top at
+   ~171px on a 375px-tall screen, under the goals panel (bottom 142px); the
+   60px touch prompt pill tops out at 219px, which the lowest toast clears.
+   With the fight pill up (~100px tall, tops out near 196px) the toasts sit at
+   210px. These come last so the portrait rules above never reach landscape. */
 @media (pointer: coarse) and (max-height: 500px) {
+  .hud-prompt { bottom: calc(96px + env(safe-area-inset-bottom)); }
   .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
+  #hud.fight-asking .hud-toasts { bottom: calc(210px + env(safe-area-inset-bottom)); }
 }
 @media (max-height: 500px) {
+  body.touch-mode .hud-prompt { bottom: calc(96px + env(safe-area-inset-bottom)); }
   body.touch-mode .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
+  body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(210px + env(safe-area-inset-bottom)); }
 }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -208,9 +229,10 @@ body.touch-mode .hud-viewfinder .vf-hint-touch { display: inline; }
 .tui-btn:active { background: rgba(20,26,38,0.8); }
 .tui-pause {
   position: absolute;
-  /* Top-left, under the points pill (.hud-top sits at
-     max(16px, safe-area-inset-top) and runs ~40px tall). */
-  top: max(64px, calc(env(safe-area-inset-top) + 64px));
+  /* Top-left, in the top row level with the points pill (.hud-top steps right
+     by 54px = 44px button + 10px gap in right-handed touch mode, see below),
+     so it no longer sits on the goals list (top 64px). */
+  top: max(16px, env(safe-area-inset-top));
   left: max(16px, env(safe-area-inset-left));
   width: 44px; height: 44px; min-width: 44px; min-height: 44px;
   border-radius: 50%; border: 2px solid rgba(255,255,255,0.5);
@@ -263,6 +285,11 @@ body.left-handed .tui-pause {
 }
 body.left-handed .hud-top {
   right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 64px);
+}
+/* Right-handed: the pause takes the top-left corner of the top row, so the
+   row starts 54px further in. Left-handed keeps its own spot and inset. */
+body.touch-mode:not(.left-handed) .hud-top {
+  left: calc(max(16px, env(safe-area-inset-left)) + 54px);
 }
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .photos figure { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 8px; }
@@ -441,6 +468,14 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .summary-card h1 { font-size: 2.2rem; }
+/* Continue wears the home's pink pill (the dressing room's --pink, scoped to
+   .dr, so the literal) instead of a bare browser button. */
+.summary-card .primary {
+  background: #e7a9a0; color: #1c2431; border: 0; border-radius: 999px;
+  font: inherit; font-weight: 700; font-size: 1.1rem; padding: 12px 36px;
+  min-height: 48px; min-width: 200px; cursor: pointer;
+}
+.summary-card .primary:hover { filter: brightness(1.08); }
 .record-banner { background: #f2c14e; color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 999px; font-size: 1.1rem; }
 .best-line { color: #a8c0e0; font-size: 1rem; }
@@ -455,8 +490,8 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   .homebase-scroll { padding: 20px 14px 44px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .hud-goals { font-size: 0.72rem; padding: 6px 9px; gap: 2px; }
-  /* On a phone the band at 64px is shared with the goals list and the
-     touch pause button, so the objective drops below the map and its
+  /* On a phone the band at 64px is shared with the goals list (the touch
+     pause now rides the top row), so the objective drops below the map and its
      caption, level with the roster. */
   .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px); }
   /* The top row shares its width with the map (and, left-handed, the pause
@@ -468,8 +503,10 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   .hud-points { flex-shrink: 0; }
   .hud-rank { font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
+  /* Edge to edge: the scrim spans the screen, and padding (not a max-width
+     margin) keeps the content in. */
   .summary-card {
-    max-width: 92vw; margin: 0 auto; padding: 16px 0;
+    padding: 16px 4vw;
     overflow-y: auto; gap: 10px;
   }
   .summary-card h1 { font-size: 1.7rem; }

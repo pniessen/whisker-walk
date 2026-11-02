@@ -12,8 +12,9 @@
                                 walk = follow at moveSpeed 1.5; every other state at speed 0
        speed=1.5                any state at that moveSpeed (state=stalk&speed=1.5: the creeping stalk)
        t=1.3                    animation time, seconds
-       view=side|front|back|three   side = from +x (row runs along z), front = from -z,
-                                back = from +z, three = 3/4 from front-right
+       view=side|front|back|three|rear|rear3   side = from +x (row runs along z), front = from -z,
+                                back = from +z, three = 3/4 from front-right; rear = from behind and
+                                above, about where the walk camera sits; rear3 = rear from behind-right
        acc=slot:id,slot:id      e.g. body:sweater,neck:bowtie      dressed=1 = the full kit
        simple=1                 opts.simple builds
        zoom=1                   multiplier on camera distance
@@ -108,7 +109,7 @@
   }
 
   function run() {
-    const view = ['side', 'front', 'back', 'three'].includes(params.get('view')) ? params.get('view') : 'side';
+    const view = ['side', 'front', 'back', 'three', 'rear', 'rear3'].includes(params.get('view')) ? params.get('view') : 'side';
     const stateParam = params.get('state') || 'follow';
     const walk = stateParam === 'walk';
     const state = walk ? 'follow' : stateParam;
@@ -263,7 +264,7 @@
       const c = (n - 1) / 2;
       // lay the row out so index 0 is on the screen-left for each camera
       if (alongZ) cat.position.z = (c - i) * SP;
-      else if (view === 'back') cat.position.x = (i - c) * SP;
+      else if (view === 'back' || view === 'rear' || view === 'rear3') cat.position.x = (i - c) * SP;
       else cat.position.x = (c - i) * SP;
       if (water) cat.position.y = -sinkTarget(cat, water);
       scene.add(cat);
@@ -313,7 +314,7 @@
     const target = atParam.length === 3 && atParam.every(Number.isFinite)
       ? new THREE.Vector3(...atParam) : pairKind ? pairCentre() : new THREE.Vector3(0, 0.38, 0);
     if (gameLight) shadowFit = createShadowFit(gameSun, camera, { radius: GAME_SHADOW_RADIUS, mapSize: GAME_SHADOW_MAP });
-    const dirs = { side: [1, 0.12, 0], front: [0, 0.12, -1], back: [0, 0.12, 1], three: [0.65, 0.3, -0.75] };
+    const dirs = { side: [1, 0.12, 0], front: [0, 0.12, -1], back: [0, 0.12, 1], three: [0.65, 0.3, -0.75], rear: [0, 0.4, 1], rear3: [0.55, 0.4, 0.85] };
 
     function layout() {
       const w = window.innerWidth, h = window.innerHeight;

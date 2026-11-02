@@ -6,6 +6,11 @@ import { fingerprintCat, buildFor, goldenKeys, hagridKeys } from './helpers/catf
 // hagrid-golden.json is write-once. The chicken changed once, on purpose, in the
 // 2026-11-01 body refinement (regenerated 2026-11-02 with the owner's
 // sign-off); it is write-once again from here (written only if missing).
+// 2026-11-02, polish 1a Task 5 (the cat from behind): catgolden.json regenerated
+// once for shorter, forward-swept, fainter whiskers; darker ear backs (vertex
+// colour); the pupil and eye shine tucked onto the eye; an evenly tapered tail
+// with a rounded tip, dark over its last third only; the "M" stripes run on
+// over the crown (headStripes cats). Hagrid is unchanged (his golden still passes).
 const GOLDEN_FILE = new URL('./fixtures/catgolden.json', import.meta.url);
 const HAGRID_FILE = new URL('./fixtures/hagrid-golden.json', import.meta.url);
 

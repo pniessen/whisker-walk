@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createHud } from '../src/ui/hud.js';
 import { bus } from '../src/events.js';
 
@@ -195,5 +196,94 @@ describe('the discovery toast', () => {
       vi.runAllTimers();
       vi.useRealTimers();
     }
+  });
+});
+
+// Polish pass 1a, Task 5 (2026-11-02): the "white dot on the cat's nape" in the
+// walk was the HUD's centre crosshair (a "·" at 50%/50%), which the walk camera
+// always lands on the back of the cat's head. It only helps line up a photo,
+// so it shows with the viewfinder and nowhere else.
+describe('hud crosshair', () => {
+  it('is hidden on the walk and shows only while the camera viewfinder is up', () => {
+    const hud = createHud();
+    const cross = byId.get('hud-crosshair');
+    expect(cross).toBeTruthy();
+    expect(cross.classList.contains('hidden')).toBe(true);
+    hud.setCamera(true);
+    expect(cross.classList.contains('hidden')).toBe(false);
+    hud.setCamera(false);
+    expect(cross.classList.contains('hidden')).toBe(true);
+  });
+});
+
+describe('HUD layout (style.css)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const rule = (sel) => {
+    const at = css.indexOf(`${sel} {`);
+    return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+  };
+  const landscape = () => {
+    const at = css.indexOf('@media (max-height: 500px) {\n  body.touch-mode');
+    return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+  };
+
+  describe('walk summary', () => {
+    test('Continue is a pink pill, not a browser button', () => {
+      const r = rule('.summary-card .primary');
+      expect(r).toContain('background: #e7a9a0');
+      expect(r).toContain('border-radius: 999px');
+      expect(r).toMatch(/min-height: (4[89]|5\d)px/);
+    });
+    test('on a phone the summary scrim runs edge to edge', () => {
+      const at = css.indexOf('@media (max-width: 480px) {\n  .homebase-scroll');
+      const block = css.slice(at, css.indexOf('\n}\n', at));
+      const card = block.slice(block.indexOf('.summary-card {'), block.indexOf('}', block.indexOf('.summary-card {')));
+      expect(card).not.toMatch(/max-width/);
+      expect(card).toMatch(/padding: 16px 4vw/);
+    });
+  });
+
+  describe('touch HUD', () => {
+    test('touch pause sits in the top row; the top row steps right for it', () => {
+      expect(rule('.tui-pause')).toMatch(/top: max\(16px, env\(safe-area-inset-top\)\)/);
+      expect(css).toMatch(/body\.touch-mode:not\(\.left-handed\) \.hud-top\s*\{[^}]*left: calc\(max\(16px, env\(safe-area-inset-left\)\) \+ 54px\)/);
+      // Fix wave M6: the band under the top row follows the top row's safe-area
+      // inset (a standalone PWA), 48px below it: 64px with no inset, as before.
+      const band = 'top: calc(max(16px, env(safe-area-inset-top)) + 48px)';
+      expect(rule('.hud-goals')).toContain(band);
+      expect(rule('.hud-objective')).toContain(band);
+      expect(rule('.hud-map:not(:has(.hud-map-disc)) ~ .hud-roster')).toContain(band);
+      expect(css).not.toMatch(/(^|[;{\s])top: 64px/);
+    });
+    test('touch prompt rises above the action cluster; toasts above the prompt', () => {
+      expect(css).toMatch(/body\.touch-mode \.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
+      expect(css).toMatch(/body\.touch-mode \.hud-toasts\s*\{[^}]*bottom: calc\(292px/);
+      expect(css).toMatch(/body\.touch-mode #hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
+      // the coarse-pointer twins stay in step
+      expect(css).toMatch(/@media \(pointer: coarse\) \{\s*\.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
+      // (anchored inside the coarse-pointer block: the body.touch-mode rule above matches too)
+      const at = css.indexOf('@media (pointer: coarse) {\n  .hud-prompt');
+      const coarse = at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+      expect(coarse).toMatch(/\n\s*#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
+    });
+    test('landscape touch keeps the prompt at 96px and toasts at 165px', () => {
+      const block = landscape();
+      expect(block).toMatch(/\.hud-prompt\s*\{[^}]*bottom: calc\(96px/);
+      expect(block).toMatch(/\.hud-toasts\s*\{[^}]*bottom: calc\(165px/);
+    });
+    test('landscape touch with a fight pill up puts toasts at 210px', () => {
+      expect(landscape()).toMatch(/#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(210px \+ env\(safe-area-inset-bottom\)\)/);
+    });
+    test('left-handed keeps its own pause spot and top-row inset', () => {
+      expect(rule('body.left-handed .tui-pause')).toContain('right: calc(');
+      expect(rule('body.left-handed .hud-top')).toContain('+ 64px');
+    });
+  });
+
+  describe('desktop toasts', () => {
+    test('toasts sit above the prompt pill, and above the fight pill when it is up', () => {
+      expect(rule('.hud-toasts')).toContain('bottom: 146px');
+      expect(css).toMatch(/\n#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: 210px/);
+    });
   });
 });

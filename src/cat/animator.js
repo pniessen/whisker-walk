@@ -13,6 +13,30 @@ const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: 
 // (Hagrid) gets no curl in any state.
 const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, perch: 0.2, requestPet: 0.2 };
 
+// Polish 1a, Task 5 (2026-11-02): the walking carriage. From the walk camera,
+// behind the cat, the resting curl (link 0 level, straight back at the camera,
+// the rest curling up) read as a lump with a horn on it. Walking, a cat holds
+// its tail up in a soft S: these are the five pivots' bends (rotation.x; - is
+// up) that, on the root's own 0.28 tilt, raise link 0 to ~0.77 rad, stand the
+// middle at ~1.09 and curl the tip back to ~0.34. Well up, because the walk
+// camera looks down ~25 degrees from behind and a tail leaning back toward it
+// is seen end-on, a stub; no higher, because the tip then tops out exactly
+// where the curl's did, under the ears (the gates' flap openings clear every
+// cat walking by 1 cm, pushthrough.test.js). They replace the curl in a
+// walking 'follow', eased in with speed (full at TAIL_S_SPEED), so a cat that
+// stops lets its tail settle back to the curl.
+const TAIL_S = [-1.05, -0.32, 0.0, 0.35, 0.40];
+const TAIL_S_SPEED = 1.2;
+
+// Polish 1a, Task 5: the poses in which a worn collar follows the neck instead
+// of the head. The collar hangs on the head (model.js), which is right while
+// the head sits over the chest; the stalk drops the head low and forward of
+// the chest, and a head-locked collar's front then stuck out under the chin as
+// a black rod with the tag dangling in the air. Here the collar keeps its
+// place on the neck instead (fitNeck). The sniff and the pinned pose drop the
+// head the same way to a lesser degree, and do the same (fix wave, polish-5).
+const COLLAR_ON_NECK = new Set(['stalk', 'sniff', 'pinned']);
+
 // v20 "Ruffled Fur" — the 'cross' pose.
 //
 // Derived from 'scared' below (raised tail, flattened ears) because a scared
@@ -129,6 +153,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+  fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
 }
@@ -178,6 +203,92 @@ function keepChestUnderHead(body, underside) {
   _c.applyQuaternion(_yaw.setFromAxisAngle(_Y, -yaw));                                  // R_y(-θ)·c
   _p.sub(_c);
   underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
+}
+
+// The collar on the neck (COLLAR_ON_NECK). The neck joins the chest (the
+// underside's chestCentre) to the head's centre. Resting, the collar sits on
+// it as built; in a COLLAR_ON_NECK pose it is carried from the resting neck to
+// the posed one: moved with the neck's midpoint and turned as the neck turned
+// (chest-to-head direction), so it keeps its place and tilt on the neck and
+// the tag still hangs at the throat. Everything is in the cat's own frame, then
+// put back into the head's. In any other pose the collar is put back where it
+// was built (its rest, remembered the first time it is moved). Deterministic.
+//
+// Fix wave (polish-5): the posed chest is read through the underside
+// (keepChestUnderHead holds it at the unyawed point once the torso yaws, which
+// the body's matrix alone misses). The neck-slot pieces (model.js records them
+// in head.userData.neckwear: bandana, necktie, bowtie, scarf, the streamer
+// scarf) hang at the collar's seam, so they make the very same rigid move, each
+// from its own rest; without a collar they still do. A collar shed off the head
+// (housecats.js shedKittypetCollar) is left alone.
+const _h0 = new THREE.Vector3();
+const _c0 = new THREE.Vector3();
+const _c1 = new THREE.Vector3();
+const _n0 = new THREE.Vector3();
+const _n1 = new THREE.Vector3();
+const _turn = new THREE.Quaternion();
+const _M = new THREE.Matrix4();
+const _R = new THREE.Matrix4();
+const _X = new THREE.Matrix4();
+const _one = new THREE.Vector3(1, 1, 1);
+const _noTurn = new THREE.Quaternion();
+const _sc = new THREE.Vector3();
+function fitNeck(cat, state) {
+  const { head } = cat.userData.parts;
+  const collar = head.userData.collar;
+  const neckwear = head.userData.neckwear;
+  const wearsCollar = collar?.parent === head;
+  if (!wearsCollar && !neckwear?.length) return;
+  if (!COLLAR_ON_NECK.has(state) || !cat.userData.parts.underside) {
+    if (wearsCollar) restore(collar);
+    if (neckwear) for (const item of neckwear) restore(item);
+    return;
+  }
+  neckMove(cat);
+  if (wearsCollar) carry(collar);
+  if (neckwear) for (const item of neckwear) carry(item);
+}
+
+// Exported for the tests (a torso yawed under a neck pose): the chest, then the neck.
+export function refitNeck(cat, state) {
+  const { body, underside } = cat.userData.parts;
+  if (underside) keepChestUnderHead(body, underside);
+  fitNeck(cat, state);
+}
+
+function restore(item) {
+  const rest = item.userData.rest;
+  if (rest) { item.position.copy(rest.position); item.quaternion.copy(rest.quaternion); }
+}
+
+// item (head frame) = _X · rest, its rest remembered the first time it is moved
+function carry(item) {
+  const rest = (item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone() });
+  _M.compose(rest.position, rest.quaternion, _one).premultiply(_X);
+  _M.decompose(item.position, item.quaternion, _sc);
+}
+
+// _X = head⁻¹ · T(neck1) · R(turn) · T(-neck0) · H0: the neck's move, in the head's frame
+function neckMove(cat) {
+  const { head, body, underside } = cat.userData.parts;
+  const { bodyY, bodyScale: [sx, sy, sz], headPos } = cat.userData.base;
+  const [cx, cy, cz] = underside.userData.chestCentre;
+  // the resting neck: head and body as pose()'s reset leaves them
+  _h0.fromArray(headPos);
+  _c0.set(cx * sx, bodyY + cy * sy, cz * sz);
+  // the posed neck, the chest read through the underside (T + S·c once yawed)
+  body.updateMatrix(); head.updateMatrix(); underside.updateMatrix();
+  _c1.set(cx, cy, cz).applyMatrix4(underside.matrix).applyMatrix4(body.matrix);
+  _n0.subVectors(_h0, _c0).normalize();
+  _n1.subVectors(head.position, _c1).normalize();
+  _turn.setFromUnitVectors(_n0, _n1);
+  _X.compose(_h0, _noTurn, head.scale);
+  _c0.add(_h0).multiplyScalar(0.5); // neck0
+  _c1.add(head.position).multiplyScalar(0.5); // neck1
+  _X.premultiply(_R.makeTranslation(-_c0.x, -_c0.y, -_c0.z));
+  _X.premultiply(_R.makeRotationFromQuaternion(_turn));
+  _X.premultiply(_R.makeTranslation(_c1.x, _c1.y, _c1.z));
+  _X.premultiply(_R.copy(head.matrix).invert());
 }
 
 // torso.js POSE_FIT: a per-state height correction, measured against the old
@@ -631,5 +742,10 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const lashSway = lashing ? sway * CROSS.lashScale : sway;
   for (let i = 0; i < tailPivots.length; i++) {
     tailPivots[i].rotation.y += Math.sin(t * lashFreq - i * 0.65) * lashSway;
+  }
+  // The walking carriage (TAIL_S), on a rig with the resting curl (not Hagrid).
+  if (state === 'follow' && c && moveSpeed > 0) {
+    const w = Math.min(1, moveSpeed / TAIL_S_SPEED);
+    for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.x = -c + (TAIL_S[i] + c) * w;
   }
 }
