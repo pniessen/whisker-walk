@@ -3,7 +3,7 @@
 // beyond reading the flat path strips once when a walk starts.
 import { flatFootprints } from '../render/grass.js';
 import { findTrees } from '../render/ambient.js';
-import { toMap, pinToRim, mapMarkers, mapRadiusFor } from './minimapmath.js';
+import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle } from './minimapmath.js';
 
 const CREAM = '#f4efe4';
 const RIM = 'rgba(20,26,38,0.85)';
@@ -337,6 +337,20 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.closePath();
       ctx.fillStyle = '#2a2018';
       ctx.fill();
+    } else if (m.kind === 'post') {
+      // A small brown arrow head, 9 px long and 5 wide, pointing out over the border.
+      ctx.translate(x, y);
+      ctx.rotate(faceAngle(m.faces, view));
+      ctx.beginPath();
+      ctx.moveTo(4.5, 0);
+      ctx.lineTo(-4.5, -2.5);
+      ctx.lineTo(-4.5, 2.5);
+      ctx.closePath();
+      ctx.fillStyle = '#8a6a48';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
     } else if (m.kind === 'remote') {
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);

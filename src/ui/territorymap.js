@@ -10,6 +10,7 @@
 // reaches the dressing room's existing place handler.
 
 import { clanName } from '../clanhomes.js';
+import { LAND } from '../territories.js';
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
@@ -79,9 +80,6 @@ function wrap(text, max) {
   return lines;
 }
 
-// Land colours, one per territory: Twolegplace's rooftops, the Woods' green,
-// heather on the Moor, marsh, dark pines, grey rock for the Gorge.
-const LAND = { town: '#d9a57e', woods: '#8fbf74', moor: '#c9a9c6', river: '#a8cf9c', pines: '#6e9d78', gorge: '#b5a48d' };
 const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: '🌲', gorge: '⛰️' };
 // Where each name sits, nudged off her water and paths where they cross the centre.
 const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 340] };

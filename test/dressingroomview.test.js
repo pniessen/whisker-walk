@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reduceDressingUi } from '../src/ui/dressingroomview.js';
+import { reduceDressingUi, createDressingRoom } from '../src/ui/dressingroomview.js';
 
 const base = () => ({ pill: 'wearing', openSlot: null, previewCat: null, tryOn: null });
 
@@ -70,5 +70,18 @@ describe('reduceDressingUi', () => {
     const ui = Object.freeze(base());
     expect(() => reduceDressingUi(ui, { type: 'slot', slot: 'head' })).not.toThrow();
     expect(ui.openSlot).toBe(null);
+  });
+});
+
+describe('createDressingRoom setPill', () => {
+  it("setPill('where') switches the panel and ignores junk", () => {
+    const progression = { state: { equipped: {}, unlocked: {} } };
+    const room = createDressingRoom({ progression });
+    expect(room.ui.pill).toBe('wearing');
+    room.setPill('where');
+    expect(room.ui.pill).toBe('where');
+    room.setPill('nope');
+    room.setPill(undefined);
+    expect(room.ui.pill).toBe('where');
   });
 });

@@ -558,7 +558,9 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     expect({
       near: near.length, stand: stand.length, ferns: ferns.length, toadstools: toadstools.length,
       shore: shore.length, reeds: reeds.length - ring.length, pads: pinesLilyPads().length,
-    }).toEqual({ near: 27, stand: 83, ferns: 136, toadstools: 47, shore: 58, reeds: 141, pads: 20 });
+    }).toEqual({ near: 24, stand: 82, ferns: 134, toadstools: 45, shore: 58, reeds: 141, pads: 20 });
+    // The Moor trail's clearing (border-crossings Task 1) took 3 near pines, 1
+    // stand pine, 2 ferns and 2 toadstools off 27, 83, 136 and 47.
     // The BUG 1 fix (the canopy rule measured from the paths stretched by the
     // far camera's 7 m) moved these from 40 near, 86 stand, 133 ferns and 45
     // toadstools: fewer pines by the paths' bends and ends, and the floor
@@ -1433,7 +1435,8 @@ describe('the Pines: the forest', () => {
     expect(pinesTrees()).toEqual({ near, stand });
     // 25, not 30: the BUG 1 fix keeps pines off the paths' bends and ends
     // (the far camera's swing), which took the near pines from 40 to 27
-    expect(near.length).toBeGreaterThanOrEqual(25);
+    // and the Moor trail's clearing to 24 (border-crossings Task 1)
+    expect(near.length).toBeGreaterThanOrEqual(24);
     expect(near.length).toBeLessThanOrEqual(40);
     expect(stand.length).toBeGreaterThanOrEqual(70);
     expect(stand.length).toBeLessThanOrEqual(150);

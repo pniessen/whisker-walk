@@ -50,7 +50,7 @@ export function takeHeldItemsWithRemotes(remotes, items, localCat) {
 
 // getPartner() → my colony partner ({ playerId, petName, wardrobe }) or null
 // (v21 Stream 2). Optional: without it no colony-feed is ever shown.
-export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner }) {
+export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, samples, catVoice, applyGoalResult, getPartner, onBorderCross = () => {} }) {
   function petNameFor(s, playerId) {
     return s.remotes.list.find((r) => r.playerId === playerId)?.petName ?? 'A friend';
   }
@@ -249,7 +249,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       applyRemoteBuddy(s, ev);
     } else if (ev.type === 'intruder-fight' || ev.type === 'intruder-done') {
       applyRemoteIntruder(s, ev);
-    }
+    } else if (ev.type === 'border-cross') onBorderCross(s, ev);
   }
 
   // Clan Life Part 2, Task 5 — a co-walker's fight with the visiting clan cat.

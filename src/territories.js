@@ -10,6 +10,11 @@ import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
 import { picksOf, isClanId } from './clanhomes.js';
 
+// Land colours, one per territory: Twolegplace's rooftops, the Woods' green,
+// heather on the Moor, marsh, dark pines, grey rock for the Gorge. The home-screen
+// map paints them and a border post's cloth band wears the neighbour's.
+export const LAND = Object.freeze({ town: '#d9a57e', woods: '#8fbf74', moor: '#c9a9c6', river: '#a8cf9c', pines: '#6e9d78', gorge: '#b5a48d' });
+
 export const BOARD = Object.freeze({ w: 1000, h: 700 });
 
 const freezeAll = (list) => Object.freeze(list.map((t) => Object.freeze(t)));

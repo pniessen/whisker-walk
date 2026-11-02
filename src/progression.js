@@ -1255,6 +1255,21 @@ export function createProgression(storage) {
         save();
       }
     },
+    // pickPlace(id) -> 'set' | 'bought' | false. The map's pick: set an owned
+    // place, else take it when open and affordable, then report whether it
+    // is now state.area (setArea refuses a Clan-only place in Legacy).
+    pickPlace(id) {
+      if (typeof id !== 'string' || !Object.hasOwn(CATALOG.areas, id)) return false;
+      let outcome = false;
+      if (api.isUnlocked('areas', id)) {
+        api.setArea(id);
+        outcome = 'set';
+      } else if (api.buy('areas', id)) {
+        api.setArea(id);
+        outcome = 'bought';
+      }
+      return state.area === id ? outcome : false;
+    },
     // completeWalk(areaId = state.area) — defaults to the persisted area so
     // every existing call site (which never passed an area) keeps counting
     // whatever area is currently equipped, same as before. main.js's endWalk

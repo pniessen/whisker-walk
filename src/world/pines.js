@@ -408,6 +408,25 @@ function stretched([x1, z1, x2, z2]) {
 }
 const CAM_PATHS = PINES_PATHS.map(stretched);
 const camPathDist = (x, z) => Math.min(...CAM_PATHS.map((seg) => segDist(x, z, ...seg)));
+
+// The trail over the Moor border (owner answer 4 of the border-crossings
+// plan): a 2 m deer track branching off the east path at (33, -11) and running
+// due east to the border, where the Moor's own trail takes it on. It is its own
+// exported constant, not part of PINES_PATHS, on purpose: PINES_PATHS feeds
+// pathDist and CAM_PATHS, so adding to it would reshuffle every seeded tree,
+// fern and reed this map's tests pin. It has no collider, and it is the same
+// for everyone.
+export const PINES_TRAIL = Object.freeze([[33, -11, 50, -11]].map((s) => Object.freeze(s)));
+export const TRAIL_W = 2;
+const CAM_TRAIL = PINES_TRAIL.map(stretched);
+// Whether (x, z) is at least `d` from the trail: for the trees, from the trail
+// stretched CAM_BACK past both ends as the paths are (`cam`), for the beds
+// from the trail itself. It is the last filter in each scatter export, applied
+// to the finished lists, so no rng draw, cap or spacing check changes and
+// nothing but the trees and beds on the trail moves.
+const trailClear = (x, z, d, cam = false) => (cam ? CAM_TRAIL : PINES_TRAIL)
+  .every((seg) => segDist(x, z, ...seg) >= d);
+const BED_TRAIL_CLEAR = TRAIL_W / 2 + 0.8; // the paths' 2.3 m rule less 0.5 m
 const clearOf = (x, z, d) => PINES_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
 
 // The fallen pine's two ends: it lies along its local z, turned to `yaw`. Its
@@ -445,7 +464,8 @@ const PINE_SPACING = 3.2;
 const MAX_NEAR = 40;
 const MAX_STAND = 150;
 const PINE_REACH = 1.3; // builder.pine's lowest cone, per unit of scale
-const canopyClear = (scale) => PATH_W / 2 + PINE_REACH * scale + 0.5;
+const canopyClearFor = (width, scale) => width / 2 + PINE_REACH * scale + 0.5;
+const canopyClear = (scale) => canopyClearFor(PATH_W, scale);
 // The share of candidates kept in each zone.
 function pineShare(x, z) {
   if (x < -27) return z < -6 ? 0.35 : 0.25; // the deep swamp, then the outer swamp
@@ -465,7 +485,7 @@ function pineFits(x, z, scale, kept) {
   if ([LIGHTNING_STUMP, FROG_STONE].some((c) => Math.hypot(x - c.x, z - c.z) < 6)) return false;
   return kept.every((t) => Math.hypot(x - t.x, z - t.z) >= PINE_SPACING);
 }
-export function pinesTrees() {
+function placedPines() {
   const G = PINE_GRID;
   const rng = mulberry32(seedFromCode(G.seed));
   const near = [];
@@ -487,6 +507,15 @@ export function pinesTrees() {
     }
   }
   return { near, stand };
+}
+// The trail clearing: a pine whose canopy breaks the paths' rule for the 2 m
+// trail comes out (clear of it by half its width, its cone's reach and half a
+// metre, measured from the trail stretched like CAM_PATHS). Applied to the
+// finished lists, so no cap or spacing check changes.
+export function pinesTrees() {
+  const { near, stand } = placedPines();
+  const onTrail = (t) => !trailClear(t.x, t.z, canopyClearFor(TRAIL_W, t.scale), true);
+  return { near: near.filter((t) => !onTrail(t)), stand: stand.filter((t) => !onTrail(t)) };
 }
 
 // The forest floor: ferns and toadstools, one rng between them, ferns first.
@@ -511,7 +540,9 @@ function floorFits(x, z, trunks) {
 }
 export function pinesUndergrowth() {
   const rng = mulberry32(seedFromCode('pines-undergrowth'));
-  const { near, stand } = pinesTrees();
+  // the trees as placed, before the trail clearing: a felled pine still keeps
+  // the ferns off its old spot, so no fern appears that was not there before
+  const { near, stand } = placedPines();
   const trunks = [...near, ...stand];
   const scatter = (rule, allowed) => {
     const spots = [];
@@ -523,7 +554,7 @@ export function pinesUndergrowth() {
         if (keep && spots.length < rule.cap && allowed(x) && floorFits(x, z, trunks)) spots.push({ x, z });
       }
     }
-    return spots;
+    return spots.filter((s) => trailClear(s.x, s.z, BED_TRAIL_CLEAR)); // the trail clearing, last
   };
   const ferns = scatter(FERNS, (x) => x >= SWAMP_X);
   const toadstools = scatter(TOADSTOOLS, () => true);
@@ -574,7 +605,8 @@ export function pinesReeds() {
   along(30, 50, (x) => [x, LAKE.minZ - 0.5], true);
   along(44, 50, (z) => [LAKE.minX - 0.5, z], true);
   // and the island's own ring, inside its rim (island.js), in the same bed
-  return [...spots, ...islandReeds()];
+  // the trail clearing, last: no reed grows on the trail
+  return [...spots.filter((s) => trailClear(s.x, s.z, BED_TRAIL_CLEAR)), ...islandReeds()];
 }
 
 // Lily pads on each bog: the River's ring rule, every 1.2 m round a ring at
@@ -665,6 +697,8 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the paths --------------------------------------------------------------
   for (const s of PINES_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+  // the trail over the Moor border, in the same sand, 2 m wide (PINES_TRAIL)
+  for (const s of PINES_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
 
   // --- the truce stones -------------------------------------------------------
   // Two mossy standing stones, one material between them (walk.js disposes

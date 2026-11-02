@@ -34,6 +34,7 @@ const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 
 // ---------------------------------------------------------------------------
@@ -252,6 +253,31 @@ describe('Wave 3.4 — per-area draw-call budget', () => {
         const { meshes, casters } = stats();
         expect(casters).toBeLessThan(meshes);
       });
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Border crossings Task 3: the Clan Edition's posts (and the Neighborhood's
+// footpath) are added by walk.js after the build, so the bare-build cases above
+// stay as they are (Legacy's Neighborhood is the bare build). This holds the
+// dressed maps to the same ceilings, as built and as merged.
+// ---------------------------------------------------------------------------
+describe('with the Clan dressing', () => {
+  for (const [name, build, meshCeiling, casterCeiling] of AREAS.filter(([n]) => ['neighborhood', 'woods', 'river', 'moor', 'pines'].includes(n))) {
+    const mergedCeil = MERGED_AREAS.find(([n]) => n === name);
+    it(`${name}: built under ${meshCeiling} / ${casterCeiling}, merged under ${mergedCeil[2]} / ${mergedCeil[3]}`, () => {
+      const scene = new THREE.Scene();
+      build(scene);
+      addBorderDressing(scene, name);
+      const before = budgetStats(scene);
+      expect(before.meshes).toBeLessThanOrEqual(meshCeiling);
+      expect(before.casters).toBeLessThanOrEqual(casterCeiling);
+      mergeStaticProps(scene);
+      const after = budgetStats(scene);
+      expect(after.meshes).toBeLessThanOrEqual(mergedCeil[2]);
+      expect(after.casters).toBeLessThanOrEqual(mergedCeil[3]);
+      if (process.env.BUDGET_LOG) console.log(name, JSON.stringify({ before, after }));
     });
   }
 });

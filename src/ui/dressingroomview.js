@@ -137,12 +137,7 @@ export function createDressingRoom({
     if (!has(catalog.areas, id)) return;
     // Legacy hides Clan-only places; a stray click on one buys and sets nothing.
     if (!areaInEdition(catalog.areas[id], progression.state?.edition)) return;
-    if (progression.isUnlocked('areas', id)) {
-      progression.setArea(id);
-    } else if (progression.buy('areas', id)) {
-      progression.setArea(id);
-      autoSync();
-    }
+    if (progression.pickPlace(id) === 'bought') autoSync();
   }
 
   // true when this was a dressing-room control (even if it changed nothing)
@@ -169,8 +164,13 @@ export function createDressingRoom({
     dispatch({ type: 'clear-preview' });
   }
 
+  // A walk that ended at a border post opens the home screen on Where to.
+  function setPill(pill) {
+    dispatch({ type: 'pill', pill });
+  }
+
   return {
-    html, afterRender, handleClick, clearPreview,
+    html, afterRender, handleClick, clearPreview, setPill,
     get ui() { return ui; },
   };
 }

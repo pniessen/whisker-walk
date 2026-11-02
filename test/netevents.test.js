@@ -686,6 +686,52 @@ describe('applyRemoteEvent: clan-buddy', () => {
   });
 });
 
+describe('applyRemoteEvent: border-cross', () => {
+  function make() {
+    const calls = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null,
+      log: {}, hud: { toast() {} }, audio: {}, samples: { has: () => false },
+      catVoice() {}, applyGoalResult() {},
+      onBorderCross: (s, ev) => calls.push([s, ev]),
+    });
+    return { applyRemoteEvent, calls };
+  }
+  it('reaches onBorderCross with (s, ev)', () => {
+    const { applyRemoteEvent, calls } = make();
+    const s = {}; const ev = { type: 'border-cross', id: 'a' };
+    applyRemoteEvent(s, ev);
+    expect(calls).toEqual([[s, ev]]);
+  });
+  it('an unknown type still does nothing', () => {
+    const { applyRemoteEvent, calls } = make();
+    applyRemoteEvent({}, { type: 'nope' });
+    expect(calls).toEqual([]);
+  });
+  it('an intruder event still reaches the fight code, not onBorderCross', () => {
+    const { applyRemoteEvent, calls } = make();
+    const held = [];
+    const s = {
+      areaId: 'woods',
+      remotes: { list: [{ playerId: 'a', group: { position: { x: 1, z: 2 } }, petName: 'Robin' }] },
+      intruders: { current: () => ({ visit: 3, member: { name: 'Mossjaw' } }), hold: (v, id) => held.push([v, id]), release() {}, flee() {} },
+    };
+    applyRemoteEvent(s, { v: 1, id: 'a', type: 'intruder-fight', area: 'woods', visit: 3 });
+    expect(held).toEqual([[3, 'a']]);
+    expect(calls).toEqual([]);
+    const ev = { type: 'border-cross', id: 'a' };
+    applyRemoteEvent(s, ev);
+    expect(calls).toEqual([[s, ev]]);
+  });
+  it('works with no onBorderCross dep', () => {
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: {}, audio: {},
+      samples: {}, catVoice() {}, applyGoalResult() {},
+    });
+    expect(() => applyRemoteEvent({}, { type: 'border-cross' })).not.toThrow();
+  });
+});
+
 // Clan Life Part 2, Task 5: a co-walker's fight with the visiting clan cat.
 describe('applyRemoteEvent: intruder-fight and intruder-done', () => {
   function intruderHarness({ intruders = true, clanFight = true, clanEdition = true } = {}) {

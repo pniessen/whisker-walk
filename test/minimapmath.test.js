@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers } from '../src/ui/minimapmath.js';
+import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers, faceAngle } from '../src/ui/minimapmath.js';
 
 const view = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
 
@@ -156,6 +156,50 @@ describe('mapMarkers', () => {
       secrets: [{ x: 3, z: 3 }],
     });
     expect(ms).toEqual([]);
+  });
+});
+
+describe('mapMarkers posts (border crossings)', () => {
+  const base = { race: { state: 'idle', pad: { x: 9, z: 9 } }, quest: null, scenics: [], visitedScenics: new Set(), remotes: [] };
+  const north = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
+  const turned = { ...north, mode: 'turn', heading: Math.PI / 2 };
+  const DIRS = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
+  // Canvas angle of the map-space vector from the post to a point 1 m out.
+  const viaToMap = (faces, view) => {
+    const post = { x: 5, z: -3 };
+    const a = toMap(post.x, post.z, view);
+    const b = toMap(post.x + DIRS[faces][0], post.z + DIRS[faces][1], view);
+    return Math.atan2(b.v - a.v, b.u - a.u);
+  };
+
+  it('puts a post marker after the camp and before the race', () => {
+    const ms = mapMarkers({ ...base, camp: { x: 1, z: 1, color: '#000' }, posts: [{ x: 1, z: 2, faces: 'north' }] });
+    expect(ms.map((m) => m.kind)).toEqual(['camp', 'post', 'pad']);
+    expect(ms[1]).toEqual({ kind: 'post', x: 1, z: 2, faces: 'north' });
+  });
+
+  it('adds none for null or missing posts', () => {
+    expect(mapMarkers({ ...base, posts: null }).some((m) => m.kind === 'post')).toBe(false);
+    expect(mapMarkers(base).some((m) => m.kind === 'post')).toBe(false);
+  });
+
+  it('north faces up the map in north mode and sideways in a turned view', () => {
+    expect(faceAngle('north', north)).toBeCloseTo(-Math.PI / 2);
+    expect(Math.abs(Math.cos(faceAngle('north', turned)))).toBeCloseTo(1, 5);
+    expect(Math.abs(Math.sin(faceAngle('north', turned)))).toBeCloseTo(0, 5);
+    // heading PI/2: world -x is up, so west faces up
+    expect(faceAngle('west', turned)).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('agrees with toMap for a point 1 m out from the post, every direction and view', () => {
+    for (const view of [north, turned, { ...north, mode: 'turn', heading: 0.7 }]) {
+      for (const f of Object.keys(DIRS)) {
+        const want = viaToMap(f, view);
+        const got = faceAngle(f, view);
+        expect(Math.cos(got)).toBeCloseTo(Math.cos(want), 6);
+        expect(Math.sin(got)).toBeCloseTo(Math.sin(want), 6);
+      }
+    }
   });
 });
 

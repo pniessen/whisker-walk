@@ -284,6 +284,22 @@ const UNDECKED = MOOR_WATERS.map((w) => ({ ...w, decks: [] }));
 const waterDist = (x, z) => Math.min(...UNDECKED.map((w) => b.waterGap(w, x, z)));
 const inBounds = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
 const pathDist = (x, z) => Math.min(...MOOR_PATHS.map((seg) => segDist(x, z, ...seg)));
+// The trail over the Pines border (owner answer 4 of the border-crossings
+// plan): a 2 m deer track from the border at (-50, -11), between the two
+// border pines, east past the POI at (-30, -14) to the bridge path's west end
+// at the log bridge's north foot. It is its own exported constant, not part of
+// MOOR_PATHS, on purpose: MOOR_PATHS feeds pathDist, so adding to it would
+// reshuffle the seeded trees, heather and reeds this map's tests pin. It has
+// no collider, and it is the same for everyone.
+export const MOOR_TRAIL = Object.freeze([
+  [-50, -11, -47, -9.6], [-47, -9.6, -30, -12], [-30, -12, 4, -7],
+].map((s) => Object.freeze(s)));
+export const TRAIL_W = 2;
+// Whether (x, z) is at least `d` from the trail. It is the last filter in each
+// scatter export, applied to the finished lists, so no rng draw, cap or spacing
+// check changes and nothing but the trees and beds on the trail moves.
+const trailClear = (x, z, d) => MOOR_TRAIL.every((seg) => segDist(x, z, ...seg) >= d);
+const BED_TRAIL_CLEAR = TRAIL_W / 2 + 0.8; // the paths' 2.3 m rule less 0.5 m
 const clearOf = (x, z, d) => MOOR_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
 
 // Where a tree may stand. Its clearance from a path's centreline grows with
@@ -311,7 +327,7 @@ const THORNS = { seed: 'moor-thorns', cell: 13, from: -43.5, jitter: 3, cap: 12,
 const PINES = { seed: 'moor-pines', xs: [-47, -42], zs: [-36, -30, -24, -18, -12, -6], jitter: 1.5, cap: 8, keep: 0.75, apart: 4 };
 const THORN_REACH = 1.6; // builder.tree's canopy, per unit of scale
 const PINE_REACH = 1.3; // builder.pine's lowest cone, per unit of scale
-export function moorTrees() {
+function placedTrees() {
   const thorns = [];
   const pines = [];
   const apart = (list, x, z, d) => list.every((t) => Math.hypot(x - t.x, z - t.z) >= d);
@@ -346,11 +362,22 @@ export function moorTrees() {
   }
   return { thorns, pines };
 }
+// The trail clearing, last: the bare rule of treeFits for the 2 m trail. On
+// the finished lists, so no cap or spacing check changes.
+export function moorTrees() {
+  const { thorns, pines } = placedTrees();
+  const open = (reach) => (t) => trailClear(t.x, t.z, TRAIL_W / 2 + reach * t.scale + 0.5);
+  return { thorns: thorns.filter(open(THORN_REACH)), pines: pines.filter(open(PINE_REACH)) };
+}
 
 // Every trunk a bed keeps off, scaled: the thorns, the pines and the old
 // hawthorn.
+// Uses the trees as placed, before the trail clearing: a felled border pine
+// still keeps the beds off its old spot, so no heather appears that was not
+// there before (the 12 cushions on the trail itself go in the beds' own
+// filter, as measured: R15's "7" counted only those within 1 m).
 function trunks() {
-  const { thorns, pines } = moorTrees();
+  const { thorns, pines } = placedTrees();
   return [...thorns, ...pines, { x: OLD_HAWTHORN.x, z: OLD_HAWTHORN.z, scale: OLD_HAWTHORN.scale }];
 }
 
@@ -388,7 +415,7 @@ function scatter(rule) {
       if (keep && spots.length < rule.cap && bedFits(x, z, rule, trees)) spots.push({ x, z });
     }
   }
-  return spots;
+  return spots.filter((s) => trailClear(s.x, s.z, BED_TRAIL_CLEAR)); // the trail clearing, last
 }
 export const moorHeather = () => scatter(HEATHER);
 export const moorGorse = () => scatter(GORSE);
@@ -406,6 +433,7 @@ export function moorReeds() {
     if (DECKS.some((d) => x > d.minX - 1.5 && x < d.maxX + 1.5 && z > d.minZ - 1.5 && z < d.maxZ + 1.5)) return;
     if (pathDist(x, z) < 2.3) return;
     if (!clearOf(x, z, 3)) return;
+    if (!trailClear(x, z, BED_TRAIL_CLEAR)) return; // the trail clearing, last
     spots.push({ x: r2(x), z: r2(z) });
   };
   // river-south's two banks, in from the Woods
@@ -492,6 +520,8 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the paths --------------------------------------------------------------
   for (const s of MOOR_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
+  // the trail over the Pines border, in the same sand, 2 m wide (MOOR_TRAIL)
+  for (const s of MOOR_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
 
   // --- the climb chains -------------------------------------------------------
   // The Old Hawthorn, with its grey boulder at the foot, and the High Tor on

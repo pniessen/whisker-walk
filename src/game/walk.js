@@ -70,11 +70,14 @@ import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
+import { addBorderDressing } from '../world/borderpost.js';
+import { postsFor } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
 import { rollWeather, createWeather } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
+import { crossingOutcome } from '../bordercross.js';
 import { rivalForWalk, placeName, effectiveArea, isClanEdition } from '../edition.js';
 import { picksOf, homeWelcome } from '../clanhomes.js';
 import { createEnemyWalkLog } from '../enemies.js';
@@ -147,6 +150,17 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 // The key light, the fill, the shadow bias and the shadow-caster rule are one
 // calibrated rig, shared with the verify harnesses: see render/rig.js.
+
+// The pause / Ready? card, rebuilt on demand (the crossing card puts it back).
+export function pauseCardHtml({ welcome, touch }) {
+  return `<div class="pause-card"><h1>Ready?</h1>
+    ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
+    <button id="btn-resume">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
+    <button id="btn-end">End walk &amp; head home</button>
+    <p class="controls-hint">${touch
+      ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
+      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+}
 
 export function createWalkLifecycle({
   MP, pid, coarse, envMap, overlay, blockList,
@@ -444,6 +458,11 @@ export function createWalkLifecycle({
     const areaData = isDen
       ? AREAS.den.build(scene, { placed: progression.state.den.placed, wind })
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
+    // Clan Edition only, and local to this screen (border crossings R13): the
+    // waymark posts and the town's footpath. Added before the fill light, contact
+    // shadows and the static-prop merge so they get all three; their colliders
+    // join the live list below, beside the scratch posts'.
+    const dressing = !isDen && isClanEdition(state) ? addBorderDressing(scene, areaId) : null;
     // The fill light, added here rather than beside the sun because its ground
     // term is the AREA'S OWN dominant ground colour and only areaData knows it:
     // a green bounce under the park's lawn, sand at Seaside, wet grey stone at
@@ -1034,6 +1053,9 @@ export function createWalkLifecycle({
     // player.update every frame. Added AFTER the scent is laid, so the buried
     // treats land exactly where they always did.
     for (const p of playerMarks.posts) areaData.colliders.push({ ...p.collider });
+    // The border posts' colliders (R13): live list only, after clearSpot, the clan's
+    // frozen copy and the scent, so shared systems never see them.
+    for (const c of dressing?.colliders ?? []) areaData.colliders.push({ ...c });
     // v21 3b Task 14 — the cat flaps in garden gates and the gaps in hedges. A
     // cat that walks through one swings it the way it went, and it keeps a
     // gentle sway for the rest of the walk. Its frame is solid and its opening
@@ -1154,6 +1176,8 @@ export function createWalkLifecycle({
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
+      // Border posts for the corner map: null in the den and in Legacy.
+      postMarkers: dressing ? postsFor(areaId).map(({ x, z, faces }) => ({ x, z, faces })) : null,
       // Per-walk pay caps for the clan verbs (interactions.js CLAN_PAY_CAP).
       clanPaid: { friend: 0, boop: 0, patrol: 0 },
       // Task 6: the clanmate on patrol with me, or null (interactions.js).
@@ -1674,13 +1698,8 @@ export function createWalkLifecycle({
     hud.setGoals(goals ? goals.goals : null);
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
-    overlay.innerHTML = `<div class="pause-card"><h1>Ready?</h1>
-      ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
-      <button id="btn-resume">${getIsTouch() ? 'Tap to explore' : 'Start exploring (click)'}</button>
-      <button id="btn-end">End walk &amp; head home</button>
-      <p class="controls-hint">${getIsTouch()
-        ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
-        : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+    session.welcome = welcome;
+    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch() });
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -1700,14 +1719,34 @@ export function createWalkLifecycle({
     music.start(roomSeed ?? seedFromCode(walkStamp), musicMood);
   }
 
-  function endWalk() {
+  // A crossing the last endWalk made, handed to main.js once (takeCrossing).
+  let lastCrossing = null;
+  function takeCrossing() {
+    const c = lastCrossing;
+    lastCrossing = null;
+    return c;
+  }
+
+  // (An Event passed by a stray onclick destructures to all-null: harmless.)
+  function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;
+    // Who was here, read before the teardown below drops the room.
+    const walkedWithNames = session.net ? session.remotes.list.map((r) => r.petName) : [];
     // session.areaId is the area actually walked (set in startWalk from
     // areaOverride ?? state.area) — pass it explicitly so a den walk (which
     // never persists state.area) increments walks.den, not whatever other
     // area state.area still points at.
     progression.completeWalk(session.areaId, { dusk: session.duskActive });
+    // A crossing: this walk counted toward the gate above; now pick the place.
+    let crossLines = [];
+    lastCrossing = null;
+    if (crossTo) {
+      const clan = isClanEdition(progression.state);
+      const out = crossingOutcome({ crossTo, ledBy, together: together ?? walkedWithNames, clan, pickPlace: (id) => progression.pickPlace(id), catalog: CATALOG, edition: progression.state.edition });
+      crossLines = out.lines;
+      lastCrossing = { to: crossTo, picked: out.picked, clan };
+    }
     // v18 Task 1.4: persist whatever this walk earned. Ordered AFTER
     // completeWalk on purpose — completeWalk is what bumps duskWalks, so the
     // fifth dusk walk unlocks Night Eyes at the end of that same walk rather
@@ -1742,7 +1781,7 @@ export function createWalkLifecycle({
     const isRecord = progression.recordWalkScore(earned);
     const discoveries = session.discoveryCount;
     const friendsGreeted = session.catsGreeted;
-    const walkedWith = session.net ? session.remotes.list.map((r) => r.petName) : [];
+    const walkedWith = together ?? walkedWithNames;
     // kitten stage 2 is transient — set at the end of the "meet" walk (see
     // handleInteract's 'kitten' branch) and promoted to 3 right here, at
     // that same walk's summary, so "Mochi followed you home" lands on the
@@ -1757,6 +1796,7 @@ export function createWalkLifecycle({
       if (progression.addMark(area, mark) && mark.kind === 'den') broughtHome = mark.item;
     }
     // (end of what the cat carried home)
+    const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
     const summaryHtml = `<div class="summary-card">
       <h1>Walk complete!</h1>
       ${isRecord
@@ -1772,6 +1812,7 @@ export function createWalkLifecycle({
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
+      ${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue</button>
     </div>`;
 
@@ -1889,5 +1930,5 @@ export function createWalkLifecycle({
     music.stop();
   }
 
-  return { beginWalkFromHomebase, beginDenWalk, startWalk, endWalk };
+  return { beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing };
 }

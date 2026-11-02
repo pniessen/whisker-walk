@@ -1360,12 +1360,15 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   return {
-    show() {
+    show(opts) {
+      const pill = opts?.pill;
       redeemResult = null; // a stale "Surprise!" or catnap line must not outlive a walk
       duskWanted = false; // as before: every visit starts with the dusk box clear
       shown = true;
+      if (pill) { openSheet = null; ensureDressing().setPill(pill); }
       render(); // also turns the hero stage back on
       root.classList.remove('hidden');
+      if (pill) root.querySelector('.dr-where')?.scrollIntoView?.({ block: 'start' });
       syncPairingPoll(); // render() ran while still hidden
     },
     showNews,

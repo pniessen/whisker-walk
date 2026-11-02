@@ -28,6 +28,7 @@ import { mulberry32 } from '../src/rng.js';
 import { createYardDog } from '../src/yarddog.js';
 import { chaseAllowed } from '../src/rivalcats.js';
 import { bus } from '../src/events.js';
+import { createClanFight } from '../src/game/clanfight.js';
 import { onAnyDeck } from '../src/world/builder.js';
 
 // src/game/* had no test coverage at all before this file — the module carve-
@@ -409,7 +410,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
   // and where the patrol is).
   // Task 15: `rests` gives the session its drink / eat / nap spots, and
   // `player` swaps in a real player (the nap's wake-up reads inputActive).
-  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null } = {}) {
+  function promptHarness({ skills = [], feats = {}, carryables = [], knockables = [], stray = { name: 'Pickles', greeted: false }, areaId = 'park', marks = false, rival = null, rests = null, player: realPlayer = null, askCrossing } = {}) {
     const progression = createProgression(fakeStorage());
     progression.replaceFromPayload({ version: 4, skills, feats });
     const log = createDiscoveryLog(progression);
@@ -466,6 +467,7 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       hud: { toast: (t) => toasts.push(t), setPrompt: (t) => prompts.push(t) },
       audio: { trill() {}, meow() {}, purr: (d) => purrs.push(d) },
       catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+      askCrossing,
     });
     // A frame, in main.js's order: the carried item follows the mouth, then the
     // prompt scan.
@@ -1578,6 +1580,126 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       } finally {
         h.off();
       }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Border crossings Task 5 — the post prompt sits after 'rest', before
+  // 'gift-leave' and 'drop'. Clan Edition only.
+  // -------------------------------------------------------------------------
+  describe('the border post prompt', () => {
+    const POST = { x: 43.4, z: -47.5 }; // woods-moor-path
+    const postHarness = (opts = {}) => {
+      const asked = [];
+      const h = promptHarness({ stray: null, areaId: 'woods', askCrossing: (s, d) => asked.push(d), ...opts });
+      h.progression.state.unlocked.areas.push('moor');
+      return { ...h, asked };
+    };
+
+    it('a Clan walk shows "Head to the Moor?" and E asks the crossing', () => {
+      const h = postHarness();
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt.kind).toBe('border');
+      expect(h.prompts.at(-1)).toBe('E — Head to the Moor?');
+      h.press();
+      expect(h.asked).toHaveLength(1);
+      expect(h.asked[0].post.id).toBe('woods-moor-path');
+      expect(h.asked[0].status.kind).toBe('go');
+    });
+
+    it('Legacy shows no post prompt at the same spot', () => {
+      const h = postHarness();
+      h.progression.state.edition = 'legacy';
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+    });
+
+    it('perched, swimming or fighting shows none', () => {
+      const h = postHarness();
+      h.session.perched = { x: POST.x, y: 0.6, z: POST.z };
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.session.perched = null;
+      h.player.swimming = true;
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.player.swimming = false;
+      h.session.fight = {};
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.session.fight = null;
+      h.session.clanFight = { uiShowing: true };
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.session.clanFight = null;
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt.kind).toBe('border');
+    });
+
+    it('a rest in reach wins over the post, and the post wins over gift-leave and drop', () => {
+      const bowl = { id: 'woods-drink-9', kind: 'drink', x: POST.x + 0.9, z: POST.z + 1, mesh: false };
+      const h = postHarness({ rests: [bowl] });
+      h.walkTo(POST.x + 0.5, POST.z + 1);
+      expect(h.session.prompt.kind).toBe('rest');
+      const g = postHarness({ skills: ['gift-paws'], carryables: [{ id: 'woods-sock-1', kind: 'sock', x: POST.x, z: POST.z + 4 }] });
+      g.session.gifts = { list: [] };
+      g.session.areaData.scenics = [{ id: 'woods-view', label: 'the view', x: POST.x, z: POST.z + 1.2 }];
+      g.walkTo(POST.x, POST.z + 1);
+      expect(g.session.prompt.kind).toBe('border'); // the post beats gift-leave
+      g.walkTo(POST.x, POST.z + 4);
+      g.press(); // pick up the sock
+      expect(g.session.carry.mouth.held?.kind).toBe('sock');
+      g.session.areaData.scenics = [];
+      g.walkTo(POST.x, POST.z + 1);
+      expect(g.session.prompt.kind).toBe('border');
+    });
+
+    it('the real clan fight at a post: no border prompt while its pill or the fight is up (R8)', () => {
+      // A real createClanFight on the same session, its intruder walking 1.5 m
+      // from the post, so its challenge pill and the post would both want the
+      // cat here. The pill wins; so does the fight (which sets s.fight); once
+      // it is aborted the post prompt comes back.
+      const h = postHarness();
+      const cur = { visit: 4, clan: 'moor', member: { name: 'Mossjaw' }, pos: { x: POST.x + 1.5, z: POST.z + 1 }, state: 'walking' };
+      const noop = () => {};
+      const cf = createClanFight({
+        intruders: {
+          current: () => ({ ...cur, pos: { ...cur.pos } }),
+          hold: () => { cur.state = 'held'; }, release: () => { cur.state = 'walking'; }, flee: noop, stage: noop,
+        },
+        ui: { showChallenge: noop, showFight: noop, hide: noop, key: () => false },
+        audio: { hiss: noop, pounceWhoosh: noop, landThump: noop }, fx: { burst: noop }, hud: { toast: noop },
+        log: { awardOnce: noop }, areaId: 'woods', walkStamp: 'w', playerId: 'me', playerSpecial: null,
+        clanHome: true, picks: ['woods'],
+      });
+      h.session.clanFight = cf;
+      h.session.cat.position.set(POST.x, 0, POST.z + 1);
+      cf.update(1 / 30, h.session);
+      expect(cf.uiShowing).toBe('challenge');
+      expect(h.session.fight ?? null).toBe(null);
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      expect(h.asked).toHaveLength(0);
+      cf.startFight();
+      expect(h.session.fight).toBeTruthy();
+      expect(cf.uiShowing).toBe('fight');
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt).toBe(null);
+      h.press();
+      expect(h.asked).toHaveLength(0);
+      cf.abort();
+      expect(h.session.fight).toBe(null);
+      expect(cf.uiShowing).toBe(null);
+      h.walkTo(POST.x, POST.z + 1);
+      expect(h.session.prompt.kind).toBe('border');
+    });
+
+    it('the Gorge post says "not explored yet" and E calls nothing', () => {
+      const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
+      h.walkTo(47.5, -13);
+      expect(h.session.prompt.kind).toBe('border-info');
+      expect(h.prompts.at(-1)).toBe('The Gorge: not explored yet');
+      expect(() => h.press()).not.toThrow();
     });
   });
 
@@ -3867,7 +3989,7 @@ describe('Colony — petting a tamed cat at home in the den (v21 Stream 2)', () 
 // ===========================================================================
 describe('endWalk: what the cat carried home', () => {
   const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-  const end = src.indexOf('function endWalk()');
+  const end = src.indexOf('function endWalk(');
   const a = src.indexOf('What the cat carried home', end);
   const b = src.indexOf('(end of what the cat carried home)', a);
   const block = src.slice(a, b);

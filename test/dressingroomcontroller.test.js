@@ -29,6 +29,13 @@ function setup({ buyResult = true, points = 9999 } = {}) {
     unequip: spy('unequip'),
     buy: spy('buy', buyResult),
     setArea: spy('setArea'),
+    // The real pickPlace's shape over this stub's own buy/setArea.
+    pickPlace(id) {
+      let out = false;
+      if (progression.isUnlocked('areas', id)) { progression.setArea(id); out = 'set'; }
+      else if (progression.buy('areas', id)) { progression.setArea(id); out = 'bought'; }
+      return out;
+    },
   };
   const sync = { autoSync: vi.fn(() => calls.push('autoSync')) };
   const onChange = vi.fn();

@@ -37,6 +37,7 @@ import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
+import { createCrossing } from './game/crossing.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -263,6 +264,11 @@ function init() {
 
   let session = null;
 
+  // The border-post crossing card (src/game/crossing.js), made after the walk
+  // lifecycle below; declared here so the interactions' post slot (and the
+  // co-walk border event) can close over it.
+  let crossing = null;
+
   // Co-walk network event handling (src/game/netevents.js). Created here,
   // above every caller: applyGoalResult below is a hoisted function
   // declaration, and catVoice/log/hud/audio/samples are already bound, so
@@ -274,6 +280,7 @@ function init() {
     applyGoalResult: (s, res) => applyGoalResult(s, res),
     // v21 Stream 2: who may show a live 'colony-feed' (display only).
     getPartner: () => progression.state.colony?.partner ?? null,
+    onBorderCross: (s, ev) => crossing?.onRemote(s, ev),
   });
 
   // Photo mode (src/game/photo.js). renderFrame/noteGoal are hoisted
@@ -319,6 +326,7 @@ function init() {
     getIsTouch: () => isTouch,
     player, progression, log, hud, audio, catVoice, snapPhoto,
     petNameFor, completeBoop, colonySync,
+    askCrossing: (s, d) => crossing?.ask(s, d),
   });
 
   // Per-frame avatar/moment updates (src/game/avatar.js).
@@ -358,7 +366,7 @@ function init() {
   // because homebase is created below (it takes beginWalkFromHomebase as its
   // Start handler), and nothing calls back into it before init() returns.
   const {
-    beginWalkFromHomebase, beginDenWalk, startWalk, endWalk,
+    beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing,
   } = createWalkLifecycle({
     MP, pid, coarse, envMap, overlay, blockList,
     renderer, camera, composerRig,
@@ -371,6 +379,15 @@ function init() {
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
     endClanPatrol,
+  });
+  // resumeWalk is a hoisted function declaration, so it is safe to pass here.
+  crossing = createCrossing({
+    getSession: () => session,
+    overlay, hud,
+    releaseControl: () => handleTouchAction('pause'),
+    resumeWalk, endWalk,
+    getIsTouch: () => isTouch,
+    getEdition: () => progression.state.edition,
   });
 
   // Player pets 🐾🐾 roster (Task 3): a thin read-only adapter over the
@@ -533,6 +550,7 @@ function init() {
   });
   bus.on('player:lockchange', ({ locked }) => {
     if (session) overlay.classList.toggle('hidden', locked);
+    crossing?.onLockChange(locked);
     if (session && !locked) { session.cameraMode = false; hud.setCamera(false); }
     // Kittypets: a wanderer's arrival line, kept by walk.js until the walk
     // starts (the Ready? card covers the toasts). Pointer lock and the touch
@@ -554,9 +572,12 @@ function init() {
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') resumeWalk();
     if (e.target.id === 'btn-end') endWalk();
+    if (e.target.id === 'btn-cross-yes') crossing.confirm();
+    if (e.target.id === 'btn-cross-no') crossing.cancel();
     if (e.target.id === 'btn-summary-continue') {
       overlay.classList.add('hidden');
-      homebase.show();
+      const c = takeCrossing();
+      homebase.show(c && c.clan ? { pill: 'where' } : undefined);
       sync.autoSync(); // fire-and-forget; no-op when unlinked/offline
       pullThenNews(); // fire-and-forget; catches up feeds made on this walk, then the news card
     }
@@ -667,7 +688,7 @@ function init() {
   const mapView = { cx: 0, cz: 0, heading: 0 };
   const mapRemotes = [];
   const mapRemotePool = [];
-  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null };
+  const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null, posts: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
     const dt = Math.min(clock.getDelta(), 0.05);
@@ -927,6 +948,7 @@ function init() {
         mapFrame.scenics = session.areaData.scenics;
         mapFrame.visitedScenics = session.scenicsVisited;
         mapFrame.camp = session.campMarker;
+        mapFrame.posts = session.postMarkers;
         mapRemotes.length = 0;
         for (const r of session.remotes.list) {
           let dot = mapRemotePool[mapRemotes.length];
