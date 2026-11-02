@@ -34,7 +34,7 @@ const {
 const { surfaceProps } = await import('../src/render/materials.js');
 const {
   CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN, CLAN_STAND_ON, mapShapes,
-  CEILINGS, MASSES,
+  CEILINGS, MASSES, LOOKOUT_LEDGE, TURN,
 } = await import('../src/world/gorgeshape.js');
 const { segDist } = await import('../src/segdist.js');
 const { campDiscs } = await import('../src/world/camp.js');
@@ -52,7 +52,7 @@ const { GORGE_SPAWN, GORGE_BOUNDS, FLOOD_STEP: GORGE_FLOOD_STEP, floodGorge } = 
 
 const {
   build, SPAWN, GORGE_WATERS, GORGE_PATHS, GORGE_HORIZON, GORGE_KEEP_CLEAR, GORGE_KEEP_CLEAR_RECTS, GORGE_HIDES,
-  gorgeTrees, gorgeTors, gorgeScree,
+  gorgeTrees, gorgeTors, gorgeScree, gorgeMeadow,
 } = gorge;
 
 const built = () => {
@@ -76,6 +76,18 @@ function along([x1, z1, x2, z2], step) {
   const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1) / step));
   return Array.from({ length: n + 1 }, (_, k) => [x1 + ((x2 - x1) * k) / n, z1 + ((z2 - z1) * k) / n]);
 }
+
+describe('the Gorge: its own dusk', () => {
+  it('has a warmer sun than the common dusk and a canyon-sunset horizon', async () => {
+    const { DUSK, duskLook } = await import('../src/render/dusk.js');
+    const gr = (c) => ((c >> 8) & 255) / ((c >> 16) & 255);
+    expect(gr(area.duskLight.sunColor)).toBeLessThan(gr(DUSK.sunColor));
+    expect(duskLook(area).sunColor).toBe(0xff9a52);
+    expect(area.skyDusk.top).toBe(0x2c3460);
+    const h = area.skyDusk.horizon;
+    expect((h >> 16) & 255).toBeGreaterThan(h & 255);
+  });
+});
 
 describe('the Gorge: the stream', () => {
   it('declares one wadeable stream with one dry crossing', () => {
@@ -162,7 +174,7 @@ describe('the Gorge: the paths', () => {
     expect(paths).toHaveLength(GORGE_PATHS.length);
     const sand = surfaceProps('sand');
     for (const p of paths) {
-      expect(p.material.color.getHex()).toBe(0x8a7a64);
+      expect(p.material.color.getHex()).toBe(0xb8a27e);
       expect(p.material.roughness).toBe(sand.roughness);
       expect(p.material.map).toBeTruthy();
     }
@@ -176,6 +188,11 @@ describe('the Gorge: the rock and the view', () => {
     expect(scene.children).toContain(rock);
     for (const n of ['rockFaces', 'ledgeTops', 'lips']) expect(rock.getObjectByName(n), n).toBeTruthy();
     expect(scene.getObjectByName('groundPlane')).toBeTruthy();
+  });
+
+  it('tags the ground plane and the meadow so the rain wets them', () => {
+    expect(scene.getObjectByName('groundPlane').userData.ground).toBe(true);
+    expect(scene.getObjectByName('gorgeMeadow').userData.ground).toBe(true);
   });
 
   // Review Focus 4: the goat leaps along the shoulder (3.5..7.5, -16) and
@@ -241,7 +258,7 @@ describe('the Gorge: the rock and the view', () => {
   it("the horizon faces the Gorge's neighbours", () => {
     expect(scene.children.filter((o) => o.name === 'horizonBand')).toHaveLength(1);
     // more rock north and east, the town south, the Moor's heather west
-    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0x8a8478, east: 0x7d7a74, south: 0x9a7f6e, west: 0x9a8a9c });
+    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c });
     expect(GORGE_HORIZON.rooftops).toBeTruthy();
     // The blocks as drawn: horizonBand merges them after its ring, so every
     // vertex past the ring's is a rooftop's. The ring is horizonBand's
@@ -266,7 +283,7 @@ describe('the Gorge: the rock and the view', () => {
     expect(drawn.length).toBeLessThanOrEqual(10);
     for (const r of drawn) expect(r.z, `rooftop at (${r.x}, ${r.z})`).toBeGreaterThan(50);
     expect(GORGE_HORIZON.avoid).toContain(STREAM);
-    expect(GORGE_HORIZON).toMatchObject({ kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40, color: 0x8a8478, salt: 53 });
+    expect(GORGE_HORIZON).toMatchObject({ kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40, color: 0xa8957a, salt: 53 });
     expect(Object.isFrozen(GORGE_HORIZON)).toBe(true);
   });
 });
@@ -1423,20 +1440,26 @@ describe('the Gorge: inside the deep caves', () => {
       const g = interiors.find((o) => o.userData.caveId === cave.id);
       // hidden until her cat is near (gorgelife.js shows it)
       expect(g.visible).toBe(false);
-      const meshes = meshesOf(g);
-      // at most two merged meshes, both out of the shadow pass; the Glitter
-      // Cave's second is its gold flecks
-      expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? ['caveCrystals', 'caveFlecks'] : ['caveCrystals']);
+      // the chamber's room (liner, stalactites, moss, nest: caveroom.js, pinned
+      // by test/caveroom.test.js) is one more mesh, last; the rest are checked here
+      const all = meshesOf(g);
+      expect(all.at(-1).name).toBe(`caveRoom:${cave.id}`);
+      const meshes = all.slice(0, -1);
+      // at most two merged meshes, both out of the shadow pass: the crystal
+      // clusters (caveroom.js, glowing brighter), and the Glitter Cave's gold flecks
+      const crystalName = `caveCrystals:${cave.id}`;
+      expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? [crystalName, 'caveFlecks'] : [crystalName]);
       for (const m of meshes) {
         expect(m.userData.noCast, m.name).toBe(true);
         expect(m.castShadow).toBe(false);
-        expect(m.material.emissiveIntensity).toBe(0.6);
+        expect(m.material.emissiveIntensity).toBe(m.name === crystalName ? 0.9 : 0.6);
       }
       expect(meshes[0].material.emissive.getHex()).toBe(COLORS[cave.id]);
-      // 10-16 crystal spots along the chamber's walls, each within 0.25 m of a wall
+      // 5-14 crystal spots along the chamber's walls (the Glitter Cave 7 and
+      // more), each within 0.25 m of a wall
       const spots = gorge.caveCrystalSpots(cave);
-      expect(spots.length, cave.id).toBeGreaterThanOrEqual(10);
-      expect(spots.length, cave.id).toBeLessThanOrEqual(16);
+      expect(spots.length, cave.id).toBeGreaterThanOrEqual(cave.id === 'glitter' ? 7 : 5);
+      expect(spots.length, cave.id).toBeLessThanOrEqual(14);
       const chamber = cave.rects.find((r) => r.tag.endsWith('-chamber'));
       for (const s of spots) {
         const wall = Math.min(s.x - chamber.minX, chamber.maxX - s.x, s.z - chamber.minZ, chamber.maxZ - s.z);
@@ -1455,8 +1478,8 @@ describe('the Gorge: inside the deep caves', () => {
           // on its floor and under its roof
           expect(v.y, where).toBeGreaterThanOrEqual(cave.y - 1e-6);
           expect(v.y, where).toBeLessThan(cave.y + 2.6);
-          // a crystal is never taller than 0.3 m
-          if (m === crystal) expect(v.y - cave.y, where).toBeLessThanOrEqual(0.3);
+          // a crystal is never taller than 0.75 m by its cave's size (0.98 m at most)
+          if (m === crystal) expect(v.y - cave.y, where).toBeLessThanOrEqual(0.75 * gorge.CRYSTAL_SIZE[cave.id] + 1e-3);
           // off the walking line, and clear of the finds
           expect(pathDist(cave, v.x, v.z), where).toBeGreaterThanOrEqual(0.6);
           for (const f of finds) expect(Math.hypot(v.x - f.x, v.z - f.z), `${where} by ${f.id}`).toBeGreaterThanOrEqual(0.4);
@@ -1495,4 +1518,129 @@ describe('the Gorge: inside the deep caves', () => {
     expect(shown()).toEqual([]);
     life.dispose();
   });
+});
+
+describe('Gorge palette (polish #1b)', () => {
+  const { GORGE_SKY, GORGE_FLOOR_COLOR, PATH_STYLE } = gorge;
+  // Rec.709 luminance on 0..1 sRGB channels.
+  const lum = (hex) => 0.2126 * ((hex >> 16) & 255) / 255 + 0.7152 * ((hex >> 8) & 255) / 255 + 0.0722 * (hex & 255) / 255;
+  const hsl = (c) => {
+    const r = (c >> 16) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    return { s: max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1)), l };
+  };
+  const ch = (hex) => ({ r: (hex >> 16) & 255, b: hex & 255 });
+
+  it('fogs with the warm horizon haze', () => {
+    expect(scene.fog.color.getHex()).toBe(GORGE_SKY.horizon);
+  });
+  it('has a warm, clear sky', () => {
+    expect(ch(GORGE_SKY.horizon).r).toBeGreaterThan(ch(GORGE_SKY.horizon).b);
+    expect(ch(GORGE_SKY.top).b).toBeGreaterThan(ch(GORGE_SKY.top).r);
+    expect(hsl(GORGE_SKY.top).s).toBeGreaterThanOrEqual(0.45);
+  });
+  it('has a warm sand floor, lighter than the old dark one but still dull', () => {
+    expect(lum(GORGE_FLOOR_COLOR)).toBeGreaterThan(lum(0x5f5d52) + 0.15);
+    expect(ch(GORGE_FLOOR_COLOR).r).toBeGreaterThan(ch(GORGE_FLOOR_COLOR).b);
+    expect(hsl(GORGE_FLOOR_COLOR).s).toBeLessThanOrEqual(0.35);
+  });
+  it('bounces the floor colour', () => {
+    expect(area.groundBounce).toBe(GORGE_FLOOR_COLOR);
+  });
+  it('keeps the path lighter than the floor so it reads', () => {
+    expect(lum(PATH_STYLE.color) - lum(GORGE_FLOOR_COLOR)).toBeGreaterThanOrEqual(0.06);
+  });
+});
+
+describe('Gorge meadow (polish #1b)', () => {
+  const PATH_HALF = gorge.MEADOW_PATH_CLEAR - 0.75;
+  const meadow = gorgeMeadow();
+  const inRectXZ = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+  const nearPath = (x, z) => Math.min(...GORGE_PATHS.map((s) => segDist(x, z, ...s)));
+  const nearKeep = (x, z) => Math.min(...GORGE_KEEP_CLEAR.map(([px, pz]) => Math.hypot(x - px, z - pz)));
+
+  it('is memoised, frozen and deterministic', async () => {
+    expect(gorgeMeadow()).toBe(meadow);
+    expect(Object.isFrozen(meadow)).toBe(true);
+    expect(Object.isFrozen(meadow.patches)).toBe(true);
+    expect(Object.isFrozen(meadow.tufts)).toBe(true);
+    vi.resetModules();
+    const fresh = await import('../src/world/gorge.js?fresh-meadow');
+    expect(fresh.gorgeMeadow()).toEqual(meadow);
+  }, 120_000);
+
+  it('keeps every patch and tuft clear of paths, finds and rooms, on the ground', () => {
+    const ground = gorge.build(new THREE.Scene()).ground;
+    for (const p of meadow.patches) {
+      const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2;
+      const at = `patch (${cx}, ${cz})`;
+      // patch cells deliberately ignore keep-clear points (a flat overlay can't hide a find); tufts keep the rule below
+      expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.75);
+      for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, cx, cz), at).toBe(false);
+      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + 0.006, 9);
+    }
+    for (const t of meadow.tufts) {
+      const at = `tuft (${t.x}, ${t.z})`;
+      expect(nearKeep(t.x, t.z), at).toBeGreaterThanOrEqual(1.2);
+      expect(nearPath(t.x, t.z), at).toBeGreaterThanOrEqual(PATH_HALF);
+      for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, t.x, t.z), at).toBe(false);
+      expect(inRectXZ(WIDE_LEDGE_RECT, t.x, t.z), at).toBe(false);
+      expect(t.s).toBeGreaterThanOrEqual(0.12);
+      expect(t.s).toBeLessThanOrEqual(0.22);
+    }
+  }, 120_000);
+
+  it('actually dresses the top, the banks and the ledges', () => {
+    expect(meadow.patches.filter((p) => p.kind === 'top').length).toBeGreaterThanOrEqual(150);
+    expect(meadow.patches.filter((p) => p.kind === 'bank').length).toBeGreaterThan(50);
+    expect(meadow.tufts.length).toBeGreaterThanOrEqual(40);
+    expect(meadow.tufts.some((t) => t.y === LOOKOUT_LEDGE.y0 || t.y === TURN.y0)).toBe(true);
+    expect(meadow.tufts.length).toBeLessThanOrEqual(140);
+  });
+
+  it('uses polygonOffset -1/-1: ties the paw prints, loses to the contact decals', () => {
+    const scene = new THREE.Scene();
+    gorge.build(scene);
+    const mat = scene.getObjectByName('gorgeMeadow').material;
+    expect(mat.polygonOffset).toBe(true);
+    expect(mat.polygonOffsetFactor).toBe(-1);
+    expect(mat.polygonOffsetUnits).toBe(-1);
+    // pawprints.js (~line 309): -1/-1 (prints sit higher, so they win the tie);
+    // contactshadows.js (~line 424): -2/-2, so the decals win.
+    const PRINT_OFFSET = -1, DECAL_OFFSET = -2;
+    expect(mat.polygonOffsetFactor).toBeGreaterThanOrEqual(PRINT_OFFSET);
+    expect(mat.polygonOffsetFactor).toBeGreaterThan(DECAL_OFFSET);
+    expect(mat.polygonOffsetUnits).toBeGreaterThan(DECAL_OFFSET);
+  });
+
+  it('is one unshadowed, light mesh with one material', () => {
+    const scene = new THREE.Scene();
+    gorge.build(scene);
+    const m = scene.getObjectByName('gorgeMeadow');
+    expect(m.isMesh).toBe(true);
+    expect(Array.isArray(m.material)).toBe(false);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.receiveShadow).toBe(true);
+    expect(m.material.map).toBeNull();
+    expect(m.material.vertexColors).toBe(true);
+    expect(m.geometry.attributes.position.count / 3).toBeLessThanOrEqual(6000);
+    // draws before the pawprints (-2) and contact shadows (-1)
+    expect(m.renderOrder).toBeLessThan(-2);
+  }, 120_000);
+
+  it('adds no contact-shadow decal', async () => {
+    const { createContactShadows } = await import('../src/render/contactshadows.js');
+    const count = (withMeadow) => {
+      const scene = new THREE.Scene();
+      const area = gorge.build(scene);
+      if (!withMeadow) scene.remove(scene.getObjectByName('gorgeMeadow'));
+      const cs = createContactShadows(scene, { ground: area.ground });
+      let n = 0;
+      scene.traverse((o) => { if (o.isInstancedMesh && o.userData.contactDecal) n += o.count; });
+      cs.dispose?.();
+      return n;
+    };
+    expect(count(true)).toBe(count(false));
+  }, 120_000);
 });

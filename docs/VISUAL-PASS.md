@@ -2418,3 +2418,61 @@ Not checked here:
 - walking with the keys along every wall.
 
 Shots are in the scratchpad's `snaps-gorge-rock` folder (`before/`, `after/`, `pairs/`).
+
+## The Gorge's sky, palette and caves, and dusk on every map — polish pass (2026-11-02)
+
+Branch `polish-gorgesky` (survey items #1b, #7, #14). Ground, colliders, spawn and routes are untouched: the guard's ground digest is unchanged, and the flat trace is still 6b502ab6….
+
+**The Gorge by day.**
+- A clear canyon sky (top 0x86bde6) over a warm haze (0xeed8b8, also the fog). The hills are warm sandstone.
+- The floor is warm sand (0x9a8a6a), with a lighter path (0xb8a27e). It no longer gets its shade from a dark ground colour: gorgelife's SHADE_FLOOR does that with the light.
+- `gorgeMeadow`: one unshadowed mesh (3,152 tris). It carries soft sand, dry-grass and green patches on the clifftop (value noise, about 4 m across), green banks along the stream, and 140 small tufts on the clifftop, the Lookout Ledge and the turn. It keeps off paths, finds and every keep-clear point, and it is tagged `userData.ground` so rain wets it. Its uuids come from a local stream (`src/world/localuuids.js`, shared with camp.js).
+- Ledge tops are now warm sand (LEDGE_COLOR 0xbca682), so the meadow's gaps don't read as holes.
+
+**Dusk on every map** (`src/render/dusk.js`).
+- A warm, dim sun (0xffb27a, 0.8).
+- A cool sky fill (0x7d8cc4, 0.5), with the ground bounce at 55%.
+- Image light at 45% (Night Eyes still multiplies on top).
+- A soft teal PointLight at the collar when her own cat wears the glow collar. It needs no shadow and goes with the cat.
+- The ground half of the Woods spawn frame drops from 90% of day's brightness to 60%, and the Moor's does the same.
+- The Gorge has its own dusk: a canyon-sunset sky (0x2c3460 over 0xc98a6a) and an orange sun (0xff9a52, 1.0) that rims the high rock. The floor sits in shade, at SHADE_FLOOR_DUSK 0.45.
+- Weather is only rolled on non-dusk walks, so dusk and rain never meet. Dusk is the base, and weather.js is untouched.
+
+**The cave rooms** (`src/world/caveroom.js`).
+- Each chamber has a liner with rounded corners (1.1 m arcs) and a cove into the ceiling above 2.0 m. Below 2.0 m it never stands inward near the cat's line or a find.
+- Blunt stalactites (at most 0.6 m, tips at least 2.0 m up, none near the mouth).
+- Moss, and a nest in the Snug Cave.
+- Glowing crystal clusters: 4–7 leaning hex prisms in each cave's colour, with the walls near them tinted toward it.
+- Per room: Echo 2,166 tris, Snug 2,229 and Glitter 1,837, each in one mesh, plus one cluster mesh. All of it lives in the hidden `caveInterior:<id>` groups.
+- Counts:
+  - The guard now has 59 meshes (54, plus camp dressing, the meadow and three rooms) and still 36 casters.
+  - The Gorge build's Math.random draws went from 5108 to 4488, because the old crystals drew 620 on the real stream.
+
+**Numbers** (`?perf`, HIGH, 1280x720, the same fixed cameras; strays re-roll):
+
+| view | draws before → after | scene tris before → after |
+|---|---|---|
+| Narrows, day | 895 → 895 | 225,734 → 229,016 |
+| floor S, day | 669 → 620 | 194,724 → 189,588 |
+| clifftop W, day | 366 → 441 | 122,040 → 139,242 |
+| look-down, day | 709 → 709 | 192,142 → 195,472 |
+| Echo chamber, day | 239 → 214 | 106,266 → 112,216 |
+| Glitter chamber, day | 200 → 212 | 94,686 → 100,836 |
+| Narrows, dusk | 941 → 938 | 230,802 → 229,912 |
+
+**Live check** (headless Chromium, SwiftShader, port 5199). Day:
+- the Narrows;
+- the floor S and N;
+- two clifftop views and a look-down.
+
+Dusk:
+- the same Gorge views;
+- the Echo chamber;
+- the Woods and Moor spawn, against day.
+
+Also:
+- the three cave chambers;
+- rain in the Woods and the Gorge;
+- a 390-wide phone shot, by day and at dusk.
+
+There were no console errors. Not checked: the iPhone itself, a co-walk joiner without a glow collar at dusk, and walking every cave wall with the keys. Shots are in the scratchpad's `snaps-polish-gorgesky` folder (`before/`, `after/`, `pairs/`).

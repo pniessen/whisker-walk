@@ -2994,7 +2994,7 @@ export function toadstools(spots, seed) {
 // and fall back), so the rock takes 'cobble's light response, as tor() does.
 export const ROCK_LOW = 0x6f6a66;
 export const ROCK_HIGH = 0xc8b496;
-export const LEDGE_COLOR = 0x9c8a70;
+export const LEDGE_COLOR = 0xbca682;
 const ROCK_CELL = 1.6; // side faces (and a top's ring) are cut into steps about this wide
 const ROCK_ROW = 1.4; // and walls into rows at whole multiples of this height
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)

@@ -7,6 +7,7 @@ import {
 import { CLAN_CAT_PREFIXES, RANK_KEYS, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
 import { clanName } from '../src/clanhomes.js';
 import { isStrayName, STRAY_BREEDS } from '../src/straynames.js';
+import { GORGE_FLOOR_COLOR } from '../src/world/gorge.js';
 import { ROCK_LOW, ROCK_HIGH, LEDGE_COLOR } from '../src/world/builder.js';
 
 const CLANS = ['woods', 'moor', 'river', 'pines', 'gorge'];
@@ -102,7 +103,7 @@ test("CliffClan's coats stand out on the Gorge's rock", () => {
   // The rock, the ledges and the floor are all dull (saturation 0.35 or
   // less); every CliffClan coat is bright or near white. If the rock is
   // recoloured, this fails, and the coats are checked again.
-  const GORGE_FLOOR = 0x5f5d52;
+  const GORGE_FLOOR = GORGE_FLOOR_COLOR;
   for (const tone of [ROCK_LOW, ROCK_HIGH, LEDGE_COLOR, GORGE_FLOOR]) {
     expect(hsl(tone).s, tone.toString(16)).toBeLessThanOrEqual(0.35);
   }

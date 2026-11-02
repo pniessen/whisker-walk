@@ -4,7 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
   WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, CLAN_STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN,
-  FLOOR, CLIFFTOP, WEST_TOP, gorgeGround, mapShapes,
+  FLOOR, CLIFFTOP, WEST_TOP, LOOKOUT_LEDGE, TURN, gorgeGround, mapShapes,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { postsFor } from '../borderposts.js';
@@ -12,6 +12,8 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
+import { withLocalUuids } from './localuuids.js';
+import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -37,9 +39,10 @@ import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 // SHADED BELOW, BRIGHT ABOVE (G5). The rock's baked colours run from a cool,
 // dark grey-brown at the floor to warm sandstone at the top, in 1.1 m strata
 // (alternately warm and cream) that line up with the relief's shelves, and
-// darker in its recesses (builder.rockTerrain), and the floor's
-// ground plane is darker and cooler than any other map's, so the floor reads
-// shaded from the clifftop even past the shadow map's reach. The clifftop is
+// darker in its recesses (builder.rockTerrain). The floor's ground plane is a
+// warm sand like any other map's; its shade comes from gorgelife's light
+// (SHADE_FLOOR), so the floor reads shaded from the clifftop without a darker
+// ground colour. The clifftop is
 // lit, and what a kid goes up there for sits south of z -27, out of the north
 // rim's afternoon shade.
 //
@@ -113,8 +116,10 @@ export const GORGE_PATHS = Object.freeze([
   // the floor path, north
   [-6, -11, -4, -30], [-4, -30, -3, -50],
 ].map((s) => Object.freeze(s)));
+// A clear canyon day: blue sky over a warm haze (which is also the fog).
+export const GORGE_SKY = Object.freeze({ top: 0x86bde6, horizon: 0xeed8b8 });
 const PATH_W = 3;
-const PATH_STYLE = { surface: 'sand', color: 0x8a7a64 };
+export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
@@ -122,9 +127,9 @@ const PATH_STYLE = { surface: 'sand', color: 0x8a7a64 };
 // the west. The hills come down to the stream where it leaves the map.
 export const GORGE_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40,
-  color: 0x8a8478, salt: 53,
+  color: 0xa8957a, salt: 53,
   avoid: Object.freeze([STREAM]),
-  sideTints: Object.freeze({ north: 0x8a8478, east: 0x7d7a74, south: 0x9a7f6e, west: 0x9a8a9c }),
+  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c }),
   rooftops: Object.freeze({ from: 0.28, to: 0.47, count: 10, height: 6 }),
 });
 
@@ -176,7 +181,7 @@ const COLLECTIBLES = [
 const PILLAR = { y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9, sides: 7 };
 const SUMMIT_ROCK = { x: 25, z: -24 };
 const SUMMIT_BOULDER = { x: 24, z: -23, r: 0.7 };
-const ROCK_COLOR = 0x8c8478;
+const ROCK_COLOR = 0xb0a084;
 const CHAIN_PERCHES = [
   { x: SUMMIT_BOULDER.x, z: SUMMIT_BOULDER.z, y: 0.72, kind: 'stone' },
   { x: SUMMIT_ROCK.x, z: SUMMIT_ROCK.z, y: PILLAR.y, kind: 'stone', label: 'summit rock', vantage: true },
@@ -427,9 +432,179 @@ export function gorgeScree() {
   return screeOnce;
 }
 
+// --- the meadow (polish #1b) ---------------------------------------------------
+// Ground dressing in one flat, unshadowed mesh: colour patches over the
+// clifftop (which the rock draws as one flat colour), green strips along both
+// banks of the stream, and small grass tufts on the clifftop and the two open
+// ledges. Seeded by its own name; every candidate draws all its numbers
+// whether it is kept or not. Visual only: nothing here is read by the walk.
+// Depth ordering over the ground beneath (every patch, top and bank, and every
+// tuft base, sits MEADOW_LIFT = 6 mm up): the material has polygonOffset
+// factor -1 / units -1, so it beats the ledgeTops and the ground plane (no
+// offset) and cannot sink behind them. It ties the paw prints (PRINT_Y 0.012,
+// -1/-1, physically higher so they win) and loses to the contact-shadow decals
+// (DECAL_Y 0.015, -2/-2), so prints and the cat's ground shadow show on the
+// meadow. Patch cells keep MEADOW_PATH_CLEAR off every path, so they never
+// compete with the path strips.
+const MEADOW_LIFT = 0.006;
+// A cell's centre this far off a path keeps its whole 1 m footprint off the strip.
+export const MEADOW_PATH_CLEAR = PATH_W / 2 + 0.75;
+const CLIFF_INSET = 0.6;
+const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
+const TUFT_TRIES = 420;
+const TUFT_CAP = 140;
+export const MEADOW_SAND = 0xc8b28a;
+export const MEADOW_DRY = 0xb0a46e;
+export const MEADOW_GREEN = 0x7f9a52;
+const BANK_GREEN = 0x7f9358;
+const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
+const NOISE_N = 16;
+const NOISE_SCALE = 4; // metres per lattice step: patches 3-5 m across
+
+let meadowOnce = null;
+export function gorgeMeadow() {
+  if (meadowOnce) return meadowOnce;
+  const g = shapeGround();
+  const rng = mulberry32(seedFromCode('gorge-meadow'));
+  const patches = [];
+  // Patch cells do not skip keep-clear points: a flat colour overlay cannot
+  // hide a find, and dropping cells there left hard-edged bare squares that
+  // read as rugs. Only the tufts (3D) keep their 1.2 m rule.
+  const clear = (x, z) => pathDist(x, z) >= MEADOW_PATH_CLEAR && holeDist(x, z) > 0;
+  // the clifftop: 1 m cells inset off the lips
+  const x0 = CLIFF.minX + CLIFF_INSET, x1 = CLIFF.maxX - CLIFF_INSET;
+  const z0 = CLIFF.minZ + CLIFF_INSET, z1 = CLIFF.maxZ - CLIFF_INSET;
+  for (let ax = x0; ax < x1 - 1e-9; ax += 1) {
+    for (let az = z0; az < z1 - 1e-9; az += 1) {
+      const bx = Math.min(ax + 1, x1), bz = Math.min(az + 1, z1);
+      const cx = (ax + bx) / 2, cz = (az + bz) / 2;
+      rng(); // every cell draws its number whether kept or not
+      if (g.y(cx, cz) !== CLIFFTOP || !clear(cx, cz) || !oneShape(cx, cz, 0.7)) continue;
+      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT, kind: 'top' }));
+    }
+  }
+  // the banks: 1 m cells on the floor either side of the water
+  for (const [bx0, bx1] of BANK_BANDS) {
+    for (let ax = bx0; ax < bx1 - 1e-9; ax += 1) {
+      for (let az = -50; az < 50; az += 1) {
+        const bx = Math.min(ax + 1, bx1);
+        const cx = (ax + bx) / 2, cz = az + 0.5;
+        rng();
+        if (g.y(cx, cz) !== FLOOR || !clear(cx, cz) || rectDist(STEPPING_STONES, cx, cz) < 0.5 || !oneShape(cx, cz, 0.7)) continue;
+        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT, kind: 'bank' }));
+      }
+    }
+  }
+  // the tufts: the clifftop (mostly) and the Lookout and the turn
+  const zones = [[CLIFF, CLIFFTOP, 0.8], [LOOKOUT_LEDGE, LOOKOUT_LEDGE.y0, 0.9], [TURN, TURN.y0, 1]];
+  const tufts = [];
+  for (let i = 0; i < TUFT_TRIES; i++) {
+    const u = rng(), ux = rng(), uz = rng(), us = rng(), ur = rng();
+    if (tufts.length >= TUFT_CAP) continue;
+    const [zr, zy] = zones.find((q) => u < q[2]);
+    const x = r2(zr.minX + 0.5 + ux * (zr.maxX - zr.minX - 1));
+    const z = r2(zr.minZ + 0.5 + uz * (zr.maxZ - zr.minZ - 1));
+    if (g.y(x, z) !== zy || inRect(WIDE_LEDGE_RECT, x, z) || holeDist(x, z) <= 0) continue;
+    if (keepClearDist(x, z) < 1.2 || pathDist(x, z) < PATH_W / 2 || !oneShape(x, z, 0.4)) continue;
+    tufts.push(Object.freeze({ x, z, y: zy, s: r2(0.12 + us * 0.1), rot: r2(ur * Math.PI * 2) }));
+  }
+  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts) });
+  return meadowOnce;
+}
+
+// Value noise over the clifftop: a wrapped lattice drawn from the meadow's own
+// stream, smoothly interpolated, so colour drifts in 3-5 m patches.
+let latticeOnce = null;
+function meadowNoise(x, z) {
+  if (!latticeOnce) {
+    const r = mulberry32(seedFromCode('gorge-meadow-noise'));
+    latticeOnce = Array.from({ length: NOISE_N * NOISE_N }, () => r());
+  }
+  const fx = x / NOISE_SCALE, fz = z / NOISE_SCALE;
+  const ix = Math.floor(fx), iz = Math.floor(fz);
+  const sm = (t) => t * t * (3 - 2 * t);
+  const tx = sm(fx - ix), tz = sm(fz - iz);
+  const at = (i, j) => latticeOnce[(((j % NOISE_N) + NOISE_N) % NOISE_N) * NOISE_N + (((i % NOISE_N) + NOISE_N) % NOISE_N)];
+  const a = at(ix, iz) + (at(ix + 1, iz) - at(ix, iz)) * tx;
+  const c = at(ix, iz + 1) + (at(ix + 1, iz + 1) - at(ix, iz + 1)) * tx;
+  return a + (c - a) * tz;
+}
+
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+// Value noise sits near 0.5, so stretch the middle band to the full 0..1 range;
+// otherwise nearly everything renders as the dry tone.
+const smoothstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+export function topColor(out, x, z) {
+  const v = smoothstep(0.3, 0.7, meadowNoise(x, z));
+  if (v < 0.5) out.set(MEADOW_SAND).lerp(_cb.set(MEADOW_DRY), v * 2);
+  else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
+  return out;
+}
+function bankColor(out, x, z) {
+  const t = Math.min(1, rectDist(STREAM, x, z) / 2.4);
+  return out.set(BANK_GREEN).lerp(_cb.set(GORGE_FLOOR_COLOR), t * t);
+}
+
+function meadowMesh() {
+  const { patches, tufts } = gorgeMeadow();
+  const pos = [], col = [];
+  const vert = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  for (const p of patches) {
+    // Colour is a pure function of world position, so cells that share a
+    // corner share its colour and the patches read as soft blobs, not tiles.
+    const corner = (x, z) => (p.kind === 'bank' ? bankColor(_ca, x, z) : topColor(_ca, x, z));
+    const q = [[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]].map(([x, z]) => [x, z, corner(x, z).clone()]);
+    for (const k of [0, 2, 1, 0, 3, 2]) vert(q[k][0], p.y, q[k][1], q[k][2]);
+  }
+  const lo = _ca.set(TUFT_COLORS[0]).clone(), hi = _cb.set(TUFT_COLORS[1]).clone();
+  const tc = new THREE.Color();
+  for (const t of tufts) {
+    tc.copy(lo).lerp(hi, (t.s - 0.12) / 0.1);
+    const tip = tc.clone().multiplyScalar(1.12);
+    for (let k = 0; k < 3; k++) {
+      const a = t.rot + (k * Math.PI * 2) / 3;
+      const lean = 0.05 + 0.03 * k;
+      const w = 0.025;
+      const bx = t.x + Math.cos(a) * 0.03, bz = t.z + Math.sin(a) * 0.03;
+      const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
+      const tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
+      const h = t.s * (0.85 + 0.15 * k);
+      const y = t.y + MEADOW_LIFT;
+      // front and back, so a blade shows from both sides
+      vert(bx - px, y, bz - pz, tc); vert(bx + px, y, bz + pz, tc); vert(tx, y + h, tz, tip);
+      vert(bx + px, y, bz + pz, tc); vert(bx - px, y, bz - pz, tc); vert(tx, y + h, tz, tip);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const up = new Array(pos.length / 3).fill(0).flatMap(() => [0, 1, 0]);
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(up, 3));
+  // The 'grass' preset's light response with no map (surfaceProps leaves it
+  // off): a texture would fight the vertex colours.
+  const mat = litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('grass') });
+  // Draws before the pawprints (-2) and contact shadows (-1); polygonOffset
+  // -1/-1 as described above the MEADOW_LIFT constant.
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -1;
+  mat.polygonOffsetUnits = -1;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'gorgeMeadow';
+  mesh.renderOrder = -3;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.userData.noCast = true;
+  // The rain finds ground by this tag and swaps in a darker clone (the vertex
+  // colours stay, the original material is put back afterwards).
+  mesh.userData.ground = true;
+  return mesh;
+}
+
 // --- inside the deep caves (part 3, C5) -----------------------------------------
-// Each deep cave's chamber has crystals at the foot of its walls, in the
-// cave's own colour, and the Glitter Cave has gold flecks on its walls too.
+// Each deep cave's chamber has crystal clusters at the foot of its walls, in
+// the cave's own colour (caveroom.js's crystalClusters; the Glitter Cave the
+// most and biggest, the Snug Cave a few small ones), and the walls near them
+// catch their glow; the Glitter Cave has gold flecks on its walls too.
 // They are soft and emissive and never move. Spots are seeded by the cave's
 // name, and every candidate draws all its numbers whether it is kept or not.
 // A spot is kept only where the wall really is rock (not the opening into the
@@ -442,10 +617,18 @@ const FLECK_COLOR = 0xe8b84a;
 export const CAVE_PATH_CLEAR = 0.6;
 export const CAVE_FIND_CLEAR = 0.4;
 const CRYSTAL_TRIES = 80;
-const CRYSTAL_CAP = 14;
-const CRYSTAL_GAP = 1.0; // between two spots
-const CRYSTAL_OFF = [0.1, 0.2]; // a spot's distance out from its wall
-const CRYSTAL_REACH = b.CRYSTAL_SPREAD + 0.1; // a cluster's reach from its spot
+// Each cave its own: the Glitter Cave the most and the biggest, the Snug Cave
+// a few small ones (it has the moss and the nest).
+const CRYSTAL_CAP = Object.freeze({ glitter: 14, echo: 8, snug: 6 });
+const CRYSTAL_GAP = Object.freeze({ glitter: 0.75, echo: 1.0, snug: 1.1 }); // between two spots
+export const CRYSTAL_SIZE = Object.freeze({ glitter: 1.3, echo: 1.0, snug: 0.85 });
+const CRYSTAL_OFF = [0.1, 0.2]; // a spot's distance out from its wall (then out past the liner)
+const CRYSTAL_REACH = CLUSTER_SPREAD + 0.1; // a cluster's reach from its spot
+// The liner stands up to 0.07 m in from the wall line beside a spot
+// (caveroom.js's WALL_BUMP; spots keep off its corner arcs), and a cluster's
+// spot moves out by it: the clear check allows for that.
+const LINER_SLACK = 0.08;
+const LINER_HS = [0.05, 0.35, 0.7, 1.0]; // heights the liner's depth is read at
 const FLECK_TRIES = 120;
 const FLECK_CAP = 40;
 const FLECK_H = [0.35, 2.4]; // over the cave's floor, under the chamber's 3 m roof
@@ -481,33 +664,73 @@ function wallHolds(cave, p, reach) {
   }
   return true;
 }
-const caveFinds = (cave) => [...COLLECTIBLES, ...GOLD_MICE.gorge]
+export const caveFinds = (cave) => [...COLLECTIBLES, ...GOLD_MICE.gorge]
   .filter((f) => cave.rects.some((r) => inRect(r, f.x, f.z)));
-const cavePathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
-function caveClear(cave, x, z, reach) {
+export const cavePathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
+export function caveClear(cave, x, z, reach) {
   if (cavePathDist(cave, x, z) < CAVE_PATH_CLEAR + reach) return false;
   return caveFinds(cave).every((f) => Math.hypot(x - f.x, z - f.z) >= CAVE_FIND_CLEAR + reach);
 }
-const chamberOf = (cave) => cave.rects.find((r) => r.tag.endsWith('-chamber'));
+export const chamberOf = (cave) => cave.rects.find((r) => r.tag.endsWith('-chamber'));
+// Whether the chamber's wall at (x, z), a point on its wall line, is rock:
+// the ground just outside it stands a metre and more over the cave's floor
+// (the opening into the bend does not). Off the wall line, false.
+export function chamberRockAt(cave) {
+  const r = chamberOf(cave);
+  const g = shapeGround();
+  const e = 1e-6;
+  return (x, z) => {
+    const dx = x <= r.minX + e ? -0.1 : x >= r.maxX - e ? 0.1 : 0;
+    const dz = z <= r.minZ + e ? -0.1 : z >= r.maxZ - e ? 0.1 : 0;
+    if (!dx && !dz) return false;
+    return g.y(x + dx, z + dz) >= cave.y + 1;
+  };
+}
+// The chamber's dressing (caveroom.js): the rounded liner with its cove,
+// stalactites, moss, and the Snug Cave's nest. Seeded by the cave's name.
+// The walls and moss catch the crystals' glow (glow: false leaves it out).
+export function caveRoomFor(caveId, { glow = true } = {}) {
+  const cave = GORGE_CAVES.find((c) => c.id === caveId);
+  return caveRoom(cave, {
+    clear: (x, z, reach) => caveClear(cave, x, z, reach),
+    rockAt: chamberRockAt(cave),
+    seed: seedFromCode(`gorge-caveroom-${cave.id}`),
+    crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
+  });
+}
+// Where each crystal cluster stands: its spot moved out from the wall by the
+// liner's depth there (the deepest of a few heights up the cluster), so the
+// liner never swallows a cluster.
+export function crystalBases(cave, room) {
+  return caveCrystalSpots(cave).map((s) => {
+    const depth = Math.max(...LINER_HS.map((h) => room.linerDepth(s.wx, cave.y + h, s.wz, s.nx, s.nz)));
+    return { ...s, x: s.x + s.nx * depth, z: s.z + s.nz * depth };
+  });
+}
 
 const crystalsOnce = new Map();
 export function caveCrystalSpots(cave) {
   if (crystalsOnce.has(cave.id)) return crystalsOnce.get(cave.id);
   const walls = chamberWalls(chamberOf(cave));
   const perimeter = walls.reduce((s, w) => s + w.len, 0);
+  const r = chamberOf(cave);
+  const cap = CRYSTAL_CAP[cave.id] ?? 10, gap = CRYSTAL_GAP[cave.id] ?? 1.0;
   const rng = mulberry32(seedFromCode(`gorge-crystals-${cave.id}`));
   const kept = [];
   for (let i = 0; i < CRYSTAL_TRIES; i++) {
     const t = perimeter * rng();
     const off = CRYSTAL_OFF[0] + (CRYSTAL_OFF[1] - CRYSTAL_OFF[0]) * rng();
-    if (kept.length >= CRYSTAL_CAP) continue;
+    if (kept.length >= cap) continue;
     const p = wallPoint(walls, t);
     if (!p || !wallHolds(cave, p, CRYSTAL_REACH + 0.05)) continue;
+    // off the liner's rounded corners (it stands up to 0.46 m in on an arc)
+    const along = p.nz ? Math.min(p.x - r.minX, r.maxX - p.x) : Math.min(p.z - r.minZ, r.maxZ - p.z);
+    if (along < CORNER_R) continue;
     const x = r2(p.x + p.nx * off);
     const z = r2(p.z + p.nz * off);
-    if (!caveClear(cave, x, z, CRYSTAL_REACH)) continue;
-    if (!kept.every((o) => Math.hypot(x - o.x, z - o.z) >= CRYSTAL_GAP)) continue;
-    kept.push({ x, z, y: cave.y, nx: p.nx, nz: p.nz });
+    if (!caveClear(cave, x, z, CRYSTAL_REACH + LINER_SLACK)) continue;
+    if (!kept.every((o) => Math.hypot(x - o.x, z - o.z) >= gap)) continue;
+    kept.push({ x, z, y: cave.y, nx: p.nx, nz: p.nz, wx: r2(p.x), wz: r2(p.z) });
   }
   const out = Object.freeze(kept.map(Object.freeze));
   crystalsOnce.set(cave.id, out);
@@ -537,12 +760,34 @@ export function glitterFleckSpots() {
 
 // One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
 // shows it (only near its cave and on its level, C5).
+// The chamber's room and its crystal clusters (caveroom.js) are made on local
+// uuids, so they take no Math.random draws from the Gorge build (pinned in
+// waterlooks.test.js). The clusters and the Glitter Cave's flecks sit on or in
+// front of the room's liner, which stands a little in from the wall line
+// they were placed on.
 function caveInterior(cave) {
   const g = new THREE.Group();
   g.name = `caveInterior:${cave.id}`;
   g.userData.caveId = cave.id;
-  g.add(b.caveCrystals(caveCrystalSpots(cave), seedFromCode(`gorge-crystals-${cave.id}`), { color: CAVE_COLORS[cave.id] }));
-  if (cave.id === 'glitter') g.add(b.caveFlecks(glitterFleckSpots(), seedFromCode('gorge-flecks-glitter'), { color: FLECK_COLOR }));
+  const { room, mesh, crystals } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
+    const made = caveRoomFor(cave.id);
+    const m = new THREE.Mesh(made.geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
+    m.name = `caveRoom:${cave.id}`;
+    m.castShadow = false;
+    m.userData.noCast = true;
+    const c = crystalClusters(crystalBases(cave, made), seedFromCode(`gorge-crystals-${cave.id}`),
+      { color: CAVE_COLORS[cave.id], size: CRYSTAL_SIZE[cave.id], id: cave.id });
+    return { room: made, mesh: m, crystals: c };
+  });
+  g.add(crystals);
+  if (cave.id === 'glitter') {
+    const flecks = glitterFleckSpots().map((f) => {
+      const d = room.linerDepth(f.x, f.y, f.z, f.nx, f.nz);
+      return { ...f, x: f.x + f.nx * d, z: f.z + f.nz * d };
+    });
+    g.add(b.caveFlecks(flecks, seedFromCode('gorge-flecks-glitter'), { color: FLECK_COLOR }));
+  }
+  g.add(mesh);
   g.visible = false;
   return g;
 }
@@ -570,7 +815,10 @@ export const ROCK_WALKS = Object.freeze([
   ...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN,
 ]);
 
-const GROUND_COLOR = 0x5f5d52;
+// A warm sand: the floor's shade comes from gorgelife's light (SHADE_FLOOR),
+// not from a dark ground colour. Task 2 and the clancast test read it.
+export const GORGE_FLOOR_COLOR = 0x9a8a6a;
+const GROUND_COLOR = GORGE_FLOOR_COLOR;
 
 // Where things stand on the rock's top, the relief leaves the top still (no
 // crest jag, no move): the goat's leap along the shoulder, (3.5..7.5, -16),
@@ -602,7 +850,7 @@ export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
   const colliders = [];
   const perches = [];
-  b.applySky(scene, 0x9fb6c8, 0xd2d4cc);
+  b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
   scene.add(plane);
@@ -690,6 +938,12 @@ export function build(scene, { water = {}, wind } = {}) {
   scree.name = 'screeBed';
   scene.add(scree);
 
+  // --- the meadow ---------------------------------------------------------------
+  // Built under local uuids: the meadow's mesh, geometry and material would
+  // otherwise add 12 Math.random draws to the Gorge build (pinned at 5108 by
+  // waterlooks.test.js). It stays a top-level scene child.
+  scene.add(withLocalUuids('gorge-uuids-meadow', meadowMesh));
+
   // --- inside the deep caves ----------------------------------------------------
   // One group each, at the scene root, hidden until her cat is near its cave
   // and on its level (gorgelife.js shows it; C5). Only one is ever shown at a
@@ -719,7 +973,8 @@ export function build(scene, { water = {}, wind } = {}) {
     waters: GORGE_WATERS,
     waterFx,
     groundBounce: GROUND_COLOR,
-    skyDusk: { top: 0x26304a, horizon: 0x6a5a68 },
+    skyDusk: { top: 0x2c3460, horizon: 0xc98a6a },
+    duskLight: { sunColor: 0xff9a52, sunIntensity: 1.0, hemiSky: 0x7a84bc },
     perches,
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).
