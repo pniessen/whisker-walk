@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -189,19 +189,31 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
+//
+// The sit flattens the underside (its own z scaled by SIT.chestDepth, set in
+// pose(); every other state leaves it at 1). Scaled about the underside's
+// origin that would slide the chest centre back too, so the position also
+// carries R_y(-θ)·(c − K·c), K the underside's scale: the chest centre lands
+// exactly where the unscaled underside put it (polish-catlooks, 2026-11-02).
+// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0).
+const _k = new THREE.Vector3();
 function keepChestUnderHead(body, underside) {
   const yaw = body.rotation.y;
+  const c = underside.userData.chestCentre;
+  const K = underside.scale;
+  _k.set(c[0] * (1 - K.x) + 0, c[1] * (1 - K.y) + 0, c[2] * (1 - K.z) + 0); // c − K·c
   if (!yaw) {
     underside.rotation.y = 0;
-    underside.position.set(0, 0, 0);
+    underside.position.copy(_k);
     return;
   }
   underside.rotation.y = -yaw;
   const S = body.scale;
-  _c.fromArray(underside.userData.chestCentre);
+  _c.fromArray(c);
   _p.copy(_c).multiply(S).applyQuaternion(_q.copy(body.quaternion).invert()).divide(S); // S⁻¹·Q⁻¹·S·c
-  _c.applyQuaternion(_yaw.setFromAxisAngle(_Y, -yaw));                                  // R_y(-θ)·c
-  _p.sub(_c);
+  _yaw.setFromAxisAngle(_Y, -yaw);
+  _c.applyQuaternion(_yaw);                                                             // R_y(-θ)·c
+  _p.sub(_c).add(_k.applyQuaternion(_yaw));                                             // + R_y(-θ)·(c − K·c)
   underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
 }
 
@@ -408,7 +420,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   for (const leg of legs) {
     leg.rotation.set(0, 0, 0);
     leg.scale.set(1, 1, 1);
+    // The sit moves the front hips forward (SIT.foreZ); every other state puts
+    // them back where they were built (remembered the first time).
+    leg.position.z = leg.userData.hipZ ??= leg.position.z;
   }
+  const { underside } = cat.userData.parts;
+  if (underside) underside.scale.set(1, 1, 1); // the sit flattens it (SIT.chestDepth)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -521,6 +538,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       legs[3].scale.y = 0.45;
       legs[2].rotation.x = -0.5;
       legs[3].rotation.x = -0.5;
+    }
+    if (underside) {
+      // polish-catlooks (2026-11-02): no snowman. The chest is flattened (its
+      // centre held by keepChestUnderHead) and the forelegs stand forward as
+      // columns in front of it (torso.js SIT). Cats only: Hagrid has no
+      // underside, and his legs are a chicken's.
+      underside.scale.z = SIT.chestDepth;
+      for (const leg of [legs[0], legs[1]]) {
+        leg.position.z = leg.userData.hipZ + SIT.foreZ;
+        leg.rotation.x = SIT.foreTilt;
+      }
     }
     head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;

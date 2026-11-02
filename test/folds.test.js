@@ -68,7 +68,17 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3();
 const _o = new THREE.Vector3();
 // Standing legs: no worse than Task 1 (the old legs) + 0.002.
-const allowed = (name, state) => Math.max(0.005, T1[name === 'digit' ? 'digit' : 'tabby'][state] + 0.002);
+// Re-pinned polish-catlooks (2026-11-02), requestPet/perch front legs only:
+// the sit now stands the forelegs forward as columns in front of the chest
+// (torso.js SIT.foreZ -0.17), where the torso, tipped nose-down in the sit,
+// is low; a shoulder top there stands above the torso surface straight under
+// it (the chest's lower front), which this measure reads as a poke: 0.0691
+// full / 0.0728 simple on every standard-frame look (Task 1's old spot:
+// 0.0367). That is the shoulder in front of the chest, not a leg through the
+// back; Digit (0.1656 / 0.1691) stays under its own Task 1 ceiling. The
+// sit's only standing legs are the front pair, so this ceiling is theirs.
+const SIT_FRONT = { requestPet: 0.0728, perch: 0.0728 };
+const allowed = (name, state) => Math.max(0.005, ((name !== 'digit' && SIT_FRONT[state]) || T1[name === 'digit' ? 'digit' : 'tabby'][state]) + 0.002);
 // Folded legs get their own, tight ceiling: measured + 0.002, floor 0.005. The
 // Task 1 allowance (0.15 to 0.31 for nap, stalk and pinned) is the old squash's
 // poke and is far too loose here: the folds reach 0.0084 at most standing still
