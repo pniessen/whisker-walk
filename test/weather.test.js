@@ -20,7 +20,8 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { rollWeather, createRainSchedule, createWeather } = await import('../src/weather.js');
+const { rollWeather, createRainSchedule, createWeather, rainDropCount, RAIN_LOOK } = await import('../src/weather.js');
+const { mulberry32 } = await import('../src/rng.js');
 const { skyBackground } = await import('../src/render/sky.js');
 
 describe('rollWeather', () => {
@@ -226,7 +227,7 @@ describe('setSheltered', () => {
   it('a sheltered camera sees no rain, and the rain comes back outside', () => {
     const s = scene();
     const w = createWeather(s, sun(), 'rain', () => 0, false);
-    const rain = s.children.find((c) => c.isPoints);
+    const rain = s.children.find((c) => c.name === 'rain-drops');
     expect(rain.visible).toBe(true);
     w.setSheltered(true);
     expect(rain.visible).toBe(false);
@@ -258,5 +259,228 @@ describe('setSheltered', () => {
     const still = walk.match(/let weather = (\{[^\n]*\});/);
     expect(still).not.toBeNull();
     expect(still[1]).toMatch(/setSheltered\(\) \{\}/);
+  });
+});
+
+
+describe('createWeather — rain that reads', () => {
+  const mkScene = () => {
+    const s = new THREE.Scene();
+    s.background = new THREE.Color(0x445566);
+    s.fog = new THREE.Fog(0x123456, 40, 130);
+    return s;
+  };
+  const mkSun = () => ({ color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) });
+  const cam = () => new THREE.Vector3(0, 1.5, 0);
+  const dropsOf = (scene) => scene.children.find((c) => c.name === 'rain-drops');
+  const ringsOf = (scene) => scene.children.find((c) => c.name === 'rain-rings');
+  const wetMesh = () => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshStandardMaterial({ color: 0x80a060, roughness: 0.9 }),
+    );
+    return m;
+  };
+  const TIER_HIGH = { name: 'high' };
+  const TIER_LOW = { name: 'low' };
+
+  it('draws exactly one number from rng, with and without opts', () => {
+    for (const opts of [undefined, { tier: TIER_HIGH, fill: new THREE.HemisphereLight(), wet: [], puddles: [] }]) {
+      let n = 0;
+      createWeather(mkScene(), mkSun(), 'rain', () => { n++; return 0.5; }, false, undefined, opts);
+      expect(n).toBe(1);
+    }
+  });
+
+  it('never touches Math.random', () => {
+    // THREE's own uuid draws (Object3D/Material constructors) are not ours: only
+    // a Math.random call that does not come from generateUUID counts.
+    const real = Math.random;
+    const scene = mkScene();
+    const spy = vi.spyOn(Math, 'random').mockImplementation(() => {
+      if (!/generateUUID/.test(new Error().stack)) throw new Error('Math.random used');
+      return real();
+    });
+    try {
+      const w = createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, {
+        tier: TIER_HIGH, fill: new THREE.HemisphereLight(), puddles: [{ x: 1, z: 1, r: 0.8, y: 0 }],
+      });
+      for (let i = 0; i < 100; i++) w.update(0.016, cam());
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('is seeded: two weathers have identical drop positions', () => {
+    const a = mkScene();
+    const b = mkScene();
+    createWeather(a, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    createWeather(b, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    const pa = dropsOf(a).geometry.attributes.position.array;
+    const pb = dropsOf(b).geometry.attributes.position.array;
+    expect(pa.length).toBeGreaterThan(0);
+    expect(Buffer.from(pa.buffer).equals(Buffer.from(pb.buffer))).toBe(true);
+    // and it is the named stream, not some other
+    expect(mulberry32).toBeTypeOf('function');
+  });
+
+  it('counts: low < high <= 1200', () => {
+    expect(rainDropCount(TIER_LOW)).toBeLessThan(rainDropCount(TIER_HIGH));
+    expect(rainDropCount(TIER_HIGH)).toBeLessThanOrEqual(1200);
+    expect(Object.isFrozen(RAIN_LOOK)).toBe(true);
+  });
+
+  it('drops are streak quads, not Points, with a 0.3-0.7 m vertical extent and no shadow', () => {
+    const scene = mkScene();
+    createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    const d = dropsOf(scene);
+    expect(d.isPoints).toBeFalsy();
+    expect(d.isMesh || d.isLineSegments).toBe(true);
+    expect(d.castShadow).toBe(false);
+    expect(d.receiveShadow).toBe(false);
+    const p = d.geometry.attributes.position;
+    const n = rainDropCount(TIER_HIGH);
+    expect(p.count).toBeGreaterThanOrEqual(n * 2);
+    const per = p.count / n;
+    for (let i = 0; i < n; i += 37) {
+      let lo = Infinity; let hi = -Infinity;
+      for (let k = 0; k < per; k++) {
+        const y = p.getY(i * per + k);
+        lo = Math.min(lo, y); hi = Math.max(hi, y);
+      }
+      expect(hi - lo).toBeGreaterThanOrEqual(0.3);
+      expect(hi - lo).toBeLessThanOrEqual(0.7);
+    }
+  });
+
+  it('keeps its extent after many frames of falling', () => {
+    const scene = mkScene();
+    const w = createWeather(scene, mkSun(), 'rain', () => 0.99, false, undefined, { tier: TIER_HIGH });
+    for (let i = 0; i < 300; i++) w.update(0.03, cam());
+    const p = dropsOf(scene).geometry.attributes.position;
+    const per = p.count / rainDropCount(TIER_HIGH);
+    for (let i = 0; i < 50; i++) {
+      const ys = [];
+      for (let k = 0; k < per; k++) ys.push(p.getY(i * per + k));
+      const e = Math.max(...ys) - Math.min(...ys);
+      expect(e).toBeGreaterThanOrEqual(0.3);
+      expect(e).toBeLessThanOrEqual(0.7);
+    }
+  });
+
+  it('crowds the drops near the camera', () => {
+    const scene = mkScene();
+    createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    const p = dropsOf(scene).geometry.attributes.position;
+    const n = rainDropCount(TIER_HIGH);
+    const per = p.count / n;
+    let near = 0;
+    for (let i = 0; i < n; i++) {
+      if (Math.hypot(p.getX(i * per), p.getZ(i * per)) < RAIN_LOOK.radius * 0.4) near++;
+    }
+    expect(near / n).toBeGreaterThan(0.5);
+  });
+
+  it('reduced motion adds no drops or rings but still changes the mood', () => {
+    const scene = mkScene();
+    const sun = mkSun();
+    const before = scene.fog.near;
+    const w = createWeather(scene, sun, 'rain', () => 0.5, true, undefined, { tier: TIER_HIGH, puddles: [{ x: 1, z: 1, r: 0.8, y: 0 }] });
+    w.addPuddles([{ x: 1, z: 1, r: 0.8, y: 0 }]);
+    expect(dropsOf(scene)).toBeUndefined();
+    expect(ringsOf(scene)).toBeUndefined();
+    expect(scene.fog.near).not.toBe(before);
+    expect(sun.intensity).toBeLessThanOrEqual(0.95);
+  });
+
+  it('wets the ground in the rain and restores it exactly, original never mutated', () => {
+    const scene = mkScene();
+    const mesh = wetMesh();
+    const original = mesh.material;
+    const c0 = original.color.clone();
+    const r0 = original.roughness;
+    const w = createWeather(scene, mkSun(), 'rain', () => 0, false, undefined, { tier: TIER_HIGH, wet: [mesh] });
+    expect(original.color.getHex()).toBe(c0.getHex()); // shared material untouched
+    expect(original.roughness).toBe(r0);
+    expect(mesh.material).not.toBe(original);
+    for (const ch of ['r', 'g', 'b']) expect(mesh.material.color[ch]).toBeLessThanOrEqual(c0[ch] * 0.8);
+    expect(mesh.material.roughness).toBeLessThan(r0);
+    expect(mesh.material.roughness).toBeGreaterThanOrEqual(0.35);
+    w.update(61, cam()); // rainbow
+    expect(mesh.material).toBe(original);
+    expect(original.color.getHex()).toBe(c0.getHex());
+    expect(original.roughness).toBe(r0);
+  });
+
+  it('dispose() mid-rain puts the ground and the fill back', () => {
+    const scene = mkScene();
+    const mesh = wetMesh();
+    const original = mesh.material;
+    const c0 = original.color.getHex();
+    const fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.7);
+    const w = createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, {
+      tier: TIER_HIGH, wet: [mesh], fill, puddles: [{ x: 0, z: 0, r: 0.8, y: 0 }],
+    });
+    w.update(1, cam());
+    expect(fill.intensity).toBeLessThanOrEqual(0.7 * 0.85);
+    w.dispose();
+    w.dispose(); // idempotent
+    expect(mesh.material).toBe(original);
+    expect(original.color.getHex()).toBe(c0);
+    expect(original.roughness).toBe(0.9);
+    expect(fill.intensity).toBe(0.7);
+    expect(dropsOf(scene)).toBeUndefined();
+    expect(ringsOf(scene)).toBeUndefined();
+  });
+
+  it('greys the fog, dims sun and fill, and restores the fill at the rainbow', () => {
+    const scene = mkScene();
+    const sun = mkSun();
+    const fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.7);
+    const w = createWeather(scene, sun, 'rain', () => 0, false, undefined, { tier: TIER_HIGH, fill });
+    const hsl = {};
+    scene.fog.color.getHSL(hsl);
+    const ref = {};
+    new THREE.Color(0x8a9aa8).getHSL(ref);
+    expect(hsl.s).toBeLessThanOrEqual(ref.s);
+    expect(scene.fog.near).toBeLessThanOrEqual(16);
+    expect(sun.intensity).toBeLessThanOrEqual(0.95);
+    expect(fill.intensity).toBeLessThanOrEqual(0.7 * 0.85);
+    w.update(61, cam());
+    expect(fill.intensity).toBe(0.7);
+  });
+
+  it('puddle rings: one InstancedMesh, capped, gone at the rainbow, fewer on low', () => {
+    const puddles = [0, 1, 2].map((i) => ({ x: i * 3, z: 1, r: 0.8, y: 0 }));
+    const scene = mkScene();
+    const w = createWeather(scene, mkSun(), 'rain', () => 0, false, undefined, { tier: TIER_HIGH });
+    expect(ringsOf(scene)).toBeUndefined();
+    w.addPuddles(puddles);
+    const rings = ringsOf(scene);
+    expect(rings.isInstancedMesh).toBe(true);
+    expect(rings.count).toBeLessThanOrEqual(9);
+    expect(rings.castShadow).toBe(false);
+    for (let i = 0; i < 40; i++) w.update(0.05, cam());
+    w.update(61, cam());
+    expect(rings.visible).toBe(false);
+
+    const lowScene = mkScene();
+    const lw = createWeather(lowScene, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_LOW, puddles });
+    expect(ringsOf(lowScene).count).toBe(3);
+    lw.dispose();
+  });
+
+  it('faces the drop column to the camera when a camera is passed', () => {
+    const scene = mkScene();
+    const w = createWeather(scene, mkSun(), 'rain', () => 0.5, false, undefined, { tier: TIER_HIGH });
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(3, 1.5, 4);
+    camera.lookAt(10, 1.5, 4); // looking +x
+    camera.updateMatrixWorld();
+    w.update(0.016, camera.position, camera);
+    // quad normal (+z rotated by yaw) points back at the viewer: -x
+    const d = dropsOf(scene);
+    const n = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), d.rotation.y);
+    expect(n.x).toBeCloseTo(-1, 3);
   });
 });

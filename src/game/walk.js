@@ -643,9 +643,12 @@ export function createWalkLifecycle({
       envIntensity: tier.envIntensity,
     });
 
-    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {} };
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, dispose() {} };
     if (!duskActive && !isDen) {
-      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground);
+      // The ground and paths in the scene right now (the area's own, before
+      // anything else is added) are what the rain darkens; the fill is dimmed.
+      const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground, { tier, fill, wet });
       if (weather.condition === 'rain') {
         // Extra puddles. These are the only props in the game that EVERY area
         // gets whether it authored them or not, which is why their surface is
@@ -663,6 +666,7 @@ export function createWalkLifecycle({
         const extra = rainPuddleSpots(areaData, walkRng);
         for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r, p.y));
         areaData.puddles = [...areaData.puddles, ...extra];
+        weather.addPuddles(areaData.puddles);
         // birds shelter from rain: halve bird-type spawns
         let keep = false;
         areaData.critterSpawns = areaData.critterSpawns.filter((c) => {
@@ -1947,6 +1951,8 @@ export function createWalkLifecycle({
     composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
+    // A rainy walk ending mid-rain: the ground and the fill go back as found.
+    session.weather.dispose?.();
     // Hands the sun and fill back and takes the area's birds out, before the
     // traversal below. Every way a walk ends comes through here.
     session.areaLife.dispose();

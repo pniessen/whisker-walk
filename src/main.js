@@ -821,7 +821,7 @@ function init() {
           toyPos.z += (dz / d) * step;
         }
       }
-      session.weather.update(dt, camera.position);
+      session.weather.update(dt, camera.position, camera);
       // After the weather: a rainbow's sun write becomes the base the Gorge shades.
       session.areaLife.update(dt, t, session.cat.position, camera);
       session.secrets.update(dt, t, session.cat.position, player.speed);

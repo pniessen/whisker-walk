@@ -1365,8 +1365,8 @@ describe('the whole branch stands on the ground', () => {
     // Weather has no options object: ground is its 6th positional arg.
     const weather = callsOf(walk, 'createWeather');
     expect(weather.length).toBe(1);
-    expect(weather[0]).toMatch(/reducedMotion, ground\)$/);
-    expect(read('weather.js')).toMatch(/export function createWeather\(scene, sun, condition, rng, reducedMotion = false, ground = FLAT_GROUND\)/);
+    expect(weather[0]).toMatch(/reducedMotion, ground(, \{[^}]*\})?\)$/);
+    expect(read('weather.js')).toMatch(/export function createWeather\(scene, sun, condition, rng, reducedMotion = false, ground = FLAT_GROUND, opts = \{\}\)/);
     // The shadow fit is fed the ground under her cat every frame.
     expect(read('main.js')).toMatch(/session\.shadows\.update\(session\.ground\.y\(player\.position\.x, player\.position\.z\), dt\)/);
 
