@@ -32,8 +32,12 @@ const TAPER = [0.55, 0.9, 1, 0.9, 0.55];
 // lerp that colour toward the coat under each vertex by `half` and `faint`.
 // polish-catlooks (2026-11-02): full is a paler, healed pink (was the soft red
 // 0xd04a5a, which read as a fresh wound) and pale is lighter to match (was
-// 0xf2a6ae): the kids should be proud of a scar, not find it gory.
-export const SCAR_COLOURS = Object.freeze({ full: 0xe0848f, pale: 0xf6c6cb, half: 0.45, faint: 0.75, minDistance: 0.25 });
+// 0xf2a6ae): the kids should be proud of a scar, not find it gory. Fix round
+// (same day): the first healed pink, 0xe0848f, was as bright as a tan or
+// ginger coat and vanished from the walk camera, so full is a lighter healed
+// pink, clearly brighter than tan, ginger and brown and still pink on white
+// and cream; pale (for a coat close to it) is a near-white blush.
+export const SCAR_COLOURS = Object.freeze({ full: 0xf4b0ba, pale: 0xfde8ea, half: 0.45, faint: 0.75, minDistance: 0.25 });
 
 // Where each site's three lines go, in the cat group's own units (before its
 // scale). `dir` is the direction from the owner's centre to the scar's middle
@@ -57,16 +61,19 @@ export const SCAR_COLOURS = Object.freeze({ full: 0xe0848f, pale: 0xf6c6cb, half
 // [0.45, 1, -0.7] put it just under the back of the head on screen in the game's
 // walk view, so it was tuned back and out to [0.55, 1, -0.5]); side and hind rose
 // 0.15 in y so their top line clears the flank's curve; every line is wider
-// (face 0.008 -> 0.011, body 0.01 -> 0.014). Lengths are unchanged.
+// (face 0.008 -> 0.011, body 0.01 -> 0.014). Fix round (same day): the body
+// sites' lines were still too small to find from the walk camera, so they are
+// longer and wider again (length 0.075 -> 0.095, width 0.014 -> 0.018, gap
+// 0.025 -> 0.032 to match). The face's lines keep their size.
 const UP = [0, 1, 0];
 const FWD = [0, 0, -1];
 const OUT = 'out';
 export const SCAR_LAYOUT = Object.freeze({
   face: Object.freeze({ dir: [0.1, 0.1, -0.155], ref: UP, toward: OUT, slant: 0.5, length: 0.065, gap: 0.02, width: 0.011 }),
-  shoulder: Object.freeze({ dir: [0.55, 1, -0.5], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
-  back: Object.freeze({ dir: [0.28, 1, 0.1], ref: FWD, toward: OUT, slant: 0.6, length: 0.075, gap: 0.025, width: 0.014 }),
-  side: Object.freeze({ dir: [1, 0.3, 0.05], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
-  hind: Object.freeze({ dir: [0.8, 0.65, 0.75], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
+  shoulder: Object.freeze({ dir: [0.55, 1, -0.5], ref: UP, toward: FWD, slant: 0.45, length: 0.095, gap: 0.032, width: 0.018 }),
+  back: Object.freeze({ dir: [0.28, 1, 0.1], ref: FWD, toward: OUT, slant: 0.6, length: 0.095, gap: 0.032, width: 0.018 }),
+  side: Object.freeze({ dir: [1, 0.3, 0.05], ref: UP, toward: FWD, slant: 0.45, length: 0.095, gap: 0.032, width: 0.018 }),
+  hind: Object.freeze({ dir: [0.8, 0.65, 0.75], ref: UP, toward: FWD, slant: 0.45, length: 0.095, gap: 0.032, width: 0.018 }),
 });
 
 // The ear nick (polish-catlooks, 2026-11-02): a face scar also marks the ear
@@ -78,9 +85,10 @@ export const SCAR_LAYOUT = Object.freeze({
 // the back corner (0) to the outer corner (1), up from the base (0) to the tip
 // (1); the strokes are points[0]->points[1] and points[1]->points[2]. `lift`
 // and `width` are in the cat group's units, like the layout's. 2 segments a
-// stroke: 6 vertices, 4 triangles.
+// stroke: 6 vertices, 4 triangles. Fix round (same day): 1.3x bigger (the V
+// spread 1.3x about its middle, width 0.008 -> 0.0105) so it reads from behind.
 export const SCAR_NICK = Object.freeze({
-  points: Object.freeze([[0.28, 0.64], [0.55, 0.56], [0.78, 0.63]]), lift: 0.002, width: 0.008, segments: 2,
+  points: Object.freeze([[0.2, 0.652], [0.55, 0.548], [0.85, 0.639]]), lift: 0.002, width: 0.0105, segments: 2,
 });
 const NICK_TAPER = [0.6, 1, 0.6];
 

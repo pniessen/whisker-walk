@@ -204,19 +204,20 @@ describe('scar mesh', () => {
   // polish-catlooks (2026-11-02): full is now a paler healed pink (was the
   // soft red 0xd04a5a), pale 0xf6c6cb (was 0xf2a6ae).
   it('full is the healed pink, or a pale pink on a reddish coat; the coat under a plain cat is its base', () => {
-    const red = new THREE.Color(0xe0848f), pale = new THREE.Color(0xf6c6cb);
+    const red = new THREE.Color(SCAR_COLOURS.full), pale = new THREE.Color(SCAR_COLOURS.pale);
     const black = buildCat('black', undefined, { scars: [{ site: 'side', stage: 'full', side: 'l' }] });
     for (const c of colours(black)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
     const under = scarsOf(black).userData.under;
     const base = new THREE.Color(coatColor('black'));
     for (let i = 0; i < under.length; i += 3) expect(colourDistance(new THREE.Color(under[i], under[i + 1], under[i + 2]), base)).toBeLessThan(1e-6);
     // polish-catlooks (2026-11-02): ginger was within 0.25 of the old red and
-    // got the pale pink; it is 0.46 from the healed pink, and no shipped coat
+    // got the pale pink; it is 1.0 from the healed pink (0.46 from the fix
+    // round's first pink), and no shipped coat
     // is within 0.25 of it (measured: every preset, look and clan row gets
     // full). The pale rule is kept, so a coat painted the pink itself checks it.
     const ginger = buildCat('tabby', undefined, { look: { ...DEFAULT_LOOK, coat: 'ginger', pattern: 'solid' }, scars: [{ site: 'face', stage: 'full', side: 'l' }] });
     for (const c of colours(ginger)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
-    const row = { ...clanRows()[0], base: 0xe0848f };
+    const row = { ...clanRows()[0], base: SCAR_COLOURS.full };
     const pinkCoat = buildCat(row.eyes, undefined, { simple: true, style: row, scars: [{ site: 'side', stage: 'full', side: 'l' }] });
     for (const c of colours(pinkCoat)) expect(colourDistance(c, pale)).toBeLessThan(1e-6);
   });
@@ -569,15 +570,29 @@ describe('scar mesh', () => {
     }
   }, 120_000);
 
+  // Fix round (polish-catlooks, 2026-11-02): full 0xe0848f -> 0xf4b0ba and
+  // pale 0xf6c6cb -> 0xfde8ea (the first pink was as bright as tan/ginger and
+  // vanished); body lines 0.075 x 0.014 -> 0.095 x 0.018, gap 0.032.
   it('scars are a healed pink, a touch wider', () => {
-    expect(SCAR_COLOURS.full).toBe(0xe0848f);
-    expect(SCAR_COLOURS.pale).toBe(0xf6c6cb);
+    expect(SCAR_COLOURS.full).toBe(0xf4b0ba);
+    expect(SCAR_COLOURS.pale).toBe(0xfde8ea);
     expect(SCAR_COLOURS.minDistance).toBe(0.25);
     expect(SCAR_LAYOUT.face.width).toBe(0.011);
     expect(SCAR_LAYOUT.face.length).toBe(0.065);
     for (const site of ['shoulder', 'back', 'side', 'hind']) {
-      expect(SCAR_LAYOUT[site].width, site).toBe(0.014);
-      expect(SCAR_LAYOUT[site].length, site).toBe(0.075);
+      expect(SCAR_LAYOUT[site].width, site).toBe(0.018);
+      expect(SCAR_LAYOUT[site].length, site).toBe(0.095);
+      expect(SCAR_LAYOUT[site].gap, site).toBe(0.032);
     }
+  });
+
+  it('the healed pink is brighter than a tan, ginger or brown coat and still pink on white', () => {
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const full = new THREE.Color(SCAR_COLOURS.full);
+    for (const hex of [COATS.ginger.hex, COATS.brown.hex, coatColor('tabby'), coatColor('digit')]) {
+      expect(lum(full) - lum(new THREE.Color(hex)), hex.toString(16)).toBeGreaterThan(0.2);
+    }
+    expect(colourDistance(full, new THREE.Color(0xffffff))).toBeGreaterThan(0.25);
+    expect(full.r - full.g).toBeGreaterThan(0.3); // visibly pink, not white
   });
 });
