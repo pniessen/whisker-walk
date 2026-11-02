@@ -1,5 +1,6 @@
 import { describe, test, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { FIGHT_MOVES, teachFor } from '../src/fightmoves.js';
 import { renderChallengeHtml, renderFightHtml, createFightUi, FIGHT_TEACH } from '../src/ui/fightui.js';
 import { CLUES, BUTTONS } from '../src/fight.js';
 import { clanName } from '../src/clanhomes.js';
@@ -269,8 +270,8 @@ describe('the specials row', () => {
     expect(html.indexOf('fight-specials')).toBeGreaterThan(html.indexOf('fight-top'));
     expect(html.indexOf('fight-specials')).toBeLessThan(html.indexOf('class="fight-moves'));
     expect(specialIds(html)).toEqual(['pin', 'rearUpSwat', 'leapScratch']);
-    expect(html).toMatch(/data-move="pin">Pin<span class="fight-key">4<\/span>/);
-    expect(html).toMatch(/data-move="leapScratch">Leap and Scratch<span class="fight-key">6<\/span>/);
+    expect(html).toMatch(/data-move="pin"><span class="fight-special-icon">⬇️<\/span> Pin<span class="fight-key">4<\/span>/);
+    expect(html).toMatch(/data-move="leapScratch"><span class="fight-special-icon">↩️<\/span> Leap and Scratch<span class="fight-key">6<\/span>/);
     expect(html).toMatch(/class="fight-special used" data-move="rearUpSwat" disabled>/);
     expect((html.match(/ disabled/g) ?? []).length).toBe(1);
     expect(movesOf(html).slice(-3)).toEqual(BUTTONS);
@@ -281,9 +282,36 @@ describe('the specials row', () => {
     const teach = html.slice(html.indexOf('fight-teach'));
     expect(teach).toContain(FIGHT_TEACH);
     expect(teach).toContain('⬇️ → Pin');
-    expect(teach).toContain('→ Rear-up Swat');
-    expect(teach).toContain('→ Leap and Scratch');
+    expect(teach).toContain('→ Swat');
+    expect(teach).toContain('→ Leap');
   });
+
+  test('the full teach line stays within 110 characters', () => {
+    expect((FIGHT_TEACH + teachFor(FIGHT_MOVES.map((m) => m.id))).length).toBeLessThanOrEqual(110);
+  });
+
+  test('each special button carries its clue icon', () => {
+    const html = renderFightHtml({ ...clue, specials: FIGHT_MOVES.map((m) => ({ id: m.id, name: m.name, used: false })) });
+    const btn = (id) => html.match(new RegExp(`<button[^>]*data-move="${id}"[^>]*>(.*?)</button>`))[1];
+    expect(btn('rearUpSwat')).toContain(CLUES.swipe.icon);
+    expect(btn('leapScratch')).toContain(CLUES.charge.icon);
+    expect(btn('pin')).toContain(CLUES.pounce.icon);
+    expect(btn('rollingTumble')).toContain('✨');
+  });
+
+  test('--fight-sheet-h is re-measured on every show', () => withDoc(() => {
+    const props = {};
+    const root = new FakeEl();
+    root.style = { setProperty: (k, v) => { props[k] = v; }, removeProperty() {} };
+    const ui = createFightUi(root, {});
+    ui.showFight(clue);
+    root.children[0].offsetHeight = 250;
+    ui.showFight(clue);
+    expect(props['--fight-sheet-h']).toBe('250px');
+    root.children[0].offsetHeight = 260;
+    ui.showFight(clue);
+    expect(props['--fight-sheet-h']).toBe('260px');
+  }));
 
   test('labels are escaped; at most four are drawn', () => {
     const html = renderFightHtml({ ...clue, specials: [{ id: 'pin', name: '<img src=x>', used: false }] });
@@ -363,6 +391,11 @@ describe('the specials row on a phone (style.css)', () => {
     expect(block).toMatch(/\.fight-special \{[^}]*grid-area|\.fight-specials \{[^}]*grid-area: specials/);
     expect(block).toContain('min-height: clamp(64px, 22vh, 88px)');
     expect(block).toMatch(/has-specials[^{]*\{[^}]*max-height: 46vh/);
+  });
+  test('the teach line ends in an ellipsis, not a silent cut', () => {
+    expect(css).toMatch(/\.hud-fight\.has-specials \.fight-teach \{[^}]*-webkit-line-clamp: 2[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/has-specials \.fight-teach \{[^}]*-webkit-line-clamp: 1[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/bottom: calc\(var\(--fight-sheet-h, 46vh\) \+ 8px\)/);
   });
   test('toasts follow the measured sheet', () => {
     expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*var\(--fight-sheet-h/);

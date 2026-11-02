@@ -4,10 +4,10 @@
 import { CLUES } from './fight.js';
 
 export const FIGHT_MOVES = Object.freeze([
-  Object.freeze({ id: 'rearUpSwat', name: 'Rear-up Swat', answers: 'swipe', action: 'rearUp', earnAt: 3, price: 300, hint: 'Paw up', when: 'they raise a paw' }),
-  Object.freeze({ id: 'leapScratch', name: 'Leap and Scratch', answers: 'charge', action: 'leap', earnAt: 6, price: 600, hint: 'Backs up', when: 'they back up' }),
-  Object.freeze({ id: 'pin', name: 'Pin', answers: 'pounce', action: 'pin', earnAt: 10, price: null, hint: 'Crouch', when: 'they crouch' }),
-  Object.freeze({ id: 'rollingTumble', name: 'Rolling Tumble', answers: 'any', action: 'roll', earnAt: 20, price: null, hint: 'Any move', when: null }),
+  Object.freeze({ id: 'rearUpSwat', name: 'Rear-up Swat', short: 'Swat', answers: 'swipe', action: 'rearUp', earnAt: 3, price: 300, hint: 'Paw up', when: 'they raise a paw' }),
+  Object.freeze({ id: 'leapScratch', name: 'Leap and Scratch', short: 'Leap', answers: 'charge', action: 'leap', earnAt: 6, price: 600, hint: 'Backs up', when: 'they back up' }),
+  Object.freeze({ id: 'pin', name: 'Pin', short: 'Pin', answers: 'pounce', action: 'pin', earnAt: 10, price: null, hint: 'Crouch', when: 'they crouch' }),
+  Object.freeze({ id: 'rollingTumble', name: 'Rolling Tumble', short: 'Tumble', answers: 'any', action: 'roll', earnAt: 20, price: null, hint: 'Any move', when: null }),
 ]);
 
 export const FIGHT_MOVE_IDS = Object.freeze(FIGHT_MOVES.map((m) => m.id));
@@ -34,7 +34,7 @@ export function teachFor(ids) {
   for (const m of FIGHT_MOVES) {
     if (!ids.includes(m.id)) continue;
     const icon = m.answers === 'any' ? 'any' : (CLUES[m.answers] ? CLUES[m.answers].icon : m.answers);
-    out += ` · ${icon} → ${m.name}`;
+    out += ` · ${icon} → ${m.short}`;
   }
   return out;
 }

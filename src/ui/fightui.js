@@ -13,10 +13,10 @@
 // its own, so it can never answer a key twice.
 //
 // No progress lives here: this file imports nothing that stores anything.
-import { BUTTONS } from '../fight.js';
+import { BUTTONS, CLUES } from '../fight.js';
 import { clanName } from '../clanhomes.js';
 import { escapeHtml } from '../game/util.js';
-import { teachFor } from '../fightmoves.js';
+import { FIGHT_MOVES, teachFor } from '../fightmoves.js';
 
 export const FIGHT_TEACH = 'Crouch → Dodge · Paw up → Pounce · Backs up → Swipe';
 export const FIGHT_READ = 'Read its move!';
@@ -40,6 +40,14 @@ const pips = (n) => {
   const on = count(n);
   return [0, 1].map((i) => (i < on ? '<span class="pip on">🐾</span>' : '<span class="pip">🐾</span>')).join('');
 };
+
+// The clue icon a special answers, shown on its own button so the hint is
+// always there (Rolling Tumble answers anything).
+function iconOf(id) {
+  const m = FIGHT_MOVES.find((x) => x.id === id);
+  if (!m) return '';
+  return m.answers === 'any' ? '✨' : (CLUES[m.answers]?.icon ?? '');
+}
 
 // The specials worth drawing: at most four (keys 4-7), plain-letter ids that
 // are not one of the three basic buttons, each once.
@@ -70,7 +78,7 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
     + '</div>'
     + (sp.length
       ? '<div class="fight-specials">'
-        + sp.map((m, i) => `<button type="button" class="fight-special${m.used ? ' used' : ''}" data-move="${m.id}"${m.used ? ' disabled' : ''}>${escapeHtml(m.name)}<span class="fight-key">${BUTTONS.length + 1 + i}</span></button>`).join('')
+        + sp.map((m, i) => `<button type="button" class="fight-special${m.used ? ' used' : ''}" data-move="${m.id}"${m.used ? ' disabled' : ''}>${iconOf(m.id) ? `<span class="fight-special-icon">${iconOf(m.id)}</span> ` : ''}${escapeHtml(m.name)}<span class="fight-key">${BUTTONS.length + 1 + i}</span></button>`).join('')
         + '</div>'
       : '')
     + `<div class="fight-moves${idle}">`
@@ -151,10 +159,11 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
         sheet.innerHTML = html;
         sheet.classList.toggle('has-specials', shownSpecials.length > 0);
         lastSheetHtml = html;
-        // The fight toasts sit just above the sheet, whatever height it has.
-        const h = sheet.offsetHeight;
-        if (h > 0) root.style?.setProperty?.('--fight-sheet-h', `${Math.round(h)}px`);
       }
+      // The fight toasts sit just above the sheet, whatever height it has:
+      // measured on every show.
+      const h = sheet.offsetHeight;
+      if (h > 0) root.style?.setProperty?.('--fight-sheet-h', `${Math.round(h)}px`);
       root.classList.add('fighting');
       body()?.classList?.add('fighting');
       showing = 'fight';

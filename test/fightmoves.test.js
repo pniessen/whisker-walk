@@ -8,10 +8,10 @@ import { OUTSIDE_WORDS, RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clan
 describe('fight move catalogue', () => {
   test('the four moves, verbatim and frozen', () => {
     expect(FIGHT_MOVES).toEqual([
-      { id: 'rearUpSwat', name: 'Rear-up Swat', answers: 'swipe', action: 'rearUp', earnAt: 3, price: 300, hint: 'Paw up', when: 'they raise a paw' },
-      { id: 'leapScratch', name: 'Leap and Scratch', answers: 'charge', action: 'leap', earnAt: 6, price: 600, hint: 'Backs up', when: 'they back up' },
-      { id: 'pin', name: 'Pin', answers: 'pounce', action: 'pin', earnAt: 10, price: null, hint: 'Crouch', when: 'they crouch' },
-      { id: 'rollingTumble', name: 'Rolling Tumble', answers: 'any', action: 'roll', earnAt: 20, price: null, hint: 'Any move', when: null },
+      { id: 'rearUpSwat', name: 'Rear-up Swat', short: 'Swat', answers: 'swipe', action: 'rearUp', earnAt: 3, price: 300, hint: 'Paw up', when: 'they raise a paw' },
+      { id: 'leapScratch', name: 'Leap and Scratch', short: 'Leap', answers: 'charge', action: 'leap', earnAt: 6, price: 600, hint: 'Backs up', when: 'they back up' },
+      { id: 'pin', name: 'Pin', short: 'Pin', answers: 'pounce', action: 'pin', earnAt: 10, price: null, hint: 'Crouch', when: 'they crouch' },
+      { id: 'rollingTumble', name: 'Rolling Tumble', short: 'Tumble', answers: 'any', action: 'roll', earnAt: 20, price: null, hint: 'Any move', when: null },
     ]);
     expect(Object.isFrozen(FIGHT_MOVES)).toBe(true);
     expect(FIGHT_MOVE_IDS).toEqual(['rearUpSwat', 'leapScratch', 'pin', 'rollingTumble']);
@@ -39,9 +39,9 @@ describe('fight move catalogue', () => {
   });
 
   test('teachFor lists each known id in catalogue order', () => {
-    expect(teachFor(['rearUpSwat'])).toBe(' · 🐾 → Rear-up Swat');
-    expect(teachFor(['rollingTumble', 'pin'])).toBe(' · ⬇️ → Pin · any → Rolling Tumble');
-    expect(teachFor(['leapScratch'])).toBe(' · ↩️ → Leap and Scratch');
+    expect(teachFor(['rearUpSwat'])).toBe(' · 🐾 → Swat');
+    expect(teachFor(['rollingTumble', 'pin'])).toBe(' · ⬇️ → Pin · any → Tumble');
+    expect(teachFor(['leapScratch'])).toBe(' · ↩️ → Leap');
     expect(teachFor([])).toBe('');
     expect(teachFor(['bogus'])).toBe('');
   });

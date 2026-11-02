@@ -1334,12 +1334,13 @@ body.den-shop-open .chat-wheel { display: none !important; }
   border: 0; border-radius: 12px; background: #e8a33d; color: #3a2a10;
   font: inherit; font-size: 0.85rem; font-weight: 800; line-height: 1.1; cursor: pointer;
 }
+.fight-special-icon { font-size: 1.1em; }
 .fight-special:active { transform: scale(0.97); }
 .fight-special.used, .fight-special:disabled { opacity: 0.35; cursor: default; transform: none; }
 .fight-teach { font-size: 0.8rem; opacity: 0.8; text-align: center; }
 .hud-fight.has-specials .fight-teach {
   font-size: 0.72rem; max-height: 2.6em; overflow: hidden;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: ellipsis;
 }
 /* Short portrait phones (375x667): shrink the clue block so four specials fit
    in 46vh (307 px): 10 + (20 pips + 48 icon + 4) + 52 + 88 + ~26 + 24 + 12 = ~284. */
@@ -1391,8 +1392,8 @@ body.touch-mode .fight-key { display: none; }
   }
   .hud-fight .fight-specials { grid-area: specials; width: auto; }
   .hud-fight .fight-special { min-height: 44px; font-size: 0.72rem; }
-  .hud-fight.has-specials .fight-teach { font-size: 0.65rem; max-height: 1.4em; -webkit-line-clamp: 1; }
-  #hud.fighting:has(.hud-fight.has-specials) .hud-toasts { bottom: calc(46vh + 8px); }
+  .hud-fight.has-specials .fight-teach { font-size: 0.65rem; max-height: 1.4em; -webkit-line-clamp: 1; text-overflow: ellipsis; }
+  #hud.fighting:has(.hud-fight.has-specials) .hud-toasts { bottom: calc(var(--fight-sheet-h, 46vh) + 8px); }
   /* toasts centred just above the sheet's top edge, never over a move */
-  #hud.fighting .hud-toasts { bottom: calc(40vh + 8px); left: 50%; max-width: calc(100vw - 32px); }
+  #hud.fighting .hud-toasts { bottom: calc(40vh + 8px); bottom: calc(var(--fight-sheet-h, 40vh) + 8px); left: 50%; max-width: calc(100vw - 32px); }
 }
