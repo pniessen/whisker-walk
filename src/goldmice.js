@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { areaInEdition } from './edition.js';
 
 // Twenty-seven hidden golden mice: three in each of eight areas, and three more
 // on the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
@@ -129,6 +130,21 @@ export const GOLD_MICE = {
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
 export const GOLD_TOTAL = KNOWN_GOLD.size; // 27 (eight areas x three, and the island's three)
+
+// The golden mice a player of `edition` can reach: those in the areas the
+// edition shows (Legacy hides the Clan Edition territories; see edition.js).
+// For the counter's display only; the save's `golden` list is never filtered,
+// so a mouse found in Clan Edition counts again on switching back. An area
+// missing from the catalog is counted, as it always was.
+export function goldForEdition(edition, catalog) {
+  const areas = catalog?.areas ?? {};
+  const ids = new Set();
+  for (const [areaId, mice] of Object.entries(GOLD_MICE)) {
+    if (Object.hasOwn(areas, areaId) && !areaInEdition(areas[areaId], edition)) continue;
+    for (const m of mice) ids.add(m.id);
+  }
+  return ids;
+}
 
 // Returns { group, material } rather than just the group: all 3 child
 // meshes share this single litMaterial instance, so disposeMouse below
