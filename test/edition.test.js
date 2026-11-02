@@ -104,7 +104,10 @@ test('the island is inside the Pines, so Legacy never walks it and no patrol is 
   expect(rivalForWalk('pines', 'canon', [])).not.toBeNull();
   for (const picks of [[], ['pines'], ['pines', 'river']]) {
     const camp = rivalForWalk('pines', 'canon', picks);
-    if (!camp) continue;
+    // Every pick set has a camp in the Pines: a missing one fails here rather
+    // than skipping the distance checks below.
+    expect(camp, `picks ${JSON.stringify(picks)}`).toBeTruthy();
+    expect(Number.isFinite(camp.cx) && Number.isFinite(camp.cz) && Number.isFinite(camp.r), `picks ${JSON.stringify(picks)}`).toBe(true);
     expect(Math.hypot(camp.cx - ISLAND_LAND.x, camp.cz - ISLAND_LAND.z) - ISLAND_LAND.r - camp.r).toBeGreaterThanOrEqual(3);
     for (const [x, z] of [[BRIDGE_DECK.x1, BRIDGE_DECK.z1], [BRIDGE_DECK.x2, BRIDGE_DECK.z2]]) {
       expect(Math.hypot(camp.cx - x, camp.cz - z) - camp.r).toBeGreaterThanOrEqual(3);

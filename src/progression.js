@@ -1051,16 +1051,16 @@ export function createProgression(storage) {
 
   // One place for both load paths: adopt the loaded state, persist at once if
   // retirement rewrote it, and queue the farewell if the equipped cat was retired.
+  // One write either way (Polish 3: the farewell path used to write twice).
   const adopt = (loaded) => {
     state = loaded.state;
     for (const id of ADDED_MOVES.get(state) ?? []) if (!pendingMoves.includes(id)) pendingMoves.push(id);
-    if (loaded.changed) save();
     if (loaded.farewell) {
       // The line names the preset that takes over, so it must be the one walked.
       state.equipped.custom = null;
       pendingFarewell = ROSA_FAREWELL(CATALOG.cats[state.equipped.cat].name);
-      save();
     }
+    if (loaded.changed || loaded.farewell) save();
   };
   adopt(loadState(storage));
 

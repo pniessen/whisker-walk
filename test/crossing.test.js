@@ -260,3 +260,11 @@ describe('crossing together', () => {
   });
 });
 function afterEachRestore() { afterEach(() => vi.useRealTimers()); }
+
+describe('the prompt pill under the crossing card (Polish 3)', () => {
+  it('style.css hides the prompt pill while a crossing card is up', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/body:has\(#overlay:not\(\.hidden\) \.cross-card\) #hud-prompt\s*\{[^}]*display: none/);
+  });
+});

@@ -172,17 +172,29 @@ export const CROSS_TAG_Y = 1.38;
 // its lower edge sits where a one-line tag's does and clears the tail by the
 // same margin (see TAG_Y below).
 const SUB_TAG_H = 96;
+const TAG_SCALE_X = 1.4;
 const TAG_SCALE_Y = 0.35; // makeNameTag's one-line sprite height (1.4 x 0.35)
 const SUB_TAG_SCALE_Y = TAG_SCALE_Y * (SUB_TAG_H / TAG_H);
 const SUB_LIFT = (SUB_TAG_SCALE_Y - TAG_SCALE_Y) / 2;
-// The wide pill (as the legend's): "apprentice of StormClan" is long.
-const PILL_SUB = { x: 4, y: 6, w: 248, h: 84, r: 24 };
+// Polish 2: the second line was 20 px (14 at the shrink floor) on a 256-wide
+// canvas, which at the TAG_PX_MAX cap came out 10-11 CSS px on screen, too
+// small to read. It is 24 px now (18 at the floor), and the two-line canvas
+// is half as wide again (384, the sprite 2.1 wide, so the letters are the
+// same size as before) so "medicine cat of StormClan" fits at that size. The
+// pill is drawn only as wide as its longer line needs, so a short line does
+// not sit in a long empty bar. The last few px come from the fitter, which
+// lets a two-line tag's cap rise until the line is SUB_PX_AT_CAP CSS px.
+const SUB_TAG_W = 384;
+const SUB_TAG_SCALE_X = TAG_SCALE_X * (SUB_TAG_W / TAG_W);
+const PILL_SUB = { x: 4, y: 6, w: 376, h: 84, r: 24 };
+const PILL_SUB_MIN_W = 248; // the old pill's width: never narrower than that
 const SUB_NAME_BASELINE = 44;
 const SUB_LINE_BASELINE = 78;
-// The second line at about 60% of the name's size, shrink-to-fit like it.
-const SUB_FONT_PX = 20;
-const SUB_MIN_FONT_PX = 14;
+const SUB_FONT_PX = 24;
+const SUB_MIN_FONT_PX = 18;
 const SUB_LINE_COLOR = 'rgba(255,255,255,0.85)';
+// The rank line's on-screen letter size at the cap, CSS px (test/nametagsub).
+export const SUB_PX_AT_CAP = 13;
 
 // --- On-screen size and the screen's edges ----------------------------
 // A tag is a world-space sprite, so it grows as its cat comes toward the
@@ -234,7 +246,11 @@ export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity) 
   const k = viewH / (2 * halfH); // CSS px per world unit at this depth
   const lines = tag.userData?.fitLines ?? (tag.userData?.sub ? SUB_TAG_SCALE_Y / TAG_SCALE_Y : 1);
   const lineH = (sy / lines) * k;
-  const target = lineH < TAG_PX_MIN ? TAG_PX_MIN : lineH > TAG_PX_MAX ? TAG_PX_MAX : lineH;
+  // A two-line tag's cap rises as far as its rank line needs to stay readable
+  // (a one-line tag's is TAG_PX_MAX, as it always was).
+  const subPx = tag.userData?.sub ? tag.userData.subPx : 0;
+  const max = subPx > 0 ? Math.max(TAG_PX_MAX, (SUB_PX_AT_CAP * TAG_H) / subPx) : TAG_PX_MAX;
+  const target = lineH < TAG_PX_MIN ? TAG_PX_MIN : lineH > max ? max : lineH;
   const f = target / lineH;
   const nsx = sx * f;
   const nsy = sy * f;
@@ -300,27 +316,38 @@ function fitFont(ctx, label, px, min, maxW) {
 
 // Paints the two-line tag. Same moods as paintTag (the cross pill, outline and
 // marker; a legend's gold edge) so setNameTagMood works on it unchanged.
+// Returns the rank line's font px (the fitter reads it back off the tag).
 function paintTwoLine(ctx, name, cross, legend, sub) {
-  if (ctx.clearRect) ctx.clearRect(0, 0, TAG_W, SUB_TAG_H);
+  if (ctx.clearRect) ctx.clearRect(0, 0, SUB_TAG_W, SUB_TAG_H);
   const label = cross ? `${CROSS_MARK} ${name}` : `${name}`;
   const maxW = PILL_SUB.w - LABEL_PAD_PX * 2;
+  const cx = SUB_TAG_W / 2;
+  // Sizes first, so the pill can be drawn to the longer line.
+  const namePx = fitFont(ctx, label, BASE_FONT_PX, MIN_FONT_PX, maxW);
+  const nameW = typeof ctx.measureText === 'function' ? (ctx.measureText(label).width || 0) : maxW;
+  const subPx = fitFont(ctx, sub, SUB_FONT_PX, SUB_MIN_FONT_PX, maxW);
+  const subW = typeof ctx.measureText === 'function' ? (ctx.measureText(sub).width || 0) : maxW;
+  const want = Math.max(nameW, subW) + LABEL_PAD_PX * 2 + 2 * PILL_SUB.r;
+  const pw = Math.round(Math.min(PILL_SUB.w, Math.max(PILL_SUB_MIN_W, want)));
+  const px0 = (SUB_TAG_W - pw) / 2;
   ctx.textAlign = 'center';
   ctx.fillStyle = cross ? PILL_CROSS : PILL_NEUTRAL;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(PILL_SUB.x, PILL_SUB.y, PILL_SUB.w, PILL_SUB.h, PILL_SUB.r);
-  else ctx.rect(PILL_SUB.x, PILL_SUB.y, PILL_SUB.w, PILL_SUB.h);
+  if (ctx.roundRect) ctx.roundRect(px0, PILL_SUB.y, pw, PILL_SUB.h, PILL_SUB.r);
+  else ctx.rect(px0, PILL_SUB.y, pw, PILL_SUB.h);
   ctx.fill();
   if ((cross || legend) && ctx.stroke) {
     ctx.strokeStyle = cross ? PILL_CROSS_EDGE : STAR_FILL;
     ctx.lineWidth = PILL_CROSS_EDGE_PX;
     ctx.stroke();
   }
-  fitFont(ctx, label, BASE_FONT_PX, MIN_FONT_PX, maxW);
+  ctx.font = font(namePx);
   ctx.fillStyle = LABEL_COLOR;
-  ctx.fillText(label, LABEL_X, SUB_NAME_BASELINE);
-  fitFont(ctx, sub, SUB_FONT_PX, SUB_MIN_FONT_PX, maxW);
+  ctx.fillText(label, cx, SUB_NAME_BASELINE);
+  ctx.font = font(subPx);
   ctx.fillStyle = SUB_LINE_COLOR;
-  ctx.fillText(sub, LABEL_X, SUB_LINE_BASELINE);
+  ctx.fillText(sub, cx, SUB_LINE_BASELINE);
+  return subPx;
 }
 
 // Paints one mood into an existing 2D context. Used both by makeNameTag (on
@@ -443,19 +470,19 @@ export function makeNameTag(name, { cross = false, legend = false, sub = '', fit
   if (typeof document === 'undefined') return null;
   const twoLine = typeof sub === 'string' && sub.length > 0;
   const tagCanvas = document.createElement('canvas');
-  tagCanvas.width = TAG_W;
+  tagCanvas.width = twoLine ? SUB_TAG_W : TAG_W;
   tagCanvas.height = twoLine ? SUB_TAG_H : TAG_H;
   const tctx = tagCanvas.getContext('2d');
   const isCross = !!cross;
   const isLegend = !!legend;
-  if (twoLine) paintTwoLine(tctx, name, isCross, isLegend, sub);
-  else paintTag(tctx, name, isCross, isLegend, !!fit);
+  const subPx = twoLine ? paintTwoLine(tctx, name, isCross, isLegend, sub) : 0;
+  if (!twoLine) paintTag(tctx, name, isCross, isLegend, !!fit);
   const tagTex = new THREE.CanvasTexture(tagCanvas);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true }));
-  tag.scale.set(1.4, 0.35, 1);
-  if (twoLine) tag.scale.y = SUB_TAG_SCALE_Y;
+  tag.scale.set(1.4, 0.35, 1); // TAG_SCALE_X, TAG_SCALE_Y (test/chatbubble reads this line)
+  if (twoLine) tag.scale.set(SUB_TAG_SCALE_X, SUB_TAG_SCALE_Y, 1);
   tag.position.y = (isCross ? CROSS_TAG_Y : TAG_Y) + (twoLine ? SUB_LIFT : 0);
-  if (twoLine) tag.userData.sub = sub;
+  if (twoLine) { tag.userData.sub = sub; tag.userData.subPx = subPx; }
   if (fit) tag.userData.fit = true;
   tag.visible = false;
   // The canvas and its context are kept ON the sprite so the texture can be
@@ -498,7 +525,7 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   const next = !!cross;
   if (tag.userData.cross === next) return tag;
   const sub = tag.userData.sub;
-  if (sub) paintTwoLine(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, sub);
+  if (sub) tag.userData.subPx = paintTwoLine(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, sub);
   else paintTag(tag.userData.tagCtx, tag.userData.tagName, next, tag.userData.legend === true, tag.userData.fit === true);
   tag.userData.cross = next;
   tag.userData.revealRange = next ? CROSS_NAME_TAG_RANGE : NAME_TAG_RANGE;

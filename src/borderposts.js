@@ -32,7 +32,16 @@ export const POST_REACH = 1.6; // m, cat centre to post centre
 export const TOWN_FOOTPATH = [[-2.5, 42, -55, 42]];
 export const FOOTPATH_W = 2;
 
-const post = (id, x, z, faces, to) => ({ id, x, z, faces, to });
+// The four ways a post can face. A facing outside them throws when this file
+// loads (Polish 3): the map and the post's sign would otherwise fall back to
+// north without a word, and a typo would point a kid the wrong way.
+export const FACINGS = Object.freeze(['north', 'south', 'east', 'west']);
+
+export function borderPost(id, x, z, faces, to) {
+  if (!FACINGS.includes(faces)) throw new Error(`border post ${id}: faces "${faces}" is not one of ${FACINGS.join(', ')}`);
+  return { id, x, z, faces, to };
+}
+const post = borderPost;
 
 export const BORDER_POSTS = {
   neighborhood: [

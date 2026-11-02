@@ -333,6 +333,26 @@ describe('patrol together (Clan Life Task 6)', () => {
     expect(PATROL_MIN).toBe(30);
   });
 
+  it("an end at the water's edge ('terrain') says goodbye, not that it could not keep up", () => {
+    const h = harness({ count: 16 });
+    const warrior = byRank(h, K.warrior);
+    only(h, warrior);
+    h.press();
+    h.api.endClanPatrol(h.session, warrior, 'terrain', 10);
+    expect(h.toasts.at(-1)).toBe(`${warrior.name} heads back to camp. A longer patrol next time!`);
+    expect(h.paid('patrol')).toBe(0);
+  });
+
+  it("a long patrol ended by the water ('terrain') pays like any other", () => {
+    const h = harness({ count: 16 });
+    const warrior = byRank(h, K.warrior);
+    only(h, warrior);
+    h.press();
+    h.api.endClanPatrol(h.session, warrior, 'terrain', PATROL_MIN + 5);
+    expect(h.toasts.at(-1)).toBe(`${warrior.name} heads back to camp. Good patrol!`);
+    expect(h.paid('patrol')).toBe(1);
+  });
+
   it('say goodbye ends it through endBuddy and pays when long enough', () => {
     const h = harness({ count: 16 });
     const warrior = byRank(h, K.warrior);

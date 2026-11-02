@@ -97,8 +97,8 @@ describe('my cat in the water', () => {
 
   it('the shake sound plays once per climb-out', () => {
     const h = harness();
-    h.at(0); // deep
-    h.tick(60);
+    h.at(0); // deep, past SHAKE_AFTER_SWIM (1 s)
+    h.tick(90);
     expect(h.player.swimming).toBe(true);
     h.at(6); // out onto the bank
     h.tick(120);
@@ -106,7 +106,7 @@ describe('my cat in the water', () => {
     expect(h.sounds.filter((k) => k === 'shake')).toHaveLength(1);
     // and back in and out again: one more
     h.at(0);
-    h.tick(60);
+    h.tick(90);
     h.at(6);
     h.tick(120);
     expect(h.sounds.filter((k) => k === 'shake')).toHaveLength(2);

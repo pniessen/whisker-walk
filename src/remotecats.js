@@ -69,6 +69,11 @@ function profileUnchanged(entry, profile) {
 export function createRemoteCats(scene, { reducedMotion = false } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
+  // `list` is read several times a frame (main.js, avatar.js), so it hands
+  // back one cached snapshot, rebuilt only when a cat joins or leaves
+  // (Polish 3). A snapshot, not a live array: a holder of an older one (the
+  // crossing's "who walks on with me") never sees it change underneath it.
+  let listCache = null;
 
   // Remote profiles arrive over the network from other players' clients,
   // which may not have enforced the same validation the local client does
@@ -126,6 +131,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       water: { ...createWaterState(), placed: false },
     };
     remotes.set(profile.playerId, entry);
+    listCache = null;
     return entry;
   }
 
@@ -160,10 +166,12 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     scene.remove(entry.group);
     disposeGroup(entry.group);
     remotes.delete(playerId);
+    listCache = null;
   }
 
   function update(dt, now, waters = null) {
-    for (const entry of Array.from(remotes.values())) {
+    // The cached snapshot, so a remove() mid-loop is safe and nothing is allocated.
+    for (const entry of api.list) {
       if (now - entry.lastSeenAt > DESPAWN_AFTER) {
         remove(entry.playerId);
         continue;
@@ -203,7 +211,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     for (const playerId of Array.from(remotes.keys())) remove(playerId);
   }
 
-  return {
+  const api = {
     upsert,
     applyState,
     remove,
@@ -211,7 +219,8 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     nearest,
     dispose,
     get list() {
-      return Array.from(remotes.values());
+      return (listCache ??= Array.from(remotes.values()));
     },
   };
+  return api;
 }

@@ -3,7 +3,7 @@
 // beyond reading the flat path strips once when a walk starts.
 import { flatFootprints } from '../render/grass.js';
 import { findTrees } from '../render/ambient.js';
-import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle } from './minimapmath.js';
+import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle, badgeAt, clearOfBadge, BADGE_R, MARK_R } from './minimapmath.js';
 
 const CREAM = '#f4efe4';
 const RIM = 'rgba(20,26,38,0.85)';
@@ -70,9 +70,32 @@ export function buildMapLayer(areaData, scene) {
 function treesFor(areaData, scene) {
   if (!scene || typeof scene.traverse !== 'function') return [];
   const big = (areaData.colliders ?? []).filter((c) => c.r >= 1);
-  return findTrees(scene)
+  return [...findTrees(scene), ...findPines(scene)]
     .filter((t) => !big.some((c) => Math.hypot(t.x - c.x, t.z - c.z) < 0.5))
     .map((t) => ({ x: t.x, z: t.z, r: Math.min(CROWN_MAX, t.r * CROWN) }));
+}
+
+// Pines carry no `canopy` (they shed no leaves, so findTrees leaves them for
+// the ambient leaf-fall's sake). A swaying pine says its crown's radius in
+// userData.mapCrown, and a merged stand lists its crowns in userData.mapCrowns
+// (builder.pine / builder.pineStand), both in the object's own frame.
+function findPines(scene) {
+  const out = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    const one = o.userData?.mapCrown;
+    const many = o.userData?.mapCrowns;
+    if (!(one > 0) && !Array.isArray(many)) return;
+    const e = o.matrixWorld.elements;
+    const s = Math.hypot(e[0], e[1], e[2]);
+    if (one > 0) out.push({ x: e[12], z: e[14], r: one * s });
+    if (Array.isArray(many)) {
+      for (const c of many) {
+        out.push({ x: e[0] * c.x + e[8] * c.z + e[12], z: e[2] * c.x + e[10] * c.z + e[14], r: c.r * s });
+      }
+    }
+  });
+  return out;
 }
 
 // A canvas ignores a numeric fillStyle and keeps the previous one, and
@@ -110,10 +133,22 @@ function markersKey(markers) {
 }
 
 export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle } = {}) {
+  // The layer is fixed for the map's life: whether it has islands, once.
+  const hasIslands = !!layer?.water?.some((w) => w.islands?.length);
+  // Markers slid out from under the badge this paint (a few, reused).
+  const slid = [{ u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }];
+  let slidCount = 0;
   const canvas = document.createElement('canvas');
   canvas.className = 'hud-map-disc';
+  // A tap flips the mode, so the label says what the next tap does (kept in
+  // step by setMode below). It stays role=img: the toggle is a pointer tap
+  // only, with no focus or key to press, so announcing a button would promise
+  // something a keyboard cannot do.
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Map');
+  const label = (m) => (m === 'turn'
+    ? 'Map, turns with you. Tap to keep north up.'
+    : 'Map, north up. Tap to make it turn with you.');
+  canvas.setAttribute('aria-label', label(mode === 'turn' ? 'turn' : 'north'));
   // #hud is pointer-events: none; the map opts back in so it can be tapped.
   canvas.style.pointerEvents = 'auto';
   hostEl.insertBefore(canvas, hostEl.firstChild);
@@ -170,6 +205,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     drawWorld(full, c);
     ctx.restore();
 
+    slidCount = 0;
     for (const m of markers) drawMarker(m, full, c);
     drawCat(full, c);
 
@@ -201,15 +237,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.fillRect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
       ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = PATH;
-    for (const p of layer.paths) {
-      ctx.save();
-      ctx.translate(p.x, p.z);
-      // The strip's length axis is (ux, uz); rotate so local +y runs along it.
-      ctx.rotate(Math.atan2(-p.ux, p.uz));
-      ctx.fillRect(-p.halfW, -p.halfL, p.halfW * 2, p.halfL * 2);
-      ctx.restore();
-    }
+    drawPaths();
     ctx.fillStyle = WATER;
     for (const w of layer.water) {
       if (w.kind === 'circle') {
@@ -223,18 +251,38 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     // Islands are land, so they are filled exactly as the land is (cream,
     // then the ground tone at half strength), after all the water so a lake
     // reads with its island in it, and before the decks so a bridge lands on
-    // it.
-    for (const w of layer.water) {
-      for (const i of w.islands ?? []) {
+    // it. Clipped to the map's edge, past which the land stays plain cream,
+    // and with the paths drawn again over them, clipped to the islands, so a
+    // path across an island is not lost under its land (Polish 3).
+    if (hasIslands) {
+      ctx.save();
+      if (e) {
         ctx.beginPath();
-        ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
-        ctx.fillStyle = CREAM;
-        ctx.fill();
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = layer.ground;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.rect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
+        ctx.clip();
       }
+      for (const w of layer.water) {
+        for (const i of w.islands ?? []) {
+          ctx.beginPath();
+          ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
+          ctx.fillStyle = CREAM;
+          ctx.fill();
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = layer.ground;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.beginPath();
+      for (const w of layer.water) {
+        for (const i of w.islands ?? []) {
+          ctx.moveTo(i.x + i.r, i.z);
+          ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
+        }
+      }
+      ctx.clip();
+      drawPaths();
+      ctx.restore();
     }
     // Decks go on after all the water, in the path tone, so a crossing reads
     // as a way over. A strip deck (a diagonal bridge) is a rotated rectangle,
@@ -274,8 +322,39 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     }
   }
 
+  function drawPaths() {
+    ctx.fillStyle = PATH;
+    for (const p of layer.paths) {
+      ctx.save();
+      ctx.translate(p.x, p.z);
+      // The strip's length axis is (ux, uz); rotate so local +y runs along it.
+      ctx.rotate(Math.atan2(-p.ux, p.uz));
+      ctx.fillRect(-p.halfW, -p.halfL, p.halfW * 2, p.halfL * 2);
+      ctx.restore();
+    }
+  }
+
   function drawMarker(m, view, c) {
-    const p = pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6);
+    // Slid along the rim out from under the N badge, which is drawn last
+    // (Polish 3: the Twolegplace's post for the Moor hid there).
+    const at = pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6);
+    const p = clearOfBadge(at, badgeAt(view), BADGE_R + MARK_R);
+    // Two markers slid to the same spot beside the badge would hide one
+    // another: each later one steps on round the rim, the way it leans.
+    if (p !== at) {
+      const r = Math.hypot(p.u, p.v);
+      const b = badgeAt(view);
+      const lean = (p.u - b.u) * -b.v + (p.v - b.v) * b.u >= 0 ? 1 : -1; // which side of the badge
+      for (let k = 0; k < slidCount && r > 0; k++) {
+        const s0 = slid[k];
+        if (Math.hypot(p.u - s0.u, p.v - s0.v) >= 2 * MARK_R) continue;
+        const a = Math.atan2(p.v, p.u) + lean * ((2 * MARK_R) / r);
+        p.u = Math.cos(a) * r;
+        p.v = Math.sin(a) * r;
+        k = -1; // check them all again from the new spot
+      }
+      if (slidCount < slid.length) { slid[slidCount].u = p.u; slid[slidCount].v = p.v; slidCount++; }
+    }
     const x = c + p.u;
     const y = c + p.v;
     ctx.save();
@@ -404,10 +483,11 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
   function drawBadge(view, c) {
     const nu = view.mode === 'turn' ? Math.sin(view.heading) : 0;
     const nv = view.mode === 'turn' ? -Math.cos(view.heading) : -1;
-    const bx = c + nu * (view.radiusPx - 9);
-    const by = c + nv * (view.radiusPx - 9);
+    const at = badgeAt(view);
+    const bx = c + at.u;
+    const by = c + at.v;
     ctx.beginPath();
-    ctx.arc(bx, by, 8, 0, Math.PI * 2);
+    ctx.arc(bx, by, BADGE_R, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(20,26,38,0.85)';
     ctx.fill();
     ctx.fillStyle = '#fff';
@@ -454,7 +534,10 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       last = { cx: view.cx, cz: view.cz, heading: view.heading, key, mode: currentMode, size };
       paint(view, markers, size);
     },
-    setMode(next) { currentMode = next === 'turn' ? 'turn' : 'north'; },
+    setMode(next) {
+      currentMode = next === 'turn' ? 'turn' : 'north';
+      canvas.setAttribute('aria-label', label(currentMode));
+    },
     get mode() { return currentMode; },
     show() { canvas.classList.remove('hidden'); },
     hide() { canvas.classList.add('hidden'); },

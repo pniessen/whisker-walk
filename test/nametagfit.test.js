@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { makeNameTag, fitTagToView, TAG_PX_MIN, TAG_PX_MAX, TAG_EDGE_PX } from '../src/nametag.js';
+import { makeNameTag, fitTagToView, TAG_PX_MIN, TAG_PX_MAX, TAG_EDGE_PX, SUB_PX_AT_CAP } from '../src/nametag.js';
 
 // A name tag keeps a readable, capped size on screen whatever its distance,
 // and stays inside the screen's edges (or hides, when its cat is off screen).
@@ -156,7 +156,9 @@ describe('makeNameTag wires the fit in', () => {
         cat.updateMatrixWorld(true);
         const cam = camAt([0, 1.2, 1.4], [0, 1, 0]);
         tag.onBeforeRender(renderer, null, cam);
-        expect(onScreen(tag, cam).lineH).toBeCloseTo(TAG_PX_MAX, 3);
+        // A two-line tag's cap rises until its rank line is readable (Polish 2).
+        const cap = opts.sub ? Math.max(TAG_PX_MAX, (SUB_PX_AT_CAP * 64) / tag.userData.subPx) : TAG_PX_MAX;
+        expect(onScreen(tag, cam).lineH).toBeCloseTo(cap, 3);
       }
     } finally {
       if (prev === undefined) delete globalThis.document;

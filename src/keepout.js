@@ -27,6 +27,7 @@
 // DRY_EPS).
 import { CAT_RADIUS } from './player.js';
 import { waterClearance, nearestDry, waterGap } from './world/builder.js';
+import { segT } from './segdist.js';
 
 const EPS = 1e-9;
 // Exits and ring samples must stay this far inside the bounds, the same inset
@@ -51,10 +52,8 @@ function rectGap(r, x, z) {
 
 // The nearest point on a capsule's segment to (x, z).
 function segNearest(c, x, z) {
-  const sx = c.x2 - c.x1, sz = c.z2 - c.z1;
-  const len2 = sx * sx + sz * sz;
-  const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - c.x1) * sx + (z - c.z1) * sz) / len2)) : 0;
-  return { x: c.x1 + sx * t, z: c.z1 + sz * t };
+  const t = segT(x, z, c.x1, c.z1, c.x2, c.z2);
+  return { x: c.x1 + (c.x2 - c.x1) * t, z: c.z1 + (c.z2 - c.z1) * t };
 }
 
 // The shapes are built once per keepOut record, not on every call: the strays

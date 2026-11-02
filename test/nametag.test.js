@@ -460,15 +460,17 @@ describe('the two-line tag (opts.sub)', () => {
   it('paints the name on top and the sub smaller below, on a taller canvas and sprite', () => {
     withFakeDocument((canvases) => {
       const tag = makeNameTag('Thornfur', { sub: 'x of Y' });
-      expect([canvases[0].width, canvases[0].height]).toEqual([256, 96]);
+      // Polish 2: half as wide again, so the rank line fits at a readable size.
+      expect([canvases[0].width, canvases[0].height]).toEqual([384, 96]);
       const t = texts(opsOf(tag));
       expect(t).toHaveLength(2);
       expect(t[0][3]).toBe('Thornfur');
       expect(t[1][3]).toBe('x of Y');
       expect(t[1][5]).toBeGreaterThan(t[0][5]); // below
       expect(px(t[1])).toBeLessThan(px(t[0]));
-      expect(px(t[1])).toBeCloseTo(px(t[0]) * 0.6, -1);
-      expect(tag.scale.x).toBeCloseTo(1.4);
+      expect(px(t[1])).toBeCloseTo(px(t[0]) * 0.7, -1);
+      expect(tag.scale.x).toBeCloseTo(2.1); // 1.4 x 384/256: same letter size
+      expect(tag.userData.subPx).toBe(px(t[1]));
       expect(tag.scale.y).toBeCloseTo(0.525);
       expect(tag.userData.sub).toBe('x of Y');
     });

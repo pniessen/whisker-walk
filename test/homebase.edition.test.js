@@ -226,6 +226,33 @@ describe('picking a clan', () => {
     expect(noteOwnPick).toHaveBeenCalledTimes(1);
   });
 
+  it('re-tapping the clan already picked pushes nothing again', async () => {
+    const { progression, noteOwnPick } = setupSync();
+    noteOwnPick.mockResolvedValue(true);
+    await clickPick('moor');
+    await clickPick('moor');
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    await clickPick('river');
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+    doc.root.listeners.change({ target: { id: 'set-clan-pick', value: 'river', dataset: {} } });
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+  });
+
+  it('after a failed push, re-tapping the same clan pushes it again', async () => {
+    const { noteOwnPick } = setupSync();
+    noteOwnPick.mockResolvedValue(false);
+    await clickPick('moor');
+    await Promise.resolve(); await Promise.resolve();
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    noteOwnPick.mockResolvedValue(true);
+    await clickPick('moor');
+    await Promise.resolve(); await Promise.resolve();
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+    await clickPick('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+  });
+
   it('a refused pick (the gorge) neither changes the save nor pushes', async () => {
     const { progression, noteOwnPick } = setupSync();
     await clickPick('gorge');

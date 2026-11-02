@@ -37,7 +37,7 @@ import { createCritters } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
-import { campLayout } from '../world/camp.js';
+import { campLayout, campDiscs } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { DISCS } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
@@ -896,6 +896,7 @@ export function createWalkLifecycle({
       collarFor: (name) => collarFor(progression.state, name),
       roomSeed,
       colonyCats,
+      colonyAvoid: campDiscs(areaId),
       excludeNames,
       extras,
       reducedMotion,

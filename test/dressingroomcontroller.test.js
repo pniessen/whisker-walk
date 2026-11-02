@@ -30,13 +30,6 @@ function setup({ buyResult = true, points = 9999 } = {}) {
     unequip: spy('unequip'),
     buy: spy('buy', buyResult),
     setArea: spy('setArea'),
-    // The real pickPlace's shape over this stub's own buy/setArea.
-    pickPlace(id) {
-      let out = false;
-      if (progression.isUnlocked('areas', id)) { progression.setArea(id); out = 'set'; }
-      else if (progression.buy('areas', id)) { progression.setArea(id); out = 'bought'; }
-      return out;
-    },
   };
   const sync = { autoSync: vi.fn(() => calls.push('autoSync')) };
   const onChange = vi.fn();
@@ -82,26 +75,9 @@ describe('createDressingRoom handleClick', () => {
     expect(t.sync.autoSync).not.toHaveBeenCalled();
   });
 
-  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
-    const t = setup();
-    t.state.edition = 'legacy';
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    t.state.unlocked.areas.push('woods');
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    expect(t.progression.buy).not.toHaveBeenCalled();
-    expect(t.progression.setArea).not.toHaveBeenCalled();
-    expect(t.state.area).toBe('neighborhood');
-  });
-
-  it('in Clan Edition the Woods card buys and sets it as before', () => {
-    const t = setup();
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    expect(t.progression.buy).toHaveBeenCalledWith('areas', 'woods');
-    expect(t.progression.setArea).toHaveBeenCalledWith('woods');
-  });
-
   // The territory map's Woods is a <g data-dr-place="woods">; these use a real
-  // progression so the walk gate is the real canBuy, not a stubbed answer.
+  // progression, so a place tap goes through the real pickPlace and the walk
+  // gate is the real canBuy, not a stubbed answer.
   function realSetup() {
     const map = new Map();
     const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
@@ -109,6 +85,37 @@ describe('createDressingRoom handleClick', () => {
     const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange: () => {} });
     return { dr, progression, sync };
   }
+
+  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
+    const t = realSetup();
+    t.progression.setEdition('legacy');
+    t.progression.state.walks.neighborhood = 2;
+    t.progression.state.points = 9999;
+    const buy = vi.spyOn(t.progression, 'buy');
+    const setArea = vi.spyOn(t.progression, 'setArea');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).not.toHaveBeenCalled();
+    expect(t.progression.state.area).toBe('neighborhood');
+    // even owned, the Woods is not a Legacy place
+    t.progression.state.unlocked.areas.push('woods');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).not.toHaveBeenCalled();
+    expect(t.progression.state.area).toBe('neighborhood');
+    expect(t.sync.autoSync).not.toHaveBeenCalled();
+    setArea.mockRestore();
+  });
+
+  it('in Clan Edition the Woods card buys and sets it as before, through the real pickPlace', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    const buy = vi.spyOn(t.progression, 'buy');
+    const setArea = vi.spyOn(t.progression, 'setArea');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).toHaveBeenCalledWith('areas', 'woods');
+    expect(setArea).toHaveBeenCalledWith('woods');
+    expect(t.progression.state.area).toBe('woods');
+    expect(t.sync.autoSync).toHaveBeenCalledTimes(1);
+  });
 
   it('tapping the locked Woods buys nothing and keeps the area', () => {
     const t = realSetup();
@@ -450,6 +457,44 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.html();
     expect(snap).toHaveBeenCalledTimes(1);
   });
+  // Polish 3: the Wearing slots pictured each accessory on the menu's tabby.
+  it("the Wearing slots picture each worn accessory on her cat, snapped once per look and item", () => {
+    const snap = vi.fn((entries) => Object.fromEntries(entries.map((e) => [e.key, `data:image/png;base64,${e.wear ? 'WORN' : 'CAT'}`])));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.state.points = 999;
+    progression.buy('accessories', 'bell');
+    progression.equipAccessory('bell');
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    const html = dr.html();
+    const worn = snap.mock.calls.flatMap((c) => c[0]).filter((e) => e.wear);
+    expect(worn).toHaveLength(1);
+    expect(worn[0]).toMatchObject({ breed: 'mainecoon', look: DEFAULT_LOOK, wear: { collar: 'bell' } });
+    const slot = html.slice(html.indexOf('data-dr-slot="collar"'));
+    expect(slot.slice(0, slot.indexOf('</button>'))).toContain('src="data:image/png;base64,WORN"');
+    const calls = snap.mock.calls.length;
+    dr.html();
+    expect(snap.mock.calls.length).toBe(calls);
+  });
+  it('a try-on keeps the menu picture: no snap on a tap in the picker', () => {
+    const snap = vi.fn((entries) => Object.fromEntries(entries.map((e) => [e.key, 'data:x'])));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    dr.html();
+    const before = snap.mock.calls.length;
+    dr.handleClick(click({ drAcc: 'wizard', drAct: 'try' }));
+    expect(dr.html()).toContain('(trying)');
+    expect(snap.mock.calls.slice(before).flatMap((c) => c[0]).filter((e) => e.wear)).toEqual([]);
+  });
+  it('a plain tabby keeps the menu pictures and snaps nothing for the slots', () => {
+    const snap = vi.fn(() => ({}));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.state.points = 999;
+    progression.buy('accessories', 'bell');
+    progression.equipAccessory('bell');
+    progression.equipCat('tabby');
+    dr.html();
+    expect(snap.mock.calls.flatMap((c) => c[0]).filter((e) => e.wear)).toEqual([]);
+  });
   it('walking her cat, the room stage shows its preset, her outfit and its look', () => {
     const { dr, progression, stage } = real();
     progression.equipAccessory('bell');
@@ -577,6 +622,46 @@ describe('createDressingRoom: her own cats and the builder', () => {
       const after = stripRoot({ tileLeft: 500 });
       dr.afterRender(after.root);
       expect(after.strip.scrollLeft).toBe(300);
+    });
+    // Polish 3: a background render (a colony poll, a partner re-track)
+    // used to snap the strip back to her cat while she was scrolling it.
+    it('a background render keeps where she has scrolled, even with her cat out of view', () => {
+      const { dr } = real();
+      const first = stripRoot({ tileLeft: 900 });
+      dr.afterRender(first.root); // her cat brought into view once
+      expect(first.strip.scrollLeft).toBe(592);
+      const scrolled = stripRoot({ tileLeft: 900, scrollLeft: 0 }); // she scrolls back to the start
+      dr.captureFocus(scrolled.root);
+      const again = stripRoot({ tileLeft: 900 });
+      dr.afterRender(again.root);
+      expect(again.strip.scrollLeft).toBe(0);
+    });
+    it('a new pick, or Done, still brings the picked cat into view', () => {
+      const { dr } = real();
+      dr.afterRender(stripRoot({ tileLeft: 900 }).root);
+      const scrolled = stripRoot({ tileLeft: 900, scrollLeft: 0 });
+      dr.captureFocus(scrolled.root);
+      dr.handleClick(click({ drCat: 'siamese' }));
+      const picked = stripRoot({ tileLeft: 900 });
+      dr.afterRender(picked.root);
+      expect(picked.strip.scrollLeft).toBe(592);
+      // the builder, then Done on her new cat: shown again
+      dr.handleClick(click({ drMake: '' }));
+      dr.handleInput(input({ cbName: '' }, 'Ember'));
+      dr.handleClick(click({ cbDone: '' }));
+      dr.captureFocus(stripRoot({ tileLeft: 900, scrollLeft: 0 }).root);
+      const done = stripRoot({ tileLeft: 900 });
+      dr.afterRender(done.root);
+      expect(done.strip.scrollLeft).toBe(592);
+    });
+    it('after a walk (clearPreview at Start) her cat is brought into view again', () => {
+      const { dr } = real();
+      dr.afterRender(stripRoot({ tileLeft: 900 }).root);
+      dr.captureFocus(stripRoot({ tileLeft: 900, scrollLeft: 0 }).root); // the hidden strip reads 0
+      dr.clearPreview();
+      const home = stripRoot({ tileLeft: 900 });
+      dr.afterRender(home.root);
+      expect(home.strip.scrollLeft).toBe(592);
     });
     it('does nothing in the builder or without layout (test fakes)', () => {
       const { dr } = real();

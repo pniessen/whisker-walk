@@ -431,6 +431,15 @@ describe('the Pines: the island, the bridge and the truce path', () => {
     expect(south.some((q) => onDeck(bay(), q.x, q.z))).toBe(true);
     const s = south.at(-1);
     expect(onDeck(bay(), s.x, s.z) || onIsland(s.x, s.z), `ends at (${s.x}, ${s.z})`).toBe(true);
+    // ...and the slide is toward the island: from the first frame on the deck,
+    // its progress along the bridge (land end to island end) never goes back,
+    // and over the walk it covers metres of the bridge, not centimetres.
+    const prog = (q) => (q.x - deckMid.x) * along.x + (q.z - deckMid.z) * along.z;
+    const first = south.findIndex((q) => onDeck(bay(), q.x, q.z));
+    const onward = south.slice(first).map(prog);
+    for (let k = 1; k < onward.length; k++) expect(onward[k], `frame ${first + k}`).toBeGreaterThanOrEqual(onward[k - 1] - 1e-6);
+    expect(onward.at(-1) - onward[0]).toBeGreaterThan(3);
+    expect(Math.hypot(s.x - ISLAND_LAND.x, s.z - ISLAND_LAND.z)).toBeLessThan(Math.hypot(south[first].x - ISLAND_LAND.x, south[first].z - ISLAND_LAND.z) - 3);
 
     // From the foot, along the bridge: ends on the island.
     const over = hold(BRIDGE_FOOT, along, 8).at(-1);

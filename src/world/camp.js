@@ -83,6 +83,14 @@ export function campLayout(areaId) {
   };
 }
 
+// campDiscs(areaId) -> [den, rock] as { x, z, r } (the colliders addCamp
+// pushes), or [] where there is no camp. walk.js keeps colony cats' saved
+// spots out of them.
+export function campDiscs(areaId) {
+  const L = campLayout(areaId);
+  return L ? [{ x: L.den.x, z: L.den.z, r: L.den.r }, { x: L.rock.x, z: L.rock.z, r: L.rock.r }] : [];
+}
+
 const BRAMBLE = 0x3b5e2e; // builder.brambleBed's green
 const DOORWAY = 0x1c2416;
 const ROCK_GREY = 0x8e8c88; // builder.tor's grey, the territories' rock

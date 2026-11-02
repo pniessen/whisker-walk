@@ -52,6 +52,40 @@ describe('createRemoteCats', () => {
     expect(scene.objects.size).toBe(1);
   });
 
+  it('list allocates nothing per read: the same array until a cat joins or leaves (Polish 3)', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    const empty = remotes.list;
+    expect(remotes.list).toBe(empty);
+    remotes.upsert(PROFILE, 0);
+    const one = remotes.list;
+    expect(one).not.toBe(empty);
+    expect(empty).toHaveLength(0); // an earlier snapshot is never changed under a holder
+    expect(remotes.list).toBe(one);
+    remotes.applyState({ id: 'aaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 0 }, 0);
+    remotes.update(0.016, 0.1);
+    expect(remotes.list).toBe(one); // a frame changes nothing
+    remotes.upsert(PROFILE, 0); // unchanged profile: no rebuild
+    expect(remotes.list).toBe(one);
+    remotes.upsert({ ...PROFILE, playerId: 'bbb' }, 0);
+    const two = remotes.list;
+    expect(two).toHaveLength(2);
+    expect(one).toHaveLength(1);
+    remotes.remove('aaa');
+    expect(remotes.list.map((r) => r.playerId)).toEqual(['bbb']);
+    expect(two).toHaveLength(2);
+  });
+
+  it('a cat that times out mid-update is removed and the rest still update', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    remotes.upsert(PROFILE, 0);
+    remotes.upsert({ ...PROFILE, playerId: 'bbb' }, 0);
+    remotes.applyState({ id: 'bbb', pos: [4, 0], yaw: 0, pose: 'follow', speed: 0 }, 100);
+    remotes.update(0.016, 100);
+    expect(remotes.list.map((r) => r.playerId)).toEqual(['bbb']);
+  });
+
   it('applyState + update moves the group toward the target but not past it instantly', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);
