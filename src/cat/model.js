@@ -758,8 +758,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
   const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
-  // they sat on the old torso. A fluffy cat's rest on its chest under the
-  // small bib (NECK_FLUFFY), as a tabby's do. (Not the hood bunch:
+  // they sat on the old torso. A fluffy cat's rest on its small bib, at a
+  // tabby's spot (NECK_FLUFFY). (Not the hood bunch:
   // see HOOD_BUNCH_DROP.)
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;

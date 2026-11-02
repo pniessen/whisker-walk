@@ -9,18 +9,30 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // look after shrinking it twice ("sausages", then "a gigantic chest"): nothing
 // goes round the back of the neck, and it stays small.
 //
-// Shapes are the sketch's (docs/superpowers/specs/2026-11-01-body-refinement-
-// sketch.html, newRuff), anchored at the game's ruff spot AT (where the torus
-// sat, HEAD.POS + (0, -0.12, 0.10)) rather than the sketch's z -0.36. All in the
-// cat's frame; undersideGeometry carries it into the torso's.
+// Shapes and sizes are the sketch's (docs/superpowers/specs/2026-11-01-body-
+// refinement-sketch.html, newRuff, R9's numbers). All in the cat's frame;
+// undersideGeometry carries it into the torso's.
+//
+// The anchor departs from R9 (owner's ruling, Task 6 fix round 1). R9 put AT
+// where the torus sat, z -0.30, on the belief that the sketch's chest differs
+// from the game's; it does not (both (0, 0.49, -0.33), r 0.15·(1.05, 1.1, 0.9)),
+// and at -0.30 every ruff vertex is inside the chest or the skull: no ruff
+// shows at all. AT z -0.37 (the sketch's -0.36, 1 cm on) puts the bib's front
+// about 9 mm proud of the chest front under the chin, so it reads as the
+// sketch's modest bib outline, close to the chest; the jaw fluff peeks out
+// below the cheeks at R9's y -0.02. The fringe hangs straight down (TILT 0,
+// no backward rise for the outer points, where the sketch tipped them 0.25
+// and 0.03·|a| back): tipped back, the points' tips sink into the chest and
+// their open bases stand out of the bib; upright, each base stays buried in
+// the bib and each tip pokes 7-10 mm out below its edge, a soft zig-zag.
 export const RUFF = Object.freeze({
-  AT: Object.freeze([0, 0.58, -0.30]),
+  AT: Object.freeze([0, 0.58, -0.37]),
   // a sphere of radius R, scaled, centred at AT + OFF
   BIB: Object.freeze({ R: 0.10, SCALE: Object.freeze([1.05, 1.05, 0.55]), OFF: Object.freeze([0, -0.07, -0.05]) }),
   // one each side at AT + (±X, Y, Z), rolled ±ROLL about z
-  JAW: Object.freeze({ R: 0.055, SCALE: Object.freeze([0.6, 1.0, 0.8]), X: 0.10, Y: -0.04, Z: -0.03, ROLL: 0.3 }),
+  JAW: Object.freeze({ R: 0.055, SCALE: Object.freeze([0.6, 1.0, 0.8]), X: 0.10, Y: -0.02, Z: -0.03, ROLL: 0.3 }),
   // N cones, tip down, spread over SPREAD radians along the bib's lower edge
-  FRINGE: Object.freeze({ N: 5, R: 0.026, LEN: 0.07, ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.15, Z: -0.08, RISE: 0.03, TILT: 0.25 }),
+  FRINGE: Object.freeze({ N: 5, R: 0.026, LEN: 0.07, ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.15, Z: -0.08, RISE: 0.03, TILT: 0 }),
   // the jaw fluff's colour, this far from the coat (base) toward the belly
   JAW_MIX: 0.35,
 });
@@ -59,7 +71,7 @@ export function ruffGeometry(s, simple = false) {
   for (let i = 0; i < FRINGE.N; i++) {
     const a = (i / (FRINGE.N - 1) - 0.5) * FRINGE.SPREAD;
     fringe.push(coloured(placed(new THREE.ConeGeometry(FRINGE.R, FRINGE.LEN, seg.fringe, 1, true),
-      [ax + Math.sin(a) * FRINGE.EDGE, ay + FRINGE.Y + Math.abs(a) * FRINGE.RISE, az + FRINGE.Z + Math.abs(a) * FRINGE.RISE],
+      [ax + Math.sin(a) * FRINGE.EDGE, ay + FRINGE.Y + Math.abs(a) * FRINGE.RISE, az + FRINGE.Z],
       [Math.PI - FRINGE.TILT, 0, -a * 0.5], [1, 1, FRINGE.ZSCALE]), belly));
   }
   const parts = {};

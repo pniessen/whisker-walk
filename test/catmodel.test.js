@@ -637,7 +637,7 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // ...and stays under the chin, not across the face (fluffy cats, Task 10 fix):
   // every mesh the item adds to the head tops out below the mouth — taken as the
   // bottom of the nose, where a cat's mouth begins — and is behind the nose tip.
-  // On a fluffy cat the items rest on the chest under the small bib
+  // On a fluffy cat the items rest on the small bib, at a tabby's spot
   // (NECK_FLUFFY, body refinement Task 7); moving them out past the old torus
   // once put the scarf across the mouth.
   const sig = (m) => [m.geometry.type, m.material.color?.getHex(), ...m.position.toArray().map((v) => v.toFixed(5))].join();
@@ -715,7 +715,8 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const cat = o ? dressed('tabby', id, o) : dressed(label, id), fit = fitOf(cat, itemMeshes(cat, itemHexes(id)));
     expect(fit).toHaveLength(tabby.length);
     fit.forEach(({ rear, front }, i) => {
-      expect(rear, `mesh ${i}: rear floats off the fur`).toBeLessThanOrEqual(Math.max(0.025, tabby[i].rear));
+      // (+1e-9: a streamer tail hangs clear of the bib, exactly as on a tabby)
+      expect(rear, `mesh ${i}: rear floats off the fur`).toBeLessThanOrEqual(Math.max(0.025, tabby[i].rear) + 1e-9);
       expect(front, `mesh ${i}: front sunk in the fur`).toBeGreaterThanOrEqual(0.005);
     });
   });
@@ -823,6 +824,40 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
         const h = w.applyMatrix4(toHead);
         expect(h.z < 0 && h.y > mouthY, `${label} ${st} t ${t}: vertex ${i} at head-local ${h.toArray().map((v) => v.toFixed(3))}`).toBe(false);
       }
+    }
+  });
+  // ...and it shows: per part, vertices outside both the chest's and the
+  // skull's ellipsoids (a ruff hidden inside the chest reads as no ruff at all,
+  // as R9's z -0.30 did), with the bib's front no more than 1.5 cm proud of the
+  // chest (a modest bib, not a gigantic chest). The chest's ellipsoid is read
+  // off the built chest's own vertices (its box: the ball's poles and equator
+  // are vertices), in the underside's frame, where it is axis-aligned.
+  const VISIBLE = { bib: 4, jaw: 4, fringe: 10 };
+  it.each(CASES)('%s: it shows outside the chest and the skull', (label, args, s, simple) => {
+    const cat = build(args, simple); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+    const { underside, head } = cat.userData.parts, skull = head.children[0];
+    const p = underside.geometry.attributes.position, [ra] = underside.userData.ranges.ruff, [ca, cz] = underside.userData.ranges.chest;
+    const chestBox = new THREE.Box3();
+    for (let i = ca; i < cz; i++) chestBox.expandByPoint(new THREE.Vector3().fromBufferAttribute(p, i));
+    const c = chestBox.getCenter(new THREE.Vector3()), r = chestBox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    const inChest = (v) => ((v.x - c.x) / r.x) ** 2 + ((v.y - c.y) / r.y) ** 2 + ((v.z - c.z) / r.z) ** 2 <= 1;
+    const toSkull = skull.matrixWorld.clone().invert().multiply(underside.matrixWorld);
+    const toCat = cat.matrixWorld.clone().invert().multiply(underside.matrixWorld);
+    const { parts } = ruffGeometry(s, simple).userData;
+    for (const [k, [a, z]] of Object.entries(parts)) {
+      let shown = 0, proud = 0;
+      for (let i = ra + a; i < ra + z; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(p, i);
+        if (inChest(v) || v.clone().applyMatrix4(toSkull).length() <= SKULL_R) continue;
+        shown++;
+        const q = 1 - ((v.x - c.x) / r.x) ** 2 - ((v.y - c.y) / r.y) ** 2;
+        if (k === 'bib' && q > 0 && v.z < c.z) {
+          const front = new THREE.Vector3(v.x, v.y, c.z - r.z * Math.sqrt(q)).applyMatrix4(toCat);
+          proud = Math.max(proud, front.distanceTo(v.clone().applyMatrix4(toCat)));
+        }
+      }
+      expect(shown, `${label}: ${k} vertices outside the chest and skull`).toBeGreaterThanOrEqual(VISIBLE[k]);
+      if (k === 'bib') expect(proud, `${label}: the bib stands out of the chest`).toBeLessThanOrEqual(0.015);
     }
   });
   it('short-haired cats have none', () => {
