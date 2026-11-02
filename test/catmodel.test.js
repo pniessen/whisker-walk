@@ -790,27 +790,36 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
     }
     return new Set([...parent.keys()].map(find)).size;
   };
-  // The jaw fluff (Task 10 fix) blends the coat painted at its own spot into
-  // the bib: lerp(that coat, belly, JAW_MIX). It sits in the front of the
-  // chest ball, so that coat is the built chest's colour; it was the base
-  // coat, which on D2 read as two grey patches on the white chest.
-  it.each(CASES)('%s: the bib is the belly colour, the jaw fluff the coat at its spot', (label, args, s, simple) => {
+  // The jaw fluff blends the base coat into the bib (R9: lerp(base, belly,
+  // JAW_MIX)), kept within JAW_CAP of the belly in linear RGB.
+  const dist = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+  it.each(CASES)('%s: the bib is the belly colour, the jaw fluff the coat blended into it, capped', (label, args, s, simple) => {
     const g = ruffGeometry(s, simple), { bib, jaw, fringe } = g.userData.parts;
     const col = g.attributes.color;
     const colour = (i) => new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
-    const belly = new THREE.Color(s.belly);
+    const belly = new THREE.Color(s.belly), base = new THREE.Color(s.base);
     expect(RUFF.JAW_MIX).toBe(0.35);
+    expect(RUFF.JAW_CAP).toBe(0.25);
     const half = (jaw[0] + jaw[1]) / 2;
-    for (const [[a, z], want] of [[bib, belly], [fringe, belly], [[jaw[0], half], jawFluffColour(s, -1)], [[half, jaw[1]], jawFluffColour(s, 1)]]) {
+    for (const [[a, z], want] of [[bib, belly], [fringe, belly], [[jaw[0], half], jawFluffColour(s)], [[half, jaw[1]], jawFluffColour(s)]]) {
       expect(z).toBeGreaterThan(a);
       for (let i = a; i < z; i++) expect(colourDistance(colour(i), want)).toBeLessThan(1e-6);
     }
-    // the coat at the fluff's spot is the chest the built cat paints there
-    const built = build(args, simple).userData.parts.underside, cc = built.geometry.attributes.color, [ca] = built.userData.ranges.chest;
-    const chest = new THREE.Color(cc.getX(ca), cc.getY(ca), cc.getZ(ca));
-    for (const side of [-1, 1]) expect(colourDistance(jawFluffColour(s, side), chest.clone().lerp(belly, RUFF.JAW_MIX)), label).toBeLessThan(1e-6);
-    // D2: white chest, dark coat; the fluff is white, not grey on white
-    if (label.startsWith('d2')) expect(colourDistance(colour(jaw[0]), belly)).toBeLessThan(0.02);
+    const j = jawFluffColour(s), raw = base.clone().lerp(belly, RUFF.JAW_MIX);
+    expect(dist(j, belly), label).toBeLessThanOrEqual(RUFF.JAW_CAP + 1e-6);
+    // inside the cap it is exactly the lerp; outside, it is on the cap toward it
+    if (dist(raw, belly) <= RUFF.JAW_CAP) expect(colourDistance(j, raw)).toBeLessThan(1e-6);
+    else expect(dist(j, belly)).toBeCloseTo(RUFF.JAW_CAP, 6);
+    // it is not just the belly: the coat shows in it (unless the coat is the belly)
+    if (dist(base, belly) > 1e-3) expect(dist(j, belly), label).toBeGreaterThan(0.01);
+    // the reviewer's values
+    const hex = (c) => `#${c.getHexString()}`;
+    const want = { persian: '#d8d8dd', mainecoon: '#947653', d2: '#e4e3df' }[label.replace(' (simple)', '')];
+    // (the mainecoon's lerp sits 0.25008 from its bib: the cap trims 8e-5, under a hex step)
+    if (want === '#d8d8dd' || want === '#947653') expect(colourDistance(j, raw)).toBeLessThan(2e-4);
+    if (want) expect(hex(j), label).toBe(want);
+    // D2: white chest, dark coat; the fluff is near-white, not grey on white
+    if (label.startsWith('d2')) expect(Math.min(j.r, j.g, j.b)).toBeGreaterThan(0.7);
     expect(pieces(g, fringe)).toBe(5);
     expect(pieces(g, jaw)).toBe(2);
     // and the built cat's ruff is exactly that geometry's colours
@@ -873,20 +882,55 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
     }
   });
   // Task 10 fix: the fringe's five points are soft and blunt, their open bases
-  // buried in the bib (or the chest) and their tips below the bib's edge.
+  // buried in the bib (or the chest or belly) and their tips below the bib's
+  // edge. "Buried" is tested against the real merged underside mesh: a base
+  // vertex must lie inside one of its faceted solids (belly, chest, bib) by a
+  // ray cast against that solid's triangles (an odd number of crossings), not
+  // inside an analytic ellipsoid, which the bib's flat facets sag inside.
+  const RAY = new THREE.Vector3(0.5774, 0.5, 0.6446).normalize();
+  const rayHits = (o, pos, idx, tris) => {
+    let n = 0;
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), pv = new THREE.Vector3(), tv = new THREE.Vector3(), qv = new THREE.Vector3();
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    for (const t of tris) {
+      A.fromBufferAttribute(pos, idx[t]); B.fromBufferAttribute(pos, idx[t + 1]); C.fromBufferAttribute(pos, idx[t + 2]);
+      e1.subVectors(B, A); e2.subVectors(C, A);
+      pv.crossVectors(RAY, e2);
+      const det = e1.dot(pv);
+      if (Math.abs(det) < 1e-14) continue;
+      tv.subVectors(o, A);
+      const u = tv.dot(pv) / det;
+      if (u < 0 || u > 1) continue;
+      qv.crossVectors(tv, e1);
+      const v = RAY.dot(qv) / det;
+      if (v < 0 || u + v > 1) continue;
+      if (e2.dot(qv) / det > 0) n++;
+    }
+    return n;
+  };
   it.each(CASES)('%s: five soft points along the bib\'s edge, their bases buried', (label, args, s, simple) => {
     const g = ruffGeometry(s, simple), p = g.attributes.position;
     const { BIB, AT, FRINGE } = RUFF;
     const bc = BIB.OFF.map((o, i) => AT[i] + o), br = BIB.SCALE.map((k) => k * BIB.R);
-    const f = s.body ?? [1, 1, 1];
-    const cc = [0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * f[2]], cr = [CHEST.R * CHEST.SCALE[0] * f[0], CHEST.R * CHEST.SCALE[1], CHEST.R * CHEST.SCALE[2]];
-    const within = (v, c, r) => ((v.x - c[0]) / r[0]) ** 2 + ((v.y - c[1]) / r[1]) ** 2 + ((v.z - c[2]) / r[2]) ** 2 <= 1;
     expect(g.userData.fringeBases).toHaveLength(5);
+    // the real merged underside: each solid's own triangles (a solid's triangles
+    // only join its own vertex range)
+    const u = build(args, simple).userData.parts.underside, up = u.geometry.attributes.position, idx = u.geometry.index.array;
+    const { ranges } = u.userData, [ra] = ranges.ruff;
+    const bibRange = [ra + g.userData.parts.bib[0], ra + g.userData.parts.bib[1]];
+    const solids = [ranges.belly, ranges.chest, bibRange].map(([a, z]) => {
+      const tris = [];
+      for (let t = 0; t < idx.length; t += 3) if (idx[t] >= a && idx[t] < z) tris.push(t);
+      return tris;
+    });
+    expect(solids.every((s2) => s2.length > 0)).toBe(true);
     const [fa, fz] = g.userData.parts.fringe, per = (fz - fa) / 5;
+    const o = new THREE.Vector3();
     for (const [k, [from, n]] of g.userData.fringeBases.entries()) {
       for (let i = from; i < from + n; i++) {
-        const v = new THREE.Vector3().fromBufferAttribute(p, i);
-        expect(within(v, bc, br) || within(v, cc, cr), `${label}: point ${k} base vertex ${i}`).toBe(true);
+        o.fromBufferAttribute(up, ra + i);
+        const inside = solids.some((tris) => rayHits(o, up, idx, tris) % 2 === 1);
+        expect(inside, `${label}: point ${k} base vertex ${i} is outside every solid`).toBe(true);
       }
       // the tip: 5 mm or more below the bib's lower edge at its x, and blunt:
       // the ring next to it is at least half the point's width
