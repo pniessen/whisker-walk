@@ -12,6 +12,7 @@ import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
+import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
 // =============================================================================
 // The Gorge.
@@ -301,13 +302,16 @@ export function gorgeTors() {
 // A pine fits only when its whole canopy (1.3 m per unit of scale) is on one
 // shape and 2.5 m inside that shape's rim, so no canopy hangs over a ledge
 // below or a cave mouth; it keeps the Pines' path rule (a path's half-width,
-// its canopy's reach, then half a metre); and it keeps 4 m off every find,
+// its canopy's reach, then half a metre); it keeps its canopy the default
+// camera's reach and a metre (CAM_CLEAR) off every cave and den mouth, scenic
+// and nap; and it keeps 4 m off every find,
 // 2.5 m off the stream, 3.2 m from the next pine and 1.5 m between its
 // trunk's collider and a tor's, so a cat walks between any two. The grid is
 // fine because the ground a pine may stand on is narrow: on the floor, only
 // the strip between the west wall and the stream is clear of the rim, the
-// paths and the water. Candidates run north to south, so the fourteen near
-// pines fill from the north (the clifftop and the floor's north half).
+// paths and the water. Candidates run north to south, so the near pines
+// (nine as built, with the camera's clearance) fill from the north (the
+// clifftop and the floor's north half).
 const PINE_GRID = { seed: 'gorge-pines', from: -48, to: 48, cell: 2, jitter: 1.0 };
 const PINE_SHARE = 0.85;
 const PINE_SPACING = 3.2;
@@ -315,6 +319,13 @@ const MAX_NEAR = 14;
 const MAX_STAND = 60;
 const PINE_REACH = 1.3; // builder.pine's lowest cone, per unit of scale
 const RIM_CLEAR = 2.5;
+// Where a kid stops and looks (a cave or den mouth, a scenic, a nap) the
+// chase camera swings out behind her over open ground, not along a path. A
+// pine's canopy keeps the default camera's distance and a metre more off
+// each, so the camera there is never in a tree (the Pines' canopy problem).
+const CAM_CLEAR = ZOOM_STEPS[DEFAULT_ZOOM_STEP].dist + 1;
+const LOOKS = Object.freeze([...SCENICS, ...NAPS].map(({ x, z }) => Object.freeze({ x, z })));
+const lookDist = (x, z) => Math.min(...LOOKS.map((p) => Math.hypot(x - p.x, z - p.z)));
 const pineCollider = (scale) => r2(0.4 * scale);
 function pineKind(x, z) {
   const y = shapeGround().y(x, z);
@@ -329,6 +340,8 @@ function pineFits(x, z, scale, kept) {
   if (pathDist(x, z) < PATH_W / 2 + PINE_REACH * scale + 0.5) return false;
   if (keepClearDist(x, z) < 4) return false;
   if (rectDist(STREAM, x, z) < 2.5) return false;
+  const camClear = PINE_REACH * scale + CAM_CLEAR;
+  if (mouthDist(x, z) < camClear || lookDist(x, z) < camClear) return false;
   if (gorgeTors().some((t) => Math.hypot(x - t.x, z - t.z) < t.r + pineCollider(scale) + 1.5)) return false;
   if (!kept.every((t) => Math.hypot(x - t.x, z - t.z) >= PINE_SPACING)) return false;
   return oneShape(x, z, PINE_REACH * scale + RIM_CLEAR);

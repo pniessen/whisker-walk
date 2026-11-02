@@ -28,7 +28,9 @@ vi.stubGlobal('document', {
 
 const gorge = await import('../src/world/gorge.js');
 const { build: buildPines } = await import('../src/world/pines.js');
-const { shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater, waterGap } = await import('../src/world/builder.js');
+const {
+  shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater, waterGap, PINE_CONES, PINE_TRUNK,
+} = await import('../src/world/builder.js');
 const { surfaceProps } = await import('../src/render/materials.js');
 const {
   CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE, mapShapes,
@@ -42,7 +44,7 @@ const { createGoals, GOAL_POOL } = await import('../src/goals.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { OUTSIDE_WORDS, RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } = await import('../src/clanwords.js');
 const { cameraOffset } = await import('../src/catcam.js');
-const { ZOOM_STEPS } = await import('../src/camzoom.js');
+const { ZOOM_STEPS, MIN_CAMERA_Y } = await import('../src/camzoom.js');
 const { PITCH_MAX } = await import('../src/player.js');
 const raceMod = await import('../src/race.js');
 const { GORGE_SPAWN, GORGE_BOUNDS, FLOOD_STEP: GORGE_FLOOD_STEP, floodGorge } = await import('./helpers/gorgeflood.js');
@@ -684,9 +686,78 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
       const reach = PINE_REACH * t.scale;
       expect(pathDist(t.x, t.z) - reach, `${at} over a path`).toBeGreaterThanOrEqual(1.5);
       expect(allOneShape(t.x, t.z, reach), `${at} over a ledge below`).toBe(true);
-      for (const m of MOUTHS) expect(Math.hypot(t.x - m.x, t.z - m.z) - reach, `${at} by (${m.x}, ${m.z})`).toBeGreaterThanOrEqual(2.5);
+      // the default camera's reach and a metre (gorge.js's CAM_CLEAR) off
+      // every mouth, scenic and nap, so the camera there is in no canopy
+      const camClear = ZOOM_STEPS[1].dist + 1;
+      for (const m of [...MOUTHS, ...area.scenics, ...propsFor('gorge').rests]) {
+        expect(Math.hypot(t.x - m.x, t.z - m.z) - reach, `${at} by (${m.x}, ${m.z})`).toBeGreaterThanOrEqual(camClear);
+      }
       for (const h of HOLES) expect(rectDist(h, t.x, t.z), `${at} over a cave or den`).toBeGreaterThan(reach);
     }
+  });
+
+  // Final review I3: at a cave or den mouth, or a scenic, the chase camera
+  // swings out over open ground where no path is, and a near pine there
+  // filled the frame (Echo Cave, the west den, the clifftop den). A kid
+  // stands 1 m out from each, facing in, and the camera at zoom steps 0-2 is
+  // put exactly where catcam.cameraOffset puts it: it is inside no pine (a
+  // trunk, or a cone as wide as builder.js draws it at that height).
+  //
+  // Not asserted (the Pines' precedent): step 2 with the view dragged right
+  // down to pitch -0.25. The camera hangs 6.8 m back and low there, past the
+  // default camera's reach plus a metre that gorge.js keeps (CAM_CLEAR), and
+  // can graze the bottom cone of a pine 8 m off; keeping clear of that too
+  // would leave the floor fewer than eight near pines.
+  it('the chase camera at a cave or den mouth or a scenic is inside no pine', () => {
+    const { near } = gorgeTrees();
+    const solidR = (y) => {
+      let r = y >= 0 && y <= PINE_TRUNK.h ? PINE_TRUNK.rBottom : 0;
+      for (const [R, h, cy] of PINE_CONES) {
+        const top = cy + h / 2;
+        if (y >= cy - h / 2 && y <= top) r = Math.max(r, (R * (top - y)) / h);
+      }
+      return r;
+    };
+    const insidePine = (cx, cy, cz) => near.find((t) => {
+      const r = solidR((cy - ground.y(t.x, t.z)) / t.scale) * t.scale;
+      return r > 0 && Math.hypot(cx - t.x, cz - t.z) < r;
+    });
+    // each mouth's way out: the side of its cave's corridor or its den it is on
+    const outOf = (r, m) => (m.x === r.minX ? [-1, 0] : m.x === r.maxX ? [1, 0] : m.z === r.minZ ? [0, -1] : [0, 1]);
+    const stands = [
+      ...GORGE_CAVES.map((c) => ({ what: c.name, m: c.mouth, out: [outOf(c.rects[0], c.mouth)] })),
+      ...GORGE_DENS.map((d) => ({ what: d.id, m: d.mouth, out: [outOf(d, d.mouth)] })),
+      // a scenic is looked at from any side
+      ...area.scenics.map((sc) => ({
+        what: sc.id, m: sc, out: Array.from({ length: 8 }, (_, k) => [Math.sin((k * Math.PI) / 4), Math.cos((k * Math.PI) / 4)]),
+      })),
+    ];
+    const off = new THREE.Vector3();
+    const hits = [];
+    let looks = 0;
+    for (const { what, m, out } of stands) {
+      for (const [ox, oz] of out) {
+        const catX = m.x + ox, catZ = m.z + oz;
+        if (ground.ceil(catX, catZ) !== Infinity || !ground.sameLevel(catX, catZ, m.x + ox * 0.5, m.z + oz * 0.5)) continue;
+        const y0 = Math.atan2(ox, oz); // facing in (-ox, -oz): the camera goes out behind her
+        for (const yaw of [y0, y0 + 0.17, y0 - 0.17]) {
+          for (const step of [0, 1, 2]) {
+            for (const pitch of [-0.25, 0.18, 0.85]) {
+              if (step === 2 && pitch === -0.25) continue;
+              const { dist, height } = ZOOM_STEPS[step];
+              cameraOffset(yaw, pitch, dist, height, off);
+              const cx = catX + off.x, cz = catZ + off.z;
+              const cy = Math.max(ground.y(catX, catZ) + off.y, ground.y(cx, cz) + MIN_CAMERA_Y);
+              looks++;
+              const t = insidePine(cx, cy, cz);
+              if (t) hits.push(`${what}: cat (${catX.toFixed(1)}, ${catZ.toFixed(1)}) step ${step} pitch ${pitch} yaw ${yaw.toFixed(2)} in pine (${t.x}, ${t.z}) x${t.scale}`);
+            }
+          }
+        }
+      }
+    }
+    expect(looks).toBeGreaterThan(300);
+    expect(hits.slice(0, 12)).toEqual([]);
   });
 
   it('the forest leaves the floor walkable', () => {
