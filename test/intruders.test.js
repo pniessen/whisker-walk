@@ -150,7 +150,7 @@ test('intruders.js stays free of anything that stores progress', () => {
   ];
   expect(specs.length).toBeGreaterThan(0);
   expect(src).not.toMatch(/import\s*\(/);
-  const allowed = ['three', './cat/model.js', './cat/animator.js', './nametag.js', './rng.js', './clanhomes.js', './clancast.js', './rivalclans.js'];
+  const allowed = ['three', './cat/model.js', './cat/animator.js', './cat/scarmesh.js', './nametag.js', './rng.js', './clanhomes.js', './clancast.js', './rivalclans.js'];
   for (const s of specs) expect(allowed, s).toContain(s);
 });
 
@@ -178,11 +178,11 @@ const FAR = { x: 999, y: 0, z: 999 };
 const DT = 1 / 30;
 
 // A walk's worth of intruders on a fake clock: T is the wall clock in seconds.
-function spawnIntruders({ areaId = 'woods', hostile = () => true, reducedMotion = false, showNames = false, onNotice, onBuild } = {}) {
+function spawnIntruders({ areaId = 'woods', hostile = () => true, reducedMotion = false, showNames = false, onNotice, onBuild, scarsFor } = {}) {
   const scene = fakeScene();
   const clock = { T: 0 };
   const intr = createIntruders(scene, areaId, {
-    now: () => clock.T, reducedMotion, showNames, hostile, onNotice, onBuild,
+    now: () => clock.T, reducedMotion, showNames, hostile, onNotice, onBuild, ...(scarsFor ? { scarsFor } : {}),
   });
   const step = (secs, catPos = () => FAR, each = () => {}) => {
     for (let i = 0; i < Math.round(secs / DT); i++) {
@@ -667,5 +667,115 @@ describe('the intruder in my fight (Task 4)', () => {
     step(DT);
     expect(lastPoseOf(g)).not.toBe('swipe');
     expect(g.position.y).toBe(0);
+  });
+});
+
+// Fight moves and scars (Task 6): the held intruder pitches and rolls as the
+// fight stages it, wears its scars, and is measured for the actions.
+describe('the intruder in my fight (Task 6)', () => {
+  const scarMesh = (g) => g.getObjectByName('scars') ?? null;
+
+  test('a staged pitch and roll turn the group, yaw outermost; cleared when unstaged, released or fled', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    const g = meshes()[0];
+    const at = flat(g.position);
+    // not held: a stage is ignored, and nothing tilts it
+    intr.stage(k, { pose: 'rearUp', x: at.x, z: at.z, y: 0, pitch: 0.8, roll: 0 });
+    step(DT);
+    expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
+    intr.hold(k, 'me', { x: at.x + 1.6, z: at.z }, { local: true });
+    intr.stage(k, { pose: 'rearUp', x: at.x, z: at.z, y: 0.1, pitch: 0.8, roll: 0, face: { x: at.x + 1.6, z: at.z } });
+    step(DT);
+    expect(g.rotation.order).toBe('YXZ');
+    expect(g.rotation.x).toBeCloseTo(0.8, 12);
+    expect(g.rotation.z).toBe(0);
+    intr.stage(k, { pose: 'roll', x: at.x + 0.8, z: at.z, y: 0.3, pitch: 0, roll: -2.5, face: { x: at.x + 1.6, z: at.z } });
+    step(DT);
+    expect(g.rotation.x).toBe(0);
+    expect(g.rotation.z).toBeCloseTo(-2.5, 12);
+    // junk pitch and roll are 0
+    intr.stage(k, { pose: 'cross', x: at.x, z: at.z, y: 0, pitch: NaN, roll: 'x' });
+    step(DT);
+    expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
+    intr.stage(k, { pose: 'rearUp', x: at.x, z: at.z, y: 0, pitch: 0.9, roll: 0.2 });
+    step(DT);
+    intr.stage(k, null);
+    step(DT);
+    expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
+    intr.stage(k, { pose: 'rearUp', x: at.x, z: at.z, y: 0, pitch: 0.9, roll: 0.2 });
+    step(DT);
+    intr.release(k, 'me');
+    step(DT);
+    expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
+    // fled mid-tilt
+    intr.hold(k, 'me', { x: at.x + 1.6, z: at.z }, { local: true });
+    intr.stage(k, { pose: 'rearUp', x: at.x, z: at.z, y: 0, pitch: 0.9, roll: 0.2 });
+    step(DT);
+    expect(g.rotation.x).toBeCloseTo(0.9, 12);
+    intr.flee(k);
+    step(DT);
+    expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
+  });
+
+  test('setScars puts one scar mesh on the current mesh and takes it off again', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    const g = meshes()[0];
+    expect(scarMesh(g)).toBeNull();
+    intr.setScars(k + 1, [{ site: 'face', stage: 'full', side: 'l' }]); // another visit: ignored
+    expect(scarMesh(g)).toBeNull();
+    intr.setScars(k, [{ site: 'face', stage: 'full', side: 'l' }]);
+    expect(scarMesh(g)).not.toBeNull();
+    expect(scarMesh(g).castShadow).toBe(false);
+    intr.setScars(k, [{ site: 'back', stage: 'half', side: 'r' }]);
+    let n = 0;
+    g.traverse((o) => { if (o.name === 'scars') n++; });
+    expect(n).toBe(1);
+    intr.setScars(k, []);
+    expect(scarMesh(g)).toBeNull();
+    expect(() => intr.setScars(k, 'junk')).not.toThrow();
+  });
+
+  test('scarsFor dresses each visitor in its own scars at build', () => {
+    const k = slotWith('woods');
+    const id = visitAt('woods', k * INTRUDER_PERIOD).member.id;
+    const asked = [];
+    const { clock, step, meshes } = spawnIntruders({
+      scarsFor: (who) => { asked.push(who); return who === id ? [{ site: 'shoulder', stage: 'full', side: 'r' }] : []; },
+    });
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    expect(asked).toContain(id);
+    expect(scarMesh(meshes()[0])).not.toBeNull();
+    // a visitor with none, or junk, has no scar mesh
+    const plain = spawnIntruders({ scarsFor: () => null });
+    plain.clock.T = enterOf(k) + 10;
+    plain.step(DT);
+    expect(scarMesh(plain.meshes()[0])).toBeNull();
+  });
+
+  test('measure: the current mesh\'s fight dims, and null for any other visit', () => {
+    const { clock, intr, step, meshes } = spawnIntruders();
+    const k = slotWith('woods');
+    clock.T = enterOf(k) + 10;
+    step(DT);
+    const g = meshes()[0];
+    const at = g.position.clone();
+    const d = intr.measure(k);
+    for (const key of ['top', 'backY', 'pinnedBackY', 'hindZ', 'pivotY']) {
+      expect(Number.isFinite(d[key]), key).toBe(true);
+      expect(d[key], key).toBeGreaterThan(0);
+    }
+    expect(d.pinnedBackY).toBeLessThan(d.backY);
+    expect(d.top).toBeGreaterThan(d.backY);
+    expect(g.position.equals(at)).toBe(true);
+    expect(intr.measure(k + 1)).toBeNull();
+    expect(NO_INTRUDERS.measure(k)).toBeNull();
+    expect(() => NO_INTRUDERS.setScars(k, [])).not.toThrow();
   });
 });

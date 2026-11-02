@@ -4,6 +4,8 @@ import { createFx } from '../src/fx.js';
 
 const fakeScene = () => ({ children: [], add(o) { this.children.push(o); }, remove(o) { this.children = this.children.filter((c) => c !== o); } });
 const fakeText = () => new THREE.Object3D();
+// What the fx spawned: the scene less the pooled slash mesh built with them.
+const spawned = (scene) => scene.children.filter((c) => c.name !== 'fight-slash');
 
 describe('createFx', () => {
   it('popup lives ~1.1s, rises, then is removed from the scene', () => {
@@ -11,12 +13,12 @@ describe('createFx', () => {
     const fx = createFx(scene, { makeText: fakeText });
     fx.popup(new THREE.Vector3(1, 0, 2), '+5');
     expect(fx.active()).toBe(1);
-    const before = scene.children[0].position.y;
+    const before = spawned(scene)[0].position.y;
     fx.update(0.5);
-    expect(scene.children[0].position.y).toBeGreaterThan(before);
+    expect(spawned(scene)[0].position.y).toBeGreaterThan(before);
     fx.update(1.0);
     expect(fx.active()).toBe(0);
-    expect(scene.children).toHaveLength(0);
+    expect(spawned(scene)).toHaveLength(0);
   });
   it('burst spawns count particles that die within a second', () => {
     const scene = fakeScene();
@@ -45,8 +47,8 @@ describe('createFx.shimmer (v18 Whisker Sense)', () => {
     fx.burst(new THREE.Vector3(), 0xf2c14e, 8);
     fx.shimmer(new THREE.Vector3(), 0xf2c14e, 8);
     expect(fx.active()).toBe(2);
-    const burstPts = scene.children[0];
-    const shimmerPts = scene.children[1];
+    const burstPts = spawned(scene)[0];
+    const shimmerPts = spawned(scene)[1];
     fx.update(0.5);
     const burstY = burstPts.geometry.attributes.position.array[1];
     const shimmerY = shimmerPts.geometry.attributes.position.array[1];
@@ -55,7 +57,7 @@ describe('createFx.shimmer (v18 Whisker Sense)', () => {
     expect(fx.active()).toBe(1);
     fx.update(1.0);
     expect(fx.active()).toBe(0);
-    expect(scene.children).toHaveLength(0);
+    expect(spawned(scene)).toHaveLength(0);
   });
 
   it('shares burst\'s reducedMotion gate — no particles, so the ping carries it', () => {
@@ -73,5 +75,66 @@ describe('createFx.shimmer (v18 Whisker Sense)', () => {
     expect(fx.active()).toBe(1);
     fx.update(0.02);
     expect(fx.active()).toBe(0);
+  });
+});
+
+// Fight moves and scars (Task 6): the scratch's slash is one pooled mesh,
+// built hidden with the fx so it never allocates mid-fight.
+describe('createFx.slash', () => {
+  const slashes = (scene) => scene.children.filter((c) => c.name === 'fight-slash');
+
+  it('one mesh for every slash, built with the fx; a second slash restarts it', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: fakeText });
+    expect(slashes(scene)).toHaveLength(1);
+    const mesh = slashes(scene)[0];
+    fx.update(1 / 60);
+    fx.update(1 / 60);
+    expect(mesh.visible).toBe(false);
+    fx.slash({ x: 1, y: 0.4, z: 2 }, 0.5);
+    expect(mesh.visible).toBe(true);
+    expect([mesh.position.x, mesh.position.y, mesh.position.z]).toEqual([1, 0.4, 2]);
+    expect(mesh.rotation.y).toBe(0.5);
+    fx.update(0.2);
+    fx.slash({ x: -1, y: 0.3, z: 0 }, -0.5);
+    expect(slashes(scene)).toHaveLength(1);
+    expect(mesh.position.x).toBe(-1);
+    expect(mesh.material.opacity).toBe(1);
+    fx.update(0.2);
+    expect(mesh.visible).toBe(true); // restarted: 0.2 s into its 0.3
+    fx.update(0.11);
+    expect(mesh.visible).toBe(false);
+    expect(fx.active()).toBe(0);
+    expect(mesh.castShadow).toBe(false);
+  });
+
+  it('fades out over 0.3 s, three strokes in one draw', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: fakeText });
+    const mesh = slashes(scene)[0];
+    fx.slash({ x: 0, y: 0.4, z: 0 }, 0);
+    const ops = [];
+    for (let i = 0; i < 17; i++) { fx.update(1 / 60); ops.push(mesh.material.opacity); }
+    for (let i = 1; i < ops.length; i++) expect(ops[i]).toBeLessThanOrEqual(ops[i - 1]);
+    expect(mesh.visible).toBe(true);
+    fx.update(0.03);
+    expect(mesh.visible).toBe(false);
+    expect(mesh.isMesh).toBe(true);
+    expect(mesh.geometry.getAttribute('position').count).toBe(3 * 4);
+  });
+
+  it('nothing under reduced motion, and dispose frees it', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { reducedMotion: true, makeText: fakeText });
+    fx.update(1 / 60);
+    fx.update(1 / 60);
+    fx.slash({ x: 0, y: 0.4, z: 0 }, 0);
+    expect(slashes(scene).every((m) => !m.visible)).toBe(true);
+    const calm = createFx(fakeScene(), { makeText: fakeText });
+    expect(() => calm.dispose()).not.toThrow();
+    const s2 = fakeScene();
+    const fx2 = createFx(s2, { makeText: fakeText });
+    fx2.dispose();
+    expect(slashes(s2)).toHaveLength(0);
   });
 });

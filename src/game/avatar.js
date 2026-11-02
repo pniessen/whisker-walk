@@ -36,6 +36,7 @@ export function createAvatarUpdater({
   player, progression, settings, log, hud, audio,
   petNameFor, completeTag, noteBat,
 }) {
+  const fightTilt = { pitch: 0, roll: 0 }; // reused each frame: no allocation mid-fight
   function updateAvatar(s, dt, t) {
     const { cat } = s;
     const p = PERSONALITIES[cat.userData.breed];
@@ -195,7 +196,11 @@ export function createAvatarUpdater({
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
     // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
-    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount);
+    // A fight (game/clanfight.js) lifts, pitches and rolls the cat through
+    // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them.
+    if (s.fight) { fightTilt.pitch = s.fightPitch ?? 0; fightTilt.roll = s.fightRoll ?? 0; }
+    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount,
+      s.fight ? fightTilt : null);
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

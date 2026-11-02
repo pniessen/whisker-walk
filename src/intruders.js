@@ -31,8 +31,9 @@
 //
 // No progress lives here: this file imports nothing that stores anything.
 import * as THREE from 'three';
-import { buildCat } from './cat/model.js';
+import { buildCat, catDims } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
+import { setCatScars } from './cat/scarmesh.js';
 import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
 import { seedFromCode } from './rng.js';
 import { HOMES, isClanId } from './clanhomes.js';
@@ -202,6 +203,8 @@ export const NO_INTRUDERS = Object.freeze({
   dropHolder() {},
   holders: () => [],
   stage() {},
+  setScars() {},
+  measure() { return null; },
   flee() {},
   isFled: () => false,
   dispose() {},
@@ -224,6 +227,9 @@ export function createIntruders(scene, areaId, {
   hostile = () => false,
   onNotice = () => {},
   onBuild = () => {},
+  // Fight moves and scars: the scars (scars.js render entries) a cast member
+  // wears, by its cast id, applied when its mesh is built.
+  scarsFor = () => [],
 } = {}) {
   let cur = null;     // this visit's cat, or null
   let done = null;    // a visit that walked off its route: not built again
@@ -247,7 +253,8 @@ export function createIntruders(scene, areaId, {
 
   function build(at) {
     const { member } = at;
-    const group = buildCat(member.breed, undefined, { simple: true, style: member.style });
+    const scars = scarsFor(member.id);
+    const group = buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(scars) ? scars : [] });
     group.scale.multiplyScalar(INTRUDER_SCALE);
     group.userData.intruder = true;
     const isHostileHere = hostile(at.clan) === true;
@@ -327,13 +334,18 @@ export function createIntruders(scene, areaId, {
   }
 
   // The mesh at cur.s, facing its way (or its holder when held). A held one
-  // my fight has staged stands where the stage puts it instead.
+  // my fight has staged stands where the stage puts it instead, pitched and
+  // rolled as staged (yaw outermost); anything else stands level. This is the
+  // only place the group's rotation.x and rotation.z are written.
   function place() {
     const p = routePoint(cur.route, cur.s);
     const g = cur.group;
     const st = cur.state === 'held' ? cur.stage : null;
     if (st) g.position.set(st.x, st.y, st.z);
     else g.position.set(p.x, 0, p.z);
+    g.rotation.order = 'YXZ';
+    g.rotation.x = st ? st.pitch : 0;
+    g.rotation.z = st ? st.roll : 0;
     if (cur.state === 'held' && cur.face) {
       g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {
@@ -466,19 +478,42 @@ export function createIntruders(scene, areaId, {
       cur.holders.delete(String(holderId));
       letGo();
     },
-    // My fight's staging (Task 4): { pose, x, z, y, face? } puts the held mesh
-    // at that spot in that pose, facing `face` (my cat) or else its holder;
-    // null puts it back on its route.
+    // My fight's staging (Task 4): { pose, x, z, y, face?, pitch?, roll? }
+    // puts the held mesh at that spot in that pose, facing `face` (my cat) or
+    // else its holder, pitched and rolled (fight moves and scars, R20; junk
+    // is 0); null puts it back on its route, level.
     // Ignored unless I hold it; dropped when my hold ends or it flees. The
     // shared snapshot (current().pos) stays on the route.
     stage(visit, st) {
       if (!isCurrent(visit) || cur.state !== 'held' || !heldByMe()) return;
       if (st === null) cur.stage = null;
       else if (st && typeof st.pose === 'string' && Number.isFinite(st.x) && Number.isFinite(st.z)) {
-        cur.stage = { pose: st.pose, x: st.x, z: st.z, y: Number.isFinite(st.y) ? st.y : 0 };
+        const fin = (v) => (Number.isFinite(v) ? v : 0);
+        cur.stage = { pose: st.pose, x: st.x, z: st.z, y: fin(st.y), pitch: fin(st.pitch), roll: fin(st.roll) };
         if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) cur.face = { x: st.face.x, z: st.face.z };
       } else return;
       if (cur.inScene) { place(); syncAnchor(); }
+    },
+    // Fight moves and scars: the visitor's scars changed (a fight it lost).
+    setScars(visit, scars) {
+      if (!isCurrent(visit) || !cur.inScene) return;
+      setCatScars(cur.group, Array.isArray(scars) ? scars : []);
+    },
+    // The visitor's fight dims (src/cat/model.js catDims: top, backY,
+    // pinnedBackY, hindZ, pivotY), for the fight's actions; null for any
+    // other visit. It poses the mesh to measure and puts it back where it
+    // stood, as it stood (the next update poses it again).
+    measure(visit) {
+      if (!isCurrent(visit) || !cur.inScene) return null;
+      const g = cur.group;
+      const pos = g.position.clone();
+      const rot = g.rotation.clone();
+      g.position.set(0, 0, 0);
+      g.rotation.set(0, 0, 0);
+      const d = catDims(g);
+      g.position.copy(pos);
+      g.rotation.copy(rot);
+      return d;
     },
     flee(visit) {
       if (!isCurrent(visit) || cur.fled || cur.state === 'gone') return;
