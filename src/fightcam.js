@@ -100,6 +100,9 @@ export const RINGS = Object.freeze([
     { d: 7.5, h: 3.4 }, { d: 6.0, h: 1.1 }, { d: 4.2, h: 0.8 }, { d: 8.5, h: 1.4 },
   ].map((r, i) => ({ ...r, rank: i + 0.4 })),
 ].map((r) => Object.freeze(r)));
+// The last resort's ring: the first wide ring (rank 0.4, d 5.5 h 2.2), the
+// one that came first before the tight pair joined the list.
+const LAST_RESORT_RING = RINGS.findIndex((r) => r.rank === 0.4);
 const YAW_STEPS = 24;               // every 15 degrees round
 const RING_COST = 2;                // one ring further down the list costs two yaw steps
 const AXIS_COST = 4;                // looking down the line between the cats, where one hides the other
@@ -388,6 +391,7 @@ function ownHalf(subject, who) {
   const sign = who === 'me' ? 1 : -1; // the axis points from the intruder to our cat
   const a = subject.me[0], b = subject.it[0];
   const q = Math.abs((a.x - b.x) * axis.x + (a.z - b.z) * axis.z) / 4;
+  if (q < 1e-9) return spots;
   const out = [];
   for (const p of spots) if (sign * ((p.x - mid.x) * axis.x + (p.z - mid.z) * axis.z) >= q - 1e-9) out.push(p);
   return out.length ? out : spots;
@@ -582,12 +586,13 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       blockers, unhidden: least.blockers.filter((o) => !o.obj).length, brushed: brushedFor(least.view.pos, blockers) };
   }
   // No spot frames the pair at all (a cat pinned in a corner of the map): the
-  // first ring straight back, as the follow camera would be. Off flat
+  // first wide ring straight back, as the follow camera would be (the tight
+  // rings ahead of it are for close shots, not a last resort). Off flat
   // ground, the cheapest spot out of rock (in the map and off the colliders)
   // instead, when there is one (Gorge part 1, R8).
-  let ring = RINGS[0];
+  let ri = LAST_RESORT_RING;
+  let ring = RINGS[ri];
   let yaw = yaw0;
-  let ri = 0;
   if (!ground.flat && inRock({ x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d }, mid, lookY, ground)) {
     for (const c of candidates(subject, yaw0, ring0, g0)) {
       const r = RINGS[c.ri];
@@ -639,8 +644,9 @@ export function blendClear(from, to, subject, occluders, aspect, fovY, ground = 
 // placed the follow camera and the fight has placed the cats. `subject` is
 // clanfight's cameraSubject (null when no fight is on); `cat` is my cat's
 // position, which the follow camera looks at. `sheetTop` is the fight sheet's
-// top edge in NDC (sheetTopFrom; null when none is measured): a change of more
-// than SHEET_STEP re-chooses, as a turn of the phone does. Returns whether it
+// top edge in NDC (sheetTopFrom; null when none is measured): the sheet first
+// showing, or rising more than SHEET_STEP over the tallest yet this fight,
+// re-chooses, as a turn of the phone does; a shorter sheet keeps the view. Returns whether it
 // moved the camera this frame.
 //
 // Every move into a fight view (the first one, and a new one when the rounds
@@ -655,7 +661,8 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
   let from = null;      // the follow view an ease in started from (held still)
   let lastSubject = null;
   let lastAspect = 0;
-  let lastSheetTop = null;
+  let lastSheetTop = null; // the sheet top the view was last chosen for
+  let maxSheetTop = null;  // the highest sheet top seen since the fight began (or the phone turned)
   let frameBottom = null;
   let hidden = [];
   let cuts = 0;
@@ -678,9 +685,12 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
     return next;
   }
 
-  // Whether the sheet's top moved enough to re-choose (or came or went).
-  const sheetMoved = (t) => (t == null || lastSheetTop == null ? (t == null) !== (lastSheetTop == null)
-    : Math.abs(t - lastSheetTop) > SHEET_STEP);
+  // Whether the sheet's top rose enough to re-choose, or first appeared. The
+  // sheet's height changes between the beats (a clue, then a line), so within
+  // a fight the frame ratchets to the tallest sheet seen, the safest frame: a
+  // shorter sheet, or the sheet going, keeps the view rather than moving (or,
+  // under reduced motion, cutting) every beat.
+  const sheetMoved = (t) => t != null && (lastSheetTop == null || t > lastSheetTop + SHEET_STEP);
 
   const copy = (v) => ({ pos: { ...v.pos }, look: { ...v.look } });
 
@@ -695,9 +705,15 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
         look: { x: cat.x, y: (cat.y ?? 0) + lookY, z: cat.z },
       };
+      if (active) {
+        // a turn of the phone starts the ratchet again from this sheet
+        if (lastAspect !== 0 && camera.aspect !== lastAspect) maxSheetTop = null;
+        if (sheetTop != null && (maxSheetTop == null || sheetTop > maxSheetTop)) maxSheetTop = sheetTop;
+      }
       if (!active) {
         lastSubject = null;
         lastSheetTop = null;
+        maxSheetTop = null;
         from = null;
         show();
         if (cameraMode || reducedMotion) w = 0;
@@ -708,8 +724,8 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         const base = from ?? follow;
         const s0 = smooth(w);
         const shown = w === 0 ? copy(follow) : { pos: lerp3(base.pos, cur.pos, s0), look: lerp3(base.look, cur.look, s0) };
-        lastSheetTop = sheetTop;
-        frameBottom = frameBottomFor(sheetTop);
+        lastSheetTop = maxSheetTop;
+        frameBottom = frameBottomFor(maxSheetTop);
         view = choose(subject, camera);
         lastSubject = subject;
         lastAspect = camera.aspect;

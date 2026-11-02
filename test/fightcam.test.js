@@ -336,6 +336,13 @@ describe('our cat stays in view, tight and low', () => {
     expect(ourCatHidden({ ...behindIt, y: behindIt.y + 3 }, subj, 3)).toBe(1);
   });
 
+  test('ourCatHidden: a subject whose anchors sit on the middle keeps every spot', () => {
+    // both anchors on the middle (q 0): our cat's spot on the intruder's side
+    // still counts, so the side view is half hidden, not wholly
+    const onMid = { mid: { x: 0, z: 0 }, axis: { x: 1, z: 0 }, me: [{ x: 0, z: 0 }, { x: -2, z: 0 }], it: [{ x: 0, z: 0 }], path: [] };
+    expect(ourCatHidden(side, onMid)).toBe(0.5);
+  });
+
   test('itNearer: true behind the intruder, false behind our cat and side-on', () => {
     expect(itNearer(behindIt, subj)).toBe(true);
     expect(itNearer(behindMe, subj)).toBe(false);
@@ -754,7 +761,10 @@ describe('the fight camera rides the ground and stays out of rock', () => {
     const subj = subject({ x: 8.8, z: 6.8 }, { x: 7.2, z: 6.8 });
     for (const yaw0 of [Math.PI, Math.PI - 0.5, Math.PI + 0.5]) {
       const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...SLIVER });
-      expect(flat.ring).toBe(0);
+      // the first wide ring (d 5.5, h 2.2), not the tight close-up one
+      expect(RINGS[flat.ring]).toMatchObject({ d: 5.5, h: 2.2 });
+      expect(Math.hypot(flat.pos.x - subj.mid.x, flat.pos.z - subj.mid.z)).toBeCloseTo(5.5, 9);
+      expect(flat.pos.y).toBeCloseTo(2.2, 9);
       expect(flat.yaw).toBe(yaw0); // the straight-back fallback...
       expect(camOk(flat.pos)).toBe(false); // ...which is in the rock here
       expect(chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: FLAT_GROUND, ...SLIVER })).toEqual(flat);
@@ -883,8 +893,45 @@ describe('the frame fits the real sheet', () => {
     expect(fc.view).toBe(fitted);
     step(-0.3);
     expect(fc.view).not.toBe(fitted);
-    // no sheet again: today's frame
+    // the sheet going mid-fight keeps the view (the tallest sheet's frame)
+    const tall = fc.view;
     step(null);
-    expect(lowest(fc.view, subj, PHONE)).toBeCloseTo(lowest(today, subj, PHONE), 9);
+    expect(fc.view).toBe(tall);
+  });
+
+  test('createFightCam: the sheet changing height between beats ratchets to the tallest, not a re-choose every beat', () => {
+    const subj = subject(me, it);
+    for (const reducedMotion of [true, false]) {
+      const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion });
+      const cam = fakeCamera(PHONE.aspect);
+      const views = new Set();
+      const step = (sheetTop) => {
+        cam.position.set(0, 2.2, 4.5);
+        fc.update(1 / 60, { subject: subj, camera: cam, cat: me, sheetTop });
+        views.add(fc.view);
+      };
+      step(-0.38); // the sheet first shows: a choice
+      const first = fc.view;
+      const cuts0 = fc.cuts;
+      // clue, line, clue, line... (a line sheet with specials is ~0.08 taller)
+      for (let beat = 0; beat < 12; beat++) for (let f = 0; f < 10; f++) step(beat % 2 ? -0.38 : -0.30);
+      // one re-choose, on the first rise; none after
+      expect(views.size).toBeLessThanOrEqual(2);
+      expect(fc.cuts - cuts0).toBeLessThanOrEqual(1);
+      const tall = fc.view;
+      expect(tall).not.toBe(first);
+      expect(lowest(tall, subj, PHONE)).toBeGreaterThanOrEqual(-0.30 + 0.06 - 1e-9);
+      // a rise under SHEET_STEP over the tallest keeps it; a real one re-chooses
+      step(-0.29);
+      expect(fc.view).toBe(tall);
+      step(-0.2);
+      expect(fc.view).not.toBe(tall);
+      // the fight ends: the ratchet resets, so the next fight's short sheet frames low again
+      fc.update(1 / 60, { subject: null, camera: cam, cat: me });
+      const subj2 = subject(me, it);
+      cam.position.set(0, 2.2, 4.5);
+      fc.update(1 / 60, { subject: subj2, camera: cam, cat: me, sheetTop: -0.38 });
+      expect(lowest(fc.view, subj2, PHONE)).toBeCloseTo(lowest(first, subj, PHONE), 9);
+    }
   });
 });
