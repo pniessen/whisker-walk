@@ -370,6 +370,15 @@ describe('pushProfileNow shares the clan pick', () => {
     expect(cloud.pushProfile.mock.calls[1][0].accessories.home).toBe('woods');
   });
 
+  it('resolves true on a push that landed and false on one that failed, never rejecting', async () => {
+    const { cloud, made } = pushing();
+    expect(await made.pushProfileNow()).toBe(true);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    cloud.pushProfile.mockRejectedValueOnce(new Error('down'));
+    await expect(made.pushProfileNow()).resolves.toBe(false);
+    warn.mockRestore();
+  });
+
   it('a custom cat sends the preset breed, her usual pet name and the look', async () => {
     const { cloud, progression, made } = pushing();
     const saved = equipEmber({ progression });

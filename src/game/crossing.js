@@ -13,6 +13,14 @@ export const CROSS_RESEND_MS = 150;
 export const CROSS_END_MS = 400;
 export const LED_DELAY_MS = 1500;
 
+// swallowsCanvasClick(session) -> true while a room host's confirmed crossing
+// is on its way out (the CROSS_END_MS "Off we go!" pause). main.js stops a
+// game-canvas click then, so it cannot re-lock the pointer for a walk that is
+// about to end.
+export function swallowsCanvasClick(s) {
+  return !!s?.crossing?.going;
+}
+
 export function createCrossing({
   getSession, overlay, hud, releaseControl, resumeWalk, endWalk, getIsTouch, getEdition,
   catalog = CATALOG, setTimeout = globalThis.setTimeout,

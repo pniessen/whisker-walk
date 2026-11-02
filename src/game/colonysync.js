@@ -36,6 +36,9 @@ import { clanTitleFor } from '../clannames.js';
 export const JOIN_KEEP_MS = 20 * 60 * 1000;
 // The partner's clan pick is read from their profile at most this often.
 export const PICK_FETCH_MS = 60_000;
+// A failed partner-pick fetch is retried after PICK_RETRY_MS, doubling each
+// failure in a row up to PICK_FETCH_MS; a success goes back to once a minute.
+export const PICK_RETRY_MS = 5_000;
 export const FEED_PUSH_MAX = 40;     // most catch-up feeds pushed by one pull
 const WARDROBE_MAX = 40;             // colony_sync stores at most 40 items
 const KNOWN_ITEMS = new Set(Object.keys(CATALOG.accessories));
@@ -92,6 +95,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   // for whom, so a failing server is tried at most once a minute.
   let lastPickTry = -Infinity;
   let lastPickFor = null;
+  let pickFails = 0;      // failed fetches in a row, for lastPickFor
 
   const hasName = () => validPetName(progression.state.petName);
 
@@ -283,7 +287,8 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   // pushProfileNow), so reading it needs no SQL step: both devices already
   // push that row and upsert_profile stores any jsonb. A paired pull reads the
   // partner's row at most once a minute (and at once for a new partner, or on
-  // a freshPick pull such as joining the siblings' room). A row with no valid
+  // a freshPick pull such as joining the siblings' room); after a failure it
+  // tries again sooner (PICK_RETRY_MS, doubling, up to the minute). A row with no valid
   // `home` (an old build, or no pick yet) NEVER clears the cached pick for the
   // same partner: only a valid pick replaces it. A NEW partner resets the
   // cache first (progression.setPartnerClanPick). Nothing goes on
@@ -293,11 +298,14 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
   async function fetchPartnerPick(cloud, partnerId) {
     if (!isPlayerId(partnerId)) return;
     const now = Date.now();
-    if (partnerId === lastPickFor && now - lastPickTry < PICK_FETCH_MS) return;
+    if (partnerId !== lastPickFor) pickFails = 0;
+    const wait = pickFails > 0 ? Math.min(PICK_FETCH_MS, PICK_RETRY_MS * 2 ** (pickFails - 1)) : PICK_FETCH_MS;
+    if (partnerId === lastPickFor && now - lastPickTry < wait) return;
     lastPickFor = partnerId;
     lastPickTry = now;
     try {
       const rows = await cloud.fetchProfiles([partnerId]);
+      pickFails = 0;
       if (!Array.isArray(rows)) return; // "no row", silently
       const row = rows.find((r) => r && typeof r === 'object' && r.player_id === partnerId);
       const acc = row && row.accessories;
@@ -307,6 +315,7 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       // cache to null for that partner; the same partner keeps their cached pick.
       progression.setPartnerClanPick(partnerId, home);
     } catch (err) {
+      if (lastPickFor === partnerId) pickFails += 1;
       warnOnce('partner pick fetch failed', err);
     }
   }
@@ -373,13 +382,20 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
       const other = remote.partner.playerId;
       progression.adoptClanName(clanTitleFor(pid < other ? pid : other));
     }
-    if (remote.partner) await fetchPartnerPick(cloud, remote.partner.playerId);
-    const tamedSent = await pushUnsynced(cloud, secret, remote);
-    progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
-    // The merge can join feeds that fill a bar neither side filled alone.
-    const settled = progression.settleColonyTaming(pid);
-    if (tamedSent) await pushTamed(cloud, secret, remote, tamedSent);
-    return settled;
+    // The partner's pick is read alongside the colony's own catch-up and
+    // merge (it never fails: fetchPartnerPick swallows its errors), and is in
+    // before the pull resolves.
+    const picking = remote.partner ? fetchPartnerPick(cloud, remote.partner.playerId) : null;
+    try {
+      const tamedSent = await pushUnsynced(cloud, secret, remote);
+      progression.mergeColonySnapshot(await repushWear(cloud, secret, remote));
+      // The merge can join feeds that fill a bar neither side filled alone.
+      const settled = progression.settleColonyTaming(pid);
+      if (tamedSent) await pushTamed(cloud, secret, remote, tamedSent);
+      return settled;
+    } finally {
+      await picking;
+    }
   }
 
   // Take `names` (cats of mine whose accessory just left the wardrobe) off on
@@ -495,8 +511,9 @@ export function createColonySync({ MP, pid, getCloud, getPsecret, pushProfileNow
     pull,
 
     // My own pick changed: put it on my public profile row for my sibling.
+    // -> false when the push failed (so the pick can be pushed again).
     async noteOwnPick() {
-      await pushProfileNow?.();
+      return (await pushProfileNow?.()) !== false;
     },
 
     // Fire-and-forget, right after a successful local feed. Only when paired;

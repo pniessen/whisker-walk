@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { litMaterial, repeatFor, surfaceProps } from '../render/materials.js';
+import { litMaterial, repeatFor, surfaceProps, tileMetres } from '../render/materials.js';
 import { skyBackground } from '../render/sky.js';
 
 const mat = (color) => litMaterial(color);
@@ -2373,7 +2373,9 @@ export function bridgeDeck(x1, z1, x2, z2, w = 4, y = 0.14) {
 // repeat taken from the top face's real w x len, so the boards run along it.
 export function plankBridge(x1, z1, x2, z2, w, y, thick) {
   const len = Math.hypot(x2 - x1, z2 - z1);
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, thick, len), surfMat(0x8a6a44, 'wood', w, len));
+  const geo = new THREE.BoxGeometry(w, thick, len);
+  plankEdgeUVs(geo, w, thick, len);
+  const m = new THREE.Mesh(geo, surfMat(0x8a6a44, 'wood', w, len));
   m.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
   m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
   // A plank lying on the water: flat ground dressing, out of the shadow pass
@@ -2383,6 +2385,35 @@ export function plankBridge(x1, z1, x2, z2, w, y, thick) {
   m.castShadow = false;
   m.userData.noCast = true;
   return m;
+}
+
+// The plank's one material repeats for its top face (w x len). A BoxGeometry
+// maps 0..1 on every face, so on the thin long sides that repeat would squash
+// the wood some fifteen times across the edge, grain running up it. Here each
+// side gets UVs at the wood's true size (one tile per tileMetres, as the top
+// has to within repeatFor's rounding) with the texture's v (the plank grain)
+// turned to run along the plank, and each end gets the true size up its
+// height. The top and bottom are left exactly as they were.
+function plankEdgeUVs(geo, w, thick, len) {
+  const t = tileMetres('wood');
+  const rep = repeatFor('wood', w, len);
+  if (!t || !rep) return;
+  const [ru, rv] = rep;
+  const uv = geo.getAttribute('uv');
+  const faceVerts = (g) => [...new Set(geo.index.array.slice(g.start, g.start + g.count))];
+  const g = geo.groups; // +x, -x, +y, -y, +z, -z (BoxGeometry's order)
+  for (const k of [0, 1]) {
+    // the sides: u ran along the length, v up the thickness
+    for (const i of faceVerts(g[k])) {
+      const u = uv.getX(i), v = uv.getY(i);
+      uv.setXY(i, (v * thick) / (ru * t), (u * len) / (rv * t));
+    }
+  }
+  for (const k of [4, 5]) {
+    // the ends: u across the width (already at the top's density), v up the thickness
+    for (const i of faceVerts(g[k])) uv.setY(i, (uv.getY(i) * thick) / (rv * t));
+  }
+  uv.needsUpdate = true;
 }
 
 // A trunk laid across a stream as a bridge, its top hewn flat to walk on, the

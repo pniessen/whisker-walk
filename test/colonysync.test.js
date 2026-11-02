@@ -1131,17 +1131,69 @@ describe('createColonySync — the partner\'s clan pick', () => {
     }
   });
 
-  it('the partner pick is tried at most once a minute, failures included', async () => {
+  it('a fetched partner pick is read again at most once a minute', async () => {
     vi.useFakeTimers(); vi.setSystemTime(T0);
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { cs, cloud } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: () => { throw new Error('down'); } } });
+    const { cs, cloud } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: home('moor') } });
     await cs.pull();
-    vi.setSystemTime(T0 + 3000);
+    vi.setSystemTime(T0 + PICK_FETCH_MS - 1);
     await cs.pull();
     expect(cloud.fetchProfiles).toHaveBeenCalledTimes(1);
     vi.setSystemTime(T0 + PICK_FETCH_MS + 1);
     await cs.pull();
     expect(cloud.fetchProfiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed fetch is retried sooner, backing off 5, 10, 20, 40 s and then once a minute', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(T0);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { cs, cloud, script, progression } = setup({ script: { colonySync: () => pairedSnap(), fetchProfiles: () => { throw new Error('down'); } } });
+    await cs.pull();
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(1);
+    let at = T0;
+    let calls = 1;
+    for (const wait of [5000, 10_000, 20_000, 40_000, PICK_FETCH_MS, PICK_FETCH_MS]) {
+      vi.setSystemTime(at + wait - 1);
+      await cs.pull();
+      expect(cloud.fetchProfiles, `before ${wait}`).toHaveBeenCalledTimes(calls);
+      at += wait;
+      vi.setSystemTime(at);
+      await cs.pull();
+      calls += 1;
+      expect(cloud.fetchProfiles, `at ${wait}`).toHaveBeenCalledTimes(calls);
+    }
+    // A success resets the back-off to the ordinary once a minute.
+    script.fetchProfiles = home('moor');
+    vi.setSystemTime(at += PICK_FETCH_MS);
+    await cs.pull();
+    expect(progression.state.clanPick.partner).toBe('moor');
+    calls += 1;
+    script.fetchProfiles = () => { throw new Error('down'); };
+    vi.setSystemTime(at += PICK_FETCH_MS);
+    await cs.pull();
+    calls += 1;
+    vi.setSystemTime(at + 5000);
+    await cs.pull();
+    expect(cloud.fetchProfiles).toHaveBeenCalledTimes(calls + 1);
+  });
+
+  it('the partner pick is fetched alongside the colony merge, not after it', async () => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    let mergedBeforeFetchEnded = null;
+    const { cs, progression } = setup({ script: {
+      colonySync: () => pairedSnap({ cats: [serverCat(CAT)], feeds: [serverFeed(CAT, 'walk-1')] }),
+      fetchProfiles: async () => {
+        await gate;
+        return home('moor')();
+      },
+    } });
+    const pulling = cs.pull();
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    mergedBeforeFetchEnded = progression.state.colony.cats.some((c) => c.name === CAT);
+    release();
+    await pulling;
+    expect(mergedBeforeFetchEnded).toBe(true);
+    expect(progression.state.clanPick.partner).toBe('moor');
   });
 
   it('pull({ freshPick: true }) skips the throttle', async () => {
@@ -1204,5 +1256,15 @@ describe('createColonySync — the partner\'s clan pick', () => {
     const { cs, pushProfileNow } = setup();
     await cs.noteOwnPick();
     expect(pushProfileNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('noteOwnPick says false only when the push failed', async () => {
+    const { cs, pushProfileNow } = setup();
+    pushProfileNow.mockResolvedValue(false);
+    expect(await cs.noteOwnPick()).toBe(false);
+    pushProfileNow.mockResolvedValue(true);
+    expect(await cs.noteOwnPick()).toBe(true);
+    pushProfileNow.mockResolvedValue(undefined); // nothing to push (solo, no name)
+    expect(await cs.noteOwnPick()).toBe(true);
   });
 });

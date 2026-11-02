@@ -7,6 +7,15 @@ test('the kittypets are the spec list plus Duchess, all existing stray names', (
   for (const n of KITTYPET_NAMES) expect(isStrayName(n)).toBe(true);
   expect(Object.isFrozen(KITTYPET_NAMES)).toBe(true);
 });
+test('KITTYPET_NAMES keeps its order: twelve CAT_NAMES in CAT_NAMES order, then Duchess', () => {
+  // The day's wanderer is picked by index (WANDER_NAMES), so a reorder would
+  // change who visits on a given day for every device at once.
+  expect(KITTYPET_NAMES).toEqual(['Marmalade', 'Baron von Fluff', 'Mochi', 'Biscuit', 'Clementine', 'Waffles',
+    'Petunia', 'Sir Pounce', 'Butterscotch', 'Truffle', 'Custard', 'Peaches', 'Duchess']);
+  const cats = KITTYPET_NAMES.filter((n) => CAT_NAMES.includes(n));
+  expect(cats.map((n) => CAT_NAMES.indexOf(n))).toEqual([...cats.map((n) => CAT_NAMES.indexOf(n))].sort((a, b) => a - b));
+  expect(KITTYPET_NAMES.at(-1)).toBe('Duchess');
+});
 test('no kit is a kittypet, and CAT_NAMES is untouched', () => {
   for (const n of KIT_NAMES) expect(isKittypetName(n)).toBe(false);
   expect(CAT_NAMES).toHaveLength(48);
@@ -101,6 +110,19 @@ test('wanderStart steps WANDER_STEP metres toward the middle', () => {
   expect(Math.hypot(p.x - 44, p.z - 12)).toBeCloseTo(WANDER_STEP, 5);
   expect(Math.hypot(p.x, p.z)).toBeLessThan(Math.hypot(44, 12));
   expect(wanderStart({ x: 0, z: 0 })).toEqual({ x: -WANDER_STEP, z: 0 });
+});
+test('wanderStart stops at the middle rather than overshooting it', () => {
+  for (const [x, z] of [[3, 4], [0.5, 0], [-2, 1], [0, -5.9]]) {
+    const p = wanderStart({ x, z });
+    expect(p.x, `${x},${z}`).toBeCloseTo(0, 9);
+    expect(p.z, `${x},${z}`).toBeCloseTo(0, 9);
+  }
+  // exactly WANDER_STEP away lands on the middle too, and further is unchanged
+  const q = wanderStart({ x: 0, z: WANDER_STEP });
+  expect(q.x).toBeCloseTo(0, 9);
+  expect(q.z).toBeCloseTo(0, 9);
+  const r = wanderStart({ x: 0, z: 10 });
+  expect(r).toEqual({ x: 0, z: 10 - WANDER_STEP });
 });
 test('no territory clan cat is named like a stray or a kittypet', () => {
   for (const id of TERRITORY_AREAS) {

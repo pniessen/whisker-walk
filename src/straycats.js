@@ -8,6 +8,7 @@ import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName, isKitty
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
 import { dryGroundPoint } from './keepout.js';
+import { CAT_RADIUS } from './player.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -23,6 +24,14 @@ const MEOW_RADIUS = 8;
 const FAR_CALL_RADIUS = 22;
 const FAR_CALL_STANDOFF = 1.6;
 const FAR_CALL_WALK_TIME = 12;
+// A wandering stray whose straight line to its target runs into water or a
+// keep-out is held at the edge by keepOut() below. After STUCK_GIVE_UP
+// seconds of making less than STUCK_PROGRESS of its stride towards the
+// target it gives up on it the way it would on arriving (idle, a pose and a
+// timer from its own stream), rather than leaning on the shore for the full
+// 12 s. Measured from positions only, so it draws nothing extra.
+const STUCK_GIVE_UP = 1.5;
+const STUCK_PROGRESS = 0.25;
 
 // How long a freshly-ruptured cat holds the recoil before its ordinary wander
 // FSM takes over again. It stays cross the whole time — this is only the pose
@@ -308,7 +317,26 @@ function noCastCollar(group) {
   group.getObjectByName('collar')?.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
 }
 
-// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames })
+// A colony cat's saved spot, moved out of any of `discs` ({ x, z, r }: the
+// camp's den and rock, from walk.js) to CAT_RADIUS clear of its edge, along
+// the line from the disc's centre. A spot saved before the camps existed can
+// fall inside one. Display only: the save keeps the spot it has. Draws nothing.
+function outOfDiscs(x, z, discs) {
+  for (const d of Array.isArray(discs) ? discs : []) {
+    if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z) || !Number.isFinite(d.r)) continue;
+    const need = d.r + CAT_RADIUS;
+    const dx = x - d.x, dz = z - d.z;
+    const len = Math.hypot(dx, dz);
+    if (len >= need) continue;
+    const ux = len > 1e-9 ? dx / len : 1;
+    const uz = len > 1e-9 ? dz / len : 0;
+    x = d.x + ux * need;
+    z = d.z + uz * need;
+  }
+  return { x, z };
+}
+
+// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames, colonyAvoid })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
 // seeds walkRng from. It is used for ONE thing: seeding each stray's private
@@ -387,7 +415,7 @@ function noCastCollar(group) {
 // rng). Only a legendary name is an extra, once, and never one already cast.
 // `reducedMotion` holds a legendary glow still, at the top of its breath.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
-  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null,
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null, colonyAvoid = [],
 } = {}) {
   const strays = [];
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
@@ -411,7 +439,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     if (!c || !isStrayName(c.name) || colonyNames.has(c.name)) continue;
     if (!Number.isFinite(c.x) || !Number.isFinite(c.z)) continue;
     colonyNames.add(c.name);
-    colony.push(c);
+    // A spot saved before the camps existed can fall inside the den or the
+    // leader's rock (colonyAvoid): moved out here, for this walk only.
+    colony.push({ ...c, ...outOfDiscs(c.x, c.z, colonyAvoid) });
   }
   const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
   const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
@@ -718,6 +748,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           keepOut(target);
           s.state = 'wander';
           s.target = target;
+          s.stuck = 0;
           s.timer = Math.max(s.timer, FAR_CALL_WALK_TIME);
         }
         count += 1;
@@ -823,6 +854,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             const a = s.wanderRng() * Math.PI * 2;
             const r = 4 + s.wanderRng() * 8;
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+            s.stuck = 0;
             s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
             keepOut(s.target);
@@ -842,11 +874,20 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.pose = s.wanderRng() < 0.4 ? 'sniff' : 'follow';
             s.timer = 2 + s.wanderRng() * 4;
           } else {
+            const before = dir.length();
             dir.normalize().multiplyScalar(WANDER_SPEED);
             s.group.position.addScaledVector(dir, dt);
             s.group.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             speed = WANDER_SPEED;
+            keepOut(s.group.position);
+            const gained = before - Math.hypot(s.target.x - s.group.position.x, s.target.z - s.group.position.z);
+            s.stuck = gained < STUCK_PROGRESS * WANDER_SPEED * dt ? (s.stuck ?? 0) + dt : 0;
+            // Held at an edge: end the wander on the next frame's timer check,
+            // which goes idle with the same two draws an arrival makes.
+            if (s.stuck >= STUCK_GIVE_UP) { s.timer = 0; s.stuck = 0; }
           }
+        } else {
+          s.stuck = 0;
         }
         // The end of this stray's move for the frame: a straight line to a
         // target outside the keep-out can still cut across it, so the cat is

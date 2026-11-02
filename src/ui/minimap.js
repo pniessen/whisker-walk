@@ -135,8 +135,15 @@ function markersKey(markers) {
 export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle } = {}) {
   const canvas = document.createElement('canvas');
   canvas.className = 'hud-map-disc';
+  // A tap flips the mode, so the label says what the next tap does (kept in
+  // step by setMode below). It stays role=img: the toggle is a pointer tap
+  // only, with no focus or key to press, so announcing a button would promise
+  // something a keyboard cannot do.
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Map');
+  const label = (m) => (m === 'turn'
+    ? 'Map, turns with you. Tap to keep north up.'
+    : 'Map, north up. Tap to make it turn with you.');
+  canvas.setAttribute('aria-label', label(mode === 'turn' ? 'turn' : 'north'));
   // #hud is pointer-events: none; the map opts back in so it can be tapped.
   canvas.style.pointerEvents = 'auto';
   hostEl.insertBefore(canvas, hostEl.firstChild);
@@ -477,7 +484,10 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       last = { cx: view.cx, cz: view.cz, heading: view.heading, key, mode: currentMode, size };
       paint(view, markers, size);
     },
-    setMode(next) { currentMode = next === 'turn' ? 'turn' : 'north'; },
+    setMode(next) {
+      currentMode = next === 'turn' ? 'turn' : 'north';
+      canvas.setAttribute('aria-label', label(currentMode));
+    },
     get mode() { return currentMode; },
     show() { canvas.classList.remove('hidden'); },
     hide() { canvas.classList.add('hidden'); },

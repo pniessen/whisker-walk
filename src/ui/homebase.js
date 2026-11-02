@@ -906,9 +906,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   // A clan card or the Settings select: save the pick, then tell the sibling's
   // device (fire-and-forget; a refusal changes nothing and sends nothing).
+  // Re-picking the clan already picked sends nothing once that pick has been
+  // pushed; after a failed push a re-tap is the way to try again.
+  let pushedPick;
   function pickClan(id) {
-    if (progression.setClanPick(id)) {
-      Promise.resolve(colonySync?.noteOwnPick()).catch(() => {});
+    const before = progression.state.clanPick?.mine ?? null;
+    if (progression.setClanPick(id) && (progression.state.clanPick?.mine !== before || pushedPick !== id)) {
+      pushedPick = id;
+      Promise.resolve(colonySync?.noteOwnPick())
+        .then((ok) => { if (ok === false && pushedPick === id) pushedPick = undefined; })
+        .catch(() => { if (pushedPick === id) pushedPick = undefined; });
     }
     render();
   }
