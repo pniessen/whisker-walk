@@ -15,7 +15,7 @@ const border = (at, id = 'park-border-3') => ({ kind: 'border', id, x: 5, z: 6, 
 test('the vocabulary is pinned', () => {
   expect(MARK_KINDS).toEqual(['scratch', 'dig', 'drop', 'border', 'den']);
   expect(MARKS_PER_AREA).toBe(8);
-  expect(MARK_AREAS).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'den']);
+  expect(MARK_AREAS).toEqual(['neighborhood', 'park', 'seaside', 'docks', 'woods', 'river', 'moor', 'pines', 'gorge', 'den']);
 });
 
 test('every border-mark id the rings can mint is a prop id, even the longest area name', () => {
@@ -267,4 +267,12 @@ test('the Pines keeps marks like any area', () => {
   expect(changed).toBe(true);
   expect(m.pines).toHaveLength(1);
   expect(sanitizeMarks({ pines: m.pines }).pines).toEqual(m.pines);
+});
+
+test('the Gorge keeps marks like any area', () => {
+  expect(emptyMarks().gorge).toEqual([]);
+  const { marks: m, changed } = addMark(emptyMarks(), 'gorge', scratch(100, 'gorge-post-1'));
+  expect(changed).toBe(true);
+  expect(m.gorge).toHaveLength(1);
+  expect(sanitizeMarks({ gorge: m.gorge }).gorge).toEqual(m.gorge);
 });

@@ -5,6 +5,8 @@ import { litMaterial } from './render/materials.js';
 // one draw call per puff, overhead at y 22-28); render/clouds.js replaced
 // them with one InstancedMesh far out in the sky (Stream 4 round four).
 const HALF_SPAN = 60;
+// Flock height. An area can lift it (the Gorge's rims stand at 20 m, so its
+// flock flies at GORGE_BIRD_Y, 34); every other area keeps 14.
 const BIRD_Y = 14;
 const BIRD_COUNT = 3;
 const BIRD_INTERVAL_MIN = 40;
@@ -14,7 +16,7 @@ function buildBirdMesh() {
   return new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 6), litMaterial(0x2a2a30));
 }
 
-export function createSkyLife(scene, { rng, reducedMotion = false } = {}) {
+export function createSkyLife(scene, { rng, reducedMotion = false, birdY = BIRD_Y } = {}) {
   // reducedMotion note: birds (foreground darting motion across the view)
   // are skipped entirely.
   let birdTimer = BIRD_INTERVAL_MIN + rng() * BIRD_INTERVAL_MAX;
@@ -30,7 +32,7 @@ export function createSkyLife(scene, { rng, reducedMotion = false } = {}) {
     const meshes = [];
     for (let i = 0; i < BIRD_COUNT; i++) {
       const bird = buildBirdMesh();
-      bird.position.set(startX - dirX * i * 1.5, BIRD_Y, startZ - dirZ * i * 1.5);
+      bird.position.set(startX - dirX * i * 1.5, birdY, startZ - dirZ * i * 1.5);
       bird.rotation.x = Math.PI / 2;
       bird.rotation.z = -angle;
       scene.add(bird);

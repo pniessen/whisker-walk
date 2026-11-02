@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
+import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
+import { FLAT_GROUND } from '../src/ground.js';
+import { propsFor } from '../src/propsets.js';
 
 // A scene stand-in — createCritters only ever add()s and remove()s groups, so
 // nothing here needs a real THREE.Scene (same approach as secrets.test.js).
@@ -829,5 +834,235 @@ describe('createCritters — prey that evades (v21 3b Task 13)', () => {
     }
     expect(sq.hidden).toBe(true);
     expect(hidden).toEqual([sq]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gorge part 2, Task 7 (G9) — a mountain goat that only bolts.
+//
+// It lives on the shoulder (ground 14), notices a cat at GOAT_NOTICE measured
+// in 2D (the cat on the clifftop is 2 m below it), bounds off at 7 m/s and
+// hides on its own level. It comes on about half the days, decided by the date
+// alone, and can't be stalked, pounced or called.
+// ---------------------------------------------------------------------------
+
+describe('createCritters — the mountain goat (Gorge G9)', () => {
+  const ground = gorgeGround();
+  const GOAT = { type: 'goat', x: 4, z: -16, x2: 4, z2: -16 };
+  const GOAT_HIDE = { x: 8, z: -12.5 };
+  const bound = (t) => 0.25 * Math.abs(Math.sin(9 * t));
+  const catAt = (x, z) => new THREE.Vector3(x, ground.y(x, z), z);
+  const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+  let clockT = 0;
+
+  // One frame; checks the goat's height and that it never steps over a rim.
+  function frame(c, goat, cat, last) {
+    clockT += 1 / 60;
+    c.update(1 / 60, clockT, cat, cat);
+    c.markStalked(cat, false);
+    const p = goat.group.position;
+    expect(ground.y(p.x, p.z)).toBe(SHOULDER);
+    expect(p.y).toBe(SHOULDER + (goat.fleeing ? bound(clockT) : 0));
+    expect(ground.canStep(last.x, last.z, p.x, p.z)).toBe(true);
+    last.x = p.x;
+    last.z = p.z;
+  }
+
+  // The cat walks north (-z to +z) along the clifftop at a trot until the goat bolts.
+  function walkUp(c, goat, last) {
+    let z = -24;
+    while (!goat.fleeing && z < -19) {
+      z += 0.06;
+      expect(ground.y(4, z)).toBe(CLIFFTOP);
+      frame(c, goat, catAt(4, z), last);
+    }
+    return catAt(4, z);
+  }
+
+  it('a goat on the shoulder bolts when a cat on the clifftop comes within 6 m in 2D, and hides on the shoulder', () => {
+    expect(GOAT_NOTICE).toBe(6);
+    const hidden = [];
+    const c = createCritters(scene, [GOAT], { ground, hides: propsFor('gorge').hides, onHide: (x) => hidden.push(x) });
+    const goat = c.list[0];
+    const last = { x: 4, z: -16 };
+    expect(goat.group.position.y).toBe(SHOULDER);
+    const cat = walkUp(c, goat, last);
+    expect(goat.fleeing).toBe(true);
+    // Noticed (from where it stood) the moment the 2D distance is under 6,
+    // while the 3D one is still over; it is off in that same frame.
+    const stood = new THREE.Vector3(GOAT.x, SHOULDER, GOAT.z);
+    expect(d2(cat, stood)).toBeLessThan(GOAT_NOTICE);
+    expect(d2(cat, stood)).toBeGreaterThan(GOAT_NOTICE - 0.1);
+    expect(cat.distanceTo(stood)).toBeGreaterThan(GOAT_NOTICE);
+    expect(goat.hideAt.x).toBe(GOAT_HIDE.x);
+    expect(goat.hideAt.z).toBe(GOAT_HIDE.z);
+
+    let frames = 0;
+    let peak = 0;
+    while (!goat.hidden && frames < 120) {
+      frame(c, goat, cat, last);
+      if (goat.fleeing) peak = Math.max(peak, goat.group.position.y - SHOULDER);
+      frames++;
+    }
+    expect(goat.hidden).toBe(true);
+    expect(frames).toBeLessThan(60); // 5.3 m at 7 m/s
+    expect(peak).toBeGreaterThan(0.2); // it bounds
+    expect(d2(goat.group.position, GOAT_HIDE)).toBeLessThanOrEqual(HIDE_REACH);
+    expect(goat.group.position.y).toBe(SHOULDER); // landed
+    expect(hidden).toEqual([goat]);
+  });
+
+  it('a goat never runs for a hide on another level', () => {
+    // The map's floor hides, and one on the floor 4 m from the goat, the
+    // nearest of all and well inside HIDE_SEARCH.
+    const NEAR_FLOOR = { x: 0, z: -16 };
+    expect(ground.y(NEAR_FLOOR.x, NEAR_FLOOR.z)).toBe(0);
+    const floorHides = [NEAR_FLOOR, ...propsFor('gorge').hides.filter((h) => ground.y(h.x, h.z) === 0)];
+    const c = createCritters(scene, [GOAT], { ground, hides: floorHides });
+    const goat = c.list[0];
+    const last = { x: 4, z: -16 };
+    walkUp(c, goat, last);
+    expect(goat.fleeing).toBe(true);
+    expect(goat.hideAt).toBe(null);
+    // The cat backs off out of reach; the goat bounds away, then stops.
+    const away = catAt(4, -24);
+    let fled = 0;
+    for (let f = 0; f < 5 * 60; f++) {
+      frame(c, goat, away, last);
+      expect(goat.hideAt ?? null).toBe(null); // never the floor's cover
+      if (goat.fleeing) fled++;
+    }
+    expect(fled).toBeGreaterThan(2.5 * 60);
+    expect(fled).toBeLessThan(3.5 * 60);
+    expect(goat.fleeing).toBe(false);
+    expect(goat.hidden).toBeFalsy();
+    expect(goat.group.position.y).toBe(SHOULDER);
+  });
+
+  it('with no ground, hides are chosen exactly as before', () => {
+    // Two hides 5 m off on either side: the first listed wins the tie, as it
+    // always has, with no ground and with the flat ground passed in.
+    for (const opts of [{}, { ground: FLAT_GROUND }]) {
+      for (const [a, b] of [[{ x: 5, z: 0 }, { x: -5, z: 0 }], [{ x: -5, z: 0 }, { x: 5, z: 0 }]]) {
+        const c = createCritters(scene, [{ type: 'mouse', x: 0, z: 0, x2: 0, z2: 0 }], { ...opts, hides: [a, b, { x: 0, z: 9 }] });
+        const mouse = c.list[0];
+        c.update(1 / 60, 1, V(0, -3), V(0, -3));
+        expect(mouse.fleeing).toBe(true);
+        expect([mouse.hideAt.x, mouse.hideAt.z]).toEqual([a.x, a.z]);
+      }
+    }
+  });
+
+  it("a goat can't be stalked, pounced or called", () => {
+    const c = createCritters(scene, [GOAT], { ground, hides: propsFor('gorge').hides });
+    const goat = c.list[0];
+    const right = catAt(4, -16.5); // right beside it (as if she got there)
+    c.markStalked(right, true);
+    expect(goat.stalkClose).toBeFalsy();
+    expect(c.pounceCatch(goat.group.position.clone())).toBe(null);
+    expect(c.nearest(goat.group.position.clone(), 10)).toBe(null);
+    expect(c.reactToMeow(catAt(4, -24), { far: true })).toBe(0);
+    expect(goat.anchorTo).toBe(null);
+  });
+
+  it('is under 0.95 m tall', () => {
+    const c = createCritters(scene, [{ type: 'goat', x: 0, z: 0 }], {});
+    const g = c.list[0].group;
+    g.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.max.y).toBeLessThan(0.95);
+    expect(box.max.y).toBeGreaterThan(0.7);
+  });
+
+  it('the goat comes on some days only', () => {
+    expect(GOAT_DAY_SHARE).toBe(0.5);
+    const days = [];
+    const d = new Date('2026-11-01T00:00:00Z');
+    for (let i = 0; i < 365; i++) {
+      days.push(d.toISOString().slice(0, 10));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const real = Math.random;
+    let rolls = 0;
+    Math.random = () => { rolls++; return real(); };
+    let on;
+    try {
+      on = days.filter((day) => goatToday(day));
+      for (const day of days) expect(goatToday(day)).toBe(goatToday(day));
+    } finally {
+      Math.random = real;
+    }
+    expect(rolls).toBe(0);
+    expect(on.length / 365).toBeGreaterThanOrEqual(0.3);
+    expect(on.length / 365).toBeLessThanOrEqual(0.7);
+    expect(on.length).toBeGreaterThan(0);
+    expect(on.length).toBeLessThan(365);
+  });
+
+  it('a walk built on a no-goat day has no goat and no goat-leap moment, and walkRng draws the same', async () => {
+    vi.stubGlobal('document', {
+      addEventListener() {},
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => new Proxy({}, {
+          get: (_t, key) => {
+            if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+            if (key === 'measureText') return () => ({ width: 0 });
+            if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
+            return () => {};
+          },
+          set: () => true,
+        }),
+      }),
+    });
+    try {
+      const { build } = await import('../src/world/gorge.js');
+      const days = [];
+      const d = new Date('2026-11-01T00:00:00Z');
+      for (let i = 0; i < 30; i++) {
+        days.push(d.toISOString().slice(0, 10));
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+      const goatDay = days.find((day) => goatToday(day));
+      const noGoatDay = days.find((day) => !goatToday(day));
+      // The part of startWalk that matters, in its order: build, the day's goat,
+      // then the critters on walkRng (dusk fireflies make it draw).
+      const walk = (day) => {
+        const area = build(new THREE.Scene());
+        let draws = 0;
+        const walkRng = () => { draws++; return 0.5; };
+        Object.assign(area, goatForDay(area, day));
+        const critters = createCritters(scene, area.critterSpawns, {
+          rng: walkRng, spawnFireflies: true, hides: propsFor('gorge').hides, ground: area.ground,
+        });
+        return { area, critters, draws };
+      };
+      const yes = walk(goatDay);
+      const no = walk(noGoatDay);
+      expect(yes.area.critterSpawns.filter((s) => s.type === 'goat')).toHaveLength(1);
+      expect(yes.area.moments.map((m) => m.id)).toContain('goat-leap');
+      expect(no.critters.list.filter((x) => x.type === 'goat')).toHaveLength(0);
+      expect(no.area.critterSpawns.filter((s) => s.type === 'goat')).toHaveLength(0);
+      expect(no.area.moments.map((m) => m.id)).not.toContain('goat-leap');
+      // Everything else is as built, and the goat's hide stays.
+      expect(no.area.critterSpawns).toEqual(yes.area.critterSpawns.filter((s) => s.type !== 'goat'));
+      expect(no.area.moments).toEqual(yes.area.moments.filter((m) => m.id !== 'goat-leap'));
+      expect(propsFor('gorge').hides).toContainEqual(GOAT_HIDE);
+      expect(no.draws).toBe(yes.draws);
+      expect(goatForDay.length).toBe(2); // (area, date): no rng to draw from
+      // On a goat day the area is untouched.
+      const fresh = build(new THREE.Scene());
+      expect(goatForDay(fresh, goatDay)).toEqual({ critterSpawns: fresh.critterSpawns, moments: fresh.moments });
+      expect(goatForDay(fresh, goatDay).critterSpawns).toBe(fresh.critterSpawns);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('walk.js drops the goat on a no-goat Gorge day', () => {
+    const src = readFileSync('src/game/walk.js', 'utf8');
+    expect(src).toMatch(/import \{[^}]*\bgoatForDay\b[^}]*\} from '\.\.\/critters\.js'/);
+    expect(src).toMatch(/areaId === 'gorge'\) Object\.assign\(areaData, goatForDay\(areaData, /);
   });
 });

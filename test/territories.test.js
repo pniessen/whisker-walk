@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { CATALOG } from '../src/progression.js';
 import { PLACE_WORDS } from '../src/clanwords.js';
 import {
-  BOARD, TERRITORIES, LAKE, ISLAND, STAR, POND, RIVER, PATHS, BRIDGE, territoryMapModel,
+  BOARD, TERRITORIES, LAKE, ISLAND, STAR, POND, RIVER, PATHS, BRIDGE, CAMP_AT, territoryMapModel,
 } from '../src/territories.js';
 import { renderTerritoryMapHtml, ISLAND_WHERE } from '../src/ui/territorymap.js';
 
@@ -48,7 +48,7 @@ describe('territories', () => {
       { id: 'moor', areaId: 'moor', x: 620, y: 161, r: 165, status: 'built' },
       { id: 'river', areaId: 'river', x: 232, y: 488, r: 160, status: 'built' },
       { id: 'pines', areaId: 'pines', x: 308, y: 199, r: 150, status: 'built' },
-      { id: 'gorge', areaId: null, x: 815, y: 353, r: 80, status: 'later' },
+      { id: 'gorge', areaId: 'gorge', x: 815, y: 353, r: 80, status: 'built' },
     ]);
     expect(TERRITORIES.map((t) => t.name)).toEqual([
       PLACE_WORDS.town, 'The Woods', 'The Moor', 'The River and Marshes', 'The Pines and Swamp', 'The Gorge',
@@ -141,15 +141,35 @@ describe('territories', () => {
     expect(region(territoryMapModel(s, CATALOG), 'pines')).toMatchObject({ owned: true, line: 'tap to walk here' });
   });
 
-  it("every clan territory of the first release is built; only the Gorge can't be tapped", () => {
+  it('the Gorge is locked until 2 Moor walks, then "Tap to explore", then "tap to walk here"', () => {
+    const s = clanState();
+    s.unlocked.areas.push('woods', 'moor'); s.walks.moor = 1;
+    let gorge = region(territoryMapModel(s, CATALOG), 'gorge');
+    expect(gorge).toMatchObject({ name: 'The Gorge', areaId: 'gorge', locked: true, canOpen: false, owned: false });
+    expect(gorge.line).toBe('opens after 2 walks in The Moor · 1/2 so far');
+    expect(regionHtml(renderTerritoryMapHtml(territoryMapModel(s, CATALOG)), 'gorge')).toContain('data-dr-place="gorge"');
+    s.walks.moor = 2;
+    gorge = region(territoryMapModel(s, CATALOG), 'gorge');
+    expect(gorge).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
+    s.unlocked.areas.push('gorge');
+    expect(region(territoryMapModel(s, CATALOG), 'gorge')).toMatchObject({ owned: true, line: 'tap to walk here' });
+    // No camp is drawn there yet: CliffClan's camp is part 4.
+    expect(CAMP_AT).not.toHaveProperty('gorge');
+    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toBeNull();
+  });
+
+  it('every clan territory is built, and every place on the map can be tapped', () => {
     const m = territoryMapModel(clanState(), CATALOG);
-    expect(m.regions.filter((r) => r.status === 'soon')).toEqual([]);
-    expect(region(m, 'gorge')).toMatchObject({ status: 'later', line: 'unexplored', canOpen: false });
+    expect(m.regions.filter((r) => r.status !== 'built')).toEqual([]);
+    expect(m.regions.some((r) => r.status === 'later' || r.line === 'unexplored')).toBe(false);
     expect(m.island).toMatchObject({ status: 'built', areaId: 'pines' });
     const html = renderTerritoryMapHtml(m);
-    for (const id of ['gorge']) expect(regionHtml(html, id)).not.toContain('data-dr-place');
-    // Twolegplace, the Woods, the River, the Moor, the Pines, and the island leading to the Pines
-    expect((html.match(/data-dr-place=/g) || []).length).toBe(6);
+    for (const r of m.regions) expect(regionHtml(html, r.id), r.id).toContain(`data-dr-place="${r.areaId}"`);
+    // Six places: Twolegplace, the Woods, the River, the Moor, the Pines and
+    // the Gorge; the island is a seventh way into the Pines.
+    const places = [...html.matchAll(/data-dr-place="([a-z]+)"/g)].map(([, id]) => id);
+    expect(new Set(places).size).toBe(6);
+    expect(places).toHaveLength(7);
   });
 
   it("the island's star is the Pines' way in, locked and opened with it", () => {
@@ -166,8 +186,8 @@ describe('territories', () => {
     expect(regionHtml(html, 'island')).toContain('in the Pines and Swamp');
     expect(regionHtml(html, 'island')).toContain('tm-hit');
     expect(html.lastIndexOf('data-region="island"')).toBeGreaterThan(html.lastIndexOf('data-region="pines"'));
-    // Twolegplace, the Woods, the River, the Moor, the Pines, and the island leading to the Pines
-    expect((html.match(/data-dr-place=/g) || []).length).toBe(6);
+    // Twolegplace, the Woods, the River, the Moor, the Pines, the Gorge, and the island leading to the Pines
+    expect((html.match(/data-dr-place=/g) || []).length).toBe(7);
   });
 
   it('the island is always built and says where it is, in its title and under its name, from one string (Polish 3)', () => {

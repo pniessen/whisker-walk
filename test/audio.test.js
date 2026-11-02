@@ -6,12 +6,14 @@ function fakeParam(v = 1) {
   // oscillator's pitch that way rather than by assigning .value, so it is the
   // only place the note actually is. Additive — .value keeps meaning what it
   // always did (see the master-gain assertion below).
+  // `events` records every scheduling call in order, [kind, value, time].
   const p = {
     value: v,
     scheduled: [],
-    setValueAtTime(x) { p.scheduled.push(x); },
-    linearRampToValueAtTime() {},
-    exponentialRampToValueAtTime() {},
+    events: [],
+    setValueAtTime(x, t) { p.scheduled.push(x); p.events.push(['set', x, t]); },
+    linearRampToValueAtTime(x, t) { p.events.push(['linear', x, t]); },
+    exponentialRampToValueAtTime(x, t) { p.events.push(['exp', x, t]); },
   };
   return p;
 }
@@ -147,8 +149,9 @@ describe('layered ambience', () => {
     let intervals = 0;
     let timeouts = 0;
     const intervalFns = [];
+    const timeoutFns = [];
     global.setInterval = (...args) => { intervals++; intervalFns.push(args[0]); return origSetInterval(...args); };
-    global.setTimeout = (...args) => { timeouts++; return origSetTimeout(...args); };
+    global.setTimeout = (...args) => { timeouts++; timeoutFns.push(args[0]); return origSetTimeout(...args); };
     const audio = createAudio({ contextFactory: () => ctx });
     try {
       audio.startAmbient(areaKey, opts);
@@ -156,7 +159,7 @@ describe('layered ambience', () => {
       global.setInterval = origSetInterval;
       global.setTimeout = origSetTimeout;
     }
-    return { audio, ctx, bufferSources, intervals, timeouts, intervalFns };
+    return { audio, ctx, bufferSources, intervals, timeouts, intervalFns, timeoutFns };
   };
 
   it('docks ambience is water lap + gulls + horn, and never birdsong', () => {
@@ -276,6 +279,178 @@ describe('layered ambience', () => {
     Math.random = () => 0;
     try { fn(); } finally { Math.random = realRandom; }
     return probe.ctx.created.oscs.slice(before).flatMap((o) => o.frequency.scheduled);
+  });
+
+  // The Gorge: wind and the stream's lap, mixed by how high she is (gorgelife
+  // calls setAmbientMix), and a far cry now and then from up high. Never
+  // birdsong: the one interval is the cries.
+  it('gorge ambience is wind, a lap and the cries, never birdsong', () => {
+    const dry = ambienceProbe('gorge');
+    expect(dry.bufferSources).toHaveLength(2); // wind + lap
+    expect(dry.intervals).toBe(1); // the cries
+    expect(dry.timeouts).toBe(1); // the cave drips (silent out of a cave)
+    const gains = dry.ctx.created.gains.map((g) => g.gain.value);
+    expect(gains).toContain(0.03); // the wind
+    expect(gains).toContain(0.038); // the lap
+    dry.audio.stopAmbient();
+    for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
+  });
+
+  // Each looped layer's level is its gain node plus an LFO gain swelling it;
+  // the mix must scale both, or the swell would swing a quiet lap through zero.
+  // Built in order: wind gain (0.03), wind swell (0.012), lap gain (0.038),
+  // lap swell (0.03).
+  const gorgeGains = (p) => {
+    const gains = p.ctx.created.gains;
+    const wind = gains.findIndex((g) => g.gain.value === 0.03);
+    const lap = gains.findIndex((g) => g.gain.value === 0.038);
+    expect(gains[wind + 1].gain.value).toBe(0.012);
+    expect(gains[lap + 1].gain.value).toBe(0.03);
+    return { wind: gains[wind], windSwell: gains[wind + 1], lap: gains[lap], lapSwell: gains[lap + 1] };
+  };
+  const levels = (n) => [n.wind, n.windSwell, n.lap, n.lapSwell].map((g) => g.gain.value);
+  const expectLevels = (n, want) => levels(n).forEach((v, i) => expect(v).toBeCloseTo(want[i], 10));
+
+  it('setAmbientMix lifts the wind x2.2 and quiets the lap x0.2 up high, swell and all', () => {
+    const p = ambienceProbe('gorge');
+    const n = gorgeGains(p);
+    p.audio.setAmbientMix({ high: 0 });
+    expectLevels(n, [0.03, 0.012, 0.038, 0.03]);
+    p.audio.setAmbientMix({ high: 1 });
+    expect(n.wind.gain.value).toBeCloseTo(0.066, 10);
+    expectLevels(n, [0.03 * 2.2, 0.012 * 2.2, 0.038 * 0.2, 0.03 * 0.2]);
+    // the lap's swell never takes it through zero
+    expect(n.lap.gain.value - n.lapSwell.gain.value).toBeGreaterThan(0);
+    p.audio.setAmbientMix({ high: 0 });
+    expectLevels(n, [0.03, 0.012, 0.038, 0.03]);
+    p.audio.stopAmbient();
+    // with nothing playing it is a no-op
+    expect(() => p.audio.setAmbientMix({ high: 1 })).not.toThrow();
+  });
+
+  it('a restarted ambience keeps the last mix', () => {
+    const p = ambienceProbe('gorge');
+    p.audio.setAmbientMix({ high: 1 });
+    const before = p.ctx.created.gains.length;
+    const origSetInterval = global.setInterval;
+    const cries = [];
+    global.setInterval = (...args) => { cries.push(args[0]); return origSetInterval(...args); };
+    try { p.audio.startAmbient('gorge'); } finally { global.setInterval = origSetInterval; }
+    // the new layers' gains, in build order (wind, its swell, lap, its swell)
+    const fresh = p.ctx.created.gains.slice(before).map((g) => g.gain.value);
+    expect(fresh).toHaveLength(4);
+    fresh.forEach((v, i) => expect(v).toBeCloseTo([0.03 * 2.2, 0.012 * 2.2, 0.038 * 0.2, 0.03 * 0.2][i], 10));
+    // the new cries know she is up high
+    const n = p.ctx.created.oscs.length;
+    const realRandom = Math.random;
+    Math.random = () => 0.9;
+    try { cries[0](); } finally { Math.random = realRandom; }
+    expect(p.ctx.created.oscs.length - n).toBe(2);
+    p.audio.stopAmbient();
+  });
+
+  it('a mix leaves every other area alone', () => {
+    const p = ambienceProbe('river');
+    const before = p.ctx.created.gains.map((g) => g.gain.value);
+    p.audio.setAmbientMix({ high: 1 });
+    expect(p.ctx.created.gains.map((g) => g.gain.value)).toEqual(before);
+    p.audio.stopAmbient();
+  });
+
+  it('the cries come only from up high: a hawk, or now and then a bleat', () => {
+    const p = ambienceProbe('gorge');
+    const [cry] = p.intervalFns;
+    const run = (r) => {
+      const before = p.ctx.created.oscs.length;
+      const realRandom = Math.random;
+      Math.random = () => r;
+      try { cry(); } finally { Math.random = realRandom; }
+      return p.ctx.created.oscs.slice(before);
+    };
+    expect(run(0)).toHaveLength(0); // high 0: no oscillator
+    p.audio.setAmbientMix({ high: 0.5 });
+    expect(run(0)).toHaveLength(0); // only while high > 0.5
+    p.audio.setAmbientMix({ high: 0.8 });
+    const hawk = run(0.9);
+    expect(hawk).toHaveLength(2); // two tones, the second lower: a falling cry
+    const [first, second] = hawk.map((o) => o.frequency.scheduled[0]);
+    expect(second).toBeLessThan(first);
+    const bleat = run(0.1); // 1 in 4
+    expect(bleat.length).toBeGreaterThan(0);
+    expect(bleat[0].type).toBe('sawtooth');
+    expect(bleat.flatMap((o) => o.frequency.scheduled).every((f) => f < 1000)).toBe(true);
+    p.audio.stopAmbient();
+  });
+
+  // Gorge part 3, C7: drips, by depth. One self-rescheduling setTimeout at
+  // random gaps of 0.8-2.2 s; a soft high plink, gain 0.02 x cave at most.
+  it('drips only in a cave, and soft', () => {
+    const p = ambienceProbe('gorge');
+    expect(p.timeoutFns).toHaveLength(1);
+    const drip = p.timeoutFns[0];
+    const origSetTimeout = global.setTimeout;
+    const waits = [];
+    const run = (r) => {
+      const before = p.ctx.created.oscs.length;
+      const beforeGains = p.ctx.created.gains.length;
+      const realRandom = Math.random;
+      Math.random = () => r;
+      global.setTimeout = (fn, wait) => { waits.push(wait); return 0; };
+      try { drip(); } finally { Math.random = realRandom; global.setTimeout = origSetTimeout; }
+      return { oscs: p.ctx.created.oscs.slice(before), gains: p.ctx.created.gains.slice(beforeGains) };
+    };
+    expect(run(0).oscs).toHaveLength(0); // no mix yet: cave 0
+    p.audio.setAmbientMix({ high: 0, cave: 0 });
+    expect(run(0.5).oscs).toHaveLength(0);
+    for (const cave of [0.3, 1]) {
+      p.audio.setAmbientMix({ high: 0, cave });
+      for (const r of [0, 0.5, 0.999]) {
+        const { oscs, gains } = run(r);
+        expect(oscs.length).toBeGreaterThan(0);
+        for (const o of oscs) for (const f of o.frequency.scheduled) {
+          expect(f).toBeGreaterThanOrEqual(1800);
+          expect(f).toBeLessThanOrEqual(2400);
+        }
+        expect(gains.length).toBeGreaterThan(0);
+        for (const g of gains) {
+          expect(g.gain.scheduled.length).toBeGreaterThan(0);
+          for (const v of g.gain.scheduled) expect(v).toBeLessThanOrEqual(0.02 * cave + 1e-12);
+          // final review M1: no hard onset. The gain starts near 0 and ramps
+          // up over a few milliseconds to at most 0.02, then fades out.
+          const [first, second] = g.gain.events;
+          expect(first[0]).toBe('set');
+          expect(first[1]).toBeLessThanOrEqual(1e-3);
+          expect(second[0]).toBe('linear');
+          expect(second[1]).toBeLessThanOrEqual(0.02 * cave + 1e-12);
+          expect(second[1]).toBeGreaterThan(0);
+          expect(second[2] - first[2]).toBeGreaterThanOrEqual(0.005);
+          expect(second[2] - first[2]).toBeLessThanOrEqual(0.012);
+        }
+      }
+    }
+    // random gaps of 0.8-2.2 s, never a beat
+    for (const w of waits) {
+      expect(w).toBeGreaterThanOrEqual(800);
+      expect(w).toBeLessThanOrEqual(2200);
+    }
+    expect(new Set(waits).size).toBeGreaterThan(1);
+    p.audio.stopAmbient();
+    // once stopped, a timer already queued plays nothing
+    p.audio.setAmbientMix({ high: 0, cave: 1 });
+    expect(run(0.5).oscs).toHaveLength(0);
+  });
+
+  it('a rainy or dusk Gorge works as the generic branch, and never adds birdsong', () => {
+    const wet = ambienceProbe('gorge', { rain: true });
+    expect(wet.bufferSources).toHaveLength(3); // wind + lap + rain
+    expect(wet.intervals).toBe(1); // the cries
+    wet.audio.stopAmbient();
+    const dusk = ambienceProbe('gorge', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(2);
+    expect(dusk.intervals).toBe(2); // the cries and the crickets
+    const [, crickets] = pitchesOf(dusk);
+    for (const f of crickets) expect(f).toBe(4200);
+    dusk.audio.stopAmbient();
   });
 
   it('a dusk Pines is the low wind, the frogs and the crickets, and still never birdsong', () => {

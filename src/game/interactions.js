@@ -41,6 +41,10 @@ import { postNear } from '../borderposts.js';
 import { postStatus, promptFor } from '../bordercross.js';
 import { startRest, REST_PROMPTS, REST_TOASTS, NAP_PURR_LEN } from '../rests.js';
 
+// How far off the cat spots the Gorge's goat for the journal: past its 6 m
+// notice (critters.js GOAT_NOTICE), so she sees it before it bolts.
+export const GOAT_SPOT = 10;
+
 // ---------------------------------------------------------------------------
 // v20 "Ruffled Fur" — the constants this module owns.
 //
@@ -685,9 +689,13 @@ export function createInteractions({
       m.visible = Math.hypot(c.x - catP.x, c.z - catP.z) < reveal;
     }
     for (const c of s.critters.list) {
-      if (!c.spottable || c.fleeing) continue;
+      // The goat (G9) notices her at 6 m and is off at 7 m/s, faster than she
+      // closes, so it is seen from further, a big animal against the sky
+      // (GOAT_SPOT), and while it bounds too. Every other critter: 6 m, still.
+      const goat = c.type === 'goat';
+      if (!c.spottable || (c.fleeing && !goat)) continue;
       const to = c.group.position.clone().sub(catP).setY(0);
-      if (to.length() < 6 && to.normalize().dot(player.forward()) > 0.5) {
+      if (to.length() < (goat ? GOAT_SPOT : 6) && to.normalize().dot(player.forward()) > 0.5) {
         if (log.awardOnce('critter', `spot-${c.id}`, labelFor(c.type)) > 0) progression.recordSighting(c.type);
       }
     }

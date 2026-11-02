@@ -169,3 +169,28 @@ describe('createScent.trailTo (v18 Twitchy Nose)', () => {
     expect(added.some((o) => o.material?.color?.getHex?.() === 0xf2e04e)).toBe(true);
   });
 });
+
+// Gorge part 2 (G7): a treat keeps its POI's level. The Gorge ships no POI on
+// the Lookout Ledge (4 m up, 3.4 m wide, the floor below it to the west and
+// rock to the east), so this one is the test's own: the +/-4 m scatter around
+// it lands off the ledge on most draws.
+describe('createScent on raised ground', () => {
+  it('a treat never lands on another level from its POI', async () => {
+    const { gorgeGround } = await import('../src/world/gorgeshape.js');
+    const { mulberry32 } = await import('../src/rng.js');
+    const ground = gorgeGround();
+    const LOOKOUT_POI = { x: 3.5, z: -5 };
+    const area = { pois: [LOOKOUT_POI], bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, ground };
+    let sentBack = 0;
+    let stayed = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const [tr] = createScent(scene, area, mulberry32(seed)).treats;
+      expect(ground.sameLevel(tr.x, tr.z, LOOKOUT_POI.x, LOOKOUT_POI.z), `seed ${seed}: (${tr.x}, ${tr.z})`).toBe(true);
+      if (tr.x === LOOKOUT_POI.x && tr.z === LOOKOUT_POI.z) sentBack++;
+      else stayed++;
+    }
+    // both happen: the pass sends the stray draws home and leaves the rest
+    expect(sentBack).toBeGreaterThan(0);
+    expect(stayed).toBeGreaterThan(0);
+  });
+});

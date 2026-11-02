@@ -1862,3 +1862,325 @@ is 3 meshes and none casts a shadow. Clan against Legacy in the Neighborhood
 **Not checked (left for the owner):** the co-walk crossing with two paired
 devices (the localhost-only browser can't reach the room transport; the logic
 is unit-tested), and the iPhone 18 reading in the Neighborhood and the Woods.
+
+## The Gorge — budget and live check (2026-11-02)
+
+Part 2 of the Gorge (the map; the caves are still lit, part 3 adds the
+darkness), branch `gorge-design` at fb2236d. Headless Chromium (SwiftShader)
+on the worktree's own port, a throwaway save injected into localStorage (Clan
+Edition, 2 Moor walks, the Gorge unlocked where needed). The cat was moved by
+setting its position, then walked with the arrow keys while the camera was
+turned with synthetic `mousemove`s; the phone checks used real touch taps.
+
+**Budget**, as recorded in `test/budget.test.js` (the test passes; not
+re-measured here): 58 meshes / 45 casters / 32,188 triangles built, 47 / 35
+merged. The rock is three merged meshes (5,528 triangles); 14 swaying pines,
+47 in the stand on the west top, 11 tors, 134 scree spots in one bed, the
+Summit Rock, 7 paths, the stream and its 8 stones. The cheapest clan
+territory by meshes.
+
+**In-game draw calls.** `?perf`, HIGH pinned, desktop 1280x720 at 1x, 22
+strays, zoom step 1 unless noted. Strays and finds re-roll each walk, so rows
+are only roughly comparable. The Pines was read fresh on the same machine the
+same hour (three walks). Frame times are SwiftShader's software renderer at
+4-5 fps; they say nothing about the iPhone and are given only because they
+were asked for.
+
+| view | draws (shadow / scene) | triangles | frame ms |
+|---|---|---|---|
+| Gorge floor (-5, 0), looking south | 718 (454 / 250) | 183,260 | 232 |
+| Gorge floor (-5, 0), looking north | 488 (351 / 123) | 141,848 | 207 |
+| Gorge floor, zoom step 3, top pitch, south | 729 (482 / 233) | 186,954 | 214 |
+| **clifftop (4, -24), zoom 3, top pitch, south** (the look-down) | **805** (339 / 452); 685 on a second walk | 191,764; 169,052 | 233; 236 |
+| clifftop (4, -24), zoom 3, top pitch, W / E / N | 648, 644 / 373 / 332 | 159,456 / 109,332 / 100,186 | 205-226 |
+| clifftop (16, -30), zoom 3, top pitch, S / W / E / N | 560 / 552 / 283 / 271 | 87,880-141,522 | 205-261 |
+| Summit Rock, zoom 3, top pitch, W / S / N / E | 594 / 515 / 341 / 248 | 87,086-145,080 | 195-226 |
+| **Pines spawn**, zoom 1 (three walks) | **662, 688, 660** (143-167 / 481-531) | 170,632-175,118 | 255, 272, (494, run beside another) |
+| Pines spawn, zoom 3, top pitch | 528, 479, 455 | 141,872-155,592 | 206-363 |
+
+The worst look-down (805) is 17-22% over the Pines' spawn (660-688), inside
+the 25% line; the second walk's 685 is level with it. The floor looking south
+is 4-9% over. Looking south from the clifftop's lip is the costly way because
+it takes in the whole gorge floor with its pines, strays and stream. The old
+Pines rows (824-870) were 1024x768 at 2x, so they are not comparable with
+these. The iPhone 18 reading is still the owner's.
+
+**Checked and right:**
+
+- **Home screen**, 1280x720 and 375x812. With 1 Moor walk the Gorge says
+  "🔒 The Gorge · opens after 2 walks in The Moor · 1/2 so far" and a tap does
+  nothing. With 2 it is in colour and says "Tap to explore"; a real tap (touch
+  on the phone) unlocks and selects it: save `area: 'gorge'`, "today's walk",
+  the dock "Walking in The Gorge".
+- **The picker** shows five cards. CliffClan "of The Gorge, camp coming soon"
+  is greyed, `aria-disabled="true"`, with no pick attribute; tapping it leaves
+  `clanPick` unchanged. The four live cards are as before.
+- **Legacy**: four cards (Cozy Neighborhood, City Park, Seaside, The Old
+  Docks), no map, no Gorge; with `area: 'gorge'` the Cozy Neighborhood card is
+  the selected one.
+- **The way in.** From the Moor's north path bend (34, -8), walking east, the
+  cat stays on `MOOR_GORGE_TRAIL` (at most 0.01 m off its line). At the east
+  post with 0 Moor walks: "🔒 The Gorge opens after 2 walks in The Moor · 1/2
+  so far". With 1: "E — Head to the Gorge?"; the card says "Head to the Gorge?
+  / This walk ends here, and you keep everything you found."; Yes gives "Next
+  stop: the Gorge! 🧭"; the Moor walk counts (2); Start opens the Gorge with
+  the cat at (-44, 0, -11) in the Narrows, the post back to the Moor at
+  (-47.5, -14) behind her, saying "E — Head to the Moor?".
+- **Walked, not teleported** (keys and a turning camera, 480x320 LOW for
+  speed): the climb race from the pad ("E — race to the clifftop! 🏁") over
+  the stones, down the floor, up leg A, across the Lookout, down leg B, over
+  the Wide Ledge's turn and up leg C to the finish: all five rings counted,
+  "🏁 47.8s — today's best!". Each leg kept within 0.13-0.78 m of its
+  centreline; the height rose 0 → 4 → 8 → 12 as the plan says.
+- **The stones**: crossed at z -11, -10.6 and -11.4, the cat never dipped; a
+  control at z -13 wades (y -0.24).
+- **The lips.** At the clifftop, the Lookout, legs A, B and C and the Wide
+  Ledge's west edge, the cat ran in on a slant until the zoomies were on (FOV
+  77°), held the key into the lip and pounced twice. She never went past a
+  lip's inner edge (closest 2.58 / 2.40 / 2.45 / 5.80 / 9.25 / 5.84 against
+  inner edges 2.4, 2.4, 2.4, 5.8, 9.2, 5.8), slid along it, and stayed on her
+  level.
+- **All three caves and all five dens**, walked in from their mouths; on the
+  cave floor her height stays the floor's (0, 8.94, 12). Each den gives "E —
+  curl up for a nap"; a nap in the west den shows "Zzz… 💤" and she curls up.
+- **Camera in rock**: every animation frame of every Gorge walk above (about 4,800)
+  was tested against the ground record (below the ground, or above a cave or
+  den ceiling): none was inside rock.
+- **The goat** (2 November is a goat day): it stands on the shoulder at y 14;
+  walking along the clifftop's south edge it bolted at 5.9 m (2D), bounded
+  (y 14.03-14.18) to its hide at (8, -12.5) and vanished. "The goat bounded
+  off over the rocks! 🐐"; "a goat leaping over the rocks +12" fired on the
+  climb; the journal counts `goat`.
+- **The birds**: three, one instanced mesh, no shadow, at y 33.3-35.2 over the
+  gorge; seen from the clifftop and the floor as small dark shapes.
+- **Shade by height**: the sun's intensity is 1.8 on the floor, 2.4 halfway up
+  leg B and 3.0 on the clifftop (fill 0.42 / 0.44 / 0.45). The floor reads
+  greyer and cooler, the top warm and bright.
+- **The look-down** at zoom 3 and the top pitch, N/S/E/W, from the clifftop
+  (two spots) and from the Summit Rock (climbed with two pounces, cat at
+  y 13.9): no void, no sky gap, nothing past the map's edge. The rim tops are
+  in view and read as flat bare tan rock (G6 expected it).
+- **The south post**: "E — Head to Twolegplace?".
+- `verify-places.html?area=gorge` builds (`__calls` 55); `public/places/gorge.jpg`
+  is taken from the shipped `VIEWS.gorge` (`3,13.8,-26 → -8,2,20`).
+- No console errors or page errors anywhere above.
+
+**Seen, not fixed:**
+
+- **Near pines fill the frame at three spots** at zoom step 1: the Echo
+  Cave's mouth (pine at (-12.19, 22.41)), the west den's mouth (pine at
+  (-13.53, 8.62)) and the clifftop den's mouth (pine at (8.93, -34.51)). The
+  camera is just outside the cone (1.3-2.5 m from the trunk) and a green slab
+  covers a third to half of the picture. A geometric sweep (no in-game
+  pull-in modelled) puts the step 1 camera inside a pine's cone for 12.6% of
+  the open walkable cells at some facing. The Gorge's pine rule keeps pines off
+  the paths only, and the cat walks the whole floor; this is the Pines'
+  canopy problem again.
+- **The rock is plain.** The walls are flat faces without texture. In the
+  Narrows the shaded wall is close to black-blue, and from the spawn looking
+  north the 20 m wall reads like sky. Nothing scary, but boxy; G4's named
+  follow-up (inward chamfers, crag props) applies.
+- **Big triangle shadows**: the low sun throws the rim-top pines' shadows over
+  the clifftop and the Glitter Cave's wall as large dark triangles whose pines
+  are out of sight.
+- **The view down the gorge** from its scenic (4, -24) at the default camera:
+  the shoulder's box fills the middle; the gorge floor is to the right.
+- **The place card** is about half bare rock (the clifftop and the shoulder).
+  `cam=1.5,15,-38,-7,1,2` looks straight down the gorge (stream, path, stones,
+  pines) with a pine sliver at the top left, if the card is retaken.
+- **CliffClan's greyed card** measures about 3:1 text contrast (the live
+  cards about 4.2:1). Readable, but faint.
+- The climb race's finish still awards "the daily zoomies race +15", though
+  its prompt says "race to the clifftop".
+
+**Not checked:** sound by ear (the wind rising and the stream fading); the
+rainbow behind the east rim (no rain came); dusk and rain; touch walking (the
+walk used keys and mouse turns, the map used real touch taps); the phone's
+draw counts in the Gorge; the co-walk; the iPhone 18 reading and thermals.
+
+## The Gorge's caves — live check (2026-11-02)
+
+Part 3 of the Gorge (the caves: darker deeper, the warm glow, the cave camera,
+rain outside, crystals, the Snug Cave's cat), branch `gorge-design` at a952d56.
+Same method as the Gorge entry above: headless Chromium (SwiftShader) on the
+worktree's own port, a throwaway save, the cat moved by setting its position
+and walked with the arrow keys while the camera was turned with synthetic
+`mousemove`s. Every animation frame was traced: sun, fill, glow, which cave
+interior was drawn, the rain column, and the camera's distance and height
+from the cat. The full suite (217 files, 5,891 tests) and the build pass.
+
+**Walked in and out of each cave at every zoom step (0-3), by day and on a
+dusk walk** (glow collar worn, Dusk walk ticked): 24 walks in and 24 out,
+from open ground through the bend to the chamber's end and back.
+
+- **The light.** In each chamber the sun and the fill sit at exactly 0.30 of
+  what they were outside (Echo by day 1.8 → 0.54; at dusk 0.42 → 0.126, the
+  darkest case), and the glow is at 2.0. The sun changes by at most 0.02-0.07
+  a frame (at 4-5 fps), with no jumps. After she steps out it is back to full
+  in 0.24-0.53 s on 22 of the 24 walks out. Two dusk readings took 0.99 s and
+  1.09 s, which looks like SwiftShader stalling a frame (worst frames ran
+  0.8-0.95 s); in code, the climb back from 0.3 takes 0.35 s.
+- **Never black.** No chamber frame has more than 0.02% near-black pixels.
+  Mean luma of the screen (HUD hidden, Rec.709 weights, 0-255):
+
+  | frame | by day | at dusk |
+  |---|---|---|
+  | Echo Cave: floor outside, facing the mouth | 99.6 | 99.8 |
+  | **Echo Cave chamber** | **85.2 (86%)** | **85.3 (85%)** |
+  | Snug Cave: ledge outside / chamber | 169.5 / 143.1 (84%) | 143.0 / 145.1 (101%) |
+  | Glitter Cave: clifftop outside / chamber | 156.4 / 155.9 (100%) | 144.9 / 155.6 (107%) |
+
+  The Echo chamber at dusk is 85% of the floor, far above the 25% line, so
+  `DARK_FLOOR` stays where it is. On screen the caves hardly darken at all: the
+  sun and fill drop to 0.3, but the image-based light, exposure and bloom do
+  not, and the glow lights her cat and the floor round her. The chambers read
+  as warm, soft rooms (Snug and Glitter pale tan, Echo grey-blue). Cosy, not
+  cave-dark. Whether that is the look the owner wants is his call.
+- **Camera in rock** (below the ground, or above a cave or den ceiling): 0 of
+  7,285 frames on these walks.
+- **Camera after leaving.** A clean run at each zoom step: walk out of the
+  Echo Cave, then look over the open floor. The camera is back at the chosen
+  step (2.95 / 4.43 / 6.89 / 10.8 m) within about 3 s. While she stands just
+  outside a mouth with her back to it, the camera stays close because the
+  rock is behind her (part 1's pull-in).
+
+**Details:**
+
+- **Crystals** glint as small pale shards along the walls (Echo blue-white,
+  Snug cream, Glitter gold with flecks), each cave's interior drawn only near
+  that cave. The trace saw 0 interior switches during any walk in or out: an
+  interior turns on 12 m out on open ground, with the cave's walls between it
+  and the camera. The screenshot-diff test for pop-in was swamped by strays
+  moving between frames, so "no visible pop-in" rests on the trace and on
+  watching the walks, not on that diff.
+- **The Snug Cave's cat** is there on every walk (Pumpkin on one, Dumpling on
+  another: the name changes walk to walk, as ruled). "E — touch noses with
+  Dumpling" → "You met Dumpling the loner! ♡", then "E — feed Dumpling 🐟".
+- **Found in the dark:** the Echo Cave's golden mouse reads clearly as a
+  yellow mouse on the chamber floor; walking onto it gives "You spotted a
+  GOLDEN MOUSE! 🥇 +50". The white pebble ("E — pick up a smooth white
+  pebble", +10) and the Glitter Cave's gold-flecked stone ("E — pick up a
+  gold-flecked stone", +10) are both found the same way.
+- **Rain** (forced in the served `weather.js`, its draw kept): the rain column
+  hides when the camera goes under a ceiling and comes back when the camera
+  comes out (Snug: off at the mouth, on again outside; Echo: off inside). It
+  goes by the camera, so with her just outside a mouth, facing away, the
+  camera is still under the ceiling and it looks dry where she stands (as C6
+  rules).
+- **The corner map** shows each mouth as a small dark arch: Echo and Snug
+  from the middle of the floor, Snug and Glitter from the clifftop. No one
+  view holds all three: the Echo and Glitter mouths are 71 m apart and the
+  map's radius is 35 m.
+- **Quitting the walk deep in the Echo Cave** (sun 0.57, glow 2.0), then a
+  Woods walk with clear weather forced on both: sun 3.0, fill 0.45, no glow
+  light, exposure 1.1, mean luma 171.4. A fresh Woods walk reads 3.0 / 0.45 /
+  none / 1.1 / 171.5. Lit as normal.
+- No console errors or page errors anywhere.
+
+**Draw calls with the glow light in place.** `?perf`, HIGH, 1280x720 at 1x, 22
+strays; two Gorge walks, the Pines and the Woods the same hour. Part 2's
+readings (taken without the light) are beside them. Strays, critters and
+weather re-roll each walk.
+
+| view | this check (two walks): draws (shadow / scene), triangles | part 2 |
+|---|---|---|
+| Gorge floor (-5, 0), south, zoom 1 | 558 (306/238) 155,662; 683 (403/266) 178,482 | 718 (454/250) 183,260 |
+| Gorge floor, zoom 3, top pitch, south | 535 / 152,758; 689 / 180,642 | 729 / 186,954 |
+| **clifftop (4, -24), zoom 3, top pitch, south (the look-down)** | **772 (334/424) 185,786; 774 (277/480) 185,610** | 805 (339/452) 191,764; 685 (343/328) 169,052 |
+| **clifftop (16, -30), zoom 3, top pitch, south** | **725 (237/476) 173,050; 746 (196/536) 175,308** | 560 (153/393) 141,522 |
+| Echo Cave chamber, zoom 1 | 132 (61/57) 67,476; 130 67,380 | — |
+| Snug Cave chamber, zoom 1 | 574 (187/373) 142,714; 598 (314/270) 147,922 | — |
+| Glitter Cave chamber, zoom 1 | 123 (58/51) 49,394; 123 49,250 | — |
+| Pines spawn, zoom 1 | 564 (95/455) 152,472 | 660-688 |
+| Woods spawn, zoom 1 | 633 (203/416) 153,614 | — |
+
+- The look-down falls between part 2's two readings: 4% under the 805,
+  13% over the 685.
+- The second clifftop spot reads 30% over part 2's single reading at the same
+  camera, with every cave interior hidden. The glow adds no draw calls (an
+  on/off test in one session drew the same), so the extra comes from what the
+  walk rolled, but this was not proven.
+- The Echo and Glitter chambers are the cheapest views in the Gorge. The Snug
+  chamber (574-598) is on a par with the floor (558-683): it is lighter than
+  the floor on one walk and 3% heavier on the other.
+- **Frame time** (SwiftShader, software, relative only): look-down 322 / 334
+  ms against part 2's 233 / 236 (+38-43%). The Pines baseline drifted +10-17%
+  the same hour (299 against 255-272). A glow on/off/on test at the look-down
+  in one session read 331 / 252 / 275 ms and 345 / 319 / 339 ms: the light
+  costs something on every pixel, as C3 warned (+6-9% on the steadier
+  readings). This cannot be judged headless. The iPhone 18 look-down with
+  the light is the owner's check, and decides C3's fallback.
+
+**Seen, not fixed:**
+
+- **Zooming in while inside a cave jams the camera behind her head, and it
+  stays jammed.** Start at zoom step 3, stand in the Echo Cave's corridor
+  (-24, 23.5) and press `=` three times. The camera goes straight overhead
+  (0.03 m out, 2.3 m up), then settles 0.5-0.7 m behind and 0.5 m above her
+  feet, so the screen is the back of her head and ears. Walking out onto the
+  open floor, walking on, and pressing `-`/`=` again do not bring it back
+  (0.56 m on the floor 15 s later). From step 3 to step 1 in the cave it stays
+  close (0.76 m) until she walks out, then recovers. Step 1 to 0, step 0 to 3,
+  and step 3 to 0 on open ground are all fine.
+- **At a cave's bend, zoom step 3 brings the camera inside her cat's head**
+  (0.19-0.34 m: a huge eye at the Echo Cave's second bend, the inside of her
+  head at the Snug Cave's first). At steps 0-2 the bends hold 0.6-2.4 m. At
+  the Glitter Cave's far bend, step 0 can look straight down on her, or at a
+  bare wall. On ordinary walks in and out it happens for a moment while she
+  turns at a bend: the camera came within 0.4 m of her on 8 of 48 walks (at
+  every step).
+- **The glow makes a white-hot spot on her cat's head and back** (bloom on a
+  light 0.7 m above her). Her coat still reads, but she looks lit by a lamp.
+- **The caves barely darken on screen** (see the luma table): soft and cosy,
+  but not much of a "deeper is darker" feeling.
+
+**Not checked:** sound (drips and rain at a mouth cannot be heard headless);
+touch walking; the phone; the co-walk (both co-walkers see the same cave cat);
+the iPhone 18 fps on HIGH in the Echo and Glitter chambers and at the
+look-down with the glow light, by day and at dusk.
+
+**The place card** was retaken from a new `VIEWS.gorge`,
+`-3,15,-40 → -6,0,0`: high over the gorge's north end, looking south down the
+floor at the stream, the path, the stepping stones and pines, with far less
+bare rock than before. `public/places/gorge.jpg` is 640x360, rendered from the
+shipped view and byte-identical to the trial render. Part 2's suggested
+`1.5,15,-38 → -7,1,2` was close but showed more rock on the left.
+
+**Final fix wave (2026-11-02, branch `gorge-design`).** The four issues
+above, fixed and re-checked live (same method: Vite on 5197, headless
+Chromium, SwiftShader, 1280x720, HIGH, weather forced clear for the luma).
+
+- **The camera no longer jams after a zoom press in a cave.** The repro
+  (zoom step 3, Echo Cave corridor (-24, 23.5), `=` three times, walk out):
+  in the corridor the view holds the cave view (2.36 m out, 1.29 m up); after
+  walking out onto the floor it is back at step 0 (2.95 m out, 1.98 m up).
+  Step 3 to step 1, and step 0 to step 3, come back to 4.43 m and 10.8 m. The
+  camera was never nearer than 2.08 m to her head from the press to the end.
+- **Bends:** with a fresh walk for each zoom step (no zoom press inside), the
+  camera turned all the way round at both bends of every cave. It never came
+  nearer than 1.03 m to her head (1.28 m at rest) and was never in front of
+  her. The "inside her head" readings were the jam above. A bend at step 3
+  after zooming in the corridor holds 1.56-2.42 m.
+- **Darker deeper, with a cosy glow.** The scene's image-based light now dims
+  with depth too, to 0.55 of what it was outside. The glow is a soft pool
+  (intensity 1.0, 5 m reach, 1.3 m above her) instead of a lamp on her back.
+  Mean luma (0-255, HUD hidden), chamber against the floor outside:
+
+  | | day | dusk |
+  |---|---|---|
+  | Echo Cave floor / **chamber** | 98.9 / **51.2 (52%)** | 100.2 / **51.1 (51%)** |
+  | Snug Cave ledge / chamber | 169.3 / 100.1 (59%) | 143.0 / 99.8 (70%) |
+  | Glitter Cave ledge / chamber | 158.9 / 108.3 (68%) | 145.1 / 108.3 (75%) |
+
+  Before: Echo 83-86%, Snug 84%. Near-black pixels (luma < 16): at most
+  0.28% of any chamber frame. No clipped pixels on her coat. Before, the Snug
+  chamber had 0.1% clipped (luma 254) on her back. The A/B confirmed the
+  image-based light is the big lever (Echo 83% → 44% with it alone; the
+  gentler glow alone, 83% → 79%).
+- **?perf after the retune** (one walk): Echo chamber 138 draws (67/57),
+  69,780 tris; the look-down (4, -24) south, zoom 3, top pitch: 543 draws
+  (168/366), 144,470 tris (SwiftShader 228 ms, against 322-334 ms in the
+  check above; relative only).
+- Shots: `final-*` in the scratchpad's snaps-gorge folder (Echo chamber by
+  day and at dusk, the Snug chamber with its cat, the Echo bend at step 3
+  after zooming in the cave, the floor).

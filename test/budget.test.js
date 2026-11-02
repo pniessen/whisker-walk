@@ -33,6 +33,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
 const { addBorderDressing } = await import('../src/world/borderpost.js');
 const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
@@ -90,8 +91,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   woods            173      152      44474   (171 / 150 merged; +1 mesh for the
 //                                               island plank, lake.js, too low to cast)
 //   river            159      133      53744   (157 / 131 merged; Polish 2 thickened the west reedbed)
-//   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
-//                                               398 heather, 19 gorse, 127 reeds)
+//   moor              79       48      39952   (78 / 47 merged; 10 thorns, 5 pines,
+//                                               385 heather, 18 gorse, 127 reeds;
+//                                               re-measured for the trail to the Gorge,
+//                                               +1 path, -1 heather, -1 gorse; it was
+//                                               78 / 48 / 40158 just before, and the
+//                                               older 76 / 50 / 40288 predated the
+//                                               Pines trail)
 //   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,
 //                                               83 in the one merged stand, 136 ferns,
 //                                               47 toadstool clusters, 160 reeds (19
@@ -101,6 +107,24 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             52       35      32818   (41 / 25 merged; part 3 added the
+//                                               caves' insides: four noCast
+//                                               meshes, 1,224 tris (12, 13 and
+//                                               12 crystal clusters, 40 gold
+//                                               flecks), no caster; before them
+//                                               it was 48 / 35 / 31594, 37 / 25
+//                                               merged. The rock in three
+//                                               merged meshes (5,528 tris), 9
+//                                               swaying pines, 43 in the stand on
+//                                               the west top, 11 tors (one group,
+//                                               one draw merged), 134 scree spots
+//                                               in one bed (12,260 tris), the
+//                                               Summit Rock, 7 paths, the stream
+//                                               and its 8 stones; re-measured when
+//                                               the pines kept the camera's reach
+//                                               off every mouth, scenic and nap:
+//                                               it was 58 / 45 / 32188, 47 / 35
+//                                               merged, with 14 and 47 pines)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -156,6 +180,7 @@ const AREAS = [
   ['river', buildRiver, 450, 380, 60000],
   ['moor', buildMoor, 450, 380, 60000],
   ['pines', buildPines, 450, 380, 60000],
+  ['gorge', buildGorge, 450, 380, 60000],
 ];
 
 // ---------------------------------------------------------------------------
@@ -179,6 +204,7 @@ const AREAS = [
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
 //   pines            109       72    112 /  75
+//   gorge             41       25     52 /  35   (with the caves' insides; 37 / 25 before)
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is
@@ -196,6 +222,7 @@ const MERGED_AREAS = [
   ['river', buildRiver, 260, 205],
   ['moor', buildMoor, 260, 205],
   ['pines', buildPines, 260, 205],
+  ['gorge', buildGorge, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {
@@ -280,4 +307,26 @@ describe('with the Clan dressing', () => {
       if (process.env.BUDGET_LOG) console.log(name, JSON.stringify({ before, after }));
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// The Gorge, part 3 (the caves): each deep cave's insides are at most two
+// merged meshes, out of the shadow pass, and they count in the Gorge's rows
+// above (built and merged), which stay inside the Cozy Neighborhood's
+// ceilings. Only one is ever drawn at a time (gorgelife.js).
+// ---------------------------------------------------------------------------
+describe('the Gorge: its caves\' insides', () => {
+  it('each deep cave\'s interior is at most two merged noCast meshes, as built and merged', () => {
+    const scene = new THREE.Scene();
+    buildGorge(scene);
+    const count = () => scene.children.filter((c) => c.userData.caveId).map((g) => {
+      const meshes = [];
+      g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+      for (const m of meshes) expect(m.userData.noCast).toBe(true);
+      return meshes.length;
+    });
+    expect(count()).toEqual([1, 1, 2]);
+    mergeStaticProps(scene);
+    expect(count()).toEqual([1, 1, 2]);
+  });
 });

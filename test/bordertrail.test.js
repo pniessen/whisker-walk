@@ -31,7 +31,10 @@ const { keepOutPoint } = await import('../src/keepout.js');
 const { flatFootprints } = await import('../src/render/grass.js');
 const { ZOOM_STEPS } = await import('../src/camzoom.js');
 
-const { MOOR_TRAIL, MOOR_PATHS, MOOR_WATERS, moorTrees, moorHeather, moorGorse, moorReeds } = moor;
+const { MOOR_TRAIL, MOOR_GORGE_TRAIL, MOOR_PATHS, MOOR_WATERS, moorTrees, moorHeather, moorGorse, moorReeds } = moor;
+// The Moor's beds also keep off the trail to the Gorge (Gorge part 2, Task 12),
+// which is filtered last in the same way.
+const MOOR_BOTH = [...MOOR_TRAIL, ...MOOR_GORGE_TRAIL];
 const { PINES_TRAIL, PINES_PATHS, PINES_WATERS, TRUCE_PATH, pinesTrees, pinesUndergrowth, pinesReeds } = pines;
 
 const before = JSON.parse(readFileSync(
@@ -175,16 +178,20 @@ describe('the trail clearing', () => {
     expect(pt.stand).toEqual(without(before.pinesStand, DROPPED.stand));
     expect(mt.pines).toEqual(without(before.moorPines, DROPPED.moorPines));
     expect(mt.thorns).toEqual(before.thorns);
-    expect(moorHeather()).toEqual(beds(before.heather, MOOR_TRAIL));
-    expect(moorGorse()).toEqual(beds(before.gorse, MOOR_TRAIL));
-    expect(moorReeds()).toEqual(beds(before.moorReeds, MOOR_TRAIL));
+    expect(moorHeather()).toEqual(beds(before.heather, MOOR_BOTH));
+    expect(moorGorse()).toEqual(beds(before.gorse, MOOR_BOTH));
+    expect(moorReeds()).toEqual(beds(before.moorReeds, MOOR_BOTH));
     expect(pu.ferns).toEqual(beds(before.ferns, PINES_TRAIL));
     expect(pu.toadstools).toEqual(beds(before.toadstools, PINES_TRAIL));
     expect(pinesReeds()).toEqual(beds(before.pinesReeds, PINES_TRAIL));
   });
 
   it('removed the counts the measurements promised', () => {
-    expect(before.heather.length - moorHeather().length).toBe(12); // as measured: the plan's 7 counted only cushions within 1 m
+    // as measured: the plan's 7 counted only cushions within 1 m; 12, then 13
+    // with the trail to the Gorge (Task 12), which takes one heather and one gorse
+    expect(before.heather.length - moorHeather().length).toBe(13);
+    expect(before.gorse.length - moorGorse().length).toBe(1);
+    expect(before.moorReeds.length - moorReeds().length).toBe(before.moorReeds.length - beds(before.moorReeds, MOOR_TRAIL).length);
     expect(before.ferns.length - pinesUndergrowth().ferns.length).toBe(2);
     expect(before.toadstools.length - pinesUndergrowth().toadstools.length).toBe(2);
   });

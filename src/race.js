@@ -70,7 +70,11 @@ function disposeGroup(group) {
 // start pad just off spawn plus one upright ring per waypoint, and returns
 // the live race controller main.js drives from the per-frame loop.
 // Gorge part 1: the pad and the rings sit on `ground` (FLAT_GROUND: y 0).
-export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) {
+// Gorge part 2: each ring stores its ground y and counts only when the cat is
+// on that ring's level (ground.sameLevel; always true on flat ground, so every
+// other race is unchanged). kind 'climb' is the Gorge's fixed course; it only
+// changes the pad's prompt and what finishing it is called (finishLabel).
+export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 'daily' } = {}) {
   const group = new THREE.Group();
 
   // start pad: a flat ring lying on the ground, offset from spawn so it
@@ -93,9 +97,10 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) 
 
   const rings = course.map((wp) => {
     const mesh = new THREE.Mesh(new THREE.TorusGeometry(RING_RADIUS, RING_TUBE, 12, 24), dimMat);
-    mesh.position.set(wp.x, ground.y(wp.x, wp.z) + RING_Y, wp.z);
+    const gy = ground.y(wp.x, wp.z);
+    mesh.position.set(wp.x, gy + RING_Y, wp.z);
     group.add(mesh);
-    return { x: wp.x, z: wp.z, mesh };
+    return { x: wp.x, z: wp.z, y: gy, mesh };
   });
   if (rings.length > 0) rings[0].mesh.material = brightMat;
 
@@ -127,6 +132,13 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) 
     get pad() {
       return padPosition;
     },
+    get kind() {
+      return kind;
+    },
+    // the discovery-log line the finish pays under (main.js)
+    get finishLabel() {
+      return kind === 'climb' ? 'the climb to the clifftop' : 'the daily zoomies race';
+    },
     // update(dt, catPos) — while running, accumulates elapsed time and
     // checks the cat against ONLY the current ring (rings[currentRing - 1]);
     // crossing it dims that ring, advances to the next (brightening it), or
@@ -136,7 +148,8 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) 
       timeMs += dt * 1000;
       const ring = rings[currentRing - 1];
       if (!ring) return;
-      if (Math.hypot(catPos.x - ring.x, catPos.z - ring.z) < CROSS_DIST) {
+      if (Math.hypot(catPos.x - ring.x, catPos.z - ring.z) < CROSS_DIST
+          && ground.sameLevel(catPos.x, catPos.z, ring.x, ring.z)) {
         ring.mesh.material = dimMat;
         if (currentRing >= rings.length) {
           state = 'done';
@@ -152,7 +165,8 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND } = {}) 
     promptAt(catPos) {
       if (state !== 'idle') return null;
       const h = Math.hypot(catPos.x - pad.position.x, catPos.z - pad.position.z);
-      return h < CROSS_DIST ? 'E — start today’s zoomies race! 🏁' : null;
+      if (h >= CROSS_DIST) return null;
+      return kind === 'climb' ? 'E — race to the clifftop! 🏁' : 'E — start today’s zoomies race! 🏁';
     },
     begin() {
       if (state !== 'idle') return;

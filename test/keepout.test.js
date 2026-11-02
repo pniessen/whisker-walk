@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { keepOutPoint } from '../src/keepout.js';
+import { keepOutPoint, dryGroundPoint, standSpot } from '../src/keepout.js';
+import { STAND_ON } from '../src/world/gorgeshape.js';
 
 // Literal shapes, the same numbers the Pines' ISLAND_KEEP_OUT will carry: the
 // lake and the bay as solid boxes, and the bridge as a capsule.
@@ -160,5 +161,82 @@ describe('keepOutPoint', () => {
   it('never mentions the edition, so both editions keep cats out the same way', () => {
     const src = readFileSync(new URL('../src/keepout.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/edition/i);
+  });
+});
+
+// Gorge part 2 (G7): onlyOn names the only places a cat may stand.
+describe('keepOut.onlyOn', () => {
+  const ONLY = { rects: [], capsules: [], margin: 0.4, onlyOn: STAND_ON };
+  const GORGE = { bounds: BOUNDS, keepOut: ONLY };
+  const onAllowed = (p) => STAND_ON.some((r) => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ);
+
+  it('onlyOn moves a point into the nearest allowed rectangle', () => {
+    // (-30, 20) is on the west top: the floor rectangle is nearest
+    const p = keepOutPoint(GORGE, -30, 20);
+    expect(p.x).toBeGreaterThanOrEqual(-18 + ONLY.margin - EPS);
+    expect(p.x).toBeLessThanOrEqual(2);
+    expect(p.z).toBe(20);
+    expect(p).toEqual({ x: -18 + ONLY.margin, z: 20 });
+    // a point inside an allowed rectangle comes back untouched, the edges and
+    // the seam between two rectangles included
+    for (const [x, z] of [[-10, 0], [-44, -11], [20, -30], [2.4, -18], [-18, -11], [-17.95, 16], [2, 40]]) {
+      expect(keepOutPoint(GORGE, x, z), `(${x}, ${z})`).toEqual({ x, z });
+    }
+    // the Snug Cave's bend is no longer allowed (ruling F35): a point there moves
+    expect(keepOutPoint(GORGE, 22, 15)).not.toEqual({ x: 22, z: 15 });
+    // an area without onlyOn gives every point back as before
+    const plain = { bounds: BOUNDS, keepOut: { rects: [], capsules: [], margin: 0.4 } };
+    for (const [x, z] of [[-30, 20], [40, 0], [10, 10]]) expect(keepOutPoint(plain, x, z)).toEqual({ x, z });
+  });
+
+  it('every point lands in an allowed rectangle, at the margin when moved', () => {
+    for (let x = -49.5; x <= 49.5; x += 3.3) {
+      for (let z = -49.5; z <= 49.5; z += 3.1) {
+        const p = keepOutPoint(GORGE, x, z);
+        expect(onAllowed(p), `(${x}, ${z})`).toBe(true);
+        if (p.x !== x || p.z !== z) {
+          const r = STAND_ON.find((q) => p.x >= q.minX && p.x <= q.maxX && p.z >= q.minZ && p.z <= q.maxZ);
+          expect(Math.min(p.x - r.minX, r.maxX - p.x, p.z - r.minZ, r.maxZ - p.z)).toBeGreaterThanOrEqual(ONLY.margin - EPS);
+        }
+      }
+    }
+  });
+
+  it("dryGroundPoint's water pushes and ring search keep to onlyOn too", () => {
+    // A pond across the floor rectangle's whole width: the dry ground nearest
+    // its centre is past the floor's edges, on the rock, and onlyOn pushes it
+    // back into the pond, so the ring search has to find the dry floor north
+    // or south of it (without onlyOn in its test it settled on the rock east
+    // of the floor, at (2.85, 30)).
+    const pond = { kind: 'circle', x: -8, z: 30, r: 10.5 };
+    const area = { bounds: BOUNDS, waters: [pond], keepOut: ONLY };
+    for (const [x, z] of [[-8, 30], [-16, 30], [-1, 30], [-30, 30], [10, 30]]) {
+      const p = dryGroundPoint(area, x, z);
+      expect(onAllowed(p), `(${x}, ${z}) -> (${p.x}, ${p.z})`).toBe(true);
+      expect(Math.hypot(p.x - pond.x, p.z - pond.z), `(${x}, ${z})`).toBeGreaterThan(pond.r);
+    }
+  });
+
+  it('hold: a position just past an edge is held on the edge, a chosen spot goes the margin in', () => {
+    // 0.02 m past the floor's west edge, on the rock
+    expect(keepOutPoint(GORGE, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    expect(keepOutPoint(GORGE, -18.02, 20)).toEqual({ x: -18 + ONLY.margin, z: 20 });
+    expect(standSpot(GORGE, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    expect(dryGroundPoint({ bounds: BOUNDS, keepOut: ONLY }, -18.02, 20, true)).toEqual({ x: -18, z: 20 });
+    // in the rock beside the Narrows mouth, the nearest edge point of all
+    const p = keepOutPoint(GORGE, -18.1, -5.95, true);
+    expect(Math.hypot(p.x + 18.1, p.z + 5.95)).toBeCloseTo(0.05, 9);
+    // inside stays inside, and an area without onlyOn ignores hold
+    expect(keepOutPoint(GORGE, -10, 0, true)).toEqual({ x: -10, z: 0 });
+    expect(keepOutPoint(AREA, 40, 40, true)).toEqual(keepOutPoint(AREA, 40, 40));
+    expect(standSpot(AREA, 40, 40, true)).toEqual({ x: 40, z: 40 });
+  });
+
+  it('standSpot moves a spot only where the area has onlyOn', () => {
+    expect(standSpot(GORGE, -30, 20)).toEqual(keepOutPoint(GORGE, -30, 20));
+    // the Pines' keep-out (no onlyOn): a puddle on the lake stays where it fell
+    expect(standSpot(AREA, 40, 40)).toEqual({ x: 40, z: 40 });
+    expect(standSpot({ bounds: BOUNDS }, 40, 40)).toEqual({ x: 40, z: 40 });
+    expect(standSpot(undefined, 1, 2)).toEqual({ x: 1, z: 2 });
   });
 });

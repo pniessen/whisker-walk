@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { createInteractions, TREAT_COST } from '../src/game/interactions.js';
+import { createInteractions, TREAT_COST, GOAT_SPOT } from '../src/game/interactions.js';
 import { createTippables } from '../src/tippables.js';
 import { createCarryables } from '../src/carryables.js';
 import { createKnockables } from '../src/knockables.js';
@@ -1694,12 +1694,22 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.session.prompt.kind).toBe('border');
     });
 
-    it('the Gorge post says "not explored yet" and E calls nothing', () => {
+    it('the Gorge post on a first Moor walk says when it opens, and E calls nothing', () => {
       const h = promptHarness({ stray: null, areaId: 'moor', askCrossing: () => { throw new Error('no'); } });
       h.walkTo(47.5, -13);
       expect(h.session.prompt.kind).toBe('border-info');
-      expect(h.prompts.at(-1)).toBe('The Gorge: not explored yet');
+      expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
       expect(() => h.press()).not.toThrow();
+    });
+
+    it('the Gorge post on a second Moor walk, or with the Gorge open, offers the crossing', () => {
+      for (const open of [(pr) => { pr.state.walks.moor = 1; }, (pr) => { pr.state.unlocked.areas.push('gorge'); }]) {
+        const h = promptHarness({ stray: null, areaId: 'moor' });
+        open(h.progression);
+        h.walkTo(47.5, -13);
+        expect(h.session.prompt.kind).toBe('border');
+        expect(h.prompts.at(-1)).toBe('E — Head to the Gorge?');
+      }
     });
   });
 
@@ -4120,5 +4130,109 @@ describe('spotting the yard dog', () => {
       h.off();
       expect(h.paid).toEqual([]);
     }
+  });
+});
+
+// ===========================================================================
+// Gorge G9 (ruling F23) — the goat notices her at the spot radius and is off
+// at once, so it is spotted mid-bound. Every other critter is still spotted
+// only while it is not fleeing. The real critters and the real
+// updateInteractions, in main.js's frame order.
+// ===========================================================================
+describe('the goat can be spotted mid-bound (Gorge G9)', async () => {
+  const { createCritters } = await import('../src/critters.js');
+  const { gorgeGround } = await import('../src/world/gorgeshape.js');
+  const ground = gorgeGround();
+
+  function spotHarness(spawns) {
+    const progression = createProgression(fakeStorage());
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const critters = createCritters(scene, spawns, { ground, hides: propsFor('gorge').hides });
+    const session = {
+      areaId: 'gorge', ground,
+      cat: { position: new THREE.Vector3(), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics: [] },
+      collectibleMeshes: new Map(),
+      critters,
+      strayCats: { strays: [], nearest: () => null },
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts: null,
+      scenicsVisited: new Set(),
+      perched: null,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const { updateInteractions } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      // she walks +z, up the clifftop toward the shoulder
+      player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false, wading: false, inWater: false },
+      progression, log,
+      hud: { toast() {}, setPrompt() {}, setObjective() {}, setPoints() {} },
+      audio: { trill() {}, meow() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    let t = 0;
+    // One frame as main.js runs it: critters first, then the interactions.
+    const step = (x, z) => {
+      t += 1 / 60;
+      session.cat.position.set(x, ground.y(x, z), z);
+      critters.update(1 / 60, t, session.cat.position, session.cat.position);
+      updateInteractions(session);
+    };
+    // Interactions only, for stand-in critters that critters.update can't drive.
+    const look = (x, z) => {
+      session.cat.position.set(x, ground.y(x, z), z);
+      updateInteractions(session);
+    };
+    return { progression, critters, step, look };
+  }
+
+  it('a cat on the clifftop walking up to the shoulder goat gets a goat sighting', () => {
+    expect(GOAT_SPOT).toBeGreaterThan(6);
+    const h = spotHarness([{ type: 'goat', x: 4, z: -16, x2: 4, z2: -16 }]);
+    const goat = h.critters.list[0];
+    let z = -30;
+    while (!h.progression.state.journal.goat && z < -19.5) {
+      z += 0.06;
+      h.step(4, z);
+    }
+    expect(h.progression.state.journal.goat).toBe(1);
+    expect(16 + z).toBeLessThan(-GOAT_SPOT + 0.1);  // seen from the clifftop, about 10 m off
+    for (let i = 0; i < 120; i++) h.step(4, Math.min(z + i * 0.06, -19.5));
+    expect(goat.hidden).toBe(true);                  // and it got away
+    expect(h.progression.state.journal.goat).toBe(1); // once a walk
+  });
+
+  it('a goat already bounding away is still spotted', () => {
+    const h = spotHarness([{ type: 'goat', x: 4, z: -16, x2: 4, z2: -16 }]);
+    const goat = h.critters.list[0];
+    h.step(4, -21.9); // she arrives inside its notice: it bolts in this frame, before she looks
+    expect(goat.fleeing).toBe(true);
+    expect(h.progression.state.journal.goat).toBe(1);
+  });
+
+  it('every other critter is spotted only within 6 m and only while it is not fleeing', () => {
+    const h = spotHarness([]);
+    const at = (z, fleeing, type = 'mouse') => ({
+      id: `${type}-${z}-${fleeing}`, type, spottable: true, fleeing, group: { position: new THREE.Vector3(-6, 0, z) },
+    });
+    h.critters.list.push(at(-14, true), at(-9.5, false), at(-9.5, true, 'rabbit'));
+    h.look(-6, -16); // the fleeing mouse 2 m ahead, the still mouse 6.5 m, the fleeing rabbit 6.5 m
+    expect(h.progression.state.journal).toEqual({});
+    h.critters.list.push(at(-11, false));
+    h.look(-6, -16); // a still mouse 5 m ahead
+    expect(h.progression.state.journal).toEqual({ mouse: 1 });
   });
 });

@@ -275,6 +275,30 @@ const SETS = {
     keepSlots: [],
   },
 
+  // The Gorge: a nap in each of its five dens, at the den's back centre, on
+  // the den's own floor (`mesh: false`: the den is the bed), and three hides:
+  // the two mice's at the foot of the floor's walls, and the goat's on the
+  // shoulder (src/world/gorge.js's GORGE_HIDES, in that order). The rest of a
+  // Gorge prop set is deferred: nothing to carry, knock or mark yet.
+  // Numbered by kind like every other id; in den order: denW1, denW2, denE,
+  // the Lookout den and the clifftop den.
+  gorge: {
+    carryables: [],
+    knockables: [],
+    markables: [],
+    flaps: [],
+    rests: [
+      { id: 'gorge-nap-1', kind: 'nap', x: -20, z: 7.3, mesh: false },
+      { id: 'gorge-nap-2', kind: 'nap', x: -20, z: -32.7, mesh: false },
+      { id: 'gorge-nap-3', kind: 'nap', x: 4, z: -44.7, mesh: false },
+      { id: 'gorge-nap-4', kind: 'nap', x: 6.0, z: -10.2, mesh: false },
+      { id: 'gorge-nap-5', kind: 'nap', x: 11.3, z: -42, mesh: false },
+    ],
+    hides: [{ x: -17.4, z: 38 }, { x: 1.4, z: -38 }, { x: 8, z: -12.5 }],
+    dogYard: null,
+    keepSlots: [],
+  },
+
   den: {
     carryables: [],
     knockables: [],

@@ -4,7 +4,9 @@
 // from her drawing; keep them as she placed them.
 //
 // A 'built' territory is a walkable area (areaId names its CATALOG.areas
-// entry); 'soon' ones are drawn but not walkable yet; 'later' is unexplored.
+// entry). Every territory listed is built now; the model and the map still
+// know 'soon' (drawn, not walkable yet) and 'later' (unexplored) for the next
+// one drawn before it is walkable.
 import { PLACE_WORDS } from './clanwords.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';
@@ -27,7 +29,7 @@ export const TERRITORIES = freezeAll([
   { id: 'moor', areaId: 'moor', name: 'The Moor', x: 620, y: 161, r: 165, status: 'built' },
   { id: 'river', areaId: 'river', name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'built' },
   { id: 'pines', areaId: 'pines', name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'built' },
-  { id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' },
+  { id: 'gorge', areaId: 'gorge', name: 'The Gorge', x: 815, y: 353, r: 80, status: 'built' },
 ]);
 
 // Where each clan's camp is drawn on the board, inside its region, placed the

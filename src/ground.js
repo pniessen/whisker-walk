@@ -69,34 +69,143 @@ export const FLAT_GROUND = Object.freeze({
   },
 });
 
-export function createGround({ base = 0, strips = [], discs = [], ceilings = [] } = {}) {
+// A strip-like record's bounding box, as [minX, maxX, minZ, maxZ].
+function stripBox(s) {
+  const len = Math.sqrt(s.len2);
+  const hw = Math.sqrt(s.hw2);
+  // the half-width runs along the unit normal (-dz, dx) / len
+  const ox = len > 0 ? Math.abs((s.dz / len) * hw) : hw;
+  const oz = len > 0 ? Math.abs((s.dx / len) * hw) : hw;
+  const xa = s.x0;
+  const xb = s.x0 + s.dx;
+  const za = s.z0;
+  const zb = s.z0 + s.dz;
+  return [Math.min(xa, xb) - ox, Math.max(xa, xb) + ox, Math.min(za, zb) - oz, Math.max(za, zb) + oz];
+}
+
+// The bucket grid (Gorge ruling G12): with more than INDEX_MIN shapes, every
+// shape is listed in each BUCKET-metre cell its bounding box (padded by
+// BUCKET_PAD, well past any rounding in stripT) touches, so a lookup scans
+// only the cell under the point. Each cell keeps its shapes in their original
+// order, so ties fall the same way and every answer is identical to a full
+// scan. A point off the grid is in no shape. Flat cells are packed into one
+// Int32Array (cell start offsets, then shape indices), so lookups allocate
+// nothing.
+const INDEX_MIN = 16;
+const BUCKET = 4;
+const BUCKET_PAD = 1e-6;
+
+function bucketGrid(boxes) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const b of boxes) {
+    minX = Math.min(minX, b[0] - BUCKET_PAD);
+    maxX = Math.max(maxX, b[1] + BUCKET_PAD);
+    minZ = Math.min(minZ, b[2] - BUCKET_PAD);
+    maxZ = Math.max(maxZ, b[3] + BUCKET_PAD);
+  }
+  if (!boxes.length) {
+    minX = maxX = minZ = maxZ = 0;
+  }
+  const nx = Math.max(1, Math.floor((maxX - minX) / BUCKET) + 1);
+  const nz = Math.max(1, Math.floor((maxZ - minZ) / BUCKET) + 1);
+  const lists = Array.from({ length: nx * nz }, () => []);
+  boxes.forEach((b, k) => {
+    const i0 = Math.floor((b[0] - BUCKET_PAD - minX) / BUCKET);
+    const i1 = Math.min(nx - 1, Math.floor((b[1] + BUCKET_PAD - minX) / BUCKET));
+    const j0 = Math.floor((b[2] - BUCKET_PAD - minZ) / BUCKET);
+    const j1 = Math.min(nz - 1, Math.floor((b[3] + BUCKET_PAD - minZ) / BUCKET));
+    for (let i = Math.max(0, i0); i <= i1; i++) {
+      for (let j = Math.max(0, j0); j <= j1; j++) lists[i * nz + j].push(k);
+    }
+  });
+  const start = new Int32Array(nx * nz + 1);
+  for (let c = 0; c < lists.length; c++) start[c + 1] = start[c] + lists[c].length;
+  const items = new Int32Array(start[lists.length]);
+  for (let c = 0; c < lists.length; c++) items.set(lists[c], start[c]);
+  return { minX, minZ, maxX, maxZ, nx, nz, start, items };
+}
+
+// The cell of `grid` under (x, z), or -1 off the grid.
+function cellOf(grid, x, z) {
+  if (!(x >= grid.minX && x <= grid.maxX && z >= grid.minZ && z <= grid.maxZ)) return -1;
+  const i = Math.min(grid.nx - 1, Math.floor((x - grid.minX) / BUCKET));
+  const j = Math.min(grid.nz - 1, Math.floor((z - grid.minZ) / BUCKET));
+  return i * grid.nz + j;
+}
+
+// `options.index: false` turns the bucket grid off (for the test that proves
+// it changes no answer).
+export function createGround({ base = 0, strips = [], discs = [], ceilings = [] } = {}, { index = true } = {}) {
   const S = strips.map(prep);
   const D = discs.map((d) => ({ x: d.x, z: d.z, r2: d.r * d.r, y: d.y }));
   const C = ceilings.map(prep);
 
-  function y(x, z) {
+  // Strips and discs share one grid (strip indices first, then discs at
+  // S.length + k); ceilings have their own.
+  const useIndex = index && S.length + D.length + C.length > INDEX_MIN;
+  const G = useIndex
+    ? bucketGrid([...S.map(stripBox), ...discs.map((d) => [d.x - d.r, d.x + d.r, d.z - d.r, d.z + d.r])])
+    : null;
+  const GC = useIndex ? bucketGrid(C.map(stripBox)) : null;
+
+  // The highest shape at (x, z) is left in `top` (a strip, a disc, or null
+  // for the base), so gradient shares the one scan with y.
+  let top = null;
+  function scan(x, z) {
     let best = base;
-    for (let i = 0; i < S.length; i++) {
-      const s = S[i];
-      const t = stripT(s, x, z);
-      if (t >= 0) {
-        const h = s.y0 + t * s.dy;
-        if (h > best) best = h;
-      }
+    top = null;
+    let from = 0;
+    let to = S.length + D.length;
+    if (G) {
+      const c = cellOf(G, x, z);
+      if (c < 0) return best;
+      from = G.start[c];
+      to = G.start[c + 1];
     }
-    for (let i = 0; i < D.length; i++) {
-      const d = D[i];
-      const dx = x - d.x;
-      const dz = z - d.z;
-      if (dx * dx + dz * dz <= d.r2 && d.y > best) best = d.y;
+    for (let n = from; n < to; n++) {
+      const k = G ? G.items[n] : n;
+      if (k < S.length) {
+        const s = S[k];
+        const t = stripT(s, x, z);
+        if (t >= 0) {
+          const h = s.y0 + t * s.dy;
+          if (h > best) {
+            best = h;
+            top = s;
+          }
+        }
+      } else {
+        const d = D[k - S.length];
+        const dx = x - d.x;
+        const dz = z - d.z;
+        if (dx * dx + dz * dz <= d.r2 && d.y > best) {
+          best = d.y;
+          top = d;
+        }
+      }
     }
     return best;
   }
 
+  function y(x, z) {
+    return scan(x, z);
+  }
+
   function ceil(x, z) {
     let best = Infinity;
-    for (let i = 0; i < C.length; i++) {
-      const c = C[i];
+    let from = 0;
+    let to = C.length;
+    if (GC) {
+      const c = cellOf(GC, x, z);
+      if (c < 0) return best;
+      from = GC.start[c];
+      to = GC.start[c + 1];
+    }
+    for (let n = from; n < to; n++) {
+      const c = C[GC ? GC.items[n] : n];
       if (c.y < best && stripT(c, x, z) >= 0) best = c.y;
     }
     return best;
@@ -138,33 +247,15 @@ export function createGround({ base = 0, strips = [], discs = [], ceilings = [] 
 
   // dy/dx, dy/dz of the highest containing strip; a disc or the base is 0.
   function gradient(x, z, out) {
-    let best = base;
-    let gx = 0;
-    let gz = 0;
-    for (let i = 0; i < S.length; i++) {
-      const s = S[i];
-      const t = stripT(s, x, z);
-      if (t >= 0) {
-        const h = s.y0 + t * s.dy;
-        if (h > best) {
-          best = h;
-          gx = (s.dy * s.dx) / s.len2;
-          gz = (s.dy * s.dz) / s.len2;
-        }
-      }
+    scan(x, z);
+    const s = top;
+    if (s && s.len2 !== undefined) {
+      out.x = (s.dy * s.dx) / s.len2;
+      out.z = (s.dy * s.dz) / s.len2;
+    } else {
+      out.x = 0;
+      out.z = 0;
     }
-    for (let i = 0; i < D.length; i++) {
-      const d = D[i];
-      const dx = x - d.x;
-      const dz = z - d.z;
-      if (dx * dx + dz * dz <= d.r2 && d.y > best) {
-        best = d.y;
-        gx = 0;
-        gz = 0;
-      }
-    }
-    out.x = gx;
-    out.z = gz;
     return out;
   }
 

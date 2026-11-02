@@ -1239,6 +1239,10 @@ export function sideTint(x, z, tints) {
 // same hash01 draws the skyline kind uses, so a rooftop row looks like the
 // Docks' far bank. Pure, so a test can check the placement without a mesh.
 // The outer half of the band only, for the reason given in horizonBand.
+// What a band's `rooftops` add to its salt, so their blocks are salted apart
+// from the skyline kind's: rooftopSpots(rooftops, inner, outer, salt +
+// ROOFTOP_SALT) are the spots horizonBand draws them at (wet ones skipped).
+export const ROOFTOP_SALT = 100;
 export function rooftopSpots({ from, to, count }, inner, outer, salt) {
   const span = outer - inner;
   const spots = [];
@@ -1488,7 +1492,7 @@ export function horizonBand({
   if (rooftops) {
     // Salted apart from the skyline kind's own blocks, so a band that has both
     // does not stack two blocks on the same spot.
-    const rsalt = salt + 100;
+    const rsalt = salt + ROOFTOP_SALT;
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
       // No height given: the band's own, the same default the skyline kind's
@@ -1788,10 +1792,11 @@ export function lampPost(x, z) {
 // an animated normal map, a depth ramp and a foam band, all of which are for a
 // body of water with a shoreline, and none of which a 0.8m disc can afford or
 // wants.
-export function puddle(x, z, r = 0.8) {
+// `y` is the ground under it (0 on a flat map; the rain's puddles pass it).
+export function puddle(x, z, r = 0.8, y = 0) {
   const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), surfMat(0x8ab8d8, 'water'));
   m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.02, z);
+  m.position.set(x, y + 0.02, z);
   return m;
 }
 
@@ -2805,7 +2810,8 @@ export function pine(x, z, scale = 1, { wind } = {}) {
 // calls and two shadow casters however many pines it holds, where a swaying
 // `pine` is two of each on its own. Dense forest is built this way. Both
 // meshes cast (they are tall solids), the stand is still (no wind), and no
-// collider is made here.
+// collider is made here. A tree may carry a `y` (default 0), the height its
+// foot stands at: the Gorge's stand grows on the 9 m west top.
 export function pineStand(trees, seed) {
   const trunks = [];
   const cones = [];
@@ -2814,7 +2820,7 @@ export function pineStand(trees, seed) {
     const place = (geo) => {
       geo.scale(t.scale, t.scale, t.scale);
       geo.rotateY(turn);
-      geo.translate(t.x, 0, t.z);
+      geo.translate(t.x, t.y ?? 0, t.z);
       return geo;
     };
     const parts = pineParts();
@@ -2836,7 +2842,11 @@ export function pineStand(trees, seed) {
   g.add(trunkMesh, foliageMesh);
   // Each pine's spot for the fight camera (TREE_OCCLUDER): one merged pair
   // cannot be told apart by mesh, so the stand lists its trees.
-  g.userData.occluderStand = { shapes: PINE_OCCLUDER, trees: trees.map(({ x, z, scale }) => ({ x, z, scale })) };
+  // A lifted tree keeps its y here (a stand with none lists exactly what it did).
+  g.userData.occluderStand = {
+    shapes: PINE_OCCLUDER,
+    trees: trees.map(({ x, z, scale, y }) => (y === undefined ? { x, z, scale } : { x, z, scale, y })),
+  };
   // And each crown for the corner map (ui/minimap.js), in the stand's frame.
   g.userData.mapCrowns = trees.map(({ x, z, scale }) => ({ x, z, r: PINE_CONES[0][0] * scale }));
   return g;
@@ -2897,6 +2907,365 @@ export function toadstools(spots, seed) {
   const capMesh = mergedNoCast(caps, 0xc0392b, 'foliage');
   capMesh.name = 'toadstoolCaps';
   g.add(stemMesh, capMesh);
+  return g;
+}
+
+// =============================================================================
+// THE GORGE'S ROCK, drawn from its own ground record (G4).
+// =============================================================================
+// rockTerrain takes the same shape records the ground is built from (walkable
+// shapes, rock masses and cave/den ceilings; see world/gorgeshape.js) and
+// draws them, so a rim the cat stops at and the rock she sees can never
+// disagree. Nothing here imports the Gorge: the shapes are passed in.
+//
+// A shape is { minX, maxX, minZ, maxZ, y0, y1, along: 'z'|null, kind }, flat
+// at y0 or a ramp along z from y0 at minZ to y1 at maxZ. Each one is a solid
+// column over its rectangle:
+//   * a mass, a walkable shape or a lip: from 0 up to its top;
+//   * a ceiling cap: from the ceiling up to the top of the rock it was cut
+//     from, which is the highest mass that shares an edge with it.
+// Only EXPOSED faces are drawn. A side face is drawn over the heights where
+// the column just outside it is empty: above its ground and below its own
+// ceiling, or above its cap. So a wall runs down to the lower ground beside
+// it (or to 0), two masses of one height share no face, a lip is a column from
+// its lower neighbour's ground up to its top, and faces on the outermost
+// edges of the map's shapes (the +-62 frame) are not drawn. Tops are always
+// drawn: the highest camera sees over the rims (G6). Every vertex lies on its
+// shape's own plane, with no outward jitter.
+//
+// Three merged meshes:
+//   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW at y 0 to
+//              ROCK_HIGH at the highest top, times +-6% per 0.8 m stratum.
+//              Side faces are cut into cells about 2 m across so the strata
+//              vary. Casts.
+//   ledgeTops  raised walkable shapes: their tops (ramps sloped) and exposed
+//              sides, warm sand-grey. Casts.
+//   lips       the low rock bands at the edges (G3), coloured as the rock.
+//              noCast: they are thin, and the sweep would cast anything wide.
+// G4 names a 'stone' surface; materials.js has no such preset (it would warn
+// and fall back), so the rock takes 'cobble's light response, as tor() does.
+export const ROCK_LOW = 0x59606c;
+export const ROCK_HIGH = 0xc4b08e;
+export const LEDGE_COLOR = 0x9c8a70;
+const ROCK_CELL = 2; // side faces are cut into cells about this big
+const ROCK_STRATUM = 0.8; // one colour band's height
+const ROCK_STRATA = 0.06; // each band is +-6% lighter or darker
+const SIDE_EPS = 1e-4; // how far outside a face its neighbour is looked up
+const FLAT_EPS = 1e-7; // a face thinner than this is not drawn
+
+// A shape's height at (x, z): flat, or a ramp along z.
+function shapeY(s, x, z) {
+  if (s.along !== 'z' || s.maxZ === s.minZ) return s.y0;
+  const f = Math.min(1, Math.max(0, (z - s.minZ) / (s.maxZ - s.minZ)));
+  return s.y0 + f * (s.y1 - s.y0);
+}
+
+const strictlyIn = (s, x, z) => x > s.minX && x < s.maxX && z > s.minZ && z < s.maxZ;
+
+// The highest mass touching r along an edge, or overlapping it: how high a
+// cave or den ceiling's cap is drawn (exported for test/gorge.test.js).
+export function capTopFor(r, masses) {
+  let top = -Infinity;
+  for (const m of masses) {
+    const ox = Math.min(r.maxX, m.maxX) - Math.max(r.minX, m.minX);
+    const oz = Math.min(r.maxZ, m.maxZ) - Math.max(r.minZ, m.minZ);
+    if ((ox >= 0 && oz > 0) || (ox > 0 && oz >= 0)) top = Math.max(top, m.y0, m.y1);
+  }
+  return top;
+}
+
+// Where a linear f(u) (f0 at u0, f1 at u1) crosses zero strictly inside, or null.
+function crossing(u0, u1, f0, f1) {
+  if (!(f0 * f1 < 0) || !Number.isFinite(f0) || !Number.isFinite(f1)) return null;
+  return u0 + ((u1 - u0) * f0) / (f0 - f1);
+}
+
+export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
+  const groundShapes = [...walks, ...masses];
+  const caps = ceilings
+    .map((c) => ({ ...c, top: capTopFor(c, masses) }))
+    .filter((c) => c.top > c.y0);
+
+  // Every solid column, and the mesh its faces go into.
+  const solids = [
+    ...masses.map((s) => ({ s, out: 'rock', lo: () => 0, hi: (x, z) => shapeY(s, x, z), bottom: false })),
+    ...walks.filter((s) => Math.max(s.y0, s.y1) > 0).map((s) => ({
+      s, out: s.kind === 'lip' ? 'lip' : 'ledge', lo: () => 0, hi: (x, z) => shapeY(s, x, z), bottom: false,
+    })),
+    ...caps.map((c) => ({ s: c, out: 'rock', lo: () => c.y0, hi: () => c.top, bottom: true })),
+  ];
+
+  // The frame: faces on the outermost edges are not drawn.
+  const frame = {
+    minX: Math.min(...groundShapes.map((s) => s.minX)),
+    maxX: Math.max(...groundShapes.map((s) => s.maxX)),
+    minZ: Math.min(...groundShapes.map((s) => s.minZ)),
+    maxZ: Math.max(...groundShapes.map((s) => s.maxZ)),
+  };
+  const xCuts = [...new Set([...groundShapes, ...caps].flatMap((s) => [s.minX, s.maxX]))];
+  const zCuts = [...new Set([...groundShapes, ...caps].flatMap((s) => [s.minZ, s.maxZ]))];
+  let topY = 0;
+  for (const s of groundShapes) topY = Math.max(topY, s.y0, s.y1);
+  for (const c of caps) topY = Math.max(topY, c.top);
+
+  const low = new THREE.Color(ROCK_LOW);
+  const high = new THREE.Color(ROCK_HIGH);
+  const tint = new THREE.Color();
+  const rockColour = (y) => {
+    tint.copy(low).lerp(high, topY > 0 ? clamp01(y / topY) : 0);
+    const f = 1 + ROCK_STRATA * (2 * hash01(Math.floor(y / ROCK_STRATUM), 0.5, seed) - 1);
+    return [tint.r * f, tint.g * f, tint.b * f];
+  };
+
+  const bins = { rock: [], ledge: [], lip: [] };
+  const tri = (out, a, c, d, nx, ny, nz) => {
+    const ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2];
+    const vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    const cx = uy * vz - uz * vy;
+    const cy = uz * vx - ux * vz;
+    const cz = ux * vy - uy * vx;
+    const dot = cx * nx + cy * ny + cz * nz;
+    if (Math.abs(dot) < 1e-9) return; // no area
+    if (dot > 0) bins[out].push(a, c, d);
+    else bins[out].push(a, d, c);
+  };
+  const quad = (out, a, c, d, e, n) => {
+    tri(out, a, c, d, ...n);
+    tri(out, a, d, e, ...n);
+  };
+
+  // One side face, cut into rows and drawn from (u0, l0..h0) to (u1, l1..h1).
+  const wall = (out, at, u0, l0, h0, u1, l1, h1) => {
+    const tall = Math.max(h0 - l0, h1 - l1);
+    if (tall < FLAT_EPS) return;
+    const rows = out === 'ledge' ? 1 : Math.max(1, Math.ceil(tall / ROCK_CELL - 1e-9));
+    for (let r = 0; r < rows; r++) {
+      const f0 = r / rows;
+      const f1 = (r + 1) / rows;
+      quad(out,
+        at(u0, l0 + (h0 - l0) * f0), at(u1, l1 + (h1 - l1) * f0),
+        at(u1, l1 + (h1 - l1) * f1), at(u0, l0 + (h0 - l0) * f1), at.normal);
+    }
+  };
+
+  for (const solid of solids) {
+    const { s, out } = solid;
+    const edges = [
+      { axis: 'x', at: s.minX, dir: -1, t0: s.minZ, t1: s.maxZ, onFrame: s.minX <= frame.minX },
+      { axis: 'x', at: s.maxX, dir: 1, t0: s.minZ, t1: s.maxZ, onFrame: s.maxX >= frame.maxX },
+      { axis: 'z', at: s.minZ, dir: -1, t0: s.minX, t1: s.maxX, onFrame: s.minZ <= frame.minZ },
+      { axis: 'z', at: s.maxZ, dir: 1, t0: s.minX, t1: s.maxX, onFrame: s.maxZ >= frame.maxZ },
+    ];
+    for (const e of edges) {
+      if (e.onFrame) continue;
+      // (x, z) of the point t along this edge, `off` outward of it
+      const xz = (t, off = 0) => (e.axis === 'x' ? [e.at + e.dir * off, t] : [t, e.at + e.dir * off]);
+      const at = (t, y) => {
+        const [x, z] = xz(t);
+        return [x, y, z];
+      };
+      at.normal = e.axis === 'x' ? [e.dir, 0, 0] : [0, 0, e.dir];
+      // breakpoints: every shape boundary on this edge, then cells
+      const cuts = (e.axis === 'x' ? zCuts : xCuts).filter((c) => c > e.t0 && c < e.t1);
+      const ts = [e.t0, ...cuts, e.t1].sort((a, c) => a - c);
+      const steps = [];
+      for (let i = 0; i + 1 < ts.length; i++) {
+        const len = ts[i + 1] - ts[i];
+        const n = out === 'ledge' ? 1 : Math.max(1, Math.ceil(len / ROCK_CELL - 1e-9));
+        for (let k = 0; k < n; k++) steps.push([ts[i] + (len * k) / n, k + 1 === n ? ts[i + 1] : ts[i] + (len * (k + 1)) / n]);
+      }
+      for (const [u0, u1] of steps) {
+        if (u1 - u0 < FLAT_EPS) continue;
+        const [mx, mz] = xz((u0 + u1) / 2, SIDE_EPS);
+        // the column just outside: its ground, its ceiling and its cap's top
+        let nb = null;
+        for (const g of groundShapes) {
+          if (strictlyIn(g, mx, mz) && (!nb || shapeY(g, mx, mz) > shapeY(nb, mx, mz))) nb = g;
+        }
+        const cap = caps.find((c) => strictlyIn(c, mx, mz));
+        const g = (t) => (nb ? shapeY(nb, ...xz(t)) : 0);
+        const ceil = cap ? cap.y0 : Infinity;
+        const capTop = cap ? cap.top : Infinity;
+        const a = (t) => solid.lo(...xz(t));
+        const b = (t) => solid.hi(...xz(t));
+        const bands = [[(t) => Math.max(a(t), g(t)), (t) => Math.min(b(t), ceil), [(t) => a(t) - g(t), (t) => b(t) - ceil]]];
+        if (Number.isFinite(capTop)) bands.push([(t) => Math.max(a(t), capTop), b, [(t) => a(t) - capTop]]);
+        for (const [L, U, kinks] of bands) {
+          // split where L or U changes branch, then where the band closes
+          let us = [u0, u1];
+          for (const f of [...kinks, (t) => U(t) - L(t)]) {
+            const next = [us[0]];
+            for (let i = 0; i + 1 < us.length; i++) {
+              const c = crossing(us[i], us[i + 1], f(us[i]), f(us[i + 1]));
+              if (c !== null) next.push(c);
+              next.push(us[i + 1]);
+            }
+            us = next;
+          }
+          for (let i = 0; i + 1 < us.length; i++) {
+            const p = us[i];
+            const q = us[i + 1];
+            const l0 = L(p);
+            const l1 = L(q);
+            const h0 = Math.max(l0, U(p));
+            const h1 = Math.max(l1, U(q));
+            if (h0 - l0 < FLAT_EPS && h1 - l1 < FLAT_EPS) continue;
+            wall(out, at, p, l0, h0, q, l1, h1);
+          }
+        }
+      }
+    }
+    // the top (sloped on a ramp) and, for a cap, its underside
+    const corner = (x, z, y) => [x, y, z];
+    const { minX, maxX, minZ, maxZ } = s;
+    const hi = solid.hi;
+    quad(out,
+      corner(minX, minZ, hi(minX, minZ)), corner(minX, maxZ, hi(minX, maxZ)),
+      corner(maxX, maxZ, hi(maxX, maxZ)), corner(maxX, minZ, hi(maxX, minZ)), [0, 1, 0]);
+    if (solid.bottom) {
+      const y = solid.lo();
+      quad(out, corner(minX, minZ, y), corner(maxX, minZ, y), corner(maxX, maxZ, y), corner(minX, maxZ, y), [0, -1, 0]);
+    }
+  }
+
+  const meshOf = (verts, coloured) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts.flat(), 3));
+    if (coloured) geo.setAttribute('color', new THREE.Float32BufferAttribute(verts.flatMap((v) => rockColour(v[1])), 3));
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
+
+  const group = new THREE.Group();
+  group.name = 'rockTerrain';
+  const rockFaces = new THREE.Mesh(meshOf(bins.rock, true), rockMat());
+  rockFaces.name = 'rockFaces';
+  rockFaces.castShadow = true;
+  const ledgeTops = new THREE.Mesh(meshOf(bins.ledge, false), surfNoMap(LEDGE_COLOR, 'cobble'));
+  ledgeTops.name = 'ledgeTops';
+  ledgeTops.castShadow = true;
+  const lips = new THREE.Mesh(meshOf(bins.lip, true), rockMat());
+  lips.name = 'lips';
+  lips.castShadow = false;
+  lips.userData.noCast = true;
+  group.add(rockFaces, ledgeTops, lips);
+  return group;
+}
+
+// Scree: loose stones at the foot of the rock. Each spot is a cluster of three
+// to six small flattened icosahedra within half a metre of it, turned about y,
+// resting on y 0 (a caller seats them on raised ground). One merged mesh,
+// never taller than 0.25 m, out of the caster sweep like the other low beds.
+export const SCREE_COLOR = 0x857f76;
+export function scree(spots, seed) {
+  const stones = [];
+  spots.forEach((sp, i) => {
+    const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 4);
+    for (let k = 0; k < n; k++) {
+      const r = 0.08 + 0.1 * hash01(i, k, seed + 2);
+      const flat = 0.4 + 0.2 * hash01(k, i, seed + 3);
+      const a = hash01(k, i, seed + 4) * Math.PI * 2;
+      const d = 0.5 * hash01(i + k, k, seed + 5);
+      const geo = new THREE.IcosahedronGeometry(r, 0);
+      geo.scale(1, flat, 1);
+      geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
+      geo.computeBoundingBox();
+      geo.translate(sp.x + Math.cos(a) * d, -geo.boundingBox.min.y, sp.z + Math.sin(a) * d);
+      stones.push(geo);
+    }
+  });
+  const g = new THREE.Group();
+  const m = mergedNoCast(stones, SCREE_COLOR, 'cobble');
+  m.name = 'scree';
+  g.add(m);
+  return g;
+}
+
+// =============================================================================
+// THE CAVES' SOFT GLOW (the Gorge, part 3): crystals at the foot of a cave's
+// walls and gold flecks on them. Both are emissive at a gentle 0.6, so they
+// read in the dark of a chamber without lighting anything, and nothing on
+// them moves or flickers.
+// =============================================================================
+const CAVE_GLOW = 0.6;
+const caveGlowMaterial = (color) => litMaterial(color, { emissive: color, emissiveIntensity: CAVE_GLOW });
+
+// One merged, emissive, out-of-the-shadow-pass mesh.
+function glowMesh(geoms, color, name) {
+  const geo = geoms.length === 0 ? new THREE.BufferGeometry()
+    : geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
+  if (geoms.length > 1) for (const p of geoms) p.dispose();
+  const m = new THREE.Mesh(geo, caveGlowMaterial(color));
+  m.name = name;
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
+// Crystals. Each spot { x, z, y, nx, nz } is at the foot of a wall, with
+// (nx, nz) the unit normal pointing off the wall into the cave. A spot is a
+// cluster of three to five small octahedra, 0.06-0.18 m across and 1.6 times
+// as tall (so never taller than 0.3 m), spread 0.2 m either way along the
+// wall and up to 0.05 m further out, each leaning gently away from the wall
+// and resting on y. Every vertex stays within 0.1 m of its crystal's centre
+// across the ground, so a spot 0.1 m or more off its wall keeps every crystal
+// off the wall's face. One merged noCast mesh, the same every time for one
+// seed.
+export const CRYSTAL_SIZE = Object.freeze([0.06, 0.18]);
+export const CRYSTAL_SPREAD = 0.2;
+const CRYSTAL_OUT = 0.05;
+const CRYSTAL_STRETCH = 1.6;
+const CRYSTAL_LEAN = Object.freeze([0.1, 0.35]);
+export function caveCrystals(spots, seed, { color = 0x9fc7d8 } = {}) {
+  const geoms = [];
+  const axis = new THREE.Vector3();
+  const lean = new THREE.Matrix4();
+  spots.forEach((sp, i) => {
+    const nx = sp.nx ?? 0;
+    const nz = sp.nz ?? 0;
+    const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 3);
+    for (let k = 0; k < n; k++) {
+      const s = CRYSTAL_SIZE[0] + (CRYSTAL_SIZE[1] - CRYSTAL_SIZE[0]) * hash01(i, k, seed + 2);
+      const u = (hash01(k, i, seed + 3) * 2 - 1) * CRYSTAL_SPREAD;
+      const v = CRYSTAL_OUT * hash01(i + k, k, seed + 4);
+      const tilt = CRYSTAL_LEAN[0] + (CRYSTAL_LEAN[1] - CRYSTAL_LEAN[0]) * hash01(k, i, seed + 5);
+      const geo = new THREE.OctahedronGeometry(s / 2, 0);
+      geo.scale(1, CRYSTAL_STRETCH, 1);
+      geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
+      // Tip the top toward the cave: about up x n.
+      if (nx !== 0 || nz !== 0) geo.applyMatrix4(lean.makeRotationAxis(axis.set(nz, 0, -nx).normalize(), tilt));
+      geo.computeBoundingBox();
+      // The wall runs along (-nz, nx).
+      const x = sp.x - nz * u + nx * v;
+      const z = sp.z + nx * u + nz * v;
+      geo.translate(x, (sp.y ?? 0) - geo.boundingBox.min.y, z);
+      geoms.push(geo);
+    }
+  });
+  const g = new THREE.Group();
+  g.add(glowMesh(geoms, color, 'caveCrystals'));
+  return g;
+}
+
+// Gold flecks on a wall: each spot { x, y, z, nx, nz } is a point on the
+// wall's face with (nx, nz) its normal into the cave, and gets one tiny flat
+// diamond 0.04-0.09 m long, turned in the wall's plane and set 0.015 m off
+// the face, facing out. One merged noCast mesh.
+export const FLECK_SIZE = Object.freeze([0.04, 0.09]);
+export const FLECK_OFF = 0.015;
+export function caveFlecks(spots, seed, { color = 0xe8b84a } = {}) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    const s = FLECK_SIZE[0] + (FLECK_SIZE[1] - FLECK_SIZE[0]) * hash01(sp.x + sp.y, sp.z, seed + 1);
+    const geo = new THREE.PlaneGeometry(s, s * 0.6);
+    geo.rotateZ(Math.PI / 4 + hash01(i, sp.y, seed + 2) * Math.PI);
+    geo.rotateY(Math.atan2(sp.nx, sp.nz));
+    geo.translate(sp.x + sp.nx * FLECK_OFF, sp.y, sp.z + sp.nz * FLECK_OFF);
+    geoms.push(geo);
+  });
+  const g = new THREE.Group();
+  g.add(glowMesh(geoms, color, 'caveFlecks'));
   return g;
 }
 

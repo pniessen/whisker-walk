@@ -11,7 +11,7 @@
 //      the long path through the bottom of the Woods.
 //  R2. The town gets three posts: its roads' west and north ends, and the new
 //      footpath's west end.
-//  R3. The Moor has a post on its east edge for the Gorge, which is not built.
+//  R3. The Moor's post to the Gorge opens once the Gorge is built.
 //  R4. The Pines-Moor trail has a post on each side.
 //  R5. A post stands 2.5-3.5 m inside the nearest bounds edge; 2 m or more off
 //      every path, trail and footpath centreline (3 m off the town's 5 m
@@ -79,6 +79,15 @@ export const BORDER_POSTS = {
     post('pines-river-path', -23, 47.5, 'south', 'river'),
     // Twin of moor-pines-trail: off the plan's measured spot to clear the intruders' routes by >= 0.8 m.
     post('pines-moor-trail', 47.5, -15.5, 'east', 'moor'),
+  ],
+  gorge: [
+    // Twin of moor-gorge (R6): 5 m across the border in the Gorge's frame (a
+    // Moor point (x, z) is the Gorge point (x - 100, z)), level along it.
+    post('gorge-moor', -47.5, -14, 'west', 'moor'),
+    // One way (G14): the stream's floor path leaves the south edge toward the
+    // town, and nothing in the town points back (owner decision 10), the
+    // river-town-long precedent.
+    post('gorge-town', -5, 47.5, 'south', 'neighborhood'),
   ],
 };
 

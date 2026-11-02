@@ -746,3 +746,68 @@ describe('the Moor: heather, gorse, reeds and the warren', () => {
     expect(area.colliders).toHaveLength(thorns.length + pines.length + 4 + 5 + 2);
   });
 });
+
+// Gorge part 2, Task 12: the way in. A 2 m trail from the north path's bend
+// to the east edge, where the Gorge's Narrows path begins (G1: a Moor point
+// (x, z) is the Gorge point (x - 100, z)).
+describe('the Moor: the trail to the Gorge', () => {
+  const { MOOR_GORGE_TRAIL, MOOR_TRAIL, TRAIL_W } = moor;
+  const samples = () => {
+    const out = [];
+    for (const [x1, z1, x2, z2] of MOOR_GORGE_TRAIL) {
+      const n = Math.ceil(Math.hypot(x2 - x1, z2 - z1) / 0.5);
+      for (let i = 0; i <= n; i++) out.push([x1 + ((x2 - x1) * i) / n, z1 + ((z2 - z1) * i) / n]);
+    }
+    return out;
+  };
+
+  it('the trail to the Gorge meets the Narrows', async () => {
+    const { GORGE_PATHS } = await import('../src/world/gorge.js');
+    const { postsFor } = await import('../src/borderposts.js');
+    expect(MOOR_GORGE_TRAIL).toEqual([[34, -8, 50, -11]]);
+    expect(Object.isFrozen(MOOR_GORGE_TRAIL)).toBe(true);
+    for (const s of MOOR_GORGE_TRAIL) expect(Object.isFrozen(s)).toBe(true);
+    // It starts on the north path's bend, and is in neither path list.
+    expect(MOOR_PATHS.some((s) => segDist(34, -8, s) < 0.01)).toBe(true);
+    for (const s of MOOR_GORGE_TRAIL) {
+      expect(MOOR_PATHS).not.toContainEqual(s);
+      expect(MOOR_TRAIL).not.toContainEqual(s);
+    }
+    // Its last point is the Gorge's first path point, in the Moor's frame.
+    const [gx, gz] = GORGE_PATHS[0];
+    expect(MOOR_GORGE_TRAIL.at(-1).slice(2)).toEqual([gx + 100, gz]);
+    expect(MOOR_GORGE_TRAIL.at(-1).slice(2)).toEqual([50, -11]);
+    // 2 m or more off the moor-gorge post, and 1 m or more of edge off the tor.
+    const post = postsFor('moor').find((p) => p.id === 'moor-gorge');
+    for (const s of MOOR_GORGE_TRAIL) expect(segDist(post.x, post.z, s)).toBeGreaterThanOrEqual(2);
+    const tor = TORS.find((t) => t.x === 42 && t.z === -6);
+    for (const s of MOOR_GORGE_TRAIL) expect(segDist(tor.x, tor.z, s) - tor.r - TRAIL_W / 2).toBeGreaterThanOrEqual(1);
+  });
+
+  it('is open ground, reached on foot from the spawn, and drawn as a 2 m strip', () => {
+    for (const [x, z] of samples()) {
+      const at = `(${x}, ${z})`;
+      for (const c of area.colliders) expect(Math.hypot(x - c.x, z - c.z) - c.r, `${at} collider`).toBeGreaterThanOrEqual(1.2);
+      expect(reaches(area, x, z), at).toBe(true);
+    }
+    for (const [x1, z1, x2, z2] of MOOR_GORGE_TRAIL) {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const strip = scene.children.find((o) => o.isMesh && Math.abs(o.position.x - (x1 + x2) / 2) < 0.01
+        && Math.abs(o.position.z - (z1 + z2) / 2) < 0.01);
+      expect(strip, 'the strip').toBeTruthy();
+      strip.geometry.computeBoundingBox();
+      const size = strip.geometry.boundingBox.getSize(new THREE.Vector3());
+      expect(Math.min(size.x, size.y, size.z) < 0.01).toBe(true);
+      expect([size.x, size.y, size.z].some((v) => Math.abs(v - len) < 0.01)).toBe(true);
+      expect([size.x, size.y, size.z].some((v) => Math.abs(v - TRAIL_W) < 0.01)).toBe(true);
+    }
+  });
+
+  it('no tree, bed or reed stands on it', () => {
+    const near = (x, z) => Math.min(...MOOR_GORGE_TRAIL.map((s) => segDist(x, z, s)));
+    const { thorns, pines } = moorTrees();
+    for (const t of thorns) expect(near(t.x, t.z)).toBeGreaterThanOrEqual(1 + 1.6 * t.scale + 0.5);
+    for (const t of pines) expect(near(t.x, t.z)).toBeGreaterThanOrEqual(1 + 1.3 * t.scale + 0.5);
+    for (const s of [...moorHeather(), ...moorGorse(), ...moorReeds()]) expect(near(s.x, s.z)).toBeGreaterThanOrEqual(1.8);
+  });
+});

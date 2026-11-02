@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 import { groundOf } from './ground.js';
+import { standSpot } from './keepout.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -137,6 +138,13 @@ export function createSecrets(scene, area, rolls, rng) {
           u.position.z = unicornState.home.z + Math.cos(t * 0.12) * 2;
           u.rotation.y = Math.sin(t * 0.1);
         }
+        // Gorge part 2 (G7): where the flee (or the grazing circle) takes it
+        // goes onto ground a cat can stand on first, then a step over a rim
+        // slides along it. Held at an edge (`hold`), not thrown back the
+        // margin. Untouched on every map without onlyOn.
+        const to = standSpot(area, u.position.x, u.position.z, true);
+        u.position.x = to.x;
+        u.position.z = to.z;
         if (!ground.flat) {
           ground.slide(ux, uz, u.position);
           u.position.y = ground.y(u.position.x, u.position.z);

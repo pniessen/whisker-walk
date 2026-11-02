@@ -23,6 +23,7 @@ import * as woods from '../world/woods.js';
 import * as river from '../world/river.js';
 import * as moor from '../world/moor.js';
 import * as pines from '../world/pines.js';
+import * as gorge from '../world/gorge.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
@@ -33,7 +34,7 @@ import { activeCat, scarKey } from '../customcats.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters } from '../critters.js';
+import { createCritters, goatForDay } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
@@ -78,7 +79,7 @@ import { addBorderDressing } from '../world/borderpost.js';
 import { postsFor } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
-import { rollWeather, createWeather } from '../weather.js';
+import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { crossingOutcome } from '../bordercross.js';
@@ -131,7 +132,7 @@ import { nowSec, escapeHtml, hashName } from './util.js';
 // home-base card, a price and an unlock gate), and this map, which is what
 // startWalk indexes with state.area. An area missing from here is a fully
 // built world nothing can ever call.
-const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines };
+const AREAS = { neighborhood, park, seaside, den, docks, woods, river, moor, pines, gorge };
 // default session.ghosts before (or absent) an async spawn resolves — lets
 // the render loop/updateInteractions/endWalk call the ghosts API
 // unconditionally instead of null-checking it everywhere.
@@ -152,6 +153,9 @@ const NO_GOLD_MICE = {
 // The den has no rival border: every call the render loop makes is inert, and
 // there is no patrol to scent over a mark and no decal to scent over (Task 12).
 const NO_RIVAL = { update() {}, dispose() {}, patrolPos: () => null, borderMarks: null };
+// An area's own per-walk life (areaData.life, the Gorge's shade, birds and
+// ambience mix); every area without one gets this, so nothing changes there.
+const NO_AREA_LIFE = { update() {}, dispose() {} };
 const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 
 // The key light, the fill, the shadow bias and the shadow-caster rule are one
@@ -469,6 +473,10 @@ export function createWalkLifecycle({
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
     // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
     const ground = groundOf(areaData);
+    // Gorge G9: the goat comes on about half the days. On a no-goat day it and
+    // its leap are dropped here, by the UTC date alone (the race's day), so
+    // walkRng and strayStream draw exactly as on a goat day.
+    if (areaId === 'gorge') Object.assign(areaData, goatForDay(areaData, new Date().toISOString().slice(0, 10)));
     // Clan Edition only, and local to this screen (border crossings R13): the
     // waymark posts and the town's footpath. Added before the fill light, contact
     // shadows and the static-prop merge so they get all three; their colliders
@@ -486,7 +494,9 @@ export function createWalkLifecycle({
     // `bounds` and `waters` already are. createFill (src/render/rig.js) falls
     // back to DEFAULT_GROUND_BOUNCE, so an area that has not been threaded (or
     // a test's bare build(scene)) still lights correctly rather than throwing.
-    scene.add(createFill(areaData.groundBounce));
+    // Held, not added inline: the area's life (the Gorge's shade) scales it.
+    const fill = createFill(areaData.groundBounce);
+    scene.add(fill);
     // Wave 2.1 — contact shadows. HERE, and nowhere later, because the rig
     // scans scene.children for its static footprints and this is the exact
     // moment the scene contains the area's props and NOTHING ELSE: the cat,
@@ -632,7 +642,7 @@ export function createWalkLifecycle({
       envIntensity: tier.envIntensity,
     });
 
-    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {} };
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {} };
     if (!duskActive && !isDen) {
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground);
       if (weather.condition === 'rain') {
@@ -647,13 +657,10 @@ export function createWalkLifecycle({
         // for a body of water with a shoreline. A 0.8m disc has no shoreline,
         // and three of them per rainy walk would be three more animated
         // materials on the per-frame update list for no visible gain.
-        const extra = [];
-        for (let i = 0; i < 3; i++) {
-          const px = areaData.bounds.minX / 2 + walkRng() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;
-          const pz = areaData.bounds.minZ / 2 + walkRng() * (areaData.bounds.maxZ - areaData.bounds.minZ) / 2;
-          extra.push({ x: px, z: pz, r: 0.8 });
-          scene.add(puddleProp(px, pz, 0.8));
-        }
+        // Their spots: weather.js's rainPuddleSpots, on ground a cat can
+        // stand on (G7), each drawn on the ground under it (p.y).
+        const extra = rainPuddleSpots(areaData, walkRng);
+        for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r, p.y));
         areaData.puddles = [...areaData.puddles, ...extra];
         // birds shelter from rain: halve bird-type spawns
         let keep = false;
@@ -686,6 +693,8 @@ export function createWalkLifecycle({
       hides: propsFor(areaId).hides,
       onHide: (c) => hud.toast(hideToastFor(c.type)),
       ground,
+      // G7: the dusk fireflies' spots stand where a cat can (standSpot).
+      area: areaData,
     });
 
     const collectibleMeshes = new Map();
@@ -911,6 +920,8 @@ export function createWalkLifecycle({
       extras,
       reducedMotion,
       ground,
+      // Gorge part 3 (C8): the Snug Cave's cat. No homes off the Gorge.
+      homes: areaData.strayHomes ?? [],
     });
     // The clan walks on the map AS BUILT, frozen here, before anything is
     // added to it: the live areaData.colliders later gains this device's own
@@ -1202,6 +1213,16 @@ export function createWalkLifecycle({
       };
     }
 
+    // The area's own life on this walk (the Gorge: shade by height, wheeling
+    // birds, the ambience mix; the caves' dark, warm glow and rain shelter,
+    // which is why it takes the weather). Long after weather and dusk have set the sun,
+    // so their values are the base it shades; built here, beside the session
+    // that holds it, so little can throw between its birds joining the scene
+    // and endWalk being able to dispose them. Its birds are noCast and cast no
+    // shadow of their own (built after the caster sweep); the cave glow is a
+    // PointLight with castShadow false, added here so shaders compile with it
+    // once. Draws on no rng.
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather }) ?? NO_AREA_LIFE;
     const session = {
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
@@ -1239,6 +1260,7 @@ export function createWalkLifecycle({
       catsGreeted: 0,
       rankTitle: rankFor(state.lifetimePoints).title,
       weather,
+      areaLife,
       fx: createFx(scene, { reducedMotion }),
       // The area's water surfaces, bundled into the one { update, dispose }
       // shape the session already uses. Safe on an area with no water at all
@@ -1285,6 +1307,9 @@ export function createWalkLifecycle({
       skyLife: isDen ? { update() {}, dispose() {} } : createSkyLife(scene, {
         rng: mulberry32(((roomSeed ?? (Math.random() * 2 ** 31)) >>> 0) ^ 0x5eaf00d),
         reducedMotion,
+        // the flock's height: the area's own (the Gorge flies it over its
+        // rims), else skylife's default 14
+        birdY: areaData.skyBirdY,
       }),
       secrets,
       tippables,
@@ -1561,7 +1586,13 @@ export function createWalkLifecycle({
     // src/world/*.js), but the guard below keeps this inert instead of
     // throwing if a future area (e.g. the den) ever ships with fewer than 5.
     const today = new Date().toISOString().slice(0, 10);
-    session.race = walkPois.length >= 5
+    // The Gorge ships a fixed, ordered climb course (areaData.raceCourse): the
+    // random daily course would send kids up and down the path. It is fixed
+    // data, so both co-walkers agree, and it draws nothing from walkRng (the
+    // daily course never did either: it has its own date-seeded stream).
+    session.race = areaData.raceCourse
+      ? createRace(scene, areaData.raceCourse, areaData.spawn, { ground, kind: 'climb' })
+      : walkPois.length >= 5
       ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn, { ground })
       : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
@@ -1902,6 +1933,9 @@ export function createWalkLifecycle({
     composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
+    // Hands the sun and fill back and takes the area's birds out, before the
+    // traversal below. Every way a walk ends comes through here.
+    session.areaLife.dispose();
     // Water frees the normal and roughness maps the traversal below cannot
     // reach (it only looks at `m.map`); wind puts every swayed object back on
     // the rotation — and under the parent — it had before it was registered.

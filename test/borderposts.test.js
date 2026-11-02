@@ -28,6 +28,8 @@ const woods = await import('../src/world/woods.js');
 const river = await import('../src/world/river.js');
 const moor = await import('../src/world/moor.js');
 const pines = await import('../src/world/pines.js');
+const gorge = await import('../src/world/gorge.js');
+const { floodGorge } = await import('./helpers/gorgeflood.js');
 const { waterGap } = await import('../src/world/builder.js');
 const { isWalkableAt } = await import('../src/player.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
@@ -45,6 +47,7 @@ const maps = {
   river: { mod: river, paths: river.RIVER_PATHS, roads: [] },
   moor: { mod: moor, paths: [...moor.MOOR_PATHS, ...moor.MOOR_TRAIL], roads: [] },
   pines: { mod: pines, paths: [...pines.PINES_PATHS, ...pines.PINES_TRAIL], roads: [] },
+  gorge: { mod: gorge, paths: gorge.GORGE_PATHS, roads: [] },
 };
 for (const m of Object.values(maps)) m.area = m.mod.build(new THREE.Scene());
 const isRoad = (areaId, s) => maps[areaId].roads.includes(s);
@@ -62,11 +65,23 @@ function nearestSide(b, p) {
 }
 
 // Flood the cells a grounded cat may stand on (player.js's own rule) on a
-// 0.5 m grid from the map's spawn, once per area.
+// 0.5 m grid from the map's spawn, once per area. An area with ground (the
+// Gorge) floods with its own ground.canStep instead (test/helpers/gorgeflood.js).
 const STEP = 0.5;
 const floods = new Map();
+function gorgeFlood() {
+  const g = floodGorge();
+  const { minX, minZ, step, nx, nz, seen } = g.grid;
+  return { minX, minZ, nx, nz, seen, step };
+}
 function flood(areaId) {
   if (floods.has(areaId)) return floods.get(areaId);
+  if (maps[areaId].area.ground) {
+    expect(areaId).toBe('gorge');
+    const f = gorgeFlood();
+    floods.set(areaId, f);
+    return f;
+  }
   const { area, mod } = maps[areaId];
   const { minX, maxX, minZ, maxZ } = area.bounds;
   const nx = Math.round((maxX - minX) / STEP) + 1;
@@ -87,23 +102,24 @@ function flood(areaId) {
       stack.push([p, q]);
     }
   }
-  const f = { minX, minZ, nx, nz, seen };
+  const f = { minX, minZ, nx, nz, seen, step: STEP };
   floods.set(areaId, f);
   return f;
 }
 function reachesWithin(areaId, x, z, r) {
   const f = flood(areaId);
-  for (let i = Math.floor((x - r - f.minX) / STEP); i <= Math.ceil((x + r - f.minX) / STEP); i++) {
-    for (let j = Math.floor((z - r - f.minZ) / STEP); j <= Math.ceil((z + r - f.minZ) / STEP); j++) {
+  const st = f.step;
+  for (let i = Math.floor((x - r - f.minX) / st); i <= Math.ceil((x + r - f.minX) / st); i++) {
+    for (let j = Math.floor((z - r - f.minZ) / st); j <= Math.ceil((z + r - f.minZ) / st); j++) {
       if (i < 0 || j < 0 || i >= f.nx || j >= f.nz || !f.seen[i * f.nz + j]) continue;
-      if (Math.hypot(f.minX + i * STEP - x, f.minZ + j * STEP - z) < r) return true;
+      if (Math.hypot(f.minX + i * st - x, f.minZ + j * st - z) < r) return true;
     }
   }
   return false;
 }
 function reaches(areaId, x, z) {
   const f = flood(areaId);
-  const i = Math.round((x - f.minX) / STEP), j = Math.round((z - f.minZ) / STEP);
+  const i = Math.round((x - f.minX) / f.step), j = Math.round((z - f.minZ) / f.step);
   return i >= 0 && j >= 0 && i < f.nx && j < f.nz && f.seen[i * f.nz + j] === 1;
 }
 
@@ -117,7 +133,7 @@ describe('border posts: where they stand', () => {
     expect(TOWN_FOOTPATH).toEqual([[-2.5, 42, -55, 42]]);
     expect(deepFrozen(BORDER_POSTS)).toBe(true);
     expect(deepFrozen(TOWN_FOOTPATH)).toBe(true);
-    expect(Object.keys(BORDER_POSTS)).toEqual(['neighborhood', 'woods', 'river', 'moor', 'pines']);
+    expect(Object.keys(BORDER_POSTS)).toEqual(['neighborhood', 'woods', 'river', 'moor', 'pines', 'gorge']);
   });
 
   it('every post stands where R5 says', () => {
@@ -181,13 +197,16 @@ describe('border posts: where they stand', () => {
       'moor>gorge', 'moor>pines', 'moor>woods', 'moor>woods',
       'neighborhood>moor', 'neighborhood>river', 'neighborhood>woods',
       'pines>moor', 'pines>river',
+      'gorge>moor', 'gorge>neighborhood',
       'river>neighborhood', 'river>pines', 'river>woods', 'river>woods',
       'woods>moor', 'woods>moor', 'woods>neighborhood', 'woods>neighborhood', 'woods>river', 'woods>river',
     ].sort());
     // R1: each post names the place directly over its edge, except the two
-    // R2 posts that name the long path's far end (town-river and river-town-long).
-    const over = { woods: { west: 'river', north: 'moor' }, river: { east: 'woods', north: 'pines' }, moor: { south: 'woods', west: 'pines', east: 'gorge' }, pines: { south: 'river', east: 'moor' }, neighborhood: { west: ['woods', 'river'], north: 'moor' } };
-    const R2 = new Set(['town-river', 'river-town-long']);
+    // R2 posts that name the long path's far end (town-river and
+    // river-town-long), and the Gorge's one-way post to the town (G14), which
+    // has no twin, like river-town-long.
+    const over = { woods: { west: 'river', north: 'moor' }, river: { east: 'woods', north: 'pines' }, moor: { south: 'woods', west: 'pines', east: 'gorge' }, pines: { south: 'river', east: 'moor' }, neighborhood: { west: ['woods', 'river'], north: 'moor' }, gorge: { west: 'moor' } };
+    const R2 = new Set(['town-river', 'river-town-long', 'gorge-town']);
     for (const [areaId, posts] of Object.entries(BORDER_POSTS)) {
       for (const p of posts) {
         if (R2.has(p.id)) continue;
@@ -199,8 +218,11 @@ describe('border posts: where they stand', () => {
   });
 
   it('twins line up across each border', () => {
-    const pairsOk = new Set(['woods>river', 'river>woods', 'woods>moor', 'moor>woods', 'river>pines', 'pines>river', 'pines>moor', 'moor>pines']);
-    const inWoods = (a, p) => ({ x: p.x - FRAMES[a][0], z: p.z - FRAMES[a][1] });
+    const pairsOk = new Set(['woods>river', 'river>woods', 'woods>moor', 'moor>woods', 'river>pines', 'pines>river', 'pines>moor', 'moor>pines', 'gorge>moor', 'moor>gorge']);
+    // The Gorge is not in lake.js's FRAMES (it has no lake). G1: a Moor point
+    // (x, z) is the Gorge point (x - 100, z), so its frame is the Moor's less 100 in x.
+    const frame = (a) => (a === 'gorge' ? [FRAMES.moor[0] - 100, FRAMES.moor[1]] : FRAMES[a]);
+    const inWoods = (a, p) => ({ x: p.x - frame(a)[0], z: p.z - frame(a)[1] });
     let checked = 0;
     for (const [a, posts] of Object.entries(BORDER_POSTS)) {
       for (const p of posts) {
@@ -219,7 +241,7 @@ describe('border posts: where they stand', () => {
         checked++;
       }
     }
-    expect(checked).toBe(12);
+    expect(checked).toBe(14);
   });
 
   it('keeps clear of the Pines island and the truce stones', () => {
@@ -233,6 +255,7 @@ describe('border posts: where they stand', () => {
     expect(postsFor('river')).toHaveLength(4);
     expect(postsFor('moor')).toHaveLength(4);
     expect(postsFor('pines')).toHaveLength(2);
+    expect(postsFor('gorge')).toHaveLength(2);
     expect(postsFor('island')).toEqual([]);
     expect(postsFor('__proto__')).toEqual([]);
     expect(postsFor(7)).toEqual([]);
@@ -275,7 +298,56 @@ describe('border posts: faces and the plan (Polish 3)', () => {
       .map((l) => l.match(/^\| [A-Za-z]+ \| `([a-z-]+)` \| (-?[\d.]+) \| (-?[\d.]+) \| (\w+) \| (\w+) \|/))
       .filter(Boolean)
       .map(([, id, x, z, faces, to]) => ({ id, x: Number(x), z: Number(z), faces, to }));
-    const posts = Object.values(BORDER_POSTS).flat().map(({ id, x, z, faces, to }) => ({ id, x, z, faces, to }));
+    // The Gorge's posts came later: they are in the Gorge plan's numbers
+    // table instead (the next test).
+    const posts = Object.entries(BORDER_POSTS).filter(([a]) => a !== 'gorge').flatMap(([, ps]) => ps)
+      .map(({ id, x, z, faces, to }) => ({ id, x, z, faces, to }));
     expect(rows).toEqual(posts);
+  });
+
+  it("the Gorge plan's Posts row matches where the Gorge's posts really stand", () => {
+    const md = readFileSync(new URL('../docs/superpowers/plans/2026-11-01-gorge-2-map.md', import.meta.url), 'utf8');
+    const row = md.split('\n').find((l) => l.startsWith('| Posts |'));
+    const calls = [...row.matchAll(/post\('([a-z-]+)', (-?[\d.]+), (-?[\d.]+), '(\w+)', '(\w+)'\)/g)]
+      .map(([, id, x, z, faces, to]) => ({ id, x: Number(x), z: Number(z), faces, to }));
+    expect(calls).toEqual(BORDER_POSTS.gorge.map(({ id, x, z, faces, to }) => ({ id, x, z, faces, to })));
+  });
+});
+
+// Gorge part 2, Task 12: the Gorge's two posts.
+describe('border posts: the Gorge', () => {
+  const area = maps.gorge.area;
+
+  it('the Gorge has the post back to the Moor and the one-way post to the town', () => {
+    expect(BORDER_POSTS.gorge).toEqual([
+      { id: 'gorge-moor', x: -47.5, z: -14, faces: 'west', to: 'moor' },
+      { id: 'gorge-town', x: -5, z: 47.5, faces: 'south', to: 'neighborhood' },
+    ]);
+    // gorge-town is one-way (G14): nothing in the town points at the Gorge.
+    expect(postsFor('neighborhood').some((p) => p.to === 'gorge')).toBe(false);
+  });
+
+  it('the twins are 5 m apart across the border and within 1 m along it', () => {
+    const g = BORDER_POSTS.gorge.find((p) => p.id === 'gorge-moor');
+    const m = BORDER_POSTS.moor.find((p) => p.id === 'moor-gorge');
+    // G1: the Moor point (x, z) is the Gorge point (x - 100, z).
+    expect(Math.abs((m.x - 100) - g.x)).toBeCloseTo(5, 6);
+    expect(Math.abs(m.z - g.z)).toBeLessThanOrEqual(1);
+  });
+
+  it('each Gorge post stands on ground 0, on the flood, and where a cat may stand', () => {
+    const { ground, reached } = floodGorge();
+    for (const p of BORDER_POSTS.gorge) {
+      expect(ground.y(p.x, p.z), p.id).toBe(0);
+      expect(reachesWithin('gorge', p.x, p.z, 1.2), p.id).toBe(true);
+      expect(reached(p.x, p.z), p.id).toBe(true);
+      expect(keepOutPoint(area, p.x, p.z), p.id).toEqual({ x: p.x, z: p.z });
+    }
+  });
+
+  it("the Gorge's keep-clear points hold both posts", () => {
+    for (const p of BORDER_POSTS.gorge) {
+      expect(gorge.GORGE_KEEP_CLEAR.some(([x, z]) => x === p.x && z === p.z), p.id).toBe(true);
+    }
   });
 });

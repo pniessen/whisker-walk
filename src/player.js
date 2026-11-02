@@ -7,14 +7,19 @@ import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
 import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
-  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView,
+  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView, caveView, CAVE_VIEW,
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
+import { underCeiling } from './caves.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
 export const CAT_RADIUS = 0.35;
+// The camera's pitch at the start of a walk (radians).
+export const DEFAULT_PITCH = 0.18;
+// The highest the camera may be pitched up over the cat (radians).
+export const PITCH_MAX = 0.85;
 // Camera pull-in tuning (see stepPull in createPlayer).
 const PULL_IN_SPEED = 12; // metres per second, at most
 const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
@@ -24,6 +29,14 @@ const PULL_HOLD = 0.3; // seconds
 // at a cliff foot never looks straight down (see placeCameraOnGround).
 const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
+// Gorge part 3 (C4): how fast the cave view eases in under a ceiling and back
+// out once she is out, as a linear rate of the 0..1 blend per second. Going
+// out waits PULL_HOLD first, so stepping back and forth over a mouth does not
+// pump the camera; and the blend is slowed further so the view moves at no
+// more than PULL_IN_SPEED metres a second going in and PULL_OUT_SPEED coming
+// out (rulings C-F6, C-F7).
+const CAVE_IN_RATE = 3;
+const CAVE_OUT_RATE = 1.5;
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
 // rotated by yaw exactly like moveDirection does for keys. Because
@@ -409,7 +422,7 @@ function pushIntoShallow(pos, waters) {
 
 export function createPlayer(camera, canvas) {
   let yaw = 0;
-  let pitch = 0.18;
+  let pitch = DEFAULT_PITCH;
   let enabled = false;
   let avatar = null;
   let pace = 3.5;
@@ -459,22 +472,29 @@ export function createPlayer(camera, canvas) {
   //    row, then eased gently and capped at PULL_OUT_SPEED. Grazing the edge of a footprint therefore
   //    does not make the camera pump in and out.
   // reducedMotion and walk start (snapPull) take the target as-is.
+  // The pull is a fraction: it never leaves [0, 1], and the caps divide by a
+  // distance of at least MIN_CAM_DIST (both are no-ops for every legal view).
   function stepPull(cur, target, dt, dist) {
     if (reducedMotion || snapPull) {
       snapPull = false;
       pullHold = 0;
       return target;
     }
+    const d = Math.max(dist, MIN_CAM_DIST);
+    let next = cur;
     if (target >= cur) {
       pullHold += dt;
-      if (pullHold < PULL_HOLD) return cur;
-      const out = (target - cur) * (1 - Math.exp(-5 * dt));
-      return cur + Math.min(out, (PULL_OUT_SPEED * dt) / dist);
+      if (pullHold >= PULL_HOLD) {
+        const out = (target - cur) * (1 - Math.exp(-5 * dt));
+        next = cur + Math.min(out, (PULL_OUT_SPEED * dt) / d);
+      }
+    } else {
+      pullHold = 0;
+      const eased = (target - cur) * (1 - Math.exp(-20 * dt));
+      const cap = (PULL_IN_SPEED * dt) / d;
+      next = cur + Math.max(eased, -cap);
     }
-    pullHold = 0;
-    const eased = (target - cur) * (1 - Math.exp(-20 * dt));
-    const cap = (PULL_IN_SPEED * dt) / dist;
-    return cur + Math.max(eased, -cap);
+    return Math.min(1, Math.max(0, next));
   }
   // Gorge part 1 (R8): the rock pull, raised ground only. rockFrac is the
   // eased fraction of the look-to-camera segment the camera may use
@@ -553,6 +573,47 @@ export function createPlayer(camera, canvas) {
     const hi = ground.ceil(cx, cz) - CAM_CEIL_CLEAR;
     if (camera.position.y > hi) camera.position.y = hi;
   }
+  // Gorge part 3 (C4): 0 in the open, 1 under a ceiling; the zoom view eases
+  // toward camzoom.js's CAVE_VIEW by it, and the view shown is exactly
+  // caveView(zoom view, caveBlend), so it is never nearer than the cave view
+  // itself (final review C1). Raised ground only. setAvatar resets it, and it
+  // snaps (rather than eases) wherever snapPull is set.
+  //  - caveHold: seconds she has been out while the blend is still up; the
+  //    blend only eases out after PULL_HOLD of them in a row.
+  //  - The blend's rate is CAVE_IN_RATE / CAVE_OUT_RATE, slowed further so
+  //    the view moves at most PULL_IN_SPEED m/s going in and PULL_OUT_SPEED
+  //    coming out (`full` is how far the whole blend moves the view), so even
+  //    the far step glides. Under a ceiling a zoom press changes only the
+  //    remembered step; it shows once she is out.
+  let caveBlend = 0;
+  let caveHold = 0;
+  let snapCave = true;
+  function stepCaveBlend(dt, full) {
+    const p = avatar.position;
+    const target = underCeiling(ground, p.x, p.y, p.z) ? 1 : 0;
+    if (reducedMotion || snapCave) {
+      snapCave = false;
+      caveHold = 0;
+      return target;
+    }
+    if (target >= caveBlend) {
+      caveHold = 0;
+      const rate = full > 0 ? Math.min(CAVE_IN_RATE, PULL_IN_SPEED / full) : CAVE_IN_RATE;
+      return Math.min(target, caveBlend + rate * dt);
+    }
+    caveHold += dt;
+    if (caveHold < PULL_HOLD) return caveBlend;
+    const rate = full > 0 ? Math.min(CAVE_OUT_RATE, PULL_OUT_SPEED / full) : CAVE_OUT_RATE;
+    return Math.max(target, caveBlend - rate * dt);
+  }
+  // Writes the cave view into camView (raised ground only).
+  function applyCaveView(dt) {
+    const d = camView.dist;
+    const h = camView.height;
+    const full = Math.hypot(d - Math.min(d, CAVE_VIEW.dist), h - Math.min(h, CAVE_VIEW.height));
+    caveBlend = stepCaveBlend(dt, full);
+    caveView(camView, caveBlend, camView);
+  }
   let reducedMotion = false;
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
@@ -583,8 +644,11 @@ export function createPlayer(camera, canvas) {
       rockFrac = 1;
       rockHold = 0;
       snapRock = true;
+      caveBlend = 0;
+      caveHold = 0;
+      snapCave = true;
       yaw = 0;
-      pitch = 0.18;
+      pitch = DEFAULT_PITCH;
       velocity.set(0, 0, 0);
       api.perchY = 0;
       touchMove = null;
@@ -649,6 +713,7 @@ export function createPlayer(camera, canvas) {
         camLevel = camTarget;
         snapPull = true;
         snapRock = true;
+        snapCave = true;
       }
     },
     setReducedMotion(v) {
@@ -662,10 +727,18 @@ export function createPlayer(camera, canvas) {
     get cameraZoomLevel() {
       return camLevel;
     },
+    // 0 in the open, 1 under a ceiling (C4); read by tests.
+    get cameraCaveBlend() {
+      return caveBlend;
+    },
+    // The eased safety pull-in, 0..1 (1 = no pull); read by tests.
+    get cameraPull() {
+      return camPull;
+    },
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
       pitch += (invertY ? -dy : dy) * 0.004;
-      pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
+      pitch = THREE.MathUtils.clamp(pitch, -0.25, PITCH_MAX);
     },
     setInvertY(v) {
       invertY = !!v;
@@ -917,6 +990,7 @@ export function createPlayer(camera, canvas) {
 
       camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
       zoomView(camLevel, camView);
+      if (!ground.flat) applyCaveView(Math.max(dt, 0));
       cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
       // At or inside the default distance this is exactly 1, so the shipped
       // camera is untouched; beyond it the camera is kept out of buildings
@@ -949,7 +1023,7 @@ export function createPlayer(camera, canvas) {
     if (!api.locked || !enabled) return;
     yaw -= e.movementX * 0.0024;
     pitch += (invertY ? -e.movementY : e.movementY) * 0.002;
-    pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.85);
+    pitch = THREE.MathUtils.clamp(pitch, -0.25, PITCH_MAX);
   });
   document.addEventListener('keydown', (e) => {
     if (!enabled) return;

@@ -4,7 +4,7 @@ import { CATALOG } from '../src/progression.js';
 import { goldenFound, renderGoldenTallyHtml } from '../src/ui/hometabs.js';
 
 // Polish 2, item 8: Legacy hides the Clan Edition territories (the Woods, the
-// River, the Moor and the Pines), but the golden-mouse counter counted their
+// River, the Moor, the Pines and the Gorge), but the golden-mouse counter counted their
 // mice too, so a Legacy player could never reach the end. The count is now of
 // the mice in the places the current edition shows. Display only: the save's
 // `golden` list is untouched, and a mouse found in Clan Edition still counts
@@ -18,6 +18,7 @@ describe('golden mice per edition', () => {
     const set = goldForEdition('canon', CATALOG);
     expect([...set].sort()).toEqual([...KNOWN_GOLD].sort());
     expect(set.size).toBe(GOLD_TOTAL);
+    expect(set.size).toBe(30);
   });
 
   it('a missing edition is Clan Edition', () => {
@@ -27,8 +28,9 @@ describe('golden mice per edition', () => {
   it('Legacy counts only the mice in the places Legacy shows', () => {
     const set = goldForEdition('legacy', CATALOG);
     expect([...set].sort()).toEqual(idsIn(legacyAreas).sort());
+    expect(set.size).toBe(12);
     expect(set.size).toBeLessThan(GOLD_TOTAL);
-    for (const a of ['woods', 'river', 'moor', 'pines']) {
+    for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) {
       for (const m of GOLD_MICE[a]) expect(set.has(m.id)).toBe(false);
     }
   });

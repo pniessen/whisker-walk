@@ -20,11 +20,18 @@ describe('postStatus', () => {
     expect(postStatus(p, save(undefined), CATALOG, 'woods').kind).toBe('locked');
     expect(postStatus(p, { unlocked: { areas: [] } }, CATALOG, 'woods').line).toMatch(/· 1\/2 so far$/);
   });
-  it('an owned target is go; the Gorge is unexplored', () => {
+  it('an owned target is go; the Gorge opens after 2 Moor walks', () => {
     expect(postStatus(post('woods-river-long'), save({}, ['river']), CATALOG, 'woods').kind).toBe('go');
     const g = postStatus(post('moor-gorge'), save({}), CATALOG, 'moor');
-    expect(g).toMatchObject({ kind: 'unexplored', name: 'The Gorge' });
-    expect(promptFor(g, {}).text).toBe('The Gorge: not explored yet');
+    expect(g).toMatchObject({ kind: 'locked', name: 'The Gorge' });
+    expect(promptFor(g, {}).text).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
+    expect(promptFor(g, {}).kind).toBe('border-info');
+    expect(postStatus(post('moor-gorge'), save({ moor: 1 }), CATALOG, 'moor').kind).toBe('go');
+    expect(postStatus(post('moor-gorge'), save({}, ['gorge']), CATALOG, 'moor').kind).toBe('go');
+  });
+  it('a place not in the catalog is unexplored', () => {
+    const g = postStatus({ to: 'island' }, save({}), CATALOG, 'pines');
+    expect(g).toMatchObject({ kind: 'unexplored', to: 'island' });
     expect(promptFor(g, {}).kind).toBe('border-info');
   });
   it('first Neighborhood walk is still locked for the Woods', () => {
@@ -115,6 +122,18 @@ describe('decideBorderCross', () => {
     for (const to of ['gorge', '__proto__', 'pines', 7, undefined]) expect(decideBorderCross({ ...ev, to }, ctx)).toBe(null);
     expect(decideBorderCross({ ...ev, type: 'x' }, ctx)).toBe(null);
     expect(decideBorderCross(null, ctx)).toBe(null);
+  });
+  it('accepts the Gorge from the Moor, and refuses it from anywhere else', () => {
+    const fromMoor = { ...ctx, areaId: 'moor' };
+    expect(decideBorderCross({ ...ev, from: 'moor', to: 'gorge' }, fromMoor)).toEqual({ to: 'gorge' });
+    for (const from of ['woods', 'river', 'pines', 'neighborhood', 'park']) {
+      expect(decideBorderCross({ ...ev, from, to: 'gorge' }, { ...ctx, areaId: from }), from).toBe(null);
+    }
+    // and the Gorge's own posts lead back to the Moor and on to the town
+    const fromGorge = { ...ctx, areaId: 'gorge' };
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'moor' }, fromGorge)).toEqual({ to: 'moor' });
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'neighborhood' }, fromGorge)).toEqual({ to: 'neighborhood' });
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'woods' }, fromGorge)).toBe(null);
   });
   it('accepts the host', () => {
     expect(decideBorderCross(ev, ctx)).toEqual({ to: 'moor' });

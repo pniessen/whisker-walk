@@ -3,8 +3,8 @@ import { litMaterial } from './render/materials.js';
 import { areaInEdition } from './edition.js';
 import { FLAT_GROUND } from './ground.js';
 
-// Twenty-seven hidden golden mice: three in each of eight areas, and three more
-// on the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
+// Thirty hidden golden mice: three in each of nine areas, and three more on
+// the island in the Pines' lake, which is part of the Pines walk. Placed at parkour
 // destinations using the perch coordinates that actually ship in
 // src/world/*.js (see task-4.2-report.md for the chain math) rather than the v11 spec's
 // original coordinates, which Task 4.2 moved. Per area: two mice sit on
@@ -127,10 +127,21 @@ export const GOLD_MICE = {
     // hidden at ground level among the three bushes round (21.5, 35)
     { id: 'gm-pines-6', x: 21.5, z: 35.2, y: 0 },
   ],
+  // The Gorge (src/world/gorge.js). Its y values are heights above the ground
+  // under each mouse (part 1, R4): createGoldMice adds the ground. One is
+  // deep in a cave, one up a chain, and one tucked in a den on the way up.
+  gorge: [
+    // at the back of the Echo Cave's chamber, on the floor (ground 0)
+    { id: 'gm-gorge-1', x: -29.5, z: 33.5, y: 0 },
+    // top of the Summit Rock chain, on the clifftop (ground 12): boulder 0.72 -> pillar 1.9
+    { id: 'gm-gorge-2', x: 25, z: -24, y: 1.9 },
+    // in the Lookout den, beside the Lookout Ledge (ground 4)
+    { id: 'gm-gorge-3', x: 4.6, z: -9.6, y: 0 },
+  ],
 };
 
 export const KNOWN_GOLD = new Set(Object.values(GOLD_MICE).flat().map((m) => m.id));
-export const GOLD_TOTAL = KNOWN_GOLD.size; // 27 (eight areas x three, and the island's three)
+export const GOLD_TOTAL = KNOWN_GOLD.size; // 30 (nine areas x three, and the island's three)
 
 // The golden mice a player of `edition` can reach: those in the areas the
 // edition shows (Legacy hides the Clan Edition territories; see edition.js).

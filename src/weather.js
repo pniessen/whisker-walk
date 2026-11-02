@@ -1,12 +1,32 @@
 import * as THREE from 'three';
 import { skyBackground } from './render/sky.js';
-import { FLAT_GROUND } from './ground.js';
+import { FLAT_GROUND, groundOf } from './ground.js';
+import { standSpot } from './keepout.js';
 
 export function rollWeather(rng) {
   const r = rng();
   if (r < 0.5) return 'clear';
   if (r < 0.8) return 'rain';
   return 'sunset';
+}
+
+// The rain's three extra puddles (walk.js): two draws each off the walk's
+// stream, anywhere within the middle half of the bounds, then (Gorge part 2,
+// G7) moved onto ground a cat can stand on (keepout.js's standSpot), after
+// the draws, so no draw moves. Untouched on every map without onlyOn.
+// Each spot carries `y`, the ground under it (0 on every flat map), so the
+// puddle is drawn on the clifftop or a ledge when it lands there.
+export function rainPuddleSpots(area, rng, count = 3) {
+  const b = area.bounds;
+  const ground = groundOf(area);
+  const spots = [];
+  for (let i = 0; i < count; i++) {
+    const px = b.minX / 2 + rng() * (b.maxX - b.minX) / 2;
+    const pz = b.minZ / 2 + rng() * (b.maxZ - b.minZ) / 2;
+    const { x, z } = standSpot(area, px, pz);
+    spots.push({ x, z, r: 0.8, y: ground.y(x, z) });
+  }
+  return spots;
 }
 
 export function createRainSchedule(rng) {
@@ -33,7 +53,10 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   // isRaining(): true only while a rainy walk is still in its rain phase (not
   // the rainbow, not after). Reads the schedule's clock; draws nothing from
   // any rng. v21 3b: falling rain loosens the grip on whatever the cat carries.
-  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false };
+  // setSheltered(on) (Gorge part 3, C6): the camera is under a ceiling, so
+  // the rain column hides; a no-op on every walk without one. The rain's
+  // sound is unchanged: you hear rain from a cave mouth.
+  const api = { condition, rainbowVisible: false, rainbowPos: null, update() {}, isRaining: () => false, setSheltered() {} };
   if (condition === 'clear') return api;
 
   if (condition === 'sunset') {
@@ -96,7 +119,14 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   let elapsed = 0;
   let rainbow = null;
 
+  let sheltered = false;
+
   api.isRaining = () => schedule.phase(elapsed) === 'rain';
+  // Only the rain phase ever shows the column again; the rainbow hid it for good.
+  api.setSheltered = (on) => {
+    sheltered = on;
+    if (rain && api.isRaining()) rain.visible = !sheltered;
+  };
   api.update = (dt, cameraPos) => {
     elapsed += dt;
     const phase = schedule.phase(elapsed);

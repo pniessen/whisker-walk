@@ -2,6 +2,7 @@
 // 2D page UI on its own <canvas>; nothing here touches the Three.js scene
 // beyond reading the flat path strips once when a walk starts.
 import { flatFootprints } from '../render/grass.js';
+import { groundOf } from '../ground.js';
 import { findTrees } from '../render/ambient.js';
 import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle, badgeAt, clearOfBadge, BADGE_R, MARK_R } from './minimapmath.js';
 
@@ -16,6 +17,11 @@ const WATER = '#86bcdc';
 const PATH = 'rgba(250,244,228,0.85)';
 const BLOCK = 'rgba(70,60,52,0.45)';
 const TREE = 'rgba(46,88,42,0.55)';
+// The Gorge's rock (masses, lips, roofed caves and dens) and its raised ledges.
+const ROCK_TONES = Object.freeze({ rock: 'rgba(92,86,80,0.55)', ledge: 'rgba(214,198,170,0.85)' });
+// A cave's mouth: a small dark arch, upright on the map whichever way it turns.
+const CAVE_MOUTH = '#3a3028';
+const ARCH_R = 4;
 // A tree is drawn as most of its crown, not its full canopy, so a wood reads
 // as trees with ground between them rather than one green blot; capped so the
 // camp's great tree is not a lake of green.
@@ -34,6 +40,8 @@ const TAP_MS = 300;
 // The world shapes the map draws, in metres. Built once per walk from area
 // data plus the flat strips on the ground. It names only the keys below, so
 // nothing hidden (golden mice, secrets, gifts, collectibles) can reach it.
+// A strip counts as flat when it lies on the area's own ground (groundOf: the
+// Gorge's ledges and floor, FLAT_GROUND everywhere else).
 export function buildMapLayer(areaData, scene) {
   const ground = '#' + (areaData.groundBounce ?? 0x6cb058).toString(16).padStart(6, '0');
   return {
@@ -55,7 +63,13 @@ export function buildMapLayer(areaData, scene) {
         ? { kind: 'strip', x1: d.x1, z1: d.z1, x2: d.x2, z2: d.z2, halfW: d.halfW }
         : { minX: d.minX, maxX: d.maxX, minZ: d.minZ, maxZ: d.maxZ })),
     })),
-    paths: flatFootprints(scene).filter((f) => f.kind === 'strip'),
+    paths: flatFootprints(scene, groundOf(areaData)).filter((f) => f.kind === 'strip'),
+    // The Gorge's rock and ledges as plain rectangles, drawn under the paths.
+    // Empty on every other map, so they paint exactly as before.
+    rock: (areaData.mapShapes ?? []).map(({ minX, maxX, minZ, maxZ, tone }) => ({ minX, maxX, minZ, maxZ, tone })),
+    // The Gorge's deep caves, by their mouths, drawn as small dark arches.
+    // Empty on every other map, so they paint exactly as before.
+    caves: (areaData.caves ?? []).map(({ mouth }) => ({ x: mouth.x, z: mouth.z })),
     // Big colliders stand in for buildings, trees and large props; small
     // ones (bins, posts) would only be noise at this scale.
     blocks: (areaData.colliders ?? []).filter((c) => c.r >= 1).map((c) => ({ x: c.x, z: c.z, r: c.r })),
@@ -204,6 +218,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     ctx.fillRect(0, 0, size, size);
     drawWorld(full, c);
     ctx.restore();
+    drawCaveMouths(full, c);
 
     slidCount = 0;
     for (const m of markers) drawMarker(m, full, c);
@@ -237,6 +252,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.fillRect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
       ctx.globalAlpha = 1;
     }
+    drawRock(e);
     drawPaths();
     ctx.fillStyle = WATER;
     for (const w of layer.water) {
@@ -319,6 +335,48 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.beginPath();
       ctx.arc(b.x, b.z, b.r, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  // The rock runs past the map's edge (the Gorge's rims go to 62 m), so it is
+  // clipped to the edge, past which the map stays plain cream.
+  function drawRock(e) {
+    const rock = layer.rock ?? [];
+    if (!rock.length) return;
+    ctx.save();
+    if (e) {
+      ctx.beginPath();
+      ctx.rect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
+      ctx.clip();
+    }
+    for (const r of rock) {
+      ctx.fillStyle = ROCK_TONES[r.tone] ?? ROCK_TONES.rock;
+      ctx.fillRect(r.minX, r.minZ, r.maxX - r.minX, r.maxZ - r.minZ);
+    }
+    ctx.restore();
+  }
+
+  // Each cave mouth on the map's face, as an upright arch 8 px wide, over the
+  // world and under the markers. One that is off the face is left off: a
+  // mouth is a place, not a direction.
+  function drawCaveMouths(view, c) {
+    const caves = layer?.caves ?? [];
+    for (const m of caves) {
+      const p = toMap(m.x, m.z, view);
+      if (Math.hypot(p.u, p.v) > view.radiusPx - ARCH_R) continue;
+      const x = c + p.u;
+      const y = c + p.v;
+      ctx.beginPath();
+      ctx.moveTo(x - ARCH_R, y + ARCH_R * 0.75);
+      ctx.lineTo(x - ARCH_R, y);
+      ctx.arc(x, y, ARCH_R, Math.PI, 0);
+      ctx.lineTo(x + ARCH_R, y + ARCH_R * 0.75);
+      ctx.closePath();
+      ctx.fillStyle = CAVE_MOUTH;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = CREAM;
+      ctx.stroke();
     }
   }
 

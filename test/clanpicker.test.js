@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { clanPickerModel, renderClanPickerHtml } from '../src/ui/clanpicker.js';
+import { clanPickerModel, renderClanPickerHtml, PICK_ATTR } from '../src/ui/clanpicker.js';
 import { TERRITORIES } from '../src/territories.js';
 import { clanName, pickableClans } from '../src/clanhomes.js';
-import { CLAN_SUFFIX } from '../src/clanwords.js';
+import { CLAN_SUFFIX, HOME_LINES } from '../src/clanwords.js';
 
 const PARTNER = 'robin-player-02';
 const word = CLAN_SUFFIX.toLowerCase();
@@ -16,13 +16,46 @@ const save = (over = {}) => ({
 const cardOf = (m, id) => m.cards.find((c) => c.id === id);
 
 describe('clanPickerModel', () => {
-  it('an unpicked save gets four cards, none of them the gorge', () => {
+  it('an unpicked save gets five cards: the four to pick, then the gorge', () => {
     const m = clanPickerModel(save());
     expect(m.mine).toBeNull();
-    expect(m.cards).toHaveLength(4);
-    expect(m.cards.map((c) => c.id)).toEqual(pickableClans());
-    expect(m.cards.map((c) => c.id)).not.toContain('gorge');
+    expect(m.cards).toHaveLength(5);
+    expect(m.cards.map((c) => c.id)).toEqual([...pickableClans(), 'gorge']);
+    expect(m.cards.filter((c) => c.pickable).map((c) => c.id)).toEqual(pickableClans());
     expect(renderClanPickerHtml(m, 'Robin')).toContain(`Pick your ${word}`);
+  });
+
+  it("CliffClan shows as a card that can't be picked yet", () => {
+    const m = clanPickerModel(save());
+    expect(cardOf(m, 'gorge')).toMatchObject({
+      id: 'gorge', name: clanName('gorge'), place: 'The Gorge', pickable: false, soon: true, line: 'camp coming soon',
+      mine: false, partner: false,
+    });
+    const html = renderClanPickerHtml(m, 'Robin');
+    const card = html.split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
+    expect(card).toContain('aria-disabled="true"');
+    expect(card).not.toContain(PICK_ATTR);
+    expect(card).not.toContain('aria-pressed');
+    expect(card).toContain('<small>camp coming soon</small>');
+    expect(card).not.toContain('territory coming soon');
+    expect(html.match(new RegExp(PICK_ATTR, 'g'))).toHaveLength(4);
+  });
+
+  it('the four pickable cards are unchanged', () => {
+    const m = clanPickerModel(save({ clanPick: { mine: 'river', partner: 'moor', partnerId: PARTNER } }));
+    const html = renderClanPickerHtml(m, 'Robin');
+    for (const id of pickableClans()) {
+      const t = TERRITORIES.find((x) => x.id === id);
+      const mine = id === 'river';
+      expect(cardOf(m, id)).toEqual({
+        id, name: clanName(id), line: HOME_LINES[id], place: t.name, soon: false, pickable: true, mine, partner: id === 'moor',
+      });
+      expect(html).toContain(`<button class="dr-home ${mine ? 'sel' : ''}" ${PICK_ATTR}="${id}" aria-pressed="${mine}">`
+        + `<span class="dr-home-name">${clanName(id)}</span><small>of ${t.name}</small><small>${HOME_LINES[id]}</small>`
+        + (mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
+        + (id === 'moor' ? "<small class=\"dr-home-tag\">🤝 Robin's</small>" : '')
+        + '</button>');
+    }
   });
 
   it('a pick marks exactly one card mine', () => {
@@ -78,5 +111,30 @@ describe('clanPickerModel', () => {
     expect(html).toContain('territory coming soon');
     expect(html.match(/territory coming soon/g)).toHaveLength(1);
     expect(html).toContain('data-clan-pick="moor"');
+  });
+});
+
+// Final review M2: the greyed card's text was about 3:1. With no opacity on
+// the card, white text, the .92 small line and the .8 "coming soon" all reach
+// 4.5:1 over both of the gradient's stops.
+describe('the greyed clan card (style.css)', () => {
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  it('reads at 4.5:1 or better', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.dr \.dr-home\.dr-home-off \{([^}]*)\}/)[1];
+    expect(rule).not.toMatch(/opacity/);
+    const stops = rule.match(/#[0-9a-f]{6}/gi);
+    expect(stops).toHaveLength(2);
+    for (const stop of stops) {
+      const bg = rgb(stop);
+      for (const a of [1, 0.92, 0.8]) {
+        const fg = bg.map((c) => a + c * (1 - a));
+        expect(ratio(fg, bg), `${stop} at ${a}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 });

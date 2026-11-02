@@ -32,8 +32,9 @@
   import * as river from '/src/world/river.js';
   import * as moor from '/src/world/moor.js';
   import * as pines from '/src/world/pines.js';
+  import * as gorge from '/src/world/gorge.js';
 
-  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines };
+  const AREAS = { neighborhood, park, seaside, docks, woods, river, moor, pines, gorge };
   const id = new URLSearchParams(location.search).get('area') || 'neighborhood';
   // ?size=WxH renders bigger than the card pictures (for looking, not shipping).
   const [W, H] = (new URLSearchParams(location.search).get('size') || '640x360').split('x').map(Number);
@@ -174,6 +175,11 @@
     // from the truce path's last bend, looking down the bay to the island and
     // its bridge
     pines: '-6,1.6,-2,28,1.0,28',
+    // high over the gorge's north end, looking south down the floor: the
+    // stream, the path, the stepping stones and pines (the card picture). The
+    // first view, from the clifftop's lip '3,13.8,-26,-8,2,20', was half bare
+    // rock
+    gorge: '-3,15,-40,-6,0,0',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();
