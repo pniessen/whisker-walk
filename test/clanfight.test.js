@@ -11,6 +11,8 @@ import { mulberry32, seedFromCode } from '../src/rng.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { renderJournalHtml } from '../src/journal.js';
+import { FLAT_GROUND } from '../src/ground.js';
+import { buildHeightFixture } from './fixtures/heightfield.js';
 
 const DT = 1 / 30;
 const RUN = 3;
@@ -28,6 +30,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 function harness({
   answers = 'right', clanHome = true, picks = ['woods'], clan = 'moor', reducedMotion = false,
   special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
+  terrain = undefined,
 } = {}) {
   const calls = [];
   const sent = [];
@@ -65,6 +68,7 @@ function harness({
     intruders, ui, audio, fx, hud, log: theLog, areaId: 'woods', walkStamp, playerId: 'me',
     playerSpecial: special, reducedMotion, now: () => clock.T, isGround: ground, player,
     runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
+    ...(terrain === undefined ? {} : { terrain }),
   });
   const frame = (dt = DT) => { clock.T += dt; cf.update(dt, s); };
   const moves = [];
@@ -692,5 +696,114 @@ describe('clanfight.js is pinned', () => {
     expect(slice).toContain('hud.toast(');
     // The one thing it may add is telling the co-walker the fight is over.
     expect(slice).toContain('sendDone(false)');
+  });
+});
+
+// Gorge part 1, Task 8 (R10, R11): a fight stands on one level. The fixture's
+// plateau is a disc at (8, 0), r 5, 3 m up; its ramp runs up along z = 0 from
+// x = -6 (y 0) to x = 3 (y 3), 2 m wide, with a drop at each side.
+describe('fights stand on one level', () => {
+  const G = buildHeightFixture(null).ground;
+  const near3 = (p) => Math.abs(G.y(p.x, p.z) - 3) <= 0.3;
+
+  test('fightReach drops every spot off my anchor\'s level; flat ground changes nothing', () => {
+    const spot = { x: 8, z: 4 }, foeAt = { x: 8, z: 5.6 };
+    const r = fightReach(spot, foeAt, () => true, G);
+    expect(r.me[0]).toEqual(spot);
+    expect(r.it[0]).toEqual(foeAt);
+    for (const p of [...r.me.slice(1), ...r.it.slice(1)]) expect(near3(p)).toBe(true);
+    // without it the floor spots are there
+    const all = fightReach(spot, foeAt, () => true);
+    expect(all.it.slice(1).some((p) => !near3(p))).toBe(true);
+    for (const [s, f] of [[spot, foeAt], [{ x: 2.5, z: 0 }, { x: 0, z: 0 }], [{ x: 1, z: 1 }, { x: 1, z: 1 }]]) {
+      const ok = (x) => x < 9;
+      const base = fightReach(s, f, ok);
+      expect(fightReach(s, f, ok, FLAT_GROUND)).toEqual(base);
+      expect(fightReach(s, f, ok, null)).toEqual(base);
+    }
+  });
+
+  test('a fight on the plateau stands on it', () => {
+    // the intruder near the plateau's north rim, my cat south of it: every
+    // round I win, it steps back toward the rim (and over it, were it allowed)
+    const h = harness({ terrain: G, startAt: 8 });
+    h.cur.pos = { x: 8, z: 4.7 };
+    h.s.cat.position.x = 8;
+    h.s.cat.position.z = 2;
+    h.challenge();
+    expect(h.cf.uiShowing).toBe('challenge');
+    h.fight();
+    const staged = [];
+    const mine = [];
+    h.runToEnd(() => {
+      const st = h.calls.filter((c) => c.kind === 'stage').at(-1)?.st;
+      if (st) staged.push(st);
+      if (h.s.fight) mine.push({ x: h.s.cat.position.x, z: h.s.cat.position.z });
+    });
+    expect(staged.length).toBeGreaterThan(30);
+    for (const st of staged) {
+      expect(near3(st)).toBe(true);
+      // a lift, relative: intruders.place() adds the ground under it
+      expect(st.y).toBeGreaterThanOrEqual(0);
+      expect(st.y).toBeLessThan(0.3);
+    }
+    expect(staged.some((st) => st.y > 0)).toBe(true);
+    for (const p of mine) expect(near3(p)).toBe(true);
+    const bursts = h.fx.burst.mock.calls;
+    expect(bursts.length).toBeGreaterThan(0);
+    for (const [p] of bursts) expect(p.y).toBeCloseTo(3.2, 12);
+  });
+
+  test('R10: no challenge and no fight across a rim', () => {
+    // my cat on the floor at (8, 7), the intruder up on the plateau 3 m away
+    const h = harness({ terrain: G, startAt: 8 });
+    h.cur.pos = { x: 8, z: 4 };
+    h.s.cat.position.z = 7;
+    for (let i = 0; i < 10; i++) h.frame();
+    expect(h.ui.showChallenge).not.toHaveBeenCalled();
+    h.fight();
+    expect(h.intruders.hold).not.toHaveBeenCalled();
+    expect(h.s.fight).toBeNull();
+    // a pill already up goes away when the levels part
+    const g = harness({ terrain: G, startAt: 8 });
+    g.cur.pos = { x: 8, z: 3 };
+    g.s.cat.position.z = 4.9;
+    g.frame();
+    expect(g.cf.uiShowing).toBe('challenge');
+    g.s.cat.position.z = 5.5;
+    g.frame();
+    expect(g.cf.uiShowing).toBeNull();
+  });
+
+  test('the walk-over stops at a rim and the rounds begin where she stands', () => {
+    // the intruder on the ramp 0.4 m up, my cat on the floor beside it: the
+    // same level for a challenge, but the ramp's side is a 0.4 m step
+    const h = harness({ terrain: G, startAt: -4.8 });
+    h.cur.pos = { x: -4.8, z: -0.9 };
+    h.s.cat.position.z = 2.5;
+    expect(G.y(-4.8, -0.9)).toBeCloseTo(0.4, 12);
+    h.challenge();
+    expect(h.cf.uiShowing).toBe('challenge');
+    h.fight();
+    const path = [];
+    h.runToEnd(() => path.push({ x: h.s.cat.position.x, z: h.s.cat.position.z }));
+    expect(path.length).toBeGreaterThan(10);
+    for (const p of path) expect(G.y(p.x, p.z)).toBe(0);
+    // she got as far as the ramp's side
+    expect(Math.min(...path.map((p) => p.z))).toBeLessThan(1.2);
+  });
+
+  test('on flat ground (FLAT_GROUND or none) a whole fight is exactly today\'s', () => {
+    const runOne = (terrain) => {
+      const h = harness({ terrain });
+      h.challenge();
+      h.fight();
+      const trace = [];
+      h.runToEnd(() => trace.push([h.s.cat.position.x, h.s.cat.position.z, h.s.cat.rotation.y, h.s.fightPose, h.s.fightLift]));
+      return { trace, calls: h.calls, bursts: h.fx.burst.mock.calls, sub: h.cf.cameraSubject };
+    };
+    const base = runOne(undefined);
+    expect(runOne(FLAT_GROUND)).toEqual(base);
+    expect(runOne(null)).toEqual(base);
   });
 });

@@ -480,3 +480,104 @@ describe('camera moves are checked: ease only when every step of it is clear', (
     }
   });
 });
+
+// Gorge part 1, Task 8 (R11): the fight camera rides the ground under the
+// pair's middle and keeps out of rock and under ceilings (R8's test). The
+// fixture's plateau is a disc at (8, 0), r 5, 3 m up; its tunnel's ceiling
+// is 1.6 m over x -11.5..-8.5, z -14..-8.
+const { buildHeightFixture } = await import('./fixtures/heightfield.js');
+const { FLAT_GROUND } = await import('../src/ground.js');
+const { CAM_ROCK_CLEAR, CAM_CEIL_CLEAR } = await import('../src/camzoom.js');
+describe('the fight camera rides the ground and stays out of rock', () => {
+  const G = buildHeightFixture(null).ground;
+  const LOOK = 0.3;
+  // every point on the camera-to-look segment is above the ground and under the ceiling
+  const segmentClear = (pos, mid, g0) => {
+    for (let i = 0; i <= 400; i++) {
+      const t = i / 400;
+      const x = pos.x + (mid.x - pos.x) * t, y = pos.y + (g0 + LOOK - pos.y) * t, z = pos.z + (mid.z - pos.z) * t;
+      if (y < G.y(x, z) || y > G.ceil(x, z)) return false;
+    }
+    return true;
+  };
+  const camOk = (pos) => pos.y >= G.y(pos.x, pos.z) + CAM_ROCK_CLEAR && pos.y <= G.ceil(pos.x, pos.z) - CAM_CEIL_CLEAR;
+
+  test('on the plateau: the flat view lifted 3 m, every height riding the ground', () => {
+    const subj = subject({ x: 8.8, z: 0 }, { x: 7.2, z: 0 });
+    for (const yaw0 of [0, 1, -0.6, 2.6, Math.PI]) {
+      for (const view of [PORTRAIT, LAND]) {
+        const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...view });
+        const v = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: G, ...view });
+        expect(v.pos.x).toBe(flat.pos.x);
+        expect(v.pos.z).toBe(flat.pos.z);
+        expect(v.pos.y).toBeCloseTo(flat.pos.y + 3, 12);
+        expect(v.pos.y).toBeGreaterThanOrEqual(3 + 0.8);
+        expect(v.look.y).toBeCloseTo(flat.look.y + 3, 9);
+        expect(camOk(v.pos)).toBe(true);
+      }
+    }
+    // the points it keeps in view stand on the plateau too
+    expect(subjectPoints(subj, false, 3).map((p) => p.y)).toEqual(subjectPoints(subj).map((p) => p.y + 3));
+    expect(framePoints(subj, 3).map((p) => p.y)).toEqual(framePoints(subj).map((p) => p.y + 3));
+  });
+
+  test('at the cliff foot: no camera inside the plateau, and the line to the pair clears the rock', () => {
+    // the pair on the floor 1.8 m out from the plateau's rim, the current view
+    // looking from the plateau's side, which puts the first spot inside rock
+    const subj = subject({ x: 8.8, z: 6.8 }, { x: 7.2, z: 6.8 });
+    for (const view of [PORTRAIT, LAND, DESK]) {
+      for (const yaw0 of [Math.PI, Math.PI - 0.5, Math.PI + 0.5]) {
+        const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...view });
+        expect(camOk(flat.pos)).toBe(false); // the test bites: today's pick is in the rock
+        const v = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: G, ...view });
+        expect(camOk(v.pos)).toBe(true);
+        expect(segmentClear(v.pos, subj.mid, 0)).toBe(true);
+      }
+    }
+  });
+
+  test('in the tunnel: never above its ceiling', () => {
+    const subj = subject({ x: -9.2, z: -11 }, { x: -10.8, z: -11 });
+    for (const yaw0 of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const v = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: G, ...LAND });
+      expect(camOk(v.pos)).toBe(true);
+      expect(segmentClear(v.pos, subj.mid, 0)).toBe(true);
+    }
+  });
+
+  test('createFightCam takes the ground and holds the grounded view', () => {
+    const subj = subject({ x: 8.8, z: 0 }, { x: 7.2, z: 0 });
+    const fc = createFightCam({ bounds: BOUNDS, ground: G });
+    const cam = fakeCamera();
+    for (let i = 0; i < 120; i++) {
+      cam.position.set(8, 5.2, 4.5);
+      fc.update(1 / 60, { camera: cam, cat: { x: 8.8, y: 3, z: 0 }, subject: subj });
+    }
+    expect(fc.weight).toBe(1);
+    expect(fc.view.pos.y).toBeGreaterThanOrEqual(3.8);
+    expect(cam.position.y).toBeCloseTo(fc.view.pos.y, 6);
+    expect(camOk(cam.position)).toBe(true);
+  });
+
+  test('with FLAT_GROUND every view, point and blend is exactly today\'s', () => {
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: 0, z: 3.2, scale: 1.4 }, { kind: 'pine', x: 3, z: -2 }]));
+    const subj = subject({ x: 0.8, z: 0 }, { x: -0.8, z: 0 });
+    for (const yaw0 of [0, 1, Math.PI]) {
+      const a = chooseFightView({ subject: subj, occluders: occ, bounds: BOUNDS, yaw0, ...PORTRAIT });
+      expect(chooseFightView({ subject: subj, occluders: occ, bounds: BOUNDS, yaw0, ground: FLAT_GROUND, ...PORTRAIT })).toEqual(a);
+    }
+    expect(subjectPoints(subj, true, 0)).toEqual(subjectPoints(subj, true));
+    const run = (opts) => {
+      const fc = createFightCam({ occluders: occ, bounds: BOUNDS, ...opts });
+      const cam = fakeCamera();
+      const out = [];
+      for (let i = 0; i < 60; i++) {
+        cam.position.set(0, 2.2, 4.5);
+        fc.update(1 / 60, { camera: cam, cat: { x: 0.8, z: 0 }, subject: i < 40 ? subj : null });
+        out.push({ x: cam.position.x, y: cam.position.y, z: cam.position.z, looked: cam.looked });
+      }
+      return out;
+    };
+    expect(run({ ground: FLAT_GROUND })).toEqual(run({}));
+  });
+});

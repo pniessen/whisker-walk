@@ -29,6 +29,8 @@
 
 import { SWAY_TREE } from './world/builder.js';
 import { GUST_DEPTH, MAX_INTENSITY, SIDE_AMPLITUDE_FRACTION } from './render/wind.js';
+import { FLAT_GROUND } from './ground.js';
+import { CAM_ROCK_CLEAR, CAM_CEIL_CLEAR } from './camzoom.js';
 
 // Where on a cat the camera must see: paws, body, and a head lifted by a pounce.
 export const CAT_HEIGHTS = Object.freeze([0.08, 0.4, 0.85]);
@@ -161,13 +163,18 @@ export function firstBlocker(a, b, occluders, pad = null) {
 
 // The 3D points to keep in view: every spot either cat can stand on (me, it),
 // at each of CAT_HEIGHTS, plus (withPath) the walk-over's run, which must not
-// be hidden but may cross the frame's edge.
-export function subjectPoints(subject, withPath = false) {
+// be hidden but may cross the frame's edge. Every height rides g0, the
+// ground under the pair's middle (fightGround; 0 on flat ground, R11: a fight
+// stands on one level).
+export function subjectPoints(subject, withPath = false, g0 = 0) {
   const out = [];
   const spots = withPath ? [...subject.me, ...subject.it, ...(subject.path || [])] : [...subject.me, ...subject.it];
-  for (const p of spots) for (const y of CAT_HEIGHTS) out.push({ x: p.x, y, z: p.z });
+  for (const p of spots) for (const y of CAT_HEIGHTS) out.push({ x: p.x, y: y + g0, z: p.z });
   return out;
 }
+
+// g0: the ground under the pair's middle, 0 on flat ground.
+const fightGround = (subject, ground) => (ground.flat ? 0 : ground.y(subject.mid.x, subject.mid.z));
 
 // A cat is no point: from its middle its nose and its tail reach about this
 // far (the head sits 0.4 m forward, the tail as far back), whichever way it
@@ -176,9 +183,9 @@ export const CAT_BODY = 0.55;
 
 // The points that must be on screen above the sheet: subjectPoints (no run),
 // plus each spot's body reach in the four directions at body height.
-export function framePoints(subject) {
-  const out = subjectPoints(subject, false);
-  const y = CAT_HEIGHTS[1];
+export function framePoints(subject, g0 = 0) {
+  const out = subjectPoints(subject, false, g0);
+  const y = CAT_HEIGHTS[1] + g0;
   for (const p of [...subject.me, ...subject.it]) {
     out.push({ x: p.x + CAT_BODY, y, z: p.z }, { x: p.x - CAT_BODY, y, z: p.z },
       { x: p.x, y, z: p.z + CAT_BODY }, { x: p.x, y, z: p.z - CAT_BODY });
@@ -188,9 +195,9 @@ export function framePoints(subject) {
 
 // --- one view ----------------------------------------------------------------
 
-// The view from `pos` with the pair's middle AIM_Y up the screen.
-function viewFrom(pos, mid, fovY) {
-  const dx = mid.x - pos.x, dy = LOOK_Y - pos.y, dz = mid.z - pos.z;
+// The view from `pos` with the pair's middle (lookY up) AIM_Y up the screen.
+function viewFrom(pos, mid, fovY, lookY = LOOK_Y) {
+  const dx = mid.x - pos.x, dy = lookY - pos.y, dz = mid.z - pos.z;
   const h = Math.hypot(dx, dz);
   const dist = Math.hypot(h, dy);
   const pitch = Math.atan2(dy, h) - Math.atan(AIM_Y * Math.tan((fovY * Math.PI) / 360));
@@ -235,6 +242,24 @@ function inFrame(view, pts, aspect, fovY) {
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
+// Gorge part 1 (R8, R11): a camera spot is in rock when it is under the
+// ground + CAM_ROCK_CLEAR or over the ceiling - CAM_CEIL_CLEAR at its own
+// x, z, or when its line to the pair's middle (at look height) passes under
+// the ground or over a ceiling anywhere along it (sampled every ROCK_STEP m).
+// Only called off flat ground.
+const ROCK_STEP = 0.1;
+function inRock(pos, mid, lookY, ground) {
+  if (pos.y < ground.y(pos.x, pos.z) + CAM_ROCK_CLEAR || pos.y > ground.ceil(pos.x, pos.z) - CAM_CEIL_CLEAR) return true;
+  const dx = mid.x - pos.x, dy = lookY - pos.y, dz = mid.z - pos.z;
+  const n = Math.max(1, Math.ceil(Math.hypot(dx, dy, dz) / ROCK_STEP));
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const x = pos.x + dx * t, y = pos.y + dy * t, z = pos.z + dz * t;
+    if (y < ground.y(x, z) || y > ground.ceil(x, z)) return true;
+  }
+  return false;
+}
+
 // The camera spots to try, cheapest first: yaw0 itself, then 15-degree steps
 // either way, on each ring; ring0 (the ring already in use) costs nothing.
 function candidates(subject, yaw0, ring0) {
@@ -257,20 +282,25 @@ function candidates(subject, yaw0, ring0) {
 // The fight view: { pos, look, yaw, ring, clear, blockers }. clear is false
 // only when no spot clears every tree; blockers then lists the trees (each
 // with its Group) whose hiding clears the chosen spot.
-export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70 }) {
+// `ground` (src/ground.js): every height rides g0, the ground under the
+// pair's middle, and a spot in rock or over a ceiling is never taken (R11).
+export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70, ground = FLAT_GROUND }) {
   const { mid } = subject;
+  const g0 = fightGround(subject, ground);
+  const lookY = LOOK_Y + g0;
   const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= REACH + o.R);
-  const framePts = framePoints(subject);
-  const seePts = subjectPoints(subject, true);
+  const framePts = framePoints(subject, g0);
+  const seePts = subjectPoints(subject, true, g0);
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
   for (const c of candidates(subject, yaw0, ring0)) {
     const ring = RINGS[c.ri];
-    const pos = { x: mid.x + Math.sin(c.yaw) * ring.d, y: ring.h, z: mid.z + Math.cos(c.yaw) * ring.d };
+    const pos = { x: mid.x + Math.sin(c.yaw) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(c.yaw) * ring.d };
     if (bounds && (pos.x < bounds.minX + BOUNDS_GAP || pos.x > bounds.maxX - BOUNDS_GAP ||
       pos.z < bounds.minZ + BOUNDS_GAP || pos.z > bounds.maxZ - BOUNDS_GAP)) continue;
     if (colliders.some((k) => Math.hypot(pos.x - k.x, pos.z - k.z) < k.r + COLLIDER_GAP)) continue;
-    const view = viewFrom(pos, mid, fovY);
+    if (!ground.flat && inRock(pos, mid, lookY, ground)) continue;
+    const view = viewFrom(pos, mid, fovY, lookY);
     if (!inFrame(view, framePts, aspect, fovY)) continue;
     const blockers = new Set();
     let hideable = true;
@@ -307,8 +337,8 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   // No spot frames the pair at all (a cat pinned in a corner of the map): the
   // first ring straight back, as the follow camera would be.
   const ring = RINGS[0];
-  const pos = { x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h, z: mid.z + Math.cos(yaw0) * ring.d };
-  return { ...viewFrom(pos, mid, fovY), yaw: yaw0, ring: 0, clear: false, blockers: [] };
+  const pos = { x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d };
+  return { ...viewFrom(pos, mid, fovY, lookY), yaw: yaw0, ring: 0, clear: false, blockers: [] };
 }
 
 // --- the blend ---------------------------------------------------------------
@@ -324,9 +354,10 @@ export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8
 // move in a straight line, as the blend below moves them) keeps both cats in
 // the frame above the sheet and every line to them clear of the trees, at
 // every BLEND_SAMPLES point. If not, the camera cuts instead of easing.
-export function blendClear(from, to, subject, occluders, aspect, fovY) {
-  const framePts = framePoints(subject);
-  const seePts = subjectPoints(subject, true);
+export function blendClear(from, to, subject, occluders, aspect, fovY, ground = FLAT_GROUND) {
+  const g0 = fightGround(subject, ground);
+  const framePts = framePoints(subject, g0);
+  const seePts = subjectPoints(subject, true, g0);
   // only the trees within reach of the move's lines: inside a circle round
   // the pair's middle that holds both ends of the move
   const mid = subject.mid;
@@ -351,7 +382,7 @@ export function blendClear(from, to, subject, occluders, aspect, fovY) {
 // is on screen now; otherwise it is a cut. An ease in goes from a still
 // snapshot of the follow view, so the move is exactly the straight line that
 // was checked; a move between fight views goes from what is on screen.
-export function createFightCam({ occluders = [], colliders = [], bounds = null, reducedMotion = false, lookY = 0.6 } = {}) {
+export function createFightCam({ occluders = [], colliders = [], bounds = null, reducedMotion = false, lookY = 0.6, ground = FLAT_GROUND } = {}) {
   let w = 0;            // 0 follow camera .. 1 fight camera
   let view = null;      // the chosen view
   let cur = null;       // where the fight camera is, easing toward view
@@ -372,7 +403,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
     const yaw0 = Math.atan2(at.x - mid.x, at.z - mid.z);
     const next = chooseFightView({
       subject, occluders, colliders, bounds, yaw0, ring0: view ? view.ring : null,
-      aspect: camera.aspect, fovY: camera.fov,
+      aspect: camera.aspect, fovY: camera.fov, ground,
     });
     show();
     for (const o of next.blockers) { o.obj.visible = false; hidden.push(o); }
@@ -408,7 +439,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
         lastSubject = subject;
         lastAspect = camera.aspect;
         const left = occluders.filter((o) => !o.obj || o.obj.visible !== false);
-        if (reducedMotion || !blendClear(shown, view, subject, left, camera.aspect, camera.fov)) {
+        if (reducedMotion || !blendClear(shown, view, subject, left, camera.aspect, camera.fov, ground)) {
           cur = copy(view); w = 1; from = null; cuts += 1;
         } else if (w === 0) {
           from = shown; cur = copy(view);

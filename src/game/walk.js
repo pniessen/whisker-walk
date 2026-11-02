@@ -1368,10 +1368,11 @@ export function createWalkLifecycle({
       playerSpecial: PERSONALITIES[cat.userData.breed]?.special,
       reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
       sendEvent: (ev) => session.net?.sendEvent(ev),
+      terrain: ground,
     }) : NO_CLAN_FIGHT;
     // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
     // Read once from the trees' tags; null where no fight can happen.
-    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders: findOccluders(scene), colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y }) : null;
+    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders: findOccluders(scene), colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like

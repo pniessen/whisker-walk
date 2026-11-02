@@ -1017,3 +1017,66 @@ describe('things on the ground sit on the ground', () => {
     expect(e.group.position.y).toBeCloseTo(3 + Math.sin(k * Math.PI) * 0.12, 9);
   });
 });
+
+// Task 8 (R10, R11): a fight stands on one level, with the real intruder:
+// clanfight hands the stage a relative lift and the intruder adds the ground.
+const { createClanFight } = await import('../src/game/clanfight.js');
+const { COUNTER } = await import('../src/fight.js');
+
+describe('a fight stands on the ground', () => {
+  it('a fight on a raised spot: the staged intruder stands at the ground plus its lift', () => {
+    let k = Math.floor(1e9 / INTRUDER_PERIOD);
+    while (!visitAt('woods', k * INTRUDER_PERIOD)) k++;
+    const clock = { T: k * INTRUDER_PERIOD + ENTER_AT + 20 };
+    const at = intruderAt('woods', clock.T);
+    const ground = createGround({ discs: [{ x: at.x, z: at.z, r: 6, y: 3 }] });
+    const scene = new THREE.Scene();
+    const intr = createIntruders(scene, 'woods', { now: () => clock.T, hostile: () => true, ground });
+    const stages = [];
+    const stage = intr.stage.bind(intr);
+    intr.stage = (v, st) => { stages.push(st); stage(v, st); };
+    const bursts = [];
+    const cf = createClanFight({
+      intruders: intr,
+      ui: { showChallenge() {}, showFight() {}, hide() {}, key: () => false },
+      audio: { hiss() {}, pounceWhoosh() {}, landThump() {} },
+      fx: { burst: (p) => bursts.push(p.y) },
+      hud: { toast() {} },
+      log: { awardOnce() {} },
+      areaId: 'woods', walkStamp: 'w', playerId: 'me', playerSpecial: null,
+      now: () => clock.T, clanHome: true, picks: ['woods'], terrain: ground,
+    });
+    intr.update(DT, FAR_CAT);
+    const cur0 = intr.current();
+    const cat = new THREE.Vector3(cur0.pos.x + 1.5, 3, cur0.pos.z);
+    const s = { cat: { position: cat, rotation: { y: 0 } }, fight: null, perched: null, chasing: false, cameraMode: false };
+    const mesh = () => scene.children.find((o) => o.userData?.intruder);
+    intr.update(DT, cat);
+    cf.update(DT, s);
+    expect(cf.uiShowing).toBe('challenge');
+    cf.startFight();
+    expect(s.fight).not.toBeNull();
+    let checked = 0;
+    for (let i = 0; i < 60 * 40 && s.fight; i++) {
+      clock.T += DT;
+      cf.update(DT, s);
+      intr.update(DT, cat);
+      if (s.fight?.phase === 'clue') cf.answer(COUNTER[s.fight.move]);
+      if (stages.length && s.fight) {
+        const st = stages.at(-1);
+        expect(mesh().position.y).toBeCloseTo(3 + st.y, 12);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(30);
+    expect(stages.some((st) => st.y > 0)).toBe(true);
+    expect(bursts.length).toBeGreaterThan(0);
+    for (const y of bursts) expect(y).toBeCloseTo(3.2, 12);
+  });
+
+  it('walk.js hands the fight and its camera the walk’s ground', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/createClanFight\(\{[\s\S]*?terrain: ground,[\s\S]*?\}\) : NO_CLAN_FIGHT/);
+    expect(src).toMatch(/createFightCam\(\{[^}]*\bground\b[^}]*\}\)/);
+  });
+});
