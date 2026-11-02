@@ -439,7 +439,8 @@ export function createClanCats(scene, area, cast, {
   }
 
   // Back along the trail, newest point first, then to its home spot. Trail
-  // points are places it stood (1 m apart), so retracing them needs no check.
+  // points are places it stood (1 m apart), so on flat ground retracing them
+  // needs no check (on raised ground each step is checked like the last leg).
   // The last leg, from where its first patrol began to home, was never walked
   // as such, so it is stepped on clan ground like the buddy (each axis alone
   // if the straight step is rejected; only a step that gets closer counts, so
@@ -457,12 +458,17 @@ export function createClanCats(scene, area, cast, {
     const dz = to.z - p.z;
     const d = Math.hypot(dx, dz);
     const step = HOME_SPEED * dt;
-    if (d <= Math.max(step, 0.05) && (!last || okStep(p.x, p.z, to.x, to.z))) {
+    // On raised ground (G) a trail step is checked too: the straight line
+    // between two places it stood can still cut over a rim.
+    const checked = last || G;
+    if (d <= Math.max(step, 0.05) && (!checked || okStep(p.x, p.z, to.x, to.z))) {
       p.x = to.x;
       p.z = to.z;
       if (G) p.y = G.y(p.x, p.z);
-      if (!last) trail.pop();
-      else {
+      if (!last) {
+        trail.pop();
+        if (G) c.skirt = null;
+      } else {
         c.trail = null;
         c.skirt = null;
         c.lost = false;
@@ -474,7 +480,7 @@ export function createClanCats(scene, area, cast, {
       const nx = p.x + (dx / d) * s1;
       const nz = p.z + (dz / d) * s1;
       let next = [nx, nz];
-      if (last) {
+      if (checked) {
         // Only a step that is on clan ground AND brings it closer to home.
         const closer = ([x, z]) => okStep(p.x, p.z, x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
         next = c.skirt ? null : [[nx, nz], [nx, p.z], [p.x, nz]].find(closer) ?? null;

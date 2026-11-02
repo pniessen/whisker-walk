@@ -78,6 +78,18 @@ describe('ground model', () => {
     expect(corner).toEqual({ x: 8, z: 4.8 });
   });
 
+  it('slide keeps the z half when only that is legal, and neither when neither is', () => {
+    const zHalf = { x: 12.7, z: -2 };
+    expect(g.canStep(11.9, -2.5, 12.7, -2)).toBe(false);
+    expect(g.canStep(11.9, -2.5, 12.7, -2.5)).toBe(false);
+    expect(g.slide(11.9, -2.5, zHalf)).toBe(true);
+    expect(zHalf).toEqual({ x: 11.9, z: -2 });
+    expect(g.y(zHalf.x, zHalf.z)).toBe(3);
+    const neither = { x: 11.8, z: -3.8 };
+    expect(g.slide(11.4, -3.4, neither)).toBe(true);
+    expect(neither).toEqual({ x: 11.4, z: -3.4 });
+  });
+
   it('the tunnel has a ceiling and nothing else does', () => {
     expect(g.ceil(-10, -11)).toBe(1.6);
     expect(g.ceil(0, 0)).toBe(Infinity);

@@ -301,14 +301,19 @@ export function createYardDog(scene, yard, {
       }
 
       if (state === 'lie' && cooldown <= 0 && canChase() !== false
-        && dogNotices(Y, catPos, { stalking })) {
+        && dogNotices(Y, catPos, { stalking })
+        && (!G || G.sameLevel(catPos.x, catPos.z, Y.x, Y.z))) { // R10: not from another level
         if (fearless) {
           barkT = BARK_TIME;
           cooldown = DOG_COOLDOWN;
           onBark();
           return;
         }
-        const land = dogLanding(Y, catPos, isWalkable);
+        // R9: on raised ground a landing over a rim is refused, as the
+        // rival's chase does; nothing left means no chase.
+        const land = dogLanding(Y, catPos, G
+          ? (x, z) => isWalkable(x, z) === true && G.canStep(catPos.x, catPos.z, x, z)
+          : isWalkable);
         if (land) {
           barkT = BARK_TIME;
           onBark();

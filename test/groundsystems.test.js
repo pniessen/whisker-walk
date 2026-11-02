@@ -104,6 +104,7 @@ describe('her cat stands on the ground', () => {
       expect(cat.position.z).toBeLessThanOrEqual(5);
     }
     expect(lifted).toBe(true);
+    expect(cat.position.z).toBeGreaterThan(4.8); // it went right up to the rim (4.988)
   });
 
   it('zoomies along the ledge stay on it', () => {
@@ -357,7 +358,8 @@ describe('perches and finds sit on the ground under them', () => {
     expect(e.group.position.y).toBe(3 + flat.list[0].group.position.y);
     expect(e.decal.position.y).toBeCloseTo(3 + flat.list[0].decal.position.y, 12);
     k.dispose();
-    flat.dispose();    const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    flat.dispose();
+    const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(walkSrc).toContain('createKnockables(scene, propsFor(areaId).knockables, { ground })');
   });
 
@@ -1445,6 +1447,258 @@ describe('the whole branch stands on the ground', () => {
     // The exempt list is not hiding the actors: these files are scanned.
     for (const f of ['player.js', 'rivalcats.js', 'intruders.js', 'remotecats.js', 'kitten.js', 'ghosts.js', 'toy.js', 'race.js', 'critters.js', 'straycats.js']) {
       expect(EXEMPT.some(([re]) => re.test(f)), f).toBe(false);
+    }
+  });
+});
+
+// Final-review fix wave: the 2D checks the review found still reaching across
+// a rim, zoomies on the ramp, the fight's level tolerance, the yard dog and
+// the homeward retrace. Each is flat-neutral (FLAT_GROUND.sameLevel is true).
+const { createProgression } = await import('../src/progression.js');
+const { FIGHT_LEVEL_TOL } = await import('../src/game/clanfight.js');
+
+describe('nothing reaches across a rim', () => {
+  // The prompt scan with the walk's ground: the plateau (y 3, r 5 at (8, 0))
+  // and the floor beyond it.
+  function levelHarness({ ground, areaId = 'fixture', scenics = [], skills = [], marks = false, rival } = {}) {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    progression.replaceFromPayload({ version: 4, skills });
+    const log = createDiscoveryLog(progression);
+    log.startWalk();
+    const prompts = [];
+    const session = {
+      areaId, ground,
+      cat: { position: new THREE.Vector3(), userData: { breed: 'tabby' } },
+      areaData: { collectibles: [], scenics },
+      collectibleMeshes: new Map(),
+      critters: { list: [], dismayNear() {} },
+      strayCats: { strays: [], nearest: () => null },
+      ghosts: { list: [], nearest: () => null },
+      remotes: { nearest: () => null },
+      secrets: { list: [] },
+      tippables: { nearest: () => null, list: [] },
+      scent: { nearestMound: () => null },
+      goldMice: null,
+      race: { promptAt: () => null },
+      kittenEnc: null,
+      quest: null, questGiver: null, questObject: null,
+      gifts: skills.includes('gift-paws') ? createGifts(new THREE.Scene(), scenics, []) : null,
+      playerMarks: marks ? createPlayerMarks(new THREE.Scene(), areaId, progression.marksIn(areaId)) : undefined,
+      rival,
+      scenicsVisited: new Set(),
+      perched: null,
+      walk: { carried: 0, carryCap: 2 },
+      fx: { burst() {} },
+      prompt: null,
+      lastPromptKind: null,
+    };
+    const { updateInteractions } = createInteractions({
+      MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+      getSession: () => session, getIsTouch: () => false,
+      player: { forward: () => new THREE.Vector3(0, 0, 1), perchY: 0, swimming: false, wading: false, inWater: false },
+      progression, log,
+      hud: { toast() {}, setPrompt: (t) => prompts.push(t), setObjective() {} },
+      audio: { trill() {}, meow() {} },
+      catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+    });
+    const walkTo = (x, z) => {
+      session.cat.position.set(x, ground.y(x, z), z);
+      updateInteractions(session);
+      return session.prompt;
+    };
+    return { session, walkTo, prompts };
+  }
+
+  it('from the plateau she can’t visit or gift a scenic spot on the floor below, and can on her own level', () => {
+    const ground = buildHeightFixture(new THREE.Scene()).ground;
+    const below = { id: 'below', x: 8, z: 6, label: 'the floor below' };
+    const top = { id: 'top', x: 8, z: 2, label: 'the plateau' };
+    const h = levelHarness({ ground, scenics: [below, top], skills: ['gift-paws'] });
+    expect(ground.y(8, 4.6) - ground.y(below.x, below.z)).toBe(3);
+    // 1.4 m from the floor spot, 2.6 m from the plateau one
+    expect(h.walkTo(8, 4.6)).toEqual({ kind: 'gift-leave', data: top });
+    expect([...h.session.scenicsVisited]).toEqual(['top']);
+    // down on the floor beside it: the floor spot is hers
+    expect(h.walkTo(8, 6.5)).toEqual({ kind: 'gift-leave', data: below });
+    expect([...h.session.scenicsVisited].sort()).toEqual(['below', 'top']);
+  });
+
+  it('from the plateau the quest target on the floor below is not complete', () => {
+    const ground = buildHeightFixture(new THREE.Scene()).ground;
+    const h = levelHarness({ ground });
+    h.session.quest = { state: 'active', target: { x: 8, z: 5.8 }, texts: { prompt: 'E — done', objective: 'find it' } };
+    h.session.questGiver = { group: { position: new THREE.Vector3(-18, 0, -18) } };
+    expect(h.walkTo(8, 4.6)).toBeNull();
+    expect(h.walkTo(8, 6.6)).toEqual({ kind: 'quest-complete' });
+    // and on her own level from the plateau
+    h.session.quest.target = { x: 8, z: 3.4 };
+    expect(h.walkTo(8, 4.6)).toEqual({ kind: 'quest-complete' });
+  });
+
+  it('from a ledge she can’t scratch a post or scent a border mark on the floor below', () => {
+    const POST = propsFor('neighborhood').markables.find((m) => m.id === 'neighborhood-post-1');
+    // a small ledge 3 m up under the cat; the post stands on the floor
+    const ledge = (p) => createGround({ discs: [{ x: p.x + 1.2, z: p.z, r: 0.8, y: 3 }] });
+    {
+      const ground = ledge(POST);
+      expect(ground.y(POST.x, POST.z)).toBe(0);
+      const h = levelHarness({ ground, areaId: 'neighborhood', marks: true });
+      expect(h.walkTo(POST.x + 0.6, POST.z)).toBeNull();
+      expect(h.walkTo(POST.x - 0.6, POST.z)).toEqual({ kind: 'mark', data: POST });
+    }
+    {
+      const borderMarks = createBorderMarks(new THREE.Scene(), 'park', {});
+      const decal = borderMarks.list[3];
+      const ground = ledge(decal);
+      const h = levelHarness({ ground, areaId: 'park', marks: true, rival: { borderMarks, patrolPos: () => null } });
+      expect(h.walkTo(decal.x + 0.6, decal.z)).toBeNull();
+      expect(h.walkTo(decal.x - 0.6, decal.z)).toEqual({ kind: 'border-mark', data: { index: 3, ring: 3, x: decal.x, z: decal.z } });
+    }
+  });
+
+  it('from the plateau she can’t dig up a treat buried on the floor below', () => {
+    const fx = buildHeightFixture(new THREE.Scene());
+    const area = { ...fx, pois: [{ x: 8, z: 5.8 }], colliders: [] };
+    const scent = createScent(new THREE.Scene(), area, () => 0.5);
+    expect(scent.nearestMound({ x: 8, z: 4.8 }, 1.2)).toBeNull();
+    expect(scent.digAt({ x: 8, z: 4.8 })).toBeNull();
+    expect(scent.nearestMound({ x: 8, z: 6.8 }, 1.2)).toMatchObject({ x: 8, z: 5.8 });
+    expect(scent.digAt({ x: 8, z: 6.8 })).toMatchObject({ x: 8, z: 5.8 });
+    // flat, the same spot 1 m off is dug
+    const flat = createScent(new THREE.Scene(), { ...area, ground: undefined }, () => 0.5);
+    expect(flat.digAt({ x: 8, z: 4.8 })).toMatchObject({ x: 8, z: 5.8 });
+  });
+
+  it('the kitten’s trail is only investigated on its own level', () => {
+    const kg = createGround({ discs: [{ x: KITTEN_SPOT.x, z: KITTEN_SPOT.z, r: 1, y: 3 }] });
+    const trail = createKittenEncounter(new THREE.Scene(), { kind: 'trail' }, { x: 0, z: 0 }, { ground: kg });
+    expect(trail.promptAt({ x: KITTEN_SPOT.x + 1.5, z: KITTEN_SPOT.z })).toBeNull();
+    expect(trail.promptAt({ x: KITTEN_SPOT.x + 0.5, z: KITTEN_SPOT.z })).toBeTruthy();
+    const flat = createKittenEncounter(new THREE.Scene(), { kind: 'trail' }, { x: 0, z: 0 });
+    expect(flat.promptAt({ x: KITTEN_SPOT.x + 1.5, z: KITTEN_SPOT.z })).toBeTruthy();
+  });
+
+  it('a fight with the intruder 0.4 m up still moves it, on its own level', () => {
+    // inside the walk's LEVEL_TOL (0.5), so the challenge is offered, but
+    // beyond FIGHT_LEVEL_TOL (0.3) from my spot: measured from my spot alone
+    // every staged spot of the intruder's was refused and it stood frozen
+    let k = Math.floor(1e9 / INTRUDER_PERIOD);
+    while (!visitAt('woods', k * INTRUDER_PERIOD)) k++;
+    const clock = { T: k * INTRUDER_PERIOD + ENTER_AT + 20 };
+    const at = intruderAt('woods', clock.T);
+    const ground = createGround({ discs: [{ x: at.x, z: at.z, r: 1, y: 0.4 }] });
+    expect(FIGHT_LEVEL_TOL).toBe(0.3);
+    const intr = createIntruders(new THREE.Scene(), 'woods', { now: () => clock.T, hostile: () => true, ground });
+    const stages = [];
+    const stage = intr.stage.bind(intr);
+    intr.stage = (v, st) => { stages.push({ x: st.x, z: st.z }); stage(v, st); };
+    const cf = createClanFight({
+      intruders: intr,
+      ui: { showChallenge() {}, showFight() {}, hide() {}, key: () => false },
+      audio: { hiss() {}, pounceWhoosh() {}, landThump() {} },
+      fx: { burst() {} }, hud: { toast() {} }, log: { awardOnce() {} },
+      areaId: 'woods', walkStamp: 'w', playerId: 'me', playerSpecial: null,
+      now: () => clock.T, clanHome: true, picks: ['woods'], terrain: ground,
+    });
+    intr.update(DT, FAR_CAT);
+    const foe = { ...intr.current().pos };
+    const cat = new THREE.Vector3(foe.x + 2, 0, foe.z);
+    expect(ground.y(foe.x, foe.z)).toBe(0.4);
+    expect(ground.y(cat.x, cat.z)).toBe(0);
+    const s = { cat: { position: cat, rotation: { y: 0 } }, fight: null, perched: null, chasing: false, cameraMode: false };
+    intr.update(DT, cat);
+    cf.update(DT, s);
+    expect(cf.uiShowing).toBe('challenge');
+    cf.startFight();
+    expect(s.fight).not.toBeNull();
+    for (let i = 0; i < 60 * 40 && s.fight; i++) {
+      clock.T += DT;
+      cf.update(DT, s);
+      intr.update(DT, cat);
+      if (s.fight?.phase === 'clue') cf.answer(COUNTER[s.fight.move]);
+    }
+    expect(stages.length).toBeGreaterThan(30);
+    expect(stages.some((st) => Math.hypot(st.x - foe.x, st.z - foe.z) > 0.05)).toBe(true);
+    for (const st of stages) expect(Math.abs(ground.y(st.x, st.z) - 0.4)).toBeLessThanOrEqual(FIGHT_LEVEL_TOL);
+  });
+});
+
+describe('scripted moves never cross a rim', () => {
+  it('zoomies charge from a standstill on the ramp', () => {
+    const { ground, player, cat, step } = rig(-5.5, 0);
+    player.setTouchMove({ x: 1, z: 0, mag: 1 });
+    let zoomedOnRamp = false;
+    for (let f = 0; f < 3 * 60 && cat.position.x < 3; f++) {
+      step();
+      const gr = ground.gradient(cat.position.x, cat.position.z, { x: 0, z: 0 });
+      if (player.zooming && gr.x > 0) zoomedOnRamp = true;
+    }
+    expect(zoomedOnRamp).toBe(true);
+  });
+
+  it('a yard dog never chases her across a rim, and does not bark at her from another level', () => {
+    const yard = { x: 0, z: 0, r: 4, kennel: { x: 0, z: -3 } };
+    const run = (ground, cat, seconds = 4) => {
+      const events = [];
+      const dog = createYardDog(new THREE.Scene(), yard, {
+        ground, onBark: () => events.push('bark'), onChase: () => events.push('chase'),
+      });
+      let px = cat.x;
+      let pz = cat.z;
+      for (let i = 0; i < seconds * 60; i++) {
+        dog.update(DT, cat, null);
+        expect(ground.canStep(px, pz, cat.x, cat.z)).toBe(true);
+        px = cat.x;
+        pz = cat.z;
+      }
+      return events;
+    };
+    // a ledge over the natural landing (5.5, 0): she is chased round it
+    {
+      const ground = createGround({ discs: [{ x: 5.5, z: 0, r: 1, y: 3 }] });
+      const cat = new THREE.Vector3(1, 0, 0);
+      expect(run(ground, cat)).toEqual(['bark', 'chase']);
+      expect(Math.hypot(cat.x, cat.z)).toBeGreaterThan(yard.r);
+      expect(cat.y).toBe(0);
+    }
+    // the lawn on a plateau with no way down within reach: no chase at all
+    {
+      const ground = createGround({ discs: [{ x: 0, z: 0, r: 4.2, y: 3 }] });
+      const cat = new THREE.Vector3(1, 3, 0);
+      expect(run(ground, cat)).toEqual([]);
+      expect([cat.x, cat.y, cat.z]).toEqual([1, 3, 0]);
+    }
+    // on a pillar 3 m over the lawn: the dog takes no notice
+    {
+      const ground = createGround({ discs: [{ x: 1, z: 0, r: 0.5, y: 3 }] });
+      const cat = new THREE.Vector3(1, 3, 0);
+      expect(run(ground, cat)).toEqual([]);
+    }
+  });
+
+  it('a clan cat going home never retraces its trail over a rim', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const homes = Array.from({ length: 16 }, () => ({ x: 8, z: 2 }));
+    const cats = createClanCats(new THREE.Scene(), area, clanCast('woods').slice(0, 9), {
+      campLayout: null, roamHomes: homes, roomSeed: 4, areaId: null,
+    });
+    const c = cats.list.find((x) => !x.camp && x.rank !== 'kit' && x.kitSeat === undefined) ?? cats.list.find((x) => !x.camp);
+    expect(c).toBeTruthy();
+    const p = c.group.position;
+    // home on the plateau; its trail's newest point is on the floor below
+    p.set(8, 3, 4.6);
+    c.state = 'home';
+    c.trail = [{ x: 8, z: 3 }, { x: 8, z: 6 }];
+    let px = p.x;
+    let pz = p.z;
+    for (let f = 0; f < 600; f++) {
+      cats.update(DT, f * DT, FAR_CAT);
+      expect(g.canStep(px, pz, p.x, p.z)).toBe(true);
+      expect(p.y).toBe(3);
+      px = p.x;
+      pz = p.z;
     }
   });
 });

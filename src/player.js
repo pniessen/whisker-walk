@@ -760,11 +760,27 @@ export function createPlayer(camera, canvas) {
       // cat goes in, and (below) running charges it only while dry.
       if (st.entered) zoom = { charging: false, zooming: false, time: 0 };
       const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+      // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
+      // the shape under the cat along the input direction (a finite
+      // difference would read a cliff foot as a climb). Flat maps skip it.
+      // Read before speedRatio: "full speed" uphill is the uphill pace, or
+      // zoomies could never charge from a standstill on a ramp.
+      let uphill = 1;
+      if (!ground.flat) {
+        const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        if (len > 0) {
+          ground.gradient(avatar.position.x, avatar.position.z, slopeScratch);
+          const grade = (slopeScratch.x * dir.x + slopeScratch.z * dir.z) / len;
+          uphill = 1 - UPHILL_SLOW * THREE.MathUtils.clamp(grade / MAX_PATH_GRADE, 0, 1);
+        }
+      }
       // speedRatio must be read from velocity BEFORE the lerp below moves it
       // toward this frame's target — it reflects how close last frame's
       // actual speed already is to full pace, which is what "full-speed
       // running" (the zoomies charge condition) means.
-      const targetSpeedDenom = pace * api.speedFactor || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
+      let targetSpeedDenom = pace * api.speedFactor;
+      if (!ground.flat) targetSpeedDenom *= uphill;
+      targetSpeedDenom = targetSpeedDenom || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
       const speedRatio = velocity.length() / Math.max(Math.abs(targetSpeedDenom), 0.0001);
       zoom = zoomState(zoom, dt, {
         active: api.inputActive && !api.inWater,
@@ -779,17 +795,7 @@ export function createPlayer(camera, canvas) {
       // the shake do the same.
       const waterPace = (swimming ? SWIM_SPEED : wading ? WADE_SPEED : 1) * (api.shaking ? SHAKE_PACE : 1);
       let zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
-      // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
-      // the shape under the cat along the input direction (a finite
-      // difference would read a cliff foot as a climb). Flat maps skip it.
-      if (!ground.flat) {
-        const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
-        if (len > 0) {
-          ground.gradient(avatar.position.x, avatar.position.z, slopeScratch);
-          const grade = (slopeScratch.x * dir.x + slopeScratch.z * dir.z) / len;
-          zoomPace *= 1 - UPHILL_SLOW * THREE.MathUtils.clamp(grade / MAX_PATH_GRADE, 0, 1);
-        }
-      }
+      if (!ground.flat) zoomPace *= uphill; // R6, read above
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied

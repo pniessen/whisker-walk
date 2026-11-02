@@ -343,8 +343,12 @@ export function createClanFight({
   const T = terrain && !terrain.flat ? terrain : null;
   // R10: no challenge or fight with an intruder on another level.
   const sameLevel = (a, b) => !T || T.sameLevel(a.x, a.z, b.x, b.z);
-  // R11: a staged spot on my anchor spot's level.
-  const onMyLevel = (x, z) => Math.abs(T.y(x, z) - T.y(spot.x, spot.z)) <= FIGHT_LEVEL_TOL;
+  // R11: a staged spot on its own cat's anchor level: mine on my spot's, the
+  // intruder's on its held spot's. The challenge allows the two anchors up to
+  // LEVEL_TOL apart, so measured from my spot alone an intruder 0.3-0.5 m
+  // off would never leave its anchor (frozen for the whole fight).
+  const onLevelOf = (x, z, at) => Math.abs(T.y(x, z) - T.y(at.x, at.z)) <= FIGHT_LEVEL_TOL;
+  const onMyLevel = (x, z) => onLevelOf(x, z, spot);
   // R9: the walk-over never steps over a rim.
   const canStep = (ax, az, bx, bz) => !T || T.canStep(ax, az, bx, bz);
   const answerTime = reducedMotion ? ANSWER_TIME_REDUCED : ANSWER_TIME;
@@ -721,9 +725,9 @@ export function createClanFight({
     }
     // R3: a staged spot that is not clan ground (water, a bog, the truce
     // buffer, a collider) is never stood on; that cat keeps its own spot.
-    // R11: nor is one off my anchor spot's level.
+    // R11: nor is one off that cat's own anchor's level.
     if (!ground(me.x, me.z) || (T && !onMyLevel(me.x, me.z))) me = { x: spot.x, z: spot.z };
-    if (!ground(it.x, it.z) || (T && !onMyLevel(it.x, it.z))) it = { x: foeAt.x, z: foeAt.z };
+    if (!ground(it.x, it.z) || (T && !onLevelOf(it.x, it.z, foeAt))) it = { x: foeAt.x, z: foeAt.z };
     cat.x = me.x;
     cat.z = me.z;
     s.cat.rotation.y = yawToward(me.x, me.z, it.x, it.z);
@@ -755,7 +759,7 @@ export function createClanFight({
   // `at`, (fx, fz) toward the other cat, its right (-fz, fx). A spot that is
   // not clan ground (R3) is never stood on: that cat stays on its anchor,
   // level and on the ground, this frame. Reduced motion: never a lift, a
-  // pitch or a roll. Nor is a spot off my anchor spot's level (Gorge part 1,
+  // pitch or a roll. Nor is a spot off that cat's anchor's level (Gorge part 1,
   // R11); `y` stays a lift above the ground (avatar.js and intruders.place()
   // add the ground under the spot).
   function placeOn(f, d, at, fx, fz, out) {
@@ -766,7 +770,7 @@ export function createClanFight({
     out.pitch = f.pitch;
     out.roll = f.roll;
     if (reducedMotion) { out.y = 0; out.pitch = 0; out.roll = 0; }
-    if (!ground(out.x, out.z) || (T && !onMyLevel(out.x, out.z))) {
+    if (!ground(out.x, out.z) || (T && !onLevelOf(out.x, out.z, at))) {
       out.x = at.x; out.z = at.z;
       out.y = 0; out.pitch = 0; out.roll = 0;
     }

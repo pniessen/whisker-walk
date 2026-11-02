@@ -204,14 +204,15 @@ export function createScent(scene, area, rng) {
     },
     nearestMound(pos, maxDist) {
       for (const tr of treats) {
-        if (!tr.dug && Math.hypot(tr.x - pos.x, tr.z - pos.z) < maxDist) return tr;
+        if (!tr.dug && Math.hypot(tr.x - pos.x, tr.z - pos.z) < maxDist
+          && ground.sameLevel(pos.x, pos.z, tr.x, tr.z)) return tr; // R10: her own level
       }
       return null;
     },
     digAt(pos) {
       for (const tr of treats) {
         if (tr.dug) continue;
-        if (Math.hypot(tr.x - pos.x, tr.z - pos.z) <= 1.2) {
+        if (Math.hypot(tr.x - pos.x, tr.z - pos.z) <= 1.2 && ground.sameLevel(pos.x, pos.z, tr.x, tr.z)) {
           return unearth(tr);
         }
       }

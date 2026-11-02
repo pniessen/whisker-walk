@@ -490,6 +490,7 @@ export function createInteractions({
   // offer a spot twice.
   function openScenicNear(s, catP) {
     const taken = new Set(s.gifts.list.map((g) => g.spot));
+    const g = s.ground ?? FLAT_GROUND; // R10: only a spot on her own level
     let best = null;
     let bestD = GIFT_LEAVE_RANGE;
     for (const sc of s.areaData.scenics ?? []) {
@@ -498,7 +499,7 @@ export function createInteractions({
       // ghost can ever bring a gift from it.
       if (sc.gifts === false) continue;
       const d = Math.hypot(sc.x - catP.x, sc.z - catP.z);
-      if (d < bestD) {
+      if (d < bestD && g.sameLevel(catP.x, catP.z, sc.x, sc.z)) {
         bestD = d;
         best = sc;
       }
@@ -612,9 +613,10 @@ export function createInteractions({
     const drawn = s.playerMarks.list;
     let best = null;
     let bestD = MARK_REACH;
+    const g = s.ground ?? FLAT_GROUND; // R10: only a post on her own level
     for (const m of markablesIn(s.areaId)) {
       const d = Math.hypot(m.x - catP.x, m.z - catP.z);
-      if (d >= bestD) continue;
+      if (d >= bestD || !g.sameLevel(catP.x, catP.z, m.x, m.z)) continue;
       const key = markKey({ kind: 'scratch', id: m.id });
       if (drawn.some((e) => e.key === key && !e.contested)) continue;
       best = m;
@@ -633,10 +635,11 @@ export function createInteractions({
     const drawn = s.playerMarks.list;
     let best = null;
     let bestD = BORDER_MARK_REACH;
+    const g = s.ground ?? FLAT_GROUND; // R10: only a mark on her own level
     for (let i = 0; i < decals.length; i++) {
       const d = decals[i];
       const dist = Math.hypot(d.x - catP.x, d.z - catP.z);
-      if (dist >= bestD) continue;
+      if (dist >= bestD || !g.sameLevel(catP.x, catP.z, d.x, d.z)) continue;
       const key = markKey({ kind: 'border', id: borderMarkId(s.areaId, d.ring) });
       if (drawn.some((e) => e.key === key)) continue;
       best = { index: i, ring: d.ring, x: d.x, z: d.z };
@@ -805,7 +808,8 @@ export function createInteractions({
         s.prompt = { kind: 'quest-accept' };
         setPrompt('E — meow at the neighbor');
       } else if (s.quest.state === 'active' &&
-          Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2) {
+          Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2 &&
+          g.sameLevel(catP.x, catP.z, s.quest.target.x, s.quest.target.z)) {
         s.prompt = { kind: 'quest-complete' };
         setPrompt(s.quest.texts.prompt);
       }
@@ -1147,7 +1151,7 @@ export function createInteractions({
     }
 
     for (const sc of s.areaData.scenics) {
-      if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
+      if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4 && g.sameLevel(catP.x, catP.z, sc.x, sc.z)) {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
         // The corner map greys out spots already visited this walk.
         s.scenicsVisited?.add(sc.id);

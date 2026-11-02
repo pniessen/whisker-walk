@@ -83,6 +83,7 @@ function createTrail(scene, ground) {
     promptAt(catPos) {
       if (advanced) return null;
       return Math.hypot(catPos.x - KITTEN_SPOT.x, catPos.z - KITTEN_SPOT.z) < PROMPT_RANGE
+        && ground.sameLevel(catPos.x, catPos.z, KITTEN_SPOT.x, KITTEN_SPOT.z)
         ? 'E — investigate the tiny mew'
         : null;
     },
