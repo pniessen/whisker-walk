@@ -15,6 +15,8 @@ import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
 
 export const CAT_RADIUS = 0.35;
+// The camera's pitch at the start of a walk (radians).
+export const DEFAULT_PITCH = 0.18;
 // Camera pull-in tuning (see stepPull in createPlayer).
 const PULL_IN_SPEED = 12; // metres per second, at most
 const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
@@ -409,7 +411,7 @@ function pushIntoShallow(pos, waters) {
 
 export function createPlayer(camera, canvas) {
   let yaw = 0;
-  let pitch = 0.18;
+  let pitch = DEFAULT_PITCH;
   let enabled = false;
   let avatar = null;
   let pace = 3.5;
@@ -584,7 +586,7 @@ export function createPlayer(camera, canvas) {
       rockHold = 0;
       snapRock = true;
       yaw = 0;
-      pitch = 0.18;
+      pitch = DEFAULT_PITCH;
       velocity.set(0, 0, 0);
       api.perchY = 0;
       touchMove = null;

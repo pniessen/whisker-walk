@@ -5,6 +5,7 @@ import {
   TILT_MAX, MAX_PATH_GRADE, STEP_MAX, MAX_GRADE, SUBSTEP, LEVEL_TOL,
 } from '../src/ground.js';
 import { HEIGHT_FIXTURE, buildHeightFixture } from './fixtures/heightfield.js';
+import { GORGE_GROUND_SPEC } from '../src/world/gorgeshape.js';
 
 const g = createGround(HEIGHT_FIXTURE);
 // player.js: avatar.rotation.y = atan2(vx, vz) + PI
@@ -223,6 +224,32 @@ describe('ground model', () => {
         expect(Object.is(a.ceil(x, z), b.ceil(x, z))).toBe(true);
       }
     }
+  });
+});
+
+describe('the bucket grid', () => {
+  it('the bucket grid changes no answer', () => {
+    const spec = GORGE_GROUND_SPEC;
+    expect(spec.strips.length + spec.discs.length).toBeGreaterThan(16); // so the grid is in use
+    const fast = createGround(spec);
+    const slow = createGround(spec, { index: false });
+    const ga = { x: 0, z: 0 };
+    const gb = { x: 0, z: 0 };
+    const S = 0.25;
+    const bad = [];
+    // a little past the masses' outer edges (+-62), so the grid's own edges are crossed
+    for (let x = -64; x <= 64; x += S) {
+      for (let z = -64; z <= 64; z += S) {
+        if (!Object.is(fast.y(x, z), slow.y(x, z))) bad.push(['y', x, z]);
+        if (!Object.is(fast.ceil(x, z), slow.ceil(x, z))) bad.push(['ceil', x, z]);
+        fast.gradient(x, z, ga);
+        slow.gradient(x, z, gb);
+        if (!Object.is(ga.x, gb.x) || !Object.is(ga.z, gb.z)) bad.push(['gradient', x, z]);
+        if (fast.canStep(x, z, x + S, z) !== slow.canStep(x, z, x + S, z)) bad.push(['canStep x', x, z]);
+        if (fast.canStep(x, z, x, z + S) !== slow.canStep(x, z, x, z + S)) bad.push(['canStep z', x, z]);
+      }
+    }
+    expect(bad.slice(0, 10)).toEqual([]);
   });
 });
 
