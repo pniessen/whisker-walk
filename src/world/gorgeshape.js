@@ -125,9 +125,9 @@ export const SNUG_Y = cY(20.2); // 8.944: the Snug Cave stop meets leg C within 
 
 // ---- The walkable shapes, and their lips ----
 const LEG_A = rampZ(2.4, 5.4, 34, FLOOR, -2, LOOKOUT, 'legA');
-const LOOKOUT_LEDGE = rect(2.4, 8.8, -8, -2, LOOKOUT, 'lookout');
+export const LOOKOUT_LEDGE = rect(2.4, 8.8, -8, -2, LOOKOUT, 'lookout');
 const LEG_B = rampZ(5.8, 8.8, -2, LOOKOUT, 32, WIDE_LEDGE, 'legB');
-const TURN = rect(5.8, 20, 32, 35.5, WIDE_LEDGE, 'turn'); // the B -> C turn, open to all
+export const TURN = rect(5.8, 20, 32, 35.5, WIDE_LEDGE, 'turn'); // the B -> C turn, open to all
 export const WIDE_LEDGE_RECT = rect(5.8, 20, 35.5, 48, WIDE_LEDGE, 'wideLedge'); // the camp's ledge
 const LEG_C = rampZ(9.2, 12.2, C_SOUTH, WIDE_LEDGE, C_NORTH, CLIFFTOP, 'legC');
 const CLIFF = rect(2.4, 34, -40, -18, CLIFFTOP, 'clifftop');

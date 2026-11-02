@@ -284,7 +284,7 @@ describe('buildMapLayer', () => {
   it('buildMapLayer for the Gorge has ground, edge, one water with one deck, its path strips, and the big colliders as blocks', () => {
     const { scene, areaData } = built('gorge');
     const layer = buildMapLayer(areaData, scene);
-    expect(layer.ground).toBe('#5f5d52');
+    expect(layer.ground).toBe('#9a8a6a');
     expect(layer.edge).toEqual(areaData.bounds);
     // the stream, with the stepping stones' deck
     expect(layer.water).toEqual([{
