@@ -669,6 +669,7 @@ describe('createProgression', () => {
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
         mapMode: 'north', edition: 'canon',
         clanPick: { mine: null, partner: null, partnerId: null },
+        fightsWon: 0, fightMoves: [], scars: {}, scarredIntruders: [],
       });
       // and it's genuinely playable, not just shaped right
       expect(() => p.isUnlocked('cats', 'tabby')).not.toThrow();
@@ -2257,7 +2258,8 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, fightsWon, fightMoves, scars, scarredIntruders, ...rest } = p.state;
+    expect([fightsWon, fightMoves, scars, scarredIntruders]).toEqual([0, [], {}, []]);
     expect(edition).toBe('canon');
     expect(customCats).toEqual([]);
     expect(clanPick).toEqual({ mine: null, partner: null, partnerId: null });

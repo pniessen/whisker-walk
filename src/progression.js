@@ -14,6 +14,10 @@ import { bearsGrudge, isGrudgeName } from './enemies.js';
 // this module), so the edge is cycle-free like the two above. Every colony
 // write still happens here — colony.js computes, this module saves.
 import { isClanId, pickableClans } from './clanhomes.js';
+// Fight moves and scars (pure leaves): the move catalogue and the scar rules.
+import { FIGHT_MOVE_IDS, moveById, earnedMoves } from './fightmoves.js';
+import { SCAR_SITES, addScar, fadeScars, sanitizeScarList, isCastId, sanitizeScarredIntruders,
+  renderScars, SCARRED_INTRUDERS_MAX } from './scars.js';
 import { isPlayerId, emptyColony, sanitizeColony, mergeColony, feedCat, headStartFor, tradeEffect, rewardsDue,
   feedKey, isColonyId, settleTaming, tamedCats } from './colony.js';
 import { isStrayName } from './straynames.js';
@@ -419,6 +423,17 @@ function defaultState() {
     // the walk's `duskActive` — not the raw duskMode — because a solo walk
     // only actually goes dusk when the glow collar is equipped.
     duskWalks: 0,
+    // Fight actions, special moves and scars. All four are additive, so
+    // SAVE_VERSION stays 4 like skills/feats/duskWalks before them.
+    // fightsWon counts clan fights she has won; fightMoves lists the special
+    // moves she owns (earned by winning or bought), never taken away; scars is
+    // key -> [{ site, left }] per cat that can scar (preset ids except hagrid,
+    // or a custom id in customCats); scarredIntruders is the clan cats she has
+    // scratched, oldest first, at most 24.
+    fightsWon: 0,
+    fightMoves: [],
+    scars: {},
+    scarredIntruders: [],
     // v18 Task 3.2 Gift Paws: gifts this cat has tucked away at scenic
     // spots, waiting to be found on a later walk. Each entry is
     // { area, spot } — the walk area's catalog id and the scenic spot's own
@@ -801,6 +816,42 @@ function sanitizeFriends(v) {
   return out;
 }
 
+const FIGHTS_WON_MAX = 1e6;
+
+// Moves the sanitiser granted on load (a save from before moves existed, or a
+// payload missing some it has earned) wait here, per state object, until
+// createProgression queues them for takeNewMoves (R18).
+const ADDED_MOVES = new WeakMap();
+
+// fightMoves: known ids only, deduped, in catalogue order, plus every move
+// fightsWon has earned (R3: moves are never taken away). Returns the list and
+// the earned ones the raw list lacked.
+function sanitizeFightMoves(raw, fightsWon) {
+  const have = new Set(Array.isArray(raw) ? raw.filter((x) => typeof x === 'string') : []);
+  const moves = [];
+  const added = [];
+  const earned = earnedMoves(fightsWon);
+  for (const id of FIGHT_MOVE_IDS) {
+    if (have.has(id)) moves.push(id);
+    else if (earned.includes(id)) { moves.push(id); added.push(id); }
+  }
+  return { moves, added };
+}
+
+// scars: key -> list. A key survives only for a preset cat (not hagrid) or a
+// custom cat that still exists; lists are repaired and empty ones dropped.
+function sanitizeScars(raw, customCats) {
+  const out = {};
+  if (!isPlainObject(raw)) return out;
+  for (const key of Object.keys(raw)) {
+    const ok = (Object.hasOwn(CATALOG.cats, key) && key !== 'hagrid') || customCats.some((c) => c.id === key);
+    if (!ok) continue;
+    const list = sanitizeScarList(raw[key]);
+    if (list.length > 0) out[key] = list;
+  }
+  return out;
+}
+
 // A cloud-loaded (or otherwise externally supplied/corrupted) save is
 // untrusted input: version acceptance/migration alone isn't enough — a
 // payload can claim version 3 while missing or mistyping any field, which
@@ -860,7 +911,13 @@ function sanitizeState(parsed) {
   const walks = {};
   for (const key of Object.keys(d.walks)) walks[key] = asFiniteNonNegInt(parsed.walks?.[key], 0);
 
-  return {
+  // Fight keys are additive (SAVE_VERSION stays 4). R2: a save without a valid
+  // fightsWon starts at the fights she already won (feats.intruder).
+  const feats = sanitizeFeats(parsed.feats);
+  const fightsWon = Math.min(FIGHTS_WON_MAX, asFiniteNonNegInt(parsed.fightsWon, feats.intruder ?? 0));
+  const fm = sanitizeFightMoves(parsed.fightMoves, fightsWon);
+
+  const result = {
     version: SAVE_VERSION,
     points: asFiniteNonNeg(parsed.points, 0),
     walks,
@@ -879,7 +936,7 @@ function sanitizeState(parsed) {
     race: sanitizeRace(parsed.race),
     den: sanitizeDen(parsed.den),
     skills: sanitizeSkills(parsed.skills),
-    feats: sanitizeFeats(parsed.feats),
+    feats,
     duskWalks: Math.min(DUSK_WALKS_MAX, asFiniteNonNegInt(parsed.duskWalks, 0)),
     gifts: sanitizeGifts(parsed.gifts),
     grudges: sanitizeGrudges(parsed.grudges),
@@ -896,7 +953,13 @@ function sanitizeState(parsed) {
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
     clanPick: sanitizeClanPick(parsed.clanPick),
+    fightsWon,
+    fightMoves: fm.moves,
+    scars: sanitizeScars(parsed.scars, customCats),
+    scarredIntruders: sanitizeScarredIntruders(parsed.scarredIntruders),
   };
+  if (fm.added.length > 0) ADDED_MOVES.set(result, fm.added);
+  return result;
 }
 
 // v3 → v4: the single `outfit` slot became six cosmetic slots. Re-home the
@@ -975,6 +1038,8 @@ export function createProgression(storage) {
   let state;
   // The farewell line waits here until the UI asks for it (takeFarewell).
   let pendingFarewell = null;
+  // Moves the sanitiser added on load wait here for takeNewMoves (R18).
+  let pendingMoves = [];
 
   const save = () => {
     try {
@@ -988,6 +1053,7 @@ export function createProgression(storage) {
   // retirement rewrote it, and queue the farewell if the equipped cat was retired.
   const adopt = (loaded) => {
     state = loaded.state;
+    for (const id of ADDED_MOVES.get(state) ?? []) if (!pendingMoves.includes(id)) pendingMoves.push(id);
     if (loaded.changed) save();
     if (loaded.farewell) {
       // The line names the preset that takes over, so it must be the one walked.
@@ -1126,6 +1192,66 @@ export function createProgression(storage) {
       save();
       return true;
     },
+    // A won clan fight: count it and add the moves that count has earned.
+    // Returns the newly unlocked move ids, catalogue order.
+    recordFightWon() {
+      state.fightsWon = Math.min(FIGHTS_WON_MAX, state.fightsWon + 1);
+      const earned = earnedMoves(state.fightsWon);
+      const fresh = FIGHT_MOVE_IDS.filter((id) => earned.includes(id) && !state.fightMoves.includes(id));
+      if (fresh.length > 0) state.fightMoves = FIGHT_MOVE_IDS.filter((id) => state.fightMoves.includes(id) || fresh.includes(id));
+      save();
+      return fresh;
+    },
+    ownedMoves() {
+      return FIGHT_MOVE_IDS.filter((id) => state.fightMoves.includes(id));
+    },
+    // Only the two priced moves can be bought, only in Clan Edition (R16).
+    canBuyMove(id) {
+      const m = moveById(id);
+      if (!m || m.price === null || state.fightMoves.includes(m.id)) return false;
+      if (!isClanEdition(state)) return false;
+      return state.points >= m.price;
+    },
+    buyMove(id) {
+      if (!api.canBuyMove(id)) return false;
+      const m = moveById(id);
+      state.points -= m.price;
+      state.fightMoves = FIGHT_MOVE_IDS.filter((x) => state.fightMoves.includes(x) || x === m.id);
+      save();
+      return true;
+    },
+    // Moves granted silently on load, returned once (R18).
+    takeNewMoves() {
+      const out = pendingMoves;
+      pendingMoves = [];
+      return out;
+    },
+    // A cat the player can scar: a preset except hagrid, or an existing custom cat.
+    scarCat(key, site) {
+      if (typeof key !== 'string' || !SCAR_SITES.includes(site)) return false;
+      const ok = (Object.hasOwn(CATALOG.cats, key) && key !== 'hagrid') || state.customCats.some((c) => c.id === key);
+      if (!ok) return false;
+      state.scars[key] = addScar(state.scars[key], site);
+      save();
+      return true;
+    },
+    catScars(key) {
+      if (typeof key !== 'string' || !Object.hasOwn(state.scars, key)) return [];
+      return renderScars(state.scars[key], key);
+    },
+    scarIntruder(castId, site) {
+      if (!isCastId(castId) || !SCAR_SITES.includes(site)) return false;
+      const at = state.scarredIntruders.findIndex((e) => e.id === castId);
+      const prev = at >= 0 ? state.scarredIntruders.splice(at, 1)[0].scars : [];
+      state.scarredIntruders.push({ id: castId, scars: addScar(prev, site) });
+      while (state.scarredIntruders.length > SCARRED_INTRUDERS_MAX) state.scarredIntruders.shift();
+      save();
+      return true;
+    },
+    intruderScars(castId) {
+      const e = state.scarredIntruders.find((x) => x.id === castId);
+      return e ? renderScars(e.scars, castId) : [];
+    },
     // buyDenItem(id) → bool — mirrors buy() above but against DEN_ITEMS/
     // state.den.owned instead of CATALOG/state.unlocked: known id, not
     // already owned, enough points. Kept separate from buy() rather than
@@ -1177,6 +1303,8 @@ export function createProgression(storage) {
       const id = CUSTOM_IDS.find((i) => !state.customCats.some((c) => c.id === i));
       if (!id) return null;
       state.customCats.push({ id, name, personality, look: sanitizeLook(look) });
+      // A new cat on a reused id starts clean (R17); editing keeps scars.
+      delete state.scars[id];
       save();
       return id;
     },
@@ -1336,6 +1464,15 @@ export function createProgression(storage) {
     completeWalk(areaId = state.area, { dusk = false } = {}) {
       state.walks[areaId] += 1;
       if (dusk && state.duskWalks < DUSK_WALKS_MAX) state.duskWalks += 1;
+      // R1: every scar fades one step on any completed walk, den and Legacy too.
+      for (const key of Object.keys(state.scars)) {
+        const left = fadeScars(state.scars[key]);
+        if (left.length > 0) state.scars[key] = left;
+        else delete state.scars[key];
+      }
+      state.scarredIntruders = state.scarredIntruders
+        .map((e) => ({ id: e.id, scars: fadeScars(e.scars) }))
+        .filter((e) => e.scars.length > 0);
       save();
     },
     // recordGreet(name, breed, walkStamp) — the ONLY place a greet count ever
@@ -1943,6 +2080,8 @@ export function createProgression(storage) {
       const localVisits = state.visits;
       const localSeen = state.visitPrizesSeen;
       const localCustomCats = state.customCats;
+      const localFights = state.fightsWon;
+      const localMoves = state.fightMoves;
       try {
         storage.setItem(SAVE_KEY, JSON.stringify(rawSaveObject));
       } catch (err) {
@@ -1959,6 +2098,12 @@ export function createProgression(storage) {
       for (const id of prizesWonBy(state.visitPrizesSeen)) {
         if (!state.unlocked.accessories.includes(id)) state.unlocked.accessories.push(id);
       }
+      // R3: fights won never go down and moves are never taken away.
+      state.fightsWon = Math.max(localFights, state.fightsWon);
+      const earned = earnedMoves(state.fightsWon);
+      state.fightMoves = FIGHT_MOVE_IDS.filter((id) => localMoves.includes(id) || state.fightMoves.includes(id) || earned.includes(id));
+      // A move this phone already had is not new to her.
+      pendingMoves = pendingMoves.filter((id) => !localMoves.includes(id));
       save();
     },
     // The one-time gentle line after a retired cat was equipped, then null.
