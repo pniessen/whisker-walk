@@ -553,7 +553,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   }
   for (const geo of henTailGeometries()) tailPivots[0].add(new THREE.Mesh(geo, painted));
   for (let i = 0; i < 2; i++) tailPivots.push(new THREE.Group()); // pivot-count dummies
-  tail.position.set(0, 0.52, 0.34);
+  tail.position.set(0, 0.51, 0.32); // = base.tailAnchor: the animator carries it with the body
   tail.rotation.x = -0.6;
   g.add(tail);
 
@@ -727,7 +727,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
   // combGive (R11): the animator damps his comb's ear writes about the rest to
   // a quarter, so a twitch is a wobble and the fight's ear-pin never splits it.
-  g.userData.base = { bodyY: HEN_BODY.Y, bodyScale: [...HEN_BODY.SCALE], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25 };
+  // tailAnchor: the tail's resting spot, which the animator carries with the
+  // posed body so the fan's root stays in his back (nap drops and squashes it).
+  g.userData.base = { bodyY: HEN_BODY.Y, bodyScale: [...HEN_BODY.SCALE], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25, tailAnchor: [0, 0.51, 0.32] };
   return g;
 }
 

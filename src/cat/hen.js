@@ -424,6 +424,7 @@ export function henEyeGeometry() {
 // sketch's (a tube flattened sideways and thinned toward the tip), keeping its
 // width in its own plane (falling only to 0.6) and closing in a rounded tip.
 // Rings are bunched toward the tip so the round reads.
+const FEATHER_SIDES = 6;
 const FEATHER_U = [0, 0.15, 0.3, 0.45, 0.6, 0.72, 0.82, 0.9, 0.96];
 function tailFeather(len, rise, colour) {
   const curve = new THREE.QuadraticBezierCurve3(
@@ -431,7 +432,7 @@ function tailFeather(len, rise, colour) {
     new THREE.Vector3(0, rise, len * 0.55),
     new THREE.Vector3(0, rise * 0.35, len),
   );
-  const R = 0.03 * 0.85, sides = 6;
+  const R = 0.03 * 0.85, sides = FEATHER_SIDES;
   const X = new THREE.Vector3(1, 0, 0), w = new THREE.Vector3();
   const pos = [], idx = [];
   for (const u of FEATHER_U) {
@@ -479,8 +480,17 @@ export function henTailGeometries() {
     sets[Math.abs(i - 3) <= 1 ? 0 : x < 0 ? 1 : 2].push(f);
   }
   return sets.map((parts) => {
+    // userData.roots: each feather's root ring (its first ring, the one at the
+    // pivot) as [first vertex, count], so a test can find where it meets the body
+    const roots = [];
+    let at = 0;
+    for (const f of parts) {
+      roots.push([at, FEATHER_SIDES]);
+      at += f.attributes.position.count;
+    }
     const g = mergeGeometries(parts, false);
     parts.forEach((x) => x.dispose());
+    g.userData.roots = roots;
     return g;
   });
 }

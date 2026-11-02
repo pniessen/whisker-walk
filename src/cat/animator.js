@@ -123,6 +123,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     earL.rotation.z = 0.22 + (earL.rotation.z - 0.22) * give;
     earR.rotation.z = -0.22 + (earR.rotation.z + 0.22) * give;
   }
+  if (cat.userData.base?.tailAnchor) rideTail(cat);
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
@@ -147,6 +148,22 @@ const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _yaw = new THREE.Quaternion();
 const _Y = new THREE.Vector3(0, 1, 0);
+// Hagrid's tail rides his body (base.tailAnchor: the tail group's resting spot,
+// cat frame). The tail group hangs on the cat, not the body, so a pose that
+// drops, squashes or pitches the body (nap, requestPet, swim, the shake's
+// fluff) would leave the fan's root in the air behind his back. Here the
+// anchor is carried by the body's posed transform, so the feather roots stay
+// in the back wherever the body went. At rest the body's transform puts it
+// back where it was built.
+const _anchor = new THREE.Vector3();
+function rideTail(cat) {
+  const { body, tail } = cat.userData.parts;
+  const { tailAnchor: [x, y, z], bodyY, bodyScale: [sx, sy, sz] } = cat.userData.base;
+  body.updateMatrix();
+  _anchor.set(x / sx, (y - bodyY) / sy, z / sz).applyMatrix4(body.matrix);
+  tail.position.copy(_anchor);
+}
+
 function keepChestUnderHead(body, underside) {
   const yaw = body.rotation.y;
   if (!yaw) {

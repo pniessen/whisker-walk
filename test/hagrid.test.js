@@ -201,7 +201,9 @@ describe('Hagrid rebuilt (Task 8)', () => {
     expect(parts.earL.isMesh && parts.earR.isMesh).toBe(true);
     expect(parts.whiskers).toEqual([]);
     expect(c.userData.noMerge).toBe(true);
-    expect(base).toEqual({ bodyY: 0.42, bodyScale: [0.9, 0.85, 1.1], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25 });
+    expect(base).toEqual({ bodyY: 0.42, bodyScale: [0.9, 0.85, 1.1], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25, tailAnchor: [0, 0.51, 0.32] });
+    // the tail is built at its anchor (the animator then carries it with the body)
+    expect(parts.tail.position.toArray()).toEqual(base.tailAnchor);
     expect(parts.head.children[0].isMesh).toBe(true);
     expect(parts.head.userData.neckBase).toEqual(parts.head.children[0].geometry.userData.neckBase);
     for (const i of [1, 2, 3, 4]) expect(parts.tailPivots[i].children.filter((o) => o.isMesh)).toHaveLength(0);
@@ -225,6 +227,52 @@ describe('Hagrid rebuilt (Task 8)', () => {
     for (const state of FIGHT_SIX) {
       for (const t of [0.3, 1.3]) expect(() => animateCat(buildCat('hagrid'), state, t, 0, false)).not.toThrow();
     }
+  });
+
+  // Task 10 fix: in nap the body dropped 0.1 and squashed while the tail stayed
+  // at its built spot, so the fan's root hung in the air behind his back. The
+  // tail now rides the posed body (base.tailAnchor). Each feather's root ring
+  // (its first ring, at the pivot: the vertices nearest it, geometry.userData
+  // .roots) must lie inside the posed body, bracketed
+  // along y and z like the neck, or within 1 cm of its surface.
+  it('his tail feathers stay seated in his back, in every state he plays', () => {
+    const near = (T, p) => {
+      const tri = new THREE.Triangle(), q = new THREE.Vector3();
+      let d = Infinity;
+      for (let i = 0; i < T.length; i += 9) {
+        tri.a.fromArray(T, i); tri.b.fromArray(T, i + 3); tri.c.fromArray(T, i + 6);
+        d = Math.min(d, tri.closestPointToPoint(p, q).distanceTo(p));
+      }
+      return d;
+    };
+    const misses = [];
+    let roots = 0;
+    for (const state of [...CAT_STATES, ...FIGHT_SIX]) {
+      for (const speed of [0, 1.5]) {
+        for (const t of [0.3, 1.3]) {
+          const c = buildCat('hagrid');
+          animateCat(c, state, t, speed, false, 1);
+          c.updateMatrixWorld(true);
+          const { body, tailPivots } = c.userData.parts;
+          const T = tris(body);
+          for (const m of tailPivots[0].children.filter((o) => o.isMesh)) {
+            const pos = m.geometry.attributes.position;
+            expect(m.geometry.userData.roots.length).toBe(components(m.geometry).length);
+            for (const [from, n] of m.geometry.userData.roots) {
+              for (let i = from; i < from + n; i++) {
+                const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+                roots++;
+                if (inside(T, p)) continue;
+                const d = near(T, p);
+                if (d > 0.01) misses.push(`${state}/${speed}/${t}: ${d.toFixed(3)}`);
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(roots).toBeGreaterThan(0);
+    expect(misses).toEqual([]);
   });
 
   it('the neck reaches 8 cm into the body at rest', () => {
