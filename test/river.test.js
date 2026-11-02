@@ -651,10 +651,11 @@ describe('the River: reeds and lily pads', () => {
     expect(riverReeds()).toEqual(reeds);
     expect(reeds.length).toBeGreaterThanOrEqual(300);
     expect(reeds.length).toBeLessThanOrEqual(MAX_REEDS);
-    expect(MAX_REEDS).toBe(480);
+    expect(MAX_REEDS).toBe(560);
     expect(REED_SPACING).toBe(1.0);
     const inBed = reeds.filter((r) => r.x >= REEDBED.minX && r.x <= REEDBED.maxX && r.z >= REEDBED.minZ && r.z <= REEDBED.maxZ);
-    expect(inBed.length).toBeGreaterThanOrEqual(150);
+    // Polish 2: thickened so the west side reads as a marsh (was 215 clumps).
+    expect(inBed.length).toBeGreaterThanOrEqual(320);
     for (let i = 0; i < reeds.length; i++) {
       for (let j = i + 1; j < reeds.length; j++) {
         expect(Math.hypot(reeds[i].x - reeds[j].x, reeds[i].z - reeds[j].z), `(${reeds[i].x}, ${reeds[i].z})`).toBeGreaterThanOrEqual(REED_SPACING);

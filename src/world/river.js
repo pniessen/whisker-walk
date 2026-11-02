@@ -361,11 +361,11 @@ export function riverTrees() {
 // a cat pushes through. Every clump keeps off the paths, the crossings, the
 // spawn, the meadow, every find and the fallen log, so nothing the kids walk
 // to or look for is hidden.
-export const MAX_REEDS = 480;
+export const MAX_REEDS = 560;
 export const REED_SPACING = 1.0;
-const REED_GRID = 1.8;
+const REED_GRID = 1.15;
 const REED_JITTER = 0.6;
-const REED_KEEP = 0.8;
+const REED_KEEP = 0.9;
 function reedFits(x, z, trunks) {
   if (!inBounds(x, z)) return false;
   if (b.inWater(OPEN_WATERS, x, z)) return false;
