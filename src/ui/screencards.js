@@ -74,3 +74,11 @@ export function summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDon
     + `${tile('😺', friendsGreeted, 'cats greeted')}`
     + `${hasGoals ? tile('⭐', goalsDone, 'goals done', '/3') : ''}</div>`;
 }
+
+// One Settings toggle row. The whole row is a <label>, so tapping the words
+// flips it; the real checkbox stays underneath (role="switch", keyboard,
+// focus) and the drawn track + knob after it is only a picture of it.
+export function settingsSwitchHtml(id, checked, text) {
+  return `<label class="settings-row settings-switch"><span class="settings-label">${escapeHtml(text)}</span>`
+    + `<input type="checkbox" role="switch" id="${escapeHtml(id)}" ${checked ? 'checked ' : ''}/><span class="switch" aria-hidden="true"></span></label>`;
+}

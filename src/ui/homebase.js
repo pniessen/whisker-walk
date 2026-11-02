@@ -22,6 +22,7 @@ import { goldForEdition } from '../goldmice.js';
 import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 import { isMilestone, welcomeLine } from '../visits.js';
 import { createVisitCelebration } from './visitcelebration.js';
+import { settingsSwitchHtml } from './screencards.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -300,44 +301,44 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       <section class="settings-section"><h2>Settings ⚙️</h2>
         <div class="settings-grid">
           <label class="settings-row settings-volume">
-            <span>Volume</span>
-            <input type="range" id="set-volume" min="0" max="100" step="1" value="${pct}" />
+            <span class="settings-label">Volume</span>
+            <input type="range" class="settings-range" id="set-volume" style="--fill:${pct}%" min="0" max="100" step="1" value="${pct}" />
             <span id="set-volume-value" class="settings-volume-value">${pct}%</span>
           </label>
           <label class="settings-row settings-volume">
-            <span>Music 🎵</span>
-            <input type="range" id="set-music-volume" min="0" max="100" step="5" value="${musicPct}" />
+            <span class="settings-label">Music 🎵</span>
+            <input type="range" class="settings-range" id="set-music-volume" style="--fill:${musicPct}%" min="0" max="100" step="5" value="${musicPct}" />
             <span id="set-music-volume-value" class="settings-volume-value">${musicPct}%</span>
           </label>
-          <label class="settings-row"><input type="checkbox" id="set-muted" ${s.muted ? 'checked' : ''} /> Mute all sound</label>
-          <label class="settings-row"><input type="checkbox" id="set-invert-y" ${s.invertY ? 'checked' : ''} /> Invert look (Y axis)</label>
-          <label class="settings-row"><input type="checkbox" id="set-left-handed" ${s.leftHanded ? 'checked' : ''} /> Left-handed touch controls</label>
-          <label class="settings-row"><input type="checkbox" id="set-reduced-motion" ${s.reducedMotion ? 'checked' : ''} /> Reduced motion</label>
+          ${settingsSwitchHtml('set-muted', !!s.muted, 'Mute all sound')}
+          ${settingsSwitchHtml('set-invert-y', !!s.invertY, 'Invert look (Y axis)')}
+          ${settingsSwitchHtml('set-left-handed', !!s.leftHanded, 'Left-handed touch controls')}
+          ${settingsSwitchHtml('set-reduced-motion', !!s.reducedMotion, 'Reduced motion')}
           <label class="settings-row settings-quality">
-            <span>Map</span>
+            <span class="settings-label">Map</span>
             <select id="set-map-mode">
               <option value="north" ${mapMode === 'north' ? 'selected' : ''}>North up</option>
               <option value="turn" ${mapMode === 'turn' ? 'selected' : ''}>Turns with me</option>
             </select>
           </label>
           <label class="settings-row settings-quality">
-            <span>Game edition</span>
+            <span class="settings-label">Game edition</span>
             <select id="set-edition">
               <option value="canon" ${edition === 'canon' ? 'selected' : ''}>${editionTitle('canon')}</option>
               <option value="legacy" ${edition === 'legacy' ? 'selected' : ''}>Legacy Edition</option>
             </select>
           </label>
           ${isClanEdition(progression.state) ? `<label class="settings-row settings-quality">
-            <span>Your ${CLAN_SUFFIX.toLowerCase()}</span>
+            <span class="settings-label">Your ${CLAN_SUFFIX.toLowerCase()}</span>
             <select id="${PICK_SELECT_ID}">
               <option value="" disabled ${progression.state.clanPick?.mine ? '' : 'selected'}>— not picked yet —</option>
               ${pickableClans().map((id) => `<option value="${id}" ${progression.state.clanPick?.mine === id ? 'selected' : ''}>${clanName(id)}</option>`).join('')}
             </select>
           </label>` : ''}
-          <label class="settings-row"><input type="checkbox" id="set-hide-chat" ${s.hideChat ? 'checked' : ''} /> Hide chat bubbles</label>
-          <label class="settings-row"><input type="checkbox" id="set-perf-readout" ${s.perfReadout ? 'checked' : ''} /> Performance readout (fps counter)</label>
+          ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
+          ${settingsSwitchHtml('set-perf-readout', !!s.perfReadout, 'Performance readout (fps counter)')}
           <label class="settings-row settings-quality">
-            <span>Graphics quality (applies next walk)</span>
+            <span class="settings-label">Graphics quality (applies next walk)</span>
             <select id="set-quality">
               <option value="auto" ${s.quality === 'auto' ? 'selected' : ''}>Auto</option>
               <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High detail</option>
@@ -1320,6 +1321,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return;
     }
     if (!settings) return;
+    // Looks only: the pink fill under a Settings slider follows the thumb.
+    if (e.target.classList?.contains('settings-range')) e.target.style.setProperty('--fill', `${e.target.value}%`);
     if (e.target.id === 'set-volume') {
       const vol = Number(e.target.value) / 100;
       settings.set('volume', vol);
