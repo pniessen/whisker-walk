@@ -1,12 +1,29 @@
 import * as THREE from 'three';
 import { skyBackground } from './render/sky.js';
 import { FLAT_GROUND } from './ground.js';
+import { standSpot } from './keepout.js';
 
 export function rollWeather(rng) {
   const r = rng();
   if (r < 0.5) return 'clear';
   if (r < 0.8) return 'rain';
   return 'sunset';
+}
+
+// The rain's three extra puddles (walk.js): two draws each off the walk's
+// stream, anywhere within the middle half of the bounds, then (Gorge part 2,
+// G7) moved onto ground a cat can stand on (keepout.js's standSpot), after
+// the draws, so no draw moves. Untouched on every map without onlyOn.
+export function rainPuddleSpots(area, rng, count = 3) {
+  const b = area.bounds;
+  const spots = [];
+  for (let i = 0; i < count; i++) {
+    const px = b.minX / 2 + rng() * (b.maxX - b.minX) / 2;
+    const pz = b.minZ / 2 + rng() * (b.maxZ - b.minZ) / 2;
+    const { x, z } = standSpot(area, px, pz);
+    spots.push({ x, z, r: 0.8 });
+  }
+  return spots;
 }
 
 export function createRainSchedule(rng) {

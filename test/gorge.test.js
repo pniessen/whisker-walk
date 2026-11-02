@@ -45,7 +45,7 @@ const { cameraOffset } = await import('../src/catcam.js');
 const { ZOOM_STEPS } = await import('../src/camzoom.js');
 const { PITCH_MAX } = await import('../src/player.js');
 const raceMod = await import('../src/race.js');
-const { GORGE_SPAWN, GORGE_BOUNDS, floodGorge } = await import('./helpers/gorgeflood.js');
+const { GORGE_SPAWN, GORGE_BOUNDS, FLOOD_STEP: GORGE_FLOOD_STEP, floodGorge } = await import('./helpers/gorgeflood.js');
 
 const {
   build, SPAWN, GORGE_WATERS, GORGE_PATHS, GORGE_HORIZON, GORGE_KEEP_CLEAR, GORGE_KEEP_CLEAR_RECTS, GORGE_HIDES,
@@ -843,5 +843,129 @@ describe('the Gorge: the climb race', () => {
     const src = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
     expect(src).toMatch(/areaData\.raceCourse\s*\?\s*createRace\(scene, areaData\.raceCourse, areaData\.spawn, \{ ground, kind: 'climb' \}\)/);
     expect(src).toMatch(/raceCourse\(walkPois, seedFromCode\(today/);
+  });
+});
+
+// Review Focus 1 (G7): every random spot a walk picks stands on ground the
+// flood reaches, and none on the Wide Ledge kept for the camp.
+const { createStrayCats, strayStream } = await import('../src/straycats.js');
+const { createGhosts } = await import('../src/ghosts.js');
+const { createScent } = await import('../src/scent.js');
+const { createToy } = await import('../src/toy.js');
+const { createCritters } = await import('../src/critters.js');
+const { createSecrets } = await import('../src/secrets.js');
+const { rainPuddleSpots } = await import('../src/weather.js');
+describe('the Gorge: every random spot stands where a cat can walk', () => {
+  const { reached, ground: floodGround } = floodGorge();
+  // reached() snaps to the nearest 0.25 m cell, and a spot inside STAND_ON
+  // can stand flush against a rock face (a cat sliding along a rim does), so
+  // its nearest cell may be the rock's. A spot stands on reached ground when
+  // one of the four cells around it is reached and on its own level (within
+  // 0.15 m: a lip is 0.35 up, rock metres): rounding forgiven, rock, lips and
+  // ledges never.
+  const STEP = GORGE_FLOOD_STEP;
+  const onReached = (x, z) => {
+    const y = floodGround.y(x, z);
+    const x0 = GORGE_BOUNDS.minX + Math.floor((x - GORGE_BOUNDS.minX) / STEP) * STEP;
+    const z0 = GORGE_BOUNDS.minZ + Math.floor((z - GORGE_BOUNDS.minZ) / STEP) * STEP;
+    for (const cx of [x0, x0 + STEP]) {
+      for (const cz of [z0, z0 + STEP]) {
+        if (reached(cx, cz) && Math.abs(floodGround.y(cx, cz) - y) <= 0.15) return true;
+      }
+    }
+    return false;
+  };
+  const DT = 1 / 30;
+  const SEEDS = 200;
+  const STRAYS = 22;
+  // Building 22 strays is most of this sweep's time (about 40 ms a seed), so
+  // their walk is 150 frames of a coarse 0.1 s each: 15 s of wandering, a
+  // few wander targets per cat, at a quarter of the cost of 600 fine frames.
+  const STRAY_FRAMES = 150;
+  const STRAY_DT = 0.1;
+  const FAR_CAT = new THREE.Vector3(-44, 0, -11);
+  const ghostProfile = (id) => ({ playerId: id, petName: id, breed: 'tabby', accessories: {}, greets: 2 });
+  const onLedge = (x, z) => x >= WIDE_LEDGE_RECT.minX && x <= WIDE_LEDGE_RECT.maxX
+    && z >= WIDE_LEDGE_RECT.minZ && z <= WIDE_LEDGE_RECT.maxZ;
+
+  it('every random spot a walk picks stands on reached ground', () => {
+    const bad = [];
+    let targets = 0;
+    const check = (what, x, z) => {
+      if (!onReached(x, z) || onLedge(x, z)) bad.push(`${what} (${x.toFixed(2)}, ${z.toFixed(2)})`);
+    };
+
+    // The quest's POI picks, and the toy thrown from each POI eight ways and
+    // left to settle (part 1's R12): neither draws, so once is every seed.
+    const walkPois = area.pois.map((p) => clearSpot(p, area.colliders, area.bounds, area.waters));
+    for (const p of walkPois) check('quest poi', p.x, p.z);
+    for (const p of walkPois) {
+      for (let k = 0; k < 8; k++) {
+        const toy = createToy(new THREE.Scene(), { ground: area.ground });
+        const a = (k / 8) * Math.PI * 2;
+        toy.throwFrom(new THREE.Vector3(p.x, area.ground.y(p.x, p.z) + 1.1, p.z), new THREE.Vector3(Math.sin(a), 0, Math.cos(a)));
+        for (let f = 0; f < 600 && toy.idleTime < 0.5; f++) toy.update(DT, area.bounds);
+        check(`toy from (${p.x}, ${p.z}) toward ${k}`, toy.mesh.position.x, toy.mesh.position.z);
+      }
+    }
+
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const strays = createStrayCats(new THREE.Scene(), area, STRAYS, strayStream(seed), { roomSeed: seed });
+      const seen = new Map();
+      for (const s of strays.strays) check(`seed ${seed} stray spawn`, s.group.position.x, s.group.position.z);
+      for (let f = 0; f < STRAY_FRAMES; f++) {
+        strays.update(STRAY_DT, f * STRAY_DT, FAR_CAT, {});
+        for (const s of strays.strays) {
+          if (!s.target) continue;
+          if (s.target !== seen.get(s)) { targets++; seen.set(s, s.target); }
+          check(`seed ${seed} stray target`, s.target.x, s.target.z);
+        }
+      }
+
+      const ghosts = createGhosts(new THREE.Scene(), area, [ghostProfile('g1'), ghostProfile('g2')], mulberry32(seed));
+      for (const g of ghosts.list) check(`seed ${seed} ghost`, g.group.position.x, g.group.position.z);
+
+      const scent = createScent(new THREE.Scene(), area, mulberry32(seed));
+      for (const tr of scent.treats) check(`seed ${seed} treat`, tr.x, tr.z);
+
+      for (const p of rainPuddleSpots(area, mulberry32(seed))) check(`seed ${seed} puddle`, p.x, p.z);
+
+      const critters = createCritters(new THREE.Scene(), [], {
+        rng: mulberry32(seed), spawnFireflies: true, ground: area.ground, area,
+      });
+      for (const c of critters.list) check(`seed ${seed} firefly`, c.def.x, c.def.z);
+
+      // The gnome (a POI's spot, +/-1.5 m), and the unicorn: spooked from four
+    // sides in turn, grazing in between.
+      const secrets = createSecrets(new THREE.Scene(), area, { unicorn: true, ufo: false }, mulberry32(seed));
+      const gnome = secrets.list.find((s) => s.key === 'gnome').group;
+      check(`seed ${seed} gnome`, gnome.position.x, gnome.position.z);
+      const u = secrets.list.find((s) => s.key === 'unicorn').group;
+      for (let f = 0; f < 480; f++) {
+        const a = Math.floor(f / 120) * (Math.PI / 2) + seed;
+        const spook = f % 120 < 4;
+        const cat = u.position.clone().add(new THREE.Vector3(Math.sin(a) * 2, 0, Math.cos(a) * 2));
+        secrets.update(DT, f * DT, spook ? cat : FAR_CAT, spook ? 6 : 0);
+        check(`seed ${seed} unicorn`, u.position.x, u.position.z);
+      }
+    }
+    expect([...new Set(bad)].slice(0, 20)).toEqual([]);
+    expect(targets).toBeGreaterThan(SEEDS * STRAYS); // the strays did wander
+  });
+
+  it('the stray stream is not drawn any more than before', () => {
+    for (const count of [0, 3, 22]) {
+      const r = strayStream(7);
+      let n = 0;
+      const counting = () => { n++; return r(); };
+      createStrayCats(new THREE.Scene(), area, count, counting, { roomSeed: 7 });
+      expect(n).toBe(47 + 5 * count);
+    }
+  });
+
+  it('walk.js takes its rain puddles from rainPuddleSpots and hands the critters the area', () => {
+    const walkSrc = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
+    expect(walkSrc).toContain('const extra = rainPuddleSpots(areaData, walkRng);');
+    expect(walkSrc).toMatch(/createCritters\(scene, areaData\.critterSpawns, \{[\s\S]*?area: areaData,\n    \}\);/);
   });
 });

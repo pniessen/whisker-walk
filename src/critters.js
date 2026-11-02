@@ -3,6 +3,7 @@ import { bus } from './events.js';
 import { litMaterial } from './render/materials.js';
 import { FLAT_GROUND } from './ground.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { standSpot } from './keepout.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -308,8 +309,14 @@ export function createCritters(scene, spawns, opts = {}) {
 
   for (const def of spawns) spawn(def);
   if (opts.spawnFireflies) {
+    // Gorge part 2 (G7): each spot goes onto ground a cat can stand on
+    // (keepout.js's standSpot, with opts.area), after both its draws, so no
+    // draw moves. Untouched on every map without onlyOn.
     for (let i = 0; i < 8; i++) {
-      spawn({ type: 'firefly', x: (rng() - 0.5) * 60, z: (rng() - 0.5) * 60 });
+      const fx = (rng() - 0.5) * 60;
+      const fz = (rng() - 0.5) * 60;
+      const { x, z } = standSpot(opts.area, fx, fz);
+      spawn({ type: 'firefly', x, z });
     }
   }
   if (opts.trailButterflies) {

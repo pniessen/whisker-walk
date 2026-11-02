@@ -78,7 +78,7 @@ import { addBorderDressing } from '../world/borderpost.js';
 import { postsFor } from '../borderposts.js';
 import { createFx } from '../fx.js';
 import { createSkyLife } from '../skylife.js';
-import { rollWeather, createWeather } from '../weather.js';
+import { rollWeather, createWeather, rainPuddleSpots } from '../weather.js';
 import { rollSecrets, createSecrets } from '../secrets.js';
 import { GOLD_MICE, createGoldMice } from '../goldmice.js';
 import { crossingOutcome } from '../bordercross.js';
@@ -656,13 +656,10 @@ export function createWalkLifecycle({
         // for a body of water with a shoreline. A 0.8m disc has no shoreline,
         // and three of them per rainy walk would be three more animated
         // materials on the per-frame update list for no visible gain.
-        const extra = [];
-        for (let i = 0; i < 3; i++) {
-          const px = areaData.bounds.minX / 2 + walkRng() * (areaData.bounds.maxX - areaData.bounds.minX) / 2;
-          const pz = areaData.bounds.minZ / 2 + walkRng() * (areaData.bounds.maxZ - areaData.bounds.minZ) / 2;
-          extra.push({ x: px, z: pz, r: 0.8 });
-          scene.add(puddleProp(px, pz, 0.8));
-        }
+        // Their spots: weather.js's rainPuddleSpots, on ground a cat can
+        // stand on (G7).
+        const extra = rainPuddleSpots(areaData, walkRng);
+        for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r));
         areaData.puddles = [...areaData.puddles, ...extra];
         // birds shelter from rain: halve bird-type spawns
         let keep = false;
@@ -695,6 +692,8 @@ export function createWalkLifecycle({
       hides: propsFor(areaId).hides,
       onHide: (c) => hud.toast(hideToastFor(c.type)),
       ground,
+      // G7: the dusk fireflies' spots stand where a cat can (standSpot).
+      area: areaData,
     });
 
     const collectibleMeshes = new Map();

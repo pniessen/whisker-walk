@@ -4,20 +4,29 @@ import { nearestDry } from './world/builder.js';
 import { groundOf } from './ground.js';
 
 export function rollTreats(rng, pois, count = 2) {
-  const treats = [];
+  return rollTreatsAt(rng, pois, count).map((t) => t.treat);
+}
+
+// rollTreats, with the POI each treat was scattered around (createScent's
+// level pass sends a treat back to it). The same draws, in the same order.
+function rollTreatsAt(rng, pois, count) {
+  const picks = [];
   const used = new Set();
-  while (treats.length < count && used.size < pois.length) {
+  while (picks.length < count && used.size < pois.length) {
     let i = Math.floor(rng() * pois.length);
     while (used.has(i)) i = (i + 1) % pois.length; // linear probe: rng may be constant
     used.add(i);
     const poi = pois[i];
-    treats.push({
-      id: `treat-${treats.length}`,
-      x: poi.x + (rng() - 0.5) * 8,
-      z: poi.z + (rng() - 0.5) * 8,
+    picks.push({
+      poi,
+      treat: {
+        id: `treat-${picks.length}`,
+        x: poi.x + (rng() - 0.5) * 8,
+        z: poi.z + (rng() - 0.5) * 8,
+      },
     });
   }
-  return treats;
+  return picks;
 }
 
 export function trailPoints(from, to, rng, steps = 7) {
@@ -53,7 +62,12 @@ const SHORE_MARGIN = 0.6;
 // middle of the sea, so most of its draws land in open water. nearestDry
 // knows about the pier deck, so a treat rolled off that POI walks back onto
 // the pier rather than being flung to the sand 11m west.
-function keepReachable(tr, area) {
+//
+// Gorge part 2 (G7): then the level pass. The scatter can carry a treat off a
+// ledge onto the floor below, or onto the rock beside a path; a treat whose
+// ground is more than LEVEL_TOL from its POI's goes back to the POI's own
+// spot, which is on reached ground. Flat ground: nothing.
+function keepReachable(tr, area, poi) {
   const colliders = area.colliders ?? [];
   const waters = area.waters ?? [];
   const bounds = area.bounds;
@@ -87,6 +101,11 @@ function keepReachable(tr, area) {
       tr.z = THREE.MathUtils.clamp(tr.z, bounds.minZ + 1.5, bounds.maxZ - 1.5);
     }
   }
+  const ground = groundOf(area);
+  if (!ground.flat && !ground.sameLevel(tr.x, tr.z, poi.x, poi.z)) {
+    tr.x = poi.x;
+    tr.z = poi.z;
+  }
   return tr;
 }
 
@@ -94,11 +113,11 @@ function keepReachable(tr, area) {
 // ground (groundOf(area): y 0 on every shipped map).
 export function createScent(scene, area, rng) {
   const ground = groundOf(area);
-  const treats = rollTreats(rng, area.pois, 2).map((tr) => keepReachable({
-    ...tr,
+  const treats = rollTreatsAt(rng, area.pois, 2).map(({ treat, poi }) => keepReachable({
+    ...treat,
     revealed: false,
     dug: false,
-  }, area));
+  }, area, poi));
 
   // subtle mounds, visible when close
   for (const tr of treats) {

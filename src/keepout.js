@@ -20,7 +20,15 @@
 //   rects:    [{ minX, maxX, minZ, maxZ }],   inside if within `margin` of one
 //   capsules: [{ x1, z1, x2, z2, r }],         inside if within `r` of its segment
 //   margin,
+//   onlyOn:   [{ minX, maxX, minZ, maxZ }],   optional: the ONLY places a cat may stand
 // }
+//
+// onlyOn (Gorge part 2, G7) is the other way round: where the walkable ground
+// is a few strips among rock, it names where strays and ghosts may stand, and
+// a point in none of those rectangles goes to the nearest point inside the
+// nearest one, `margin` in from its edges. It runs after the rects and
+// capsules, so every caller of keepOutPoint (and dryGroundPoint) inherits it.
+// An area without onlyOn is unchanged.
 
 // A point pushed to exactly the margin is out; float rounding in the push must
 // not count it as in and start another one (the same reason as builder.js's
@@ -135,6 +143,48 @@ function insideAny(shapes, x, z) {
 export function keepOutPoint(area, x, z) {
   const ko = area?.keepOut;
   if (!ko) return { x, z };
+  const p = pushOut(area, ko, x, z);
+  return ko.onlyOn ? onlyOnPoint(ko, p.x, p.z) : p;
+}
+
+// standSpot(area, x, z) -> { x, z }
+//
+// For a spot a walk picks with no thought of where a cat can stand (the rain
+// puddles, the dusk fireflies, the unicorn's next step): keepOutPoint where
+// the area names where cats may stand (keepOut.onlyOn), and the point itself
+// everywhere else, so on every shipped map these spots land where they always
+// did. Draws nothing.
+export function standSpot(area, x, z) {
+  return area?.keepOut?.onlyOn ? keepOutPoint(area, x, z) : { x, z };
+}
+
+// Inside one of onlyOn's rectangles, edges included.
+function onAllowed(rects, x, z) {
+  for (const r of rects) {
+    if (x >= r.minX - EPS && x <= r.maxX + EPS && z >= r.minZ - EPS && z <= r.maxZ + EPS) return true;
+  }
+  return false;
+}
+
+// A point in none of onlyOn's rectangles goes to the nearest point of the
+// nearest one, `margin` in from its edges (its middle, across a rectangle
+// narrower than twice the margin). A point in one comes back as it is.
+function onlyOnPoint(ko, x, z) {
+  const rects = ko.onlyOn;
+  if (rects.length === 0 || onAllowed(rects, x, z)) return { x, z };
+  const margin = Number.isFinite(ko.margin) ? ko.margin : 0;
+  let best = null;
+  let bestD = Infinity;
+  for (const r of rects) {
+    const d = rectGap(r, x, z);
+    if (d < bestD) { best = r; bestD = d; }
+  }
+  const into = (v, lo, hi) => (hi - lo < 2 * margin ? (lo + hi) / 2 : Math.min(hi - margin, Math.max(lo + margin, v)));
+  return { x: into(x, best.minX, best.maxX), z: into(z, best.minZ, best.maxZ) };
+}
+
+// The rects and capsules: the point itself when it is outside every one.
+function pushOut(area, ko, x, z) {
   const shapes = shapesOf(ko);
   const b = area.bounds;
   let p = { x, z };
@@ -195,7 +245,10 @@ function isDry(waters, x, z) {
 
 function isClear(area, x, z) {
   if (!isDry(area.waters, x, z)) return false;
-  return !area.keepOut || !insideAny(shapesOf(area.keepOut), x, z);
+  const ko = area.keepOut;
+  if (!ko) return true;
+  if (ko.onlyOn && !onAllowed(ko.onlyOn, x, z)) return false;
+  return !insideAny(shapesOf(ko), x, z);
 }
 
 // The nearest point ON a deck (margin 0) of a water that (x, z) is in, or
