@@ -243,3 +243,19 @@ describe('renderFightMovesHtml', () => {
     }
   });
 });
+
+// Final review 6: "Learn now" was a white system button; it wears the home
+// sheets' button look (the cards' blue, white text, the page's font).
+describe('the Learn now button (style.css)', () => {
+  it('is styled like the home sheets\' buttons, with a dimmed disabled state', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.fmove-buy \{([^}]*)\}/)[1];
+    expect(rule).toMatch(/background: #4a6ea5/);
+    expect(rule).toMatch(/color: #fff/);
+    expect(rule).toMatch(/font: inherit/);
+    expect(rule).toMatch(/border-radius: 8px/);
+    expect(rule).toMatch(/border: 0/);
+    expect(rule).toMatch(/min-height: 44px/);
+    expect(css).toMatch(/\.fmove-buy:disabled \{[^}]*cursor: default/);
+  });
+});

@@ -345,8 +345,12 @@ body.left-handed .hud-top {
 .fmove-name { font-weight: 700; }
 .fmove-when, .fmove-need { font-size: 0.85rem; color: #a8c0e0; }
 .fmove-owned { color: #f2c14e; font-weight: 700; }
-.fmove-buy { min-height: 44px; padding: 0 14px; }
-.fmove-buy:disabled { opacity: 0.5; }
+.fmove-buy {
+  min-height: 44px; padding: 0 14px; border: 0; border-radius: 8px; cursor: pointer;
+  background: #4a6ea5; color: #fff; font: inherit; font-weight: 700;
+}
+.fmove-buy:hover { background: #5a7eb5; }
+.fmove-buy:disabled { opacity: 0.5; cursor: default; }
 .skill-family { margin-bottom: 14px; }
 .skill-family:last-of-type { margin-bottom: 0; }
 /* matches the old accessory-slot h3, so family headings and slot headings sit at
@@ -1353,6 +1357,9 @@ body.den-shop-open .chat-wheel { display: none !important; }
   font: inherit; font-size: 0.85rem; font-weight: 800; line-height: 1.1; cursor: pointer;
 }
 .fight-special-icon { font-size: 1.1em; }
+/* Each special carries its full and short name; short screens show the short
+   one (a full name wrapped to three lines at 667x375). */
+.fight-special-short { display: none; }
 .fight-special:active { transform: scale(0.97); }
 .fight-special.used, .fight-special:disabled { opacity: 0.35; cursor: default; transform: none; }
 .fight-teach { font-size: 0.8rem; opacity: 0.8; text-align: center; }
@@ -1410,6 +1417,8 @@ body.touch-mode .fight-key { display: none; }
   }
   .hud-fight .fight-specials { grid-area: specials; width: auto; }
   .hud-fight .fight-special { min-height: 44px; font-size: 0.72rem; }
+  .hud-fight .fight-special-name { display: none; }
+  .hud-fight .fight-special-short { display: inline; }
   .hud-fight.has-specials .fight-teach { font-size: 0.65rem; line-height: normal; max-height: 1.4em; -webkit-line-clamp: 1; text-overflow: ellipsis; }
   #hud.fighting:has(.hud-fight.has-specials) .hud-toasts { bottom: calc(var(--fight-sheet-h, 46vh) + 8px); }
   /* toasts centred just above the sheet's top edge, never over a move */

@@ -270,11 +270,22 @@ describe('the specials row', () => {
     expect(html.indexOf('fight-specials')).toBeGreaterThan(html.indexOf('fight-top'));
     expect(html.indexOf('fight-specials')).toBeLessThan(html.indexOf('class="fight-moves'));
     expect(specialIds(html)).toEqual(['pin', 'rearUpSwat', 'leapScratch']);
-    expect(html).toMatch(/data-move="pin"><span class="fight-special-icon">⬇️<\/span> Pin<span class="fight-key">4<\/span>/);
-    expect(html).toMatch(/data-move="leapScratch"><span class="fight-special-icon">↩️<\/span> Leap and Scratch<span class="fight-key">6<\/span>/);
+    expect(html).toMatch(/data-move="pin"><span class="fight-special-icon">⬇️<\/span> <span class="fight-special-name">Pin<\/span><span class="fight-special-short">Pin<\/span><span class="fight-key">4<\/span>/);
+    expect(html).toMatch(/data-move="leapScratch"><span class="fight-special-icon">↩️<\/span> <span class="fight-special-name">Leap and Scratch<\/span><span class="fight-special-short">Leap<\/span><span class="fight-key">6<\/span>/);
     expect(html).toMatch(/class="fight-special used" data-move="rearUpSwat" disabled>/);
     expect((html.match(/ disabled/g) ?? []).length).toBe(1);
     expect(movesOf(html).slice(-3)).toEqual(BUTTONS);
+  });
+
+  // Final review 7: in landscape (667x375) the full names wrapped to three
+  // lines; each button carries its short name too, shown on short screens.
+  test('each special carries its full and short name; an unknown id shows its name in both', () => {
+    const html = renderFightHtml({ ...clue, specials: FIGHT_MOVES.map((m) => ({ id: m.id, name: m.name, used: false })) });
+    for (const m of FIGHT_MOVES) {
+      expect(html).toContain(`<span class="fight-special-name">${m.name}</span><span class="fight-special-short">${m.short}</span>`);
+    }
+    const odd = renderFightHtml({ ...clue, specials: [{ id: 'oddMove', name: 'Odd <b>', used: false }] });
+    expect(odd).toContain('<span class="fight-special-name">Odd &lt;b&gt;</span><span class="fight-special-short">Odd &lt;b&gt;</span>');
   });
 
   test('the teach line lists the owned specials, short', () => {
@@ -391,6 +402,13 @@ describe('the specials row on a phone (style.css)', () => {
     expect(block).toMatch(/\.fight-special \{[^}]*grid-area|\.fight-specials \{[^}]*grid-area: specials/);
     expect(block).toContain('min-height: clamp(64px, 22vh, 88px)');
     expect(block).toMatch(/has-specials[^{]*\{[^}]*max-height: 46vh/);
+  });
+  test('portrait shows the full special names; short screens the short ones (final review 7)', () => {
+    expect(css).toMatch(/\.fight-special-short \{[^}]*display: none/);
+    const at = css.indexOf('@media (max-height: 500px) {\n  .hud-fight');
+    const block = css.slice(at, css.indexOf('\n}\n', at));
+    expect(block).toMatch(/\.hud-fight \.fight-special-name \{[^}]*display: none/);
+    expect(block).toMatch(/\.hud-fight \.fight-special-short \{[^}]*display: inline/);
   });
   test('the teach line ends in an ellipsis, not a silent cut', () => {
     expect(css).toMatch(/\.hud-fight\.has-specials \.fight-teach \{[^}]*-webkit-line-clamp: 2[^}]*text-overflow: ellipsis/);

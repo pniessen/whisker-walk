@@ -64,6 +64,13 @@ function cleanSpecials(list) {
   return out;
 }
 
+// The short name a short screen shows (FIGHT_MOVES' `short`); an unknown id
+// keeps its full name.
+function shortOf(m) {
+  const known = FIGHT_MOVES.find((x) => x.id === m.id);
+  return known ? known.short : m.name;
+}
+
 export function renderFightHtml({ phase, clue, wins, losses, line, specials = [] } = {}) {
   const sp = cleanSpecials(specials);
   const showClue = phase === 'clue' && clue && typeof clue.icon === 'string';
@@ -78,7 +85,7 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
     + '</div>'
     + (sp.length
       ? '<div class="fight-specials">'
-        + sp.map((m, i) => `<button type="button" class="fight-special${m.used ? ' used' : ''}" data-move="${m.id}"${m.used ? ' disabled' : ''}>${iconOf(m.id) ? `<span class="fight-special-icon">${iconOf(m.id)}</span> ` : ''}${escapeHtml(m.name)}<span class="fight-key">${BUTTONS.length + 1 + i}</span></button>`).join('')
+        + sp.map((m, i) => `<button type="button" class="fight-special${m.used ? ' used' : ''}" data-move="${m.id}"${m.used ? ' disabled' : ''}>${iconOf(m.id) ? `<span class="fight-special-icon">${iconOf(m.id)}</span> ` : ''}<span class="fight-special-name">${escapeHtml(m.name)}</span><span class="fight-special-short">${escapeHtml(shortOf(m))}</span><span class="fight-key">${BUTTONS.length + 1 + i}</span></button>`).join('')
         + '</div>'
       : '')
     + `<div class="fight-moves${idle}">`
