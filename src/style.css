@@ -339,6 +339,14 @@ body.left-handed .hud-top {
    shop the accessories live in. Only the family headings, the feat line and
    the progress bar are new. --- */
 .skills-intro { font-size: 0.85rem; color: #a8c0e0; margin-bottom: 14px; max-width: 60ch; }
+.fight-moves-list { margin-top: 18px; }
+.fight-moves-list ul { list-style: none; margin: 0; padding: 0; }
+.fmove { padding: 8px 0; border-top: 1px solid rgba(168, 192, 224, 0.2); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.fmove-name { font-weight: 700; }
+.fmove-when, .fmove-need { font-size: 0.85rem; color: #a8c0e0; }
+.fmove-owned { color: #f2c14e; font-weight: 700; }
+.fmove-buy { min-height: 44px; padding: 0 14px; }
+.fmove-buy:disabled { opacity: 0.5; }
 .skill-family { margin-bottom: 14px; }
 .skill-family:last-of-type { margin-bottom: 0; }
 /* matches the old accessory-slot h3, so family headings and slot headings sit at

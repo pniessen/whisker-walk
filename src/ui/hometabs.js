@@ -8,6 +8,7 @@
 // cannot be imported by the suite at all — the same reason journal.js owns
 // renderJournalHtml. Its only import is src/skills.js, which is itself
 // import-free, so this module stays DOM-free and cheap to test.
+import { FIGHT_MOVES } from '../fightmoves.js';
 import { SKILL_FAMILIES, SKILLS, hasSkill, skillProgress } from '../skills.js';
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,39 @@ export function renderSkillsHtml(state) {
   }).join('');
   return `${sections}
     <div class="skills-footer">🐾 Abilities earned: ${earnedCount}/${SKILLS.length}</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Fighting moves (end of the Skills sheet, Clan Edition only; homebase decides)
+//
+// `owned` is progression.ownedMoves(); `canBuy(id)` is progression.canBuyMove.
+// Pure and total: any state or options render, a throwing canBuy counts as no.
+// ---------------------------------------------------------------------------
+export function renderFightMovesHtml(state, opts) {
+  const won = Number(state && state.fightsWon);
+  const fightsWon = Number.isFinite(won) && won > 0 ? Math.floor(won) : 0;
+  const owned = opts && Array.isArray(opts.owned) ? opts.owned : [];
+  const canBuy = opts && typeof opts.canBuy === 'function' ? opts.canBuy : () => false;
+  const rows = FIGHT_MOVES.map((m) => {
+    const when = m.when === null ? 'Use it on any move.' : `Use it when ${m.when}.`;
+    let status;
+    if (owned.includes(m.id)) {
+      status = '<span class="fmove-owned">✓</span>';
+    } else {
+      const n = Math.max(1, m.earnAt - fightsWon);
+      status = `<span class="fmove-need">Win ${n} more ${n === 1 ? 'fight' : 'fights'} to learn it</span>`;
+      if (m.price !== null) {
+        let ok = false;
+        try { ok = canBuy(m.id) === true; } catch { ok = false; }
+        status += ` <button type="button" class="fmove-buy" data-buy-move="${escapeHtml(m.id)}"${ok ? '' : ' disabled'}>Learn now — ${m.price} 🐾</button>`;
+      }
+    }
+    return `<li class="fmove"><span class="fmove-name">${escapeHtml(m.name)}</span>
+      <span class="fmove-when">${escapeHtml(when)}</span> ${status}</li>`;
+  }).join('');
+  return `<section class="fight-moves-list"><h3>Fighting moves 🐾</h3>
+    <p class="skills-intro">Win fights to learn moves. Two can be learned early with paw points.</p>
+    <ul>${rows}</ul></section>`;
 }
 
 // ---------------------------------------------------------------------------

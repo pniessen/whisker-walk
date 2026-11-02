@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import * as hometabs from '../src/ui/hometabs.js';
 import { HOME_SHEETS, resolveSheet } from '../src/ui/dressingroom.js';
 
-const { renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } = hometabs;
+const { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } = hometabs;
 import { candidateStarNames } from '../src/clannames.js';
 import { SKILLS, SKILL_FAMILIES, SKILL_IDS } from '../src/skills.js';
 
@@ -199,5 +199,47 @@ describe('golden mice tally', () => {
     expect(rule).toMatch(/position\s*:\s*absolute/);
     expect(rule).toMatch(/clip-path\s*:\s*inset\(50%\)/);
     expect(rule).toMatch(/overflow\s*:\s*hidden/);
+  });
+});
+
+describe('renderFightMovesHtml', () => {
+  const none = { owned: [], canBuy: () => false };
+  it('a new save shows all four unowned with how many wins remain', () => {
+    const html = renderFightMovesHtml({ fightsWon: 0 }, none);
+    expect(html).toContain('class="fight-moves-list"');
+    expect(html).toContain('Fighting moves 🐾');
+    expect(html).toContain('Win fights to learn moves. Two can be learned early with paw points.');
+    for (const n of [3, 6, 10, 20]) expect(html).toContain(`Win ${n} more fights to learn it`);
+    expect(html).toContain('Use it when they crouch.');
+    expect(html).toContain('Use it on any move.');
+  });
+  it('counts down from fightsWon and never says 0', () => {
+    const html = renderFightMovesHtml({ fightsWon: 2 }, none);
+    expect(html).toContain('Win 1 more fights to learn it'.replace('1 more fights', '1 more fight'));
+    expect(html).toContain('Win 4 more fights to learn it');
+    expect(renderFightMovesHtml({ fightsWon: 9.5 }, none)).toContain('Win 1 more fight to learn it');
+  });
+  it('only the two buyable unowned moves get a button, disabled unless canBuy', () => {
+    const html = renderFightMovesHtml({ fightsWon: 0 }, { owned: [], canBuy: (id) => id === 'rearUpSwat' });
+    expect(html).toContain('Learn now — 300 🐾');
+    expect(html).toContain('Learn now — 600 🐾');
+    expect(html).not.toMatch(/data-buy-move="(pin|rollingTumble)"/);
+    expect(html).toMatch(/<button[^>]*data-buy-move="rearUpSwat"(?![^>]*disabled)[^>]*>/);
+    expect(html).toMatch(/<button[^>]*data-buy-move="leapScratch"[^>]*disabled/);
+  });
+  it('an owned move shows a check and no button', () => {
+    const html = renderFightMovesHtml({ fightsWon: 0 }, { owned: ['rearUpSwat', 'pin'], canBuy: () => true });
+    expect(html).toContain('✓');
+    expect(html).not.toContain('data-buy-move="rearUpSwat"');
+    expect(html).toContain('data-buy-move="leapScratch"');
+    expect(html).not.toContain('Win 3 more');
+  });
+  it('renders on hostile state and options without throwing', () => {
+    for (const st of [undefined, null, 5, 'x', { fightsWon: NaN }, { fightsWon: '9e99' }, { fightsWon: -5 }, { fightsWon: 1e300 }]) {
+      for (const o of [undefined, null, {}, { owned: 'x', canBuy: 5 }, { owned: [null, {}], canBuy() { throw new Error('x'); } }]) {
+        expect(() => renderFightMovesHtml(st, o)).not.toThrow();
+        expect(typeof renderFightMovesHtml(st, o)).toBe('string');
+      }
+    }
   });
 });
