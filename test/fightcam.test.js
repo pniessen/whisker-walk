@@ -21,8 +21,9 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
+  ourCatHidden, itNearer, sheetTopFrom, frameBottomFor,
 } = await import('../src/fightcam.js');
-const RINGS0 = RINGS[0];
+const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -193,8 +194,10 @@ describe('chooseFightView', () => {
 
   test('with no trees it keeps the current angle', () => {
     const subj = subject(me, it);
-    // (the pair lies along x, so none of these looks down the line between them)
-    for (const yaw0 of [0, 1, -0.6, 2.6, Math.PI]) {
+    // (the pair lies along x, so none of these looks down the line between
+    // them; and none looks from the intruder's side, where our cat would be
+    // the farther, which turns the camera: see 'our cat stays in view' below)
+    for (const yaw0 of [0, 1, 0.6, 2.6, Math.PI]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...PORTRAIT });
       expect(v.clear).toBe(true);
       const yaw = Math.atan2(v.pos.x - subj.mid.x, v.pos.z - subj.mid.z);
@@ -314,6 +317,72 @@ describe('chooseFightView', () => {
   });
 });
 
+// Polish (camps) Task 5: the survey's fight shots had the camera behind the
+// intruder, so it hid my cat. The ranking now prefers views where our cat is
+// seen past the intruder, and our cat is the nearer one; and it frames
+// tighter and lower.
+describe('our cat stays in view, tight and low', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const subj = subject(me, it);
+  const behindIt = { x: -0.8 - 3.4, y: 1.5, z: 0 };  // on the line through both cats, past the intruder
+  const behindMe = { x: 0.8 + 3.4, y: 1.5, z: 0 };
+  const side = { x: 0, y: 1.5, z: 4.2 };
+
+  test('ourCatHidden: 1 straight behind the intruder, 0 behind our cat and side-on', () => {
+    expect(ourCatHidden(behindIt, subj)).toBe(1);
+    expect(ourCatHidden(behindMe, subj)).toBe(0);
+    expect(ourCatHidden(side, subj)).toBe(0);
+    // riding the ground: the same, lifted with the pair
+    expect(ourCatHidden({ ...behindIt, y: behindIt.y + 3 }, subj, 3)).toBe(1);
+  });
+
+  test('ourCatHidden: a subject whose anchors sit on the middle keeps every spot', () => {
+    // both anchors on the middle (q 0): our cat's spot on the intruder's side
+    // still counts, so the side view is half hidden, not wholly
+    const onMid = { mid: { x: 0, z: 0 }, axis: { x: 1, z: 0 }, me: [{ x: 0, z: 0 }, { x: -2, z: 0 }], it: [{ x: 0, z: 0 }], path: [] };
+    expect(ourCatHidden(side, onMid)).toBe(0.5);
+  });
+
+  test('itNearer: true behind the intruder, false behind our cat and side-on', () => {
+    expect(itNearer(behindIt, subj)).toBe(true);
+    expect(itNearer(behindMe, subj)).toBe(false);
+    expect(itNearer(side, subj)).toBe(false);
+  });
+
+  test('a real fight subject (spots that run to the other cat): side-on hides nothing, end-on past the intruder hides it all', () => {
+    for (const actions of [false, true]) {
+      const f = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions });
+      expect(ourCatHidden(side, f), `actions ${actions}`).toBe(0);
+      expect(ourCatHidden(behindMe, f), `actions ${actions}`).toBe(0);
+      expect(ourCatHidden(behindIt, f), `actions ${actions}`).toBeGreaterThan(0.5);
+      expect(itNearer(behindIt, f)).toBe(true);
+      expect(itNearer(behindMe, f)).toBe(false);
+    }
+  });
+
+  test('looking from behind the intruder, it turns so the intruder hides nothing and our cat is the nearer', () => {
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      for (const yaw0 of [-Math.PI / 2, -Math.PI / 2 + 0.6, -Math.PI / 2 - 0.6]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...frame });
+        expect(v.clear).toBe(true);
+        expect(ourCatHidden(v.pos, subj)).toBe(0);
+        expect(itNearer(v.pos, subj)).toBe(false);
+      }
+    }
+  });
+
+  test('on open ground at desktop it takes a tight ring, with the pair low in the open part of the screen', () => {
+    for (const yaw0 of [0, 1, Math.PI, -2.5]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...DESK });
+      expect(v.ring).toBeLessThanOrEqual(1);
+      expect(RINGS[v.ring].d).toBeLessThan(5);
+      const m = projectPoint(v, { x: subj.mid.x, y: 0.3, z: subj.mid.z }, DESK.aspect, DESK.fovY);
+      expect(m.y).toBeLessThan(0.2);
+      expect(m.y).toBeGreaterThan(FIGHT_FRAME.bottom);
+    }
+  });
+});
+
 // Controller ruling on Task 5: a lifted top (CAT_HEIGHTS[2] + y) must stay in
 // frame, but its line of sight only ranks views. Every point that exists today
 // stays hard, exactly as before.
@@ -358,12 +427,12 @@ describe('lifted tops are soft in the view choice', () => {
 
   test('among views that clear every hard point, one that also sees the lifted top wins', () => {
     const subj = lifted();
-    // from yaw 0 (camera at +z, 2.2 m up) a stand pine's ball sits on the line to the top only
-    const cam = { x: 0, y: RINGS0.h, z: RINGS0.d };
-    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
-    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
+    // from yaw 0 (camera at +z) a stand pine's ball sits on the line to the top only
     const straight = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
     expect(straight.pos.x).toBeCloseTo(0, 9);
+    const cam = straight.pos;
+    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
+    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
     expect(firstBlocker(straight.pos, TOP, occ)).not.toBe(null); // the old view really loses the top
     expect(hardClear(straight, subj, occ)).toBe(true);           // ...and only the top
     const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
@@ -530,8 +599,10 @@ describe('camera moves are checked: ease only when every step of it is clear', (
   const subj = subject(me, it);
 
   test('blendClear: a clear straight move passes, one through a canopy or out of frame fails', () => {
-    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.6, ...DESK });
-    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: -0.6, ...DESK });
+    // two views 1.1 rad apart, both on our cat's side and off the line between the cats
+    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1.1, ...DESK });
+    expect([a.yaw, c.yaw]).toEqual([0, 1.1]);
     expect(blendClear(a, c, subj, [], DESK.aspect, DESK.fovY)).toBe(true);
     // an oak whose canopy sits on the move's middle, clear of both ends' lines
     const midPos = { x: (a.pos.x + c.pos.x) / 2, z: (a.pos.z + c.pos.z) / 2 };
@@ -690,7 +761,10 @@ describe('the fight camera rides the ground and stays out of rock', () => {
     const subj = subject({ x: 8.8, z: 6.8 }, { x: 7.2, z: 6.8 });
     for (const yaw0 of [Math.PI, Math.PI - 0.5, Math.PI + 0.5]) {
       const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...SLIVER });
-      expect(flat.ring).toBe(0);
+      // the first wide ring (d 5.5, h 2.2), not the tight close-up one
+      expect(RINGS[flat.ring]).toMatchObject({ d: 5.5, h: 2.2 });
+      expect(Math.hypot(flat.pos.x - subj.mid.x, flat.pos.z - subj.mid.z)).toBeCloseTo(5.5, 9);
+      expect(flat.pos.y).toBeCloseTo(2.2, 9);
       expect(flat.yaw).toBe(yaw0); // the straight-back fallback...
       expect(camOk(flat.pos)).toBe(false); // ...which is in the rock here
       expect(chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: FLAT_GROUND, ...SLIVER })).toEqual(flat);
@@ -734,5 +808,130 @@ describe('the fight camera rides the ground and stays out of rock', () => {
       return out;
     };
     expect(run({ ground: FLAT_GROUND })).toEqual(run({}));
+  });
+});
+
+// Polish, camps Task 5b: the frame's bottom is the real sheet's top, not the
+// worst-case sheet, and the cats sit just above it.
+describe('the frame fits the real sheet', () => {
+  const PHONE = { aspect: 390 / 844, fovY: 70 };
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const lowest = (v, subj, frame) => Math.min(...framePoints(subj).map((p) => projectPoint(v, p, frame.aspect, frame.fovY).y));
+  const highest = (v, subj, frame) => Math.max(...framePoints(subj).map((p) => projectPoint(v, p, frame.aspect, frame.fovY).y));
+
+  test('sheetTopFrom: the sheet\'s top edge in NDC; null with no sheet', () => {
+    expect(sheetTopFrom(262, 844)).toBeCloseTo(-1 + 2 * 262 / 844, 9);
+    expect(sheetTopFrom(422, 844)).toBeCloseTo(0, 9);
+    expect(sheetTopFrom(0, 844)).toBe(null);
+    expect(sheetTopFrom(NaN, 844)).toBe(null);
+    expect(sheetTopFrom(200, 0)).toBe(null);
+  });
+
+  test('frameBottomFor: a margin over the sheet, never under -0.6, never over today\'s bottom; null is today\'s', () => {
+    expect(frameBottomFor(null)).toBe(null);
+    expect(frameBottomFor(-0.38)).toBeCloseTo(-0.32, 9);
+    expect(frameBottomFor(-0.9)).toBe(-0.6);
+    expect(frameBottomFor(0.2)).toBe(FIGHT_FRAME.bottom);
+  });
+
+  test('a phone held upright with frameBottom -0.4: the lowest frame point sits just over it, open ground', () => {
+    const reach = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions: true });
+    for (const subj of [subject(me, it), reach]) {
+      for (const yaw0 of [0, 1, Math.PI, -2.5, Math.PI / 2]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, frameBottom: -0.4, ...PHONE });
+        expect(v.clear).toBe(true);
+        const lo = lowest(v, subj, PHONE);
+        expect(lo).toBeGreaterThanOrEqual(-0.4);
+        // A real fight's reach, seen at a slant, is wide: pitching up to put
+        // its paws that low brings them nearer, past the side edge, so it
+        // sits as low as the sides allow (fitLow). Every other case: on it.
+        if (subj !== reach || yaw0 === 0 || yaw0 === Math.PI || yaw0 === Math.PI / 2) expect(lo).toBeLessThanOrEqual(-0.3);
+        expect(highest(v, subj, PHONE)).toBeLessThanOrEqual(FIGHT_FRAME.top);
+        // lower on screen than today's frame (the empty grass gap closes)
+        const old = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...PHONE });
+        expect(lo).toBeLessThan(lowest(old, subj, PHONE));
+      }
+    }
+  });
+
+  test('desktop with a ~36% sheet: lowest point just over it', () => {
+    const subj = subject(me, it);
+    const fb = frameBottomFor(sheetTopFrom(290, 800));
+    for (const yaw0 of [0, 1, Math.PI, -2.5]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, frameBottom: fb, ...DESK });
+      const lo = lowest(v, subj, DESK);
+      expect(lo).toBeGreaterThanOrEqual(fb);
+      expect(lo).toBeLessThanOrEqual(fb + 0.1);
+    }
+  });
+
+  test('blendClear takes the frame bottom: a view low over a short sheet is not out of frame', () => {
+    const subj = subject(me, it);
+    const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, frameBottom: -0.4, ...PHONE });
+    expect(blendClear(v, v, subj, [], PHONE.aspect, PHONE.fovY, undefined, -0.4)).toBe(true);
+    expect(blendClear(v, v, subj, [], PHONE.aspect, PHONE.fovY)).toBe(false);
+  });
+
+  test('createFightCam: sheetTop frames the pair over the sheet, and a new sheet height re-chooses', () => {
+    const subj = subject(me, it);
+    const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion: true });
+    const cam = fakeCamera(PHONE.aspect);
+    const step = (sheetTop) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { subject: subj, camera: cam, cat: me, sheetTop }); };
+    step(null);
+    const today = fc.view;
+    expect(lowest(today, subj, PHONE)).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
+    step(-0.46);
+    const fitted = fc.view;
+    expect(fitted).not.toBe(today);
+    const lo = lowest(fitted, subj, PHONE);
+    expect(lo).toBeGreaterThanOrEqual(-0.4);
+    expect(lo).toBeLessThanOrEqual(-0.3);
+    // the camera itself holds that view
+    expect(cam.position).toMatchObject(fitted.pos);
+    // a jitter under 0.02 keeps the view; a real change re-chooses
+    step(-0.45);
+    expect(fc.view).toBe(fitted);
+    step(-0.3);
+    expect(fc.view).not.toBe(fitted);
+    // the sheet going mid-fight keeps the view (the tallest sheet's frame)
+    const tall = fc.view;
+    step(null);
+    expect(fc.view).toBe(tall);
+  });
+
+  test('createFightCam: the sheet changing height between beats ratchets to the tallest, not a re-choose every beat', () => {
+    const subj = subject(me, it);
+    for (const reducedMotion of [true, false]) {
+      const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion });
+      const cam = fakeCamera(PHONE.aspect);
+      const views = new Set();
+      const step = (sheetTop) => {
+        cam.position.set(0, 2.2, 4.5);
+        fc.update(1 / 60, { subject: subj, camera: cam, cat: me, sheetTop });
+        views.add(fc.view);
+      };
+      step(-0.38); // the sheet first shows: a choice
+      const first = fc.view;
+      const cuts0 = fc.cuts;
+      // clue, line, clue, line... (a line sheet with specials is ~0.08 taller)
+      for (let beat = 0; beat < 12; beat++) for (let f = 0; f < 10; f++) step(beat % 2 ? -0.38 : -0.30);
+      // one re-choose, on the first rise; none after
+      expect(views.size).toBeLessThanOrEqual(2);
+      expect(fc.cuts - cuts0).toBeLessThanOrEqual(1);
+      const tall = fc.view;
+      expect(tall).not.toBe(first);
+      expect(lowest(tall, subj, PHONE)).toBeGreaterThanOrEqual(-0.30 + 0.06 - 1e-9);
+      // a rise under SHEET_STEP over the tallest keeps it; a real one re-chooses
+      step(-0.29);
+      expect(fc.view).toBe(tall);
+      step(-0.2);
+      expect(fc.view).not.toBe(tall);
+      // the fight ends: the ratchet resets, so the next fight's short sheet frames low again
+      fc.update(1 / 60, { subject: null, camera: cam, cat: me });
+      const subj2 = subject(me, it);
+      cam.position.set(0, 2.2, 4.5);
+      fc.update(1 / 60, { subject: subj2, camera: cam, cat: me, sheetTop: -0.38 });
+      expect(lowest(fc.view, subj2, PHONE)).toBeCloseTo(lowest(first, subj, PHONE), 9);
+    }
   });
 });

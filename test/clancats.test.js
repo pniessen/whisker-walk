@@ -22,6 +22,7 @@ function fakeScene() {
 const AREA = { bounds: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 }, colliders: [] };
 const OPEN = () => true;
 const K = RANK_KEYS;
+const PATROL_OK = new Set([K.warrior, K.apprentice]);
 const CAMP_RANKS = new Set([K.leader, K.deputy, K.elder, K.kit]);
 
 function spawn({
@@ -287,6 +288,76 @@ describe('createClanCats', () => {
       expect(c.tag.visible).toBe(true);
       cats.update(1 / 30, 0, new THREE.Vector3(999, 0, 999));
       expect(c.tag.visible).toBe(false);
+    });
+  });
+
+  // The spot with the most cats inside tag range, and the cats in range of it.
+  function crowdedSpot(cats) {
+    let best = null;
+    for (const c of cats.list) {
+      const p = c.group.position.clone();
+      const n = cats.list.filter((o) => o.group.position.distanceTo(p) < 4).length;
+      if (!best || n > best.n) best = { p, n };
+    }
+    return best;
+  }
+
+  test('at camp only the two nearest tags show, and the nearest is always one', () => {
+    withFakeDocument(() => {
+      const cats = spawn({ showNames: true });
+      const { p, n } = crowdedSpot(cats);
+      expect(n).toBeGreaterThan(3);
+      cats.update(1 / 30, 0, p);
+      const dist = (c) => c.group.position.distanceTo(p);
+      const inRange = cats.list.filter((c) => dist(c) < 4).sort((a, b) => dist(a) - dist(b));
+      expect(cats.list.filter((c) => c.tag.visible).length).toBe(2);
+      expect(inRange[0].tag.visible).toBe(true);
+      expect(inRange[0].tag.material.opacity).toBe(1);
+      expect(inRange[1].tag.visible).toBe(true);
+      expect(inRange[2].tag.visible).toBe(false);
+      expect(inRange[0].tag.material.transparent).toBe(true);
+      cats.update(1 / 30, 0, new THREE.Vector3(999, 0, 999));
+      expect(cats.list.some((c) => c.tag.visible)).toBe(false);
+    });
+  });
+
+  test("the buddy's tag is always one of the two shown", () => {
+    withFakeDocument(() => {
+      const cats = spawn({ showNames: true });
+      const { p } = crowdedSpot(cats);
+      const dist = (c) => c.group.position.distanceTo(p);
+      const pool = cats.list.filter((c) => PATROL_OK.has(c.rank) && dist(c) < 4);
+      const buddy = pool.sort((a, b) => dist(b) - dist(a))[0] ?? cats.list.find((c) => PATROL_OK.has(c.rank));
+      buddy.group.position.copy(p).add(new THREE.Vector3(3, 0, 0));
+      const target = new THREE.Object3D();
+      target.position.copy(p);
+      expect(cats.startBuddy(buddy, target)).toBe(true);
+      cats.update(0, 0, p);
+      const inRange = cats.list.filter((c) => dist(c) < 4).length;
+      expect(inRange).toBeGreaterThan(2);
+      expect(buddy.tag.visible).toBe(true);
+      expect(cats.list.filter((c) => c.tag.visible).length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  test("a co-walker's patrol buddy (remote) takes no slot: the nearer cats show", () => {
+    withFakeDocument(() => {
+      const cats = spawn({ showNames: true });
+      const { p } = crowdedSpot(cats);
+      const dist = (c) => c.group.position.distanceTo(p);
+      const pool = cats.list.filter((c) => PATROL_OK.has(c.rank) && dist(c) < 4);
+      const buddy = pool.sort((a, b) => dist(b) - dist(a))[0] ?? cats.list.find((c) => PATROL_OK.has(c.rank));
+      buddy.group.position.copy(p).add(new THREE.Vector3(3, 0, 0));
+      const target = new THREE.Object3D();
+      target.position.copy(p);
+      expect(cats.startBuddy(buddy, target, { remote: true })).toBe(true);
+      cats.update(0, 0, p);
+      const nearest = cats.list.filter((c) => c !== buddy && dist(c) < 4).sort((a, b) => dist(a) - dist(b));
+      expect(nearest.length).toBeGreaterThanOrEqual(2);
+      expect(dist(nearest[1])).toBeLessThan(dist(buddy));
+      expect(nearest[0].tag.visible).toBe(true);
+      expect(nearest[1].tag.visible).toBe(true);
+      expect(buddy.tag.visible).toBe(false);
     });
   });
 

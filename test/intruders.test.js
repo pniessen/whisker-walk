@@ -848,3 +848,29 @@ describe('intruders.stage allocates nothing per call', () => {
     expect(body).toMatch(/cur\.stage \?\?= /);
   });
 });
+
+describe('the intruder tag in my own fight (polish-camps R5)', () => {
+  test('hidden while my own hold has it, back after release; a co-walker\'s hold keeps it', () => {
+    withFakeDocument(() => {
+      const { clock, intr, step, meshes } = spawnIntruders({ showNames: true });
+      const k = slotWith('woods');
+      clock.T = enterOf(k) + 5;
+      step(DT);
+      const g = meshes()[0];
+      const near = () => ({ x: g.position.x + 1, y: 0, z: g.position.z });
+      const tag = () => g.children.find((o) => o.isSprite);
+      step(DT, near);
+      expect(tag().visible).toBe(true);
+      intr.hold(k, 'sis', { x: 0, z: 0 });
+      step(DT, near);
+      expect(intr.current().state).toBe('held');
+      expect(tag().visible).toBe(true);
+      intr.hold(k, 'me', { x: 0, z: 0 }, { local: true });
+      step(DT, near);
+      expect(tag().visible).toBe(false);
+      intr.release(k, 'me');
+      step(DT, near);
+      expect(tag().visible).toBe(true);
+    });
+  });
+});

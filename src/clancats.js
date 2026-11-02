@@ -35,7 +35,7 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
-import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
+import { makeNameTag, NAME_TAG_RANGE, tagBudget, CAMP_TAG_MAX } from './nametag.js';
 import { mulberry32, seedFromCode } from './rng.js';
 import { RANK_SCALE, ROAM_SLOTS, CAST_RANKS, tagSubFor } from './clancast.js';
 import { RANK_KEYS } from './clanwords.js';
@@ -163,6 +163,9 @@ export function createClanCats(scene, area, cast, {
   const kitSeats = campLayout?.seats?.kits ?? [];
   const list = [];
   let clock = 0;
+  // The name-tag budget's scratch (update): reused every frame.
+  const tagEntries = [];
+  const tagShown = new Map();
 
   for (const member of Array.isArray(cast) ? cast : []) {
     const seat = seatFor(member, campLayout, roamHomes);
@@ -621,10 +624,29 @@ export function createClanCats(scene, area, cast, {
     },
     update(dt, t, catPos) {
       if (Number.isFinite(dt) && dt > 0) clock += dt;
+      // Render-only: at most CAMP_TAG_MAX tags show (nearest two, the buddy's
+      // always one), fading at the range edge. No cat state, no rng.
+      // The array and Map are reused frame to frame: nothing allocated here.
+      const entries = tagEntries;
+      entries.length = 0;
+      if (catPos) {
+        for (const c of list) {
+          if (!c.tag) continue;
+          const e = c.tagEntry ??= { d: 0, range: NAME_TAG_RANGE, keep: false };
+          e.d = c.group.position.distanceTo(catPos);
+          e.range = c.tag.userData?.revealRange ?? NAME_TAG_RANGE;
+          // her own buddy only: a co-walker's patrol buddy takes no slot
+          e.keep = !!c.buddy && !c.buddy.remote;
+          entries.push(e);
+        }
+      }
+      const shown = tagBudget(entries, CAMP_TAG_MAX, tagShown);
+      entries.length = 0;
       for (const c of list) {
         if (c.tag) {
-          const range = c.tag.userData?.revealRange ?? NAME_TAG_RANGE;
-          c.tag.visible = catPos ? c.group.position.distanceTo(catPos) < range : false;
+          const op = c.tagEntry ? shown.get(c.tagEntry) : undefined;
+          c.tag.visible = op !== undefined;
+          if (op !== undefined && c.tag.material) c.tag.material.opacity = op;
         }
         if (c.buddy) {
           updateBuddy(c, dt, t);

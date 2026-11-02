@@ -159,6 +159,31 @@ describe('the fight sheet', () => {
     expect((fresh.match(/class="pip"/g) ?? []).length).toBe(4);
   });
 
+  test('score pips are bright SVG paws: filled gold when won, outlined when empty', () => {
+    const html = renderFightHtml({ phase: 'beat', clue: null, wins: 1, losses: 0, line: null });
+    const sides = html.match(/<span class="fight-side"[^>]*>[\s\S]*?<\/span><\/span>/g);
+    expect(sides).toHaveLength(2);
+    const [you, it] = sides;
+    expect((you.match(/class="pip on"/g) ?? []).length).toBe(1);
+    expect((it.match(/class="pip on"/g) ?? []).length).toBe(0);
+    const pipHtml = html.match(/<span class="pip(?: on)?">[\s\S]*?<\/svg><\/span>/g);
+    expect(pipHtml).toHaveLength(4);
+    for (const p of pipHtml) expect(p).toContain('<svg');
+    const on = html.match(/<span class="pip on">[\s\S]*?<\/svg>/)[0];
+    expect(on).toContain('fill="#ffc93c"');
+    expect(on).toContain('#5a3800');
+    const empty = html.match(/<span class="pip">[\s\S]*?<\/svg>/)[0];
+    expect(empty).toContain('fill="none"');
+    expect(empty).toContain('#ffd45a');
+    expect(html).not.toMatch(/class="pip[^"]*">🐾/);
+    expect(you).toContain('aria-label="You: 1 of 2"');
+    expect(it).toContain('aria-label="It: 0 of 2"');
+    // a plain span's aria-label is not read out; as an image it is
+    expect(you).toMatch(/^<span class="fight-side" role="img" aria-label=/);
+    expect(it).toMatch(/^<span class="fight-side" role="img" aria-label=/);
+    expect(you).toContain('You');
+  });
+
   test('nothing in it spells a borrowed word', () => {
     for (const m of PHASES) expect(borrowed(renderFightHtml(m))).toEqual([]);
   });
