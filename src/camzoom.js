@@ -298,7 +298,11 @@ export const CAM_ROCK_CLEAR = 0.35;
 export const CAM_CEIL_CLEAR = 0.3;
 export const MIN_CAM_DIST = 0.3;
 const ROCK_SAMPLES = 12;
-const ROCK_BISECT = 5;
+// R8 asked for 5 bisections. Near a rim that leaves the clear point quantised
+// to 1/384 of the segment (~3 cm at the far zoom), which made the camera jitter
+// 1-2 cm a frame right behind her head; 12 bring it under a millimetre. Only
+// raised ground pays for them.
+const ROCK_BISECT = 12;
 
 function camBad(look, dx, dy, dz, t, ground) {
   const x = look.x + dx * t;

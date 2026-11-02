@@ -19,6 +19,10 @@ export const CAT_RADIUS = 0.35;
 const PULL_IN_SPEED = 12; // metres per second, at most
 const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
 const PULL_HOLD = 0.3; // seconds
+// Gorge part 1 (R8): on raised ground the camera always looks at least this
+// far ahead of itself horizontally, so a camera pressed right over her head
+// at a cliff foot never looks straight down (see placeCameraOnGround).
+const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
@@ -483,6 +487,7 @@ export function createPlayer(camera, canvas) {
   let snapRock = true;
   const rockLook = new THREE.Vector3();
   const rockWant = new THREE.Vector3();
+  const rockTarget = new THREE.Vector3();
   function stepRock(cur, target, dt, dist) {
     if (reducedMotion || snapRock) {
       snapRock = false;
@@ -522,6 +527,24 @@ export function createPlayer(camera, canvas) {
       const hz = camera.position.z - rockLook.z;
       const v = Math.sqrt(Math.max(0, MIN_CAM_DIST * MIN_CAM_DIST - hx * hx - hz * hz));
       camera.position.y = rockLook.y + (camera.position.y < rockLook.y ? -v : v);
+    }
+    // Where the camera looks. Backed right up to a rim the clear point can sit
+    // straight above the look point, and looking straight down is degenerate
+    // (eye - target parallel to up): the picture would roll 180 degrees and
+    // stop following the yaw. So the target slides forward (away from the
+    // camera's side) just enough that the camera is always at least
+    // MIN_LOOK_RUN behind it horizontally. Elsewhere the target is the look
+    // point itself, so this joins on continuously.
+    rockTarget.copy(rockLook);
+    const ol = Math.sqrt(camOff.x * camOff.x + camOff.z * camOff.z);
+    if (ol > 1e-9) {
+      const bx = camOff.x / ol;
+      const bz = camOff.z / ol;
+      const run = (camera.position.x - rockLook.x) * bx + (camera.position.z - rockLook.z) * bz;
+      if (run < MIN_LOOK_RUN) {
+        rockTarget.x -= (MIN_LOOK_RUN - run) * bx;
+        rockTarget.z -= (MIN_LOOK_RUN - run) * bz;
+      }
     }
     const cx = camera.position.x;
     const cz = camera.position.z;
@@ -899,6 +922,7 @@ export function createPlayer(camera, canvas) {
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
       if (!ground.flat) placeCameraOnGround(Math.max(dt, 0));
       camera.lookAt(avatar.position.x, avatar.position.y + CAT_LOOK_Y, avatar.position.z);
+      if (!ground.flat) camera.lookAt(rockTarget);
     },
   };
 

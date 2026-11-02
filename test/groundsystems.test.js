@@ -376,11 +376,33 @@ describe('the camera keeps out of rock', () => {
     faceZ(player); // the camera sits at -z, back over the plateau
     const look = new THREE.Vector3();
     const prev = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const fwd = new THREE.Vector3();
+    const prevUp = new THREE.Vector3();
+    const prevFwd = new THREE.Vector3();
+    const prevCat = new THREE.Vector3();
     let first = true;
     let pulled = false;
-    const frame = () => {
+    const frame = (turning = false) => {
       step();
       const c = camera.position;
+      // the picture never rolls or swings: up and forward turn smoothly
+      up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+      fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      expect(up.y).toBeGreaterThan(0); // never upside down
+      if (!first) {
+        expect(up.angleTo(prevUp)).toBeLessThan(0.3);
+        expect(fwd.angleTo(prevFwd)).toBeLessThan(0.3);
+        // a cat that has stopped leaves the camera all but still (it may still
+        // be easing out): no bisection jitter
+        if (turning) { /* the view is being turned: covered by the angle checks */ }
+        else if (cat.position.distanceTo(prevCat) < 1e-9) expect(c.distanceTo(prev)).toBeLessThan(2e-4);
+        // and a drifting one moves it smoothly, by about her own step
+        else expect(c.distanceTo(prev)).toBeLessThan(cat.position.distanceTo(prevCat) * 3 + 2e-3);
+      }
+      prevUp.copy(up);
+      prevFwd.copy(fwd);
+      prevCat.copy(cat.position);
       expect(c.y).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + 0.35 - 1e-6);
       expect(c.y).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - 0.3 + 1e-6);
       if (!first) expect(c.distanceTo(prev)).toBeLessThanOrEqual(0.6);
@@ -398,9 +420,28 @@ describe('the camera keeps out of rock', () => {
     expect(cat.position.y).toBe(0);
     expect(pulled).toBe(true); // the rock really did pull it in
     // wait
+    // she drifts on to the rim: the camera, held at the rim behind her, only
+    // ever closes on it (no bisection jitter back and forth)
     player.setTouchMove(null);
-    for (let f = 0; f < 2 * 60; f++) frame();
+    let camZ = camera.position.z;
+    for (let f = 0; f < 2 * 60; f++) {
+      frame();
+      expect(camera.position.z).toBeLessThanOrEqual(camZ + 1e-3);
+      camZ = camera.position.z;
+    }
     expect(cat.position.z).toBeLessThan(5.1); // she drifted right up to the cliff foot
+    // turning the view while backed in: the camera follows the yaw
+    const before = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    for (let f = 0; f < 30; f++) {
+      player.addOrbit(2, 0);
+      frame(true);
+    }
+    const after = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    expect(Math.atan2(after.x, after.z)).not.toBeCloseTo(Math.atan2(before.x, before.z), 2);
+    for (let f = 0; f < 30; f++) {
+      player.addOrbit(-2, 0);
+      frame(true);
+    }
     // walk away: the pull may turn from in to out once, and never pumps
     player.setTouchMove({ x: 0, z: -1, mag: 0.4 });
     let last = frame();
