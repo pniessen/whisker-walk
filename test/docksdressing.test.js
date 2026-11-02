@@ -80,7 +80,8 @@ describe('docks dressing', () => {
     const area = WORLDS.docks.build(scene);
     const meshes = dressingOf(scene);
     expect(meshes.length).toBeGreaterThan(0);
-    expect(meshes.length).toBeLessThanOrEqual(3);
+    // props, blobs, glints and the skyline (the plan's limit is 6)
+    expect(meshes.length).toBeLessThanOrEqual(4);
     expect(scene.children.slice(-meshes.length)).toEqual(meshes);
     for (const m of meshes) {
       expect(m.isMesh).toBe(true);
@@ -412,6 +413,126 @@ describe('docks dressing', () => {
       expect(Math.abs(p.x) + p.r <= 38 && Math.abs(p.z) + p.r <= 40, `wet patch at ${p.x},${p.z} in bounds`).toBe(true);
     }
     expect(dressing.itemsOf().filter((it) => it.what === 'glint').length).toBe(dressing.GLINT_PUDDLES.length);
+  }, 120_000);
+
+  // ---- the skyline (Task 4) -------------------------------------------------
+  // A footprint is the piece's w x d rectangle turned by rot round (x, z).
+  const footprintGrid = (p, step = 0.5) => {
+    const pts = [];
+    const c = Math.cos(p.rot), s = Math.sin(p.rot);
+    for (let u = -p.w / 2; u <= p.w / 2 + 1e-9; u += Math.min(step, p.w / 2)) {
+      for (let v = -p.d / 2; v <= p.d / 2 + 1e-9; v += Math.min(step, p.d / 2)) {
+        // THREE's yaw: local (u, 0, v) -> world (u cos + v sin, -u sin + v cos)
+        pts.push({ x: p.x + u * c + v * s, z: p.z - u * s + v * c });
+      }
+    }
+    return pts;
+  };
+  const inFootprint = (p, x, z, tol = 1e-3) => {
+    const dx = x - p.x, dz = z - p.z;
+    const c = Math.cos(p.rot), s = Math.sin(p.rot);
+    const u = dx * c - dz * s, v = dx * s + dz * c;
+    return Math.abs(u) <= p.w / 2 + tol && Math.abs(v) <= p.d / 2 + tol;
+  };
+
+  it('stands every skyline piece outside the walkable bounds and the ground band', () => {
+    const { SKYLINE } = dressing;
+    expect(SKYLINE.length).toBeGreaterThan(0);
+    const items = dressing.itemsOf();
+    const bad = [];
+    for (const p of SKYLINE) {
+      expect(['shed', 'sawtooth', 'gable', 'crane', 'gantry']).toContain(p.kind);
+      for (const q of footprintGrid(p)) {
+        const at = `${p.kind} at ${p.x},${p.z} (${q.x.toFixed(1)},${q.z.toFixed(1)})`;
+        // 4 m outside the 76 x 80 bounds
+        if (!(Math.abs(q.x) >= 42 || Math.abs(q.z) >= 44)) bad.push(`${at} within 4 m of the bounds`);
+        // inside the fog
+        if (Math.hypot(q.x, q.z) > 110) bad.push(`${at} past 110 m`);
+        if (Math.abs(q.x) <= 45 && Math.abs(q.z) < 3.5) bad.push(`${at} on the canal`);
+        // clear of the clusters and boats outside the bounds
+        for (const it of items) if (Math.hypot(q.x - it.x, q.z - it.z) < it.r) bad.push(`${at} on ${it.what} at ${it.x},${it.z}`);
+      }
+    }
+    expect([...new Set(bad.map((b) => b.split(' (')[0] + b.slice(b.indexOf(')') + 1)))]).toEqual([]);
+  });
+
+  it('builds every skyline piece inside its footprint and no taller than h', () => {
+    for (const p of dressing.SKYLINE) {
+      let top = 0, low = Infinity;
+      const out = [];
+      for (const g of dressing.skylinePartsOf(p)) {
+        const pos = g.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          if (!inFootprint(p, pos.getX(i), pos.getZ(i), 0.05)) out.push(`${pos.getX(i).toFixed(2)},${pos.getZ(i).toFixed(2)}`);
+          top = Math.max(top, pos.getY(i));
+          low = Math.min(low, pos.getY(i));
+        }
+      }
+      expect(out.slice(0, 3), `${p.kind} at ${p.x},${p.z}`).toEqual([]);
+      expect(top, `${p.kind} at ${p.x},${p.z}`).toBeLessThanOrEqual(p.h + 0.05);
+      expect(top, `${p.kind} at ${p.x},${p.z}`).toBeGreaterThanOrEqual(p.h - 0.5);
+      expect(low).toBeGreaterThanOrEqual(-0.05);
+    }
+  });
+
+  it('puts 12 to 18 warehouses 5 to 9 m tall in a mid layer 44 to 56 m out, and the cranes 60 to 95 m out', () => {
+    const cheb = (q) => Math.max(Math.abs(q.x), Math.abs(q.z));
+    const houses = dressing.SKYLINE.filter((p) => ['shed', 'sawtooth', 'gable'].includes(p.kind));
+    expect(houses.length).toBeGreaterThanOrEqual(12);
+    expect(houses.length).toBeLessThanOrEqual(18);
+    for (const p of houses) {
+      expect(p.h, `${p.kind} at ${p.x},${p.z}`).toBeGreaterThanOrEqual(5);
+      expect(p.h, `${p.kind} at ${p.x},${p.z}`).toBeLessThanOrEqual(9);
+      for (const q of footprintGrid(p, 1)) {
+        expect(cheb(q), `${p.kind} at ${p.x},${p.z}`).toBeGreaterThanOrEqual(44);
+        expect(cheb(q), `${p.kind} at ${p.x},${p.z}`).toBeLessThanOrEqual(56);
+      }
+    }
+    // pitched, sawtooth and hipped roofs all appear
+    for (const k of ['shed', 'sawtooth', 'gable']) expect(houses.some((p) => p.kind === k), k).toBe(true);
+    const far = dressing.SKYLINE.filter((p) => ['crane', 'gantry'].includes(p.kind));
+    for (const p of far) {
+      expect(Math.max(Math.abs(p.x), Math.abs(p.z)), `${p.kind} at ${p.x},${p.z}`).toBeGreaterThanOrEqual(60);
+      expect(Math.max(Math.abs(p.x), Math.abs(p.z)), `${p.kind} at ${p.x},${p.z}`).toBeLessThanOrEqual(95);
+    }
+  });
+
+  it('closes both canal ends', () => {
+    for (const sx of [-1, 1]) {
+      const end = dressing.SKYLINE.filter((p) => ['shed', 'gable'].includes(p.kind)
+        && inFootprint(p, sx * 47, 0) && inFootprint(p, sx * 46, 0));
+      expect(end.length, `canal end at x ${sx * 45}`).toBeGreaterThanOrEqual(1);
+      // wide enough to hide the whole 7 m end of the water and its quay edging
+      expect(end.some((p) => inFootprint(p, sx * 47, 4) && inFootprint(p, sx * 47, -4))).toBe(true);
+    }
+  });
+
+  it('has cranes in silhouette', () => {
+    const tall = dressing.SKYLINE.filter((p) => ['crane', 'gantry'].includes(p.kind) && p.h >= 14);
+    expect(tall.length).toBeGreaterThanOrEqual(4);
+    expect(tall.length).toBeLessThanOrEqual(6);
+    expect(tall.filter((p) => p.kind === 'gantry').length).toBe(2);
+    for (const p of tall) expect(p.h).toBeLessThanOrEqual(26);
+  });
+
+  it('merges the skyline into one opaque, fogged, matte mesh under 8,000 triangles', () => {
+    const scene = new THREE.Scene();
+    WORLDS.docks.build(scene);
+    const sky = scene.children.filter((c) => c.name === 'docksSkyline');
+    expect(sky.length).toBe(1);
+    const m = sky[0];
+    expect(m.userData.dressing).toBe(true);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.userData.window).toBeUndefined();
+    expect(m.userData.ground).toBeUndefined();
+    expect(m.castShadow).toBe(false);
+    expect(m.material.transparent).toBe(false);
+    expect(m.material.fog).toBe(true);
+    expect(m.material.roughness).toBe(1);
+    expect(m.material.vertexColors).toBe(true);
+    expect(m.material.map).toBeNull();
+    expect(m.geometry.type).toBe('BufferGeometry');
+    expect(trisOf(m.geometry)).toBeLessThanOrEqual(8_000);
   }, 120_000);
 
   it('adds nothing that moves', () => {

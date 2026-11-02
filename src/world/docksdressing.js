@@ -29,11 +29,12 @@ import { mulberry32, seedFromCode } from '../rng.js';
 //    wall) or stands a metre clear of every gameplay point and off every path —
 //    test/docksdressing.test.js walks itemsOf() against all of it.
 //
-// 3. CHEAP. Three meshes: every prop merged into one vertex-coloured mesh (it
+// 3. CHEAP. Four meshes: every prop merged into one vertex-coloured mesh (it
 //    spans the whole map, so contactshadows' per-child scan gives it no decal),
-//    one flat mesh of soft dark blobs under the clusters and one flat mesh of
+//    one flat mesh of soft dark blobs under the clusters, one flat mesh of
 //    puddle glints and wet patches (both flatter than 0.1 m, so no decal
-//    either). None casts: userData.noCast keeps render/rig.js's caster sweep
+//    either) and one mesh of the warehouse-and-crane skyline past the bounds
+//    (it spans the map too). None casts: userData.noCast keeps render/rig.js's caster sweep
 //    from turning it back on. The warmer stone (warmStone) rescales the
 //    ground's own vertex colours and makes nothing at all.
 // =============================================================================
@@ -500,6 +501,238 @@ function boatParts(b) {
   return parts;
 }
 
+// ---- the skyline ---------------------------------------------------------------
+// What stands past the bounds (polish-docks Task 4): builder.horizonBand's
+// 52 flat-roofed blocks from 56 m out read as grey cardboard on their own, so
+// a mid layer of warehouses with real roofs stands in front of them at 44–56 m
+// and a far layer of harbour cranes stands among them at 60–95 m, where the
+// fog (40→130 m) turns them to silhouettes against the overcast sky. Two of
+// the warehouses straddle the canal's ends, so the water runs into a dark
+// culvert under a gable instead of stopping square on open cobbles.
+//
+// A piece is a w × d footprint turned by `rot` round (x, z), h tall overall.
+// Its local +z is its front and faces the play area; local x runs along the
+// front (for a crane, along the jib; for a gantry, along the boom). Kinds:
+// 'gable' a pitched roof with its gable end to the front, 'shed' a hipped
+// roof, 'sawtooth' a north-light roof whose teeth zig-zag along the front,
+// 'crane' a luffing jib crane and 'gantry' a container gantry. All of it is
+// one merged mesh (rule 3), opaque and fogged.
+const N = Math.PI, E = -Math.PI / 2, W = Math.PI / 2, S = 0;
+const WH = (kind, x, z, rot, w, d, h, color) => ({ kind, x, z, rot, w, d, h, color });
+export const SKYLINE = Object.freeze([
+  // north, behind the warehouse row
+  WH('gable', -44, 50, N, 9, 8, 7.5, 0x8a6a5a),
+  WH('sawtooth', -30, 51, N, 14, 9, 6.5, 0x7a7a86),
+  WH('shed', -14, 50, N, 13, 8, 8, 0x9a8468),
+  WH('gable', 1, 50.5, N, 10, 9, 9, 0x6a7a74),
+  WH('sawtooth', 16, 51, N, 14, 9, 6, 0x8a6a5a),
+  WH('shed', 32, 50, N, 12, 8, 7, 0x7a7a86),
+  // south, behind the spawn
+  WH('shed', -40, -51, S, 12, 8, 6.5, 0x6a7a74),
+  WH('gable', -25, -50.5, S, 9, 8, 8.5, 0x9a8468),
+  WH('sawtooth', -10, -51, S, 15, 9, 6, 0x8a6a5a),
+  WH('gable', 6, -50, S, 10, 8, 7.5, 0x7a7a86),
+  WH('shed', 22, -51, S, 13, 8, 9, 0x6a7a74),
+  WH('sawtooth', 38, -51, S, 12, 9, 5.5, 0x9a8468),
+  // east: the canal's end (x 45.1–54, its face just past the water's end at
+  // 45, so the culvert meets the water), and one either side
+  WH('gable', 49.55, 0, E, 12, 8.9, 8, 0x8a6a5a),
+  WH('sawtooth', 50, 22, E, 14, 8, 6, 0x6a7a74),
+  WH('shed', 50, -22, E, 12, 8, 7, 0x9a8468),
+  // west: the other end, and one either side
+  WH('shed', -49.55, 0, W, 13, 8.9, 7.5, 0x7a7a86),
+  WH('gable', -50, -24, W, 10, 8, 8, 0x8a6a5a),
+  WH('sawtooth', -50, 24, W, 14, 8, 6.5, 0x9a8468),
+  // the far layer: four luffing cranes and two container gantries
+  WH('crane', -30, 74, 0.4, 24, 4.4, 22, 0xb0503e),
+  WH('crane', 18, 82, 2.6, 22, 4.4, 24, 0xd8d0c0),
+  WH('gantry', 58, 68, -0.6, 28, 9, 18, 0xb0503e),
+  WH('crane', -76, 8, 1.9, 22, 4.4, 20, 0xd8d0c0),
+  WH('gantry', 74, -26, 1.2, 26, 9, 16, 0xd8d0c0),
+  WH('crane', -18, -80, -0.5, 22, 4.4, 18, 0xb0503e),
+].map((p) => Object.freeze(p)));
+
+// The canal's culvert: the piece whose front sits on the water's end.
+const CULVERT_HALF = 3.6, CULVERT_TOP = 2.6, CULVERT_SPRING = 1.1;
+const isCanalEnd = (p) => p.z === 0 && Math.abs(p.x) > 45 && Math.abs(p.x) < 50;
+
+// A box `t` thick from p0 to p1 (both [x, y, z]), painted.
+function beam(p0, p1, t, hex, tz = t) {
+  const a = new THREE.Vector3(...p0), b = new THREE.Vector3(...p1);
+  const dir = b.clone().sub(a);
+  const len = dir.length();
+  const g = paint(new THREE.BoxGeometry(t, len, tz), hex, 0.03);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  g.applyMatrix4(new THREE.Matrix4().compose(a.add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)));
+  return g;
+}
+const box = (w, h, d, x, y, z, hex, jitter = 0.03) => paint(new THREE.BoxGeometry(w, h, d), hex, jitter).translate(x, y + h / 2, z);
+
+// Windows as darker quads on a wall: rows every 2.4 m from 1.3 m up, bays
+// every 2.3 m, a few left out by hash. `face(u, y)` maps a point on the wall
+// (u along it, y up) to [x, y, z]; `skip(u, y)` leaves a window out.
+function windows(tris, span, eave, face, out, salt, skip = () => false, maxRows = 3) {
+  const bays = Math.floor((span - 1.0) / 2.3);
+  if (bays < 1) return;
+  const u0 = -((bays - 1) * 2.3) / 2;
+  for (let f = 0; f < maxRows; f++) {
+    const y = 1.3 + f * 2.4;
+    if (y + 1.2 > eave - 0.4) break;
+    for (let c = 0; c < bays; c++) {
+      const u = u0 + c * 2.3;
+      if (skip(u, y) || hash01(f * 7 + c, salt, 5.1) < 0.15) continue;
+      quad(tris, face(u - 0.5, y), face(u + 0.5, y), face(u + 0.5, y + 1.2), face(u - 0.5, y + 1.2), out);
+    }
+  }
+}
+
+// A warehouse in its own frame: a body inset 0.25 m inside the footprint, its
+// roof (eaves out to the footprint's edge), and its doors and windows.
+function warehouseParts(p) {
+  const { w, d, h, kind } = p;
+  const bw = w - 0.5, bd = d - 0.5;
+  const rise = kind === 'gable' ? Math.min(0.28 * w, 3) : kind === 'shed' ? Math.min(0.3 * d, 2.5) : 1.8;
+  const e = h - rise;
+  const body = p.color;
+  const roofHex = lerpHex(body, 0x2e2c34, 0.5);
+  const dark = lerpHex(body, 0x1e2430, 0.6);
+  const parts = [box(bw, e, bd, 0, 0, 0, body, 0.02)];
+  const roof = [], ends = [], glass = [], holes = [], culvert = [];
+  const P = (x, y, z) => [x, y, z];
+  if (kind === 'gable') {
+    for (const sx of [-1, 1]) {
+      quad(roof, P(sx * w / 2, e - 0.15, -d / 2), P(sx * w / 2, e - 0.15, d / 2), P(0, h, d / 2), P(0, h, -d / 2), [sx * rise, w / 2, 0]);
+    }
+    for (const sz of [-1, 1]) ends.push([P(-bw / 2, e, sz * bd / 2), P(bw / 2, e, sz * bd / 2), P(0, h - 0.05, sz * bd / 2), [0, 0, sz]]);
+  } else if (kind === 'shed') {
+    const r = Math.max(0, w / 2 - d / 2);
+    for (const sz of [-1, 1]) {
+      quad(roof, P(-w / 2, e - 0.1, sz * d / 2), P(w / 2, e - 0.1, sz * d / 2), P(r, h, 0), P(-r, h, 0), [0, d / 2, sz * rise]);
+    }
+    for (const sx of [-1, 1]) roof.push([P(sx * w / 2, e - 0.1, d / 2), P(sx * w / 2, e - 0.1, -d / 2), P(sx * r, h, 0), [sx * rise, d / 2, 0]]);
+  } else {
+    // sawtooth: each tooth rises from x0 to its glazed upright at x1
+    const n = Math.max(3, Math.round(bw / 4.5)), tw = bw / n;
+    for (let i = 0; i < n; i++) {
+      const x0 = -bw / 2 + i * tw, x1 = x0 + tw;
+      quad(roof, P(x0, e, -bd / 2), P(x0, e, bd / 2), P(x1, h, bd / 2), P(x1, h, -bd / 2), [-rise, tw, 0]);
+      quad(i === n - 1 ? ends : glass, P(x1, e, bd / 2), P(x1, e, -bd / 2), P(x1, h, -bd / 2), P(x1, h, bd / 2), [1, 0, 0]);
+      for (const sz of [-1, 1]) ends.push([P(x0, e, sz * bd / 2), P(x1, e, sz * bd / 2), P(x1, h, sz * bd / 2), [0, 0, sz]]);
+    }
+  }
+  // the front: a loading door, or over the canal the culvert's dark arch
+  const fz = bd / 2 + 0.03;
+  const front = (u, y) => P(u, y, fz);
+  let skipFront;
+  if (isCanalEnd(p)) {
+    const arch = [];
+    for (let i = 0; i <= 10; i++) {
+      const a = Math.PI * (i / 10);
+      arch.push(front(CULVERT_HALF * Math.cos(a), CULVERT_SPRING + (CULVERT_TOP - CULVERT_SPRING) * Math.sin(a)));
+    }
+    quad(culvert, front(-CULVERT_HALF, 0), front(CULVERT_HALF, 0), front(CULVERT_HALF, CULVERT_SPRING), front(-CULVERT_HALF, CULVERT_SPRING), [0, 0, 1]);
+    for (let i = 0; i < 10; i++) culvert.push([front(0, CULVERT_SPRING), arch[i], arch[i + 1], [0, 0, 1]]);
+    skipFront = (u, y) => y < CULVERT_TOP + 0.3 && Math.abs(u) < CULVERT_HALF + 0.7;
+  } else {
+    const dh = Math.min(3.2, e - 1.4);
+    quad(holes, front(-1.3, 0), front(1.3, 0), front(1.3, dh), front(-1.3, dh), [0, 0, 1]);
+    skipFront = (u, y) => y < dh + 0.3 && Math.abs(u) < 2.0;
+  }
+  const salt = Math.round(p.x * 13 + p.z * 7);
+  windows(holes, bw, e, front, [0, 0, 1], salt, skipFront);
+  // one row down each side, for the corner views
+  for (const sx of [-1, 1]) {
+    windows(holes, bd, e, (u, y) => P(sx * (bw / 2 + 0.03), y, u), [sx, 0, 0], salt + sx * 3, () => false, 1);
+  }
+  parts.push(facing(roof, roofHex, 0.04));
+  if (ends.length) parts.push(facing(ends, body, 0.02));
+  if (glass.length) parts.push(facing(glass, 0x56606c, 0.03));
+  if (holes.length) parts.push(facing(holes, dark, 0.05));
+  // the tunnel the canal runs into: near-black, darker than any window
+  if (culvert.length) parts.push(facing(culvert, 0x1a1e24));
+  return parts;
+}
+
+const desat = (hex, t) => lerpHex(hex, 0x8a8a8a, t);
+
+// A luffing jib crane in its own frame: a portal on four legs at the back of
+// the footprint, a mast with rib bands (the lattice, read at distance), a cab
+// with an A-frame, a counterweight behind and the jib angled up to the
+// footprint's front end, with a stay and the hoist rope hanging from its tip.
+function craneParts(p) {
+  const { w, h } = p;
+  const paintHex = desat(p.color, 0.2);
+  const cream = desat(0xd8d0c0, 0.15);
+  const steel = 0x4a4a52;
+  const px = -w / 2 + 3.0, lz = 1.6;
+  const mt = 0.45 * h;
+  const parts = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(box(0.45, 4, 0.45, px + sx * 1.6, 0, sz * lz, paintHex));
+  parts.push(box(3.8, 0.5, 2 * lz + 0.6, px, 4, 0, paintHex));
+  parts.push(box(1.0, mt - 4.5, 1.0, px, 4.5, 0, paintHex));
+  for (let y = 6.5; y < mt - 0.5; y += 2.5) parts.push(box(1.3, 0.15, 1.3, px, y, 0, paintHex));
+  parts.push(box(2.6, 2.0, 2.2, px + 0.1, mt, 0, cream));
+  parts.push(box(2.4, 1.6, 1.8, -w / 2 + 1.25, mt + 0.2, 0, steel));
+  parts.push(beam([-w / 2 + 2.3, mt + 1.0, 0], [px - 1.0, mt + 1.0, 0], 0.4, steel));
+  const apex = [px - 0.2, mt + 4.2, 0];
+  parts.push(beam([px - 0.9, mt + 2.0, 0], apex, 0.3, paintHex), beam([px + 0.7, mt + 2.0, 0], apex, 0.3, paintHex));
+  const pivot = [px + 1.4, mt + 1.0, 0], tip = [w / 2 - 0.6, h - 0.6, 0];
+  parts.push(beam(pivot, tip, 0.7, paintHex));
+  parts.push(beam(apex, tip, 0.12, steel));
+  parts.push(box(0.1, 6.5, 0.1, tip[0], tip[1] - 6.8, 0, steel));
+  parts.push(box(0.5, 0.5, 0.5, tip[0], tip[1] - 7.3, 0, steel));
+  return parts;
+}
+
+// A container gantry in its own frame: two A-frames standing on a four-legged
+// portal, the boom running the footprint's whole length, its machinery house
+// at the back end and stays from the apexes out to both boom ends.
+function gantryParts(p) {
+  const { w, d, h } = p;
+  const paintHex = desat(p.color, 0.2);
+  const cream = desat(0xd8d0c0, 0.15);
+  const steel = 0x4a4a52;
+  const hb = Math.round(h * 0.55);
+  const lz = d / 2 - 0.6, top = hb + 1.1, ay = h - 0.5;
+  const parts = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) parts.push(box(0.9, hb, 0.9, sx * 5, 0, sz * lz, paintHex));
+    parts.push(box(0.9, 0.6, 2 * lz, sx * 5, 0, 0, paintHex));
+  }
+  for (const sz of [-1, 1]) {
+    parts.push(box(10.9, 1.0, 0.9, 0, hb - 1.0, sz * lz, paintHex));
+    // the A-frame on this side, and its stays to both ends of the boom
+    parts.push(beam([-5, top, sz * lz], [-1, ay, sz * lz], 0.6, paintHex), beam([3, top, sz * lz], [-1, ay, sz * lz], 0.6, paintHex));
+    parts.push(beam([-1, ay, sz * lz], [w / 2 - 1.0, top, sz * lz], 0.15, steel), beam([-1, ay, sz * lz], [-w / 2 + 1.0, top, sz * lz], 0.15, steel));
+  }
+  parts.push(box(0.6, 0.6, 2 * lz, -1, ay - 0.3, 0, paintHex));
+  parts.push(box(w - 0.4, 1.1, 1.8, 0, hb, 0, paintHex));
+  parts.push(box(5, 2.4, 3.2, -w / 2 + 3.2, top, 0, cream));
+  return parts;
+}
+
+const SKYLINE_KINDS = { gable: warehouseParts, shed: warehouseParts, sawtooth: warehouseParts, crane: craneParts, gantry: gantryParts };
+
+// A skyline piece's parts, placed in the world. Exported so the test can hold
+// them to the piece's footprint and height.
+export function skylinePartsOf(p) {
+  const parts = SKYLINE_KINDS[p.kind](p);
+  const m = new THREE.Matrix4().makeRotationY(p.rot).setPosition(p.x, 0, p.z);
+  for (const g of parts) g.applyMatrix4(m);
+  return parts;
+}
+
+function skylineMesh() {
+  const parts = [];
+  for (const p of SKYLINE) parts.push(...skylinePartsOf(p));
+  // opaque and fogged (MeshStandardMaterial's default), so the far layer
+  // fades to silhouette; matte, and no userData.window — the windows are
+  // vertex colours, so walk.js's dusk pass never lights them
+  const mesh = tag(new THREE.Mesh(mergeParts(parts), dressingMaterial({ roughness: 1 })));
+  mesh.name = 'docksSkyline';
+  return mesh;
+}
+
 // ---- the build ---------------------------------------------------------------
 
 // ---- the stone and the glints ------------------------------------------------
@@ -654,7 +887,7 @@ export function dressDocks(scene, area) {
       polygonOffset: true, polygonOffsetFactor: -1,
     })));
     shade.name = 'docksDressingBlobs';
-    return [props, shade, glintMesh(area?.puddles ?? [])];
+    return [props, shade, glintMesh(area?.puddles ?? []), skylineMesh()];
   });
   // Rescales the ground's colours in place: no object, so outside the stream.
   warmStone(scene.children?.find((c) => c.userData?.ground));

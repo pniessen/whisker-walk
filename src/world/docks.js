@@ -168,9 +168,14 @@ export function build(scene, { water = {} } = {}) {
   // third of the way to that stop, which is more lift than the green areas get
   // for the same reason: an overcast sky puts more haze between you and a
   // building than a clear one does.
+  //
+  // polish-docks: lifted a few percent warmer (was 0x646976, a cool blue-grey
+  // that read as cardboard) so the far blocks sit with the warm brick of the
+  // dressing's warehouse and crane skyline standing in front of them
+  // (docksdressing.js SKYLINE). Same lightness, less blue.
   scene.add(b.horizonBand({
     kind: 'skyline', inner: 56, outer: 112, height: 9,
-    wavelength: 46, blocks: 52, color: 0x646976, salt: 41,
+    wavelength: 46, blocks: 52, color: 0x6a6870, salt: 41,
   }));
 
   const colliders = [];
