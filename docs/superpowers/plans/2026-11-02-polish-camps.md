@@ -157,3 +157,16 @@ Look (all colours deterministic, no textures beyond existing `surfaceProps` pres
 - [ ] **Step 3:** Build 6–8 side-by-side pairs (before | after, labelled) into `scratchpad/snaps-polish-camps/pairs/`: woods camp ground, moor camp-high, pines or river camp, woods phone camp (390 wide), gorge ledge, hag fight squareoff or clue, ff phone fight beat. Python/PIL or ImageMagick, whichever is installed.
 - [ ] **Step 4:** Look at every pair; list what reads better and anything that looks wrong (clumps in trees, z-fighting, a tag pile, our cat hidden, pips unclear).
 - [ ] **Step 5:** Draw/triangle table before vs after from `before/numbers.json` and `after/numbers.json`.
+
+### Task 5b (added by the controller after the Task 5 live check): cats just above the real sheet
+
+Live, Task 5 put our cat in front, but on a phone held upright ~330 px of empty grass still lies between the cats and the sheet: the frame's bottom is the worst-case sheet (`FIGHT_FRAME.bottom` −0.08 ≈ a 46vh sheet) and the aim is a fixed `AIM_Y`, while the real portrait sheet is ~31% of the screen.
+
+**Files:** `src/fightcam.js`, `src/main.js` (the one `fightCam.update` call, ~line 840), `test/fightcam.test.js`.
+
+**Interfaces:**
+- `chooseFightView({ ..., frameBottom = FIGHT_FRAME.bottom })` and `blendClear(..., frameBottom)`; `createFightCam().update(dt, { ..., sheetTop })` where `sheetTop` is the measured sheet's top edge in NDC (`1 - 2 * sheetPx / viewportPx`, from `#hud`'s `--fight-sheet-h`, null when unknown). `frameBottom = clamp(sheetTop + 0.06, -0.6, FIGHT_FRAME.bottom)`; null → `FIGHT_FRAME.bottom` (today's behaviour exactly).
+- Per view, after the spot is chosen, the pitch is set so the lowest frame point sits at `frameBottom + 0.02` instead of the pair's middle at `AIM_Y`, provided every frame point still fits under `FIGHT_FRAME.top`; otherwise the old `AIM_Y` aim. Every check (inFrame, trees, rock, blend) runs on the view actually used.
+- A new sheet height (the sheet grows when specials appear, or the phone turns) re-chooses like an aspect change does.
+
+Tests: with `frameBottom` −0.4 on open ground at a portrait aspect (390/844), the chosen view's lowest frame point projects within [−0.4, −0.3]; with no `sheetTop` every existing test is unchanged; the Gorge in-rock test and fightcamworld counts stay green.
