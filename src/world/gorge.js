@@ -1,9 +1,14 @@
+import * as THREE from 'three';
 import * as b from './builder.js';
+import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
-  WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, gorgeGround, mapShapes,
+  WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE,
+  gorgeGround, mapShapes,
 } from './gorgeshape.js';
+import { GOLD_MICE } from '../goldmice.js';
 import { seedFromCode } from '../rng.js';
+import { seatOnGround } from '../ground.js';
 
 // =============================================================================
 // The Gorge.
@@ -113,6 +118,109 @@ const RACE_COURSE = Object.freeze([
   [-3, 6], [3.9, 28], [5.6, -5], [10.5, 33.5], [16, -24],
 ].map(([x, z]) => Object.freeze({ x, z })));
 
+// --- the things to find ------------------------------------------------------
+// Laid out before any scenery, because GORGE_KEEP_CLEAR (below) is built from
+// these very records: whatever a kid hunts for, nothing grows on it. Every y
+// here is a height above the ground under it (part 1, R4), so a perch on the
+// clifftop is 0.72 over the clifftop, not over the floor.
+
+// The nine points of interest the race and the quests draw on: in the
+// Narrows, up and down the floor on both banks of the stream, and two on the
+// clifftop. Each stands at least 2 m from the stream and well clear of the
+// Summit Rock, so spots.js's clearSpot leaves it where it is
+// (test/gorge.test.js checks both, and floods each one from the spawn).
+const POIS = [
+  [-34, -11], [-13, -30], [-3, -2], [-14, 14], [0, 24], [-13, 42], [-3, -44], [14, -30], [29, -30],
+].map(([x, z]) => ({ x, z }));
+
+// Three places worth stopping at: the view from the clifftop, the gorge from
+// the Lookout Ledge halfway up, and the Echo Cave's mouth on the floor.
+const SCENICS = [
+  { id: 'gorge-view', x: 4, z: -24, label: 'the view down the gorge' },
+  { id: 'lookout-ledge', x: 3.5, z: -5, label: 'the gorge from the Lookout Ledge' },
+  { id: 'echo-mouth', x: -16.5, z: 23.5, label: 'the mouth of the Echo Cave' },
+];
+
+// Five finds: one at the back of each deep cave, one on the floor and one on
+// the clifftop.
+const COLLECTIBLES = [
+  { id: 'gorge-find-1', x: -27, z: 33, label: 'a smooth white pebble' }, // the Echo Cave
+  { id: 'gorge-find-2', x: 24.5, z: 8, label: 'a tuft of soft grey fur' }, // the Snug Cave
+  { id: 'gorge-find-3', x: 43, z: -40, label: 'a gold-flecked stone' }, // the Glitter Cave
+  { id: 'gorge-find-4', x: -4, z: 18, label: 'a curly fern frond' },
+  { id: 'gorge-find-5', x: 20, z: -34, label: 'a hawk feather' },
+];
+
+// The Summit Rock, on the clifftop: the Moor's High Tor shape, a grey boulder
+// and then a tall pillar 1.41 m across and 1.18 m up from it, with a golden
+// mouse on top (src/goldmice.js). The colliders sit under the perches, so a
+// cat walks round the rocks and up onto them; the pillar is as wide at its
+// foot as its collider. It stands south of z -27, in the afternoon sun (G5),
+// and 6 m and more from every rim, so a cat can always walk round it (G13).
+const PILLAR = { y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9, sides: 7 };
+const SUMMIT_ROCK = { x: 25, z: -24 };
+const SUMMIT_BOULDER = { x: 24, z: -23, r: 0.7 };
+const ROCK_COLOR = 0x8c8478;
+const CHAIN_PERCHES = [
+  { x: SUMMIT_BOULDER.x, z: SUMMIT_BOULDER.z, y: 0.72, kind: 'stone' },
+  { x: SUMMIT_ROCK.x, z: SUMMIT_ROCK.z, y: PILLAR.y, kind: 'stone', label: 'summit rock', vantage: true },
+];
+
+// Where the two mice dive when chased: at the foot of the west wall and of
+// the clifftop's wall, on the floor. The goat's is on the shoulder (ground
+// 14), where no cat goes. src/propsets.js carries the same three.
+export const GORGE_HIDES = Object.freeze([
+  { x: -17.4, z: 38 }, { x: 1.4, z: -38 }, { x: 8, z: -12.5 },
+].map((h) => Object.freeze(h)));
+
+// One nap in each den, at its back centre. src/propsets.js carries them as
+// the Gorge's rests.
+const NAPS = [[-20, 7.3], [-20, -32.7], [4, -44.7], [6.0, -10.2], [11.3, -42]].map(([x, z]) => ({ x, z }));
+
+// The border posts (src/borderposts.js): to the Moor in the Narrows, and the
+// one-way post to the town at the south edge (G14).
+const POSTS = [{ x: -47.5, z: -14 }, { x: -5, z: 47.5 }];
+
+// The climb race's pad: part 1's spawn + (2, -3).
+const RACE_PAD = { x: SPAWN.x + 2, z: SPAWN.z - 3 };
+
+// Places no scenery may stand on, nor hide: every POI, scenic, find, golden
+// mouse, chain perch, race ring, nap and hide, the spawn, both posts and the
+// race pad. Built from the records themselves, so a find can never move
+// without its clearance moving with it.
+export const GORGE_KEEP_CLEAR = Object.freeze([
+  ...POIS, ...SCENICS, ...COLLECTIBLES, ...GOLD_MICE.gorge, ...CHAIN_PERCHES, ...RACE_COURSE,
+  ...NAPS, ...GORGE_HIDES, SPAWN, ...POSTS, RACE_PAD,
+].map(({ x, z }) => Object.freeze([x, z])));
+
+// And the rectangles nothing is scattered in: every cave and den, the Wide
+// Ledge's south end and the den behind it (kept for the camp, part 4).
+export const GORGE_KEEP_CLEAR_RECTS = Object.freeze([
+  ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE,
+].map(({ minX, maxX, minZ, maxZ }) => Object.freeze({ minX, maxX, minZ, maxZ })));
+
+// The Gorge's trees, which come with the scenery (Task 6). None yet, so no
+// birds yet either.
+export function gorgeTrees() {
+  return { near: [], stand: [] };
+}
+
+// The Gorge's critters: birds in the first four near trees, a mouse at each
+// end of the floor, and the goat on the shoulder, which only ever bolts (G9).
+// No ducks, frogs or butterflies, and no villagers: no Twolegs walk here.
+function critterSpawns() {
+  return [
+    ...gorgeTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })),
+    { type: 'mouse', x: -15, z: 36, x2: -12, z2: 40 },
+    { type: 'mouse', x: -2, z: -36, x2: -4, z2: -40 },
+    { type: 'goat', x: 3.5, z: -16, x2: 7.5, z2: -16 },
+  ];
+}
+
+const MOMENTS = [
+  { id: 'goat-leap', type: 'goat', label: 'a goat leaping over the rocks', x: 8, z: -12.5, from: { x: 4, z: -16 } },
+];
+
 // What the rock is drawn from: the walkable shapes and every cave and den
 // floor, the masses and the ceilings. The same records the ground is built
 // from, so what she stops at is what she sees.
@@ -127,6 +235,9 @@ const noLife = () => ({ update() {}, dispose() {} });
 // `wind` is for the swaying scenery, which comes later.
 // eslint-disable-next-line no-unused-vars
 export function build(scene, { water = {}, wind } = {}) {
+  const ground = gorgeGround();
+  const colliders = [];
+  const perches = [];
   b.applySky(scene, 0x9fb6c8, 0xd2d4cc);
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
@@ -160,29 +271,46 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the paths --------------------------------------------------------------
   for (const s of GORGE_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
 
+  // --- the Summit Rock --------------------------------------------------------
+  // Named so test/gorge.test.js can find them and see past them. One material
+  // for both, made per build (walk.js disposes every material at the end of a
+  // walk). Each is set on the clifftop with seatOnGround.
+  const rockMat = litMaterial(ROCK_COLOR, surfaceProps('cobble'));
+  const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+  boulder.name = 'summitRockBoulder';
+  boulder.position.set(SUMMIT_BOULDER.x, 0.3, SUMMIT_BOULDER.z);
+  scene.add(seatOnGround(boulder, ground));
+  colliders.push({ x: SUMMIT_BOULDER.x, z: SUMMIT_BOULDER.z, r: SUMMIT_BOULDER.r });
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(PILLAR.rTop, PILLAR.rBottom, PILLAR.y, PILLAR.sides), rockMat);
+  pillar.name = 'summitRock';
+  pillar.position.set(SUMMIT_ROCK.x, PILLAR.y / 2, SUMMIT_ROCK.z);
+  scene.add(seatOnGround(pillar, ground));
+  colliders.push({ x: SUMMIT_ROCK.x, z: SUMMIT_ROCK.z, r: PILLAR.r });
+  perches.push(...CHAIN_PERCHES.map((p) => ({ ...p })));
+
   return {
     name: 'The Gorge',
-    colliders: [],
+    colliders,
     bounds: { ...BOUNDS },
     spawn: { x: SPAWN.x, z: SPAWN.z },
     // Nothing Twoleg-made in the Gorge.
     boxes: [],
     tippables: [],
-    pois: [],
-    collectibles: [],
-    scenics: [],
-    critterSpawns: [],
-    moments: [],
+    pois: POIS.map((p) => ({ ...p })),
+    collectibles: COLLECTIBLES.map((c) => ({ ...c })),
+    scenics: SCENICS.map((c) => ({ ...c })),
+    critterSpawns: critterSpawns(),
+    moments: MOMENTS.map((m) => ({ ...m, from: { ...m.from } })),
     puddles: [],
     waters: GORGE_WATERS,
     waterFx,
     groundBounce: GROUND_COLOR,
     skyDusk: { top: 0x26304a, horizon: 0x6a5a68 },
-    perches: [],
+    perches,
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).
     keepOut: { rects: [], capsules: [], margin: 0.4, onlyOn: STAND_ON },
-    ground: gorgeGround(),
+    ground,
     raceCourse: RACE_COURSE.map((r) => ({ ...r })),
     mapShapes: mapShapes(),
     caves: GORGE_CAVES,

@@ -27,6 +27,7 @@ const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildDen, DEN_FIXTURES } = await import('../src/world/den.js');
 const { WARREN_BURROWS } = await import('../src/world/moor.js');
 const { FROG_HIDES } = await import('../src/world/pines.js');
+const { GORGE_HIDES } = await import('../src/world/gorge.js');
 const { DEN_SPOTS } = await import('../src/den.js');
 const { DISCS, patrolPath, borderMarks } = await import('../src/rivalclans.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
@@ -179,7 +180,7 @@ test.each(AREAS)('%s: every id is unique, well-formed and namespaced by area', (
     }
   }
   // No repeats anywhere: across lists, areas and the den.
-  const everywhere = [...AREAS, 'den'].flatMap((x) => idsOf(propsFor(x)));
+  const everywhere = [...AREAS, 'gorge', 'den'].flatMap((x) => idsOf(propsFor(x)));
   expect(new Set(everywhere).size).toBe(everywhere.length);
   expect([...all].sort()).toEqual([...everywhere].sort());
 });
@@ -451,7 +452,7 @@ test('the Moor: three warren burrows as hides, and nothing else yet', () => {
   expect(s.dogYard).toBeNull();
   // the Moor adds no prop with an id: allPropIds is exactly the ids of the
   // other sets
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect(new Set(others).size).toBe(others.length);
   expect([...allPropIds()].sort()).toEqual([...others].sort());
 });
@@ -463,8 +464,26 @@ test('the Pines: three frog hides, and nothing else yet', () => {
   for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'rests', 'keepSlots']) expect(s[k], k).toEqual([]);
   expect(s.dogYard).toBeNull();
   // the Pines adds no prop with an id
-  const others = ['neighborhood', 'park', 'seaside', 'docks', 'den'].flatMap((a) => idsOf(propsFor(a)));
+  const others = ['neighborhood', 'park', 'seaside', 'docks', 'gorge', 'den'].flatMap((a) => idsOf(propsFor(a)));
   expect([...allPropIds()].sort()).toEqual([...others].sort());
+});
+
+test('the Gorge: a nap in each den and three hides, and nothing else yet', () => {
+  const s = propsFor('gorge');
+  expect(s.rests).toEqual([
+    { id: 'gorge-nap-1', kind: 'nap', x: -20, z: 7.3, mesh: false },
+    { id: 'gorge-nap-2', kind: 'nap', x: -20, z: -32.7, mesh: false },
+    { id: 'gorge-nap-3', kind: 'nap', x: 4, z: -44.7, mesh: false },
+    { id: 'gorge-nap-4', kind: 'nap', x: 6.0, z: -10.2, mesh: false },
+    { id: 'gorge-nap-5', kind: 'nap', x: 11.3, z: -42, mesh: false },
+  ]);
+  // well-formed ids, numbered from 1 like every other kind's
+  for (const r of s.rests) expect(isPropId(r.id), r.id).toBe(true);
+  for (const r of s.rests) expect(allPropIds().has(r.id), r.id).toBe(true);
+  expect(s.hides).toEqual(GORGE_HIDES);
+  expect(s.hides).toEqual([{ x: -17.4, z: 38 }, { x: 1.4, z: -38 }, { x: 8, z: -12.5 }]);
+  for (const k of ['carryables', 'knockables', 'markables', 'flaps', 'keepSlots']) expect(s[k], k).toEqual([]);
+  expect(s.dogYard).toBeNull();
 });
 
 test('propsFor is total and returns fresh copies', () => {
