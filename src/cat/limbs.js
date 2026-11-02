@@ -390,11 +390,14 @@ export const CLAW_HEX = 0xd9d4c8;
 // the foot, as a fraction of its half-width (the sketch's).
 export const FOOT = Object.freeze({ R: 0.062, TOES: Object.freeze([-0.62, -0.21, 0.21, 0.62]) });
 
-// The oval: half-width 0.95 R (the sketch's), reaching 1.3 R forward to the
-// toes' base line (the sketch's) and 1.4 R back to the heel (today's paw's
-// 1.42, so the heel stays where it was). Its top is 0.75 R up (the sketch's).
-const FOOT_W = 0.95 * FOOT.R;
-const FOOT_FRONT = 1.3 * FOOT.R;
+// The oval: half-width 0.82 R, only a little wider than the ankle, reaching
+// 0.95 R forward to the toes' base line and 1.4 R back to the heel (today's
+// paw's 1.42, so the heel stays where it was). Its top is 0.75 R up (the
+// sketch's). The sketch's 0.95 R wide and 1.3 R forward read as slippers at
+// normal camera distance (owner's ruling, Task 4 fix round 2), so the foot is
+// ~14% narrower and ~13% shorter, all of it off the front.
+const FOOT_W = 0.82 * FOOT.R;
+const FOOT_FRONT = 0.95 * FOOT.R;
 const FOOT_BACK = 1.4 * FOOT.R;
 const FOOT_TOP = 0.75 * FOOT.R;
 // The front edge in the oval's unit outline: u across (-1 left .. 1 right),
@@ -405,8 +408,8 @@ const FOOT_TOP = 0.75 * FOOT.R;
 // shoulders), which the rings above the toes ease back to, so the scallops
 // live low at the front and the top stays smooth (the sketch's lobe · front²).
 // Left to right, from the side of the foot round the front to the other side.
-const TOE_V = [1.0, 1.08, 1.08, 1.0]; // each toe's tip
-const SCALLOP_V = [0.89, 0.96, 0.89]; // between toes 1|2, 2|3, 3|4
+const TOE_V = [1.0, 1.1, 1.1, 1.0]; // each toe's tip
+const SCALLOP_V = [0.76, 0.9, 0.76]; // between toes 1|2, 2|3, 3|4
 const ovalV = (u) => 1.06 * Math.pow(1 - Math.pow(Math.abs(u), 2.5), 1 / 2.5);
 const FRONT_EDGE = (() => {
   const pts = [[-1, 0], [-0.86, 0.66]];
@@ -427,9 +430,9 @@ const HEEL_PTS = { full: 9, simple: 7 };
 // `toes` is how much of the scallop each ring carries (0 is the plain oval).
 // The sole's centre and the top's apex close it.
 const FOOT_RINGS = [
-  [0.72, -PAW_HALF, 0.7],
+  [0.72, -PAW_HALF, 0.9],
   [1, -0.45 * PAW_HALF, 1],
-  [0.92, 0.35 * FOOT_TOP, 0.3],
+  [0.92, 0.35 * FOOT_TOP, 0.35],
   [0.56, 0.85 * FOOT_TOP, 0],
 ];
 // R6: a claw is a 3-sided open cone, radius 0.0045 and 0.018 long, angled
