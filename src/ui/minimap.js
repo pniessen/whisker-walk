@@ -3,7 +3,7 @@
 // beyond reading the flat path strips once when a walk starts.
 import { flatFootprints } from '../render/grass.js';
 import { findTrees } from '../render/ambient.js';
-import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle } from './minimapmath.js';
+import { toMap, pinToRim, mapMarkers, mapRadiusFor, faceAngle, badgeAt, clearOfBadge, BADGE_R, MARK_R } from './minimapmath.js';
 
 const CREAM = '#f4efe4';
 const RIM = 'rgba(20,26,38,0.85)';
@@ -224,15 +224,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.fillRect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
       ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = PATH;
-    for (const p of layer.paths) {
-      ctx.save();
-      ctx.translate(p.x, p.z);
-      // The strip's length axis is (ux, uz); rotate so local +y runs along it.
-      ctx.rotate(Math.atan2(-p.ux, p.uz));
-      ctx.fillRect(-p.halfW, -p.halfL, p.halfW * 2, p.halfL * 2);
-      ctx.restore();
-    }
+    drawPaths();
     ctx.fillStyle = WATER;
     for (const w of layer.water) {
       if (w.kind === 'circle') {
@@ -246,18 +238,38 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     // Islands are land, so they are filled exactly as the land is (cream,
     // then the ground tone at half strength), after all the water so a lake
     // reads with its island in it, and before the decks so a bridge lands on
-    // it.
-    for (const w of layer.water) {
-      for (const i of w.islands ?? []) {
+    // it. Clipped to the map's edge, past which the land stays plain cream,
+    // and with the paths drawn again over them, clipped to the islands, so a
+    // path across an island is not lost under its land (Polish 3).
+    if (layer.water.some((w) => w.islands?.length)) {
+      ctx.save();
+      if (e) {
         ctx.beginPath();
-        ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
-        ctx.fillStyle = CREAM;
-        ctx.fill();
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = layer.ground;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.rect(e.minX, e.minZ, e.maxX - e.minX, e.maxZ - e.minZ);
+        ctx.clip();
       }
+      for (const w of layer.water) {
+        for (const i of w.islands ?? []) {
+          ctx.beginPath();
+          ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
+          ctx.fillStyle = CREAM;
+          ctx.fill();
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = layer.ground;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.beginPath();
+      for (const w of layer.water) {
+        for (const i of w.islands ?? []) {
+          ctx.moveTo(i.x + i.r, i.z);
+          ctx.arc(i.x, i.z, i.r, 0, Math.PI * 2);
+        }
+      }
+      ctx.clip();
+      drawPaths();
+      ctx.restore();
     }
     // Decks go on after all the water, in the path tone, so a crossing reads
     // as a way over. A strip deck (a diagonal bridge) is a rotated rectangle,
@@ -297,8 +309,22 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     }
   }
 
+  function drawPaths() {
+    ctx.fillStyle = PATH;
+    for (const p of layer.paths) {
+      ctx.save();
+      ctx.translate(p.x, p.z);
+      // The strip's length axis is (ux, uz); rotate so local +y runs along it.
+      ctx.rotate(Math.atan2(-p.ux, p.uz));
+      ctx.fillRect(-p.halfW, -p.halfL, p.halfW * 2, p.halfL * 2);
+      ctx.restore();
+    }
+  }
+
   function drawMarker(m, view, c) {
-    const p = pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6);
+    // Slid along the rim out from under the N badge, which is drawn last
+    // (Polish 3: the Twolegplace's post for the Moor hid there).
+    const p = clearOfBadge(pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6), badgeAt(view), BADGE_R + MARK_R);
     const x = c + p.u;
     const y = c + p.v;
     ctx.save();
@@ -427,10 +453,11 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
   function drawBadge(view, c) {
     const nu = view.mode === 'turn' ? Math.sin(view.heading) : 0;
     const nv = view.mode === 'turn' ? -Math.cos(view.heading) : -1;
-    const bx = c + nu * (view.radiusPx - 9);
-    const by = c + nv * (view.radiusPx - 9);
+    const at = badgeAt(view);
+    const bx = c + at.u;
+    const by = c + at.v;
     ctx.beginPath();
-    ctx.arc(bx, by, 8, 0, Math.PI * 2);
+    ctx.arc(bx, by, BADGE_R, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(20,26,38,0.85)';
     ctx.fill();
     ctx.fillStyle = '#fff';
