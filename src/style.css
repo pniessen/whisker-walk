@@ -312,14 +312,21 @@ body.touch-mode:not(.left-handed) .hud-top {
 
 .journal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
 .journal-card {
-  background: rgba(255,255,255,0.07); border-radius: 10px; padding: 10px 8px;
+  background: rgba(255,255,255,0.07); border-radius: 14px; padding: 10px 8px;
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
 }
-.journal-card.unspotted { opacity: 0.55; }
+/* Not found yet: a lighter slate tile so the critter's dark shape reads on it. */
+.journal-card.unspotted { background: #33425e; }
 .journal-emoji { font-size: 1.6rem; }
+.journal-emoji.silhouette { filter: brightness(0); opacity: 0.55; }
 .journal-name { font-size: 0.8rem; font-weight: 700; }
 .journal-count { font-size: 0.75rem; color: #f2c14e; font-weight: 700; }
 .journal-hint { font-size: 0.72rem; color: #a8c0e0; }
+/* Album / Social when empty: a little picture and one warm line. */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 18px 12px 8px; text-align: center; grid-column: 1 / -1; }
+.empty-state svg { width: 120px; height: auto; display: block; }
+.empty-state p { margin: 0; color: #f1e0c2; font-size: 1rem; line-height: 1.4; max-width: 26ch; }
 .journal-footer { margin-top: 10px; font-size: 0.85rem; color: #f2c14e; font-weight: 700; }
 
 #homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }

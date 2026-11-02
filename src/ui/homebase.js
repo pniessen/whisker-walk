@@ -23,6 +23,7 @@ import { createRedeemer, renderRedeemHtml } from '../redeem.js';
 import { isMilestone, welcomeLine } from '../visits.js';
 import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
+import { emptyStateHtml } from './emptystates.js';
 
 const LEVEL_ICON = { best: '💕', friend: '♥', met: '♡' };
 
@@ -401,7 +402,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
                 <span class="friend-icon">${LEVEL_ICON[progression.friendLevel(name)] ?? '♡'}</span>
                 <span class="friend-name">${escapeHtml(name)}</span> — ${escapeHtml(f.breed)}, ${f.greets} greets
               </div>`).join('')
-          : '<div class="tag">No cat friends yet — go touch noses!</div>'}
+          : emptyStateHtml('friends')}
       </div>`;
   }
 
@@ -818,7 +819,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
               const caption = [escapeHtml(p.label), escapeHtml(p.area), ...(p.date ? [escapeHtml(p.date)] : [])].join(' · ');
               return `<figure class="photo-framed"><img src="${escapeHtml(p.thumb)}" alt="${escapeHtml(p.label)}"><figcaption>${caption}</figcaption></figure>`;
             }).join('')
-            : '<div class="tag">No photos yet — press C on a walk to raise the camera!</div>'}
+            : emptyStateHtml('album')}
         </div></section>`;
       case 'sync': return `<section class="walk-together sync-cloud"><h2>Sync ☁️</h2>${renderSync()}</section>`;
       case 'settings': return renderSettings();
