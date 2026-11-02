@@ -7,6 +7,11 @@ import { dressDocks } from './docksdressing.js';
 
 const mat = (color) => litMaterial(color);
 
+// The quay's stone (polish-docks): warm harbour stone with a hint of sandstone,
+// in place of the old purple-grey 0x4e4e58. Same HSL lightness within a hair,
+// so the Docks keep the darkest ground bounce in the game.
+export const DOCKS_STONE = 0x5a524a;
+
 // =============================================================================
 // The Old Docks — v18 Task 2.6, the fourth walkable area.
 //
@@ -131,7 +136,9 @@ export function build(scene, { water = {} } = {}) {
   // NOT lifted for the cobble tile's 0.961 mean: four percent darker is the
   // right direction for an overcast harbour, and this is the one surface the
   // area's name is about.
-  scene.add(b.ground(120, 0x4e4e58, { surface: 'wetStone' }));
+  // polish-docks: DOCKS_STONE (was 0x4e4e58), a warm harbour stone, and
+  // docksdressing.js's warmStone() lays sandstone and slate patches over it.
+  scene.add(b.ground(120, DOCKS_STONE, { surface: 'wetStone' }));
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — see builder.horizonBand's own
   // block for the geometry and for why it carries no collider, no perch and no
@@ -458,8 +465,9 @@ export function build(scene, { water = {} } = {}) {
     // The hemisphere fill's ground term (game/walk.js) — the wet stone hex
     // from b.ground() above. Dark and near-neutral, so the Docks get almost no
     // upward bounce at all: undersides here stay cold and unlit, which is the
-    // read this area has always been going for.
-    groundBounce: 0x4e4e58,
+    // read this area has always been going for. polish-docks: warmer, a touch
+    // lighter, and still the darkest bounce in the game.
+    groundBounce: DOCKS_STONE,
     skyDusk: { top: 0x101828, horizon: 0x2e2842 },
     // Twelve, against four or five in every other area: the densest tippable
     // field in the game, which is what makes the Docks the place to grind

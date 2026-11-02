@@ -80,7 +80,7 @@ describe('docks dressing', () => {
     const area = WORLDS.docks.build(scene);
     const meshes = dressingOf(scene);
     expect(meshes.length).toBeGreaterThan(0);
-    expect(meshes.length).toBeLessThanOrEqual(2);
+    expect(meshes.length).toBeLessThanOrEqual(3);
     expect(scene.children.slice(-meshes.length)).toEqual(meshes);
     for (const m of meshes) {
       expect(m.isMesh).toBe(true);
@@ -110,6 +110,41 @@ describe('docks dressing', () => {
       colliders: 39, perches: 26, pois: 8, collectibles: 5, scenics: 3, critterSpawns: 17,
       tippables: 12, puddles: 4, boxes: 3, moments: 2, waters: 1, waterFx: 1,
     });
+  }, 120_000);
+
+  it('leaves every area field as it is without the dressing (groundBounce is docks.js\'s own)', async () => {
+    // Two builds on fresh module graphs and the same Math.random seed: one
+    // real, one with dressDocks stubbed out. Every field must come out equal.
+    const buildWith = async (stub) => {
+      vi.resetModules();
+      if (stub) {
+        vi.doMock('../src/world/docksdressing.js', async (orig) => ({ ...(await orig()), dressDocks: () => [] }));
+      } else {
+        vi.doUnmock('../src/world/docksdressing.js');
+      }
+      const T = await import('three');
+      const docks = await import('../src/world/docks.js');
+      const real = Math.random;
+      Math.random = mulberry32(777);
+      try {
+        return docks.build(new T.Scene());
+      } finally {
+        Math.random = real;
+      }
+    };
+    const plain = await buildWith(true);
+    const dressed = await buildWith(false);
+    vi.doUnmock('../src/world/docksdressing.js');
+    vi.resetModules();
+    expect(Object.keys(dressed).sort()).toEqual(Object.keys(plain).sort());
+    for (const k of Object.keys(plain)) {
+      if (k === 'waterFx') {
+        // live water objects: same count, same kind
+        expect(dressed[k].length, k).toBe(plain[k].length);
+        continue;
+      }
+      expect(dressed[k], k).toEqual(plain[k]);
+    }
   }, 120_000);
 
   it('keeps every in-bounds item off gameplay points and paths, or inside an existing collider', () => {
@@ -162,7 +197,7 @@ describe('docks dressing', () => {
       }
       // Skipped only when the whole footprint is outside the bounds.
       if (Math.abs(it.x) - it.r > 38 || Math.abs(it.z) - it.r > 40) continue;
-      if (['boat', 'gull', 'glint'].includes(it.what)) continue;
+      if (['boat', 'gull'].includes(it.what)) continue;
       if (area.colliders.some((c) => dist(it, c) + it.r <= c.r)) continue;
       for (const p of points) if (dist(it, p) < it.r + 1.0) bad.push(`${it.what} at ${it.x},${it.z} covers ${p.x},${p.z}`);
       for (const d of discs) if (dist(it, d) < it.r + d.r) bad.push(`${it.what} at ${it.x},${it.z} in disc ${d.x},${d.z}`);
@@ -176,7 +211,8 @@ describe('docks dressing', () => {
     WORLDS.docks.build(scene);
     const tris = dressingOf(scene).reduce((s, m) => s + trisOf(m.geometry), 0);
     expect(tris).toBeGreaterThan(0);
-    expect(tris).toBeLessThanOrEqual(20_000);
+    // Ruling R6: 28,000 (was 20,000) once the glints joined the props.
+    expect(tris).toBeLessThanOrEqual(28_000);
   }, 120_000);
 
   it('keeps every part of a cluster inside its footprint radius', () => {
@@ -304,6 +340,79 @@ describe('docks dressing', () => {
     expect([...new Set(bad.map((s) => s.split(' (')[0]))]).toEqual([]);
     expect(dressing.itemsOf().filter((it) => it.what === 'boat').length).toBe(dressing.BOATS.length);
   });
+
+  it('lays warmer stone', () => {
+    const area = WORLDS.docks.build(new THREE.Scene());
+    const { DOCKS_STONE } = WORLDS.docks;
+    expect(area.groundBounce).toBe(DOCKS_STONE);
+    const c = new THREE.Color(DOCKS_STONE);
+    expect(c.r).toBeGreaterThan(c.b);
+    const hsl = {}, old = {};
+    c.getHSL(hsl);
+    new THREE.Color(0x4e4e58).getHSL(old);
+    expect(Math.abs(hsl.l - old.l)).toBeLessThanOrEqual(0.05);
+  }, 120_000);
+
+  it('varies the stone by 6–12% across the quay', () => {
+    const colours = () => {
+      const scene = new THREE.Scene();
+      WORLDS.docks.build(scene);
+      const ground = scene.children.find((c) => c.userData.ground);
+      expect(ground.material.vertexColors).toBe(true);
+      return ground.geometry.attributes.color.array;
+    };
+    const a = colours();
+    let ratio = 0, sumR = 0, sumB = 0;
+    for (let ch = 0; ch < 3; ch++) {
+      let lo = Infinity, hi = 0;
+      for (let i = ch; i < a.length; i += 3) { lo = Math.min(lo, a[i]); hi = Math.max(hi, a[i]); }
+      ratio = Math.max(ratio, hi / lo);
+    }
+    for (let i = 0; i < a.length; i += 3) { sumR += a[i]; sumB += a[i + 2]; }
+    expect(ratio).toBeGreaterThanOrEqual(1.12);
+    expect(ratio).toBeLessThanOrEqual(1.35);
+    // warm on the whole: the sandstone patches outweigh the slate ones
+    expect(sumR).toBeGreaterThan(sumB);
+    // a pure function of position: a second build is byte-equal
+    expect(Buffer.from(colours().buffer).equals(Buffer.from(a.buffer))).toBe(true);
+  }, 120_000);
+
+  it('lays glints over every authored puddle and the decorative ones, flat and off the wet-ground list', () => {
+    const scene = new THREE.Scene();
+    const area = WORLDS.docks.build(scene);
+    const glints = scene.children.filter((c) => c.name === 'docksGlints');
+    expect(glints.length).toBe(1);
+    const g = glints[0];
+    expect(g.userData.dressing).toBe(true);
+    expect(g.userData.ground).toBeUndefined();
+    expect(g.receiveShadow).toBe(false);
+    expect(g.castShadow).toBe(false);
+    expect(g.material.emissive.getHex()).toBeLessThanOrEqual(0x28323c);
+    for (const ch of [0, 8, 16]) expect((g.material.emissive.getHex() >> ch) & 255).toBeLessThanOrEqual((0x28323c >> ch) & 255);
+    g.geometry.computeBoundingBox();
+    expect(g.geometry.boundingBox.max.y - g.geometry.boundingBox.min.y).toBeLessThan(0.05);
+    // walk.js's rain picks its wet meshes exactly like this: no dressing among them
+    const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
+    expect(wet.some((m) => m.userData.dressing)).toBe(false);
+    const pos = g.geometry.attributes.position;
+    const near = (p, r) => {
+      let n = 0;
+      for (let i = 0; i < pos.count; i++) if (Math.hypot(pos.getX(i) - p.x, pos.getZ(i) - p.z) <= r) n++;
+      return n;
+    };
+    for (const p of area.puddles) {
+      expect(near(p, 0.75 * p.r), `puddle at ${p.x},${p.z}`).toBeGreaterThanOrEqual(6);
+      // the streaks sit inside the water (0.75 r), not on the cobbles round it
+      expect(near(p, 0.75 * p.r), `puddle at ${p.x},${p.z}`).toBe(near(p, 1.5 * p.r + 0.5));
+    }
+    expect(dressing.GLINT_PUDDLES.length).toBeGreaterThanOrEqual(6);
+    expect(dressing.GLINT_PUDDLES.length).toBeLessThanOrEqual(8);
+    for (const p of dressing.GLINT_PUDDLES) {
+      expect(near(p, p.r), `wet patch at ${p.x},${p.z}`).toBeGreaterThanOrEqual(20);
+      expect(Math.abs(p.x) + p.r <= 38 && Math.abs(p.z) + p.r <= 40, `wet patch at ${p.x},${p.z} in bounds`).toBe(true);
+    }
+    expect(dressing.itemsOf().filter((it) => it.what === 'glint').length).toBe(dressing.GLINT_PUDDLES.length);
+  }, 120_000);
 
   it('adds nothing that moves', () => {
     const scene = new THREE.Scene();

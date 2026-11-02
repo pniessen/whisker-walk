@@ -29,11 +29,13 @@ import { mulberry32, seedFromCode } from '../rng.js';
 //    wall) or stands a metre clear of every gameplay point and off every path —
 //    test/docksdressing.test.js walks itemsOf() against all of it.
 //
-// 3. CHEAP. Two meshes: every prop merged into one vertex-coloured mesh (it
+// 3. CHEAP. Three meshes: every prop merged into one vertex-coloured mesh (it
 //    spans the whole map, so contactshadows' per-child scan gives it no decal),
-//    and one flat mesh of soft dark blobs under the clusters (flatter than
-//    0.1 m, so no decal either). Neither casts: userData.noCast keeps
-//    render/rig.js's caster sweep from turning it back on.
+//    one flat mesh of soft dark blobs under the clusters and one flat mesh of
+//    puddle glints and wet patches (both flatter than 0.1 m, so no decal
+//    either). None casts: userData.noCast keeps render/rig.js's caster sweep
+//    from turning it back on. The warmer stone (warmStone) rescales the
+//    ground's own vertex colours and makes nothing at all.
 // =============================================================================
 
 export const DRESSING_SEED = 'docks-dressing';
@@ -170,6 +172,23 @@ export const GULL_SPOTS = Object.freeze([
   { ...onBow(BOATS[0]), rot: 1.5 },
 ].map((g) => Object.freeze(g)));
 
+// The decorative wet patches (polish-docks Task 3): darker blue-grey stone a
+// shower left behind, each with its own sky streaks, out in open cobble —
+// off every path and a metre clear of every gameplay point, like the yard
+// clusters (the keep-out case walks them as items of kind 'glint'). The four
+// authored puddles in docks.js get streaks too, but no record here: they are
+// the area's own.
+export const GLINT_PUDDLES = Object.freeze([
+  { x: -12, z: -30, r: 0.9 },
+  { x: 12, z: -30, r: 0.8 },
+  { x: 32, z: -28, r: 0.85 },
+  { x: -30, z: -20, r: 0.9 },
+  { x: -10, z: 14, r: 0.8 },
+  { x: 4, z: 20, r: 0.9 },
+  { x: -25, z: 28, r: 0.85 },
+  { x: 30, z: 26, r: 0.8 },
+].map((p) => Object.freeze(p)));
+
 // Every placed dressing item's ground footprint. Later dressing kinds append
 // their own items here so the keep-out test sees all of them.
 export function itemsOf() {
@@ -177,6 +196,7 @@ export function itemsOf() {
     ...CLUSTERS.map((c) => ({ x: c.x, z: c.z, r: radiusOf(c), what: c.kind })),
     ...GULL_SPOTS.map((g) => ({ x: g.x, z: g.z, y: g.y, r: 0.25, what: 'gull' })),
     ...BOATS.map((b) => ({ x: b.x, z: b.z, r: Math.hypot(b.len / 2, BEAM / 2), what: 'boat' })),
+    ...GLINT_PUDDLES.map((p) => ({ x: p.x, z: p.z, r: p.r, what: 'glint' })),
   ];
 }
 
@@ -482,6 +502,120 @@ function boatParts(b) {
 
 // ---- the build ---------------------------------------------------------------
 
+// ---- the stone and the glints ------------------------------------------------
+
+// Smooth value noise in [0, 1] on a `cell`-metre lattice, from hash01 alone.
+function valueNoise(x, z, cell, salt) {
+  const gx = x / cell, gz = z / cell;
+  const ix = Math.floor(gx), iz = Math.floor(gz);
+  const fx = gx - ix, fz = gz - iz;
+  const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+  const a = hash01(ix, iz, salt), b = hash01(ix + 1, iz, salt);
+  const c = hash01(ix, iz + 1, salt), d = hash01(ix + 1, iz + 1, salt);
+  return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sz;
+}
+
+const SANDSTONE = [1.08, 1.02, 0.94];
+const SLATE = [0.94, 0.96, 1.02];
+
+// Gentle warm and cool patches over the quay: the ground's own per-vertex
+// `color` (builder.js's macro streaks) is multiplied by a blend between a
+// sandstone and a slate tint, from a 9–16 m value-noise field of the vertex's
+// world (x, z). Rescales the attribute in place and creates nothing; a pure
+// function of position. Marked, so a second call never doubles it.
+export function warmStone(ground) {
+  const col = ground?.geometry?.attributes?.color;
+  if (!col || ground.userData.warmStone) return;
+  ground.userData.warmStone = true;
+  ground.updateMatrix();
+  const pos = ground.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(ground.matrix);
+    const f = 0.6 * valueNoise(v.x, v.z, 16, 11.3) + 0.4 * valueNoise(v.x, v.z, 9, 23.9);
+    const t = Math.min(1, Math.max(0, (f - 0.5) * 2.2 + 0.5));
+    for (let k = 0; k < 3; k++) {
+      col.setComponent(i, k, col.getComponent(i, k) * (SLATE[k] + (SANDSTONE[k] - SLATE[k]) * t));
+    }
+  }
+  col.needsUpdate = true;
+}
+
+const GLINT_Y = 0.026, PATCH_Y = 0.018;
+const PATCH_HEX = 0x3e4a58;
+const STREAK_HEX = [0x9cb0c4, 0xaabdd0, 0x90a6bc];
+
+// Flat triangles facing up, straight into position/color lists.
+function flatTri(out, a, b, c, y, hex) {
+  const col = new THREE.Color(hex);
+  for (const [x, z] of [a, b, c]) {
+    out.pos.push(x, y, z);
+    out.col.push(col.r, col.g, col.b);
+  }
+}
+
+// 2–4 thin tapered slivers of sky across a puddle of radius r, all near one
+// heading (a reflection streaks one way), every point within 0.75 r of the
+// centre.
+function streaks(out, p, salt) {
+  const h = (k) => hash01(p.x, p.z, salt + k);
+  const n = 2 + Math.floor(h(0) * 3);
+  const heading = h(1) * Math.PI;
+  for (let i = 0; i < n; i++) {
+    const yaw = heading + (h(10 + i) - 0.5) * 0.3;
+    const ux = Math.cos(yaw), uz = Math.sin(yaw);
+    const half = p.r * (0.3 + 0.2 * h(20 + i));             // ≤ 0.5 r
+    const across = (i - (n - 1) / 2) * p.r * 0.12 + (h(30 + i) - 0.5) * p.r * 0.06;
+    const along = (h(40 + i) - 0.5) * p.r * 0.1;
+    // centre ≤ 0.23 r from the puddle's, so a tip stays inside 0.75 r
+    const cx = p.x + ux * along - uz * across, cz = p.z + uz * along + ux * across;
+    const w = 0.015 + 0.015 * h(50 + i);
+    const tipA = [cx + ux * half, cz + uz * half], tipB = [cx - ux * half, cz - uz * half];
+    const sideA = [cx - uz * w, cz + ux * w], sideB = [cx + uz * w, cz - ux * w];
+    const hex = STREAK_HEX[Math.floor(h(60 + i) * STREAK_HEX.length) % STREAK_HEX.length];
+    flatTri(out, tipA, sideB, tipB, GLINT_Y, hex);
+    flatTri(out, tipA, tipB, sideA, GLINT_Y, hex);
+  }
+}
+
+// An irregular 10-gon of wet stone, rim at 0.75–1.0 r.
+function wetPatch(out, p) {
+  const rim = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const rr = p.r * (0.75 + 0.25 * hash01(p.x, p.z, 70 + i));
+    rim.push([p.x + Math.cos(a) * rr, p.z + Math.sin(a) * rr]);
+  }
+  for (let i = 0; i < 10; i++) flatTri(out, [p.x, p.z], rim[(i + 1) % 10], rim[i], PATCH_Y, PATCH_HEX);
+}
+
+// One flat mesh: streaks over every authored puddle and the GLINT_PUDDLES
+// patches with their own. Not ground, not 'path' (weather.js's rain swap never
+// takes it), never in the shadow pass, and only a faint emissive so it still
+// reads on a grey rainy screen without glowing at dusk.
+function glintMesh(puddles) {
+  const out = { pos: [], col: [] };
+  for (const p of puddles) streaks(out, p, 101);
+  for (const p of GLINT_PUDDLES) {
+    wetPatch(out, p);
+    streaks(out, p, 201);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(out.pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(out.col, 3));
+  const normals = new Float32Array(out.pos.length);
+  for (let i = 1; i < normals.length; i += 3) normals[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  const mesh = tag(new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    color: 0xe8f0f8, roughness: 0.05, metalness: 0, emissive: 0x28323c, vertexColors: true,
+    polygonOffset: true, polygonOffsetFactor: -2,
+  })), false);
+  mesh.name = 'docksGlints';
+  return mesh;
+}
+
 // A cluster's parts, placed in the world. Exported so the test can measure
 // them against the cluster's footprint radius.
 export function partsOf(c) {
@@ -520,8 +654,10 @@ export function dressDocks(scene, area) {
       polygonOffset: true, polygonOffsetFactor: -1,
     })));
     shade.name = 'docksDressingBlobs';
-    return [props, shade];
+    return [props, shade, glintMesh(area?.puddles ?? [])];
   });
+  // Rescales the ground's colours in place: no object, so outside the stream.
+  warmStone(scene.children?.find((c) => c.userData?.ground));
   for (const m of meshes) scene.add(m);
   return meshes;
 }
