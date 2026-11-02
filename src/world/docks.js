@@ -3,8 +3,14 @@ import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
+import { dressDocks } from './docksdressing.js';
 
 const mat = (color) => litMaterial(color);
+
+// The quay's stone (polish-docks): warm harbour stone with a hint of sandstone,
+// in place of the old purple-grey 0x4e4e58. Same HSL lightness within a hair,
+// so the Docks keep the darkest ground bounce in the game.
+export const DOCKS_STONE = 0x5a524a;
 
 // =============================================================================
 // The Old Docks — v18 Task 2.6, the fourth walkable area.
@@ -130,7 +136,9 @@ export function build(scene, { water = {} } = {}) {
   // NOT lifted for the cobble tile's 0.961 mean: four percent darker is the
   // right direction for an overcast harbour, and this is the one surface the
   // area's name is about.
-  scene.add(b.ground(120, 0x4e4e58, { surface: 'wetStone' }));
+  // polish-docks: DOCKS_STONE (was 0x4e4e58), a warm harbour stone, and
+  // docksdressing.js's warmStone() lays sandstone and slate patches over it.
+  scene.add(b.ground(120, DOCKS_STONE, { surface: 'wetStone' }));
 
   // The horizon band (VISUAL-PASS.md Wave 4.3) — see builder.horizonBand's own
   // block for the geometry and for why it carries no collider, no perch and no
@@ -156,13 +164,18 @@ export function build(scene, { water = {} } = {}) {
   // the outer one stops well inside the fog's 130m — which matters more here
   // than anywhere, because this is the darkest palette in the game and its
   // horizon stop (0x8e9aae) is a pale overcast grey. The silhouette IS the
-  // fog gradient. The colour is the quay's own 0x4e4e58 carried a bit over a
-  // third of the way to that stop, which is more lift than the green areas get
-  // for the same reason: an overcast sky puts more haze between you and a
-  // building than a clear one does.
+  // fog gradient. The colour, 0x6a6870, is a warm grey well above the quay's
+  // own stone (DOCKS_STONE) on the way to that stop, which is more lift than
+  // the green areas get for the same reason: an overcast sky puts more haze
+  // between you and a building than a clear one does.
+  //
+  // polish-docks: lifted a few percent warmer (was 0x646976, a cool blue-grey
+  // that read as cardboard) so the far blocks sit with the warm brick of the
+  // dressing's warehouse and crane skyline standing in front of them
+  // (docksdressing.js SKYLINE). Same lightness, less blue.
   scene.add(b.horizonBand({
     kind: 'skyline', inner: 56, outer: 112, height: 9,
-    wavelength: 46, blocks: 52, color: 0x646976, salt: 41,
+    wavelength: 46, blocks: 52, color: 0x6a6870, salt: 41,
   }));
 
   const colliders = [];
@@ -390,7 +403,7 @@ export function build(scene, { water = {} } = {}) {
     scene.add(b.cardboardBox(x, z, rot));
   }
 
-  return {
+  const area = {
     name: 'The Old Docks',
     colliders,
     // The most compact walk area in the game (76 x 80). That is the whole
@@ -457,8 +470,9 @@ export function build(scene, { water = {} } = {}) {
     // The hemisphere fill's ground term (game/walk.js) — the wet stone hex
     // from b.ground() above. Dark and near-neutral, so the Docks get almost no
     // upward bounce at all: undersides here stay cold and unlit, which is the
-    // read this area has always been going for.
-    groundBounce: 0x4e4e58,
+    // read this area has always been going for. polish-docks: warmer, a touch
+    // lighter, and still the darkest bounce in the game.
+    groundBounce: DOCKS_STONE,
     skyDusk: { top: 0x101828, horizon: 0x2e2842 },
     // Twelve, against four or five in every other area: the densest tippable
     // field in the game, which is what makes the Docks the place to grind
@@ -553,4 +567,9 @@ export function build(scene, { water = {} } = {}) {
       ...clawPerches,
     ],
   };
+  // polish-docks: the harbour dressing — crates, barrels, nets, rope and
+  // lobster pots, on their own local uuid stream and adding no record. Last,
+  // so its meshes are the scene's last children. See world/docksdressing.js.
+  dressDocks(scene, area);
+  return area;
 }
