@@ -337,7 +337,35 @@ const PINE_FLOOR = Object.freeze({
   color: 0x6a7a44, hMin: 0.06, hMax: 0.2, width: 0.9, warm: 0.1, sway: 0.3, reach: 1.2, density: pineFloorDensity,
 });
 
-export const GRASS_STYLES = Object.freeze({ park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR });
+// The Gorge: a little short, olive grass in patches, only on the base floor
+// (the floor x -18..2, the approach x 2..5.4 south of z 34, and the Narrows
+// z -16..-6 west of x -18; src/world/gorgeshape.js) and never within 1 m of
+// the rock. Everything else at ground 0 is rock, and everything raised is
+// rock or ledge, where tufts would need to tilt (they don't).
+// The rock round the floor, as four open-ended rectangles: west of the floor
+// north and south of the Narrows, east of the floor north of the approach,
+// and east of the approach.
+const GORGE_ROCK = [
+  { minX: -Infinity, maxX: -18, minZ: -Infinity, maxZ: -16 },
+  { minX: -Infinity, maxX: -18, minZ: -6, maxZ: Infinity },
+  { minX: 2, maxX: Infinity, minZ: -Infinity, maxZ: 34 },
+  { minX: 5.4, maxX: Infinity, minZ: 34, maxZ: Infinity },
+];
+const GORGE_WALL_CLEAR = 1;
+export function gorgeFloorDensity(x, z) {
+  for (const r of GORGE_ROCK) {
+    const d = Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+    if (d <= GORGE_WALL_CLEAR) return 0;
+  }
+  return 0.45 * smooth01(0.35, 0.65, patchNoise(x, z, 5, 67));
+}
+const GORGE_FLOOR = Object.freeze({
+  color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity,
+});
+
+export const GRASS_STYLES = Object.freeze({
+  park: LAWN, neighborhood: LAWN, seaside: DUNE, woods: WOODLAND, river: MARSH, moor: MOOR, pines: PINE_FLOOR, gorge: GORGE_FLOOR,
+});
 
 // tuftAt(ix, iz, spacing, style) — the tuft that lattice cell (ix, iz) always
 // grows, or null for a bare cell. Pure function of the world cell.

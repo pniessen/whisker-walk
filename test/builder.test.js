@@ -753,6 +753,31 @@ describe('the Woods builders', () => {
     expect(n).toBe(2);
   });
 
+  it('a stand tree with y is lifted, and one without is where it was', () => {
+    const flat = [{ x: 1, z: 2, scale: 1.2 }, { x: -4, z: 7, scale: 0.9 }];
+    const lifted = [{ x: 1, z: 2, scale: 1.2, y: 9 }, { x: -4, z: 7, scale: 0.9 }];
+    const parts = (g) => ['standTrunks', 'standFoliage'].map((n) => g.getObjectByName(n).geometry.attributes.position);
+    const [flatTrunks, flatCones] = parts(b.pineStand(flat, 4));
+    const [liftTrunks, liftCones] = parts(b.pineStand(lifted, 4));
+    // the trunks and cones of each tree follow one another in the merge: the
+    // first tree's are lifted by exactly 9, the second's are untouched
+    for (const [a, l] of [[flatTrunks, liftTrunks], [flatCones, liftCones]]) {
+      expect(l.count).toBe(a.count);
+      const half = a.count / 2;
+      for (let v = 0; v < a.count; v++) {
+        expect(l.getX(v)).toBe(a.getX(v));
+        expect(l.getZ(v)).toBe(a.getZ(v));
+        if (v < half) expect(l.getY(v)).toBeCloseTo(a.getY(v) + 9, 5);
+        else expect(l.getY(v)).toBe(a.getY(v));
+      }
+    }
+    // a stand with no y anywhere is byte for byte the stand it was, and lists
+    // its trees for the fight camera exactly as before
+    const g = b.pineStand(flat, 4);
+    expect(g.userData.occluderStand.trees).toEqual(flat);
+    expect(b.pineStand(lifted, 4).userData.occluderStand.trees).toEqual(lifted);
+  });
+
   it('toadstools are two noCast meshes under 0.3 m', () => {
     const g = b.toadstools([{ x: 0, z: 0 }, { x: 4, z: 2 }], 6);
     const found = {};

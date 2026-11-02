@@ -22,8 +22,9 @@ vi.stubGlobal('document', {
 const {
   hashCell, snapCentre, chunkCellsFor, layoutRadius, capacityFor, flatFootprints,
   buildGrassMask, grassAllowed, tuftAt, layoutTufts, createGrass, GRASS_AREAS,
-  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, groundFinds,
+  TUFT_MIN_H, TUFT_MAX_H, TRIANGLES_PER_TUFT, GRASS_STYLES, duneDensity, woodsDensity, marshDensity, moorDensity, pineFloorDensity, gorgeFloorDensity, groundFinds,
 } = await import('../src/render/grass.js');
+const { gorgeGround } = await import('../src/world/gorgeshape.js');
 const { inWater } = await import('../src/world/builder.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
@@ -482,5 +483,55 @@ describe('pine-floor grass (the Pines)', () => {
     expect(hi).toBeLessThanOrEqual(0.7);
     expect(bare).toBeGreaterThan(0);
     expect(some).toBeGreaterThan(0);
+  });
+});
+
+describe('floor grass (the Gorge)', () => {
+  it('the Gorge grows a little floor grass', () => {
+    expect(GRASS_STYLES.gorge).toEqual({
+      color: 0x6f7448, hMin: 0.05, hMax: 0.16, width: 0.8, warm: 0.05, sway: 0.25, reach: 1.2, density: gorgeFloorDensity,
+    });
+    let hi = -Infinity; let bare = 0; let some = 0;
+    for (let x = -50; x <= 50; x++) {
+      for (let z = -50; z <= 50; z++) {
+        const d = gorgeFloorDensity(x, z);
+        expect(d).toBeGreaterThanOrEqual(0);
+        hi = Math.max(hi, d);
+        if (d === 0) bare++;
+        if (d > 0.3) some++;
+      }
+    }
+    expect(hi).toBeLessThanOrEqual(0.45);
+    expect(bare).toBeGreaterThan(0);
+    expect(some).toBeGreaterThan(0);
+  });
+
+  // Tufts don't tilt (ruling F5), so they grow only on the flat base floor,
+  // and never right up against the rock.
+  it('grass grows only on the floor', () => {
+    const ground = gorgeGround();
+    // a wall within 1 m: any spot that close whose ground is not the floor's
+    const wallNear = (x, z) => {
+      for (let r = 0.1; r <= 1 + 1e-9; r += 0.1) {
+        for (let a = 0; a < 64; a++) {
+          const t = (a / 64) * Math.PI * 2;
+          if (ground.y(x + r * Math.cos(t), z + r * Math.sin(t)) !== 0) return true;
+        }
+      }
+      return false;
+    };
+    const wrong = [];
+    let grows = 0;
+    for (let x = -50; x <= 50; x++) {
+      for (let z = -50; z <= 50; z++) {
+        if (!(gorgeFloorDensity(x, z) > 0)) continue;
+        grows++;
+        if (ground.y(x, z) !== 0 || ground.ceil(x, z) !== Infinity || wallNear(x, z)) wrong.push(`(${x}, ${z})`);
+      }
+    }
+    expect(wrong.slice(0, 8)).toEqual([]);
+    expect(grows).toBeGreaterThan(100);
+    // nothing on the west top, the clifftop or the ledges
+    for (const [x, z] of [[-30, -30], [-30, 20], [20, -30], [7, 10], [10, 40], [4, -5]]) expect(gorgeFloorDensity(x, z)).toBe(0);
   });
 });

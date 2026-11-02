@@ -2809,7 +2809,8 @@ export function pine(x, z, scale = 1, { wind } = {}) {
 // calls and two shadow casters however many pines it holds, where a swaying
 // `pine` is two of each on its own. Dense forest is built this way. Both
 // meshes cast (they are tall solids), the stand is still (no wind), and no
-// collider is made here.
+// collider is made here. A tree may carry a `y` (default 0), the height its
+// foot stands at: the Gorge's stand grows on the 9 m west top.
 export function pineStand(trees, seed) {
   const trunks = [];
   const cones = [];
@@ -2818,7 +2819,7 @@ export function pineStand(trees, seed) {
     const place = (geo) => {
       geo.scale(t.scale, t.scale, t.scale);
       geo.rotateY(turn);
-      geo.translate(t.x, 0, t.z);
+      geo.translate(t.x, t.y ?? 0, t.z);
       return geo;
     };
     const parts = pineParts();
@@ -2840,7 +2841,11 @@ export function pineStand(trees, seed) {
   g.add(trunkMesh, foliageMesh);
   // Each pine's spot for the fight camera (TREE_OCCLUDER): one merged pair
   // cannot be told apart by mesh, so the stand lists its trees.
-  g.userData.occluderStand = { shapes: PINE_OCCLUDER, trees: trees.map(({ x, z, scale }) => ({ x, z, scale })) };
+  // A lifted tree keeps its y here (a stand with none lists exactly what it did).
+  g.userData.occluderStand = {
+    shapes: PINE_OCCLUDER,
+    trees: trees.map(({ x, z, scale, y }) => (y === undefined ? { x, z, scale } : { x, z, scale, y })),
+  };
   // And each crown for the corner map (ui/minimap.js), in the stand's frame.
   g.userData.mapCrowns = trees.map(({ x, z, scale }) => ({ x, z, r: PINE_CONES[0][0] * scale }));
   return g;

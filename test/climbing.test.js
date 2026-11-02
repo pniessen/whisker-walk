@@ -66,7 +66,7 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, moorTrees } = await import('../src/world/moor.js');
 const { build: buildPines } = await import('../src/world/pines.js');
-const { build: buildGorge } = await import('../src/world/gorge.js');
+const { build: buildGorge, gorgeTors } = await import('../src/world/gorge.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 
 // Real coordinates from src/world/neighborhood.js's rooftop chain: a porch
@@ -1009,7 +1009,7 @@ describe('CF-9b — the gated perches themselves', () => {
     for (const p of GATED.moor) expect(p.kind).toBe('tree');
     // Pines: nothing. Every tree is a pine, and a pine has no low fork.
     expect(GATED.pines).toEqual([]);
-    // Gorge: nothing yet (its trees come with the scenery).
+    // Gorge: nothing. Every tree is a pine, and a pine has no low fork.
     expect(GATED.gorge).toEqual([]);
   });
 
@@ -1037,8 +1037,9 @@ describe('CF-9b — the gated perches themselves', () => {
     // Stones; on the island, the Meeting Ring's six stones and the four steps
     // of the Old Ash and the Watch Rock
     expect(UNGATED.pines).toHaveLength(15);
-    // the two steps of the Summit Rock
-    expect(UNGATED.gorge).toHaveLength(2);
+    // the two steps of the Summit Rock, and a perch on each tor
+    expect(UNGATED.gorge).toHaveLength(2 + gorgeTors().length);
+    expect(gorgeTors().length).toBeGreaterThanOrEqual(8);
     for (const [area, mice] of Object.entries(GOLD_MICE)) {
       for (const m of mice.filter((x) => x.y > 0)) {
         const stand = UNGATED[area].find(

@@ -102,6 +102,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
+//   gorge             58       45      32188   (47 / 35 merged; the rock in three
+//                                               merged meshes (5,528 tris), 14
+//                                               swaying pines, 47 in the stand on
+//                                               the west top, 11 tors (one group,
+//                                               one draw merged), 134 scree spots
+//                                               in one bed (12,260 tris), the
+//                                               Summit Rock, 7 paths, the stream
+//                                               and its 8 stones)
 //
 // Ceilings below sit at roughly +15-20% over the measured mesh count and
 // +20-40% over the measured caster count (a little looser, per the bullet
@@ -181,6 +189,7 @@ const AREAS = [
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
 //   pines            109       72    112 /  75
+//   gorge             47       35     58 /  45
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is
@@ -198,6 +207,7 @@ const MERGED_AREAS = [
   ['river', buildRiver, 260, 205],
   ['moor', buildMoor, 260, 205],
   ['pines', buildPines, 260, 205],
+  ['gorge', buildGorge, 260, 205],
 ];
 
 describe('Wave 3.1 — per-area budget as the renderer actually sees it', () => {

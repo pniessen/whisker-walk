@@ -83,12 +83,13 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
+const { build: buildGorge, GORGE_PATHS, gorgeTors } = await import('../src/world/gorge.js');
 const { campLayout } = await import('../src/world/camp.js');
 // The camp's den (r 1.1) is the one camp piece over the map's 1 m block cut;
 // the leader's rock (r 0.6) is under it.
 const denBlock = (a) => { const { x, z, r } = campLayout(a).den; return { x, z, r }; };
 
-const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
+const BUILDS = { park: buildPark, neighborhood: buildNeighborhood, seaside: buildSeaside, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge };
 
 function built(areaId) {
   const scene = new THREE.Scene();
@@ -273,6 +274,32 @@ describe('buildMapLayer', () => {
     // 0.9) is under the map's 1 m block cut; the Old Ash's trunk is just on
     // it, and the camp's den is over it.
     expect(layer.blocks).toEqual([{ x: 28, z: 28, r: 1.0 }, denBlock('pines')]);
+  });
+
+  it('buildMapLayer for the Gorge has ground, edge, one water with one deck, its path strips, and the big colliders as blocks', () => {
+    const { scene, areaData } = built('gorge');
+    const layer = buildMapLayer(areaData, scene);
+    expect(layer.ground).toBe('#5f5d52');
+    expect(layer.edge).toEqual(areaData.bounds);
+    // the stream, with the stepping stones' deck
+    expect(layer.water).toEqual([{
+      kind: 'rect', minX: -9.5, maxX: -8, minZ: -62, maxZ: 62,
+      decks: [{ minX: -10.5, maxX: -7, minZ: -11.75, maxZ: -10.25 }],
+    }]);
+    // The seven path segments, each a strip at its own midpoint, and nothing
+    // else: the stream's plane runs 124 m north to south, past the 50 m cut,
+    // and is skipped; the ground plane is past it too; the rock, the scree,
+    // the stones and the horizon are not flat planes.
+    const onPath = (f) => GORGE_PATHS.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onPath)).toHaveLength(7);
+    expect(layer.paths).toHaveLength(7);
+    // Every tor (r 1 and over) is a block. Every other Gorge collider (a
+    // pine's trunk, the Summit Rock's boulder and its 0.9 m pillar) is under
+    // the map's 1 m block cut. No camp here yet, so no den.
+    expect(layer.blocks).toEqual(gorgeTors().map(({ x, z, r }) => ({ x, z, r })));
+    expect(layer.blocks.length).toBeGreaterThanOrEqual(8);
+    // and its pines, near and in the stand, are on the map as crowns
+    expect(layer.trees.length).toBeGreaterThanOrEqual(38);
   });
 
   for (const areaId of ['park', 'neighborhood', 'seaside', 'docks']) {
