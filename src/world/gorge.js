@@ -437,6 +437,8 @@ export function gorgeScree() {
 // ledges. Seeded by its own name; every candidate draws all its numbers
 // whether it is kept or not. Visual only: nothing here is read by the walk.
 const MEADOW_LIFT = 0.006;
+// A cell's centre this far off a path keeps its whole 1 m footprint off the strip.
+export const MEADOW_PATH_CLEAR = PATH_W / 2 + 0.75;
 const CLIFF_INSET = 0.6;
 const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
 const TUFT_TRIES = 420;
@@ -455,7 +457,7 @@ export function gorgeMeadow() {
   const g = shapeGround();
   const rng = mulberry32(seedFromCode('gorge-meadow'));
   const patches = [];
-  const clear = (x, z) => pathDist(x, z) >= PATH_W / 2 + 0.2 && keepClearDist(x, z) >= 1.2 && holeDist(x, z) > 0;
+  const clear = (x, z) => pathDist(x, z) >= MEADOW_PATH_CLEAR && keepClearDist(x, z) >= 1.2 && holeDist(x, z) > 0;
   // the clifftop: 1 m cells inset off the lips
   const x0 = CLIFF.minX + CLIFF_INSET, x1 = CLIFF.maxX - CLIFF_INSET;
   const z0 = CLIFF.minZ + CLIFF_INSET, z1 = CLIFF.maxZ - CLIFF_INSET;
@@ -465,7 +467,7 @@ export function gorgeMeadow() {
       const cx = (ax + bx) / 2, cz = (az + bz) / 2;
       rng(); // every cell draws its number whether kept or not
       if (g.y(cx, cz) !== CLIFFTOP || !clear(cx, cz) || !oneShape(cx, cz, 0.7)) continue;
-      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT }));
+      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT, kind: 'top' }));
     }
   }
   // the banks: 1 m cells on the floor either side of the water
@@ -476,7 +478,7 @@ export function gorgeMeadow() {
         const cx = (ax + bx) / 2, cz = az + 0.5;
         rng();
         if (g.y(cx, cz) !== FLOOR || !clear(cx, cz) || rectDist(STEPPING_STONES, cx, cz) < 0.5 || !oneShape(cx, cz, 0.7)) continue;
-        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT }));
+        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT, kind: 'bank' }));
       }
     }
   }
@@ -516,11 +518,11 @@ function meadowNoise(x, z) {
 }
 
 const _ca = new THREE.Color(), _cb = new THREE.Color();
-function topColor(out, x, z, shade) {
+function topColor(out, x, z) {
   const v = meadowNoise(x, z);
   if (v < 0.5) out.set(MEADOW_SAND).lerp(_cb.set(MEADOW_DRY), v * 2);
   else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
-  return out.multiplyScalar(shade);
+  return out;
 }
 function bankColor(out, x, z) {
   const t = Math.min(1, rectDist(STREAM, x, z) / 2.4);
@@ -531,11 +533,10 @@ function meadowMesh() {
   const { patches, tufts } = gorgeMeadow();
   const pos = [], col = [];
   const vert = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
-  const shadeRng = mulberry32(seedFromCode('gorge-meadow-shade'));
   for (const p of patches) {
-    const bank = p.y < 1;
-    const shade = 0.97 + shadeRng() * 0.06;
-    const corner = (x, z) => (bank ? bankColor(_ca, x, z) : topColor(_ca, x, z, shade));
+    // Colour is a pure function of world position, so cells that share a
+    // corner share its colour and the patches read as soft blobs, not tiles.
+    const corner = (x, z) => (p.kind === 'bank' ? bankColor(_ca, x, z) : topColor(_ca, x, z));
     const q = [[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]].map(([x, z]) => [x, z, corner(x, z).clone()]);
     for (const k of [0, 2, 1, 0, 3, 2]) vert(q[k][0], p.y, q[k][1], q[k][2]);
   }
@@ -566,11 +567,12 @@ function meadowMesh() {
   // The 'grass' preset's light response with no map (surfaceProps leaves it
   // off): a texture would fight the vertex colours.
   const mat = litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('grass') });
-  // Draws before the pawprints (-2) and contact shadows (-1), and a little
-  // nearer the camera than what it lies on, so the paths (y 0.01) still win.
+  // Draws before the pawprints (-2) and contact shadows (-1). A positive
+  // offset pushes it back from the camera, so it never wins against the path
+  // strips (y 0.01) or the rock's tops.
   mat.polygonOffset = true;
-  mat.polygonOffsetFactor = -1;
-  mat.polygonOffsetUnits = -1;
+  mat.polygonOffsetFactor = 1;
+  mat.polygonOffsetUnits = 1;
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'gorgeMeadow';
   mesh.renderOrder = -3;

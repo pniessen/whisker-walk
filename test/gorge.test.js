@@ -34,7 +34,7 @@ const {
 const { surfaceProps } = await import('../src/render/materials.js');
 const {
   CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN, CLAN_STAND_ON, mapShapes,
-  CEILINGS, MASSES,
+  CEILINGS, MASSES, LOOKOUT_LEDGE, TURN,
 } = await import('../src/world/gorgeshape.js');
 const { segDist } = await import('../src/segdist.js');
 const { campDiscs } = await import('../src/world/camp.js');
@@ -1530,7 +1530,7 @@ describe('Gorge palette (polish #1b)', () => {
 });
 
 describe('Gorge meadow (polish #1b)', () => {
-  const PATH_HALF = 1.5;
+  const PATH_HALF = gorge.MEADOW_PATH_CLEAR - 0.75;
   const meadow = gorgeMeadow();
   const inRectXZ = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
   const nearPath = (x, z) => Math.min(...GORGE_PATHS.map((s) => segDist(x, z, ...s)));
@@ -1552,7 +1552,7 @@ describe('Gorge meadow (polish #1b)', () => {
       const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2;
       const at = `patch (${cx}, ${cz})`;
       expect(nearKeep(cx, cz), at).toBeGreaterThanOrEqual(1.2);
-      expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.2);
+      expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.75);
       for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, cx, cz), at).toBe(false);
       expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + 0.006, 9);
     }
@@ -1567,10 +1567,18 @@ describe('Gorge meadow (polish #1b)', () => {
     }
   }, 120_000);
 
+  const m_polygonOffsetPositive = () => {
+    const scene = new THREE.Scene();
+    gorge.build(scene);
+    const mat = scene.getObjectByName('gorgeMeadow').material;
+    return mat.polygonOffset && mat.polygonOffsetFactor > 0 && mat.polygonOffsetUnits > 0;
+  };
   it('actually dresses the top, the banks and the ledges', () => {
-    expect(meadow.patches.filter((p) => p.y > 1).length).toBeGreaterThanOrEqual(150);
-    expect(meadow.patches.filter((p) => p.y < 1).length).toBeGreaterThan(50);
+    expect(meadow.patches.filter((p) => p.kind === 'top').length).toBeGreaterThanOrEqual(150);
+    expect(meadow.patches.filter((p) => p.kind === 'bank').length).toBeGreaterThan(50);
     expect(meadow.tufts.length).toBeGreaterThanOrEqual(40);
+    expect(meadow.tufts.some((t) => t.y === LOOKOUT_LEDGE.y0 || t.y === TURN.y0)).toBe(true);
+    expect(m_polygonOffsetPositive()).toBe(true);
     expect(meadow.tufts.length).toBeLessThanOrEqual(140);
   });
 
