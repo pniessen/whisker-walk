@@ -411,14 +411,17 @@ function paintTag(ctx, name, cross, legend = false, wide = false) {
 
 // A tag that rides a cat group which a fight pitches (rotation.x) and rolls
 // (rotation.z), order 'YXZ': its local offset is set so it stays straight
-// above the group's origin at the height it was built at, (0, h, 0) =
-// Rx·Rz·local. Level, it is back exactly where it was built. No allocation.
-export function uprightTag(tag, pitch, roll) {
+// above the cat's torso centre (local height `anchorY`), as high above it as
+// when the cat stands level: local = (0, a, 0) + (Rx·Rz)⁻¹·(0, h − a, 0).
+// Level, it is back exactly where it was built. No allocation.
+export function uprightTag(tag, pitch, roll, anchorY = 0) {
   if (!tag) return;
   if (tag.userData.restY === undefined) tag.userData.restY = tag.position.y;
   const h = tag.userData.restY;
-  if (pitch === 0 && roll === 0) tag.position.set(0, h, 0);
-  else tag.position.set(h * Math.cos(pitch) * Math.sin(roll), h * Math.cos(pitch) * Math.cos(roll), -h * Math.sin(pitch));
+  if (pitch === 0 && roll === 0) { tag.position.set(0, h, 0); return; }
+  const a = Number.isFinite(anchorY) ? anchorY : 0;
+  const k = h - a;
+  tag.position.set(k * Math.cos(pitch) * Math.sin(roll), a + k * Math.cos(pitch) * Math.cos(roll), -k * Math.sin(pitch));
 }
 
 // Guards on `document` so it's a safe no-op in non-DOM test/SSR contexts —

@@ -215,13 +215,14 @@ describe('her own name tag in a fight', () => {
     tag.position.set(0, 1.1, 0);
     h.cat.add(tag);
     h.cat.userData.ownTag = tag;
+    // from her torso centre (on the group's up axis at the body's height)
     const above = () => {
       h.cat.updateMatrixWorld(true);
       const w = new THREE.Vector3();
       tag.getWorldPosition(w);
-      return { dx: w.x - h.cat.position.x, dy: w.y - h.cat.position.y, dz: w.z - h.cat.position.z };
+      const c = h.cat.localToWorld(new THREE.Vector3(0, h.cat.userData.parts.body.position.y, 0));
+      return { dx: w.x - c.x, dy: w.y - c.y, dz: w.z - c.z };
     };
-    const level = above();
     h.s.fight = {};
     h.s.fightPose = 'roll';
     for (const [pitch, roll] of [[0.9, 0], [0, Math.PI], [0.3, -2.2]]) {
@@ -232,7 +233,7 @@ describe('her own name tag in a fight', () => {
       const a = above();
       expect(a.dx).toBeCloseTo(0, 6);
       expect(a.dz).toBeCloseTo(0, 6);
-      expect(a.dy).toBeCloseTo(level.dy, 6);
+      expect(a.dy).toBeCloseTo((1.1 - h.cat.userData.parts.body.position.y) * h.cat.scale.y, 6);
     }
     h.s.fight = null;
     h.s.fightPose = null;

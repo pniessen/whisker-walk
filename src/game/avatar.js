@@ -206,10 +206,10 @@ export function createAvatarUpdater({
     applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount,
       s.fight ? fightTilt : null);
     // Her own name tag (a custom cat's) rides the group: through a fight's
-    // pitch and roll it stays straight above her, and is put back after.
+    // pitch and roll it stays straight above her torso, and is put back after.
     const ownTag = cat.userData.ownTag;
     if (ownTag && (s.fight || ownTag.userData.restY !== undefined)) {
-      uprightTag(ownTag, s.fight ? cat.rotation.x : 0, s.fight ? cat.rotation.z : 0);
+      uprightTag(ownTag, s.fight ? cat.rotation.x : 0, s.fight ? cat.rotation.z : 0, cat.userData.parts?.body?.position.y ?? 0);
     }
 
     // nap pile: napping near another napping remote pet is worth a shared award;

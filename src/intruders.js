@@ -347,8 +347,8 @@ export function createIntruders(scene, areaId, {
     g.rotation.x = st ? st.pitch : 0;
     g.rotation.z = st ? st.roll : 0;
     // The name tag rides the group, so a pitch or roll would swing it round
-    // the cat (under it, mid-tumble): it stays straight above instead.
-    uprightTag(cur.tag, g.rotation.x, g.rotation.z);
+    // the cat (under it, mid-tumble): it stays straight above its torso instead.
+    uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
     if (cur.state === 'held' && cur.face) {
       g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {
@@ -446,6 +446,8 @@ export function createIntruders(scene, areaId, {
         }
       }
       animateCat(g, pose, animT, speed, reducedMotion);
+      // again, now the pose has put the torso where it is this frame
+      uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
       if (cur.tag) {
         const range = cur.tag.userData?.revealRange ?? NAME_TAG_RANGE;
         cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range : false;

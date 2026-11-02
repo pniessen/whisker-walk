@@ -733,13 +733,17 @@ describe('the intruder in my fight (Task 6)', () => {
       const tag = g.children.find((c) => c.isSprite);
       expect(tag).toBeTruthy();
       const restY = tag.position.y;
+      // where the tag is, from the torso centre (on the group's up axis at the
+      // body's height): straight above it, as high as when level
       const above = () => {
         g.updateMatrixWorld(true);
         const w = new THREE.Vector3();
         tag.getWorldPosition(w);
-        return { dx: w.x - g.position.x, dy: w.y - g.position.y, dz: w.z - g.position.z };
+        const c = g.localToWorld(new THREE.Vector3(0, g.userData.parts.body.position.y, 0));
+        return { dx: w.x - c.x, dy: w.y - c.y, dz: w.z - c.z };
       };
       const level = above();
+      expect(level.dy).toBeCloseTo((restY - g.userData.parts.body.position.y) * g.scale.y, 6);
       const at = flat(g.position);
       intr.hold(k, 'me', { x: at.x + 1.6, z: at.z }, { local: true });
       for (const [pitch, roll] of [[0.9, 0], [0, Math.PI], [0, -2.5], [0.3, 4], [0.9, 0.2]]) {
@@ -748,7 +752,8 @@ describe('the intruder in my fight (Task 6)', () => {
         const a = above();
         expect(a.dx).toBeCloseTo(0, 6);
         expect(a.dz).toBeCloseTo(0, 6);
-        expect(a.dy).toBeCloseTo(level.dy, 6);
+        // as high above the torso as the tag's own height is above it, level
+        expect(a.dy).toBeCloseTo((restY - g.userData.parts.body.position.y) * g.scale.y, 6);
       }
       // unstaged: back where it was built
       intr.stage(k, null);
