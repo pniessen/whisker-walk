@@ -55,7 +55,8 @@ describe('sanitising', () => {
   it('isCastId', () => {
     expect(isCastId('woods-4')).toBe(true);
     expect(isCastId('moor-15')).toBe(true);
-    for (const bad of ['woods-99', '__proto__', 'constructor-1', 'woods', '-1', '', null, 7, 'gorge-1', 'woods-04']) expect(isCastId(bad)).toBe(false);
+    expect(isCastId('gorge-1')).toBe(true);
+    for (const bad of ['woods-99', '__proto__', 'constructor-1', 'woods', '-1', '', null, 7, 'gorge-99', 'island-1', 'woods-04']) expect(isCastId(bad)).toBe(false);
   });
   it('sanitizeScarredIntruders dedupes keeping the last, caps and drops empties', () => {
     const e = (id, site = 'face', left = 3) => ({ id, scars: [{ site, left }] });

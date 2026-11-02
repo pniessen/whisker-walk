@@ -275,7 +275,7 @@ test('every homage word makes a valid, undenied, unclaimed clan title', () => {
 // ---- Clan Life: the clan cast's name words (src/clanwords.js CLAN_CAT_PREFIXES) ----
 // Slot order is fixed: leader, elder, kit, kit, warrior x3, apprentice x2 | deputy, elder, kit, kit, warrior x2, apprentice.
 const CAST_SLOT_SUFFIX = { 0: 'leader', 2: 'kit', 3: 'kit', 7: 'apprentice', 8: 'apprentice', 11: 'kit', 12: 'kit', 15: 'apprentice' };
-const CLAN_IDS_WITH_WORDS = ['woods', 'moor', 'river', 'pines'];
+const CLAN_IDS_WITH_WORDS = ['woods', 'moor', 'river', 'pines', 'gorge'];
 
 test('CLAN_CAT_PREFIXES is frozen, sixteen distinct words per clan, distinct across clans', () => {
   expect(Object.isFrozen(CLAN_CAT_PREFIXES)).toBe(true);
@@ -287,7 +287,7 @@ test('CLAN_CAT_PREFIXES is frozen, sixteen distinct words per clan, distinct acr
     expect(new Set(list).size).toBe(16);
     all.push(...list);
   }
-  expect(new Set(all).size).toBe(64);
+  expect(new Set(all).size).toBe(80);
 });
 
 test('every clan cat word makes valid names at every rank', () => {

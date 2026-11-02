@@ -109,16 +109,19 @@ const rankIndex = (slot, rank) => CAST_RANKS.slice(0, slot).filter((r) => r === 
 // Where a member sits, or null if there is nowhere for it (no camp, or fewer
 // roaming homes than roamers; a cat with no seat is left out of the walk on
 // every device alike, since the layout and the homes are the same everywhere).
+// A camp seat with a finite `face` (the Gorge's leader, looking out over the
+// gorge) keeps it: that yaw, rather than facing the camp's centre.
+const withFace = (seat, p) => (Number.isFinite(p.face) ? { ...seat, face: p.face } : seat);
 function seatFor(member, layout, homes) {
   const { rank, slot } = member;
   if (CAMP_RANKS.has(rank)) {
     if (!layout) return null;
     const S = layout.seats;
-    if (rank === K.leader) return { x: S.leader.x, y: S.leader.y, z: S.leader.z };
-    if (rank === K.deputy) return { x: S.deputy.x, y: 0, z: S.deputy.z };
+    if (rank === K.leader) return withFace({ x: S.leader.x, y: S.leader.y, z: S.leader.z }, S.leader);
+    if (rank === K.deputy) return withFace({ x: S.deputy.x, y: 0, z: S.deputy.z }, S.deputy);
     const list = rank === K.elder ? S.elders : S.kits;
     const p = list[rankIndex(slot, rank)];
-    return p ? { x: p.x, y: 0, z: p.z } : null;
+    return p ? withFace({ x: p.x, y: 0, z: p.z }, p) : null;
   }
   const i = ROAM_SLOTS.indexOf(slot);
   const h = i >= 0 && Array.isArray(homes) ? homes[i] : null;
@@ -173,7 +176,7 @@ export function createClanCats(scene, area, cast, {
     const seatY = G ? G.y(seat.x, seat.z) + seat.y : seat.y;
     group.position.set(seat.x, seatY, seat.z);
     const face = camp
-      ? yawToward(seat.x, seat.z, cx, cz)
+      ? seat.face ?? yawToward(seat.x, seat.z, cx, cz)
       : (seedFromCode(member.id) / 2 ** 32) * Math.PI * 2;
     group.rotation.y = face;
     // Lever 1 of the draw budget: camp-seated cats cast no shadow-map shadow.

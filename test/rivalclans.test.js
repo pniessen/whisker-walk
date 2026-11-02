@@ -11,9 +11,11 @@ import { SPAWN as WOODS_SPAWN } from '../src/world/woods.js';
 import { SPAWN as RIVER_SPAWN } from '../src/world/river.js';
 import { SPAWN as MOOR_SPAWN } from '../src/world/moor.js';
 import { SPAWN as PINES_SPAWN } from '../src/world/pines.js';
+import { SPAWN as GORGE_SPAWN } from '../src/world/gorge.js';
+import { CAMP_DEN } from '../src/world/gorgeshape.js';
 
 const AREAS = ['neighborhood', 'park', 'seaside', 'docks'];
-const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN, woods: WOODS_SPAWN, river: RIVER_SPAWN, moor: MOOR_SPAWN, pines: PINES_SPAWN };
+const SPAWNS = { neighborhood: NEIGH_SPAWN, park: PARK_SPAWN, seaside: SEA_SPAWN, docks: DOCKS_SPAWN, woods: WOODS_SPAWN, river: RIVER_SPAWN, moor: MOOR_SPAWN, pines: PINES_SPAWN, gorge: GORGE_SPAWN };
 
 test('each of the four areas has one rival clan with a usable name', () => {
   for (const a of AREAS) {
@@ -168,6 +170,17 @@ test('the Moor and the Pines have camps; the patrol follows the picks, the camp 
     expect(home.clan).not.toBe(a);
     expect([home.cx, home.cz, home.r]).toEqual([own.cx, own.cz, own.r]);
   }
+});
+
+test("the Gorge's den counts as its camp, and no other disc has one", () => {
+  expect(isTrespassing('gorge', 23, 40)).toBe(true); // in the den, outside the disc
+  expect(isTrespassing('gorge', 12, 41.5)).toBe(true); // the disc's centre
+  expect(isTrespassing('gorge', 10.5, 33.5)).toBe(false); // the B -> C turn
+  expect(isTrespassing('gorge', 3.9, 40)).toBe(false); // the approach, below the lip
+  const { minX, maxX, minZ, maxZ } = CAMP_DEN;
+  expect(DISCS.gorge.den).toEqual({ minX, maxX, minZ, maxZ });
+  expect(Object.isFrozen(DISCS.gorge.den)).toBe(true);
+  for (const a of Object.keys(DISCS)) if (a !== 'gorge') expect(DISCS[a], a).not.toHaveProperty('den');
 });
 
 test('the old areas ignore picks entirely', () => {

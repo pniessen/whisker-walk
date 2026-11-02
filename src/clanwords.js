@@ -277,8 +277,9 @@ export const HOME_LINES = Object.freeze({
 // Troutkit and Mintpaw are book names); Glade, Slate, Shingle and Teal took
 // their old places. A word that fails a test is swapped for one that passes
 // the same tests, never the rule weakened. Once shipped, a value changes only
-// if the 11-year-old asks, because nothing stores it. No gorge row yet: the
-// Gorge adds one when its camp lands. Do not add these to the scanner's list.
+// if the 11-year-old asks, because nothing stores it. CliffClan's sixteen
+// (gorge, part 4 K6) are all the planner's: the owner's daughter has not
+// chosen its first nine. Do not add these to the scanner's list.
 export const CLAN_CAT_PREFIXES = Object.freeze({
   woods: Object.freeze(['Badger', 'Bark', 'Bluejay', 'Burr', 'Conker', 'Fawn', 'Root', 'Glade', 'Bryony',
     'Thrush', 'Hollow', 'Nutmeg', 'Loam', 'Rook', 'Dormouse', 'Spindle']),
@@ -288,4 +289,6 @@ export const CLAN_CAT_PREFIXES = Object.freeze({
     'Caddis', 'Gudgeon', 'Mayfly', 'Silt', 'Roach', 'Wader', 'Marigold']),
   pines: Object.freeze(['Cone', 'Bog', 'Slate', 'Resin', 'Needle', 'Beetle', 'Toad', 'Frog', 'Adder',
     'Sable', 'Mire', 'Gnat', 'Sloe', 'Fungus', 'Soot', 'Bat']),
+  gorge: Object.freeze(['Crag', 'Granite', 'Scree', 'Sprig', 'Flint', 'Merlin', 'Shale', 'Pika', 'Gully',
+    'Bluff', 'Tarn', 'Puff', 'Nimble', 'Stonecrop', 'Thrift', 'Crest']),
 });

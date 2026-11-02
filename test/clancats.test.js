@@ -115,6 +115,29 @@ describe('createClanCats', () => {
     }
   });
 
+  test('a seat with a face is faced that way; seats without one face the camp centre', () => {
+    const L = {
+      cx: 0, cz: 0,
+      seats: {
+        leader: { x: 0, z: 3.5, y: 0.8, face: Math.PI / 2 },
+        deputy: { x: 2, z: 0 },
+        elders: [{ x: -2, z: 1, face: 1.25 }, { x: -2, z: -1 }],
+        kits: [{ x: 0, z: 2 }, { x: 0.6, z: 2 }, { x: 0, z: -2 }, { x: 0.6, z: -2 }],
+      },
+    };
+    const cats = createClanCats(fakeScene(), AREA, castFor('woods'), { campLayout: L, roamHomes: [], isWalkable: OPEN, roomSeed: 1 });
+    const bySlot = (s) => cats.list.find((c) => c.slot === s);
+    expect(bySlot(0).group.rotation.y).toBe(Math.PI / 2);
+    expect(bySlot(1).group.rotation.y).toBe(1.25);
+    for (const s of [9, 10, 2, 3, 11, 12]) {
+      const p = bySlot(s).group.position;
+      expect(bySlot(s).group.rotation.y, `slot ${s}`).toBeCloseTo(Math.atan2(0 - p.x, 0 - p.z) + Math.PI, 9);
+    }
+    // the deputy's look-about and the leader's post are round the seat's own face
+    run(cats, 2);
+    expect(bySlot(0).group.rotation.y).toBe(Math.PI / 2);
+  });
+
   test('roamers stand at the roaming homes, slots 4-8 then 13-15', () => {
     const homes = roamHomes('woods', AREA, OPEN);
     const cats = spawn();

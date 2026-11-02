@@ -107,7 +107,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             52       35      32860   (41 / 25 merged; part 4 cut the
+//   gorge             54       36      33184   (43 / 26 merged; part 4's camp
+//                                               adds two meshes: the leader's
+//                                               rock (a caster, 36 tris) and the
+//                                               den's bedding (noCast, six discs
+//                                               merged, 288 tris); before it was
+//                                               52 / 35 / 32860, 41 / 25 merged.
+//                                               Part 4 also cut the
 //                                               camp den into the rock behind
 //                                               the Wide Ledge: +42 tris in the
 //                                               merged rock, no mesh, it was
@@ -208,7 +214,7 @@ const AREAS = [
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
 //   pines            109       72    112 /  75
-//   gorge             41       25     52 /  35   (with the caves' insides; 37 / 25 before)
+//   gorge             43       26     54 /  36   (with CliffClan's camp; 41 / 25 before it, 37 / 25 before the caves' insides)
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is

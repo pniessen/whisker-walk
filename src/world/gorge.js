@@ -11,6 +11,7 @@ import { postsFor } from '../borderposts.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
+import { addCamp } from './camp.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -670,6 +671,11 @@ export function build(scene, { water = {}, wind } = {}) {
   // time: the caves are far apart.
   const interiors = GORGE_CAVES.map(caveInterior);
   for (const g of interiors) scene.add(g);
+
+  // --- CliffClan's camp (part 4) ---------------------------------------------------
+  // The leader's rock on the Wide Ledge and the bedding in the den behind it,
+  // set on the ground; one collider, the rock (the den is cut into the rock).
+  addCamp(scene, { colliders, ground }, 'gorge');
 
   return {
     name: 'The Gorge',

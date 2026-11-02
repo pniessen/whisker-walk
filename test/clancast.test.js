@@ -7,8 +7,9 @@ import {
 import { CLAN_CAT_PREFIXES, RANK_KEYS, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
 import { clanName } from '../src/clanhomes.js';
 import { isStrayName, STRAY_BREEDS } from '../src/straynames.js';
+import { ROCK_LOW, ROCK_HIGH, LEDGE_COLOR } from '../src/world/builder.js';
 
-const CLANS = ['woods', 'moor', 'river', 'pines'];
+const CLANS = ['woods', 'moor', 'river', 'pines', 'gorge'];
 
 test('each clan has sixteen cats, one per CAST_RANKS slot, named by rank', () => {
   for (const clan of CLANS) {
@@ -54,7 +55,7 @@ test('the first nine slots are the core clan, the same on every tier', () => {
 test('rank scale and camp-marker colours are complete', () => {
   expect(RANK_SCALE).toEqual({ leader: 0.95, deputy: 0.9, elder: 0.85, warrior: 0.85, apprentice: 0.72, kit: 0.5 });
   expect(Object.isFrozen(RANK_SCALE)).toBe(true);
-  expect(CLAN_COLOURS).toEqual({ woods: '#3f7d3a', moor: '#9a6aa8', river: '#2f7fa8', pines: '#35584a' });
+  expect(CLAN_COLOURS).toEqual({ woods: '#3f7d3a', moor: '#9a6aa8', river: '#2f7fa8', pines: '#35584a', gorge: '#9c3b22' });
   expect(Object.isFrozen(CLAN_COLOURS)).toBe(true);
 });
 
@@ -89,6 +90,29 @@ test('each clan wears its own palette, and the palettes tell clans apart at a gl
   }
 });
 
+// HSL saturation and lightness of a 0xRRGGBB colour.
+const hsl = (c) => {
+  const r = (c >> 16) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  const s = max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+  return { s, l };
+};
+
+test("CliffClan's coats stand out on the Gorge's rock", () => {
+  // The rock, the ledges and the floor are all dull (saturation 0.35 or
+  // less); every CliffClan coat is bright or near white. If the rock is
+  // recoloured, this fails, and the coats are checked again.
+  const GORGE_FLOOR = 0x5f5d52;
+  for (const tone of [ROCK_LOW, ROCK_HIGH, LEDGE_COLOR, GORGE_FLOOR]) {
+    expect(hsl(tone).s, tone.toString(16)).toBeLessThanOrEqual(0.35);
+  }
+  expect(CLAN_COATS.gorge).toHaveLength(5);
+  for (const row of CLAN_COATS.gorge) {
+    const { s, l } = hsl(row.base);
+    expect(s >= 0.45 || l >= 0.85, row.base.toString(16)).toBe(true);
+  }
+});
+
 test('the cast is fixed: the same every call', () => {
   expect(clanCast('woods')).toBe(clanCast('woods'));
   expect(Object.isFrozen(clanCast('woods'))).toBe(true);
@@ -106,16 +130,16 @@ test('the cast is fixed: the same every call', () => {
 
 test('no clan cat name is shared across clans', () => {
   const names = CLANS.flatMap((c) => clanCast(c).map((m) => m.name));
-  expect(new Set(names).size).toBe(64);
+  expect(new Set(names).size).toBe(80);
 });
 
 test('clanCast gives nothing for a clan with no row or a non-id', () => {
-  for (const a of ['gorge', 'island', 'den', '__proto__', 'constructor', undefined, 7, null]) expect(clanCast(a)).toEqual([]);
+  for (const a of ['island', 'den', '__proto__', 'constructor', undefined, 7, null]) expect(clanCast(a)).toEqual([]);
 });
 
-test('castFor needs a camp: woods, river, moor and pines have one; truce places and old areas none', () => {
-  for (const a of ['woods', 'river', 'moor', 'pines']) expect(castFor(a).length).toBe(CAST_HIGH);
-  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'den', 'island', 'gorge', '__proto__', 'constructor', undefined, 7]) expect(castFor(a)).toEqual([]);
+test('castFor needs a camp: woods, river, moor, pines and gorge have one; truce places and old areas none', () => {
+  for (const a of ['woods', 'river', 'moor', 'pines', 'gorge']) expect(castFor(a).length).toBe(CAST_HIGH);
+  for (const a of ['neighborhood', 'park', 'seaside', 'docks', 'den', 'island', '__proto__', 'constructor', undefined, 7]) expect(castFor(a)).toEqual([]);
 });
 
 test('unknown areas have no cast and keep today\'s strays', () => {

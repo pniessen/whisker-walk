@@ -37,6 +37,7 @@ const {
   CEILINGS, MASSES,
 } = await import('../src/world/gorgeshape.js');
 const { segDist } = await import('../src/segdist.js');
+const { campDiscs } = await import('../src/world/camp.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { propsFor } = await import('../src/propsets.js');
 const { canReach } = await import('../src/climbing.js');
@@ -517,9 +518,14 @@ describe('the Gorge: things to find, climb and nap in', () => {
       ...area.critterSpawns.filter((c) => c.x2 !== undefined).map((c) => ({ x: c.x2, z: c.z2 })),
       ...area.moments, ...area.moments.map((m) => m.from),
     ];
+    const campRock = campDiscs('gorge');
+    expect(campRock).toHaveLength(1);
+    expect(area.colliders.filter((c) => campRock.some((k) => k.x === c.x && k.z === c.z && k.r === c.r))).toHaveLength(1);
     for (const r of [WIDE_LEDGE_RECT, CAMP_DEN]) {
       for (const p of points) expect(inRect(r, p.x, p.z), `(${p.x}, ${p.z}) in ${r.tag}`).toBe(false);
+      // the camp's own rock (part 4) is the one collider allowed there
       for (const c of area.colliders) {
+        if (campRock.some((k) => k.x === c.x && k.z === c.z && k.r === c.r)) continue;
         const gap = Math.hypot(Math.max(r.minX - c.x, 0, c.x - r.maxX), Math.max(r.minZ - c.z, 0, c.z - r.maxZ));
         expect(gap, `collider (${c.x}, ${c.z})`).toBeGreaterThan(c.r);
       }

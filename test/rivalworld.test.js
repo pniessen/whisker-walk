@@ -40,22 +40,24 @@ const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
 const { build: buildMoor } = await import('../src/world/moor.js');
 const { build: buildPines, TRUCE_PATH, BRIDGE_FOOT, PINES_ISLAND } = await import('../src/world/pines.js');
+const { build: buildGorge } = await import('../src/world/gorge.js');
+const { CAMP_DEN } = await import('../src/world/gorgeshape.js');
 const { ISLAND_LAND, BRIDGE_DECK } = await import('../src/world/island.js');
 const { isClanId } = await import('../src/clanhomes.js');
 const { patrolPath, borderMarks, rivalFor, isTrespassing, DISCS } = await import('../src/rivalclans.js');
-const { patrolAt, chaseOutcome, findLanding } = await import('../src/rivalcats.js');
+const { patrolAt, chaseOutcome, findLanding, PATROL_SPEED } = await import('../src/rivalcats.js');
 const { isWalkableAt, CAT_RADIUS } = await import('../src/player.js');
 const { waterClearance } = await import('../src/world/builder.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { campLayout } = await import('../src/world/camp.js');
-const { clanWalkableFor } = await import('../src/world/clanground.js');
+const { clanWalkableFor, clanGroundArea } = await import('../src/world/clanground.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { keepOutPoint } = await import('../src/keepout.js');
 const { INTRUDER_ROUTES, ROUTE_MAX, routeLength } = await import('../src/intruders.js');
 
 // The rival's patrol, its marks and its chase against the REAL built areas:
 // the pure tests in rivalcats.test.js cannot know where a container is.
-const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines };
+const BUILD = { neighborhood: buildNeigh, park: buildPark, seaside: buildSea, docks: buildDocks, woods: buildWoods, river: buildRiver, moor: buildMoor, pines: buildPines, gorge: buildGorge };
 const AREAS = Object.keys(BUILD);
 const built = Object.fromEntries(AREAS.map((a) => [a, BUILD[a](new THREE.Scene())]));
 
@@ -219,7 +221,8 @@ describe('the camp and the clan in the real territories', () => {
     for (const a of CAMPED) {
       const L = campLayout(a);
       const cs = built[a].colliders;
-      const mine = [L.den, L.rock].map((p) => cs.find((c) => c.x === p.x && c.z === p.z && c.r === p.r));
+      // a cave den (the Gorge's) is cut into the rock: no collider, the rock alone
+      const mine = (L.den.cave ? [L.rock] : [L.den, L.rock]).map((p) => cs.find((c) => c.x === p.x && c.z === p.z && c.r === p.r));
       for (const c of mine) expect(c, a).toBeTruthy();
       for (const c of mine) {
         for (const o of cs) {
@@ -273,7 +276,7 @@ describe('the camp and the clan in the real territories', () => {
       const spots = [...seatsOf(L), ...homesOf(a).flatMap((h) => [h, ...circle(h.x, h.z, 2, 8)])];
       for (const s of spots) {
         expect(waterClearance(area.waters, s.x, s.z), `${a} ${s.x},${s.z}`).toBeGreaterThanOrEqual(CAT_RADIUS);
-        expect(keepOutPoint(area, s.x, s.z), `${a} keep-out ${s.x},${s.z}`).toEqual({ x: s.x, z: s.z });
+        expect(keepOutPoint(clanGroundArea(area), s.x, s.z), `${a} keep-out ${s.x},${s.z}`).toEqual({ x: s.x, z: s.z });
         if (a === 'pines') {
           for (const seg of TRUCE_PATH) expect(segDist(s.x, s.z, seg) - 1.5, `truce ${s.x},${s.z}`).toBeGreaterThanOrEqual(3);
           expect(Math.hypot(s.x - BRIDGE_FOOT.x, s.z - BRIDGE_FOOT.z)).toBeGreaterThanOrEqual(3);
@@ -305,9 +308,56 @@ describe('the camp and the clan in the real territories', () => {
         ...(built[a].perches || []).filter((p) => p.label),
       ];
       for (const t of things) {
-        for (const p of [L.den, L.rock]) expect(Math.hypot(t.x - p.x, t.z - p.z), `${a} ${t.x},${t.z}`).toBeGreaterThan(p.r);
+        // a den with r 0 is a cave den (the Gorge's): no dome to be inside
+        for (const p of [L.den, L.rock].filter((q) => q.r > 0)) expect(Math.hypot(t.x - p.x, t.z - p.z), `${a} ${t.x},${t.z}`).toBeGreaterThan(p.r);
       }
     }
+  });
+});
+
+// Review Focus 1: a kid who isn't CliffClan climbing past the camp. The real
+// patrol, the real ground, walk.js's own walkability.
+describe('the Gorge\'s camp on its ledge', () => {
+  it('the chase in the Gorge lands on the ledge, outside the camp, never over the lip', () => {
+    const area = built.gorge;
+    const { ground } = area;
+    const isWalkable = (x, z) => isWalkableAt(area, x, z);
+    const clanGround = clanWalkableFor(area, 'gorge');
+    const pts = patrolPath('gorge');
+    const lap = pts.reduce((t, p, i) => {
+      const q = pts[(i + 1) % pts.length];
+      return t + Math.hypot(q.x - p.x, q.z - p.z);
+    }, 0) / PATROL_SPEED;
+    const patrol = [];
+    for (let t = 0; t <= lap; t += 0.25) patrol.push(patrolAt('gorge', t));
+    const { cx, cz, r } = DISCS.gorge;
+    const cells = [];
+    const grid = (x0, x1, z0, z1) => {
+      for (let x = Math.floor(x0 / 0.5) * 0.5 + 0.25; x < x1; x += 0.5) {
+        for (let z = Math.floor(z0 / 0.5) * 0.5 + 0.25; z < z1; z += 0.5) cells.push({ x, z });
+      }
+    };
+    grid(cx - r, cx + r, cz - r, cz + r);
+    grid(CAMP_DEN.minX, CAMP_DEN.maxX, CAMP_DEN.minZ, CAMP_DEN.maxZ);
+    const inDen = (p) => p.x >= CAMP_DEN.minX && p.x <= CAMP_DEN.maxX && p.z >= CAMP_DEN.minZ && p.z <= CAMP_DEN.maxZ;
+    let n = 0;
+    let denFront = 0;
+    for (const cat of cells) {
+      if (!isTrespassing('gorge', cat.x, cat.z) || !clanGround(cat.x, cat.z)) continue;
+      const out = patrol.map((p) => chaseOutcome('gorge', cat, p)).find((o) => o.chased);
+      if (!out) continue;
+      const at = `${cat.x},${cat.z}`;
+      expect(inDen(cat) && cat.x > 22, `den back chased at ${at}`).toBe(false);
+      if (inDen(cat) && cat.x < 21.5) denFront++;
+      const land = findLanding('gorge', out.to, isWalkable, { ground, from: cat });
+      expect(land, at).not.toBeNull();
+      expect(isTrespassing('gorge', land.x, land.z), at).toBe(false);
+      expect(ground.y(land.x, land.z), `${at} -> ${land.x},${land.z}`).toBe(8);
+      expect(ground.canStep(cat.x, cat.z, land.x, land.z), at).toBe(true);
+      n++;
+    }
+    expect(n).toBeGreaterThanOrEqual(40);
+    expect(denFront).toBeGreaterThan(0);
   });
 });
 
