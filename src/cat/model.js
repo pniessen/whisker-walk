@@ -4,7 +4,8 @@ import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { setCatScars } from './scarmesh.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -814,8 +815,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   body.add(underside);
 
   // head
-  const SKULL_R = 0.21;
-  const SKULL_SCALE = [1, 0.92, 0.95];
+  const SKULL_R = SKULL.R;
+  const SKULL_SCALE = SKULL.SCALE;
   const head = new THREE.Group();
   const skull = ball(SKULL_R, pointColor, ...SKULL_SCALE);
   head.add(skull);
@@ -1412,6 +1413,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     bodyY, bodyScale: [...BODY_SCALE], headPos, tailRotX: TAIL.ROOT_TILT, tailCurl: TAIL.CURL,
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
   };
+  // opts.scars (fight moves and scars): scars.js render entries. Only a scarred
+  // cat gets the scar mesh; without one, nothing here runs.
+  if (opts.scars?.length) setCatScars(g, opts.scars);
   return g;
 }
 

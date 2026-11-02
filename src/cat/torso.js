@@ -54,6 +54,9 @@ export function shellInflate(uy) {
 }
 
 export const HEAD = { POS: [0, 0.70, -0.40], SCALE: 1.06 };
+// The skull: a sphere of radius R scaled by SCALE, centred on the head's origin
+// (model.js buildCat). scarmesh.js lays a face scar on this same ellipsoid.
+export const SKULL = Object.freeze({ R: 0.21, SCALE: Object.freeze([1, 0.92, 0.95]) });
 
 // The rig the poses in animator.js were written for: hip 0.3, hip-to-sole 0.2969.
 export const REF_RIG = { HIP_Y: 0.30, REACH: 0.2585 + 0.062 * 0.62 };

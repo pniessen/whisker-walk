@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF } from './torso.js';
+import { fitScars } from './scarmesh.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
@@ -117,6 +118,8 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+  // Last: a scar rides the head and torso where everything above left them.
+  if (cat.userData.parts.scars) fitScars(cat);
 }
 
 // R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
