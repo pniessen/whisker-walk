@@ -22,6 +22,37 @@ import { wirePose } from '../fightactions.js';
 import { uprightTag } from '../nametag.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
+import { groundTilt, easeTilt } from '../ground.js';
+
+// The y the local cat is drawn at, before the water look: the ground under
+// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
+// fight's lift. On flat ground it is exactly the old sum, with no ground term.
+export function avatarBaseY(ground, cat, player, s) {
+  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0);
+  if (!ground || ground.flat) return rel;
+  return ground.y(cat.position.x, cat.position.z) + rel;
+}
+
+// Her cat's lean into the slope under it (Gorge part 1, R7), eased at
+// TILT_RATE, for applyWaterLook. Null on flat ground, so applyWaterLook runs
+// today's lines. On a perch she stands on the perch, not the slope, so it
+// eases back to level. The eased { pitch, roll } lives on the session, made
+// once per walk at the slope's own tilt, so a spawn on a slope starts leaning.
+const slopeTarget = { pitch: 0, roll: 0 };
+export function avatarSlopeTilt(ground, cat, player, s, dt) {
+  if (!ground || ground.flat) return null;
+  if (player.perchY > 0) {
+    slopeTarget.pitch = 0;
+    slopeTarget.roll = 0;
+  } else {
+    groundTilt(ground, cat.position.x, cat.position.z, cat.rotation.y, slopeTarget);
+  }
+  if (!s.slopeTilt) {
+    s.slopeTilt = { pitch: slopeTarget.pitch, roll: slopeTarget.roll };
+    return s.slopeTilt;
+  }
+  return easeTilt(s.slopeTilt, slopeTarget, dt);
+}
 
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
 export const CHASE_GAIT_SPEED = 6;
@@ -74,7 +105,10 @@ export function createAvatarUpdater({
     // Computed BEFORE the perch release just below, so it describes the frame
     // that has already been rendered (player.update ran first, off the perchY
     // this line reads) rather than the one about to be.
-    const paws = cat.position.clone().setY(player.perchY);
+    // Gorge part 1 (R4): perchY is relative, so the paws' plane is the ground
+    // under the cat plus perchY (just perchY on flat ground).
+    const groundUnder = s.ground && !s.ground.flat ? s.ground.y(cat.position.x, cat.position.z) : null;
+    const paws = cat.position.clone().setY(groundUnder === null ? player.perchY : groundUnder + player.perchY);
 
     if (s.perched && player.inputActive) {
       s.perched = null;
@@ -199,17 +233,21 @@ export function createAvatarUpdater({
     const amount = Math.sin(Math.PI * shakeProgress(ws));
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
-    // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
+    // Sets y outright: ground + perchY + hopY (where player.js drew it) − sink + bob.
     // A fight (game/clanfight.js) lifts, pitches and rolls the cat through
-    // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them.
+    // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them. The
+    // slope's lean (Gorge part 1, R7) keeps easing underneath; a fight's tilt wins.
     if (s.fight) { fightTilt.pitch = s.fightPitch ?? 0; fightTilt.roll = s.fightRoll ?? 0; }
-    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount,
-      s.fight ? fightTilt : null);
+    applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount,
+      s.fight ? fightTilt : null, avatarSlopeTilt(s.ground, cat, player, s, dt));
     // Her own name tag (a custom cat's) rides the group: through a fight's
     // pitch and roll it stays straight above her torso, and is put back after.
+    // On raised ground it stays straight through the slope's lean too.
     const ownTag = cat.userData.ownTag;
-    if (ownTag && (s.fight || ownTag.userData.restY !== undefined)) {
-      uprightTag(ownTag, s.fight ? cat.rotation.x : 0, s.fight ? cat.rotation.z : 0, cat.userData.parts?.body?.position.y ?? 0);
+    const lean = !s.fight && s.ground && !s.ground.flat ? s.slopeTilt : null;
+    if (ownTag && (s.fight || lean || ownTag.userData.restY !== undefined)) {
+      uprightTag(ownTag, s.fight ? cat.rotation.x : lean ? lean.pitch : 0, s.fight ? cat.rotation.z : lean ? lean.roll : 0,
+        cat.userData.parts?.body?.position.y ?? 0);
     }
 
     // nap pile: napping near another napping remote pet is worth a shared award;
@@ -312,7 +350,7 @@ export function createAvatarUpdater({
 
     // pouncing mid-dash catches butterflies and fireflies
     if (s.pounceTime > 0) {
-      const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
+      const caught = s.critters.catchAt(cat.position.clone().setY(groundUnder === null ? 0.8 : groundUnder + 0.8));
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', pounceCatchLine(cat));

@@ -341,3 +341,57 @@ describe('player camera zoom', () => {
 
   function far() { return ZOOM_STEPS[MAX_ZOOM_STEP]; }
 });
+
+// Gorge part 1, ruling R8: the camera keeps out of rock and under ceilings.
+import { cameraRockFraction, CAM_ROCK_CLEAR, CAM_CEIL_CLEAR, MIN_CAM_DIST } from '../src/camzoom.js';
+import { FLAT_GROUND, createGround } from '../src/ground.js';
+import { HEIGHT_FIXTURE } from './fixtures/heightfield.js';
+
+describe('cameraRockFraction (R8)', () => {
+  const g = createGround(HEIGHT_FIXTURE);
+  const at = (look, wanted, f) => look.clone().lerp(wanted, f);
+
+  it('has the plan’s constants', () => {
+    expect([CAM_ROCK_CLEAR, CAM_CEIL_CLEAR, MIN_CAM_DIST]).toEqual([0.35, 0.3, 0.3]);
+  });
+
+  it('cameraRockFraction is 1 in open air and on flat ground', () => {
+    const segs = [
+      [new THREE.Vector3(0, 0.74, 0), new THREE.Vector3(0, -5, 10)],
+      [new THREE.Vector3(3, 0.74, 3), new THREE.Vector3(3, 8, -8)],
+      [new THREE.Vector3(0, 0.74, 0), new THREE.Vector3(0, 0.74, 0)],
+    ];
+    for (const [l, w] of segs) expect(cameraRockFraction(l, w, FLAT_GROUND)).toBe(1);
+    // open air over the fixture's floor, away from every shape
+    expect(cameraRockFraction(new THREE.Vector3(-15, 0.74, 15), new THREE.Vector3(-15, 3, 10), g)).toBe(1);
+  });
+
+  it('cameraRockFraction pulls in before rock', () => {
+    const look = new THREE.Vector3(8, 0.74, 7);
+    const wanted = new THREE.Vector3(8, 1.74, 3);
+    const f = cameraRockFraction(look, wanted, g);
+    expect(Math.abs(f - 0.5)).toBeLessThan(0.01);
+    const cam = at(look, wanted, f);
+    expect(cam.z).toBeGreaterThanOrEqual(4.99);
+    for (let i = 0; i <= 200; i++) {
+      const p = at(look, wanted, (f * i) / 200);
+      expect(p.y).toBeGreaterThanOrEqual(g.y(p.x, p.z) + 0.35);
+    }
+  });
+
+  it('and under a ceiling', () => {
+    const look = new THREE.Vector3(-10, 0.74, -11);
+    const wanted = new THREE.Vector3(-10, 3.14, -7);
+    const f = cameraRockFraction(look, wanted, g);
+    expect(f).toBeLessThan(1);
+    expect(at(look, wanted, f).y).toBeLessThanOrEqual(1.3);
+  });
+
+  it('never brings the camera nearer than MIN_CAM_DIST', () => {
+    // the cat right at the plateau's foot, the camera wanted deep in the rock
+    const look = new THREE.Vector3(8, 0.74, 5.05);
+    const wanted = new THREE.Vector3(8, 1.2, -4);
+    const f = cameraRockFraction(look, wanted, g);
+    expect(f * look.distanceTo(wanted)).toBeGreaterThanOrEqual(MIN_CAM_DIST - 1e-9);
+  });
+});

@@ -365,7 +365,7 @@ describe('the clan in the walk (source pins)', () => {
     const cf = m.indexOf('session.clanFight.update(dt, session)');
     const cam = m.indexOf('session.fightCam?.update(dt, {');
     expect(cam).toBeGreaterThan(cf);
-    expect(cam).toBeLessThan(m.indexOf('session.shadows.update()'));
+    expect(cam).toBeLessThan(m.indexOf('session.shadows.update('));
     const call = m.slice(cam, m.indexOf('});', cam));
     expect(call).toContain('subject: session.clanFight.cameraSubject');
     expect(call).toContain('cameraMode: session.cameraMode');
@@ -430,10 +430,10 @@ describe('the border dressing in the walk (source pins)', () => {
   it('is added after the build and before the contact shadows, Clan Edition only', () => {
     const s = src();
     const build = s.indexOf('AREAS[areaId].build(');
-    const call = s.indexOf('addBorderDressing(scene, areaId)');
+    const call = s.search(/addBorderDressing\(scene, areaId(, \{ ground \})?\)/);
     expect(call).toBeGreaterThan(build);
     expect(call).toBeLessThan(s.indexOf('createContactShadows('));
-    expect(s).toMatch(/const dressing = !isDen && isClanEdition\(state\) \? addBorderDressing\(scene, areaId\) : null;/);
+    expect(s).toMatch(/const dressing = !isDen && isClanEdition\(state\) \? addBorderDressing\(scene, areaId(, \{ ground \})?\) : null;/);
   });
 
   it('its colliders join the live list after clanArea is frozen and clearSpot, beside the scratch posts', () => {

@@ -512,7 +512,7 @@ test('the walk wires push-throughs in: solid frames, every cat a mover, no wire,
   const walk = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const code = walk.replace(/\/\/.*$/gm, '');
-  expect(code.match(/createPushThroughs\(scene, propsFor\(areaId\)\.flaps, \{ reducedMotion \}\)/g)).toHaveLength(1);
+  expect(code.match(/createPushThroughs\(scene, propsFor\(areaId\)\.flaps, \{ reducedMotion(, ground)? \}\)/g)).toHaveLength(1);
   const solid = code.indexOf('for (const c of pushThroughs.colliders) areaData.colliders.push(');
   expect(solid).toBeGreaterThan(code.indexOf('clearSpot(p, areaData.colliders'));
   expect(solid).toBeLessThan(code.indexOf('const session = {'));

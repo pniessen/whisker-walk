@@ -18,6 +18,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { path } from './builder.js';
 import { postsFor, POST_R, TOWN_FOOTPATH, FOOTPATH_W } from '../borderposts.js';
 import { LAND } from '../territories.js';
+import { FLAT_GROUND, seatOnGround } from '../ground.js';
 
 const FACING = {
   west: [-1, 0],
@@ -29,11 +30,11 @@ const FACING = {
 // The home-screen map's key for a neighbour: the Neighborhood is 'town' there.
 export const clothKey = (to) => (to === 'neighborhood' ? 'town' : to);
 
-function buildPost(p) {
+function buildPost(p, ground) {
   const g = new THREE.Group();
   g.name = 'borderPost';
   g.userData.postId = p.id;
-  g.position.set(p.x, 0, p.z);
+  g.position.set(p.x, ground.y(p.x, p.z), p.z);
 
   const [dx, dz] = FACING[p.faces] ?? FACING.north;
   const wood = litMaterial(0x8a6a48, surfaceProps('bark'));
@@ -71,17 +72,18 @@ function buildPost(p) {
 
 // Adds the area's posts (and, for the Neighborhood, the footpath) to `scene`.
 // Returns the posts' colliders for walk.js to push; never touches area.colliders.
-export function addBorderDressing(scene, areaId) {
+// Gorge part 1: posts stand on `ground` (FLAT_GROUND: y 0).
+export function addBorderDressing(scene, areaId, { ground = FLAT_GROUND } = {}) {
   const list = postsFor(areaId);
   if (list.length === 0) return { colliders: [] };
   if (areaId === 'neighborhood') {
     // The roads' own gravel at a narrower width; a top-level child so the grass
     // mask and the corner map (flatFootprints) see it.
-    for (const s of TOWN_FOOTPATH) scene.add(path(...s, FOOTPATH_W, { surface: 'gravel' }));
+    for (const s of TOWN_FOOTPATH) scene.add(seatOnGround(path(...s, FOOTPATH_W, { surface: 'gravel' }), ground));
   }
   const colliders = [];
   for (const p of list) {
-    scene.add(buildPost(p));
+    scene.add(buildPost(p, ground));
     colliders.push({ x: p.x, z: p.z, r: POST_R });
   }
   return { colliders };

@@ -90,7 +90,13 @@ export function waterPose(pose, st, { hagrid = false, reducedMotion = false } = 
 // (avatar.js passes s.fightPitch / s.fightRoll, which game/clanfight.js
 // stages: it never writes the group's rotation itself); the order turns to
 // 'YXZ' so the yaw stays outermost. With none, rotation.x is 0.
-export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1, fightTilt = null) {
+//
+// slopeTilt (Gorge part 1, R7): { pitch, roll } to lean the cat into the slope
+// under it, or null. A fight's tilt wins (fights stand on level ground). With
+// only a slope tilt: order 'YXZ', rotation.x = pitch and rotation.z = roll +
+// the shake's roll. With neither (every flat map) it is exactly the lines
+// before it.
+export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1, fightTilt = null, slopeTilt = null) {
   const target = sinkTarget(cat, st.mode);
   const rate = target > st.sink ? SINK_RATE : RISE_RATE;
   st.sink += (target - st.sink) * (1 - Math.exp(-rate * dt));
@@ -102,6 +108,10 @@ export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1,
     cat.rotation.order = 'YXZ';
     cat.rotation.x = fin(fightTilt.pitch);
     cat.rotation.z = fin(fightTilt.roll) + shake;
+  } else if (slopeTilt) {
+    cat.rotation.order = 'YXZ';
+    cat.rotation.x = slopeTilt.pitch;
+    cat.rotation.z = slopeTilt.roll + shake;
   } else {
     cat.rotation.x = 0;
     cat.rotation.z = shake;

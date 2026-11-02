@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 // v18 Task 3.2 — Gift Paws.
 //
@@ -115,12 +116,12 @@ export function openScenics(scenics, saved) {
  * `scene` may be a bare { add, remove } stub (that is all this uses), which
  * is what lets the whole module be driven in tests.
  */
-export function createGifts(scene, scenics, saved) {
+export function createGifts(scene, scenics, saved, { ground = FLAT_GROUND } = {}) {
   const entries = [];
 
   function place(resolved) {
     const { group, materials } = buildGift();
-    group.position.set(resolved.x, 0, resolved.z);
+    group.position.set(resolved.x, ground.y(resolved.x, resolved.z), resolved.z);
     scene.add(group);
     const entry = { ...resolved, group, materials };
     entries.push(entry);

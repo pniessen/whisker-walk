@@ -18,6 +18,10 @@
 //
 // The den cats are NOT re-seated: they found their places among the
 // furniture at walk start and keep them until the next den visit.
+//
+// Gorge part 1 (R14): the den is never given height. Its ground is always
+// FLAT_GROUND, so the perch heights here stay absolute and perchY = 0 below
+// is the floor.
 import * as THREE from 'three';
 import { mergeStaticProps } from '../render/mergeprops.js';
 import { assignShadowCastersFor } from '../render/rig.js';

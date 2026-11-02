@@ -227,10 +227,19 @@ export function createIntruders(scene, areaId, {
   hostile = () => false,
   onNotice = () => {},
   onBuild = () => {},
+  ground = null,
   // Fight moves and scars: the scars (scars.js render entries) a cast member
   // wears, by its cast id, applied when its mesh is built.
   scarsFor = () => [],
 } = {}) {
+  // Gorge part 1: the walk's ground (src/ground.js), taken as given (this
+  // file's imports are on an allow-list); null or flat is flat ground, and G
+  // is set only when it has height, so a shipped map runs today's lines. The
+  // cat walks its route on the ground (plan 2/4 check routes against it), a
+  // staged lift is relative to the ground under the stage (R11), and it only
+  // notices a cat on its own level (R10).
+  const G = ground && !ground.flat ? ground : null;
+  const tilt = { pitch: 0, roll: 0 }; // place()'s lean scratch (R7)
   let cur = null;     // this visit's cat, or null
   let done = null;    // a visit that walked off its route: not built again
   let animT = 0;
@@ -313,7 +322,7 @@ export function createIntruders(scene, areaId, {
       new THREE.SphereGeometry(0.35, 10, 8),
       new THREE.MeshBasicMaterial({ color: PUFF_COLOR, transparent: true, opacity: 0.7, depthWrite: false }),
     );
-    mesh.position.set(x, 0.3, z);
+    mesh.position.set(x, G ? G.y(x, z) + 0.3 : 0.3, z);
     scene.add(mesh);
     puffs.push({ mesh, age: 0 });
   }
@@ -341,8 +350,8 @@ export function createIntruders(scene, areaId, {
     const p = routePoint(cur.route, cur.s);
     const g = cur.group;
     const st = cur.state === 'held' ? cur.stage : null;
-    if (st) g.position.set(st.x, st.y, st.z);
-    else g.position.set(p.x, 0, p.z);
+    if (st) g.position.set(st.x, G ? G.y(st.x, st.z) + st.y : st.y, st.z);
+    else g.position.set(p.x, G ? G.y(p.x, p.z) : 0, p.z);
     g.rotation.order = 'YXZ';
     g.rotation.x = st ? st.pitch : 0;
     g.rotation.z = st ? st.roll : 0;
@@ -355,6 +364,15 @@ export function createIntruders(scene, areaId, {
       g.rotation.y = Math.atan2(-p.dx, -p.dz) + Math.PI;
     } else {
       g.rotation.y = Math.atan2(p.dx, p.dz) + Math.PI;
+    }
+    // Gorge part 1 (R7): on raised ground a route walker leans into the slope
+    // under it; a staged one keeps the fight's pitch and roll set above
+    // (fights stand on level ground, R11). Flat ground: nothing new.
+    if (G && !st) {
+      G.tilt(g.position.x, g.position.z, g.rotation.y, tilt);
+      g.rotation.x = tilt.pitch;
+      g.rotation.z = tilt.roll;
+      uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
     }
   }
 
@@ -438,7 +456,8 @@ export function createIntruders(scene, areaId, {
         pose = cur.stage ? cur.stage.pose : 'cross';
         speed = 0;
       } else if (cur.state !== 'fleeing' && cur.hostile && catPos
-        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE) {
+        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE
+        && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z))) {
         pose = 'cross';
         if (!cur.noticed) {
           cur.noticed = true;
@@ -450,7 +469,8 @@ export function createIntruders(scene, areaId, {
       uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
       if (cur.tag) {
         const range = cur.tag.userData?.revealRange ?? NAME_TAG_RANGE;
-        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range : false;
+        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range
+          && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z)) : false;
       }
     },
     // The walk's one contact-shadow follower (see above).
@@ -484,9 +504,10 @@ export function createIntruders(scene, areaId, {
       letGo();
     },
     // My fight's staging (Task 4): { pose, x, z, y, face?, pitch?, roll? }
-    // puts the held mesh at that spot in that pose, facing `face` (my cat) or
-    // else its holder, pitched and rolled (fight moves and scars, R20; junk
-    // is 0); null puts it back on its route, level.
+    // puts the held mesh at that spot in that pose (y is a lift above the
+    // ground there, R11), facing `face` (my cat) or else its holder, pitched
+    // and rolled (fight moves and scars, R20; junk is 0); null puts it back on
+    // its route, level.
     // Ignored unless I hold it; dropped when my hold ends or it flees. The
     // shared snapshot (current().pos) stays on the route.
     stage(visit, st) {

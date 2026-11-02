@@ -806,7 +806,8 @@ function init() {
       // the waterline itself would leave it half in the water and exactly on
       // the edge of the bat range.
       const toyPos = session.toy.mesh.position;
-      if (session.toy.active && toyPos.y <= 0.2 &&
+      // Gorge part 1: "on the surface" is measured from the ground under it.
+      if (session.toy.active && toyPos.y - session.ground.y(toyPos.x, toyPos.z) <= 0.2 &&
           waterClearance(session.areaData.waters, toyPos.x, toyPos.z) < 0.5) {
         const dry = nearestDry(session.areaData.waters, toyPos.x, toyPos.z, 0.5);
         const dx = dry.x - toyPos.x;
@@ -834,7 +835,10 @@ function init() {
       session.fightCam?.update(dt, {
         subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
       });
-      const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
+      // Gorge part 1: the paws' world height, the ground under the cat plus perchY.
+      const pawsY = session.ground.flat ? player.perchY
+        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY;
+      const gm = session.goldMice.checkFind(session.cat.position, pawsY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
         session.fx.burst(session.cat.position, 0xf2c14e, 18);
@@ -906,13 +910,15 @@ function init() {
       // canal and the foliage down with them reads as the whole world
       // lurching, which is the same reason skyLife and weather sit here.
       session.water.update(dt);
-      // Re-fits the sun's shadow frustum around the view. Takes no dt: it is a
-      // pure function of where the camera ended up this frame, which is why it
+      // Re-fits the sun's shadow frustum around the view. It reads where the
+      // camera ended up this frame, which is why it
       // has to sit AFTER player.update above (which is what moves the camera)
       // and before renderFrame() below. It is inside the `player.engaged`
       // block for the same reason: when the player is not engaged the camera
-      // is not moving, so there is nothing to re-fit.
-      session.shadows.update();
+      // is not moving, so there is nothing to re-fit. Gorge part 1: it also
+      // takes the ground under her cat (0 on every shipped map), which it
+      // eases over dt.
+      session.shadows.update(session.ground.y(player.position.x, player.position.z), dt);
       // Wind takes ABSOLUTE elapsed time (the same `t` goldMice.update gets),
       // not a delta: every rotation is recomputed as a pure function of `t`,
       // so there is no running total to drift. Intensity is the only place
@@ -991,7 +997,8 @@ function init() {
       // quiet (despawned, dropped) shouldn't leave a phantom ball behind.
       if (session.remoteToy && !session.toy.active && nowSec() - session.remoteToy.at < 1) {
         session.toyGhost.visible = true;
-        session.toyGhost.position.set(session.remoteToy.pos[0], 0.13, session.remoteToy.pos[1]);
+        const [rx, rz] = session.remoteToy.pos;
+        session.toyGhost.position.set(rx, session.ground.y(rx, rz) + 0.13, rz);
       } else {
         session.toyGhost.visible = false;
       }

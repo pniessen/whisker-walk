@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 import { hasSkill } from './skills.js';
+import { FLAT_GROUND } from './ground.js';
 
 // v18 "Big Swat" (skills.js id 'big-swat', unlocked by tipping 40 things).
 //
@@ -105,13 +106,15 @@ function tipEntry(e) {
 export function createTippables(scene, spots, opts = {}) {
   const getState = typeof opts.getState === 'function' ? opts.getState : () => null;
   const bigSwat = () => hasSkill(getState(), BIG_SWAT_ID);
+  const ground = opts.ground ?? FLAT_GROUND; // Gorge part 1: props stand on it
   const list = [];
   spots.forEach((spot, i) => {
     const group = buildTippable(spot.kind);
-    group.position.set(spot.x, 0, spot.z);
+    const gy = ground.y(spot.x, spot.z);
+    group.position.set(spot.x, gy, spot.z);
     group.rotation.y = (spot.x * 7 + spot.z * 13) % 6; // stable pseudo-random facing
     scene.add(group);
-    list.push({ id: `tip-${i}`, kind: spot.kind, group, tipped: false, anim: 0 });
+    list.push({ id: `tip-${i}`, kind: spot.kind, group, tipped: false, anim: 0, gy });
   });
 
   // Breadth-first topple outward from an already-tipped entry, bounded by
@@ -189,7 +192,7 @@ export function createTippables(scene, spots, opts = {}) {
         e.anim -= dt;
         const k = 1 - Math.max(0, e.anim) / 0.5; // 0 → 1
         e.group.rotation.z = -1.75 * k;
-        e.group.position.y = Math.sin(k * Math.PI) * 0.12; // little hop
+        e.group.position.y = ground.flat ? Math.sin(k * Math.PI) * 0.12 : e.gy + Math.sin(k * Math.PI) * 0.12; // little hop
       }
     },
   };

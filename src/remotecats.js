@@ -8,6 +8,7 @@ import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
 import { waterPose, applyWaterLook } from './cat/waterlook.js';
+import { FLAT_GROUND, groundTilt, easeTilt } from './ground.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
@@ -66,9 +67,12 @@ function profileUnchanged(entry, profile) {
 // `waters` update() is given (null: always dry, the old look). Its shake and
 // bob follow THIS viewer's reducedMotion (the ruling), a snapshot taken at
 // the start of the walk.
-export function createRemoteCats(scene, { reducedMotion = false } = {}) {
+// `ground` (Gorge part 1, R13): a co-walker stands at THIS device's ground
+// under its streamed [x, z]; nothing about height rides the wire.
+export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
+  const tiltTarget = { pitch: 0, roll: 0 }; // leanOf's scratch
   // `list` is read several times a frame (main.js, avatar.js), so it hands
   // back one cached snapshot, rebuilt only when a cat joins or leaves
   // (Polish 3). A snapshot, not a live array: a holder of an older one (the
@@ -129,6 +133,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       // Not placed until its first state: until then the group sits at the
       // origin, which may well be in water, so it must not sink or shake there.
       water: { ...createWaterState(), placed: false },
+      tilt: null, // its eased lean into a slope (R7), made on its first frame on raised ground
     };
     remotes.set(profile.playerId, entry);
     listCache = null;
@@ -139,7 +144,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     const entry = remotes.get(state.id);
     if (!entry) return; // state before roster upsert — drop it, roster wins the race in practice
 
-    entry.toPos.set(state.pos[0], 0, state.pos[1]);
+    entry.toPos.set(state.pos[0], ground.y(state.pos[0], state.pos[1]), state.pos[1]);
     // The first state puts a new co-walker straight where it is. Sliding it in
     // from the origin would carry it through any water on the way (the Moor's
     // river-west holds the origin), and it would dip there on arrival.
@@ -190,8 +195,19 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
-      applyWaterLook(entry.group, entry.water, now, dt, rm, 0, amount);
+      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount, null, ground.flat ? null : leanOf(entry, x, z, dt));
     }
+  }
+
+  // A co-walker's lean into the slope under it (R7), eased at TILT_RATE like
+  // her own cat's; made at the slope's tilt the first time, then reused.
+  function leanOf(entry, x, z, dt) {
+    groundTilt(ground, x, z, entry.group.rotation.y, tiltTarget);
+    if (!entry.tilt) {
+      entry.tilt = { pitch: tiltTarget.pitch, roll: tiltTarget.roll };
+      return entry.tilt;
+    }
+    return easeTilt(entry.tilt, tiltTarget, dt);
   }
 
   function nearest(pos, maxDist) {

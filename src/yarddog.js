@@ -151,6 +151,9 @@ function buildKennel() {
 //   onBark()       the dog barks (the caller plays the sound).
 //   onChase()      a chase starts — exactly once per chase.
 //   onSettled()    the chased cat has landed.
+//   ground         the walk's ground (src/ground.js); null is flat ground.
+//                  (Taken as given, not imported: this module's imports are
+//                  an allowlist, test/yarddog.test.js.)
 //
 // update mutates catPos (the LOCAL cat's position) only during a chase, and
 // sets the avatar's facing then and nowhere else.
@@ -162,6 +165,7 @@ export function createYardDog(scene, yard, {
   onBark = () => {},
   onChase = () => {},
   onSettled = () => {},
+  ground = null,
 } = {}) {
   const ok = yard !== null && typeof yard === 'object'
     && [yard.x, yard.z, yard.r].every(Number.isFinite) && yard.r > 0
@@ -180,9 +184,12 @@ export function createYardDog(scene, yard, {
   const homeZ = Y.kennel.z + uz * HOME_OFF;
   const homeYaw = heading(ux, uz);
 
+  // Gorge part 1: the kennel, the lawn patch and the dog stand on the ground
+  // (G only when it has height, so a shipped map runs today's lines).
+  const G = ground && !ground.flat ? ground : null;
   const added = [];
   const kennel = buildKennel();
-  kennel.position.set(Y.kennel.x, 0, Y.kennel.z);
+  kennel.position.set(Y.kennel.x, G ? G.y(Y.kennel.x, Y.kennel.z) : 0, Y.kennel.z);
   kennel.rotation.y = homeYaw;
   scene.add(kennel);
   added.push(kennel);
@@ -192,7 +199,7 @@ export function createYardDog(scene, yard, {
     color: 0x000000, transparent: true, opacity: PATCH_ALPHA, depthWrite: false,
   }));
   patch.rotation.x = -Math.PI / 2;
-  patch.position.set(Y.x, PATCH_LIFT, Y.z);
+  patch.position.set(Y.x, G ? G.y(Y.x, Y.z) + PATCH_LIFT : PATCH_LIFT, Y.z);
   patch.castShadow = false;
   patch.receiveShadow = false;
   patch.userData.contactDecal = true;
@@ -201,7 +208,7 @@ export function createYardDog(scene, yard, {
 
   const dog = buildDog();
   const { torso, head, tail, legs } = dog.userData.parts;
-  dog.position.set(homeX, 0, homeZ);
+  dog.position.set(homeX, G ? G.y(homeX, homeZ) : 0, homeZ);
   dog.rotation.y = homeYaw;
   scene.add(dog);
   added.push(dog);
@@ -260,6 +267,7 @@ export function createYardDog(scene, yard, {
     const moved = Math.hypot(nx - dog.position.x, nz - dog.position.z) > 1e-4;
     dog.position.x = nx;
     dog.position.z = nz;
+    if (G) dog.position.y = G.y(nx, nz);
     return moved;
   }
 
@@ -275,6 +283,7 @@ export function createYardDog(scene, yard, {
         const w = smooth(Math.min(1, returnT / RETURN_TIME));
         dog.position.x = leftX + (homeX - leftX) * w;
         dog.position.z = leftZ + (homeZ - leftZ) * w;
+        if (G) dog.position.y = G.y(dog.position.x, dog.position.z);
         dog.rotation.y = heading(homeX - leftX, homeZ - leftZ);
         if (w >= 1) {
           state = 'lie';
@@ -292,14 +301,19 @@ export function createYardDog(scene, yard, {
       }
 
       if (state === 'lie' && cooldown <= 0 && canChase() !== false
-        && dogNotices(Y, catPos, { stalking })) {
+        && dogNotices(Y, catPos, { stalking })
+        && (!G || G.sameLevel(catPos.x, catPos.z, Y.x, Y.z))) { // R10: not from another level
         if (fearless) {
           barkT = BARK_TIME;
           cooldown = DOG_COOLDOWN;
           onBark();
           return;
         }
-        const land = dogLanding(Y, catPos, isWalkable);
+        // R9: on raised ground a landing over a rim is refused, as the
+        // rival's chase does; nothing left means no chase.
+        const land = dogLanding(Y, catPos, G
+          ? (x, z) => isWalkable(x, z) === true && G.canStep(catPos.x, catPos.z, x, z)
+          : isWalkable);
         if (land) {
           barkT = BARK_TIME;
           onBark();
@@ -341,7 +355,7 @@ export function createYardDog(scene, yard, {
     // Chases are gated on a grounded cat (canChase), so the rest height is the
     // ground: a pounce's lift is never carried along. A small hop on top,
     // none in reduced motion, and it ends on the ground.
-    catPos.y = reducedMotion ? 0 : Math.sin(u * Math.PI) * HOP;
+    catPos.y = (ground ? ground.y(catPos.x, catPos.z) : 0) + (reducedMotion ? 0 : Math.sin(u * Math.PI) * HOP);
     if (avatar) avatar.rotation.y = catFacing(toX - fromX, toZ - fromZ);
     // The dog bounds after it, to the edge of its lawn and no further.
     head.rotation.y = 0;
@@ -351,7 +365,7 @@ export function createYardDog(scene, yard, {
     if (u >= 1) {
       catPos.x = toX;
       catPos.z = toZ;
-      catPos.y = 0;
+      catPos.y = ground ? ground.y(toX, toZ) : 0;
       // On arrival the cat looks back at the dog.
       if (avatar) avatar.rotation.y = catFacing(dog.position.x - toX, dog.position.z - toZ);
       state = 'edge';

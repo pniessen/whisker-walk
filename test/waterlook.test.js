@@ -343,3 +343,80 @@ describe('applyWaterLook fight tilt', () => {
     expect(cat.rotation.z).toBeCloseTo(SHAKE_ROLL * Math.sin(0.37 * 30), 12);
   });
 });
+
+// Gorge part 1, Task 9 (R7): applyWaterLook's 9th argument, a slope tilt
+// (after the fight's tilt, which wins).
+// Without it (or with null) it does exactly what it did before: y and
+// rotation.z only, never rotation.x or the order.
+describe('applyWaterLook slope tilt', () => {
+  const run = (breed, { mode = 'dry', shake = 0, rm = false, pass = false, tilt = null } = {}) => {
+    const cat = buildCat(breed);
+    const st = createWaterState();
+    st.mode = mode;
+    st.shake = shake;
+    const out = [];
+    for (let i = 0; i < 20; i++) {
+      const t = 0.37 + i / 60;
+      if (pass) applyWaterLook(cat, st, t, 1 / 60, rm, 0.3, 0.7, null, tilt);
+      else applyWaterLook(cat, st, t, 1 / 60, rm, 0.3, 0.7);
+      out.push([cat.position.y, cat.rotation.x, cat.rotation.y, cat.rotation.z, cat.rotation.order]);
+    }
+    return out;
+  };
+
+  it('with no slope tilt nothing changes', () => {
+    for (const breed of ['tabby', 'hagrid']) {
+      for (const mode of ['dry', 'wade', 'swim']) {
+        for (const shake of [0, SHAKE_TIME]) {
+          for (const rm of [false, true]) {
+            const today = run(breed, { mode, shake, rm });
+            expect(run(breed, { mode, shake, rm, pass: true, tilt: null })).toEqual(today);
+            for (const row of today) {
+              expect(row[1]).toBe(0);
+              expect(row[4]).toBe('XYZ');
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('with a slope tilt: order YXZ, x is the pitch, z is the roll plus the shake', () => {
+    const tilt = { pitch: 0.3, roll: -0.1 };
+    for (const shake of [0, SHAKE_TIME]) {
+      const today = run('tabby', { mode: 'wade', shake });
+      const leaned = run('tabby', { mode: 'wade', shake, pass: true, tilt });
+      leaned.forEach((row, i) => {
+        expect(row[0]).toBe(today[i][0]); // y is untouched by the tilt
+        expect(row[1]).toBe(0.3);
+        expect(row[3]).toBe(-0.1 + today[i][3]);
+        expect(row[4]).toBe('YXZ');
+      });
+    }
+  });
+
+  it('the slope tilt yields to a fight\'s tilt; with neither it is the fight build\'s look', () => {
+    const slope = { pitch: 0.3, roll: -0.1 };
+    const fight = { pitch: 0.7, roll: -1.2 };
+    for (const shake of [0, SHAKE_TIME]) {
+      const a = buildCat('tabby');
+      const b = buildCat('tabby');
+      const sa = createWaterState();
+      const sb = createWaterState();
+      sa.shake = sb.shake = shake;
+      for (let i = 0; i < 10; i++) {
+        const t = 0.37 + i / 60;
+        applyWaterLook(a, sa, t, 1 / 60, false, 0.3, 0.7, fight, slope);
+        applyWaterLook(b, sb, t, 1 / 60, false, 0.3, 0.7, fight);
+        expect([a.position.y, a.rotation.x, a.rotation.y, a.rotation.z, a.rotation.order])
+          .toEqual([b.position.y, b.rotation.x, b.rotation.y, b.rotation.z, b.rotation.order]);
+      }
+      // with neither, exactly the fight build's no-tilt look (x 0, z the shake)
+      applyWaterLook(a, sa, 0.5, 1 / 60, false, 0.3, 0.7, null, null);
+      applyWaterLook(b, sb, 0.5, 1 / 60, false, 0.3, 0.7);
+      expect([a.position.y, a.rotation.x, a.rotation.z, a.rotation.order])
+        .toEqual([b.position.y, b.rotation.x, b.rotation.z, b.rotation.order]);
+      expect(a.rotation.x).toBe(0);
+    }
+  });
+});

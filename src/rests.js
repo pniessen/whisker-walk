@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 import { REST_KINDS } from './propsets.js';
+import { FLAT_GROUND } from './ground.js';
 
 // =============================================================================
 // Rests — somewhere to drink, eat and nap (v21 Stream 3b, Task 15). A water
@@ -226,7 +227,8 @@ const lookOf = (r) => (typeof r.id === 'string' && Object.hasOwn(REST_LOOKS, r.i
 // walk.js to add to the walk's collider list. Anything
 // that is not an array, and any entry without a rest kind or a finite
 // position, is skipped: never a throw.
-export function createRests(scene, rests) {
+// Gorge part 1: a rest's floor is metres above `ground` there (R4).
+export function createRests(scene, rests, { ground = FLAT_GROUND } = {}) {
   const list = [];
   const colliders = [];
   const added = []; // everything this put in the scene, to take back out
@@ -237,7 +239,8 @@ export function createRests(scene, rests) {
     if (!Number.isFinite(r.x) || !Number.isFinite(r.z)) continue;
     let group = null;
     if (r.mesh === true) {
-      const { look, floor = 0 } = lookOf(r);
+      const { look, floor: rel = 0 } = lookOf(r);
+      const floor = ground.y(r.x, r.z) + rel;
       group = buildRestMesh(look);
       // Rest it on its floor: lift by however far it reaches below its origin.
       group.updateMatrixWorld(true);

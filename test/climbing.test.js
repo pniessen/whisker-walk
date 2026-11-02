@@ -1199,3 +1199,48 @@ describe('CF-9b — the gated perches short-circuit nothing', () => {
     }
   });
 });
+
+// Gorge part 1 (Task 4): bestPerch gains opts.ground. FLAT_GROUND is what
+// every shipped map has, and with it every pick is the one that shipped.
+describe('bestPerch — the ground option (Gorge part 1)', () => {
+  it('with no ground option bestPerch is unchanged', async () => {
+    const { FLAT_GROUND } = await import('../src/ground.js');
+    const flat = (opts = {}) => ({ ...opts, ground: FLAT_GROUND });
+    // the pinned cases above, re-run with the ground passed
+    const crate1 = { x: 9.4, z: -14, y: 1.1, label: 'crate' };
+    const crateTop = { x: 9.4, z: -14, y: 2.0, label: 'crate top' };
+    const lookout = { x: 7, z: -14, y: 3.3, label: 'billboard lookout', vantage: true };
+    const B = BASE_CLIMB_BUDGET;
+    expect(bestPerch([crate1, crateTop, lookout], { x: 9.4, z: -14 }, 2.0, crateTop, B, flat())).toBe(lookout);
+    expect(bestPerch([crate1, lookout], { x: 9.4, z: -14 }, 0, null, B, flat())).toBe(crate1);
+    expect(bestPerch([lookout], { x: 0, z: 0 }, 0, null, B, flat())).toBeNull();
+    expect(bestPerch([crateTop], { x: 9.4, z: -14 }, 2.0, crateTop, B, flat())).toBeNull();
+    const fenceA = { x: 22, z: -28, y: 0.85 };
+    const fenceB = { x: 18, z: -24, y: 0.85 };
+    expect(bestPerch([fenceA, fenceB], fenceA, 0.85, fenceA, B, flat())).toBeNull();
+    expect(bestPerch([fenceA, fenceB], fenceA, 0.85, fenceA, B, flat({ fenceRun: true }))).toBe(fenceB);
+    expect(bestPerch([fenceA, fenceB], fenceA, 0, null, B, flat({ fenceRun: true }))).toBe(fenceA);
+    const up = { x: 23, z: -28, y: 2.0 };
+    expect(bestPerch([fenceB, up], fenceA, 0.85, fenceA, climbBudget({ skills: ['spring-paws'] }), flat({ fenceRun: true })))
+      .toBe(up);
+    // every shipped perch, as the one she stands on and from the ground under
+    // it, in every skill state, with and without the wall-run
+    let n = 0;
+    for (const area of Object.values(AREAS)) {
+      for (const state of Object.values(STATES)) {
+        const budget = climbBudget(state);
+        for (const fenceRun of [false, true]) {
+          for (const p of area.perches) {
+            const opts = { fenceRun, state };
+            expect(bestPerch(area.perches, p, p.y, p, budget, flat(opts)))
+              .toBe(bestPerch(area.perches, p, p.y, p, budget, opts));
+            expect(bestPerch(area.perches, p, 0, null, budget, flat(opts)))
+              .toBe(bestPerch(area.perches, p, 0, null, budget, opts));
+            n++;
+          }
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+  });
+});

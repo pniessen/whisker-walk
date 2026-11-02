@@ -6,6 +6,7 @@ import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { keepOutPoint } from './keepout.js';
+import { groundOf, leanOnGround } from './ground.js';
 
 const WANDER_SPEED = 1.1; // ghosts amble slower than strays — they're just visiting
 
@@ -60,6 +61,8 @@ function sanitizeGhostProfile(raw) {
 export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}) {
   const b = area.bounds;
   const ghosts = [];
+  // Gorge part 1 (R9): ghosts stand on the walk's ground and stop at rims.
+  const ground = opts?.ground ?? groundOf(area);
   // v18 Task 3.2 Gift Paws: a gift this player stashed at a scenic spot on
   // an earlier walk, which a ghost visitor is here to have found. Handed to
   // the FIRST ghost only — at most one gift is found per walk (see
@@ -100,7 +103,7 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
     // Kept out of the area's keep-out (keepout.js), the gift spot included;
     // it draws nothing, so the other ghosts land where they always did.
     const { x, z } = keepOutPoint(area, carriesGift ? gift.x : rx, carriesGift ? gift.z : rz);
-    group.position.set(x, 0, z);
+    group.position.set(x, ground.y(x, z), z);
     group.rotation.y = rng() * Math.PI * 2;
 
     const tag = makeNameTag(`${profile.petName} 👻`);
@@ -116,7 +119,7 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
       breed: profile.breed,
       group,
       tag,
-      home: new THREE.Vector3(x, 0, z),
+      home: new THREE.Vector3(x, ground.y(x, z), z),
       target: null,
       state: 'idle', // idle | wander | greet
       pose: 'follow',
@@ -185,6 +188,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
           continue;
         }
 
+        const px = g.group.position.x;
+        const pz = g.group.position.z;
         g.timer -= dt;
         if (g.timer <= 0) {
           if (g.state === 'idle') {
@@ -224,8 +229,16 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
         const kp = keepOutPoint(area, g.group.position.x, g.group.position.z);
         g.group.position.x = kp.x;
         g.group.position.z = kp.z;
+        // ...and a step over a rim slides along it (never inside the keep-out
+        // pass, which also places targets). Flat ground: nothing.
+        if (!ground.flat) {
+          ground.slide(px, pz, g.group.position);
+          g.group.position.y = ground.y(g.group.position.x, g.group.position.z);
+        }
         animateCat(g.group, g.state === 'idle' ? g.pose : 'follow', t, speed);
       }
+      // Gorge part 1 (R7): each ghost leans to the slope under it. Flat: nothing.
+      if (!ground.flat) for (const g of ghosts) leanOnGround(g.group, ground);
     },
   };
 }

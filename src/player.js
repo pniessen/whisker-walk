@@ -7,8 +7,9 @@ import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
 import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
-  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
+  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView,
 } from './camzoom.js';
+import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
@@ -18,12 +19,23 @@ export const CAT_RADIUS = 0.35;
 const PULL_IN_SPEED = 12; // metres per second, at most
 const PULL_OUT_SPEED = 6; // metres per second, at most: letting go is gentler
 const PULL_HOLD = 0.3; // seconds
+// Gorge part 1 (R8): on raised ground the camera always looks at least this
+// far ahead of itself horizontally, so a camera pressed right over her head
+// at a cliff foot never looks straight down (see placeCameraOnGround).
+const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
 // rotated by yaw exactly like moveDirection does for keys. Because
 // joystickVector already clamps magnitude into x/z, the rotated vector's
 // length stays equal to mag, so target speed scales with it for free.
+// Gorge part 1 (R6): the target speed going straight up a 1-in-3 path is
+// this much slower; gentler slopes scale with their grade, and level ground
+// and downhill are unchanged.
+export const UPHILL_SLOW = 0.15;
+// Reused every frame for ground.gradient, so the hot path allocates nothing.
+const slopeScratch = { x: 0, z: 0 };
+
 function touchDirection(vec, yaw) {
   return new THREE.Vector3(vec.x, 0, vec.z).applyAxisAngle(UP, yaw);
 }
@@ -401,6 +413,9 @@ export function createPlayer(camera, canvas) {
   let enabled = false;
   let avatar = null;
   let pace = 3.5;
+  // The walk's ground (src/ground.js). walk.js sets it once per walk, after
+  // setAvatar, which resets it to FLAT_GROUND.
+  let ground = FLAT_GROUND;
   const keys = new Set();
   const velocity = new THREE.Vector3();
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
@@ -461,6 +476,83 @@ export function createPlayer(camera, canvas) {
     const cap = (PULL_IN_SPEED * dt) / dist;
     return cur + Math.max(eased, -cap);
   }
+  // Gorge part 1 (R8): the rock pull, raised ground only. rockFrac is the
+  // eased fraction of the look-to-camera segment the camera may use
+  // (camzoom.js's cameraClearFraction). It snaps IN on the same frame (a camera
+  // that lags is a camera seen through rock) and eases back OUT with the same
+  // PULL_HOLD / PULL_OUT_SPEED rule as stepPull, in its own state. Reset by
+  // setAvatar and wherever snapPull is set.
+  let rockFrac = 1;
+  let rockHold = 0;
+  let snapRock = true;
+  const rockLook = new THREE.Vector3();
+  const rockWant = new THREE.Vector3();
+  const rockTarget = new THREE.Vector3();
+  function stepRock(cur, target, dt, dist) {
+    if (reducedMotion || snapRock) {
+      snapRock = false;
+      rockHold = 0;
+      return target;
+    }
+    if (target < cur) {
+      rockHold = 0;
+      return target;
+    }
+    rockHold += dt;
+    if (rockHold < PULL_HOLD) return cur;
+    const out = (target - cur) * (1 - Math.exp(-5 * dt));
+    return cur + Math.min(out, (PULL_OUT_SPEED * dt) / dist);
+  }
+  // Runs after the flat camera lines, only when !ground.flat: puts the camera
+  // on the look-to-wanted segment at the rock fraction, then keeps it
+  // MIN_CAMERA_Y above the ground under it and CAM_CEIL_CLEAR below any
+  // ceiling (validateGround keeps those two from crossing). Allocates nothing.
+  function placeCameraOnGround(dt) {
+    rockLook.copy(avatar.position);
+    rockLook.y += CAT_LOOK_Y;
+    rockWant.copy(avatar.position).add(camOff);
+    const len = rockLook.distanceTo(rockWant);
+    const f = cameraClearFraction(rockLook, rockWant, ground);
+    rockFrac = stepRock(rockFrac, f, dt, Math.max(len, 1e-6));
+    camera.position.copy(rockWant).sub(rockLook).multiplyScalar(rockFrac).add(rockLook);
+    // Never nearer than MIN_CAM_DIST to the look point. Where the rock is
+    // nearer than that behind her (backed right up to a cliff foot), the
+    // camera keeps the clear point's x, z and rises (or drops, if it was
+    // below the look point) until it is MIN_CAM_DIST away. Going on along
+    // the segment instead would put it inside the rock, and lifting it out
+    // from there would be a jump onto the rock above; this is continuous with
+    // the clear point at exactly MIN_CAM_DIST.
+    if (rockFrac * len < MIN_CAM_DIST && len > MIN_CAM_DIST) {
+      const hx = camera.position.x - rockLook.x;
+      const hz = camera.position.z - rockLook.z;
+      const v = Math.sqrt(Math.max(0, MIN_CAM_DIST * MIN_CAM_DIST - hx * hx - hz * hz));
+      camera.position.y = rockLook.y + (camera.position.y < rockLook.y ? -v : v);
+    }
+    // Where the camera looks. Backed right up to a rim the clear point can sit
+    // straight above the look point, and looking straight down is degenerate
+    // (eye - target parallel to up): the picture would roll 180 degrees and
+    // stop following the yaw. So the target slides forward (away from the
+    // camera's side) just enough that the camera is always at least
+    // MIN_LOOK_RUN behind it horizontally. Elsewhere the target is the look
+    // point itself, so this joins on continuously.
+    rockTarget.copy(rockLook);
+    const ol = Math.sqrt(camOff.x * camOff.x + camOff.z * camOff.z);
+    if (ol > 1e-9) {
+      const bx = camOff.x / ol;
+      const bz = camOff.z / ol;
+      const run = (camera.position.x - rockLook.x) * bx + (camera.position.z - rockLook.z) * bz;
+      if (run < MIN_LOOK_RUN) {
+        rockTarget.x -= (MIN_LOOK_RUN - run) * bx;
+        rockTarget.z -= (MIN_LOOK_RUN - run) * bz;
+      }
+    }
+    const cx = camera.position.x;
+    const cz = camera.position.z;
+    const lo = ground.y(cx, cz) + MIN_CAMERA_Y;
+    if (camera.position.y < lo) camera.position.y = lo;
+    const hi = ground.ceil(cx, cz) - CAM_CEIL_CLEAR;
+    if (camera.position.y > hi) camera.position.y = hi;
+  }
   let reducedMotion = false;
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
@@ -487,6 +579,10 @@ export function createPlayer(camera, canvas) {
     setAvatar(cat, catPace) {
       avatar = cat;
       pace = catPace;
+      ground = FLAT_GROUND;
+      rockFrac = 1;
+      rockHold = 0;
+      snapRock = true;
       yaw = 0;
       pitch = 0.18;
       velocity.set(0, 0, 0);
@@ -497,6 +593,10 @@ export function createPlayer(camera, canvas) {
       hopArc = null;
       hopTime = 0;
       Object.assign(waterState, createWaterState());
+    },
+    // Gorge part 1: the walk's ground. Call once per walk, after setAvatar.
+    setGround(g) {
+      ground = g || FLAT_GROUND;
     },
     forward() {
       return viewForward(yaw);
@@ -548,6 +648,7 @@ export function createPlayer(camera, canvas) {
       if (instant || reducedMotion) {
         camLevel = camTarget;
         snapPull = true;
+        snapRock = true;
       }
     },
     setReducedMotion(v) {
@@ -659,11 +760,27 @@ export function createPlayer(camera, canvas) {
       // cat goes in, and (below) running charges it only while dry.
       if (st.entered) zoom = { charging: false, zooming: false, time: 0 };
       const dir = touchMove ? touchDirection(touchMove, yaw) : moveDirection(keys, yaw);
+      // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
+      // the shape under the cat along the input direction (a finite
+      // difference would read a cliff foot as a climb). Flat maps skip it.
+      // Read before speedRatio: "full speed" uphill is the uphill pace, or
+      // zoomies could never charge from a standstill on a ramp.
+      let uphill = 1;
+      if (!ground.flat) {
+        const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        if (len > 0) {
+          ground.gradient(avatar.position.x, avatar.position.z, slopeScratch);
+          const grade = (slopeScratch.x * dir.x + slopeScratch.z * dir.z) / len;
+          uphill = 1 - UPHILL_SLOW * THREE.MathUtils.clamp(grade / MAX_PATH_GRADE, 0, 1);
+        }
+      }
       // speedRatio must be read from velocity BEFORE the lerp below moves it
       // toward this frame's target — it reflects how close last frame's
       // actual speed already is to full pace, which is what "full-speed
       // running" (the zoomies charge condition) means.
-      const targetSpeedDenom = pace * api.speedFactor || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
+      let targetSpeedDenom = pace * api.speedFactor;
+      if (!ground.flat) targetSpeedDenom *= uphill;
+      targetSpeedDenom = targetSpeedDenom || 1; // clamp away from 0 (speedFactor can be 0 while frozen)
       const speedRatio = velocity.length() / Math.max(Math.abs(targetSpeedDenom), 0.0001);
       zoom = zoomState(zoom, dt, {
         active: api.inputActive && !api.inWater,
@@ -677,7 +794,8 @@ export function createPlayer(camera, canvas) {
       // the scare freeze (speedFactor 0) instead of fighting it. Wading and
       // the shake do the same.
       const waterPace = (swimming ? SWIM_SPEED : wading ? WADE_SPEED : 1) * (api.shaking ? SHAKE_PACE : 1);
-      const zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
+      let zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
+      if (!ground.flat) zoomPace *= uphill; // R6, read above
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied
@@ -713,8 +831,10 @@ export function createPlayer(camera, canvas) {
           lift = 0;
         }
       }
+      // Gorge part 1: where the step started, for the edge slide below.
+      const px = avatar.position.x;
+      const pz = avatar.position.z;
       avatar.position.addScaledVector(velocity, dt);
-      avatar.position.y = api.perchY + lift;
 
       // Skip collider push while perched (perchY > 0): a perched cat is
       // standing ON the object (car roof, crate, rooftop…), often snapped to
@@ -780,6 +900,17 @@ export function createPlayer(camera, canvas) {
           avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
         }
       }
+      // Gorge part 1 (R3, R4). The edge slide runs LAST, after the collider
+      // push, the water pass and the bounds clamp, so nothing can push the cat
+      // over a rim after it. Then y: the ground under the cat, plus perchY
+      // (metres above that ground), plus the hop. On flat maps this is
+      // exactly the old `api.perchY + lift`, and nothing above reads y.
+      if (ground.flat) {
+        avatar.position.y = api.perchY + lift;
+      } else {
+        ground.slide(px, pz, avatar.position);
+        avatar.position.y = ground.y(avatar.position.x, avatar.position.z) + api.perchY + lift;
+      }
       if (velocity.length() > 0.15) {
         avatar.rotation.y = Math.atan2(velocity.x, velocity.z) + Math.PI;
       }
@@ -795,7 +926,9 @@ export function createPlayer(camera, canvas) {
       camOff.multiplyScalar(camPull);
       camera.position.copy(avatar.position).add(camOff);
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
+      if (!ground.flat) placeCameraOnGround(Math.max(dt, 0));
       camera.lookAt(avatar.position.x, avatar.position.y + CAT_LOOK_Y, avatar.position.z);
+      if (!ground.flat) camera.lookAt(rockTarget);
     },
   };
 
