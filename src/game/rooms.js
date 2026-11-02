@@ -104,7 +104,12 @@ export function createRooms({
         home: st.clanPick?.mine ?? null,
       },
       rankTitle: rankFor(st.lifetimePoints).title,
-    }).catch((err) => console.warn('Whisker Walk: pushProfile failed', err));
+    }).then(() => true, (err) => {
+      // Resolves false on a failed push (never rejects), so a caller that
+      // cares (the clan pick) can try again; every other caller ignores it.
+      console.warn('Whisker Walk: pushProfile failed', err);
+      return false;
+    });
   }
 
   function clearGathering() {
