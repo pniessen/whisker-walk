@@ -9,6 +9,7 @@ import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './wate
 import {
   DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
 } from './camzoom.js';
+import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 
 // You ARE the cat: arrows move the cat avatar at its breed's pace, the camera
 // follows behind/above with mouse-orbit, and the cat stays centered on screen.
@@ -24,6 +25,13 @@ const UP = new THREE.Vector3(0, 1, 0);
 // rotated by yaw exactly like moveDirection does for keys. Because
 // joystickVector already clamps magnitude into x/z, the rotated vector's
 // length stays equal to mag, so target speed scales with it for free.
+// Gorge part 1 (R6): the target speed going straight up a 1-in-3 path is
+// this much slower; gentler slopes scale with their grade, and level ground
+// and downhill are unchanged.
+export const UPHILL_SLOW = 0.15;
+// Reused every frame for ground.gradient, so the hot path allocates nothing.
+const slopeScratch = { x: 0, z: 0 };
+
 function touchDirection(vec, yaw) {
   return new THREE.Vector3(vec.x, 0, vec.z).applyAxisAngle(UP, yaw);
 }
@@ -401,6 +409,9 @@ export function createPlayer(camera, canvas) {
   let enabled = false;
   let avatar = null;
   let pace = 3.5;
+  // The walk's ground (src/ground.js). walk.js sets it once per walk, after
+  // setAvatar, which resets it to FLAT_GROUND.
+  let ground = FLAT_GROUND;
   const keys = new Set();
   const velocity = new THREE.Vector3();
   let touchMove = null; // {x, z, mag} | null — overrides keys when set
@@ -487,6 +498,7 @@ export function createPlayer(camera, canvas) {
     setAvatar(cat, catPace) {
       avatar = cat;
       pace = catPace;
+      ground = FLAT_GROUND;
       yaw = 0;
       pitch = 0.18;
       velocity.set(0, 0, 0);
@@ -497,6 +509,10 @@ export function createPlayer(camera, canvas) {
       hopArc = null;
       hopTime = 0;
       Object.assign(waterState, createWaterState());
+    },
+    // Gorge part 1: the walk's ground. Call once per walk, after setAvatar.
+    setGround(g) {
+      ground = g || FLAT_GROUND;
     },
     forward() {
       return viewForward(yaw);
@@ -677,7 +693,18 @@ export function createPlayer(camera, canvas) {
       // the scare freeze (speedFactor 0) instead of fighting it. Wading and
       // the shake do the same.
       const waterPace = (swimming ? SWIM_SPEED : wading ? WADE_SPEED : 1) * (api.shaking ? SHAKE_PACE : 1);
-      const zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
+      let zoomPace = (zoom.zooming ? pace * 1.55 : pace) * waterPace;
+      // Gorge part 1 (R6): a little slower uphill. The grade is the slope of
+      // the shape under the cat along the input direction (a finite
+      // difference would read a cliff foot as a climb). Flat maps skip it.
+      if (!ground.flat) {
+        const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        if (len > 0) {
+          ground.gradient(avatar.position.x, avatar.position.z, slopeScratch);
+          const grade = (slopeScratch.x * dir.x + slopeScratch.z * dir.z) / len;
+          zoomPace *= 1 - UPHILL_SLOW * THREE.MathUtils.clamp(grade / MAX_PATH_GRADE, 0, 1);
+        }
+      }
       const lerpFactor = zoom.zooming ? 1 - Math.pow(0.03, dt) : 1 - Math.pow(0.001, dt);
       velocity.lerp(dir.multiplyScalar(zoomPace * api.speedFactor), lerpFactor);
       // v18 CF-9a. Advance the hop BEFORE the Y write, so the offset applied
@@ -713,8 +740,10 @@ export function createPlayer(camera, canvas) {
           lift = 0;
         }
       }
+      // Gorge part 1: where the step started, for the edge slide below.
+      const px = avatar.position.x;
+      const pz = avatar.position.z;
       avatar.position.addScaledVector(velocity, dt);
-      avatar.position.y = api.perchY + lift;
 
       // Skip collider push while perched (perchY > 0): a perched cat is
       // standing ON the object (car roof, crate, rooftop…), often snapped to
@@ -779,6 +808,17 @@ export function createPlayer(camera, canvas) {
           avatar.position.x = THREE.MathUtils.clamp(avatar.position.x, bounds.minX, bounds.maxX);
           avatar.position.z = THREE.MathUtils.clamp(avatar.position.z, bounds.minZ, bounds.maxZ);
         }
+      }
+      // Gorge part 1 (R3, R4). The edge slide runs LAST, after the collider
+      // push, the water pass and the bounds clamp, so nothing can push the cat
+      // over a rim after it. Then y: the ground under the cat, plus perchY
+      // (metres above that ground), plus the hop. On flat maps this is
+      // exactly the old `api.perchY + lift`, and nothing above reads y.
+      if (ground.flat) {
+        avatar.position.y = api.perchY + lift;
+      } else {
+        ground.slide(px, pz, avatar.position);
+        avatar.position.y = ground.y(avatar.position.x, avatar.position.z) + api.perchY + lift;
       }
       if (velocity.length() > 0.15) {
         avatar.rotation.y = Math.atan2(velocity.x, velocity.z) + Math.PI;

@@ -151,6 +151,9 @@ function buildKennel() {
 //   onBark()       the dog barks (the caller plays the sound).
 //   onChase()      a chase starts — exactly once per chase.
 //   onSettled()    the chased cat has landed.
+//   ground         the walk's ground (src/ground.js); null is flat ground.
+//                  (Taken as given, not imported: this module's imports are
+//                  an allowlist, test/yarddog.test.js.)
 //
 // update mutates catPos (the LOCAL cat's position) only during a chase, and
 // sets the avatar's facing then and nowhere else.
@@ -162,6 +165,7 @@ export function createYardDog(scene, yard, {
   onBark = () => {},
   onChase = () => {},
   onSettled = () => {},
+  ground = null,
 } = {}) {
   const ok = yard !== null && typeof yard === 'object'
     && [yard.x, yard.z, yard.r].every(Number.isFinite) && yard.r > 0
@@ -341,7 +345,7 @@ export function createYardDog(scene, yard, {
     // Chases are gated on a grounded cat (canChase), so the rest height is the
     // ground: a pounce's lift is never carried along. A small hop on top,
     // none in reduced motion, and it ends on the ground.
-    catPos.y = reducedMotion ? 0 : Math.sin(u * Math.PI) * HOP;
+    catPos.y = (ground ? ground.y(catPos.x, catPos.z) : 0) + (reducedMotion ? 0 : Math.sin(u * Math.PI) * HOP);
     if (avatar) avatar.rotation.y = catFacing(toX - fromX, toZ - fromZ);
     // The dog bounds after it, to the edge of its lawn and no further.
     head.rotation.y = 0;
@@ -351,7 +355,7 @@ export function createYardDog(scene, yard, {
     if (u >= 1) {
       catPos.x = toX;
       catPos.z = toZ;
-      catPos.y = 0;
+      catPos.y = ground ? ground.y(toX, toZ) : 0;
       // On arrival the cat looks back at the dog.
       if (avatar) avatar.rotation.y = catFacing(dog.position.x - toX, dog.position.z - toZ);
       state = 'edge';

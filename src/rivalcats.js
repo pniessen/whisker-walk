@@ -132,7 +132,14 @@ export function chaseOutcome(areaId, catPos, patrolPos) {
 // points rotated round the circle, then the nearest walkable border mark
 // nudged just outside. Returns null if nothing works: a null landing means no
 // chase, never a cat left inside the disc.
-export function findLanding(areaId, to, isWalkable) {
+//
+// Gorge part 1 (R9): with a `ground` (src/ground.js) and the cat's `from`
+// spot, a landing is also rejected unless the scamper's straight line from
+// `from` to it is a legal walk (ground.canStep), so a chase never carries her
+// over a rim. No ground (null) is flat ground. This module deliberately
+// imports nothing new (the import allowlist below), so it takes the ground
+// object as given rather than importing FLAT_GROUND.
+export function findLanding(areaId, to, isWalkable, { ground = null, from = null } = {}) {
   const rival = rivalFor(areaId);
   if (!rival || !isPt(to) || typeof isWalkable !== 'function') return null;
   const { cx, cz, r } = rival;
@@ -140,7 +147,8 @@ export function findLanding(areaId, to, isWalkable) {
   let dz = to.z - cz;
   const d = Math.hypot(dx, dz);
   if (d < 1e-6) { dx = 1; dz = 0; } else { dx /= d; dz /= d; }
-  const ok = (x, z) => !isTrespassing(areaId, x, z) && isWalkable(x, z) === true;
+  const ok = (x, z) => !isTrespassing(areaId, x, z) && isWalkable(x, z) === true
+    && (!ground || ground.flat || !isPt(from) || ground.canStep(from.x, from.z, x, z));
 
   if (ok(to.x, to.z)) return { x: to.x, z: to.z };
   const base = Math.atan2(dz, dx);
@@ -202,6 +210,7 @@ export const chaseAllowed = (player, session) => player.perchY === 0 && !session
 //   onChase(who)   fires exactly once per chase, with the rival's display name.
 //   onSettled()    fires when the scamper ends.
 //   picks          the kids' clan picks; the rival's clan (and name) follow them.
+//   ground         the walk's ground (src/ground.js); null is flat ground.
 //
 // update mutates catPos (the LOCAL player's cat position) only during a
 // scamper, and, if an `avatar` (the cat's group) is passed, sets its facing
@@ -221,6 +230,7 @@ export function createRivalPatrol(scene, areaId, {
   onChase = () => {},
   onSettled = () => {},
   picks = [],
+  ground = null,
 } = {}) {
   const rival = rivalFor(areaId, picks);
   if (!rival) return NO_PATROL;
@@ -272,7 +282,7 @@ export function createRivalPatrol(scene, areaId, {
         && isTrespassing(areaId, catPos.x, catPos.z)
         && Math.hypot(catPos.x - pp.x, catPos.z - pp.z) <= NOTICE_DIST) {
         const out = chaseOutcome(areaId, catPos, pp);
-        const land = out.chased ? findLanding(areaId, out.to, isWalkable) : null;
+        const land = out.chased ? findLanding(areaId, out.to, isWalkable, { ground, from: catPos }) : null;
         if (land) {
           state = 'scamper';
           elapsed = 0;
@@ -296,7 +306,7 @@ export function createRivalPatrol(scene, areaId, {
     // Chases are gated on a grounded cat, so the rest height is the ground: a
     // pounce's render lift is never carried along. A small hop on top, none
     // in reduced motion, and it ends on the ground.
-    catPos.y = reducedMotion ? 0 : Math.sin(u * Math.PI) * 0.18;
+    catPos.y = (ground ? ground.y(catPos.x, catPos.z) : 0) + (reducedMotion ? 0 : Math.sin(u * Math.PI) * 0.18);
     if (avatar) avatar.rotation.y = facing(toX - fromX, toZ - fromZ);
     // The patrol cat turns to the trespasser and (unless reduced motion)
     // dashes after it, stopping short; it never reaches it.
@@ -313,7 +323,7 @@ export function createRivalPatrol(scene, areaId, {
     if (u >= 1) {
       catPos.x = toX;
       catPos.z = toZ;
-      catPos.y = 0;
+      catPos.y = ground ? ground.y(toX, toZ) : 0;
       if (avatar) avatar.rotation.y = facing(cx - toX, cz - toZ);
       dashX = mesh.position.x;
       dashZ = mesh.position.z;

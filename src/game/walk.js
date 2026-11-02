@@ -70,6 +70,7 @@ import { zoomTuning, canSwim, isWalkableAt } from '../player.js';
 import { clampZoomStep, maxZoomStep, zoomView } from '../camzoom.js';
 import { createRivalPatrol, chaseAllowed } from '../rivalcats.js';
 import { createYardDog } from '../yarddog.js';
+import { groundOf } from '../ground.js';
 import { isFearless } from '../dogs.js';
 import { createBorderMarks } from '../render/bordermarks.js';
 import { addBorderDressing } from '../world/borderpost.js';
@@ -460,6 +461,8 @@ export function createWalkLifecycle({
     const areaData = isDen
       ? AREAS.den.build(scene, { placed: progression.state.den.placed, wind })
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
+    // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
+    const ground = groundOf(areaData);
     // Clan Edition only, and local to this screen (border crossings R13): the
     // waymark posts and the town's footpath. Added before the fill light, contact
     // shadows and the static-prop merge so they get all three; their colliders
@@ -537,12 +540,13 @@ export function createWalkLifecycle({
     }, { look: active.look });
     // her own custom cat wears its name on her own screen, like a co-walker
     attachOwnTag(cat, state);
-    cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
+    cat.position.set(areaData.spawn.x, ground.y(areaData.spawn.x, areaData.spawn.z), areaData.spawn.z);
     cat.rotation.y = 0; // rotation 0 faces -z, into the area
     scene.add(cat);
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
     const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
     player.setAvatar(cat, pace);
+    player.setGround(ground);
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
     // player.js shipped the tuning and the state machine, but nothing ever
     // handed the player the save. Set AFTER setAvatar, which resets the charge
@@ -569,7 +573,7 @@ export function createWalkLifecycle({
     player.setCameraZoom(zoomStep, { instant: true });
     const startView = zoomView(zoomStep);
     camera.position.copy(cat.position).add(cameraOffset(0, 0.18, startView.dist, startView.height));
-    camera.lookAt(cat.position.x, CAT_LOOK_Y, cat.position.z);
+    camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
 
     const equipped = state.equipped;
     // In a room walk (roomSeed set), duskMode was already gated on the
@@ -1177,7 +1181,7 @@ export function createWalkLifecycle({
     }
 
     const session = {
-      scene, areaData, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
+      scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.
       clanCats,
       campMarker,
@@ -1393,6 +1397,7 @@ export function createWalkLifecycle({
         picks,
         reducedMotion,
         isWalkable,
+        ground,
         canChase: () => chaseAllowed(player, session),
         onChase: (who) => {
           player.halt();
@@ -1462,6 +1467,7 @@ export function createWalkLifecycle({
     const dog = createYardDog(scene, propsFor(areaId).dogYard, {
       reducedMotion,
       isWalkable: (x, z) => isWalkableAt(areaData, x, z),
+      ground,
       canChase: () => chaseAllowed(player, session),
       fearless: fearlessCat,
       onBark: () => {

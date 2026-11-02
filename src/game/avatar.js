@@ -21,6 +21,15 @@ import { nowSec } from './util.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 
+// The y the local cat is drawn at, before the water look: the ground under
+// it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
+// fight's lift. On flat ground it is exactly the old sum, with no ground term.
+export function avatarBaseY(ground, cat, player, s) {
+  const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0);
+  if (!ground || ground.flat) return rel;
+  return ground.y(cat.position.x, cat.position.z) + rel;
+}
+
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
 export const CHASE_GAIT_SPEED = 6;
 
@@ -194,8 +203,8 @@ export function createAvatarUpdater({
     const amount = Math.sin(Math.PI * shakeProgress(ws));
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
-    // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
-    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount);
+    // Sets y outright: ground + perchY + hopY (where player.js drew it) − sink + bob.
+    applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount);
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)
