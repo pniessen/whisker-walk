@@ -133,6 +133,8 @@ function markersKey(markers) {
 }
 
 export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle } = {}) {
+  // The layer is fixed for the map's life: whether it has islands, once.
+  const hasIslands = !!layer?.water?.some((w) => w.islands?.length);
   const canvas = document.createElement('canvas');
   canvas.className = 'hud-map-disc';
   canvas.setAttribute('role', 'img');
@@ -241,7 +243,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     // it. Clipped to the map's edge, past which the land stays plain cream,
     // and with the paths drawn again over them, clipped to the islands, so a
     // path across an island is not lost under its land (Polish 3).
-    if (layer.water.some((w) => w.islands?.length)) {
+    if (hasIslands) {
       ctx.save();
       if (e) {
         ctx.beginPath();

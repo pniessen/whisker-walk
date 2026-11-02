@@ -126,7 +126,9 @@ export function createDressingRoom({
     const out = {};
     if (h.breed === 'tabby' && !h.look) return out;
     const look = h.look ? lookKey(h.look) : '';
-    const want = m.slots.filter((s) => s.itemId).map((s) => ({ slot: s.slot, id: s.itemId, key: `worn|${h.breed}|${look}|${s.itemId}` }));
+    // Worn items only: a try-on keeps the menu's picture, so browsing the
+    // picker never builds a WebGL context on a tap.
+    const want = m.slots.filter((s) => s.itemId && !s.trying).map((s) => ({ slot: s.slot, id: s.itemId, key: `worn|${h.breed}|${look}|${s.itemId}` }));
     const missing = want.filter((w) => !has(t.worn, w.key) && !failedSnaps.has(w.key));
     if (missing.length) {
       const entries = missing.map((w) => ({ key: w.key, breed: h.breed, look: h.look, wear: { [w.slot]: w.id }, ...accessoryFraming(w.id) }));
@@ -428,8 +430,11 @@ export function createDressingRoom({
     return doneAt === null || now() - doneAt >= CONFIRM_DELAY_MS;
   }
 
+  // Also called before a walk starts: coming home, her pick is brought into
+  // view again (the strip's scroll does not survive the hidden home screen).
   function clearPreview() {
     dispatch({ type: 'clear-preview' });
+    revealedFor = null;
   }
 
   // A walk that ended at a border post opens the home screen on Where to.

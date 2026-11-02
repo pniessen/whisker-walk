@@ -468,6 +468,16 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.html();
     expect(snap.mock.calls.length).toBe(calls);
   });
+  it('a try-on keeps the menu picture: no snap on a tap in the picker', () => {
+    const snap = vi.fn((entries) => Object.fromEntries(entries.map((e) => [e.key, 'data:x'])));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    dr.html();
+    const before = snap.mock.calls.length;
+    dr.handleClick(click({ drAcc: 'wizard', drAct: 'try' }));
+    expect(dr.html()).toContain('(trying)');
+    expect(snap.mock.calls.slice(before).flatMap((c) => c[0]).filter((e) => e.wear)).toEqual([]);
+  });
   it('a plain tabby keeps the menu pictures and snaps nothing for the slots', () => {
     const snap = vi.fn(() => ({}));
     const { dr, progression } = real({ snapCustom: snap });
@@ -636,6 +646,15 @@ describe('createDressingRoom: her own cats and the builder', () => {
       const done = stripRoot({ tileLeft: 900 });
       dr.afterRender(done.root);
       expect(done.strip.scrollLeft).toBe(592);
+    });
+    it('after a walk (clearPreview at Start) her cat is brought into view again', () => {
+      const { dr } = real();
+      dr.afterRender(stripRoot({ tileLeft: 900 }).root);
+      dr.captureFocus(stripRoot({ tileLeft: 900, scrollLeft: 0 }).root); // the hidden strip reads 0
+      dr.clearPreview();
+      const home = stripRoot({ tileLeft: 900 });
+      dr.afterRender(home.root);
+      expect(home.strip.scrollLeft).toBe(592);
     });
     it('does nothing in the builder or without layout (test fakes)', () => {
       const { dr } = real();

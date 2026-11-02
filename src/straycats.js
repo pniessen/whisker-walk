@@ -303,7 +303,6 @@ function shuffled(arr, rng) {
   return a;
 }
 
-// A collar is too small to be worth a shadow draw (assignShadowCastersFor honours noCast).
 // spreadOffShore(area, rx, rz, p) -> { x, z } (Polish 3)
 //
 // A rolled spot in the water (or a keep-out) is pushed to the nearest dry
@@ -326,6 +325,7 @@ function spreadOffShore(area, rx, rz, p) {
     THREE.MathUtils.clamp(p.z + dz * k, b.minZ + 1, b.maxZ - 1));
 }
 
+// A collar is too small to be worth a shadow draw (assignShadowCastersFor honours noCast).
 function noCastCollar(group) {
   group.getObjectByName('collar')?.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
 }
