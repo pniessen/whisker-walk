@@ -533,6 +533,7 @@ describe('the Gorge: things to find, climb and nap in', () => {
       // horizon, the stream and the paths are the map itself)
       for (const o of scene.children) {
         if (o.position.x === 0 && o.position.z === 0) continue;
+        if (o.name === 'campRock') continue; // the camp's own rock (part 4)
         expect(inRect(r, o.position.x, o.position.z), `${o.name || o.type} at (${o.position.x}, ${o.position.z})`).toBe(false);
       }
     }

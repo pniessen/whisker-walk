@@ -56,11 +56,11 @@ export function clanGroundArea(area) {
 
 export function clanWalkableFor(area, areaId) {
   const pines = areaId === 'pines';
-  const ground = clanGroundArea(area);
+  const clanArea = clanGroundArea(area);
   return (x, z) => {
     if (!isWalkableAt(area, x, z)) return false;
-    if (ground?.keepOut) {
-      const p = keepOutPoint(ground, x, z);
+    if (clanArea?.keepOut) {
+      const p = keepOutPoint(clanArea, x, z);
       if (p.x !== x || p.z !== z) return false;
     }
     return !(pines && onTruceGround(x, z));

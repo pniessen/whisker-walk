@@ -238,14 +238,9 @@ describe('the ledge camp in the Gorge', () => {
     const ground = gorgeGround();
     const area = { colliders: [], ground };
     addCamp(scene, area, 'gorge');
-    expect(scene.children).toHaveLength(1);
-    const group = scene.children[0];
-    expect(group.name).toBe('clanCamp');
-    const meshes = [];
-    group.traverse((o) => { if (o.isMesh) meshes.push(o); });
-    expect(meshes.map((m) => m.name).sort()).toEqual(['campBedding', 'campRock']);
-    const rock = group.getObjectByName('campRock');
-    const bedding = group.getObjectByName('campBedding');
+    expect(scene.children.map((o) => o.name).sort()).toEqual(['campBedding', 'campRock']);
+    const rock = scene.getObjectByName('campRock');
+    const bedding = scene.getObjectByName('campBedding');
     expect(bedding.userData.noCast).toBe(true);
     expect(rock.userData.noCast).toBeFalsy();
     scene.updateMatrixWorld(true);
@@ -267,6 +262,18 @@ describe('the ledge camp in the Gorge', () => {
       expect(near, `${s.x},${s.z}`).toBeGreaterThan(0);
     }
     expect(area.colliders).toEqual([{ x: 8.3, z: 41.5, r: 0.6 }]);
+  });
+
+  it('the rock alone is footprinted: the bedding, 17 m off, does not swallow its decal', async () => {
+    const { scanFootprints } = await import('../src/render/contactshadows.js');
+    const scene = new THREE.Scene();
+    const ground = gorgeGround();
+    addCamp(scene, { colliders: [], ground }, 'gorge');
+    scene.updateMatrixWorld(true);
+    const fps = scanFootprints(scene, ground);
+    expect(fps).toHaveLength(1);
+    expect(fps[0].x).toBeCloseTo(8.3, 0);
+    expect(fps[0].z).toBeCloseTo(41.5, 0);
   });
 
   it('on flat ground (no ground given) the rock and the bedding stand at y 0', () => {

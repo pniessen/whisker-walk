@@ -170,21 +170,22 @@ function campRockMesh(rockSpot) {
   return rock;
 }
 
-// A ledge camp: ONE Group holding two meshes, the rock and the bedding, and
-// one collider, the rock (a cave den is the rock round it). The rock is
+// A ledge camp: two top-level meshes, the rock and the bedding, and one
+// collider, the rock (a cave den is the rock round it). They are separate
+// children of the scene, not a Group, because the contact-shadow scan boxes
+// one top-level child at a time and the bedding sits ~17 m from the rock: in
+// one Group it was over MAX_SPAN and the rock lost its decal. The rock is
 // seated on the ground under its own centre. The bedding is one merged mesh at
-// the origin, so seating the group's children would lift it by the ground at
+// the origin, so seating it as the rock is seated would lift it by the ground at
 // (0, 0), the floor: instead each disc is baked in at its seat, at the ground
 // under that seat (ruling P3). Out of the shadow pass: it is flat.
 function addLedgeCamp(scene, area, L) {
   const ground = area.ground ?? null;
   const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
-  const group = new THREE.Group();
-  group.name = 'clanCamp';
 
   const rock = campRockMesh(L.rock);
   if (ground) seatOnGround(rock, ground);
-  group.add(rock);
+  scene.add(rock);
 
   const discs = [...L.seats.elders, ...L.seats.kits].map((s) => {
     const g = new THREE.CylinderGeometry(BEDDING.r, BEDDING.r, BEDDING.h, BEDDING.segments);
@@ -196,9 +197,7 @@ function addLedgeCamp(scene, area, L) {
   const bedding = new THREE.Mesh(bedGeo, litMaterial(BEDDING.color, surfaceProps('foliage')));
   bedding.name = 'campBedding';
   bedding.userData.noCast = true;
-  group.add(bedding);
-
-  scene.add(group);
+  scene.add(bedding);
   area.colliders.push({ x: L.rock.x, z: L.rock.z, r: L.rock.r });
 }
 

@@ -2321,12 +2321,16 @@ GaleClan (the patrol on the ring). Draws (shadow / scene), triangles, frame ms
 | Pines spawn, zoom 1 (same hour) | 662 (119/529) 170,762, 291 ms | | 564, 299 ms |
 
 - **⚠️ The look-down is more than 10% over part 3's last reading on three of
-  four walks.** Draws: 553-641 against part 3's 543 after the retune (+2%,
+  four walks by draws, and on all four by frame time.** Draws: 553-641 against part 3's 543 after the retune (+2%,
   +18%, +14%, +12%); still well under part 3's 772-774 before it, and under
   the Pines spawn read the same hour (662). Frame time: 252-263 ms against
   228 ms (+11% to +15%); the Pines spawn read 291 ms this hour against 299 ms
-  in part 3's hour, so the machine was no slower. Per the plan this is for
-  the controller to rule on; the build did not stop.
+  in part 3's hour, so the machine was no slower. Ruling: accepted, not
+  stopping. Total draws stay under part 3's pre-retune 772 and the Pines spawn
+  (662); the extra is the 16 clan cats and the patrol (~17 draws per cat),
+  which replace strays one for one. The owner's iPhone 18 check (HIGH, 60 fps
+  at the camp and on the clifftop look-down) is the test; if it drops frames,
+  the follow-up is to cull or LOD distant clan cats or drop their shadows.
 - **What the clan costs.** At the look-down, hiding the camp, the sixteen
   clan cats and the patrol (17-18 objects) drops draws from 545-608 to
   273-319: each cat is about 17 draws (shadow and scene), and the cats on the
