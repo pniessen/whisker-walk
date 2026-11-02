@@ -175,8 +175,11 @@
     // from the truce path's last bend, looking down the bay to the island and
     // its bridge
     pines: '-6,1.6,-2,28,1.0,28',
-    // from the clifftop's lip, looking south down the gorge
-    gorge: '3,13.8,-26,-8,2,20',
+    // high over the gorge's north end, looking south down the floor: the
+    // stream, the path, the stepping stones and pines (the card picture). The
+    // first view, from the clifftop's lip '3,13.8,-26,-8,2,20', was half bare
+    // rock
+    gorge: '-3,15,-40,-6,0,0',
   };
   const c = (params.get('cam') || VIEWS[id]).split(',').map(Number);
   if (params.has('bare')) document.getElementById('hud').remove();
