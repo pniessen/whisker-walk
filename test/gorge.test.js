@@ -52,7 +52,7 @@ const { GORGE_SPAWN, GORGE_BOUNDS, FLOOD_STEP: GORGE_FLOOD_STEP, floodGorge } = 
 
 const {
   build, SPAWN, GORGE_WATERS, GORGE_PATHS, GORGE_HORIZON, GORGE_KEEP_CLEAR, GORGE_KEEP_CLEAR_RECTS, GORGE_HIDES,
-  gorgeTrees, gorgeTors, gorgeScree,
+  gorgeTrees, gorgeTors, gorgeScree, gorgeMeadow,
 } = gorge;
 
 const built = () => {
@@ -1527,4 +1527,81 @@ describe('Gorge palette (polish #1b)', () => {
   it('keeps the path lighter than the floor so it reads', () => {
     expect(lum(PATH_STYLE.color) - lum(GORGE_FLOOR_COLOR)).toBeGreaterThanOrEqual(0.06);
   });
+});
+
+describe('Gorge meadow (polish #1b)', () => {
+  const PATH_HALF = 1.5;
+  const meadow = gorgeMeadow();
+  const inRectXZ = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+  const nearPath = (x, z) => Math.min(...GORGE_PATHS.map((s) => segDist(x, z, ...s)));
+  const nearKeep = (x, z) => Math.min(...GORGE_KEEP_CLEAR.map(([px, pz]) => Math.hypot(x - px, z - pz)));
+
+  it('is memoised, frozen and deterministic', async () => {
+    expect(gorgeMeadow()).toBe(meadow);
+    expect(Object.isFrozen(meadow)).toBe(true);
+    expect(Object.isFrozen(meadow.patches)).toBe(true);
+    expect(Object.isFrozen(meadow.tufts)).toBe(true);
+    vi.resetModules();
+    const fresh = await import('../src/world/gorge.js?fresh-meadow');
+    expect(fresh.gorgeMeadow()).toEqual(meadow);
+  }, 120_000);
+
+  it('keeps every patch and tuft clear of paths, finds and rooms, on the ground', () => {
+    const ground = gorge.build(new THREE.Scene()).ground;
+    for (const p of meadow.patches) {
+      const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2;
+      const at = `patch (${cx}, ${cz})`;
+      expect(nearKeep(cx, cz), at).toBeGreaterThanOrEqual(1.2);
+      expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.2);
+      for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, cx, cz), at).toBe(false);
+      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + 0.006, 9);
+    }
+    for (const t of meadow.tufts) {
+      const at = `tuft (${t.x}, ${t.z})`;
+      expect(nearKeep(t.x, t.z), at).toBeGreaterThanOrEqual(1.2);
+      expect(nearPath(t.x, t.z), at).toBeGreaterThanOrEqual(PATH_HALF);
+      for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, t.x, t.z), at).toBe(false);
+      expect(inRectXZ(WIDE_LEDGE_RECT, t.x, t.z), at).toBe(false);
+      expect(t.s).toBeGreaterThanOrEqual(0.12);
+      expect(t.s).toBeLessThanOrEqual(0.22);
+    }
+  }, 120_000);
+
+  it('actually dresses the top, the banks and the ledges', () => {
+    expect(meadow.patches.filter((p) => p.y > 1).length).toBeGreaterThanOrEqual(150);
+    expect(meadow.patches.filter((p) => p.y < 1).length).toBeGreaterThan(50);
+    expect(meadow.tufts.length).toBeGreaterThanOrEqual(40);
+    expect(meadow.tufts.length).toBeLessThanOrEqual(140);
+  });
+
+  it('is one unshadowed, light mesh with one material', () => {
+    const scene = new THREE.Scene();
+    gorge.build(scene);
+    const m = scene.getObjectByName('gorgeMeadow');
+    expect(m.isMesh).toBe(true);
+    expect(Array.isArray(m.material)).toBe(false);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.receiveShadow).toBe(true);
+    expect(m.material.map).toBeNull();
+    expect(m.material.vertexColors).toBe(true);
+    expect(m.geometry.attributes.position.count / 3).toBeLessThanOrEqual(6000);
+    // draws before the pawprints (-2) and contact shadows (-1)
+    expect(m.renderOrder).toBeLessThan(-2);
+  }, 120_000);
+
+  it('adds no contact-shadow decal', async () => {
+    const { createContactShadows } = await import('../src/render/contactshadows.js');
+    const count = (withMeadow) => {
+      const scene = new THREE.Scene();
+      const area = gorge.build(scene);
+      if (!withMeadow) scene.remove(scene.getObjectByName('gorgeMeadow'));
+      const cs = createContactShadows(scene, { ground: area.ground });
+      let n = 0;
+      scene.traverse((o) => { if (o.isInstancedMesh && o.userData.contactDecal) n += o.count; });
+      cs.dispose?.();
+      return n;
+    };
+    expect(count(true)).toBe(count(false));
+  }, 120_000);
 });

@@ -79,7 +79,7 @@ describe('Gorge gameplay guard', () => {
     expect(now.specSha).toBe(fx.specSha);
     expect(now.groundSha).toBe(fx.groundSha);
     expect(closeDiffs(now.area, fx.area)).toEqual([]);
-    expect(now.meshes).toBe(54);
+    expect(now.meshes).toBe(55);
     expect(now.casters).toBe(36);
     expect(now.rockMeshes).toEqual(['ledgeTops', 'lips', 'rockFaces']);
   }, 120_000);

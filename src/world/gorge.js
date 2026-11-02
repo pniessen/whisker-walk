@@ -4,7 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
   WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, CLAN_STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN,
-  FLOOR, CLIFFTOP, WEST_TOP, gorgeGround, mapShapes,
+  FLOOR, CLIFFTOP, WEST_TOP, LOOKOUT_LEDGE, TURN, gorgeGround, mapShapes,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { postsFor } from '../borderposts.js';
@@ -430,6 +430,156 @@ export function gorgeScree() {
   return screeOnce;
 }
 
+// --- the meadow (polish #1b) ---------------------------------------------------
+// Ground dressing in one flat, unshadowed mesh: colour patches over the
+// clifftop (which the rock draws as one flat colour), green strips along both
+// banks of the stream, and small grass tufts on the clifftop and the two open
+// ledges. Seeded by its own name; every candidate draws all its numbers
+// whether it is kept or not. Visual only: nothing here is read by the walk.
+const MEADOW_LIFT = 0.006;
+const CLIFF_INSET = 0.6;
+const BANK_BANDS = Object.freeze([[-12, -9.6], [-7.9, -5.5]]);
+const TUFT_TRIES = 420;
+const TUFT_CAP = 140;
+const MEADOW_SAND = 0xc2ad86;
+const MEADOW_DRY = 0xa8a46a;
+const MEADOW_GREEN = 0x8a9a5c;
+const BANK_GREEN = 0x7f9358;
+const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
+const NOISE_N = 16;
+const NOISE_SCALE = 4; // metres per lattice step: patches 3-5 m across
+
+let meadowOnce = null;
+export function gorgeMeadow() {
+  if (meadowOnce) return meadowOnce;
+  const g = shapeGround();
+  const rng = mulberry32(seedFromCode('gorge-meadow'));
+  const patches = [];
+  const clear = (x, z) => pathDist(x, z) >= PATH_W / 2 + 0.2 && keepClearDist(x, z) >= 1.2 && holeDist(x, z) > 0;
+  // the clifftop: 1 m cells inset off the lips
+  const x0 = CLIFF.minX + CLIFF_INSET, x1 = CLIFF.maxX - CLIFF_INSET;
+  const z0 = CLIFF.minZ + CLIFF_INSET, z1 = CLIFF.maxZ - CLIFF_INSET;
+  for (let ax = x0; ax < x1 - 1e-9; ax += 1) {
+    for (let az = z0; az < z1 - 1e-9; az += 1) {
+      const bx = Math.min(ax + 1, x1), bz = Math.min(az + 1, z1);
+      const cx = (ax + bx) / 2, cz = (az + bz) / 2;
+      rng(); // every cell draws its number whether kept or not
+      if (g.y(cx, cz) !== CLIFFTOP || !clear(cx, cz) || !oneShape(cx, cz, 0.7)) continue;
+      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT }));
+    }
+  }
+  // the banks: 1 m cells on the floor either side of the water
+  for (const [bx0, bx1] of BANK_BANDS) {
+    for (let ax = bx0; ax < bx1 - 1e-9; ax += 1) {
+      for (let az = -50; az < 50; az += 1) {
+        const bx = Math.min(ax + 1, bx1);
+        const cx = (ax + bx) / 2, cz = az + 0.5;
+        rng();
+        if (g.y(cx, cz) !== FLOOR || !clear(cx, cz) || rectDist(STEPPING_STONES, cx, cz) < 0.5 || !oneShape(cx, cz, 0.7)) continue;
+        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT }));
+      }
+    }
+  }
+  // the tufts: the clifftop (mostly) and the Lookout and the turn
+  const zones = [[CLIFF, CLIFFTOP, 0.8], [LOOKOUT_LEDGE, LOOKOUT_LEDGE.y0, 0.9], [TURN, TURN.y0, 1]];
+  const tufts = [];
+  for (let i = 0; i < TUFT_TRIES; i++) {
+    const u = rng(), ux = rng(), uz = rng(), us = rng(), ur = rng();
+    if (tufts.length >= TUFT_CAP) continue;
+    const [zr, zy] = zones.find((q) => u < q[2]);
+    const x = r2(zr.minX + 0.5 + ux * (zr.maxX - zr.minX - 1));
+    const z = r2(zr.minZ + 0.5 + uz * (zr.maxZ - zr.minZ - 1));
+    if (g.y(x, z) !== zy || inRect(WIDE_LEDGE_RECT, x, z) || holeDist(x, z) <= 0) continue;
+    if (keepClearDist(x, z) < 1.2 || pathDist(x, z) < PATH_W / 2 || !oneShape(x, z, 0.4)) continue;
+    tufts.push(Object.freeze({ x, z, y: zy, s: r2(0.12 + us * 0.1), rot: r2(ur * Math.PI * 2) }));
+  }
+  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts) });
+  return meadowOnce;
+}
+
+// Value noise over the clifftop: a wrapped lattice drawn from the meadow's own
+// stream, smoothly interpolated, so colour drifts in 3-5 m patches.
+let latticeOnce = null;
+function meadowNoise(x, z) {
+  if (!latticeOnce) {
+    const r = mulberry32(seedFromCode('gorge-meadow-noise'));
+    latticeOnce = Array.from({ length: NOISE_N * NOISE_N }, () => r());
+  }
+  const fx = x / NOISE_SCALE, fz = z / NOISE_SCALE;
+  const ix = Math.floor(fx), iz = Math.floor(fz);
+  const sm = (t) => t * t * (3 - 2 * t);
+  const tx = sm(fx - ix), tz = sm(fz - iz);
+  const at = (i, j) => latticeOnce[(((j % NOISE_N) + NOISE_N) % NOISE_N) * NOISE_N + (((i % NOISE_N) + NOISE_N) % NOISE_N)];
+  const a = at(ix, iz) + (at(ix + 1, iz) - at(ix, iz)) * tx;
+  const c = at(ix, iz + 1) + (at(ix + 1, iz + 1) - at(ix, iz + 1)) * tx;
+  return a + (c - a) * tz;
+}
+
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+function topColor(out, x, z, shade) {
+  const v = meadowNoise(x, z);
+  if (v < 0.5) out.set(MEADOW_SAND).lerp(_cb.set(MEADOW_DRY), v * 2);
+  else out.set(MEADOW_DRY).lerp(_cb.set(MEADOW_GREEN), (v - 0.5) * 2);
+  return out.multiplyScalar(shade);
+}
+function bankColor(out, x, z) {
+  const t = Math.min(1, rectDist(STREAM, x, z) / 2.4);
+  return out.set(BANK_GREEN).lerp(_cb.set(GORGE_FLOOR_COLOR), t * t);
+}
+
+function meadowMesh() {
+  const { patches, tufts } = gorgeMeadow();
+  const pos = [], col = [];
+  const vert = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  const shadeRng = mulberry32(seedFromCode('gorge-meadow-shade'));
+  for (const p of patches) {
+    const bank = p.y < 1;
+    const shade = 0.97 + shadeRng() * 0.06;
+    const corner = (x, z) => (bank ? bankColor(_ca, x, z) : topColor(_ca, x, z, shade));
+    const q = [[p.x0, p.z0], [p.x1, p.z0], [p.x1, p.z1], [p.x0, p.z1]].map(([x, z]) => [x, z, corner(x, z).clone()]);
+    for (const k of [0, 2, 1, 0, 3, 2]) vert(q[k][0], p.y, q[k][1], q[k][2]);
+  }
+  const lo = _ca.set(TUFT_COLORS[0]).clone(), hi = _cb.set(TUFT_COLORS[1]).clone();
+  const tc = new THREE.Color();
+  for (const t of tufts) {
+    tc.copy(lo).lerp(hi, (t.s - 0.12) / 0.1);
+    const tip = tc.clone().multiplyScalar(1.12);
+    for (let k = 0; k < 3; k++) {
+      const a = t.rot + (k * Math.PI * 2) / 3;
+      const lean = 0.05 + 0.03 * k;
+      const w = 0.025;
+      const bx = t.x + Math.cos(a) * 0.03, bz = t.z + Math.sin(a) * 0.03;
+      const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
+      const tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
+      const h = t.s * (0.85 + 0.15 * k);
+      const y = t.y + MEADOW_LIFT;
+      // front and back, so a blade shows from both sides
+      vert(bx - px, y, bz - pz, tc); vert(bx + px, y, bz + pz, tc); vert(tx, y + h, tz, tip);
+      vert(bx + px, y, bz + pz, tc); vert(bx - px, y, bz - pz, tc); vert(tx, y + h, tz, tip);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const up = new Array(pos.length / 3).fill(0).flatMap(() => [0, 1, 0]);
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(up, 3));
+  // The 'grass' preset's light response with no map (surfaceProps leaves it
+  // off): a texture would fight the vertex colours.
+  const mat = litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('grass') });
+  // Draws before the pawprints (-2) and contact shadows (-1), and a little
+  // nearer the camera than what it lies on, so the paths (y 0.01) still win.
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -1;
+  mat.polygonOffsetUnits = -1;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'gorgeMeadow';
+  mesh.renderOrder = -3;
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  mesh.userData.noCast = true;
+  return mesh;
+}
+
 // --- inside the deep caves (part 3, C5) -----------------------------------------
 // Each deep cave's chamber has crystals at the foot of its walls, in the
 // cave's own colour, and the Glitter Cave has gold flecks on its walls too.
@@ -695,6 +845,9 @@ export function build(scene, { water = {}, wind } = {}) {
   const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'));
   scree.name = 'screeBed';
   scene.add(scree);
+
+  // --- the meadow ---------------------------------------------------------------
+  scene.add(meadowMesh());
 
   // --- inside the deep caves ----------------------------------------------------
   // One group each, at the scene root, hidden until her cat is near its cave
