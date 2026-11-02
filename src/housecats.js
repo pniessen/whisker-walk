@@ -72,12 +72,14 @@ export function wanderStrayCount(loners, fedHere, hasWanderer) {
 export const WANDER_STEP = 6;
 export const WANDER_CAMP_GAP = 6;
 
-// A point WANDER_STEP m from spawn toward the middle (0, 0); the caller passes
-// it through clearSpot.
+// A point WANDER_STEP m from spawn toward the middle (0, 0), stopping at the
+// middle when spawn is nearer it than that; the caller passes it through
+// clearSpot.
 export function wanderStart(spawn) {
   const d = Math.hypot(spawn.x, spawn.z);
   if (d === 0) return { x: spawn.x - WANDER_STEP, z: spawn.z };
-  return { x: spawn.x - (spawn.x / d) * WANDER_STEP, z: spawn.z - (spawn.z / d) * WANDER_STEP };
+  const step = Math.min(WANDER_STEP, d);
+  return { x: spawn.x - (spawn.x / d) * step, z: spawn.z - (spawn.z / d) * step };
 }
 
 // wanderSpotFor(start, isWalkable, camp) -> {x, z} or null. start if it is
