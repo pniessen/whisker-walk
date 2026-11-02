@@ -268,6 +268,11 @@ function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
   return freq;
 }
 
+// The stalk's stride as a share of the walk's (amplitude and its cap; the
+// frequency is the walk's): tabby to Digit, every crouched point stays under
+// the back's top at every phase and speed (folds.test.js).
+const STALK_SWING = 0.3;
+
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
 
@@ -296,9 +301,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
-  // folded leg, and roll drops its +-ROLL.tuck leg rotations (stalk still swings
-  // the crouched legs through walkGait); a rig without them (Hagrid) keeps
-  // today's lines.
+  // folded leg, and roll drops its +-ROLL.tuck leg rotations (a walking stalk
+  // swings the crouched legs at STALK_SWING of the walk's stride); a rig
+  // without them (Hagrid) keeps today's lines.
   const f = FOLD_BY_STATE[state];
   legs.forEach((leg, i) => applyFold(leg, f ? f[i < 2 ? 0 : 1] : 'stand'));
   const folds = !!legs[0].userData.folds;
@@ -594,7 +599,14 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
 
   if (walking) {
-    const freq = walkGait(legs, t, moveSpeed);
+    // A creeping stalk: a folded (crouched) leg takes the walk's stride damped
+    // to STALK_SWING of it, small low steps. At the full swing a crouched
+    // thigh or hock rose out of the shoulder or rump (Digit's up to ~3.6 cm,
+    // about 2 cm over the back's own top) as the leg rocked about its hip. A
+    // rig without folds (Hagrid) keeps today's full swing.
+    const freq = state === 'stalk' && folds
+      ? walkGait(legs, t, moveSpeed, 1, STALK_SWING, 0.6 * STALK_SWING)
+      : walkGait(legs, t, moveSpeed);
     if (!reducedMotion) {
       body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
       body.rotation.z = Math.sin(t * freq * 0.5) * 0.03;
