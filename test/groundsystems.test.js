@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 // Gorge part 1: every system that stands on the ground reads ground.y(x, z).
 // Proven on the test-only height fixture (test/fixtures/heightfield.js); the
@@ -1293,5 +1293,149 @@ describe('cats lean into slopes', () => {
   it('updateAvatar hands its eased slope tilt to applyWaterLook', () => {
     const src = readFileSync(new URL('../src/game/avatar.js', import.meta.url), 'utf8');
     expect(src).toContain('applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount, avatarSlopeTilt(s.ground, cat, player, s, dt));');
+  });
+});
+
+// Task 10: the whole-branch proof. A source sweep that every factory the walk
+// builds on the ground is handed the walk's ground, and that no ground actor
+// anywhere in src/ still writes a literal world height.
+describe('the whole branch stands on the ground', () => {
+  const SRC = new URL('../src/', import.meta.url);
+  const read = (rel) => readFileSync(new URL(rel, SRC), 'utf8');
+
+  // Every call of `name(` in src, as the balanced text from `name(` to its `)`.
+  function callsOf(src, name) {
+    const out = [];
+    let at = src.indexOf(name + '(');
+    while (at !== -1) {
+      let depth = 0;
+      let i = at + name.length;
+      for (; i < src.length; i++) {
+        if (src[i] === '(') depth++;
+        else if (src[i] === ')' && --depth === 0) break;
+      }
+      out.push(src.slice(at, i + 1));
+      at = src.indexOf(name + '(', i);
+    }
+    return out;
+  }
+
+  it('every system that stands on the ground was handed the ground', () => {
+    const walk = read('game/walk.js');
+    expect(walk).toMatch(/const ground = groundOf\(areaData\);/);
+    expect(walk).toMatch(/player\.setGround\(ground\);/);
+    expect(walk).toMatch(/const session = \{\s*scene, areaData, ground,/);
+    // Factories that take the ground in an options object: every call in
+    // walk.js names `ground` (the walk's groundOf(areaData)).
+    const takesGround = [
+      'createContactShadows', 'addBorderDressing', 'createCritters', 'createStrayCats',
+      'createClanCats', 'createRemoteCats', 'createGifts', 'createToy', 'createTippables',
+      'createCarryables', 'createKnockables', 'createPlayerMarks', 'createPushThroughs',
+      'createRests', 'createGoldMice', 'createIntruders', 'createFightCam',
+      'createBorderMarks', 'createRivalPatrol', 'createYardDog', 'createKittenEncounter',
+      'createRace',
+    ];
+    for (const name of takesGround) {
+      const calls = callsOf(walk, name);
+      expect(calls.length, name).toBeGreaterThan(0);
+      for (const call of calls) expect(call, name).toMatch(/\bground\b/);
+    }
+    // createBorderMarks has two option objects (low tier and the rest).
+    for (const call of callsOf(walk, 'createBorderMarks')) {
+      expect(call.match(/\bground\b/g)?.length, call).toBe(2);
+    }
+    // The fight takes it as `terrain` (its own `ground` is the clan-ground test).
+    const fights = callsOf(walk, 'createClanFight');
+    expect(fights.length).toBe(1);
+    expect(fights[0]).toMatch(/\bterrain: ground,/);
+    // Ghosts are built from the session (the late remote join).
+    const ghosts = callsOf(walk, 'createGhosts');
+    expect(ghosts.length).toBe(1);
+    expect(ghosts[0]).toMatch(/ground: mySession\.ground/);
+    // Weather has no options object: ground is its 6th positional arg.
+    const weather = callsOf(walk, 'createWeather');
+    expect(weather.length).toBe(1);
+    expect(weather[0]).toMatch(/reducedMotion, ground\)$/);
+    expect(read('weather.js')).toMatch(/export function createWeather\(scene, sun, condition, rng, reducedMotion = false, ground = FLAT_GROUND\)/);
+    // The shadow fit is fed the ground under her cat every frame.
+    expect(read('main.js')).toMatch(/session\.shadows\.update\(session\.ground\.y\(player\.position\.x, player\.position\.z\), dt\)/);
+
+    // Exempt from the call pin: these read the ground off the area they are
+    // given, so walk.js's areaData is enough. Pinned in their own source.
+    expect(read('straycats.js')).toMatch(/ground = groundOf\(area\),/);
+    expect(read('ghosts.js')).toMatch(/const ground = opts\?\.ground \?\? groundOf\(area\);/);
+    expect(read('clancats.js')).toMatch(/ground = area\?\.ground \?\? null,/);
+    expect(read('scent.js')).toMatch(/const ground = groundOf\(area\);/);
+    expect(read('secrets.js')).toMatch(/const ground = groundOf\(area\);/);
+    for (const f of ['render/pawprints.js', 'render/grass.js', 'render/ambient.js']) {
+      expect(read(f), f).toMatch(/const ground = groundOf\(areaData\);/);
+    }
+    for (const [name, f] of [['createScent', 'scene, areaData, walkRng'], ['createSecrets', 'scene, areaData, '],
+      ['createPawPrints', 'areaData'], ['createGrass', 'areaData'], ['createAmbient', 'areaData']]) {
+      const calls = callsOf(walk, name);
+      expect(calls.length, name).toBe(1);
+      expect(calls[0], name).toContain(f);
+    }
+  });
+
+  // Files that may write a literal world height, each with its reason.
+  const EXEMPT = [
+    [/^ground\.js$/, 'the ground engine itself'],
+    [/^(den|dencats)\.js$|^game\/denlive\.js$|^world\/den\.js$/, 'the den keeps absolute heights (R14)'],
+    [/^(skylife|weather)\.js$|^render\/clouds\.js$/, 'sky modules keep absolute heights (R14)'],
+    [/^cat\//, 'the cat model: rig offsets and the water look, all relative to the cat'],
+    [/^world\//, 'static scenery builders, built at y 0; plan 2 seats them with seatOnGround after each builder call'],
+    [/^thumbnails\.js$|^ui\/catstage\.js$/, 'off-world stages (album thumbnails, the cat builder), not in a walk'],
+  ];
+  // Remaining literal heights in scanned files: local child offsets inside a
+  // group (the group itself is placed on the ground), a measuring pose, or a
+  // sky object. Per file: the receivers allowed to take a literal, and why.
+  const ALLOWED = {
+    'critters.js': [['ear', 'snout', 'tail', 'body', 'head', 'eye', 'leg', 'claw', 'arm'], 'mesh parts of a critter group; the group is placed on ground.y'],
+    'gifts.js': [['body', 'bandA', 'bandB', 'bow'], 'gift box parts; the gift group is placed on ground.y'],
+    'goldmice.js': [['nose', 'tail'], 'golden mouse parts; the mouse group sits at worldY'],
+    'tippables.js': [['pot', 'plant', 'bloom', 'canBody', 'spout', 'bin', 'lid'], 'tippable parts; the group sits at gy'],
+    'yarddog.js': [['head', 'tail', 'leg'], 'dog parts; the dog group is placed on ground.y'],
+    'straycats.js': [['glow'], 'the legendary glow, a child decal under the stray group'],
+    'render/playermarks.js': [['d'], 'flatDisc: a disc inside a mark group whose origin is placed on ground.y'],
+    'knockables.js': [['group'], 'liftFor measures a pose with the group at the origin, before it joins the scene'],
+    'game/walk.js': [['marker', 'questObject'], 'the quest marker is a child of the giver group; the quest object gets ground.y(t) added after its relative y'],
+    'secrets.js': [['body', 'leg', 'neck', 'head', 'horn', 'tail', 'hat', 'dome', 'ufoState.group'], 'unicorn and gnome parts are local to their group (placed on ground.y); the UFO is a sky object (R14)'],
+  };
+  const LITERAL_SET = /position\.set\([^,()]+, *-?[0-9.]+(e-?[0-9]+)?, *[^,()]+\)/;
+  const LITERAL_Y = /position\.y *= *-?[0-9.]+ *;/;
+
+  function srcFiles(dir = SRC, rel = '') {
+    const out = [];
+    for (const name of readdirSync(dir)) {
+      const url = new URL(name, dir);
+      if (statSync(url).isDirectory()) out.push(...srcFiles(new URL(name + '/', dir), rel + name + '/'));
+      else if (name.endsWith('.js')) out.push(rel + name);
+    }
+    return out;
+  }
+
+  it('no ground actor in src writes a literal height', () => {
+    const unexpected = [];
+    const used = new Set();
+    for (const f of srcFiles()) {
+      if (EXEMPT.some(([re]) => re.test(f))) continue;
+      read(f).split('\n').forEach((line, i) => {
+        const t = line.trim();
+        if (t.startsWith('//')) return;
+        if (!LITERAL_SET.test(t) && !LITERAL_Y.test(t)) return;
+        const receiver = t.match(/^([\w.]+?)\.position\./)?.[1];
+        if (receiver && ALLOWED[f]?.[0].includes(receiver)) used.add(f + ':' + receiver);
+        else unexpected.push(`${f}:${i + 1}: ${t}`);
+      });
+    }
+    expect(unexpected).toEqual([]);
+    // No stale allow-list entry: every receiver still names a real hit.
+    const listed = Object.entries(ALLOWED).flatMap(([f, [rs]]) => rs.map((r) => f + ':' + r));
+    expect([...used].sort()).toEqual(listed.sort());
+    // The exempt list is not hiding the actors: these files are scanned.
+    for (const f of ['player.js', 'rivalcats.js', 'intruders.js', 'remotecats.js', 'kitten.js', 'ghosts.js', 'toy.js', 'race.js', 'critters.js', 'straycats.js']) {
+      expect(EXEMPT.some(([re]) => re.test(f)), f).toBe(false);
+    }
   });
 });
