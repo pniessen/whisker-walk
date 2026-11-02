@@ -340,6 +340,27 @@ describe('createClanCats', () => {
     });
   });
 
+  test("a co-walker's patrol buddy (remote) takes no slot: the nearer cats show", () => {
+    withFakeDocument(() => {
+      const cats = spawn({ showNames: true });
+      const { p } = crowdedSpot(cats);
+      const dist = (c) => c.group.position.distanceTo(p);
+      const pool = cats.list.filter((c) => PATROL_OK.has(c.rank) && dist(c) < 4);
+      const buddy = pool.sort((a, b) => dist(b) - dist(a))[0] ?? cats.list.find((c) => PATROL_OK.has(c.rank));
+      buddy.group.position.copy(p).add(new THREE.Vector3(3, 0, 0));
+      const target = new THREE.Object3D();
+      target.position.copy(p);
+      expect(cats.startBuddy(buddy, target, { remote: true })).toBe(true);
+      cats.update(0, 0, p);
+      const nearest = cats.list.filter((c) => c !== buddy && dist(c) < 4).sort((a, b) => dist(a) - dist(b));
+      expect(nearest.length).toBeGreaterThanOrEqual(2);
+      expect(dist(nearest[1])).toBeLessThan(dist(buddy));
+      expect(nearest[0].tag.visible).toBe(true);
+      expect(nearest[1].tag.visible).toBe(true);
+      expect(buddy.tag.visible).toBe(false);
+    });
+  });
+
   test('camp-seated cats are noCast; roamers are not', () => {
     for (const c of spawn().list) {
       const flags = [];

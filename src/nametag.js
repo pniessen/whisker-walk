@@ -163,22 +163,38 @@ export const CROSS_NAME_TAG_RANGE = 12;
 export const CAMP_TAG_MAX = 2;
 export const TAG_FADE_M = 1;
 // entries: [{ d, range, keep }] -> Map<entry, opacity>. Entries absent from the
-// map are hidden. In range only; `keep` first, then nearest; at most `max`.
-// The nearest shown entry is always fully opaque.
-export function tagBudget(entries, max = CAMP_TAG_MAX) {
-  const out = new Map();
+// map are hidden. In range only; `keep` first, then nearest (ties by list
+// order); at most `max`. The nearest shown entry is always fully opaque.
+// `out`: a Map to fill (cleared first), so a per-frame caller allocates
+// nothing; a fresh one when left out.
+const picked = []; // scratch: the indices chosen so far (no per-call allocation)
+// Whether entry i (e) goes before entry j (f): keep first, then nearer, then earlier.
+const before = (e, i, f, j) => (e.keep !== f.keep ? !!e.keep : e.d !== f.d ? e.d < f.d : i < j);
+export function tagBudget(entries, max = CAMP_TAG_MAX, out = new Map()) {
+  out.clear();
   if (!entries || !(max > 0)) return out;
-  const inRange = entries.filter((e) => e && e.d < e.range);
-  const order = inRange.map((e, i) => ({ e, i }))
-    .sort((a, b) => (b.e.keep ? 1 : 0) - (a.e.keep ? 1 : 0) || a.e.d - b.e.d || a.i - b.i)
-    .slice(0, max)
-    .map((x) => x.e);
+  // max is small (2): pick the best unpicked in-range entry max times, a
+  // stable partial selection sort with no arrays or wrappers built
+  picked.length = 0;
   let nearest = null;
-  for (const e of order) if (!nearest || e.d < nearest.d) nearest = e;
-  for (const e of order) {
+  for (let k = 0; k < max; k++) {
+    let bi = -1;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (!e || !(e.d < e.range) || picked.includes(i)) continue;
+      if (bi < 0 || before(e, i, entries[bi], bi)) bi = i;
+    }
+    if (bi < 0) break;
+    picked.push(bi);
+    const e = entries[bi];
+    if (!nearest || e.d < nearest.d) nearest = e;
+  }
+  for (const i of picked) {
+    const e = entries[i];
     const f = (e.range - e.d) / TAG_FADE_M;
     out.set(e, e === nearest ? 1 : Math.min(1, Math.max(0, f)));
   }
+  picked.length = 0;
   return out;
 }
 

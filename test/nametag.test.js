@@ -588,6 +588,14 @@ describe('tagBudget (camp declutter)', () => {
     const m = tagBudget([mk(1), far]);
     expect(m.get(far)).toBeCloseTo(0.5, 9);
   });
+  it('ties keep list order; a given Map is cleared, filled and returned', () => {
+    const es = [mk(1), mk(1), mk(1)];
+    const out = new Map([[{}, 0.3]]);
+    const m = tagBudget(es, 2, out);
+    expect(m).toBe(out);
+    expect([...m.keys()]).toEqual([es[0], es[1]]);
+    expect(tagBudget([mk(9)], 2, out).size).toBe(0);
+  });
   it('a lone tag near the range edge is still fully shown', () => {
     const e = mk(3.9);
     expect(tagBudget([e]).get(e)).toBe(1);
