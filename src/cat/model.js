@@ -7,6 +7,7 @@ import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
+import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
@@ -430,52 +431,95 @@ function addPrizeNeck(head, id, { k, y, z, ringR }) {
 }
 
 // Hagrid's russet feathers, shared with coatColor so his map dot matches.
-const HAGRID_FEATHER = 0xb06a30;
+const HAGRID_FEATHER = HEN.FEATHER;
+
+// Hagrid's neck items (Task 8, R12). Today's neck items hung round an
+// imaginary upright neck; the new neck leans back from under the skull into
+// the breast (about 48° at the collar), so the rings (collar, scarf, the
+// streamer scarf's band) go round it at HEN_*_U along it, and the front pieces
+// (bow tie, necktie, bandana, the scarf's tail, the streamers) sit on its
+// front surface at their own height. A ring square to the neck stands up
+// behind his head like a sash, so each is leaned HEN_RING_LEAN back toward
+// level; leaned, a ring needs R/cos(lean) to clear a neck of radius R, so
+// each is a size up (collar 0.135, scarf ×1.45, streamer band 0.145).
+const HEN_COLLAR_U = 0.5;
+const HEN_SCARF_U = 0.36;
+const HEN_RING_LEAN = 0.4;
+const HEN_SCARF_LEAN = 0.25; // higher up, a leaned scarf's front would rise into his throat
+const _Z = new THREE.Vector3(0, 0, 1);
+const _X = new THREE.Vector3(1, 0, 0);
+
+// The ring round the neck at u: its centre, its axis (the neck's downward
+// tangent leaned toward straight down) and its front (perpendicular to the
+// axis, forward and down).
+function neckRing(u, lean = HEN_RING_LEAN) {
+  const { centre, tangent } = henNeckAt(u);
+  const axis = tangent.clone().applyAxisAngle(_X, lean);
+  const front = new THREE.Vector3(0, -axis.z, axis.y);
+  if (front.z > 0) front.negate();
+  return { centre, axis, front };
+}
+
+// Turn `obj` so its local +z (a torus's axis) is the ring's axis at u, and
+// centre it there.
+function ringTheNeck(obj, u, lean = HEN_RING_LEAN) {
+  const { centre, axis } = neckRing(u, lean);
+  obj.rotation.set(0, 0, 0);
+  obj.quaternion.setFromUnitVectors(_Z, axis);
+  obj.position.copy(centre);
+  return obj;
+}
 
 // Hagrid the chicken honors the cat parts contract so the animator, camera,
 // and every interaction work unchanged: legs[0]/legs[1] are the real legs
 // (the 4-beat gait's front pair is exactly a bipedal alternating step),
 // legs[2]/legs[3] are hidden dummies, and the comb stands in for the ears.
+//
+// Body refinement, Task 8 (R10): a hen built from src/cat/hen.js's parts at
+// today's size: the body (breast, hackles and both folded wings in one
+// vertex-coloured mesh, so the animator's squash, nap and fluff carry them);
+// in the head group the skull and neck (one mesh, first child), the beak, the
+// wattles, the comb's front and back halves (earL/earR) and two eyes; seven
+// tail feathers in three meshes, all on tailPivots[0] (nap turns each nested
+// pivot by 0.55, so feathers on pivots 1 and 2 would fan apart); per leg a
+// feathery thigh with a scaly shank (first child) and a foot (userData.paw).
+// 15 meshes bare, one shared vertex-coloured material plus the plain beak.
 function buildChicken(accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }) {
   const g = new THREE.Group();
-  const FEATHER = HAGRID_FEATHER;
-  const CREAM = 0xe8d0a8;
-  const COMB = 0xd83a3a;
+  const painted = litMaterial(0xffffff, { vertexColors: true });
 
-  const body = ball(0.34, FEATHER, 0.9, 0.85, 1.1);
-  body.position.y = 0.42;
+  const body = new THREE.Mesh(henBodyGeometry(), painted);
+  body.position.y = HEN_BODY.Y;
+  body.scale.set(...HEN_BODY.SCALE);
   g.add(body);
-  const belly = ball(0.28, CREAM, 0.8, 0.65, 0.95);
-  belly.position.set(0, 0.32, -0.04);
-  g.add(belly);
-  for (const side of [-1, 1]) {
-    const wing = ball(0.16, 0x9a5826, 0.35, 0.7, 1.0, 8, 6);
-    wing.position.set(side * 0.28, 0.46, 0.02);
-    g.add(wing);
-  }
 
   const head = new THREE.Group();
-  const skull = ball(0.13, FEATHER, 1, 1.05, 1);
-  head.add(skull);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 6), mat(0xf2a04e));
-  beak.rotation.x = -Math.PI / 2;
-  beak.position.set(0, -0.01, -0.17);
+  const skullNeck = new THREE.Mesh(henSkullNeckGeometry(), painted);
+  head.add(skullNeck);
+  head.userData.neckBase = [...skullNeck.geometry.userData.neckBase];
+  const beak = new THREE.Mesh(henBeakGeometry(), mat(HEN.BEAK));
   head.add(beak);
-  const wattle = ball(0.035, COMB, 0.8, 1.2, 0.8, 6, 5);
-  wattle.position.set(0, -0.1, -0.12);
-  head.add(wattle);
-  let earL = null;
-  let earR = null;
-  for (let i = 0; i < 3; i++) {
-    const combBit = ball(0.035, COMB, 0.6, 1.1, 0.8, 6, 5);
-    combBit.position.set(0, 0.13 + (i === 1 ? 0.02 : 0), -0.06 + i * 0.06);
-    head.add(combBit);
-    if (i === 0) earL = combBit;
-    if (i === 2) earR = combBit;
+  const wattles = new THREE.Mesh(henWattlesGeometry(), painted);
+  wattles.name = 'wattles';
+  head.add(wattles);
+  // the comb's halves stand in for the ears; their geometry is counter-rolled
+  // by the resting ear roll, so at rest (±REST) the crest stands upright
+  const [combFront, combBack] = henCombHalves();
+  const earL = new THREE.Mesh(combFront, painted);
+  const earR = new THREE.Mesh(combBack, painted);
+  for (const [ear, s] of [[earL, 1], [earR, -1]]) {
+    ear.position.set(...HEN_COMB.PIVOT);
+    ear.rotation.z = s * HEN_COMB.REST;
+    head.add(ear);
   }
   for (const side of [-1, 1]) {
-    const eye = ball(0.022, 0x1a1a1e, 1, 1, 1, 6, 5);
+    // today's eye spots, so face items are untouched; turned to look out of
+    // the skull along its surface normal there
+    const eye = new THREE.Mesh(henEyeGeometry(), painted);
     eye.position.set(side * 0.09, 0.03, -0.1);
+    const [ax, ay, az] = HEN_SKULL;
+    const n = new THREE.Vector3(eye.position.x / (ax * ax), eye.position.y / (ay * ay), eye.position.z / (az * az)).normalize();
+    eye.quaternion.setFromUnitVectors(_Z, n);
     head.add(eye);
   }
   head.position.set(0, 0.78, -0.28);
@@ -484,16 +528,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   const legs = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
-    const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.3, 6), mat(0xf2a04e));
-    shank.position.y = -0.15;
-    leg.add(shank);
-    const foot = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.05, 4), mat(0xf2a04e));
-    foot.rotation.y = Math.PI / 4;
-    // -0.3 put the cone's underside at world y -0.025, i.e. Hagrid stood 2.5cm
-    // into the ground — the same defect the cat's paws had, measured the same
-    // way (Box3 over the built model). Hagrid is a playable avatar and gets the
-    // same fix.
-    foot.position.set(0, -0.2745, -0.04);
+    leg.add(new THREE.Mesh(henShankGeometry(), painted));
+    const foot = new THREE.Mesh(henFootGeometry(), painted);
+    foot.position.set(0, HEN_LEG.FOOT_Y, 0);
     leg.add(foot);
     leg.userData.paw = foot;
     leg.position.set(side * 0.1, 0.3, 0.02);
@@ -502,21 +539,19 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   }
   for (let i = 0; i < 2; i++) legs.push(new THREE.Group()); // hidden gait dummies
 
-  // tail: feather fan on the standard pivot chain (3 live pivots + 2 dummies)
+  // tail: the standard pivot chain (3 live pivots + 2 dummies); all seven
+  // feathers hang on the first, so nap's per-pivot wrap turns the fan whole
   const tail = new THREE.Group();
   const tailPivots = [];
   let parent = tail;
   for (let i = 0; i < 3; i++) {
     const pivot = new THREE.Group();
     pivot.position.z = i === 0 ? 0 : 0.05;
-    const feather = ball(0.12, i === 1 ? 0x9a5826 : FEATHER, 0.25, 1.15, 0.7, 6, 5);
-    feather.position.set((i - 1) * 0.09, 0.1, 0.06);
-    feather.rotation.x = 0.5;
-    pivot.add(feather);
     parent.add(pivot);
     tailPivots.push(pivot);
     parent = pivot;
   }
+  for (const geo of henTailGeometries()) tailPivots[0].add(new THREE.Mesh(geo, painted));
   for (let i = 0; i < 2; i++) tailPivots.push(new THREE.Group()); // pivot-count dummies
   tail.position.set(0, 0.52, 0.34);
   tail.rotation.x = -0.6;
@@ -527,9 +562,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // worth dressing, so body/back/feet items are skipped outright below rather
   // than crammed onto a bird frame.
   if (accessories.collar) {
-    const collar = buildCollar(accessories.collar, 0.12, 0.024, new THREE.Vector3(0, -0.05, -0.06));
-    collar.position.set(0, -0.13, 0.06);
-    head.add(collar);
+    // the ring goes square round the neck; the charm hangs at its front
+    const { axis, front } = neckRing(HEN_COLLAR_U);
+    const q = new THREE.Quaternion().setFromUnitVectors(_Z, axis);
+    const charm = front.clone().multiplyScalar(0.14).addScaledVector(axis, 0.03).applyQuaternion(q.clone().invert());
+    const collar = buildCollar(accessories.collar, 0.135, 0.024, charm);
+    collar.children[0].rotation.set(0, 0, 0);
+    head.add(ringTheNeck(collar, HEN_COLLAR_U));
   }
 
   // head: hats sit between the comb and the beak, scaled down for a chicken skull
@@ -601,38 +640,48 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(band);
   }
 
-  // neck: at the neck seam, just below the wattle — a chicken in a bowtie is the joke
+  // neck: on the new neck's front, just below the wattles — a chicken in a
+  // bowtie is the joke. Each front piece sits at its own height against the
+  // neck's front surface (henNeckFrontZ); the scarf's band rings the neck.
+  const KNOT_Y = -0.16;
+  const knotZ = henNeckFrontZ(KNOT_Y);
   if (accessories.neck === 'bandana') {
+    // the triangle's top face spans z -0.12..+0.06 about its centre: its back
+    // edge goes just in front of the neck
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.15, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.16, 0.02);
+    tri.position.set(0, -0.21, henNeckFrontZ(-0.135) - 0.066);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.022, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
-    knot.position.set(0, -0.14, 0.03);
+    knot.position.set(0, KNOT_Y, knotZ - 0.03);
     head.add(knot);
+    // the blade lies down the breast, which slopes forward under the neck
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), mat(NECKTIE_COLOR));
-    blade.rotation.x = Math.PI;
-    blade.position.set(0, -0.24, 0.05);
+    blade.rotation.x = Math.PI + 0.5;
+    blade.position.set(0, KNOT_Y - 0.085, knotZ - 0.06);
     head.add(blade);
   } else if (accessories.neck === 'bowtie') {
+    // each wing's base reaches 0.04 behind its centre: they stand clear of
+    // the neck, the knot between them
     const knot = ball(0.02, BOWTIE_COLOR, 1, 1, 1, 6, 5);
-    knot.position.set(0, -0.14, 0.03);
+    knot.position.set(0, KNOT_Y, knotZ - 0.037);
     head.add(knot);
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.04, 3), mat(BOWTIE_COLOR));
       wing.rotation.z = -side * (Math.PI / 2);
-      wing.position.set(side * 0.04, -0.14, 0.035);
+      wing.position.set(side * 0.04, KNOT_Y, knotZ - 0.045);
       head.add(wing);
     }
   } else if (accessories.neck === 'scarf') {
+    // today's band, a size up so it clears the neck, round it
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.024, 6, 12), mat(SCARF_COLOR));
-    band.rotation.x = Math.PI / 2 + 0.3;
-    band.position.set(0, -0.12, 0.04);
-    head.add(band);
+    band.scale.setScalar(1.55);
+    head.add(ringTheNeck(band, HEN_SCARF_U, HEN_SCARF_LEAN));
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.1, 0.015), mat(SCARF_COLOR));
-    tail.position.set(0.04, -0.2, 0.06);
-    tail.rotation.z = 0.15;
+    // the loose end lies down the neck's front, which leans back as it goes down
+    tail.position.set(0.04, -0.145, henNeckFrontZ(-0.145) - 0.045);
+    tail.rotation.set(-0.8, 0, 0.15);
     head.add(tail);
   }
 
@@ -641,7 +690,17 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // round the comb, which pokes up through the middle like a real crown's.
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
   addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
-  addPrizeNeck(head, accessories.neck, { k: 0.67, y: -0.12, z: 0.04, ringR: 0.1 });
+  // the streamer scarf: its band and stripe ring the neck like the scarf; its
+  // streamers hang in front of the breast
+  const prizeNeck = new THREE.Group();
+  addPrizeNeck(prizeNeck, accessories.neck, { k: 0.67, y: -0.11, z: -0.03, ringR: 0.155 });
+  let rings = 0;
+  for (const piece of [...prizeNeck.children]) {
+    if (piece.geometry.type === 'TorusGeometry') {
+      ringTheNeck(piece, HEN_SCARF_U - 0.06 * rings++, HEN_SCARF_LEAN);
+    }
+    head.add(piece);
+  }
 
   // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
   // bird frame — every item in those slots is skipped here rather than
@@ -656,7 +715,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   g.userData.noMerge = true;
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
-  g.userData.base = { bodyY: 0.42, bodyScale: [0.9, 0.85, 1.1], headPos: [0, 0.78, -0.28], tailRotX: -0.6 };
+  // combGive (R11): the animator damps his comb's ear writes about the rest to
+  // a quarter, so a twitch is a wobble and the fight's ear-pin never splits it.
+  g.userData.base = { bodyY: HEN_BODY.Y, bodyScale: [...HEN_BODY.SCALE], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25 };
   return g;
 }
 

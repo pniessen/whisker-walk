@@ -114,6 +114,15 @@ const ROLL = {
 // every other state ignores it, so existing callers are unchanged.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amount = 1) {
   pose(cat, state, t, moveSpeed, reducedMotion, amount);
+  // Hagrid's comb (R11) is his ears: every ear write above is damped about the
+  // rest (±0.22) by base.combGive, so a twitch is a small wobble and the
+  // cross/fight ear-pin never splits the crest. At rest it is exactly ±0.22.
+  const give = cat.userData.base?.combGive;
+  if (give !== undefined) {
+    const { earL, earR } = cat.userData.parts;
+    earL.rotation.z = 0.22 + (earL.rotation.z - 0.22) * give;
+    earR.rotation.z = -0.22 + (earR.rotation.z + 0.22) * give;
+  }
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
