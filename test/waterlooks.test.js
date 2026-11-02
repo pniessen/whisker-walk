@@ -48,9 +48,13 @@ const { createContactShadows } = await import('../src/render/contactshadows.js')
 // Built in the flat trace's order: shared geometries and materials are cached
 // across builds, so a count depends on what was built before it. The Gorge is
 // 5108: 5120 + 12 from gorge-rock (edge stones, boulders, strata) - 24 from
-// polish-camps (the Gorge camp builds its parts under withLocalUuids). The
-// Gorge is not in the flat trace, so nothing else moved.
-const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 5108 };
+// polish-camps (the Gorge camp builds its parts under withLocalUuids). Then
+// 4488: polish-gorgesky's crystal clusters replaced builder.caveCrystals,
+// whose per-crystal geometries, merged geometry, material, mesh and group
+// took 155 uuids (620 draws) on the real Math.random across the three caves,
+// with one mesh per cave built under the cave room's withLocalUuids. The Gorge is not in the flat trace,
+// so nothing else moved.
+const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 4488 };
 
 function drawsOf(world) {
   // The flat trace builds a cat and the contact shadows around every area, and

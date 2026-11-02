@@ -27,7 +27,7 @@ import * as gorge from '../world/gorge.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
-import { skyBackground } from '../render/sky.js';
+import { applyDusk, duskEnv, addCollarGlow } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
@@ -606,24 +606,8 @@ export function createWalkLifecycle({
     // they keep the local collar check.
     const duskActive = roomSeed !== undefined ? duskMode : duskMode && equipped.collar === 'glow';
 
-    if (duskActive) {
-      const { top, horizon } = areaData.skyDusk;
-      // Same gradient helper applySky/weather.js use — see render/sky.js.
-      // Dusk keeps its own tighter fog range (30-110 vs the day's 40-130);
-      // only the background swap moves onto the shared helper.
-      scene.background = skyBackground(top, horizon);
-      scene.fog = new THREE.Fog(horizon, 30, 110);
-      sun.intensity = 0.7;
-      // dusk: house windows glow warm (bloom-friendly on the high tier; endWalk's
-      // scene traversal disposes the swapped material like any other)
-      scene.traverse((o) => {
-        if (o.userData?.window) {
-          const old = o.material;
-          o.material = litMaterial(0xffe0a0, { emissive: 0x8a6a20 });
-          old.dispose();
-        }
-      });
-    }
+    // Warm low sun, cool sky fill, window glow: render/dusk.js.
+    const duskLookNow = duskActive ? applyDusk({ scene, sun, fill, areaData }) : null;
 
     // v18 Night Eyes ('night-eyes', Task 2.3): dusk walks brighten. This has
     // to run AFTER duskActive is resolved above (a solo dusk walk only counts
@@ -643,6 +627,12 @@ export function createWalkLifecycle({
       nightEyes: hasSkill(progression.state, 'night-eyes'),
       envIntensity: tier.envIntensity,
     });
+    if (duskLookNow) {
+      // Image light dimmed for dusk; Night Eyes' boost stays multiplied in.
+      scene.environmentIntensity = duskEnv(scene.environmentIntensity, duskLookNow);
+      // Only the LOCAL glow collar lights the cat (a joiner without it gets none).
+      if (equipped.collar === 'glow') addCollarGlow(cat, duskLookNow);
+    }
 
     let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
@@ -1237,7 +1227,7 @@ export function createWalkLifecycle({
     // shadow of their own (built after the caster sweep); the cave glow is a
     // PointLight with castShadow false, added here so shaders compile with it
     // once. Draws on no rng.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather }) ?? NO_AREA_LIFE;
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: duskActive }) ?? NO_AREA_LIFE;
     const session = {
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.

@@ -79,7 +79,7 @@ describe('Gorge gameplay guard', () => {
     expect(now.specSha).toBe(fx.specSha);
     expect(now.groundSha).toBe(fx.groundSha);
     expect(closeDiffs(now.area, fx.area)).toEqual([]);
-    expect(now.meshes).toBe(55); // 54 + polish-camps: moss nests, fresh-kill pile and its decal replace the bedding discs
+    expect(now.meshes).toBe(59); // 54 + polish-camps (moss nests, fresh-kill pile and its decal replace the bedding discs) + polish-gorgesky's gorgeMeadow + its three caveRoom:<id> meshes (noCast)
     expect(now.casters).toBe(36);
     expect(now.rockMeshes).toEqual(['ledgeTops', 'lips', 'rockFaces']);
   }, 120_000);
