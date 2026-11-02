@@ -412,9 +412,12 @@ describe('Hagrid rebuilt (Task 8)', () => {
     });
 
     it('face items keep today\'s positions', () => {
+      // polish-catlooks Task 3 (2026-11-02): the glasses are now three merged
+      // meshes built in head space (frames, lenses, glints), each at the head's
+      // origin; where the rims sit over his eyes is asserted in glasses.test.js
       const today = {
-        glasses: [[-0.09, 0.03, -0.1], [0.09, 0.03, -0.1], [0, 0.03, -0.1]],
-        sunglasses: [[-0.09, 0.03, -0.1], [0.09, 0.03, -0.1], [0, 0.03, -0.1]],
+        glasses: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+        sunglasses: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         monocle: [[0.09, 0.03, -0.1], [0.105, 0, -0.09], [0.115, -0.024, -0.09]],
         eyepatch: [[0.09, 0.03, -0.105], [0, 0.05, 0]],
       };

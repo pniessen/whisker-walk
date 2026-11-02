@@ -7,6 +7,7 @@ import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
+import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
@@ -72,8 +73,6 @@ const EYE_COLORS = { siamese: 0x68a8d8, black: 0xd8b830, zeetoo: 0x4e9440, robbi
 // four re-homed ones, which keep their original colors inline below).
 const HAT_BLACK = 0x1c1c22;        // tophat
 const BEANIE_COLOR = 0xd6602f;     // cozy rust knit
-const GLASSES_FRAME = 0xd4a24c;    // thin warm frame
-const SUNGLASSES_DARK = 0x26262e;  // dark lens
 const NECKTIE_COLOR = 0x7a2436;    // maroon
 const BOWTIE_COLOR = 0x2c3e6b;     // navy
 const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
@@ -693,22 +692,15 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(star);
   }
 
-  // face: two small frames at eye level plus a bridge
+  // face: glasses fitted to his side-set eyes, each rim facing out of the
+  // skull over its eye, the bridge arcing over the beak's root (glasses.js;
+  // polish-catlooks 2026-11-02: the old forward-facing rings were edge-on to
+  // anyone looking at his eyes, so they never showed)
   if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
-    const dark = accessories.face === 'sunglasses';
-    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
-    for (const side of [-1, 1]) {
-      const lens = dark
-        ? ball(0.024, frameColor, 1, 1, 0.4, 8, 6)
-        : new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.005, 6, 10), mat(frameColor));
-      lens.position.set(side * 0.09, 0.03, -0.1);
-      head.add(lens);
-    }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.005, 0.005), mat(frameColor));
-    bridge.position.set(0, 0.03, -0.1);
-    head.add(bridge);
+    for (const m of buildGlasses(accessories.face, GLASSES.hen)) head.add(m);
   } else if (accessories.face === 'monocle') {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.005, 6, 10), mat(GLASSES_FRAME));
+    // polish-catlooks (2026-11-02): the rim as thick as the glasses' frames
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.026, GLASSES.hen.tube, 6, 10), mat(GLASSES_FRAME));
     rim.position.set(0.09, 0.03, -0.1);
     head.add(rim);
     for (let i = 0; i < 2; i++) {
@@ -1254,22 +1246,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(star);
   }
 
-  // face: eye level — two small frames plus a bridge
+  // face: eye level — thick frames, a faint tinted lens and a glint, the
+  // rims just in front of the eyes (glasses.js; polish-catlooks 2026-11-02:
+  // the old 6 mm rings barely showed)
   if (accessories.face === 'glasses' || accessories.face === 'sunglasses') {
-    const dark = accessories.face === 'sunglasses';
-    const frameColor = dark ? SUNGLASSES_DARK : GLASSES_FRAME;
-    for (const side of [-1, 1]) {
-      const lens = dark
-        ? ball(0.032, frameColor, 1, 1, 0.4, 8, 6)
-        : new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 6, 10), mat(frameColor));
-      lens.position.set(side * 0.083, 0.03, -0.17);
-      head.add(lens);
-    }
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.006), mat(frameColor));
-    bridge.position.set(0, 0.03, -0.17);
-    head.add(bridge);
+    for (const m of buildGlasses(accessories.face, GLASSES.cat)) head.add(m);
   } else if (accessories.face === 'monocle') {
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 6, 10), mat(GLASSES_FRAME));
+    // polish-catlooks (2026-11-02): the rim as thick as the glasses' frames
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.032, GLASSES.cat.tube, 6, 10), mat(GLASSES_FRAME));
     rim.position.set(0.083, 0.03, -0.17);
     head.add(rim);
     for (let i = 0; i < 3; i++) { // chain dangles toward the cheek
