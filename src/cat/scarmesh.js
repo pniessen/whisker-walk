@@ -370,8 +370,8 @@ export function setCatScars(cat, scars) {
   mesh.userData.rest = new Float32Array(rest);
   mesh.userData.restNormal = new Float32Array(restNormal);
   mesh.userData.split = split;       // [0, split): the face scar, on the head
-  mesh.userData.earSplit = earSplit; // [split, earSplit): its ear nick, on parts[earKey]
-  mesh.userData.earKey = earKey;     // [earSplit, end): the body scar, on the torso
+  mesh.userData.earSplit = earSplit; // [split, earSplit): the ear nick; [earSplit, end): the body scar, on the torso
+  mesh.userData.earKey = earKey;     // which ear the nick rides (parts[earKey]), or null
   mesh.userData.under = new Float32Array(under);
   cat.add(mesh);
   parts.scars = mesh;

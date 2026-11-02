@@ -259,8 +259,8 @@ export function henBodyHalfWidth(y, z) {
 // down, darkening to near-black over its last third, so the folded wing reads
 // as overlapping feathers. Its upper edge tucks in toward the flank and its
 // lower edge stands proud, and each blade sits a hair outside the one below,
-// so every blade's lower edge lies over the next one's root. Same triangle
-// budget as before (312 a side): 48 for the covert, 64 a blade.
+// so every blade's lower edge lies over the next one's root. No more triangles
+// than before (312 a side; now 304: 48 for the covert, 64 a blade).
 export const WING_FEATHERS = 4;
 const WING_SINK = 0.012; // how far the wing's inner face sits inside the flank
 // rings along a blade (u = 0 root .. 1 tip), bunched toward the tip so it rounds

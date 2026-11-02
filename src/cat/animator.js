@@ -186,6 +186,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // body already (rideTail).
   if (state === 'stalk' && cat.userData.parts.legs[0].userData.folds) {
     const { tail, body } = cat.userData.parts;
+    // (The z half is set in pose(), with the stalk's other folds offsets.)
     tail.position.y = body.position.y + STALK_TAIL.DY;
   }
   fitNeck(cat, state);
@@ -607,7 +608,8 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // columns in front of it (torso.js SIT). Cats only: Hagrid has no
       // underside, and his legs are a chicken's.
       underside.scale.z = SIT.chestDepth;
-      for (const leg of [legs[0], legs[1]]) {
+      for (let i = 0; i < 2; i++) {
+        const leg = legs[i];
         leg.position.z = leg.userData.hipZ + SIT.foreZ;
         leg.rotation.x = SIT.foreTilt;
       }
@@ -638,6 +640,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // the paws with it. 1 on every other cat, which is left as it was.
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
+      // (The y half is set in animateCat, after fitLongLegs has placed the body.)
       tail.position.z = tail.userData.rootZ + STALK_TAIL.DZ;
     }
   }
@@ -816,8 +819,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // its hip (Digit at speed 1.5: 5.5 cm by Task 1's single ray, 1.8 cm over
     // the back's own top nearby; folds.test.js). A
     // rig without folds (Hagrid) keeps today's full swing.
+    const reach = state === 'stalk' && folds ? STALK_SWING * stalkReach(base) : 0;
     const freq = state === 'stalk' && folds
-      ? walkGait(legs, t, moveSpeed, 1, STALK_SWING * stalkReach(base), 0.6 * STALK_SWING * stalkReach(base))
+      ? walkGait(legs, t, moveSpeed, 1, reach, 0.6 * reach)
       : walkGait(legs, t, moveSpeed);
     if (!reducedMotion) {
       body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;

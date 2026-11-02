@@ -202,7 +202,7 @@ describe('scar mesh', () => {
   });
 
   // polish-catlooks (2026-11-02): full is now a paler healed pink (was the
-  // soft red 0xd04a5a), pale 0xf6c6cb (was 0xf2a6ae).
+  // soft red 0xd04a5a), pale is the lighter 0xfde8ea (was 0xf2a6ae).
   it('full is the healed pink, or a pale pink on a reddish coat; the coat under a plain cat is its base', () => {
     const red = new THREE.Color(SCAR_COLOURS.full), pale = new THREE.Color(SCAR_COLOURS.pale);
     const black = buildCat('black', undefined, { scars: [{ site: 'side', stage: 'full', side: 'l' }] });
@@ -212,9 +212,9 @@ describe('scar mesh', () => {
     for (let i = 0; i < under.length; i += 3) expect(colourDistance(new THREE.Color(under[i], under[i + 1], under[i + 2]), base)).toBeLessThan(1e-6);
     // polish-catlooks (2026-11-02): ginger was within 0.25 of the old red and
     // got the pale pink; it is 1.0 from the healed pink (0.46 from the fix
-    // round's first pink), and no shipped coat
-    // is within 0.25 of it (measured: every preset, look and clan row gets
-    // full). The pale rule is kept, so a coat painted the pink itself checks it.
+    // round's first pink), and no shipped coat is within 0.25 of it (measured:
+    // every preset, look and clan row gets full). The pale rule is kept, so a
+    // coat painted the pink itself checks it.
     const ginger = buildCat('tabby', undefined, { look: { ...DEFAULT_LOOK, coat: 'ginger', pattern: 'solid' }, scars: [{ site: 'face', stage: 'full', side: 'l' }] });
     for (const c of colours(ginger)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
     const row = { ...clanRows()[0], base: SCAR_COLOURS.full };
