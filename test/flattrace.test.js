@@ -124,9 +124,36 @@ function intruderClock(areaId) {
   throw new Error(`no intruder visit found for ${areaId}`);
 }
 
+// Ruling F33 (Gorge part 2, Task 12). THREE's generateUUID takes four
+// Math.random() draws for every Object3D, geometry and material, and the trace
+// seeds Math.random before the build, so the build's object count reaches the
+// movers through the draws after it (the critters' phases). The Moor's trail
+// to the Gorge adds one path mesh and clears one heather and one gorse, so the
+// Moor build takes 24 fewer draws: 7968 when this fixture was recorded, 7944
+// now. Nothing moves because of it: burning those 24 draws after the build
+// makes the trace match the fixture byte for byte. The count is asserted
+// before the burn, so a later change to the Moor's objects fails here instead
+// of being absorbed.
+const MOOR_BUILD_DRAWS = 7944;
+const MOOR_DRAWS_AT_RECORDING = 7968;
+function buildMoorKeepingDraws(world, scene) {
+  const seeded = Math.random;
+  let draws = 0;
+  Math.random = () => { draws++; return seeded(); };
+  let area;
+  try {
+    area = world.build(scene);
+  } finally {
+    Math.random = seeded;
+  }
+  expect(draws, "the Moor build's Math.random draws (THREE uuids): its object count changed").toBe(MOOR_BUILD_DRAWS);
+  for (let i = draws; i < MOOR_DRAWS_AT_RECORDING; i++) Math.random();
+  return area;
+}
+
 function traceArea(areaId, world) {
   const scene = new THREE.Scene();
-  const area = world.build(scene);
+  const area = areaId === 'moor' ? buildMoorKeepingDraws(world, scene) : world.build(scene);
   const decals = createContactShadows(scene);
 
   const camera = new THREE.PerspectiveCamera();

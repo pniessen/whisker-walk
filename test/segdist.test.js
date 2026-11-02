@@ -66,7 +66,9 @@ describe('world scatter is unchanged by the refactor (Polish 3)', () => {
     expect(digest(built(river))).toBe('6dd046e515764f9f');
   });
   it('the Moor', () => {
-    expect(digest([moor.moorTrees(), moor.moorHeather(), moor.moorGorse(), moor.moorReeds()])).toBe('c79efe2bbc4eee62');
+    // c79efe2bbc4eee62 until the trail to the Gorge (Gorge part 2, Task 12)
+    // cleared one heather and one gorse off it (test/bordertrail.test.js pins which).
+    expect(digest([moor.moorTrees(), moor.moorHeather(), moor.moorGorse(), moor.moorReeds()])).toBe('5c1db881dc530e87');
     expect(digest(built(moor))).toBe('3465a17d1be5b096');
   });
 });

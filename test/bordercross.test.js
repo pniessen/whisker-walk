@@ -123,6 +123,18 @@ describe('decideBorderCross', () => {
     expect(decideBorderCross({ ...ev, type: 'x' }, ctx)).toBe(null);
     expect(decideBorderCross(null, ctx)).toBe(null);
   });
+  it('accepts the Gorge from the Moor, and refuses it from anywhere else', () => {
+    const fromMoor = { ...ctx, areaId: 'moor' };
+    expect(decideBorderCross({ ...ev, from: 'moor', to: 'gorge' }, fromMoor)).toEqual({ to: 'gorge' });
+    for (const from of ['woods', 'river', 'pines', 'neighborhood', 'park']) {
+      expect(decideBorderCross({ ...ev, from, to: 'gorge' }, { ...ctx, areaId: from }), from).toBe(null);
+    }
+    // and the Gorge's own posts lead back to the Moor and on to the town
+    const fromGorge = { ...ctx, areaId: 'gorge' };
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'moor' }, fromGorge)).toEqual({ to: 'moor' });
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'neighborhood' }, fromGorge)).toEqual({ to: 'neighborhood' });
+    expect(decideBorderCross({ ...ev, from: 'gorge', to: 'woods' }, fromGorge)).toBe(null);
+  });
   it('accepts the host', () => {
     expect(decideBorderCross(ev, ctx)).toEqual({ to: 'moor' });
     expect(decideBorderCross({ ...ev, to: 'river' }, ctx)).toEqual({ to: 'river' });

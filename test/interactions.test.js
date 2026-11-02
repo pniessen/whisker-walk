@@ -1701,6 +1701,16 @@ describe('updateInteractions — Big Swat does not shadow other prompts', () => 
       expect(h.prompts.at(-1)).toBe('🔒 The Gorge opens after 2 walks in The Moor · 1/2 so far');
       expect(() => h.press()).not.toThrow();
     });
+
+    it('the Gorge post on a second Moor walk, or with the Gorge open, offers the crossing', () => {
+      for (const open of [(pr) => { pr.state.walks.moor = 1; }, (pr) => { pr.state.unlocked.areas.push('gorge'); }]) {
+        const h = promptHarness({ stray: null, areaId: 'moor' });
+        open(h.progression);
+        h.walkTo(47.5, -13);
+        expect(h.session.prompt.kind).toBe('border');
+        expect(h.prompts.at(-1)).toBe('E — Head to the Gorge?');
+      }
+    });
   });
 
   // -------------------------------------------------------------------------

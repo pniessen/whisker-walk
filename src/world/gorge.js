@@ -7,6 +7,7 @@ import {
   FLOOR, CLIFFTOP, WEST_TOP, gorgeGround, mapShapes,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
+import { postsFor } from '../borderposts.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
@@ -179,9 +180,10 @@ export const GORGE_HIDES = Object.freeze([
 // the Gorge's rests.
 const NAPS = [[-20, 7.3], [-20, -32.7], [4, -44.7], [6.0, -10.2], [11.3, -42]].map(([x, z]) => ({ x, z }));
 
-// The border posts (src/borderposts.js): to the Moor in the Narrows, and the
-// one-way post to the town at the south edge (G14).
-const POSTS = [{ x: -47.5, z: -14 }, { x: -5, z: 47.5 }];
+// The border posts, read from src/borderposts.js (pure data, no imports, so
+// no cycle): to the Moor in the Narrows, and the one-way post to the town at
+// the south edge (G14).
+const POSTS = postsFor('gorge').map(({ x, z }) => ({ x, z }));
 
 // The climb race's pad: part 1's spawn + (2, -3).
 const RACE_PAD = { x: SPAWN.x + 2, z: SPAWN.z - 3 };

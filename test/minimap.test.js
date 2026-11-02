@@ -81,7 +81,7 @@ const { build: buildSeaside } = await import('../src/world/seaside.js');
 const { build: buildDocks } = await import('../src/world/docks.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
 const { build: buildRiver } = await import('../src/world/river.js');
-const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL } = await import('../src/world/moor.js');
+const { build: buildMoor, TORS, MOOR_PATHS, MOOR_TRAIL, MOOR_GORGE_TRAIL } = await import('../src/world/moor.js');
 const { build: buildPines, PINES_PATHS } = await import('../src/world/pines.js');
 const { build: buildGorge, GORGE_PATHS, gorgeTors } = await import('../src/world/gorge.js');
 const { mapShapes, LOOKOUT } = await import('../src/world/gorgeshape.js');
@@ -232,7 +232,10 @@ describe('buildMapLayer', () => {
     // The Pines trail's three segments are strips too (border-crossings Task 1).
     const onTrail = (f) => MOOR_TRAIL.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
     expect(layer.paths.filter(onTrail)).toHaveLength(3);
-    expect(layer.paths).toHaveLength(8 + 3 + 3);
+    // And the trail to the Gorge's one segment (Gorge part 2, Task 12): 14 strips became 15.
+    const onGorgeTrail = (f) => MOOR_GORGE_TRAIL.some(([x1, z1, x2, z2]) => Math.hypot(f.x - (x1 + x2) / 2, f.z - (z1 + z2) / 2) < 0.01);
+    expect(layer.paths.filter(onGorgeTrail)).toHaveLength(1);
+    expect(layer.paths).toHaveLength(8 + 3 + 1 + 3);
     // Every other Moor collider (a trunk, a chain boulder, the High Tor's
     // pillar, the hawthorn's root) is under the map's 1 m block cut; the
     // camp's den is over it.

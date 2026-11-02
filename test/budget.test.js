@@ -91,8 +91,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   woods            173      152      44474   (171 / 150 merged; +1 mesh for the
 //                                               island plank, lake.js, too low to cast)
 //   river            159      133      53744   (157 / 131 merged; Polish 2 thickened the west reedbed)
-//   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
-//                                               398 heather, 19 gorse, 127 reeds)
+//   moor              79       48      39952   (78 / 47 merged; 10 thorns, 5 pines,
+//                                               385 heather, 18 gorse, 127 reeds;
+//                                               re-measured for the trail to the Gorge,
+//                                               +1 path, -1 heather, -1 gorse; it was
+//                                               78 / 48 / 40158 just before, and the
+//                                               older 76 / 50 / 40288 predated the
+//                                               Pines trail)
 //   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,
 //                                               83 in the one merged stand, 136 ferns,
 //                                               47 toadstool clusters, 160 reeds (19

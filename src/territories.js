@@ -27,7 +27,7 @@ export const TERRITORIES = freezeAll([
   { id: 'moor', areaId: 'moor', name: 'The Moor', x: 620, y: 161, r: 165, status: 'built' },
   { id: 'river', areaId: 'river', name: 'The River and Marshes', x: 232, y: 488, r: 160, status: 'built' },
   { id: 'pines', areaId: 'pines', name: 'The Pines and Swamp', x: 308, y: 199, r: 150, status: 'built' },
-  { id: 'gorge', areaId: null, name: 'The Gorge', x: 815, y: 353, r: 80, status: 'later' },
+  { id: 'gorge', areaId: 'gorge', name: 'The Gorge', x: 815, y: 353, r: 80, status: 'built' },
 ]);
 
 // Where each clan's camp is drawn on the board, inside its region, placed the

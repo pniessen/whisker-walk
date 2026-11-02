@@ -292,11 +292,21 @@ const pathDist = (x, z) => Math.min(...MOOR_PATHS.map((seg) => segDist(x, z, ...
 export const MOOR_TRAIL = Object.freeze([
   [-50, -11, -47, -9.6], [-47, -9.6, -30, -12], [-30, -12, 4, -7],
 ].map((s) => Object.freeze(s)));
+// The way in to the Gorge (Gorge part 2): a 2 m track from the north path's
+// bend at (34, -8) east to the border at (50, -11), where the Gorge's Narrows
+// path begins (its (-50, -11): a Moor point (x, z) is the Gorge point
+// (x - 100, z)). It passes 3.4 m from the moor-gorge post and keeps 1 m of
+// edge off the tor at (42, -6). Its own constant, like MOOR_TRAIL and for the
+// same reason, and filtered last in the same way.
+export const MOOR_GORGE_TRAIL = Object.freeze([
+  [34, -8, 50, -11],
+].map((s) => Object.freeze(s)));
 export const TRAIL_W = 2;
-// Whether (x, z) is at least `d` from the trail. It is the last filter in each
-// scatter export, applied to the finished lists, so no rng draw, cap or spacing
-// check changes and nothing but the trees and beds on the trail moves.
-const trailClear = (x, z, d) => MOOR_TRAIL.every((seg) => segDist(x, z, ...seg) >= d);
+// Whether (x, z) is at least `d` from both trails. It is the last filter in
+// each scatter export, applied to the finished lists, so no rng draw, cap or
+// spacing check changes and nothing but the trees and beds on a trail moves.
+const TRAILS = [...MOOR_TRAIL, ...MOOR_GORGE_TRAIL];
+const trailClear = (x, z, d) => TRAILS.every((seg) => segDist(x, z, ...seg) >= d);
 const BED_TRAIL_CLEAR = TRAIL_W / 2 + 0.8; // the paths' 2.3 m rule less 0.5 m
 const clearOf = (x, z, d) => MOOR_KEEP_CLEAR.every(([px, pz]) => Math.hypot(x - px, z - pz) >= d);
 
@@ -520,6 +530,8 @@ export function build(scene, { water = {}, wind } = {}) {
   for (const s of MOOR_PATHS) scene.add(b.path(...s, PATH_W, PATH_STYLE));
   // the trail over the Pines border, in the same sand, 2 m wide (MOOR_TRAIL)
   for (const s of MOOR_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
+  // and the trail to the Gorge, the same (MOOR_GORGE_TRAIL)
+  for (const s of MOOR_GORGE_TRAIL) scene.add(b.path(...s, TRAIL_W, PATH_STYLE));
 
   // --- the climb chains -------------------------------------------------------
   // The Old Hawthorn, with its grey boulder at the foot, and the High Tor on

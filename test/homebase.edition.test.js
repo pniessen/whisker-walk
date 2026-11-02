@@ -66,6 +66,8 @@ afterEach(() => {
 
 import { readFileSync } from 'node:fs';
 import { CLAN_SUFFIX } from '../src/clanwords.js';
+import { clanPickerModel, renderClanPickerHtml } from '../src/ui/clanpicker.js';
+import { clanName } from '../src/clanhomes.js';
 
 // A rooms stand-in that is available with no room open, so the Play together
 // sheet shows the pet-name row and the star-name picker.
@@ -251,6 +253,26 @@ describe('picking a clan', () => {
     expect(noteOwnPick).toHaveBeenCalledTimes(2);
     await clickPick('moor');
     expect(noteOwnPick).toHaveBeenCalledTimes(2);
+  });
+
+  it("tapping CliffClan's card picks nothing", async () => {
+    const { progression, noteOwnPick } = setupSync();
+    const html = renderClanPickerHtml(clanPickerModel(progression.state), 'Robin');
+    const markup = html.split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
+    expect(markup).toBeTruthy();
+    // The card as the click finds it: closest() matches an attribute only if
+    // the rendered card carries it.
+    const card = { dataset: {} };
+    const target = {
+      id: '', dataset: {},
+      closest: (sel) => {
+        const attr = sel.match(/^\[([a-z-]+)\]$/)?.[1];
+        return attr && markup.includes(`${attr}=`) ? card : null;
+      },
+    };
+    await doc.root.listeners.click({ target });
+    expect(progression.state.clanPick.mine).toBeNull();
+    expect(noteOwnPick).not.toHaveBeenCalled();
   });
 
   it('a refused pick (the gorge) neither changes the save nor pushes', async () => {
