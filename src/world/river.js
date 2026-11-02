@@ -120,15 +120,15 @@ export const RIVER_WATERS = Object.freeze([
 const WATER_COLOR = 0x5f98a8;
 const POOL_COLOR = 0x6f8f80;
 const WATER_LOOK = {
-  lake: { y: 0.03, shores: ['minX', 'maxZ', 'minZ'] },
-  'lake-far': { y: 0.025, shores: ['minX', 'maxZ', 'minZ'] },
-  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'] },
-  'river-bend': { y: 0.02, shores: ['minX', 'maxX'] },
-  'river-east': { y: 0.035, shores: ['minZ', 'maxZ', 'minX'] },
-  pond: { y: 0.045 },
-  'pool-1': { y: 0.03, color: POOL_COLOR },
-  'pool-2': { y: 0.03, color: POOL_COLOR },
-  'pool-3': { y: 0.03, color: POOL_COLOR },
+  lake: { y: 0.03, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
+  'lake-far': { y: 0.025, shores: ['minX', 'maxZ', 'minZ'], foamStrength: 0.22 },
+  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.22 },
+  'river-bend': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.22 },
+  'river-east': { y: 0.035, shores: ['minZ', 'maxZ', 'minX'], foamStrength: 0.22 },
+  pond: { y: 0.045, foamStrength: 0.22 },
+  'pool-1': { y: 0.03, color: POOL_COLOR, foamStrength: 0.22 },
+  'pool-2': { y: 0.03, color: POOL_COLOR, foamStrength: 0.22 },
+  'pool-3': { y: 0.03, color: POOL_COLOR, foamStrength: 0.22 },
 };
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The long

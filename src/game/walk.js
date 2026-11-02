@@ -113,6 +113,7 @@ import { createPawPrints } from '../render/pawprints.js';
 import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
+import { createWaterDressing } from '../render/waterdress.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -643,9 +644,12 @@ export function createWalkLifecycle({
       envIntensity: tier.envIntensity,
     });
 
-    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {} };
+    let weather = { condition: 'clear', rainbowVisible: false, rainbowPos: null, update() {}, setSheltered() {}, tintWet() {}, dispose() {} };
     if (!duskActive && !isDen) {
-      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground);
+      // The ground and paths in the scene right now (the area's own, before
+      // anything else is added) are what the rain darkens; the fill is dimmed.
+      const wet = scene.children.filter((c) => c.isMesh && (c.userData.ground || c.name === 'path'));
+      weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground, { tier, fill, wet });
       if (weather.condition === 'rain') {
         // Extra puddles. These are the only props in the game that EVERY area
         // gets whether it authored them or not, which is why their surface is
@@ -663,6 +667,7 @@ export function createWalkLifecycle({
         const extra = rainPuddleSpots(areaData, walkRng);
         for (const p of extra) scene.add(puddleProp(p.x, p.z, p.r, p.y));
         areaData.puddles = [...areaData.puddles, ...extra];
+        weather.addPuddles(areaData.puddles);
         // birds shelter from rain: halve bird-type spawns
         let keep = false;
         areaData.critterSpawns = areaData.critterSpawns.filter((c) => {
@@ -1176,6 +1181,8 @@ export function createWalkLifecycle({
       ...groundFinds(areaData, GOLD_MICE[areaId]).map((p) => ({ x: p.x, z: p.z, r: GRASS_FIND_CLEAR })),
     ] : [];
     const grass = createGrass(scene, { areaId, areaData, tier, camera, reducedMotion, keepOut: grassKeepOut });
+    // The blades dominate a lawn's look, so a rainy walk darkens them too.
+    if (grass.mesh) weather.tintWet?.(grass.mesh.material);
     // Stream 4 round four — paw prints (render/pawprints.js). After the same
     // scans as the grass, for the same reason (1 main-pass draw, 0 shadow).
     // Purely local: no wire event, and never walkRng. The den gets the stub.
@@ -1183,6 +1190,13 @@ export function createWalkLifecycle({
     // Swimming's splashes, ripples, wake and shake spray (render/splash.js):
     // two pooled draws, 0 while no cat is in water; the den gets NO_SPLASH.
     const splash = createSplash(scene, { areaData, tier, reducedMotion });
+    // Polish-water — the water's edge (render/waterdress.js): a soft wet-earth
+    // band and foam line along the real shore, a few half-sunk stones. Here
+    // for the grass's reason: after the caster sweep, the contact-shadow scan
+    // and the prop merge, so it is neither decaled nor merged and casts
+    // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
+    // water (the den, the park, the docks, the gorge) get the no-op stub.
+    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and
@@ -1268,6 +1282,7 @@ export function createWalkLifecycle({
       // (the neighborhood, the den), which is why the render loop and endWalk
       // can each call it unconditionally.
       water: waterRig(areaData.waterFx),
+      waterDress,
       // Built above, before the world, so the area could register into it.
       wind,
       // Lawn tufts, same shape again; updated beside wind in the render loop.
@@ -1947,6 +1962,8 @@ export function createWalkLifecycle({
     composerRig.resetLighting();
     session.fx.dispose();
     session.skyLife.dispose();
+    // A rainy walk ending mid-rain: the ground and the fill go back as found.
+    session.weather.dispose?.();
     // Hands the sun and fill back and takes the area's birds out, before the
     // traversal below. Every way a walk ends comes through here.
     session.areaLife.dispose();
@@ -1957,6 +1974,7 @@ export function createWalkLifecycle({
     // off the traversal's dispose() anyway; wiring them explicitly means
     // neither depends on a subtlety of that sweep.
     session.water.dispose();
+    session.waterDress.dispose();
     session.wind.dispose();
     // Before the traversal: it takes its mesh out of the scene and frees its
     // geometry and material once.

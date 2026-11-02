@@ -536,6 +536,8 @@ export function ground(size, color, { surface } = {}) {
       : mat(color),
   );
   m.rotation.x = -Math.PI / 2;
+  // Tagged so the rain can find the lawn and darken it (weather.js's wet ground).
+  m.userData.ground = true;
   applyMacroVariation(m, surface, size);
   return m;
 }
