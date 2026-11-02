@@ -32,6 +32,7 @@ import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
@@ -1925,23 +1926,26 @@ export function createWalkLifecycle({
     }
     // (end of what the cat carried home)
     const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
+    // Read before the teardown below, like the numbers above.
+    const portrait = session.portrait;
+    const reduced = prefersReducedMotion(settings);
     const summaryHtml = `<div class="summary-card">
+      ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
+      <div class="screen-panel summary-panel">
+      ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
       <h1>Walk complete!</h1>
+      <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
         ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
         : `<div class="best-line">best walk: ${progression.state.bestWalk} 🐾</div>`}
-      <div class="summary-stats">
-        <div class="stat"><span class="stat-value">${earned}</span><span class="stat-label">whisker points</span></div>
-        <div class="stat"><span class="stat-value">${discoveries}</span><span class="stat-label">discoveries</span></div>
-        <div class="stat"><span class="stat-value">${friendsGreeted}</span><span class="stat-label">cats greeted</span></div>
-        ${session.goals ? `<div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>` : ''}
-      </div>
+      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals })}
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
       ${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue</button>
+      </div>
     </div>`;
 
     // co-walk rooms are per-walk: leaving here means the footer's "Host a
@@ -2061,6 +2065,7 @@ export function createWalkLifecycle({
     hud.setRoster(null);
 
     overlay.innerHTML = summaryHtml;
+    countUp(overlay, { reduced });
     overlay.classList.remove('hidden');
     audio.stopAmbient();
     music.stop();

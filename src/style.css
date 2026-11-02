@@ -505,8 +505,13 @@ body.touch-mode:not(.left-handed) .hud-top {
 body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
-  height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
+  position: relative; height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .summary-card h1 { font-size: 2.2rem; }
+/* The summary sits on the Ready card's panel, a little wider for the tiles;
+   a new best walk's confetti falls over it (pointer-events: none). */
+.screen-panel.summary-panel { width: min(520px, calc(100vw - 32px)); gap: 10px; }
+.summary-panel .screen-cat { width: 120px; height: 120px; }
+.summary-cheer { color: #f1e0c2; font-size: 1.15rem; font-weight: 700; margin-top: -4px; }
 /* Continue wears the home's pink pill (the dressing room's --pink, scoped to
    .dr, so the literal) instead of a bare browser button. */
 .summary-card .primary {
@@ -518,10 +523,30 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .record-banner { background: #f2c14e; color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 999px; font-size: 1.1rem; }
 .best-line { color: #a8c0e0; font-size: 1rem; }
-.summary-stats { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
-.summary-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e; }
+.summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px; width: 100%; margin: 4px 0; }
+.summary-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 6px 9px; border-radius: 14px; background: rgba(28, 36, 49, 0.5);
+  border: 1px solid #33425e; }
+.summary-stats .stat-emoji { font-size: 1.35rem; line-height: 1.2; }
+.summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e;
+  font-variant-numeric: tabular-nums; line-height: 1.15; }
 .summary-stats .stat-label { font-size: 0.8rem; color: #a8c0e0; }
+/* A landscape phone: one column (no cat-left split), a smaller cat, the
+   tiles in one row; the panel scrolls inside itself if it must. */
+@media (max-height: 500px) {
+  .screen-panel.summary-panel { grid-template-columns: minmax(0, 1fr); width: min(620px, calc(100vw - 32px));
+    gap: 6px; padding: 12px 20px; }
+  .summary-panel .screen-cat { width: 80px; height: 80px; }
+  .summary-card h1 { font-size: 1.6rem; }
+  .summary-cheer { font-size: 1rem; margin-top: -2px; }
+  .summary-stats { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: 2px 0; }
+  .summary-stats .stat { padding: 6px 4px; flex-direction: row; justify-content: center; flex-wrap: wrap; column-gap: 6px; }
+  .summary-stats .stat-emoji { font-size: 1.1rem; }
+  .summary-stats .stat-value { font-size: 1.3rem; }
+  .summary-stats .stat-label { flex-basis: 100%; font-size: 0.72rem; }
+  .summary-card .primary { padding: 8px 30px; }
+}
 
 /* --- Small-viewport pass: phones in either orientation. Desktop/tablet
    layouts above are untouched — everything here is gated on max-width. --- */
@@ -549,7 +574,9 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
     overflow-y: auto; gap: 10px;
   }
   .summary-card h1 { font-size: 1.7rem; }
-  .summary-stats { gap: 14px; }
+  /* Two by two on a phone. */
+  .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .screen-panel.summary-panel { padding: 18px 16px; }
 }
 .chat-wheel { position: fixed; right: 16px; bottom: 96px; z-index: 5; }
 .chat-wheel.hidden { display: none; }
