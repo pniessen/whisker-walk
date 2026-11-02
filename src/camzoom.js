@@ -84,6 +84,21 @@ export function easeZoomLevel(level, target, dt, reducedMotion = false) {
   return Math.abs(target - next) < 0.01 ? target : next;
 }
 
+// Gorge part 3, ruling C4: under a ceiling (a cave or a den) the camera comes
+// in close and low. caveView eases a zoom view toward CAVE_VIEW by `blend`
+// (0 outside, 1 under the ceiling; player.js eases it), taking the smaller of
+// each value and the step's own, so it never widens a closer step: step 0's
+// own 3.0 / 1.5 are capped to 2.4 / 0.9 as well. Writes into `out` (which may
+// be `view` itself) and allocates nothing.
+export const CAVE_VIEW = Object.freeze({ dist: 2.4, height: 0.9 });
+export function caveView(view, blend, out = {}) {
+  const d = view.dist;
+  const h = view.height;
+  out.dist = d + (Math.min(d, CAVE_VIEW.dist) - d) * blend;
+  out.height = h + (Math.min(h, CAVE_VIEW.height) - h) * blend;
+  return out;
+}
+
 // --- controls ---------------------------------------------------------------
 // Direction convention everywhere: -1 is "zoom in" (closer, smaller step),
 // +1 is "zoom out" (farther). + means in, as on every map app.

@@ -4,7 +4,7 @@ import {
   ZOOM_STEPS, DEFAULT_ZOOM_STEP, MAX_ZOOM_STEP, DEN_MAX_ZOOM_STEP, MIN_CAMERA_Y,
   clampZoomStep, maxZoomStep, zoomView, easeZoomLevel,
   keyZoomDir, zoomActionDir, createWheelStepper, createPinchTracker, createZoomControl,
-  cameraPullScale,
+  cameraPullScale, CAVE_VIEW, caveView,
 } from '../src/camzoom.js';
 import { cameraOffset } from '../src/catcam.js';
 import { createPlayer } from '../src/player.js';
@@ -73,6 +73,38 @@ describe('easeZoomLevel', () => {
   it('is instant under reduced motion', () => {
     expect(easeZoomLevel(1, 3, 1 / 60, true)).toBe(3);
     expect(easeZoomLevel(3, 0, 0, true)).toBe(0);
+  });
+});
+
+// Gorge part 3, ruling C4: under a ceiling the view eases toward a close, low
+// one, taking the smaller of each value and the step's own.
+describe('caveView', () => {
+  it('caveView eases each step toward the cave view and never widens it', () => {
+    expect(CAVE_VIEW).toEqual({ dist: 2.4, height: 0.9 });
+    for (let i = 0; i < ZOOM_STEPS.length; i++) {
+      const step = ZOOM_STEPS[i];
+      const full = caveView(step, 1, {});
+      expect(full.dist).toBeCloseTo(Math.min(step.dist, 2.4), 12);
+      expect(full.height).toBeCloseTo(Math.min(step.height, 0.9), 12);
+      expect(caveView(step, 0, {})).toEqual({ dist: step.dist, height: step.height });
+      // in between it moves monotonically and never goes past either end
+      let prev = caveView(step, 0, {});
+      for (let b = 0.1; b <= 1.0001; b += 0.1) {
+        const v = caveView(step, b, {});
+        expect(v.dist).toBeLessThanOrEqual(prev.dist + 1e-12);
+        expect(v.height).toBeLessThanOrEqual(prev.height + 1e-12);
+        expect(v.dist).toBeGreaterThanOrEqual(full.dist - 1e-12);
+        prev = v;
+      }
+    }
+    expect(caveView(ZOOM_STEPS[3], 1).dist).toBeCloseTo(2.4, 12);
+    expect(caveView(ZOOM_STEPS[3], 1).height).toBeCloseTo(0.9, 12);
+    expect(caveView(ZOOM_STEPS[0], 1).dist).toBeCloseTo(2.4, 12); // step 0's own 3.0 is capped
+    expect(caveView(ZOOM_STEPS[0], 1).height).toBeCloseTo(0.9, 12); // and its 1.5
+    // writes into out in place (player.update reuses its camView)
+    const out = { dist: 4.5, height: 2.2 };
+    expect(caveView(out, 0.5, out)).toBe(out);
+    expect(out.dist).toBeCloseTo(4.5 + (2.4 - 4.5) * 0.5, 12);
   });
 });
 

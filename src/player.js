@@ -7,7 +7,7 @@ import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
 import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
-  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView,
+  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView, caveView,
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 
@@ -28,6 +28,26 @@ const PULL_HOLD = 0.3; // seconds
 // at a cliff foot never looks straight down (see placeCameraOnGround).
 const MIN_LOOK_RUN = 0.1; // metres
 const UP = new THREE.Vector3(0, 1, 0);
+// Gorge part 3 (C4): how fast the cave view eases in under a ceiling and back
+// out once she is out, as a linear rate of the 0..1 blend per second.
+const CAVE_IN_RATE = 3;
+const CAVE_OUT_RATE = 1.5;
+// The ground's ceilings are inset 1 mm from their cave's or den's walls, so
+// ground.ceil is Infinity on a 1 mm strip along every wall. "Under a ceiling"
+// therefore also looks this far away on the four diagonals: one of them is
+// always inward, even in a corner, so walking along a wall never flickers the
+// view. Only a ceiling over her counts (not rock she might stand on top of).
+const CEIL_PROBE = 0.05; // metres
+function ceilOver(g, x, z, y) {
+  const c = g.ceil(x, z);
+  return c !== Infinity && c > y;
+}
+export function underCeiling(g, x, y, z) {
+  const r = CEIL_PROBE;
+  return ceilOver(g, x, z, y)
+    || ceilOver(g, x + r, z + r, y) || ceilOver(g, x - r, z + r, y)
+    || ceilOver(g, x + r, z - r, y) || ceilOver(g, x - r, z - r, y);
+}
 
 // Screen-space touch vector {x, z, mag} -> camera-relative world direction,
 // rotated by yaw exactly like moveDirection does for keys. Because
@@ -557,6 +577,21 @@ export function createPlayer(camera, canvas) {
     const hi = ground.ceil(cx, cz) - CAM_CEIL_CLEAR;
     if (camera.position.y > hi) camera.position.y = hi;
   }
+  // Gorge part 3 (C4): 0 in the open, 1 under a ceiling; the zoom view eases
+  // toward camzoom.js's CAVE_VIEW by it. Raised ground only. setAvatar resets
+  // it, and it snaps (rather than eases) wherever snapPull is set.
+  let caveBlend = 0;
+  let snapCave = true;
+  function stepCaveBlend(dt) {
+    const p = avatar.position;
+    const target = underCeiling(ground, p.x, p.y, p.z) ? 1 : 0;
+    if (reducedMotion || snapCave) {
+      snapCave = false;
+      return target;
+    }
+    if (target > caveBlend) return Math.min(target, caveBlend + CAVE_IN_RATE * dt);
+    return Math.max(target, caveBlend - CAVE_OUT_RATE * dt);
+  }
   let reducedMotion = false;
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
@@ -587,6 +622,8 @@ export function createPlayer(camera, canvas) {
       rockFrac = 1;
       rockHold = 0;
       snapRock = true;
+      caveBlend = 0;
+      snapCave = true;
       yaw = 0;
       pitch = DEFAULT_PITCH;
       velocity.set(0, 0, 0);
@@ -653,6 +690,7 @@ export function createPlayer(camera, canvas) {
         camLevel = camTarget;
         snapPull = true;
         snapRock = true;
+        snapCave = true;
       }
     },
     setReducedMotion(v) {
@@ -665,6 +703,10 @@ export function createPlayer(camera, canvas) {
     },
     get cameraZoomLevel() {
       return camLevel;
+    },
+    // 0 in the open, 1 under a ceiling (C4); read by tests.
+    get cameraCaveBlend() {
+      return caveBlend;
     },
     addOrbit(dx, dy) {
       yaw -= dx * 0.0045;
@@ -921,6 +963,10 @@ export function createPlayer(camera, canvas) {
 
       camLevel = easeZoomLevel(camLevel, camTarget, dt, reducedMotion);
       zoomView(camLevel, camView);
+      if (!ground.flat) {
+        caveBlend = stepCaveBlend(Math.max(dt, 0));
+        caveView(camView, caveBlend, camView);
+      }
       cameraOffset(yaw, pitch, camView.dist, camView.height, camOff);
       // At or inside the default distance this is exactly 1, so the shipped
       // camera is untouched; beyond it the camera is kept out of buildings

@@ -1702,3 +1702,198 @@ describe('scripted moves never cross a rim', () => {
     }
   });
 });
+
+// Gorge part 3, ruling C4: under any ceiling (caves and dens) the camera eases
+// to a close, low view; part 1's rock and ceiling avoidance still runs after
+// it. Driven on the Gorge itself, with its colliders and bounds.
+const { build: buildGorge } = await import('../src/world/gorge.js');
+const { GORGE_CAVES, GORGE_DENS } = await import('../src/world/gorgeshape.js');
+const { CAM_ROCK_CLEAR, CAM_CEIL_CLEAR, ZOOM_STEPS } = await import('../src/camzoom.js');
+const { cameraOffset } = await import('../src/catcam.js');
+const { DEFAULT_PITCH } = await import('../src/player.js');
+
+let gorgeArea = null;
+const UP_Y = new THREE.Vector3(0, 1, 0);
+const TURN_RATE = 3; // rad/s: how fast the test's "kid" turns the view
+const WALK_MAG = 0.6; // a walk, not a stalk (stalk is under 0.45)
+
+function gorgeRig(x, z, zoomStep) {
+  gorgeArea ??= buildGorge(new THREE.Scene());
+  const area = gorgeArea;
+  const camera = new THREE.PerspectiveCamera();
+  const player = createPlayer(camera, { addEventListener() {} });
+  const cat = buildCat('tabby');
+  cat.position.set(x, area.ground.y(x, z), z);
+  player.setAvatar(cat, PACE);
+  player.setGround(area.ground);
+  player.setCameraZoom(zoomStep, { instant: true });
+  player.enable();
+  let yaw = 0;
+  const setYaw = (y) => {
+    player.addOrbit((yaw - y) / 0.0045, 0);
+    yaw = y;
+  };
+  const step = () => player.update(DT, area.colliders, area.bounds, area.waters);
+  const dir = new THREE.Vector3();
+  // Walks to (tx, tz), turning the view toward the way she goes at TURN_RATE
+  // (the camera follows behind her), calling onFrame after every frame.
+  const walkTo = (tx, tz, onFrame) => {
+    for (let f = 0; f < 30 * 60; f++) {
+      const hx = tx - cat.position.x;
+      const hz = tz - cat.position.z;
+      if (Math.hypot(hx, hz) < 0.15) break;
+      const want = Math.atan2(-hx, -hz);
+      let d = want - yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      setYaw(yaw + Math.max(-TURN_RATE * DT, Math.min(TURN_RATE * DT, d)));
+      dir.set(hx, 0, hz).normalize().applyAxisAngle(UP_Y, -yaw);
+      player.setTouchMove({ x: dir.x, z: dir.z, mag: WALK_MAG });
+      step();
+      onFrame?.();
+    }
+    player.setTouchMove(null);
+    expect(Math.hypot(tx - cat.position.x, tz - cat.position.z)).toBeLessThan(0.3); // she got there
+  };
+  // Stands still, turning the view to `want` at TURN_RATE.
+  const turnTo = (want, onFrame) => {
+    for (let f = 0; f < 5 * 60; f++) {
+      let d = want - yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      if (Math.abs(d) < 1e-9) break;
+      setYaw(yaw + Math.max(-TURN_RATE * DT, Math.min(TURN_RATE * DT, d)));
+      step();
+      onFrame?.();
+    }
+  };
+  const wait = (seconds, onFrame) => {
+    for (let f = 0; f < seconds * 60; f++) {
+      step();
+      onFrame?.();
+    }
+  };
+  return { area, ground: area.ground, player, cat, camera, walkTo, turnTo, wait, setYaw, get yaw() { return yaw; } };
+}
+
+// A spot `back` metres outside a cave's mouth, on the line of its first leg.
+function outsideMouth(cave, back) {
+  const [ax, az] = cave.path[0];
+  const [bx, bz] = cave.path[1];
+  const l = Math.hypot(bx - ax, bz - az);
+  return [ax - ((bx - ax) / l) * back, az - ((bz - az) / l) * back];
+}
+
+const inCaveRects = (cave, x, z) => cave.rects.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+
+describe('the camera in a cave', () => {
+  it('under a ceiling the camera comes in close and low', () => {
+    const echo = GORGE_CAVES.find((c) => c.id === 'echo');
+    const [sx, sz] = outsideMouth(echo, 3);
+    const r = gorgeRig(sx, sz, 3);
+    const { ground, cat, camera } = r;
+    r.setYaw(Math.atan2(-(echo.path[0][0] - sx), -(echo.path[0][1] - sz)));
+    r.wait(1); // settled at the far step outside
+    expect(Math.hypot(camera.position.x - cat.position.x, camera.position.z - cat.position.z)).toBeGreaterThan(5);
+    let inside = -1;
+    let frame = 0;
+    let checked = 0;
+    const onFrame = () => {
+      frame++;
+      const c = camera.position;
+      expect(c.y).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - CAM_CEIL_CLEAR + 1e-6);
+      if (inside < 0 && inCaveRects(echo, cat.position.x, cat.position.z)) inside = frame;
+      if (inside >= 0 && frame - inside >= 60) {
+        expect(Math.hypot(c.x - cat.position.x, c.z - cat.position.z)).toBeLessThanOrEqual(2.4 + 0.05);
+        checked++;
+      }
+    };
+    for (let i = 1; i < echo.path.length; i++) r.walkTo(echo.path[i][0], echo.path[i][1], onFrame);
+    expect(inside).toBeGreaterThan(0);
+    expect(checked).toBeGreaterThan(60);
+  });
+
+  it('the camera walks each cave without entering rock', () => {
+    for (const cave of GORGE_CAVES) {
+      for (let zoomStep = 0; zoomStep < ZOOM_STEPS.length; zoomStep++) {
+        const [sx, sz] = outsideMouth(cave, 2);
+        const r = gorgeRig(sx, sz, zoomStep);
+        const { ground, camera } = r;
+        r.setYaw(Math.atan2(-(cave.path[0][0] - sx), -(cave.path[0][1] - sz)));
+        r.wait(0.5);
+        const prev = camera.position.clone();
+        let worst = 0;
+        const onFrame = () => {
+          const c = camera.position;
+          const where = `${cave.id} step ${zoomStep} at (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`;
+          expect(c.y, where).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + CAM_ROCK_CLEAR - 1e-6);
+          expect(c.y, where).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - CAM_CEIL_CLEAR + 1e-6);
+          worst = Math.max(worst, c.distanceTo(prev));
+          expect(c.distanceTo(prev), where).toBeLessThanOrEqual(0.6);
+          prev.copy(c);
+        };
+        for (let i = 1; i < cave.path.length; i++) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
+        r.turnTo(r.yaw + Math.PI, onFrame); // turn round in the chamber
+        for (let i = cave.path.length - 2; i >= 0; i--) r.walkTo(cave.path[i][0], cave.path[i][1], onFrame);
+        r.walkTo(sx, sz, onFrame);
+        expect(worst).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('out of the cave the chosen zoom comes back', () => {
+    const glitter = GORGE_CAVES.find((c) => c.id === 'glitter');
+    const [sx, sz] = outsideMouth(glitter, 10);
+    const r = gorgeRig(...outsideMouth(glitter, 2), 3);
+    const { player, cat, camera } = r;
+    r.setYaw(Math.atan2(-1, 0)); // facing in (+x)
+    for (let i = 1; i < glitter.path.length; i++) r.walkTo(glitter.path[i][0], glitter.path[i][1]);
+    expect(player.cameraCaveBlend).toBe(1);
+    for (let i = glitter.path.length - 2; i >= 0; i--) r.walkTo(glitter.path[i][0], glitter.path[i][1]);
+    r.walkTo(sx, sz);
+    r.turnTo(Math.atan2(-1, 0)); // looking back at the mouth, the camera out over the clifftop
+    r.wait(2);
+    expect(player.cameraZoomStep).toBe(3);
+    expect(player.cameraCaveBlend).toBe(0);
+    const want = cameraOffset(r.yaw, DEFAULT_PITCH, ZOOM_STEPS[3].dist, ZOOM_STEPS[3].height, new THREE.Vector3());
+    const got = camera.position.clone().sub(cat.position);
+    expect(got.distanceTo(want)).toBeLessThan(1e-3); // the pulls ease the last micrometres out
+  });
+
+  it('walking along a cave or den wall does not flicker the close view', () => {
+    // ground.ceil is Infinity on a 1 mm strip inside every cave and den wall
+    // (the ceilings are inset); the close view must hold all along it.
+    const echo = GORGE_CAVES.find((c) => c.id === 'echo');
+    const corridor = echo.rects[0];
+    const z = corridor.minZ + 0.0005;
+    const r = gorgeRig(corridor.maxX - 0.0005, z, 3); // in the mouth's corner, on both strips
+    const { ground, player, cat } = r;
+    expect(ground.ceil(cat.position.x, cat.position.z)).toBe(Infinity); // really on the strip
+    r.setYaw(Math.PI / 2); // facing -x, along the wall
+    r.wait(0.1);
+    expect(player.cameraCaveBlend).toBe(1); // a walk start snaps it
+    let frames = 0;
+    for (let f = 0; f < 3 * 60; f++) {
+      player.setTouchMove({ x: 0, z: -1, mag: WALK_MAG });
+      r.wait(1 / 60);
+      cat.position.z = z; // hug the wall
+      expect(player.cameraCaveBlend).toBe(1);
+      frames++;
+    }
+    expect(cat.position.x).toBeLessThan(corridor.maxX - 3); // she walked along it
+    expect(frames).toBe(180);
+    // and every den: on each wall's strip the view is the close one
+    for (const den of GORGE_DENS) {
+      const rr = gorgeRig(den.minX + 0.0005, (den.minZ + den.maxZ) / 2, 3);
+      rr.wait(0.1);
+      expect(rr.player.cameraCaveBlend).toBe(1);
+    }
+  });
+
+  it('with no ceiling overhead the view is never the cave view', () => {
+    const { player, step } = rig(-7, 0); // raised ground, no ceilings
+    player.setTouchMove({ x: 1, z: 0, mag: 1 });
+    for (let f = 0; f < 60; f++) {
+      step();
+      expect(player.cameraCaveBlend).toBe(0);
+    }
+  });
+});
