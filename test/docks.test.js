@@ -37,7 +37,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { build } = await import('../src/world/docks.js');
+const { build, DOCKS_STONE } = await import('../src/world/docks.js');
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildNeighborhood } = await import('../src/world/neighborhood.js');
 const { build: buildSeaside } = await import('../src/world/seaside.js');
@@ -174,7 +174,8 @@ describe('The Old Docks — the area contract', () => {
   });
 
   it('bounces its own wet stone — the hex b.ground() lays the quay in', () => {
-    expect(area.groundBounce).toBe(0x4e4e58);
+    // polish-docks: warmer stone (was 0x4e4e58).
+    expect(area.groundBounce).toBe(DOCKS_STONE);
   });
 
   it('spawns the new rat critter, and every critter type it spawns is a known one', () => {
