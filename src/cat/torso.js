@@ -29,10 +29,17 @@ export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRON
 // leaves level once the animator curls each link up by CURL (R3: the curl is a
 // bend the animator owns, softened lying down and dropped when cross or scared).
 // A root ball rounds the join into the rump; the whole tail is SCALE of size.
-export const TAIL = { LINK: 0.14, R: 0.078, TAPER: 0.62, TIP: 0.006, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.08 };
+// Polish 1a, Task 5 (2026-11-02): the taper is even, R at the root losing
+// TAPER of it by the tip (0.072 to 0.0135, a rounded end), and the root ball is
+// no wider than the root. It was R (1 - u)^0.62 + 0.006 on a 0.08 ball: a
+// thick, slowly narrowing tail that pinched to a 6 mm spike over its last link,
+// which from the walk camera read as a lump with a horn on it. The tip is no
+// rounder than 0.0135: the cross pose holds the tail straight up, and its tip
+// sets the cat's top there, which the name tag clears (nametag.js CROSS_TAG_Y).
+export const TAIL = { LINK: 0.14, R: 0.072, TAPER: 0.8125, CURL: 0.28, ROOT_TILT: 0.28, SCALE: 0.85, ROOT_DY: 0.10, ROOT_Z: 0.33, ROOT_BALL: 0.072 };
 
 // The tail's radius at fraction u of its length (0 root, 1 tip).
-export const tailR = (u) => TAIL.R * Math.pow(1 - u, TAIL.TAPER) + TAIL.TIP;
+export const tailR = (u) => TAIL.R * (1 - TAIL.TAPER * u);
 
 // The paw centre in leg-local space, so the sole stays exactly where it is today
 // (old hip 0.3, old paw 0.2585 below it).

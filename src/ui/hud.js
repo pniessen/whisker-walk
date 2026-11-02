@@ -15,7 +15,7 @@ export function createHud() {
     <div class="hud-toasts" id="hud-toasts"></div>
     <div class="hud-prompt hidden" id="hud-prompt"></div>
     <div class="hud-controls" id="hud-controls">←↑↓→ move · ⇧ stalk · ␣ pounce/climb · E interact · V meow · T yarn · C camera · +/− zoom · M mute · Esc menu</div>
-    <div class="hud-crosshair">·</div>
+    <div class="hud-crosshair hidden" id="hud-crosshair">·</div>
     <div class="hud-viewfinder hidden" id="hud-viewfinder">
       <span class="vf-hint-desktop">📷 click to snap · C to lower</span>
       <span class="vf-hint-touch">📷 tap to snap · 📷 button to lower</span>
@@ -102,9 +102,12 @@ export function createHud() {
       }
     },
     // The corner map steps aside while the viewfinder is up, leaving the
-    // whole screen for lining up the shot.
+    // whole screen for lining up the shot. The centre dot shows only then: on
+    // the walk the camera always looks at the cat's head, so the dot sat on
+    // the back of its neck (polish 1a, Task 5: "a white dot on the nape").
     setCamera(on) {
       root.querySelector('#hud-viewfinder').classList.toggle('hidden', !on);
+      root.querySelector('#hud-crosshair').classList.toggle('hidden', !on);
       mapEl.classList.toggle('hidden', !!on);
     },
     setRoster(names) {

@@ -159,9 +159,11 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
     }
   });
   it('the curl survives reducedMotion and the gait', () => {
+    // (Polish 1a, Task 5: a WALKING 'follow' now carries the tail in an S —
+    // see the carriage test below — so only the sniff keeps the plain curl at a walk.)
     for (const s of ['follow', 'sniff']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 2.7, 2.0, true);
-      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
+      if (s === 'sniff') for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
       cat.updateMatrixWorld(true);
       expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x).toBeGreaterThanOrEqual(-0.01); // precise box
     }
@@ -358,5 +360,95 @@ describe('animateCat: the fight action states', () => {
       return Math.max(...ys) - Math.min(...ys);
     };
     expect(spread(true)).toBeLessThan(spread(false));
+  });
+});
+
+// Polish pass 1a, Task 5 (2026-11-02): from the walk camera, behind the cat.
+describe('animateCat: the walking tail is carried in a soft S (polish 1a, Task 5)', () => {
+  // Each link's elevation above level-backward, in radians (+ = up): the root
+  // frame's tilt (+ tips it down) and every pivot's bend (- bends up) add up.
+  const elevations = (parts) => {
+    const out = []; let a = -parts.tail.rotation.x;
+    for (const p of parts.tailPivots) { a -= p.rotation.x; out.push(a); }
+    return out;
+  };
+  it('walking: the base rises, the middle stands highest, the tip curls back', () => {
+    for (const breed of ['tabby', 'digit']) for (const t of [0.4, 1.3, 2.7]) {
+      const cat = buildCat(breed); animateCat(cat, 'follow', t, 1.5, false);
+      const e = elevations(cat.userData.parts);
+      const top = Math.max(...e);
+      expect(e[0], `${breed} t ${t}: ${e}`).toBeGreaterThanOrEqual(0.4);          // the base up, not straight back at the camera
+      expect(e.indexOf(top), `${breed} t ${t}: ${e}`).toBeGreaterThan(0);
+      expect(e.indexOf(top), `${breed} t ${t}: ${e}`).toBeLessThan(4);
+      expect(top - e[4], `${breed} t ${t}: ${e}`).toBeGreaterThanOrEqual(0.2);     // the tip curls back
+      expect(top, `${breed} t ${t}: ${e}`).toBeLessThan(Math.PI / 2);              // never leaning forward over the back
+    }
+  });
+  it('standing still keeps the resting curl; the carriage eases in with speed', () => {
+    const stand = buildCat('tabby'); animateCat(stand, 'follow', 0, 0, false);
+    for (const p of stand.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
+    const base0 = (speed) => { const c = buildCat('tabby'); animateCat(c, 'follow', 0, speed, false); return elevations(c.userData.parts)[0]; };
+    expect(base0(0.3)).toBeGreaterThan(base0(0));
+    expect(base0(1.5)).toBeGreaterThan(base0(0.3));
+  });
+  it('the stalk, the sniff and the fight poses keep their own tails', () => {
+    for (const s of ['stalk', 'cross', 'scared']) {
+      const cat = buildCat('tabby'); animateCat(cat, s, 1.3, 1.5, false);
+      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBe(0);
+    }
+  });
+});
+
+describe("animateCat: Digit's tag collar follows the neck in the stalk (polish 1a, Task 5)", () => {
+  // The neck: midway between the head's centre and the chest's (the underside's
+  // chestCentre), the two things it joins. A head-locked collar kept its place
+  // on the head while the stalk drops the head forward of the chest, so its
+  // front stuck out under the chin as a black rod with the tag dangling off it.
+  const posed = (state, t, speed) => { const c = buildCat('digit'); animateCat(c, state, t, speed, false); c.updateMatrixWorld(true); return c; };
+  const parts = (cat) => {
+    const { head, underside, legs } = cat.userData.parts;
+    const collar = head.getObjectByName('collar');
+    const [ring, tag] = collar.children;
+    const chest = new THREE.Vector3(...underside.userData.chestCentre).applyMatrix4(underside.matrixWorld);
+    const headW = head.getWorldPosition(new THREE.Vector3());
+    const neck = headW.clone().add(chest).multiplyScalar(0.5);
+    const axis = headW.clone().sub(chest).normalize();
+    return { head, collar, ring, tag, neck, axis, legs, body: cat.userData.parts.body, k: cat.scale.x };
+  };
+  // The ring's centre relative to the neck, in the neck's own frame: turned
+  // back by however far the neck (chest to head) turned from standing.
+  const restAxis = parts(posed('follow', 1.3, 0)).axis;
+  const ringOffset = (cat) => {
+    const p = parts(cat);
+    const back = new THREE.Quaternion().setFromUnitVectors(p.axis, restAxis);
+    return p.ring.getWorldPosition(new THREE.Vector3()).sub(p.neck).divideScalar(p.k).applyQuaternion(back);
+  };
+  // inside the ellipsoid of a sphere mesh of radius r
+  const inside = (mesh, r, w) => { const l = mesh.worldToLocal(w.clone()); return l.length() <= r; };
+  const lowest = (mesh) => new THREE.Box3().setFromObject(mesh, true).min.y;
+  const restOffset = ringOffset(posed('follow', 1.3, 0));
+
+  for (const [t, speed] of [[1.3, 0], [0.7, 0], [0.4, 1.5], [0.9, 1.5]]) {
+    it(`stalk t ${t} speed ${speed}: the ring keeps its place on the neck; the tag hangs at the throat`, () => {
+      const cat = posed('stalk', t, speed), p = parts(cat);
+      expect(ringOffset(cat).distanceTo(restOffset), 'ring on the neck').toBeLessThanOrEqual(0.01);
+      const skull = p.head.children[0], muzzle = p.head.children[1];
+      const tagBox = new THREE.Box3().setFromObject(p.tag, true), tagC = tagBox.getCenter(new THREE.Vector3());
+      expect(tagC.y, 'below the chin').toBeLessThan(lowest(muzzle));
+      expect(tagBox.min.y, 'above the paws').toBeGreaterThan(Math.max(...p.legs.map((l) => new THREE.Box3().setFromObject(l.userData.paw, true).max.y)));
+      expect(inside(skull, 0.21, tagC) || inside(muzzle, 0.09, tagC), 'the tag shows').toBe(false);
+      // at the throat: against the chest fur as when standing (~6 cm), not 15 cm out in front of it
+      const hit = new THREE.Raycaster(new THREE.Vector3(tagC.x, tagC.y, -3), new THREE.Vector3(0, 0, 1)).intersectObject(p.body, true)[0];
+      expect(hit).toBeTruthy();
+      expect((hit.point.z - tagBox.max.z) / p.k, 'tag to chest').toBeLessThanOrEqual(0.07);
+    });
+  }
+
+  it('standing, the collar sits exactly where it was built; leaving the stalk puts it back', () => {
+    const fresh = buildCat('digit').userData.parts.head.getObjectByName('collar');
+    const cat = posed('stalk', 1.3, 0); animateCat(cat, 'follow', 1.3, 0, false);
+    const c = cat.userData.parts.head.getObjectByName('collar');
+    expect(c.position.toArray()).toEqual(fresh.position.toArray());
+    expect(c.quaternion.toArray()).toEqual(fresh.quaternion.toArray());
   });
 });

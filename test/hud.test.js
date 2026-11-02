@@ -199,6 +199,23 @@ describe('the discovery toast', () => {
   });
 });
 
+// Polish pass 1a, Task 5 (2026-11-02): the "white dot on the cat's nape" in the
+// walk was the HUD's centre crosshair (a "·" at 50%/50%), which the walk camera
+// always lands on the back of the cat's head. It only helps line up a photo,
+// so it shows with the viewfinder and nowhere else.
+describe('hud crosshair', () => {
+  it('is hidden on the walk and shows only while the camera viewfinder is up', () => {
+    const hud = createHud();
+    const cross = byId.get('hud-crosshair');
+    expect(cross).toBeTruthy();
+    expect(cross.classList.contains('hidden')).toBe(true);
+    hud.setCamera(true);
+    expect(cross.classList.contains('hidden')).toBe(false);
+    hud.setCamera(false);
+    expect(cross.classList.contains('hidden')).toBe(true);
+  });
+});
+
 describe('HUD layout (style.css)', () => {
   const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
   const rule = (sel) => {

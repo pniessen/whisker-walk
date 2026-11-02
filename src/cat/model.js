@@ -137,6 +137,51 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
 }
 
 // -----------------------------------------------------------------------------
+// THE CAT FROM BEHIND (polish 1a, Task 5, 2026-11-02). The walk camera sees the
+// cat from behind ~90% of the time, where it read as a plain lump.
+
+// The whiskers' outer ends, out from the head's midline (head space).
+const WHISKER_REACH = 0.22;
+// Where the pupil and the eye shine sit (head-space z): on the eye, not in
+// front of it, so neither pokes out of the head's outline from the side.
+const EYE_PUPIL_Z = -0.183;
+const EYE_SHINE_Z = -0.183;
+// How dark the back of an ear is, as a share of its front (vertex colour on
+// the ear's own colour): from behind, the ears read as ears, not as two more
+// bumps of the same fur.
+const EAR_BACK_SHADE = 0.7;
+// The ear cone (4 sides, as before), its back shaded by EAR_BACK_SHADE: a
+// vertex-colour multiplier, so the material keeps the ear's own colour.
+function earGeometry(r, h) {
+  const geo = new THREE.ConeGeometry(r, h, 4);
+  const n = geo.attributes.normal, col = new Float32Array(n.count * 3);
+  for (let i = 0; i < n.count; i++) {
+    const t = Math.min(1, Math.max(0, (n.getZ(i) + 0.1) / 0.8));
+    const k = 1 - (1 - EAR_BACK_SHADE) * t * t * (3 - 2 * t);
+    col[i * 3] = k; col[i * 3 + 1] = k; col[i * 3 + 2] = k;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+// The tabby "M" runs back over the crown (headStripes): for a bar at lateral
+// direction x on the skull (unit sphere, 0 = the midline), its continuation
+// over the top (centred straight up) and down the back of the head (centred
+// 60 degrees past the top), each reaching ~32 degrees either way, so the bar
+// runs unbroken from the brow to the back of the head. Coarser in a simple build.
+const CROWN_STRIPE_X = 0.26;
+const CROWN_STRIPE_AT = [Math.PI / 2, (5 * Math.PI) / 6];
+const CROWN_STRIPE_HALF = 0.62;
+function crownStripe(x, halfX, simple) {
+  const k = Math.sqrt(1 - x * x);
+  return CROWN_STRIPE_AT.map((a) => ({
+    dir: [x, k * Math.sin(a), -k * Math.cos(a)], halfX, halfZ: CROWN_STRIPE_HALF,
+    rings: simple ? 2 : 3, seg: simple ? 8 : 12,
+  }));
+}
+// The dark tip starts this far along the blended link (a third: u = 2/3).
+const TIP_FROM = 1 / 3;
+
+// -----------------------------------------------------------------------------
 // MARKINGS — Wave 6.
 //
 // A stripe or a patch is a region of FUR, so the one thing it must never do is
@@ -183,11 +228,53 @@ const PATCH_UP = new THREE.Vector3(0, 1, 0);
 // halfX/halfZ are TANGENT half-extents at the pole, in units of the sphere
 // radius, so 1.0 is a patch that reaches 45 degrees from its centre — a stripe
 // wrapping well down the flank — and 0.2 is a small spot.
-function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
+//
+// `more` (polish 1a, Task 5): further patches, each { dir, halfX, halfZ,
+// rings, seg } with `dir` already a direction on the sphere, built into the
+// SAME geometry. A tabby's "M" bar runs on back over the crown this way: one
+// geometry per bar, as before, so the build creates exactly the objects it did
+// (three.js draws Math.random for every geometry's uuid, and the flat trace's
+// seeded stream runs through the cat builds).
+function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18, more = []) {
   const pos = [0, r * PATCH_LIFT, 0]; // centre vertex at the pole
   const nor = [0, 1, 0];
   const idx = [];
   const v = new THREE.Vector3();
+  addPatch(pos, nor, idx, r, halfX, halfZ, rings, seg, true);
+  const toDir = new THREE.Quaternion().setFromUnitVectors(PATCH_UP, new THREE.Vector3(...dir).normalize());
+  if (more.length) {
+    // Each extra patch is built at the pole like the first, then turned onto its
+    // own direction ahead of the whole geometry's turn onto `dir` below: by
+    // toDir⁻¹ · (its own turn), so the final turn lands it on its own direction.
+    const back = toDir.clone().invert();
+    for (const m of more) {
+      const from = pos.length / 3;
+      addPatch(pos, nor, idx, r, m.halfX, m.halfZ, m.rings, m.seg, false);
+      const q = back.clone().multiply(new THREE.Quaternion().setFromUnitVectors(PATCH_UP, new THREE.Vector3(...m.dir).normalize()));
+      for (let i = from * 3; i < pos.length; i += 3) {
+        v.set(pos[i], pos[i + 1], pos[i + 2]).applyQuaternion(q); pos[i] = v.x; pos[i + 1] = v.y; pos[i + 2] = v.z;
+        v.set(nor[i], nor[i + 1], nor[i + 2]).applyQuaternion(q); nor[i] = v.x; nor[i + 1] = v.y; nor[i + 2] = v.z;
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setIndex(idx);
+  // Built centred on +Y so halfX/halfZ mean what they say; swung onto `dir`
+  // afterwards. applyQuaternion goes through applyMatrix4, which carries the
+  // normal attribute with it.
+  geo.applyQuaternion(toDir);
+  return geo;
+}
+
+// One patch's rings and triangles at the pole, appended to pos/nor/idx. The
+// first patch's centre vertex is already in place (`first`); a further patch
+// adds its own.
+function addPatch(pos, nor, idx, r, halfX, halfZ, rings, seg, first) {
+  const v = new THREE.Vector3();
+  if (!first) { pos.push(0, r * PATCH_LIFT, 0); nor.push(0, 1, 0); }
+  const c = pos.length / 3 - 1; // the centre vertex
   for (let i = 1; i <= rings; i++) {
     const f = i / rings;
     for (let j = 0; j < seg; j++) {
@@ -200,25 +287,15 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
       pos.push(v.x * r * PATCH_LIFT, v.y * r * PATCH_LIFT, v.z * r * PATCH_LIFT);
     }
   }
-  for (let j = 0; j < seg; j++) idx.push(0, 1 + ((j + 1) % seg), 1 + j); // centre fan
+  for (let j = 0; j < seg; j++) idx.push(c, c + 1 + ((j + 1) % seg), c + 1 + j); // centre fan
   for (let i = 1; i < rings; i++) {
-    const a0 = 1 + (i - 1) * seg;
-    const b0 = 1 + i * seg;
+    const a0 = c + 1 + (i - 1) * seg;
+    const b0 = c + 1 + i * seg;
     for (let j = 0; j < seg; j++) {
       const jn = (j + 1) % seg;
       idx.push(a0 + j, b0 + jn, b0 + j, a0 + j, a0 + jn, b0 + jn);
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  geo.setIndex(idx);
-  // Built centred on +Y so halfX/halfZ mean what they say; swung onto `dir`
-  // afterwards. applyQuaternion goes through applyMatrix4, which carries the
-  // normal attribute with it.
-  geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(
-    PATCH_UP, new THREE.Vector3(...dir).normalize()));
-  return geo;
 }
 
 // Every patch of one colour on one host, as ONE mesh. This is the reason the
@@ -226,7 +303,7 @@ function patchGeometry(r, dir, halfX, halfZ, rings = 4, seg = 18) {
 // meshes and are now one, and the cow cat's two body patches are now one.
 // Draw calls are the budget (VISUAL-PASS.md section 0); triangles are not.
 function addMarking(host, r, color, patches) {
-  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18));
+  const geos = patches.map((p) => patchGeometry(r, p.dir, p.halfX, p.halfZ, 4, 18, p.more));
   const geo = geos.length === 1 ? geos[0] : mergeGeometries(geos);
   host.add(new THREE.Mesh(geo, mat(color)));
 }
@@ -886,7 +963,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       cheek.position.set(side * 0.085, -0.07, -0.14);
       head.add(cheek);
     }
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.075 * EARS, earH * EARS, 4), mat(pointColor));
+    const ear = new THREE.Mesh(earGeometry(0.075 * EARS, earH * EARS), litMaterial(pointColor, { vertexColors: true }));
     ear.position.set(side * 0.12, 0.18 + earLift, 0.01);
     ear.rotation.z = -side * 0.22;
     head.add(ear);
@@ -902,25 +979,36 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const eye = ball(0.036, s.eyeColor ?? EYE_COLORS[breed] ?? 0x4e9440, 1, 1.15, 0.7, 8, 6);
     eye.position.set(side * 0.083, 0.03, -0.165);
     head.add(eye);
+    // Polish 1a, Task 5: the pupil and the shine sit on the eye rather than
+    // out in front of it (they were at z -0.19 and -0.195), so from the side
+    // the far eye's pupil and shine no longer poke out of the head's outline.
+    // The eye itself is where it was.
     const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
-    pupil.position.set(side * 0.083, 0.03, -0.19);
+    pupil.position.set(side * 0.083, 0.03, EYE_PUPIL_Z);
     head.add(pupil);
     if (!opts.simple) {
       const shine = ball(0.007, 0xffffff, 1, 1, 1, 4, 3);
-      shine.position.set(side * 0.07, 0.05, -0.195);
+      shine.position.set(side * 0.07, 0.048, EYE_SHINE_Z);
       head.add(shine);
     }
   }
   // whiskers
+  // Polish 1a, Task 5: from the walk camera (behind) the old whiskers, 0.28
+  // out and swept BACK to z -0.14, stood 9 cm clear of the head on both sides,
+  // three lines within a few pixels of each other: a white bar through the head
+  // like a bone. Now they end WHISKER_REACH out (within 4 cm of the skull's
+  // outline from behind, whose half-width at whisker height is 0.19-0.20) and
+  // sweep forward to z -0.235, so from behind the head hides most of them, at
+  // a fainter 0.45. From the front they still fan out past the cheeks.
   const whiskers = [];
   if (!opts.simple) {
-    const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.65 });
+    const whiskerMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.45 });
     for (const side of [-1, 1]) {
       for (let i = 0; i < 3; i++) {
         const y = -0.05 - i * 0.018;
         const geo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(side * 0.07, y, -0.19),
-          new THREE.Vector3(side * 0.28, y + (i - 1) * 0.035, -0.14),
+          new THREE.Vector3(side * WHISKER_REACH, y + (i - 1) * 0.03, -0.235),
         ]);
         const w = new THREE.Line(geo, whiskerMat);
         head.add(w);
@@ -980,16 +1068,24 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the pivots are plain: 0 at the root, then one link along +z each. The root
   // frame is tipped down by TAIL.ROOT_TILT (base.tailRotX) so that, with the
   // full curl, link 0 leaves level and each further link bends up by CURL.
+  //
+  // Polish 1a, Task 5: a dark-tipped tail (stripes, points) is dark over its
+  // last third, not its last two links (40%, a dark spike). The tip link is
+  // dark; the link before it is painted in its vertex colours, its first third
+  // blending from the coat into the tip colour (TIP_FROM) and the rest dark.
   const tail = new THREE.Group();
   const tailPivots = [];
   const TF = s.tailFluff ?? 1;
+  const darkTip = !!(s.stripes || s.points);
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
     if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
+    const blend = darkTip && i === 3;
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
-    // +z. Open-ended; the balls below close every end.
-    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5) * TF, tailR(i / 5) * TF, TAIL.LINK, 12, 1, true)
+    // +z. Open-ended; the balls below close every end. The blended link has
+    // rings at each third of its length, for its colours to change along.
+    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5) * TF, tailR(i / 5) * TF, TAIL.LINK, 12, blend ? 3 : 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
     // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
     // simple cat sits at the 5,500-triangle cap once the chest is in.
@@ -998,7 +1094,21 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       ? new THREE.SphereGeometry(TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
       : new THREE.SphereGeometry(tailR(i / 5) * TF, jw, jh));   // a rounded joint
     if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1) * TF, jw, jh).translate(0, 0, TAIL.LINK)); // the tip
-    const seg = new THREE.Mesh(mergeGeometries(parts), mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
+    const geo = mergeGeometries(parts);
+    const seg = new THREE.Mesh(geo, blend
+      ? litMaterial(0xffffff, { vertexColors: true })
+      : mat(i >= 3 && darkTip ? s.accent : s.base));
+    if (blend) {
+      // Coat at and behind the pivot, the tip colour from a third of the way
+      // along the link (u = 2/3 of the whole tail) on.
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      const from = new THREE.Color(s.base), to = new THREE.Color(s.accent), c = new THREE.Color();
+      for (let k = 0; k < pos.count; k++) {
+        c.lerpColors(from, to, Math.min(1, Math.max(0, pos.getZ(k) / (TAIL.LINK * TIP_FROM))));
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
     pivot.add(seg);
     parent.add(pivot);
     tailPivots.push(pivot);
@@ -1042,10 +1152,14 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     // stays across the face and halfZ runs up the slope of the brow, so these
     // are narrow (0.07) and long (0.34). The side bars sit ~15 degrees off the
     // midline — far enough apart that no two overlap.
+    //
+    // Polish 1a, Task 5: each bar runs on back over the crown and down the back
+    // of the head (from behind, the head was a plain ball), as two more patches
+    // built into the bar's own geometry: no extra mesh, no extra object.
     onSkull(s.accent, [
-      { at: [0, 0.13, -0.15], halfX: 0.07, halfZ: 0.34 },
-      { at: [-0.055, 0.12, -0.145], halfX: 0.06, halfZ: 0.28 },
-      { at: [0.055, 0.12, -0.145], halfX: 0.06, halfZ: 0.28 },
+      { at: [0, 0.13, -0.15], halfX: 0.07, halfZ: 0.34, more: crownStripe(0, 0.07, opts.simple) },
+      { at: [-0.055, 0.12, -0.145], halfX: 0.06, halfZ: 0.28, more: crownStripe(-CROWN_STRIPE_X, 0.06, opts.simple) },
+      { at: [0.055, 0.12, -0.145], halfX: 0.06, halfZ: 0.28, more: crownStripe(CROWN_STRIPE_X, 0.06, opts.simple) },
     ]);
   }
   if (s.chin) {
@@ -1082,6 +1196,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     collar.name = 'collar';
     head.add(collar);
+    // The animator moves it onto the neck in a pose that drops the head
+    // forward of the chest (animator.js COLLAR_ON_NECK).
+    head.userData.collar = collar;
   }
 
   // head: above the skull, hats sit between the ears
