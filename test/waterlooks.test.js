@@ -71,11 +71,15 @@ const hsl = (c) => new THREE.Color(c).getHSL({}, THREE.SRGBColorSpace);
 const lightOf = (rgb) => new THREE.Color().setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace).getHSL({}, THREE.SRGBColorSpace);
 
 describe('water looks', () => {
-  for (const [id, n] of Object.entries(BUILD_DRAWS)) {
-    it(`${id} build draws the same Math.random count as before`, () => {
-      expect(drawsOf(WORLDS[id])).toBe(n);
-    }, 120_000);
-  }
+  // ONE case, not one per area: the counts depend on which shared geometries
+  // and materials earlier builds already cached, so they are only stable when
+  // every world is built in the flat trace's order (BUILD_DRAWS's key order).
+  // A case run alone would see cold caches and read a few draws high.
+  it('every area build draws the same Math.random count as before', () => {
+    const got = {};
+    for (const id of Object.keys(BUILD_DRAWS)) got[id] = drawsOf(WORLDS[id]);
+    expect(got).toEqual(BUILD_DRAWS);
+  }, 240_000);
 
   it('the handle describes its water', () => {
     const fp = { id: 't', kind: 'rect', minX: 0, maxX: 10, minZ: 0, maxZ: 10 };
@@ -89,6 +93,14 @@ describe('water looks', () => {
     expect(fx.waters).toBe(list);
     expect(createWater(fp, { style: 'bog', quality: 'low' }).style).toBe('bog');
   });
+
+  it('real areas hand their dressing the right records', () => {
+    const woods = WORLDS.woods.build(new THREE.Scene()).waterFx;
+    expect(woods.find((f) => f.footprint.id === 'lake').footprint.shores).toEqual(['maxX', 'maxZ']);
+    const pines = WORLDS.pines.build(new THREE.Scene()).waterFx;
+    expect(pines.find((f) => f.footprint.id === 'moor-river').footprint.shores).toEqual([]);
+    expect(pines.find((f) => f.footprint.id === 'bog-1').style).toBe('bog');
+  }, 120_000);
 
   it('the bog ramp stays deep and its foam stays dull', () => {
     const base = 0x4f5a33;

@@ -202,11 +202,11 @@ export const PINES_KEEP_OUT = Object.freeze({
 const WATER_COLOR = 0x5f98a8;
 const MIRE_COLOR = 0x4a5a48;
 // The four bogs are small stands of still, peat-stained water: a murky
-// green-brown (hue ~0.21, lightness ~0.28) that style 'bog' keeps murky all the
+// green-brown (olive-brown, hue ~0.16, lightness ~0.24) that style 'bog' keeps murky all the
 // way down and edges with a dull green-brown instead of white foam. The two
 // mires keep their own dour grey-green on the clear ramp (a gentler foam band
 // only): a big dark water that stays dark is the Black Mire's identity.
-const BOG_COLOR = 0x4f5a33;
+const BOG_COLOR = 0x4a4a28;
 const WATER_LOOK = {
   lake: { y: 0.03, shores: ['minZ'], foamStrength: 0.22 },
   'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'], foamStrength: 0.22 },
