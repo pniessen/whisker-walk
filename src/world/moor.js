@@ -126,11 +126,11 @@ export const MOOR_WATERS = Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH, RIVER_WES
 // lie. The bay is all out of bounds, so it has none.
 const WATER_COLOR = 0x5f98a8;
 const WATER_LOOK = {
-  lake: { y: 0.03, shores: ['maxX', 'minZ'] },
-  'lake-far': { y: 0.025 },
-  'river-south': { y: 0.02, shores: ['minX', 'maxX'] },
-  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'] },
-  'river-mouth': { y: 0.045, shores: ['minX', 'maxX'] },
+  lake: { y: 0.03, shores: ['maxX', 'minZ'], foamStrength: 0.22 },
+  'lake-far': { y: 0.025, foamStrength: 0.22 },
+  'river-south': { y: 0.02, shores: ['minX', 'maxX'], foamStrength: 0.22 },
+  'river-west': { y: 0.035, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.22 },
+  'river-mouth': { y: 0.045, shores: ['minX', 'maxX'], foamStrength: 0.22 },
 };
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The north

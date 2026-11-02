@@ -667,7 +667,7 @@ function buildRippleTexture(seed) {
  * in linear-sRGB, where "lightness * 0.55" is a visibly different (and much
  * darker) operation than the one these numbers were picked against.
  */
-export function waterRamp(base) {
+export function waterRamp(base, style = 'clear') {
   const hsl = {};
   new THREE.Color(base).getHSL(hsl, THREE.SRGBColorSpace);
   const rgb = (c) => {
@@ -675,6 +675,18 @@ export function waterRamp(base) {
     c.getRGB(t, THREE.SRGBColorSpace);
     return [t.r * 255, t.g * 255, t.b * 255];
   };
+  if (style === 'bog') {
+    // A bog is peat-stained and still: no bluing with depth, no white rim.
+    // The deep end keeps 90% of the authored lightness (the authored hex IS
+    // the murk, so darkening it to 55% would turn a small bog into a black
+    // hole), and the edge is a dull green-brown, never foam-white.
+    const at = (h, sat, l) => rgb(new THREE.Color().setHSL(h, Math.min(1, sat), l, THREE.SRGBColorSpace));
+    return {
+      deep: at(hsl.h, hsl.s, hsl.l * 0.9),
+      shallow: at((hsl.h + 0.01) % 1, hsl.s * 0.85, Math.min(0.42, hsl.l * 1.12)),
+      foam: at(hsl.h, hsl.s * 0.6, Math.min(0.42, hsl.l + 0.12)),
+    };
+  }
   return {
     // Deep: 55% of the authored lightness, a touch more saturated. Depth eats
     // the long wavelengths, so real deep water is both darker and bluer.
@@ -848,6 +860,9 @@ function islandGeometry(w, box, segments) {
  *                          it, foam and the shallow shelf follow REAL shore
  *                          only, so where this water runs under another no
  *                          pale stripe crosses the open water (realShoreOf).
+ *   style        {string}  'clear' (default), 'bog' (peat-murky ramp, dull
+ *                          edge) or 'sea' (set by the seaside; same ramp as
+ *                          'clear' here). Also read by waterdress.js.
  *   glare        {number}  specular strength, 0..1 (default GLARE). The
  *                          seaside passes GLARE_SEA.
  *   seed         {number}  ripple phase seed. Defaults to the footprint's own
@@ -872,6 +887,7 @@ export function createWater(footprint, options = {}) {
     seed,
     waters,
     glare = GLARE,
+    style = 'clear',
   } = options;
 
   const tier = (typeof quality === 'string' ? quality : quality?.name) === 'low' ? 'low' : 'high';
@@ -894,7 +910,7 @@ export function createWater(footprint, options = {}) {
     shelf,
     foamWidth: foam,
     foamStrength,
-    colors: { ...waterRamp(color), ...colors },
+    colors: { ...waterRamp(color, style), ...colors },
     withRoughness: tier === 'high',
     waters,
   });
@@ -973,6 +989,13 @@ export function createWater(footprint, options = {}) {
   return {
     mesh,
     material,
+    // Read-only description of this water, for the render-side dressing
+    // (waterdress.js: wet banks, foam line, stones, lily pads).
+    footprint: w,
+    y,
+    color,
+    style,
+    waters,
     /** the tier actually used — 'high' or 'low'. */
     tier,
     /** false on the low tier and under reduced motion; update() is then a no-op. */
