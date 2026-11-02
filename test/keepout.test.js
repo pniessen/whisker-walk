@@ -179,9 +179,11 @@ describe('keepOut.onlyOn', () => {
     expect(p).toEqual({ x: -18 + ONLY.margin, z: 20 });
     // a point inside an allowed rectangle comes back untouched, the edges and
     // the seam between two rectangles included
-    for (const [x, z] of [[-10, 0], [-44, -11], [20, -30], [22, 15], [-18, -11], [-17.95, 16], [2, 40]]) {
+    for (const [x, z] of [[-10, 0], [-44, -11], [20, -30], [2.4, -18], [-18, -11], [-17.95, 16], [2, 40]]) {
       expect(keepOutPoint(GORGE, x, z), `(${x}, ${z})`).toEqual({ x, z });
     }
+    // the Snug Cave's bend is no longer allowed (ruling F35): a point there moves
+    expect(keepOutPoint(GORGE, 22, 15)).not.toEqual({ x: 22, z: 15 });
     // an area without onlyOn gives every point back as before
     const plain = { bounds: BOUNDS, keepOut: { rects: [], capsules: [], margin: 0.4 } };
     for (const [x, z] of [[-30, 20], [40, 0], [10, 10]]) expect(keepOutPoint(plain, x, z)).toEqual({ x, z });
