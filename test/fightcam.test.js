@@ -20,8 +20,9 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
-  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear,
+  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS,
 } = await import('../src/fightcam.js');
+const RINGS0 = RINGS[0];
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -293,6 +294,83 @@ describe('chooseFightView', () => {
       expect(q.y).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
       expect(Math.abs(q.x)).toBeLessThanOrEqual(FIGHT_FRAME.x);
     }
+  });
+});
+
+// Controller ruling on Task 5: a lifted top (CAT_HEIGHTS[2] + y) must stay in
+// frame, but its line of sight only ranks views. Every point that exists today
+// stays hard, exactly as before.
+describe('lifted tops are soft in the view choice', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const lifted = () => subject({ ...me, y: 0.75 }, it); // its top at (0.8, 1.6, 0)
+  const TOP = { x: 0.8, y: CAT_HEIGHTS[2] + 0.75, z: 0 };
+  // one bare ball (no pad) of radius r at (x, y, z)
+  const ball = (obj, x, y, z, r) => ({ obj, x, z, R: r, top: y + r, shapes: [{ t: 'ell', x, y, z, r, ry: r, p: 0 }] });
+  const hardClear = (v, subj, occ) => subjectPoints(subj, true, false).every((p) => !firstBlocker(v.pos, p, occ));
+
+  test('subjectPoints(…, false) leaves the lifted tops out', () => {
+    const subj = lifted();
+    expect(subjectPoints(subj, true, false)).toEqual(subjectPoints(subject(me, it), true));
+    expect(subjectPoints(subj, true).length).toBe(subjectPoints(subj, true, false).length + 1);
+  });
+
+  test('a stand pine round a lifted top never disqualifies a view', () => {
+    const subj = lifted();
+    const occ = [ball(null, TOP.x, TOP.y, TOP.z, 0.3)]; // no camera can see that top
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(hardClear(v, subj, occ)).toBe(true);
+    expect(v.unhidden ?? 0).toBe(0);
+    expect(v.blockers).toEqual([]);
+    expect(v.brushed).toBe(1);
+    expect(v.clear).toBe(false);
+    // the same view as with no tree at all: nothing could do better
+    const free = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(v.pos).toEqual(free.pos);
+    expect(free.brushed).toBe(0);
+    expect(free.clear).toBe(true);
+  });
+
+  test('a hideable tree round a lifted top is hidden; a hard point still rules', () => {
+    const subj = lifted();
+    const tree = ball({ name: 'oak' }, TOP.x, TOP.y, TOP.z, 0.3);
+    const v = chooseFightView({ subject: subj, occluders: [tree], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(v.blockers).toEqual([tree]);
+    expect(v.brushed).toBe(0);
+    expect(v.clear).toBe(false);
+  });
+
+  test('among views that clear every hard point, one that also sees the lifted top wins', () => {
+    const subj = lifted();
+    // from yaw 0 (camera at +z, 2.2 m up) a stand pine's ball sits on the line to the top only
+    const cam = { x: 0, y: RINGS0.h, z: RINGS0.d };
+    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
+    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
+    const straight = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(straight.pos.x).toBeCloseTo(0, 9);
+    expect(firstBlocker(straight.pos, TOP, occ)).not.toBe(null); // the old view really loses the top
+    expect(hardClear(straight, subj, occ)).toBe(true);           // ...and only the top
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(v.clear).toBe(true);
+    expect(v.brushed).toBe(0);
+    expect(firstBlocker(v.pos, TOP, occ)).toBe(null);
+  });
+
+  test('the lifted top must still be in frame', () => {
+    const subj = subject({ ...me, y: 0.75 }, it);
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1, ...frame });
+      const q = projectPoint(v, TOP, frame.aspect, frame.fovY);
+      expect(q.y).toBeLessThanOrEqual(FIGHT_FRAME.top);
+      expect(q.y).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
+      expect(Math.abs(q.x)).toBeLessThanOrEqual(FIGHT_FRAME.x);
+    }
+  });
+
+  test('blendClear: a lifted top behind a tree does not stop an ease; a hard point does', () => {
+    const subj = lifted();
+    const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(blendClear(v, v, subj, [ball(null, TOP.x, TOP.y, TOP.z, 0.3)], PORTRAIT.aspect, PORTRAIT.fovY)).toBe(true);
+    expect(blendClear(v, v, subj, [ball(null, 0.8, 0.4, 0, 0.3)], PORTRAIT.aspect, PORTRAIT.fovY)).toBe(false);
   });
 });
 
