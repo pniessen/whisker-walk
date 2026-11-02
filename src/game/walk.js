@@ -1434,6 +1434,8 @@ export function createWalkLifecycle({
     // The den: an empty list, so the render loop's unconditional calls are
     // no-ops.
     session.treeFade = createTreeFade(occluders, { reducedMotion });
+    // Compile the faded trees' shaders now, not at the first fade mid-walk.
+    if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like

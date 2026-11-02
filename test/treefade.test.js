@@ -140,6 +140,54 @@ describe('treefade', () => {
     expect(near.visible).toBe(false);
   });
 
+  // Fix wave M2: a tree the fight camera hid comes back already faded, not
+  // opaque-then-easing (a flash in front of the cat as the fight ends).
+  it('a hidden tree that is in the way snaps to faded, so it reappears see-through', () => {
+    const { near, occ, camera } = world();
+    const fade = createTreeFade(occ);
+    camera.position.set(0, 2, -3);
+    near.visible = false; // the fight camera hid it
+    fade.update(1 / 60, camera, LOOK);
+    near.visible = true; // and shows it again on exit
+    fade.update(1 / 60, camera, LOOK);
+    for (const m of meshesOf(near)) expect(closeDiffs(m.material.opacity, 0.28)).toEqual([]);
+    // a visible tree still eases in: one frame takes it only a little way down
+    const w = world();
+    const eased = createTreeFade(w.occ);
+    w.camera.position.set(0, 2, -3);
+    eased.update(1 / 60, w.camera, LOOK);
+    for (const m of meshesOf(w.near)) expect(m.material.opacity).toBeGreaterThan(0.9);
+    // a hidden tree out of the way is left alone
+    w.far.visible = false;
+    eased.update(1 / 60, w.camera, LOOK);
+    expect(eased.faded().has(w.far)).toBe(false);
+    fade.dispose(); eased.dispose();
+  });
+
+  // Fix wave M1: the first fade would compile the transparent variant mid-walk.
+  it('prewarm puts one tree of each kind in its clones for the compile, then puts every original back', () => {
+    const { near, far, pn, occ } = world();
+    // a third kind of material on the pine: it needs its own compile
+    for (const m of meshesOf(pn)) m.material = new THREE.MeshLambertMaterial({ color: m.material.color });
+    const fade = createTreeFade(occ);
+    const originals = [near, far, pn].map((g) => meshesOf(g).map((m) => m.material));
+    let seen = null;
+    fade.prewarm(() => {
+      seen = [near, far, pn].map((g) => meshesOf(g).every((m) => m.material.transparent && !m.material.depthWrite));
+    });
+    // two kinds: the two trees share one, the Lambert pine is its own
+    expect(seen.filter(Boolean).length).toBe(2);
+    expect(seen[2]).toBe(true);
+    expect(seen[0] !== seen[1]).toBe(true);
+    [near, far, pn].forEach((g, k) => meshesOf(g).forEach((m, i) => expect(m.material).toBe(originals[k][i])));
+    expect(fade.faded().size).toBe(0);
+    // a throwing compile still puts the originals back
+    expect(() => fade.prewarm(() => { throw new Error('no GL'); })).toThrow();
+    [near, far, pn].forEach((g, k) => meshesOf(g).forEach((m, i) => expect(m.material).toBe(originals[k][i])));
+    fade.dispose();
+    expect(() => fade.prewarm(() => {})).not.toThrow(); // after dispose, a no-op
+  });
+
   it('stand trees are ignored', () => {
     const scene = new THREE.Scene();
     const stand = pineStand([{ x: 0, z: 0, scale: 1 }], 1);

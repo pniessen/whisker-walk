@@ -99,7 +99,9 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         }
         if (!want && t.op >= 1) continue;
         const target = want ? FADE_OPACITY : 1;
-        if (reducedMotion) t.op = target;
+        // A tree the fight camera hid (fightcam.js) snaps: it reappears already
+        // faded instead of opaque-then-easing in front of the cat.
+        if (reducedMotion || (want && t.obj.visible === false)) t.op = target;
         else if (want) t.op = Math.max(target, t.op - DOWN_RATE * dt);
         else t.op = Math.min(1, t.op + UP_RATE * dt);
         if (t.op >= 1) {
@@ -110,6 +112,23 @@ export function createTreeFade(occluders = [], { reducedMotion = false } = {}) {
         if (!t.swapped) swapIn(t);
         setOpacity(t);
       }
+    },
+    // Walk start: the first fade would compile each tree material's transparent
+    // variant mid-walk (a stutter on a phone). One tree of each kind (its
+    // materials' type and shader key) is swapped into its clones for
+    // `compile` (walk.js: renderer.compile), then every original goes back.
+    prewarm(compile) {
+      if (disposed) return;
+      const kinds = new Set(), picked = [];
+      for (const t of trees) {
+        let key = '';
+        t.obj.traverse((o) => {
+          if (o.isMesh) for (const m of [].concat(o.material)) key += `${m.type}:${m.customProgramCacheKey()}:${m.vertexColors}:${m.side}:${m.flatShading}:${!!m.map}|`;
+        });
+        if (!kinds.has(key)) { kinds.add(key); picked.push(t); }
+      }
+      for (const t of picked) swapIn(t);
+      try { compile(); } finally { for (const t of picked) swapOut(t); }
     },
     // The tree Groups currently below full opacity (live; read-only).
     faded() { return faded; },
