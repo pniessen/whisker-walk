@@ -21,7 +21,7 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
-  ourCatHidden, itNearer,
+  ourCatHidden, itNearer, sheetTopFrom, frameBottomFor,
 } = await import('../src/fightcam.js');
 const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
@@ -798,5 +798,93 @@ describe('the fight camera rides the ground and stays out of rock', () => {
       return out;
     };
     expect(run({ ground: FLAT_GROUND })).toEqual(run({}));
+  });
+});
+
+// Polish, camps Task 5b: the frame's bottom is the real sheet's top, not the
+// worst-case sheet, and the cats sit just above it.
+describe('the frame fits the real sheet', () => {
+  const PHONE = { aspect: 390 / 844, fovY: 70 };
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const lowest = (v, subj, frame) => Math.min(...framePoints(subj).map((p) => projectPoint(v, p, frame.aspect, frame.fovY).y));
+  const highest = (v, subj, frame) => Math.max(...framePoints(subj).map((p) => projectPoint(v, p, frame.aspect, frame.fovY).y));
+
+  test('sheetTopFrom: the sheet\'s top edge in NDC; null with no sheet', () => {
+    expect(sheetTopFrom(262, 844)).toBeCloseTo(-1 + 2 * 262 / 844, 9);
+    expect(sheetTopFrom(422, 844)).toBeCloseTo(0, 9);
+    expect(sheetTopFrom(0, 844)).toBe(null);
+    expect(sheetTopFrom(NaN, 844)).toBe(null);
+    expect(sheetTopFrom(200, 0)).toBe(null);
+  });
+
+  test('frameBottomFor: a margin over the sheet, never under -0.6, never over today\'s bottom; null is today\'s', () => {
+    expect(frameBottomFor(null)).toBe(null);
+    expect(frameBottomFor(-0.38)).toBeCloseTo(-0.32, 9);
+    expect(frameBottomFor(-0.9)).toBe(-0.6);
+    expect(frameBottomFor(0.2)).toBe(FIGHT_FRAME.bottom);
+  });
+
+  test('a phone held upright with frameBottom -0.4: the lowest frame point sits just over it, open ground', () => {
+    const reach = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions: true });
+    for (const subj of [subject(me, it), reach]) {
+      for (const yaw0 of [0, 1, Math.PI, -2.5, Math.PI / 2]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, frameBottom: -0.4, ...PHONE });
+        expect(v.clear).toBe(true);
+        const lo = lowest(v, subj, PHONE);
+        expect(lo).toBeGreaterThanOrEqual(-0.4);
+        // A real fight's reach, seen at a slant, is wide: pitching up to put
+        // its paws that low brings them nearer, past the side edge, so it
+        // sits as low as the sides allow (fitLow). Every other case: on it.
+        if (subj !== reach || yaw0 === 0 || yaw0 === Math.PI || yaw0 === Math.PI / 2) expect(lo).toBeLessThanOrEqual(-0.3);
+        expect(highest(v, subj, PHONE)).toBeLessThanOrEqual(FIGHT_FRAME.top);
+        // lower on screen than today's frame (the empty grass gap closes)
+        const old = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...PHONE });
+        expect(lo).toBeLessThan(lowest(old, subj, PHONE));
+      }
+    }
+  });
+
+  test('desktop with a ~36% sheet: lowest point just over it', () => {
+    const subj = subject(me, it);
+    const fb = frameBottomFor(sheetTopFrom(290, 800));
+    for (const yaw0 of [0, 1, Math.PI, -2.5]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, frameBottom: fb, ...DESK });
+      const lo = lowest(v, subj, DESK);
+      expect(lo).toBeGreaterThanOrEqual(fb);
+      expect(lo).toBeLessThanOrEqual(fb + 0.1);
+    }
+  });
+
+  test('blendClear takes the frame bottom: a view low over a short sheet is not out of frame', () => {
+    const subj = subject(me, it);
+    const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, frameBottom: -0.4, ...PHONE });
+    expect(blendClear(v, v, subj, [], PHONE.aspect, PHONE.fovY, undefined, -0.4)).toBe(true);
+    expect(blendClear(v, v, subj, [], PHONE.aspect, PHONE.fovY)).toBe(false);
+  });
+
+  test('createFightCam: sheetTop frames the pair over the sheet, and a new sheet height re-chooses', () => {
+    const subj = subject(me, it);
+    const fc = createFightCam({ occluders: [], colliders: [], bounds: BOUNDS, reducedMotion: true });
+    const cam = fakeCamera(PHONE.aspect);
+    const step = (sheetTop) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { subject: subj, camera: cam, cat: me, sheetTop }); };
+    step(null);
+    const today = fc.view;
+    expect(lowest(today, subj, PHONE)).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
+    step(-0.46);
+    const fitted = fc.view;
+    expect(fitted).not.toBe(today);
+    const lo = lowest(fitted, subj, PHONE);
+    expect(lo).toBeGreaterThanOrEqual(-0.4);
+    expect(lo).toBeLessThanOrEqual(-0.3);
+    // the camera itself holds that view
+    expect(cam.position).toMatchObject(fitted.pos);
+    // a jitter under 0.02 keeps the view; a real change re-chooses
+    step(-0.45);
+    expect(fc.view).toBe(fitted);
+    step(-0.3);
+    expect(fc.view).not.toBe(fitted);
+    // no sheet again: today's frame
+    step(null);
+    expect(lowest(fc.view, subj, PHONE)).toBeCloseTo(lowest(today, subj, PHONE), 9);
   });
 });

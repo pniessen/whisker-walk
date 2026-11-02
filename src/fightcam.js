@@ -58,6 +58,32 @@ export const FIGHT_FRAME = Object.freeze({ x: 0.85, top: 0.85, bottom: -0.08 });
 // (polish, camps Task 5: the survey's cats sat small under empty grass).
 export const AIM_Y = 0.12;
 const LOOK_Y = 0.3;
+
+// Polish, camps Task 5b: the real sheet. FIGHT_FRAME.bottom is the tallest
+// sheet; a phone held upright shows a shorter one, and the cats then sat over
+// a band of empty grass. Given the sheet's measured top edge (sheetTop, in
+// NDC), the frame's bottom sits SHEET_MARGIN over it (never under
+// FRAME_FLOOR, never over today's bottom), and each view pitches so its lowest
+// frame point sits LOW_LIFT over that bottom, when every frame point still
+// fits under the top. No sheet measured (null): today's frame and aim exactly.
+const SHEET_MARGIN = 0.06;
+const FRAME_FLOOR = -0.6;
+const LOW_LIFT = 0.02;
+// A sheet height change smaller than this (in NDC) keeps the view.
+const SHEET_STEP = 0.02;
+
+// The sheet's top edge in NDC (-1 the screen's bottom), from its height and
+// the viewport's, both in CSS px; null with no sheet.
+export function sheetTopFrom(sheetPx, viewportPx) {
+  if (!(sheetPx > 0) || !(viewportPx > 0)) return null;
+  return -1 + (2 * sheetPx) / viewportPx;
+}
+
+// The frame's bottom for a measured sheet top; null (no sheet) keeps today's.
+export function frameBottomFor(sheetTop) {
+  if (sheetTop == null || !Number.isFinite(sheetTop)) return null;
+  return Math.min(FIGHT_FRAME.bottom, Math.max(FRAME_FLOOR, sheetTop + SHEET_MARGIN));
+}
 // Camera spots round the pair's middle: distance and height, best first.
 // Low rings look in under the canopies; high ones over the undergrowth. The
 // first two are tight, close shots; where they do not frame the pair (a
@@ -244,6 +270,53 @@ function viewFrom(pos, mid, fovY, lookY = LOOK_Y) {
   return { pos, look };
 }
 
+// The view from `pos` toward the pair's middle, pitched so the lowest of
+// `pts` lands at screen height `y`: null when the highest would then pass
+// FIGHT_FRAME.top. Right stays level (no roll), so a point's screen height is
+// tan(its elevation - the pitch) / tan(fovY / 2) whatever its side offset.
+function viewLow(pos, mid, fovY, pts, y) {
+  const dx = mid.x - pos.x, dz = mid.z - pos.z;
+  const h = Math.hypot(dx, dz);
+  const fx = dx / h, fz = dz / h;
+  let lo = Infinity, hi = -Infinity;
+  for (const p of pts) {
+    const e = Math.atan2(p.y - pos.y, (p.x - pos.x) * fx + (p.z - pos.z) * fz);
+    if (e < lo) lo = e;
+    if (e > hi) hi = e;
+  }
+  const tanV = Math.tan((fovY * Math.PI) / 360);
+  const pitch = lo - Math.atan(y * tanV);
+  if (Math.tan(hi - pitch) / tanV > FIGHT_FRAME.top) return null;
+  return {
+    pos,
+    look: { x: pos.x + fx * Math.cos(pitch), y: pos.y + Math.sin(pitch), z: pos.z + fz * Math.cos(pitch) },
+  };
+}
+
+// The view from `pos` over a frame bottom `bottom` (Task 5b), or null when
+// none frames `pts`: pitched so the lowest point sits LOW_LIFT over the
+// bottom when that frames them all; else, when today's aim (viewFrom)
+// frames them, as low as still does (a pitch up brings the near paws closer,
+// so wider on screen: the side edge can bind first), found in FIT_STEPS
+// halvings between the two.
+const FIT_STEPS = 8;
+function fitLow(pos, mid, fovY, lookY, pts, aspect, bottom) {
+  const low = viewLow(pos, mid, fovY, pts, bottom + LOW_LIFT);
+  if (low && inFrame(low, pts, aspect, fovY, bottom)) return low;
+  const aim = viewFrom(pos, mid, fovY, lookY);
+  if (!inFrame(aim, pts, aspect, fovY, bottom)) return null;
+  let ok = aim;
+  let lo = bottom + LOW_LIFT;
+  let hi = Infinity;
+  for (const p of pts) hi = Math.min(hi, projectPoint(aim, p, aspect, fovY).y);
+  for (let i = 0; i < FIT_STEPS && hi > lo; i++) {
+    const y = (lo + hi) / 2;
+    const v = viewLow(pos, mid, fovY, pts, y);
+    if (v && inFrame(v, pts, aspect, fovY, bottom)) { ok = v; hi = y; } else lo = y;
+  }
+  return ok;
+}
+
 // Where world point p lands on screen (normalised device coordinates; z is
 // the depth in front of the camera), for a camera at view.pos looking at
 // view.look with no roll, as three.js's lookAt sets it.
@@ -267,10 +340,10 @@ export function projectPoint(view, p, aspect, fovY) {
   };
 }
 
-function inFrame(view, pts, aspect, fovY) {
+function inFrame(view, pts, aspect, fovY, bottom = FIGHT_FRAME.bottom) {
   for (const p of pts) {
     const q = projectPoint(view, p, aspect, fovY);
-    if (q.z < 0.5 || Math.abs(q.x) > FIGHT_FRAME.x || q.y > FIGHT_FRAME.top || q.y < FIGHT_FRAME.bottom) return false;
+    if (q.z < 0.5 || Math.abs(q.x) > FIGHT_FRAME.x || q.y > FIGHT_FRAME.top || q.y < bottom) return false;
   }
   return true;
 }
@@ -426,7 +499,10 @@ function candidates(subject, yaw0, ring0, g0 = 0) {
 // trees (each with its Group) to hide.
 // `ground` (src/ground.js): every height rides g0, the ground under the
 // pair's middle, and a spot in rock or over a ceiling is never taken (R11).
-export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70, ground = FLAT_GROUND }) {
+// `frameBottom` (frameBottomFor, Task 5b): the frame's bottom over the real
+// sheet; each spot is then first tried pitched low over it (viewLow), then
+// at today's aim. null: today's bottom and aim.
+export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70, ground = FLAT_GROUND, frameBottom = null }) {
   const { mid } = subject;
   const g0 = fightGround(subject, ground);
   const lookY = LOOK_Y + g0;
@@ -434,6 +510,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   const framePts = framePoints(subject, g0);
   const seePts = subjectPoints(subject, true, false, g0);
   const liftPts = liftedPoints(subject, g0);
+  const bottom = frameBottom ?? FIGHT_FRAME.bottom;
   let best = null;     // the best view that clears every hard point
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
@@ -444,8 +521,9 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       pos.z < bounds.minZ + BOUNDS_GAP || pos.z > bounds.maxZ - BOUNDS_GAP)) continue;
     if (colliders.some((k) => Math.hypot(pos.x - k.x, pos.z - k.z) < k.r + COLLIDER_GAP)) continue;
     if (!ground.flat && inRock(pos, mid, lookY, ground)) continue;
-    const view = viewFrom(pos, mid, fovY, lookY);
-    if (!inFrame(view, framePts, aspect, fovY)) continue;
+    const view = frameBottom == null ? viewFrom(pos, mid, fovY, lookY)
+      : fitLow(pos, mid, fovY, lookY, framePts, aspect, bottom);
+    if (!view || (frameBottom == null && !inFrame(view, framePts, aspect, fovY, bottom))) continue;
     const blockers = new Set();
     let hideable = true;
     let whole = true; // counted every blocker (not stopped early)
@@ -539,7 +617,8 @@ export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8
 // move in a straight line, as the blend below moves them) keeps both cats in
 // the frame above the sheet and every line to them clear of the trees, at
 // every BLEND_SAMPLES point. If not, the camera cuts instead of easing.
-export function blendClear(from, to, subject, occluders, aspect, fovY, ground = FLAT_GROUND) {
+// frameBottom: as chooseFightView's (null, today's).
+export function blendClear(from, to, subject, occluders, aspect, fovY, ground = FLAT_GROUND, frameBottom = null) {
   const g0 = fightGround(subject, ground);
   const framePts = framePoints(subject, g0);
   const seePts = subjectPoints(subject, true, false, g0); // lifted tops are soft (chooseFightView)
@@ -550,17 +629,19 @@ export function blendClear(from, to, subject, occluders, aspect, fovY, ground = 
   const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= span + o.R);
   for (const t of BLEND_SAMPLES) {
     const v = { pos: lerp3(from.pos, to.pos, t), look: lerp3(from.look, to.look, t) };
-    if (!inFrame(v, framePts, aspect, fovY)) return false;
+    if (!inFrame(v, framePts, aspect, fovY, frameBottom ?? FIGHT_FRAME.bottom)) return false;
     for (const p of seePts) if (firstBlocker(v.pos, p, near)) return false;
   }
   return true;
 }
 
-// update(dt, { subject, cameraMode, camera, cat }) after player.update has
+// update(dt, { subject, cameraMode, camera, cat, sheetTop }) after player.update has
 // placed the follow camera and the fight has placed the cats. `subject` is
 // clanfight's cameraSubject (null when no fight is on); `cat` is my cat's
-// position, which the follow camera looks at. Returns whether it moved the
-// camera this frame.
+// position, which the follow camera looks at. `sheetTop` is the fight sheet's
+// top edge in NDC (sheetTopFrom; null when none is measured): a change of more
+// than SHEET_STEP re-chooses, as a turn of the phone does. Returns whether it
+// moved the camera this frame.
 //
 // Every move into a fight view (the first one, and a new one when the rounds
 // begin or the phone turns) is an ease only when blendClear passes from what
@@ -574,6 +655,8 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
   let from = null;      // the follow view an ease in started from (held still)
   let lastSubject = null;
   let lastAspect = 0;
+  let lastSheetTop = null;
+  let frameBottom = null;
   let hidden = [];
   let cuts = 0;
 
@@ -588,12 +671,16 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
     const yaw0 = Math.atan2(at.x - mid.x, at.z - mid.z);
     const next = chooseFightView({
       subject, occluders, colliders, bounds, yaw0, ring0: view ? view.ring : null,
-      aspect: camera.aspect, fovY: camera.fov, ground,
+      aspect: camera.aspect, fovY: camera.fov, ground, frameBottom,
     });
     show();
     for (const o of next.blockers) { o.obj.visible = false; hidden.push(o); }
     return next;
   }
+
+  // Whether the sheet's top moved enough to re-choose (or came or went).
+  const sheetMoved = (t) => (t == null || lastSheetTop == null ? (t == null) !== (lastSheetTop == null)
+    : Math.abs(t - lastSheetTop) > SHEET_STEP);
 
   const copy = (v) => ({ pos: { ...v.pos }, look: { ...v.look } });
 
@@ -602,7 +689,7 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
     get view() { return view; },
     // How many moves into a fight view were cuts (for tests).
     get cuts() { return cuts; },
-    update(dt, { subject, cameraMode = false, camera, cat }) {
+    update(dt, { subject, cameraMode = false, camera, cat, sheetTop = null }) {
       const active = !!subject && !cameraMode;
       const follow = {
         pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
@@ -610,21 +697,24 @@ export function createFightCam({ occluders = [], colliders = [], bounds = null, 
       };
       if (!active) {
         lastSubject = null;
+        lastSheetTop = null;
         from = null;
         show();
         if (cameraMode || reducedMotion) w = 0;
         else w = Math.max(0, w - dt / EASE_OUT);
         if (w === 0) { view = null; cur = null; return false; }
-      } else if (subject !== lastSubject || camera.aspect !== lastAspect) {
+      } else if (subject !== lastSubject || camera.aspect !== lastAspect || sheetMoved(sheetTop)) {
         // what is on screen right now, before this frame's move
         const base = from ?? follow;
         const s0 = smooth(w);
         const shown = w === 0 ? copy(follow) : { pos: lerp3(base.pos, cur.pos, s0), look: lerp3(base.look, cur.look, s0) };
+        lastSheetTop = sheetTop;
+        frameBottom = frameBottomFor(sheetTop);
         view = choose(subject, camera);
         lastSubject = subject;
         lastAspect = camera.aspect;
         const left = occluders.filter((o) => !o.obj || o.obj.visible !== false);
-        if (reducedMotion || !blendClear(shown, view, subject, left, camera.aspect, camera.fov, ground)) {
+        if (reducedMotion || !blendClear(shown, view, subject, left, camera.aspect, camera.fov, ground, frameBottom)) {
           cur = copy(view); w = 1; from = null; cuts += 1;
         } else if (w === 0) {
           from = shown; cur = copy(view);

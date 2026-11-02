@@ -39,6 +39,7 @@ import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
 import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
+import { sheetTopFrom } from './fightcam.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -704,6 +705,10 @@ function init() {
   const mapRemotePool = [];
   // The tree fade's look point (the cat at CAT_LOOK_Y), mutated every frame.
   const treeFadeLook = { x: 0, y: 0, z: 0 };
+  // The fight camera frames the pair just above the fight sheet (Task 5b):
+  // the sheet's height is fightui's --fight-sheet-h on #hud, an inline style
+  // read (no layout), only while a fight is on.
+  const hudEl = document.getElementById('hud');
   const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null, posts: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
@@ -836,8 +841,10 @@ function init() {
       session.clanFight.update(dt, session);
       // The fight camera, over the follow camera player.update placed: while a
       // fight is on, no tree hides either cat (src/fightcam.js).
+      const fightSubject = session.clanFight.cameraSubject;
       session.fightCam?.update(dt, {
-        subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
+        subject: fightSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
+        sheetTop: fightSubject ? sheetTopFrom(parseFloat(hudEl?.style.getPropertyValue('--fight-sheet-h')), window.innerHeight) : null,
       });
       // The tree fade, over the camera's final place this frame: a tree between
       // it and the cat (at CAT_LOOK_Y, the fight camera's look) turns
