@@ -52,7 +52,7 @@ const CAVES = CEILINGS.map((c) => {
   const f = ROCK_WALKS.find((w) => w.minX === c.minX && w.maxX === c.maxX && w.minZ === c.minZ && w.maxZ === c.maxZ);
   return { c, floor: f ? f.y0 : 0 };
 });
-const inCaveVoid = (x, y, z) => CAVES.some(({ c, floor }) => inRect(c, x, z) && y > floor && y < c.y0);
+const inCaveVoid = (x, y, z) => CAVES.some(({ c, floor }) => inRect(c, x, z) && y > floor && y <= c.y0);
 
 // Points on the true wall planes: a solid's edge where rock is on the inside
 // and air on the outside at that height. Frame edges (never drawn) are left out.
@@ -89,6 +89,55 @@ function wallPoints(n, seed = 11) {
   return out;
 }
 const WALL = wallPoints(2000);
+
+// Explicit wall points the random sweep rarely hits: every solid's corners
+// (outward along the diagonal), and every cave and den wall at exactly its
+// ceiling's height and a hair under it.
+function cornerPoints() {
+  const out = [];
+  for (const sol of SOLIDS) {
+    const { s } = sol;
+    for (const [x, sx] of [[s.minX, -1], [s.maxX, 1]]) {
+      for (const [z, sz] of [[s.minZ, -1], [s.maxZ, 1]]) {
+        if (Math.abs(x) >= FRAME || Math.abs(z) >= FRAME) continue;
+        const lo = sol.lo(x, z);
+        const hi = sol.hi(x, z);
+        for (const u of [0.1, 0.35, 0.6, 0.85, 0.99]) {
+          const y = lo + u * (hi - lo);
+          const ox = sx * 1e-4;
+          const oz = sz * 1e-4;
+          if (!field.rockAt(x - ox, y, z - oz) || field.rockAt(x + ox, y, z + oz)) continue;
+          out.push({ x, y, z, cave: inCaveVoid(x + ox, y, z + oz) });
+        }
+      }
+    }
+  }
+  return out;
+}
+function cavePlanePoints() {
+  const out = [];
+  for (const { c } of CAVES) {
+    for (const y of [c.y0, c.y0 - 1e-7]) {
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20;
+        const edges = [
+          [c.minX, c.minZ + t * (c.maxZ - c.minZ), -1e-4, 0],
+          [c.maxX, c.minZ + t * (c.maxZ - c.minZ), 1e-4, 0],
+          [c.minX + t * (c.maxX - c.minX), c.minZ, 0, -1e-4],
+          [c.minX + t * (c.maxX - c.minX), c.maxZ, 0, 1e-4],
+        ];
+        // rock outside the cave's rect, its void inside
+        for (const [x, z, ox, oz] of edges) {
+          if (!field.rockAt(x + ox, y, z + oz) || field.rockAt(x - ox, y, z - oz)) continue;
+          out.push({ x, y, z, cave: true, tag: c.tag });
+        }
+      }
+    }
+  }
+  return out;
+}
+const CORNERS = cornerPoints();
+const CAVE_PLANE = cavePlanePoints();
 
 describe('rock relief: determinism', () => {
   it('noise3 is an integer-hash value noise with pinned values', () => {
@@ -156,7 +205,7 @@ describe('rock relief: what must not move', () => {
     }
   });
 
-  it('the shoulder top inside the keep discs does not move up or down', () => {
+  it('the shoulder top inside the keep discs does not move at all', () => {
     const shoulder = MASSES.filter((m) => m.y0 === 14);
     let n = 0;
     for (const k of KEEP) {
@@ -167,12 +216,41 @@ describe('rock relief: what must not move', () => {
           if ((x - k.x) ** 2 + (z - k.z) ** 2 > k.r * k.r) continue;
           if (!shoulder.some((m) => inRect(m, x, z))) continue;
           n++;
-          expect([x, z, field.at(x, 14, z).dy]).toEqual([x, z, 0]);
+          const d = field.at(x, 14, z);
+          expect([x, z, d.dx, d.dy, d.dz]).toEqual([x, z, 0, 0, 0]);
         }
       }
     }
     expect(n).toBeGreaterThan(300);
   });
+});
+
+describe('rock relief: cap tops are rock top', () => {
+  // The ground (highest column or cap top) at (x, z), from the records.
+  const groundT = (x, z) => SOLIDS.reduce((g, sol) => (inRect(sol.s, x, z) ? Math.max(g, sol.hi(x, z)) : g), 0);
+  it('a cap top more than CREST_BAND from any real drop does not move', () => {
+    let n = 0;
+    for (const { s, top } of CEILINGS.map((c) => ({ s: c, top: capTopFor(c, MASSES) })).filter((c) => c.top > c.s.y0)) {
+      for (let i = 0; i <= 8; i++) {
+        for (let j = 0; j <= 8; j++) {
+          const x = s.minX + ((s.maxX - s.minX) * i) / 8;
+          const z = s.minZ + ((s.maxZ - s.minZ) * j) / 8;
+          let near = false; // a drop of 1 m within 1.7 m
+          for (let a = -17; a <= 17 && !near; a++) {
+            for (let b = -17; b <= 17 && !near; b++) {
+              if (a * a + b * b > 289) continue;
+              if (groundT(x + a / 10, z + b / 10) <= top - 1) near = true;
+            }
+          }
+          if (near) continue;
+          n++;
+          const d = field.at(x, top, z);
+          expect([s.tag, x, z, d.dx, d.dy, d.dz]).toEqual([s.tag, x, z, 0, 0, 0]);
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+  }, SWEEP);
 });
 
 describe('rock relief: bounds', () => {
@@ -181,9 +259,22 @@ describe('rock relief: bounds', () => {
     expect(WALL.filter((p) => p.cave).length).toBeGreaterThan(20);
   });
 
+  it('found corner points and cave walls at the ceiling plane', () => {
+    expect(CORNERS.length).toBeGreaterThan(300);
+    expect(CORNERS.filter((p) => p.cave).length).toBeGreaterThan(10);
+    expect(CAVE_PLANE.length).toBeGreaterThan(200);
+  });
+
+  it('wallNear with a NaN or non-positive radius reads the centre only', () => {
+    expect(field.wallNear(-10, 1, 0, NaN)).toBe(false);
+    expect(field.wallNear(-10, 1, 0, 0)).toBe(false);
+    expect(field.wallNear(-10, 1, 0, -1)).toBe(false);
+    expect(field.wallNear(-30, 5, 40, 0)).toBe(true);
+  });
+
   it('no moved wall point stands proud of its wall by more than ROCK_PROUD (CAVE_PROUD in a cave)', () => {
     const bad = [];
-    for (const p of WALL) {
+    for (const p of [...WALL, ...CORNERS, ...CAVE_PLANE]) {
       const d = field.at(p.x, p.y, p.z);
       const bound = (p.cave ? CAVE_PROUD : ROCK_PROUD) + 1e-6;
       if (!field.wallNear(p.x + d.dx, p.y + d.dy, p.z + d.dz, bound)) bad.push({ ...p, ...d });
@@ -202,6 +293,30 @@ describe('rock relief: bounds', () => {
       const y = i % 4 === 0 ? lo : i % 4 === 1 ? hi : lo + rnd() * (hi - lo);
       const d = field.at(2.0, y, z);
       expect(Math.abs(d.dx)).toBeLessThanOrEqual(0.15 + 1e-9);
+    }
+  }, SWEEP);
+
+  it('every lip face, where the lip stands 0.4 m thin, moves at most 0.15 across it', () => {
+    const rnd = mulberry32(13);
+    for (const lip of ROCK_WALKS.filter((s) => s.kind === 'lip')) {
+      let n = 0;
+      for (const [x, ox] of [[lip.minX, -1e-4], [lip.maxX, 1e-4]]) {
+        for (let i = 0; i <= 200; i++) {
+          const z = lip.minZ + ((lip.maxZ - lip.minZ) * i) / 200;
+          const hi = shapeY(lip, x, z);
+          const lo = hi - 0.35;
+          const y = i % 4 === 0 ? lo : i % 4 === 1 ? hi : lo + rnd() * (hi - lo);
+          if (!field.rockAt(x - ox, y, z) || field.rockAt(x + ox, y, z)) continue; // not a wall here
+          // and the face opposite is a wall too: the lip stands 0.4 m thin here
+          // (where the 14 m shoulder backs lip C, it is not thin)
+          const xo = x === lip.minX ? lip.maxX : lip.minX;
+          if (field.rockAt(xo - ox, y, z)) continue;
+          n++;
+          const d = field.at(x, y, z);
+          expect([lip.tag, x, y, z, Math.abs(d.dx) <= 0.15 + 1e-9]).toEqual([lip.tag, x, y, z, true]);
+        }
+      }
+      expect([lip.tag, n > 50]).toEqual([lip.tag, true]);
     }
   }, SWEEP);
 });

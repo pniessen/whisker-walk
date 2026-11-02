@@ -29,9 +29,10 @@
 //   5. Fades: the foot factor, and FRAME_FADE metres in from the map's frame
 //      (the frame's faces are never drawn; nothing tears at its edge).
 //   6. Crest jag: a rock top (a mass or a ceiling cap, never a walk or lip)
-//      within CREST_BAND of a drop of at least 1 m is lifted or dropped by
-//      noise, so the rims' silhouettes break up. Not in the keep discs, where
-//      things stand on the rock.
+//      within CREST_BAND of a drop of at least 1 m (cap tops count as
+//      ground: the plateau over a cave is no drop) is lifted or dropped by
+//      noise, so the rims' silhouettes break up. In the keep discs, where
+//      things stand on the rock, a rock top doesn't move at all.
 //
 // Determinism: noise3 and every hash use Math.imul on integer lattice
 // coordinates; the field uses only + - * / floor and Math.sqrt (no Math.sin,
@@ -210,6 +211,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
 
   function wallNear(x, y, z, r) {
     if (rockAt(x, y, z)) return true;
+    if (!(r > 0)) return false; // a NaN or non-positive radius: the centre only
     for (let k = 1; ; k++) {
       const d = k * STEP < r ? k * STEP : r;
       for (const [ux, uz] of DIR16) if (rockAt(x + ux * d, y, z + uz * d)) return true;
@@ -228,7 +230,8 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     return w;
   }
 
-  // The ground for the crest search: the highest column top (caps ignored).
+  // The ground for the crest search: the highest column or cap top. A cap's
+  // top is rock top, so the plateau over a cave or den is no drop.
   function groundAt(x, z) {
     let g = 0;
     for (const c of at2(colGrid, x, z)) {
@@ -236,6 +239,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
       const t = shapeY(c.s, x, z);
       if (t > g) g = t;
     }
+    for (const c of at2(capGrid, x, z)) if (inClosed(c.s, x, z) && c.top > g) g = c.top;
     return g;
   }
 
@@ -255,8 +259,10 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     return rock && Math.abs(y - best) <= EPS;
   }
 
+  // In a cave or den's void, its ceiling plane included (a wall vertex at
+  // exactly the ceiling's height is still a cave wall).
   const inVoid = (x, y, z) => {
-    for (const v of at2(voidGrid, x, z)) if (inClosed(v.s, x, z) && y > v.floor && y < v.ceil) return true;
+    for (const v of at2(voidGrid, x, z)) if (inClosed(v.s, x, z) && y > v.floor && y <= v.ceil) return true;
     return false;
   };
 
@@ -388,8 +394,12 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     }
     let dy = 0;
     if (ff > 0 && onRockTop(x, y, z)) {
+      // The keep discs hold a rock top still: no crest, and no horizontal move.
       const kf = keepFade(x, z);
       if (kf > 0) dy = crestAt(x, y, z) * ff * kf;
+      recess *= kf;
+      dx *= kf;
+      dz *= kf;
     }
     // + 0 turns -0 into 0
     return { dx: dx + 0, dy: dy + 0, dz: dz + 0, recess: recess + 0 };
