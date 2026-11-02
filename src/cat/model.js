@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt } from './coat.js';
-import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry } from './limbs.js';
+import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
@@ -1372,6 +1372,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k]);
     for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
+  // The folds (Task 5, R1): each leg gets its baked fold shapes now, with its
+  // final limb, paw and feet item in place, so a fold moves exactly these.
+  legs.forEach((leg, i) => attachFolds(leg, { hind: i >= 2, simple: !!opts.simple, hipY, len: LEGS.LEN * LEG_LEN }));
   const bodyY = TORSO.CENTRE_Y + dy;
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
 

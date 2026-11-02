@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCat } from '../src/cat/model.js';
 import { coatColourAt, coatFromStyle } from '../src/cat/coat.js';
-import { LEGS, PAW_Y, PAW_HALF } from '../src/cat/torso.js';
-import { LEG_SHAPE, LIMB_SEG, LEG_BLEND, tubeGeometry, limbGeometry, paintLimb, legTopDir, CLAW_HEX, FOOT, footGeometry, plainPawGeometry } from '../src/cat/limbs.js';
+import { LEGS, PAW_Y, PAW_HALF, REF_RIG } from '../src/cat/torso.js';
+import { LEG_SHAPE, LIMB_SEG, LEG_BLEND, tubeGeometry, limbGeometry, paintLimb, legTopDir, CLAW_HEX, FOOT, footGeometry, plainPawGeometry, FOLDS, FOLD_BY_STATE } from '../src/cat/limbs.js';
 import { lookToStyle, DEFAULT_LOOK, PATTERNS, FURS } from '../src/customcats.js';
 import { PRESETS, meshCount, triangles, lum } from './helpers/catfingerprint.js';
 
@@ -483,5 +483,30 @@ describe('the foot', () => {
   it('no randomness in the foot', () => {
     const src = fs.readFileSync(new URL('../src/cat/limbs.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/Math\.random/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The folds (body refinement Task 5, R1-R3): the table's own rules.
+describe('the fold table', () => {
+  it('every fold is in the ground frame, its top inside the lowered body, nothing below the ground', () => {
+    expect(Object.keys(FOLDS)).toEqual(['stand', 'sit', 'tuck', 'crouch', 'ball']);
+    expect(FOLDS.stand.crouch).toBe(false);
+    for (const [kind, f] of Object.entries(FOLDS)) {
+      if (kind === 'stand') continue;
+      for (const which of Object.keys(f).filter((k) => k === 'front' || k === 'hind')) {
+        const { points, radii, paw, pawRotX } = f[which];
+        expect(radii.length, `${kind} ${which}`).toBe(points.length);
+        expect(points[0][0], `${kind} ${which} top`).toBeCloseTo(REF_RIG.HIP_Y - f.drop, 9);
+        points.forEach(([g], i) => expect(g, `${kind} ${which} point ${i}`).toBeGreaterThanOrEqual(radii[i] + 0.002 - 1e-9));
+        expect(paw.length).toBe(2);
+        expect(typeof pawRotX).toBe('number');
+      }
+    }
+    expect(FOLDS.sit.front).toBeUndefined(); // the sit folds only the hind legs
+  });
+
+  it('which states fold (R3)', () => {
+    expect(FOLD_BY_STATE).toEqual({ nap: ['tuck', 'tuck'], pinned: ['tuck', 'tuck'], stalk: ['crouch', 'crouch'], requestPet: ['stand', 'sit'], perch: ['stand', 'sit'], roll: ['ball', 'ball'] });
   });
 });

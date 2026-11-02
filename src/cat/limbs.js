@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEGS, TORSO, PAW_HALF } from './torso.js';
+import { LEGS, TORSO, PAW_HALF, PAW_Y, REF_RIG } from './torso.js';
 
 // The smooth limb (body refinement, docs/superpowers/specs/2026-11-01-body-refinement-design.md):
 // each leg is ONE tube along a smooth curve, from a shoulder (front) or a
@@ -62,8 +62,24 @@ function radiusSlope(radii, t) {
 // A tube along a Catmull-Rom curve through `points`, radius eased between
 // `radii`, on rotation-minimising frames (no twist), welded around (no seam
 // vertices), a 2-ring dome closing the top and the bottom left open (it ends
-// inside the paw). Indexed; userData { t, sides, rings }.
-export function tubeGeometry(points, radii, { sides, rings }) {
+// inside the paw). Indexed; userData { t, sides, rings }. `bend` (the
+// folds') presses the inside of a tight bend in (tubeArrays).
+export function tubeGeometry(points, radii, seg, bend = 0) {
+  const { pos, nor, t, idx } = tubeArrays(points, radii, seg, bend);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setIndex(idx);
+  geo.userData.t = t;
+  geo.userData.sides = seg.sides;
+  geo.userData.rings = seg.rings;
+  return geo;
+}
+
+// The tube's arrays alone (no three.js object, so no uuid is drawn): the
+// folds below bake their shapes with the very same function, so a fold's
+// vertex order and its analytic normals are the standing limb's.
+function tubeArrays(points, radii, { sides, rings }, bend = 0) {
   const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
   const centres = [], tangents = [], normals = [];
   for (let i = 0; i <= rings; i++) {
@@ -99,18 +115,39 @@ export function tubeGeometry(points, radii, { sides, rings }) {
   const putN = (k, v) => { nor[k * 3] = v.x; nor[k * 3 + 1] = v.y; nor[k * 3 + 2] = v.z; };
   // A ring of `sides` vertices about c, radius r, in the plane (n, bi); each
   // normal its radial direction tipped by `slope` along -tan.
-  const ring = (k0, c, n, bi, r, tan, slope, lift = 0) => {
+  // `inward` / `reach` (a fold's tight bend, see `bend` below): on the inside
+  // of the bend, toward `inward`, the ring reaches no further than `reach`.
+  const ring = (k0, c, n, bi, r, tan, slope, lift = 0, inward = null, reach = Infinity) => {
     for (let j = 0; j < sides; j++) {
       const a = (j / sides) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
       d.set(ca * n.x + sa * bi.x, ca * n.y + sa * bi.y, ca * n.z + sa * bi.z);
-      put(k0 + j, c.x + r * d.x, c.y + r * d.y, c.z + r * d.z);
+      const k = inward ? d.dot(inward) : 0;
+      const rj = k > 0 ? Math.min(r, reach / k) : r;
+      put(k0 + j, c.x + rj * d.x, c.y + rj * d.y, c.z + rj * d.z);
       putN(k0 + j, d.multiplyScalar(Math.cos(lift)).addScaledVector(tan, -slope).normalize());
     }
   };
   const length = curve.getLength();
+  // `bend` (the folds only; the standing limb passes 0 and is unchanged): where
+  // the curve turns tighter than the tube is thick, the inside of each ring is
+  // held to `bend` x the curve's radius of curvature between it and each
+  // neighbouring ring (their spacing over the angle between their tangents),
+  // so the inside of a folded knee is pressed in rather than folding over itself.
+  const inward = new THREE.Vector3();
+  const bandRho = (i) => {
+    const turn = Math.acos(Math.min(1, Math.max(-1, tangents[i].dot(tangents[i + 1]))));
+    return turn > 1e-6 ? centres[i].distanceTo(centres[i + 1]) / turn : Infinity;
+  };
   for (let i = 0; i <= rings; i++) {
     b.crossVectors(tangents[i], normals[i]);
-    ring(i * sides, centres[i], normals[i], b, radiusAt(radii, i / rings), tangents[i], radiusSlope(radii, i / rings) / length);
+    let reach = Infinity;
+    if (bend) {
+      const a = tangents[Math.max(0, i - 1)], z = tangents[Math.min(rings, i + 1)];
+      reach = bend * Math.min(i > 0 ? bandRho(i - 1) : Infinity, i < rings ? bandRho(i) : Infinity);
+      inward.subVectors(z, a).addScaledVector(tangents[i], -inward.dot(tangents[i]));
+      if (inward.lengthSq() < 1e-12) reach = Infinity; else inward.normalize();
+    }
+    ring(i * sides, centres[i], normals[i], b, radiusAt(radii, i / rings), tangents[i], radiusSlope(radii, i / rings) / length, 0, reach < Infinity ? inward : null, reach);
     t.fill(i / rings, i * sides, (i + 1) * sides);
   }
   // The dome: a sphere cap of the top ring's radius about the top centre,
@@ -135,15 +172,7 @@ export function tubeGeometry(points, radii, { sides, rings }) {
   for (let i = 0; i < rings; i++) band(i * sides, (i + 1) * sides);
   band(dome, 0);
   for (let j = 0; j < sides; j++) idx.push(apex, dome + (j + 1) % sides, dome + j);
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-  geo.setIndex(idx);
-  geo.userData.t = t;
-  geo.userData.sides = sides;
-  geo.userData.rings = rings;
-  return geo;
+  return { pos, nor, t, idx };
 }
 
 // The standing limb for a leg of length `len`: the points below the hip
@@ -153,6 +182,167 @@ export function limbGeometry(len, hind, simple = false) {
   const k = len / LEGS.LEN;
   const pts = points.map(([x, y, z]) => [x, y < 0 ? y * k : y, z]);
   return tubeGeometry(pts, radii, LIMB_SEG[simple ? 'simple' : 'full']);
+}
+
+// ---------------------------------------------------------------------------
+// THE FOLDS (body refinement Task 5, R1-R3). A leg folds at its joints by
+// having a baked fold shape written into its limb's one geometry, never by
+// squashing the leg group: sitting tucks the hind legs under the haunch with
+// the foot flat in front, a nap (and being pinned) folds all four under the
+// body with the forearms forward sphinx-style, a stalk bends them low, a roll
+// balls them up.
+//
+// R2: each fold is given in the GROUND frame on the reference rig, as
+// [g, z]: height above the ground and z from the hip (-z forward), its top
+// point at REF_RIG.HIP_Y - drop (the pose's own body drop), so the top stays
+// inside the lowered torso while the hip pivot stays put, and a long-legged
+// Digit folds to the same visible shape as a tabby. A fold marked `crouch`
+// lowers the body by legLift with it (animator.js fitLongLegs), so its points
+// go leg-local by y = g - hipY; one that is not (the ball) leaves the body at
+// standing height, so its points ride with the hip: y = g - REF_RIG.HIP_Y.
+// `paw` is the foot's centre [g, z] and `pawRotX` its tip. Every control point
+// keeps g >= its radius + 0.002, so the tube stays out of the ground.
+const fold = (points, radii, paw, pawRotX = 0) => Object.freeze({
+  points: Object.freeze(points.map((p) => Object.freeze(p))), radii: Object.freeze(radii), paw: Object.freeze(paw), pawRotX,
+});
+export const FOLDS = Object.freeze({
+  stand: Object.freeze({ crouch: false }),
+  // Hind only: thigh down to a knee forward, the shin back down to the hock
+  // under the haunch, the foot flat in front of it. The sit's torso is tipped
+  // (rotation.x -0.5), so its belly at the hip is high: the top sits a little
+  // forward of the hip, inside it.
+  sit: Object.freeze({
+    crouch: true, drop: 0.02,
+    hind: fold([[0.28, -0.05], [0.16, -0.11], [0.085, 0.01], [0.045, -0.02]], [0.10, 0.075, 0.045, 0.036], [0.0415, -0.03]),
+  }),
+  // All four under the body: forearms forward (paws peeking out in front),
+  // the hind shin back to a hock on the ground and the foot flat forward
+  // beside the belly. The limb ends at the hock (inside the foot's heel), so
+  // nothing doubles back on itself.
+  tuck: Object.freeze({
+    crouch: true, drop: 0.10,
+    front: fold([[0.20, 0], [0.07, 0.06], [0.04, -0.08]], [0.085, 0.05, 0.036], [0.0415, -0.13]),
+    hind: fold([[0.20, 0], [0.085, -0.08], [0.042, 0.035]], [0.10, 0.077, 0.036], [0.0415, 0]),
+  }),
+  // Bent low, paws still under the shoulders and hips, ready to go.
+  crouch: Object.freeze({
+    crouch: true, drop: 0.10,
+    front: fold([[0.20, 0], [0.14, 0.07], [0.05, -0.005]], [0.085, 0.06, 0.038], [0.0415, -0.015]),
+    hind: fold([[0.20, 0], [0.135, -0.07], [0.095, 0.08], [0.04, 0]], [0.10, 0.08, 0.05, 0.036], [0.0415, -0.012]),
+  }),
+  // A ball of fur: front paws drawn back under the chest, hind forward under
+  // the belly, both tipped toward each other.
+  ball: Object.freeze({
+    crouch: false, drop: 0,
+    front: fold([[0.30, 0], [0.21, 0.06], [0.19, -0.04]], [0.085, 0.055, 0.038], [0.18, -0.07], -0.6),
+    hind: fold([[0.30, 0], [0.22, -0.12], [0.17, 0]], [0.10, 0.07, 0.045], [0.17, -0.07], 0.6),
+  }),
+});
+
+// R3: which states fold, as [front, hind]. Every other state stands (the
+// stretch keeps lengthening its legs by scale; pinning keeps standing legs on
+// the other cat's back).
+export const FOLD_BY_STATE = Object.freeze({
+  nap: Object.freeze(['tuck', 'tuck']),
+  pinned: Object.freeze(['tuck', 'tuck']),
+  stalk: Object.freeze(['crouch', 'crouch']),
+  requestPet: Object.freeze(['stand', 'sit']),
+  perch: Object.freeze(['stand', 'sit']),
+  roll: Object.freeze(['ball', 'ball']),
+});
+
+// A fold's tube keeps the inside of each bend within FOLD_BEND x its radius
+// of curvature (tubeArrays' `bend`), so a tight knee presses in, not over
+// (0.8: at 0.9 a few faces still folded over at the nap's hind knee).
+export const FOLD_BEND = 0.8;
+// Baked fold arrays, shared read-only by every leg of the same kind (they
+// are only ever copied FROM): by (hind, simple, hipY, kind).
+const foldCache = new Map();
+function bakedFold(kind, hind, simple, hipY) {
+  const key = `${kind}|${+hind}|${+simple}|${hipY}`;
+  let baked = foldCache.get(key);
+  if (baked) return baked;
+  const f = FOLDS[kind];
+  const shape = f[hind ? 'hind' : 'front'];
+  const y0 = f.crouch ? hipY : REF_RIG.HIP_Y;
+  const { pos, nor } = tubeArrays(shape.points.map(([g, z]) => [0, g - y0, z]), shape.radii, LIMB_SEG[simple ? 'simple' : 'full'], FOLD_BEND);
+  baked = Object.freeze({
+    pos, nor, box: new THREE.Box3().setFromArray(pos),
+    paw: new THREE.Vector3(0, shape.paw[0] - y0, shape.paw[1]), pawRotX: shape.pawRotX,
+  });
+  foldCache.set(key, baked);
+  return baked;
+}
+
+// Give a built leg its folds: leg.userData.folds (per kind { pos, nor, box,
+// paw, pawRotX }; `stand` a copy of the limb's own standing arrays, the rest
+// baked with the same LIMB_SEG so the vertex order matches), leg.userData.rest
+// (every child's built position and x-turn: the paw's, and each part hung
+// after it, such as a cuff or a sneaker stripe), fold 'stand'. The limb's
+// bounding box becomes its own Box3 (applyFold copies into it) and its
+// bounding sphere, set once, holds every fold. `len` is the limb's length
+// (LEGS.LEN * legLen), the one the standing limb was built from.
+export function attachFolds(leg, { hind, simple, hipY, len }) {
+  const geo = leg.children[0].geometry;
+  const pos = geo.attributes.position.array.slice();
+  const nor = geo.attributes.normal.array.slice();
+  // The standing paw's centre, leg-local: where the limb of length `len` ends.
+  const stand = { pos, nor, box: new THREE.Box3().setFromArray(pos), paw: new THREE.Vector3(0, PAW_Y - (len - LEGS.LEN), -0.012), pawRotX: 0 };
+  const folds = { stand };
+  for (const kind of Object.keys(FOLDS)) {
+    if (FOLDS[kind][hind ? 'hind' : 'front']) folds[kind] = bakedFold(kind, hind, simple, hipY);
+  }
+  const sphere = new THREE.Sphere();
+  const s = new THREE.Sphere(), v = new THREE.Vector3();
+  for (const f of Object.values(folds)) {
+    f.box.getCenter(s.center);
+    s.radius = 0;
+    for (let i = 0; i < f.pos.length; i += 3) s.radius = Math.max(s.radius, s.center.distanceTo(v.fromArray(f.pos, i)));
+    sphere.union(s); // an empty sphere takes the first as it is
+  }
+  geo.boundingSphere = sphere;
+  geo.boundingBox = stand.box.clone();
+  leg.userData.folds = folds;
+  leg.userData.rest = { pos: leg.children.map((c) => c.position.clone()), rotX: leg.children.map((c) => c.rotation.x), paw: leg.children.indexOf(leg.userData.paw) };
+  leg.userData.fold = 'stand';
+}
+
+// Fold a leg (R1): write the fold's shape into the limb's own position and
+// normal arrays, its box into the geometry's own boundingBox, and move the
+// paw to the fold's foot spot (its built place plus the fold's move from the
+// standing foot), tipped by pawRotX, with every part hung after it carried
+// along, turned about the paw's centre. A kind this leg has no shape for (the
+// sit on a front leg) is standing. A no-op on a leg without folds (Hagrid) or
+// already in that fold. Allocates nothing.
+const _move = new THREE.Vector3();
+const _off = new THREE.Vector3();
+const _X = new THREE.Vector3(1, 0, 0);
+export function applyFold(leg, kind) {
+  const ud = leg.userData;
+  const folds = ud.folds;
+  if (!folds) return;
+  const k = folds[kind] ? kind : 'stand';
+  if (ud.fold === k) return;
+  const f = folds[k];
+  const geo = leg.children[0].geometry;
+  const p = geo.attributes.position, n = geo.attributes.normal;
+  p.array.set(f.pos);
+  p.needsUpdate = true;
+  n.array.set(f.nor);
+  n.needsUpdate = true;
+  geo.boundingBox.copy(f.box);
+  const { pos: rest, rotX, paw: at } = ud.rest;
+  const paw = leg.children[at];
+  _move.subVectors(f.paw, folds.stand.paw);
+  paw.position.copy(rest[at]).add(_move);
+  paw.rotation.x = rotX[at] + f.pawRotX;
+  for (let i = at + 1; i < leg.children.length; i++) {
+    const part = leg.children[i];
+    _off.subVectors(rest[i], rest[at]).applyAxisAngle(_X, f.pawRotX);
+    part.position.copy(paw.position).add(_off);
+    part.rotation.x = rotX[i] + f.pawRotX;
+  }
+  ud.fold = k;
 }
 
 // The limb's vertex colours: `topHex` (a hex or a THREE.Color, the torso's

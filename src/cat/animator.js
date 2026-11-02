@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF } from './torso.js';
 import { fitScars } from './scarmesh.js';
+import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
@@ -177,8 +178,11 @@ function applyPoseFit(cat, fit) {
 // about a higher hip puts its paw somewhere else — the cat hovered in a sit, a
 // nap and a stalk. This pass, run after the pose, re-fits the cat to the pose:
 //
-//   * a crouch (any leg folded, scale.y < 1) brings everything but the legs
-//     down by Δ, so the body rests exactly as low as a standard cat's does;
+//   * a crouch (any leg squashed, scale.y < 1, or folded with a fold marked
+//     `crouch`, limbs.js FOLDS) brings everything but the legs down by Δ, so
+//     the body rests exactly as low as a standard cat's does;
+//   * a folded leg (fold other than 'stand') is left as its fold made it: the
+//     fold is already shaped in the ground frame (R2);
 //   * every leg the pose scaled or swung (up to ~57°, so a raised grooming paw
 //     is left alone) gets the scale that lands its sole where a standard leg's
 //     sole would land: hip + Δ - s'·(R + Δ)·cosθ = hip - s·R·cosθ.
@@ -195,8 +199,9 @@ const LONG_LEG_MAX_SWING = 1.0;
 function fitLongLegs(cat) {
   const { body, head, legs } = cat.userData.parts;
   const { legLift: lift, legReach: reach, hipY } = cat.userData.base;
-  // Contract with pose(): it may only shrink a leg (scale.y < 1) when it also lowers the body.
-  const crouch = legs.some((leg) => leg.scale.y < 1);
+  // Contract with pose(): it may only shrink a leg (scale.y < 1), or fold one
+  // with a fold marked `crouch` (limbs.js FOLDS), when it also lowers the body.
+  const crouch = legs.some((leg) => leg.scale.y < 1 || FOLDS[leg.userData.fold]?.crouch);
   for (const child of cat.children) {
     if (legs.includes(child) || child.userData.liftY === undefined) continue;
     if (child === body || child === head) {
@@ -206,6 +211,12 @@ function fitLongLegs(cat) {
     }
   }
   for (const leg of legs) {
+    // A folded leg is its fold's shape, already in the ground frame: no length
+    // re-fit, no ground cap (a capped fold would be a squash).
+    if (leg.userData.fold && leg.userData.fold !== 'stand') {
+      leg.scale.y = 1;
+      continue;
+    }
     const s = leg.scale.y;
     const swing = Math.abs(leg.rotation.x);
     const c = Math.cos(swing);
@@ -257,6 +268,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     leg.scale.set(1, 1, 1);
   }
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
+  // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
+  // (a write only when the fold changes). A rig with folds stops squashing or
+  // swinging a folded leg below; a rig without them (Hagrid) keeps today's lines.
+  const f = FOLD_BY_STATE[state];
+  legs.forEach((leg, i) => applyFold(leg, f ? f[i < 2 ? 0 : 1] : 'stand'));
+  const folds = !!legs[0].userData.folds;
 
   // ear twitches: brief, occasional, alternating
   const twitchWindow = Math.sin(t * 0.37) > 0.965 ? 1 : 0;
@@ -321,7 +338,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     body.scale.set(bsx * 1.12, bsy * 0.73, bsz * 0.89);
     head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
     head.rotation.set(0.55, 0.5, 0);
-    for (const leg of legs) leg.scale.y = 0.25;
+    if (!folds) for (const leg of legs) leg.scale.y = 0.25;
     tail.rotation.set(-0.12 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
     body.scale.y += Math.sin(t * 1.4) * 0.015; // slow sleepy breathing
@@ -355,10 +372,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // upright sit
     body.rotation.x = -0.5;
     body.position.y = base.bodyY - 0.02;
-    legs[2].scale.y = 0.45;
-    legs[3].scale.y = 0.45;
-    legs[2].rotation.x = -0.5;
-    legs[3].rotation.x = -0.5;
+    if (!folds) {
+      legs[2].scale.y = 0.45;
+      legs[3].scale.y = 0.45;
+      legs[2].rotation.x = -0.5;
+      legs[3].rotation.x = -0.5;
+    }
     head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
     tail.rotation.set(-0.1 + c, 0, 0);
@@ -376,7 +395,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     body.position.y = base.bodyY - 0.1;
     head.position.set(hx, hy - 0.16, hz - 0.08);
     head.rotation.x = 0.15;
-    for (const leg of legs) leg.scale.y = 0.7;
+    if (!folds) for (const leg of legs) leg.scale.y = 0.7;
   }
 
   if (state === 'pounce') {
@@ -490,7 +509,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   if (state === 'pinned') {
     body.position.y = base.bodyY - PINNED.bodyDrop;
     body.scale.set(bsx * PINNED.bodyScale[0], bsy * PINNED.bodyScale[1], bsz * PINNED.bodyScale[2]);
-    for (const leg of legs) leg.scale.y = PINNED.legs;
+    if (!folds) for (const leg of legs) leg.scale.y = PINNED.legs;
     head.position.set(hx + PINNED.head[0], hy + PINNED.head[1], hz + PINNED.head[2]);
     head.rotation.x = PINNED.headTip;
     tail.rotation.set(PINNED.tailRotX, 0, 0);
@@ -514,10 +533,12 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   if (state === 'roll') {
     body.scale.set(bsx * ROLL.bodyScale[0], bsy * ROLL.bodyScale[1], bsz * ROLL.bodyScale[2]);
-    legs[0].rotation.x = -ROLL.tuck;
-    legs[1].rotation.x = -ROLL.tuck;
-    legs[2].rotation.x = ROLL.tuck;
-    legs[3].rotation.x = ROLL.tuck;
+    if (!folds) {
+      legs[0].rotation.x = -ROLL.tuck;
+      legs[1].rotation.x = -ROLL.tuck;
+      legs[2].rotation.x = ROLL.tuck;
+      legs[3].rotation.x = ROLL.tuck;
+    }
     head.position.set(hx + ROLL.head[0], hy + ROLL.head[1], hz + ROLL.head[2]);
     head.rotation.x = ROLL.headTip;
     for (const p of tailPivots) p.rotation.y = ROLL.tailWrap;
