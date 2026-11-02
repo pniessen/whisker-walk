@@ -47,9 +47,10 @@ const { createContactShadows } = await import('../src/render/contactshadows.js')
 
 // Built in the flat trace's order: shared geometries and materials are cached
 // across builds, so a count depends on what was built before it. The Gorge is
-// 5132, up 12 from 5120, from main's gorge-rock merge (edge stones, boulders,
-// strata); the Gorge is not in the flat trace, so nothing else moved.
-const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 5132 };
+// 5108: 5120 + 12 from gorge-rock (edge stones, boulders, strata) - 24 from
+// polish-camps (the Gorge camp builds its parts under withLocalUuids). The
+// Gorge is not in the flat trace, so nothing else moved.
+const BUILD_DRAWS = { neighborhood: 4408, park: 2252, seaside: 860, docks: 6916, woods: 11344, river: 15484, moor: 7944, pines: 11580, gorge: 5108 };
 
 function drawsOf(world) {
   // The flat trace builds a cat and the contact shadows around every area, and
