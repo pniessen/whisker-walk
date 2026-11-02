@@ -135,6 +135,9 @@ function markersKey(markers) {
 export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle } = {}) {
   // The layer is fixed for the map's life: whether it has islands, once.
   const hasIslands = !!layer?.water?.some((w) => w.islands?.length);
+  // Markers slid out from under the badge this paint (a few, reused).
+  const slid = [{ u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }, { u: 0, v: 0 }];
+  let slidCount = 0;
   const canvas = document.createElement('canvas');
   canvas.className = 'hud-map-disc';
   canvas.setAttribute('role', 'img');
@@ -195,6 +198,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     drawWorld(full, c);
     ctx.restore();
 
+    slidCount = 0;
     for (const m of markers) drawMarker(m, full, c);
     drawCat(full, c);
 
@@ -326,7 +330,24 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
   function drawMarker(m, view, c) {
     // Slid along the rim out from under the N badge, which is drawn last
     // (Polish 3: the Twolegplace's post for the Moor hid there).
-    const p = clearOfBadge(pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6), badgeAt(view), BADGE_R + MARK_R);
+    const at = pinToRim(toMap(m.x, m.z, view), view.radiusPx, 6);
+    const p = clearOfBadge(at, badgeAt(view), BADGE_R + MARK_R);
+    // Two markers slid to the same spot beside the badge would hide one
+    // another: each later one steps on round the rim, the way it leans.
+    if (p !== at) {
+      const r = Math.hypot(p.u, p.v);
+      const b = badgeAt(view);
+      const lean = (p.u - b.u) * -b.v + (p.v - b.v) * b.u >= 0 ? 1 : -1; // which side of the badge
+      for (let k = 0; k < slidCount && r > 0; k++) {
+        const s0 = slid[k];
+        if (Math.hypot(p.u - s0.u, p.v - s0.v) >= 2 * MARK_R) continue;
+        const a = Math.atan2(p.v, p.u) + lean * ((2 * MARK_R) / r);
+        p.u = Math.cos(a) * r;
+        p.v = Math.sin(a) * r;
+        k = -1; // check them all again from the new spot
+      }
+      if (slidCount < slid.length) { slid[slidCount].u = p.u; slid[slidCount].v = p.v; slidCount++; }
+    }
     const x = c + p.u;
     const y = c + p.v;
     ctx.save();

@@ -469,6 +469,24 @@ describe('createMinimap', () => {
     expect(x).toBeGreaterThan(c);
   });
 
+  it('two markers slid out from under the badge do not land on each other (Polish 3)', () => {
+    const { map, canvas } = makeMap();
+    // The town's Moor post and a scenic star, both due north and off the map.
+    map.update({ cx: 0, cz: 0, heading: 0 }, {
+      ...EMPTY_FRAME, posts: [{ x: 3.6, z: -52, faces: 'north' }], scenics: [{ id: 's', x: 2, z: -60 }],
+    });
+    const [c, , radiusPx] = canvas.arcs[0];
+    const arrow = canvas.ops.findIndex((o) => o.op === 'fill' && o.fillStyle === '#8a6a48');
+    const post = canvas.ops.slice(0, arrow).findLast((o) => o.op === 'translate').args;
+    // the star's first vertex is its top point, 5 px above its centre
+    const starAt = canvas.ops.findIndex((o, i) => i > arrow && o.op === 'moveTo');
+    const [sx, sy] = canvas.ops[starAt].args;
+    const star = [sx, sy + 5];
+    const badge = [c, c - (radiusPx - 9)];
+    expect(Math.hypot(star[0] - badge[0], star[1] - badge[1])).toBeGreaterThanOrEqual(13 - 1e-6);
+    expect(Math.hypot(star[0] - post[0], star[1] - post[1])).toBeGreaterThanOrEqual(10);
+  });
+
   // coatColor hands back a number (0x2a2a30); a canvas ignores a number
   // fillStyle and keeps the previous one, which drew every co-walker white.
   it('fills a co-walker dot with a numeric coat colour as a CSS colour', () => {
