@@ -768,7 +768,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   if (s.fluffy) {
     // a small bib under the chin, jaw fluff and a fringe (ruff.js), already
     // vertex-coloured and without uv
-    parts.ruff = toTorso(ruffGeometry(s, opts.simple, coat, f));
+    parts.ruff = toTorso(ruffGeometry(s, opts.simple));
   }
   const ranges = {};
   let at = 0;

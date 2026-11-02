@@ -8,7 +8,6 @@ import { LEG_BLEND, CLAW_HEX } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
-import { TORSO, CHEST } from '../src/cat/torso.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
@@ -716,6 +715,8 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
     const cat = o ? dressed('tabby', id, o) : dressed(label, id), fit = fitOf(cat, itemMeshes(cat, itemHexes(id)));
     expect(fit).toHaveLength(tabby.length);
     fit.forEach(({ rear, front }, i) => {
+      // With NECK_FLUFFY at {0, 0} the rear check proves little (the fluffy neck sits where the tabby's does);
+      // the front >= 0.005 half is the real check.
       // (+1e-9: a streamer tail hangs clear of the bib, exactly as on a tabby)
       expect(rear, `mesh ${i}: rear floats off the fur`).toBeLessThanOrEqual(Math.max(0.025, tabby[i].rear) + 1e-9);
       expect(front, `mesh ${i}: front sunk in the fur`).toBeGreaterThanOrEqual(0.005);
@@ -853,7 +854,9 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
   // chest (a modest bib, not a gigantic chest). The chest's ellipsoid is read
   // off the built chest's own vertices (its box: the ball's poles and equator
   // are vertices), in the underside's frame, where it is axis-aligned.
-  const VISIBLE = { bib: 4, jaw: 4, fringe: 10 };
+  // Measured: full 12, simple 10 (of 75). The floor leaves slack for
+  // re-tessellation; 5 points must still show.
+  const VISIBLE = { bib: 4, jaw: 4, fringe: 8 };
   it.each(CASES)('%s: it shows outside the chest and the skull', (label, args, s, simple) => {
     const cat = build(args, simple); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     const { underside, head } = cat.userData.parts, skull = head.children[0];

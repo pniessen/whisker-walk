@@ -401,7 +401,7 @@ export const FOOT = Object.freeze({ R: 0.062, TOES: Object.freeze([-0.62, -0.21,
 // 0.95 R forward to the toes' base line and 1.4 R back to the heel (today's
 // paw's 1.42, so the heel stays where it was). Its top is 0.75 R up (the
 // sketch's). The sketch's 0.95 R wide and 1.3 R forward read as slippers at
-// normal camera distance (owner's ruling, Task 4 fix round 2), so the foot is
+// normal camera distance (controller's ruling (2026-11-02), shown to the owner in the before/after sheet; Task 4 fix round 2), so the foot is
 // ~14% narrower and ~13% shorter, all of it off the front.
 const FOOT_W = 0.82 * FOOT.R;
 const FOOT_FRONT = 0.95 * FOOT.R;

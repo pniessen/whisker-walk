@@ -7,6 +7,7 @@ import { animateCat } from '../src/cat/animator.js';
 import { setCatScars, fitScars } from '../src/cat/scarmesh.js';
 import { DEFAULT_LOOK, PATTERNS, FURS, COATS } from '../src/customcats.js';
 import { CLAN_COATS } from '../src/clancast.js';
+import { pokes } from './helpers/catpoke.js';
 import { fingerprintCat, meshCount, PRESETS, colourDistance } from './helpers/catfingerprint.js';
 
 // The scar mesh (2026-11-01 fight moves and scars, Task 4): one fitted,
@@ -385,15 +386,14 @@ describe('scar mesh', () => {
         animateCat(cat, state, 1.3, 0.5);
         const curves = limbCurves(cat);
         centroids(cat).forEach((c, s) => curves.forEach((curve, li) => {
-          // A folded leg tucks against the body, so only demand the strip is not buried deep inside a tube.
-          expect(clearance(curve, c), `${name} ${state} ${site} ${side} strip ${s} leg ${li}`).toBeGreaterThan(-0.01 * curve.sc);
+          // The same clearance as a standing leg: measured worst +0.0075 (requestPet), all others >= +0.046.
+          expect(clearance(curve, c), `${name} ${state} ${site} ${side} strip ${s} leg ${li}`).toBeGreaterThan(0.005 * curve.sc);
         }));
       }
     }
   });
 
   it('Digit and tabby rear up on their new hind legs', () => {
-    const down = new THREE.Vector3(0, -1, 0), ray = new THREE.Raycaster(), v = new THREE.Vector3(), o = new THREE.Vector3();
     for (const name of ['digit', 'tabby']) for (const simple of [false, true]) {
       const cat = buildCat(name, undefined, { simple });
       const dims = catPivot(cat);
@@ -414,19 +414,7 @@ describe('scar mesh', () => {
       flat.scale.setScalar(1);
       animateCat(flat, 'rearUp', 0.7, 0, false);
       flat.updateMatrixWorld(true);
-      const body = flat.userData.parts.body;
-      const torso = new THREE.Box3().setFromObject(body, true);
-      let worst = -Infinity;
-      flat.userData.parts.legs.forEach((leg) => {
-        const limb = leg.children[0], hipX = Math.abs(leg.position.x), pos = limb.geometry.attributes.position;
-        for (let k = 0; k < pos.count; k++) {
-          v.fromBufferAttribute(pos, k).applyMatrix4(limb.matrixWorld);
-          if (Math.abs(v.x) > hipX + 1e-9 || v.y < torso.min.y || v.z < torso.min.z || v.z > torso.max.z) continue;
-          ray.set(o.set(v.x, 5, v.z), down);
-          const hit = ray.intersectObject(body, false)[0];
-          if (hit) worst = Math.max(worst, v.y - hit.point.y);
-        }
-      });
+      const worst = pokes(flat).standing;
       // Task 1's rearUp baseline (-0.0001 tabby, 0.0031 digit) + 0.002, floor 0.005.
       expect(worst, `${name} ${simple} back`).toBeLessThanOrEqual(0.005);
     }

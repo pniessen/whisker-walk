@@ -7,6 +7,7 @@ import { FOLDS, FOLD_BY_STATE, applyFold } from '../src/cat/limbs.js';
 import { POSE_FIT } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
 import { PRESETS, fingerprintCat } from './helpers/catfingerprint.js';
+import { pokes as pokesOf, T1 } from './helpers/catpoke.js';
 
 // Legs fold at the joints (body refinement Task 5, R1-R3): sitting tucks the
 // hind legs under the haunch with the foot flat in front, napping and being
@@ -59,46 +60,27 @@ const limbOf = (leg) => leg.children[0];
 const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.02, perch: 0.02, roll: 0 };
 const HEAD_DY = { nap: -0.24, stalk: -0.16, pinned: -0.22, requestPet: 0.06, perch: 0.06, roll: -0.1 };
 
-// 'Nothing pokes out of the back' (Task 1's method, baseline.md): each limb
-// vertex with |x| <= its leg's hip |x|, lowered onto the torso mesh alone by a
-// ray straight down; poke = vertex y - hit y. Split into the folded legs and
-// the standing ones.
+// The poke measure and Task 1's baseline table (T1) live in helpers/catpoke.js.
+const pokes = (cat, state) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand');
 const ray = new THREE.Raycaster();
 const DOWN = new THREE.Vector3(0, -1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3();
 const _o = new THREE.Vector3();
-function pokes(cat, state) {
-  cat.updateMatrixWorld(true);
-  const { body, legs } = cat.userData.parts;
-  const out = { folded: -Infinity, standing: -Infinity };
-  // Only a vertex over the torso's footprint, and above its lowest point, can
-  // poke out of its top (a shortcut: the rays are the cost).
-  const torso = box(body);
-  legs.forEach((leg, i) => {
-    const limb = limbOf(leg);
-    const key = kindOf(state, i) === 'stand' ? 'standing' : 'folded';
-    const hipX = Math.abs(leg.position.x);
-    const pos = limb.geometry.attributes.position;
-    for (let k = 0; k < pos.count; k++) {
-      _v.fromBufferAttribute(pos, k).applyMatrix4(limb.matrixWorld);
-      if (Math.abs(_v.x) > hipX + 1e-9) continue;
-      if (_v.y < torso.min.y || _v.z < torso.min.z || _v.z > torso.max.z || Math.abs(_v.x) > Math.max(-torso.min.x, torso.max.x)) continue;
-      ray.set(_o.set(_v.x, 5, _v.z), DOWN);
-      const hit = ray.intersectObject(body, false)[0];
-      if (hit) out[key] = Math.max(out[key], _v.y - hit.point.y);
-    }
-  });
-  return out;
-}
-// Task 1's worst poke per state (baseline.md, the old legs): tabby (every
-// standard-frame cat) and digit.
-const T1 = {
-  tabby: { follow: -0.0010, nap: 0.1482, stretch: 0.0389, groom: -0.0001, requestPet: 0.0367, perch: 0.0367, sniff: -0.0001, stalk: 0.1657, pounce: -0.0314, scared: 0.0599, cross: 0.0260, land: 0.0618, wade: -0.0001, swim: 0.0169, shake: -0.0001, swipe: 0.0355, backUp: -0.0176, rearUp: -0.0001, flinch: -0.0090, pinned: 0.1440, pinning: 0.1661, roll: -0.0603, arch: -0.0531, walk: 0.0366 },
-  digit: { follow: 0.0023, nap: 0.3117, stretch: 0.0426, groom: 0.0031, requestPet: 0.2331, perch: 0.2331, sniff: 0.0031, stalk: 0.2956, pounce: 0.0120, scared: 0.0631, cross: 0.0064, land: 0.0575, wade: 0.0031, swim: 0.0180, shake: 0.0031, swipe: -0.0141, backUp: -0.0280, rearUp: 0.0031, flinch: 0.0720, pinned: 0.3053, pinning: 0.1321, roll: -0.0190, arch: -0.0027, walk: 0.0713 },
-};
-// Folded and standing legs alike: no worse than Task 1 (the old legs) + 0.002.
+// Standing legs: no worse than Task 1 (the old legs) + 0.002.
 const allowed = (name, state) => Math.max(0.005, T1[name === 'digit' ? 'digit' : 'tabby'][state] + 0.002);
+// Folded legs get their own, tight ceiling: measured + 0.002, floor 0.005. The
+// Task 1 allowance (0.15 to 0.31 for nap, stalk and pinned) is the old squash's
+// poke and is far too loose here: the folds reach 0.0084 at most standing still
+// (Digit nap: 0.0070 full, 0.0084 simple) and every other still folded state is
+// negative (-0.014 to -0.17), so a tucked thigh pushed 15 cm through the back
+// must fail. Moving, Digit's walking stalk is the one other positive case: the
+// walk gait still swings the crouched legs, measured 0.0359 full, 0.0290 simple.
+const foldedAllowed = (name, state, moving = false) => {
+  if (name === 'digit' && state === 'nap') return 0.0105;
+  if (name === 'digit' && state === 'stalk' && moving) return 0.038;
+  return 0.005;
+};
 
 // A face folds over when its winding faces against the surface's own normals.
 function invertedFaces(geo) {
@@ -188,7 +170,7 @@ describe('legs fold at the joints (Task 5)', () => {
       const cat = make(v.name, v.simple);
       for (const state of ALL_STATES) {
         const p = pokes(pose(cat, state), state);
-        expect(p.folded, `${label(v)} ${state} folded`).toBeLessThanOrEqual(allowed(v.name, state));
+        expect(p.folded, `${label(v)} ${state} folded`).toBeLessThanOrEqual(foldedAllowed(v.name, state));
         expect(p.standing, `${label(v)} ${state} standing`).toBeLessThanOrEqual(allowed(v.name, state));
       }
     }
@@ -201,11 +183,12 @@ describe('legs fold at the joints (Task 5)', () => {
       for (let t = 0; t <= 3; t += 0.3) {
         for (const [state, speed, key] of [['follow', 1.5, 'walk'], ['stalk', 1.5, 'stalk']]) {
           const p = pokes(pose(cat, state, t, speed), state);
-          expect(Math.max(p.folded, p.standing), `${name} ${key} t ${t}`).toBeLessThanOrEqual(allowed(name, key));
+          expect(p.folded, `${name} ${key} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state, true));
+          expect(p.standing, `${name} ${key} t ${t} standing`).toBeLessThanOrEqual(allowed(name, key));
         }
         for (const state of ['swipe', 'backUp', 'pinning', 'pounce', 'flinch', 'rearUp', 'cross', 'pinned', 'roll']) {
           const p = pokes(pose(cat, state, t), state);
-          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(allowed(name, state));
+          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state, true));
           expect(p.standing, `${name} ${state} t ${t} standing`).toBeLessThanOrEqual(allowed(name, state));
         }
       }

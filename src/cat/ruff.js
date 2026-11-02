@@ -13,7 +13,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // refinement-sketch.html, newRuff, R9's numbers). All in the cat's frame;
 // undersideGeometry carries it into the torso's.
 //
-// The anchor departs from R9 (owner's ruling, Task 6 fix round 1). R9 put AT
+// The anchor departs from R9 (controller's ruling (2026-11-02), shown to the owner in the before/after sheet; Task 6 fix round 1). R9 put AT
 // where the torus sat, z -0.30, on the belief that the sketch's chest differs
 // from the game's; it does not (both (0, 0.49, -0.33), r 0.15·(1.05, 1.1, 0.9)),
 // and at -0.30 every ruff vertex is inside the chest or the skull: no ruff

@@ -48,7 +48,7 @@ export const HEN_BODY = Object.freeze({ Y: 0.42, SCALE: Object.freeze([0.9, 0.85
 // at the nape, where it shows (a hen's thick neck), slimming down to the
 // hidden base, so the part sniff swings out of the breast is slim.
 export const HEN_SKULL = Object.freeze([0.13, 0.1365, 0.13]);
-export const HEN_NECK = Object.freeze({
+const HEN_NECK = Object.freeze({
   P0: Object.freeze([0, -0.03, 0.01]),
   P1: Object.freeze([0, -0.12, 0.13]),
   P2: Object.freeze([0, -0.24, 0.2]),
@@ -66,7 +66,7 @@ export const HEN_LEG = Object.freeze({ FOOT_Y: -0.3 });
 
 // The tail feathers' extra tilt in tailPivots[0]'s frame: with today's
 // tailRotX -0.6 the fan stands at the sketch's -0.9.
-export const HEN_TAIL_TILT = -0.3;
+const HEN_TAIL_TILT = -0.3;
 
 // -----------------------------------------------------------------------------
 // helpers
@@ -237,7 +237,7 @@ function invert(f, target, lo, hi) {
 }
 // The core's half-width at (y, z) in the cat's frame (its surface's x there),
 // held to a sliver past the silhouette so a wing tip there stays on the body.
-export function henBodyHalfWidth(y, z) {
+function henBodyHalfWidth(y, z) {
   const uz = invert(coreZ, z, -1, 1);
   const lim = Math.sqrt(Math.max(0, 1 - uz * uz));
   const uy = invert((v) => coreY(v, uz), y, -lim, lim);
@@ -292,10 +292,10 @@ export function henBodyGeometry() {
 // -----------------------------------------------------------------------------
 // the head (head-local frame, origin at the skull's centre)
 
-export function henNeckCurve(neck = HEN_NECK) {
+function henNeckCurve(neck = HEN_NECK) {
   return new THREE.QuadraticBezierCurve3(...[neck.P0, neck.P1, neck.P2].map((a) => new THREE.Vector3(...a)));
 }
-export function henNeckRadius(u, neck = HEN_NECK) {
+function henNeckRadius(u, neck = HEN_NECK) {
   const [a, m, b] = neck.R;
   const c = 2 * m - (a + b) / 2; // the control value that puts r(0.5) at m
   return a * (1 - u) ** 2 + 2 * u * (1 - u) * c + b * u * u;
@@ -370,7 +370,7 @@ export function henWattlesGeometry() {
 // each in its pivot's frame and counter-rolled by ∓REST (R11). The fan keeps
 // every point under the beanie's drawn shell (the outer points stop 4.6 cm
 // out; 5.4 shows through the cap's flat facets) and its top under the brims.
-export const COMB_POINTS = Object.freeze([
+const COMB_POINTS = Object.freeze([
   // [base z, tip z, tip y]
   [-0.008, -0.046, 0.168],
   [-0.004, -0.027, 0.173],
