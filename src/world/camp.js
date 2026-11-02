@@ -615,8 +615,6 @@ function campRockMesh(rockSpot) {
   return rock;
 }
 
-const LEDGE_DISC_DRAWS = 24;
-
 // A ledge camp: three top-level meshes, the rock, the bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
@@ -653,10 +651,6 @@ function addLedgeCamp(scene, area, L) {
   made.kill.name = 'campKill';
   scene.add(bedding);
   scene.add(made.kill);
-  // The six flat discs this replaced took 24 of the Math.random draws (four
-  // uuids for each cylinder); the build's seeded tests and every draw after
-  // it expect them, so they are still taken. Nothing reads the values.
-  for (let i = 0; i < LEDGE_DISC_DRAWS; i++) Math.random();
   area.colliders.push({ x: L.rock.x, z: L.rock.z, r: L.rock.r });
 }
 

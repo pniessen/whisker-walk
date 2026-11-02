@@ -396,8 +396,9 @@ describe('the ledge camp in the Gorge', () => {
     }
   });
 
-  it('takes exactly the Math.random draws (THREE uuids) the Gorge camp took before the nests and the pile', () => {
-    // the build's seeded tests count these; withLocalUuids keeps the new objects off Math.random
+  it('takes only the rock\'s Math.random draws (THREE uuids): the nests and the pile are built off it', () => {
+    // No seeded test pins the Gorge build's draws (flattrace does not build the
+    // Gorge), so the six old bedding discs' 24 uuid draws are simply gone.
     const real = Math.random;
     for (const withGround of [true, false]) {
       let draws = 0;
@@ -407,7 +408,7 @@ describe('the ledge camp in the Gorge', () => {
       } finally {
         Math.random = real;
       }
-      expect(draws, String(withGround)).toBe(52);
+      expect(draws, String(withGround)).toBe(28);
     }
   });
 
