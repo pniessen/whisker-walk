@@ -22,6 +22,8 @@ vi.stubGlobal('document', {
 
 const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor } = await import('../src/gorgelife.js');
 const { GORGE_CAVES, gorgeGround } = await import('../src/world/gorgeshape.js');
+const { CAVE_SHOW_R, CAVE_SHOW_DY } = await import('../src/gorgelife.js');
+const { floodGorge } = await import('./helpers/gorgeflood.js');
 
 // A ground whose height is the cat's x: the tests walk her up by moving x.
 const RAMP = { flat: false, y: (x) => x };
@@ -400,5 +402,74 @@ describe('gorge life: the caves', () => {
     const { scene, sun, life } = make();
     for (let i = 0; i < 60; i++) life.update(1 / 60, i / 60, at(0));
     expect(sun.intensity).toBeCloseTo(3 * 0.6, 10);
+  });
+});
+
+describe('gorge life: the caves\' insides (C5)', () => {
+  const ground = gorgeGround();
+  const groups = () => GORGE_CAVES.map((c) => {
+    const g = new THREE.Group();
+    g.userData.caveId = c.id;
+    g.visible = false;
+    return g;
+  });
+  const make = (interiors) => {
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    const fill = new THREE.HemisphereLight(0xffffff, 0x5f5d52, 1);
+    return createGorgeLife({ scene, sun, fill, ground, caves: GORGE_CAVES, interiors, reducedMotion: true });
+  };
+  const cat = (x, z) => new THREE.Vector3(x, ground.y(x, z), z);
+  const rectDist = (r, x, z) => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+
+  it('an interior shows only near its cave and on its level', () => {
+    expect([CAVE_SHOW_R, CAVE_SHOW_DY]).toEqual([12, 3]);
+    const interiors = groups();
+    const [echo, snug, glitter] = interiors;
+    const life = make(interiors);
+    // outside the Echo Cave's mouth, on the floor: shown from the first frame
+    life.update(1 / 60, 0, cat(-16, 23.5));
+    expect(interiors.map((g) => g.visible)).toEqual([true, false, false]);
+    // across the gorge: hidden
+    life.update(1 / 60, 0.1, cat(-3, 2));
+    expect(echo.visible).toBe(false);
+    // On leg A, 10 m from the Snug Cave's nearest rectangle but about 7 m
+    // below it: only the level rule hides it.
+    const snugCave = GORGE_CAVES[1];
+    expect(Math.min(...snugCave.rects.map((r) => rectDist(r, 5, 20)))).toBeCloseTo(10, 6);
+    expect(snugCave.y - ground.y(5, 20)).toBeGreaterThan(CAVE_SHOW_DY);
+    life.update(1 / 60, 0.2, cat(5, 20));
+    expect(snug.visible).toBe(false);
+    // at the Snug Cave's mouth, and in the Glitter Cave's chamber
+    life.update(1 / 60, 0.3, cat(14, 20.2));
+    expect(interiors.map((g) => g.visible)).toEqual([false, true, false]);
+    life.update(1 / 60, 0.4, cat(41.5, -39.5));
+    expect(glitter.visible).toBe(true);
+    expect(snug.visible).toBe(false);
+    life.dispose();
+  });
+
+  it('starts hidden at the spawn: no pop at the walk\'s start', () => {
+    const interiors = groups();
+    const life = make(interiors);
+    life.update(1 / 60, 0, cat(-44, -11));
+    expect(interiors.some((g) => g.visible)).toBe(false);
+    life.dispose();
+  });
+
+  it('at most one interior is visible at any reached cell of the flood', () => {
+    const interiors = groups();
+    const life = make(interiors);
+    let worst = 0;
+    let seen = 0;
+    floodGorge().forEachReached((x, z) => {
+      life.update(1 / 60, 0, cat(x, z));
+      const n = interiors.filter((g) => g.visible).length;
+      if (n > 0) seen++;
+      worst = Math.max(worst, n);
+    });
+    expect(worst).toBe(1);
+    expect(seen).toBeGreaterThan(0);
+    life.dispose();
   });
 });

@@ -3182,6 +3182,93 @@ export function scree(spots, seed) {
   return g;
 }
 
+// =============================================================================
+// THE CAVES' SOFT GLOW (the Gorge, part 3): crystals at the foot of a cave's
+// walls and gold flecks on them. Both are emissive at a gentle 0.6, so they
+// read in the dark of a chamber without lighting anything, and nothing on
+// them moves or flickers.
+// =============================================================================
+const CAVE_GLOW = 0.6;
+const caveGlowMaterial = (color) => litMaterial(color, { emissive: color, emissiveIntensity: CAVE_GLOW });
+
+// One merged, emissive, out-of-the-shadow-pass mesh.
+function glowMesh(geoms, color, name) {
+  const geo = geoms.length === 0 ? new THREE.BufferGeometry()
+    : geoms.length === 1 ? geoms[0] : mergeGeometries(geoms, false);
+  if (geoms.length > 1) for (const p of geoms) p.dispose();
+  const m = new THREE.Mesh(geo, caveGlowMaterial(color));
+  m.name = name;
+  m.castShadow = false;
+  m.userData.noCast = true;
+  return m;
+}
+
+// Crystals. Each spot { x, z, y, nx, nz } is at the foot of a wall, with
+// (nx, nz) the unit normal pointing off the wall into the cave. A spot is a
+// cluster of three to five small octahedra, 0.06-0.18 m across and 1.6 times
+// as tall (so never taller than 0.3 m), spread 0.2 m either way along the
+// wall and up to 0.05 m further out, each leaning gently away from the wall
+// and resting on y. Every vertex stays within 0.1 m of its crystal's centre
+// across the ground, so a spot 0.1 m or more off its wall keeps every crystal
+// off the wall's face. One merged noCast mesh, the same every time for one
+// seed.
+export const CRYSTAL_SIZE = Object.freeze([0.06, 0.18]);
+export const CRYSTAL_SPREAD = 0.2;
+const CRYSTAL_OUT = 0.05;
+const CRYSTAL_STRETCH = 1.6;
+const CRYSTAL_LEAN = Object.freeze([0.1, 0.35]);
+export function caveCrystals(spots, seed, { color = 0x9fc7d8 } = {}) {
+  const geoms = [];
+  const axis = new THREE.Vector3();
+  const lean = new THREE.Matrix4();
+  spots.forEach((sp, i) => {
+    const nx = sp.nx ?? 0;
+    const nz = sp.nz ?? 0;
+    const n = 3 + Math.floor(hash01(sp.x, sp.z, seed + 1) * 3);
+    for (let k = 0; k < n; k++) {
+      const s = CRYSTAL_SIZE[0] + (CRYSTAL_SIZE[1] - CRYSTAL_SIZE[0]) * hash01(i, k, seed + 2);
+      const u = (hash01(k, i, seed + 3) * 2 - 1) * CRYSTAL_SPREAD;
+      const v = CRYSTAL_OUT * hash01(i + k, k, seed + 4);
+      const tilt = CRYSTAL_LEAN[0] + (CRYSTAL_LEAN[1] - CRYSTAL_LEAN[0]) * hash01(k, i, seed + 5);
+      const geo = new THREE.OctahedronGeometry(s / 2, 0);
+      geo.scale(1, CRYSTAL_STRETCH, 1);
+      geo.rotateY(hash01(i, k, seed + 6) * Math.PI * 2);
+      // Tip the top toward the cave: about up x n.
+      if (nx !== 0 || nz !== 0) geo.applyMatrix4(lean.makeRotationAxis(axis.set(nz, 0, -nx).normalize(), tilt));
+      geo.computeBoundingBox();
+      // The wall runs along (-nz, nx).
+      const x = sp.x - nz * u + nx * v;
+      const z = sp.z + nx * u + nz * v;
+      geo.translate(x, (sp.y ?? 0) - geo.boundingBox.min.y, z);
+      geoms.push(geo);
+    }
+  });
+  const g = new THREE.Group();
+  g.add(glowMesh(geoms, color, 'caveCrystals'));
+  return g;
+}
+
+// Gold flecks on a wall: each spot { x, y, z, nx, nz } is a point on the
+// wall's face with (nx, nz) its normal into the cave, and gets one tiny flat
+// diamond 0.04-0.09 m long, turned in the wall's plane and set 0.015 m off
+// the face, facing out. One merged noCast mesh.
+export const FLECK_SIZE = Object.freeze([0.04, 0.09]);
+export const FLECK_OFF = 0.015;
+export function caveFlecks(spots, seed, { color = 0xe8b84a } = {}) {
+  const geoms = [];
+  spots.forEach((sp, i) => {
+    const s = FLECK_SIZE[0] + (FLECK_SIZE[1] - FLECK_SIZE[0]) * hash01(sp.x + sp.y, sp.z, seed + 1);
+    const geo = new THREE.PlaneGeometry(s, s * 0.6);
+    geo.rotateZ(Math.PI / 4 + hash01(i, sp.y, seed + 2) * Math.PI);
+    geo.rotateY(Math.atan2(sp.nx, sp.nz));
+    geo.translate(sp.x + sp.nx * FLECK_OFF, sp.y, sp.z + sp.nz * FLECK_OFF);
+    geoms.push(geo);
+  });
+  const g = new THREE.Group();
+  g.add(glowMesh(geoms, color, 'caveFlecks'));
+  return g;
+}
+
 // LEFT FLAT, in all five areas. Corrugated board is uncoated pulp — it is
 // already at the matte default, and it is the one prop here with no grain at
 // all to imitate: the plank tile would give it timber boards it does not have,

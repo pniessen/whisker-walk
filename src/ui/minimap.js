@@ -19,6 +19,9 @@ const BLOCK = 'rgba(70,60,52,0.45)';
 const TREE = 'rgba(46,88,42,0.55)';
 // The Gorge's rock (masses, lips, roofed caves and dens) and its raised ledges.
 const ROCK_TONES = Object.freeze({ rock: 'rgba(92,86,80,0.55)', ledge: 'rgba(214,198,170,0.85)' });
+// A cave's mouth: a small dark arch, upright on the map whichever way it turns.
+const CAVE_MOUTH = '#3a3028';
+const ARCH_R = 4;
 // A tree is drawn as most of its crown, not its full canopy, so a wood reads
 // as trees with ground between them rather than one green blot; capped so the
 // camp's great tree is not a lake of green.
@@ -64,6 +67,9 @@ export function buildMapLayer(areaData, scene) {
     // The Gorge's rock and ledges as plain rectangles, drawn under the paths.
     // Empty on every other map, so they paint exactly as before.
     rock: (areaData.mapShapes ?? []).map(({ minX, maxX, minZ, maxZ, tone }) => ({ minX, maxX, minZ, maxZ, tone })),
+    // The Gorge's deep caves, by their mouths, drawn as small dark arches.
+    // Empty on every other map, so they paint exactly as before.
+    caves: (areaData.caves ?? []).map(({ mouth }) => ({ x: mouth.x, z: mouth.z })),
     // Big colliders stand in for buildings, trees and large props; small
     // ones (bins, posts) would only be noise at this scale.
     blocks: (areaData.colliders ?? []).filter((c) => c.r >= 1).map((c) => ({ x: c.x, z: c.z, r: c.r })),
@@ -212,6 +218,7 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
     ctx.fillRect(0, 0, size, size);
     drawWorld(full, c);
     ctx.restore();
+    drawCaveMouths(full, c);
 
     slidCount = 0;
     for (const m of markers) drawMarker(m, full, c);
@@ -347,6 +354,30 @@ export function createMinimap(hostEl, { areaId, layer, mode = 'north', onToggle 
       ctx.fillRect(r.minX, r.minZ, r.maxX - r.minX, r.maxZ - r.minZ);
     }
     ctx.restore();
+  }
+
+  // Each cave mouth on the map's face, as an upright arch 8 px wide, over the
+  // world and under the markers. One that is off the face is left off: a
+  // mouth is a place, not a direction.
+  function drawCaveMouths(view, c) {
+    const caves = layer?.caves ?? [];
+    for (const m of caves) {
+      const p = toMap(m.x, m.z, view);
+      if (Math.hypot(p.u, p.v) > view.radiusPx - ARCH_R) continue;
+      const x = c + p.u;
+      const y = c + p.v;
+      ctx.beginPath();
+      ctx.moveTo(x - ARCH_R, y + ARCH_R * 0.75);
+      ctx.lineTo(x - ARCH_R, y);
+      ctx.arc(x, y, ARCH_R, Math.PI, 0);
+      ctx.lineTo(x + ARCH_R, y + ARCH_R * 0.75);
+      ctx.closePath();
+      ctx.fillStyle = CAVE_MOUTH;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = CREAM;
+      ctx.stroke();
+    }
   }
 
   function drawPaths() {

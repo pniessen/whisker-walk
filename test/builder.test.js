@@ -790,6 +790,50 @@ describe('the Woods builders', () => {
     expect(new THREE.Box3().setFromObject(g).max.y).toBeLessThanOrEqual(0.3);
     expect(() => b.toadstools([], 6)).not.toThrow();
   });
+
+  it('caveCrystals is one merged noCast mesh, low and the same every time', () => {
+    // A wall along x = 0 facing +x (into the cave), floor at y 4.
+    const spots = [0, 1, 2, 3].map((k) => ({ x: 0.1, z: k, y: 4, nx: 1, nz: 0 }));
+    const g = b.caveCrystals(spots, 9, { color: 0x9fc7d8 });
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes).toHaveLength(1);
+    const [m] = meshes;
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.material.emissive.getHex()).toBe(0x9fc7d8);
+    expect(m.material.emissiveIntensity).toBe(0.6);
+    // three to five crystals a spot (an octahedron is 8 triangles)
+    const crystals = m.geometry.attributes.position.count / 24;
+    expect(crystals).toBeGreaterThanOrEqual(3 * spots.length);
+    expect(crystals).toBeLessThanOrEqual(5 * spots.length);
+    // seated on the floor, never taller than 0.3 m, and off the wall's face:
+    // a spot 0.1 m out keeps every vertex in front of the wall
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.min.y).toBeCloseTo(4, 6);
+    expect(box.max.y - 4).toBeLessThanOrEqual(0.3);
+    expect(box.min.x).toBeGreaterThan(0);
+    expect(box.max.x).toBeLessThanOrEqual(0.1 + 0.05 + 0.1);
+    // the same every time for one seed
+    const again = b.caveCrystals(spots, 9, { color: 0x9fc7d8 });
+    let a2;
+    again.traverse((o) => { if (o.isMesh) a2 = o; });
+    expect(Array.from(a2.geometry.attributes.position.array)).toEqual(Array.from(m.geometry.attributes.position.array));
+    expect(() => b.caveCrystals([], 9)).not.toThrow();
+  });
+
+  it('caveFlecks is one merged noCast emissive mesh just off its wall', () => {
+    const spots = [{ x: 0, z: 0, y: 1, nx: 0, nz: -1 }, { x: 1, z: 0, y: 2, nx: 0, nz: -1 }];
+    const g = b.caveFlecks(spots, 3, { color: 0xe8b84a });
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes).toHaveLength(1);
+    expect(meshes[0].userData.noCast).toBe(true);
+    expect(meshes[0].material.emissiveIntensity).toBe(0.6);
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.min.z).toBeCloseTo(-0.015, 6);
+    expect(box.max.z).toBeCloseTo(-0.015, 6);
+  });
 });
 
 // The Gorge's real shape records (builder.js itself imports nothing from the

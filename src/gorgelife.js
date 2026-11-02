@@ -38,6 +38,11 @@ import { caveDepth, underCeiling } from './caves.js';
 //     there on a Gorge walk, at 0 outside. Removed by dispose.
 //   * RAIN OUTSIDE (C6). While the camera is under a ceiling the weather
 //     hides its rain column (weather.setSheltered, only on a change).
+//   * THE INSIDES (C5). Each deep cave's crystals (gorge.js's
+//     caveInterior:<id> groups, handed in as `interiors`) are drawn only
+//     while her cat is within CAVE_SHOW_R of one of its cave's rectangles and
+//     on its level, so at most one is ever drawn. They start hidden, and the
+//     first update sets them for where she stands.
 // =============================================================================
 
 // The sun's share on the gorge floor; 1 from y 10 up.
@@ -63,6 +68,19 @@ const DARK_OUT_RATE = 2.0;
 const GLOW_FULL_DEPTH = 0.35;
 // The glow sits this far over her cat.
 const GLOW_LIFT = 0.7;
+
+// A cave's insides are drawn within this far (2D, m) of its rectangles, and
+// only while the ground under her is within CAVE_SHOW_DY of its floor.
+export const CAVE_SHOW_R = 12;
+export const CAVE_SHOW_DY = 3;
+
+const rectDist = (r, x, z) => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Math.max(r.minZ - z, 0, z - r.maxZ));
+
+// Whether a cave's insides are drawn with her cat at (x, z) on ground groundY.
+export function interiorShown(cave, x, z, groundY) {
+  if (Math.abs(groundY - cave.y) > CAVE_SHOW_DY) return false;
+  return cave.rects.some((r) => rectDist(r, x, z) <= CAVE_SHOW_R);
+}
 
 // The light factor at a depth: 1 outside, DARK_FLOOR at the far end.
 export function darkFor(depth) {
@@ -175,8 +193,9 @@ function createGlow(scene) {
 // `audio` is the game's audio (setAmbientMix); without it the mix is skipped.
 // `caves` is gorge.js's GORGE_CAVES (none: nowhere is a cave). `weather` is
 // the walk's weather (setSheltered); without it the shelter is skipped.
+// `interiors` are the caves' inside groups, each with userData.caveId.
 // update(dt, t, catPos, camera): `camera` (its position) for the shelter.
-export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null }) {
+export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null, interiors = [] }) {
   const sunState = lightState(sun);
   const fillState = lightState(fill);
   const birds = reducedMotion ? null : createBirds(scene);
@@ -188,6 +207,10 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
   let sheltered = false;
   let started = false;
   let mixTimer = 0;
+  // Each inside with its cave record.
+  const insides = interiors
+    .map((group) => ({ group, cave: (caves ?? []).find((c) => c.id === group.userData.caveId) }))
+    .filter((p) => p.cave);
 
   function light() {
     composeIntensity(sunState, sun, shade * dark);
@@ -219,6 +242,7 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
       light();
       glow.position.set(catPos.x, catPos.y + GLOW_LIFT, catPos.z);
       glow.intensity = glowLevel;
+      for (const { group, cave } of insides) group.visible = interiorShown(cave, catPos.x, catPos.z, groundY);
       if (weather && camera) {
         const p = camera.position;
         const under = underCeiling(ground, p.x, p.y, p.z);

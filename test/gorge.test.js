@@ -1248,3 +1248,103 @@ describe('the Gorge: the roofs over the caves and dens', () => {
     expect([WEST_TOP, SHOULDER]).toEqual([9, 14]);
   });
 });
+
+// Part 3, Task 4 (C5): what each deep cave holds, inside its own rock.
+const { scanFootprints } = await import('../src/render/contactshadows.js');
+describe('the Gorge: inside the deep caves', () => {
+  const interiors = scene.children.filter((o) => o.userData.caveId);
+  const meshesOf = (g) => {
+    const out = [];
+    g.traverse((o) => { if (o.isMesh) out.push(o); });
+    return out;
+  };
+  // Every vertex of a mesh, in world space.
+  const vertsOf = (m) => {
+    const p = m.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    const out = [];
+    for (let i = 0; i < p.count; i++) out.push(v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).clone());
+    return out;
+  };
+  const pathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
+
+  it('each deep cave has one interior group, inside its own rectangles, off the walking line', () => {
+    expect(interiors.map((g) => g.name)).toEqual(GORGE_CAVES.map((c) => `caveInterior:${c.id}`));
+    const COLORS = { echo: 0x9fc7d8, snug: 0xe8c890, glitter: 0xf2d27a };
+    for (const cave of GORGE_CAVES) {
+      const g = interiors.find((o) => o.userData.caveId === cave.id);
+      // hidden until her cat is near (gorgelife.js shows it)
+      expect(g.visible).toBe(false);
+      const meshes = meshesOf(g);
+      // at most two merged meshes, both out of the shadow pass; the Glitter
+      // Cave's second is its gold flecks
+      expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? ['caveCrystals', 'caveFlecks'] : ['caveCrystals']);
+      for (const m of meshes) {
+        expect(m.userData.noCast, m.name).toBe(true);
+        expect(m.castShadow).toBe(false);
+        expect(m.material.emissiveIntensity).toBe(0.6);
+      }
+      expect(meshes[0].material.emissive.getHex()).toBe(COLORS[cave.id]);
+      // 10-16 crystal spots along the chamber's walls, each within 0.25 m of a wall
+      const spots = gorge.caveCrystalSpots(cave);
+      expect(spots.length, cave.id).toBeGreaterThanOrEqual(10);
+      expect(spots.length, cave.id).toBeLessThanOrEqual(16);
+      const chamber = cave.rects.find((r) => r.tag.endsWith('-chamber'));
+      for (const s of spots) {
+        const wall = Math.min(s.x - chamber.minX, chamber.maxX - s.x, s.z - chamber.minZ, chamber.maxZ - s.z);
+        expect(wall, `${cave.id} (${s.x}, ${s.z})`).toBeLessThanOrEqual(0.25);
+        expect(wall).toBeGreaterThan(0);
+        expect(s.y).toBe(cave.y);
+      }
+      const finds = [...area.collectibles, ...GOLD_MICE.gorge].filter((f) => cave.rects.some((r) => rectDist(r, f.x, f.z) === 0));
+      expect(finds.length, cave.id).toBeGreaterThanOrEqual(1);
+      const crystal = meshes[0];
+      for (const m of meshes) {
+        for (const v of vertsOf(m)) {
+          const where = `${cave.id} ${m.name} (${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
+          // inside a rectangle of its cave, so never in or through the rock
+          expect(cave.rects.some((r) => v.x > r.minX && v.x < r.maxX && v.z > r.minZ && v.z < r.maxZ), where).toBe(true);
+          // on its floor and under its roof
+          expect(v.y, where).toBeGreaterThanOrEqual(cave.y - 1e-6);
+          expect(v.y, where).toBeLessThan(cave.y + 2.6);
+          // a crystal is never taller than 0.3 m
+          if (m === crystal) expect(v.y - cave.y, where).toBeLessThanOrEqual(0.3);
+          // off the walking line, and clear of the finds
+          expect(pathDist(cave, v.x, v.z), where).toBeGreaterThanOrEqual(0.6);
+          for (const f of finds) expect(Math.hypot(v.x - f.x, v.z - f.z), `${where} by ${f.id}`).toBeGreaterThanOrEqual(0.4);
+        }
+      }
+    }
+  });
+
+  it('the interiors are seeded by name and the same every build', () => {
+    const again = new THREE.Scene();
+    build(again);
+    for (const cave of GORGE_CAVES) {
+      const a = meshesOf(interiors.find((o) => o.userData.caveId === cave.id));
+      const b2 = meshesOf(again.getObjectByName(`caveInterior:${cave.id}`));
+      expect(b2.map((m) => Array.from(m.geometry.attributes.position.array)))
+        .toEqual(a.map((m) => Array.from(m.geometry.attributes.position.array)));
+    }
+  });
+
+  it('no interior gets a contact shadow', () => {
+    for (const g of interiors) {
+      const only = new THREE.Scene();
+      only.add(g.clone());
+      expect(scanFootprints(only, area.ground), g.name).toEqual([]);
+    }
+  });
+
+  it("gorge.js hands its interiors to the Gorge's life, which shows the near one", () => {
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    const fill = new THREE.HemisphereLight(0xffffff, 0x333333, 1);
+    const life = area.life({ scene, sun, fill, ground: area.ground });
+    const shown = () => interiors.filter((g) => g.visible).map((g) => g.userData.caveId);
+    life.update(1 / 60, 0, new THREE.Vector3(-16, 0, 23.5));
+    expect(shown()).toEqual(['echo']);
+    life.update(1 / 60, 0, new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
+    expect(shown()).toEqual([]);
+    life.dispose();
+  });
+});

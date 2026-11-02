@@ -415,6 +415,126 @@ export function gorgeScree() {
   return screeOnce;
 }
 
+// --- inside the deep caves (part 3, C5) -----------------------------------------
+// Each deep cave's chamber has crystals at the foot of its walls, in the
+// cave's own colour, and the Glitter Cave has gold flecks on its walls too.
+// They are soft and emissive and never move. Spots are seeded by the cave's
+// name, and every candidate draws all its numbers whether it is kept or not.
+// A spot is kept only where the wall really is rock (not the opening into the
+// bend), with the cave's floor in front of it and rock behind it far enough
+// along either way that its whole cluster stays inside the chamber. Every
+// crystal keeps CAVE_PATH_CLEAR off the cave's walking line and
+// CAVE_FIND_CLEAR off its find and golden mouse.
+export const CAVE_COLORS = Object.freeze({ echo: 0x9fc7d8, snug: 0xe8c890, glitter: 0xf2d27a });
+const FLECK_COLOR = 0xe8b84a;
+export const CAVE_PATH_CLEAR = 0.6;
+export const CAVE_FIND_CLEAR = 0.4;
+const CRYSTAL_TRIES = 80;
+const CRYSTAL_CAP = 14;
+const CRYSTAL_GAP = 1.0; // between two spots
+const CRYSTAL_OFF = [0.1, 0.2]; // a spot's distance out from its wall
+const CRYSTAL_REACH = b.CRYSTAL_SPREAD + 0.1; // a cluster's reach from its spot
+const FLECK_TRIES = 120;
+const FLECK_CAP = 40;
+const FLECK_H = [0.35, 2.4]; // over the cave's floor, under the chamber's 3 m roof
+const FLECK_REACH = 0.1;
+
+// The chamber's four walls, each as a start, a direction along it, a length
+// and the normal into the cave, walked as one perimeter.
+function chamberWalls(r) {
+  return [
+    { x: r.minX, z: r.minZ, dx: 1, dz: 0, len: r.maxX - r.minX, nx: 0, nz: 1 }, // north
+    { x: r.maxX, z: r.minZ, dx: 0, dz: 1, len: r.maxZ - r.minZ, nx: -1, nz: 0 }, // east
+    { x: r.maxX, z: r.maxZ, dx: -1, dz: 0, len: r.maxX - r.minX, nx: 0, nz: -1 }, // south
+    { x: r.minX, z: r.maxZ, dx: 0, dz: -1, len: r.maxZ - r.minZ, nx: 1, nz: 0 }, // west
+  ];
+}
+function wallPoint(walls, t) {
+  let rest = t;
+  for (const w of walls) {
+    if (rest <= w.len) return { x: w.x + w.dx * rest, z: w.z + w.dz * rest, nx: w.nx, nz: w.nz, tx: w.dx, tz: w.dz };
+    rest -= w.len;
+  }
+  return null;
+}
+// Whether the wall at p is rock for `reach` either way along it, with the
+// cave's floor in front of it all the way.
+function wallHolds(cave, p, reach) {
+  const g = shapeGround();
+  for (const s of [-reach, 0, reach]) {
+    const x = p.x + p.tx * s;
+    const z = p.z + p.tz * s;
+    if (g.y(x - p.nx * 0.1, z - p.nz * 0.1) < cave.y + 1) return false;
+    if (g.y(x + p.nx * 0.3, z + p.nz * 0.3) !== cave.y) return false;
+  }
+  return true;
+}
+const caveFinds = (cave) => [...COLLECTIBLES, ...GOLD_MICE.gorge]
+  .filter((f) => cave.rects.some((r) => inRect(r, f.x, f.z)));
+const cavePathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
+function caveClear(cave, x, z, reach) {
+  if (cavePathDist(cave, x, z) < CAVE_PATH_CLEAR + reach) return false;
+  return caveFinds(cave).every((f) => Math.hypot(x - f.x, z - f.z) >= CAVE_FIND_CLEAR + reach);
+}
+const chamberOf = (cave) => cave.rects.find((r) => r.tag.endsWith('-chamber'));
+
+const crystalsOnce = new Map();
+export function caveCrystalSpots(cave) {
+  if (crystalsOnce.has(cave.id)) return crystalsOnce.get(cave.id);
+  const walls = chamberWalls(chamberOf(cave));
+  const perimeter = walls.reduce((s, w) => s + w.len, 0);
+  const rng = mulberry32(seedFromCode(`gorge-crystals-${cave.id}`));
+  const kept = [];
+  for (let i = 0; i < CRYSTAL_TRIES; i++) {
+    const t = perimeter * rng();
+    const off = CRYSTAL_OFF[0] + (CRYSTAL_OFF[1] - CRYSTAL_OFF[0]) * rng();
+    if (kept.length >= CRYSTAL_CAP) continue;
+    const p = wallPoint(walls, t);
+    if (!p || !wallHolds(cave, p, CRYSTAL_REACH + 0.05)) continue;
+    const x = r2(p.x + p.nx * off);
+    const z = r2(p.z + p.nz * off);
+    if (!caveClear(cave, x, z, CRYSTAL_REACH)) continue;
+    if (!kept.every((o) => Math.hypot(x - o.x, z - o.z) >= CRYSTAL_GAP)) continue;
+    kept.push({ x, z, y: cave.y, nx: p.nx, nz: p.nz });
+  }
+  const out = Object.freeze(kept.map(Object.freeze));
+  crystalsOnce.set(cave.id, out);
+  return out;
+}
+
+let flecksOnce = null;
+export function glitterFleckSpots() {
+  if (flecksOnce) return flecksOnce;
+  const cave = GORGE_CAVES.find((c) => c.id === 'glitter');
+  const walls = chamberWalls(chamberOf(cave));
+  const perimeter = walls.reduce((s, w) => s + w.len, 0);
+  const rng = mulberry32(seedFromCode('gorge-flecks-glitter'));
+  const kept = [];
+  for (let i = 0; i < FLECK_TRIES; i++) {
+    const t = perimeter * rng();
+    const h = FLECK_H[0] + (FLECK_H[1] - FLECK_H[0]) * rng();
+    if (kept.length >= FLECK_CAP) continue;
+    const p = wallPoint(walls, t);
+    if (!p || !wallHolds(cave, p, FLECK_REACH)) continue;
+    if (!caveClear(cave, p.x, p.z, FLECK_REACH)) continue;
+    kept.push({ x: r2(p.x), z: r2(p.z), y: r2(cave.y + h), nx: p.nx, nz: p.nz });
+  }
+  flecksOnce = Object.freeze(kept.map(Object.freeze));
+  return flecksOnce;
+}
+
+// One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
+// shows it (only near its cave and on its level, C5).
+function caveInterior(cave) {
+  const g = new THREE.Group();
+  g.name = `caveInterior:${cave.id}`;
+  g.userData.caveId = cave.id;
+  g.add(b.caveCrystals(caveCrystalSpots(cave), seedFromCode(`gorge-crystals-${cave.id}`), { color: CAVE_COLORS[cave.id] }));
+  if (cave.id === 'glitter') g.add(b.caveFlecks(glitterFleckSpots(), seedFromCode('gorge-flecks-glitter'), { color: FLECK_COLOR }));
+  g.visible = false;
+  return g;
+}
+
 // The Gorge's critters: birds in the first four near trees, a mouse at each
 // end of the floor, and the goat on the shoulder, which only ever bolts (G9).
 // No ducks, frogs or butterflies, and no villagers: no Twolegs walk here.
@@ -533,6 +653,13 @@ export function build(scene, { water = {}, wind } = {}) {
   scree.name = 'screeBed';
   scene.add(scree);
 
+  // --- inside the deep caves ----------------------------------------------------
+  // One group each, at the scene root, hidden until her cat is near its cave
+  // and on its level (gorgelife.js shows it; C5). Only one is ever shown at a
+  // time: the caves are far apart.
+  const interiors = GORGE_CAVES.map(caveInterior);
+  for (const g of interiors) scene.add(g);
+
   return {
     name: 'The Gorge',
     colliders,
@@ -560,9 +687,9 @@ export function build(scene, { water = {}, wind } = {}) {
     mapShapes: mapShapes(),
     caves: GORGE_CAVES,
     // What only the Gorge does on a walk: shade by height, wheeling birds,
-    // the ambience mix, and the caves' dark, glow and shelter (gorgelife.js).
-    // walk.js calls it once per walk.
-    life: (ctx) => createGorgeLife({ ...ctx, caves: GORGE_CAVES }),
+    // the ambience mix, and the caves' dark, glow, shelter and interiors
+    // (gorgelife.js). walk.js calls it once per walk.
+    life: (ctx) => createGorgeLife({ ...ctx, caves: GORGE_CAVES, interiors }),
     skyBirdY: GORGE_BIRD_Y,
   };
 }
