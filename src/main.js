@@ -37,7 +37,7 @@ import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
-import { createCrossing } from './game/crossing.js';
+import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -569,6 +569,15 @@ function init() {
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
+  // During a room crossing's "Off we go!" pause a click on the game canvas
+  // would re-lock the pointer (player.js's click handler): stopped here, in
+  // the capture phase, before it reaches the canvas.
+  document.addEventListener('click', (e) => {
+    if (e.target === canvas && swallowsCanvasClick(session)) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') resumeWalk();
     if (e.target.id === 'btn-end') endWalk();
