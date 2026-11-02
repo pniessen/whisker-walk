@@ -2195,7 +2195,7 @@ above: Vite on this worktree's own port (5197), headless Chromium
 position and walked with the arrow keys while the camera was turned with
 synthetic `mousemove`s; the wall clock driven through a `Date.now` offset to
 bring intruders and the patrol round. The picker was tapped with real touch
-on the phone size. The full suite (221 files, 6,097 tests) and the build pass;
+on the phone size. The full suite (221 files, 6,100 tests) and the build pass;
 `test/fixtures/flat-trace.json` is unchanged (sha256 2edadb00…c8c87).
 
 **The home screen** (1280x720 and 375x812):
