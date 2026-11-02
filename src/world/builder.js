@@ -2964,9 +2964,10 @@ export function toadstools(spots, seed) {
 //   * walkable tops (every walk, cave and den floor, the camp den) and the
 //     wall feet on them don't move, so every seam with them stays closed;
 //   * a wall over walkable ground stands at most ROCK_PROUD (0.15 m) proud of
-//     its line, and inside a cave or den never proud (CAVE_PROUD); it may be
-//     recessed up to RELIEF_DEPTH plus a corner cut, but never more than half
-//     the rock's thickness, so the two faces of thin rock never cross;
+//     its line, and inside a cave or den at most CAVE_PROUD (0.02 m) proud;
+//     it may be recessed up to RELIEF_DEPTH plus a corner cut, but never more
+//     than half the rock's thickness, so the two faces of thin rock never
+//     cross;
 //   * a ceiling's underside never comes down (dy is 0 on it);
 //   * a rock top within CREST_BAND of a drop (a crest) is jagged up or down
 //     (at most about 1 m up on the 20 m rims), except in the `keep` discs,
@@ -2986,15 +2987,15 @@ export function toadstools(spots, seed) {
 // G4 names a 'stone' surface; materials.js has no such preset (it would warn
 // and fall back), so the rock takes 'cobble's light response, as tor() does.
 export const ROCK_LOW = 0x6f6a66;
-export const ROCK_HIGH = 0xd2b48c;
+export const ROCK_HIGH = 0xc8b496;
 export const LEDGE_COLOR = 0x9c8a70;
 const ROCK_CELL = 1.6; // side faces (and a top's ring) are cut into steps about this wide
 const ROCK_ROW = 1.4; // and walls into rows at whole multiples of this height
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
 const ROW_MIN = 0.35; // a row line this close to a face's foot or top is left out (no slivers)
 const ROCK_STRATA = 0.09; // each strata band is +-9% lighter or darker
-const STRATA_WARM = [1.05, 0.98, 0.92]; // alternate bands tinted warm
-const STRATA_CREAM = [1.02, 1.02, 0.99]; // and cream
+const STRATA_WARM = [1.03, 0.99, 0.95]; // alternate bands tinted warm
+const STRATA_CREAM = [1.01, 1.01, 1.00]; // and cream
 const RECESS_DARK = 0.25; // the deepest recess is this much darker
 const SIDE_EPS = 1e-4; // how far outside a face its neighbour is looked up
 const FLAT_EPS = 1e-7; // a face thinner than this is not drawn

@@ -960,39 +960,49 @@ describe('the Gorge rock: rockTerrain and scree', () => {
   // ground stands more than ROCK_PROUD (2D) from a wall-forming rock column;
   // inside a cave or den, under its ceiling, CAVE_PROUD. A vertex is over
   // walkable ground when it is not in rock and the highest column under it
-  // is a walk, cave or den floor (or the base), it is above that and below
-  // any ceiling there. A crest vertex lifted over every column near it is
-  // measured against those columns just under their tops.
+  // (not above it: a ceiling cap's column runs from its ceiling up, so a
+  // vertex under the ceiling stands on the cave or den floor) is a walk, cave
+  // or den floor (or the base), it is above that and below any ceiling there.
+  // A crest vertex lifted over every column near it is measured against
+  // those columns just under their tops. Rock columns are open rectangles
+  // here, so a vertex on a wall's own line (a wall foot, a cave wall the
+  // relief left in place) is tested too, and is within r of that wall.
   it('no drawn rock stands proud over walkable ground', () => {
     const shell = shellOf(terrain);
     const rockCols = [...MASSES, ...WALKS.filter((w) => w.kind === 'lip')];
     const walkCols = WALKS.filter((w) => w.kind !== 'lip');
+    const allCols = [...rockCols, ...walkCols, ...CAPS];
     let tested = 0;
+    let caveTested = 0;
     const bad = [];
     for (const [name, arr] of Object.entries(shell)) {
       eachVertex(arr, (x, y, z) => {
-        if (relief.rockAt(x, y, z)) return;
         let top = 0;
         let rock = false;
         const consider = (t, isRock) => {
           if (t > top + 1e-6) { top = t; rock = isRock; } else if (t >= top - 1e-6) rock = rock || isRock;
         };
-        for (const s of rockCols) if (inRectE(s, x, z)) consider(shapeY(s, x, z), true);
-        for (const c of CAPS) if (inRectE(c, x, z)) consider(c.top, true);
+        // strictly inside rock: not drawn over anything
+        const inOpen = (s) => x > s.minX && x < s.maxX && z > s.minZ && z < s.maxZ;
+        if (rockCols.some((s) => inOpen(s) && y < shapeY(s, x, z) - 1e-6)) return;
+        if (CAPS.some((c) => inOpen(c) && y > c.y0 + 1e-6 && y < c.top - 1e-6)) return;
+        for (const s of rockCols) if (inOpen(s)) consider(shapeY(s, x, z), true);
+        for (const c of CAPS) if (inOpen(c) && y >= c.y0 - 1e-6) consider(c.top, true);
         for (const s of walkCols) if (inRectE(s, x, z)) consider(shapeY(s, x, z), false);
         if (rock || !(y > top + 1e-6)) return;
         let cave = false;
         for (const c of CEILINGS) {
           if (!inRectE(c, x, z) || c.y0 <= top) continue;
           if (!(y < c.y0 - 1e-6)) return;
-          if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ) cave = true;
+          cave = true;
         }
         tested++;
+        if (cave) caveTested++;
         const r = (cave ? CAVE_PROUD : ROCK_PROUD) + 1e-4;
         if (relief.wallNear(x, y, z, r)) return;
         // over every column within r: measured just under the highest of them
         let hNear = -Infinity;
-        for (const s of [...rockCols, ...walkCols, ...CAPS]) {
+        for (const s of allCols) {
           const px = Math.min(Math.max(x, s.minX), s.maxX);
           const pz = Math.min(Math.max(z, s.minZ), s.maxZ);
           if (Math.sqrt((x - px) ** 2 + (z - pz) ** 2) > r) continue;
@@ -1003,6 +1013,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       });
     }
     expect(tested).toBeGreaterThan(1000);
+    expect(caveTested).toBeGreaterThan(0);
     expect(bad.slice(0, 12)).toEqual([]);
   }, 120_000);
 
@@ -1260,6 +1271,26 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     const high = mean((y) => y > 10);
     expect(lum(low)).toBeLessThan(lum(high));
     expect(low[2] / low[0]).toBeGreaterThan(high[2] / high[0]);
+  });
+
+  // CliffClan's coats are shaded at HSL saturation 0.45 or more
+  // (test/clancast.test.js), so no drawn rock colour, tints and strata
+  // included, comes near them.
+  it('no drawn rock colour is saturated enough to hide a CliffClan coat', () => {
+    const sat = (r, g, bl) => {
+      const max = Math.max(r, g, bl);
+      const min = Math.min(r, g, bl);
+      const l = (max + min) / 2;
+      return max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+    };
+    let worst = 0;
+    for (const n of ['rockFaces', 'lips']) {
+      const col = meshes[n].geometry.attributes.color;
+      expect(col, n).toBeTruthy();
+      for (let i = 0; i < col.count; i++) worst = Math.max(worst, sat(col.getX(i), col.getY(i), col.getZ(i)));
+    }
+    expect(worst).toBeGreaterThan(0);
+    expect(worst).toBeLessThanOrEqual(0.42);
   });
 
   it('scree is low, noCast and merged', () => {
