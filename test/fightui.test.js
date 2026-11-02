@@ -397,6 +397,16 @@ describe('the specials row on a phone (style.css)', () => {
     expect(css).toMatch(/has-specials \.fight-teach \{[^}]*-webkit-line-clamp: 1[^}]*text-overflow: ellipsis/);
     expect(css).toMatch(/bottom: calc\(var\(--fight-sheet-h, 46vh\) \+ 8px\)/);
   });
+  // Live check (Task 10): with line-height 'normal' the emoji in the specials'
+  // clues made each line taller than 1.3em, so the 2.6em cap cut the second
+  // line in half (390x844 and 375x667). A set line-height that two lines fit.
+  test('the portrait teach line\'s two lines fit its height cap', () => {
+    const rule = css.match(/\.hud-fight\.has-specials \.fight-teach \{([^}]*)\}/)[1];
+    const lh = rule.match(/line-height: ([\d.]+);/);
+    expect(lh).not.toBeNull();
+    const cap = Number(rule.match(/max-height: ([\d.]+)em/)[1]);
+    expect(cap).toBeGreaterThanOrEqual(2 * Number(lh[1]) - 1e-9);
+  });
   test('toasts follow the measured sheet', () => {
     expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*var\(--fight-sheet-h/);
   });
