@@ -20,11 +20,9 @@ export const TORSO = {
 // this frame, so markings convert their points through it to keep their direction.
 export const LEGACY_BODY = { CENTRE: [0, 0.34, 0], SCALE: [0.85, 0.75, 1.35] };
 
-// Legs (sketch), except BOTTOM_R: the paw's width was tuned against 0.058.
-export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRONT_X: 0.11, HIND_X: 0.12, TOP_R: 0.046, BOTTOM_R: 0.058 };
-// The hind leg (sketch): a stouter top, the limb tipped back to the hock, and a
-// thick thigh merged into the limb mesh (no extra mesh).
-LEGS.HIND = { TOP_R: 0.05, HOCK_X: -0.18, HOCK_Z: 0.03, THIGH_R: 0.11, THIGH_SCALE: [0.85, 1.25, 1.05], THIGH_AT: [0, -0.015, 0.03] };
+// Legs (sketch): hip pivots and the limb length. Each limb's shape is in
+// limbs.js (LEG_SHAPE).
+export const LEGS = { LEN: 0.35, HIP_Y: 0.39, FRONT_Z: -0.24, HIND_Z: 0.24, FRONT_X: 0.11, HIND_X: 0.12 };
 
 // The tail (sketch): five links rooted at the rump surface, ROOT_DY above the
 // torso centre and ROOT_Z back, the root frame tipped down ROOT_TILT so link 0
@@ -143,12 +141,21 @@ export const BACK_MIN_RHO = 1.04;
 // move forward (head-local z, front is -z) to lie on the new deeper chest
 // instead of inside it. Signed off by screenshot (R5, Task 10). Never Hagrid's.
 export const NECK_FORWARD = -0.10;
-// Fluffy cats (the ruff): their neck items, neck prizes and collar drop DOWN
-// onto the ruff's front, under the chin, and move only a little further
-// forward (head-local; `forward` adds to NECK_FORWARD, front is -z; `drop` is
-// taken off y). Moving them forward alone, past the ruff, put them in front of
-// the face: the ruff reaches almost to the muzzle. Signed off by screenshot (R5).
-export const NECK_FLUFFY = { forward: -0.02, drop: 0.07 };
+// Fluffy cats: their neck items, neck prizes and collar sit exactly where a
+// tabby's do (body refinement, Task 7 fix round 1). The small bib (ruff.js)
+// stands about 5 mm out of the chest under the chin (9 mm before the Task 10
+// fix flattened it), so the necktie's and bowtie's knots, on a tabby's spot,
+// rest on it with their fronts out of the fur; 5 mm further back and the
+// necktie sank into the 9 mm bib, 5 mm
+// further forward and the streamer tails hang further off the fur than a
+// tabby's (the 'rests on the bib' test). Head-local; `forward` adds to
+// NECK_FORWARD (front is -z), `drop` is taken off y. Was { forward: -0.02,
+// drop: 0.07 } on the torus.
+export const NECK_FLUFFY = { forward: 0, drop: 0 };
+// The chest ball in the underside (model.js undersideGeometry): a sphere of
+// radius R scaled by SCALE (x also by the frame's fx), at y CENTRE_Y + DY and
+// z Z·fz, cat frame.
+export const CHEST = Object.freeze({ R: 0.15, SCALE: Object.freeze([1.05, 1.1, 0.9]), DY: 0.06, Z: -0.33 });
 // The hood bunched at the neck (under a hat) keeps its old head-relative spot,
 // HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
 // NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth

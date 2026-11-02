@@ -1,0 +1,346 @@
+<title>Body Details Sketch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
+<style>
+/* Layout: one 3D stage showing "Today" next to "New" for the chosen subject, subject picker under it, a short note per subject. Single cozy dark look like the game's home screen (dark on purpose). */
+:root { --bg:#1f2633; --panel:#2a3344; --ink:#f4ead6; --muted:#b8b0a0; --line:#3c475c; --sel:#ffd38a;
+  --display:"Fredoka","Trebuchet MS",system-ui,sans-serif; --body:"Nunito",system-ui,sans-serif; color-scheme:dark; }
+html,body { background:var(--bg); color:var(--ink); }
+body { font-family:var(--body); font-size:16px; line-height:1.5; padding-block:18px 40px;
+  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); }
+main { max-width:860px; margin:0 auto; display:grid; gap:14px; }
+h1 { font-family:var(--display); font-weight:600; font-size:1.6rem; margin:0; text-wrap:balance; }
+.note { color:var(--muted); margin:0; max-width:62ch; }
+.wrap { position:relative; }
+#stage { width:100%; aspect-ratio:16/10; max-height:62vh; border-radius:18px; border:1px solid var(--line); overflow:hidden; touch-action:none; background:#2b3a4f; }
+#stage canvas { display:block; width:100%; height:100%; }
+.tags { position:absolute; inset:10px 14px auto; display:flex; justify-content:space-around; pointer-events:none; }
+.tags span { font:700 13px var(--body); letter-spacing:.08em; text-transform:uppercase; background:rgba(31,38,51,.7); padding:3px 10px; border-radius:999px; }
+.tags span:last-child { color:var(--sel); }
+.pick { display:flex; flex-wrap:wrap; gap:8px; }
+.pick button { font:600 15px var(--body); color:var(--ink); background:transparent; border:2px solid var(--line); border-radius:999px; padding:8px 16px; min-height:44px; cursor:pointer; }
+.pick button:focus-visible { outline:3px solid var(--sel); outline-offset:2px; }
+.pick button[aria-pressed="true"] { background:var(--sel); color:#2a1e0e; border-color:var(--sel); }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 12px; }
+.card h2 { font-family:var(--display); font-weight:600; font-size:1.05rem; margin:0 0 6px; }
+.card ul { margin:0; padding-left:20px; color:var(--muted); font-size:15px; display:grid; gap:4px; }
+</style>
+<main>
+  <h1>Making the bodies more real</h1>
+  <p class="note">Today on the left, the new version on the right. Drag to turn them. This is a sketch: none of it is in the game yet. Tell me what looks right and what to change.</p>
+  <div class="wrap"><div id="stage"></div><div class="tags" aria-hidden="true"><span>Today</span><span>New</span></div></div>
+  <div class="pick" role="group" aria-label="Show">
+    <button data-show="ruff" aria-pressed="true">Fluffy cat: the ruff</button>
+    <button data-show="legs" aria-pressed="false">Cat legs and feet</button>
+    <button data-show="hagrid" aria-pressed="false">Hagrid</button>
+  </div>
+  <div class="card" id="note-ruff"><h2>Fluffy cat: the ruff</h2><ul>
+    <li>Today: a smooth white ring all the way round the neck, like a life preserver.</li>
+    <li>New: soft tufts, thickest under the chin and down the chest, thinning to nothing at the back of the neck.</li>
+    <li>The tufts are coat-coloured on the sides and blend into the white chest at the front.</li></ul></div>
+  <div class="card" id="note-legs" hidden><h2>Cat legs and feet</h2><ul>
+    <li>Each leg is one smooth piece: no seams at the joints. Front legs grow out of the shoulders and taper to a slim wrist.</li>
+    <li>Back legs bend like a real cat's: a strong thigh, the knee forward, the hock back, then a slim ankle (no cankles).</li>
+    <li>Each foot is one rounded shape with four toes scalloped into the front and small claws just showing.</li></ul></div>
+  <div class="card" id="note-hagrid" hidden><h2>Hagrid</h2><ul>
+    <li>A neck joins his head to his body, and his body has a full breast and a back that rises to the tail.</li>
+    <li>A fan of long, curved tail feathers instead of three discs.</li>
+    <li>Wings folded along his sides, tapering to feather tips at the back.</li>
+    <li>One bumpy comb with points, two hanging wattles, and a slightly hooked beak.</li>
+    <li>Feathery thighs, scaly yellow legs, three toes forward and one back, with claw tips.</li></ul></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const COAT = 0x5a4532, STRIPE = 0x2e231a, WHITE = 0xf1ece4, EYE = 0x9fbe3a, PINK = 0xe7a9a0, CLAW = 0xd9d4c8;
+const HEN = 0x9a5f2e, HEN_DARK = 0x6e3f1c, HEN_TAIL = 0x2f2a22, BEAK = 0xe0a85a, COMB = 0xc8343a, SHANK = 0xe2b14a;
+const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0 });
+function ball(r, c, sx = 1, sy = 1, sz = 1, w = 20, h = 14) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, w, h), mat(c)); m.scale.set(sx, sy, sz); m.castShadow = true; return m; }
+function cyl(r0, r1, len, c, seg = 14) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, seg), mat(c)); m.castShadow = true; return m; }
+function cone(r, len, c, seg = 10) { const m = new THREE.Mesh(new THREE.ConeGeometry(r, len, seg), mat(c)); m.castShadow = true; return m; }
+const lerpHex = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
+
+// ---------- cat (tabby-and-white, like the screenshot) ----------
+function catTorso() {
+  const r = 0.32, geo = new THREE.SphereGeometry(r, 40, 28), p = geo.attributes.position, v = new THREE.Vector3();
+  const col = new Float32Array(p.count * 3), cc = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).divideScalar(r); let { x, y, z } = v;
+    const a = Math.atan2(x, y), t = (z + 1) * 3.4 + 0.1 * Math.sin(a * 3 + z * 5), f = t - Math.floor(t);
+    const band = Math.max(0, 1 - Math.abs(f - 0.5) * 4) * Math.min(1, Math.max(0, (y + 0.2) / 0.5));
+    const white = y < -0.25 || (z < -0.45 && y < 0.25) ? 1 : 0;
+    cc.set(COAT).lerp(new THREE.Color(STRIPE), band * 0.7); if (white) cc.set(WHITE);
+    col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
+    const front = Math.max(0, -z), back = Math.max(0, z), waist = Math.exp(-((z - 0.15) ** 2) / 0.08);
+    x *= 1 - 0.14 * waist + 0.12 * back * back; y *= 1 + 0.16 * front - 0.08 * waist;
+    if (y < 0) y *= 1 + 0.12 * front - 0.28 * back * back;
+    p.setXYZ(i, x * r, y * r, z * r);
+  }
+  geo.computeVertexNormals(); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })); m.scale.set(0.8, 0.74, 1.12); m.castShadow = true; return m;
+}
+function catHead() {
+  const h = new THREE.Group();
+  h.add(ball(0.21, COAT, 1, 0.92, 0.95));
+  for (const s of [-1, 0, 1]) { const st = ball(0.05, STRIPE, 0.35, 0.18, 1.2, 8, 6); st.position.set(s * 0.06, 0.17, 0.0); h.add(st); }
+  const muzzle = ball(0.09, WHITE, 1.25, 0.75, 0.9); muzzle.position.set(0, -0.06, -0.16); h.add(muzzle);
+  const nose = ball(0.024, PINK, 1, 0.8, 0.8, 8, 6); nose.position.set(0, -0.02, -0.245); h.add(nose);
+  for (const s of [-1, 1]) {
+    const ear = cone(0.075, 0.15, COAT, 4); ear.position.set(s * 0.12, 0.18, 0.01); ear.rotation.z = -s * 0.22; h.add(ear);
+    const eye = ball(0.04, EYE, 1, 1.1, 0.7, 10, 8); eye.position.set(s * 0.083, 0.03, -0.165); h.add(eye);
+    const pupil = ball(0.018, 0x1a1a1e, 0.7, 1.2, 0.6, 8, 6); pupil.position.set(s * 0.083, 0.03, -0.192); h.add(pupil);
+  }
+  const wm = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.75 });
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { const y = -0.05 - i * 0.018;
+    h.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(s * 0.07, y, -0.19), new THREE.Vector3(s * 0.28, y + (i - 1) * 0.035, -0.14)]), wm)); }
+  return h;
+}
+function catTail(by) {
+  const tail = new THREE.Group(); tail.position.set(0, by + 0.1, 0.33); tail.rotation.x = 1.85; tail.scale.setScalar(0.85);
+  tail.add(ball(0.08, COAT)); let parent = tail;
+  for (let i = 0; i < 5; i++) { const u = i / 5, r0 = 0.078 * Math.pow(1 - u, 0.62) + 0.006, r1 = 0.078 * Math.pow(Math.max(0, 1 - u - 0.2), 0.62) + 0.006;
+    const piv = new THREE.Group(), seg = cyl(r0, r1, 0.14, i === 4 ? STRIPE : COAT, 12); seg.position.y = 0.07; piv.add(seg);
+    if (i) piv.add(ball(r0, i === 4 ? STRIPE : COAT, 1, 1, 1, 12, 8));
+    piv.position.y = i ? 0.14 : 0; piv.rotation.x = -0.28; parent.add(piv); parent = piv; }
+  return tail;
+}
+// Today's leg: straight tube plus a disc paw.
+function oldLeg(hind) {
+  const leg = new THREE.Group(), L = 0.35;
+  const limb = cyl(0.056, hind ? 0.05 : 0.046, L, WHITE); limb.position.y = -L / 2; leg.add(limb);
+  if (hind) { const th = ball(0.11, COAT, 0.85, 1.25, 1.05); th.position.set(0, -0.015, 0.03); leg.add(th); limb.rotation.x = -0.18; limb.position.z = 0.03; }
+  const paw = ball(0.062, WHITE, 1.02, 0.62, 1.42, 12, 9); paw.position.set(0, -L, -0.012); leg.add(paw);
+  return leg;
+}
+// New foot: an ankle that blends, a rounded foot, four toe beans, claw tips.
+function newFoot(c) {
+  const f = new THREE.Group();
+  f.add(ball(0.05, c, 1, 1.15, 1.05, 14, 10));                       // ankle, smooths the join
+  const pad = ball(0.06, c, 1.05, 0.58, 1.25, 16, 10); pad.position.set(0, -0.022, -0.035); f.add(pad);
+  for (let i = 0; i < 4; i++) { const a = (i - 1.5) * 0.36;
+    const toe = ball(0.024, c, 1, 0.85, 1.15, 10, 8); toe.position.set(Math.sin(a) * 0.05, -0.028, -0.085 - Math.cos(a) * 0.012); f.add(toe);
+    const claw = cone(0.006, 0.026, CLAW, 6); claw.rotation.x = -Math.PI / 2 - 0.35; claw.position.set(Math.sin(a) * 0.052, -0.035, -0.113 - Math.cos(a) * 0.01); f.add(claw); }
+  return f;
+}
+// One smooth tapered limb along a curve: no seams at the joints. rad[] is the
+// radius at each control point; colour blends from coat (top) to white.
+function smoothLimb(pts, rad, whiteFrom, c0 = COAT, c1 = WHITE) {
+  const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p)));
+  const N = 28, M = 16, frames = curve.computeFrenetFrames(N, false);
+  const pos = [], col = [], idx = [], cA = new THREE.Color(c0), cB = new THREE.Color(c1), cc = new THREE.Color();
+  const radAt = (t) => { const f = t * (rad.length - 1), i = Math.min(rad.length - 2, Math.floor(f)), k = f - i, s = k * k * (3 - 2 * k); return rad[i] + (rad[i + 1] - rad[i]) * s; };
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, p = curve.getPointAt(t), n = frames.normals[i], b = frames.binormals[i], r = radAt(t);
+    cc.copy(cA).lerp(cB, Math.min(1, Math.max(0, (t - whiteFrom) / 0.18)));
+    for (let j = 0; j < M; j++) { const a = (j / M) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      pos.push(p.x + r * (ca * n.x + sa * b.x), p.y + r * (ca * n.y + sa * b.y), p.z + r * (ca * n.z + sa * b.z)); col.push(cc.r, cc.g, cc.b); }
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a = i * M + j, b2 = i * M + (j + 1) % M, c = a + M, d = b2 + M; idx.push(a, c, b2, b2, c, d); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  const g = new THREE.Group(), m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide })); m.castShadow = true; g.add(m);
+  const top = ball(rad[0], c0, 1, 1, 1, 16, 12); top.position.set(...pts[0]); g.add(top);   // rounded top, inside the body
+  return g;
+}
+// One rounded foot: a soft oval with four toes scalloped into its front edge, claw tips just showing.
+function smoothFoot() {
+  const r = 0.062, geo = new THREE.SphereGeometry(r, 28, 18), p = geo.attributes.position, v = new THREE.Vector3();
+  const TOES = [-0.62, -0.21, 0.21, 0.62];
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).divideScalar(r); let { x, y, z } = v;
+    const front = Math.max(0, -z);
+    let lobe = 0; for (const tx of TOES) lobe = Math.max(lobe, Math.exp(-((x - tx) ** 2) / 0.035));
+    z -= 0.16 * lobe * front * front;              // toes push forward, with dips between them
+    y *= y < 0 ? 0.55 : 0.75;                       // flat sole, low rounded top
+    p.setXYZ(i, x * r * 0.95, y * r, z * r * 1.3);
+  }
+  geo.computeVertexNormals();
+  const f = new THREE.Group(), m = new THREE.Mesh(geo, mat(WHITE)); m.castShadow = true; f.add(m);
+  for (const tx of TOES) { const claw = cone(0.0045, 0.018, CLAW, 6); claw.rotation.x = -Math.PI / 2 - 0.5; claw.position.set(tx * r * 0.95, -0.012, -r * 1.3 * 1.14); f.add(claw); }
+  return f;
+}
+function newFrontLeg() {
+  const leg = new THREE.Group();
+  // shoulder blade → elbow (a little back) → slim wrist → down to the foot
+  leg.add(smoothLimb([[0, 0.05, 0.03], [0, -0.08, 0.0], [0, -0.19, -0.015], [0, -0.3, -0.01], [0, -0.335, -0.02]], [0.085, 0.062, 0.046, 0.038, 0.036], 0.2));
+  const foot = smoothFoot(); foot.position.set(0, -0.348, -0.045); leg.add(foot);
+  return leg;
+}
+function newHindLeg() {
+  const leg = new THREE.Group();
+  // thigh → knee forward → hock back → slim ankle → foot (no thick ankle)
+  // a full haunch: the thigh is a big muscle that blends into the hip, not a stick
+  leg.add(smoothLimb([[0, 0.04, 0.01], [0, -0.09, -0.025], [0, -0.2, 0.05], [0, -0.27, 0.062], [0, -0.335, 0.035]], [0.1, 0.092, 0.062, 0.043, 0.036], 0.5));
+  const foot = smoothFoot(); foot.position.set(0, -0.348, 0.005); leg.add(foot);
+  return leg;
+}
+function oldRuff() { const r = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.075, 6, 12), mat(WHITE)); r.rotation.x = Math.PI / 2 - 0.35; r.castShadow = true; return r; }
+function newRuff() {
+  const g = new THREE.Group();
+  // a soft white bib under the chin, hanging down the chest
+  // a modest white bib tucked under the chin, close to the chest
+  const bib = ball(0.1, WHITE, 1.05, 1.05, 0.55, 20, 14); bib.position.set(0, -0.07, -0.05); g.add(bib);
+  // slight fluff behind the jaw, blending coat into the bib (small, close to the head)
+  for (const s of [-1, 1]) {
+    const cheek = ball(0.055, lerpHex(COAT, WHITE, 0.35), 0.6, 1.0, 0.8, 14, 10); cheek.position.set(s * 0.1, -0.02, -0.03); cheek.rotation.z = s * 0.3; g.add(cheek);
+  }
+  // a short fringe of points along the bib's lower edge, so it reads as fur
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 4 - 0.5) * 1.3;
+    const tip = cone(0.026, 0.07, WHITE, 8); tip.scale.set(1, 1, 0.6);
+    tip.position.set(Math.sin(a) * 0.075, -0.15 + Math.abs(a) * 0.03, -0.08 + Math.abs(a) * 0.03);
+    tip.rotation.set(Math.PI - 0.25, 0, -a * 0.5); g.add(tip);
+  }
+  return g;
+}
+function buildCat(newer, closeLegs) {
+  const g = new THREE.Group(), by = 0.43;
+  const body = catTorso(); body.position.y = by; g.add(body);
+  const chest = ball(0.15, WHITE, 1.05, 1.1, 0.9); chest.position.set(0, by + 0.06, -0.33); g.add(chest);
+  const head = catHead(); head.scale.setScalar(1.06); head.position.set(0, 0.70, -0.40); g.add(head);
+  const ruff = newer ? newRuff() : oldRuff(); ruff.position.set(0, 0.58, -0.36); g.add(ruff);
+  g.add(catTail(by));
+  for (const [x, z, hind] of [[-0.11, -0.24, 0], [0.11, -0.24, 0], [-0.12, 0.24, 1], [0.12, 0.24, 1]]) {
+    const leg = newer ? (hind ? newHindLeg() : newFrontLeg()) : oldLeg(hind);
+    leg.position.set(x, 0.39, z); g.add(leg);
+  }
+  return g;
+}
+
+// ---------- Hagrid ----------
+function oldHagrid() {
+  const g = new THREE.Group();
+  const body = ball(0.36, HEN, 0.85, 0.72, 1.0); body.position.set(0, 0.56, 0); g.add(body);
+  for (const s of [-1, 1]) { const w = ball(0.15, HEN_DARK, 0.25, 0.75, 1.0, 14, 10); w.position.set(s * 0.3, 0.57, 0.02); g.add(w); }
+  const head = ball(0.17, HEN); head.position.set(0, 0.98, -0.32); g.add(head);
+  const beak = cone(0.05, 0.14, BEAK, 8); beak.rotation.x = -Math.PI / 2; beak.position.set(0, 0.97, -0.52); g.add(beak);
+  for (const s of [-1, 1]) { const e = ball(0.025, 0x151515, 1, 1, 0.6, 8, 6); e.position.set(s * 0.13, 1.01, -0.42); g.add(e); }
+  for (let i = 0; i < 3; i++) { const c = ball(0.045, COMB, 0.8, 1.2, 0.8, 10, 8); c.position.set(0, 1.16, -0.38 + i * 0.07); g.add(c); }
+  const wat = ball(0.035, COMB, 0.8, 1.3, 0.8, 10, 8); wat.position.set(0, 0.86, -0.44); g.add(wat);
+  for (let i = 0; i < 3; i++) { const t = ball(0.14, HEN_DARK, 0.2, 0.9, 0.55, 14, 10); t.position.set(0, 0.86 + i * 0.03, 0.4 + i * 0.03); t.rotation.x = -0.25 + i * 0.1; g.add(t); }
+  for (const s of [-1, 1]) { const l = cyl(0.025, 0.025, 0.3, BEAK, 8); l.position.set(s * 0.1, 0.16, 0.02); g.add(l);
+    const f = cone(0.06, 0.12, BEAK, 3); f.rotation.x = -Math.PI / 2; f.scale.set(1, 1, 0.3); f.position.set(s * 0.1, 0.02, -0.04); g.add(f); }
+  return g;
+}
+function henBody() {
+  const r = 0.36, geo = new THREE.SphereGeometry(r, 40, 28), p = geo.attributes.position, v = new THREE.Vector3();
+  const col = new Float32Array(p.count * 3), cc = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).divideScalar(r); let { x, y, z } = v;
+    const front = Math.max(0, -z), back = Math.max(0, z);
+    if (y < 0.2) y -= 0.18 * front * (1 - y);              // full breast, low at the front
+    if (y > 0) y += 0.18 * back * back;                     // back rises toward the tail
+    z *= 1 + 0.08 * front;
+    x *= 1 - 0.18 * back * back;
+    cc.set(HEN).lerp(new THREE.Color(HEN_DARK), Math.max(0, y) * 0.35 + 0.15 * Math.sin(z * 18 + x * 9) ** 2);
+    col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
+    p.setXYZ(i, x * r, y * r, z * r);
+  }
+  geo.computeVertexNormals(); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })); m.scale.set(0.82, 0.78, 1.0); m.castShadow = true; return m;
+}
+function wing(s) {
+  const g = new THREE.Group();
+  const coverts = ball(0.16, HEN_DARK, 0.22, 0.46, 1.25, 16, 12); coverts.position.set(0, 0.04, -0.06); coverts.rotation.x = 0.22; g.add(coverts);
+  const shoulder = ball(0.08, lerpHex(HEN, HEN_DARK, 0.4), 0.3, 0.7, 0.9, 12, 10); shoulder.position.set(0, 0.07, -0.17); g.add(shoulder);
+  for (let i = 0; i < 4; i++) { // primaries: tapered feather tips tucked under the coverts, pointing back
+    const f = ball(0.11, lerpHex(HEN_DARK, HEN_TAIL, 0.3 + i / 8), 0.1, 0.16, 1.15, 12, 8);
+    f.position.set(s * 0.008, -0.03 - i * 0.016, 0.1 + i * 0.03); f.rotation.x = 0.3 + i * 0.03; g.add(f);
+  }
+  g.rotation.z = s * 0.12; return g;
+}
+function tailFeather(len, rise, c) {
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, rise, len * 0.55), new THREE.Vector3(0, rise * 0.35, len));
+  const geo = new THREE.TubeGeometry(curve, 18, 0.03, 8, false);
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = v.z / len; v.x *= 0.35; v.y *= 1; // flatten sideways
+    const taper = 1 - 0.75 * Math.max(0, k - 0.3); p.setXYZ(i, v.x * taper, v.y, v.z); }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mat(c)); m.castShadow = true; return m;
+}
+function chickenFoot() {
+  const f = new THREE.Group();
+  for (const [a, len] of [[-0.45, 0.13], [0, 0.15], [0.45, 0.13], [Math.PI, 0.07]]) {
+    const piv = new THREE.Group(); piv.rotation.y = a;
+    const toe = cyl(0.016, 0.011, len, SHANK, 8); toe.rotation.x = -Math.PI / 2; toe.position.z = -len / 2; piv.add(toe);
+    for (let k = 1; k < 3; k++) { const knuckle = ball(0.016, SHANK, 1, 0.8, 1, 8, 6); knuckle.position.z = -len * k / 3; piv.add(knuckle); }
+    const claw = cone(0.011, 0.04, 0x3a3128, 6); claw.rotation.x = -Math.PI / 2 - 0.4; claw.position.set(0, -0.006, -len - 0.016); piv.add(claw);
+    f.add(piv);
+  }
+  return f;
+}
+function newHagrid() {
+  const g = new THREE.Group();
+  const body = henBody(); body.position.set(0, 0.6, 0); g.add(body);
+  // neck: hackle feathers bridge body and head
+  const neck = ball(0.13, HEN, 0.95, 1.5, 0.95, 18, 12); neck.position.set(0, 0.86, -0.27); neck.rotation.x = 0.35; g.add(neck);
+  for (let i = 0; i < 6; i++) { const a = (i / 5 - 0.5) * 2.2; const h = ball(0.06, lerpHex(HEN, 0xc9853f, 0.5), 0.6, 1.4, 0.4, 10, 8);
+    h.position.set(Math.sin(a) * 0.12, 0.78, -0.25 + Math.cos(a) * 0.08 * -1 + 0.08); h.rotation.set(0.6, a, 0); g.add(h); }
+  const head = ball(0.15, HEN, 1, 1.02, 1.1); head.position.set(0, 1.03, -0.36); g.add(head);
+  const upper = cone(0.045, 0.13, BEAK, 10); upper.rotation.x = -Math.PI / 2 - 0.25; upper.position.set(0, 1.02, -0.54); g.add(upper);
+  const lower = cone(0.03, 0.08, lerpHex(BEAK, 0x9a6a30, 0.3), 8); lower.rotation.x = -Math.PI / 2 + 0.15; lower.position.set(0, 0.985, -0.51); g.add(lower);
+  for (const s of [-1, 1]) { const e = ball(0.026, 0xc58a1a, 1, 1, 0.6, 10, 8); e.position.set(s * 0.12, 1.06, -0.44); g.add(e);
+    const pu = ball(0.013, 0x151515, 1, 1, 0.6, 6, 4); pu.position.set(s * 0.135, 1.06, -0.45); g.add(pu); }
+  // comb: one joined crest with rounded points
+  const base = ball(0.1, COMB, 0.22, 0.42, 1.2, 14, 10); base.position.set(0, 1.18, -0.37); g.add(base);
+  [[-0.1, 0.07], [-0.045, 0.1], [0.01, 0.11], [0.065, 0.09], [0.115, 0.06]].forEach(([z, h]) => {
+    const pt = ball(0.034, COMB, 0.55, h / 0.06, 0.8, 10, 8); pt.position.set(0, 1.2 + h * 0.45, -0.37 + z); pt.rotation.x = z * 2.2; g.add(pt); });
+  // two wattles hanging under the beak
+  for (const s of [-1, 1]) { const w = ball(0.035, COMB, 0.6, 1.5, 0.75, 10, 8); w.position.set(s * 0.028, 0.9, -0.47); w.rotation.z = s * 0.15; g.add(w); }
+  for (const s of [-1, 1]) { const w = wing(s); w.position.set(s * 0.27, 0.62, 0.02); g.add(w); }
+  // tail: a fan of curved feathers, long sickles on top
+  const tail = new THREE.Group(); tail.position.set(0, 0.8, 0.27); tail.rotation.x = -0.9; g.add(tail);
+  for (let i = 0; i < 7; i++) { const a = (i - 3) * 0.13, top = 1 - Math.abs(i - 3) / 3.5;
+    const f = tailFeather(0.32 + 0.2 * top, 0.14 + 0.08 * top, i % 2 ? HEN_TAIL : lerpHex(HEN_TAIL, 0x2e4a3a, 0.5));
+    const piv = new THREE.Group(); piv.rotation.z = a * 2.2; piv.rotation.y = a * 0.6; piv.add(f); tail.add(piv); }
+  for (const s of [-1, 1]) {
+    const thigh = ball(0.1, HEN, 0.9, 1.15, 1.0, 14, 10); thigh.position.set(s * 0.11, 0.36, 0.05); g.add(thigh);
+    const shank = cyl(0.03, 0.024, 0.26, SHANK, 10); shank.position.set(s * 0.11, 0.17, 0.02); shank.rotation.x = 0.1; g.add(shank);
+    for (let k = 0; k < 4; k++) { const sc = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.005, 4, 10), mat(lerpHex(SHANK, 0x9a7a2a, 0.4))); sc.rotation.x = Math.PI / 2; sc.position.set(s * 0.11, 0.08 + k * 0.05, 0.02 + k * 0.005); g.add(sc); }
+    const foot = chickenFoot(); foot.position.set(s * 0.11, 0.03, 0.0); g.add(foot);
+  }
+  return g;
+}
+
+// ---------- stage ----------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.shadowMap.enabled = true;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2b3a4f);
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x55603f, 0.8));
+const sun = new THREE.DirectionalLight(0xfff1dc, 1.1); sun.position.set(3, 5, 2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -2 }); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(6, 48), new THREE.MeshStandardMaterial({ color: 0x6f8f55, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+const sets = {
+  ruff: [buildCat(false), buildCat(true)],
+  legs: [buildCat(false), buildCat(true)],
+  hagrid: [oldHagrid(), newHagrid()],
+};
+for (const pair of Object.values(sets)) pair.forEach((m, i) => { m.position.x = i ? 0.75 : -0.75; scene.add(m); });
+const views = { ruff: { y: 0.9, look: 0.55, far: 3.4 }, legs: { y: 0.42, look: 0.32, far: 3.3 }, hagrid: { y: 1.0, look: 0.6, far: 3.6 } };
+const qs = new URLSearchParams(location.search);
+let show = qs.get('show') || 'ruff', yaw = qs.has('yaw') ? +qs.get('yaw') : 2.5, auto = !qs.has('yaw'), dragX = null;
+function layout() {
+  for (const [k, pair] of Object.entries(sets)) pair.forEach((m) => { m.visible = k === show; });
+  const v = views[show]; camera.position.set(0, v.y, v.far); camera.lookAt(0, v.look, 0);
+  for (const k of Object.keys(sets)) document.getElementById('note-' + k).hidden = k !== show;
+}
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+stage.addEventListener('pointerdown', (e) => { dragX = e.clientX; auto = false; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointermove', (e) => { if (dragX === null) return; yaw += (e.clientX - dragX) * 0.01; dragX = e.clientX; });
+stage.addEventListener('pointerup', () => { dragX = null; });
+document.querySelectorAll('[data-show]').forEach((b) => b.onclick = () => {
+  show = b.dataset.show; document.querySelectorAll('[data-show]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); layout();
+});
+const still = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+function frame() {
+  if (auto && !still) yaw += 0.006;
+  for (const pair of Object.values(sets)) pair.forEach((m) => { m.rotation.y = yaw; });
+  renderer.render(scene, camera); requestAnimationFrame(frame);
+}
+document.querySelectorAll('[data-show]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.show === show)));
+window.addEventListener('resize', resize); resize(); layout(); frame();
+</script>

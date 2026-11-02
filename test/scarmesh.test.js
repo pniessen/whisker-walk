@@ -1,11 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
-import { buildCat, coatColor } from '../src/cat/model.js';
+import { buildCat, coatColor, catPivot } from '../src/cat/model.js';
+import { placeFrame } from '../src/fightactions.js';
 import { animateCat } from '../src/cat/animator.js';
 import { setCatScars, fitScars } from '../src/cat/scarmesh.js';
 import { DEFAULT_LOOK, PATTERNS, FURS, COATS } from '../src/customcats.js';
 import { CLAN_COATS } from '../src/clancast.js';
+import { pokes } from './helpers/catpoke.js';
 import { fingerprintCat, meshCount, PRESETS, colourDistance } from './helpers/catfingerprint.js';
 
 // The scar mesh (2026-11-01 fight moves and scars, Task 4): one fitted,
@@ -298,5 +300,144 @@ describe('scar mesh', () => {
     animateCat(cat, 'nap', 1, 0);
     expect(scarsOf(cat).geometry.attributes.position.version).toBeGreaterThan(v);
     expect(Array.from(scarsOf(cat).geometry.attributes.position.array)).not.toEqual(a);
+  });
+
+  // ---- Body refinement Task 9: the scars on the new legs and folded poses ----
+
+  const BODY_SITES = ['shoulder', 'hind', 'back', 'side'];
+  const customLook = { ...DEFAULT_LOOK, fur: 'fluffy', size: 1.15 };
+  const scarCats = (scars, simple = false) => [
+    ['tabby', buildCat('tabby', undefined, { simple, scars })],
+    ['persian', buildCat('persian', undefined, { simple, scars })],
+    ['digit', buildCat('digit', undefined, { simple, scars })],
+    ['custom', buildCat('tabby', undefined, { simple, look: customLook, scars })],
+  ];
+
+  // Each limb as a polyline of ring centres with a radius per ring, in world
+  // space, read from the limb's own rings (the folded geometry included).
+  function limbCurves(cat) {
+    cat.updateMatrixWorld(true);
+    const sc = cat.getWorldScale(new THREE.Vector3()).x;
+    return cat.userData.parts.legs.map((leg) => {
+      const limb = leg.children[0];
+      const { sides, rings } = limb.geometry.userData;
+      const pos = limb.geometry.attributes.position;
+      const pts = [], rad = [];
+      for (let i = 0; i <= rings; i++) {
+        const c = new THREE.Vector3();
+        const vs = [];
+        for (let j = 0; j < sides; j++) vs.push(new THREE.Vector3().fromBufferAttribute(pos, i * sides + j).applyMatrix4(limb.matrixWorld));
+        vs.forEach((v) => c.add(v));
+        c.divideScalar(sides);
+        pts.push(c);
+        rad.push(vs.reduce((m, v) => m + v.distanceTo(c), 0) / sides);
+      }
+      return { pts, rad, sc };
+    });
+  }
+  // Clearance of `p` from a limb's tube: distance to the curve minus the
+  // radius there (interpolated along the nearest segment).
+  function clearance(curve, p) {
+    let best = Infinity;
+    const seg = new THREE.Line3(), q = new THREE.Vector3();
+    for (let i = 0; i < curve.pts.length - 1; i++) {
+      seg.set(curve.pts[i], curve.pts[i + 1]);
+      const t = seg.closestPointToPointParameter(p, true);
+      seg.at(t, q);
+      const d = q.distanceTo(p) - (curve.rad[i] * (1 - t) + curve.rad[i + 1] * t);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  it('shoulder and hind scars stay visible beside the new legs', () => {
+    for (const simple of [false, true]) for (const site of BODY_SITES) for (const side of ['l', 'r']) {
+      for (const [name, cat] of scarCats([{ site, stage: 'full', side }], simple)) {
+        animateCat(cat, 'follow', 1.3, 0, false);
+        const curves = limbCurves(cat);
+        centroids(cat).forEach((c, s) => {
+          curves.forEach((curve, li) => {
+            expect(clearance(curve, c), `${name} ${simple} ${site} ${side} strip ${s} leg ${li}`).toBeGreaterThan(0.005 * curve.sc);
+          });
+        });
+      }
+    }
+  });
+
+  it('scars ride the new surfaces in the new poses', () => {
+    for (const state of ['nap', 'requestPet', 'stalk', 'pinned', 'roll']) for (const simple of [false, true]) {
+      for (const site of SITES.slice(1)) {
+        for (const [name, cat] of scarCats([{ site: 'face', stage: 'full', side: 'r' }, { site, stage: 'full', side: 'l' }], simple)) {
+          const skull = skullOf(cat);
+          const { body } = cat.userData.parts;
+          animateCat(cat, state, 1.3, 0.5);
+          const c = centroids(cat);
+          for (let s = 0; s < 6; s++) {
+            expect(surfaceDistance(s < 3 ? skull : body, c[s]), `${name} ${simple} ${site} ${state} strip ${s}`).toBeLessThanOrEqual(0.012);
+          }
+        }
+      }
+    }
+  });
+
+  it('scars stay out of the folded legs too', () => {
+    for (const state of ['nap', 'requestPet', 'stalk', 'pinned', 'roll']) for (const site of ['shoulder', 'hind']) for (const side of ['l', 'r']) {
+      for (const [name, cat] of scarCats([{ site, stage: 'full', side }])) {
+        animateCat(cat, state, 1.3, 0.5);
+        const curves = limbCurves(cat);
+        centroids(cat).forEach((c, s) => curves.forEach((curve, li) => {
+          // The same clearance as a standing leg: measured worst +0.0075 (requestPet), all others >= +0.046.
+          expect(clearance(curve, c), `${name} ${state} ${site} ${side} strip ${s} leg ${li}`).toBeGreaterThan(0.005 * curve.sc);
+        }));
+      }
+    }
+  });
+
+  it('Digit and tabby rear up on their new hind legs', () => {
+    for (const name of ['digit', 'tabby']) for (const simple of [false, true]) {
+      const cat = buildCat(name, undefined, { simple });
+      const dims = catPivot(cat);
+      const frame = { pitch: 0.9, roll: 0, along: 0, side: 0, lift: 0, pose: 'rearUp' };
+      const p = placeFrame(frame, dims);
+      animateCat(cat, 'rearUp', 0.7, 0, false);
+      cat.rotation.order = 'YXZ';
+      cat.rotation.set(frame.pitch, 0, frame.roll);
+      cat.position.set(p.dSide, p.y, -p.dAlong);
+      cat.updateMatrixWorld(true);
+      const { legs } = cat.userData.parts;
+      let low = Infinity;
+      for (const leg of legs.slice(2)) low = Math.min(low, new THREE.Box3().setFromObject(leg.userData.paw, true).min.y);
+      expect(Math.abs(low), `${name} ${simple} hind paw`).toBeLessThanOrEqual(0.03);
+      for (const leg of legs) expect(new THREE.Box3().setFromObject(leg.children[0], true).min.y, `${name} ${simple} limb`).toBeGreaterThanOrEqual(-0.03);
+      // Nothing pokes out of the back (Task 5's measure, in the cat's own frame).
+      const flat = buildCat(name, undefined, { simple });
+      flat.scale.setScalar(1);
+      animateCat(flat, 'rearUp', 0.7, 0, false);
+      flat.updateMatrixWorld(true);
+      const worst = pokes(flat).standing;
+      // Task 1's rearUp baseline (-0.0001 tabby, 0.0031 digit) + 0.002, floor 0.005.
+      expect(worst, `${name} ${simple} back`).toBeLessThanOrEqual(0.005);
+    }
+  });
+
+  it('a scarred cat stays within caps', () => {
+    const scars = [{ site: 'face', stage: 'full', side: 'l' }, { site: 'shoulder', stage: 'half', side: 'r' }];
+    const tris = (cat) => { let n = 0; cat.traverse((m) => { if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; }); return n; };
+    // Each breed's own mesh ceiling (catmodel.test.js CEILING, simple = full - 6) and the customs' 31 / 25, plus the one scar mesh.
+    const CEIL = { calico: 31, robbie: 31, d2: 31, digit: 34 };
+    const cap = (simple, name) => {
+      const full = name.startsWith('custom') ? 31 : (CEIL[name] ?? 30);
+      return { meshes: (simple ? full - 6 : full) + 1, tris: simple ? 5500 : 9000 };
+    };
+    const casts = [...PRESETS.map((b) => [b, (o) => buildCat(b, undefined, o)]),
+      ['custom', (o) => buildCat('tabby', undefined, { ...o, look: { ...DEFAULT_LOOK, pattern: 'stripes', fur: 'fluffy', size: 1.15 } })],
+      ['custom long', (o) => buildCat('tabby', undefined, { ...o, look: { ...DEFAULT_LOOK, pattern: 'stripes', fur: 'long', size: 1.15 } })]];
+    for (const simple of [false, true]) for (const [name, make] of casts) {
+      const cat = make({ simple, scars });
+      const plain = make({ simple });
+      expect(meshCount(cat), `${name} ${simple}`).toBe(meshCount(plain) + 1);
+      expect(meshCount(cat), `${name} ${simple} meshes`).toBeLessThanOrEqual(cap(simple, name).meshes);
+      expect(tris(cat), `${name} ${simple} tris`).toBeLessThanOrEqual(cap(simple, name).tris);
+    }
   });
 });

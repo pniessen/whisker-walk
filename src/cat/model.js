@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
-import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
+import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt } from './coat.js';
+import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { ruffGeometry } from './ruff.js';
+import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -35,7 +38,7 @@ const STYLE = {
 };
 // Optional coat flags, all off unless a row sets them. They exist for the
 // family cats, who are drawn from photos rather than from a breed:
-//   whiteLegs   — limb cylinders take `belly`, not the point colour (a cat in
+//   whiteLegs   — limbs take `belly`, not the point colour (a cat in
 //                 white stockings rather than white feet).
 //   socks       — paws are WHITE_FUR whatever `belly` is: four white socks on
 //                 a cat whose underside is not white.
@@ -131,19 +134,6 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
-}
-
-// Same shape as ball(), but with the non-uniform scale BAKED INTO THE GEOMETRY
-// and mesh.scale left at 1. Used for the paws, and only for the paws, because
-// the `feet` accessories reach in and write `paw.scale` directly — three of the
-// four call `scale.set(...)`, which would wipe a shape carried in mesh.scale and
-// hand a boot back its old round ball. Carrying the paw's shape in the geometry
-// instead means every existing accessory multiplier composes on top of it
-// unchanged.
-function shapedBall(r, color, sx, sy, sz, wSeg = BALL_W, hSeg = BALL_H) {
-  const geo = new THREE.SphereGeometry(r, wSeg, hSeg);
-  geo.scale(sx, sy, sz);
-  return new THREE.Mesh(geo, mat(color));
 }
 
 // -----------------------------------------------------------------------------
@@ -251,26 +241,6 @@ function dirOn(point, centre, scale) {
     (point[1] - centre[1]) / scale[1],
     (point[2] - centre[2]) / scale[2],
   ];
-}
-
-// A limb hanging from its hip pivot: a tapered cylinder whose top is at the
-// pivot (y = 0) and whose length runs down -y, baked into the geometry so the
-// mesh itself sits at 0. A hind limb (sketch) is stouter at the top, tipped
-// back toward the hock, and carries a thick thigh merged in: still one mesh.
-function limbGeometry(len, hind) {
-  if (!hind) {
-    const geo = new THREE.CylinderGeometry(LEGS.TOP_R, LEGS.BOTTOM_R, len, 12);
-    geo.translate(0, -len / 2, 0);
-    return geo;
-  }
-  const H = LEGS.HIND;
-  const limb = new THREE.CylinderGeometry(H.TOP_R, LEGS.BOTTOM_R, len, 12);
-  limb.rotateX(H.HOCK_X);
-  limb.translate(0, -len / 2, H.HOCK_Z);
-  const thigh = new THREE.SphereGeometry(H.THIGH_R, 12, 9);
-  thigh.scale(...H.THIGH_SCALE);
-  thigh.translate(...H.THIGH_AT);
-  return mergeGeometries([limb, thigh]);
 }
 
 // Collar ring + per-style extras, shared by cat and chicken (which wear the
@@ -461,52 +431,95 @@ function addPrizeNeck(head, id, { k, y, z, ringR }) {
 }
 
 // Hagrid's russet feathers, shared with coatColor so his map dot matches.
-const HAGRID_FEATHER = 0xb06a30;
+const HAGRID_FEATHER = HEN.FEATHER;
+
+// Hagrid's neck items (Task 8, R12). Today's neck items hung round an
+// imaginary upright neck; the new neck leans back from under the skull into
+// the breast (about 48° at the collar), so the rings (collar, scarf, the
+// streamer scarf's band) go round it at HEN_*_U along it, and the front pieces
+// (bow tie, necktie, bandana, the scarf's tail, the streamers) sit on its
+// front surface at their own height. A ring square to the neck stands up
+// behind his head like a sash, so each is leaned HEN_RING_LEAN back toward
+// level; leaned, a ring needs R/cos(lean) to clear a neck of radius R, so
+// each is a size up (collar 0.135, scarf ×1.3, streamer band 0.155).
+const HEN_COLLAR_U = 0.5;
+const HEN_SCARF_U = 0.45;
+const HEN_RING_LEAN = 0.4;
+const HEN_SCARF_LEAN = 0.25; // higher up, a leaned scarf's front would rise into his throat
+const _Z = new THREE.Vector3(0, 0, 1);
+const _X = new THREE.Vector3(1, 0, 0);
+
+// The ring round the neck at u: its centre, its axis (the neck's downward
+// tangent leaned toward straight down) and its front (perpendicular to the
+// axis, forward and down).
+function neckRing(u, lean = HEN_RING_LEAN) {
+  const { centre, tangent } = henNeckAt(u);
+  const axis = tangent.clone().applyAxisAngle(_X, lean);
+  const front = new THREE.Vector3(0, -axis.z, axis.y);
+  if (front.z > 0) front.negate();
+  return { centre, axis, front };
+}
+
+// Turn `obj` so its local +z (a torus's axis) is the ring's axis at u, and
+// centre it there.
+function ringTheNeck(obj, u, lean = HEN_RING_LEAN) {
+  const { centre, axis } = neckRing(u, lean);
+  obj.rotation.set(0, 0, 0);
+  obj.quaternion.setFromUnitVectors(_Z, axis);
+  obj.position.copy(centre);
+  return obj;
+}
 
 // Hagrid the chicken honors the cat parts contract so the animator, camera,
 // and every interaction work unchanged: legs[0]/legs[1] are the real legs
 // (the 4-beat gait's front pair is exactly a bipedal alternating step),
 // legs[2]/legs[3] are hidden dummies, and the comb stands in for the ears.
+//
+// Body refinement, Task 8 (R10): a hen built from src/cat/hen.js's parts at
+// today's size: the body (breast, hackles and both folded wings in one
+// vertex-coloured mesh, so the animator's squash, nap and fluff carry them);
+// in the head group the skull and neck (one mesh, first child), the beak, the
+// wattles, the comb's front and back halves (earL/earR) and two eyes; seven
+// tail feathers in three meshes, all on tailPivots[0] (nap turns each nested
+// pivot by 0.55, so feathers on pivots 1 and 2 would fan apart); per leg a
+// feathery thigh with a scaly shank (first child) and a foot (userData.paw).
+// 15 meshes bare, one shared vertex-coloured material plus the plain beak.
 function buildChicken(accessories = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }) {
   const g = new THREE.Group();
-  const FEATHER = HAGRID_FEATHER;
-  const CREAM = 0xe8d0a8;
-  const COMB = 0xd83a3a;
+  const painted = litMaterial(0xffffff, { vertexColors: true });
 
-  const body = ball(0.34, FEATHER, 0.9, 0.85, 1.1);
-  body.position.y = 0.42;
+  const body = new THREE.Mesh(henBodyGeometry(), painted);
+  body.position.y = HEN_BODY.Y;
+  body.scale.set(...HEN_BODY.SCALE);
   g.add(body);
-  const belly = ball(0.28, CREAM, 0.8, 0.65, 0.95);
-  belly.position.set(0, 0.32, -0.04);
-  g.add(belly);
-  for (const side of [-1, 1]) {
-    const wing = ball(0.16, 0x9a5826, 0.35, 0.7, 1.0, 8, 6);
-    wing.position.set(side * 0.28, 0.46, 0.02);
-    g.add(wing);
-  }
 
   const head = new THREE.Group();
-  const skull = ball(0.13, FEATHER, 1, 1.05, 1);
-  head.add(skull);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 6), mat(0xf2a04e));
-  beak.rotation.x = -Math.PI / 2;
-  beak.position.set(0, -0.01, -0.17);
+  const skullNeck = new THREE.Mesh(henSkullNeckGeometry(), painted);
+  head.add(skullNeck);
+  head.userData.neckBase = [...skullNeck.geometry.userData.neckBase];
+  const beak = new THREE.Mesh(henBeakGeometry(), mat(HEN.BEAK));
   head.add(beak);
-  const wattle = ball(0.035, COMB, 0.8, 1.2, 0.8, 6, 5);
-  wattle.position.set(0, -0.1, -0.12);
-  head.add(wattle);
-  let earL = null;
-  let earR = null;
-  for (let i = 0; i < 3; i++) {
-    const combBit = ball(0.035, COMB, 0.6, 1.1, 0.8, 6, 5);
-    combBit.position.set(0, 0.13 + (i === 1 ? 0.02 : 0), -0.06 + i * 0.06);
-    head.add(combBit);
-    if (i === 0) earL = combBit;
-    if (i === 2) earR = combBit;
+  const wattles = new THREE.Mesh(henWattlesGeometry(), painted);
+  wattles.name = 'wattles';
+  head.add(wattles);
+  // the comb's halves stand in for the ears; their geometry is counter-rolled
+  // by the resting ear roll, so at rest (±REST) the crest stands upright
+  const [combFront, combBack] = henCombHalves();
+  const earL = new THREE.Mesh(combFront, painted);
+  const earR = new THREE.Mesh(combBack, painted);
+  for (const [ear, s] of [[earL, 1], [earR, -1]]) {
+    ear.position.set(...HEN_COMB.PIVOT);
+    ear.rotation.z = s * HEN_COMB.REST;
+    head.add(ear);
   }
   for (const side of [-1, 1]) {
-    const eye = ball(0.022, 0x1a1a1e, 1, 1, 1, 6, 5);
+    // today's eye spots, so face items are untouched; turned to look out of
+    // the skull along its surface normal there
+    const eye = new THREE.Mesh(henEyeGeometry(), painted);
     eye.position.set(side * 0.09, 0.03, -0.1);
+    const [ax, ay, az] = HEN_SKULL;
+    const n = new THREE.Vector3(eye.position.x / (ax * ax), eye.position.y / (ay * ay), eye.position.z / (az * az)).normalize();
+    eye.quaternion.setFromUnitVectors(_Z, n);
     head.add(eye);
   }
   head.position.set(0, 0.78, -0.28);
@@ -515,16 +528,9 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   const legs = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
-    const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.3, 6), mat(0xf2a04e));
-    shank.position.y = -0.15;
-    leg.add(shank);
-    const foot = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.05, 4), mat(0xf2a04e));
-    foot.rotation.y = Math.PI / 4;
-    // -0.3 put the cone's underside at world y -0.025, i.e. Hagrid stood 2.5cm
-    // into the ground — the same defect the cat's paws had, measured the same
-    // way (Box3 over the built model). Hagrid is a playable avatar and gets the
-    // same fix.
-    foot.position.set(0, -0.2745, -0.04);
+    leg.add(new THREE.Mesh(henShankGeometry(), painted));
+    const foot = new THREE.Mesh(henFootGeometry(), painted);
+    foot.position.set(0, HEN_LEG.FOOT_Y, 0);
     leg.add(foot);
     leg.userData.paw = foot;
     leg.position.set(side * 0.1, 0.3, 0.02);
@@ -533,23 +539,21 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   }
   for (let i = 0; i < 2; i++) legs.push(new THREE.Group()); // hidden gait dummies
 
-  // tail: feather fan on the standard pivot chain (3 live pivots + 2 dummies)
+  // tail: the standard pivot chain (3 live pivots + 2 dummies); all seven
+  // feathers hang on the first, so nap's per-pivot wrap turns the fan whole
   const tail = new THREE.Group();
   const tailPivots = [];
   let parent = tail;
   for (let i = 0; i < 3; i++) {
     const pivot = new THREE.Group();
     pivot.position.z = i === 0 ? 0 : 0.05;
-    const feather = ball(0.12, i === 1 ? 0x9a5826 : FEATHER, 0.25, 1.15, 0.7, 6, 5);
-    feather.position.set((i - 1) * 0.09, 0.1, 0.06);
-    feather.rotation.x = 0.5;
-    pivot.add(feather);
     parent.add(pivot);
     tailPivots.push(pivot);
     parent = pivot;
   }
+  for (const geo of henTailGeometries()) tailPivots[0].add(new THREE.Mesh(geo, painted));
   for (let i = 0; i < 2; i++) tailPivots.push(new THREE.Group()); // pivot-count dummies
-  tail.position.set(0, 0.52, 0.34);
+  tail.position.set(0, 0.51, 0.32); // = base.tailAnchor: the animator carries it with the body
   tail.rotation.x = -0.6;
   g.add(tail);
 
@@ -558,9 +562,21 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // worth dressing, so body/back/feet items are skipped outright below rather
   // than crammed onto a bird frame.
   if (accessories.collar) {
-    const collar = buildCollar(accessories.collar, 0.12, 0.024, new THREE.Vector3(0, -0.05, -0.06));
-    collar.position.set(0, -0.13, 0.06);
-    head.add(collar);
+    // the ring goes square round the neck; the charm hangs at its front
+    const { axis, front } = neckRing(HEN_COLLAR_U);
+    const q = new THREE.Quaternion().setFromUnitVectors(_Z, axis);
+    const charm = front.clone().multiplyScalar(0.17).addScaledVector(axis, 0.01).applyQuaternion(q.clone().invert());
+    const collar = buildCollar(accessories.collar, 0.135, 0.024, charm);
+    collar.children[0].rotation.set(0, 0, 0);
+    // the charms are built facing forward (-z) in the head's frame: undo the
+    // ring's turn on each, about the charm's spot, so the tag, star and heart
+    // still face forward rather than down the neck
+    const qInv = q.clone().invert();
+    for (const piece of collar.children.slice(1)) {
+      piece.position.sub(charm).applyQuaternion(qInv).add(charm);
+      piece.quaternion.premultiply(qInv);
+    }
+    head.add(ringTheNeck(collar, HEN_COLLAR_U));
   }
 
   // head: hats sit between the comb and the beak, scaled down for a chicken skull
@@ -579,11 +595,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     crownPart.position.set(0, 0.24, 0);
     head.add(crownPart);
   } else if (accessories.head === 'beanie') {
+    // low enough that the cap's faceted underside meets the skull all round
+    // the comb's base, so no red shows in a gap between them
     const cap = ball(0.11, BEANIE_COLOR, 1, 0.65, 1, 8, 6);
-    cap.position.set(0, 0.2, 0);
+    cap.position.set(0, 0.19, 0);
     head.add(cap);
     const pompom = ball(0.026, 0xf5f5f5, 1, 1, 1, 6, 5);
-    pompom.position.set(0, 0.28, 0);
+    pompom.position.set(0, 0.27, 0);
     head.add(pompom);
   } else if (accessories.head === 'wizard') {
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.015, 10), mat(WIZARD_COLOR));
@@ -632,38 +650,48 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     head.add(band);
   }
 
-  // neck: at the neck seam, just below the wattle — a chicken in a bowtie is the joke
+  // neck: on the new neck's front, just below the wattles — a chicken in a
+  // bowtie is the joke. Each front piece sits at its own height against the
+  // neck's front surface (henNeckFrontZ); the scarf's band rings the neck.
+  const KNOT_Y = -0.16;
+  const knotZ = henNeckFrontZ(KNOT_Y);
   if (accessories.neck === 'bandana') {
+    // the triangle's top face spans z -0.12..+0.06 about its centre: its back
+    // edge goes just in front of the neck
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.15, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
-    tri.position.set(0, -0.16, 0.02);
+    tri.position.set(0, -0.21, henNeckFrontZ(-0.135) - 0.066);
     head.add(tri);
   } else if (accessories.neck === 'necktie') {
     const knot = ball(0.022, NECKTIE_COLOR, 1, 0.8, 0.8, 6, 5);
-    knot.position.set(0, -0.14, 0.03);
+    knot.position.set(0, KNOT_Y, knotZ - 0.03);
     head.add(knot);
+    // the blade lies down the breast, which slopes forward under the neck
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), mat(NECKTIE_COLOR));
-    blade.rotation.x = Math.PI;
-    blade.position.set(0, -0.24, 0.05);
+    blade.rotation.x = Math.PI + 0.5;
+    blade.position.set(0, KNOT_Y - 0.085, knotZ - 0.06);
     head.add(blade);
   } else if (accessories.neck === 'bowtie') {
+    // each wing's base reaches 0.04 behind its centre: they stand clear of
+    // the neck, the knot between them
     const knot = ball(0.02, BOWTIE_COLOR, 1, 1, 1, 6, 5);
-    knot.position.set(0, -0.14, 0.03);
+    knot.position.set(0, KNOT_Y, knotZ - 0.037);
     head.add(knot);
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.04, 3), mat(BOWTIE_COLOR));
       wing.rotation.z = -side * (Math.PI / 2);
-      wing.position.set(side * 0.04, -0.14, 0.035);
+      wing.position.set(side * 0.04, KNOT_Y, knotZ - 0.045);
       head.add(wing);
     }
   } else if (accessories.neck === 'scarf') {
+    // today's band, a size up so it clears the neck, round it
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.024, 6, 12), mat(SCARF_COLOR));
-    band.rotation.x = Math.PI / 2 + 0.3;
-    band.position.set(0, -0.12, 0.04);
-    head.add(band);
+    band.scale.setScalar(1.3);
+    head.add(ringTheNeck(band, HEN_SCARF_U, HEN_SCARF_LEAN));
     const tail = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.1, 0.015), mat(SCARF_COLOR));
-    tail.position.set(0.04, -0.2, 0.06);
-    tail.rotation.z = 0.15;
+    // the loose end hangs from the ring's front down onto the breast
+    tail.position.set(0.04, -0.22, -0.045);
+    tail.rotation.set(0.5, 0, 0.15);
     head.add(tail);
   }
 
@@ -672,7 +700,17 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   // round the comb, which pokes up through the middle like a real crown's.
   addPrizeHead(head, accessories.head, { k: 0.82, y: 0.2, rx: 0.09, rz: 0.06, ringY: 0.115 });
   addPrizeFace(head, accessories.face, { k: 0.75, x: 0.09, y: 0.03, z: -0.1, starZ: -0.112, skull: [0.13, 0.13, 0.13] });
-  addPrizeNeck(head, accessories.neck, { k: 0.67, y: -0.12, z: 0.04, ringR: 0.1 });
+  // the streamer scarf: its band and stripe ring the neck like the scarf; its
+  // streamers hang in front of the breast
+  const prizeNeck = new THREE.Group();
+  addPrizeNeck(prizeNeck, accessories.neck, { k: 0.67, y: -0.11, z: -0.03, ringR: 0.155 });
+  let rings = 0;
+  for (const piece of [...prizeNeck.children]) {
+    if (piece.geometry.type === 'TorusGeometry') {
+      ringTheNeck(piece, HEN_SCARF_U - 0.06 * rings++, HEN_SCARF_LEAN);
+    }
+    head.add(piece);
+  }
 
   // body/back/feet: no torso, shoulders, or paw-shells worth dressing on a
   // bird frame — every item in those slots is skipped here rather than
@@ -687,7 +725,11 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
   g.userData.noMerge = true;
   g.userData.breed = 'hagrid';
   g.userData.parts = { body, head, tail, tailPivots, legs, earL, earR, whiskers: [] };
-  g.userData.base = { bodyY: 0.42, bodyScale: [0.9, 0.85, 1.1], headPos: [0, 0.78, -0.28], tailRotX: -0.6 };
+  // combGive (R11): the animator damps his comb's ear writes about the rest to
+  // a quarter, so a twitch is a wobble and the fight's ear-pin never splits it.
+  // tailAnchor: the tail's resting spot, which the animator carries with the
+  // posed body so the fan's root stays in his back (nap drops and squashes it).
+  g.userData.base = { bodyY: HEN_BODY.Y, bodyScale: [...HEN_BODY.SCALE], headPos: [0, 0.78, -0.28], tailRotX: -0.6, combGive: 0.25, tailAnchor: [0, 0.51, 0.32] };
   return g;
 }
 
@@ -696,7 +738,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 
 // -----------------------------------------------------------------------------
-// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff, merged
+// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff (ruff.js), merged
 // into one vertex-coloured geometry in TORSO-LOCAL space (the body mesh's own
 // frame: less (0, CENTRE_Y, 0), divided by the body scale), so it is hung on
 // the torso and posed with it. Each part is authored in the cat's frame
@@ -720,12 +762,13 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const parts = {
     belly: painted(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
       .translate(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz)), s.belly),
-    chest: painted(toTorso(new THREE.SphereGeometry(0.15, w, h).scale(1.05 * fx, 1.1, 0.9)
-      .translate(0, TORSO.CENTRE_Y + 0.06, -0.33 * fz)), coat.chest),
+    chest: painted(toTorso(new THREE.SphereGeometry(CHEST.R, w, h).scale(CHEST.SCALE[0] * fx, CHEST.SCALE[1], CHEST.SCALE[2])
+      .translate(0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * fz)), coat.chest),
   };
   if (s.fluffy) {
-    parts.ruff = painted(toTorso(new THREE.TorusGeometry(0.19, 0.075, 6, 12).rotateX(Math.PI / 2 - 0.35)
-      .translate(HEAD.POS[0], HEAD.POS[1] - 0.12, HEAD.POS[2] + 0.10)), s.belly);
+    // a small bib under the chin, jaw fluff and a fringe (ruff.js), already
+    // vertex-coloured and without uv
+    parts.ruff = toTorso(ruffGeometry(s, opts.simple));
   }
   const ranges = {};
   let at = 0;
@@ -737,7 +780,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const geo = mergeGeometries(Object.values(parts));
   for (const p of Object.values(parts)) p.dispose();
   geo.userData.ranges = ranges;
-  geo.userData.chestCentre = [0, 0.06 / BS[1], -0.33 * fz / BS[2]];
+  geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
   return geo;
 }
 
@@ -788,8 +831,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
   const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
-  // they sat on the old torso. A fluffy cat's drop onto the front of its ruff,
-  // under the chin (NECK_FLUFFY), rather than out past it. (Not the hood bunch:
+  // they sat on the old torso. A fluffy cat's rest on its small bib, at a
+  // tabby's spot (NECK_FLUFFY). (Not the hood bunch:
   // see HOOD_BUNCH_DROP.)
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
@@ -802,6 +845,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     litMaterial(0xffffff, { vertexColors: true }));
   body.scale.set(...BODY_SCALE);
   body.position.y = TORSO.CENTRE_Y;
+  body.userData.coat = coat; // the limbs' tops blend from it (limbs.js)
   g.add(body);
   // The underside: belly, chest and (fluffy cats) ruff, merged into ONE
   // vertex-coloured mesh hung on the torso, so it naps, sits and stretches with
@@ -888,35 +932,34 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   head.scale.setScalar(HEAD.SCALE);
   g.add(head);
 
-  // legs: hip-pivoted groups with paw spheres
+  // legs: hip-pivoted groups, each one smooth limb (limbs.js) and a paw.
+  // The limb is today's leg colour, its top blending into the torso's own
+  // painted colour at that hip (R7), on the body's vertex-coloured material.
   const legs = [];
+  const legHex = s.whiteLegs ? s.belly : pointColor;
+  const limbTop = [];
   const legSpots = [
     [-LEGS.FRONT_X, LEGS.FRONT_Z, false], [LEGS.FRONT_X, LEGS.FRONT_Z, false], // front L, R
     [-LEGS.HIND_X, LEGS.HIND_Z, true], [LEGS.HIND_X, LEGS.HIND_Z, true], // back L, R
   ];
   for (const [x, z, hind] of legSpots) {
     const leg = new THREE.Group();
-    // 6 -> 12 radial segments. At 5cm across and a metre and a half from the
-    // camera in the close-up shots, a 6-sided prism shows its flats; 12 costs
-    // 24 triangles a leg and reads as a limb.
-    const limb = new THREE.Mesh(limbGeometry(LEGS.LEN, hind), mat(s.whiteLegs ? s.belly : pointColor));
+    const topColour = coatColourAt(coat, legTopDir(x, z, [fx, fy, fz]));
+    limbTop.push(topColour);
+    const limb = new THREE.Mesh(
+      paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour),
+      litMaterial(0xffffff, { vertexColors: true }));
     leg.add(limb);
-    // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
-    // read as a knob on the end of a peg rather than as a foot; and it was
-    // parked at -0.27, which put its underside at world y -0.0196 — the cat
-    // stood 2cm INTO the ground on every surface in the game, measured off the
-    // model's own bounding box. It is now flatter, wider, longer front-to-back
-    // and pushed a little forward (-z is the cat's facing direction), and sits
-    // AT y = 0 rather than through it.
-    //
-    // The shape lives in the geometry, not in mesh.scale — see shapedBall() for
-    // why the `feet` accessories require that.
-    // The width is deliberately held near the limb's own 0.058 bottom radius:
-    // flaring it wider turns a pale paw into a clog. The read comes from the
-    // depth (1.42, so it reaches forward under the leg) and the flatness (0.62),
-    // not from the width.
+    // The foot (body refinement Task 4, limbs.js footGeometry): a soft oval
+    // with a flat sole and a low top, four toes scalloped into its front edge
+    // and claw tips just showing, in today's paw colour on the shared
+    // vertex-coloured material. Its sole is PAW_HALF below its centre, so it
+    // stands where the old paw stood (on y = 0), and its heel is where the old
+    // paw's was. The shape lives in the geometry, not in mesh.scale, because
+    // the `feet` accessories write paw.scale directly; they also swap in the
+    // plain paw (plainPawGeometry), so a boot sits exactly where it always did.
     const pawColour = s.socks ? WHITE_FUR : s.points ? s.accent : s.belly;
-    const paw = shapedBall(0.062, pawColour, 1.02, 0.62, 1.42, 12, 9);
+    const paw = new THREE.Mesh(footGeometry(pawColour, opts.simple), litMaterial(0xffffff, { vertexColors: true }));
     paw.position.set(0, PAW_Y, -0.012); // the sole stays where it always was
     leg.add(paw);
     leg.userData.paw = paw;
@@ -1313,14 +1356,24 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
+  // Every item first swaps the toed foot for today's plain paw (R8), so it
+  // wraps the shape it was made for and sits exactly where it always sat.
+  const plainPaw = (leg) => {
+    const paw = leg.userData.paw;
+    paw.geometry.dispose();
+    paw.geometry = plainPawGeometry();
+    return paw;
+  };
   if (accessories.feet === 'booties') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(0xf2c14e);
       leg.userData.paw.scale.multiplyScalar(1.15);
     }
   } else if (accessories.feet === 'goldbooties') {
     // shiny gold paws with a darker gold cuff at the ankle
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(PRIZE_GOLD);
       leg.userData.paw.scale.multiplyScalar(1.18);
       const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 8), mat(0xd9a000));
@@ -1329,6 +1382,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.feet === 'sneakers') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(SNEAKER_WHITE);
       leg.userData.paw.scale.set(1.2, 0.95, 1.25);
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.09), mat(SNEAKER_ACCENT));
@@ -1337,11 +1391,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.feet === 'rainboots') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(RAINBOOT_COLOR);
       leg.userData.paw.scale.set(1.15, 1.4, 1.15);
     }
   } else if (accessories.feet === 'socks') {
     legs.forEach((leg, i) => {
+      plainPaw(leg);
       leg.userData.paw.material = mat(SOCK_COLORS[i % SOCK_COLORS.length]);
       leg.userData.paw.scale.set(1.1, 1.3, 1.1);
     });
@@ -1387,9 +1443,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (!legs.includes(child) || LEG_LEN === 1) continue;
     const [limb, ...hung] = child.children;
     limb.geometry.dispose();
-    limb.geometry = limbGeometry(LEGS.LEN * LEG_LEN, legs.indexOf(child) >= 2);
+    const k = legs.indexOf(child);
+    limb.geometry = paintLimb(limbGeometry(LEGS.LEN * LEG_LEN, k >= 2, opts.simple), legHex, limbTop[k]);
     for (const part of hung) part.position.y -= dy; // the paw, a cuff, a sneaker stripe
   }
+  // The folds (Task 5, R1): each leg gets its baked fold shapes now, with its
+  // final limb, paw and feet item in place, so a fold moves exactly these.
+  legs.forEach((leg, i) => attachFolds(leg, { hind: i >= 2, simple: !!opts.simple, hipY, len: LEGS.LEN * LEG_LEN }));
   const bodyY = TORSO.CENTRE_Y + dy;
   const headPos = [HEAD.POS[0], HEAD.POS[1] + dy, HEAD.POS[2]];
 

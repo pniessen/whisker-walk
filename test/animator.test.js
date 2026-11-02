@@ -327,11 +327,21 @@ describe('animateCat: the fight action states', () => {
     const a = at('rearUp', 0.1), b = at('rearUp', 0.1 + Math.PI / 9);
     expect(a.legs[0].rotation.x).not.toBeCloseTo(b.legs[0].rotation.x, 2);
     expect(a.legs[0].rotation.x - a.legs[1].rotation.x).toBeCloseTo(-(b.legs[0].rotation.x - b.legs[1].rotation.x), 6);
-    for (const leg of at('roll', 1).legs) expect(Math.abs(leg.rotation.x)).toBeGreaterThan(1);
+    // Body refinement Task 5: the roll balls the legs up by folding them (the
+    // 'ball' fold baked into each limb), no longer by swinging them ±ROLL.tuck.
+    for (const leg of at('roll', 1).legs) {
+      expect(leg.userData.fold).toBe('ball');
+      expect(leg.rotation.x).toBe(0);
+    }
     const base = buildCat('tabby').userData.base;
     const pinned = at('pinned', 1);
     expect(pinned.body.position.y).toBeLessThan(base.bodyY - 0.1);
     expect(pinned.body.scale.y).toBeLessThan(base.bodyScale[1]);
+    // Task 5: pinned folds all four legs ('tuck') instead of squashing them to 0.3.
+    for (const leg of pinned.legs) {
+      expect(leg.userData.fold).toBe('tuck');
+      expect(leg.scale.y).toBe(1);
+    }
     expect(pinned.earL.rotation.z).toBeGreaterThan(0.78);
     const flinch = at('flinch', 1);
     expect(flinch.earL.rotation.z).toBeGreaterThan(0.78);

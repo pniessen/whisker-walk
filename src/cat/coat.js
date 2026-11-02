@@ -78,29 +78,46 @@ export function coatFromStyle(s) {
   };
 }
 
-// Paint `coat` into `geo`'s colour attribute, per vertex of geo.userData.unit:
+// A coat's patches, resolved once into the torso's unit-direction frame.
+// Cached per coat object (a coat is built once per cat and never edited).
+const prepared = new WeakMap();
+function prepare(coat) {
+  let p = prepared.get(coat);
+  if (p) return p;
+  const scale = LEGACY_BODY.SCALE.map((k, i) => k * coat.frame[i]);
+  const patches = coat.patches.map((q) => {
+    const dir = q.at.map((a, i) => (a - LEGACY_BODY.CENTRE[i]) / scale[i]);
+    return { dir, halfX: q.halfX, halfZ: q.halfZ, colour: new THREE.Color(q.colour), toPole: poleFrame(dir) };
+  });
+  p = { patches, base: new THREE.Color(coat.base), accent: new THREE.Color(coat.accent) };
+  prepared.set(coat, p);
+  return p;
+}
+
+// The colour `coat` paints at the undeformed unit direction `unit` ([x, y, z]):
 // base fur, then the tabby pattern toward `accent`, then each patch in order.
+// paintCoat paints every torso vertex with it; a limb's top blends from it.
+export function coatColourAt(coat, unit, out = new THREE.Color()) {
+  const { patches, base, accent } = prepare(coat);
+  out.copy(base);
+  if (coat.stripes) out.lerp(accent, tabbyMix(unit[0], unit[1], unit[2]) * coat.stripeStrength);
+  for (const p of patches) {
+    const m = patchMask(unit, p, p.toPole);
+    if (m > 0) out.lerp(p.colour, m);
+  }
+  return out;
+}
+
+// Paint `coat` into `geo`'s colour attribute, per vertex of geo.userData.unit.
 export function paintCoat(geo, coat) {
   const unit = geo.userData.unit;
   const n = unit.length / 3;
-  const scale = LEGACY_BODY.SCALE.map((k, i) => k * coat.frame[i]);
-  const patches = coat.patches.map((p) => {
-    const dir = p.at.map((a, i) => (a - LEGACY_BODY.CENTRE[i]) / scale[i]);
-    return { dir, halfX: p.halfX, halfZ: p.halfZ, colour: new THREE.Color(p.colour), toPole: poleFrame(dir) };
-  });
-  const base = new THREE.Color(coat.base);
-  const accent = new THREE.Color(coat.accent);
   const c = new THREE.Color();
   const col = new Float32Array(n * 3);
   const u = [0, 0, 0];
   for (let i = 0; i < n; i++) {
     u[0] = unit[i * 3]; u[1] = unit[i * 3 + 1]; u[2] = unit[i * 3 + 2];
-    c.copy(base);
-    if (coat.stripes) c.lerp(accent, tabbyMix(u[0], u[1], u[2]) * coat.stripeStrength);
-    for (const p of patches) {
-      const m = patchMask(u, p, p.toPole);
-      if (m > 0) c.lerp(p.colour, m);
-    }
+    coatColourAt(coat, u, c);
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));

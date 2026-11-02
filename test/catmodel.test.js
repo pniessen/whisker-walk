@@ -4,8 +4,11 @@ import * as THREE from 'three';
 import { buildCat, coatColor, CAT_LOOK_Y } from '../src/cat/model.js';
 import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colourDistance } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
+import { LEG_BLEND, CLAW_HEX } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
+import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
+import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
 // wave established and that a later edit could silently undo — none of them are
@@ -137,8 +140,21 @@ describe("cat model: Robbie's real coat", () => {
     const cat = buildCat('robbie');
     const { legs } = cat.userData.parts;
     for (const leg of legs) {
-      expect(lum(leg.children[0].material)).toBeGreaterThan(0.8); // the limb
-      expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
+      // The limb is vertex-coloured (body refinement Task 3): white below its
+      // top blend, which meets his dark coat at the hip (R7).
+      const limb = leg.children[0].geometry;
+      const col = limb.attributes.color;
+      limb.userData.t.forEach((t, i) => {
+        if (t >= LEG_BLEND) expect(lumC(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)))).toBeGreaterThan(0.8);
+      });
+      // The paw is vertex-coloured too (Task 4): white but for its claw tips.
+      const paw = leg.userData.paw.geometry.attributes.color;
+      const claw = new THREE.Color(CLAW_HEX);
+      for (let i = 0; i < paw.count; i++) {
+        const c = new THREE.Color(paw.getX(i), paw.getY(i), paw.getZ(i));
+        if (c.getHex() === claw.getHex()) continue;
+        expect(lumC(c)).toBeGreaterThan(0.8);
+      }
     }
     // The coat is painted (Task 4): read the torso's own vertex colours.
     const s = samples('robbie');
@@ -308,7 +324,7 @@ describe('cat model: budget and determinism', () => {
     it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
       expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
-      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
       expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
     });
   }
@@ -443,11 +459,13 @@ describe('cat model: the Version 2 proportions', () => {
 
 describe('cat model: strong hind legs and a tail that grows out of the rump (Task 5)', () => {
   const W = (m) => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return b.max.x - b.min.x; };
-  it('a hind leg is one mesh with a thick thigh; a front leg is a plain limb', () => {
+  it('a hind leg has a thick thigh, a front leg a shoulder (one limb mesh + paw each)', () => {
     const { legs } = buildCat('tabby').userData.parts;
-    expect(W(legs[2].children[0])).toBeGreaterThan(0.18);   // 0.11 × 0.85 × 2 = 0.187
-    expect(W(legs[0].children[0])).toBeLessThan(0.12);       // 2 × 0.058
-    expect(meshCount(legs[2])).toBe(2);                       // limb + paw
+    expect(W(legs[2].children[0])).toBeGreaterThan(0.18);   // the thigh: 2 × 0.10
+    const front = W(legs[0].children[0]);                     // the shoulder: 2 × 0.085
+    expect(front).toBeGreaterThanOrEqual(0.15);
+    expect(front).toBeLessThanOrEqual(0.19);
+    for (const leg of legs) expect(meshCount(leg)).toBe(2);   // limb + paw
   });
   it('the tail is rooted at the rump surface, not deep inside (no dorsal fin)', () => {
     const cat = buildCat('tabby'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
@@ -513,7 +531,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
   });
   it('stays inside the triangle budget', () => {
     for (const b of PRESETS) {
-      expect(triangles(buildCat(b))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(b))).toBeLessThanOrEqual(9000); // R4: the smooth legs and the ruff need the 9,000 ceiling
       expect(triangles(buildCat(b, undefined, { simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
@@ -606,8 +624,8 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       if (hits.length) expect(b.min.z).toBeLessThanOrEqual(hits[0].point.z - 0.005);
     }
   };
-  // Tabby, and the two fluffy cats whose ruff stands out in front of the chest.
-  const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon'];
+  // Tabby, and the fluffy cats (NECK_FLUFFY).
+  const CHEST_BREEDS = ['tabby', 'persian', 'mainecoon', 'd2'];
   it.each(CHEST_BREEDS.flatMap((b) => ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart'].map((id) => [b, id])))('%s: %s lies on the chest, not inside it', (breed, id) => {
     const slot = CATALOG.accessories[id].slot, cat = posed({ [slot]: id }, breed);
     onChest(cat, itemMeshes(cat, COLOURS[id]));
@@ -619,8 +637,9 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   // ...and stays under the chin, not across the face (fluffy cats, Task 10 fix):
   // every mesh the item adds to the head tops out below the mouth — taken as the
   // bottom of the nose, where a cat's mouth begins — and is behind the nose tip.
-  // On a fluffy cat the items drop onto the ruff's front (NECK_FLUFFY) rather
-  // than moving out past it, which put the scarf across the mouth.
+  // On a fluffy cat the items rest on the small bib, at a tabby's spot
+  // (NECK_FLUFFY, body refinement Task 7); moving them out past the old torus
+  // once put the scarf across the mouth.
   const sig = (m) => [m.geometry.type, m.material.color?.getHex(), ...m.position.toArray().map((v) => v.toFixed(5))].join();
   const addedToHead = (cat, bare) => {
     const have = new Set(); bare.userData.parts.head.traverse((o) => { if (o.isMesh) have.add(sig(o)); });
@@ -661,6 +680,48 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
       expect(v.z).toBeGreaterThan(nose.min.z);
     }
   });
+
+  // Body refinement, Task 7: on a fluffy cat the neck items rest on the new
+  // small bib (NECK_FLUFFY), not floating out where the torus used to be. For
+  // each item mesh in front of the ring's centre (as onChest), a ray from the
+  // front at its centre hits the fur at h: its front stands out of the fur
+  // (min.z <= h - 0.005) and its rear comes within 2.5 cm of it, or (charms and
+  // streamers hang free by design, so a tabby's own float 2-13 cm) no further
+  // out than the same mesh on a tabby, whose fit was signed off (R5). Gaps are
+  // compared in the cat's own units (divided by its scale).
+  const fitOf = (cat, meshes) => {
+    const { body } = cat.userData.parts, k = cat.scale.x;
+    const zs = meshes.map((m) => new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).z);
+    const ringZ = zs.reduce((a, z) => a + z, 0) / zs.length;
+    expect(meshes.length).toBeGreaterThan(0);
+    const out = [];
+    for (const m of meshes) {
+      const b = new THREE.Box3().setFromObject(m), mid = b.getCenter(new THREE.Vector3());
+      if (mid.z > ringZ + 1e-9) continue;        // a ring's far half, as onChest
+      const hits = new THREE.Raycaster(new THREE.Vector3(mid.x, mid.y, -2), new THREE.Vector3(0, 0, 1)).intersectObjects([body], true);
+      expect(hits.length).toBeGreaterThan(0);
+      const h = hits[0].point.z;
+      out.push({ rear: (h - b.max.z) / k, front: h - b.min.z });
+    }
+    expect(out.length).toBeGreaterThan(0);
+    return out;
+  };
+  const NECK_ITEMS = ['bandana', 'necktie', 'bowtie', 'scarf', 'streamerscarf', 'bell', 'heart', 'sparklecollar'];
+  const itemHexes = (id) => (id === 'sparklecollar' ? [0xf5c518] : COLOURS[id]);
+  const dressed = (breed, id, o = {}) => { const c = buildCat(breed, { [CATALOG.accessories[id].slot]: id }, o); animateCat(c, 'follow', 0, 0, false); c.updateMatrixWorld(true); return c; };
+  const FLUFFY_NECK = [['persian'], ['mainecoon'], ['d2'], ['custom fluffy', { look: { ...DEFAULT_LOOK, fur: 'fluffy' } }]];
+  it.each(FLUFFY_NECK.flatMap(([b, o]) => NECK_ITEMS.map((id) => [b, id, o])))('%s: %s rests on the bib, not floating in front of it', (label, id, o) => {
+    const ref = dressed('tabby', id), tabby = fitOf(ref, itemMeshes(ref, itemHexes(id)));
+    const cat = o ? dressed('tabby', id, o) : dressed(label, id), fit = fitOf(cat, itemMeshes(cat, itemHexes(id)));
+    expect(fit).toHaveLength(tabby.length);
+    fit.forEach(({ rear, front }, i) => {
+      // With NECK_FLUFFY at {0, 0} the rear check proves little (the fluffy neck sits where the tabby's does);
+      // the front >= 0.005 half is the real check.
+      // (+1e-9: a streamer tail hangs clear of the bib, exactly as on a tabby)
+      expect(rear, `mesh ${i}: rear floats off the fur`).toBeLessThanOrEqual(Math.max(0.025, tabby[i].rear) + 1e-9);
+      expect(front, `mesh ${i}: front sunk in the fur`).toBeGreaterThanOrEqual(0.005);
+    });
+  });
   it("Digit's built-in tag collar: the tag lies on the chest", () => {
     const cat = buildCat('digit'); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
     onChest(cat, itemMeshes(cat, [0xc8ccd4]));     // TAG_SILVER in model.js
@@ -671,6 +732,226 @@ describe('cat model: back items, neck items and collars on the new body (Task 8)
   });
   // kept elsewhere in this file: balloon bunch top < 1.1 and above the bare cat;
   // candle hat <= party crown + 0.02; Digit wears exactly one collar.
+});
+
+// Body refinement, Task 6 (R9): the fluffy cat's ruff is a small bib tucked
+// under the chin with a little jaw fluff and a five-point fringe, inside the
+// merged underside geometry, not the old torus ("a life preserver").
+describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
+  // [label, buildCat args, the style's base and belly]
+  const FLUFFY_LOOK = { ...DEFAULT_LOOK, fur: 'fluffy' }, LONG_LOOK = { ...DEFAULT_LOOK, fur: 'long', coat: 'black' };
+  const FLUFFY = [
+    ['persian', ['persian'], { base: 0xcfcfd4, belly: 0xe8e8ec }],
+    ['mainecoon', ['mainecoon'], { base: 0x7a5b3a, belly: 0xb99a72 }],
+    ['d2', ['d2'], { base: 0x5a4a3a, belly: 0xf5f5f2 }],
+    ['custom fluffy', ['tabby', undefined, { look: FLUFFY_LOOK }], lookToStyle(FLUFFY_LOOK)],
+    ['custom long', ['tabby', undefined, { look: LONG_LOOK }], lookToStyle(LONG_LOOK)],
+  ];
+  const CASES = FLUFFY.flatMap(([label, args, s]) => [false, true].map((simple) => [`${label}${simple ? ' (simple)' : ''}`, args, s, simple]));
+  const build = (args, simple) => buildCat(args[0], args[1], { ...(args[2] ?? {}), simple });
+  // The ruff's vertices of a really-built cat, in the cat's frame (before g.scale).
+  const ruffVerts = (cat) => {
+    cat.updateMatrixWorld(true);
+    const u = cat.userData.parts.underside, [a, z] = u.userData.ranges.ruff;
+    const m = cat.matrixWorld.clone().invert().multiply(u.matrixWorld), p = u.geometry.attributes.position;
+    return Array.from({ length: z - a }, (_, i) => new THREE.Vector3().fromBufferAttribute(p, a + i).applyMatrix4(m));
+  };
+  const volume = (b) => { const s = b.getSize(new THREE.Vector3()); return s.x * s.y * s.z; };
+  // Today's torus, turned and placed as undersideGeometry placed it (cat frame).
+  const torusBox = new THREE.Box3().setFromBufferAttribute(new THREE.TorusGeometry(0.19, 0.075, 6, 12).rotateX(Math.PI / 2 - 0.35)
+    .translate(0, 0.70 - 0.12, -0.40 + 0.10).attributes.position);
+
+  it.each(CASES)('%s: a small bib, not a life preserver', (_, args, s, simple) => {
+    const vs = ruffVerts(build(args, simple));
+    expect(vs.length).toBeGreaterThan(0);
+    const box = new THREE.Box3().setFromPoints(vs);
+    expect(box.max.z).toBeLessThanOrEqual(-0.24);                    // nothing behind the neck
+    expect(box.max.x - box.min.x).toBeLessThanOrEqual(0.30);
+    expect(volume(box)).toBeLessThanOrEqual(0.4 * volume(torusBox));
+    const g = ruffGeometry(s, simple);
+    expect(g.index.count / 3).toBeLessThanOrEqual(simple ? 210 : 360);
+    expect(g.attributes.uv).toBeUndefined();
+  });
+  // Connected pieces of a vertex range: triangles joined by shared indices or
+  // by coincident positions (a cone's seam and tip are split vertices).
+  const pieces = (g, [a, z]) => {
+    const p = g.attributes.position, idx = g.index.array, parent = new Map();
+    const find = (i) => { while (parent.get(i) !== i) i = parent.get(i); return i; };
+    const join = (i, j) => { parent.set(find(i), find(j)); };
+    const key = (i) => [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(5)).join();
+    const byPos = new Map();
+    for (let i = a; i < z; i++) {
+      parent.set(i, i);
+      const k = key(i);
+      if (byPos.has(k)) join(i, byPos.get(k)); else byPos.set(k, i);
+    }
+    for (let t = 0; t < idx.length; t += 3) {
+      if (idx[t] < a || idx[t] >= z) continue;
+      join(idx[t], idx[t + 1]); join(idx[t], idx[t + 2]);
+    }
+    return new Set([...parent.keys()].map(find)).size;
+  };
+  // The jaw fluff blends the base coat into the bib (R9: lerp(base, belly,
+  // JAW_MIX)), kept within JAW_CAP of the belly in linear RGB.
+  const dist = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+  it.each(CASES)('%s: the bib is the belly colour, the jaw fluff the coat blended into it, capped', (label, args, s, simple) => {
+    const g = ruffGeometry(s, simple), { bib, jaw, fringe } = g.userData.parts;
+    const col = g.attributes.color;
+    const colour = (i) => new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
+    const belly = new THREE.Color(s.belly), base = new THREE.Color(s.base);
+    expect(RUFF.JAW_MIX).toBe(0.35);
+    expect(RUFF.JAW_CAP).toBe(0.25);
+    const half = (jaw[0] + jaw[1]) / 2;
+    for (const [[a, z], want] of [[bib, belly], [fringe, belly], [[jaw[0], half], jawFluffColour(s)], [[half, jaw[1]], jawFluffColour(s)]]) {
+      expect(z).toBeGreaterThan(a);
+      for (let i = a; i < z; i++) expect(colourDistance(colour(i), want)).toBeLessThan(1e-6);
+    }
+    const j = jawFluffColour(s), raw = base.clone().lerp(belly, RUFF.JAW_MIX);
+    expect(dist(j, belly), label).toBeLessThanOrEqual(RUFF.JAW_CAP + 1e-6);
+    // inside the cap it is exactly the lerp; outside, it is on the cap toward it
+    if (dist(raw, belly) <= RUFF.JAW_CAP) expect(colourDistance(j, raw)).toBeLessThan(1e-6);
+    else expect(dist(j, belly)).toBeCloseTo(RUFF.JAW_CAP, 6);
+    // it is not just the belly: the coat shows in it (unless the coat is the belly)
+    if (dist(base, belly) > 1e-3) expect(dist(j, belly), label).toBeGreaterThan(0.01);
+    // the reviewer's values
+    const hex = (c) => `#${c.getHexString()}`;
+    const want = { persian: '#d8d8dd', mainecoon: '#947653', d2: '#e4e3df' }[label.replace(' (simple)', '')];
+    // (the mainecoon's lerp sits 0.25008 from its bib: the cap trims 8e-5, under a hex step)
+    if (want === '#d8d8dd' || want === '#947653') expect(colourDistance(j, raw)).toBeLessThan(2e-4);
+    if (want) expect(hex(j), label).toBe(want);
+    // D2: white chest, dark coat; the fluff is near-white, not grey on white
+    if (label.startsWith('d2')) expect(Math.min(j.r, j.g, j.b)).toBeGreaterThan(0.7);
+    expect(pieces(g, fringe)).toBe(5);
+    expect(pieces(g, jaw)).toBe(2);
+    // and the built cat's ruff is exactly that geometry's colours
+    const u = build(args, simple).userData.parts.underside, [ra, rz] = u.userData.ranges.ruff, uc = u.geometry.attributes.color;
+    expect(rz - ra).toBe(col.count);
+    for (let i = 0; i < col.count; i++) expect([uc.getX(ra + i), uc.getY(ra + i), uc.getZ(ra + i)]).toEqual([col.getX(i), col.getY(i), col.getZ(i)]);
+  });
+  // A head dropping to sniff or nap passes over the bib: no ruff vertex that is
+  // outside the skull stands above the mouth line in front of the skull centre
+  // (the chin always overlaps the bib, as it overlapped the torus).
+  it.each(CASES.flatMap(([label, ...rest]) => ['sniff', 'nap'].map((st) => [label, st, ...rest])))('%s: a dropping head passes over it (%s)', (label, st, args, s, simple) => {
+    for (const t of [0, 0.6, 1.3, 2.2, 3.7]) {
+      const cat = build(args, simple); animateCat(cat, st, t, 0, false); cat.updateMatrixWorld(true);
+      const { head, underside } = cat.userData.parts, skull = head.children[0];
+      let nose; head.traverse((o) => { if (o.userData.nose) nose = o; });
+      nose.geometry.computeBoundingBox();
+      const mouthY = nose.position.y + nose.geometry.boundingBox.min.y * nose.scale.y;   // head-local
+      const toSkull = skull.matrixWorld.clone().invert(), toHead = head.matrixWorld.clone().invert();
+      const [a, z] = underside.userData.ranges.ruff, p = underside.geometry.attributes.position;
+      for (let i = a; i < z; i++) {
+        const w = new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(underside.matrixWorld);
+        if (w.clone().applyMatrix4(toSkull).length() <= SKULL_R) continue;
+        const h = w.applyMatrix4(toHead);
+        expect(h.z < 0 && h.y > mouthY, `${label} ${st} t ${t}: vertex ${i} at head-local ${h.toArray().map((v) => v.toFixed(3))}`).toBe(false);
+      }
+    }
+  });
+  // ...and it shows: per part, vertices outside both the chest's and the
+  // skull's ellipsoids (a ruff hidden inside the chest reads as no ruff at all,
+  // as R9's z -0.30 did), with the bib's front no more than 1.5 cm proud of the
+  // chest (a modest bib, not a gigantic chest). The chest's ellipsoid is read
+  // off the built chest's own vertices (its box: the ball's poles and equator
+  // are vertices), in the underside's frame, where it is axis-aligned.
+  // Measured: full 12, simple 10 (of 75). The floor leaves slack for
+  // re-tessellation; 5 points must still show.
+  const VISIBLE = { bib: 4, jaw: 4, fringe: 8 };
+  it.each(CASES)('%s: it shows outside the chest and the skull', (label, args, s, simple) => {
+    const cat = build(args, simple); animateCat(cat, 'follow', 0, 0, false); cat.updateMatrixWorld(true);
+    const { underside, head } = cat.userData.parts, skull = head.children[0];
+    const p = underside.geometry.attributes.position, [ra] = underside.userData.ranges.ruff, [ca, cz] = underside.userData.ranges.chest;
+    const chestBox = new THREE.Box3();
+    for (let i = ca; i < cz; i++) chestBox.expandByPoint(new THREE.Vector3().fromBufferAttribute(p, i));
+    const c = chestBox.getCenter(new THREE.Vector3()), r = chestBox.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    const inChest = (v) => ((v.x - c.x) / r.x) ** 2 + ((v.y - c.y) / r.y) ** 2 + ((v.z - c.z) / r.z) ** 2 <= 1;
+    const toSkull = skull.matrixWorld.clone().invert().multiply(underside.matrixWorld);
+    const toCat = cat.matrixWorld.clone().invert().multiply(underside.matrixWorld);
+    const { parts } = ruffGeometry(s, simple).userData;
+    for (const [k, [a, z]] of Object.entries(parts)) {
+      let shown = 0, proud = 0;
+      for (let i = ra + a; i < ra + z; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(p, i);
+        if (inChest(v) || v.clone().applyMatrix4(toSkull).length() <= SKULL_R) continue;
+        shown++;
+        const q = 1 - ((v.x - c.x) / r.x) ** 2 - ((v.y - c.y) / r.y) ** 2;
+        if (k === 'bib' && q > 0 && v.z < c.z) {
+          const front = new THREE.Vector3(v.x, v.y, c.z - r.z * Math.sqrt(q)).applyMatrix4(toCat);
+          proud = Math.max(proud, front.distanceTo(v.clone().applyMatrix4(toCat)));
+        }
+      }
+      expect(shown, `${label}: ${k} vertices outside the chest and skull`).toBeGreaterThanOrEqual(VISIBLE[k]);
+      if (k === 'bib') expect(proud, `${label}: the bib stands out of the chest`).toBeLessThanOrEqual(0.015);
+    }
+  });
+  // Task 10 fix: the fringe's five points are soft and blunt, their open bases
+  // buried in the bib (or the chest or belly) and their tips below the bib's
+  // edge. "Buried" is tested against the real merged underside mesh: a base
+  // vertex must lie inside one of its faceted solids (belly, chest, bib) by a
+  // ray cast against that solid's triangles (an odd number of crossings), not
+  // inside an analytic ellipsoid, which the bib's flat facets sag inside.
+  const RAY = new THREE.Vector3(0.5774, 0.5, 0.6446).normalize();
+  const rayHits = (o, pos, idx, tris) => {
+    let n = 0;
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), pv = new THREE.Vector3(), tv = new THREE.Vector3(), qv = new THREE.Vector3();
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    for (const t of tris) {
+      A.fromBufferAttribute(pos, idx[t]); B.fromBufferAttribute(pos, idx[t + 1]); C.fromBufferAttribute(pos, idx[t + 2]);
+      e1.subVectors(B, A); e2.subVectors(C, A);
+      pv.crossVectors(RAY, e2);
+      const det = e1.dot(pv);
+      if (Math.abs(det) < 1e-14) continue;
+      tv.subVectors(o, A);
+      const u = tv.dot(pv) / det;
+      if (u < 0 || u > 1) continue;
+      qv.crossVectors(tv, e1);
+      const v = RAY.dot(qv) / det;
+      if (v < 0 || u + v > 1) continue;
+      if (e2.dot(qv) / det > 0) n++;
+    }
+    return n;
+  };
+  it.each(CASES)('%s: five soft points along the bib\'s edge, their bases buried', (label, args, s, simple) => {
+    const g = ruffGeometry(s, simple), p = g.attributes.position;
+    const { BIB, AT, FRINGE } = RUFF;
+    const bc = BIB.OFF.map((o, i) => AT[i] + o), br = BIB.SCALE.map((k) => k * BIB.R);
+    expect(g.userData.fringeBases).toHaveLength(5);
+    // the real merged underside: each solid's own triangles (a solid's triangles
+    // only join its own vertex range)
+    const u = build(args, simple).userData.parts.underside, up = u.geometry.attributes.position, idx = u.geometry.index.array;
+    const { ranges } = u.userData, [ra] = ranges.ruff;
+    const bibRange = [ra + g.userData.parts.bib[0], ra + g.userData.parts.bib[1]];
+    const solids = [ranges.belly, ranges.chest, bibRange].map(([a, z]) => {
+      const tris = [];
+      for (let t = 0; t < idx.length; t += 3) if (idx[t] >= a && idx[t] < z) tris.push(t);
+      return tris;
+    });
+    expect(solids.every((s2) => s2.length > 0)).toBe(true);
+    const [fa, fz] = g.userData.parts.fringe, per = (fz - fa) / 5;
+    const o = new THREE.Vector3();
+    for (const [k, [from, n]] of g.userData.fringeBases.entries()) {
+      for (let i = from; i < from + n; i++) {
+        o.fromBufferAttribute(up, ra + i);
+        const inside = solids.some((tris) => rayHits(o, up, idx, tris) % 2 === 1);
+        expect(inside, `${label}: point ${k} base vertex ${i} is outside every solid`).toBe(true);
+      }
+      // the tip: 5 mm or more below the bib's lower edge at its x, and blunt:
+      // the ring next to it is at least half the point's width
+      let tip = null;
+      for (let i = fa + k * per; i < fa + (k + 1) * per; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(p, i);
+        if (!tip || v.y < tip.y) tip = v;
+      }
+      const dx = (tip.x - bc[0]) / br[0];
+      expect(bc[1] - br[1] * Math.sqrt(Math.max(0, 1 - dx * dx)) - tip.y, `${label}: point ${k} shows below the bib`).toBeGreaterThanOrEqual(0.005);
+    }
+    expect(FRINGE.KNEE[1]).toBeGreaterThanOrEqual(0.5);
+  });
+  it('short-haired cats have none', () => {
+    for (const cat of [buildCat('tabby'), buildCat('robbie'), buildCat('digit'), buildCat('tabby', undefined, { look: DEFAULT_LOOK })]) {
+      expect(cat.userData.parts.underside.userData.ranges.ruff).toBeUndefined();
+    }
+  });
 });
 
 it('the camera looks inside the head: between its centre and its top (tabby, follow, world)', () => {
