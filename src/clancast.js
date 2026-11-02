@@ -31,8 +31,10 @@ export const RANK_SCALE = Object.freeze({
 });
 
 // Camp-marker colours, one per clan, readable on the map's land colours.
+// CliffClan's is brick (part 4 K8): unlike the other four's greens, purple
+// and blue.
 export const CLAN_COLOURS = Object.freeze({
-  woods: '#3f7d3a', moor: '#9a6aa8', river: '#2f7fa8', pines: '#35584a',
+  woods: '#3f7d3a', moor: '#9a6aa8', river: '#2f7fa8', pines: '#35584a', gorge: '#9c3b22',
 });
 
 // A STYLE row plus `eyes`, the preset breed whose eye colour it borrows.
@@ -70,6 +72,17 @@ export const CLAN_COATS = Object.freeze({
     coat('black', 0x33333a, 0x4a4a52, 0x202026, { fluffy: true }),
     coat('black', 0x3a2c24, 0x54443a, 0xb0682e, { patch2: 0x241a14, patches: true }),
     coat('black', 0x222228, 0x3a3a42, 0x141418, { socks: true }),
+  ),
+  // CliffClan: gingers, russets and white (part 4 K7). The Gorge's rock, its
+  // ledges and its floor are all dull (HSL saturation 0.35 or less), so every
+  // base here is bright (saturation 0.45 or more) or near white (lightness
+  // 0.85 or more), and a CliffClan cat reads against the cliff.
+  gorge: rows(
+    coat('tabby', 0xc8682a, 0xf0d2b0, 0x8a3e16, { stripes: true, headStripes: true }),
+    coat('tabby', 0xb5532a, 0xf4ece4, 0x7a3014, { whiteLegs: true, chin: true }),
+    coat('tabby', 0xd9925a, 0xf6e6d0, 0xa4602c, { stripes: true }),
+    coat('calico', 0xf2ece6, 0xfaf8f4, 0xc8682a, { patch2: 0x5a3a2a, patches: true }),
+    coat('tabby', 0xc0401e, 0xe8c0a0, 0x7a2410, { fluffy: true }),
   ),
 });
 
@@ -157,6 +170,12 @@ export function tagSubFor(member) {
 // bank had a home at 10/16 without this). At most 600 candidates. `isWalkable(x, z)` is the caller's (walk.js passes the clan's
 // ground, keep-out and all), so this module imports no world code and stays
 // pure. Deterministic for a given built map: both devices agree.
+//
+// Level-aware (Gorge part 4, K5): when area.ground has height (not flat), a
+// point on the 2 m ring or the 6 m circle counts only if it is on the home's
+// own level (ground.sameLevel), so a home on a path leg can't count the floor
+// a metre below as its ring. Flat ground (or none) skips the check, so the
+// shipped camps' homes are exactly as before (a test pins them).
 export const ROAM_SLOTS = Object.freeze([4, 5, 6, 7, 8, 13, 14, 15]);
 const ROAM_TRIES = 600;
 const ROAM_SPREAD = 0.7;
@@ -186,6 +205,7 @@ export function roamHomes(areaId, area, isWalkable) {
   const mz = (b.minZ + b.maxZ) / 2, hz = ((b.maxZ - b.minZ) / 2) * ROAM_SPREAD;
   const rng = mulberry32(seedFromCode(`${areaId}|roam`));
   const ok = (x, z) => isWalkable(x, z) === true;
+  const G = area?.ground && !area.ground.flat ? area.ground : null;
   const homes = [];
   for (let i = 0; i < ROAM_TRIES && homes.length < ROAM_SLOTS.length; i++) {
     const x = mx + (rng() * 2 - 1) * hx;
@@ -193,8 +213,9 @@ export function roamHomes(areaId, area, isWalkable) {
     if (Math.hypot(x - cx, z - cz) < r + ROAM_CAMP_GAP) continue;
     if (homes.some((h) => Math.hypot(h.x - x, h.z - z) < ROAM_APART)) continue;
     if (!ok(x, z)) continue;
-    if (circleCount(ok, x, z, ROAM_RING, ROAM_RING_N) < ROAM_RING_N) continue;
-    if (circleCount(ok, x, z, ROAM_RADIUS, ROAM_CIRCLE_N) < ROAM_CIRCLE_MIN) continue;
+    const here = G ? (px, pz) => ok(px, pz) && G.sameLevel(x, z, px, pz) : ok;
+    if (circleCount(here, x, z, ROAM_RING, ROAM_RING_N) < ROAM_RING_N) continue;
+    if (circleCount(here, x, z, ROAM_RADIUS, ROAM_CIRCLE_N) < ROAM_CIRCLE_MIN) continue;
     homes.push({ x, z });
   }
   return homes;

@@ -61,6 +61,21 @@ import { patrolClanFor, clanName } from './clanhomes.js';
 //     is 6.4m beyond the ring, the nearest POI (-34,24) 11.5m; the ring keeps
 //     3.5m off bog-2 and clears every collider by 1.2m beyond the cat. The
 //     fallen pine by the truce path, a seat and a first hop, is left out.
+//   gorge (12,41.5) r 5.2: CliffClan's camp on the Wide Ledge (y 8), part 4
+//     K1. Probed on the built Gorge: all 16 patrol points and all 12 marks
+//     stand at y 8, every half-metre cell of the disc is y 8 with no slope;
+//     the ring keeps 1.0m inside the lip (x 5.8), 2.8m off the back wall
+//     (x 20) and 1.3m off the south wall (z 48); its north edge (z 36.3) is
+//     0.8m inside the ledge, so the B -> C turn (z 32-35.5) is never camp.
+//     No other walkable level lies under the disc or the den, so the 2D test
+//     below is exact here. The leader's rock (8.3,41.5) r 0.6 clears the
+//     ring by 0.90m beyond its edge. `den` is the cave den cut into the rock
+//     behind the ledge (gorgeshape.js CAMP_DEN, held here as a literal so this
+//     stays a leaf; a test pins them equal): inside it also counts as the
+//     camp, so a chase never lands her there and a patrol buddy stops at its
+//     mouth. The patrol walks the ring and notices within NOTICE_DIST, so it
+//     chases her only in the den's front (x <= about 21.5): sneaking to the
+//     nursery unseen is the game. Only the Gorge's disc has a `den`.
 export const DISCS = Object.freeze({
   neighborhood: Object.freeze({ cx: 34, cz: -40, r: 6.5 }),
   park: Object.freeze({ cx: -38, cz: 38, r: 7 }),
@@ -70,6 +85,7 @@ export const DISCS = Object.freeze({
   river: Object.freeze({ cx: 5, cz: 1, r: 6 }),
   moor: Object.freeze({ cx: -1, cz: -43, r: 6 }),
   pines: Object.freeze({ cx: -38, cz: 41, r: 6 }),
+  gorge: Object.freeze({ cx: 12, cz: 41.5, r: 5.2, den: Object.freeze({ minX: 20, maxX: 26, minZ: 37, maxZ: 43 }) }),
 });
 
 const MARK_COUNT = 12;
@@ -99,7 +115,9 @@ export function isTrespassing(areaId, x, z) {
   const d = discOf(areaId);
   if (!d || typeof x !== 'number' || typeof z !== 'number') return false;
   if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
-  return Math.hypot(x - d.cx, z - d.cz) <= d.r;
+  if (Math.hypot(x - d.cx, z - d.cz) <= d.r) return true;
+  const den = d.den;
+  return !!den && x >= den.minX && x <= den.maxX && z >= den.minZ && z <= den.maxZ;
 }
 
 // n evenly spaced points round the circle, from an angle seeded by the id.

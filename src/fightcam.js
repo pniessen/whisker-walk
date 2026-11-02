@@ -100,7 +100,9 @@ export function findOccluders(scene) {
     const e = o.matrixWorld.elements;
     const s = Math.hypot(e[0], e[1], e[2]);
     if (one) add(o, e[12], e[13], e[14], s, one, true);
-    if (stand) for (const t of stand.trees) add(null, e[12] + t.x * s, e[13], e[14] + t.z * s, s * t.scale, stand.shapes, false);
+    // A stand tree's own y (builder.pineStand: the Gorge's west-top stand) is
+    // in the stand's frame, like its x and z; flat stands carry none.
+    if (stand) for (const t of stand.trees) add(null, e[12] + t.x * s, e[13] + (t.y ?? 0) * s, e[14] + t.z * s, s * t.scale, stand.shapes, false);
   });
   return out;
 }

@@ -36,12 +36,15 @@ export const TERRITORIES = freezeAll([
 // way the camp sits on that territory's walkable map (world north is board
 // north): the Woods' north glade facing the Moor, the River's meadow by the
 // bank, the Moor's heath on its north edge (nudged west of the name), the
-// Pines' swamp side of the south edge, west of the spawn.
+// Pines' swamp side of the south edge, west of the spawn, the Gorge's Wide
+// Ledge below the cliff face (live check: under the name, which sits higher
+// than the region's centre so the "mine" ring clears it).
 export const CAMP_AT = Object.freeze({
   woods: Object.freeze([575, 400]),
   river: Object.freeze([244, 470]),
   moor: Object.freeze([540, 95]),
   pines: Object.freeze([236, 288]),
+  gorge: Object.freeze([845, 405]),
 });
 
 const pts = (list) => Object.freeze(list.map((p) => Object.freeze(p)));

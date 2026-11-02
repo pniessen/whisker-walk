@@ -6,10 +6,23 @@
 // and one hand-probed turn per camp, so both devices in a co-walk agree with no
 // message. addCamp draws it and pushes its two colliders. World files call it
 // whatever the picks: Legacy sees the same den and rock.
+//
+// The Gorge's camp (part 4, K3) is a ledge camp: its den is a cave cut into
+// the rock behind the Wide Ledge (gorgeshape.js CAMP_DEN), so its seats are
+// authored (LEDGE_CAMPS) rather than turned, the den has no dome and no
+// collider (den.cave), and addCamp draws the leader's rock and the den's
+// bedding instead. Probe numbers, on the built Gorge: the rock (8.3,41.5)
+// r 0.6 sits 1.9m in from the lip (x 5.8) and 0.90m from its edge to the
+// patrol ring (0.75 needed), so it can come no nearer the lip; every seat is
+// 0.6m or more off the rock's edge and 0.5m or more from every other seat;
+// every seat in the den is 1.2m or more from its walls; every seat stands at
+// y 8 with no slope (test/gorgeclan.test.js).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { DISCS } from '../rivalclans.js';
 import { castFor } from '../clancast.js';
+import { seatOnGround } from '../ground.js';
 
 // One turn per camp (radians): the direction from the camp's centre to the den.
 // Hand-probed against the built maps in 15-degree steps, starting from the
@@ -38,6 +51,47 @@ export const CAMP_TURN = Object.freeze({
   pines: 2.583,
 });
 
+// Ledge camps, authored whole: { den, rock, seats } in world coordinates, the
+// same shape campLayout turns for a disc camp. den.cave: the den is a cave in
+// the rock, its point the den's centre, with no dome and no collider (r 0).
+// A seat's `face` (the leader's, looking west out over the gorge) is the yaw
+// createClanCats gives it instead of facing the camp's centre. Kits 0 and 1,
+// and 2 and 3, are the hop pairs, as everywhere.
+const frozen = (o) => Object.freeze(o);
+export const LEDGE_CAMPS = frozen({
+  gorge: frozen({
+    den: frozen({ x: 23, z: 40, r: 0, h: 0, cave: true }),
+    rock: frozen({ x: 8.3, z: 41.5, r: 0.6, h: 0.8 }),
+    seats: frozen({
+      leader: frozen({ x: 8.3, z: 41.5, y: 0.8, face: Math.PI / 2 }),
+      deputy: frozen({ x: 9.5, z: 41.5 }),
+      elders: frozen([frozen({ x: 24.8, z: 38.4 }), frozen({ x: 24.8, z: 41.6 })]),
+      kits: frozen([
+        frozen({ x: 21.6, z: 38.8 }), frozen({ x: 22.6, z: 39.4 }),
+        frozen({ x: 22.6, z: 40.6 }), frozen({ x: 21.6, z: 41.2 }),
+      ]),
+    }),
+  }),
+});
+
+// A fresh, unfrozen copy of a ledge camp's record.
+function ledgeLayout(areaId) {
+  const { cx, cz } = DISCS[areaId];
+  const { den, rock, seats } = LEDGE_CAMPS[areaId];
+  return {
+    cx,
+    cz,
+    den: { ...den },
+    rock: { ...rock },
+    seats: {
+      leader: { ...seats.leader },
+      deputy: { ...seats.deputy },
+      elders: seats.elders.map((p) => ({ ...p })),
+      kits: seats.kits.map((p) => ({ ...p })),
+    },
+  };
+}
+
 const DEN = { d: 2.0, r: 1.1, h: 0.9 };
 const ROCK = { d: 2.2, turn: 2.3, r: 0.6, h: 0.8 };
 // Seat distances. Each ground seat stands 0.6 m or more off the den's and the
@@ -62,7 +116,9 @@ const KIT_TURNS = [-0.6, -0.2, 0.2, 0.6];
  *   one does, minus the extras. A fresh object every call.
  */
 export function campLayout(areaId) {
-  if (castFor(areaId).length === 0 || !Object.hasOwn(CAMP_TURN, areaId)) return null;
+  if (castFor(areaId).length === 0) return null;
+  if (Object.hasOwn(LEDGE_CAMPS, areaId)) return ledgeLayout(areaId);
+  if (!Object.hasOwn(CAMP_TURN, areaId)) return null;
   const { cx, cz } = DISCS[areaId];
   const th = CAMP_TURN[areaId];
   const at = (ox, oz, d, a) => ({ x: ox + Math.cos(a) * d, z: oz + Math.sin(a) * d });
@@ -84,11 +140,13 @@ export function campLayout(areaId) {
 }
 
 // campDiscs(areaId) -> [den, rock] as { x, z, r } (the colliders addCamp
-// pushes), or [] where there is no camp. walk.js keeps colony cats' saved
-// spots out of them.
+// pushes), or [] where there is no camp. A cave den is no collider, so a ledge
+// camp's is [rock]. walk.js keeps colony cats' saved spots out of them.
 export function campDiscs(areaId) {
   const L = campLayout(areaId);
-  return L ? [{ x: L.den.x, z: L.den.z, r: L.den.r }, { x: L.rock.x, z: L.rock.z, r: L.rock.r }] : [];
+  if (!L) return [];
+  const rock = { x: L.rock.x, z: L.rock.z, r: L.rock.r };
+  return L.den.cave ? [rock] : [{ x: L.den.x, z: L.den.z, r: L.den.r }, rock];
 }
 
 const BRAMBLE = 0x3b5e2e; // builder.brambleBed's green
@@ -96,6 +154,52 @@ const DOORWAY = 0x1c2416;
 const ROCK_GREY = 0x8e8c88; // builder.tor's grey, the territories' rock
 const DEN_SQUASH = 0.8;
 const DOOR = { r: 0.32, y: 0.3 };
+// The ledge den's bedding: a flat disc of dry stuff under each elder and kit.
+const BEDDING = { r: 0.45, h: 0.06, segments: 12, color: 0x9a7a4a };
+
+// The leader's rock: a dodecahedron squashed to rock.h, its base at y 0.
+function campRockMesh(rockSpot) {
+  const rockGeo = new THREE.DodecahedronGeometry(rockSpot.r, 0);
+  rockGeo.computeBoundingBox();
+  const { min, max } = rockGeo.boundingBox;
+  const sy = rockSpot.h / (max.y - min.y);
+  const rock = new THREE.Mesh(rockGeo, litMaterial(ROCK_GREY, surfaceProps('cobble')));
+  rock.name = 'campRock';
+  rock.scale.set(1, sy, 1);
+  rock.position.set(rockSpot.x, -min.y * sy, rockSpot.z);
+  return rock;
+}
+
+// A ledge camp: two top-level meshes, the rock and the bedding, and one
+// collider, the rock (a cave den is the rock round it). They are separate
+// children of the scene, not a Group, because the contact-shadow scan boxes
+// one top-level child at a time and the bedding sits ~17 m from the rock: in
+// one Group it was over MAX_SPAN and the rock lost its decal. The rock is
+// seated on the ground under its own centre. The bedding is one merged mesh at
+// the origin, so seating it as the rock is seated would lift it by the ground at
+// (0, 0), the floor: instead each disc is baked in at its seat, at the ground
+// under that seat (ruling P3). Out of the shadow pass: it is flat.
+function addLedgeCamp(scene, area, L) {
+  const ground = area.ground ?? null;
+  const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
+
+  const rock = campRockMesh(L.rock);
+  if (ground) seatOnGround(rock, ground);
+  scene.add(rock);
+
+  const discs = [...L.seats.elders, ...L.seats.kits].map((s) => {
+    const g = new THREE.CylinderGeometry(BEDDING.r, BEDDING.r, BEDDING.h, BEDDING.segments);
+    g.translate(s.x, groundY(s.x, s.z) + BEDDING.h / 2, s.z);
+    return g;
+  });
+  const bedGeo = mergeGeometries(discs, false);
+  for (const g of discs) g.dispose();
+  const bedding = new THREE.Mesh(bedGeo, litMaterial(BEDDING.color, surfaceProps('foliage')));
+  bedding.name = 'campBedding';
+  bedding.userData.noCast = true;
+  scene.add(bedding);
+  area.colliders.push({ x: L.rock.x, z: L.rock.z, r: L.rock.r });
+}
 
 /**
  * addCamp(scene, area, areaId) -> void
@@ -107,10 +211,16 @@ const DOOR = { r: 0.32, y: 0.3 };
  * the shadow pass (userData.noCast). Pushes { x, z, r } colliders for the den
  * and the rock into area.colliders. A no-op where campLayout is null.
  * Materials are made per call (walk.js disposes them at the walk's end).
+ * A ledge camp (L.den.cave) draws its rock and bedding instead, seated on
+ * area.ground when given (addLedgeCamp above).
  */
 export function addCamp(scene, area, areaId) {
   const L = campLayout(areaId);
   if (!L) return;
+  if (L.den.cave) {
+    addLedgeCamp(scene, area, L);
+    return;
+  }
   const th = CAMP_TURN[areaId];
   const group = new THREE.Group();
   group.name = 'clanCamp';
@@ -136,15 +246,7 @@ export function addCamp(scene, area, areaId) {
   door.userData.noCast = true;
   group.add(door);
 
-  const rockGeo = new THREE.DodecahedronGeometry(L.rock.r, 0);
-  rockGeo.computeBoundingBox();
-  const { min, max } = rockGeo.boundingBox;
-  const sy = L.rock.h / (max.y - min.y);
-  const rock = new THREE.Mesh(rockGeo, litMaterial(ROCK_GREY, surfaceProps('cobble')));
-  rock.name = 'campRock';
-  rock.scale.set(1, sy, 1);
-  rock.position.set(L.rock.x, -min.y * sy, L.rock.z);
-  group.add(rock);
+  group.add(campRockMesh(L.rock));
 
   scene.add(group);
   area.colliders.push({ x: L.den.x, z: L.den.z, r: L.den.r }, { x: L.rock.x, z: L.rock.z, r: L.rock.r });

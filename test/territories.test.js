@@ -153,9 +153,10 @@ describe('territories', () => {
     expect(gorge).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
     s.unlocked.areas.push('gorge');
     expect(region(territoryMapModel(s, CATALOG), 'gorge')).toMatchObject({ owned: true, line: 'tap to walk here' });
-    // No camp is drawn there yet: CliffClan's camp is part 4.
-    expect(CAMP_AT).not.toHaveProperty('gorge');
-    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toBeNull();
+    expect(CAMP_AT.gorge).toEqual([845, 405]);
+    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toEqual({ x: 845, y: 405, color: '#9c3b22', mine: false, ally: false });
+    s.clanPick = { mine: 'gorge', partner: null, partnerId: null };
+    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp.mine).toBe(true);
   });
 
   it('every clan territory is built, and every place on the map can be tapped', () => {
@@ -245,12 +246,12 @@ describe('camps on the territory map', () => {
     const m = territoryMapModel({ ...pick('woods'), edition: 'legacy' }, CATALOG);
     for (const r of m.regions) expect(r.camp).toBeNull();
   });
-  it('the pines region has a camp, the island region and the town do not', () => {
+  it('the pines and gorge regions have camps, the island region and the town do not', () => {
     const s = clanState();
     expect(clanOf(s, 'pines')).not.toBeNull();
     expect(territoryMapModel(s, CATALOG).island.camp ?? null).toBeNull();
     expect(clanOf(s, 'town')).toBeNull();
-    expect(clanOf(s, 'gorge')).toBeNull();
+    expect(clanOf(s, 'gorge')).not.toBeNull();
   });
   it('every camp sits inside its own region', () => {
     const m = territoryMapModel(clanState(), CATALOG);

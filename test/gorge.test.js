@@ -33,10 +33,11 @@ const {
 } = await import('../src/world/builder.js');
 const { surfaceProps } = await import('../src/render/materials.js');
 const {
-  CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE, mapShapes,
+  CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN, CLAN_STAND_ON, mapShapes,
   CEILINGS, MASSES,
 } = await import('../src/world/gorgeshape.js');
 const { segDist } = await import('../src/segdist.js');
+const { campDiscs } = await import('../src/world/camp.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { propsFor } = await import('../src/propsets.js');
 const { canReach } = await import('../src/climbing.js');
@@ -442,6 +443,31 @@ describe('the Gorge: things to find, climb and nap in', () => {
     }
   });
 
+  it("the den's mouth and cap are drawn from the ground", () => {
+    const objects = ['rockFaces', 'ledgeTops', 'lips'].map((n) => scene.getObjectByName(n));
+    expect(objects.every(Boolean)).toBe(true);
+    // in at the mouth from the ledge, to 0.5 m short of the back wall: nothing in the way
+    const from = new THREE.Vector3(19.5, 8.15, 40);
+    const ray = new THREE.Raycaster(from, new THREE.Vector3(1, 0, 0), 0, 6);
+    expect(ray.intersectObjects(objects, false).map((h) => h.point.x)).toEqual([]);
+    // and the back wall is drawn
+    expect(new THREE.Raycaster(from, new THREE.Vector3(1, 0, 0), 0, 7).intersectObjects(objects, false).length).toBeGreaterThan(0);
+    // the roof, straight up from the den's floor, at the ground's ceiling
+    const up = new THREE.Raycaster(new THREE.Vector3(23, 8.05, 40), new THREE.Vector3(0, 1, 0));
+    const hit = up.intersectObject(scene.getObjectByName('rockFaces'), false)[0];
+    expect(hit).toBeTruthy();
+    expect(Math.abs(hit.point.y - 10.6)).toBeLessThanOrEqual(0.02);
+    expect(Math.abs(hit.point.y - area.ground.ceil(23, 40))).toBeLessThanOrEqual(0.02);
+  });
+
+  it('carries the clan ground for the camp (CLAN_STAND_ON)', () => {
+    expect(area.clanStandOn).toBe(CLAN_STAND_ON);
+    expect(area.keepOut.onlyOn).toBe(STAND_ON);
+    // and the rock is drawn with the camp den's floor among its walks
+    expect(gorge.ROCK_WALKS).toContain(CAMP_DEN);
+    expect(Object.isFrozen(gorge.ROCK_WALKS)).toBe(true);
+  });
+
   it("the caves' mice and finds are in sight from the cave mouth's bend", () => {
     const rock = scene.getObjectByName('rockFaces');
     const items = [...GOLD_MICE.gorge, ...area.collectibles];
@@ -485,17 +511,21 @@ describe('the Gorge: things to find, climb and nap in', () => {
     }
   });
 
-  it('the reserved wide ledge holds nothing', () => {
+  it('the camp ledge and den hold only the camp', () => {
     const points = [
       ...area.pois, ...area.collectibles, ...area.scenics, ...GOLD_MICE.gorge, ...area.raceCourse,
       ...props.rests, ...props.hides, ...area.perches, ...area.critterSpawns,
       ...area.critterSpawns.filter((c) => c.x2 !== undefined).map((c) => ({ x: c.x2, z: c.z2 })),
       ...area.moments, ...area.moments.map((m) => m.from),
     ];
-    for (const r of [WIDE_LEDGE_RECT, CAMP_DEN_RESERVE]) {
-      expect(r.reserved).toBe('part 4');
+    const campRock = campDiscs('gorge');
+    expect(campRock).toHaveLength(1);
+    expect(area.colliders.filter((c) => campRock.some((k) => k.x === c.x && k.z === c.z && k.r === c.r))).toHaveLength(1);
+    for (const r of [WIDE_LEDGE_RECT, CAMP_DEN]) {
       for (const p of points) expect(inRect(r, p.x, p.z), `(${p.x}, ${p.z}) in ${r.tag}`).toBe(false);
+      // the camp's own rock (part 4) is the one collider allowed there
       for (const c of area.colliders) {
+        if (campRock.some((k) => k.x === c.x && k.z === c.z && k.r === c.r)) continue;
         const gap = Math.hypot(Math.max(r.minX - c.x, 0, c.x - r.maxX), Math.max(r.minZ - c.z, 0, c.z - r.maxZ));
         expect(gap, `collider (${c.x}, ${c.z})`).toBeGreaterThan(c.r);
       }
@@ -503,6 +533,7 @@ describe('the Gorge: things to find, climb and nap in', () => {
       // horizon, the stream and the paths are the map itself)
       for (const o of scene.children) {
         if (o.position.x === 0 && o.position.z === 0) continue;
+        if (o.name === 'campRock') continue; // the camp's own rock (part 4)
         expect(inRect(r, o.position.x, o.position.z), `${o.name || o.type} at (${o.position.x}, ${o.position.z})`).toBe(false);
       }
     }
@@ -582,7 +613,7 @@ describe('the Gorge: things to find, climb and nap in', () => {
     expect(GORGE_KEEP_CLEAR).toHaveLength(all.length);
     expect(Object.isFrozen(GORGE_KEEP_CLEAR)).toBe(true);
     // and the rectangles: every cave and den, and the camp's ledge and den
-    const rects = [...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE];
+    const rects = [...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN];
     expect(GORGE_KEEP_CLEAR_RECTS).toEqual(rects.map(({ minX, maxX, minZ, maxZ }) => ({ minX, maxX, minZ, maxZ })));
   });
 });
@@ -1323,7 +1354,7 @@ describe('the Gorge: the roofs over the caves and dens', () => {
       if (tag === 'denLookout') return SHOULDER;
       return 20; // the Snug and Glitter Caves, denE, denTop
     };
-    expect(CEILINGS).toHaveLength(14);
+    expect(CEILINGS).toHaveLength(15); // the caves' nine, the five dens and the camp den
     for (const c of CEILINGS) expect(capTopFor(c, MASSES), c.tag).toBe(want(c.tag));
     expect([WEST_TOP, SHOULDER]).toEqual([9, 14]);
   });

@@ -2184,3 +2184,172 @@ Chromium, SwiftShader, 1280x720, HIGH, weather forced clear for the luma).
 - Shots: `final-*` in the scratchpad's snaps-gorge folder (Echo chamber by
   day and at dusk, the Snug chamber with its cat, the Echo bend at step 3
   after zooming in the cave, the floor).
+
+## CliffClan — live check (2026-11-02)
+
+Part 4 of the Gorge (CliffClan's camp on the Wide Ledge, its cave den, the
+cast, the Moor and the Gorge as neighbours), branch `gorge-cliffclan` at
+cda2976 plus the badge nudge below. Same method as the two Gorge entries
+above: Vite on this worktree's own port (5197), headless Chromium
+(SwiftShader), a throwaway save in localStorage, the cat moved by setting its
+position and walked with the arrow keys while the camera was turned with
+synthetic `mousemove`s; the wall clock driven through a `Date.now` offset to
+bring intruders and the patrol round. The picker was tapped with real touch
+on the phone size. The full suite (221 files, 6,100 tests) and the build pass;
+`test/fixtures/flat-trace.json` is unchanged (sha256 2edadb00…c8c87).
+
+**The home screen** (1280x720 and 375x812):
+
+- The picker shows CliffClan as a normal fifth card ("CliffClan / of The
+  Gorge / rocks, cliff dens and tall pines"), full opacity, not
+  `aria-disabled`. A click (desktop) and a touch tap (phone) pick it: "✓
+  yours", `aria-pressed="true"`, the heading "Your clan: CliffClan", save
+  `clanPick.mine: 'gorge'`. No sideways scroll on the phone.
+- **The territory map's camp badge sat on the Gorge's label (K8).** At
+  `CAMP_AT.gorge [850, 400]` and `LABEL_AT.gorge (815, 340)` the "mine" badge
+  and its gold ring covered "tap to walk here" (2,424 units² of overlap; the
+  plain badge 701, the sibling's ring 1,280). Nudged, as K8 and ruling P6
+  allow: **`LABEL_AT.gorge` (815, 340) → (815, 300)** and **`CAMP_AT.gorge`
+  [850, 400] → [845, 405]**. Now the name and line sit in the top half of the
+  region and the badge under them, south-east of centre as the camp sits on
+  the walk map: 0 overlap in all three states (mine, sibling's, neither), 11
+  units clear of the line with the gold ring. The camp is 60 from the
+  region's centre (inside its r 80). The cost: the label's mountain icon and
+  the top of "The Gorge" now cross the region's top edge onto the paper by the
+  Moor's border, as several other labels cross theirs. The gold ring (r 36.5)
+  still spills a little past the region's south-east edge onto the paper; it
+  reads as a ring on the edge, not on Twolegplace. `test/territories.test.js`
+  is kept in step.
+- **The corner map** on a Gorge walk shows the camp as the small brick dome on
+  the Wide Ledge, with the den's and caves' dark arches nearby.
+
+**The Gorge as CliffClan (at home):**
+
+- **The pause card** says "Home to CliffClan's land 🏡".
+- **The camp.** Cragstar (the fiery red) sits on the grey rock at (8.3, 8.8,
+  41.5) looking west over the gorge; Bluffear, the deputy, stands beside it at
+  (9.5, 41.5); the four kits sit on bedding inside the den and the two elders
+  (Graniteleaf, Tarnheart) nap at its back. All at y 8.
+- **The kits hop.** Over 45 s (about 10 s of game time at SwiftShader's frame
+  rate) the pairs swapped seats, lifting 0.12 m, and ended on each other's
+  seats.
+- **The den reads as a cave**: a dark rock ceiling over a lit room with the
+  bedding discs, the mouth a clear opening in the back wall. Lit, as K2
+  chose.
+- **Part 3's close camera** eases in at the mouth and out again: 4.43 m behind
+  her (step 1) on the ledge, 3.8 → 3.2 → 2.37 m as she walks in, 1.29 m above
+  her inside; walking out it opens to 3.3-3.6 m and is at 4.36 m 2.5 s after
+  she leaves.
+- **Touch noses, boop, patrol together** with Flintbelly (a warrior on the
+  floor): "E — touch noses with Flintbelly" (+6), "E — boop Flintbelly 💕"
+  (+5), "E — patrol with Flintbelly" → "Flintbelly walks the border with you
+  🐾". She then walked from the floor up leg A, across the Lookout, down leg B
+  and onto the Wide Ledge with Flintbelly beside her the whole way (gap
+  1.2-3.4 m, never more than 0.33 m off her level). On the ledge, entering the
+  camp ended the walk-along: "Flintbelly heads back to camp. A longer patrol
+  next time!" (the patrol ends in camp by design; it paid nothing because the
+  walk took under the minimum in game time, which runs about a fifth of real
+  time headless). On an earlier try, where her cat stuck against leg A's lip
+  and Flintbelly gave up on the floor: "Good patrol!" and +8.
+- **A GaleClan visitor** (Torshade, then Cottontail) walks the floor on the
+  route through the Narrows; "Cottontail of GaleClan is on your land! Fight!"
+  Fought and won in two rounds ("It raises a paw…" → Pounce, "It backs up…"
+  → Swipe): "You chased off Cottontail! 🛡️ +12", "Cottontail ran back to
+  GaleClan's land! 🏃", feats `intruder: 1`. The fight stood on the floor (her
+  cat moved 0.8 × 1.5 m; the visitor's y 0-0.24 through the fight and its
+  flee), and it fled west out the Narrows on clan ground, never in water.
+  **Camera in rock** (below the ground record, which is the west wall too, or
+  above a ceiling): 0 frames. The name tags ("Cottontail / warrior of
+  GaleClan") read above the pair.
+
+**The Gorge as GaleClan (not at home):**
+
+- **CliffClan's patrol walks the ring** on the ledge: all sixteen samples
+  round one lap (43.3 s) at y 8, from x 6.9 to 17.1.
+- **Chased, she lands on the ledge.** Standing just inside the camp at five
+  places round it with the patrol timed to pass (one fresh walk each, so no
+  cooldown or toast mixes the readings): each time "CliffClan chased you back
+  over their border! 🐾", and she landed outside the camp at y 8 on the
+  ledge: from the lip side (7.3, 41.5) at (6.2, 38.2), from (7.4, 43.2) at
+  (6.5, 45.3), from the turn side at (10.8, 34.9), from the south wall at
+  (10.3, 48.0), from the back wall at (18.0, 38.6). The nearest to the lip was
+  x 6.2 (the lip's inner edge is 5.8); never over it.
+- **The den (K1).** With the patrol passing the ring's east point: at the
+  mouth (x 20.6, patrol 3.5 m) and just inside (21.2, 4.1 m) she is chased
+  and lands at (18.6, 40.4), outside the den and the disc. From x 21.8 (4.7 m)
+  inward she is not noticed: 22.6 and 24.3 were never chased, and sitting at
+  the back (24.3, 40) through a whole lap of the patrol it came no nearer than
+  7.2 m. She sits there with the kits unseen. (At the back the prompt offers
+  "E — touch noses with Graniteleaf": the visitor-greeting rule every camp
+  already has.)
+- **The turn and leg C.** With the patrol frozen at the ring's north point
+  (12, 36.4), standing at five spots on the turn 0.9-4.2 m from it (none in
+  the camp) started no chase. Walking leg B's top, the turn and leg C to the
+  clifftop's foot (y 8 → 11.3) with the clock running: no chase.
+
+**The Moor as GaleClan:** Moor visits now come from three clans (300 slots:
+woods 81, pines 74, gorge 70, none 75). A CliffClan visitor (Shalewhisker,
+"warrior of CliffClan") comes in at the east edge (seen at (43.0, -3.0)),
+walks up to her and gets "Shalewhisker of CliffClan is on your land! Fight! /
+Back off"; backing off lets it walk on, and it leaves by the north edge at x
+20 (last seen z -49.25, then gone).
+
+**Look:**
+
+- **Coats against the rock.** The ginger tabby, russet-and-white, pale ginger,
+  white calico and fiery red all read clearly against the grey-tan ledge,
+  the den's bedding, the dark floor and the clifftop. The white calico is the
+  palest cat but stands out against the darker rock.
+- **The fiery red's bib** (Task 3's note): on the new body the `fluffy` coat
+  draws a round cream chest patch and cream muzzle. On Cragstar at the rock it
+  reads as a white-chested red cat, like a real ginger's blaze; it is large
+  but not odd. Left as is.
+- **The race ring** at the turn stands just north of the camp, a big grey hoop
+  next to the leader's rock in the views from the north (part 2's climb race).
+
+**`?perf`**, HIGH, 1280x720 at 1x, 22 strays (the clan takes 16 of the slots:
+the readout says "strays 5"), two walks as CliffClan (no patrol) and two as
+GaleClan (the patrol on the ring). Draws (shadow / scene), triangles, frame ms
+(SwiftShader, relative only):
+
+| view | CliffClan walks | GaleClan walks | part 3 |
+|---|---|---|---|
+| camp, from (12, 35.5) facing south, zoom 1 | 324 (89/221) 106,386; 324 | 359 (88/257) 111,044; 373 | — |
+| Gorge floor (-5, 0), south, zoom 1 | 623 (261/348) 167,428; 598 | 658 (261/383) 172,294; 656 | 558; 683 |
+| **look-down (4, -24), zoom 3, top pitch, south** | **553 (230/309) 144,492, 252 ms; 641 (269/358) 160,328, 258 ms** | **618 (277/333) 156,058, 262 ms; 609 (263/332) 154,532, 263 ms** | **543, 228 ms (after the retune); 772 / 774 before it** |
+| clifftop (16, -30), zoom 3, top pitch, south | 514; 507 | 557; 531 | 725; 746 (before the retune) |
+| Pines spawn, zoom 1 (same hour) | 662 (119/529) 170,762, 291 ms | | 564, 299 ms |
+
+- **⚠️ The look-down is more than 10% over part 3's last reading on three of
+  four walks by draws, and on all four by frame time.** Draws: 553-641 against part 3's 543 after the retune (+2%,
+  +18%, +14%, +12%); still well under part 3's 772-774 before it, and under
+  the Pines spawn read the same hour (662). Frame time: 252-263 ms against
+  228 ms (+11% to +15%); the Pines spawn read 291 ms this hour against 299 ms
+  in part 3's hour, so the machine was no slower. Ruling: accepted, not
+  stopping. Total draws stay under part 3's pre-retune 772 and the Pines spawn
+  (662); the extra is the 16 clan cats and the patrol (~17 draws per cat),
+  which replace strays one for one. The owner's iPhone 18 check (HIGH, 60 fps
+  at the camp and on the clifftop look-down) is the test; if it drops frames,
+  the follow-up is to cull or LOD distant clan cats or drop their shadows.
+- **What the clan costs.** At the look-down, hiding the camp, the sixteen
+  clan cats and the patrol (17-18 objects) drops draws from 545-608 to
+  273-319: each cat is about 17 draws (shadow and scene), and the cats on the
+  floor and the clifftop are drawn as well as the camp's. The same A/B moves
+  frame time by less than its noise (on/off/on 247/252/263, 306/288/270,
+  252/232/247 ms; one walk stalled at 504-602). The strays the clan replaces
+  cost the same per cat, so this is not all new cost.
+- Camera in rock: 0 frames on all four perf walks.
+
+**Not checked:**
+
+- The fight's camera "never enters the west wall" was checked by the
+  ground record only on this one floor fight (0 of 420 frames in rock); a
+  fight right against the west wall was not staged.
+- Sound; touch walking (keys and mouse turns; touch only for the picker);
+  the phone's draw counts; dusk and rain; the co-walk (the sibling's ring
+  appeared on the territory map from a seeded pick only); reduced motion.
+- The iPhone 18 reading at the camp and on the look-down, on HIGH: the
+  owner's.
+
+Shots: the scratchpad's `snaps-cliffclan` folder (`home-*`, `cc-*` at home,
+`away-*` as GaleClan, `moor-*`, `perf-*`).

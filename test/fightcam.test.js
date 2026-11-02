@@ -146,6 +146,23 @@ describe('the pads cover the wind', () => {
     expect(canopy.p).toBeGreaterThan(OCCLUDER_PAD + 0.4);
   });
 
+  // The Gorge's west-top stand grows 9 m up (builder.pineStand's `y`): its
+  // occluder stands there too, scaled with the stand like x and z; a tree
+  // with no y is where it always was.
+  test('a lifted stand pine is an occluder at its lifted height', () => {
+    const scene = new THREE.Scene();
+    const g = b.pineStand([{ x: 2, z: -3, scale: 1.4, y: 9 }, { x: -5, z: 4, scale: 1.4 }], 3);
+    g.position.set(1, 0.5, 2);
+    g.scale.setScalar(2);
+    scene.add(g);
+    const [lifted, flat] = findOccluders(scene);
+    expect([lifted.x, lifted.z, flat.x, flat.z]).toEqual([1 + 2 * 2, 2 - 3 * 2, 1 - 5 * 2, 2 + 4 * 2]);
+    const lows = (o) => o.shapes.map((sh) => (sh.t === 'cyl' ? sh.y0 : sh.y));
+    const [lo, fo] = [lows(lifted), lows(flat)];
+    for (let i = 0; i < lo.length; i++) expect(lo[i] - fo[i]).toBeCloseTo(9 * 2, 9);
+    expect(lifted.top - flat.top).toBeCloseTo(9 * 2, 9);
+  });
+
   test('a stand pine never sways, so it keeps the bare margin', () => {
     const scene = new THREE.Scene();
     scene.add(b.pineStand([{ x: 0, z: 0, scale: 1.5 }], 3));

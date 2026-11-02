@@ -213,8 +213,9 @@ describe('assignShadowCasters and the Gorge rock', () => {
     const b = await import('../src/world/builder.js');
     const s = await import('../src/world/gorgeshape.js');
     const scene = new THREE.Scene();
-    const walks = [...s.WALK_SHAPES, ...s.GORGE_CAVES.flatMap((c) => c.rects), ...s.GORGE_DENS];
-    const rock = b.rockTerrain({ walks, masses: s.MASSES, ceilings: s.CEILINGS, seed: 1 });
+    // the walks gorge.js draws the rock from (every floor, the camp den's too)
+    const { ROCK_WALKS } = await import('../src/world/gorge.js');
+    const rock = b.rockTerrain({ walks: ROCK_WALKS, masses: s.MASSES, ceilings: s.CEILINGS, seed: 1 });
     const stones = b.scree([{ x: 0, z: 0 }, { x: 4, z: 1 }], 1);
     scene.add(rock, stones);
     assignShadowCasters(scene);

@@ -107,14 +107,24 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             52       35      32818   (41 / 25 merged; part 3 added the
-//                                               caves' insides: four noCast
+//   gorge             54       36      33184   (43 / 26 merged; part 4's camp
+//                                               adds two meshes: the leader's
+//                                               rock (a caster, 36 tris) and the
+//                                               den's bedding (noCast, six discs
+//                                               merged, 288 tris); before it was
+//                                               52 / 35 / 32860, 41 / 25 merged.
+//                                               Part 4 also cut the
+//                                               camp den into the rock behind
+//                                               the Wide Ledge: +42 tris in the
+//                                               merged rock, no mesh, it was
+//                                               52 / 35 / 32818 before; part 3
+//                                               added the caves' insides: four noCast
 //                                               meshes, 1,224 tris (12, 13 and
 //                                               12 crystal clusters, 40 gold
 //                                               flecks), no caster; before them
 //                                               it was 48 / 35 / 31594, 37 / 25
 //                                               merged. The rock in three
-//                                               merged meshes (5,528 tris), 9
+//                                               merged meshes (5,570 tris), 9
 //                                               swaying pines, 43 in the stand on
 //                                               the west top, 11 tors (one group,
 //                                               one draw merged), 134 scree spots
@@ -204,7 +214,7 @@ const AREAS = [
 //   seaside           48       28     65 /  33
 //   den              151       86    284 / 173
 //   pines            109       72    112 /  75
-//   gorge             41       25     52 /  35   (with the caves' insides; 37 / 25 before)
+//   gorge             43       26     54 /  36   (with CliffClan's camp; 41 / 25 before it, 37 / 25 before the caves' insides)
 //
 // Same +15-20% headroom rule as above. Note casters fall at least as fast as
 // meshes everywhere, which is the point: a merged mesh that was a caster is

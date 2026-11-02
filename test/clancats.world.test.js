@@ -26,6 +26,7 @@ const WORLDS = {
   river: await import('../src/world/river.js'),
   moor: await import('../src/world/moor.js'),
   pines: await import('../src/world/pines.js'),
+  gorge: await import('../src/world/gorge.js'),
 };
 const { createClanCats } = await import('../src/clancats.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');

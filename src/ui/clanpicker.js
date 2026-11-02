@@ -22,17 +22,17 @@ function escapeHtml(str) {
 export const CAMP_SOON_LINE = 'camp coming soon';
 
 // Every HOMES clan gets a card. A pickable one is a pick button; one that isn't
-// (the Gorge's, until its camp is built) shows greyed, with CAMP_SOON_LINE.
-// `territories` is a parameter so the "territory coming soon" branch can be
-// pinned with a stub.
-export function clanPickerModel(state, territories = TERRITORIES) {
+// shows greyed, with CAMP_SOON_LINE. `territories` and `homes` are parameters
+// so the "territory coming soon" and "camp coming soon" branches can be pinned
+// with stubs.
+export function clanPickerModel(state, territories = TERRITORIES, homes = HOMES) {
   const mineRaw = state?.clanPick?.mine;
   const mine = isClanId(mineRaw) ? mineRaw : null;
   const picks = picksOf(state); // [mine?, partner?], the partner only while still the partner
   const partner = (mine ? picks[1] : picks[0]) ?? null;
-  const cards = Object.keys(HOMES).map((id) => {
+  const cards = Object.keys(homes).map((id) => {
     const t = territories.find((x) => x.id === id);
-    const pickable = HOMES[id].pickable;
+    const pickable = homes[id].pickable;
     return {
       id,
       name: clanName(id),

@@ -839,12 +839,14 @@ describe('the Woods builders', () => {
 // The Gorge's real shape records (builder.js itself imports nothing from the
 // Gorge: the shapes are passed in).
 const gorgeShape = await import('../src/world/gorgeshape.js');
+const { ROCK_WALKS: gorgeRockWalks } = await import('../src/world/gorge.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
 
 describe('the Gorge rock: rockTerrain and scree', () => {
-  const { WALK_SHAPES, MASSES, GORGE_CAVES, GORGE_DENS, CEILINGS } = gorgeShape;
-  const CAVE_RECTS = GORGE_CAVES.flatMap((c) => c.rects);
-  const WALKS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS];
+  const { WALK_SHAPES, MASSES, CEILINGS } = gorgeShape;
+  // The walks gorge.js draws the rock from: every walkable shape, cave and
+  // den floor, the camp den's too (the masses are cut round it).
+  const WALKS = gorgeRockWalks;
   const build = () => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7 });
 
   // Raycasts see both sides of every face, so a face wound the wrong way can

@@ -82,7 +82,7 @@ function wrap(text, max) {
 
 const ICON = { town: '🏠', woods: '🌳', moor: '🌾', river: '🌿', pines: '🌲', gorge: '⛰️' };
 // Where each name sits, nudged off her water and paths where they cross the centre.
-const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 340] };
+const LABEL_AT = { town: [862, 572], woods: [556, 540], moor: [655, 92], river: [205, 548], pines: [290, 172], gorge: [815, 300] };
 
 function labelHtml(r) {
   const [lx, ly] = LABEL_AT[r.id] ?? [r.x, r.y];

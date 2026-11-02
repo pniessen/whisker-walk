@@ -1,6 +1,6 @@
 import { describe, it, test, expect, beforeEach, vi } from 'vitest';
 import { createProgression, ROSA_FAREWELL, CATALOG, RANKS, rankFor, asFiniteNonNeg, summarizeSaveForPreview, JOURNAL_TYPES, sanitizeClanRoles, sanitizeClan, sanitizeClanPick } from '../src/progression.js';
-import { isClanId } from '../src/clanhomes.js';
+import { isClanId, homeWelcome } from '../src/clanhomes.js';
 import { clanTitleFor } from '../src/clannames.js';
 import { DEN_ITEMS, DEN_SPOTS } from '../src/den.js';
 import { SKILL_IDS, hasSkill, unlockedSkills } from '../src/skills.js';
@@ -3368,14 +3368,27 @@ describe('clan pick in the save', () => {
   test('setClanPick: pickable ids only, refused in Legacy, touches nothing else', () => {
     const p = createProgression(fakeStorage());
     const before = structuredClone(p.state);
-    expect(p.setClanPick('gorge')).toBe(false);
     expect(p.setClanPick('park')).toBe(false);
+    expect(p.setClanPick('island')).toBe(false);
     expect(p.setClanPick('woods')).toBe(true);
     expect({ ...p.state, clanPick: before.clanPick }).toEqual(before);
     expect(p.setClanPick('woods')).toBe(true); // same id again is a no-op that still says yes
     p.setEdition('legacy');
     expect(p.setClanPick('moor')).toBe(false);
     expect(p.state.clanPick.mine).toBe('woods'); // kept, hidden
+  });
+
+  test('a CliffClan pick survives a reload, and the save stays v4', () => {
+    const storage = fakeStorage();
+    const p = createProgression(storage);
+    expect(p.setClanPick('gorge')).toBe(true);
+    expect(JSON.parse(storage.getItem('whisker-walk-save')).version).toBe(4);
+    const p2 = createProgression(storage);
+    expect(p2.state.clanPick.mine).toBe('gorge');
+    expect(p2.state.version).toBe(4);
+    expect(homeWelcome('gorge', p2.state)).toBe("Home to CliffClan's land 🏡");
+    p2.setEdition('legacy');
+    expect(p2.setClanPick('gorge')).toBe(false);
   });
 
   test('setPartnerClanPick: learns, never forgets for the same partner, resets for a new one', () => {
