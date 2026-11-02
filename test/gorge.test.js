@@ -162,7 +162,7 @@ describe('the Gorge: the paths', () => {
     expect(paths).toHaveLength(GORGE_PATHS.length);
     const sand = surfaceProps('sand');
     for (const p of paths) {
-      expect(p.material.color.getHex()).toBe(0x8a7a64);
+      expect(p.material.color.getHex()).toBe(0xb8a27e);
       expect(p.material.roughness).toBe(sand.roughness);
       expect(p.material.map).toBeTruthy();
     }
@@ -241,7 +241,7 @@ describe('the Gorge: the rock and the view', () => {
   it("the horizon faces the Gorge's neighbours", () => {
     expect(scene.children.filter((o) => o.name === 'horizonBand')).toHaveLength(1);
     // more rock north and east, the town south, the Moor's heather west
-    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0x8a8478, east: 0x7d7a74, south: 0x9a7f6e, west: 0x9a8a9c });
+    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c });
     expect(GORGE_HORIZON.rooftops).toBeTruthy();
     // The blocks as drawn: horizonBand merges them after its ring, so every
     // vertex past the ring's is a rooftop's. The ring is horizonBand's
@@ -266,7 +266,7 @@ describe('the Gorge: the rock and the view', () => {
     expect(drawn.length).toBeLessThanOrEqual(10);
     for (const r of drawn) expect(r.z, `rooftop at (${r.x}, ${r.z})`).toBeGreaterThan(50);
     expect(GORGE_HORIZON.avoid).toContain(STREAM);
-    expect(GORGE_HORIZON).toMatchObject({ kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40, color: 0x8a8478, salt: 53 });
+    expect(GORGE_HORIZON).toMatchObject({ kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40, color: 0xa8957a, salt: 53 });
     expect(Object.isFrozen(GORGE_HORIZON)).toBe(true);
   });
 });
@@ -1494,5 +1494,37 @@ describe('the Gorge: inside the deep caves', () => {
     life.update(1 / 60, 0, new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
     expect(shown()).toEqual([]);
     life.dispose();
+  });
+});
+
+describe('Gorge palette (polish #1b)', () => {
+  const { GORGE_SKY, GORGE_FLOOR_COLOR, PATH_STYLE } = gorge;
+  // Rec.709 luminance on 0..1 sRGB channels.
+  const lum = (hex) => 0.2126 * ((hex >> 16) & 255) / 255 + 0.7152 * ((hex >> 8) & 255) / 255 + 0.0722 * (hex & 255) / 255;
+  const hsl = (c) => {
+    const r = (c >> 16) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    return { s: max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1)), l };
+  };
+  const ch = (hex) => ({ r: (hex >> 16) & 255, b: hex & 255 });
+
+  it('fogs with the warm horizon haze', () => {
+    expect(scene.fog.color.getHex()).toBe(GORGE_SKY.horizon);
+  });
+  it('has a warm, clear sky', () => {
+    expect(ch(GORGE_SKY.horizon).r).toBeGreaterThan(ch(GORGE_SKY.horizon).b);
+    expect(ch(GORGE_SKY.top).b).toBeGreaterThan(ch(GORGE_SKY.top).r);
+    expect(hsl(GORGE_SKY.top).s).toBeGreaterThanOrEqual(0.45);
+  });
+  it('has a warm sand floor, lighter than the old dark one but still dull', () => {
+    expect(lum(GORGE_FLOOR_COLOR)).toBeGreaterThan(lum(0x5f5d52) + 0.15);
+    expect(ch(GORGE_FLOOR_COLOR).r).toBeGreaterThan(ch(GORGE_FLOOR_COLOR).b);
+    expect(hsl(GORGE_FLOOR_COLOR).s).toBeLessThanOrEqual(0.35);
+  });
+  it('bounces the floor colour', () => {
+    expect(area.groundBounce).toBe(GORGE_FLOOR_COLOR);
+  });
+  it('keeps the path lighter than the floor so it reads', () => {
+    expect(lum(PATH_STYLE.color) - lum(GORGE_FLOOR_COLOR)).toBeGreaterThanOrEqual(0.06);
   });
 });

@@ -37,9 +37,10 @@ import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 // SHADED BELOW, BRIGHT ABOVE (G5). The rock's baked colours run from a cool,
 // dark grey-brown at the floor to warm sandstone at the top, in 1.1 m strata
 // (alternately warm and cream) that line up with the relief's shelves, and
-// darker in its recesses (builder.rockTerrain), and the floor's
-// ground plane is darker and cooler than any other map's, so the floor reads
-// shaded from the clifftop even past the shadow map's reach. The clifftop is
+// darker in its recesses (builder.rockTerrain). The floor's ground plane is a
+// warm sand like any other map's; its shade comes from gorgelife's light
+// (SHADE_FLOOR), so the floor reads shaded from the clifftop without a darker
+// ground colour. The clifftop is
 // lit, and what a kid goes up there for sits south of z -27, out of the north
 // rim's afternoon shade.
 //
@@ -113,8 +114,10 @@ export const GORGE_PATHS = Object.freeze([
   // the floor path, north
   [-6, -11, -4, -30], [-4, -30, -3, -50],
 ].map((s) => Object.freeze(s)));
+// A clear canyon day: blue sky over a warm haze (which is also the fog).
+export const GORGE_SKY = Object.freeze({ top: 0x86bde6, horizon: 0xeed8b8 });
 const PATH_W = 3;
-const PATH_STYLE = { surface: 'sand', color: 0x8a7a64 };
+export const PATH_STYLE = { surface: 'sand', color: 0xb8a27e };
 
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
@@ -122,9 +125,9 @@ const PATH_STYLE = { surface: 'sand', color: 0x8a7a64 };
 // the west. The hills come down to the stream where it leaves the map.
 export const GORGE_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40,
-  color: 0x8a8478, salt: 53,
+  color: 0xa8957a, salt: 53,
   avoid: Object.freeze([STREAM]),
-  sideTints: Object.freeze({ north: 0x8a8478, east: 0x7d7a74, south: 0x9a7f6e, west: 0x9a8a9c }),
+  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c }),
   rooftops: Object.freeze({ from: 0.28, to: 0.47, count: 10, height: 6 }),
 });
 
@@ -176,7 +179,7 @@ const COLLECTIBLES = [
 const PILLAR = { y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9, sides: 7 };
 const SUMMIT_ROCK = { x: 25, z: -24 };
 const SUMMIT_BOULDER = { x: 24, z: -23, r: 0.7 };
-const ROCK_COLOR = 0x8c8478;
+const ROCK_COLOR = 0xb0a084;
 const CHAIN_PERCHES = [
   { x: SUMMIT_BOULDER.x, z: SUMMIT_BOULDER.z, y: 0.72, kind: 'stone' },
   { x: SUMMIT_ROCK.x, z: SUMMIT_ROCK.z, y: PILLAR.y, kind: 'stone', label: 'summit rock', vantage: true },
@@ -570,7 +573,10 @@ export const ROCK_WALKS = Object.freeze([
   ...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN,
 ]);
 
-const GROUND_COLOR = 0x5f5d52;
+// A warm sand: the floor's shade comes from gorgelife's light (SHADE_FLOOR),
+// not from a dark ground colour. Task 2 and the clancast test read it.
+export const GORGE_FLOOR_COLOR = 0x9a8a6a;
+const GROUND_COLOR = GORGE_FLOOR_COLOR;
 
 // Where things stand on the rock's top, the relief leaves the top still (no
 // crest jag, no move): the goat's leap along the shoulder, (3.5..7.5, -16),
@@ -602,7 +608,7 @@ export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
   const colliders = [];
   const perches = [];
-  b.applySky(scene, 0x9fb6c8, 0xd2d4cc);
+  b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
   scene.add(plane);
