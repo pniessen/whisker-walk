@@ -57,12 +57,24 @@ describe('the walking tail hooks over like a question mark (polish-catlooks Task
         const L = centreLine(walk(breed, t));
         const xs = L.map((p) => p.x), ys = L.map((p) => p.y);
         const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
-        expect(w, `${breed} t ${t}: width from behind`).toBeGreaterThanOrEqual(0.08);
+        // today's stub: 0.028-0.040 m. The hook is a soft one (fix round,
+        // 2026-11-02): ~0.05-0.07 m at the worst sway phase, ~0.15 m on average.
+        expect(w, `${breed} t ${t}: width from behind`).toBeGreaterThanOrEqual(0.045);
         expect(h, `${breed} t ${t}: height from behind`).toBeGreaterThanOrEqual(0.18);
         lean += (L[L.length - 1].x - L[0].x) / TS.length;
       }
       // the hook is to the cat's own left (-x), over the whole stride
       expect(lean, `${breed}: mean tip offset`).toBeLessThanOrEqual(-0.08);
+    }
+  }, 120_000);
+
+  it('the hook is one soft curve: no joint turns more than ~0.25 rad sideways, at any sway phase', () => {
+    // The first hook bent hard at one joint into a horizontal stick (a tail
+    // that looks broken). Hook plus sway, every 0.05 s over a stride.
+    for (const breed of BREEDS) for (let k = 0; k <= 60; k++) {
+      const t = k * 0.05;
+      const { tailPivots } = walk(breed, t).userData.parts;
+      for (let i = 1; i < tailPivots.length; i++) expect(Math.abs(tailPivots[i].rotation.y), `${breed} t ${t} pivot ${i}`).toBeLessThanOrEqual(0.27);
     }
   }, 120_000);
 

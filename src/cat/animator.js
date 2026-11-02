@@ -25,32 +25,36 @@ const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, p
 // cat walking by 1 cm, pushthrough.test.js). They replace the curl in a
 // walking 'follow', eased in with speed (full at TAIL_S_SPEED), so a cat that
 // stops lets its tail settle back to the curl.
-// polish-catlooks (2026-11-02), Task 7: links 0 and 1 lean 0.05 rad further up
-// over the rump (was -1.05, -0.32), so the upright part of the question mark
-// (TAIL_HOOK) shows above the back from the high walk camera. The hook lowers
-// the tip, so the walking tail's top still sits under the old one
-// (test/cattail.test.js pins it at or under the old top).
-const TAIL_S = [-1.10, -0.37, 0.0, 0.35, 0.40];
+// polish-catlooks (2026-11-02), Task 7: links 0 and 1 sit 0.1 and 0.07 rad
+// lower (was -1.05, -0.32), to pay for the tip's forward curl (TAIL_HOOK_X):
+// the walking tail's top stays under the old one (test/cattail.test.js).
+const TAIL_S = [-0.95, -0.25, 0.0, 0.35, 0.40];
 const TAIL_S_SPEED = 1.2;
 // polish-catlooks (2026-11-02), Task 7: the question mark. Seen from straight
 // behind (the walk camera, ~90% of the time) a tail that only bends in its own
-// vertical plane is foreshortened into an upright stub. A walking cat's tail
-// reads as a question mark: up, with its last links hooked over to one side.
-// These are the five pivots' rotation.y (rad), eased in with the same weight
-// as TAIL_S, applied with TAIL_HOOK_SIDE. The side is fixed for every cat
-// (determinism; it reads the same for both kids): the cat's own LEFT. The cat
-// faces -z and the tail runs back along +z, so a pivot's +rotation.y swings the
-// links after it toward +x, the cat's right (measured: +0.5 on pivot 3 moves
-// the tip +0.11 m in x); its left is -x, so the hook is applied negative. The
-// sway still adds on top, so the hook swings gently. Tuned on screen from the
-// ruling's [0, 0, 0.15, 0.55, 0.65], whose 0.4 rad jump at pivot 3 read as a
-// break with the tip sticking out flat: a softer ramp over the last three
-// links. Links 0 and 1 stay unturned: turning them too swept the whole tail
-// over the left of the back and hid a left back/shoulder scar from the walk
-// camera (scarmesh.test.js). Not on Hagrid (no curl), not stopped (w 0), not in
-// other states.
-const TAIL_HOOK = [0, 0, 0.3, 0.4, 0.45];
+// vertical plane is foreshortened into an upright stub. Walking, it now hooks
+// over to one side: TAIL_HOOK is each pivot's rotation.y (rad), eased in with
+// the same weight w as TAIL_S. The side is fixed for every cat (determinism;
+// it reads the same for both kids): the cat's own LEFT. The cat faces -z and
+// the tail runs back along +z, so a pivot's +rotation.y swings the links after
+// it toward +x, the cat's right (measured: +0.5 on pivot 3 moves the tip
+// +0.11 m in x); its left is -x, so TAIL_HOOK_SIDE is -1.
+//
+// It has to read as one relaxed curve, not a broken tail. The ruling's
+// [0, 0, 0.15, 0.55, 0.65] (and a first tuning, [0, 0, 0.3, 0.4, 0.45]) bent
+// hard at one joint into a horizontal stick. So: a small, even turn over the
+// last three links; the sway on those links damped (TAIL_SWAY_DAMP) so that
+// hook plus sway never turns one joint more than ~0.25 rad at any phase; and
+// the tip's back-curl eased a little forward (TAIL_HOOK_X, added to TAIL_S)
+// so the hooked links curve over rather than jut toward the camera. Links 0
+// and 1 stay unturned: turning them swept the whole tail over the left of the
+// back and hid a left back scar from the walk camera (scarmesh.test.js). The
+// root keeps its full sway, so the whole hook still swings gently. Not on
+// Hagrid (no curl), not stopped (w 0), not in other states.
+const TAIL_HOOK = [0, 0, 0.2, 0.22, 0.22];
 const TAIL_HOOK_SIDE = -1; // the cat's left (-x)
+const TAIL_HOOK_X = [0, 0, -0.05, -0.15, -0.2];
+const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 
 // Polish 1a, Task 5: the poses in which a worn collar follows the neck instead
 // of the head. The collar hangs on the head (model.js), which is right while
@@ -843,8 +847,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   if (state === 'follow' && c && moveSpeed > 0) {
     const w = Math.min(1, moveSpeed / TAIL_S_SPEED);
     for (let i = 0; i < tailPivots.length; i++) {
-      tailPivots[i].rotation.x = -c + (TAIL_S[i] + c) * w;
-      tailPivots[i].rotation.y += TAIL_HOOK_SIDE * TAIL_HOOK[i] * w; // the question mark (TAIL_HOOK)
+      tailPivots[i].rotation.x = -c + (TAIL_S[i] + TAIL_HOOK_X[i] + c) * w;
+      // in a follow, rotation.y here is the plain sway the loop above wrote
+      tailPivots[i].rotation.y = tailPivots[i].rotation.y * (1 - TAIL_SWAY_DAMP[i] * w) + TAIL_HOOK_SIDE * TAIL_HOOK[i] * w; // the question mark (TAIL_HOOK)
     }
   }
 }
