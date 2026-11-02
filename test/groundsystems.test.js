@@ -367,3 +367,68 @@ describe('perches and finds sit on the ground under them', () => {
     expect(src).toMatch(/Math\.abs\(perchWorldY - \(g\.flat \? \(c\.y \?\? 0\) : g\.y\(c\.x, c\.z\) \+ \(c\.y \?\? 0\)\)\) < 0\.9/);
   });
 });
+
+// Task 5 (R8, Review Focus 3): the camera keeps out of rock and under ceilings.
+describe('the camera keeps out of rock', () => {
+  it('the camera is never inside rock and never pumps at a cliff foot', () => {
+    const { ground, player, cat, camera, step } = rig(8, 8);
+    player.setCameraZoom(3, { instant: true });
+    faceZ(player); // the camera sits at -z, back over the plateau
+    const look = new THREE.Vector3();
+    const prev = new THREE.Vector3();
+    let first = true;
+    let pulled = false;
+    const frame = () => {
+      step();
+      const c = camera.position;
+      expect(c.y).toBeGreaterThanOrEqual(ground.y(c.x, c.z) + 0.35 - 1e-6);
+      expect(c.y).toBeLessThanOrEqual(ground.ceil(c.x, c.z) - 0.3 + 1e-6);
+      if (!first) expect(c.distanceTo(prev)).toBeLessThanOrEqual(0.6);
+      first = false;
+      prev.copy(c);
+      look.set(cat.position.x, cat.position.y + 0.74, cat.position.z);
+      if (c.distanceTo(look) < 5) pulled = true;
+      expect(c.distanceTo(look)).toBeGreaterThanOrEqual(0.3 - 1e-6); // MIN_CAM_DIST
+      return c.distanceTo(look);
+    };
+    // back toward the rim
+    player.setTouchMove({ x: 0, z: 1, mag: 0.4 });
+    for (let f = 0; f < 10 * 60 && cat.position.z > 5.4; f++) frame();
+    expect(cat.position.z).toBeLessThanOrEqual(5.4);
+    expect(cat.position.y).toBe(0);
+    expect(pulled).toBe(true); // the rock really did pull it in
+    // wait
+    player.setTouchMove(null);
+    for (let f = 0; f < 2 * 60; f++) frame();
+    expect(cat.position.z).toBeLessThan(5.1); // she drifted right up to the cliff foot
+    // walk away: the pull may turn from in to out once, and never pumps
+    player.setTouchMove({ x: 0, z: -1, mag: 0.4 });
+    let last = frame();
+    let dir = 0;
+    let inToOut = 0;
+    for (let f = 0; f < 6 * 60; f++) {
+      const d = frame();
+      const s = d > last + 1e-9 ? 1 : d < last - 1e-9 ? -1 : 0;
+      if (s !== 0) {
+        if (dir === -1 && s === 1) inToOut++;
+        dir = s;
+      }
+      last = d;
+    }
+    expect(inToOut).toBeLessThanOrEqual(1);
+    // and it is all the way out again, at the step's full distance
+    expect(last).toBeGreaterThan(10);
+  });
+
+  it('on flat ground the camera block runs exactly today’s lines', () => {
+    const src = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
+    expect(src).toMatch(
+      /camera\.position\.copy\(avatar\.position\)\.add\(camOff\);\n\s+if \(camera\.position\.y < MIN_CAMERA_Y\) camera\.position\.y = MIN_CAMERA_Y;\n\s+if \(!ground\.flat\) placeCameraOnGround\(/,
+    );
+  });
+
+  it('main.js fits the shadows to the ground under her cat', () => {
+    const src = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(src).toContain('session.shadows.update(session.ground.y(player.position.x, player.position.z), dt)');
+  });
+});

@@ -365,7 +365,7 @@ describe('the clan in the walk (source pins)', () => {
     const cf = m.indexOf('session.clanFight.update(dt, session)');
     const cam = m.indexOf('session.fightCam?.update(dt, {');
     expect(cam).toBeGreaterThan(cf);
-    expect(cam).toBeLessThan(m.indexOf('session.shadows.update()'));
+    expect(cam).toBeLessThan(m.indexOf('session.shadows.update('));
     const call = m.slice(cam, m.indexOf('});', cam));
     expect(call).toContain('subject: session.clanFight.cameraSubject');
     expect(call).toContain('cameraMode: session.cameraMode');

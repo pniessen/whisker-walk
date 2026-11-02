@@ -7,7 +7,7 @@ import { hasSkill } from './skills.js';
 import { waterClearance, nearestDry, shallowExcess, nearestShallow } from './world/builder.js';
 import { createWaterState, stepWaterState, WADE_SPEED, SHAKE_PACE } from './waterstate.js';
 import {
-  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, clampZoomStep, easeZoomLevel, zoomView,
+  DEFAULT_ZOOM_STEP, MIN_CAMERA_Y, cameraPullScale, cameraClearFraction, CAM_CEIL_CLEAR, MIN_CAM_DIST, clampZoomStep, easeZoomLevel, zoomView,
 } from './camzoom.js';
 import { FLAT_GROUND, MAX_PATH_GRADE } from './ground.js';
 
@@ -472,6 +472,64 @@ export function createPlayer(camera, canvas) {
     const cap = (PULL_IN_SPEED * dt) / dist;
     return cur + Math.max(eased, -cap);
   }
+  // Gorge part 1 (R8): the rock pull, raised ground only. rockFrac is the
+  // eased fraction of the look-to-camera segment the camera may use
+  // (camzoom.js's cameraClearFraction). It snaps IN on the same frame (a camera
+  // that lags is a camera seen through rock) and eases back OUT with the same
+  // PULL_HOLD / PULL_OUT_SPEED rule as stepPull, in its own state. Reset by
+  // setAvatar and wherever snapPull is set.
+  let rockFrac = 1;
+  let rockHold = 0;
+  let snapRock = true;
+  const rockLook = new THREE.Vector3();
+  const rockWant = new THREE.Vector3();
+  function stepRock(cur, target, dt, dist) {
+    if (reducedMotion || snapRock) {
+      snapRock = false;
+      rockHold = 0;
+      return target;
+    }
+    if (target < cur) {
+      rockHold = 0;
+      return target;
+    }
+    rockHold += dt;
+    if (rockHold < PULL_HOLD) return cur;
+    const out = (target - cur) * (1 - Math.exp(-5 * dt));
+    return cur + Math.min(out, (PULL_OUT_SPEED * dt) / dist);
+  }
+  // Runs after the flat camera lines, only when !ground.flat: puts the camera
+  // on the look-to-wanted segment at the rock fraction, then keeps it
+  // MIN_CAMERA_Y above the ground under it and CAM_CEIL_CLEAR below any
+  // ceiling (validateGround keeps those two from crossing). Allocates nothing.
+  function placeCameraOnGround(dt) {
+    rockLook.copy(avatar.position);
+    rockLook.y += CAT_LOOK_Y;
+    rockWant.copy(avatar.position).add(camOff);
+    const len = rockLook.distanceTo(rockWant);
+    const f = cameraClearFraction(rockLook, rockWant, ground);
+    rockFrac = stepRock(rockFrac, f, dt, Math.max(len, 1e-6));
+    camera.position.copy(rockWant).sub(rockLook).multiplyScalar(rockFrac).add(rockLook);
+    // Never nearer than MIN_CAM_DIST to the look point. Where the rock is
+    // nearer than that behind her (backed right up to a cliff foot), the
+    // camera keeps the clear point's x, z and rises (or drops, if it was
+    // below the look point) until it is MIN_CAM_DIST away. Going on along
+    // the segment instead would put it inside the rock, and lifting it out
+    // from there would be a jump onto the rock above; this is continuous with
+    // the clear point at exactly MIN_CAM_DIST.
+    if (rockFrac * len < MIN_CAM_DIST && len > MIN_CAM_DIST) {
+      const hx = camera.position.x - rockLook.x;
+      const hz = camera.position.z - rockLook.z;
+      const v = Math.sqrt(Math.max(0, MIN_CAM_DIST * MIN_CAM_DIST - hx * hx - hz * hz));
+      camera.position.y = rockLook.y + (camera.position.y < rockLook.y ? -v : v);
+    }
+    const cx = camera.position.x;
+    const cz = camera.position.z;
+    const lo = ground.y(cx, cz) + MIN_CAMERA_Y;
+    if (camera.position.y < lo) camera.position.y = lo;
+    const hi = ground.ceil(cx, cz) - CAM_CEIL_CLEAR;
+    if (camera.position.y > hi) camera.position.y = hi;
+  }
   let reducedMotion = false;
   // The water state (src/waterstate.js): one object for the player's whole
   // life, reset in place by setAvatar, exposed as api.waterState.
@@ -499,6 +557,9 @@ export function createPlayer(camera, canvas) {
       avatar = cat;
       pace = catPace;
       ground = FLAT_GROUND;
+      rockFrac = 1;
+      rockHold = 0;
+      snapRock = true;
       yaw = 0;
       pitch = 0.18;
       velocity.set(0, 0, 0);
@@ -564,6 +625,7 @@ export function createPlayer(camera, canvas) {
       if (instant || reducedMotion) {
         camLevel = camTarget;
         snapPull = true;
+        snapRock = true;
       }
     },
     setReducedMotion(v) {
@@ -835,6 +897,7 @@ export function createPlayer(camera, canvas) {
       camOff.multiplyScalar(camPull);
       camera.position.copy(avatar.position).add(camOff);
       if (camera.position.y < MIN_CAMERA_Y) camera.position.y = MIN_CAMERA_Y;
+      if (!ground.flat) placeCameraOnGround(Math.max(dt, 0));
       camera.lookAt(avatar.position.x, avatar.position.y + CAT_LOOK_Y, avatar.position.z);
     },
   };

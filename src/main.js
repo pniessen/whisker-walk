@@ -895,13 +895,15 @@ function init() {
       // canal and the foliage down with them reads as the whole world
       // lurching, which is the same reason skyLife and weather sit here.
       session.water.update(dt);
-      // Re-fits the sun's shadow frustum around the view. Takes no dt: it is a
-      // pure function of where the camera ended up this frame, which is why it
+      // Re-fits the sun's shadow frustum around the view. It reads where the
+      // camera ended up this frame, which is why it
       // has to sit AFTER player.update above (which is what moves the camera)
       // and before renderFrame() below. It is inside the `player.engaged`
       // block for the same reason: when the player is not engaged the camera
-      // is not moving, so there is nothing to re-fit.
-      session.shadows.update();
+      // is not moving, so there is nothing to re-fit. Gorge part 1: it also
+      // takes the ground under her cat (0 on every shipped map), which it
+      // eases over dt.
+      session.shadows.update(session.ground.y(player.position.x, player.position.z), dt);
       // Wind takes ABSOLUTE elapsed time (the same `t` goldMice.update gets),
       // not a delta: every rotation is recomputed as a pure function of `t`,
       // so there is no running total to drift. Intensity is the only place
