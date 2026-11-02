@@ -674,12 +674,6 @@ export function createWalkLifecycle({
       }
     }
 
-    // The area's own life on this walk (the Gorge: shade by height, wheeling
-    // birds, the ambience mix). Here, after weather and dusk have set the sun,
-    // so their values are the base it shades; before the caster sweep, so its
-    // noCast birds are skipped. Draws on no rng. endWalk disposes it.
-    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio }) ?? NO_AREA_LIFE;
-
     // Secrets (unicorn/UFO) are outdoor-only sight gags — skip them indoors
     // rather than have one spawn inside the den's 16x16 room.
     const secrets = isDen
@@ -1217,6 +1211,13 @@ export function createWalkLifecycle({
       };
     }
 
+    // The area's own life on this walk (the Gorge: shade by height, wheeling
+    // birds, the ambience mix). Long after weather and dusk have set the sun,
+    // so their values are the base it shades; built here, beside the session
+    // that holds it, so little can throw between its birds joining the scene
+    // and endWalk being able to dispose them. Its birds are noCast and cast no
+    // shadow of their own (built after the caster sweep). Draws on no rng.
+    const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio }) ?? NO_AREA_LIFE;
     const session = {
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       // Clan Life Part 1: the territory's clan, a list apart from the strays.

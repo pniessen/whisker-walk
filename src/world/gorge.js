@@ -10,7 +10,7 @@ import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
-import { createGorgeLife } from '../gorgelife.js';
+import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 
 // =============================================================================
 // The Gorge.
@@ -423,9 +423,9 @@ const ROCK_WALKS = Object.freeze([...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => 
 
 const GROUND_COLOR = 0x5f5d52;
 
-// The sky's passing flock flies here, over every 20 m rim and the highest
-// camera (G11); gorgelife.js's wheeling birds share the height band.
-export const GORGE_BIRD_Y = 34;
+// The sky's passing flock flies at GORGE_BIRD_Y (34), over every 20 m rim and
+// the highest camera (G11); defined in gorgelife.js beside the wheeling birds.
+export { GORGE_BIRD_Y };
 
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();

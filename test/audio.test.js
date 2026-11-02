@@ -293,18 +293,57 @@ describe('layered ambience', () => {
     for (const src of dry.bufferSources) expect(src.stopped).toBe(true);
   });
 
-  it('setAmbientMix lifts the wind and quiets the lap up high', () => {
+  // Each looped layer's level is its gain node plus an LFO gain swelling it;
+  // the mix must scale both, or the swell would swing a quiet lap through zero.
+  // Built in order: wind gain (0.03), wind swell (0.012), lap gain (0.038),
+  // lap swell (0.03).
+  const gorgeGains = (p) => {
+    const gains = p.ctx.created.gains;
+    const wind = gains.findIndex((g) => g.gain.value === 0.03);
+    const lap = gains.findIndex((g) => g.gain.value === 0.038);
+    expect(gains[wind + 1].gain.value).toBe(0.012);
+    expect(gains[lap + 1].gain.value).toBe(0.03);
+    return { wind: gains[wind], windSwell: gains[wind + 1], lap: gains[lap], lapSwell: gains[lap + 1] };
+  };
+  const levels = (n) => [n.wind, n.windSwell, n.lap, n.lapSwell].map((g) => g.gain.value);
+  const expectLevels = (n, want) => levels(n).forEach((v, i) => expect(v).toBeCloseTo(want[i], 10));
+
+  it('setAmbientMix lifts the wind x2.2 and quiets the lap x0.2 up high, swell and all', () => {
     const p = ambienceProbe('gorge');
-    const [wind, lap] = [0.03, 0.038].map((v) => p.ctx.created.gains.find((g) => g.gain.value === v));
-    p.audio.setAmbientMix({ high: 1 });
-    expect(wind.gain.value).toBeCloseTo(0.066, 10);
-    expect(lap.gain.value).toBeCloseTo(0.038 * 0.2, 10);
+    const n = gorgeGains(p);
     p.audio.setAmbientMix({ high: 0 });
-    expect(wind.gain.value).toBeCloseTo(0.03, 10);
-    expect(lap.gain.value).toBeCloseTo(0.038, 10);
+    expectLevels(n, [0.03, 0.012, 0.038, 0.03]);
+    p.audio.setAmbientMix({ high: 1 });
+    expect(n.wind.gain.value).toBeCloseTo(0.066, 10);
+    expectLevels(n, [0.03 * 2.2, 0.012 * 2.2, 0.038 * 0.2, 0.03 * 0.2]);
+    // the lap's swell never takes it through zero
+    expect(n.lap.gain.value - n.lapSwell.gain.value).toBeGreaterThan(0);
+    p.audio.setAmbientMix({ high: 0 });
+    expectLevels(n, [0.03, 0.012, 0.038, 0.03]);
     p.audio.stopAmbient();
     // with nothing playing it is a no-op
     expect(() => p.audio.setAmbientMix({ high: 1 })).not.toThrow();
+  });
+
+  it('a restarted ambience keeps the last mix', () => {
+    const p = ambienceProbe('gorge');
+    p.audio.setAmbientMix({ high: 1 });
+    const before = p.ctx.created.gains.length;
+    const origSetInterval = global.setInterval;
+    const cries = [];
+    global.setInterval = (...args) => { cries.push(args[0]); return origSetInterval(...args); };
+    try { p.audio.startAmbient('gorge'); } finally { global.setInterval = origSetInterval; }
+    // the new layers' gains, in build order (wind, its swell, lap, its swell)
+    const fresh = p.ctx.created.gains.slice(before).map((g) => g.gain.value);
+    expect(fresh).toHaveLength(4);
+    fresh.forEach((v, i) => expect(v).toBeCloseTo([0.03 * 2.2, 0.012 * 2.2, 0.038 * 0.2, 0.03 * 0.2][i], 10));
+    // the new cries know she is up high
+    const n = p.ctx.created.oscs.length;
+    const realRandom = Math.random;
+    Math.random = () => 0.9;
+    try { cries[0](); } finally { Math.random = realRandom; }
+    expect(p.ctx.created.oscs.length - n).toBe(2);
+    p.audio.stopAmbient();
   });
 
   it('a mix leaves every other area alone', () => {

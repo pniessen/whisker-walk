@@ -63,8 +63,9 @@ const lightState = (light) => ({ base: light.intensity, written: light.intensity
 // Each bird circles a centre over the gorge at radius r (9-14 m), turning at w
 // rad/s (about 3.8 m/s along the circle), dir 1 or -1, and rises and falls
 // gently about BIRD_Y. Heights stay in 32-36: over the 20 m rims and the
-// highest camera (about 28 m), under the fog's reach.
-const BIRD_Y = 34;
+// highest camera (about 28 m), under the fog's reach. The sky's passing
+// flock flies at the same height (gorge.js hands it to createSkyLife).
+export const GORGE_BIRD_Y = 34;
 const BIRD_BOB = 1.2;
 const BIRDS = Object.freeze([
   { cx: -8, cz: -18, r: 12, w: 0.32, dir: 1, phase: 0 },
@@ -98,7 +99,7 @@ function createBirds(scene) {
   function place(t) {
     BIRDS.forEach((b, i) => {
       const a = b.phase + b.dir * b.w * t;
-      dummy.position.set(b.cx + b.r * Math.cos(a), BIRD_Y + BIRD_BOB * Math.sin(0.4 * t + b.phase), b.cz + b.r * Math.sin(a));
+      dummy.position.set(b.cx + b.r * Math.cos(a), GORGE_BIRD_Y + BIRD_BOB * Math.sin(0.4 * t + b.phase), b.cz + b.r * Math.sin(a));
       // facing along the circle, banked into the turn
       dummy.rotation.set(0, Math.atan2(-b.dir * Math.sin(a), b.dir * Math.cos(a)), b.dir * BIRD_BANK);
       dummy.updateMatrix();

@@ -18,6 +18,9 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // rather than silence.
   let volume = 1;
   let ambient = null;
+  // The last setAmbientMix(m), applied to every ambience started after it, so
+  // a restarted ambience (a mute toggle) keeps the mix she is standing in.
+  let ambientMix = null;
 
   // Master bus, built once on first sound: every node's audio ultimately
   // reaches `master`, then splits into a dry path (comp → destination) and a
@@ -192,17 +195,20 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     const lfo = ac.createOscillator();
     const lfoGain = ac.createGain();
     lfo.frequency.value = 0.07;
-    lfoGain.gain.value = 0.012;
+    const swell = 0.012;
+    lfoGain.gain.value = swell;
     lfo.connect(lfoGain).connect(g.gain);
     src.connect(filter).connect(g).connect(master);
     src.start();
     lfo.start();
-    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, g, gain, scale);
+    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, [[g.gain, gain], [lfoGain.gain, swell]], scale);
   }
 
-  // A mix(m) for a layer whose gain follows the live mix; none without a scale.
-  function withMix(layer, g, gain, scale) {
-    if (scale) layer.mix = (m) => { g.gain.value = gain * scale(m); };
+  // A mix(m) for a layer whose level follows the live mix; none without a
+  // scale. `params` is [[AudioParam, base], ...]: the gain AND the LFO's
+  // depth, so the swell scales with the level and never swings through zero.
+  function withMix(layer, params, scale) {
+    if (scale) layer.mix = (m) => { const k = scale(m); for (const [p, base] of params) p.value = base * k; };
     return layer;
   }
 
@@ -287,12 +293,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     const lfo = ac.createOscillator();
     const lfoGain = ac.createGain();
     lfo.frequency.value = 0.26;
-    lfoGain.gain.value = 0.03;
+    const swell = 0.03;
+    lfoGain.gain.value = swell;
     lfo.connect(lfoGain).connect(g.gain);
     src.connect(filter).connect(g).connect(master);
     src.start();
     lfo.start();
-    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, g, gain, scale);
+    return withMix({ stop: () => { src.stop(); lfo.stop(); } }, [[g.gain, gain], [lfoGain.gain, swell]], scale);
   }
 
   // The Gorge's far cries, from up high only (mix.high over 0.5): about every
@@ -764,11 +771,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         else if (!dusk) layers.push(birdsongLayer());
       }
       if (dusk && areaKey !== 'den') layers.push(cricketLayer());
+      if (ambientMix) for (const layer of layers) layer.mix?.(ambientMix);
       ambient = layers;
     },
     // The live mix for the ambience now playing (the Gorge's { high }): each
     // layer that has a mix(m) follows it; the rest ignore it.
     setAmbientMix(m) {
+      ambientMix = m;
       for (const layer of ambient ?? []) layer.mix?.(m);
     },
     stopAmbient() {
