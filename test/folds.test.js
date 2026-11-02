@@ -194,7 +194,7 @@ describe('legs fold at the joints (Task 5)', () => {
         }
       }
     }
-  });
+  }, 120_000); // ~12 s alone, slower under the full suite and on CI
 
   it('a stalk creeps: small low steps, nothing out of the back', () => {
     // The walking stalk, sixteen phases of one stride (every leg's peak swing
