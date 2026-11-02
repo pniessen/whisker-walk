@@ -1040,7 +1040,7 @@ export function createWalkLifecycle({
     // below: a mover decal sits on the ground under its object, so a cup on a
     // car roof (or in mid-fall) would trail a shadow blob along the road.
     // knockables.js lays its own fixed decal under each one once it lands.
-    const knockables = createKnockables(scene, propsFor(areaId).knockables);
+    const knockables = createKnockables(scene, propsFor(areaId).knockables, { ground });
     // v21 3b — the things this player has left behind. In the den that is what
     // they carried home, laid out in front of the hearth; outdoors, the posts
     // they scratched, the holes they dug, the things they set down somewhere
