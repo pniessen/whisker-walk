@@ -153,8 +153,8 @@ describe('territories', () => {
     expect(gorge).toMatchObject({ locked: false, canOpen: true, line: 'Tap to explore' });
     s.unlocked.areas.push('gorge');
     expect(region(territoryMapModel(s, CATALOG), 'gorge')).toMatchObject({ owned: true, line: 'tap to walk here' });
-    expect(CAMP_AT.gorge).toEqual([850, 400]);
-    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toEqual({ x: 850, y: 400, color: '#9c3b22', mine: false, ally: false });
+    expect(CAMP_AT.gorge).toEqual([845, 405]);
+    expect(region(territoryMapModel(s, CATALOG), 'gorge').camp).toEqual({ x: 845, y: 405, color: '#9c3b22', mine: false, ally: false });
     s.clanPick = { mine: 'gorge', partner: null, partnerId: null };
     expect(region(territoryMapModel(s, CATALOG), 'gorge').camp.mine).toBe(true);
   });
