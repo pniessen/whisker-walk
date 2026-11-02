@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial, repeatFor, surfaceProps, tileMetres } from '../render/materials.js';
 import { skyBackground } from '../render/sky.js';
+import { conformTriangles } from './meshconform.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -2933,11 +2934,32 @@ export function toadstools(spots, seed) {
 // drawn: the highest camera sees over the rims (G6). Every vertex lies on its
 // shape's own plane, with no outward jitter.
 //
+// How finely it is cut (the same surface either way; the cuts are there so a
+// later relief has vertices to move):
+//   * every side face, in every mesh, is cut into steps along its edge (at
+//     each boundary of a shape touching the edge's line, where what lies
+//     outside can change, then into cells about ROCK_CELL across) and each
+//     step into rows at whole multiples of ROCK_ROW, clipped to the face's
+//     band (a ramp's sloped edge cuts through the rows; a row line within
+//     ROW_MIN of a face's foot or top is left out), so the rows of faces
+//     meeting at a vertical line up;
+//   * a rock top (a mass or a ceiling cap) has a band of cells CREST_BAND
+//     deep along each side that is a crest (some face rises to its edge),
+//     cut at that edge's step breakpoints, round the inner rectangle as one
+//     quad (the whole top gridded when it is too narrow for both). A side
+//     with no face up to it (a seam with rock as high, or the frame) has no
+//     crest to break and no band. Walkable and lip tops are one quad.
+// Then the three meshes are made CONFORMING together (world/meshconform.js):
+// positions quantised to 1e-6, and every triangle with another's vertex
+// inside one of its edges (a T-junction: a top's edge against the wall
+// steps below it, a ramp's sloped edge against the rows beside it) fanned
+// through that vertex. So moving each vertex by a pure function of its
+// position cannot open a crack.
+//
 // Three merged meshes:
 //   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW at y 0 to
 //              ROCK_HIGH at the highest top, times +-6% per 0.8 m stratum.
-//              Side faces are cut into cells about 2 m across so the strata
-//              vary. Casts.
+//              Casts.
 //   ledgeTops  raised walkable shapes: their tops (ramps sloped) and exposed
 //              sides, warm sand-grey. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
@@ -2947,7 +2969,10 @@ export function toadstools(spots, seed) {
 export const ROCK_LOW = 0x59606c;
 export const ROCK_HIGH = 0xc4b08e;
 export const LEDGE_COLOR = 0x9c8a70;
-const ROCK_CELL = 2; // side faces are cut into cells about this big
+const ROCK_CELL = 1.6; // side faces (and a top's ring) are cut into steps about this wide
+const ROCK_ROW = 1.4; // and walls into rows at whole multiples of this height
+const CREST_BAND = 1.5; // how deep the cut ring round a rock top is
+const ROW_MIN = 0.35; // a row line this close to a face's foot or top is left out (no slivers)
 const ROCK_STRATUM = 0.8; // one colour band's height
 const ROCK_STRATA = 0.06; // each band is +-6% lighter or darker
 const SIDE_EPS = 1e-4; // how far outside a face its neighbour is looked up
@@ -2972,6 +2997,34 @@ export function capTopFor(r, masses) {
     if ((ox >= 0 && oz > 0) || (ox > 0 && oz >= 0)) top = Math.max(top, m.y0, m.y1);
   }
   return top;
+}
+
+// The breakpoints along [t0, t1]: its ends, every cut strictly inside, and
+// then cells of about ROCK_CELL between those.
+function stepPoints(t0, t1, cuts) {
+  const ts = [t0, ...cuts.filter((c) => c > t0 && c < t1), t1].sort((a, c) => a - c);
+  const out = [t0];
+  for (let i = 0; i + 1 < ts.length; i++) {
+    const len = ts[i + 1] - ts[i];
+    const n = Math.max(1, Math.round(len / ROCK_CELL));
+    for (let k = 1; k < n; k++) out.push(ts[i] + (len * k) / n);
+    out.push(ts[i + 1]);
+  }
+  return out;
+}
+
+// A polygon of (t, y) points clipped to y >= c (sign 1) or y <= c (sign -1).
+function clipY(poly, c, sign) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const da = sign * (a[1] - c);
+    const db = sign * (b[1] - c);
+    if (da >= 0) out.push(a);
+    if ((da >= 0) !== (db >= 0)) out.push([a[0] + ((b[0] - a[0]) * da) / (da - db), c]);
+  }
+  return out;
 }
 
 // Where a linear f(u) (f0 at u0, f1 at u1) crosses zero strictly inside, or null.
@@ -3002,8 +3055,20 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
     minZ: Math.min(...groundShapes.map((s) => s.minZ)),
     maxZ: Math.max(...groundShapes.map((s) => s.maxZ)),
   };
-  const xCuts = [...new Set([...groundShapes, ...caps].flatMap((s) => [s.minX, s.maxX]))];
-  const zCuts = [...new Set([...groundShapes, ...caps].flatMap((s) => [s.minZ, s.maxZ]))];
+  // The breakpoints along an edge (at x = `at` running along z for axis 'x',
+  // at z = `at` along x for 'z'): the boundaries of every shape that touches
+  // its line (only those can change what lies just outside it), then cells.
+  const cutters = [...groundShapes, ...caps];
+  const edgePoints = (axis, at, t0, t1) => {
+    const cuts = [];
+    for (const c of cutters) {
+      if (axis === 'x' ? c.minX <= at && at <= c.maxX : c.minZ <= at && at <= c.maxZ) {
+        if (axis === 'x') cuts.push(c.minZ, c.maxZ);
+        else cuts.push(c.minX, c.maxX);
+      }
+    }
+    return stepPoints(t0, t1, cuts);
+  };
   let topY = 0;
   for (const s of groundShapes) topY = Math.max(topY, s.y0, s.y1);
   for (const c of caps) topY = Math.max(topY, c.top);
@@ -3034,17 +3099,24 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
     tri(out, a, d, e, ...n);
   };
 
-  // One side face, cut into rows and drawn from (u0, l0..h0) to (u1, l1..h1).
+  // One side face from (u0, l0..h0) to (u1, l1..h1), cut into rows at whole
+  // multiples of ROCK_ROW (each row the face clipped to its slab).
   const wall = (out, at, u0, l0, h0, u1, l1, h1) => {
     const tall = Math.max(h0 - l0, h1 - l1);
     if (tall < FLAT_EPS) return;
-    const rows = out === 'ledge' ? 1 : Math.max(1, Math.ceil(tall / ROCK_CELL - 1e-9));
-    for (let r = 0; r < rows; r++) {
-      const f0 = r / rows;
-      const f1 = (r + 1) / rows;
-      quad(out,
-        at(u0, l0 + (h0 - l0) * f0), at(u1, l1 + (h1 - l1) * f0),
-        at(u1, l1 + (h1 - l1) * f1), at(u0, l0 + (h0 - l0) * f1), at.normal);
+    const poly = [[u0, l0], [u1, l1], [u1, h1], [u0, h0]];
+    const lo = Math.min(l0, l1);
+    const hi = Math.max(h0, h1);
+    const levels = [lo];
+    for (let k = Math.floor(lo / ROCK_ROW) + 1; k * ROCK_ROW < hi - ROW_MIN; k++) {
+      if (k * ROCK_ROW > lo + ROW_MIN) levels.push(k * ROCK_ROW);
+    }
+    levels.push(hi);
+    for (let r = 0; r + 1 < levels.length; r++) {
+      const piece = clipY(clipY(poly, levels[r], 1), levels[r + 1], -1);
+      for (let i = 1; i + 1 < piece.length; i++) {
+        tri(out, at(...piece[0]), at(...piece[i]), at(...piece[i + 1]), ...at.normal);
+      }
     }
   };
 
@@ -3056,6 +3128,7 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
       { axis: 'z', at: s.minZ, dir: -1, t0: s.minX, t1: s.maxX, onFrame: s.minZ <= frame.minZ },
       { axis: 'z', at: s.maxZ, dir: 1, t0: s.minX, t1: s.maxX, onFrame: s.maxZ >= frame.maxZ },
     ];
+    for (const e of edges) e.ts = e.onFrame ? [e.t0, e.t1] : edgePoints(e.axis, e.at, e.t0, e.t1);
     for (const e of edges) {
       if (e.onFrame) continue;
       // (x, z) of the point t along this edge, `off` outward of it
@@ -3066,14 +3139,8 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
       };
       at.normal = e.axis === 'x' ? [e.dir, 0, 0] : [0, 0, e.dir];
       // breakpoints: every shape boundary on this edge, then cells
-      const cuts = (e.axis === 'x' ? zCuts : xCuts).filter((c) => c > e.t0 && c < e.t1);
-      const ts = [e.t0, ...cuts, e.t1].sort((a, c) => a - c);
-      const steps = [];
-      for (let i = 0; i + 1 < ts.length; i++) {
-        const len = ts[i + 1] - ts[i];
-        const n = out === 'ledge' ? 1 : Math.max(1, Math.ceil(len / ROCK_CELL - 1e-9));
-        for (let k = 0; k < n; k++) steps.push([ts[i] + (len * k) / n, k + 1 === n ? ts[i + 1] : ts[i] + (len * (k + 1)) / n]);
-      }
+      const ts = e.ts;
+      const steps = ts.slice(1).map((t, i) => [ts[i], t]);
       for (const [u0, u1] of steps) {
         if (u1 - u0 < FLAT_EPS) continue;
         const [mx, mz] = xz((u0 + u1) / 2, SIDE_EPS);
@@ -3111,6 +3178,8 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
             const h1 = Math.max(l1, U(q));
             if (h0 - l0 < FLAT_EPS && h1 - l1 < FLAT_EPS) continue;
             wall(out, at, p, l0, h0, q, l1, h1);
+            // a face up to the top's own edge: a crest, so the top gets its band here
+            if (Math.abs(h0 - b(p)) < FLAT_EPS || Math.abs(h1 - b(q)) < FLAT_EPS) e.crest = true;
           }
         }
       }
@@ -3119,9 +3188,55 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
     const corner = (x, z, y) => [x, y, z];
     const { minX, maxX, minZ, maxZ } = s;
     const hi = solid.hi;
-    quad(out,
-      corner(minX, minZ, hi(minX, minZ)), corner(minX, maxZ, hi(minX, maxZ)),
-      corner(maxX, maxZ, hi(maxX, maxZ)), corner(maxX, minZ, hi(maxX, minZ)), [0, 1, 0]);
+    const topQuad = (x0, x1, z0, z1) => quad(out,
+      corner(x0, z0, hi(x0, z0)), corner(x0, z1, hi(x0, z1)),
+      corner(x1, z1, hi(x1, z1)), corner(x1, z0, hi(x1, z0)), [0, 1, 0]);
+    if (out === 'rock') {
+      // a band CREST_BAND deep along each side that is a crest (a face rises
+      // to it), cut at that edge's own breakpoints (the ones its wall is cut
+      // at), round one inner quad; a side with no face up to it (a seam with
+      // rock as high, or the frame) has no crest and no band
+      const [W, E, S, N] = edges;
+      const merge = (...lists) => {
+        const all = lists.flat().sort((m, n) => m - n);
+        return all.filter((v, i) => i === 0 || v - all[i - 1] > FLAT_EPS);
+      };
+      const ix0 = W.crest ? minX + CREST_BAND : minX;
+      const ix1 = E.crest ? maxX - CREST_BAND : maxX;
+      const iz0 = S.crest ? minZ + CREST_BAND : minZ;
+      const iz1 = N.crest ? maxZ - CREST_BAND : maxZ;
+      if (ix1 - ix0 > FLAT_EPS && iz1 - iz0 > FLAT_EPS) {
+        const corners = [...(W.crest ? [ix0] : []), ...(E.crest ? [ix1] : [])];
+        if (S.crest) {
+          const xs = merge(S.ts, corners);
+          for (let i = 0; i + 1 < xs.length; i++) topQuad(xs[i], xs[i + 1], minZ, iz0);
+        }
+        if (N.crest) {
+          const xs = merge(N.ts, corners);
+          for (let i = 0; i + 1 < xs.length; i++) topQuad(xs[i], xs[i + 1], iz1, maxZ);
+        }
+        const along = (list) => merge(list.filter((v) => v > iz0 && v < iz1), [iz0, iz1]);
+        if (W.crest) {
+          const zs = along(W.ts);
+          for (let j = 0; j + 1 < zs.length; j++) topQuad(minX, ix0, zs[j], zs[j + 1]);
+        }
+        if (E.crest) {
+          const zs = along(E.ts);
+          for (let j = 0; j + 1 < zs.length; j++) topQuad(ix1, maxX, zs[j], zs[j + 1]);
+        }
+        topQuad(ix0, ix1, iz0, iz1);
+      } else {
+        // too narrow for a band and an inner quad: the whole top gridded at
+        // its crests' breakpoints
+        const X = merge(S.crest ? S.ts : [minX, maxX], N.crest ? N.ts : []);
+        const Z = merge(W.crest ? W.ts : [minZ, maxZ], E.crest ? E.ts : []);
+        for (let i = 0; i + 1 < X.length; i++) {
+          for (let j = 0; j + 1 < Z.length; j++) topQuad(X[i], X[i + 1], Z[j], Z[j + 1]);
+        }
+      }
+    } else {
+      topQuad(minX, maxX, minZ, maxZ);
+    }
     if (solid.bottom) {
       const y = solid.lo();
       quad(out, corner(minX, minZ, y), corner(maxX, minZ, y), corner(maxX, maxZ, y), corner(minX, maxZ, y), [0, -1, 0]);
@@ -3137,15 +3252,16 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
   };
   const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
 
+  const conf = conformTriangles(bins);
   const group = new THREE.Group();
   group.name = 'rockTerrain';
-  const rockFaces = new THREE.Mesh(meshOf(bins.rock, true), rockMat());
+  const rockFaces = new THREE.Mesh(meshOf(conf.rock, true), rockMat());
   rockFaces.name = 'rockFaces';
   rockFaces.castShadow = true;
-  const ledgeTops = new THREE.Mesh(meshOf(bins.ledge, false), surfNoMap(LEDGE_COLOR, 'cobble'));
+  const ledgeTops = new THREE.Mesh(meshOf(conf.ledge, false), surfNoMap(LEDGE_COLOR, 'cobble'));
   ledgeTops.name = 'ledgeTops';
   ledgeTops.castShadow = true;
-  const lips = new THREE.Mesh(meshOf(bins.lip, true), rockMat());
+  const lips = new THREE.Mesh(meshOf(conf.lip, true), rockMat());
   lips.name = 'lips';
   lips.castShadow = false;
   lips.userData.noCast = true;

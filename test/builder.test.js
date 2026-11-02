@@ -841,6 +841,7 @@ describe('the Woods builders', () => {
 const gorgeShape = await import('../src/world/gorgeshape.js');
 const { ROCK_WALKS: gorgeRockWalks } = await import('../src/world/gorge.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
+const { findTJunctions } = await import('./helpers/meshcheck.js');
 
 describe('the Gorge rock: rockTerrain and scree', () => {
   const { WALK_SHAPES, MASSES, CEILINGS } = gorgeShape;
@@ -887,6 +888,13 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(c[n], n).toEqual(a[n]);
     }
   });
+
+  // Conforming: no vertex of any of the three meshes lies inside an edge of
+  // another triangle, so a later displacement keyed on position opens no crack.
+  it('the rock shell has no T-junctions', () => {
+    const byMesh = Object.fromEntries(ALL.map((n) => [n, meshes[n].geometry.attributes.position.array]));
+    expect(findTJunctions(byMesh)).toEqual([]);
+  }, 120_000);
 
   it('every rim is drawn where the cat stops', () => {
     const OUT = 0.05;
