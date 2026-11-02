@@ -44,6 +44,7 @@ const { OUTSIDE_WORDS, RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } = await import('..
 const { cameraOffset } = await import('../src/catcam.js');
 const { ZOOM_STEPS } = await import('../src/camzoom.js');
 const { PITCH_MAX } = await import('../src/player.js');
+const raceMod = await import('../src/race.js');
 const { GORGE_SPAWN, GORGE_BOUNDS, floodGorge } = await import('./helpers/gorgeflood.js');
 
 const {
@@ -798,5 +799,49 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
     const birds = area.critterSpawns.filter((c) => c.type === 'bird');
     expect(birds).toHaveLength(4);
     expect(birds).toEqual(gorgeTrees().near.slice(0, 4).map(({ x, z }) => ({ type: 'bird', x, z })));
+  });
+});
+
+describe('the Gorge: the climb race', () => {
+  const sceneStub = () => ({ add() {}, remove() {} });
+  const run = (course, pos) => {
+    const race = raceMod.createRace(sceneStub(), course, SPAWN, { ground: area.ground, kind: 'climb' });
+    race.begin();
+    race.update(0.016, pos);
+    return race;
+  };
+
+  it("the Gorge's course is fixed and climbs", () => {
+    expect(built().area.raceCourse).toEqual(area.raceCourse);
+    const flood = floodGorge();
+    let last = -Infinity;
+    for (const ring of area.raceCourse) {
+      const y = area.ground.y(ring.x, ring.z);
+      expect(y).toBeGreaterThanOrEqual(last);
+      last = y;
+      expect(flood.reached(ring.x, ring.z), `ring (${ring.x}, ${ring.z}) is reached`).toBe(true);
+    }
+    expect(last).toBe(CLIFFTOP);
+  });
+
+  it('a ring on one level is not crossed from another', () => {
+    const course = [{ x: 5.0, z: 20 }, { x: 16, z: -24 }];
+    expect(area.ground.sameLevel(6.0, 20, 5.0, 20)).toBe(false);
+    expect(Math.hypot(1.0, 0)).toBeLessThan(1.2);
+    expect(run(course, { x: 6.0, z: 20 }).currentRing).toBe(1);
+    expect(run(course, { x: 5.0, z: 19.6 }).currentRing).toBe(2);
+  });
+
+  it("the climb race's pad says race to the clifftop", () => {
+    const climb = raceMod.createRace(sceneStub(), area.raceCourse, SPAWN, { ground: area.ground, kind: 'climb' });
+    const daily = raceMod.createRace(sceneStub(), area.raceCourse, SPAWN, { ground: area.ground });
+    expect(climb.promptAt(climb.pad)).toBe('E — race to the clifftop! 🏁');
+    expect(daily.promptAt(daily.pad)).toBe('E — start today’s zoomies race! 🏁');
+  });
+
+  it('walk.js uses areaData.raceCourse when present, and the daily course otherwise', () => {
+    const src = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
+    expect(src).toMatch(/areaData\.raceCourse\s*\?\s*createRace\(scene, areaData\.raceCourse, areaData\.spawn, \{ ground, kind: 'climb' \}\)/);
+    expect(src).toMatch(/raceCourse\(walkPois, seedFromCode\(today/);
   });
 });

@@ -1581,7 +1581,13 @@ export function createWalkLifecycle({
     // src/world/*.js), but the guard below keeps this inert instead of
     // throwing if a future area (e.g. the den) ever ships with fewer than 5.
     const today = new Date().toISOString().slice(0, 10);
-    session.race = walkPois.length >= 5
+    // The Gorge ships a fixed, ordered climb course (areaData.raceCourse): the
+    // random daily course would send kids up and down the path. It is fixed
+    // data, so both co-walkers agree, and it draws nothing from walkRng (the
+    // daily course never did either: it has its own date-seeded stream).
+    session.race = areaData.raceCourse
+      ? createRace(scene, areaData.raceCourse, areaData.spawn, { ground, kind: 'climb' })
+      : walkPois.length >= 5
       ? createRace(scene, raceCourse(walkPois, seedFromCode(today + '-' + areaId)), areaData.spawn, { ground })
       : { state: 'idle', timeMs: 0, currentRing: 0, rings: [], pad: null, update() {}, promptAt: () => null, begin() {}, dispose() {} };
     session.areaId = areaId;
