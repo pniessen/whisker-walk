@@ -551,7 +551,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 }
 .screen-body { display: grid; justify-items: center; gap: 12px; min-width: 0; }
 .screen-panel h1 { margin: 0; color: #fff; }
-.screen-cat { display: block; width: 132px; height: 132px; margin: -6px 0 -10px; }
+.screen-cat { display: block; width: 132px; height: 132px; }
 .screen-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .pause-card .primary, .pause-card .secondary {
   border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
@@ -583,6 +583,7 @@ body.touch-mode:not(.left-handed) .hud-top {
 /* The post's prompt pill would show, dimmed, under the card's scrim. */
 body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
+.controls-hint .hint-seg { white-space: nowrap; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
   position: relative; height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .summary-card h1 { font-size: 2.2rem; }

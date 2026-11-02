@@ -179,9 +179,15 @@ export function pauseCardHtml({ welcome, touch, portrait = null }) {
       <button id="btn-resume" class="primary">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
       <button id="btn-end" class="secondary">End walk &amp; head home</button>
     </div>
-    <p class="controls-hint">${touch
-      ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
-      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div></div></div>`;
+    <p class="controls-hint">${hintHtml(touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
+}
+
+// The controls hint, one unbreakable piece per control: a line wraps only
+// between the dots, never inside "E interact/sniff".
+const TOUCH_HINT = ['Joystick to move', 'drag to look', 'buttons to pounce/meow/yarn/camera', '+ − or pinch to zoom', 'tap the prompt to interact'];
+const KEYS_HINT = ['Arrows move', 'Shift stalk', 'Space pounce/climb', 'E interact/sniff', 'V meow', 'T yarn', 'C camera', '+/− or wheel zoom'];
+function hintHtml(segs) {
+  return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
 }
 
 export function createWalkLifecycle({

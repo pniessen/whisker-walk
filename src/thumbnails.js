@@ -19,7 +19,9 @@ function makeSnapper(renderer, scene, camera, canvas) {
     // camera sits at bearing ≈ -0.67 rad from the model's -z facing axis;
     // -0.45 gives a face-on three-quarter view, callers can override
     cat.rotation.y = rotY;
-    if (closeUp) {
+    if (typeof closeUp === 'function') {
+      closeUp(cat, camera); // a framing of the caller's own (her cat's portrait)
+    } else if (closeUp) {
       camera.position.set(0.85, 0.99, -1.11);
       camera.lookAt(0, 0.64, -0.21);
     } else {
@@ -168,10 +170,64 @@ export function portraitEntry(state) {
 const PORTRAIT_SIZE = 264; // shown at 132px: crisp on a 2x screen
 const portraitCache = new Map();
 let portraitWarned = false;
+// A GPU that failed once is not asked again this session (every walk would
+// otherwise make, and lose, another context).
+let portraitBroken = false;
+
+// portraitFraming(cat, camera): her cat turned three-quarter like the menu's
+// pictures, with the camera pulled in until her cat fills the square, every
+// vertex inside it, so a balloon, wings or a crown are never clipped. The
+// view direction is the menu's (from (1.35, 1.14, -1.7) toward (0, 0.44, 0));
+// only the distance and the aim point change, fitted to this cat.
+const PORTRAIT_DIR = new THREE.Vector3(1.35, 0.7, -1.7).normalize();
+const PORTRAIT_FILL = 0.92; // of the half-frame, so a soft margin all round
+export function portraitFraming(cat, camera, rotY = -0.45) {
+  cat.rotation.y = rotY;
+  cat.updateMatrixWorld(true);
+  const pts = [];
+  const p = new THREE.Vector3();
+  cat.traverse((o) => {
+    const pos = o.geometry?.attributes?.position;
+    if (!pos || o.isSprite || o.visible === false) return;
+    for (let i = 0; i < pos.count; i++) pts.push(p.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
+  });
+  const box = new THREE.Box3().setFromPoints(pts);
+  const target = box.isEmpty() ? new THREE.Vector3(0, 0.44, 0) : box.getCenter(new THREE.Vector3());
+  // The camera's own axes, fixed by the view direction alone.
+  const fwd = PORTRAIT_DIR.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * PORTRAIT_FILL;
+  const tx = t * (camera.aspect || 1);
+  let dist = 2.3;
+  // Fit the distance (exact for a fixed aim), then nudge the aim so the cat
+  // sits in the middle; twice is plenty.
+  for (let pass = 0; pass < 3 && pts.length; pass++) {
+    dist = 0;
+    for (const v of pts) {
+      const d = v.clone().sub(target);
+      const a = d.dot(PORTRAIT_DIR); // toward the camera
+      dist = Math.max(dist, a + Math.abs(d.dot(right)) / tx, a + Math.abs(d.dot(up)) / t);
+    }
+    if (pass === 2) break;
+    let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+    for (const v of pts) {
+      const d = v.clone().sub(target);
+      const z = dist - d.dot(PORTRAIT_DIR);
+      const x = d.dot(right) / z; const y = d.dot(up) / z;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    target.addScaledVector(right, ((minX + maxX) / 2) * dist).addScaledVector(up, ((minY + maxY) / 2) * dist);
+  }
+  camera.position.copy(target).addScaledVector(PORTRAIT_DIR, dist);
+  camera.lookAt(target);
+  camera.updateMatrixWorld(true);
+}
 
 export function herCatPortrait(state) {
   const e = portraitEntry(state);
   if (portraitCache.has(e.key)) return portraitCache.get(e.key);
+  if (portraitBroken) return null;
   const real = Math.random;
   let renderer = null;
   Math.random = mulberry32(seedFromCode('portrait'));
@@ -186,12 +242,13 @@ export function herCatPortrait(state) {
     const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
     sun.position.set(2, 4, -3);
     scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     const snap = makeSnapper(renderer, scene, camera, canvas);
-    const url = snap(buildCat(e.breed, e.wear, e.look ? { look: e.look } : {}), false);
+    const url = snap(buildCat(e.breed, e.wear, e.look ? { look: e.look } : {}), portraitFraming);
     portraitCache.set(e.key, url);
     return url;
   } catch (err) {
+    portraitBroken = true;
     if (!portraitWarned) { portraitWarned = true; console.warn('Whisker Walk: her cat portrait unavailable', err); }
     return null;
   } finally {

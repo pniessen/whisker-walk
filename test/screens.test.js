@@ -31,7 +31,7 @@ describe('portraitEntry', () => {
 });
 
 describe('herCatPortrait', () => {
-  it('without WebGL returns null, never throws, and draws nothing from Math.random', () => {
+  it('without WebGL (no document here) returns null and never throws; screens.portrait.test.js covers a real build', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const spy = vi.spyOn(Math, 'random');
     let out;
@@ -64,6 +64,18 @@ describe('pauseCardHtml', () => {
     const html = pauseCardHtml({ welcome: 'Hi', touch: true });
     expect(html).toContain('class="screen-panel"');
     expect(html).not.toContain('<img');
+  });
+
+  it('the controls hint never breaks inside a segment', () => {
+    for (const touch of [true, false]) {
+      const html = pauseCardHtml({ welcome: null, touch });
+      const hint = html.match(/<p class="controls-hint">([\s\S]*?)<\/p>/)[1];
+      const segs = hint.split(' · ');
+      expect(segs.length).toBeGreaterThan(4);
+      for (const seg of segs) expect(seg).toMatch(/^<span class="hint-seg">[^<]+<\/span>$/);
+    }
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\.controls-hint \.hint-seg \{[^}]*white-space:\s*nowrap/);
   });
 
   it('buttons are pills holding plain text only', () => {
