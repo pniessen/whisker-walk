@@ -172,7 +172,8 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
 describe('animateCat: the fight poses (swipe, backUp)', () => {
   const lowest = (obj) => new THREE.Box3().setFromObject(obj, true).min.y;
   const posed = (breed, state, simple = false, extra = {}) => {
-    const cat = buildCat(breed, undefined, simple || Object.keys(extra).length ? { ...(simple ? { simple: true } : {}), ...extra } : undefined);
+    const opts = { ...(simple && { simple: true }), ...extra };
+    const cat = buildCat(breed, undefined, Object.keys(opts).length ? opts : undefined);
     animateCat(cat, state, 1.3, 0, false);
     cat.updateMatrixWorld(true);
     return cat;
@@ -228,21 +229,28 @@ describe('animateCat: the fight poses (swipe, backUp)', () => {
 
   it('a long-haired, patched custom cat runs swipe and backUp with its paws above the ground', () => {
     const look = { ...DEFAULT_LOOK, pattern: 'patches', fur: 'long' };
-    // a fingerprint of the build: mesh count plus every material colour
-    const count = (o) => {
+    // a fingerprint of the build: meshes, total vertices (long fur and patches
+    // each change the geometry, in opposite directions) and every material colour
+    const fingerprint = (o) => {
       const cols = [];
-      let n = 0;
-      o.traverse((m) => { n++; if (m.material && m.material.color) cols.push(m.material.color.getHexString()); });
-      return `${n}:${cols.join(',')}`;
+      let n = 0, verts = 0;
+      o.traverse((m) => {
+        n++;
+        if (m.geometry) verts += m.geometry.attributes.position.count;
+        if (m.material && m.material.color) cols.push(m.material.color.getHexString());
+      });
+      return `${n}:${verts}:${cols.join(',')}`;
     };
     for (const simple of [false, true]) {
-      // prove the look really is applied: the custom build is not the plain calico
-      const plain = buildCat('calico', undefined, simple ? { simple: true } : undefined);
-      const custom = buildCat('calico', undefined, { ...(simple ? { simple: true } : {}), look });
-      expect(count(custom)).not.toBe(count(plain));
+      const build = (l) => buildCat('calico', undefined, { ...(simple ? { simple: true } : {}), look: l });
+      const custom = build(look);
+      // each of long fur and patches really took effect: dropping either one, or both, changes the build
+      for (const l of [DEFAULT_LOOK, { ...look, fur: DEFAULT_LOOK.fur }, { ...look, pattern: DEFAULT_LOOK.pattern }]) {
+        expect(fingerprint(custom)).not.toBe(fingerprint(build(l)));
+      }
       for (const state of ['swipe', 'backUp']) {
         const cat = posed('calico', state, simple, { look });
-        expect(count(cat)).toBe(count(custom));
+        expect(fingerprint(cat)).toBe(fingerprint(custom));
         expect(lowest(cat) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
         for (const leg of cat.userData.parts.legs) expect(lowest(leg.userData.paw) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
         if (state === 'swipe') {
