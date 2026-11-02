@@ -438,7 +438,10 @@ export function gorgeScree() {
 // banks of the stream, and small grass tufts on the clifftop and the two open
 // ledges. Seeded by its own name; every candidate draws all its numbers
 // whether it is kept or not. Visual only: nothing here is read by the walk.
-const MEADOW_LIFT = 0.006;
+// Clifftop patches and tufts sit 2 cm up so they cannot z-fight the rock at
+// distance; floor bank patches stay under the path strips (y 0.01).
+const MEADOW_LIFT_TOP = 0.02;
+const MEADOW_LIFT_BANK = 0.008;
 // A cell's centre this far off a path keeps its whole 1 m footprint off the strip.
 export const MEADOW_PATH_CLEAR = PATH_W / 2 + 0.75;
 const CLIFF_INSET = 0.6;
@@ -469,7 +472,7 @@ export function gorgeMeadow() {
       const cx = (ax + bx) / 2, cz = (az + bz) / 2;
       rng(); // every cell draws its number whether kept or not
       if (g.y(cx, cz) !== CLIFFTOP || !clear(cx, cz) || !oneShape(cx, cz, 0.7)) continue;
-      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT, kind: 'top' }));
+      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT_TOP, kind: 'top' }));
     }
   }
   // the banks: 1 m cells on the floor either side of the water
@@ -480,7 +483,7 @@ export function gorgeMeadow() {
         const cx = (ax + bx) / 2, cz = az + 0.5;
         rng();
         if (g.y(cx, cz) !== FLOOR || !clear(cx, cz) || rectDist(STEPPING_STONES, cx, cz) < 0.5 || !oneShape(cx, cz, 0.7)) continue;
-        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT, kind: 'bank' }));
+        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT_BANK, kind: 'bank' }));
       }
     }
   }
@@ -558,7 +561,7 @@ function meadowMesh() {
       const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
       const tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
       const h = t.s * (0.85 + 0.15 * k);
-      const y = t.y + MEADOW_LIFT;
+      const y = t.y + MEADOW_LIFT_TOP;
       // front and back, so a blade shows from both sides
       vert(bx - px, y, bz - pz, tc); vert(bx + px, y, bz + pz, tc); vert(tx, y + h, tz, tip);
       vert(bx + px, y, bz + pz, tc); vert(bx - px, y, bz - pz, tc); vert(tx, y + h, tz, tip);
@@ -572,12 +575,8 @@ function meadowMesh() {
   // The 'grass' preset's light response with no map (surfaceProps leaves it
   // off): a texture would fight the vertex colours.
   const mat = litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('grass') });
-  // Draws before the pawprints (-2) and contact shadows (-1). A positive
-  // offset pushes it back from the camera, so it never wins against the path
-  // strips (y 0.01) or the rock's tops.
-  mat.polygonOffset = true;
-  mat.polygonOffsetFactor = 1;
-  mat.polygonOffsetUnits = 1;
+  // Draws before the pawprints (-2) and contact shadows (-1). No polygonOffset:
+  // cells keep clear of every path, and a push-back would lose to the ground.
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'gorgeMeadow';
   mesh.renderOrder = -3;

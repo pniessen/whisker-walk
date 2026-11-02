@@ -1577,7 +1577,7 @@ describe('Gorge meadow (polish #1b)', () => {
       expect(nearKeep(cx, cz), at).toBeGreaterThanOrEqual(1.2);
       expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.75);
       for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, cx, cz), at).toBe(false);
-      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + 0.006, 9);
+      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + (p.kind === 'top' ? 0.02 : 0.008), 9);
     }
     for (const t of meadow.tufts) {
       const at = `tuft (${t.x}, ${t.z})`;
@@ -1590,19 +1590,19 @@ describe('Gorge meadow (polish #1b)', () => {
     }
   }, 120_000);
 
-  const m_polygonOffsetPositive = () => {
-    const scene = new THREE.Scene();
-    gorge.build(scene);
-    const mat = scene.getObjectByName('gorgeMeadow').material;
-    return mat.polygonOffset && mat.polygonOffsetFactor > 0 && mat.polygonOffsetUnits > 0;
-  };
   it('actually dresses the top, the banks and the ledges', () => {
     expect(meadow.patches.filter((p) => p.kind === 'top').length).toBeGreaterThanOrEqual(150);
     expect(meadow.patches.filter((p) => p.kind === 'bank').length).toBeGreaterThan(50);
     expect(meadow.tufts.length).toBeGreaterThanOrEqual(40);
     expect(meadow.tufts.some((t) => t.y === LOOKOUT_LEDGE.y0 || t.y === TURN.y0)).toBe(true);
-    expect(m_polygonOffsetPositive()).toBe(true);
     expect(meadow.tufts.length).toBeLessThanOrEqual(140);
+  });
+
+  it('has no polygonOffset', () => {
+    // cells never touch a path, and any offset that pushes back loses to the surface beneath
+    const scene = new THREE.Scene();
+    gorge.build(scene);
+    expect(scene.getObjectByName('gorgeMeadow').material.polygonOffset).toBe(false);
   });
 
   it('is one unshadowed, light mesh with one material', () => {
