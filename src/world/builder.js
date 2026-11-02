@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial, repeatFor, surfaceProps, tileMetres } from '../render/materials.js';
 import { skyBackground } from '../render/sky.js';
 import { conformTriangles } from './meshconform.js';
+import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH } from './rockrelief.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -2931,11 +2932,10 @@ export function toadstools(spots, seed) {
 // it (or to 0), two masses of one height share no face, a lip is a column from
 // its lower neighbour's ground up to its top, and faces on the outermost
 // edges of the map's shapes (the +-62 frame) are not drawn. Tops are always
-// drawn: the highest camera sees over the rims (G6). Every vertex lies on its
-// shape's own plane, with no outward jitter.
+// drawn: the highest camera sees over the rims (G6).
 //
-// How finely it is cut (the same surface either way; the cuts are there so a
-// later relief has vertices to move):
+// How finely it is cut (the cuts are there so the relief has vertices to
+// move):
 //   * every side face, in every mesh, is cut into steps along its edge (at
 //     each boundary of a shape touching the edge's line, where what lies
 //     outside can change, then into cells about ROCK_CELL across) and each
@@ -2956,25 +2956,46 @@ export function toadstools(spots, seed) {
 // through that vertex. So moving each vertex by a pure function of its
 // position cannot open a crack.
 //
+// The relief (world/rockrelief.js; `relief: false` draws the shell unmoved).
+// One field per call moves every vertex by createRockRelief's at(), asked
+// once per distinct quantised position, so every copy of a vertex moves
+// alike and the shell stays closed; normals are then recomputed (flat). Its
+// bounds, which the gameplay relies on:
+//   * walkable tops (every walk, cave and den floor, the camp den) and the
+//     wall feet on them don't move, so every seam with them stays closed;
+//   * a wall over walkable ground stands at most ROCK_PROUD (0.15 m) proud of
+//     its line, and inside a cave or den never proud (CAVE_PROUD); it may be
+//     recessed up to RELIEF_DEPTH plus a corner cut, but never more than half
+//     the rock's thickness, so the two faces of thin rock never cross;
+//   * a ceiling's underside never comes down (dy is 0 on it);
+//   * a rock top within CREST_BAND of a drop (a crest) is jagged up or down
+//     (at most about 1 m up on the 20 m rims), except in the `keep` discs,
+//     where things stand on the rock and its top stays still.
+//
 // Three merged meshes:
-//   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW at y 0 to
-//              ROCK_HIGH at the highest top, times +-6% per 0.8 m stratum.
-//              Casts.
+//   rockFaces  masses and ceiling caps; vertex colours from ROCK_LOW (cool
+//              grey-brown) at y 0 to ROCK_HIGH (sandstone) at the highest top,
+//              by each vertex's y BEFORE the relief, in the relief's own 1.1 m
+//              strata bands (so colour and shelves line up): each band +-9%,
+//              alternately tinted warm or cream, and darker in a recess (up
+//              to 25% at RELIEF_DEPTH). Casts.
 //   ledgeTops  raised walkable shapes: their tops (ramps sloped) and exposed
-//              sides, warm sand-grey. Casts.
+//              sides, warm sand-grey, one plain material. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
 //              noCast: they are thin, and the sweep would cast anything wide.
 // G4 names a 'stone' surface; materials.js has no such preset (it would warn
 // and fall back), so the rock takes 'cobble's light response, as tor() does.
-export const ROCK_LOW = 0x59606c;
-export const ROCK_HIGH = 0xc4b08e;
+export const ROCK_LOW = 0x6f6a66;
+export const ROCK_HIGH = 0xd2b48c;
 export const LEDGE_COLOR = 0x9c8a70;
 const ROCK_CELL = 1.6; // side faces (and a top's ring) are cut into steps about this wide
 const ROCK_ROW = 1.4; // and walls into rows at whole multiples of this height
-const CREST_BAND = 1.5; // how deep the cut ring round a rock top is
+// (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
 const ROW_MIN = 0.35; // a row line this close to a face's foot or top is left out (no slivers)
-const ROCK_STRATUM = 0.8; // one colour band's height
-const ROCK_STRATA = 0.06; // each band is +-6% lighter or darker
+const ROCK_STRATA = 0.09; // each strata band is +-9% lighter or darker
+const STRATA_WARM = [1.05, 0.98, 0.92]; // alternate bands tinted warm
+const STRATA_CREAM = [1.02, 1.02, 0.99]; // and cream
+const RECESS_DARK = 0.25; // the deepest recess is this much darker
 const SIDE_EPS = 1e-4; // how far outside a face its neighbour is looked up
 const FLAT_EPS = 1e-7; // a face thinner than this is not drawn
 
@@ -3033,7 +3054,7 @@ function crossing(u0, u1, f0, f1) {
   return u0 + ((u1 - u0) * f0) / (f0 - f1);
 }
 
-export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
+export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, keep = [] }) {
   const groundShapes = [...walks, ...masses];
   const caps = ceilings
     .map((c) => ({ ...c, top: capTopFor(c, masses) }))
@@ -3076,10 +3097,15 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
   const low = new THREE.Color(ROCK_LOW);
   const high = new THREE.Color(ROCK_HIGH);
   const tint = new THREE.Color();
-  const rockColour = (y) => {
+  // A vertex's colour, from where it was before the relief moved it (so a
+  // stratum's colour stays with its shelf) and how deep it was recessed.
+  const rockColour = (x, y, z, recess) => {
     tint.copy(low).lerp(high, topY > 0 ? clamp01(y / topY) : 0);
-    const f = 1 + ROCK_STRATA * (2 * hash01(Math.floor(y / ROCK_STRATUM), 0.5, seed) - 1);
-    return [tint.r * f, tint.g * f, tint.b * f];
+    const band = strataBand(x, y, z, seed);
+    const shade = (1 + ROCK_STRATA * (2 * noise3(band, 0, 0, seed + 5) - 1))
+      * (1 - RECESS_DARK * clamp01(recess / RELIEF_DEPTH));
+    const hue = band % 2 === 0 ? STRATA_WARM : STRATA_CREAM;
+    return [tint.r * shade * hue[0], tint.g * shade * hue[1], tint.b * shade * hue[2]];
   };
 
   const bins = { rock: [], ledge: [], lip: [] };
@@ -3243,16 +3269,40 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
     }
   }
 
+  const conf = conformTriangles(bins);
+
+  // The relief: one field for the call, asked once per distinct (quantised)
+  // position, so every copy of a vertex moves the same and the conforming
+  // shell stays closed.
+  const field = relief ? createRockRelief({ walks, masses, ceilings, seed, keep }) : null;
+  const moves = new Map();
+  const moveOf = (v) => {
+    const key = `${v[0]},${v[1]},${v[2]}`;
+    let m = moves.get(key);
+    if (!m) {
+      m = field ? field.at(v[0], v[1], v[2]) : { dx: 0, dy: 0, dz: 0, recess: 0 };
+      moves.set(key, m);
+    }
+    return m;
+  };
+
   const meshOf = (verts, coloured) => {
+    const pos = new Float32Array(verts.length * 3);
+    const col = coloured ? new Float32Array(verts.length * 3) : null;
+    verts.forEach((v, i) => {
+      const m = moveOf(v);
+      pos[3 * i] = v[0] + m.dx;
+      pos[3 * i + 1] = v[1] + m.dy;
+      pos[3 * i + 2] = v[2] + m.dz;
+      if (col) col.set(rockColour(v[0], v[1], v[2], m.recess), 3 * i);
+    });
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts.flat(), 3));
-    if (coloured) geo.setAttribute('color', new THREE.Float32BufferAttribute(verts.flatMap((v) => rockColour(v[1])), 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    if (col) geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals(); // non-indexed: flat, from the moved triangles
     return geo;
   };
   const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
-
-  const conf = conformTriangles(bins);
   const group = new THREE.Group();
   group.name = 'rockTerrain';
   const rockFaces = new THREE.Mesh(meshOf(conf.rock, true), rockMat());
@@ -3266,6 +3316,8 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0 }) {
   lips.castShadow = false;
   lips.userData.noCast = true;
   group.add(rockFaces, ledgeTops, lips);
+  // The shell's triangles per mesh, before any dressing (appended after them).
+  group.userData.shellTris = { rockFaces: conf.rock.length / 3, ledgeTops: conf.ledge.length / 3, lips: conf.lip.length / 3 };
   return group;
 }
 

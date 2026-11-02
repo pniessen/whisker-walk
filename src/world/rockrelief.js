@@ -110,6 +110,14 @@ export function noise3(x, y, z, seed = 0) {
   );
 }
 
+// The strata band a point is in: 1.1 m bands, their lines warped by up to
+// 0.6 m of noise. The relief's shelves are cut per band (each band its own
+// depth), and rockTerrain colours by the same band so the two line up.
+const STRATUM = 1.1;
+export function strataBand(x, y, z, seed = 0) {
+  return Math.floor((y + 0.6 * noise3(x / 6, 0, z / 6, seed + 1)) / STRATUM);
+}
+
 const clamp01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
 const smoothstep = (e0, e1, x) => fade(clamp01((x - e0) / (e1 - e0)));
 
@@ -328,7 +336,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     const iz = sz / len;
 
     // 3. noise, strata and the corner cut
-    const band = Math.floor((y + 0.6 * noise3(x / 6, 0, z / 6, seed + 1)) / 1.1);
+    const band = strataBand(x, y, z, seed);
     const strata = hash3(band, 0, 0, seed + 3);
     let r = -ROCK_PROUD + (ROCK_PROUD + RELIEF_DEPTH) * (0.55 * noise3(x / 2.4, y / 3.0, z / 2.4, seed) + 0.45 * strata);
     let rock = 0;

@@ -701,6 +701,21 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
     }
   });
 
+  // Review Focus 4: the rock's relief must not lift or drop the west top under
+  // the stand, whose trees are lifted to WEST_TOP by their y.
+  it('the pine stand stands on rock drawn at the west top', () => {
+    const { stand } = gorgeTrees();
+    const rock = scene.getObjectByName('rockFaces');
+    const down = new THREE.Raycaster();
+    for (const t of stand) {
+      down.set(new THREE.Vector3(t.x, 30, t.z), new THREE.Vector3(0, -1, 0));
+      const hit = down.intersectObject(rock, false)[0];
+      expect(hit, `stand pine (${t.x}, ${t.z})`).toBeTruthy();
+      expect(Math.abs(hit.point.y - WEST_TOP), `stand pine (${t.x}, ${t.z})`).toBeLessThanOrEqual(0.01);
+    }
+    expect(WEST_TOP).toBe(9);
+  });
+
   it('no pine stands over a path, a ledge below it or a cave mouth', () => {
     const { near, stand } = gorgeTrees();
     for (const t of [...near, ...stand]) {
