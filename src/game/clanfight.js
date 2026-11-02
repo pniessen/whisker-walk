@@ -60,6 +60,9 @@ const CIRCLE_SLACK = 0.05;         // m over FIGHT_GAP the tumble still circles
 const POUNCE_HOP = 0.25;           // m
 const TUMBLE_HOP = 0.12;           // m
 const DUST = 0xcbb8a0;
+// Gorge part 1 (R11): a fight stands on one level. A staged spot whose ground
+// differs from my anchor spot's by more than this is never stood on.
+export const FIGHT_LEVEL_TOL = 0.3;
 
 // The inert stand-in: away from home, in Legacy, the den and the old areas.
 export const NO_CLAN_FIGHT = Object.freeze({
@@ -97,15 +100,22 @@ const TUMBLE_SPOTS = 16; // points round the tumble's circle: 0.31 m apart at th
 // top rises there, above its own standing top, in any action, beat or answer
 // (fightcam.js keeps that top in frame too). Without `actions` the result is
 // exactly today's, `reachY` or not.
-export function fightReach(spot, foeAt, ok = () => true, { actions = false, reachY = null } = {}) {
+// `terrain` (the walk's ground, src/ground.js; null or flat is flat) also
+// drops every spot off my anchor's level (Gorge part 1, R11); a spot's `y`
+// stays relative to the ground under it.
+export function fightReach(spot, foeAt, ok = () => true, { actions = false, reachY = null, terrain = null } = {}) {
   let nx = spot.x - foeAt.x;
   let nz = spot.z - foeAt.z;
   const gap = Math.hypot(nx, nz);
   if (gap < 1e-6) { nx = 1; nz = 0; } else { nx /= gap; nz /= gap; }
   const sx = -nz, sz = nx;
   const mid = { x: (spot.x + foeAt.x) / 2, z: (spot.z + foeAt.z) / 2 };
+  const T = terrain && !terrain.flat ? terrain : null;
+  const y0 = T ? T.y(spot.x, spot.z) : 0;
+  const keep = T
+    ? (p, i) => i === 0 || (ok(p.x, p.z) === true && Math.abs(T.y(p.x, p.z) - y0) <= FIGHT_LEVEL_TOL)
+    : (p, i) => i === 0 || ok(p.x, p.z) === true;
   if (actions) {
-    const keep = (p, i) => i === 0 || ok(p.x, p.z) === true;
     return {
       mid, axis: { x: nx, z: nz },
       me: actionSpots(spot, -nx, -nz, gap, [LOSER_STEP], [BEAT_SIDE, SIDE_STEP / 2, SIDE_STEP], reachY?.me).filter(keep),
@@ -130,7 +140,6 @@ export function fightReach(spot, foeAt, ok = () => true, { actions = false, reac
       me.push({ x: mid.x + Math.cos(a) * gap / 2, z: mid.z + Math.sin(a) * gap / 2 });
     }
   }
-  const keep = (p, i) => i === 0 || ok(p.x, p.z) === true;
   return { mid, axis: { x: nx, z: nz }, me: me.filter(keep), it: it.filter(keep) };
 }
 
@@ -290,6 +299,11 @@ export function createClanFight({
   clanHome = false,
   picks = [],
   sendEvent = () => {},
+  // Gorge part 1: the walk's ground (src/ground.js), taken as given (this
+  // file's imports are on an allow-list), named `terrain` beside the local
+  // `ground` below. null or flat is flat ground, and T is set only when it
+  // has height, so a shipped map runs today's lines (R10, R11).
+  terrain = null,
   // Fight moves and scars (Task 6). `actions` false is Hagrid (R6): today's
   // rounds verbatim. `ownedMoves` is read at each startFight; `onWon` /
   // `onLost` are called once at the end of a fight that was won or lost (never
@@ -326,6 +340,17 @@ export function createClanFight({
   const locks = new Map();    // visit -> { away, until }
 
   const ground = (x, z) => isGround(x, z) === true;
+  const T = terrain && !terrain.flat ? terrain : null;
+  // R10: no challenge or fight with an intruder on another level.
+  const sameLevel = (a, b) => !T || T.sameLevel(a.x, a.z, b.x, b.z);
+  // R11: a staged spot on its own cat's anchor level: mine on my spot's, the
+  // intruder's on its held spot's. The challenge allows the two anchors up to
+  // LEVEL_TOL apart, so measured from my spot alone an intruder 0.3-0.5 m
+  // off would never leave its anchor (frozen for the whole fight).
+  const onLevelOf = (x, z, at) => Math.abs(T.y(x, z) - T.y(at.x, at.z)) <= FIGHT_LEVEL_TOL;
+  const onMyLevel = (x, z) => onLevelOf(x, z, spot);
+  // R9: the walk-over never steps over a rim.
+  const canStep = (ax, az, bx, bz) => !T || T.canStep(ax, az, bx, bz);
   const answerTime = reducedMotion ? ANSWER_TIME_REDUCED : ANSWER_TIME;
   const tumbleTime = reducedMotion ? TIMING.tumbleReduced : TIMING.tumble;
 
@@ -406,6 +431,7 @@ export function createClanFight({
     if (mode !== 'challenge' || !s) return;
     const cur = intruders.current();
     if (!cur || cur.visit !== visit || cur.state !== 'walking') { hideChallenge(); return; }
+    if (!sameLevel(s.cat.position, cur.pos)) { hideChallenge(); return; }
     const attempt = attempts.get(visit) ?? 0;
     attempts.set(visit, attempt + 1);
     foe = { name: cur.member.name, clan: cur.clan };
@@ -468,13 +494,14 @@ export function createClanFight({
     // The action reach at the fight's own gap: beginRounds measures it again
     // at the real one (the walk-over can stop short, R3).
     const reachY = actions ? reachYFor(dims.me, dims.it, FIGHT_GAP) : null;
-    const sub = fightReach(to, foeAt, ground, { actions, reachY });
+    const sub = fightReach(to, foeAt, ground, { actions, reachY, terrain });
     const d = Math.hypot(to.x - from.x, to.z - from.z);
     const n = Math.max(1, Math.ceil(d / 0.3));
     sub.path = [{ x: from.x, z: from.z }];
     for (let j = 1; j <= n; j++) {
       const p = { x: from.x + ((to.x - from.x) * j) / n, z: from.z + ((to.z - from.z) * j) / n };
-      if (!ground(p.x, p.z)) break;
+      const q = sub.path[sub.path.length - 1];
+      if (!ground(p.x, p.z) || !canStep(q.x, q.z, p.x, p.z)) break;
       sub.path.push(p);
     }
     return sub;
@@ -495,14 +522,14 @@ export function createClanFight({
     s.fightPose = 'follow';
     if (d <= step) {
       // The fight's spot, written only when it is clan ground (R3).
-      if (ground(target.x, target.z)) { cat.x = target.x; cat.z = target.z; }
+      if (ground(target.x, target.z) && canStep(cat.x, cat.z, target.x, target.z)) { cat.x = target.x; cat.z = target.z; }
       s.fightGait = d > 1e-6 ? runSpeed : 0;
       arrived = true;
       return;
     }
     const nx = cat.x + (dx / d) * step;
     const nz = cat.z + (dz / d) * step;
-    if (walkT >= WALKOVER_MAX || !ground(nx, nz)) { s.fightGait = 0; beginRounds(s); return; }
+    if (walkT >= WALKOVER_MAX || !ground(nx, nz) || !canStep(cat.x, cat.z, nx, nz)) { s.fightGait = 0; beginRounds(s); return; }
     cat.x = nx;
     cat.z = nz;
     s.fightGait = runSpeed;
@@ -515,7 +542,7 @@ export function createClanFight({
     intruders.hold(visit, playerId, spot, { local: true }); // face me where I stand
     const gap = Math.hypot(spot.x - foeAt.x, spot.z - foeAt.z);
     const reachY = actions ? reachYFor(dims.me, dims.it, gap) : null;
-    camSubject = { ...fightReach(spot, foeAt, ground, { actions, reachY }), path: [] };
+    camSubject = { ...fightReach(spot, foeAt, ground, { actions, reachY, terrain }), path: [] };
     mode = 'fight';
     act = { kind: 'squareOff', t: 0, beat: 0 };
     if (actions) {
@@ -666,13 +693,17 @@ export function createClanFight({
         itLift = TUMBLE_HOP * Math.abs(Math.sin(Math.PI * 3 * u + 1));
         if (r.bursts === 0 || (r.bursts === 1 && u >= 0.5)) {
           r.bursts += 1;
-          fx.burst({ x: mx, y: 0.2, z: mz }, DUST, 14);
+          fx.burst({ x: mx, y: T ? T.y(mx, mz) + 0.2 : 0.2, z: mz }, DUST, 14);
         }
       } else {
         // The round's loser steps back in 'scared', then both settle.
         if (!r.landed) {
           r.landed = true;
-          if (reducedMotion) fx.burst({ x: (spot.x + foeAt.x) / 2, y: 0.2, z: (spot.z + foeAt.z) / 2 }, DUST, 8);
+          if (reducedMotion) {
+            const mx = (spot.x + foeAt.x) / 2;
+            const mz = (spot.z + foeAt.z) / 2;
+            fx.burst({ x: mx, y: T ? T.y(mx, mz) + 0.2 : 0.2, z: mz }, DUST, 8);
+          }
           audio.landThump();
         }
         const back = ph === 'tumble'
@@ -694,8 +725,9 @@ export function createClanFight({
     }
     // R3: a staged spot that is not clan ground (water, a bog, the truce
     // buffer, a collider) is never stood on; that cat keeps its own spot.
-    if (!ground(me.x, me.z)) me = { x: spot.x, z: spot.z };
-    if (!ground(it.x, it.z)) it = { x: foeAt.x, z: foeAt.z };
+    // R11: nor is one off that cat's own anchor's level.
+    if (!ground(me.x, me.z) || (T && !onMyLevel(me.x, me.z))) me = { x: spot.x, z: spot.z };
+    if (!ground(it.x, it.z) || (T && !onLevelOf(it.x, it.z, foeAt))) it = { x: foeAt.x, z: foeAt.z };
     cat.x = me.x;
     cat.z = me.z;
     s.cat.rotation.y = yawToward(me.x, me.z, it.x, it.z);
@@ -727,7 +759,9 @@ export function createClanFight({
   // `at`, (fx, fz) toward the other cat, its right (-fz, fx). A spot that is
   // not clan ground (R3) is never stood on: that cat stays on its anchor,
   // level and on the ground, this frame. Reduced motion: never a lift, a
-  // pitch or a roll.
+  // pitch or a roll. Nor is a spot off that cat's anchor's level (Gorge part 1,
+  // R11); `y` stays a lift above the ground (avatar.js and intruders.place()
+  // add the ground under the spot).
   function placeOn(f, d, at, fx, fz, out) {
     placeFrame(f, d, placed);
     out.x = at.x + fx * placed.dAlong - fz * placed.dSide;
@@ -736,7 +770,7 @@ export function createClanFight({
     out.pitch = f.pitch;
     out.roll = f.roll;
     if (reducedMotion) { out.y = 0; out.pitch = 0; out.roll = 0; }
-    if (!ground(out.x, out.z)) {
+    if (!ground(out.x, out.z) || (T && !onLevelOf(out.x, out.z, at))) {
       out.x = at.x; out.z = at.z;
       out.y = 0; out.pitch = 0; out.roll = 0;
     }
@@ -811,11 +845,15 @@ export function createClanFight({
       const hit = byMe ? it : me;
       const toward = byMe ? SLASH_TOWARD : -SLASH_TOWARD;
       const top = dims[byMe ? 'it' : 'me'].top;
-      fx.slash?.({ x: hit.x + nx * toward, y: hit.y + (top > 0 ? top * SLASH_UP : SLASH_Y), z: hit.z + nz * toward },
+      // hit.y is a lift above the ground; the fx take world positions.
+      const sx = hit.x + nx * toward, sz = hit.z + nz * toward;
+      const sy = hit.y + (top > 0 ? top * SLASH_UP : SLASH_Y);
+      fx.slash?.({ x: sx, y: T ? T.y(hit.x, hit.z) + sy : sy, z: sz },
         byMe ? myYaw : yawToward(foeAt.x, foeAt.z, spot.x, spot.z));
     }
     for (let i = 0; i < cues.dust; i++) {
-      fx.burst({ x: (me.x + it.x) / 2, y: 0.2, z: (me.z + it.z) / 2 }, DUST, reducedMotion ? 8 : 14);
+      const mx = (me.x + it.x) / 2, mz = (me.z + it.z) / 2;
+      fx.burst({ x: mx, y: T ? T.y(mx, mz) + 0.2 : 0.2, z: mz }, DUST, reducedMotion ? 8 : 14);
     }
     if (!r.thumped && u >= (reducedMotion ? 0 : THUMP_AT[kind] ?? 0)) {
       r.thumped = true;
@@ -858,7 +896,7 @@ export function createClanFight({
       const cat = s.cat.position;
       const d = Math.hypot(cat.x - cur.pos.x, cat.z - cur.pos.z);
       const locked = lockedNow(cur.visit, d);
-      const standing = canStand(s);
+      const standing = canStand(s) && sameLevel(cat, cur.pos);
       if (mode === 'challenge') {
         if (cur.visit !== visit || d > CHALLENGE_KEEP || locked || !standing) hideChallenge();
         return;

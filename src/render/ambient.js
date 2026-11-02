@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { fitCentre } from './shadowfit.js';
 import { GUST_DEPTH, GUST_FREQUENCY, MAX_INTENSITY } from './wind.js';
 import { WIND_DIR } from './grass.js';
+import { groundOf } from '../ground.js';
 
 // ---------------------------------------------------------------------------
 // AMBIENT LIFE — small, gentle motion that makes each outdoor area feel lived
@@ -322,6 +323,9 @@ export function createAmbient(scene, {
   const cap = ambientCapacity(kind, tier);
   if (!kind || cap === 0 || !camera) return NO_AMBIENT;
   const bounds = areaData?.bounds ?? { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
+  // Gorge part 1 (R14): a leaf comes to rest on the ground and the spray
+  // rises from it (y 0 on every shipped map).
+  const ground = groundOf(areaData);
 
   // Anchors: where an effect may live. Without them the effect has nowhere
   // to be, so the area gets the stub rather than a mesh drawing nothing.
@@ -474,18 +478,19 @@ export function createAmbient(scene, {
       // Coming down on a find: fade out on the way down, never rest on it.
       // Only tested over the last stretch of the fall, so a leaf high in a
       // tree costs nothing here.
-      const blocked = by[i] < LEAF_REST_Y + KEEP_OUT_FADE && kept(out.x, out.z);
-      if (blocked) alpha[i] *= smooth(LEAF_REST_Y, LEAF_REST_Y + KEEP_OUT_FADE, by[i]);
-      if (blocked && by[i] <= LEAF_REST_Y) {
+      const rest = ground.flat ? LEAF_REST_Y : ground.y(out.x, out.z) + LEAF_REST_Y;
+      const blocked = by[i] < rest + KEEP_OUT_FADE && kept(out.x, out.z);
+      if (blocked) alpha[i] *= smooth(rest, rest + KEEP_OUT_FADE, by[i]);
+      if (blocked && by[i] <= rest) {
         wait(i, 0.5, 3);
         out.y = -10;
         return;
       }
-      if (by[i] <= LEAF_REST_Y) {
+      if (by[i] <= rest) {
         // Land where it is drawn, so it does not jump on touchdown.
         bx[i] = out.x;
         bz[i] = out.z;
-        by[i] = LEAF_REST_Y;
+        by[i] = rest;
         p0[i] = out.rot;
         mode[i] = 2;
         age[i] = 0;
@@ -507,6 +512,7 @@ export function createAmbient(scene, {
     bx[i] = shore.minX - 0.8 + rand() * 2.4; // either side of the waterline
     bz[i] = clamp(focus.z + (rand() * 2 - 1) * SPRAY_SPAN, bounds.minZ + 1, bounds.maxZ - 1);
     by[i] = 0.12 + rand() * 0.15;
+    if (!ground.flat) by[i] += ground.y(bx[i], bz[i]);
     mode[i] = 1;
     age[i] = 0;
     life[i] = 2.6 + rand() * 2;

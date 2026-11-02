@@ -131,6 +131,7 @@ const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 export function createClanCats(scene, area, cast, {
   campLayout = null, roamHomes = [], isWalkable = () => true, roomSeed, showNames = false,
   reducedMotion = false, onBuddyEnd = () => {}, areaId = area?.id ?? null,
+  ground = area?.ground ?? null,
   // Fight moves and scars: a cast member's scars (scars.js render entries),
   // applied at build. A member without any is built exactly as before.
   scarsFor = () => [],
@@ -138,6 +139,22 @@ export function createClanCats(scene, area, cast, {
   const bounds = area?.bounds ?? null;
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
   const ok = (x, z) => isWalkable(x, z) === true;
+  // Gorge part 1 (R9): the walk's ground (src/ground.js), taken as given (this
+  // module's imports are pinned), null or flat meaning flat ground. G is set
+  // only when the ground has height, so a shipped map runs today's lines. On
+  // it a cat stands at G.y, and a step over a rim is refused like a step onto
+  // water: a roamer's leg ends, a buddy slides along the rim axis by axis.
+  const G = ground && !ground.flat ? ground : null;
+  const okStep = (ax, az, bx, bz) => ok(bx, bz) && (!G || G.canStep(ax, az, bx, bz));
+  // R7: a clan cat's lean into the slope (ground.tilt is groundTilt; set
+  // outright, order 'YXZ'). Called only when G is set.
+  const tilt = { pitch: 0, roll: 0 };
+  const lean = (group) => {
+    G.tilt(group.position.x, group.position.z, group.rotation.y, tilt);
+    group.rotation.order = 'YXZ';
+    group.rotation.x = tilt.pitch;
+    group.rotation.z = tilt.roll;
+  };
   const cx = campLayout?.cx ?? 0;
   const cz = campLayout?.cz ?? 0;
   const kitSeats = campLayout?.seats?.kits ?? [];
@@ -152,7 +169,9 @@ export function createClanCats(scene, area, cast, {
     const scars = scarsFor(member.id);
     const group = buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(scars) ? scars : [] });
     group.scale.multiplyScalar(scale);
-    group.position.set(seat.x, seat.y, seat.z);
+    // A seat's y (the leader's rock) is metres above the ground under it (R4).
+    const seatY = G ? G.y(seat.x, seat.z) + seat.y : seat.y;
+    group.position.set(seat.x, seatY, seat.z);
     const face = camp
       ? yawToward(seat.x, seat.z, cx, cz)
       : (seedFromCode(member.id) / 2 ** 32) * Math.PI * 2;
@@ -189,7 +208,7 @@ export function createClanCats(scene, area, cast, {
       slot: member.slot,
       group,
       tag,
-      home: new THREE.Vector3(seat.x, seat.y, seat.z),
+      home: new THREE.Vector3(seat.x, seatY, seat.z),
       state: camp ? 'post' : 'idle',
       greeted: false,
       booped: false,
@@ -230,7 +249,8 @@ export function createClanCats(scene, area, cast, {
     // A kit caught mid-hop lands where it is first, with the draw a hop's end
     // makes anyway, so the hold never leaves it hanging in the air.
     if (cat.state === 'hop') {
-      cat.group.position.y = 0;
+      const hp = cat.group.position;
+      hp.y = G ? G.y(hp.x, hp.z) : 0; // on the ground under it (Gorge part 1, R4)
       cat.state = 'post';
       cat.timer = 2 + cat.wanderRng() * 2;
     }
@@ -263,10 +283,10 @@ export function createClanCats(scene, area, cast, {
       const bow = Math.sin(Math.PI * c.hopT) * KIT_HOP_BOW;
       p.x = c.hopFrom.x + dx * c.hopT - (dz / dl) * bow;
       p.z = c.hopFrom.z + dz * c.hopT + (dx / dl) * bow;
-      p.y = Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT;
+      p.y = G ? G.y(p.x, p.z) + Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT : Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT;
       animateCat(c.group, 'pounce', t, ROAM_SPEED);
       if (c.hopT >= 1) {
-        p.set(c.hopTo.x, 0, c.hopTo.z);
+        p.set(c.hopTo.x, G ? G.y(c.hopTo.x, c.hopTo.z) : 0, c.hopTo.z);
         c.state = 'post';
         c.timer = 2 + c.wanderRng() * 2;
       }
@@ -315,11 +335,12 @@ export function createClanCats(scene, area, cast, {
       } else {
         const nx = p.x + (dx / d) * Math.min(step, d);
         const nz = p.z + (dz / d) * Math.min(step, d);
-        if (!ok(nx, nz)) {
+        if (!okStep(p.x, p.z, nx, nz)) {
           endLeg(c);
         } else {
           p.x = nx;
           p.z = nz;
+          if (G) p.y = G.y(nx, nz);
           c.group.rotation.y = Math.atan2(dx, dz) + Math.PI;
           animateCat(c.group, 'follow', t, ROAM_SPEED);
           return;
@@ -384,19 +405,20 @@ export function createClanCats(scene, area, cast, {
         const nx = p.x + (dx / d) * step;
         const nz = p.z + (dz / d) * step;
         let to = null;
-        if (ok(nx, nz)) to = [nx, nz];
+        if (okStep(p.x, p.z, nx, nz)) to = [nx, nz];
         else {
           // The ground turned the straight step away: remembered, so a 'far'
           // end soon after is told as the water or the path's doing.
           b.blockedAt = b.seconds;
-          if (ok(nx, p.z)) to = [nx, p.z];
-          else if (ok(p.x, nz)) to = [p.x, nz];
+          if (okStep(p.x, p.z, nx, p.z)) to = [nx, p.z];
+          else if (okStep(p.x, p.z, p.x, nz)) to = [p.x, nz];
         }
         if (to) {
           const moved = Math.hypot(to[0] - p.x, to[1] - p.z);
           if (moved > 1e-6) c.group.rotation.y = yawToward(p.x, p.z, to[0], to[1]);
           p.x = to[0];
           p.z = to[1];
+          if (G) p.y = G.y(p.x, p.z);
           speed = moved / dt;
         }
       }
@@ -417,7 +439,8 @@ export function createClanCats(scene, area, cast, {
   }
 
   // Back along the trail, newest point first, then to its home spot. Trail
-  // points are places it stood (1 m apart), so retracing them needs no check.
+  // points are places it stood (1 m apart), so on flat ground retracing them
+  // needs no check (on raised ground each step is checked like the last leg).
   // The last leg, from where its first patrol began to home, was never walked
   // as such, so it is stepped on clan ground like the buddy (each axis alone
   // if the straight step is rejected; only a step that gets closer counts, so
@@ -435,11 +458,17 @@ export function createClanCats(scene, area, cast, {
     const dz = to.z - p.z;
     const d = Math.hypot(dx, dz);
     const step = HOME_SPEED * dt;
-    if (d <= Math.max(step, 0.05) && (!last || ok(to.x, to.z))) {
+    // On raised ground (G) a trail step is checked too: the straight line
+    // between two places it stood can still cut over a rim.
+    const checked = last || G;
+    if (d <= Math.max(step, 0.05) && (!checked || okStep(p.x, p.z, to.x, to.z))) {
       p.x = to.x;
       p.z = to.z;
-      if (!last) trail.pop();
-      else {
+      if (G) p.y = G.y(p.x, p.z);
+      if (!last) {
+        trail.pop();
+        if (G) c.skirt = null;
+      } else {
         c.trail = null;
         c.skirt = null;
         c.lost = false;
@@ -451,9 +480,9 @@ export function createClanCats(scene, area, cast, {
       const nx = p.x + (dx / d) * s1;
       const nz = p.z + (dz / d) * s1;
       let next = [nx, nz];
-      if (last) {
+      if (checked) {
         // Only a step that is on clan ground AND brings it closer to home.
-        const closer = ([x, z]) => ok(x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
+        const closer = ([x, z]) => okStep(p.x, p.z, x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
         next = c.skirt ? null : [[nx, nz], [nx, p.z], [p.x, nz]].find(closer) ?? null;
         if (!next) next = skirtStep(c, dx / d, dz / d, s1, dt);
       }
@@ -467,6 +496,7 @@ export function createClanCats(scene, area, cast, {
         c.group.rotation.y = yawToward(p.x, p.z, next[0], next[1]);
         p.x = next[0];
         p.z = next[1];
+        if (G) p.y = G.y(p.x, p.z);
       }
     }
     animateCat(c.group, 'follow', t, HOME_SPEED);
@@ -484,7 +514,7 @@ export function createClanCats(scene, area, cast, {
       const x = p.x + (ux * ca - uz * sa) * len;
       const z = p.z + (ux * sa + uz * ca) * len;
       const inside = !bounds || (x > bounds.minX + 0.5 && x < bounds.maxX - 0.5 && z > bounds.minZ + 0.5 && z < bounds.maxZ - 0.5);
-      return inside && ok(x, z) ? [x, z] : null;
+      return inside && okStep(p.x, p.z, x, z) ? [x, z] : null;
     };
     if (!c.skirt) {
       for (let k = 1; k <= SKIRT_STEPS && !c.skirt; k++) {
@@ -627,6 +657,9 @@ export function createClanCats(scene, area, cast, {
         }
         updateRoamer(c, dt, t);
       }
+      // Gorge part 1 (R7): each clan cat leans to the slope under it, once its
+      // spot and heading are final. Only on raised ground (G).
+      if (G) for (const c of list) lean(c.group);
     },
     dispose() {
       for (const c of list) scene.remove(c.group);

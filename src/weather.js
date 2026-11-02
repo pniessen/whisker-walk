@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { skyBackground } from './render/sky.js';
+import { FLAT_GROUND } from './ground.js';
 
 export function rollWeather(rng) {
   const r = rng();
@@ -26,7 +27,9 @@ const RAINBOW_COLORS = [0xe05050, 0xe09a40, 0xe8d84e, 0x58b858, 0x5878d8, 0x8858
 // system and its per-frame position updates below — the background/fog/sun
 // mood change and the rainbow payoff still happen, only the falling-particle
 // motion (the part actually implicated in motion discomfort) is dropped.
-export function createWeather(scene, sun, condition, rng, reducedMotion = false) {
+// Gorge part 1 (R14): `ground` lifts the rain column to the ground under the
+// camera (FLAT_GROUND: it stays at 0).
+export function createWeather(scene, sun, condition, rng, reducedMotion = false, ground = FLAT_GROUND) {
   // isRaining(): true only while a rainy walk is still in its rain phase (not
   // the rainbow, not after). Reads the schedule's clock; draws nothing from
   // any rng. v21 3b: falling rain loosens the grip on whatever the cat carries.
@@ -101,6 +104,7 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false)
       if (rain) {
         rain.position.x = cameraPos.x;
         rain.position.z = cameraPos.z;
+        if (!ground.flat) rain.position.y = ground.y(cameraPos.x, cameraPos.z);
         const arr = geo.attributes.position.array;
         for (let i = 0; i < COUNT; i++) {
           arr[i * 3 + 1] -= 18 * dt;

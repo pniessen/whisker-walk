@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { groundOf } from './ground.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -79,13 +80,18 @@ function buildUfo() {
   return g;
 }
 
+// Gorge part 1: the gnome and the unicorn stand on the area's ground
+// (groundOf(area): y 0 on every shipped map); the unicorn stops at rims. The
+// UFO is sky (R14).
 export function createSecrets(scene, area, rolls, rng) {
   const list = [];
+  const ground = groundOf(area);
 
   // gnome: hides at a random poi, offset a bit — different every walk
   const gnomePoi = area.pois[Math.floor(rng() * area.pois.length)];
   const gnome = buildGnome();
   gnome.position.set(gnomePoi.x + (rng() - 0.5) * 3, 0, gnomePoi.z + (rng() - 0.5) * 3);
+  gnome.position.y = ground.y(gnome.position.x, gnome.position.z);
   scene.add(gnome);
   list.push({ key: 'gnome', label: 'a sneaky garden gnome', group: gnome, award: 'secret', spotRange: 7 });
 
@@ -95,7 +101,7 @@ export function createSecrets(scene, area, rolls, rng) {
       Math.hypot(b.x - area.spawn.x, b.z - area.spawn.z) - Math.hypot(a.x - area.spawn.x, a.z - area.spawn.z)
     )[0];
     const unicorn = buildUnicorn();
-    unicorn.position.set(far.x, 0, far.z);
+    unicorn.position.set(far.x, ground.y(far.x, far.z), far.z);
     scene.add(unicorn);
     list.push({ key: 'unicorn', label: 'a REAL unicorn?!', group: unicorn, award: 'legend', spotRange: 12 });
     unicornState = { group: unicorn, home: unicorn.position.clone(), fleeing: 0 };
@@ -115,6 +121,8 @@ export function createSecrets(scene, area, rolls, rng) {
     update(dt, t, playerPos, playerSpeed) {
       if (unicornState) {
         const u = unicornState.group;
+        const ux = u.position.x;
+        const uz = u.position.z;
         const d = u.position.distanceTo(playerPos);
         if (unicornState.fleeing > 0) {
           unicornState.fleeing -= dt;
@@ -128,6 +136,10 @@ export function createSecrets(scene, area, rolls, rng) {
           u.position.x = unicornState.home.x + Math.sin(t * 0.15) * 2;
           u.position.z = unicornState.home.z + Math.cos(t * 0.12) * 2;
           u.rotation.y = Math.sin(t * 0.1);
+        }
+        if (!ground.flat) {
+          ground.slide(ux, uz, u.position);
+          u.position.y = ground.y(u.position.x, u.position.z);
         }
       }
       if (ufoState && !ufoState.done) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { onAnyDeck, waterClearance } from '../world/builder.js';
 import { wetness } from '../world/seaside.js';
+import { FLAT_GROUND, groundOf } from '../ground.js';
 
 // ---------------------------------------------------------------------------
 // PAW PRINTS — the cat leaves a fading trail of little paws behind it, so
@@ -121,7 +122,7 @@ const _o = new THREE.Vector3();
 const _ax = new THREE.Vector3();
 const _ay = new THREE.Vector3();
 const _n = new THREE.Vector3();
-export function groundStrips(scene) {
+export function groundStrips(scene, ground = FLAT_GROUND) {
   const out = [];
   for (const child of scene.children) {
     if (!child.isMesh || child.isInstancedMesh || child.geometry?.type !== 'PlaneGeometry') continue;
@@ -129,7 +130,8 @@ export function groundStrips(scene) {
     child.updateMatrixWorld(true);
     const e = child.matrixWorld.elements;
     _o.setFromMatrixPosition(child.matrixWorld);
-    if (_o.y > 0.1) continue; // the pier deck (0.25), signs, windows
+    // Gorge part 1: measured from the ground under it (0 on every shipped map).
+    if (_o.y - ground.y(_o.x, _o.z) > 0.1) continue; // the pier deck (0.25), signs, windows
     _ax.set(e[0], e[1], e[2]);
     _ay.set(e[4], e[5], e[6]);
     _n.crossVectors(_ax, _ay).normalize();
@@ -289,7 +291,8 @@ export function createPawPrints(scene, { areaId, areaData, tier } = {}) {
   const life = tier?.pawFade ?? 0;
   if (!AREA_RULES[areaId] || !(capacity > 0) || !(life > 0)) return NO_PRINTS;
 
-  const strips = groundStrips(scene);
+  const ground = groundOf(areaData);
+  const strips = groundStrips(scene, ground);
   const trail = createTrail();
 
   const material = new THREE.MeshStandardMaterial({
@@ -410,6 +413,10 @@ float pawDist(vec2 p) {
   const p3 = new THREE.Vector3();
   const s3 = new THREE.Vector3();
   const c = new THREE.Color();
+  // Gorge part 1: off flat ground a print lies on the slope (R14/R15).
+  const gn = { x: 0, z: 0 };
+  const n3 = new THREE.Vector3();
+  const qt = new THREE.Quaternion();
   const colors = {};
   for (const [k, s] of Object.entries(SURFACES)) colors[k] = new THREE.Color(s.color);
   let laid = 0;
@@ -425,6 +432,11 @@ float pawDist(vec2 p) {
     const slot = laid % capacity;
     q.setFromAxisAngle(up, pr.yaw);
     p3.set(pr.x, PRINT_Y, pr.z);
+    if (!ground.flat) {
+      p3.y += ground.y(pr.x, pr.z);
+      ground.gradient(pr.x, pr.z, gn);
+      q.premultiply(qt.setFromUnitVectors(up, n3.set(-gn.x, 1, -gn.z).normalize()));
+    }
     // The paw is symmetric, so left and right need no mirroring (a negative
     // scale would also flip the quad's winding and cull it).
     s3.set(PRINT_SIZE * 0.9, 1, PRINT_SIZE);

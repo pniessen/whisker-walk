@@ -209,7 +209,7 @@ describe('Wave 3.1 — mergeStaticProps', () => {
       // pinning something inside walk.js: its import graph pulls in the chat
       // UI, audio and the rest of the live game.
       const source = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
-      const scan = source.indexOf('createContactShadows(scene)');
+      const scan = source.search(/createContactShadows\(scene(, \{ ground \})?\)/);
       const merge = source.indexOf('mergeStaticProps(scene)');
       expect(scan).toBeGreaterThan(-1);
       expect(merge).toBeGreaterThan(-1);

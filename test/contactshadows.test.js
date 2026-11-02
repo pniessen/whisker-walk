@@ -476,7 +476,7 @@ describe('wiring', () => {
   });
 
   it('walk.js builds the rig before the cat is added to the scene', () => {
-    const built = walkSrc.indexOf('createContactShadows(scene)');
+    const built = walkSrc.search(/createContactShadows\(scene(, \{ ground \})?\)/);
     const catAdded = walkSrc.indexOf('scene.add(cat)');
     expect(built).toBeGreaterThan(-1);
     expect(catAdded).toBeGreaterThan(built);

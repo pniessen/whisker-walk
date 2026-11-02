@@ -1,4 +1,5 @@
 import { hasSkill } from './skills.js';
+import { FLAT_GROUND, LEVEL_TOL } from './ground.js';
 
 // Shared climb-reach rule for perches (fence tops, car/porch roofs, ridges…).
 // Perches above y 1 sit at a prop's own collider center rather than its edge
@@ -280,9 +281,12 @@ export const FENCE_RUN_LEVEL = 0.35;
 //
 // The caller is responsible for the "must already be perched" half of the
 // rule — see bestPerch, which only consults this when currentPerch is set.
-export function canFenceRun(perch, catPos, currentY) {
+//
+// Gorge part 1: `dy` is the ground under the perch less the ground under the
+// cat (0 on every shipped map), so the level test is in world heights.
+export function canFenceRun(perch, catPos, currentY, dy = 0) {
   const horizontal = Math.hypot(perch.x - catPos.x, perch.z - catPos.z);
-  return horizontal < FENCE_RUN_REACH && Math.abs(perch.y - currentY) <= FENCE_RUN_LEVEL;
+  return horizontal < FENCE_RUN_REACH && Math.abs(perch.y + dy - currentY) <= FENCE_RUN_LEVEL;
 }
 
 // fenceRunning(state) — does this save's cat wall-run? Lives here beside the
@@ -333,10 +337,14 @@ function climbFor(budget, perch) {
 // per-kind lift arrives inside the budget and the kind on the perch, so a
 // test can assert the no-skills and with-skills geometry side by side in one
 // process. Nothing here reads a save.
-export function canReach(perch, catPos, currentY, budget = BASE_CLIMB_BUDGET) {
+//
+// Gorge part 1 (R5): `dy` is the ground under the perch less the ground under
+// the cat, so the climb is measured in world heights; the reach keeps reading
+// the prop's own relative height. 0 on every shipped map.
+export function canReach(perch, catPos, currentY, budget = BASE_CLIMB_BUDGET, dy = 0) {
   const reach = perch.y > 1 ? budgetField(budget, 'reachHigh') : budgetField(budget, 'reachLow');
   const horizontal = Math.hypot(perch.x - catPos.x, perch.z - catPos.z);
-  return horizontal < reach && perch.y - currentY <= climbFor(budget, perch);
+  return horizontal < reach && perch.y + dy - currentY <= climbFor(budget, perch);
 }
 
 // Picks which reachable perch a pounce/climb press should jump to. Drops
@@ -380,16 +388,30 @@ export function canReach(perch, catPos, currentY, budget = BASE_CLIMB_BUDGET) {
 // no wiring (the budget was threaded by CF-10a), but on its own it moves
 // nothing a player can see: no SHIPPED perch is a tree or fence between the
 // 1.6 baseline and the 2.0 ceiling. The gated perches are the feature.
+//
+// Gorge part 1 (R5): `opts.ground` (FLAT_GROUND by default). A perch whose
+// ground is off the cat's own level by more than LEVEL_TOL is skipped either
+// way, so a drop never leaves the cat's level; the climb and the
+// prefer-the-highest pick compare world heights. On flat ground dy is 0 and
+// this is the function that shipped.
 export function bestPerch(perches, catPos, currentY, currentPerch, budget = BASE_CLIMB_BUDGET, opts = {}) {
   const fenceRun = !!opts?.fenceRun && !!currentPerch;
   const state = opts?.state;
+  const ground = opts?.ground ?? FLAT_GROUND;
+  const catGround = ground.flat ? 0 : ground.y(catPos.x, catPos.z);
   let best = null;
+  let bestY = 0;
   for (const pp of perches ?? []) {
     if (pp === currentPerch) continue;
     if (!perchAllowed(pp, state)) continue;
-    if (!canReach(pp, catPos, currentY, budget) &&
-        !(fenceRun && canFenceRun(pp, catPos, currentY))) continue;
-    if (!best || pp.y > best.y) best = pp;
+    const dy = ground.flat ? 0 : ground.y(pp.x, pp.z) - catGround;
+    if (Math.abs(dy) > LEVEL_TOL) continue;
+    if (!canReach(pp, catPos, currentY, budget, dy) &&
+        !(fenceRun && canFenceRun(pp, catPos, currentY, dy))) continue;
+    if (!best || (ground.flat ? pp.y > best.y : pp.y + dy > bestY)) {
+      best = pp;
+      bestY = pp.y + dy;
+    }
   }
   return best;
 }

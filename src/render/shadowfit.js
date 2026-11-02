@@ -79,6 +79,9 @@ const FAR = 160;
 // a comfortable 9m behind the cat, so a fast turn cannot swing the cat's own
 // contact shadow out of the map.
 const LEAD_FRACTION = 0.75;
+// Gorge part 1: how fast the fit's ground height follows the ground under the
+// cat, per second.
+const GROUND_EASE = 4;
 
 // Peter-panning offset, as a MULTIPLE OF ONE TEXEL rather than a constant.
 // three's normalBias pushes the shadow lookup along the surface normal in
@@ -143,7 +146,8 @@ export function snapToTexelGrid(centre, basis, texelSize, out = new THREE.Vector
 }
 
 // The ground point the shadow box is centred on: `lead` metres in front of the
-// camera, flattened to y = 0.
+// camera, flattened to y = groundY (0 on every shipped map; Gorge part 1 passes
+// the eased ground under her cat, see createShadowFit's update).
 //
 // Flattened deliberately. The camera pitches (catcam.js's pitch clamp runs
 // -0.3 to 0.9 rad) and rises with the zoomies FOV kick, and letting the box
@@ -152,7 +156,7 @@ export function snapToTexelGrid(centre, basis, texelSize, out = new THREE.Vector
 // way. Taking the y out here means a player who only looks around, without
 // moving, moves the fit centre in a plane rather than in space, which is one
 // fewer axis for the snapping to have to hold still.
-export function fitCentre(camera, lead, out = new THREE.Vector3()) {
+export function fitCentre(camera, lead, out = new THREE.Vector3(), groundY = 0) {
   out.set(0, 0, -1).applyQuaternion(camera.quaternion);
   out.y = 0;
   // Camera pointing straight down or straight up: the horizontal forward is
@@ -162,7 +166,7 @@ export function fitCentre(camera, lead, out = new THREE.Vector3()) {
   else out.normalize().multiplyScalar(lead);
   out.x += camera.position.x;
   out.z += camera.position.z;
-  out.y = 0;
+  out.y = groundY;
   return out;
 }
 
@@ -202,9 +206,15 @@ export function createShadowFit(sun, camera, { radius, mapSize, lead = radius * 
 
   const centre = new THREE.Vector3();
   const snapped = new THREE.Vector3();
+  // Gorge part 1: the fit's ground height, eased toward the ground under HER
+  // CAT at GROUND_EASE /s. Not the ground under the fit centre ~15 m ahead,
+  // which would jump at every rim and could leave the cat outside the fit.
+  // On flat ground groundY is 0, so this stays exactly 0 and nothing moves.
+  let groundY = 0;
 
-  function update() {
-    fitCentre(camera, lead, centre);
+  function update(catGroundY = 0, dt = 0) {
+    groundY += (catGroundY - groundY) * (1 - Math.exp(-GROUND_EASE * dt));
+    fitCentre(camera, lead, centre, groundY);
     snapToTexelGrid(centre, basis, texelSize, snapped);
     sun.target.position.copy(snapped);
     // sun.target is a bare Object3D that has never been added to the scene
@@ -223,6 +233,10 @@ export function createShadowFit(sun, camera, { radius, mapSize, lead = radius * 
 
   return {
     update,
+    // The eased ground height the fit is centred at. Read by tests.
+    get groundY() {
+      return groundY;
+    },
     // Nothing to release: the rig allocates no GPU resource of its own. The
     // shadow map belongs to the light, which endWalk's scene teardown already
     // drops along with the rest of the walk. Present because every session rig

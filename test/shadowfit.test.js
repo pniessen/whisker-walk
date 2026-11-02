@@ -324,7 +324,7 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
 
   it('hangs it on the session and drives it once a frame from the render loop', () => {
     expect(walkSrc).toMatch(/^\s*shadows,$/m);   // the session entry
-    expect(mainSrc).toContain('session.shadows.update()');
+    expect(mainSrc).toContain('session.shadows.update(');
     expect(walkSrc).toContain('session.shadows.dispose()');
   });
 
@@ -333,7 +333,7 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     // box to where the player was last frame, which is a whole frame of lag on
     // the one thing that is supposed to follow the player exactly.
     const move = mainSrc.indexOf('player.update(dt,');
-    const fit = mainSrc.indexOf('session.shadows.update()');
+    const fit = mainSrc.indexOf('session.shadows.update(');
     const draw = mainSrc.lastIndexOf('renderFrame();');
     expect(move).toBeGreaterThan(-1);
     expect(fit).toBeGreaterThan(move);
@@ -364,5 +364,50 @@ describe('the shadow fit and the hemisphere fill are actually wired up', () => {
     // too. Again matched on an ASSIGNMENT, since two comments in walk.js
     // discuss the boundary and should keep doing so.
     expect(walkSrc).not.toMatch(/toneMappingExposure\s*[*/+-]?=/);
+  });
+});
+
+// Gorge part 1, Task 5: the fit's ground y follows the ground under her cat,
+// eased at 4 /s. On flat ground it is 0, eased 0, and nothing moves.
+describe('the shadow fit on raised ground', () => {
+  it('the shadow fit follows the ground under the cat, eased', () => {
+    const cam = chaseCamera(3, -2, 0.7);
+    const out = fitCentre(cam, 15, new THREE.Vector3(), 3);
+    expect(out.y).toBe(3);
+    const flat = fitCentre(cam, 15, new THREE.Vector3());
+    expect(flat.y).toBe(0);
+    expect(out.x).toBe(flat.x);
+    expect(out.z).toBe(flat.z);
+
+    const sun = fakeSun();
+    const rig = createShadowFit(sun, cam, { radius: 20, mapSize: 2048 });
+    expect(rig.groundY).toBe(0);
+    let prev = 0;
+    for (let f = 1; f <= 120; f++) {
+      rig.update(3, 1 / 60);
+      const y = rig.groundY;
+      expect(y).toBeGreaterThan(prev);
+      expect(y - prev).toBeLessThanOrEqual(3 * (1 - Math.exp(-4 / 60)) + 1e-12); // no jump
+      expect(y).toBeCloseTo(3 * (1 - Math.exp(-4 * f / 60)), 9);
+      prev = y;
+    }
+  });
+
+  it('on flat ground the eased y stays exactly 0 and the light is bit-identical', () => {
+    const camA = chaseCamera(6, -11, 1.3);
+    const camB = chaseCamera(6, -11, 1.3);
+    const a = fakeSun(), b = fakeSun();
+    const ra = createShadowFit(a, camA, { radius: 20, mapSize: 2048 });
+    const rb = createShadowFit(b, camB, { radius: 20, mapSize: 2048 });
+    for (const [x, z, yaw] of [[6, -11, 1.3], [7.2, -12, 1.1], [40, 3, -2]]) {
+      aim(camA, x, z, yaw);
+      aim(camB, x, z, yaw);
+      ra.update();
+      rb.update(0, 1 / 60);
+      expect(rb.groundY).toBe(0);
+      expect(b.position.toArray()).toEqual(a.position.toArray());
+      expect(b.target.position.toArray()).toEqual(a.target.position.toArray());
+      expect(b.target.matrixWorld.elements).toEqual(a.target.matrixWorld.elements);
+    }
   });
 });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { borderMarks } from '../rivalclans.js';
+import { FLAT_GROUND } from '../ground.js';
 
 // createBorderMarks(scene, areaId, { contested = [], maxMarks } = {})
 // Draws a rival territory's border as flat scent-mark decals on the ground,
@@ -23,7 +24,8 @@ const Y = 0.025;
 const BASE_OPACITY = 0.6;
 const CONTESTED_OPACITY = 0.75;
 
-export function createBorderMarks(scene, areaId, { contested = [], maxMarks } = {}) {
+// Gorge part 1: each mark sits Y over `ground` (FLAT_GROUND: y 0).
+export function createBorderMarks(scene, areaId, { contested = [], maxMarks, ground = FLAT_GROUND } = {}) {
   // `ring` is each mark's index in borderMarks(areaId), kept through the tier
   // filter: a saved border mark of the player's names its ring (Task 12), and
   // finds its decal by it on either tier. `contested` and setContested take
@@ -50,7 +52,7 @@ export function createBorderMarks(scene, areaId, { contested = [], maxMarks } = 
   const list = pts.map((p) => {
     const mesh = new THREE.Mesh(new THREE.CircleGeometry(RADIUS, 10), normalMat);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(p.x, Y, p.z);
+    mesh.position.set(p.x, ground.y(p.x, p.z) + Y, p.z);
     scene.add(mesh);
     return { x: p.x, z: p.z, ring: p.ring, mesh, contested: false };
   });

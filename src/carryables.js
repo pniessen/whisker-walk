@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 // =============================================================================
 // Carryables — the things a cat can pick up in its mouth (v21 Stream 3b).
@@ -122,7 +123,8 @@ function collect(root, geos, mats) {
 
 // createCarryables(scene, list) — list is [{ id, kind, x, z }] (propsFor's
 // carryables). Items start on the ground at their home.
-export function createCarryables(scene, list) {
+// Gorge part 1: items rest on `ground` (FLAT_GROUND: y 0), at home and put down.
+export function createCarryables(scene, list, { ground = FLAT_GROUND } = {}) {
   const items = [];
   const byId = new Map();
   let disposed = false;
@@ -133,7 +135,7 @@ export function createCarryables(scene, list) {
     const box = new THREE.Box3().setFromObject(obj);
     const lift = Number.isFinite(box.min.y) ? -box.min.y : 0;
     const item = { id: c.id, kind: c.kind, mesh: obj, onGround: true, holder: null, homeX: c.x, homeZ: c.z, lift };
-    obj.position.set(c.x, lift, c.z);
+    obj.position.set(c.x, ground.y(c.x, c.z) + lift, c.z);
     scene.add(obj);
     items.push(item);
     byId.set(c.id, item);
@@ -142,7 +144,7 @@ export function createCarryables(scene, list) {
   function place(item, x, z) {
     item.onGround = true;
     item.holder = null;
-    item.mesh.position.set(x, item.lift, z);
+    item.mesh.position.set(x, ground.y(x, z) + item.lift, z);
     item.mesh.quaternion.identity();
     item.mesh.visible = true;
   }

@@ -19,6 +19,8 @@ import { mulberry32, seedFromCode } from '../src/rng.js';
 import { createDiscoveryLog, AWARDS } from '../src/discoveries.js';
 import { createProgression } from '../src/progression.js';
 import { renderJournalHtml } from '../src/journal.js';
+import { FLAT_GROUND } from '../src/ground.js';
+import { buildHeightFixture } from './fixtures/heightfield.js';
 
 const DT = 1 / 30;
 const RUN = 3;
@@ -41,6 +43,7 @@ const CAST_ID = 'moor-2';
 function harness({
   answers = 'right', clanHome = true, picks = ['woods'], clan = 'moor', reducedMotion = false,
   special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
+  terrain = undefined,
   actions, ownedMoves = () => [], cat = null, player: playerIn = null, sExtra = {}, dt = DT, answerAt = 15,
   measureCat = () => ({ ...ME_DIMS }), onFrame = null,
 } = {}) {
@@ -92,6 +95,7 @@ function harness({
     intruders, ui, audio, fx, hud, log: theLog, areaId: 'woods', walkStamp, playerId: 'me',
     playerSpecial: special, reducedMotion, now: () => clock.T, isGround: ground, player,
     runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
+    ...(terrain === undefined ? {} : { terrain }),
     ...(actions === undefined ? {} : { actions }), ownedMoves, onWon, onLost, measureCat,
   });
   const frame = (step = dt) => { clock.T += step; cf.update(step, s); };
@@ -1259,6 +1263,44 @@ describe('the fight plays the actions', () => {
     void reared;
   });
 
+  test('on the plateau her cat rolls 3 m up: the lift stays relative, the fight\'s tilt wins (Gorge part 1)', () => {
+    const G = buildHeightFixture(null).ground;
+    const { h, cat, avatar } = withRealCat({
+      answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'], terrain: G, startAt: 8,
+      sExtra: { ground: G },
+    });
+    Object.assign(h.s, {
+      net: null, rest: null, freezeTime: 0, pounceTime: 0, pounceCooldown: 0, landTime: 0, idleTime: 0,
+      stepPhase: 0, stretchTime: 0, sniffTime: 0, boxTime: 0, pose: 'follow',
+      balkedPuddles: new Set(), toy: { active: false }, toyGhost: { visible: false },
+      groomTimers: new Map(), remotes: { list: [] }, fx: { burst() {} },
+      areaData: { puddles: [], boxes: [] },
+      critters: { setFleeModifier() {}, markStalked() {}, catchAt: () => null, pounceCatch: () => null },
+    });
+    h.cur.pos = { x: 8, z: 4 };
+    cat.position.set(8, 3, 2);
+    h.challenge(); h.fight();
+    let rolled = 0;
+    for (let i = 0; i < 2000 && h.s.fight; i++) {
+      h.fightFrame();
+      avatar();
+      if (!h.s.fight) break;
+      expect(Math.abs(G.y(cat.position.x, cat.position.z) - 3)).toBeLessThanOrEqual(0.3);
+      expect(h.s.fightLift).toBeLessThan(1.5); // relative
+      expect(cat.position.y).toBeCloseTo(G.y(cat.position.x, cat.position.z) + h.s.fightLift, 12);
+      expect(cat.rotation.order).toBe('YXZ');
+      expect(cat.rotation.x).toBe(h.s.fightPitch);
+      expect(cat.rotation.z).toBeCloseTo(h.s.fightRoll, 12);
+      if (h.s.fightPose === 'roll' && Math.abs(h.s.fightRoll) > 0.5) rolled++;
+    }
+    expect(rolled).toBeGreaterThan(10);
+    expect(h.s.fight).toBeNull();
+    avatar();
+    // level ground on the plateau: the slope's lean is level, so nothing tilts
+    expect([cat.rotation.x, cat.rotation.z]).toEqual([0, 0]);
+    expect(cat.position.y).toBeCloseTo(3, 12);
+  });
+
   test('a refused spot never hovers', () => {
     // clan ground is her own line only: every side step (the pin's shake, a sidestep beat) is refused
     const onLine = (x, z) => Math.abs(z) < 1e-9;
@@ -1388,5 +1430,221 @@ describe('clanfight.js is pinned', () => {
     // the calls in it are those (and clanName in a toast's text), nothing else
     const called = new Set([...slice.matchAll(/([A-Za-z_$][\w$.]*)\(/g)].map((m) => m[1]));
     expect([...called].sort()).toEqual(['clanName', 'endFight', 'hud.toast', 'intruders.flee', 'log.awardOnce', 'onWon', 'sendDone']);
+  });
+});
+
+// Gorge part 1, Task 8 (R10, R11): a fight stands on one level. The fixture's
+// plateau is a disc at (8, 0), r 5, 3 m up; its ramp runs up along z = 0 from
+// x = -6 (y 0) to x = 3 (y 3), 2 m wide, with a drop at each side.
+describe('fights stand on one level', () => {
+  const G = buildHeightFixture(null).ground;
+  const near3 = (p) => Math.abs(G.y(p.x, p.z) - 3) <= 0.3;
+
+  test('fightReach drops every spot off my anchor\'s level; flat ground changes nothing', () => {
+    const spot = { x: 8, z: 4 }, foeAt = { x: 8, z: 5.6 };
+    const r = fightReach(spot, foeAt, () => true, { terrain: G });
+    expect(r.me[0]).toEqual(spot);
+    expect(r.it[0]).toEqual(foeAt);
+    for (const p of [...r.me.slice(1), ...r.it.slice(1)]) expect(near3(p)).toBe(true);
+    // without it the floor spots are there
+    const all = fightReach(spot, foeAt, () => true);
+    expect(all.it.slice(1).some((p) => !near3(p))).toBe(true);
+    for (const [s, f] of [[spot, foeAt], [{ x: 2.5, z: 0 }, { x: 0, z: 0 }], [{ x: 1, z: 1 }, { x: 1, z: 1 }]]) {
+      const ok = (x) => x < 9;
+      const base = fightReach(s, f, ok);
+      expect(fightReach(s, f, ok, { terrain: FLAT_GROUND })).toEqual(base);
+      expect(fightReach(s, f, ok, { terrain: null })).toEqual(base);
+    }
+  });
+
+  test('with actions too: every reach spot stays on my level, its y relative; flat changes nothing', () => {
+    const spot = { x: 8, z: 4 }, foeAt = { x: 8, z: 5.6 };
+    const reachY = reachYFor(ME_DIMS, IT_DIMS, 1.6);
+    const r = fightReach(spot, foeAt, () => true, { actions: true, reachY, terrain: G });
+    expect(r.me[0]).toMatchObject(spot);
+    expect(r.it[0]).toMatchObject(foeAt);
+    for (const p of [...r.me.slice(1), ...r.it.slice(1)]) expect(near3(p)).toBe(true);
+    // the heights are the flat ones (relative to the ground under the pair)
+    const all = fightReach(spot, foeAt, () => true, { actions: true, reachY });
+    expect(all.it.slice(1).some((p) => !near3(p))).toBe(true);
+    for (const p of r.me) expect(all.me.find((q) => q.x === p.x && q.z === p.z)?.y).toBe(p.y);
+    for (const [sp, f] of [[spot, foeAt], [{ x: 2.5, z: 0 }, { x: 0, z: 0 }]]) {
+      const ok = (x) => x < 9;
+      const base = fightReach(sp, f, ok, { actions: true, reachY });
+      expect(fightReach(sp, f, ok, { actions: true, reachY, terrain: FLAT_GROUND })).toEqual(base);
+      expect(fightReach(sp, f, ok, { actions: true, reachY, terrain: null })).toEqual(base);
+    }
+  });
+
+  test('a fight in actions on the plateau stays on it: lifts relative, fx at the plateau', () => {
+    // a leap (its slash) then a pin (its dust), as the cues test picks them
+    let walkStamp = null;
+    for (let i = 0; !walkStamp; i++) {
+      const rng = mulberry32(seedFromCode(`walk-${i}|7|0`));
+      const m = [0, 1, 2].map(() => MOVES[Math.floor(rng() * 3)]);
+      if (m[0] === 'charge' && m[1] === 'pounce') walkStamp = `walk-${i}`;
+    }
+    const h = harness({ terrain: G, startAt: 8, actions: true, answers: 'right', walkStamp });
+    h.cur.pos = { x: 8, z: 4.7 };
+    h.s.cat.position.x = 8;
+    h.s.cat.position.z = 2;
+    h.challenge();
+    expect(h.cf.uiShowing).toBe('challenge');
+    h.fight();
+    const staged = [];
+    const mine = [];
+    h.runToEnd(() => {
+      const st = h.calls.filter((c) => c.kind === 'stage').at(-1)?.st;
+      if (st) staged.push(st);
+      if (h.s.fight) mine.push({ x: h.s.cat.position.x, z: h.s.cat.position.z, lift: h.s.fightLift });
+    });
+    expect(staged.length).toBeGreaterThan(30);
+    for (const st of staged) {
+      expect(near3(st)).toBe(true);
+      // a lift, relative: intruders.place() adds the ground under it
+      expect(st.y).toBeGreaterThanOrEqual(0);
+      expect(st.y).toBeLessThan(1.5);
+    }
+    expect(staged.some((st) => st.y > 0)).toBe(true);
+    for (const p of mine) {
+      expect(near3(p)).toBe(true);
+      expect(p.lift).toBeLessThan(1.5); // relative: avatar.js adds the ground
+    }
+    expect(mine.some((p) => p.lift > 0)).toBe(true);
+    const bursts = h.fx.burst.mock.calls;
+    expect(bursts.length).toBeGreaterThan(0);
+    for (const [p] of bursts) expect(p.y).toBeCloseTo(3.2, 12);
+    const slashes = h.fx.slash.mock.calls;
+    expect(slashes.length).toBeGreaterThan(0);
+    for (const [p] of slashes) expect(p.y).toBeGreaterThan(3);
+  });
+
+  test('in actions, a staged spot off my level is never stood on', () => {
+    // the intruder right at the plateau's north rim, my cat south of it: an
+    // action's push-back would put it over the rim, so it stays on its anchor
+    const run = (terrain) => {
+      const h = harness({ terrain, startAt: 8, actions: true, answers: 'right' });
+      h.cur.pos = { x: 8, z: 4.95 };
+      h.s.cat.position.x = 8;
+      h.s.cat.position.z = 3.2;
+      h.challenge();
+      h.fight();
+      const out = [];
+      h.runToEnd(() => {
+        const st = h.calls.filter((c) => c.kind === 'stage').at(-1)?.st;
+        if (st) out.push([st, { x: h.s.cat.position.x, z: h.s.cat.position.z }]);
+      });
+      return out;
+    };
+    // without the ground the intruder is pushed out over the rim...
+    expect(run(undefined).some(([st]) => G.y(st.x, st.z) !== 3)).toBe(true);
+    // ...with it, neither cat ever leaves the plateau
+    const on = run(G);
+    expect(on.length).toBeGreaterThan(30);
+    for (const [st, me] of on) {
+      expect(Math.abs(G.y(st.x, st.z) - 3)).toBeLessThanOrEqual(0.3);
+      expect(Math.abs(G.y(me.x, me.z) - 3)).toBeLessThanOrEqual(0.3);
+    }
+  });
+
+  test('a fight on the plateau stands on it', () => {
+    // the intruder near the plateau's north rim, my cat south of it: every
+    // round I win, it steps back toward the rim (and over it, were it allowed)
+    const h = harness({ terrain: G, startAt: 8 });
+    h.cur.pos = { x: 8, z: 4.7 };
+    h.s.cat.position.x = 8;
+    h.s.cat.position.z = 2;
+    h.challenge();
+    expect(h.cf.uiShowing).toBe('challenge');
+    h.fight();
+    const staged = [];
+    const mine = [];
+    h.runToEnd(() => {
+      const st = h.calls.filter((c) => c.kind === 'stage').at(-1)?.st;
+      if (st) staged.push(st);
+      if (h.s.fight) mine.push({ x: h.s.cat.position.x, z: h.s.cat.position.z });
+    });
+    expect(staged.length).toBeGreaterThan(30);
+    for (const st of staged) {
+      expect(near3(st)).toBe(true);
+      // a lift, relative: intruders.place() adds the ground under it
+      expect(st.y).toBeGreaterThanOrEqual(0);
+      expect(st.y).toBeLessThan(0.3);
+    }
+    expect(staged.some((st) => st.y > 0)).toBe(true);
+    for (const p of mine) expect(near3(p)).toBe(true);
+    const bursts = h.fx.burst.mock.calls;
+    expect(bursts.length).toBeGreaterThan(0);
+    for (const [p] of bursts) expect(p.y).toBeCloseTo(3.2, 12);
+  });
+
+  test('R10: no challenge and no fight across a rim', () => {
+    // my cat on the floor at (8, 7), the intruder up on the plateau 3 m away
+    const h = harness({ terrain: G, startAt: 8 });
+    h.cur.pos = { x: 8, z: 4 };
+    h.s.cat.position.z = 7;
+    for (let i = 0; i < 10; i++) h.frame();
+    expect(h.ui.showChallenge).not.toHaveBeenCalled();
+    h.fight();
+    expect(h.intruders.hold).not.toHaveBeenCalled();
+    expect(h.s.fight).toBeNull();
+    // a pill already up goes away when the levels part
+    const g = harness({ terrain: G, startAt: 8 });
+    g.cur.pos = { x: 8, z: 3 };
+    g.s.cat.position.z = 4.9;
+    g.frame();
+    expect(g.cf.uiShowing).toBe('challenge');
+    g.s.cat.position.z = 5.5;
+    g.frame();
+    expect(g.cf.uiShowing).toBeNull();
+  });
+
+  test('the walk-over stops at a rim and the rounds begin where she stands', () => {
+    // the intruder on the ramp 0.4 m up, my cat on the floor beside it: the
+    // same level for a challenge, but the ramp's side is a 0.4 m step
+    const h = harness({ terrain: G, startAt: -4.8 });
+    h.cur.pos = { x: -4.8, z: -0.9 };
+    h.s.cat.position.z = 2.5;
+    expect(G.y(-4.8, -0.9)).toBeCloseTo(0.4, 12);
+    h.challenge();
+    expect(h.cf.uiShowing).toBe('challenge');
+    h.fight();
+    const path = [];
+    h.runToEnd(() => path.push({ x: h.s.cat.position.x, z: h.s.cat.position.z }));
+    expect(path.length).toBeGreaterThan(10);
+    for (const p of path) expect(G.y(p.x, p.z)).toBe(0);
+    // she got as far as the ramp's side
+    expect(Math.min(...path.map((p) => p.z))).toBeLessThan(1.2);
+  });
+
+  test('on flat ground (FLAT_GROUND or none) a whole fight is exactly today\'s, in actions or not', () => {
+    for (const actions of [undefined, true]) {
+      const runOne = (terrain) => {
+        const h = harness({ terrain, actions });
+        h.challenge();
+        h.fight();
+        const trace = [];
+        h.runToEnd(() => trace.push([h.s.cat.position.x, h.s.cat.position.z, h.s.cat.rotation.y, h.s.fightPose,
+          h.s.fightLift, h.s.fightPitch, h.s.fightRoll]));
+        return { trace, calls: h.calls, bursts: h.fx.burst.mock.calls, slashes: h.fx.slash.mock.calls, sub: h.cf.cameraSubject };
+      };
+      const base = runOne(undefined);
+      expect(runOne(FLAT_GROUND)).toEqual(base);
+      expect(runOne(null)).toEqual(base);
+    }
+  });
+
+  test('(the old flat check, kept) a whole fight with no actions is exactly today\'s', () => {
+    const runOne = (terrain) => {
+      const h = harness({ terrain });
+      h.challenge();
+      h.fight();
+      const trace = [];
+      h.runToEnd(() => trace.push([h.s.cat.position.x, h.s.cat.position.z, h.s.cat.rotation.y, h.s.fightPose, h.s.fightLift]));
+      return { trace, calls: h.calls, bursts: h.fx.burst.mock.calls, sub: h.cf.cameraSubject };
+    };
+    const base = runOne(undefined);
+    expect(runOne(FLAT_GROUND)).toEqual(base);
+    expect(runOne(null)).toEqual(base);
   });
 });
