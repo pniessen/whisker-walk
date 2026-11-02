@@ -239,6 +239,34 @@ describe('placeFrame', () => {
     cat.updateMatrixWorld(true);
   };
 
+  // Final review 5: reared up, the two cats' front paws meet (they boxed
+  // about a metre apart), and stepping in never pushes one into the other.
+  it('rear-up: the front paws meet while boxing, and the cats never sink into each other', () => {
+    const [tabby, coon, intruder] = cats();
+    // How far ahead of its anchor (toward the other cat) a cat's front reaches.
+    const front = (cat, frame, paws) => {
+      stand(cat, frame, catPivot(cat));
+      if (!paws) return -new THREE.Box3().setFromObject(cat, true).min.z;
+      return Math.max(...cat.userData.parts.legs.slice(0, 2).map((l) => -box(l.userData.paw).min.z));
+    };
+    for (const gap of [1.6, 2.0]) { // the fight's own gap, and a wider walk-over
+      for (const big of [false, true]) {
+        for (const [a, b] of [[tabby, intruder], [coon, intruder], [intruder, coon]]) {
+          for (const u of us(100)) {
+            const { win, lose } = actionFrame('rearUp', big, u, { ...OPTS, gap });
+            const bodies = gap - front(a, win, false) - front(b, lose, false);
+            expect(bodies).toBeGreaterThanOrEqual(-0.1);
+            if (u > 0.3 && u < 0.7) {
+              const paws = gap - front(a, win, true) - front(b, lose, true);
+              expect(paws).toBeLessThanOrEqual(0);
+              expect(paws).toBeGreaterThanOrEqual(-0.1);
+            }
+          }
+        }
+      }
+    }
+  });
+
   it('is pure arithmetic: pitch about the hind feet, roll about the torso centre, plus lift', () => {
     const f = { ...makeFrame(), along: 0.5, side: 0.1, lift: 0.2, pitch: 0.9, roll: 0, pose: 'rearUp' };
     const p = placeFrame(f, { hindZ: 0.3, pivotY: 0.4 });

@@ -60,16 +60,18 @@ const REACH_Y = reachYFor(catDims(buildCat('mainecoon')), catDims(intruderCat), 
 // 14 trees (today 12), river 9 (today 6), moor 3 (today 3), pines 1 (in 24
 // views; today none); no view hides a tree with no cat under it. Every point
 // that exists today passes the same hard checks on every map. Lifted tops a
-// tree still hides: none in woods, river and moor; in pines 3229 tops in 300
+// tree still hides: none in woods, river and moor; in pines 3186 tops in 300
 // of its 3096 views, every one behind a stand pine's low boughs, which cannot
-// be hidden (a leap or a rear-up beside them rises into them).
+// be hidden (a leap or a rear-up beside them rises into them). (Was 3229
+// before the final review's rear-up step, which steps in as the cats rear and
+// leaves their lifted tops nearer the middle; every other count unchanged.)
 const MODES = {
   today: { opts: {}, maxHidden: { woods: 12, river: 6, moor: 5, pines: 0 }, maxNotUnder: { woods: 0, river: 3, moor: 4, pines: 0 }, maxBrushed: { woods: 0, river: 0, moor: 0, pines: 0 } },
   actions: {
     opts: { actions: true, reachY: REACH_Y },
     maxHidden: { woods: 14, river: 9, moor: 3, pines: 1 },
     maxNotUnder: { woods: 0, river: 0, moor: 0, pines: 0 },
-    maxBrushed: { woods: 0, river: 0, moor: 0, pines: 3229 },
+    maxBrushed: { woods: 0, river: 0, moor: 0, pines: 3186 },
   },
 };
 

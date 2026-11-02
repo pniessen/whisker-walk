@@ -48,10 +48,16 @@ const LEAP = {
   hitFrom: 0.5, hitTo: 0.8, flinch: 0.3, flinchPitch: 0.15,
 };
 // Sketch b: both step in and rear up, boxing; the loser drops and steps back.
+// The step comes from the gap (final review 5): reared about its hind heels a
+// cat's front paws are only ~0.05 m ahead of its anchor, so each steps in
+// (gap - meet) / 2 and the paws overlap by a few cm. A cat steps in as it
+// rears and back as it comes down (its step follows the square of its pitch,
+// so it lags the rear a little), because a standing cat's front reaches
+// ~0.6 m ahead and two stepped-in standing cats would sink into each other.
 const REAR = {
-  step: 0.25, stepTo: 0.15, upFrom: 0.08, upTo: 0.25, pitch: 0.9,
+  meet: 0.05, upFrom: 0.08, upTo: 0.25, pitch: 0.9,
   boxFrom: 0.25, boxTo: 0.7, bob: 0.05, bobs: 6, bobsBig: 8,
-  winDownFrom: 0.75, winDownTo: 0.88, winHomeFrom: 0.82, winHomeTo: 0.95,
+  winDownFrom: 0.75, winDownTo: 0.88,
   loseDropFrom: 0.7, loseDropTo: 0.82, loseDownTo: 0.8, loseHomeFrom: 0.85, loseHomeTo: 0.98,
   back: 0.3, backBig: 0.5, settle: 0.95, flinchBelow: 0.1,
 };
@@ -192,21 +198,24 @@ function leap(big, u, gap, win, lose) {
   set(lose, -L.flinch * back, 0, 0, L.flinchPitch * back, 0, back > 0 ? 'flinch' : 'cross');
 }
 
-function rearUp(big, u, win, lose) {
+function rearUp(big, u, gap, win, lose) {
   const R = REAR;
+  const step = Math.max(0, (gap - R.meet) / 2);
   const bobs = big ? R.bobsBig : R.bobs;
   const k = span(u, R.boxFrom, R.boxTo);
   const boxing = u > R.boxFrom && u < R.boxTo;
   const winBob = boxing ? R.bob * Math.abs(Math.sin(Math.PI * bobs * k)) : 0;
   const loseBob = boxing ? R.bob * Math.abs(Math.sin(Math.PI * (bobs * k + 0.5))) * Math.sin(Math.PI * k) : 0;
   const up = ramp(u, R.upFrom, R.upTo);
-  const wPitch = R.pitch * (up - ramp(u, R.winDownFrom, R.winDownTo));
-  const wAlong = R.step * (ramp(u, 0, R.stepTo) - ramp(u, R.winHomeFrom, R.winHomeTo));
+  const wUp = up - ramp(u, R.winDownFrom, R.winDownTo);
+  const wPitch = R.pitch * wUp;
+  const wAlong = step * wUp * wUp;
   set(win, wAlong, 0, winBob, wPitch, 0, wPitch > 0.05 ? 'rearUp' : 'cross');
   const back = big ? R.backBig : R.back;
   const drop = ramp(u, R.loseDropFrom, R.loseDropTo);
-  const lAlong = R.step * (ramp(u, 0, R.stepTo) - drop) - back * (drop - ramp(u, R.loseHomeFrom, R.loseHomeTo));
-  const lPitch = R.pitch * (up - ramp(u, R.loseDropFrom, R.loseDownTo));
+  const lUp = up - ramp(u, R.loseDropFrom, R.loseDownTo);
+  const lAlong = step * lUp * lUp - back * (drop - ramp(u, R.loseHomeFrom, R.loseHomeTo));
+  const lPitch = R.pitch * lUp;
   // Reared until its pitch is nearly down: 'flinch' hangs the front legs,
   // which a nose-up cat would push into the ground.
   const lPose = lPitch > R.flinchBelow ? 'rearUp'
@@ -278,7 +287,7 @@ export function actionFrame(kind, big, u, { gap = 1.6, winBackY = 0, loseBackY =
     set(lose, 0, 0, 0, 0, 0, 'flinch');
     return out;
   }
-  if (kind === 'rearUp') rearUp(big, k, win, lose);
+  if (kind === 'rearUp') rearUp(big, k, g, win, lose);
   else if (kind === 'pin') pin(big, k, g, back, win, lose);
   else if (kind === 'roll') roll(k, g, win, lose);
   else leap(big, k, g, win, lose);
