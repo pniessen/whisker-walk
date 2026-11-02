@@ -4,12 +4,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // stage and the dressing-room controller so createHomeBase can be driven.
 vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
+// The last dressing room made: its options (onChange, onOpenSheet) and its ui,
+// so a test can open the builder or a sheet the way the real controller does.
+const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null } }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
-  createDressingRoom: () => ({
-    html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
-    afterRender() {}, handleClick() { return false; }, clearPreview() {},
-    handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
-  }),
+  createDressingRoom: (opts) => {
+    dressingMock.opts = opts;
+    dressingMock.ui = { builder: null };
+    return {
+      html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
+      afterRender() {}, handleClick() { return false; }, clearPreview() {},
+      handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
+      get ui() { return dressingMock.ui; },
+    };
+  },
 }));
 
 const { createHomeBase, visitBadgeHtml } = await import('../src/ui/homebase.js');
@@ -176,6 +184,61 @@ describe('the home base on a visit', () => {
     hb.hide();
     expect(onClosed).toHaveBeenCalledWith('walk');
     expect(JSON.stringify(progression.state.equipped)).toBe(before);
+  });
+});
+
+describe('the welcome line beside the head', () => {
+  // A plain visit (visit 2) with the home base up and the line showing.
+  function plainVisit() {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    // The hero stage the line anchors to.
+    const stageEl = fakeEl(doc);
+    stageEl.getBoundingClientRect = () => ({ left: 0, top: 100, width: 390, height: 400, right: 390, bottom: 500 });
+    doc.root.querySelector = (sel) => (sel === '#dr-stage' ? stageEl : null);
+    hb.showVisit(visit, { onClosed: () => {} });
+    const line = doc.body.children.find((c) => c.className === 'visit-welcome');
+    expect(line).toBeTruthy();
+    return { hb, line };
+  }
+
+  it('sits to the right of the head, not over the face', () => {
+    const { line } = plainVisit();
+    expect(line.attrs['data-side']).toBe('right');
+    expect(parseFloat(line.style.left)).toBeGreaterThan(0 + 390 / 2);
+  });
+
+  it('goes at once when the cat builder opens', () => {
+    const { line } = plainVisit();
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    dressingMock.opts.onChange();
+    expect(line.removed).toBe(true);
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+  });
+
+  it('goes at once when a sheet opens', () => {
+    const { line } = plainVisit();
+    dressingMock.opts.onOpenSheet('settings');
+    expect(line.removed).toBe(true);
+  });
+
+  it('goes at once when a walk starts', () => {
+    const { hb, line } = plainVisit();
+    hb.hide();
+    expect(line.removed).toBe(true);
+  });
+
+  it('is a speech bubble with a tail, no centring translate, a smaller font', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.visit-welcome \{[^}]*\}/)[0];
+    expect(rule).toContain('transform: none');
+    expect(rule).toContain('0.9rem');
+    expect(css).toMatch(/\.visit-welcome::before \{/);
+    expect(css).toMatch(/\.visit-welcome\[data-side="left"\]::before \{/);
+    expect(css).not.toMatch(/@keyframes visit-welcome \{[^@]*-50%/);
   });
 });
 

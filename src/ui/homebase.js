@@ -669,9 +669,28 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     welcomeEl.textContent = text;
     let rect = null;
     try { rect = heroStage()?.getBoundingClientRect?.() ?? null; } catch { rect = null; }
+    // A speech bubble beside the cat's head, never over her face: to the
+    // right of the head, or mirrored to the left when there is no room.
+    welcomeEl.setAttribute('data-side', 'right');
     if (rect && rect.width > 0) {
-      welcomeEl.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
-      welcomeEl.style.top = `${Math.round(rect.top + 10)}px`;
+      const headHalf = Math.min(90, rect.width * 0.17);
+      const mid = rect.left + rect.width * 0.5;
+      const right = Number.isFinite(rect.right) ? rect.right : rect.left + rect.width;
+      const y = rect.top + rect.height * 0.2;
+      if (rect.width < 480) welcomeEl.style.fontSize = '0.8rem';
+      welcomeEl.style.top = `${Math.round(y)}px`;
+      const x = mid + headHalf;
+      if (right - x >= 120) {
+        welcomeEl.style.left = `${Math.round(x)}px`;
+        welcomeEl.style.maxWidth = `${Math.round(Math.max(120, right - x - 10))}px`;
+      } else {
+        const xl = mid - headHalf;
+        const vw = document.defaultView?.innerWidth ?? (typeof window !== 'undefined' ? window.innerWidth : right);
+        welcomeEl.setAttribute('data-side', 'left');
+        welcomeEl.style.left = 'auto';
+        welcomeEl.style.right = `${Math.round(vw - xl)}px`;
+        welcomeEl.style.maxWidth = `${Math.round(Math.max(120, xl - rect.left - 10))}px`;
+      }
     }
     document.body.appendChild(welcomeEl);
     welcomeTimer = setTimeout(closeWelcome, WELCOME_MS);
@@ -829,6 +848,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
 
   function render() {
+    // The welcome line belongs to the cat on the home screen: a sheet or the
+    // cat builder sends it away at once.
+    if (openSheet || dressing?.ui?.builder) closeWelcome();
     const s = progression.state;
     showEditionTitle(document, s.edition);
     const colonyStatus = colonySync ? colonySync.status() : { mode: 'local' };

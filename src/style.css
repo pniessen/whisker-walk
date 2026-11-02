@@ -1381,21 +1381,32 @@ body.den-shop-open .chat-wheel { display: none !important; }
   .visit-cel-title { font-size: 1.5rem; }
 }
 
-/* Visit milestones: the welcome line on a plain visit. A small pill over the
-   hero stage (main sets left/top from the stage; the defaults are for when it
+/* Visit milestones: the welcome line on a plain visit. A speech bubble beside
+   the hero cat's head (homebase sets left/top from the stage; the defaults are for when it
    can't). It fades by itself and never takes a click. Below the news card (5). */
 .visit-welcome {
-  position: fixed; left: 50%; top: 18%; z-index: 4; transform: translateX(-50%);
+  position: fixed; left: 50%; top: 18%; z-index: 4; transform: none;
   max-width: calc(100vw - 32px); pointer-events: none;
-  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 999px;
-  padding: 8px 16px; font-size: 1rem; font-weight: 700; text-align: center;
+  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 16px;
+  padding: 8px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; line-height: 1.3;
   overflow-wrap: anywhere; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   animation: visit-welcome 4.5s ease-in-out forwards;
 }
+/* the speech tail: on the bubble's left, pointing back at the cat's head */
+.visit-welcome::before {
+  content: ''; position: absolute; top: 12px; left: -9px;
+  border-style: solid; border-width: 7px 10px 7px 0;
+  border-color: transparent rgba(14, 19, 29, 0.82) transparent transparent;
+}
+/* mirrored: the bubble sits left of the head, the tail on its right */
+.visit-welcome[data-side="left"]::before {
+  left: auto; right: -9px; border-width: 7px 0 7px 10px;
+  border-color: transparent transparent transparent rgba(14, 19, 29, 0.82);
+}
 @keyframes visit-welcome {
-  0% { opacity: 0; transform: translate(-50%, 6px); }
-  10%, 80% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, 0); }
+  0% { opacity: 0; transform: translateY(6px); }
+  10%, 80% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .visit-welcome { animation-name: visit-welcome-still; }
