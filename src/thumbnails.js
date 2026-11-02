@@ -40,6 +40,22 @@ function makeSnapper(renderer, scene, camera, canvas) {
   };
 }
 
+// How an accessory's picture is framed, shared by the menu (on a tabby) and
+// the dressing room's Wearing slots (on the cat on show).
+//
+// items worn on the feet/back/torso (booties, sneakers, rainboots,
+// backpack, wings, cape, hoodie) sit well outside a head close-up, so
+// they need the whole-cat framing; head/face/neck-worn items (collar,
+// head, face, neck slots) still read best close up. Driven by slot
+// rather than a hardcoded id list so future catalog items frame
+// correctly automatically. backpack and jetpack sit flat on the back so
+// they get a rear-quarter angle; wings/balloon read fine from the front.
+const WHOLE_CAT_SLOTS = new Set(['feet', 'back', 'body']);
+export function accessoryFraming(id) {
+  const slot = CATALOG.accessories[id]?.slot;
+  return { closeUp: !WHOLE_CAT_SLOTS.has(slot), rotY: id === 'backpack' || id === 'jetpack' ? -2.4 : -0.45 };
+}
+
 function renderAll() {
   try {
     return renderAllUnsafe();
@@ -71,22 +87,12 @@ function renderAllUnsafe() {
     cats[breed] = snap(buildCat(breed), false);
   }
 
-  // items worn on the feet/back/torso (booties, sneakers, rainboots,
-  // backpack, wings, cape, hoodie) sit well outside a head close-up, so
-  // they need the whole-cat framing; head/face/neck-worn items (collar,
-  // head, face, neck slots) still read best close up. Driven by slot
-  // rather than a hardcoded id list so future catalog items frame
-  // correctly automatically.
-  const wholeCatSlots = new Set(['feet', 'back', 'body']);
-
   const accessories = {};
   for (const id of Object.keys(CATALOG.accessories)) {
     const slot = CATALOG.accessories[id].slot;
     const worn = buildCat('tabby', slot === 'collar' ? { collar: id } : { [slot]: id });
-    const closeUp = !wholeCatSlots.has(slot);
-    // backpack and jetpack sit flat on the back so they get a rear-quarter
-    // angle; wings/balloon read fine from the front
-    accessories[id] = snap(worn, closeUp, id === 'backpack' || id === 'jetpack' ? -2.4 : -0.45);
+    const { closeUp, rotY } = accessoryFraming(id);
+    accessories[id] = snap(worn, closeUp, rotY);
   }
 
   renderer.dispose();
@@ -123,7 +129,10 @@ export function customThumbnails(entries) {
       const snap = makeSnapper(renderer, scene, camera, canvas);
       for (const e of fresh) {
         if (customCache.has(e.key)) continue;
-        customCache.set(e.key, snap(buildCat(e.breed, {}, { look: e.look }), false));
+        // e.wear: a Wearing slot's picture, one accessory on the cat on
+        // show, framed like the menu's (accessoryFraming).
+        const cat = buildCat(e.breed, e.wear ?? {}, e.look ? { look: e.look } : {});
+        customCache.set(e.key, e.wear ? snap(cat, e.closeUp !== false, e.rotY ?? -0.45) : snap(cat, false));
       }
     } catch (err) {
       if (!customWarned) { customWarned = true; console.warn('Whisker Walk: custom portraits unavailable', err); }

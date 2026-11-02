@@ -284,6 +284,26 @@ describe('createClanCats', () => {
     }
   });
 
+  test('a kit greeted mid-hop lands first, rather than hanging in the air', () => {
+    const cats = spawn({ count: 16 });
+    const kit = cats.list.find((c) => c.rank === K.kit);
+    let i = 0;
+    while (kit.state !== 'hop' && i++ < 600) cats.update(1 / 30, i / 30, new THREE.Vector3(999, 0, 999));
+    expect(kit.state).toBe('hop');
+    // a few frames in: off the ground
+    for (let k = 0; k < 4; k++) cats.update(1 / 30, (i + k) / 30, new THREE.Vector3(999, 0, 999));
+    expect(kit.group.position.y).toBeGreaterThan(0.01);
+    cats.greet(kit, new THREE.Vector3(kit.group.position.x + 2, 0, kit.group.position.z));
+    expect(kit.group.position.y).toBe(0);
+    for (let k = 0; k < 60; k++) {
+      cats.update(1 / 30, (i + 10 + k) / 30, new THREE.Vector3(999, 0, 999));
+      expect(kit.group.position.y).toBe(0);
+    }
+    expect(kit.state).toBe('greet');
+    run(cats, 2);
+    expect(kit.state).not.toBe('greet');
+  });
+
   test('paired kits never share a seat over a long run, and still trade places', () => {
     const cats = spawn();
     const kits = cats.list.filter((c) => c.rank === K.kit);
@@ -549,9 +569,48 @@ describe('patrol together (the buddy)', () => {
     let t = step(cats, target, 3, (tt) => target.position.set(-20 + tt, 0, -31));
     cats.endBuddy(cat);
     let crossed = 0;
-    step(cats, target, 40, () => {}, () => { if (wall(cat.group.position.x)) crossed += 1; }, t);
+    let homeward = 0;
+    t = step(cats, target, 40, () => {}, () => { if (wall(cat.group.position.x)) crossed += 1; }, t);
+    expect(crossed).toBe(0);
+    // A wall with no end: it skirts, gives up, wanders, and tries again, a
+    // bounded number of times, then settles into wandering where it is.
+    step(cats, target, 200, () => {}, () => {
+      if (wall(cat.group.position.x)) crossed += 1;
+      if (cat.state === 'home') homeward += 1;
+    }, t);
     expect(crossed).toBe(0);
     expect(cat.state).not.toBe('home');
+    const tail = { n: 0 };
+    step(cats, target, 60, () => {}, () => { if (cat.state === 'home') tail.n += 1; }, t + 200);
+    expect(tail.n).toBe(0);
+  });
+
+  it('the last leg home skirts a pond or a path between it and home, and gets there', () => {
+    // A wall x in [-26, -24] that ends at z -34 and -26: straight home is
+    // blocked, and neither axis alone gets it closer.
+    const wall = (x, z) => x > -26 && x < -24 && z > -34 && z < -26;
+    const pond = (x, z) => Math.hypot(x + 25, z + 30) < 3;
+    for (const [name, wet] of [['wall', wall], ['pond', pond]]) {
+      const homes = Array.from({ length: 16 }, () => ({ x: -30, z: -30 }));
+      const cats = createClanCats(fakeScene(), AREA, castFor('woods'), {
+        campLayout: campLayout('woods'), roamHomes: homes, isWalkable: (x, z) => !wet(x, z), roomSeed: 42, areaId: null,
+      });
+      const cat = cats.list.find((c) => c.rank === K.warrior);
+      const target = new THREE.Object3D();
+      cat.group.position.set(-20, 0, -30);
+      target.position.set(-20, 0, -31);
+      cats.startBuddy(cat, target);
+      let t = step(cats, target, 3, (tt) => target.position.set(-20 + tt, 0, -31));
+      cats.endBuddy(cat);
+      let crossed = 0;
+      let best = Infinity;
+      step(cats, target, 40, () => {}, () => {
+        if (wet(cat.group.position.x, cat.group.position.z)) crossed += 1;
+        best = Math.min(best, Math.hypot(cat.group.position.x + 30, cat.group.position.z + 30));
+      }, t);
+      expect(crossed, name).toBe(0);
+      expect(best, name).toBeLessThan(0.1);
+    }
   });
 
   it("ends with 'far' when the target teleports 15 m", () => {
@@ -576,7 +635,27 @@ describe('patrol together (the buddy)', () => {
       maxX = Math.max(maxX, cat.group.position.x);
     });
     expect(maxX).toBeLessThan(0);
+    // Held back by the ground, not outrun: the end says so.
+    expect(ends.map((e) => e[1])).toEqual(['terrain']);
+  });
+
+  it("outrun on open ground it still ends 'far'", () => {
+    const { cats, cat, target, ends } = buddyWorld();
+    target.position.set(-30, 0, 10);
+    cat.group.position.set(-29, 0, 10);
+    cats.startBuddy(cat, target);
+    step(cats, target, 10, (t) => target.position.set(-30 + t * 6, 0, 10));
     expect(ends.map((e) => e[1])).toEqual(['far']);
+  });
+
+  it("stalled at the Pines' truce path (any rejected strip) it ends 'terrain' too", () => {
+    const path = (z) => z > 12 && z < 14;
+    const { cats, cat, target, ends } = buddyWorld({ isWalkable: (x, z) => !path(z) });
+    target.position.set(-20, 0, 8);
+    cat.group.position.set(-21, 0, 8);
+    cats.startBuddy(cat, target);
+    step(cats, target, 20, (t) => target.position.set(-20, 0, 8 + t * 1.5));
+    expect(ends.map((e) => e[1])).toEqual(['terrain']);
   });
 
   it('buddyEnded reads the target and the clock', () => {
@@ -625,5 +704,32 @@ describe('patrol together (the buddy)', () => {
     step(cats, target, 1.5, () => {}, () => {}, t);
     expect(cat.group.position.distanceTo(at)).toBeGreaterThan(0.5);
     expect(cat.buddy).not.toBe(null);
+  });
+});
+
+// Fight moves and scars (Task 8): a camp cat she beat wears her scar, applied
+// at build from scarsFor(member.id). Every other member is built as before.
+describe('camp cats wear her scars', () => {
+  it('scarsFor returning a scar for one member gives that member (only) a scar mesh', () => {
+    const cast = castFor('woods').slice(0, 9);
+    const target = cast[3].id;
+    const asked = [];
+    const cats = createClanCats(fakeScene(), AREA, cast, {
+      campLayout: campLayout('woods'), roamHomes: roamHomes('woods', AREA, OPEN), isWalkable: OPEN, roomSeed: 42, areaId: 'woods',
+      scarsFor: (id) => { asked.push(id); return id === target ? [{ site: 'side', stage: 'half', side: 'r' }] : []; },
+    });
+    expect(asked).toEqual(expect.arrayContaining(cast.map((m) => m.id)));
+    const scarred = cats.list.filter((c) => c.group.userData.parts.scars);
+    expect(scarred.map((c) => c.id)).toEqual([target]);
+    expect(scarred[0].group.userData.parts.scars.castShadow).toBe(false);
+  });
+
+  it('without scarsFor, or with junk from it, nobody is scarred', () => {
+    const cast = castFor('woods').slice(0, 9);
+    const opts = { campLayout: campLayout('woods'), roamHomes: roamHomes('woods', AREA, OPEN), isWalkable: OPEN, roomSeed: 42, areaId: 'woods' };
+    for (const extra of [{}, { scarsFor: () => null }, { scarsFor: () => 'face' }]) {
+      const cats = createClanCats(fakeScene(), AREA, cast, { ...opts, ...extra });
+      expect(cats.list.some((c) => c.group.userData.parts.scars)).toBe(false);
+    }
   });
 });

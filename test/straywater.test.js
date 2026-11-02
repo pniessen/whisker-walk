@@ -24,6 +24,7 @@ vi.stubGlobal('document', {
 });
 const { build: buildPark } = await import('../src/world/park.js');
 const { build: buildWoods } = await import('../src/world/woods.js');
+const { build: buildPines } = await import('../src/world/pines.js');
 
 // Strays keep off the water the way clan cats do (src/world/clanground.js):
 // CAT_RADIUS or more clear of every footprint, a deck counting as dry. The
@@ -153,5 +154,41 @@ describe('dryGroundPoint, review follow-ups', () => {
       expect(Math.hypot(n.x - q.x, n.z - q.z)).toBeLessThan(0.06);
       q = n;
     }
+  });
+});
+
+// Polish 3: a stray rolled into the Pines' bay was pushed to the nearest dry
+// ground, its shore, so every walk's bay strays stood in a row along the bay's
+// west and north shores. They are mirrored inland now, by how far out they
+// were, from the values already rolled.
+describe('the bay strays at the start of a walk (Polish 3)', () => {
+  const pines = buildPines(new THREE.Scene());
+  const starts = (seed) => createStrayCats(fakeScene(), pines, 22, strayStream(seed), { roomSeed: seed })
+    .strays.map((st) => st.group.position);
+
+  it('no longer stand in a row along the bay shore', () => {
+    let westShore = 0;
+    let atWater = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const p of starts(seed)) {
+        if (p.x > -1.5 && p.x < 0 && p.z > 5 && p.z < 44) westShore++;
+        if (waterClearance(pines.waters, p.x, p.z) < 0.8) atWater++;
+      }
+    }
+    // Before: 61 on the west shore line and 198 of 880 at a water's edge.
+    expect(westShore).toBeLessThan(10);
+    expect(atWater).toBeLessThan(50);
+  });
+
+  it('still stand dry, draw exactly what a dry walk draws, and agree between co-walkers', () => {
+    for (const seed of [3, 17]) {
+      for (const p of starts(seed)) expect(dry(pines, p.x, p.z)).toBe(true);
+      expect(starts(seed).map((p) => [p.x, p.z])).toEqual(starts(seed).map((p) => [p.x, p.z]));
+    }
+    const wet = counting(strayStream(9));
+    createStrayCats(fakeScene(), pines, 22, wet.rng, { roomSeed: 9 });
+    const plain = counting(strayStream(9));
+    createStrayCats(fakeScene(), { bounds: pines.bounds }, 22, plain.rng, { roomSeed: 9 });
+    expect(wet.n).toBe(plain.n);
   });
 });

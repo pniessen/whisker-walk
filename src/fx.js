@@ -25,9 +25,92 @@ function defaultMakeText(text) {
 // Reused across burst spawns to avoid per-call allocation of the velocity scratch vector.
 const _tmpVec = new THREE.Vector3();
 
+// The fight's scratch (fight moves and scars, Task 6): three white claw
+// strokes, one pooled mesh. Each stroke is a thin quad in the mesh's own YZ
+// plane (the plane that holds the scratching cat's forward axis once the mesh
+// is turned to its yaw, so the side-on fight camera sees it face on), slanting
+// down and back.
+export const SLASH_TIME = 0.3; // s it fades over
+const SLASH_STROKES = Object.freeze([
+  // [z offset, half length, half width]
+  [-0.075, 0.15, 0.012], [0, 0.18, 0.014], [0.075, 0.15, 0.012],
+]);
+const SLASH_TILT = 0.45; // rad the strokes lean back from upright
+const SLASH_RENDER_ORDER = 5; // after the other transparent things, under tags (10)
+
+function slashGeometry() {
+  const pos = [];
+  const index = [];
+  const c = Math.cos(SLASH_TILT), sn = Math.sin(SLASH_TILT);
+  SLASH_STROKES.forEach(([dz, len, w], i) => {
+    // along the stroke (dy, dz) = (c, sn) scaled; across it (-sn, c)
+    for (const [a, b] of [[-len, -w], [-len, w], [len, w], [len, -w]]) {
+      pos.push(0, a * c - b * sn, dz + a * sn + b * c);
+    }
+    const k = i * 4;
+    index.push(k, k + 1, k + 2, k, k + 2, k + 3);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  return g;
+}
+
 export function createFx(scene, { reducedMotion = false, makeText = defaultMakeText } = {}) {
   /** @type {Array<{ obj: THREE.Object3D, life: number, ttl: number, kind: 'popup' | 'burst', velocities?: Float32Array }>} */
   const effects = [];
+
+  // The slash mesh is built here, with the walk, and drawn (fully transparent)
+  // on the walk's first frame so its shader compiles then, not at the first
+  // scratch; it hides from the second update on and is only ever moved,
+  // shown and faded after that. Never a shadow. It spawns inside the
+  // scratched cat's head and chest, so it is drawn with no depth test (it
+  // lives 0.3 s), in the transparent pass after the cats and under the name
+  // tags and chat bubbles (renderOrder 10).
+  const slashMesh = new THREE.Mesh(slashGeometry(), new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+  }));
+  slashMesh.name = 'fight-slash';
+  slashMesh.renderOrder = SLASH_RENDER_ORDER;
+  slashMesh.castShadow = false;
+  slashMesh.receiveShadow = false;
+  slashMesh.userData.noCast = true;
+  slashMesh.frustumCulled = false;
+  scene.add(slashMesh);
+  let slashLife = -1; // s since the last slash, or -1 when hidden
+  let primeFrames = 2;
+
+  // One scratch at `position` ({ x, y, z }), turned to `yaw` (the scratching
+  // cat's). A second slash restarts it. Nothing under reduced motion.
+  function slash(position, yaw) {
+    if (reducedMotion || !position) return;
+    slashMesh.position.set(position.x, position.y, position.z);
+    slashMesh.rotation.y = Number.isFinite(yaw) ? yaw : 0;
+    slashMesh.scale.setScalar(1);
+    slashMesh.material.opacity = 1;
+    slashMesh.visible = true;
+    slashLife = 0;
+    primeFrames = 0;
+  }
+
+  function updateSlash(dt) {
+    if (primeFrames > 0) {
+      primeFrames -= 1;
+      if (primeFrames === 0 && slashLife < 0) slashMesh.visible = false;
+      return;
+    }
+    if (slashLife < 0) return;
+    slashLife += dt;
+    const u = slashLife / SLASH_TIME;
+    if (u >= 1) {
+      slashLife = -1;
+      slashMesh.visible = false;
+      slashMesh.material.opacity = 0;
+      return;
+    }
+    slashMesh.material.opacity = 1 - u;
+    slashMesh.scale.setScalar(1 + 0.25 * u);
+  }
 
   function popup(position, text) {
     const obj = makeText(text);
@@ -101,6 +184,7 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
   }
 
   function update(dt) {
+    updateSlash(dt);
     for (let i = effects.length - 1; i >= 0; i--) {
       const effect = effects[i];
       effect.life += dt;
@@ -140,7 +224,11 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
       removeEffect(effects[i]);
     }
     effects.length = 0;
+    scene.remove(slashMesh);
+    slashMesh.geometry.dispose();
+    slashMesh.material.dispose();
+    slashLife = -1;
   }
 
-  return { popup, burst, shimmer, update, active, dispose };
+  return { popup, burst, shimmer, slash, update, active, dispose };
 }

@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, addCamp, CAMP_TURN } = await import('../src/world/camp.js');
+const { campLayout, addCamp, CAMP_TURN, campDiscs } = await import('../src/world/camp.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
 
@@ -162,5 +162,17 @@ describe('roamHomes (pure)', () => {
     const asked = [];
     roamHomes('woods', open, (x, z) => { asked.push([x, z]); return true; });
     expect(asked.length).toBeGreaterThanOrEqual(8 * 9);
+  });
+});
+
+describe('campDiscs', () => {
+  it('is the den and the rock addCamp pushes as colliders, or [] with no camp', () => {
+    for (const id of Object.keys(CAMP_TURN)) {
+      const area = { colliders: [] };
+      addCamp(new THREE.Scene(), area, id);
+      expect(campDiscs(id), id).toEqual(area.colliders);
+    }
+    expect(campDiscs('park')).toEqual([]);
+    expect(campDiscs('den')).toEqual([]);
   });
 });

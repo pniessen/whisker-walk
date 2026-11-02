@@ -82,15 +82,30 @@ export function waterPose(pose, st, { hagrid = false, reducedMotion = false } = 
 }
 
 // Call after animateCat each frame. baseY is the cat's height without water:
-// the local cat passes player.perchY + player.hopY, a remote passes 0. y and
-// rotation.z are SET, never added, so nothing can accumulate; nothing else in
-// the game writes the group's rotation.z.
-export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1) {
+// the local cat passes player.perchY + player.hopY, a remote passes 0. y,
+// rotation.x and rotation.z are SET, never added, so nothing can accumulate.
+// This is the one place the game writes a walking cat group's rotation.x and
+// rotation.z: the shake's roll, and (fight moves and scars, R20) the local
+// cat's fight tilt. `fightTilt` is { pitch, roll } while her cat is in a fight
+// (avatar.js passes s.fightPitch / s.fightRoll, which game/clanfight.js
+// stages: it never writes the group's rotation itself); the order turns to
+// 'YXZ' so the yaw stays outermost. With none, rotation.x is 0.
+export function applyWaterLook(cat, st, t, dt, reducedMotion, baseY, amount = 1, fightTilt = null) {
   const target = sinkTarget(cat, st.mode);
   const rate = target > st.sink ? SINK_RATE : RISE_RATE;
   st.sink += (target - st.sink) * (1 - Math.exp(-rate * dt));
   const bob = st.mode === 'swim' && !reducedMotion ? BOB.amp * Math.sin(t * BOB.freq) : 0;
   cat.position.y = baseY - st.sink + bob;
   const roll = st.shake > 0 && !reducedMotion && !isHagrid(cat);
-  cat.rotation.z = roll ? SHAKE_ROLL * Math.sin(t * 30) * amount : 0;
+  const shake = roll ? SHAKE_ROLL * Math.sin(t * 30) * amount : 0;
+  if (fightTilt) {
+    cat.rotation.order = 'YXZ';
+    cat.rotation.x = fin(fightTilt.pitch);
+    cat.rotation.z = fin(fightTilt.roll) + shake;
+  } else {
+    cat.rotation.x = 0;
+    cat.rotation.z = shake;
+  }
 }
+
+const fin = (v) => (Number.isFinite(v) ? v : 0);

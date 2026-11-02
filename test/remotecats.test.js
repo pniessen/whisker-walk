@@ -52,6 +52,40 @@ describe('createRemoteCats', () => {
     expect(scene.objects.size).toBe(1);
   });
 
+  it('list allocates nothing per read: the same array until a cat joins or leaves (Polish 3)', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    const empty = remotes.list;
+    expect(remotes.list).toBe(empty);
+    remotes.upsert(PROFILE, 0);
+    const one = remotes.list;
+    expect(one).not.toBe(empty);
+    expect(empty).toHaveLength(0); // an earlier snapshot is never changed under a holder
+    expect(remotes.list).toBe(one);
+    remotes.applyState({ id: 'aaa', pos: [1, 2], yaw: 0, pose: 'follow', speed: 0 }, 0);
+    remotes.update(0.016, 0.1);
+    expect(remotes.list).toBe(one); // a frame changes nothing
+    remotes.upsert(PROFILE, 0); // unchanged profile: no rebuild
+    expect(remotes.list).toBe(one);
+    remotes.upsert({ ...PROFILE, playerId: 'bbb' }, 0);
+    const two = remotes.list;
+    expect(two).toHaveLength(2);
+    expect(one).toHaveLength(1);
+    remotes.remove('aaa');
+    expect(remotes.list.map((r) => r.playerId)).toEqual(['bbb']);
+    expect(two).toHaveLength(2);
+  });
+
+  it('a cat that times out mid-update is removed and the rest still update', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    remotes.upsert(PROFILE, 0);
+    remotes.upsert({ ...PROFILE, playerId: 'bbb' }, 0);
+    remotes.applyState({ id: 'bbb', pos: [4, 0], yaw: 0, pose: 'follow', speed: 0 }, 100);
+    remotes.update(0.016, 100);
+    expect(remotes.list.map((r) => r.playerId)).toEqual(['bbb']);
+  });
+
   it('applyState + update moves the group toward the target but not past it instantly', () => {
     const scene = fakeScene();
     const remotes = createRemoteCats(scene);
@@ -378,5 +412,38 @@ describe('a custom look on the wire', () => {
       const first = r.upsert(CUSTOM).group;
       expect(r.upsert({ ...CUSTOM, accessories: { ...CUSTOM.accessories, look: { ...LOOK, coat: 'cream' } } }).group).not.toBe(first);
     });
+  });
+});
+
+// Fight moves and scars (Task 8): her brother sees her scar. Only
+// accessories.scars is new on the wire (R7), repaired by wireScars.
+describe('a co-walker wears the scars on its profile', () => {
+  const meshes = (g) => { let n = 0; g.traverse((o) => { if (o.isMesh) n++; }); return n; };
+  const SCAR = [{ site: 'face', stage: 'full', side: 'l' }];
+
+  it('a profile with accessories.scars builds one more mesh, named scars', () => {
+    const plain = createRemoteCats(fakeScene()).upsert(PROFILE, 0);
+    const scarred = createRemoteCats(fakeScene()).upsert({ ...PROFILE, accessories: { scars: SCAR } }, 0);
+    expect(meshes(scarred.group)).toBe(meshes(plain.group) + 1);
+    expect(scarred.group.userData.parts.scars?.name).toBe('scars');
+    expect(plain.group.userData.parts.scars).toBeUndefined();
+  });
+
+  it('junk scars build none and never throw', () => {
+    const plain = createRemoteCats(fakeScene()).upsert(PROFILE, 0);
+    for (const junk of ['face', 7, null, [{ site: 'ear', stage: 'full', side: 'l' }], [{ site: 'face', stage: 'raw', side: 'l' }], { 0: SCAR[0] }]) {
+      const e = createRemoteCats(fakeScene()).upsert({ ...PROFILE, accessories: { scars: junk } }, 0);
+      expect(meshes(e.group)).toBe(meshes(plain.group));
+    }
+  });
+
+  it('an unchanged scarred profile is not rebuilt; a changed stage is', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    const first = remotes.upsert({ ...PROFILE, accessories: { scars: SCAR } }, 0);
+    expect(remotes.upsert({ ...PROFILE, accessories: { scars: [{ ...SCAR[0] }] } }, 0)).toBe(first);
+    const next = remotes.upsert({ ...PROFILE, accessories: { scars: [{ ...SCAR[0], stage: 'half' }] } }, 0);
+    expect(next).not.toBe(first);
+    expect(scene.objects.size).toBe(1);
   });
 });

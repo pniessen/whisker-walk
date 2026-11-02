@@ -31,6 +31,7 @@ describe('attachOwnTag', () => {
       expect(cat.userData.customName).toBe('Moonwhisker-Fern');
       const sprites = cat.children.filter((c) => c.isSprite);
       expect(sprites).toEqual([tag]);
+      expect(cat.userData.ownTag).toBe(tag); // kept upright through a fight (game/avatar.js)
       expect(tag.visible).toBe(true);
       expect(tag.material.depthTest).toBe(false);
       expect(tag.renderOrder).toBeGreaterThan(0);

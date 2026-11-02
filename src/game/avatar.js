@@ -18,6 +18,8 @@ import { shakeProgress } from '../waterstate.js';
 import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
+import { wirePose } from '../fightactions.js';
+import { uprightTag } from '../nametag.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 
@@ -36,6 +38,7 @@ export function createAvatarUpdater({
   player, progression, settings, log, hud, audio,
   petNameFor, completeTag, noteBat,
 }) {
+  const fightTilt = { pitch: 0, roll: 0 }; // reused each frame: no allocation mid-fight
   function updateAvatar(s, dt, t) {
     const { cat } = s;
     const p = PERSONALITIES[cat.userData.breed];
@@ -187,15 +190,27 @@ export function createAvatarUpdater({
     // Clan Life Part 2: the fight sets the pose (game/clanfight.js).
     if (s.fight && s.fightPose) { pose = s.fightPose; s.stretchTime = 0; }
     // s.pose stays the LAND pose: it is what goes on the wire, and every
-    // remote works out its own water look from where this cat is.
-    s.pose = pose;
+    // remote works out its own water look from where this cat is. The new
+    // fight states go out as states every build knows (R8); the drawn pose
+    // below stays `pose`.
+    s.pose = wirePose(pose);
     const reducedMotion = settings.get('reducedMotion');
     const ws = player.waterState;
     const amount = Math.sin(Math.PI * shakeProgress(ws));
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
     // Sets y outright: perchY + hopY (where player.js drew it) − sink + bob.
-    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount);
+    // A fight (game/clanfight.js) lifts, pitches and rolls the cat through
+    // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them.
+    if (s.fight) { fightTilt.pitch = s.fightPitch ?? 0; fightTilt.roll = s.fightRoll ?? 0; }
+    applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount,
+      s.fight ? fightTilt : null);
+    // Her own name tag (a custom cat's) rides the group: through a fight's
+    // pitch and roll it stays straight above her torso, and is put back after.
+    const ownTag = cat.userData.ownTag;
+    if (ownTag && (s.fight || ownTag.userData.restY !== undefined)) {
+      uprightTag(ownTag, s.fight ? cat.rotation.x : 0, s.fight ? cat.rotation.z : 0, cat.userData.parts?.body?.position.y ?? 0);
+    }
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

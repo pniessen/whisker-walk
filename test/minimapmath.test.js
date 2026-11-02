@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers, faceAngle } from '../src/ui/minimapmath.js';
+import { MAP_RADIUS_M, mapRadiusFor, toMap, pinToRim, mapMarkers, faceAngle, badgeAt, clearOfBadge } from '../src/ui/minimapmath.js';
 
 const view = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
 
@@ -210,5 +210,29 @@ describe('mapMarkers intruder', () => {
       intruder: { x: 4, z: 5, clan: 'moor' },
     };
     expect(mapMarkers(frame)).toEqual([]);
+  });
+});
+
+describe('clearOfBadge (Polish 3)', () => {
+  const north = { cx: 0, cz: 0, heading: 0, mode: 'north', radiusM: 35, radiusPx: 55 };
+  it('the badge sits up in north mode and at north in turn mode', () => {
+    expect(badgeAt(north)).toEqual({ u: 0, v: -46 });
+    const b = badgeAt({ ...north, mode: 'turn', heading: Math.PI / 2 });
+    expect(b.u).toBeCloseTo(46, 6);
+    expect(b.v).toBeCloseTo(0, 6);
+  });
+  it('slides a point under the badge round the rim, toward its own side, just clear', () => {
+    const b = badgeAt(north);
+    for (const [u, lean] of [[2, 1], [-2, -1], [0, 1]]) {
+      const p = { u, v: -49 };
+      const q = clearOfBadge(p, b, 13);
+      expect(Math.hypot(q.u - b.u, q.v - b.v)).toBeCloseTo(13, 6);
+      expect(Math.hypot(q.u, q.v)).toBeCloseTo(Math.hypot(p.u, p.v), 6);
+      expect(Math.sign(q.u)).toBe(lean);
+    }
+  });
+  it('leaves a point that is already clear exactly as it was', () => {
+    const p = { u: 20, v: -40 };
+    expect(clearOfBadge(p, badgeAt(north), 13)).toBe(p);
   });
 });

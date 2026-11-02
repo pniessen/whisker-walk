@@ -279,7 +279,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // this is the physically honest direction to find one in.
   scene.add(b.horizonBand({
     kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
-    color: 0xc9ba90, salt: 59, avoid: [SEA],
+    color: 0xc9ba90, salt: 59, avoid: [SEA], closeWater: false,
     headland: { x: -92, z: -84, r: 46, h: 0.9 },
   }));
 

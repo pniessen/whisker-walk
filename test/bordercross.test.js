@@ -120,4 +120,19 @@ describe('decideBorderCross', () => {
     expect(decideBorderCross(ev, ctx)).toEqual({ to: 'moor' });
     expect(decideBorderCross({ ...ev, to: 'river' }, ctx)).toEqual({ to: 'river' });
   });
+  it('numeric player ids: the smallest is the host, compared as numbers', () => {
+    const num = { ...ctx, selfId: 20, remoteIds: [7, 31] };
+    expect(decideBorderCross({ ...ev, id: 7 }, num)).toEqual({ to: 'moor' });
+    // not the smallest: 20 and 31 are not the host, and neither is a stranger
+    expect(decideBorderCross({ ...ev, id: 31 }, num)).toBe(null);
+    expect(decideBorderCross({ ...ev, id: 3 }, num)).toBe(null);
+    // I am the smallest: an event from anyone else is not the host's
+    expect(decideBorderCross({ ...ev, id: 7 }, { ...num, selfId: 2 })).toBe(null);
+    // 9 < 10 as numbers (as strings '10' < '9' would make 10 the host)
+    expect(decideBorderCross({ ...ev, id: 9 }, { ...ctx, selfId: 10, remoteIds: [9] })).toEqual({ to: 'moor' });
+    expect(decideBorderCross({ ...ev, id: 10 }, { ...ctx, selfId: 9, remoteIds: [10] })).toBe(null);
+    // an id that is neither a string nor a number refuses the lot
+    expect(decideBorderCross({ ...ev, id: 7 }, { ...num, remoteIds: [7, null] })).toBe(null);
+    expect(decideBorderCross({ ...ev, id: 7 }, { ...num, selfId: { id: 1 } })).toBe(null);
+  });
 });

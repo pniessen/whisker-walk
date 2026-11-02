@@ -302,6 +302,17 @@ describe('cat model: budget and determinism', () => {
     });
   }
 
+  // A scarred cat (fight moves and scars, Task 4): one mesh more, never two.
+  const SCARRED = [{ site: 'face', stage: 'full', side: 'l' }, { site: 'shoulder', stage: 'half', side: 'r' }];
+  for (const breed of BREEDS) {
+    it(`${breed} scarred draws no more than its ceiling + 1, full and simple, inside the triangle caps`, () => {
+      expect(meshCount(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(CEILING[breed] + 1);
+      expect(meshCount(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(CEILING_SIMPLE[breed] + 1);
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED }))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(breed, undefined, { scars: SCARRED, simple: true }))).toBeLessThanOrEqual(5500);
+    });
+  }
+
   it('a stray built { simple: true } is cheaper than a full cat', () => {
     const count = (c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n++; }); return n; };
     expect(count(buildCat('tabby', undefined, { simple: true }))).toBeLessThan(count(buildCat('tabby')));
