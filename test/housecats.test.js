@@ -201,3 +201,23 @@ test('shedKittypetCollar takes the collar off a non-colony kittypet only, and di
   expect(shedKittypetCollar({ name: 'Marmalade', colony: false, group: new THREE.Group() })).toBe(false);
   for (const bad of [null, undefined, {}, { name: 'Marmalade' }]) expect(shedKittypetCollar(bad)).toBe(false);
 });
+
+// Polish-5 fix wave I2: a shed collar is gone from the head for good. The
+// animator carries a worn collar on the neck in the stalk (head.userData.collar);
+// a shed one must not be looked up, moved or remembered there any more.
+import { buildCat } from '../src/cat/model.js';
+import { animateCat } from '../src/cat/animator.js';
+test('a shed kittypet collar is forgotten by the head, and the stalk leaves it alone', () => {
+  const group = buildCat('tabby', { collar: 'bell', head: null, face: null, neck: null, body: null, back: null, feet: null }, { simple: true });
+  const head = group.userData.parts.head;
+  const collar = head.userData.collar;
+  expect(collar.parent).toBe(head);
+  expect(shedKittypetCollar({ name: 'Marmalade', colony: false, group })).toBe(true);
+  expect(collar.parent).toBeNull();
+  expect('collar' in head.userData).toBe(false);
+  const before = [...collar.position.toArray(), ...collar.quaternion.toArray()];
+  animateCat(group, 'stalk', 1.3, 0, false);
+  animateCat(group, 'follow', 1.3, 0, false);
+  expect([...collar.position.toArray(), ...collar.quaternion.toArray()]).toEqual(before);
+  expect(group.getObjectByName('collar')).toBeUndefined();
+});
