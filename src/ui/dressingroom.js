@@ -213,7 +213,7 @@ function makeHtml(canMake) {
 function slotHtml(s, openSlot, picker, thumbs) {
   const open = openSlot === s.slot;
   return `<button class="dr-slot ${s.itemId ? '' : 'empty'} ${open ? 'open' : ''} ${s.trying ? 'trying' : ''}" data-dr-slot="${escapeHtml(s.slot)}" aria-expanded="${open}">`
-    + `${s.itemId ? img(thumbs?.accessories?.[s.itemId], '') : ''}`
+    + `${s.itemId ? img(thumbs?.wearing?.[s.slot] ?? thumbs?.accessories?.[s.itemId], '') : ''}`
     + `<span><small>${escapeHtml(s.label)}</small>${s.itemId ? escapeHtml(s.itemName) : 'nothing yet'}${s.trying ? ' (trying)' : ''}</span></button>`
     + (open ? `<div class="dr-picker">${picker ?? ''}</div>` : '');
 }

@@ -1270,7 +1270,12 @@ body.den-shop-open .chat-wheel { display: none !important; }
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px;
   background: var(--frame); border: 1.5px solid var(--pink); font-weight: 700;
   box-shadow: 0 0 0 10px var(--navy), 0 48px 0 10px var(--navy); }
-.dr .cb-leave button { min-height: 44px; padding: 8px 16px; border-radius: 999px; background: var(--panel); }
+.dr .cb-leave button { min-height: 44px; padding: 8px 16px; border-radius: 999px; background: var(--panel); white-space: nowrap; }
+/* A phone has no room for the question and both buttons in one row: the
+   question takes its own, so Keep going never wraps away from Leave. */
+@media (max-width: 480px) {
+  .cb-leave > span { flex-basis: 100%; }
+}
 .dr .cb-leave [data-cb-leave] { background: var(--pink); color: var(--navy); }
 @media (max-width: 600px) {
   .dr.dr-building { padding-bottom: 0; }

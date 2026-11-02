@@ -450,6 +450,34 @@ describe('createDressingRoom: her own cats and the builder', () => {
     dr.html();
     expect(snap).toHaveBeenCalledTimes(1);
   });
+  // Polish 3: the Wearing slots pictured each accessory on the menu's tabby.
+  it("the Wearing slots picture each worn accessory on her cat, snapped once per look and item", () => {
+    const snap = vi.fn((entries) => Object.fromEntries(entries.map((e) => [e.key, `data:image/png;base64,${e.wear ? 'WORN' : 'CAT'}`])));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.state.points = 999;
+    progression.buy('accessories', 'bell');
+    progression.equipAccessory('bell');
+    progression.equipCustom(progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK }));
+    const html = dr.html();
+    const worn = snap.mock.calls.flatMap((c) => c[0]).filter((e) => e.wear);
+    expect(worn).toHaveLength(1);
+    expect(worn[0]).toMatchObject({ breed: 'mainecoon', look: DEFAULT_LOOK, wear: { collar: 'bell' } });
+    const slot = html.slice(html.indexOf('data-dr-slot="collar"'));
+    expect(slot.slice(0, slot.indexOf('</button>'))).toContain('src="data:image/png;base64,WORN"');
+    const calls = snap.mock.calls.length;
+    dr.html();
+    expect(snap.mock.calls.length).toBe(calls);
+  });
+  it('a plain tabby keeps the menu pictures and snaps nothing for the slots', () => {
+    const snap = vi.fn(() => ({}));
+    const { dr, progression } = real({ snapCustom: snap });
+    progression.state.points = 999;
+    progression.buy('accessories', 'bell');
+    progression.equipAccessory('bell');
+    progression.equipCat('tabby');
+    dr.html();
+    expect(snap.mock.calls.flatMap((c) => c[0]).filter((e) => e.wear)).toEqual([]);
+  });
   it('walking her cat, the room stage shows its preset, her outfit and its look', () => {
     const { dr, progression, stage } = real();
     progression.equipAccessory('bell');
@@ -577,6 +605,37 @@ describe('createDressingRoom: her own cats and the builder', () => {
       const after = stripRoot({ tileLeft: 500 });
       dr.afterRender(after.root);
       expect(after.strip.scrollLeft).toBe(300);
+    });
+    // Polish 3: a background render (a colony poll, a partner re-track)
+    // used to snap the strip back to her cat while she was scrolling it.
+    it('a background render keeps where she has scrolled, even with her cat out of view', () => {
+      const { dr } = real();
+      const first = stripRoot({ tileLeft: 900 });
+      dr.afterRender(first.root); // her cat brought into view once
+      expect(first.strip.scrollLeft).toBe(592);
+      const scrolled = stripRoot({ tileLeft: 900, scrollLeft: 0 }); // she scrolls back to the start
+      dr.captureFocus(scrolled.root);
+      const again = stripRoot({ tileLeft: 900 });
+      dr.afterRender(again.root);
+      expect(again.strip.scrollLeft).toBe(0);
+    });
+    it('a new pick, or Done, still brings the picked cat into view', () => {
+      const { dr } = real();
+      dr.afterRender(stripRoot({ tileLeft: 900 }).root);
+      const scrolled = stripRoot({ tileLeft: 900, scrollLeft: 0 });
+      dr.captureFocus(scrolled.root);
+      dr.handleClick(click({ drCat: 'siamese' }));
+      const picked = stripRoot({ tileLeft: 900 });
+      dr.afterRender(picked.root);
+      expect(picked.strip.scrollLeft).toBe(592);
+      // the builder, then Done on her new cat: shown again
+      dr.handleClick(click({ drMake: '' }));
+      dr.handleInput(input({ cbName: '' }, 'Ember'));
+      dr.handleClick(click({ cbDone: '' }));
+      dr.captureFocus(stripRoot({ tileLeft: 900, scrollLeft: 0 }).root);
+      const done = stripRoot({ tileLeft: 900 });
+      dr.afterRender(done.root);
+      expect(done.strip.scrollLeft).toBe(592);
     });
     it('does nothing in the builder or without layout (test fakes)', () => {
       const { dr } = real();

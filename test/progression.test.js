@@ -3116,6 +3116,20 @@ describe('retiring Rosa', () => {
     expect(again.takeFarewell()).toBe(null);
   });
 
+  it('writes the save once, not twice, when it retires an equipped Rosa (Polish 3)', () => {
+    const storage = fakeStorage({ [KEY]: JSON.stringify(rawSave({ equipped: { cat: 'rosa', collar: null } })) });
+    let writes = 0;
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (k, v) => { writes++; return setItem(k, v); };
+    const p = createProgression(storage);
+    expect(writes).toBe(1);
+    const stored = JSON.parse(storage.getItem(KEY));
+    expect(stored.equipped.cat).toBe('tabby');
+    expect(stored.equipped.custom ?? null).toBe(null);
+    expect(stored.points).toBe(50);
+    expect(p.takeFarewell()).toContain('Rosa');
+  });
+
   it('honours the marker: no refund when retired already lists rosa', () => {
     const { p } = load(rawSave({ retired: ['rosa'] }));
     expect(p.state.points).toBe(10);
