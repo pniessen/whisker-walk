@@ -921,6 +921,7 @@ function init() {
       // canal and the foliage down with them reads as the whole world
       // lurching, which is the same reason skyLife and weather sit here.
       session.water.update(dt);
+      session.waterDress.update(dt);
       // Re-fits the sun's shadow frustum around the view. It reads where the
       // camera ended up this frame, which is why it
       // has to sit AFTER player.update above (which is what moves the camera)

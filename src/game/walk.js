@@ -113,6 +113,7 @@ import { createPawPrints } from '../render/pawprints.js';
 import { createSplash } from '../render/splash.js';
 import { createClouds } from '../render/clouds.js';
 import { createAmbient } from '../render/ambient.js';
+import { createWaterDressing } from '../render/waterdress.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1189,6 +1190,13 @@ export function createWalkLifecycle({
     // Swimming's splashes, ripples, wake and shake spray (render/splash.js):
     // two pooled draws, 0 while no cat is in water; the den gets NO_SPLASH.
     const splash = createSplash(scene, { areaData, tier, reducedMotion });
+    // Polish-water — the water's edge (render/waterdress.js): a soft wet-earth
+    // band and foam line along the real shore, a few half-sunk stones. Here
+    // for the grass's reason: after the caster sweep, the contact-shadow scan
+    // and the prop merge, so it is neither decaled nor merged and casts
+    // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
+    // water (the den, the park, the docks, the gorge) get the no-op stub.
+    const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion });
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and
@@ -1274,6 +1282,7 @@ export function createWalkLifecycle({
       // (the neighborhood, the den), which is why the render loop and endWalk
       // can each call it unconditionally.
       water: waterRig(areaData.waterFx),
+      waterDress,
       // Built above, before the world, so the area could register into it.
       wind,
       // Lawn tufts, same shape again; updated beside wind in the render loop.
@@ -1965,6 +1974,7 @@ export function createWalkLifecycle({
     // off the traversal's dispose() anyway; wiring them explicitly means
     // neither depends on a subtlety of that sweep.
     session.water.dispose();
+    session.waterDress.dispose();
     session.wind.dispose();
     // Before the traversal: it takes its mesh out of the scene and frees its
     // geometry and material once.

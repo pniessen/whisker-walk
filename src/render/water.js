@@ -384,6 +384,45 @@ export function realShoreOf(w, waters, shores = ALL_SHORES) {
   return shorePieces(waters).filter((p) => p.id === w.id && onAllowedEdge(w, p, shores));
 }
 
+// Chords round a circle when it has no neighbour to clip against: the same 64
+// builder.js's shorePieces uses, so a bank drawn from either source is the
+// same polygon.
+const SHORE_CHORDS = 64;
+function ringPieces(id, x, z, r) {
+  const out = [];
+  for (let i = 0; i < SHORE_CHORDS; i++) {
+    const a0 = (2 * Math.PI * i) / SHORE_CHORDS, a1 = (2 * Math.PI * (i + 1)) / SHORE_CHORDS;
+    out.push({ ax: x + Math.cos(a0) * r, az: z + Math.sin(a0) * r, bx: x + Math.cos(a1) * r, bz: z + Math.sin(a1) * r, id });
+  }
+  return out;
+}
+
+/**
+ * bankPieces(w, waters, shores) — the stretches of w's outline that are a
+ * bank someone stands on: realShoreOf when w meets another water, otherwise
+ * its own allowed edges (a circle all round; a rect's listed `shores`, in the
+ * outline's walk order, plus any island rims). `shores: []` is no bank at
+ * all. For the render-side dressing (waterdress.js).
+ */
+export function bankPieces(w, waters, shores = w.shores ?? ALL_SHORES) {
+  const real = realShoreOf(w, waters, shores);
+  if (real) return real;
+  if (w.kind === 'circle') return ringPieces(w.id, w.x, w.z, w.r);
+  const { minX, maxX, minZ, maxZ } = w;
+  const edges = {
+    minZ: [minX, minZ, maxX, minZ], maxX: [maxX, minZ, maxX, maxZ],
+    maxZ: [maxX, maxZ, minX, maxZ], minX: [minX, maxZ, minX, minZ],
+  };
+  const out = [];
+  for (const e of ['minZ', 'maxX', 'maxZ', 'minX']) {
+    if (!shores.includes(e)) continue;
+    const [ax, az, bx, bz] = edges[e];
+    out.push({ ax, az, bx, bz, id: w.id });
+  }
+  for (const i of w.islands ?? []) out.push(...ringPieces(w.id, i.x, i.z, i.r));
+  return out;
+}
+
 function distToPieces(pieces, x, z) {
   let min = Infinity;
   for (const p of pieces) {
