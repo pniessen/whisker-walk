@@ -7,7 +7,8 @@ import { animateCat } from '../src/cat/animator.js';
 import { LEG_BLEND, CLAW_HEX } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
-import { ruffGeometry, RUFF } from '../src/cat/ruff.js';
+import { ruffGeometry, RUFF, jawFluffColour } from '../src/cat/ruff.js';
+import { TORSO, CHEST } from '../src/cat/torso.js';
 import { DEFAULT_LOOK, lookToStyle } from '../src/customcats.js';
 
 // Wave 6 (docs/VISUAL-PASS.md) reshaped the cat. These are the properties that
@@ -789,16 +790,27 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
     }
     return new Set([...parent.keys()].map(find)).size;
   };
-  it.each(CASES)('%s: the bib is the belly colour', (_, args, s, simple) => {
+  // The jaw fluff (Task 10 fix) blends the coat painted at its own spot into
+  // the bib: lerp(that coat, belly, JAW_MIX). It sits in the front of the
+  // chest ball, so that coat is the built chest's colour; it was the base
+  // coat, which on D2 read as two grey patches on the white chest.
+  it.each(CASES)('%s: the bib is the belly colour, the jaw fluff the coat at its spot', (label, args, s, simple) => {
     const g = ruffGeometry(s, simple), { bib, jaw, fringe } = g.userData.parts;
     const col = g.attributes.color;
     const colour = (i) => new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
-    const belly = new THREE.Color(s.belly), mix = new THREE.Color(s.base).lerp(new THREE.Color(s.belly), RUFF.JAW_MIX);
+    const belly = new THREE.Color(s.belly);
     expect(RUFF.JAW_MIX).toBe(0.35);
-    for (const [[a, z], want] of [[bib, belly], [fringe, belly], [jaw, mix]]) {
+    const half = (jaw[0] + jaw[1]) / 2;
+    for (const [[a, z], want] of [[bib, belly], [fringe, belly], [[jaw[0], half], jawFluffColour(s, -1)], [[half, jaw[1]], jawFluffColour(s, 1)]]) {
       expect(z).toBeGreaterThan(a);
       for (let i = a; i < z; i++) expect(colourDistance(colour(i), want)).toBeLessThan(1e-6);
     }
+    // the coat at the fluff's spot is the chest the built cat paints there
+    const built = build(args, simple).userData.parts.underside, cc = built.geometry.attributes.color, [ca] = built.userData.ranges.chest;
+    const chest = new THREE.Color(cc.getX(ca), cc.getY(ca), cc.getZ(ca));
+    for (const side of [-1, 1]) expect(colourDistance(jawFluffColour(s, side), chest.clone().lerp(belly, RUFF.JAW_MIX)), label).toBeLessThan(1e-6);
+    // D2: white chest, dark coat; the fluff is white, not grey on white
+    if (label.startsWith('d2')) expect(colourDistance(colour(jaw[0]), belly)).toBeLessThan(0.02);
     expect(pieces(g, fringe)).toBe(5);
     expect(pieces(g, jaw)).toBe(2);
     // and the built cat's ruff is exactly that geometry's colours
@@ -859,6 +871,34 @@ describe('cat model: the ruff is a small bib (body refinement, Task 6)', () => {
       expect(shown, `${label}: ${k} vertices outside the chest and skull`).toBeGreaterThanOrEqual(VISIBLE[k]);
       if (k === 'bib') expect(proud, `${label}: the bib stands out of the chest`).toBeLessThanOrEqual(0.015);
     }
+  });
+  // Task 10 fix: the fringe's five points are soft and blunt, their open bases
+  // buried in the bib (or the chest) and their tips below the bib's edge.
+  it.each(CASES)('%s: five soft points along the bib\'s edge, their bases buried', (label, args, s, simple) => {
+    const g = ruffGeometry(s, simple), p = g.attributes.position;
+    const { BIB, AT, FRINGE } = RUFF;
+    const bc = BIB.OFF.map((o, i) => AT[i] + o), br = BIB.SCALE.map((k) => k * BIB.R);
+    const f = s.body ?? [1, 1, 1];
+    const cc = [0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * f[2]], cr = [CHEST.R * CHEST.SCALE[0] * f[0], CHEST.R * CHEST.SCALE[1], CHEST.R * CHEST.SCALE[2]];
+    const within = (v, c, r) => ((v.x - c[0]) / r[0]) ** 2 + ((v.y - c[1]) / r[1]) ** 2 + ((v.z - c[2]) / r[2]) ** 2 <= 1;
+    expect(g.userData.fringeBases).toHaveLength(5);
+    const [fa, fz] = g.userData.parts.fringe, per = (fz - fa) / 5;
+    for (const [k, [from, n]] of g.userData.fringeBases.entries()) {
+      for (let i = from; i < from + n; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(p, i);
+        expect(within(v, bc, br) || within(v, cc, cr), `${label}: point ${k} base vertex ${i}`).toBe(true);
+      }
+      // the tip: 5 mm or more below the bib's lower edge at its x, and blunt:
+      // the ring next to it is at least half the point's width
+      let tip = null;
+      for (let i = fa + k * per; i < fa + (k + 1) * per; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(p, i);
+        if (!tip || v.y < tip.y) tip = v;
+      }
+      const dx = (tip.x - bc[0]) / br[0];
+      expect(bc[1] - br[1] * Math.sqrt(Math.max(0, 1 - dx * dx)) - tip.y, `${label}: point ${k} shows below the bib`).toBeGreaterThanOrEqual(0.005);
+    }
+    expect(FRINGE.KNEE[1]).toBeGreaterThanOrEqual(0.5);
   });
   it('short-haired cats have none', () => {
     for (const cat of [buildCat('tabby'), buildCat('robbie'), buildCat('digit'), buildCat('tabby', undefined, { look: DEFAULT_LOOK })]) {

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { coatFromStyle, coatColourAt } from './coat.js';
+import { TORSO, CHEST } from './torso.js';
 
 // THE RUFF (body refinement, R9): a fluffy cat's ruff is a small bib tucked
 // under the chin and close to the chest, a little fluff behind each jaw that
@@ -17,31 +19,43 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 // where the torus sat, z -0.30, on the belief that the sketch's chest differs
 // from the game's; it does not (both (0, 0.49, -0.33), r 0.15·(1.05, 1.1, 0.9)),
 // and at -0.30 every ruff vertex is inside the chest or the skull: no ruff
-// shows at all. AT z -0.37 (the sketch's -0.36, 1 cm on) puts the bib's front
-// about 9 mm proud of the chest front under the chin, so it reads as the
-// sketch's modest bib outline, close to the chest; the jaw fluff peeks out
-// below the cheeks at R9's y -0.02. The fringe hangs straight down (TILT 0,
-// no backward rise for the outer points, where the sketch tipped them 0.25
-// and 0.03·|a| back): tipped back, the points' tips sink into the chest and
-// their open bases stand out of the bib; upright, each base stays buried in
-// the bib and each tip pokes 7-10 mm out below its edge, a soft zig-zag.
+// shows at all. AT z -0.37 (the sketch's -0.36, 1 cm on) puts the bib under
+// the chin, close to the chest; the jaw fluff peeks out below the cheeks at
+// R9's y -0.02. The fringe hangs straight down (TILT 0, no backward rise for
+// the outer points, where the sketch tipped them 0.25 and 0.03·|a| back):
+// tipped back, the points' tips sink into the chest and their open bases
+// stand out of the bib; upright, each base stays buried in the bib.
+//
+// Task 10 fix (the live check). The bib is flatter (z scale 0.55 -> 0.5): its
+// front stands about 5 mm proud of the chest (was 9), so when requestPet or
+// perch lifts the head off it, it reads as a bib on the chest, not a round
+// white ball. The five cones read as small white teeth; each point is now a
+// blunt rounded one (softPoint), a little wider and shorter, its tip 7-11 mm
+// below the bib's edge (RISE 0.03 -> 0.02 so the outer ones show as much),
+// its base buried in the flatter bib (Z -0.08 -> -0.072).
 export const RUFF = Object.freeze({
   AT: Object.freeze([0, 0.58, -0.37]),
   // a sphere of radius R, scaled, centred at AT + OFF
-  BIB: Object.freeze({ R: 0.10, SCALE: Object.freeze([1.05, 1.05, 0.55]), OFF: Object.freeze([0, -0.07, -0.05]) }),
+  BIB: Object.freeze({ R: 0.10, SCALE: Object.freeze([1.05, 1.05, 0.5]), OFF: Object.freeze([0, -0.07, -0.05]) }),
   // one each side at AT + (±X, Y, Z), rolled ±ROLL about z
   JAW: Object.freeze({ R: 0.055, SCALE: Object.freeze([0.6, 1.0, 0.8]), X: 0.10, Y: -0.02, Z: -0.03, ROLL: 0.3 }),
   // N cones, tip down, spread over SPREAD radians along the bib's lower edge
-  FRINGE: Object.freeze({ N: 5, R: 0.026, LEN: 0.07, ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.15, Z: -0.08, RISE: 0.03, TILT: 0 }),
-  // the jaw fluff's colour, this far from the coat (base) toward the belly
+  // KNEE: each point's one middle ring, this far from its base along its
+  // length and this fraction of R wide, so the tip is a short blunt round
+  // rather than a cone's spike (Task 10 fix: the cones read as teeth)
+  FRINGE: Object.freeze({ N: 5, R: 0.03, LEN: 0.05, KNEE: Object.freeze([0.5, 0.85]), ZSCALE: 0.6, SPREAD: 1.3, EDGE: 0.075, Y: -0.16, Z: -0.07, RISE: 0.02, TILT: 0 }),
+  // the jaw fluff's colour, this far from the coat painted at its own spot
+  // toward the belly (jawFluffColour)
   JAW_MIX: 0.35,
 });
 
 // Segments: [bib w, h], [jaw w, h], fringe sides. A simple build has fewer
-// segments, never a different shape. Full 192 + 2·64 + 5·6 = 350 triangles
-// (≤ 360); simple 100 + 2·36 + 5·4 = 192 (≤ 210). The fringe cones are open
-// at the base: it is buried in the bib.
-const SEG = { full: { bib: [12, 9], jaw: [8, 5], fringe: 6 }, simple: { bib: [10, 6], jaw: [6, 4], fringe: 4 } };
+// segments, never a different shape. A fringe point is 3 triangles a side (two
+// rows, the tip's a fan). Full 192 + 2·36 + 5·18 = 354 triangles (≤ 360);
+// simple 100 + 2·20 + 5·12 = 200 (≤ 210). The jaw fluff took fewer segments
+// (was 8×5 / 6×4) to pay for the rounded points; it is small and the bib's
+// colour now. The points are open at the base: it is buried in the bib.
+const SEG = { full: { bib: [12, 9], jaw: [6, 4], fringe: 6 }, simple: { bib: [10, 6], jaw: [4, 4], fringe: 4 } };
 
 const placed = (geo, pos, rot, scale) => geo.applyMatrix4(new THREE.Matrix4().compose(
   new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...scale)));
@@ -54,23 +68,82 @@ const coloured = (geo, colour) => {
   return geo;
 };
 
-// The ruff for style row `s` (reads s.base and s.belly), in the cat's frame,
-// vertex-coloured, without uv. userData.parts gives the bib's, the jaw fluff's
-// and the fringe's vertex ranges.
-export function ruffGeometry(s, simple = false) {
+// The torso-local unit direction (coat.js's frame) of the jaw fluff on `side`
+// (-1 left, 1 right): its centre in the cat's frame, less the torso's centre,
+// over the torso's scale for frame `f` (STYLE.body), as legTopDir does a hip's.
+export function jawFluffDir(side, f = [1, 1, 1]) {
+  const [ax, ay, az] = RUFF.AT, { JAW } = RUFF;
+  const d = [
+    (ax + side * JAW.X) / (TORSO.SCALE[0] * f[0]),
+    (ay + JAW.Y - TORSO.CENTRE_Y) / (TORSO.SCALE[1] * f[1]),
+    (az + JAW.Z) / (TORSO.SCALE[2] * f[2]),
+  ];
+  const L = Math.hypot(...d);
+  return d.map((v) => v / L);
+}
+
+// The jaw fluff's colour on `side` (Task 10 fix): the coat painted at its own
+// spot, RUFF.JAW_MIX toward the belly, so it blends the coat there into the
+// bib. The fluff sits in the front of the chest ball (CHEST), so the coat at
+// its spot is the chest's (coat.chest: the belly, or white under a bib); the
+// torso's own paint there (coatColourAt, the way a limb's top samples its hip)
+// is hidden under the chest and is the colour only for a spot outside it.
+// It was the base coat: on D2 (dark coat, white chest) that read as two grey
+// patches on the white chest.
+export function jawFluffColour(s, side, coat = coatFromStyle(s), f = s.body ?? [1, 1, 1]) {
+  const [ax, ay, az] = RUFF.AT, { JAW } = RUFF;
+  const q = [
+    (ax + side * JAW.X) / (CHEST.R * CHEST.SCALE[0] * f[0]),
+    (ay + JAW.Y - TORSO.CENTRE_Y - CHEST.DY) / (CHEST.R * CHEST.SCALE[1]),
+    (az + JAW.Z - CHEST.Z * f[2]) / (CHEST.R * CHEST.SCALE[2]),
+  ];
+  const there = Math.hypot(...q) <= 1 ? new THREE.Color(coat.chest) : coatColourAt(coat, jawFluffDir(side, f));
+  return there.lerp(new THREE.Color(s.belly), RUFF.JAW_MIX);
+}
+
+// One fringe point, tip up (placed flips it): an open cone (its base is buried
+// in the bib) with one middle ring pushed out to FRINGE.KNEE, so its sides
+// stay full most of the way and close in a blunt rounded tip, with smooth
+// round normals so it shades as one soft lobe, not facets.
+function softPoint(sides) {
+  const { R, LEN, KNEE: [along, wide] } = RUFF.FRINGE;
+  const g = new THREE.ConeGeometry(R, LEN, sides, 2, true);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    if (Math.abs(p.getY(i)) > 1e-9) continue; // the middle ring (y 0, half width)
+    p.setXYZ(i, p.getX(i) * 2 * wide, -LEN / 2 + along * LEN, p.getZ(i) * 2 * wide);
+  }
+  // smooth round normals (not the facets'): each ring's point outward, tipping
+  // toward the tip as the ring narrows, the tip's along the axis
+  const n = g.attributes.normal, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i), r = Math.hypot(p.getX(i), p.getZ(i));
+    if (r < 1e-9) { n.setXYZ(i, 0, 1, 0); continue; }
+    const lift = y > -LEN / 2 + 1e-9 ? 0.9 : 0.15; // knee ring : base ring
+    v.set(p.getX(i) / r, lift, p.getZ(i) / r).normalize();
+    n.setXYZ(i, v.x, v.y, v.z);
+  }
+  return g;
+}
+
+// The ruff for style row `s` (reads s.belly, and the coat for the jaw fluff),
+// in the cat's frame, vertex-coloured, without uv. `coat` is the torso's
+// (coatFromStyle(s)) and `f` its frame (STYLE.body). userData.parts gives the
+// bib's, the jaw fluff's and the fringe's vertex ranges; userData.fringeBases
+// each point's open base ring as [first vertex, count].
+export function ruffGeometry(s, simple = false, coat = coatFromStyle(s), f = s.body ?? [1, 1, 1]) {
   const seg = SEG[simple ? 'simple' : 'full'];
   const [ax, ay, az] = RUFF.AT;
   const belly = new THREE.Color(s.belly);
-  const jawColour = new THREE.Color(s.base).lerp(new THREE.Color(s.belly), RUFF.JAW_MIX);
   const { BIB, JAW, FRINGE } = RUFF;
   const bib = [coloured(placed(new THREE.SphereGeometry(BIB.R, ...seg.bib),
     [ax + BIB.OFF[0], ay + BIB.OFF[1], az + BIB.OFF[2]], [0, 0, 0], BIB.SCALE), belly)];
   const jaw = [-1, 1].map((side) => coloured(placed(new THREE.SphereGeometry(JAW.R, ...seg.jaw),
-    [ax + side * JAW.X, ay + JAW.Y, az + JAW.Z], [0, 0, side * JAW.ROLL], JAW.SCALE), jawColour));
+    [ax + side * JAW.X, ay + JAW.Y, az + JAW.Z], [0, 0, side * JAW.ROLL], JAW.SCALE), jawFluffColour(s, side, coat, f)));
   const fringe = [];
   for (let i = 0; i < FRINGE.N; i++) {
     const a = (i / (FRINGE.N - 1) - 0.5) * FRINGE.SPREAD;
-    fringe.push(coloured(placed(new THREE.ConeGeometry(FRINGE.R, FRINGE.LEN, seg.fringe, 1, true),
+    fringe.push(coloured(placed(softPoint(seg.fringe),
       [ax + Math.sin(a) * FRINGE.EDGE, ay + FRINGE.Y + Math.abs(a) * FRINGE.RISE, az + FRINGE.Z],
       [Math.PI - FRINGE.TILT, 0, -a * 0.5], [1, 1, FRINGE.ZSCALE]), belly));
   }
@@ -81,9 +154,18 @@ export function ruffGeometry(s, simple = false) {
     parts[k] = [at, at + n];
     at += n;
   }
+  // each point's open base ring (its last row: sides + 1 vertices with the seam)
+  const fringeBases = [];
+  let from = parts.fringe[0];
+  for (const g of fringe) {
+    const n = g.attributes.position.count;
+    fringeBases.push([from + n - (seg.fringe + 1), seg.fringe + 1]);
+    from += n;
+  }
   const all = [...bib, ...jaw, ...fringe];
   const geo = mergeGeometries(all);
   for (const g of all) g.dispose();
   geo.userData.parts = parts;
+  geo.userData.fringeBases = fringeBases;
   return geo;
 }

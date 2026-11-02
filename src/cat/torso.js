@@ -143,14 +143,19 @@ export const BACK_MIN_RHO = 1.04;
 export const NECK_FORWARD = -0.10;
 // Fluffy cats: their neck items, neck prizes and collar sit exactly where a
 // tabby's do (body refinement, Task 7 fix round 1). The small bib (ruff.js)
-// stands about 9 mm out of the chest under the chin, so the necktie's and
-// bowtie's knots, on a tabby's spot, rest on it with their fronts 9-16 mm out
-// of the fur; 5 mm further back and the necktie sinks into the bib, 5 mm
+// stands about 5 mm out of the chest under the chin (9 mm before the Task 10
+// fix flattened it), so the necktie's and bowtie's knots, on a tabby's spot,
+// rest on it with their fronts out of the fur; 5 mm further back and the
+// necktie sank into the 9 mm bib, 5 mm
 // further forward and the streamer tails hang further off the fur than a
 // tabby's (the 'rests on the bib' test). Head-local; `forward` adds to
 // NECK_FORWARD (front is -z), `drop` is taken off y. Was { forward: -0.02,
 // drop: 0.07 } on the torus.
 export const NECK_FLUFFY = { forward: 0, drop: 0 };
+// The chest ball in the underside (model.js undersideGeometry): a sphere of
+// radius R scaled by SCALE (x also by the frame's fx), at y CENTRE_Y + DY and
+// z Z·fz, cat frame. The ruff's jaw fluff takes its colour where it sits in it.
+export const CHEST = Object.freeze({ R: 0.15, SCALE: Object.freeze([1.05, 1.1, 0.9]), DY: 0.06, Z: -0.33 });
 // The hood bunched at the neck (under a hat) keeps its old head-relative spot,
 // HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
 // NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth

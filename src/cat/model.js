@@ -8,7 +8,7 @@ import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
-import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
+import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, CHEST, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
   tabby:     { base: 0x9c7a4f, belly: 0xd8c39a, accent: 0x6f5636, scale: 1.0, stripes: true },
@@ -762,13 +762,13 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const parts = {
     belly: painted(toTorso(new THREE.SphereGeometry(0.26, w, h).scale(0.74 * fx, 0.58 * fy, 0.95 * fz)
       .translate(0, TORSO.CENTRE_Y - 0.08 * fy, -0.06 * fz)), s.belly),
-    chest: painted(toTorso(new THREE.SphereGeometry(0.15, w, h).scale(1.05 * fx, 1.1, 0.9)
-      .translate(0, TORSO.CENTRE_Y + 0.06, -0.33 * fz)), coat.chest),
+    chest: painted(toTorso(new THREE.SphereGeometry(CHEST.R, w, h).scale(CHEST.SCALE[0] * fx, CHEST.SCALE[1], CHEST.SCALE[2])
+      .translate(0, TORSO.CENTRE_Y + CHEST.DY, CHEST.Z * fz)), coat.chest),
   };
   if (s.fluffy) {
     // a small bib under the chin, jaw fluff and a fringe (ruff.js), already
     // vertex-coloured and without uv
-    parts.ruff = toTorso(ruffGeometry(s, opts.simple));
+    parts.ruff = toTorso(ruffGeometry(s, opts.simple, coat, f));
   }
   const ranges = {};
   let at = 0;
@@ -780,7 +780,7 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
   const geo = mergeGeometries(Object.values(parts));
   for (const p of Object.values(parts)) p.dispose();
   geo.userData.ranges = ranges;
-  geo.userData.chestCentre = [0, 0.06 / BS[1], -0.33 * fz / BS[2]];
+  geo.userData.chestCentre = [0, CHEST.DY / BS[1], CHEST.Z * fz / BS[2]];
   return geo;
 }
 
