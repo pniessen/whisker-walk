@@ -418,10 +418,14 @@ function distToPieces(pieces, x, z) {
  * either cover part of the island or vanish beside it. The only correct way
  * to draw a disc that crosses the edge is to bend the edge round it.
  *
- * It throws for a disc that crosses the perimeter other than twice (it would
- * cut the rect apart, swallow two corners' worth of edge or the whole rect)
+ * A disc over two corners crosses the perimeter twice too, so it is a notch
+ * like any other: its arc stands in for both corners.
+ *
+ * It throws, saying which, for a disc that crosses the perimeter more than
+ * twice (it would cut the rect apart), for one that covers the whole rect,
+ * for one inside that only touches an edge (within 1e-6) without crossing it,
  * and for two discs that overlap (a hole would cross a hole, or two notches
- * would share a stretch). No map needs either, so neither is handled.
+ * would share a stretch). No map needs any of them, so none is handled.
  */
 export function rectMinusDiscs(box, discs, segments) {
   const { minX, maxX, minZ, maxZ } = box;
@@ -486,8 +490,17 @@ export function rectMinusDiscs(box, discs, segments) {
         add(x0, cz + dz);
       }
     }
+    if (cross.length === 0) {
+      // No crossing, yet not wholly inside: it covers the rect, or it is
+      // inside and touches an edge (within 1e-6) without crossing it.
+      const covers = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ]]
+        .every(([x, z]) => Math.hypot(x - cx, z - cz) <= r);
+      throw new Error(covers
+        ? `rectMinusDiscs: disc (${cx}, ${cz}, r ${r}) covers the whole rect; there is no water left to draw`
+        : `rectMinusDiscs: disc (${cx}, ${cz}, r ${r}) touches the rect's edge without crossing it; move it at least 1e-6 in from the edge, or across it`);
+    }
     if (cross.length !== 2) {
-      throw new Error(`rectMinusDiscs: disc (${cx}, ${cz}, r ${r}) crosses the rect's edge ${cross.length} times; only a two-crossing notch is drawn`);
+      throw new Error(`rectMinusDiscs: disc (${cx}, ${cz}, r ${r}) crosses the rect's edge ${cross.length} times, cutting it apart; only a two-crossing notch is drawn`);
     }
 
     // Which way round is the perimeter inside the disc? Test the middle of
