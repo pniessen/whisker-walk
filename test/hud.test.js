@@ -247,7 +247,13 @@ describe('HUD layout (style.css)', () => {
     test('touch pause sits in the top row; the top row steps right for it', () => {
       expect(rule('.tui-pause')).toMatch(/top: max\(16px, env\(safe-area-inset-top\)\)/);
       expect(css).toMatch(/body\.touch-mode:not\(\.left-handed\) \.hud-top\s*\{[^}]*left: calc\(max\(16px, env\(safe-area-inset-left\)\) \+ 54px\)/);
-      expect(rule('.hud-goals')).toContain('top: 64px');
+      // Fix wave M6: the band under the top row follows the top row's safe-area
+      // inset (a standalone PWA), 48px below it: 64px with no inset, as before.
+      const band = 'top: calc(max(16px, env(safe-area-inset-top)) + 48px)';
+      expect(rule('.hud-goals')).toContain(band);
+      expect(rule('.hud-objective')).toContain(band);
+      expect(rule('.hud-map:not(:has(.hud-map-disc)) ~ .hud-roster')).toContain(band);
+      expect(css).not.toMatch(/(^|[;{\s])top: 64px/);
     });
     test('touch prompt rises above the action cluster; toasts above the prompt', () => {
       expect(css).toMatch(/body\.touch-mode \.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
@@ -255,7 +261,10 @@ describe('HUD layout (style.css)', () => {
       expect(css).toMatch(/body\.touch-mode #hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
       // the coarse-pointer twins stay in step
       expect(css).toMatch(/@media \(pointer: coarse\) \{\s*\.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
-      expect(css).toMatch(/#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
+      // (anchored inside the coarse-pointer block: the body.touch-mode rule above matches too)
+      const at = css.indexOf('@media (pointer: coarse) {\n  .hud-prompt');
+      const coarse = at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+      expect(coarse).toMatch(/\n\s*#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
     });
     test('landscape touch keeps the prompt at 96px and toasts at 165px', () => {
       const block = landscape();
