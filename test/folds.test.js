@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import * as THREE from 'three';
 import { buildCat, catDims } from '../src/cat/model.js';
-import { animateCat } from '../src/cat/animator.js';
+import { animateCat, STALK_SWING } from '../src/cat/animator.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from '../src/cat/limbs.js';
 import { POSE_FIT } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
@@ -61,7 +61,7 @@ const DROP = { nap: 0.1, stalk: 0.1, pinned: 0.1, requestPet: 0.02, perch: 0.02,
 const HEAD_DY = { nap: -0.24, stalk: -0.16, pinned: -0.22, requestPet: 0.06, perch: 0.06, roll: -0.1 };
 
 // The poke measure and Task 1's baseline table (T1) live in helpers/catpoke.js.
-const pokes = (cat, state) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand');
+const pokes = (cat, state, opts) => pokesOf(cat, (i) => kindOf(state, i) !== 'stand', opts);
 const ray = new THREE.Raycaster();
 const DOWN = new THREE.Vector3(0, -1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -74,11 +74,12 @@ const allowed = (name, state) => Math.max(0.005, T1[name === 'digit' ? 'digit' :
 // poke and is far too loose here: the folds reach 0.0084 at most standing still
 // (Digit nap: 0.0070 full, 0.0084 simple) and every other still folded state is
 // negative (-0.014 to -0.17), so a tucked thigh pushed 15 cm through the back
-// must fail. Moving, Digit's walking stalk is the one other positive case: the
-// walk gait still swings the crouched legs, measured 0.0359 full, 0.0290 simple.
-const foldedAllowed = (name, state, moving = false) => {
+// must fail. Moving, the walking stalk swings its crouched legs at
+// STALK_SWING of the walk's stride (animator.js): Digit measured 0.0359 full,
+// 0.0290 simple at the full swing, -0.0133 / -0.0044 damped (tabby -0.0078 /
+// 0.0040), so it is held to the same ceiling.
+const foldedAllowed = (name, state) => {
   if (name === 'digit' && state === 'nap') return 0.0105;
-  if (name === 'digit' && state === 'stalk' && moving) return 0.038;
   return 0.005;
 };
 
@@ -183,15 +184,64 @@ describe('legs fold at the joints (Task 5)', () => {
       for (let t = 0; t <= 3; t += 0.3) {
         for (const [state, speed, key] of [['follow', 1.5, 'walk'], ['stalk', 1.5, 'stalk']]) {
           const p = pokes(pose(cat, state, t, speed), state);
-          expect(p.folded, `${name} ${key} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state, true));
+          expect(p.folded, `${name} ${key} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state));
           expect(p.standing, `${name} ${key} t ${t} standing`).toBeLessThanOrEqual(allowed(name, key));
         }
         for (const state of ['swipe', 'backUp', 'pinning', 'pounce', 'flinch', 'rearUp', 'cross', 'pinned', 'roll']) {
           const p = pokes(pose(cat, state, t), state);
-          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state, true));
+          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(foldedAllowed(name, state));
           expect(p.standing, `${name} ${state} t ${t} standing`).toBeLessThanOrEqual(allowed(name, state));
         }
       }
+    }
+  }, 120_000); // ~12 s alone, slower under the full suite and on CI
+
+  it('a stalk creeps: small low steps, nothing out of the back', () => {
+    // The walking stalk, sixteen phases of one stride (every leg's peak swing
+    // among them) at a stalk's speed and well past it (the swing's cap), every
+    // preset and both builder looks; tabby and Digit simple too (the rest of
+    // the standard presets share tabby's rig). Every leg is crouched, so the
+    // folded ceiling holds throughout;
+    // the legs must still step (a frozen stalk would pass the first half).
+    // Measured with a 5 mm reach (helpers/catpoke.js): a crouched thigh top
+    // sits beside the flank at the torso's silhouette edge, where Task 1's
+    // single ray grazes the steep side and swings 1-2 cm with a 0.01 rad step
+    // of the leg, at rest too. Before the fix, by that measure, Digit read
+    // 0.0175 full / 0.0104 simple at its worst phase (speed 1.5, dense t) and
+    // 0.0073 on this test's samples; by the single ray, 0.055 / 0.060. The
+    // swing itself is pinned too: no crouched leg past the damped cap, so a
+    // half-undone damping fails here even where the poke would let it by.
+    const cats = [...[...PRESETS, 'fluffy', 'socks'].map((name) => [name, false]), ['tabby', true], ['digit', true]];
+    for (const [name, simple] of cats) {
+      const cat = make(name, simple);
+      const { legs } = cat.userData.parts;
+      for (const speed of [1.5, 4]) {
+        const lo = [Infinity, Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity, -Infinity];
+        let worst = -Infinity;
+        const period = (2 * Math.PI) / (4.5 + speed * 1.4); // walkGait's stride
+        for (let k = 0; k < 16; k++) {
+          pose(cat, 'stalk', (k / 16) * period, speed);
+          worst = Math.max(worst, pokes(cat, 'stalk', { reach: 0.005 }).folded);
+          legs.forEach((leg, i) => {
+            expect(Math.abs(leg.rotation.x), `${name} stalk speed ${speed} leg ${i} swing`).toBeLessThanOrEqual(0.6 * STALK_SWING + 1e-9);
+            const z = leg.userData.paw.getWorldPosition(_v).z;
+            lo[i] = Math.min(lo[i], z); hi[i] = Math.max(hi[i], z);
+          });
+        }
+        const at = `${name}${simple ? ' simple' : ''} stalk speed ${speed}`;
+        expect(worst, `${at} folded`).toBeLessThanOrEqual(0.005);
+        legs.forEach((_, i) => expect(hi[i] - lo[i], `${at} leg ${i} stride`).toBeGreaterThan(0.02));
+      }
+    }
+  }, 120000); // ~15 s alone; the whole suite's parallel load doubles it
+
+  it("Hagrid's stalk keeps today's walk swing", () => {
+    const hen = buildCat('hagrid');
+    for (const t of [0.3, 1.1, 2.2]) {
+      animateCat(hen, 'follow', t, 1.5, false);
+      const walk = hen.userData.parts.legs.map((l) => l.rotation.x);
+      animateCat(hen, 'stalk', t, 1.5, false);
+      expect(hen.userData.parts.legs.map((l) => l.rotation.x)).toEqual(walk);
     }
   });
 
