@@ -1022,7 +1022,7 @@ describe('the Gorge: every random spot stands where a cat can walk', () => {
     }
     expect([...new Set(bad)].slice(0, 20)).toEqual([]);
     expect(targets).toBeGreaterThan(SEEDS * STRAYS); // the strays did wander
-  });
+  }, 180_000); // a long sweep: GitHub's runners take ~35 s
 
   // Review fix F30: onlyOn's margin is for spots a walk CHOOSES. A cat's
   // position, clamped every frame, is held at the edge (margin 0); thrown
@@ -1227,7 +1227,7 @@ describe('the Gorge: no stray or ghost goes under a roof', () => {
       random.mockRestore();
     }
     expect([...new Set(bad)].slice(0, 12)).toEqual([]);
-  });
+  }, 180_000); // a long sweep: GitHub's runners take ~35 s
 
   it('STAND_ON holds no cave or den', () => {
     for (const r of STAND_ON) {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterAll } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { closeDiffs } from './helpers/closeto.js';
 
 // Gorge part 1, Task 1: today's world, pinned as a byte-exact trace.
 //
@@ -302,6 +303,8 @@ describe('the flat trace', () => {
       return;
     }
     const pinned = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-    expect(trace).toEqual(pinned);
+    // Within last-digit rounding: the fixture is recorded on a Mac and checked
+    // on GitHub's Linux runners too (see helpers/closeto.js).
+    expect(closeDiffs(trace, pinned)).toEqual([]);
   });
 });

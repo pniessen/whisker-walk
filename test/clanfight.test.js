@@ -1,5 +1,6 @@
 import { describe, test, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { closeDiffs } from './helpers/closeto.js';
 import * as THREE from 'three';
 import {
   createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP, fightReach, reachYFor,
@@ -704,11 +705,11 @@ describe('the fight camera sees every action', () => {
 
   test('actions:false reach is today\'s', () => {
     const ok = (x, z) => z > -0.5;
-    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok)).toEqual(TODAY);
-    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false })).toEqual(TODAY);
+    expect(closeDiffs(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok), TODAY)).toEqual([]);
+    expect(closeDiffs(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false }), TODAY)).toEqual([]);
     // a reachY changes nothing without actions
     const reachY = { me: [{ along: 0, side: 0, y: 0.5 }], it: [{ along: 0, side: 0, y: 0.5 }] };
-    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false, reachY })).toEqual(TODAY);
+    expect(closeDiffs(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false, reachY }), TODAY)).toEqual([]);
   });
 
   test('actions: the lines between the anchors, the middle, the sidesteps and the flinch spots; no circle', () => {
