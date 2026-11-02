@@ -33,7 +33,7 @@ import { activeCat, scarKey } from '../customcats.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
-import { createCritters } from '../critters.js';
+import { createCritters, goatForDay } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
@@ -469,6 +469,10 @@ export function createWalkLifecycle({
       : AREAS[areaId].build(scene, { water: { quality: tier, reducedMotion }, wind });
     // Gorge part 1: the area's walkable height, FLAT_GROUND on every map today.
     const ground = groundOf(areaData);
+    // Gorge G9: the goat comes on about half the days. On a no-goat day it and
+    // its leap are dropped here, by the UTC date alone (the race's day), so
+    // walkRng and strayStream draw exactly as on a goat day.
+    if (areaId === 'gorge') Object.assign(areaData, goatForDay(areaData, new Date().toISOString().slice(0, 10)));
     // Clan Edition only, and local to this screen (border crossings R13): the
     // waymark posts and the town's footpath. Added before the fill light, contact
     // shadows and the static-prop merge so they get all three; their colliders

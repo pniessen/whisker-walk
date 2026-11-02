@@ -4,8 +4,8 @@ import { CRITTER_INFO, renderJournalHtml } from '../src/journal.js';
 import { JOURNAL_TYPES } from '../src/progression.js';
 
 describe('CRITTER_INFO', () => {
-  it('has all 13 journal critter types with kid-friendly entries', () => {
-    expect(CRITTER_INFO).toHaveLength(13);
+  it('has all 14 journal critter types with kid-friendly entries', () => {
+    expect(CRITTER_INFO).toHaveLength(14);
     for (const entry of CRITTER_INFO) {
       expect(typeof entry.id).toBe('string');
       expect(typeof entry.emoji).toBe('string');
@@ -23,6 +23,11 @@ describe('CRITTER_INFO', () => {
   it('the frog\'s entry is the Bog Frog', () => {
     expect(CRITTER_INFO.find((c) => c.id === 'frog')).toEqual(
       { id: 'frog', emoji: '🐸', name: 'Bog Frog', hint: 'Creep up softly, or it plops into the bog!' });
+  });
+
+  it('the goat\'s entry is the Mountain Goat', () => {
+    expect(CRITTER_INFO.find((c) => c.id === 'goat')).toEqual(
+      { id: 'goat', emoji: '🐐', name: 'Mountain Goat', hint: 'It never lets you close — watch it leap along the rim!' });
   });
 
   it('ids exactly match progression.js JOURNAL_TYPES (no typo drift)', () => {

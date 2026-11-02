@@ -52,7 +52,7 @@ const SAVE_VERSION = 4;
 // re-showing critters the player already knows. Purely additive: a save
 // written before v18 simply has no 'rat' key and sanitizeJournal defaults it
 // to 0, exactly as it does for every other unseen type.
-export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog'];
+export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull', 'crab', 'dog', 'villager', 'firefly', 'mouse', 'rat', 'rabbit', 'frog', 'goat'];
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but

@@ -415,8 +415,8 @@ describe('The Old Docks — catalog, unlock gating and walk counting', () => {
 describe('The Old Docks — the eleventh journal critter', () => {
   it('adds rat to the journal vocabulary and the catalog together', () => {
     expect(JOURNAL_TYPES).toContain('rat');
-    expect(JOURNAL_TYPES).toHaveLength(13);
-    expect(CRITTER_INFO).toHaveLength(13);
+    expect(JOURNAL_TYPES).toHaveLength(14);
+    expect(CRITTER_INFO).toHaveLength(14);
     const rat = CRITTER_INFO.find((c) => c.id === 'rat');
     expect(rat).toBeTruthy();
     expect(rat.emoji).toBeTruthy();
@@ -439,6 +439,11 @@ describe('The Old Docks — the eleventh journal critter', () => {
     expect(hideToastFor('frog')).toBe('The frog plopped into the bog! 🐸');
     expect(hideToastFor('mouse')).toBe('The mouse dived under cover! 🐭');
     expect(readFileSync('src/game/walk.js', 'utf8')).toMatch(/onHide:[^\n]*hideToastFor\(/);
+  });
+
+  it('gives the goat a display name and its own hide toast', () => {
+    expect(labelFor('goat')).toBe('a mountain goat');
+    expect(hideToastFor('goat')).toBe('The goat bounded off over the rocks! 🐐');
   });
 
   it('gives the rabbit a display name', () => {

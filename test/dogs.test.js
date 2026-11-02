@@ -339,7 +339,7 @@ describe('removing the critter dogs shifts no walkRng draw', () => {
     expect([...weathers].sort()).toEqual(['clear', 'rain', 'sunset']);
   });
 
-  test('nothing outside the area files, the walk and the goals reads critterSpawns; the walk only filters birds and hands it to createCritters, the goals only look for a villager', () => {
+  test('nothing outside the area files, the walk, the goals and the goat\'s day reads critterSpawns; the walk only filters birds and hands it to createCritters, the goals only look for a villager', () => {
     const files = [];
     const walkDir = (d) => {
       for (const e of readdirSync(new URL(`../src/${d}`, import.meta.url), { withFileTypes: true })) {
@@ -351,7 +351,16 @@ describe('removing the critter dogs shifts no walkRng draw', () => {
     walkDir('');
     const readers = files.filter((f) => !f.startsWith('world/')
       && readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8').includes('critterSpawns'));
-    expect(readers).toEqual(['game/walk.js', 'goals.js']);
+    expect(readers).toEqual(['critters.js', 'game/walk.js', 'goals.js']);
+    // critters.js's goatForDay (Gorge G9) only drops the goat on a no-goat
+    // day, by the date alone: it takes no rng and draws nothing.
+    const crit = readFileSync(new URL('../src/critters.js', import.meta.url), 'utf8')
+      .split('\n').filter((l) => l.includes('critterSpawns') && !l.trim().startsWith('//'));
+    expect(crit).toEqual([
+      '  const { critterSpawns, moments } = area;',
+      '  if (goatToday(date)) return { critterSpawns, moments };',
+      "    critterSpawns: critterSpawns.filter((s) => s.type !== 'goat'),",
+    ]);
     // goals.js only asks whether the area has a villager (no draw, and the
     // rain filter above never drops one), to keep head scratches off the
     // Woods' goal list

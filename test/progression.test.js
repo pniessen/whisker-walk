@@ -1099,6 +1099,16 @@ describe('v15 journal/golden/streak/kitten save fields', () => {
     expect(createProgression(storage).state.journal.frog).toBe(2);
   });
 
+  it('a goat spotted is counted, and the count survives a reload', () => {
+    const storage = fakeStorage({});
+    const p = createProgression(storage);
+    p.recordSighting('goat');
+    p.recordSighting('goat');
+    expect(JOURNAL_TYPES[JOURNAL_TYPES.length - 1]).toBe('goat'); // appended, so every older id keeps its place
+    expect(p.state.journal.goat).toBe(2);
+    expect(createProgression(storage).state.journal.goat).toBe(2);
+  });
+
   it('recordGolden returns true once per valid id, false for repeats or malformed ids', () => {
     const p = createProgression(fakeStorage({}));
     expect(p.recordGolden('gm-park-3')).toBe(true);

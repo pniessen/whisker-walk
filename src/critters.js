@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bus } from './events.js';
 import { litMaterial } from './render/materials.js';
 import { FLAT_GROUND } from './ground.js';
+import { mulberry32, seedFromCode } from './rng.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -65,6 +66,30 @@ export const STILL_SPEED = 0.25;
 // Above the fastest the cat really moves (the 9 m/s pounce lunge; zoomies top
 // out near 6.9), so anything faster is a snap, not movement (see update).
 export const CAT_SPEED_CAP = 12;
+// Gorge G9 — the mountain goat on the shoulder only ever bolts: it is in none
+// of STALKABLE, PREY or CHASEABLE, so it can't be stalked, pounced or called.
+// It notices a cat at GOAT_NOTICE measured in 2D (from the clifftop the cat is
+// 2 m below it, and in 3D it would hardly ever notice her), bounds off at
+// GOAT_FLEE and hides on its own level.
+export const GOAT_NOTICE = 6;
+const GOAT_FLEE = 7.0;
+// It comes on about half the days (owner, 2026-11-01). The date alone decides,
+// off its own seeded stream: never walkRng or strayStream, so co-walkers agree.
+export const GOAT_DAY_SHARE = 0.5;
+export function goatToday(date) {
+  return mulberry32(seedFromCode(`${date}-gorge-goat`))() < GOAT_DAY_SHARE;
+}
+// The walk's goat for `date`: on a no-goat day, the area's critterSpawns and
+// moments without the goat and its leap; on a goat day, the very same arrays.
+// Its hide stays (nothing else uses it). Draws nothing.
+export function goatForDay(area, date) {
+  const { critterSpawns, moments } = area;
+  if (goatToday(date)) return { critterSpawns, moments };
+  return {
+    critterSpawns: critterSpawns.filter((s) => s.type !== 'goat'),
+    moments: moments.filter((m) => m.id !== 'goat-leap' && m.type !== 'goat'),
+  };
+}
 
 function buildCritter(type) {
   const g = new THREE.Group();
@@ -122,6 +147,28 @@ function buildCritter(type) {
     const tail = new THREE.Mesh(new THREE.SphereGeometry(0.045, 5, 5), mat(0xf2eee6));
     tail.position.set(0, 0.12, 0.15);
     g.add(tail);
+  } else if (type === 'goat') {
+    // White-grey and sure-footed: a long body on four legs, a head held high
+    // with two small horns swept back. About 0.9 m to the horn tips.
+    const coat = 0xd8d6d0;
+    const body = box(0.3, 0.45, 0.7, coat);
+    body.position.y = 0.55;
+    g.add(body);
+    for (const sx of [-0.1, 0.1]) {
+      for (const sz of [-0.26, 0.26]) {
+        const leg = box(0.07, 0.34, 0.07, 0xb8b4ac);
+        leg.position.set(sx, 0.17, sz);
+        g.add(leg);
+      }
+    }
+    const head = box(0.16, 0.18, 0.24, coat);
+    head.position.set(0, 0.74, -0.42);
+    g.add(head);
+    for (const side of [-1, 1]) {
+      const horn = box(0.03, 0.12, 0.03, 0x6a6258);
+      horn.geometry.rotateX(0.6).translate(side * 0.05, 0.86, -0.38); // swept back, baked into the geometry as the villager's arm is
+      g.add(horn);
+    }
   } else if (type === 'frog') {
     // Squat and green, under 0.2 m: eye bumps on top and two folded back legs.
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(0x5e8a3a));
@@ -277,18 +324,28 @@ export function createCritters(scene, spawns, opts = {}) {
     list.splice(list.indexOf(c), 1);
   }
 
-  // The nearest cover within HIDE_SEARCH of `p`, or null.
+  // The nearest cover within HIDE_SEARCH of `p` on its own level (G9: the
+  // goat never runs at the floor's hides), falling back to the nearest at any
+  // level when none is on its own; null when there is none in reach. On flat
+  // ground every hide is on its level, so the choice is today's.
   function nearestHide(p) {
     let best = null;
     let bestD = Infinity;
+    let any = null;
+    let anyD = Infinity;
     for (const h of hides) {
       const d = Math.hypot(h.x - p.x, h.z - p.z);
-      if (d <= HIDE_SEARCH && d < bestD && ground.sameLevel(p.x, p.z, h.x, h.z)) {
+      if (d > HIDE_SEARCH) continue;
+      if (d < anyD) {
+        anyD = d;
+        any = h;
+      }
+      if (d < bestD && ground.sameLevel(p.x, p.z, h.x, h.z)) {
         bestD = d;
         best = h;
       }
     }
-    return best;
+    return best ?? any;
   }
 
   // Into cover, for good. A caught critter was already paid for, so only one
@@ -299,7 +356,7 @@ export function createCritters(scene, spawns, opts = {}) {
     c.hideAt = null;
     c.spottable = false;
     c.stalkClose = false;
-    if (c.type === 'frog') c.group.position.y = ground.y(c.group.position.x, c.group.position.z); // never left mid-hop
+    if (c.type === 'frog' || c.type === 'goat') c.group.position.y = ground.y(c.group.position.x, c.group.position.z); // never left mid-hop
     c.group.visible = false; // contactshadows.js collapses a hidden mover's decal
     if (!c.tagged && onHide) onHide(c);
   }
@@ -516,9 +573,11 @@ export function createCritters(scene, spawns, opts = {}) {
               c.cooldown = 18;
             }
           }
-        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat' || c.type === 'rabbit' || c.type === 'frog') {
+        } else if (c.type === 'squirrel' || c.type === 'mouse' || c.type === 'rat' || c.type === 'rabbit' || c.type === 'frog' || c.type === 'goat') {
           // Every flee speed stays under the 9 m/s pounce lunge, so a child can still tag one.
-          const fleeSpeed = c.type === 'mouse' ? 6.5 : c.type === 'rabbit' ? 6.0 : c.type === 'frog' ? 5.0 : c.type === 'rat' ? 5.5 : 4.5;
+          // (The goat can't be tagged at all; it only bolts.)
+          const goat = c.type === 'goat';
+          const fleeSpeed = goat ? GOAT_FLEE : c.type === 'mouse' ? 6.5 : c.type === 'rabbit' ? 6.0 : c.type === 'frog' ? 5.0 : c.type === 'rat' ? 5.5 : 4.5;
           // Task 13: noticing the cat. Off cover, it is the pounce-tag's dash.
           // A stalking or still cat is noticed late and startles it first
           // (R27, R29); a critter answering a Far Call came because it was
@@ -526,8 +585,11 @@ export function createCritters(scene, spawns, opts = {}) {
           // it (R32), until the cat has once been out past PREY_NOTICE or the
           // critter is back at its home anchor, whichever comes first.
           if (c.calm && (dCat > PREY_NOTICE || c.anchor.equals(c.anchorHome))) c.calm = false;
-          const sneaky = catStalking || catStill;
-          if (!c.fleeing && !(c.drawT > 0) && !c.calm && dCat < (sneaky ? PREY_NOTICE_STALKED : PREY_NOTICE)) {
+          // The goat notices any cat at GOAT_NOTICE, in 2D, and never freezes first.
+          const sneaky = !goat && (catStalking || catStill);
+          const near = goat ? Math.hypot(p.x - catPos.x, p.z - catPos.z) < GOAT_NOTICE
+            : dCat < (sneaky ? PREY_NOTICE_STALKED : PREY_NOTICE);
+          if (!c.fleeing && !(c.drawT > 0) && !c.calm && near) {
             c.fleeing = true;
             c.cooldown = 3;
             c.hideAt = nearestHide(p);
@@ -571,6 +633,8 @@ export function createCritters(scene, spawns, opts = {}) {
           if (c.type === 'frog') {
             p.y = ground.y(p.x, p.z) + (c.fleeing && !(c.startleT > 0) ? 0.12 * Math.abs(Math.sin(12 * t)) : 0);
           }
+          // A bolting goat bounds; stopped, it stands on the ground.
+          if (goat) p.y = ground.y(p.x, p.z) + (c.fleeing ? 0.25 * Math.abs(Math.sin(9 * t)) : 0);
         } else if (c.type === 'butterfly' || c.type === 'firefly') {
           const cx = c.trail ? catPos.x : c.anchor.x;
           const cz = c.trail ? catPos.z : c.anchor.z;

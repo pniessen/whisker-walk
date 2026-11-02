@@ -9,10 +9,14 @@ export function labelFor(type) {
     dog: 'the neighbor’s dog', villager: 'a friendly neighbor',
     firefly: 'a glowing firefly', mouse: 'a quick little mouse',
     rat: 'a dockside rat', rabbit: 'a bounding rabbit', frog: 'a croaking frog',
+    goat: 'a mountain goat',
   }[type] ?? 'something interesting';
 }
 
-// The toast when a critter reaches cover. The frog's bog is wet, not a den.
+// The toast when a critter reaches cover. The frog's bog is wet, not a den,
+// and the goat bounds off rather than diving under anything.
 export function hideToastFor(type) {
-  return type === 'frog' ? 'The frog plopped into the bog! 🐸' : `The ${type} dived under cover! 🐭`;
+  if (type === 'frog') return 'The frog plopped into the bog! 🐸';
+  if (type === 'goat') return 'The goat bounded off over the rocks! 🐐';
+  return `The ${type} dived under cover! 🐭`;
 }
