@@ -25,6 +25,7 @@ const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS } =
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
+const { PRINT_Y } = await import('../src/render/pawprints.js');
 
 const CAMPS = ['woods', 'river', 'moor', 'pines'];
 const groundSeats = (L) => [L.seats.deputy, ...L.seats.elders, ...L.seats.kits];
@@ -209,7 +210,12 @@ describe('addCamp', () => {
       // the clearing lies flat just over the ground, within its radius
       const clearing = scene.getObjectByName('campClearing');
       for (const v of worldVerts(clearing)) {
-        expect(v.y).toBeCloseTo(0.015, 6);
+        expect(v.y).toBeCloseTo(0.011, 6);
+        // over the path strips (0.01), under the paw prints and the
+        // contact-shadow decals (contactshadows.js DECAL_Y 0.015, not exported)
+        expect(v.y).toBeGreaterThan(0.01);
+        expect(v.y).toBeLessThan(PRINT_Y);
+        expect(v.y).toBeLessThan(0.015);
         expect(Math.hypot(v.x - cx, v.z - cz)).toBeLessThanOrEqual(D.clearing.r + 1e-6);
       }
       expect(clearing.material.polygonOffset).toBe(true);

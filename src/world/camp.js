@@ -271,7 +271,10 @@ const DEN_LOOK = {
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
 const RING_LOOK = { greens: [0x2e5524, 0x3f6b2c], foot: 0.62, crown: 1.12 };
-const CLEARING = { color: 0xc9b38a, y: 0.015, segments: 28, edge: 0.1 };
+// y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
+// prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
+// 0.015), so the opaque sand neither hides the prints nor ties the shadows.
+const CLEARING = { color: 0xc9b38a, y: 0.011, segments: 28, edge: 0.1 };
 const NEST = { moss: 0x6f8f3a, bracken: 0x8a7a48, r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
