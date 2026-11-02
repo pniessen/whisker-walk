@@ -17,6 +17,22 @@
        simple=1                 opts.simple builds
        zoom=1                   multiplier on camera distance
        variants=shell|neck      first breed x3, d = -0.02, 0, +0.02: APPROXIMATE preview of R5 tuning
+       light=game               the game's lighting: createSun() + createFill(DEFAULT_GROUND_BOUNCE), the
+                                renderer's tone mapping / colour space / shadows as src/main.js sets them,
+                                the walk's env map at HIGH's envIntensity, the walk's shadow fit and bias,
+                                assignShadowCasters(scene), on a grass-green ground that receives shadows
+       look=pattern.fur.coat.marks[,…]   custom cats (size 1, default eyes), ids from PATTERNS/FURS/COATS/MARKS
+       clan=clanId:i[,…]        cast member i of clanCast(clanId): its breed and style, simple build
+       state=…                  also the fight states arch|rearUp|flinch|pinned|pinning|roll and the water
+                                states swim|wade (a translucent water plane at WATERLINE, each cat sunk by
+                                sinkTarget; the pose goes through waterPose from 'follow', so Hagrid floats
+                                in 'follow' as he does in the game)
+       pair=pin|roll            two cats (breeds' first two, default tabby,tabby) staged as the fight stages
+                                them: pin = loser 'pinned', winner 'pinning' on the loser's spot lifted by
+                                catDims(loser).pinnedBackY; roll = both 'roll', rolled 1.2 rad through placeFrame
+       scars=1                  two scars (face + side, full, right side) on every cat, through setCatScars
+       at=x,y,z                 camera target (default 0,0.38,0); with zoom<1 for close-ups
+     Lineup: breeds (if given), then looks, then clan cats; none of the three = the ten presets + hagrid.
      window.__ready is true after the first frame; window.__render() redraws. -->
 <style>
   html, body { margin: 0; height: 100%; background: #d9dce0; overflow: hidden; font: 12px/1.3 system-ui, sans-serif; color: #222; }
@@ -36,10 +52,28 @@
   import { buildCat } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
   import { CATALOG } from '/src/progression.js';
+  import { catDims } from '/src/cat/model.js';
+  import { createSun, createFill, DEFAULT_GROUND_BOUNCE, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildEnvMap, litMaterial } from '/src/render/materials.js';
+  import { PATTERNS, FURS, COATS, MARKS } from '/src/customcats.js';
+  import { clanCast, CLAN_COATS } from '/src/clancast.js';
+  import { WATERLINE, sinkTarget, waterPose } from '/src/cat/waterlook.js';
+  import { placeFrame } from '/src/fightactions.js';
+  import { FIGHT_GAP } from '/src/game/clanfight.js';
+  import { setCatScars } from '/src/cat/scarmesh.js';
 
   const params = new URLSearchParams(location.search);
   const PRESETS = ['tabby', 'siamese', 'persian', 'black', 'calico', 'mainecoon', 'zeetoo', 'robbie', 'd2', 'digit', 'hagrid'];
   const STATES = ['follow', 'sniff', 'stretch', 'groom', 'pounce', 'scared', 'cross', 'land', 'nap', 'stalk', 'perch', 'requestPet'];
+  const FIGHT_STATES = ['arch', 'rearUp', 'flinch', 'pinned', 'pinning', 'roll'];
+  const WATER_STATES = ['swim', 'wade'];
+  // HIGH's envIntensity (src/render/quality.js), the walk's shadow fit radius and map size
+  const GAME_ENV_INTENSITY = 0.45, GAME_SHADOW_RADIUS = 20, GAME_SHADOW_MAP = 2048;
+  const GRASS = 0x6f9a48;
+  // The roll's spread and lift (src/fightactions.js ROLL, not exported), at full ease
+  const ROLL_ANGLE = 1.2, ROLL_LIFT = 0.25, ROLL_SPREAD = 0.18;
+  const SCARS = [{ site: 'face', stage: 'full', side: 'r' }, { site: 'side', stage: 'full', side: 'r' }];
   const DRESSED = { collar: 'bell', head: 'tophat', face: 'glasses', neck: 'scarf', body: 'sweater', back: 'backpack', feet: 'sneakers' };
   const SLOTS = ['collar', 'head', 'face', 'neck', 'body', 'back', 'feet'];
 
@@ -57,6 +91,14 @@
       + links('R5 shell variants (approximate), tabby and digit', ['tabby', 'digit'].flatMap((b) => ['side', 'three', 'front'].map((v) => [`${b} ${v}`, { variants: 'shell', breeds: b, view: v }])))
       + links('R5 neck variants (approximate), tabby and digit', ['tabby', 'digit'].flatMap((b) => ['side', 'three', 'front'].map((v) => [`${b} ${v}`, { variants: 'neck', breeds: b, view: v }])))
       + links('Simple builds (strays)', views.map((v) => [v, { state: 'follow', view: v, simple: 1 }]))
+      + links('Game lighting, every preset', views.map((v) => [v, { light: 'game', state: 'follow', view: v }]))
+      + links('Game lighting, fight states (side)', FIGHT_STATES.map((s) => [s, { light: 'game', state: s, view: 'side' }]))
+      + links('Game lighting, water (side)', WATER_STATES.map((s) => [s, { light: 'game', state: s, view: 'side' }]))
+      + links('Fight pair (game lighting)', ['pin', 'roll'].flatMap((k) => ['side', 'three'].map((v) => [`${k} ${v}`, { light: 'game', pair: k, view: v }])))
+      + links('Custom cats (game lighting, side)', [['stripes.fluffy.ginger.chocolate', 'follow'], ['stripes.fluffy.ginger.chocolate', 'nap'], ['socks.short.ginger.chocolate', 'follow'], ['socks.short.ginger.chocolate', 'nap'], ['solid.long.black.white', 'follow'], ['points.short.seal.seal', 'follow'], ['patches.short.cream.orange', 'follow']].map(([l, s]) => [`${l} ${s}`, { light: 'game', look: l, state: s, view: 'side' }]))
+      + links('Clan cats (game lighting, side, simple)', Object.keys(CLAN_COATS).flatMap((id) => clanCast(id).slice(0, 5).map((m, i) => [`${id}:${i}${m.style.fluffy ? ' (fluffy)' : ''}`, { light: 'game', clan: `${id}:${i}`, view: 'side' }])))
+      + links('Scars (game lighting)', views.map((v) => [v, { light: 'game', scars: 1, breeds: 'tabby,digit,persian', view: v }]))
+      + links('Close-ups (game lighting, zoom 0.5)', [['tabby front foot', { breeds: 'tabby', view: 'three', zoom: 0.5, at: '0,0.12,-0.2' }], ['persian ruff', { breeds: 'persian', view: 'three', zoom: 0.5, at: '0,0.45,-0.3' }], ['hagrid head', { breeds: 'hagrid', view: 'side', zoom: 0.5, at: '0,0.6,-0.15' }]].map(([l, o]) => [l, { light: 'game', state: 'follow', ...o }]))
       + '</div>';
     window.__ready = true;
     window.__render = () => {};
@@ -74,10 +116,33 @@
     const zoom = Number(params.get('zoom') ?? 1) || 1;
     const simple = params.get('simple') === '1';
     const variants = params.get('variants');
+    const gameLight = params.get('light') === 'game';
+    const pairKind = ['pin', 'roll'].includes(params.get('pair')) ? params.get('pair') : null;
+    const scarred = params.get('scars') === '1';
+    const water = WATER_STATES.includes(state) ? state : null;
+    const atParam = (params.get('at') || '').split(',').map(Number);
     const notes = [];
+    if (params.get('pair') && !pairKind) notes.push(`bad pair ${params.get('pair')}`);
 
     let breeds = (params.get('breeds') || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (!breeds.length) breeds = PRESETS;
+    // custom looks: pattern.fur.coat.marks, size 1
+    const has = (list, v) => list.some((p) => p[0] === v);
+    const looks = (params.get('look') || '').split(',').filter(Boolean).flatMap((spec) => {
+      const [pattern, fur, coat, marks] = spec.split('.');
+      const bad = [!has(PATTERNS, pattern) && `pattern ${pattern}`, !has(FURS, fur) && `fur ${fur}`,
+        !Object.hasOwn(COATS, coat) && `coat ${coat}`, !Object.hasOwn(MARKS, marks) && `marks ${marks}`].filter(Boolean);
+      if (bad.length) { notes.push(`bad look ${spec}: ${bad.join(', ')}`); return []; }
+      return [{ spec, look: { pattern, fur, coat, marks, size: 1 } }];
+    });
+    // clan cast members: clanId:i
+    const clans = (params.get('clan') || '').split(',').filter(Boolean).flatMap((spec) => {
+      const [id, i] = spec.split(':');
+      const m = clanCast(id)[Number(i)];
+      if (!m) { notes.push(`bad clan ${spec}`); return []; }
+      return [{ spec, member: m }];
+    });
+    if (pairKind) breeds = [breeds[0] || 'tabby', breeds[1] || breeds[0] || 'tabby'];
+    else if (!breeds.length && !looks.length && !clans.length) breeds = PRESETS;
     let acc = { collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null };
     if (params.get('dressed') === '1') acc = { ...acc, ...DRESSED };
     for (const pair of (params.get('acc') || '').split(',').filter(Boolean)) {
@@ -99,7 +164,12 @@
       rows = D.map((d) => ({ breed: breeds[0], d, label: `${breeds[0]} ${variants} ${d > 0 ? '+' : ''}${d}` }));
       notes.push('APPROXIMATE preview of R5 tuning');
     } else {
-      rows = breeds.map((b) => ({ breed: b, d: 0, label: b }));
+      rows = [
+        ...breeds.map((b) => ({ breed: b, d: 0, label: b })),
+        ...(pairKind ? [] : looks.map((l) => ({ breed: 'tabby', d: 0, label: l.spec, opts: { look: l.look } }))),
+        ...(pairKind ? [] : clans.map((c) => ({ breed: c.member.breed, d: 0, label: `${c.spec} ${c.member.name}`, opts: { simple: true, style: c.member.style } }))),
+      ];
+      if (pairKind) rows.forEach((r, i) => { r.label = `${r.breed} ${pairKind === 'pin' ? (i ? 'pinned' : 'pinning') : 'roll'}`; });
     }
 
     const canvas = document.createElement('canvas');
@@ -107,40 +177,76 @@
     document.body.appendChild(canvas);
     const labelsEl = document.createElement('div'); labelsEl.id = 'labels'; document.body.appendChild(labelsEl);
     const cap = document.createElement('div'); cap.id = 'caption'; document.body.appendChild(cap);
-    cap.textContent = `${location.search.slice(1) || '(defaults)'}${notes.length ? '  |  ' + notes.join('; ') : ''}`;
+    const caption = () => { cap.textContent = `${location.search.slice(1) || '(defaults)'}${notes.length ? '  |  ' + notes.join('; ') : ''}`; };
+    caption();
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xd9dce0);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-    sun.position.set(2, 4, -3); // front-right-ish, so faces (-z) are lit
-    scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.5);
-    fill.position.set(-3, 2, 4);
-    scene.add(fill);
+    let gameSun = null, shadowFit = null;
+    if (gameLight) {
+      // as src/main.js sets the renderer up
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      scene.background = new THREE.Color(0xbfd8ff);
+      scene.environment = buildEnvMap(renderer);
+      scene.environmentIntensity = GAME_ENV_INTENSITY;
+      gameSun = createSun();
+      scene.add(gameSun);
+      scene.add(createFill(DEFAULT_GROUND_BOUNCE));
+    } else {
+      scene.background = new THREE.Color(0xd9dce0);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 1.1));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+      sun.position.set(2, 4, -3); // front-right-ish, so faces (-z) are lit
+      scene.add(sun);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+      fill.position.set(-3, 2, 4);
+      scene.add(fill);
+    }
 
-    // ground: a 1 m checker plus a fine grid so contact reads
-    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
-    const cx = cv.getContext('2d');
-    cx.fillStyle = '#eceef0'; cx.fillRect(0, 0, 64, 64);
-    cx.fillStyle = '#dfe2e6'; cx.fillRect(0, 0, 32, 32); cx.fillRect(32, 32, 32, 32);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(20, 20);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: tex }));
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
-    const grid = new THREE.GridHelper(40, 160, 0xb4b9c0, 0xc9cdd2);
-    grid.position.y = 0.002;
-    scene.add(grid);
+    if (gameLight) {
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), litMaterial(GRASS));
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+    } else {
+      // ground: a 1 m checker plus a fine grid so contact reads
+      const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#eceef0'; cx.fillRect(0, 0, 64, 64);
+      cx.fillStyle = '#dfe2e6'; cx.fillRect(0, 0, 32, 32); cx.fillRect(32, 32, 32, 32);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(20, 20);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: tex }));
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+      const grid = new THREE.GridHelper(40, 160, 0xb4b9c0, 0xc9cdd2);
+      grid.position.y = 0.002;
+      scene.add(grid);
+    }
+
+    if (water) {
+      // the water's surface over ground at 0; translucent so the legs under it read
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(40, 40),
+        new THREE.MeshStandardMaterial({ color: 0x4a90c0, roughness: 0.3, transparent: true, opacity: 0.4, depthWrite: false }));
+      w.rotation.x = -Math.PI / 2;
+      w.position.y = WATERLINE;
+      w.renderOrder = 1;
+      scene.add(w);
+    }
 
     // cats
     const SP = 1.4, n = rows.length;
     const alongZ = view === 'side';
     const cats = rows.map((row, i) => {
-      const cat = buildCat(row.breed, { ...acc }, { simple });
+      const cat = buildCat(row.breed, { ...acc }, { simple, ...(row.opts ?? {}) });
+      if (scarred) setCatScars(cat, SCARS);
+      // measured at the origin, unturned, as intruders.measure() does
+      if (pairKind) row.dims = catDims(cat);
       if (row.d !== 0 && variants === 'shell') {
         // body-slot shells: body's children that are neither the underside nor the (sphere) buttons
         const f = (1.06 + row.d) / 1.06;
@@ -158,33 +264,78 @@
       if (alongZ) cat.position.z = (c - i) * SP;
       else if (view === 'back') cat.position.x = (i - c) * SP;
       else cat.position.x = (c - i) * SP;
+      if (water) cat.position.y = -sinkTarget(cat, water);
       scene.add(cat);
       return cat;
     });
 
+    // The fight pair: the winner (row 0) on its anchor at z +gap/2 facing -z, the
+    // loser (row 1) at z -gap/2 facing +z; each frame placed through placeFrame
+    // as game/clanfight.js placeOn does (along toward the other cat, side to its right).
+    const poses = rows.map(() => state);
+    if (pairKind) {
+      const gap = FIGHT_GAP;
+      const frames = pairKind === 'pin'
+        ? [{ along: gap, side: 0, lift: rows[1].dims.pinnedBackY, pitch: 0, roll: 0, pose: 'pinning' },
+           { along: 0, side: 0, lift: 0, pitch: 0, roll: 0, pose: 'pinned' }]
+        : [{ along: gap / 2, side: -ROLL_SPREAD * Math.sin(ROLL_ANGLE), lift: ROLL_LIFT + ROLL_SPREAD * Math.cos(ROLL_ANGLE), pitch: 0, roll: ROLL_ANGLE, pose: 'roll' },
+           { along: gap / 2, side: -ROLL_SPREAD * Math.sin(ROLL_ANGLE), lift: ROLL_LIFT - ROLL_SPREAD * Math.cos(ROLL_ANGLE), pitch: 0, roll: -ROLL_ANGLE, pose: 'roll' }];
+      const anchors = [{ x: 0, z: gap / 2, fx: 0, fz: -1 }, { x: 0, z: -gap / 2, fx: 0, fz: 1 }];
+      const placed = { dAlong: 0, dSide: 0, y: 0 };
+      cats.forEach((cat, i) => {
+        const f = frames[i], a = anchors[i];
+        placeFrame(f, rows[i].dims, placed);
+        cat.position.set(a.x + a.fx * placed.dAlong - a.fz * placed.dSide, placed.y, a.z + a.fz * placed.dAlong + a.fx * placed.dSide);
+        cat.rotation.order = 'YXZ';
+        cat.rotation.set(f.pitch, Math.atan2(a.fx, a.fz) + Math.PI, f.roll);
+        poses[i] = f.pose;
+      });
+      notes.push(`pair ${pairKind}: gap ${gap}, ${pairKind === 'pin' ? `pinnedBackY ${rows[1].dims.pinnedBackY.toFixed(3)}` : `roll ${ROLL_ANGLE} rad`}`);
+    }
+    if (water) {
+      rows.forEach((row, i) => { poses[i] = waterPose('follow', { mode: water, shake: 0 }, { hagrid: row.breed === 'hagrid' }); });
+      notes.push(`water ${water} at y ${WATERLINE}; sinks ${cats.map((c) => (-c.position.y).toFixed(3)).join(', ')}`);
+    }
+    if (gameLight) {
+      gameSun.shadow.bias = SUN_BIAS;
+      const casts = assignShadowCasters(scene);
+      notes.push(`casters ${casts.casters}/${casts.meshes}`);
+    }
+
     const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-    const target = new THREE.Vector3(0, 0.38, 0);
+    // the pair is framed on its own centre (the pin stacks both cats on the loser's spot)
+    const pairCentre = () => {
+      const c = new THREE.Vector3();
+      cats.forEach((cat) => c.add(cat.position));
+      return c.divideScalar(cats.length).setY(0.38 + 0.5 * Math.max(...cats.map((cat) => cat.position.y)));
+    };
+    const target = atParam.length === 3 && atParam.every(Number.isFinite)
+      ? new THREE.Vector3(...atParam) : pairKind ? pairCentre() : new THREE.Vector3(0, 0.38, 0);
+    if (gameLight) shadowFit = createShadowFit(gameSun, camera, { radius: GAME_SHADOW_RADIUS, mapSize: GAME_SHADOW_MAP });
     const dirs = { side: [1, 0.12, 0], front: [0, 0.12, -1], back: [0, 0.12, 1], three: [0.65, 0.3, -0.75] };
 
     function layout() {
       const w = window.innerWidth, h = window.innerHeight;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
-      const extW = (n - 1) * SP + 1.5, extH = 1.5;
+      const extW = (n - 1) * SP + 1.5, extH = pairKind ? 2.2 : 1.5;
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
       const dist = Math.max(extH / 2 / tanV, extW / 2 / (tanV * camera.aspect)) * 1.08 * zoom;
       const dir = new THREE.Vector3(...dirs[view]).normalize();
       camera.position.copy(target).addScaledVector(dir, dist);
       camera.lookAt(target);
       camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      shadowFit?.update();
     }
 
     function render() {
       layout();
       rows.forEach((row, i) => {
         const cat = cats[i];
-        animateCat(cat, state, t, moveSpeed, false);
+        animateCat(cat, poses[i], t, moveSpeed, false);
       });
+      caption();
       renderer.render(scene, camera);
       labelsEl.innerHTML = '';
       const w = window.innerWidth, h = window.innerHeight;
