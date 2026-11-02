@@ -28,7 +28,8 @@ vi.stubGlobal('document', {
 
 const gorge = await import('../src/world/gorge.js');
 const { build: buildPines } = await import('../src/world/pines.js');
-const { shallowExcess, rooftopSpots } = await import('../src/world/builder.js');
+const { shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater } = await import('../src/world/builder.js');
+const { surfaceProps } = await import('../src/render/materials.js');
 const { CLIFFTOP, STAND_ON, GORGE_CAVES, mapShapes } = await import('../src/world/gorgeshape.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { ZOOM_STEPS } = await import('../src/camzoom.js');
@@ -138,6 +139,12 @@ describe('the Gorge: the paths', () => {
   it('draws every path, in sand', () => {
     const paths = scene.children.filter((o) => o.name === 'path');
     expect(paths).toHaveLength(GORGE_PATHS.length);
+    const sand = surfaceProps('sand');
+    for (const p of paths) {
+      expect(p.material.color.getHex()).toBe(0x8a7a64);
+      expect(p.material.roughness).toBe(sand.roughness);
+      expect(p.material.map).toBeTruthy();
+    }
   });
 });
 
@@ -193,9 +200,28 @@ describe('the Gorge: the rock and the view', () => {
     // more rock north and east, the town south, the Moor's heather west
     expect(GORGE_HORIZON.sideTints).toEqual({ north: 0x8a8478, east: 0x7d7a74, south: 0x9a7f6e, west: 0x9a8a9c });
     expect(GORGE_HORIZON.rooftops).toBeTruthy();
-    const roofs = rooftopSpots(GORGE_HORIZON.rooftops, GORGE_HORIZON.inner, GORGE_HORIZON.outer, GORGE_HORIZON.salt);
-    expect(roofs).toHaveLength(10);
-    for (const r of roofs) expect(r.z, `rooftop at (${r.x}, ${r.z})`).toBeGreaterThan(50);
+    // The blocks as drawn: horizonBand merges them after its ring, so every
+    // vertex past the ring's is a rooftop's. The ring is horizonBand's
+    // default 152 steps around by 13 rings out (outSegs 12), and none of its
+    // vertices lie past the band's outer edge, so the split is checked too.
+    const band = scene.getObjectByName('horizonBand');
+    const pos = band.geometry.attributes.position;
+    const RING = 152 * 13;
+    expect(pos.count).toBeGreaterThan(RING);
+    for (let v = 0; v < RING; v++) {
+      expect(Math.max(Math.abs(pos.getX(v)), Math.abs(pos.getZ(v)))).toBeLessThanOrEqual(GORGE_HORIZON.outer + 1e-3);
+    }
+    const north = [];
+    for (let v = RING; v < pos.count; v++) if (pos.getZ(v) <= 50) north.push(`(${pos.getX(v).toFixed(1)}, ${pos.getZ(v).toFixed(1)})`);
+    expect(north.slice(0, 8), 'rooftop vertices north of z 50').toEqual([]);
+    // and each block's centre, by builder's own rule for where it puts them:
+    // up to ten, fewer only where a spot falls on the stream (none do here)
+    const { inner, outer, salt } = GORGE_HORIZON;
+    const drawn = rooftopSpots(GORGE_HORIZON.rooftops, inner, outer, salt + ROOFTOP_SALT)
+      .filter((r) => !inWater(GORGE_HORIZON.avoid, r.x, r.z));
+    expect(drawn.length).toBeGreaterThanOrEqual(1);
+    expect(drawn.length).toBeLessThanOrEqual(10);
+    for (const r of drawn) expect(r.z, `rooftop at (${r.x}, ${r.z})`).toBeGreaterThan(50);
     expect(GORGE_HORIZON.avoid).toContain(STREAM);
     expect(GORGE_HORIZON).toMatchObject({ kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40, color: 0x8a8478, salt: 53 });
     expect(Object.isFrozen(GORGE_HORIZON)).toBe(true);

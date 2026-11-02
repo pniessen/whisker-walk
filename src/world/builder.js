@@ -1239,6 +1239,10 @@ export function sideTint(x, z, tints) {
 // same hash01 draws the skyline kind uses, so a rooftop row looks like the
 // Docks' far bank. Pure, so a test can check the placement without a mesh.
 // The outer half of the band only, for the reason given in horizonBand.
+// What a band's `rooftops` add to its salt, so their blocks are salted apart
+// from the skyline kind's: rooftopSpots(rooftops, inner, outer, salt +
+// ROOFTOP_SALT) are the spots horizonBand draws them at (wet ones skipped).
+export const ROOFTOP_SALT = 100;
 export function rooftopSpots({ from, to, count }, inner, outer, salt) {
   const span = outer - inner;
   const spots = [];
@@ -1488,7 +1492,7 @@ export function horizonBand({
   if (rooftops) {
     // Salted apart from the skyline kind's own blocks, so a band that has both
     // does not stack two blocks on the same spot.
-    const rsalt = salt + 100;
+    const rsalt = salt + ROOFTOP_SALT;
     rooftopSpots(rooftops, inner, outer, rsalt).forEach(({ x, z, yaw }, k) => {
       if (wet(x, z)) return;
       // No height given: the band's own, the same default the skyline kind's
