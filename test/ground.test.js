@@ -102,7 +102,7 @@ describe('ground model', () => {
     expect(Math.abs(out.pitch)).toBeCloseTo(Math.atan(1 / 3), 9);
     expect(out.roll).toBeCloseTo(0, 9);
     // the convention, checked against three.js: written to rotation.x with
-    // order 'YXZ', the nose (local -z) rises on the ramp, facing up or down it
+    // order 'YXZ', the nose (local -z) rises when facing uphill and falls when facing downhill
     for (const [vx, expectSign] of [[1, 1], [-1, -1]]) {
       const yaw = yawFor(vx, 0);
       groundTilt(g, 0, 0, yaw, out);
@@ -127,10 +127,21 @@ describe('ground model', () => {
     const upFlank = cat.localToWorld(new THREE.Vector3(-1, 0, 0));
     expect(upFlank.x).toBeCloseTo(Math.cos(Math.atan(1 / 3)), 9);
     expect(upFlank.y).toBeCloseTo(Math.sin(Math.atan(1 / 3)), 9);
-    // diagonal: paws plane matches the slope (a point 1 m uphill rises ~1/3)
-    const yawD = yawFor(1, 1);
-    groundTilt(g, 0, 0, yawD, out);
-    expect(Math.abs(out.pitch)).toBeLessThanOrEqual(TILT_MAX);
+    // diagonal, uncapped: the body's up equals the ground normal exactly
+    const tilted = createGround({ strips: [{ x0: 0, z0: 0, x1: 6, z1: 0, width: 4, y0: 0, y1: 1.2 }] });
+    for (const yawD of [yawFor(1, 1), yawFor(1, -0.4), yawFor(-1, 2), 0.7]) {
+      groundTilt(tilted, 3, 0, yawD, out);
+      expect(Math.abs(out.pitch)).toBeLessThan(TILT_MAX);
+      expect(Math.abs(out.roll)).toBeLessThan(TILT_MAX);
+      const dcat = new THREE.Group();
+      dcat.rotation.order = 'YXZ';
+      dcat.rotation.set(out.pitch, yawD, out.roll);
+      dcat.updateMatrixWorld(true);
+      const up = new THREE.Vector3(0, 1, 0).transformDirection(dcat.matrixWorld);
+      const gd = tilted.gradient(3, 0, { x: 0, z: 0 });
+      const n = new THREE.Vector3(-gd.x, 1, -gd.z).normalize();
+      expect(up.distanceTo(n)).toBeLessThan(1e-9);
+    }
     // on a disc and the base both are 0
     groundTilt(g, 8, 0, yawX, out);
     expect(out).toEqual({ pitch: 0, roll: 0 });
@@ -146,6 +157,15 @@ describe('ground model', () => {
     expect(Math.abs(out.pitch)).toBe(TILT_MAX);
     const across = groundTilt(steep, 2, 0, yawFor(0, 1));
     expect(Math.abs(across.roll)).toBe(TILT_MAX);
+  });
+
+  it('validateGround flags a shape with a missing field', () => {
+    const noWidth = { ...HEIGHT_FIXTURE, strips: [{ x0: 0, z0: 0, x1: 3, z1: 0, y0: 0 }] };
+    expect(validateGround(noWidth)).toHaveLength(1);
+    const noY = { ...HEIGHT_FIXTURE, discs: [{ x: 0, z: 0, r: 1 }] };
+    expect(validateGround(noY)).toHaveLength(1);
+    const noCeilY = { ...HEIGHT_FIXTURE, ceilings: [{ x0: 0, z0: 15, x1: 0, z1: 18, width: 2 }] };
+    expect(validateGround(noCeilY)).toHaveLength(1);
   });
 
   it('validateGround flags a steep strip and a low ceiling', () => {

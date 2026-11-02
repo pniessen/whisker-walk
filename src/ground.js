@@ -208,7 +208,10 @@ export function groundTilt(ground, x, z, yaw, out = { pitch: 0, roll: 0 }) {
   const along = gr.x * -s + gr.z * -c;
   const across = gr.x * c + gr.z * -s;
   out.pitch = Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.atan(along))) + 0;
-  out.roll = Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.atan(across))) + 0;
+  // Exact plane under 'YXZ': local up = (-sin r, cos r cos p, cos r sin p) in
+  // the yaw frame must be parallel to (-b, 1, a), so tan p = a and
+  // tan r = b cos p = b / sqrt(1 + a^2). Derived, then verified in the tests.
+  out.roll = Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.atan(across / Math.sqrt(1 + along * along)))) + 0;
   return out;
 }
 
@@ -217,11 +220,12 @@ export function groundTilt(ground, x, z, yaw, out = { pitch: 0, roll: 0 }) {
 export function validateGround(spec = {}) {
   const problems = [];
   const { base = 0, strips = [], discs = [], ceilings = [] } = spec;
-  const finite = (o, keys) => keys.every((k) => o[k] === undefined || Number.isFinite(o[k]));
+  // every key must be a finite number: a missing field would silently drop the shape
+  const finite = (o, keys) => keys.every((k) => Number.isFinite(o[k]));
   let ok = Number.isFinite(base);
   if (!ok) problems.push('base is not finite');
   strips.forEach((s, i) => {
-    if (!finite(s, ['x0', 'z0', 'x1', 'z1', 'width', 'y0', 'y1'])) {
+    if (!finite({ ...s, y0: s.y0 ?? s.y, y1: s.y1 ?? s.y0 ?? s.y }, ['x0', 'z0', 'x1', 'z1', 'width', 'y0', 'y1'])) {
       problems.push(`strip ${i} has a non-finite number`);
       ok = false;
       return;
