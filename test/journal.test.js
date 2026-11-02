@@ -44,12 +44,24 @@ describe('renderJournalHtml', () => {
     expect(html).toContain('×3');
   });
 
-  it('renders an unspotted entry as ❓ + hint, not its name', () => {
+  it('renders an unspotted entry as its own dark silhouette + hint, not its name', () => {
     const bird = CRITTER_INFO.find((c) => c.id === 'bird');
     const html = renderJournalHtml({}, 0, 9);
-    expect(html).toContain('❓');
+    expect(html).not.toContain('❓');
+    expect(html).toContain(`<span class="journal-emoji silhouette" aria-hidden="true">${bird.emoji}</span>`);
+    expect(html).toContain('aria-label="Not found yet"');
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
+    // every one of the unspotted cards gets a silhouette, none a name
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length);
+    for (const c of CRITTER_INFO) expect(html).not.toContain(c.name);
+  });
+
+  it('a spotted entry is never a silhouette', () => {
+    const html = renderJournalHtml({ bird: 2 }, 0, 9);
+    const bird = CRITTER_INFO.find((c) => c.id === 'bird');
+    expect(html).toContain(`<span class="journal-emoji">${bird.emoji}</span>`);
+    expect(html.match(/journal-emoji silhouette/g)).toHaveLength(CRITTER_INFO.length - 1);
   });
 
   it('renders the golden mice footer as found/total', () => {
@@ -61,7 +73,7 @@ describe('renderJournalHtml', () => {
   it('treats a hostile non-numeric count as unspotted (coerced to 0)', () => {
     const bird = CRITTER_INFO.find((c) => c.id === 'bird');
     const html = renderJournalHtml({ bird: '<script>' }, 0, 9);
-    expect(html).toContain('❓');
+    expect(html).toContain(`<span class="journal-emoji silhouette" aria-hidden="true">${bird.emoji}</span>`);
     expect(html).toContain(bird.hint);
     expect(html).not.toContain(bird.name);
     expect(html).not.toContain('<script>');

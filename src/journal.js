@@ -46,8 +46,11 @@ export function renderJournalHtml(journal, goldenFound, goldenTotal, { chasedOff
         <span class="journal-count">×${count}</span>
       </div>`;
     }
-    return `<div class="journal-card unspotted">
-      <span class="journal-emoji">❓</span>
+    // Not found yet: the critter's own emoji drawn as a dark shape (CSS
+    // .silhouette), its name kept back. The shape is decorative; the card's
+    // label says what it means.
+    return `<div class="journal-card unspotted" role="group" aria-label="Not found yet">
+      <span class="journal-emoji silhouette" aria-hidden="true">${c.emoji}</span>
       <span class="journal-hint">${c.hint}</span>
     </div>`;
   }).join('');

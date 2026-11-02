@@ -4,12 +4,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // stage and the dressing-room controller so createHomeBase can be driven.
 vi.mock('../src/thumbnails.js', () => ({ menuThumbnails: () => ({ cats: {}, accessories: { partycrown: 'crown.png' } }) }));
 vi.mock('../src/ui/catstage.js', () => ({ createCatStage: () => ({ setVisible() {} }) }));
+// The last dressing room made: its options (onChange, onOpenSheet) and its ui,
+// so a test can open the builder or a sheet the way the real controller does.
+const dressingMock = vi.hoisted(() => ({ opts: null, ui: { builder: null } }));
 vi.mock('../src/ui/dressingroomview.js', () => ({
-  createDressingRoom: () => ({
-    html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
-    afterRender() {}, handleClick() { return false; }, clearPreview() {},
-    handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
-  }),
+  createDressingRoom: (opts) => {
+    dressingMock.opts = opts;
+    dressingMock.ui = { builder: null };
+    return {
+      html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
+      afterRender() {}, handleClick() { return false; }, clearPreview() {},
+      handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
+      get ui() { return dressingMock.ui; },
+    };
+  },
 }));
 
 const { createHomeBase, visitBadgeHtml } = await import('../src/ui/homebase.js');
@@ -179,6 +187,98 @@ describe('the home base on a visit', () => {
   });
 });
 
+describe('the welcome line beside the head', () => {
+  // A plain visit (visit 2) with the home base up and the line showing.
+  function plainVisit() {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    // The hero stage the line anchors to.
+    const stageEl = fakeEl(doc);
+    stageEl.getBoundingClientRect = () => ({ left: 0, top: 100, width: 390, height: 400, right: 390, bottom: 500 });
+    doc.root.querySelector = (sel) => (sel === '#dr-stage' ? stageEl : null);
+    hb.showVisit(visit, { onClosed: () => {} });
+    const line = doc.body.children.find((c) => c.className === 'visit-welcome');
+    expect(line).toBeTruthy();
+    return { hb, line };
+  }
+
+  it('sits to the right of the head, not over the face', () => {
+    const { line } = plainVisit();
+    expect(line.attrs['data-side']).toBe('right');
+    expect(parseFloat(line.style.left)).toBeGreaterThan(0 + 390 / 2);
+  });
+
+  it('mirrors to the left of the head when there is no room on the right', () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    // A scrollbar: innerWidth counts it, the page's clientWidth does not.
+    doc.defaultView.innerWidth = 315;
+    doc.documentElement = { clientWidth: 300 };
+    const stageEl = fakeEl(doc);
+    stageEl.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 400, right: 300 });
+    doc.root.querySelector = (sel) => (sel === '#dr-stage' ? stageEl : null);
+    hb.showVisit(visit, { onClosed: () => {} });
+    const line = doc.body.children.find((c) => c.className === 'visit-welcome');
+    expect(line.attrs['data-side']).toBe('left');
+    expect(line.style.left).toBe('auto');
+    expect(line.style.right).toMatch(/^\d+px$/);
+    const headHalf = Math.min(90, 300 * 0.17);
+    const bubbleRight = 300 - parseFloat(line.style.right); // measured from the page's own width
+    expect(bubbleRight).toBeLessThanOrEqual(150 - headHalf);
+    expect(bubbleRight).toBeGreaterThan(150 - headHalf - 2);
+    expect(parseFloat(line.style.maxWidth)).toBeGreaterThanOrEqual(120);
+  });
+
+  it('never goes up over an open sheet or the cat builder', () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    hb.showVisit(visit, { onClosed: () => {} });
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+    dressingMock.opts.onOpenSheet(null);
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    hb.showVisit(visit, { onClosed: () => {} });
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+  });
+
+  it('goes at once when the cat builder opens', () => {
+    const { line } = plainVisit();
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    dressingMock.opts.onChange();
+    expect(line.removed).toBe(true);
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+  });
+
+  it('goes at once when a sheet opens', () => {
+    const { line } = plainVisit();
+    dressingMock.opts.onOpenSheet('settings');
+    expect(line.removed).toBe(true);
+  });
+
+  it('goes at once when a walk starts', () => {
+    const { hb, line } = plainVisit();
+    hb.hide();
+    expect(line.removed).toBe(true);
+  });
+
+  it('is a speech bubble with a tail, no centring translate, a smaller font', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.visit-welcome \{[^}]*\}/)[0];
+    expect(rule).toContain('transform: none');
+    expect(rule).toContain('0.9rem');
+    expect(css).toMatch(/\.visit-welcome::before \{/);
+    expect(css).toMatch(/\.visit-welcome\[data-side="left"\]::before \{/);
+    expect(css).not.toMatch(/@keyframes visit-welcome \{[^@]*-50%/);
+  });
+});
+
 describe('the cloud-load farewell', () => {
   // A cloud save with Rosa equipped queues her farewell while it loads.
   function withFarewell(progression) {
@@ -258,5 +358,57 @@ describe('the visit badge style', () => {
   it('marks a milestone badge', () => {
     expect(visitBadgeHtml(30)).toContain('class="dr-chip visit milestone"');
     expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
+  });
+});
+
+describe('Settings keeps keyboard focus across its re-render', () => {
+  // The focused control is in the sheet until the re-render replaces it.
+  function focusOn(id) {
+    const old = { id };
+    doc.activeElement = old;
+    const st = { fresh: null, rebuilt: false };
+    let html = doc.root.innerHTML;
+    Object.defineProperty(doc.root, 'innerHTML', {
+      get: () => html, set: (v) => { html = v; st.rebuilt = true; }, configurable: true,
+    });
+    doc.root.contains = (el) => (el === old && !st.rebuilt) || (st.fresh != null && el === st.fresh);
+    doc.root.querySelector = (sel) => {
+      if (sel !== `#${id}`) return null;
+      st.fresh = { id, focus: vi.fn(() => { doc.activeElement = st.fresh; }) };
+      return st.fresh;
+    };
+    return st;
+  }
+  it('a switch keeps focus after it is toggled', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-muted');
+    doc.root.listeners.click({ target: { id: 'set-muted', checked: true, dataset: {}, closest: () => null } });
+    expect(st.rebuilt).toBe(true);
+    expect(doc.activeElement).toBe(st.fresh);
+    expect(doc.activeElement.id).toBe('set-muted');
+    expect(st.fresh.focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it('a select keeps focus after it changes', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-quality');
+    doc.root.listeners.change({ target: { id: 'set-quality', value: 'low', dataset: {}, closest: () => null } });
+    expect(st.rebuilt).toBe(true);
+    expect(doc.activeElement).toBe(st.fresh);
+  });
+
+  it('nothing focused in the sheet, nothing is focused after', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-muted');
+    doc.activeElement = doc.body; // focus is elsewhere
+    doc.root.listeners.click({ target: { id: 'set-muted', checked: true, dataset: {}, closest: () => null } });
+    expect(st.fresh).toBe(null);
+    expect(doc.activeElement).toBe(doc.body);
   });
 });

@@ -31,6 +31,8 @@ import { applyDusk, duskEnv, addCollarGlow } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
+import { herCatPortrait } from '../thumbnails.js';
+import { summaryCheer, summaryStatsHtml, bestWalkConfetti, countUp, prefersReducedMotion } from '../ui/screencards.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
@@ -164,14 +166,28 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 // calibrated rig, shared with the verify harnesses: see render/rig.js.
 
 // The pause / Ready? card, rebuilt on demand (the crossing card puts it back).
-export function pauseCardHtml({ welcome, touch }) {
-  return `<div class="pause-card"><h1>Ready?</h1>
+// It sits on a panel like the home screen's, her cat on top when there is a
+// portrait (session.portrait; none without WebGL). The buttons hold plain
+// text only: main.js routes overlay clicks by e.target.id and rewrites
+// #btn-resume's text on the first touch.
+export function pauseCardHtml({ welcome, touch, portrait = null }) {
+  return `<div class="pause-card"><div class="screen-panel">
+    ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
+    <div class="screen-body"><h1>Ready?</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
-    <button id="btn-resume">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
-    <button id="btn-end">End walk &amp; head home</button>
-    <p class="controls-hint">${touch
-      ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
-      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+    <div class="screen-actions">
+      <button id="btn-resume" class="primary">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
+      <button id="btn-end" class="secondary">End walk &amp; head home</button>
+    </div>
+    <p class="controls-hint">${hintHtml(touch ? TOUCH_HINT : KEYS_HINT)}</p></div></div></div>`;
+}
+
+// The controls hint, one unbreakable piece per control: a line wraps only
+// between the dots, never inside "E interact/sniff".
+const TOUCH_HINT = ['Joystick to move', 'drag to look', 'buttons to pounce/meow/yarn/camera', '+ − or pinch to zoom', 'tap the prompt to interact'];
+const KEYS_HINT = ['Arrows move', 'Shift stalk', 'Space pounce/climb', 'E interact/sniff', 'V meow', 'T yarn', 'C camera', '+/− or wheel zoom'];
+function hintHtml(segs) {
+  return segs.map((t) => `<span class="hint-seg">${escapeHtml(t)}</span>`).join(' · ');
 }
 
 export function createWalkLifecycle({
@@ -1801,7 +1817,10 @@ export function createWalkLifecycle({
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     session.welcome = welcome;
-    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch() });
+    // Her cat's picture for the Ready card (and the summary), snapped after
+    // the area is built so its throwaway build can't move any draw count.
+    session.portrait = herCatPortrait(progression.state);
+    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch(), portrait: session.portrait });
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());
@@ -1903,23 +1922,26 @@ export function createWalkLifecycle({
     }
     // (end of what the cat carried home)
     const crossHtml = crossLines.map((l) => `<div class="best-line">${escapeHtml(l)}</div>`).join('');
+    // Read before the teardown below, like the numbers above.
+    const portrait = session.portrait;
+    const reduced = prefersReducedMotion(settings);
     const summaryHtml = `<div class="summary-card">
+      ${isRecord ? bestWalkConfetti(earned, { reduced }) : ''}
+      <div class="screen-panel summary-panel">
+      ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
       <h1>Walk complete!</h1>
+      <div class="summary-cheer">${escapeHtml(summaryCheer(earned, discoveries))}</div>
       ${isRecord
         ? '<div class="record-banner">NEW BEST WALK! 🏆</div>'
         : `<div class="best-line">best walk: ${progression.state.bestWalk} 🐾</div>`}
-      <div class="summary-stats">
-        <div class="stat"><span class="stat-value">${earned}</span><span class="stat-label">whisker points</span></div>
-        <div class="stat"><span class="stat-value">${discoveries}</span><span class="stat-label">discoveries</span></div>
-        <div class="stat"><span class="stat-value">${friendsGreeted}</span><span class="stat-label">cats greeted</span></div>
-        ${session.goals ? `<div class="stat"><span class="stat-value">${goalsDone}/3</span><span class="stat-label">goals complete</span></div>` : ''}
-      </div>
+      ${summaryStatsHtml({ earned, discoveries, friendsGreeted, goalsDone, hasGoals: !!session.goals })}
       ${walkedWith.length ? `<div class="best-line">walked with: ${walkedWith.map(escapeHtml).join(', ')}</div>` : ''}
       ${streak.bonus > 0 ? `<div class="best-line">🔥 day ${streak.count} streak — +${streak.bonus} bonus 🐾</div>` : ''}
       ${mochiArrived ? '<div class="best-line">Mochi the kitten followed you home! 🐱</div>' : ''}
       ${broughtHome ? `<div class="best-line">You brought the ${escapeHtml(carryLabel(broughtHome))} home. It's in the den now.&nbsp;🏠</div>` : ''}
       ${crossHtml}
       <button id="btn-summary-continue" class="primary">Continue</button>
+      </div>
     </div>`;
 
     // co-walk rooms are per-walk: leaving here means the footer's "Host a
@@ -2039,6 +2061,7 @@ export function createWalkLifecycle({
     hud.setRoster(null);
 
     overlay.innerHTML = summaryHtml;
+    countUp(overlay, { reduced });
     overlay.classList.remove('hidden');
     audio.stopAmbient();
     music.stop();

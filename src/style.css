@@ -312,14 +312,21 @@ body.touch-mode:not(.left-handed) .hud-top {
 
 .journal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
 .journal-card {
-  background: rgba(255,255,255,0.07); border-radius: 10px; padding: 10px 8px;
+  background: rgba(255,255,255,0.07); border-radius: 14px; padding: 10px 8px;
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
 }
-.journal-card.unspotted { opacity: 0.55; }
+/* Not found yet: a lighter slate tile so the critter's dark shape reads on it. */
+.journal-card.unspotted { background: #33425e; }
 .journal-emoji { font-size: 1.6rem; }
+.journal-emoji.silhouette { filter: brightness(0); opacity: 0.55; }
 .journal-name { font-size: 0.8rem; font-weight: 700; }
 .journal-count { font-size: 0.75rem; color: #f2c14e; font-weight: 700; }
 .journal-hint { font-size: 0.72rem; color: #a8c0e0; }
+/* Album / Social when empty: a little picture and one warm line. */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 18px 12px 8px; text-align: center; grid-column: 1 / -1; }
+.empty-state svg { width: 120px; height: auto; display: block; }
+.empty-state p { margin: 0; color: #f1e0c2; font-size: 1rem; line-height: 1.4; max-width: 26ch; }
 .journal-footer { margin-top: 10px; font-size: 0.85rem; color: #f2c14e; font-weight: 700; }
 
 #homebase { background: linear-gradient(#2a3550, #1c2431); overflow-y: auto; }
@@ -347,14 +354,14 @@ body.touch-mode:not(.left-handed) .hud-top {
 .card.locked { opacity: 0.75; }
 .card-name { font-weight: 700; }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
-.card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+.card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
   border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
   background: #4a6ea5; color: #fff; font-weight: 700;
 }
 .card button:hover, .walk-together button:hover, .friend-code-block button:hover { background: #5a7eb5; }
 .walk-together button:disabled, .friend-code-block button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
 @media (pointer: coarse) {
-  .card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+  .card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
     min-height: 44px;
   }
 }
@@ -416,13 +423,85 @@ body.touch-mode:not(.left-handed) .hud-top {
 .friend-code-confirm .primary:disabled { background: #6a6250; color: #a89e88; cursor: default; }
 .dusk { color: #c8b8f0; }
 .walk-together { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
-.settings-section { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 14px 16px; }
-.settings-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.settings-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; color: #c0ccdd; cursor: pointer; }
-.settings-row input[type="checkbox"] { width: 18px; height: 18px; }
-.settings-volume input[type="range"] { flex: 1; max-width: 240px; }
-.settings-volume-value { min-width: 3.2em; text-align: right; color: #a8c0e0; font-size: 0.85rem; }
-.settings-section .danger { background: transparent; color: #d08080; }
+.settings-section {
+  background: linear-gradient(180deg, #2c3d58, #223047); border: 1px solid #33425e;
+  border-radius: 20px; padding: 14px 18px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
+}
+/* Settings rows: words on the left, the control on the right, 48px tall
+   with a soft line between them. Every row is a <label>, so a tap on the
+   words works the control. */
+.settings-grid { display: flex; flex-direction: column; margin-bottom: 16px; }
+.settings-row {
+  position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px;
+  padding: 4px 0; border-bottom: 1px solid rgba(140,155,180,0.18);
+  font-size: 0.95rem; color: #f1e0c2; cursor: pointer;
+}
+.settings-row:last-child { border-bottom: 0; }
+.settings-label { flex: 1; min-width: 0; }
+/* Switch: the real checkbox lies invisibly over the whole row (still
+   focusable, still Space to flip); .switch draws the track and knob. */
+.settings-switch input {
+  -webkit-appearance: none; appearance: none; position: absolute; inset: 0;
+  width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
+}
+.settings-switch .switch {
+  position: relative; flex: none; width: 46px; height: 26px; border-radius: 999px;
+  background: #33425e; box-shadow: inset 0 0 0 1px rgba(140,155,180,0.45);
+  transition: background 0.15s ease;
+}
+.settings-switch .switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: #f1e0c2; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  transition: transform 0.15s ease;
+}
+.settings-switch input:checked + .switch { background: #e7a9a0; box-shadow: none; }
+.settings-switch input:checked + .switch::after { transform: translateX(20px); }
+.settings-switch input:focus-visible + .switch { outline: 3px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-switch .switch, .settings-switch .switch::after { transition: none; }
+}
+/* Sliders: an 8px rounded track, pink up to the thumb (--fill is the value,
+   kept in step by the input listener), a 22px cream thumb with a pink ring. */
+.settings-section input[type="range"] {
+  -webkit-appearance: none; appearance: none; accent-color: #e7a9a0;
+  flex: 1; min-width: 0; max-width: 240px; height: 22px; margin: 0; background: transparent; cursor: pointer;
+}
+.settings-section input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(to right, #e7a9a0 var(--fill, 50%), #33425e var(--fill, 50%));
+}
+.settings-section input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -7px;
+  border-radius: 50%; background: #f1e0c2; border: 3px solid #e7a9a0; box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.settings-section input[type="range"]::-moz-range-track { height: 8px; border-radius: 999px; background: #33425e; }
+.settings-section input[type="range"]::-moz-range-progress { height: 8px; border-radius: 999px; background: #e7a9a0; }
+.settings-section input[type="range"]::-moz-range-thumb {
+  width: 22px; height: 22px; border-radius: 50%; background: #f1e0c2; border: 3px solid #e7a9a0;
+  box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.settings-section input[type="range"]:focus-visible { outline: 3px solid #fff; outline-offset: 2px; border-radius: 999px; }
+.settings-volume-value { min-width: 3.2em; text-align: right; color: #f1e0c2; opacity: 0.8; font-size: 0.85rem; }
+/* Selects: a pill with a cream ▾ drawn in. */
+.settings-section select {
+  -webkit-appearance: none; appearance: none; flex: none; max-width: 60%;
+  min-height: 40px; padding: 6px 34px 6px 14px; padding-right: 34px;
+  border-radius: 999px; border: 1px solid #8c9bb4; background-color: #2c3d58; color: #f1e0c2;
+  font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f1e0c2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; background-size: 12px 8px;
+}
+.settings-section select:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.settings-section select option { background: #223047; color: #f1e0c2; }
+/* Start over: a small soft-red outline pill. */
+.settings-section .danger {
+  background: transparent; color: #e98a8a; border: 1px solid #e98a8a; border-radius: 999px;
+  padding: 8px 18px; font-weight: 700;
+}
+.settings-section .danger:hover { background: rgba(233,138,138,0.12); }
+.settings-section .danger:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .wt-petname, .wt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .wt-petname { margin-bottom: 10px; }
 .star-name-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -458,6 +537,45 @@ body.touch-mode:not(.left-handed) .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+/* The Ready? / pause card (and, from Task 2, the walk summary) sits on the
+   home screen's panel: navy gradient, soft line, rounded, her cat on top.
+   The scrim stays full screen; the panel scrolls inside itself if a short
+   window can't hold it. */
+.screen-panel {
+  display: grid; justify-items: center; gap: 12px; box-sizing: border-box;
+  width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow-y: auto;
+  padding: 22px 26px; border-radius: 20px; color: #f1e0c2;
+  background: linear-gradient(170deg, #2c3d58, #223047); border: 1px solid #33425e;
+  box-shadow: 0 14px 40px rgba(8, 12, 20, 0.5);
+  font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
+}
+.screen-body { display: grid; justify-items: center; gap: 12px; min-width: 0; }
+.screen-panel h1 { margin: 0; color: #fff; }
+.screen-cat { display: block; width: 132px; height: 132px; }
+.screen-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pause-card .primary, .pause-card .secondary {
+  border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
+  font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+}
+.pause-card .primary { background: #e7a9a0; color: #1c2431; border: 0; }
+.pause-card .secondary { background: transparent; color: #f1e0c2; border: 1px solid #8c9bb4;
+  font-size: 0.95rem; }
+.pause-card .primary:hover { filter: brightness(1.08); }
+.pause-card .secondary:hover { background: rgba(241, 224, 194, 0.08); }
+.screen-panel .controls-hint { margin: 2px 0 0; font-size: 0.85rem; line-height: 1.45;
+  color: #a8c0e0; background: rgba(28, 36, 49, 0.55); border-radius: 12px; padding: 8px 12px; }
+/* A landscape phone: the cat sits left, the words and buttons right. */
+@media (max-height: 500px) {
+  .screen-panel:has(.screen-cat) { width: min(620px, calc(100vw - 32px));
+    grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 18px; }
+  .screen-panel { padding: 14px 20px; gap: 8px; }
+  .screen-body { gap: 8px; }
+  .screen-panel h1 { font-size: 1.7rem; }
+  .screen-cat { width: 96px; height: 96px; margin: 0; }
+  .screen-actions { gap: 8px; }
+  .pause-card .primary, .pause-card .secondary { min-height: 44px; padding: 8px 24px; }
+  .screen-panel .controls-hint { font-size: 0.78rem; padding: 6px 10px; }
+}
 .cross-card h2 { font-size: 1.6rem; }
 .cross-card button { min-height: 48px; min-width: 200px; }
 .cross-card #btn-cross-yes { background: #f2c14e; color: #3a2a10; }
@@ -465,9 +583,15 @@ body.touch-mode:not(.left-handed) .hud-top {
 /* The post's prompt pill would show, dimmed, under the card's scrim. */
 body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
+.controls-hint .hint-seg { white-space: nowrap; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
-  height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
+  position: relative; height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .summary-card h1 { font-size: 2.2rem; }
+/* The summary sits on the Ready card's panel, a little wider for the tiles;
+   a new best walk's confetti falls over it (pointer-events: none). */
+.screen-panel.summary-panel { width: min(520px, calc(100vw - 32px)); gap: 10px; }
+.summary-panel .screen-cat { width: 120px; height: 120px; }
+.summary-cheer { color: #f1e0c2; font-size: 1.15rem; font-weight: 700; margin-top: -4px; }
 /* Continue wears the home's pink pill (the dressing room's --pink, scoped to
    .dr, so the literal) instead of a bare browser button. */
 .summary-card .primary {
@@ -479,10 +603,30 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .record-banner { background: #f2c14e; color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 999px; font-size: 1.1rem; }
 .best-line { color: #a8c0e0; font-size: 1rem; }
-.summary-stats { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
-.summary-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e; }
+.summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px; width: 100%; margin: 4px 0; }
+.summary-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 6px 9px; border-radius: 14px; background: rgba(28, 36, 49, 0.5);
+  border: 1px solid #33425e; }
+.summary-stats .stat-emoji { font-size: 1.35rem; line-height: 1.2; }
+.summary-stats .stat-value { font-size: 1.6rem; font-weight: 700; color: #f2c14e;
+  font-variant-numeric: tabular-nums; line-height: 1.15; }
 .summary-stats .stat-label { font-size: 0.8rem; color: #a8c0e0; }
+/* A landscape phone: one column (no cat-left split), a smaller cat, the
+   tiles in one row; the panel scrolls inside itself if it must. */
+@media (max-height: 500px) {
+  .screen-panel.summary-panel { grid-template-columns: minmax(0, 1fr); width: min(620px, calc(100vw - 32px));
+    gap: 6px; padding: 12px 20px; }
+  .summary-panel .screen-cat { width: 80px; height: 80px; }
+  .summary-card h1 { font-size: 1.6rem; }
+  .summary-cheer { font-size: 1rem; margin-top: -2px; }
+  .summary-stats { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin: 2px 0; }
+  .summary-stats .stat { padding: 6px 4px; flex-direction: row; justify-content: center; flex-wrap: wrap; column-gap: 6px; }
+  .summary-stats .stat-emoji { font-size: 1.1rem; }
+  .summary-stats .stat-value { font-size: 1.3rem; }
+  .summary-stats .stat-label { flex-basis: 100%; font-size: 0.72rem; }
+  .summary-card .primary { padding: 8px 30px; }
+}
 
 /* --- Small-viewport pass: phones in either orientation. Desktop/tablet
    layouts above are untouched — everything here is gated on max-width. --- */
@@ -510,7 +654,9 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
     overflow-y: auto; gap: 10px;
   }
   .summary-card h1 { font-size: 1.7rem; }
-  .summary-stats { gap: 14px; }
+  /* Two by two on a phone. */
+  .summary-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .screen-panel.summary-panel { padding: 18px 16px; }
 }
 .chat-wheel { position: fixed; right: 16px; bottom: 96px; z-index: 5; }
 .chat-wheel.hidden { display: none; }
@@ -1236,21 +1382,32 @@ body.den-shop-open .chat-wheel { display: none !important; }
   .visit-cel-title { font-size: 1.5rem; }
 }
 
-/* Visit milestones: the welcome line on a plain visit. A small pill over the
-   hero stage (main sets left/top from the stage; the defaults are for when it
+/* Visit milestones: the welcome line on a plain visit. A speech bubble beside
+   the hero cat's head (homebase sets left/top from the stage; the defaults are for when it
    can't). It fades by itself and never takes a click. Below the news card (5). */
 .visit-welcome {
-  position: fixed; left: 50%; top: 18%; z-index: 4; transform: translateX(-50%);
+  position: fixed; left: 50%; top: 18%; z-index: 4; transform: none;
   max-width: calc(100vw - 32px); pointer-events: none;
-  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 999px;
-  padding: 8px 16px; font-size: 1rem; font-weight: 700; text-align: center;
+  background: rgba(14, 19, 29, 0.82); color: #fff; border-radius: 16px;
+  padding: 8px 14px; font-size: 0.9rem; font-weight: 700; text-align: left; line-height: 1.3;
   overflow-wrap: anywhere; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   animation: visit-welcome 4.5s ease-in-out forwards;
 }
+/* the speech tail: on the bubble's left, pointing back at the cat's head */
+.visit-welcome::before {
+  content: ''; position: absolute; top: 12px; left: -9px;
+  border-style: solid; border-width: 7px 10px 7px 0;
+  border-color: transparent rgba(14, 19, 29, 0.82) transparent transparent;
+}
+/* mirrored: the bubble sits left of the head, the tail on its right */
+.visit-welcome[data-side="left"]::before {
+  left: auto; right: -9px; border-width: 7px 0 7px 10px;
+  border-color: transparent transparent transparent rgba(14, 19, 29, 0.82);
+}
 @keyframes visit-welcome {
-  0% { opacity: 0; transform: translate(-50%, 6px); }
-  10%, 80% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, 0); }
+  0% { opacity: 0; transform: translateY(6px); }
+  10%, 80% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .visit-welcome { animation-name: visit-welcome-still; }
