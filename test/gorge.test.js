@@ -178,6 +178,28 @@ describe('the Gorge: the rock and the view', () => {
     expect(scene.getObjectByName('groundPlane')).toBeTruthy();
   });
 
+  // Review Focus 4: the goat leaps along the shoulder (3.5..7.5, -16) and
+  // lands and hides at (8, -12.5). The drawn top under it is the ground's
+  // 14 (GORGE_ROCK_KEEP holds it still; the crest jag stays out).
+  it("the shoulder top under the goat's line and hide is drawn at 14", () => {
+    const rock = scene.getObjectByName('rockFaces');
+    rock.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const pts = [];
+    for (let x = 3; x <= 7.5 + 1e-9; x += 0.25) pts.push([x, -16]);
+    for (const dx of [-0.3, 0, 0.3]) for (const dz of [-0.3, 0, 0.3]) pts.push([8 + dx, -12.5 + dz]);
+    const off = [];
+    for (const [x, z] of pts) {
+      ray.set(new THREE.Vector3(x, 30, z), down);
+      const hit = ray.intersectObject(rock, false)[0];
+      const y = hit ? hit.point.y : null;
+      if (y === null || Math.abs(y - 14) > 0.03) off.push(`(${x}, ${z}) at ${y}`);
+    }
+    expect(pts.length).toBe(28);
+    expect(off).toEqual([]);
+  });
+
   // Review Focus 3. The highest camera there is: on top of the Summit Rock
   // (the clifftop plus the pillar's 1.9 m), at zoom step 3, pitched as far up
   // as the player allows.

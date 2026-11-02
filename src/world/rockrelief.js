@@ -11,7 +11,9 @@
 //   1. Walk surfaces don't move. h = height above the walkable top under the
 //      point; the foot factor smoothstep(0, FOOT_RISE, h) is 0 on every walk,
 //      cave and den floor, so ledge tops, ramps and wall feet stay put and
-//      every seam with them stays closed.
+//      every seam with them stays closed. A point on a lip's top (in its
+//      closed rectangle, at its height) doesn't move either: the 0.4 m top
+//      would fold.
 //   2. Inward direction: the normalised sum of the 8 compass directions whose
 //      point 0.3 m away is rock (just under the point's height, so a vertex at
 //      a column's top still sees its column). Too weak a sum (inside rock, in
@@ -28,7 +30,11 @@
 //      stops.
 //   5. Fades: the foot factor, and FRAME_FADE metres in from the map's frame
 //      (the frame's faces are never drawn; nothing tears at its edge).
-//   6. Crest jag: a rock top (a mass or a ceiling cap, never a walk or lip)
+//   6. A rock top's vertex stops short of the top's next grid line: at most
+//      half way, less 0.05, to the nearest boundary (of a shape touching the
+//      top) ahead of it along x and along z, so a narrow column of the top's
+//      grid by a crest can't fold.
+//   7. Crest jag: a rock top (a mass or a ceiling cap, never a walk or lip)
 //      within CREST_BAND of a drop of at least 1 m (cap tops count as
 //      ground: the plateau over a cave is no drop) is lifted or dropped by
 //      noise, so the rims' silhouettes break up. In the keep discs, where
@@ -162,6 +168,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     .map((c) => ({ s: c, ceil: c.y0, top: capTopFor(c, masses) }))
     .filter((c) => c.top > c.ceil);
   const tops = walks.filter((s) => s.kind === 'walk' || s.kind === 'cave' || s.kind === 'den');
+  const lipTops = walks.filter((s) => s.kind === 'lip');
   // Each ceiling's void: from its cave or den floor (the walk rect it covers) up.
   const voids = ceilings.map((c) => {
     const f = walks.find((w) => (w.kind === 'cave' || w.kind === 'den')
@@ -200,6 +207,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
   const colGrid = grid(columns);
   const capGrid = grid(caps);
   const topGrid = grid(tops);
+  const lipGrid = grid(lipTops);
   const voidGrid = grid(voids);
   const at2 = (g, x, z) => g[cell(z, frame.minZ, nz) * nx + cell(x, frame.minX, nx)];
 
@@ -238,6 +246,15 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     return w;
   }
 
+  // On a lip's top: in its closed rectangle, at its height. A lip is 0.4 m
+  // across and its top one long quad fanned at the T-points along it, so a
+  // horizontal move of its edges (up to ROCK_PROUD each way) folds the top;
+  // like a walk top it stays where it is.
+  function onLipTop(x, y, z) {
+    for (const s of at2(lipGrid, x, z)) if (inClosed(s, x, z, EPS) && Math.abs(y - shapeY(s, x, z)) <= EPS) return true;
+    return false;
+  }
+
   // The ground for the crest search: the highest column or cap top. A cap's
   // top is rock top, so the plateau over a cave or den is no drop.
   function groundAt(x, z) {
@@ -253,18 +270,45 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
 
   // Is (x, y, z) on a rock top: y within EPS of the highest top here, and
   // that top a mass or a cap (not a walk or a lip, even when tied).
+  // Returns the rock tops it is on (the masses or caps whose top is there),
+  // or null.
   function onRockTop(x, y, z) {
     let best = -Infinity;
     let rock = false;
-    const consider = (t, isRock) => {
-      if (t > best + EPS) { best = t; rock = isRock; } else if (t >= best - EPS) {
+    let on = [];
+    const consider = (s, t, isRock) => {
+      if (t > best + EPS) { best = t; rock = isRock; on = [s]; } else if (t >= best - EPS) {
         if (t > best) best = t;
         rock = rock && isRock;
+        on.push(s);
       }
     };
-    for (const c of at2(colGrid, x, z)) if (inClosed(c.s, x, z, EPS)) consider(shapeY(c.s, x, z), c.kind === 'rock');
-    for (const c of at2(capGrid, x, z)) if (inClosed(c.s, x, z, EPS)) consider(c.top, true);
-    return rock && Math.abs(y - best) <= EPS;
+    for (const c of at2(colGrid, x, z)) if (inClosed(c.s, x, z, EPS)) consider(c.s, shapeY(c.s, x, z), c.kind === 'rock');
+    for (const c of at2(capGrid, x, z)) if (inClosed(c.s, x, z, EPS)) consider(c.s, c.top, true);
+    return rock && Math.abs(y - best) <= EPS ? on : null;
+  }
+
+  // A rock top is cut (builder.rockTerrain) along the boundaries of every
+  // shape touching its edges' lines, so a grid line can run a few tenths in
+  // from a crest (the shoulder's top, 0.4 m in from its west edge, at the
+  // clifftop's x 2.4). A crest vertex recessed past it would fold the top.
+  // How far a top vertex may move along +-x (axis 0) or +-z (axis 1): half
+  // the way to the nearest such boundary ahead of it, less 0.05.
+  const cutters = [...all, ...ceilings];
+  function topRoom(x, z, tops, axis, dir) {
+    const p = axis === 0 ? x : z;
+    let room = Infinity;
+    for (const c of cutters) {
+      // c touches some top's extent across the move's axis
+      if (!tops.some((t) => (axis === 0
+        ? c.maxZ >= t.minZ - EPS && c.minZ <= t.maxZ + EPS
+        : c.maxX >= t.minX - EPS && c.minX <= t.maxX + EPS))) continue;
+      for (const v of axis === 0 ? [c.minX, c.maxX] : [c.minZ, c.maxZ]) {
+        const d = (v - p) * dir;
+        if (d > EPS && d < room) room = d;
+      }
+    }
+    return Math.max(0, room / 2 - 0.05);
   }
 
   // In a cave or den's void, its ceiling plane included (a wall vertex at
@@ -389,7 +433,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     let dx = 0;
     let dz = 0;
     let recess = 0;
-    if (ff > 0) {
+    if (ff > 0 && !onLipTop(x, y, z)) {
       const s = smoothstep(0, FOOT_RISE, y - walkTop(x, y, z));
       if (s > 0) {
         const m = recessAt(x, y, z, s * ff);
@@ -401,13 +445,18 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
       }
     }
     let dy = 0;
-    if (ff > 0 && onRockTop(x, y, z)) {
+    const tops = ff > 0 ? onRockTop(x, y, z) : null;
+    if (tops) {
       // The keep discs hold a rock top still: no crest, and no horizontal move.
       const kf = keepFade(x, z);
       if (kf > 0) dy = crestAt(x, y, z) * ff * kf;
-      recess *= kf;
-      dx *= kf;
-      dz *= kf;
+      // and a top vertex stops short of the top's next grid line (topRoom)
+      let f = kf;
+      if (dx !== 0) f = Math.min(f, topRoom(x, z, tops, 0, Math.sign(dx)) / Math.abs(dx));
+      if (dz !== 0) f = Math.min(f, topRoom(x, z, tops, 1, Math.sign(dz)) / Math.abs(dz));
+      recess *= f;
+      dx *= f;
+      dz *= f;
     }
     // + 0 turns -0 into 0
     return { dx: dx + 0, dy: dy + 0, dz: dz + 0, recess: recess + 0 };

@@ -839,9 +839,11 @@ describe('the Woods builders', () => {
 // The Gorge's real shape records (builder.js itself imports nothing from the
 // Gorge: the shapes are passed in).
 const gorgeShape = await import('../src/world/gorgeshape.js');
-const { ROCK_WALKS: gorgeRockWalks, GORGE_ROCK_MOUTHS } = await import('../src/world/gorge.js');
+const { ROCK_WALKS: gorgeRockWalks, GORGE_ROCK_MOUTHS, GORGE_ROCK_KEEP } = await import('../src/world/gorge.js');
+const { seedFromCode } = await import('../src/rng.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
 const { findTJunctions } = await import('./helpers/meshcheck.js');
+const { MAX_PASSES } = await import('../src/world/meshconform.js');
 const { createRockRelief, ROCK_PROUD, CAVE_PROUD } = await import('../src/world/rockrelief.js');
 
 describe('the Gorge rock: rockTerrain and scree', () => {
@@ -946,6 +948,143 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(close.slice(0, 8)).toEqual([]);
   }, 120_000);
 
+  // The check above runs on the MOVED shell, where a missed split has already
+  // pulled its T-point off the edge it sat on (and so can't be seen). So: the
+  // unmoved shell is conforming, conforming converged (it stops silently at
+  // MAX_PASSES), and the moved shell's open edges are exactly the unmoved
+  // one's (a crack the relief opened would add some).
+  it('the unmoved shell is conforming, and conforming converged', () => {
+    const flat = build({ relief: false, dressing: false });
+    expect(findTJunctions(shellOf(flat))).toEqual([]);
+    expect(terrain.userData.conformPasses).toBeGreaterThan(0);
+    expect(terrain.userData.conformPasses).toBeLessThan(MAX_PASSES);
+    expect(flat.userData.conformPasses).toBe(terrain.userData.conformPasses);
+  }, 120_000);
+
+  // One-sided edges: those of exactly one triangle in the three shells
+  // together, vertices keyed by position. Each is named by its triangle's
+  // vertex indices (mesh and index), the same in both builds (same order).
+  const openEdges = (shell) => {
+    const count = new Map();
+    const where = new Map();
+    for (const [name, arr] of Object.entries(shell)) {
+      for (let t = 0; t < arr.length; t += 9) {
+        for (let e = 0; e < 3; e++) {
+          const i = t + 3 * e;
+          const j = t + 3 * ((e + 1) % 3);
+          const ka = keyOf(arr[i], arr[i + 1], arr[i + 2]);
+          const kb = keyOf(arr[j], arr[j + 1], arr[j + 2]);
+          const k = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+          count.set(k, (count.get(k) ?? 0) + 1);
+          const [a, c] = i < j ? [i / 3, j / 3] : [j / 3, i / 3];
+          where.set(k, `${name}:${a}-${c}`);
+        }
+      }
+    }
+    return [...count].filter(([, n]) => n === 1).map(([k]) => where.get(k)).sort();
+  };
+
+  it("the relief opens no edge: the moved shell's open edges are the unmoved one's", () => {
+    const flatEdges = openEdges(shellOf(build({ relief: false })));
+    const movedEdges = openEdges(shellOf(terrain));
+    console.log(`[rock] open edges: ${flatEdges.length} unmoved, ${movedEdges.length} moved`);
+    expect(flatEdges.length).toBeGreaterThan(0);
+    expect(movedEdges.length).toBe(flatEdges.length);
+    expect(movedEdges).toEqual(flatEdges);
+  }, 120_000);
+
+  // No triangle turns over: each moved shell triangle (unmoved area over
+  // 1e-6) faces the way it did unmoved (the same build, the same order, so
+  // triangle t is triangle t). In the test's build (seed 7) and the Gorge's
+  // own (its seed and keep discs).
+  const flipsOf = (flatGroup, movedGroup) => {
+    const flat = shellOf(flatGroup);
+    const moved = shellOf(movedGroup);
+    let n = 0;
+    const flipped = [];
+    const nrm = (arr, t) => {
+      const ux = arr[t + 3] - arr[t], uy = arr[t + 4] - arr[t + 1], uz = arr[t + 5] - arr[t + 2];
+      const vx = arr[t + 6] - arr[t], vy = arr[t + 7] - arr[t + 1], vz = arr[t + 8] - arr[t + 2];
+      return [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+    };
+    for (const name of ALL) {
+      const f = flat[name];
+      const m = moved[name];
+      expect(m.length, name).toBe(f.length);
+      for (let t = 0; t < f.length; t += 9) {
+        const a = nrm(f, t);
+        const area = Math.sqrt(a[0] ** 2 + a[1] ** 2 + a[2] ** 2) / 2;
+        if (!(area > 1e-6)) continue;
+        n++;
+        const c = nrm(m, t);
+        const dot = a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+        if (!(dot > 0)) flipped.push(`${name} area ${area.toFixed(4)}: ${Array.from(f.slice(t, t + 9)).map((v) => +v.toFixed(3))} -> ${Array.from(m.slice(t, t + 9)).map((v) => +v.toFixed(3))}`);
+      }
+    }
+    return { n, flipped };
+  };
+  // One known exception in this build (seed 7), none in the Gorge's own: a
+  // 0.02 m2 fan sliver at the top of eastMass's south wall (z -18), 0.1 m
+  // wide at one end and 1.4 m long, from the crest band's corner at x 13.7
+  // fanned to the row line's (15, 19.6). Its middle vertex sits 0.03 m off
+  // the line through the other two, so the crest jag's 0.095 m difference
+  // in lift over the 0.1 m between x 13.6 and 13.7 turns it. It stands
+  // edge-on in a vertical wall and its neighbours close round it (the open
+  // edges test above). Pinned exactly: a new flip, or this one gone, fails.
+  const KNOWN_FLIPS = [
+    'rockFaces area 0.0200: 13.6,20,-18,13.7,20,-18,15,19.6,-18 -> 13.6,20.383,-17.724,13.7,20.288,-17.728,15,19.6,-18.025',
+  ];
+  it('no shell triangle flips', () => {
+    const { n, flipped } = flipsOf(build({ relief: false }), terrain);
+    expect(n).toBeGreaterThan(5000);
+    expect(flipped).toEqual(KNOWN_FLIPS);
+  }, 120_000);
+  it("no shell triangle flips in the Gorge's own rock", () => {
+    const own = { seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP };
+    const { n, flipped } = flipsOf(build({ ...own, relief: false }), build(own));
+    expect(n).toBeGreaterThan(5000);
+    expect(flipped).toEqual([]);
+  }, 120_000);
+
+  // rockTerrain caches its arrays (keyed on the records' identity and the
+  // options): a second build is equal but owns its own buffers, and any
+  // other option misses the cache.
+  it('a second build is served from the cache, on its own buffers', () => {
+    const arrays = (g) => {
+      const out = {};
+      g.traverse((o) => {
+        if (o.isMesh) out[o.name] = ['position', 'color', 'normal'].filter((a) => o.geometry.attributes[a]).map((a) => o.geometry.attributes[a].array);
+      });
+      return out;
+    };
+    const t0 = performance.now();
+    const cold = build({ seed: 8 });
+    const t1 = performance.now();
+    const warm = build({ seed: 8 });
+    const t2 = performance.now();
+    console.log(`[rock] rockTerrain cold ${(t1 - t0).toFixed(1)} ms, warm ${(t2 - t1).toFixed(1)} ms`);
+    const a = arrays(cold);
+    const c = arrays(warm);
+    for (const n of ALL) {
+      expect(c[n].length, n).toBe(a[n].length);
+      for (let k = 0; k < a[n].length; k++) {
+        expect(c[n][k].buffer, n).not.toBe(a[n][k].buffer);
+        expect(Array.from(c[n][k]), n).toEqual(Array.from(a[n][k]));
+      }
+    }
+    expect(warm.userData).toEqual(cold.userData);
+    expect(warm.userData.shellTris).not.toBe(cold.userData.shellTris);
+    // materials are the walk's own, every build
+    expect(warm.getObjectByName('rockFaces').material).not.toBe(cold.getObjectByName('rockFaces').material);
+    // a walk disposing (or scribbling on) its rock leaves the next build whole
+    cold.getObjectByName('rockFaces').geometry.attributes.position.array.fill(0);
+    cold.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+    expect(Array.from(build({ seed: 8 }).getObjectByName('rockFaces').geometry.attributes.position.array)).toEqual(Array.from(c.rockFaces[0]));
+    // another seed is another rock
+    const other = build({ seed: 9 }).getObjectByName('rockFaces').geometry.attributes.position.array;
+    expect(Array.from(other)).not.toEqual(Array.from(c.rockFaces[0]));
+  }, 120_000);
+
   it('the rock stays within its triangle budget', () => {
     const t = terrain.userData.shellTris;
     expect(t).toBeTruthy();
@@ -1036,6 +1175,26 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       });
     }
     expect(n).toBeGreaterThan(1000);
+    expect(lost.slice(0, 12)).toEqual([]);
+  }, 120_000);
+
+  // The base floor (y 0), the commonest seam: every wall foot on it stays
+  // exactly where it is (same build, same order: vertex i is vertex i).
+  it("floor-foot vertices (y 0) don't move", () => {
+    const flat = shellOf(build({ relief: false }));
+    const moved = shellOf(terrain);
+    let n = 0;
+    const lost = [];
+    for (const name of ALL) {
+      const f = flat[name];
+      const m = moved[name];
+      eachVertex(f, (x, y, z, i) => {
+        if (y !== 0) return;
+        n++;
+        if (m[3 * i] !== x || m[3 * i + 1] !== y || m[3 * i + 2] !== z) lost.push(`${name} (${x}, ${y}, ${z}) -> (${m[3 * i]}, ${m[3 * i + 1]}, ${m[3 * i + 2]})`);
+      });
+    }
+    expect(n).toBeGreaterThan(500);
     expect(lost.slice(0, 12)).toEqual([]);
   }, 120_000);
 

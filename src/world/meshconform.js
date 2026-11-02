@@ -19,17 +19,31 @@
 // segment and more than `tol` from both ends. Vertices are found through a
 // spatial hash on (x, z), cells of HASH_CELL metres. A fan adds edges inside
 // its triangle, so the pass repeats (at most MAX_PASSES) until nothing moves.
+//
+// `stats`, when given, is filled in: stats.passes, how many passes ran, and
+// stats.converged, whether the last one found nothing to split (false means
+// MAX_PASSES ran out with T-points still left: rockTerrain's tests watch it).
 const HASH_CELL = 2;
-const MAX_PASSES = 6;
+export const MAX_PASSES = 6;
 
-export function conformTriangles(bins, { eps = 1e-6, tol = 10 * eps } = {}) {
+export function conformTriangles(bins, { eps = 1e-6, tol = 10 * eps, stats = null } = {}) {
   const q = (v) => Math.round(v / eps) * eps;
   let cur = {};
   for (const [name, verts] of Object.entries(bins)) cur[name] = verts.map((p) => [q(p[0]), q(p[1]), q(p[2])]);
-  for (let pass = 0; pass < MAX_PASSES; pass++) {
+  let passes = 0;
+  let converged = false;
+  while (passes < MAX_PASSES) {
     const { out, changed } = conformPass(cur, q, tol);
+    passes++;
     cur = out;
-    if (!changed) break;
+    if (!changed) {
+      converged = true;
+      break;
+    }
+  }
+  if (stats) {
+    stats.passes = passes;
+    stats.converged = converged;
   }
   return cur;
 }

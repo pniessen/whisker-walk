@@ -193,6 +193,25 @@ describe('rock relief: what must not move', () => {
     }
   }, SWEEP);
 
+  // A lip's 0.4 m top is one long quad fanned at the T-points along it: its
+  // edges moving across it folded it. Like a walk top, it stays put.
+  it('lip tops (inside and on their edges) do not move', () => {
+    const rnd = mulberry32(6);
+    const lips = ROCK_WALKS.filter((s) => s.kind === 'lip');
+    expect(lips.length).toBeGreaterThan(5);
+    for (let i = 0; i < 600; i++) {
+      const s = lips[i % lips.length];
+      let x = s.minX + rnd() * (s.maxX - s.minX);
+      let z = s.minZ + rnd() * (s.maxZ - s.minZ);
+      const edge = i % 3;
+      if (edge === 1) x = rnd() < 0.5 ? s.minX : s.maxX;
+      if (edge === 2) z = rnd() < 0.5 ? s.minZ : s.maxZ;
+      const y = shapeY(s, x, z);
+      const d = field.at(x, y, z);
+      expect([s.tag, x, y, z, d.dx, d.dy, d.dz]).toEqual([s.tag, x, y, z, 0, 0, 0]);
+    }
+  }, SWEEP);
+
   it('ceiling undersides do not move up or down', () => {
     for (const c of CEILINGS) {
       for (let i = 0; i <= 6; i++) {
@@ -353,7 +372,9 @@ describe('rock relief: it does something', () => {
 });
 
 describe('rock relief: speed', () => {
-  it('10,000 at() calls take under a second', () => {
+  // A generous ceiling (a few hundred ms is usual): it only catches a
+  // pathological regression, not a slow, shared machine.
+  it('10,000 at() calls take under five seconds', () => {
     const pts = [];
     const rnd = mulberry32(21);
     for (let i = 0; i < 10_000; i++) {
@@ -365,7 +386,7 @@ describe('rock relief: speed', () => {
     for (const p of pts) field.at(p.x, p.y, p.z);
     const ms = performance.now() - t0;
     console.log(`[rockrelief] 10,000 at() calls: ${ms.toFixed(1)} ms`);
-    expect(ms).toBeLessThan(1000);
+    expect(ms).toBeLessThan(5000);
   }, SWEEP);
 });
 

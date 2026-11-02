@@ -3059,7 +3059,65 @@ function crossing(u0, u1, f0, f1) {
   return u0 + ((u1 - u0) * f0) / (f0 - f1);
 }
 
+// The finished arrays, cached: the Gorge's rock is the same every walk (its
+// records are frozen module constants), and building it (conforming most of
+// all) takes tens of milliseconds at the start of every Gorge walk. Keyed on
+// the identity of the walks, masses and ceilings arrays (nested WeakMaps, so
+// a dropped record set frees its entry) and a string of everything else.
+// A hit builds fresh BufferGeometry from copies, so a walk disposing (or
+// changing) its geometry never touches the cache; materials are made fresh
+// every call (walk.js disposes them).
+const ROCK_CACHE = new WeakMap();
+const rockCacheSlot = (walks, masses, ceilings) => {
+  let byMasses = ROCK_CACHE.get(walks);
+  if (!byMasses) ROCK_CACHE.set(walks, (byMasses = new WeakMap()));
+  let byCeilings = byMasses.get(masses);
+  if (!byCeilings) byMasses.set(masses, (byCeilings = new WeakMap()));
+  let byKey = byCeilings.get(ceilings);
+  if (!byKey) byCeilings.set(ceilings, (byKey = new Map()));
+  return byKey;
+};
+
 export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, keep = [], dressing = true, mouths = [] }) {
+  const slot = rockCacheSlot(walks, masses, ceilings);
+  const key = JSON.stringify([seed, relief, dressing, keep, mouths]);
+  let built = slot.get(key);
+  if (!built) {
+    built = rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths });
+    slot.set(key, built);
+  }
+  const geoOf = ({ pos, col, nor }) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos.slice(), 3));
+    if (col) geo.setAttribute('color', new THREE.BufferAttribute(col.slice(), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor.slice(), 3));
+    return geo;
+  };
+  const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
+  const group = new THREE.Group();
+  group.name = 'rockTerrain';
+  const rockFaces = new THREE.Mesh(geoOf(built.rockFaces), rockMat());
+  rockFaces.name = 'rockFaces';
+  rockFaces.castShadow = true;
+  const ledgeTops = new THREE.Mesh(geoOf(built.ledgeTops), surfNoMap(LEDGE_COLOR, 'cobble'));
+  ledgeTops.name = 'ledgeTops';
+  ledgeTops.castShadow = true;
+  const lips = new THREE.Mesh(geoOf(built.lips), rockMat());
+  lips.name = 'lips';
+  lips.castShadow = false;
+  lips.userData.noCast = true;
+  group.add(rockFaces, ledgeTops, lips);
+  // The shell's triangles per mesh, before any dressing (appended after them).
+  group.userData.shellTris = { ...built.shellTris };
+  group.userData.dressing = { ...built.dressing };
+  // How many passes conformTriangles took (it stops at MAX_PASSES).
+  group.userData.conformPasses = built.conformPasses;
+  return group;
+}
+
+// rockTerrain's arrays: per mesh, positions, colours (rockFaces and lips)
+// and flat normals, and the counts its userData carries.
+function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mouths }) {
   const groundShapes = [...walks, ...masses];
   const caps = ceilings
     .map((c) => ({ ...c, top: capTopFor(c, masses) }))
@@ -3274,7 +3332,8 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
     }
   }
 
-  const conf = conformTriangles(bins);
+  const conformStats = {};
+  const conf = conformTriangles(bins, { stats: conformStats });
 
   // The relief: one field for the call, asked once per distinct (quantised)
   // position, so every copy of a vertex moves the same and the conforming
@@ -3296,7 +3355,7 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
     ? rockDressing({ walks, masses, ceilings, seed, mouths, field: field ?? createRockRelief({ walks, masses, ceilings, seed, keep }), rockColour })
     : { rock: { pos: [], col: [] }, lip: { pos: [], col: [] }, lipStones: 0, footBoulders: 0 };
 
-  const meshOf = (verts, coloured, extra = { pos: [], col: [] }) => {
+  const arraysOf = (verts, coloured, extra = { pos: [], col: [] }) => {
     const n = verts.length * 3;
     const pos = new Float32Array(n + extra.pos.length);
     const col = coloured ? new Float32Array(n + extra.col.length) : null;
@@ -3311,28 +3370,17 @@ export function rockTerrain({ walks, masses, ceilings, seed = 0, relief = true, 
     if (col) col.set(extra.col, n);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    if (col) geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals(); // non-indexed: flat, from the moved triangles
-    return geo;
+    return { pos, col, nor: geo.attributes.normal.array };
   };
-  const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
-  const group = new THREE.Group();
-  group.name = 'rockTerrain';
-  const rockFaces = new THREE.Mesh(meshOf(conf.rock, true, dress.rock), rockMat());
-  rockFaces.name = 'rockFaces';
-  rockFaces.castShadow = true;
-  const ledgeTops = new THREE.Mesh(meshOf(conf.ledge, false), surfNoMap(LEDGE_COLOR, 'cobble'));
-  ledgeTops.name = 'ledgeTops';
-  ledgeTops.castShadow = true;
-  const lips = new THREE.Mesh(meshOf(conf.lip, true, dress.lip), rockMat());
-  lips.name = 'lips';
-  lips.castShadow = false;
-  lips.userData.noCast = true;
-  group.add(rockFaces, ledgeTops, lips);
-  // The shell's triangles per mesh, before any dressing (appended after them).
-  group.userData.shellTris = { rockFaces: conf.rock.length / 3, ledgeTops: conf.ledge.length / 3, lips: conf.lip.length / 3 };
-  group.userData.dressing = { lipStones: dress.lipStones, footBoulders: dress.footBoulders };
-  return group;
+  return {
+    rockFaces: arraysOf(conf.rock, true, dress.rock),
+    ledgeTops: arraysOf(conf.ledge, false),
+    lips: arraysOf(conf.lip, true, dress.lip),
+    shellTris: { rockFaces: conf.rock.length / 3, ledgeTops: conf.ledge.length / 3, lips: conf.lip.length / 3 },
+    dressing: { lipStones: dress.lipStones, footBoulders: dress.footBoulders },
+    conformPasses: conformStats.passes,
+  };
 }
 
 // The rock's dressing (`dressing: false` leaves it out). Written as raw

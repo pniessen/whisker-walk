@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { conformTriangles } from '../src/world/meshconform.js';
+import { conformTriangles, MAX_PASSES } from '../src/world/meshconform.js';
 import { findTJunctions } from './helpers/meshcheck.js';
 
 // bins of [x,y,z] vertices -> { name: flat positions } for findTJunctions
@@ -86,5 +86,45 @@ describe('conformTriangles', () => {
   it('leaves conforming input alone (but for quantising)', () => {
     const out = conformTriangles({ b: B });
     expect(out.b).toEqual(B);
+  });
+
+  // A strip of quads, each cut at a different count along its shared edge
+  // with the next, so one split exposes the next (a cascade over passes).
+  const cascade = () => {
+    const bins = {};
+    for (let i = 0; i < 5; i++) {
+      const tris = [];
+      const n = i + 1;
+      for (let k = 0; k < n; k++) tris.push(...quadUp(P(i, k / n), P(i, (k + 1) / n), P(i + 1, (k + 1) / n), P(i + 1, k / n)));
+      bins[`s${i}`] = tris;
+    }
+    bins.t = [[0, 0, 0], [0, 0, 1], [5, 0, 0.5]].map(([x, y, z]) => [x, y, z + 1]); // a sliver touching the top edges
+    return bins;
+  };
+
+  it('its own output is a fixed point: conforming it again changes nothing', () => {
+    for (const bins of [{ a: A, b: B }, { a: [[0, 0, 0], [0, 0, 2], [2, 0, 0]], b: [[1, 0, 0], [0, 0, -1], [2, 0, -1], [0, 0, 1], [-1, 0, 2], [-1, 0, 0]] }, cascade()]) {
+      const once = conformTriangles(bins);
+      const stats = {};
+      const twice = conformTriangles(once, { stats });
+      expect(twice).toEqual(once);
+      expect(stats).toEqual({ passes: 1, converged: true });
+    }
+  });
+
+  it('reports how many passes it took, and whether it converged', () => {
+    const stats = {};
+    conformTriangles({ b: B }, { stats });
+    expect(stats).toEqual({ passes: 1, converged: true });
+    const two = {};
+    conformTriangles({ a: A, b: B }, { stats: two });
+    expect(two).toEqual({ passes: 2, converged: true });
+    expect(findTJunctions(flat(cascade())).length).toBeGreaterThan(4);
+    const c = {};
+    const out = conformTriangles(cascade(), { stats: c });
+    expect(c.passes).toBeGreaterThanOrEqual(2);
+    expect(c.converged).toBe(true);
+    expect(c.passes).toBeLessThan(MAX_PASSES);
+    expect(findTJunctions(flat(out))).toEqual([]);
   });
 });
