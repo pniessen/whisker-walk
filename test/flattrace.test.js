@@ -9,15 +9,17 @@ import { fileURLToPath } from 'node:url';
 // nothing on a shipped map may move by a single bit because it exists. This
 // file is the proof: for each of the eight outdoor maps it builds the area, a
 // player and every per-frame mover headlessly, drives 600 scripted frames
-// (2 s forward, a quarter turn, a pounce, the far zoom step, a thrown yarn
-// ball), and records every 10th frame as Number#toString strings. Every later
-// task re-proves the fixture byte-identical. NEVER re-record it after Task 1
-// (UPDATE_TRACE=1 is for Task 1 only).
+// (2 s forward, a quarter turn, a pounce, a knock, the far zoom step, a thrown
+// yarn ball), and records every 10th frame as Number#toString strings. Every
+// later task re-proves the fixture byte-identical. NEVER re-record it after
+// Task 1 (UPDATE_TRACE=1 is for Task 1 only).
 //
 // What runs, in main.js's frame order: player.update, critters, strays, clan
 // cats (the four territories), intruders (a fixed clock with a visit on the
-// map), the toy (and main.js's float-ashore drift), gold mice, knockables, paw
-// prints, remote cats (a scripted co-walker, a state every 8th frame), ghosts,
+// map), the toy (and main.js's float-ashore drift), gold mice, knockables
+// (the first one knocked off its ledge at frame 250; the four territories
+// have none), paw prints, remote cats
+// (a scripted co-walker, a state every 8th frame), ghosts,
 // the contact shadows; then, as game/avatar.js does, applyWaterLook on the cat
 // (animateCat is skipped).
 //
@@ -182,6 +184,9 @@ function traceArea(areaId, world) {
     if (f >= 120 && f < 150) player.addOrbit(-(Math.PI / 2) / 30 / 0.0045, 0);
     if (f === 200) player.pounce();
     if (f === 300) player.setCameraZoom(3);
+    // The first knockable is knocked off its ledge at 250 (the knock verb's
+    // own call, by id), so its fall and landing are in the trace.
+    if (f === 250 && knockables.list.length) knockables.knockById(knockables.list[0].id);
     if (f === 400) {
       const drop = cat.position.clone().add(player.forward().multiplyScalar(0.8)).setY(0.8);
       toy.throwFrom(drop, player.forward(), 2.5);
@@ -234,6 +239,7 @@ function traceArea(areaId, world) {
       ghosts: ghosts.list.map((g) => pr(g.group)),
       remotes: remotes.list.map((r) => pr(r.group)),
       toy: v3(toy.mesh.position),
+      knockables: knockables.list.map((k) => [...pr(k.group), ...v3(k.decal.position), String(k.decal.visible)]),
       gold: gold.list.map((m) => s(m.group.position.y)),
       shadows: {
         all: fnv(decals.moverMesh.instanceMatrix.array),
