@@ -820,7 +820,10 @@ function init() {
       session.fightCam?.update(dt, {
         subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
       });
-      const gm = session.goldMice.checkFind(session.cat.position, player.perchY);
+      // Gorge part 1: the paws' world height, the ground under the cat plus perchY.
+      const pawsY = session.ground.flat ? player.perchY
+        : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY;
+      const gm = session.goldMice.checkFind(session.cat.position, pawsY);
       if (gm && progression.recordGolden(gm.id)) {
         log.awardOnce('legend', gm.id, 'a GOLDEN MOUSE! 🥇');
         session.fx.burst(session.cat.position, 0xf2c14e, 18);

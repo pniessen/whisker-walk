@@ -684,7 +684,7 @@ export function createWalkLifecycle({
         new THREE.SphereGeometry(0.18, 8, 8),
         litMaterial(0xf25c8a, { emissive: 0x5a1a30 })
       );
-      m.position.set(c.x, (c.y ?? 0) + 0.2, c.z);
+      m.position.set(c.x, ground.y(c.x, c.z) + (c.y ?? 0) + 0.2, c.z);
       scene.add(m);
       collectibleMeshes.set(c.id, m);
     }
@@ -1318,7 +1318,7 @@ export function createWalkLifecycle({
     // all. areas without an entry in GOLD_MICE (none currently, but future
     // areas like the den) get an inert stub instead of a lookup throw.
     session.goldMice = areaId in GOLD_MICE
-      ? createGoldMice(scene, areaId, new Set(progression.state.golden))
+      ? createGoldMice(scene, areaId, new Set(progression.state.golden), { ground })
       : NO_GOLD_MICE;
 
     // v21 3b Task 12 — the rival border marks I scented over on earlier walks,

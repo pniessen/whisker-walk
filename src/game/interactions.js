@@ -16,6 +16,7 @@
 
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
+import { FLAT_GROUND } from '../ground.js';
 import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
 import { GIFT_LEAVE_RANGE } from '../gifts.js';
@@ -175,9 +176,10 @@ export function createInteractions({
         return;
       }
       // drop the yarn ball just ahead and give it a little kick to chase
+      const g = session.ground ?? FLAT_GROUND;
       const drop = session.cat.position.clone()
         .add(player.forward().multiplyScalar(0.8))
-        .setY(0.8);
+        .setY(g.flat ? 0.8 : g.y(session.cat.position.x, session.cat.position.z) + 0.8);
       session.toy.throwFrom(drop, player.forward(), 2.5);
       session.batCount = 0;
       session.batReady = true;
@@ -223,6 +225,9 @@ export function createInteractions({
     // the budget above, so the 25th vantage perch enables the wall-run on
     // the very next press.
     const budget = climbBudget(progression.state);
+    // Gorge part 1 (R5): perch heights are metres above the ground at the
+    // perch; bestPerch compares world heights and never leaves the cat's level.
+    const ground = session.ground ?? FLAT_GROUND;
     const next = bestPerch(
       session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
       budget,
@@ -233,19 +238,21 @@ export function createInteractions({
       // is precisely the CF-10 failure this wave exists to finish cleaning up.
       // Read live off the save, same as the budget and the fence-run flag
       // above, so the 25th tip-over opens the trees on the very next press.
-      { fenceRun: fenceRunning(progression.state), state: progression.state },
+      { fenceRun: fenceRunning(progression.state), state: progression.state, ground },
     );
     if (next) {
       // Did the wall-run pay for this hop? Asked exactly — "the ordinary
       // climb rule would have refused this one" — rather than by guessing
       // from the height difference, so a short level hop that was always
       // legal is not mislabelled. Computed BEFORE the position is moved.
-      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget);
+      const dy = ground.flat ? 0
+        : ground.y(next.x, next.z) - ground.y(session.cat.position.x, session.cat.position.z);
+      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget, dy);
       session.perched = next;
-      player.perchY = next.y;
+      player.perchY = next.y; // relative: metres above the ground under the cat (R4)
       player.halt();
       const from = session.cat.position.clone();
-      session.cat.position.set(next.x, next.y, next.z);
+      session.cat.position.set(next.x, ground.flat ? next.y : ground.y(next.x, next.z) + next.y, next.z);
       catVoice();
       // A puff of dust at the take-off point, so a wall-run reads as an
       // ability firing rather than as the cat merely not falling off.
@@ -283,7 +290,7 @@ export function createInteractions({
       }
     } else if (session.perched) {
       session.perched = null;                    // hop down
-      player.perchY = 0;
+      player.perchY = 0; // onto the ground right below: the perch's own level (R5)
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else if (session.pounceCooldown <= 0 && !player.swimming) {
       // v18 CF-9a: Spring Paws' OTHER half — "your pounce jump goes markedly
@@ -745,10 +752,15 @@ export function createInteractions({
       s.lastPromptKind = null;
       return;
     }
+    // Gorge part 1 (R10): the perched-collectible and knock checks compare
+    // world heights; on flat ground these are the relative heights as shipped.
+    const g = s.ground ?? FLAT_GROUND;
+    const perchWorldY = g.flat ? (s.perched?.y ?? 0)
+      : s.perched ? g.y(s.perched.x, s.perched.z) + s.perched.y : g.y(catP.x, catP.z);
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
       if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6 &&
-          Math.abs((s.perched?.y ?? 0) - (c.y ?? 0)) < 0.9) {
+          Math.abs(perchWorldY - (g.flat ? (c.y ?? 0) : g.y(c.x, c.z) + (c.y ?? 0))) < 0.9) {
         s.prompt = { kind: 'collect', data: c };
         setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
@@ -762,7 +774,7 @@ export function createInteractions({
     // and everything after it. Guarded so a stand-in test session without
     // knockables simply never offers it.
     if (!s.prompt && s.perched && s.knockables) {
-      const thing = s.knockables.nearest(catP, s.perched.y, KNOCK_REACH);
+      const thing = s.knockables.nearest(catP, perchWorldY, KNOCK_REACH);
       if (thing) {
         s.prompt = { kind: 'knock', data: thing };
         setPrompt('E — knock it off! 😼');

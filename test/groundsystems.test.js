@@ -219,3 +219,150 @@ describe('her cat stands on the ground', () => {
     if (spot) expect(fx.canStep(from.x, from.z, spot.x, spot.z)).toBe(true);
   });
 });
+
+// Task 4: perches, golden mice, knockables and finds sit on the ground under
+// them. Authored heights are metres above the ground at their own x, z (R4);
+// climbing compares world heights and never leaves the cat's level (R5).
+const { bestPerch, climbBudget, BASE_CLIMB_BUDGET } = await import('../src/climbing.js');
+const { GOLD_MICE, createGoldMice } = await import('../src/goldmice.js');
+const { createKnockables } = await import('../src/knockables.js');
+const { createInteractions } = await import('../src/game/interactions.js');
+const { createDiscoveryLog } = await import('../src/discoveries.js');
+
+// doPounceOrClimb on the fixture, with the real headless player.
+function climbRig(x, z, perchedLabel = null) {
+  const r = rig(x, z);
+  const perchedOn = perchedLabel ? r.area.perches.find((p) => p.label === perchedLabel) : null;
+  if (perchedOn) {
+    r.player.perchY = perchedOn.y;
+    r.step();
+  }
+  const progression = { state: { skills: [], feats: {} }, recordFeat() {}, addPoints() {} };
+  const log = createDiscoveryLog(progression);
+  log.startWalk();
+  const session = {
+    areaData: r.area, ground: r.ground, cat: r.cat,
+    perched: perchedOn, pounceCooldown: 1, fx: { burst() {} },
+  };
+  const { doPounceOrClimb } = createInteractions({
+    MP: 1, pid: 'me', getCloud: () => null, getPsecret: () => null,
+    getSession: () => session, getIsTouch: () => false,
+    player: r.player, progression, log,
+    hud: { toast() {} }, audio: { trill() {}, pounceWhoosh() {} },
+    catVoice() {}, snapPhoto() {}, petNameFor: () => 'x', completeBoop() {},
+  });
+  return { ...r, session, doPounceOrClimb };
+}
+
+describe('perches and finds sit on the ground under them', () => {
+  const fx = buildHeightFixture(new THREE.Scene());
+  const rimRock = fx.perches.find((p) => p.label === 'rim rock');
+  const floorRock = fx.perches.find((p) => p.label === 'floor rock');
+  const skilled = climbBudget({ skills: ['sure-claws', 'fence-runner'] });
+
+  it('a drop never leaves the cat’s level', () => {
+    const ground = fx.ground;
+    const cat = new THREE.Vector3(8, 3.6, 4.5);
+    expect(ground.y(rimRock.x, rimRock.z)).toBe(3);
+    expect(ground.y(floorRock.x, floorRock.z)).toBe(0);
+    expect(bestPerch(fx.perches, cat, 0.6, rimRock, BASE_CLIMB_BUDGET, { ground })).toBeNull();
+    expect(bestPerch(fx.perches, cat, 0.6, rimRock, skilled, { fenceRun: true, ground })).toBeNull();
+    // the same absolute numbers on flat ground do pick the floor rock: the
+    // level rule is what refuses it
+    expect(bestPerch(fx.perches, cat, 0.6, rimRock, BASE_CLIMB_BUDGET, { ground: FLAT_GROUND })).toBe(floorRock);
+    expect(bestPerch(fx.perches, cat, 0.6, rimRock, skilled, { fenceRun: true, ground: FLAT_GROUND })).toBe(floorRock);
+    // pressing climb on the rim rock hops down onto the plateau, not the floor
+    const r = climbRig(8, 4.5, 'rim rock');
+    expect(r.cat.position.y).toBe(3.6);
+    r.doPounceOrClimb();
+    expect(r.session.perched).toBeNull();
+    expect(r.player.perchY).toBe(0);
+    r.step();
+    expect(r.cat.position.y).toBe(3);
+  });
+
+  it('a perch on raised ground is reached from beside it', () => {
+    const ground = fx.ground;
+    expect(bestPerch(fx.perches, { x: 8, z: 3.5 }, 0, null, BASE_CLIMB_BUDGET, { ground })).toBe(rimRock);
+    expect(bestPerch(fx.perches, { x: 8, z: 6.5 }, 0, null, BASE_CLIMB_BUDGET, { ground })).toBe(floorRock);
+    expect(bestPerch([rimRock], { x: 8, z: 6.5 }, 0, null, skilled, { fenceRun: true, ground })).toBeNull();
+    // through the game's own climb press: she lands on the rock, 0.6 over the plateau
+    const r = climbRig(8, 3.5);
+    r.doPounceOrClimb();
+    expect(r.session.perched?.label).toBe('rim rock');
+    expect(r.player.perchY).toBe(0.6);
+    expect(r.cat.position.toArray()).toEqual([8, 3.6, 4.5]);
+    r.step();
+    expect(r.cat.position.y).toBe(3.6);
+  });
+
+  it('with a higher perch on another level, the pick is by world height', () => {
+    const ground = fx.ground;
+    const cat = { x: 1, z: 0 };
+    expect(ground.y(1, 0)).toBeCloseTo(7 / 3, 12);
+    const near = { x: 1, z: 0.5, y: 0.6, label: 'near' }; // world 2.93
+    const down = { x: 0, z: 0, y: 0.8, label: 'down' }; // world 2.8
+    expect(ground.y(down.x, down.z)).toBe(2);
+    expect(bestPerch([near, down], cat, 0, null, BASE_CLIMB_BUDGET, { ground })).toBe(near);
+    expect(bestPerch([down, near], cat, 0, null, BASE_CLIMB_BUDGET, { ground })).toBe(near);
+    // flat, the relative heights decide
+    expect(bestPerch([near, down], cat, 0, null, BASE_CLIMB_BUDGET, { ground: FLAT_GROUND })).toBe(down);
+  });
+
+  it('golden mice and finds sit on the ground under them', () => {
+    GOLD_MICE.fixture = [{ id: 'gm-fixture-1', x: 10, z: 0, y: 0.2 }];
+    try {
+      const gm = createGoldMice(new THREE.Scene(), 'fixture', new Set(), { ground: fx.ground });
+      const [mo] = gm.list;
+      expect(mo.worldY).toBeCloseTo(3.2, 12);
+      for (const t of [0, 0.4, 1.3, 2.9]) {
+        gm.update(t);
+        expect(Math.abs(mo.group.position.y - 3.2)).toBeLessThanOrEqual(0.05 + 1e-12);
+      }
+      expect(gm.checkFind({ x: 10, z: 0 }, 3)?.id).toBe('gm-fixture-1');
+      expect(gm.checkFind({ x: 10, z: 0 }, 0)).toBeNull();
+      gm.dispose();
+      // with no ground the mouse is where it always was
+      const flat = createGoldMice(new THREE.Scene(), 'fixture', new Set());
+      expect(flat.list[0].worldY).toBe(0.2);
+      expect(flat.checkFind({ x: 10, z: 0 }, 0)?.id).toBe('gm-fixture-1');
+      flat.dispose();
+    } finally {
+      delete GOLD_MICE.fixture;
+    }
+    // the collectible orb and the find check read the ground in the walk
+    const walkSrc = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(walkSrc).toContain('m.position.set(c.x, ground.y(c.x, c.z) + (c.y ?? 0) + 0.2, c.z);');
+    expect(walkSrc).toMatch(/createGoldMice\(scene, areaId, new Set\(progression\.state\.golden\), \{ ground \}\)/);
+    const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(mainSrc).toMatch(/session\.goldMice\.checkFind\(session\.cat\.position, pawsY\)/);
+  });
+
+  it('a knockable on a plateau ledge is reached from a perch on the plateau', () => {
+    const cup = { id: 'fixture-cup-1', kind: 'cup', x: 9, z: 2.3, y: 0.6, fallTo: { x: 9, z: 3 } };
+    const k = createKnockables(new THREE.Scene(), [cup], { ground: fx.ground });
+    const flat = createKnockables(new THREE.Scene(), [cup]);
+    const [e] = k.list;
+    expect(k.nearest({ x: 9, z: 2 }, 3.6, 1)).toBe(e);
+    expect(k.nearest({ x: 9, z: 2 }, 0.6, 1)).toBeNull();
+    // standing on its ledge, 3 m up
+    expect(e.group.position.y).toBeCloseTo(3 + flat.list[0].group.position.y, 12);
+    // it falls to the plateau under fallTo (to.y === ground.y(fallTo) + downLift)
+    k.knockById(cup.id);
+    flat.knockById(cup.id);
+    for (let i = 0; i < 180; i++) {
+      k.update(1 / 60);
+      flat.update(1 / 60);
+    }
+    expect(e.group.position.y).toBe(3 + flat.list[0].group.position.y);
+    expect(e.decal.position.y).toBeCloseTo(3 + flat.list[0].decal.position.y, 12);
+    k.dispose();
+    flat.dispose();
+  });
+
+  it('the perched collectible and knock prompts compare world heights', () => {
+    const src = readFileSync(new URL('../src/game/interactions.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/s\.knockables\.nearest\(catP, perchWorldY, KNOCK_REACH\)/);
+    expect(src).toMatch(/Math\.abs\(perchWorldY - \(g\.flat \? \(c\.y \?\? 0\) : g\.y\(c\.x, c\.z\) \+ \(c\.y \?\? 0\)\)\) < 0\.9/);
+  });
+});

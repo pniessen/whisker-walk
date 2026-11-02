@@ -80,7 +80,10 @@ export function createAvatarUpdater({
     // Computed BEFORE the perch release just below, so it describes the frame
     // that has already been rendered (player.update ran first, off the perchY
     // this line reads) rather than the one about to be.
-    const paws = cat.position.clone().setY(player.perchY);
+    // Gorge part 1 (R4): perchY is relative, so the paws' plane is the ground
+    // under the cat plus perchY (just perchY on flat ground).
+    const groundUnder = s.ground && !s.ground.flat ? s.ground.y(cat.position.x, cat.position.z) : null;
+    const paws = cat.position.clone().setY(groundUnder === null ? player.perchY : groundUnder + player.perchY);
 
     if (s.perched && player.inputActive) {
       s.perched = null;
@@ -306,7 +309,7 @@ export function createAvatarUpdater({
 
     // pouncing mid-dash catches butterflies and fireflies
     if (s.pounceTime > 0) {
-      const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
+      const caught = s.critters.catchAt(cat.position.clone().setY(groundUnder === null ? 0.8 : groundUnder + 0.8));
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
         if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', pounceCatchLine(cat));

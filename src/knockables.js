@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 // =============================================================================
 // Knockables — the cup on the car roof, the geranium on the porch roof, the
@@ -138,7 +139,11 @@ function collect(root, geos, mats) {
 // ledge. Entries are { id, kind, group, decal, down, anim }; `anim` is the
 // seconds of fall still to play (0 standing, and 0 again once it has landed);
 // `decal` is the contact decal it lies on once landed.
-export function createKnockables(scene, list) {
+//
+// Gorge part 1: `ground` (FLAT_GROUND by default). A ledge's y and a fallTo's
+// y are metres above the ground at their own x, z; on flat ground every
+// number is exactly the one that shipped.
+export function createKnockables(scene, list, { ground = FLAT_GROUND } = {}) {
   const items = [];
   const motion = new Map(); // entry → its curated fall, kept off the public shape
   let disposed = false;
@@ -151,10 +156,12 @@ export function createKnockables(scene, list) {
     const tip = TIP[k.kind] ?? SIDE;
     const downLift = liftFor(group, yaw, tip);
     const standLift = liftFor(group, yaw, 0);
+    const ledgeWorldY = ground.flat ? k.y : ground.y(k.x, k.z) + k.y;
+    const landY = ground.flat ? groundY(k.fallTo) : ground.y(k.fallTo.x, k.fallTo.z) + groundY(k.fallTo);
     const m = {
-      x: k.x, z: k.z, ledgeY: k.y,
-      from: new THREE.Vector3(k.x, k.y + standLift, k.z),
-      to: new THREE.Vector3(k.fallTo.x, groundY(k.fallTo) + downLift, k.fallTo.z),
+      x: k.x, z: k.z, ledgeWorldY,
+      from: new THREE.Vector3(k.x, ledgeWorldY + standLift, k.z),
+      to: new THREE.Vector3(k.fallTo.x, landY + downLift, k.fallTo.z),
       yaw, tip,
     };
     // Measure where it will lie, once, for the decal under it.
@@ -165,7 +172,7 @@ export function createKnockables(scene, list) {
     const size = lying.getSize(new THREE.Vector3());
     const centre = lying.getCenter(new THREE.Vector3());
     const decal = buildDecal((Math.max(size.x, size.z) / 2) * DECAL_SPREAD);
-    decal.position.set(centre.x, groundY(k.fallTo) + DECAL_LIFT, centre.z);
+    decal.position.set(centre.x, landY + DECAL_LIFT, centre.z);
     scene.add(decal);
     group.rotation.set(0, yaw, 0, 'YXZ');
     group.position.copy(m.from);
@@ -212,14 +219,15 @@ export function createKnockables(scene, list) {
   return {
     list: items,
     // The nearest item still standing on a ledge at the cat's perch height
-    // (|perchY - its ledge y| < 0.3), within maxDist horizontally, or null.
-    nearest(pos, perchY, maxDist) {
+    // (|worldY - its ledge's world y| < 0.3), within maxDist horizontally, or
+    // null. worldY is the perch's world height (its relative y on flat ground).
+    nearest(pos, worldY, maxDist) {
       let best = null;
       let bestD = maxDist;
       for (const e of items) {
         if (e.down) continue;
         const m = motion.get(e);
-        if (!(Math.abs(perchY - m.ledgeY) < LEVEL)) continue;
+        if (!(Math.abs(worldY - m.ledgeWorldY) < LEVEL)) continue;
         const d = Math.hypot(m.x - pos.x, m.z - pos.z);
         if (d <= bestD) {
           bestD = d;
