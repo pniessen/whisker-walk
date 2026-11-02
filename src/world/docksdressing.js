@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { mulberry32, seedFromCode } from '../rng.js';
+import { withLocalUuids } from './localuuids.js';
+
+export { withLocalUuids };
 
 // =============================================================================
 // THE OLD DOCKS' DRESSING (polish-docks). What turns a grey cobbled plain into
@@ -27,7 +29,12 @@ import { mulberry32, seedFromCode } from '../rng.js';
 //    the area. In bounds, a cluster either sits inside a collider the area
 //    already has (the strip a warehouse's two circles reach past its gable
 //    wall) or stands a metre clear of every gameplay point and off every path —
-//    test/docksdressing.test.js walks itemsOf() against all of it.
+//    test/docksdressing.test.js walks itemsOf() against all of it. And since
+//    nothing stops a cat, a stray or a colony cat walking through a free one,
+//    a free cluster is only ever a LOW kind (ruling R7): a net, rope, lobster
+//    pots or fish boxes, nothing above 0.6 m — a heap a cat would step over,
+//    never a crate stack or barrel group that looks solid and climbable like
+//    the Docks' real crate perches. Those stand past the bounds.
 //
 // 3. CHEAP. Four meshes: every prop merged into one vertex-coloured mesh (it
 //    spans the whole map, so contactshadows' per-child scan gives it no decal),
@@ -41,18 +48,6 @@ import { mulberry32, seedFromCode } from '../rng.js';
 
 export const DRESSING_SEED = 'docks-dressing';
 
-// Math.random := a local stream seeded by `name` for the duration of fn — see
-// rule 1 above, and the same helper in world/camp.js.
-export function withLocalUuids(name, fn) {
-  const real = Math.random;
-  Math.random = mulberry32(seedFromCode(name));
-  try {
-    return fn();
-  } finally {
-    Math.random = real;
-  }
-}
-
 // builder.js's private hash01, copied: a pure function of its arguments.
 export function hash01(x, z, salt) {
   const h = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
@@ -62,17 +57,19 @@ export function hash01(x, z, salt) {
 // The footprint radius of each kind at s = 1. Every part a kind builds stays
 // inside it (the slot offsets below are sized against it), so itemsOf() is a
 // true bound of what stands on the ground.
-const RADIUS = Object.freeze({ crates: 1.0, barrels: 1.08, net: 1.25, rope: 0.8, pots: 0.9 });
+const RADIUS = Object.freeze({ crates: 1.0, barrels: 1.08, net: 1.25, rope: 0.8, pots: 0.9, fishbox: 0.95 });
 
-// Hand-placed. Twenty-two stand outside the 76 x 80 bounds: along the south
-// edge behind the spawn, past both ends of both quays, and along the north
-// edge behind the warehouses. Five sit in the strip a warehouse's collider
-// circles reach past its gable wall. The last seventeen stand free in the open
-// cobble yards — the two south-bank yards either side of the spawn road, the
-// east and west ends beyond the quays, and the north strip between the
-// warehouses — each a metre clear of every gameplay point and off every path
-// (test/docksdressing.test.js walks them), so a cat walks round them, not
-// through anything it needs.
+// Hand-placed. Thirty-four stand outside the 76 x 80 bounds: along the
+// south edge behind the spawn, past both ends of both quays, along the east
+// and west edges, and along the north edge behind the warehouses — every
+// crate stack and barrel group is out here or in a collider. Five sit in the
+// strip a warehouse's collider circles reach past its gable wall. The last
+// seventeen stand free in the open cobble yards — the two south-bank yards
+// either side of the spawn road, the east and west ends beyond the quays, and
+// the north strip between the warehouses — each a metre clear of every
+// gameplay point and off every path (test/docksdressing.test.js walks them).
+// No collider stops a cat there, so they are all low (`yard: true`; rule 2):
+// nets, rope, single-tier lobster pots and fish boxes, none above 0.6 m.
 export const CLUSTERS = Object.freeze([
   // south edge
   { x: -34, z: -43.5, rot: 0.3, kind: 'crates', s: 1.15 },
@@ -84,46 +81,58 @@ export const CLUSTERS = Object.freeze([
   { x: 25, z: -44, rot: 2.1, kind: 'barrels', s: 1.15 },
   { x: 34, z: -42.6, rot: -1.2, kind: 'net', s: 1.1 },
   // east edge, both quays and beyond
-  { x: 40.5, z: 6.8, rot: 1.6, kind: 'crates', s: 1.1 },
-  { x: 41, z: -7, rot: 0.5, kind: 'net', s: 1.15 },
-  { x: 40, z: 18, rot: -0.9, kind: 'barrels', s: 1.1 },
+  { x: 41, z: -38, rot: 0.7, kind: 'crates', s: 1.1 },
+  { x: 40.5, z: -31, rot: -1.3, kind: 'barrels', s: 1.1 },
   { x: 42, z: -20, rot: 2.6, kind: 'pots', s: 1.15 },
+  { x: 41, z: -13.5, rot: 0.2, kind: 'crates', s: 1.15 },
+  { x: 41, z: -7, rot: 0.5, kind: 'net', s: 1.15 },
+  { x: 40.5, z: 6.8, rot: 1.6, kind: 'crates', s: 1.1 },
+  { x: 40, z: 18, rot: -0.9, kind: 'barrels', s: 1.1 },
+  { x: 41.5, z: 24, rot: 1.0, kind: 'barrels', s: 1.05 },
   { x: 40.5, z: 30, rot: 0.1, kind: 'crates', s: 1.2 },
   // west edge
-  { x: -40.5, z: 7, rot: -1.4, kind: 'net', s: 1.1 },
-  { x: -41, z: -6.5, rot: 0.9, kind: 'crates', s: 1.15 },
+  { x: -41, z: -38.5, rot: -0.6, kind: 'barrels', s: 1.1 },
+  { x: -40.5, z: -31, rot: 1.2, kind: 'crates', s: 1.15 },
   { x: -40, z: -22, rot: -0.3, kind: 'barrels', s: 1.1 },
+  { x: -41, z: -14, rot: 2.3, kind: 'barrels', s: 1.05 },
+  { x: -41, z: -6.5, rot: 0.9, kind: 'crates', s: 1.15 },
+  { x: -40.5, z: 7, rot: -1.4, kind: 'net', s: 1.1 },
   { x: -42, z: 18, rot: 1.9, kind: 'rope', s: 1.2 },
+  { x: -41.5, z: 25, rot: -0.8, kind: 'crates', s: 1.1 },
   { x: -40.5, z: 32, rot: -2.2, kind: 'pots', s: 1.1 },
   // north edge
+  { x: -35, z: 42.5, rot: 1.4, kind: 'barrels', s: 1.1 },
   { x: -25, z: 42, rot: 0.6, kind: 'crates', s: 1.15 },
   { x: -8, z: 43, rot: -0.8, kind: 'barrels', s: 1.1 },
+  { x: 0, z: 42.2, rot: 0.3, kind: 'crates', s: 1.15 },
   { x: 8, z: 41.8, rot: 1.3, kind: 'net', s: 1.1 },
+  { x: 17, z: 43, rot: -1.6, kind: 'barrels', s: 1.1 },
   { x: 28, z: 42.5, rot: -0.2, kind: 'pots', s: 1.15 },
+  { x: 36, z: 42, rot: 2.4, kind: 'crates', s: 1.1 },
   // in bounds, inside a warehouse collider past its gable wall
   { x: 14.1, z: 16.5, rot: 0.1, kind: 'crates', s: 0.75 },   // W1, west gable
   { x: 25.9, z: 15, rot: -0.3, kind: 'barrels', s: 0.8 },    // W1, east gable
   { x: 5.9, z: 32.5, rot: 0.4, kind: 'pots', s: 0.6 },       // W4, west gable
   { x: 18.25, z: 32.4, rot: 0.9, kind: 'rope', s: 0.75 },     // W4, east gable
   { x: -31.4, z: 16, rot: -0.2, kind: 'crates', s: 0.75 },   // W3, west gable
-  // in bounds, free-standing in the open yards
-  { x: 7.5, z: -35, rot: 0.5, kind: 'crates', s: 1.0 },      // south-east yard, by the spawn road
-  { x: 15.5, z: -33.5, rot: -0.6, kind: 'barrels', s: 1.0 },
-  { x: 22, z: -37, rot: 1.2, kind: 'net', s: 1.0 },
-  { x: 33, z: -36.5, rot: -0.3, kind: 'pots', s: 1.1 },
-  { x: 17, z: -25, rot: 0.9, kind: 'barrels', s: 1.05 },
-  { x: 35, z: -23.5, rot: -1.1, kind: 'crates', s: 1.0 },
-  { x: 35.5, z: -18, rot: 0.4, kind: 'pots', s: 1.0 },
-  { x: -34, z: -36, rot: -0.4, kind: 'crates', s: 1.05 },    // south-west yard
-  { x: -25.5, z: -35, rot: 0.7, kind: 'barrels', s: 1.0 },
-  { x: -20, z: -28, rot: -0.9, kind: 'net', s: 1.0 },
-  { x: -10, z: -23.5, rot: 0.2, kind: 'crates', s: 1.0 },
-  { x: -35, z: 22, rot: 1.4, kind: 'crates', s: 1.0 },       // west end, beyond the quay
-  { x: 35, z: 14, rot: -0.5, kind: 'crates', s: 1.05 },      // east end, beyond the quay
-  { x: 35.5, z: 30, rot: 0.3, kind: 'barrels', s: 1.0 },
-  { x: -22, z: 37, rot: -0.2, kind: 'barrels', s: 1.05 },    // north strip
-  { x: -10, z: 36, rot: 0.6, kind: 'crates', s: 1.1 },
-  { x: 24, z: 37.5, rot: -0.8, kind: 'net', s: 1.0 },
+  // in bounds, free-standing in the open yards: low kinds only (rule 2)
+  { x: 7.5, z: -35, rot: 0.5, kind: 'fishbox', s: 1.0, yard: true },  // south-east yard, by the spawn road
+  { x: 15.5, z: -33.5, rot: -0.6, kind: 'pots', s: 1.0, yard: true },
+  { x: 22, z: -37, rot: 1.2, kind: 'net', s: 1.0, yard: true },
+  { x: 33, z: -36.5, rot: -0.3, kind: 'pots', s: 1.1, yard: true },
+  { x: 17, z: -25, rot: 0.9, kind: 'rope', s: 1.3, yard: true },
+  { x: 35, z: -23.5, rot: -1.1, kind: 'fishbox', s: 1.0, yard: true },
+  { x: 35.5, z: -18, rot: 0.4, kind: 'pots', s: 1.0, yard: true },
+  { x: -34, z: -36, rot: -0.4, kind: 'pots', s: 1.05, yard: true },   // south-west yard
+  { x: -25.5, z: -35, rot: 0.7, kind: 'fishbox', s: 1.0, yard: true },
+  { x: -20, z: -28, rot: -0.9, kind: 'net', s: 1.0, yard: true },
+  { x: -10, z: -23.5, rot: 0.2, kind: 'rope', s: 1.2, yard: true },
+  { x: -35, z: 22, rot: 1.4, kind: 'fishbox', s: 1.0, yard: true },   // west end, beyond the quay
+  { x: 35, z: 14, rot: -0.5, kind: 'pots', s: 1.05, yard: true },     // east end, beyond the quay
+  { x: 35.5, z: 30, rot: 0.3, kind: 'rope', s: 1.3, yard: true },
+  { x: -22, z: 37, rot: -0.2, kind: 'fishbox', s: 1.05, yard: true }, // north strip
+  { x: -10, z: 36, rot: 0.6, kind: 'pots', s: 1.1, yard: true },
+  { x: 24, z: 37.5, rot: -0.8, kind: 'net', s: 1.0, yard: true },
 ].map((c) => Object.freeze(c)));
 
 const radiusOf = (c) => RADIUS[c.kind] * (c.s ?? 1);
@@ -205,13 +214,16 @@ export function itemsOf() {
 
 // A per-vertex `color` for geo (made non-indexed first, so every triangle owns
 // its three vertices). `jitter` shades each triangle by up to ±jitter, from
-// hash01, so a heap of one colour still reads as many pieces.
+// hash01, so a heap of one colour still reads as many pieces. The `uv` goes:
+// no dressing material has a map, and every part dropping it keeps the
+// attribute sets mergeGeometries needs in step.
 export function paint(geo, hex, jitter = 0) {
   let g = geo;
   if (g.index) {
     g = geo.toNonIndexed();
     geo.dispose();
   }
+  g.deleteAttribute('uv');
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3);
   const _c = new THREE.Color(hex);
@@ -321,12 +333,15 @@ function barrels(parts, h, c) {
   for (const d of barrelsOf(c)) barrel(parts, d.x, d.y, d.z, d.hex);
 }
 
-function net(parts, h) {
+function net(parts, h, c) {
   // a heap: the top half of an ellipsoid, a = 1.2 across, b = 0.6 high,
   // c = 0.95 deep, its height made lumpy (by position, so the seams of the
   // sphere stay closed), with a second, taller lump slumped against it.
   // Net green, darker than any grass, so it never reads as a bush or a pond.
-  const A = 1.2, B = 0.6, C = 0.95;
+  // Out in a yard it lies flatter (b 0.42, the lump 0.48), so with the lumps
+  // (up to ×1.18) and the floats it stays under 0.6 m (rule 2).
+  const low = !!c.yard;
+  const A = 1.2, B = low ? 0.42 : 0.6, C = 0.95;
   const lumpy = (g, sx, sy, sz, x, z) => {
     g.scale(sx, sy, sz);
     const p = g.attributes.position;
@@ -338,7 +353,7 @@ function net(parts, h) {
   };
   const half = () => new THREE.SphereGeometry(1, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2);
   parts.push(paint(lumpy(half(), A, B, C, 0, 0), 0x2f5446, 0.16));
-  parts.push(paint(lumpy(half(), 0.6, 0.78, 0.55, -0.4, 0.25), 0x34584a, 0.16));
+  parts.push(paint(lumpy(half(), 0.6, low ? 0.48 : 0.78, 0.55, -0.4, 0.25), 0x34584a, 0.16));
   // a cord of floats draped over it, spread round the heap
   for (let i = 0; i < 5; i++) {
     const ang = h(2) * Math.PI * 2 + i * 1.25 + (h(3 + i) - 0.5) * 0.4;
@@ -376,14 +391,52 @@ function pot(parts, x, y, z, yaw, tone) {
   }
 }
 
-function pots(parts, h) {
+// Two pots side by side, often a third stacked on them — but never in a
+// yard, where a stack would stand 0.9 m (rule 2); one pot tops out at 0.44.
+function pots(parts, h, c) {
   pot(parts, -0.3, 0, 0.1, (h(1) - 0.5) * 0.4, h(2));
   pot(parts, 0.38, 0, -0.15, (h(3) - 0.5) * 0.4, h(4));
-  if (h(5) > 0.35) pot(parts, -0.28, 0.4, 0.08, (h(6) - 0.5) * 0.6, h(7));
+  if (!c.yard && h(5) > 0.35) pot(parts, -0.28, 0.4, 0.08, (h(6) - 0.5) * 0.6, h(7));
   parts.push(paint(new THREE.SphereGeometry(0.13, 8, 6), 0xe0803a, 0.05).translate(0.1, 0.13, 0.55));
 }
 
-const KINDS = { crates, barrels, net, rope, pots };
+// Fish boxes: shallow plastic trays 0.16 m deep in harbour colours, one
+// stack two or three high, one beside it one or two high, and often a lone
+// one in front; the top tray of each stack holds crushed ice and a few fish.
+// Three high at s 1.05 is 0.57 m, so a stack stays low (rule 2). Every
+// corner stays inside RADIUS.fishbox: slot centre plus the tray's 0.374
+// half-diagonal.
+const FISHBOX_PAINT = [0x3a6ab0, 0xc04a3a, 0xe0a040, 0x4e8a6a];
+const TRAY_W = 0.62, TRAY_D = 0.42, TRAY_H = 0.16;
+
+function fishTray(parts, x, y, z, yaw, hex, top, h, salt) {
+  parts.push(place(paint(new THREE.BoxGeometry(TRAY_W, TRAY_H, TRAY_D), hex, 0.05), x, y + TRAY_H / 2, z, yaw));
+  // a darker rim band, so stacked trays read as separate trays
+  parts.push(place(paint(new THREE.BoxGeometry(TRAY_W + 0.02, 0.03, TRAY_D + 0.02), lerpHex(hex, 0x1a1a22, 0.35)),
+    x, y + TRAY_H - 0.02, z, yaw));
+  if (!top) return;
+  parts.push(place(paint(new THREE.BoxGeometry(TRAY_W - 0.06, 0.012, TRAY_D - 0.06), 0xdde6ec, 0.04),
+    x, y + TRAY_H + 0.006, z, yaw));
+  for (let i = 0; i < 3; i++) {
+    const fx = -0.17 + i * 0.17, fz = (h(salt + i) - 0.5) * 0.12;
+    const fish = paint(new THREE.SphereGeometry(1, 6, 4), 0x9eacb8, 0.06)
+      .scale(0.13, 0.03, 0.045).rotateY((h(salt + 3 + i) - 0.5) * 0.8).translate(fx, 0, fz);
+    parts.push(place(fish, x, y + TRAY_H + 0.035, z, yaw));
+  }
+}
+
+function fishbox(parts, h) {
+  const colour = (k) => FISHBOX_PAINT[Math.floor(h(k) * FISHBOX_PAINT.length) % FISHBOX_PAINT.length];
+  const jit = (k) => (h(k) - 0.5) * 0.2;
+  const stack = (x, z, n, salt) => {
+    for (let i = 0; i < n; i++) fishTray(parts, x, i * TRAY_H, z, jit(salt + i), colour(salt + 5 + i), i === n - 1, h, salt + 10);
+  };
+  stack(-0.3, -0.15, 2 + (h(1) > 0.5 ? 1 : 0), 20);
+  stack(0.38, 0.1, 1 + (h(2) > 0.4 ? 1 : 0), 40);
+  if (h(3) > 0.3) stack(-0.15, 0.52, 1, 60);
+}
+
+const KINDS = { crates, barrels, net, rope, pots, fishbox };
 
 // ---- the blobs --------------------------------------------------------------
 // A soft dark disc under each cluster: alpha 0.4 at the centre to 0 at the rim.
@@ -442,7 +495,6 @@ function facing(tris, hex, jitter = 0) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
   g.computeVertexNormals();
   return paint(g, hex, jitter);
 }

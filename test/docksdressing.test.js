@@ -80,7 +80,7 @@ describe('docks dressing', () => {
     const area = WORLDS.docks.build(scene);
     const meshes = dressingOf(scene);
     expect(meshes.length).toBeGreaterThan(0);
-    // props, blobs, glints and the skyline (the plan's limit is 6)
+    // props, blobs, glints and the skyline (the cap is 4)
     expect(meshes.length).toBeLessThanOrEqual(4);
     expect(scene.children.slice(-meshes.length)).toEqual(meshes);
     for (const m of meshes) {
@@ -88,6 +88,8 @@ describe('docks dressing', () => {
       expect(m.userData.dressing).toBe(true);
       expect(m.userData.noCast).toBe(true);
       expect(m.castShadow).toBe(false);
+      // no maps anywhere, so no uv buffer on the GPU
+      expect(m.geometry.attributes.uv, m.name).toBeUndefined();
     }
     // dressDocks hands back what it adds: same count, same geometry sizes.
     const again = new THREE.Scene();
@@ -105,12 +107,7 @@ describe('docks dressing', () => {
       'bounds', 'boxes', 'collectibles', 'colliders', 'critterSpawns', 'groundBounce', 'moments',
       'name', 'perches', 'pois', 'puddles', 'scenics', 'skyDusk', 'spawn', 'tippables', 'waterFx', 'waters',
     ]);
-    const lengths = {};
-    for (const [k, v] of Object.entries(area)) if (Array.isArray(v)) lengths[k] = v.length;
-    expect(lengths).toEqual({
-      colliders: 39, perches: 26, pois: 8, collectibles: 5, scenics: 3, critterSpawns: 17,
-      tippables: 12, puddles: 4, boxes: 3, moments: 2, waters: 1, waterFx: 1,
-    });
+    // The values themselves: the stubbed-compare case below.
   }, 120_000);
 
   it('leaves every area field as it is without the dressing (groundBounce is docks.js\'s own)', async () => {
@@ -205,6 +202,35 @@ describe('docks dressing', () => {
       for (const r of rects) if (hitsRect(it, r)) bad.push(`${it.what} at ${it.x},${it.z} on path ${JSON.stringify(r)}`);
     }
     expect(bad).toEqual([]);
+  }, 120_000);
+
+  it('keeps every free-standing in-bounds cluster low: nets, rope, pots or fish boxes, nothing above 0.6 m', () => {
+    // Ruling R7: a cluster in bounds with no collider of its own is something
+    // a cat, a stray or a colony cat walks straight through, so it may only be
+    // the kind of low heap a cat would step over. Tall crate stacks and barrel
+    // groups look solid and climbable like the real crate perches, so they
+    // stand past the bounds or inside a collider the area already has.
+    const LOW = ['net', 'rope', 'pots', 'fishbox'];
+    const area = WORLDS.docks.build(new THREE.Scene());
+    const bad = [];
+    let free = 0;
+    for (const c of dressing.CLUSTERS) {
+      const it = dressing.itemsOf().find((i) => i.x === c.x && i.z === c.z);
+      if (Math.abs(it.x) - it.r > 38 || Math.abs(it.z) - it.r > 40) continue;
+      if (area.colliders.some((k) => Math.hypot(it.x - k.x, it.z - k.z) + it.r <= k.r)) continue;
+      free++;
+      if (!LOW.includes(c.kind)) bad.push(`${c.kind} at ${c.x},${c.z} is not a low kind`);
+      let top = 0;
+      for (const g of dressing.partsOf(c)) {
+        const p = g.attributes.position;
+        for (let i = 0; i < p.count; i++) top = Math.max(top, p.getY(i));
+      }
+      if (top > 0.6) bad.push(`${c.kind} at ${c.x},${c.z} stands ${top.toFixed(2)} m high`);
+    }
+    expect(free).toBeGreaterThan(0);
+    expect(bad).toEqual([]);
+    // still a busy harbour
+    expect(dressing.CLUSTERS.length).toBeGreaterThanOrEqual(40);
   }, 120_000);
 
   it('stays within the triangle budget', () => {

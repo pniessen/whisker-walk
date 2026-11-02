@@ -164,10 +164,10 @@ export function build(scene, { water = {} } = {}) {
   // the outer one stops well inside the fog's 130m — which matters more here
   // than anywhere, because this is the darkest palette in the game and its
   // horizon stop (0x8e9aae) is a pale overcast grey. The silhouette IS the
-  // fog gradient. The colour is the quay's own 0x4e4e58 carried a bit over a
-  // third of the way to that stop, which is more lift than the green areas get
-  // for the same reason: an overcast sky puts more haze between you and a
-  // building than a clear one does.
+  // fog gradient. The colour, 0x6a6870, is a warm grey well above the quay's
+  // own stone (DOCKS_STONE) on the way to that stop, which is more lift than
+  // the green areas get for the same reason: an overcast sky puts more haze
+  // between you and a building than a clear one does.
   //
   // polish-docks: lifted a few percent warmer (was 0x646976, a cool blue-grey
   // that read as cardboard) so the far blocks sit with the warm brick of the
