@@ -1862,3 +1862,138 @@ is 3 meshes and none casts a shadow. Clan against Legacy in the Neighborhood
 **Not checked (left for the owner):** the co-walk crossing with two paired
 devices (the localhost-only browser can't reach the room transport; the logic
 is unit-tested), and the iPhone 18 reading in the Neighborhood and the Woods.
+
+## The Gorge — budget and live check (2026-11-02)
+
+Part 2 of the Gorge (the map; the caves are still lit, part 3 adds the
+darkness), branch `gorge-design` at fb2236d. Headless Chromium (SwiftShader)
+on the worktree's own port, a throwaway save injected into localStorage (Clan
+Edition, 2 Moor walks, the Gorge unlocked where needed). The cat was moved by
+setting its position, then walked with the arrow keys while the camera was
+turned with synthetic `mousemove`s; the phone checks used real touch taps.
+
+**Budget**, as recorded in `test/budget.test.js` (the test passes; not
+re-measured here): 58 meshes / 45 casters / 32,188 triangles built, 47 / 35
+merged. The rock is three merged meshes (5,528 triangles); 14 swaying pines,
+47 in the stand on the west top, 11 tors, 134 scree spots in one bed, the
+Summit Rock, 7 paths, the stream and its 8 stones. The cheapest clan
+territory by meshes.
+
+**In-game draw calls.** `?perf`, HIGH pinned, desktop 1280x720 at 1x, 22
+strays, zoom step 1 unless noted. Strays and finds re-roll each walk, so rows
+are only roughly comparable. The Pines was read fresh on the same machine the
+same hour (three walks). Frame times are SwiftShader's software renderer at
+4-5 fps; they say nothing about the iPhone and are given only because they
+were asked for.
+
+| view | draws (shadow / scene) | triangles | frame ms |
+|---|---|---|---|
+| Gorge floor (-5, 0), looking south | 718 (454 / 250) | 183,260 | 232 |
+| Gorge floor (-5, 0), looking north | 488 (351 / 123) | 141,848 | 207 |
+| Gorge floor, zoom step 3, top pitch, south | 729 (482 / 233) | 186,954 | 214 |
+| **clifftop (4, -24), zoom 3, top pitch, south** (the look-down) | **805** (339 / 452); 685 on a second walk | 191,764; 169,052 | 233; 236 |
+| clifftop (4, -24), zoom 3, top pitch, W / E / N | 648, 644 / 373 / 332 | 159,456 / 109,332 / 100,186 | 205-226 |
+| clifftop (16, -30), zoom 3, top pitch, S / W / E / N | 560 / 552 / 283 / 271 | 87,880-141,522 | 205-261 |
+| Summit Rock, zoom 3, top pitch, W / S / N / E | 594 / 515 / 341 / 248 | 87,086-145,080 | 195-226 |
+| **Pines spawn**, zoom 1 (three walks) | **662, 688, 660** (143-167 / 481-531) | 170,632-175,118 | 255, 272, (494, run beside another) |
+| Pines spawn, zoom 3, top pitch | 528, 479, 455 | 141,872-155,592 | 206-363 |
+
+The worst look-down (805) is 17-22% over the Pines' spawn (660-688), inside
+the 25% line; the second walk's 685 is level with it. The floor looking south
+is 4-9% over. Looking south from the clifftop's lip is the costly way because
+it takes in the whole gorge floor with its pines, strays and stream. The old
+Pines rows (824-870) were 1024x768 at 2x, so they are not comparable with
+these. The iPhone 18 reading is still the owner's.
+
+**Checked and right:**
+
+- **Home screen**, 1280x720 and 375x812. With 1 Moor walk the Gorge says
+  "🔒 The Gorge · opens after 2 walks in The Moor · 1/2 so far" and a tap does
+  nothing. With 2 it is in colour and says "Tap to explore"; a real tap (touch
+  on the phone) unlocks and selects it: save `area: 'gorge'`, "today's walk",
+  the dock "Walking in The Gorge".
+- **The picker** shows five cards. CliffClan "of The Gorge, camp coming soon"
+  is greyed, `aria-disabled="true"`, with no pick attribute; tapping it leaves
+  `clanPick` unchanged. The four live cards are as before.
+- **Legacy**: four cards (Cozy Neighborhood, City Park, Seaside, The Old
+  Docks), no map, no Gorge; with `area: 'gorge'` the Cozy Neighborhood card is
+  the selected one.
+- **The way in.** From the Moor's north path bend (34, -8), walking east, the
+  cat stays on `MOOR_GORGE_TRAIL` (at most 0.01 m off its line). At the east
+  post with 0 Moor walks: "🔒 The Gorge opens after 2 walks in The Moor · 1/2
+  so far". With 1: "E — Head to the Gorge?"; the card says "Head to the Gorge?
+  / This walk ends here, and you keep everything you found."; Yes gives "Next
+  stop: the Gorge! 🧭"; the Moor walk counts (2); Start opens the Gorge with
+  the cat at (-44, 0, -11) in the Narrows, the post back to the Moor at
+  (-47.5, -14) behind her, saying "E — Head to the Moor?".
+- **Walked, not teleported** (keys and a turning camera, 480x320 LOW for
+  speed): the climb race from the pad ("E — race to the clifftop! 🏁") over
+  the stones, down the floor, up leg A, across the Lookout, down leg B, over
+  the Wide Ledge's turn and up leg C to the finish: all five rings counted,
+  "🏁 47.8s — today's best!". Each leg kept within 0.13-0.78 m of its
+  centreline; the height rose 0 → 4 → 8 → 12 as the plan says.
+- **The stones**: crossed at z -11, -10.6 and -11.4, the cat never dipped; a
+  control at z -13 wades (y -0.24).
+- **The lips.** At the clifftop, the Lookout, legs A, B and C and the Wide
+  Ledge's west edge, the cat ran in on a slant until the zoomies were on (FOV
+  77°), held the key into the lip and pounced twice. She never went past a
+  lip's inner edge (closest 2.58 / 2.40 / 2.45 / 5.80 / 9.25 / 5.84 against
+  inner edges 2.4, 2.4, 2.4, 5.8, 9.2, 5.8), slid along it, and stayed on her
+  level.
+- **All three caves and all five dens**, walked in from their mouths; on the
+  cave floor her height stays the floor's (0, 8.94, 12). Each den gives "E —
+  curl up for a nap"; a nap in the west den shows "Zzz… 💤" and she curls up.
+- **Camera in rock**: every animation frame of every Gorge walk above (about 4,800)
+  was tested against the ground record (below the ground, or above a cave or
+  den ceiling): none was inside rock.
+- **The goat** (2 November is a goat day): it stands on the shoulder at y 14;
+  walking along the clifftop's south edge it bolted at 5.9 m (2D), bounded
+  (y 14.03-14.18) to its hide at (8, -12.5) and vanished. "The goat bounded
+  off over the rocks! 🐐"; "a goat leaping over the rocks +12" fired on the
+  climb; the journal counts `goat`.
+- **The birds**: three, one instanced mesh, no shadow, at y 33.3-35.2 over the
+  gorge; seen from the clifftop and the floor as small dark shapes.
+- **Shade by height**: the sun's intensity is 1.8 on the floor, 2.4 halfway up
+  leg B and 3.0 on the clifftop (fill 0.42 / 0.44 / 0.45). The floor reads
+  greyer and cooler, the top warm and bright.
+- **The look-down** at zoom 3 and the top pitch, N/S/E/W, from the clifftop
+  (two spots) and from the Summit Rock (climbed with two pounces, cat at
+  y 13.9): no void, no sky gap, nothing past the map's edge. The rim tops are
+  in view and read as flat bare tan rock (G6 expected it).
+- **The south post**: "E — Head to Twolegplace?".
+- `verify-places.html?area=gorge` builds (`__calls` 55); `public/places/gorge.jpg`
+  is taken from the shipped `VIEWS.gorge` (`3,13.8,-26 → -8,2,20`).
+- No console errors or page errors anywhere above.
+
+**Seen, not fixed:**
+
+- **Near pines fill the frame at three spots** at zoom step 1: the Echo
+  Cave's mouth (pine at (-12.19, 22.41)), the west den's mouth (pine at
+  (-13.53, 8.62)) and the clifftop den's mouth (pine at (8.93, -34.51)). The
+  camera is just outside the cone (1.3-2.5 m from the trunk) and a green slab
+  covers a third to half of the picture. A geometric sweep (no in-game
+  pull-in modelled) puts the step 1 camera inside a pine's cone for 12.6% of
+  the open walkable cells at some facing. The Gorge's pine rule keeps pines off
+  the paths only, and the cat walks the whole floor; this is the Pines'
+  canopy problem again.
+- **The rock is plain.** The walls are flat faces without texture. In the
+  Narrows the shaded wall is close to black-blue, and from the spawn looking
+  north the 20 m wall reads like sky. Nothing scary, but boxy; G4's named
+  follow-up (inward chamfers, crag props) applies.
+- **Big triangle shadows**: the low sun throws the rim-top pines' shadows over
+  the clifftop and the Glitter Cave's wall as large dark triangles whose pines
+  are out of sight.
+- **The view down the gorge** from its scenic (4, -24) at the default camera:
+  the shoulder's box fills the middle; the gorge floor is to the right.
+- **The place card** is about half bare rock (the clifftop and the shoulder).
+  `cam=1.5,15,-38,-7,1,2` looks straight down the gorge (stream, path, stones,
+  pines) with a pine sliver at the top left, if the card is retaken.
+- **CliffClan's greyed card** measures about 3:1 text contrast (the live
+  cards about 4.2:1). Readable, but faint.
+- The climb race's finish still awards "the daily zoomies race +15", though
+  its prompt says "race to the clifftop".
+
+**Not checked:** sound by ear (the wind rising and the stream fading); the
+rainbow behind the east rim (no rain came); dusk and rain; touch walking (the
+walk used keys and mouse turns, the map used real touch taps); the phone's
+draw counts in the Gorge; the co-walk; the iPhone 18 reading and thermals.
