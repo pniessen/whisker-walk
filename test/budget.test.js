@@ -327,13 +327,14 @@ describe('with the Clan dressing', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The Gorge, part 3 (the caves): each deep cave's insides are at most two
-// merged meshes, out of the shadow pass, and they count in the Gorge's rows
+// The Gorge, part 3 (the caves): each deep cave's insides are at most three
+// merged meshes (polish-gorgesky added the chamber's room, caveRoom:<id>),
+// out of the shadow pass, and they count in the Gorge's rows
 // above (built and merged), which stay inside the Cozy Neighborhood's
 // ceilings. Only one is ever drawn at a time (gorgelife.js).
 // ---------------------------------------------------------------------------
 describe('the Gorge: its caves\' insides', () => {
-  it('each deep cave\'s interior is at most two merged noCast meshes, as built and merged', () => {
+  it('each deep cave\'s interior is at most three merged noCast meshes, as built and merged', () => {
     const scene = new THREE.Scene();
     buildGorge(scene);
     const count = () => scene.children.filter((c) => c.userData.caveId).map((g) => {
@@ -342,8 +343,8 @@ describe('the Gorge: its caves\' insides', () => {
       for (const m of meshes) expect(m.userData.noCast).toBe(true);
       return meshes.length;
     });
-    expect(count()).toEqual([1, 1, 2]);
+    expect(count()).toEqual([2, 2, 3]);
     mergeStaticProps(scene);
-    expect(count()).toEqual([1, 1, 2]);
+    expect(count()).toEqual([2, 2, 3]);
   });
 });

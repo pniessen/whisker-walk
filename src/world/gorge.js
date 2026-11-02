@@ -13,6 +13,7 @@ import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
+import { caveRoom } from './caveroom.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -640,14 +641,38 @@ function wallHolds(cave, p, reach) {
   }
   return true;
 }
-const caveFinds = (cave) => [...COLLECTIBLES, ...GOLD_MICE.gorge]
+export const caveFinds = (cave) => [...COLLECTIBLES, ...GOLD_MICE.gorge]
   .filter((f) => cave.rects.some((r) => inRect(r, f.x, f.z)));
-const cavePathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
-function caveClear(cave, x, z, reach) {
+export const cavePathDist = (cave, x, z) => Math.min(...cave.path.slice(1).map((q, i) => segDist(x, z, ...cave.path[i], ...q)));
+export function caveClear(cave, x, z, reach) {
   if (cavePathDist(cave, x, z) < CAVE_PATH_CLEAR + reach) return false;
   return caveFinds(cave).every((f) => Math.hypot(x - f.x, z - f.z) >= CAVE_FIND_CLEAR + reach);
 }
-const chamberOf = (cave) => cave.rects.find((r) => r.tag.endsWith('-chamber'));
+export const chamberOf = (cave) => cave.rects.find((r) => r.tag.endsWith('-chamber'));
+// Whether the chamber's wall at (x, z), a point on its wall line, is rock:
+// the ground just outside it stands a metre and more over the cave's floor
+// (the opening into the bend does not). Off the wall line, false.
+export function chamberRockAt(cave) {
+  const r = chamberOf(cave);
+  const g = shapeGround();
+  const e = 1e-6;
+  return (x, z) => {
+    const dx = x <= r.minX + e ? -0.1 : x >= r.maxX - e ? 0.1 : 0;
+    const dz = z <= r.minZ + e ? -0.1 : z >= r.maxZ - e ? 0.1 : 0;
+    if (!dx && !dz) return false;
+    return g.y(x + dx, z + dz) >= cave.y + 1;
+  };
+}
+// The chamber's dressing (caveroom.js): the rounded liner with its cove,
+// stalactites, moss, and the Snug Cave's nest. Seeded by the cave's name.
+export function caveRoomFor(caveId) {
+  const cave = GORGE_CAVES.find((c) => c.id === caveId);
+  return caveRoom(cave, {
+    clear: (x, z, reach) => caveClear(cave, x, z, reach),
+    rockAt: chamberRockAt(cave),
+    seed: seedFromCode(`gorge-caveroom-${cave.id}`),
+  });
+}
 
 const crystalsOnce = new Map();
 export function caveCrystalSpots(cave) {
@@ -696,12 +721,31 @@ export function glitterFleckSpots() {
 
 // One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
 // shows it (only near its cave and on its level, C5).
+// The chamber's room (caveroom.js) is one more mesh in it, made on local
+// uuids so the Gorge build's Math.random draws stay as pinned (5108,
+// waterlooks.test.js). The Glitter Cave's flecks sit on the room's liner,
+// which stands a little in from the wall line they were placed on.
 function caveInterior(cave) {
   const g = new THREE.Group();
   g.name = `caveInterior:${cave.id}`;
   g.userData.caveId = cave.id;
+  const { room, mesh } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
+    const made = caveRoomFor(cave.id);
+    const m = new THREE.Mesh(made.geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
+    m.name = `caveRoom:${cave.id}`;
+    m.castShadow = false;
+    m.userData.noCast = true;
+    return { room: made, mesh: m };
+  });
   g.add(b.caveCrystals(caveCrystalSpots(cave), seedFromCode(`gorge-crystals-${cave.id}`), { color: CAVE_COLORS[cave.id] }));
-  if (cave.id === 'glitter') g.add(b.caveFlecks(glitterFleckSpots(), seedFromCode('gorge-flecks-glitter'), { color: FLECK_COLOR }));
+  if (cave.id === 'glitter') {
+    const flecks = glitterFleckSpots().map((f) => {
+      const d = room.linerDepth(f.x, f.y, f.z, f.nx, f.nz);
+      return { ...f, x: f.x + f.nx * d, z: f.z + f.nz * d };
+    });
+    g.add(b.caveFlecks(flecks, seedFromCode('gorge-flecks-glitter'), { color: FLECK_COLOR }));
+  }
+  g.add(mesh);
   g.visible = false;
   return g;
 }

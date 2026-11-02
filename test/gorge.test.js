@@ -1440,7 +1440,11 @@ describe('the Gorge: inside the deep caves', () => {
       const g = interiors.find((o) => o.userData.caveId === cave.id);
       // hidden until her cat is near (gorgelife.js shows it)
       expect(g.visible).toBe(false);
-      const meshes = meshesOf(g);
+      // the chamber's room (liner, stalactites, moss, nest: caveroom.js, pinned
+      // by test/caveroom.test.js) is one more mesh, last; the rest are checked here
+      const all = meshesOf(g);
+      expect(all.at(-1).name).toBe(`caveRoom:${cave.id}`);
+      const meshes = all.slice(0, -1);
       // at most two merged meshes, both out of the shadow pass; the Glitter
       // Cave's second is its gold flecks
       expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? ['caveCrystals', 'caveFlecks'] : ['caveCrystals']);
