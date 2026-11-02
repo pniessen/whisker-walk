@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createHud } from '../src/ui/hud.js';
 import { bus } from '../src/events.js';
 
@@ -196,4 +197,33 @@ describe('the discovery toast', () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe('HUD layout (style.css)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const rule = (sel) => {
+    const at = css.indexOf(`${sel} {`);
+    return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+  };
+  const landscape = () => {
+    const at = css.indexOf('@media (max-height: 500px) {\n  body.touch-mode');
+    return at < 0 ? '' : css.slice(at, css.indexOf('\n}\n', at));
+  };
+
+  describe('walk summary', () => {
+    test('Continue is a pink pill, not a browser button', () => {
+      const r = rule('.summary-card .primary');
+      expect(r).toContain('background: #e7a9a0');
+      expect(r).toContain('border-radius: 999px');
+      expect(r).toMatch(/min-height: (4[89]|5\d)px/);
+    });
+    test('on a phone the summary scrim runs edge to edge', () => {
+      const at = css.indexOf('@media (max-width: 480px) {\n  .homebase-scroll');
+      const block = css.slice(at, css.indexOf('\n}\n', at));
+      const card = block.slice(block.indexOf('.summary-card {'), block.indexOf('}', block.indexOf('.summary-card {')));
+      expect(card).not.toMatch(/max-width/);
+      expect(card).toMatch(/padding: 16px 4vw/);
+    });
+  });
+
 });

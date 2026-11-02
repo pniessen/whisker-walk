@@ -441,6 +441,14 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .summary-card h1 { font-size: 2.2rem; }
+/* Continue wears the home's pink pill (the dressing room's --pink, scoped to
+   .dr, so the literal) instead of a bare browser button. */
+.summary-card .primary {
+  background: #e7a9a0; color: #1c2431; border: 0; border-radius: 999px;
+  font: inherit; font-weight: 700; font-size: 1.1rem; padding: 12px 36px;
+  min-height: 48px; min-width: 200px; cursor: pointer;
+}
+.summary-card .primary:hover { filter: brightness(1.08); }
 .record-banner { background: #f2c14e; color: #3a2a10; font-weight: 700;
   padding: 8px 18px; border-radius: 999px; font-size: 1.1rem; }
 .best-line { color: #a8c0e0; font-size: 1rem; }
@@ -468,8 +476,10 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   .hud-points { flex-shrink: 0; }
   .hud-rank { font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
+  /* Edge to edge: the scrim spans the screen, and padding (not a max-width
+     margin) keeps the content in. */
   .summary-card {
-    max-width: 92vw; margin: 0 auto; padding: 16px 0;
+    padding: 16px 4vw;
     overflow-y: auto; gap: 10px;
   }
   .summary-card h1 { font-size: 1.7rem; }
