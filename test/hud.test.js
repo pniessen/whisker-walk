@@ -226,6 +226,34 @@ describe('HUD layout (style.css)', () => {
     });
   });
 
+  describe('touch HUD', () => {
+    test('touch pause sits in the top row; the top row steps right for it', () => {
+      expect(rule('.tui-pause')).toMatch(/top: max\(16px, env\(safe-area-inset-top\)\)/);
+      expect(css).toMatch(/body\.touch-mode:not\(\.left-handed\) \.hud-top\s*\{[^}]*left: calc\(max\(16px, env\(safe-area-inset-left\)\) \+ 54px\)/);
+      expect(rule('.hud-goals')).toContain('top: 64px');
+    });
+    test('touch prompt rises above the action cluster; toasts above the prompt', () => {
+      expect(css).toMatch(/body\.touch-mode \.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
+      expect(css).toMatch(/body\.touch-mode \.hud-toasts\s*\{[^}]*bottom: calc\(292px/);
+      expect(css).toMatch(/body\.touch-mode #hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
+      // the coarse-pointer twins stay in step
+      expect(css).toMatch(/@media \(pointer: coarse\) \{\s*\.hud-prompt\s*\{[^}]*bottom: calc\(222px/);
+      expect(css).toMatch(/#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(360px/);
+    });
+    test('landscape touch keeps the prompt at 96px and toasts at 165px', () => {
+      const block = landscape();
+      expect(block).toMatch(/\.hud-prompt\s*\{[^}]*bottom: calc\(96px/);
+      expect(block).toMatch(/\.hud-toasts\s*\{[^}]*bottom: calc\(165px/);
+    });
+    test('landscape touch with a fight pill up puts toasts at 210px', () => {
+      expect(landscape()).toMatch(/#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: calc\(210px \+ env\(safe-area-inset-bottom\)\)/);
+    });
+    test('left-handed keeps its own pause spot and top-row inset', () => {
+      expect(rule('body.left-handed .tui-pause')).toContain('right: calc(');
+      expect(rule('body.left-handed .hud-top')).toContain('+ 64px');
+    });
+  });
+
   describe('desktop toasts', () => {
     test('toasts sit above the prompt pill, and above the fight pill when it is up', () => {
       expect(rule('.hud-toasts')).toContain('bottom: 146px');
