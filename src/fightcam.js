@@ -165,7 +165,13 @@ export function firstBlocker(a, b, occluders, pad = null) {
 export function subjectPoints(subject, withPath = false) {
   const out = [];
   const spots = withPath ? [...subject.me, ...subject.it, ...(subject.path || [])] : [...subject.me, ...subject.it];
-  for (const p of spots) for (const y of CAT_HEIGHTS) out.push({ x: p.x, y, z: p.z });
+  for (const p of spots) {
+    for (const y of CAT_HEIGHTS) out.push({ x: p.x, y, z: p.z });
+    // A spot an action lifts a cat on (fight moves and scars, Task 5): its top
+    // there, `y` above the standing top, so a leap's peak, a rear-up and the
+    // pin stay in sight and in frame.
+    if (p.y > 0) out.push({ x: p.x, y: CAT_HEIGHTS[2] + p.y, z: p.z });
+  }
   return out;
 }
 

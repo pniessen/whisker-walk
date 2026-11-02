@@ -1,8 +1,13 @@
 import { describe, test, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
 import {
-  createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP, fightReach,
+  createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP, fightReach, reachYFor,
 } from '../src/game/clanfight.js';
+import { ACTION_KINDS, actionFrame, beatFrame, placeFrame } from '../src/fightactions.js';
+import { buildCat, catDims } from '../src/cat/model.js';
+import { animateCat } from '../src/cat/animator.js';
+import { clanCast } from '../src/clancast.js';
 import { createFightCam } from '../src/fightcam.js';
 import { COUNTER, MOVES, BUTTONS, CLUES } from '../src/fight.js';
 import { CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../src/intruders.js';
@@ -593,6 +598,151 @@ describe('the fight camera\'s subject', () => {
   });
 });
 
+// Task 5 (fight moves and scars): in actions mode the subject holds every
+// spot an action, a beat or a prelude puts either cat on, and each spot's `y`
+// is how far the cat's top rises there above its own standing top.
+describe('the fight camera sees every action', () => {
+  const near = (pts, p, tol) => pts.some((q) => Math.hypot(q.x - p.x, q.z - p.z) <= tol);
+  // fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, (x, z) => z > -0.5) before Task 5.
+  const TODAY = {
+    mid: { x: 0.8, z: 0 }, axis: { x: 1, z: 0 },
+    me: [{ x: 1.6, z: 0 }, { x: 1.6, z: 0.4 }, { x: 1.6, z: 0.8 }, { x: 2, z: 0 }, { x: 1.6, z: 0 },
+      { x: 1.5391036260090294, z: 0.30614674589207186 }, { x: 1.365685424949238, z: 0.565685424949238 },
+      { x: 1.106146745892072, z: 0.7391036260090295 }, { x: 0.8, z: 0.8 }, { x: 0.49385325410792824, z: 0.7391036260090295 },
+      { x: 0.23431457505076203, z: 0.5656854249492381 }, { x: 0.06089637399097059, z: 0.3061467458920719 },
+      { x: 0, z: 9.797174393178826e-17 }, { x: 0.060896373990970476, z: -0.3061467458920717 },
+      { x: 1.5391036260090294, z: -0.30614674589207236 }],
+    it: [{ x: 0, z: 0 }, { x: -0.3, z: 0 }, { x: -0.6, z: 0 }, { x: -0.4, z: 0 }],
+  };
+
+  test('actions:false reach is today\'s', () => {
+    const ok = (x, z) => z > -0.5;
+    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok)).toEqual(TODAY);
+    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false })).toEqual(TODAY);
+    // a reachY changes nothing without actions
+    const reachY = { me: [{ along: 0, side: 0, y: 0.5 }], it: [{ along: 0, side: 0, y: 0.5 }] };
+    expect(fightReach({ x: 1.6, z: 0 }, { x: 0, z: 0 }, ok, { actions: false, reachY })).toEqual(TODAY);
+  });
+
+  test('actions: the lines between the anchors, the middle, the sidesteps and the flinch spots; no circle', () => {
+    const spot = { x: 3, z: 1 }, foeAt = { x: 3 - FIGHT_GAP, z: 1 };
+    const r = fightReach(spot, foeAt, () => true, { actions: true });
+    expect(r.mid).toEqual({ x: 3 - FIGHT_GAP / 2, z: 1 });
+    expect(r.axis).toEqual({ x: 1, z: 0 });
+    expect(r.me[0]).toEqual({ x: 3, z: 1 });
+    expect(r.it[0]).toEqual({ x: foeAt.x, z: 1 });
+    for (const [pts, from, dir] of [[r.me, spot, -1], [r.it, foeAt, 1]]) {
+      // each cat's line toward the other, out to the far anchor, every <= 0.2 m (within 0.1 m of a spot)
+      for (let a = 0; a <= FIGHT_GAP + 1e-9; a += 0.01) expect(near(pts, { x: from.x + dir * a, z: 1 }, 0.1 + 1e-9)).toBe(true);
+      expect(near(pts, r.mid, 1e-9)).toBe(true);
+      // the beat's sidesteps and step-in, today's dodge both ways, the flinch spot
+      for (const s of [0.3, -0.3]) expect(near(pts, { x: from.x, z: 1 + s }, 1e-9)).toBe(true);
+      expect(near(pts, { x: from.x + dir * 0.15, z: 1 }, 0.1)).toBe(true);
+      expect(near(pts, { x: from.x - dir * 0.5, z: 1 }, 1e-9)).toBe(true);
+    }
+    // today's spots stay (less the circle): my dodge (both ways now) and step back,
+    // the charge's ease-back and its step back
+    for (const s of [SIDE_STEP / 2, SIDE_STEP, -SIDE_STEP / 2, -SIDE_STEP]) expect(near(r.me, { x: 3, z: 1 + s }, 1e-9)).toBe(true);
+    expect(near(r.me, { x: 3 + 0.4, z: 1 }, 1e-9)).toBe(true);
+    for (const b of [0.3, 0.6, 0.4]) expect(near(r.it, { x: foeAt.x - b, z: 1 }, 1e-9)).toBe(true);
+    // no tumble circle: nothing further than 0.8 m off the anchor line
+    for (const p of [...r.me, ...r.it]) expect(Math.abs(p.z - 1)).toBeLessThanOrEqual(SIDE_STEP + 1e-9);
+    expect(near([...r.me, ...r.it], { x: r.mid.x, z: 1 + FIGHT_GAP / 2 }, 0.3)).toBe(false);
+    // no reachY: no spot carries a y
+    for (const p of [...r.me, ...r.it]) expect(p.y).toBeUndefined();
+    // the ground check drops spots, never the anchors
+    const strict = fightReach(spot, foeAt, () => false, { actions: true });
+    expect(strict.me).toEqual([{ x: 3, z: 1 }]);
+    expect(strict.it).toEqual([{ x: foeAt.x, z: 1 }]);
+  });
+
+  test('every staged spot of every action and beat is inside the action reach', () => {
+    const intruder = buildCat('tabby', undefined, { simple: true, style: clanCast('woods')[3].style });
+    intruder.scale.multiplyScalar(0.85); // intruders.js INTRUDER_SCALE
+    const mine = buildCat('mainecoon'); // the largest preset
+    const cats = { me: mine, it: intruder };
+    const dims = { me: catDims(mine), it: catDims(intruder) };
+    const spot = { x: 2.5, z: -1 }, foeAt = { x: 2.5 - FIGHT_GAP * 0.6, z: -1 - FIGHT_GAP * 0.8 };
+    const reachY = reachYFor(dims.me, dims.it, FIGHT_GAP);
+    const r = fightReach(spot, foeAt, () => true, { actions: true, reachY });
+    const anchor = { me: spot, it: foeAt };
+    const toward = {
+      me: { x: (foeAt.x - spot.x) / FIGHT_GAP, z: (foeAt.z - spot.z) / FIGHT_GAP },
+      it: { x: (spot.x - foeAt.x) / FIGHT_GAP, z: (spot.z - foeAt.z) / FIGHT_GAP },
+    };
+    const box = new THREE.Box3();
+    let checked = 0, lifted = 0;
+    // Pose `who` from frame f at time t as clanfight stages it and check its
+    // top against the reach spot nearest where it stands, which must be
+    // within 0.2 m (for a roll, where its torso centre stands, which the roll
+    // turns about: the group's origin swings round it).
+    function check(who, f, t, at) {
+      const cat = cats[who], d = dims[who];
+      const p = placeFrame(f, d);
+      animateCat(cat, f.pose, t, 0, false);
+      cat.rotation.order = 'YXZ';
+      cat.rotation.set(f.pitch, 0, f.roll);
+      cat.position.set(0, p.y, 0);
+      cat.updateMatrixWorld(true);
+      const rise = box.setFromObject(cat, true).max.y - d.top;
+      cat.rotation.set(0, 0, 0);
+      cat.position.set(0, 0, 0);
+      const fw = toward[who], right = { x: -fw.z, z: fw.x };
+      const side = p.dSide - (f.roll ? d.pivotY * Math.sin(f.roll) : 0);
+      const at2 = { x: anchor[who].x + fw.x * p.dAlong + right.x * side, z: anchor[who].z + fw.z * p.dAlong + right.z * side };
+      const dist = (q) => Math.hypot(q.x - at2.x, q.z - at2.z);
+      const q = r[who].reduce((b, c) => (dist(c) < dist(b) ? c : b));
+      if (dist(q) > 0.2) throw new Error(`${at}: no reach spot within 0.2 m (${dist(q).toFixed(3)})`);
+      if (rise > (q.y ?? 0) + 0.05) throw new Error(`${at}: top rose ${rise.toFixed(3)} at a spot with y ${(q.y ?? 0).toFixed(3)}`);
+      checked++;
+      if (rise > 0.3) lifted++;
+    }
+    const us = Array.from({ length: 120 }, (_, i) => i / 119);
+    for (const kind of ACTION_KINDS) {
+      for (const big of kind === 'roll' ? [true] : [false, true]) {
+        for (const by of ['me', 'it']) {
+          const other = by === 'me' ? 'it' : 'me';
+          const o = { gap: FIGHT_GAP, winBackY: dims[by].backY, loseBackY: dims[other].pinnedBackY };
+          for (const u of us) {
+            const fr = actionFrame(kind, big, u, o);
+            const at = `${kind}${big ? ' big' : ''} by ${by} u ${u.toFixed(3)}`;
+            // the pin's winner stands on the loser's back, not the ground
+            check(by, fr.win, u * 3, `${at} win`);
+            check(other, fr.lose, u * 3, `${at} lose`);
+          }
+        }
+      }
+    }
+    for (const beat of [0, 1, 2]) {
+      for (const u of us) {
+        const f = beatFrame(beat, u);
+        check('me', f, u * 3, `beat ${beat} me u ${u}`);
+        check('it', f, u * 3, `beat ${beat} it u ${u}`);
+      }
+    }
+    expect(checked).toBeGreaterThan(3000);
+    expect(lifted).toBeGreaterThan(100); // the leaps, the rear-ups and the pins were all in there
+    // and the camera's points reach the leap's top
+    expect(Math.max(...r.me.map((q) => q.y ?? 0))).toBeGreaterThan(0.7);
+  });
+
+  test('reachYFor: one sample list per cat, every y finite and above 0, more for the bigger cat', () => {
+    const big = catDims(buildCat('mainecoon'));
+    const small = catDims(buildCat('digit'));
+    const ry = reachYFor(big, small, FIGHT_GAP);
+    expect(ry.me.length).toBeGreaterThan(10);
+    expect(ry.it.length).toBeGreaterThan(10);
+    for (const s of [...ry.me, ...ry.it]) {
+      for (const k of ['along', 'side', 'y']) expect(Number.isFinite(s[k])).toBe(true);
+      expect(s.y).toBeGreaterThan(0);
+    }
+    const top = (l) => Math.max(...l.map((s) => s.y));
+    expect(top(ry.me)).toBeGreaterThan(top(ry.it));
+    // the same dims, the same answer (pure)
+    expect(reachYFor(big, small, FIGHT_GAP)).toEqual(ry);
+  });
+});
+
 describe('the fight camera follows the fight', () => {
   const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
   function camera() {
@@ -675,7 +825,7 @@ describe('clanfight.js is pinned', () => {
     const specs = [...SRC.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs.length).toBeGreaterThan(0);
     for (const s of specs) {
-      expect(['../fight.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js']).toContain(s);
+      expect(['../fight.js', '../fightactions.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js']).toContain(s);
     }
     expect(SRC).toMatch(/progression/); // ...and the header says why
   });

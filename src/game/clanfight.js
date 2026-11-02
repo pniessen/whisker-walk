@@ -22,7 +22,8 @@
 // On the network (Task 5): startFight sends one 'intruder-fight' and the end
 // of that fight (won, lost, aborted, or ended by a sibling's win) sends one
 // 'intruder-done'. Nothing is sent solo. See netevents.js for the receiving side.
-import { createFight, edgeFor, CLUES, NEUTRAL_POSE, TIMING } from '../fight.js';
+import { createFight, edgeFor, CLUES, MOVES, NEUTRAL_POSE, TIMING } from '../fight.js';
+import { ACTION_KINDS, actionFrame, beatFrame, preludeFrame, placeFrame, makeFrame, makeActionFrames } from '../fightactions.js';
 import { isHostile, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../intruders.js';
 import { FIGHT_LINES } from '../ui/fightui.js';
 import { clanName } from '../clanhomes.js';
@@ -67,13 +68,32 @@ const TUMBLE_SPOTS = 16; // points round the tumble's circle: 0.31 m apart at th
 // between is within 0.2 m of one (test/clanfight.test.js). stagePoses below
 // puts the cats nowhere else, and never on a spot that is not clan ground
 // (R3), so `ok` (clan ground) drops those; the two anchors always stay.
-export function fightReach(spot, foeAt, ok = () => true) {
+//
+// With `actions` (fight moves and scars, Task 5) the rounds play as leaps,
+// rear-ups, pins and rolls instead of the tumble, so there is no circle; each
+// cat's spots are today's (less the circle), its line toward the other every
+// <= 0.2 m (from its flinch spot 0.5 m behind it out to the far anchor), the
+// meeting point in the middle, the stare's step-in, the beats' sidesteps and
+// my dodge, both ways (whichever way the stager turns a side). With a
+// `reachY` (reachYFor below) each spot also carries `y`: the most the cat's
+// top rises there, above its own standing top, in any action, beat or answer
+// (fightcam.js keeps that top in frame too). Without `actions` the result is
+// exactly today's, `reachY` or not.
+export function fightReach(spot, foeAt, ok = () => true, { actions = false, reachY = null } = {}) {
   let nx = spot.x - foeAt.x;
   let nz = spot.z - foeAt.z;
   const gap = Math.hypot(nx, nz);
   if (gap < 1e-6) { nx = 1; nz = 0; } else { nx /= gap; nz /= gap; }
   const sx = -nz, sz = nx;
   const mid = { x: (spot.x + foeAt.x) / 2, z: (spot.z + foeAt.z) / 2 };
+  if (actions) {
+    const keep = (p, i) => i === 0 || ok(p.x, p.z) === true;
+    return {
+      mid, axis: { x: nx, z: nz },
+      me: actionSpots(spot, -nx, -nz, gap, [LOSER_STEP], [BEAT_SIDE, SIDE_STEP / 2, SIDE_STEP], reachY?.me).filter(keep),
+      it: actionSpots(foeAt, nx, nz, gap, [BACKUP_EASE / 2, BACKUP_EASE, LOSER_STEP], [BEAT_SIDE], reachY?.it).filter(keep),
+    };
+  }
   const me = [
     { x: spot.x, z: spot.z },
     { x: spot.x + sx * SIDE_STEP / 2, z: spot.z + sz * SIDE_STEP / 2 },
@@ -94,6 +114,129 @@ export function fightReach(spot, foeAt, ok = () => true) {
   }
   const keep = (p, i) => i === 0 || ok(p.x, p.z) === true;
   return { mid, axis: { x: nx, z: nz }, me: me.filter(keep), it: it.filter(keep) };
+}
+
+const REACH_STEP = 0.2;   // m at most between two spots of a line
+const FLINCH_BACK = 0.5;  // m behind its anchor a loser flinches to (the big rear-up's)
+const BEAT_SIDE = 0.3;    // m of a beat's sidestep (fightactions.js beatFrame)
+const STEP_IN = 0.15;     // m of the stare beat's step in
+
+// One cat's action spots, from its anchor `at` with (fx, fz) toward the other
+// cat, in its own along/side coordinates first (side: to its right); `backs`
+// are today's spots behind it (a loser's step back, the charge's ease-back)
+// and `sides` its sidesteps beside its anchor, each taken both ways.
+// Each of
+// `samples` (reachYFor's, for this cat) lifts the spot nearest it, and the one
+// nearest its mirror image (whichever way a sidestep goes): a spot's y is the
+// most of the samples it is nearest to. Only the nearest, so a leap's height
+// is never put on a spot nearer a tree than the leap is.
+function actionSpots(at, fx, fz, gap, backs, sides, samples) {
+  const local = [{ a: 0, s: 0 }, ...backs.map((b) => ({ a: -b, s: 0 }))];
+  const from = -FLINCH_BACK, to = Math.max(gap, 0);
+  const n = Math.max(1, Math.ceil((to - from) / REACH_STEP));
+  for (let i = 0; i <= n; i++) local.push({ a: from + ((to - from) * i) / n, s: 0 });
+  local.push({ a: gap / 2, s: 0 }, { a: STEP_IN, s: 0 });
+  for (const s of sides) local.push({ a: 0, s }, { a: 0, s: -s });
+  const spots = [];
+  for (const p of local) {
+    if (!spots.some((q) => Math.abs(q.a - p.a) < 1e-9 && Math.abs(q.s - p.s) < 1e-9)) spots.push({ a: p.a, s: p.s, y: 0 });
+  }
+  if (Array.isArray(samples)) {
+    const nearest = (a, s) => {
+      let best = spots[0], bd = Infinity;
+      for (const q of spots) {
+        const d = (q.a - a) ** 2 + (q.s - s) ** 2;
+        if (d < bd) { bd = d; best = q; }
+      }
+      return best;
+    };
+    for (const q of samples) {
+      if (!(q.y > 0)) continue;
+      for (const sp of [nearest(q.along, q.side), nearest(q.along, -q.side)]) if (q.y > sp.y) sp.y = q.y;
+    }
+  }
+  const rx = -fz, rz = fx;
+  return spots.map(({ a, s, y }) => {
+    const p = { x: at.x + fx * a + rx * s, z: at.z + fz * a + rz * s };
+    if (y > 0) p.y = y;
+    return p;
+  });
+}
+
+// How much higher than its standing top each pose puts a cat's top, beyond
+// placeFrame's y without the roll's term (its lift plus the pitch about its
+// hind heels; a roll turns the curled cat about its torso centre, which stays
+// at its lift), as a fraction of that top. Measured over every preset and an
+// intruder, over every action, beat and prelude frame and its tail's swing
+// (most of it is the tail: 0.147 in 'cross' and 'arch', 0.165 reared, 0.077
+// in the leap's pitched 'pounce'; a curled roll, a flattened pin or a flinch
+// never rises above its lift), each with 0.03 to spare; a pose not listed
+// takes the most.
+const POSE_TOP = Object.freeze({
+  cross: 0.18, arch: 0.18, rearUp: 0.2, swipe: 0.2, stalk: 0.2,
+  pounce: 0.11, pinning: 0.07, land: 0.03, follow: 0.03, flinch: 0.03, scared: 0.03,
+  pinned: 0, roll: 0,
+});
+const POSE_TOP_MAX = 0.2;
+// Samples over each action, beat and prelude: the pin's flight, the fastest
+// move, covers 0.03 m between two.
+const REACH_US = 240;
+const REACH_CELL = 0.01; // m: samples are kept as the most per cell
+
+// The `reachY` option of fightReach, from the two cats measured at fight start
+// (src/cat/model.js catDims: { top, backY, pinnedBackY, hindZ, pivotY }) and
+// the gap between their anchors: for each cat, where every action (either cat
+// winning, big or not), beat and answer prelude puts it, relative to its own
+// anchor (`along` toward the other cat, `side` to its right; for the roll the
+// torso centre it turns about), and `y`, how far its top rises there above its
+// standing top: placeFrame's y (without the roll's term) plus its pose's
+// POSE_TOP of its top. Pure: no THREE.
+export function reachYFor(meDims, itDims, gap) {
+  const dims = { me: cleanDims(meDims), it: cleanDims(itDims) };
+  const g = Number.isFinite(gap) && gap > 0 ? gap : FIGHT_GAP;
+  const cells = { me: new Map(), it: new Map() };
+  const placed = { dAlong: 0, dSide: 0, y: 0 };
+  const add = (who, f) => {
+    const d = dims[who];
+    placeFrame(f, d, placed);
+    const along = placed.dAlong;
+    const side = placed.dSide - d.pivotY * Math.sin(f.roll || 0);
+    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0))
+      + (Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX) * d.top;
+    if (!(y > 0)) return;
+    const key = `${Math.round(along / REACH_CELL)},${Math.round(side / REACH_CELL)}`;
+    const c = cells[who].get(key);
+    if (!c || y > c.y) cells[who].set(key, { along: Math.round(along / REACH_CELL) * REACH_CELL, side: Math.round(side / REACH_CELL) * REACH_CELL, y });
+  };
+  const fr = makeActionFrames();
+  const f = makeFrame();
+  for (let i = 0; i <= REACH_US; i++) {
+    const u = i / REACH_US;
+    for (const kind of ACTION_KINDS) {
+      for (const big of kind === 'roll' ? [true] : [false, true]) {
+        for (const by of ['me', 'it']) {
+          const other = by === 'me' ? 'it' : 'me';
+          actionFrame(kind, big, u, { gap: g, winBackY: dims[by].backY, loseBackY: dims[other].pinnedBackY }, fr);
+          add(by, fr.win);
+          add(other, fr.lose);
+        }
+      }
+    }
+    for (const beat of [0, 1, 2]) {
+      beatFrame(beat, u, f);
+      add('me', f);
+      add('it', f);
+    }
+    for (const answer of ['pounce', 'swipe', 'dodge']) add('me', preludeFrame({ answer }, 'me', u, f));
+    for (const move of MOVES) add('it', preludeFrame({ move }, 'it', u, f));
+  }
+  const list = (m) => [...m.values()].map((c) => ({ along: c.along + 0, side: c.side + 0, y: c.y }));
+  return { me: list(cells.me), it: list(cells.it) };
+}
+
+function cleanDims(d) {
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+  return { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
 }
 
 

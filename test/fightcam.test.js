@@ -303,6 +303,28 @@ function fakeCamera(aspect = PORTRAIT.aspect) {
   return cam;
 }
 
+// Task 5 (fight moves and scars): a spot may carry `y`, how far the cat's top
+// rises above its standing top there; the camera then also keeps that top.
+describe('subjectPoints keeps a lifted cat\'s top', () => {
+  test('adds exactly one point per lifted spot, CAT_HEIGHTS[2] + y up; spots without y are unchanged', () => {
+    const plain = { me: [{ x: 1, z: 2 }], it: [{ x: -1, z: 0 }], path: [{ x: 4, z: 4 }] };
+    const lifted = {
+      me: [{ x: 1, z: 2 }, { x: 1.2, z: 2, y: 0.3 }, { x: 1.4, z: 2, y: 0 }],
+      it: [{ x: -1, z: 0, y: 0.75 }],
+      path: [{ x: 4, z: 4 }],
+    };
+    expect(subjectPoints(plain, false)).toEqual(CAT_HEIGHTS.flatMap((y) => [{ x: 1, y, z: 2 }]).concat(CAT_HEIGHTS.map((y) => ({ x: -1, y, z: 0 }))));
+    const pts = subjectPoints(lifted, false);
+    expect(pts.length).toBe(4 * CAT_HEIGHTS.length + 2);
+    expect(pts).toContainEqual({ x: 1.2, y: CAT_HEIGHTS[2] + 0.3, z: 2 });
+    expect(pts).toContainEqual({ x: -1, y: CAT_HEIGHTS[2] + 0.75, z: 0 });
+    expect(pts.filter((p) => p.x === 1.4)).toEqual(CAT_HEIGHTS.map((y) => ({ x: 1.4, y, z: 2 })));
+    expect(subjectPoints(lifted, true).length).toBe(5 * CAT_HEIGHTS.length + 2);
+    // framePoints frames the lifted top too
+    expect(framePoints(lifted)).toContainEqual({ x: 1.2, y: CAT_HEIGHTS[2] + 0.3, z: 2 });
+  });
+});
+
 describe('createFightCam (the blend)', () => {
   const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
   const subj = subject(me, it);
