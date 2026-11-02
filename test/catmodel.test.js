@@ -515,13 +515,24 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
     expect(underside.position.toArray()).toEqual([0, 0, 0]);
     expect(Object.is(underside.rotation.y, -0)).toBe(false);
   });
+  // Re-pinned polish-catlooks Task 1 (2026-11-02): the chest is no longer one
+  // solid colour (it eases into the coat at its rim, catcoat.test.js), so the
+  // check is on its front: the vertex facing most along the chest's front axis.
   it("robbie's chest is white; a black cat's chest is its belly colour", () => {
-    const chestColours = (b) => {
-      const u = buildCat(b).userData.parts.underside, col = u.geometry.attributes.color, [a, z] = u.userData.ranges.chest;
-      return Array.from({ length: z - a }, (_, i) => new THREE.Color(col.getX(a + i), col.getY(a + i), col.getZ(a + i)));
+    const chestFront = (b) => {
+      const { body, underside: u } = buildCat(b).userData.parts;
+      const pos = u.geometry.attributes.position, col = u.geometry.attributes.color, [a, z] = u.userData.ranges.chest;
+      const centre = new THREE.Vector3(...u.userData.chestCentre).multiply(body.scale);
+      const front = new THREE.Vector3(0, 0.15, -1).normalize(), v = new THREE.Vector3();
+      let best = -2, at = a;
+      for (let i = a; i < z; i++) {
+        const d = v.fromBufferAttribute(pos, i).multiply(body.scale).sub(centre).normalize().dot(front);
+        if (d > best) { best = d; at = i; }
+      }
+      return new THREE.Color(col.getX(at), col.getY(at), col.getZ(at));
     };
-    for (const c of chestColours('robbie')) expect(colourDistance(c, new THREE.Color(0xf5f5f5))).toBeLessThan(1e-6);
-    for (const c of chestColours('black')) expect(colourDistance(c, new THREE.Color(0x3a3a42))).toBeLessThan(1e-6);
+    expect(colourDistance(chestFront('robbie'), new THREE.Color(0xf5f5f5))).toBeLessThan(0.02);
+    expect(colourDistance(chestFront('black'), new THREE.Color(0x3a3a42))).toBeLessThan(0.02);
   });
   it('final mesh ceilings, fluffy cats included', () => {
     const FINAL = { tabby: 30, siamese: 30, persian: 30, black: 30, calico: 31, mainecoon: 30, zeetoo: 30, robbie: 31, d2: 31, digit: 34 };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -25,8 +25,36 @@ const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, p
 // cat walking by 1 cm, pushthrough.test.js). They replace the curl in a
 // walking 'follow', eased in with speed (full at TAIL_S_SPEED), so a cat that
 // stops lets its tail settle back to the curl.
-const TAIL_S = [-1.05, -0.32, 0.0, 0.35, 0.40];
+// polish-catlooks (2026-11-02), Task 7: links 0 and 1 sit 0.1 and 0.07 rad
+// lower (was -1.05, -0.32), to pay for the tip's forward curl (TAIL_HOOK_X):
+// the walking tail's top stays under the old one (test/cattail.test.js).
+const TAIL_S = [-0.95, -0.25, 0.0, 0.35, 0.40];
 const TAIL_S_SPEED = 1.2;
+// polish-catlooks (2026-11-02), Task 7: the question mark. Seen from straight
+// behind (the walk camera, ~90% of the time) a tail that only bends in its own
+// vertical plane is foreshortened into an upright stub. Walking, it now hooks
+// over to one side: TAIL_HOOK is each pivot's rotation.y (rad), eased in with
+// the same weight w as TAIL_S. The side is fixed for every cat (determinism;
+// it reads the same for both kids): the cat's own LEFT. The cat faces -z and
+// the tail runs back along +z, so a pivot's +rotation.y swings the links after
+// it toward +x, the cat's right (measured: +0.5 on pivot 3 moves the tip
+// +0.11 m in x); its left is -x, so TAIL_HOOK_SIDE is -1.
+//
+// It has to read as one relaxed curve, not a broken tail. The ruling's
+// [0, 0, 0.15, 0.55, 0.65] (and a first tuning, [0, 0, 0.3, 0.4, 0.45]) bent
+// hard at one joint into a horizontal stick. So: a small, even turn over the
+// last three links; the sway on those links damped (TAIL_SWAY_DAMP) so that
+// hook plus sway never turns one joint more than ~0.25 rad at any phase; and
+// the tip's back-curl eased a little forward (TAIL_HOOK_X, added to TAIL_S)
+// so the hooked links curve over rather than jut toward the camera. Links 0
+// and 1 stay unturned: turning them swept the whole tail over the left of the
+// back and hid a left back scar from the walk camera (scarmesh.test.js). The
+// root keeps its full sway, so the whole hook still swings gently. Not on
+// Hagrid (no curl), not stopped (w 0), not in other states.
+const TAIL_HOOK = [0, 0, 0.2, 0.22, 0.22];
+const TAIL_HOOK_SIDE = -1; // the cat's left (-x)
+const TAIL_HOOK_X = [0, 0, -0.05, -0.15, -0.2];
+const TAIL_SWAY_DAMP = [0, 0.2, 0.6, 0.8, 0.8];
 
 // Polish 1a, Task 5: the poses in which a worn collar follows the neck instead
 // of the head. The collar hangs on the head (model.js), which is right while
@@ -153,6 +181,14 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+  // The stalk's tail root rides the body (STALK_TAIL), once the body is where
+  // the long-leg fit left it. Cats with folds only: Hagrid's tail rides his
+  // body already (rideTail).
+  if (state === 'stalk' && cat.userData.parts.legs[0].userData.folds) {
+    const { tail, body } = cat.userData.parts;
+    // (The z half is set in pose(), with the stalk's other folds offsets.)
+    tail.position.y = body.position.y + STALK_TAIL.DY;
+  }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
@@ -189,19 +225,31 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
+//
+// The sit flattens the underside (its own z scaled by SIT.chestDepth, set in
+// pose(); every other state leaves it at 1). Scaled about the underside's
+// origin that would slide the chest centre back too, so the position also
+// carries R_y(-θ)·(c − K·c), K the underside's scale: the chest centre lands
+// exactly where the unscaled underside put it (polish-catlooks, 2026-11-02).
+// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0).
+const _k = new THREE.Vector3();
 function keepChestUnderHead(body, underside) {
   const yaw = body.rotation.y;
+  const c = underside.userData.chestCentre;
+  const K = underside.scale;
+  _k.set(c[0] * (1 - K.x) + 0, c[1] * (1 - K.y) + 0, c[2] * (1 - K.z) + 0); // c − K·c
   if (!yaw) {
     underside.rotation.y = 0;
-    underside.position.set(0, 0, 0);
+    underside.position.copy(_k);
     return;
   }
   underside.rotation.y = -yaw;
   const S = body.scale;
-  _c.fromArray(underside.userData.chestCentre);
+  _c.fromArray(c);
   _p.copy(_c).multiply(S).applyQuaternion(_q.copy(body.quaternion).invert()).divide(S); // S⁻¹·Q⁻¹·S·c
-  _c.applyQuaternion(_yaw.setFromAxisAngle(_Y, -yaw));                                  // R_y(-θ)·c
-  _p.sub(_c);
+  _yaw.setFromAxisAngle(_Y, -yaw);
+  _c.applyQuaternion(_yaw);                                                             // R_y(-θ)·c
+  _p.sub(_c).add(_k.applyQuaternion(_yaw));                                             // + R_y(-θ)·(c − K·c)
   underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
 }
 
@@ -384,6 +432,31 @@ function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
 // the back's top at every phase and speed (folds.test.js).
 export const STALK_SWING = 0.3;
 
+// polish-catlooks Task 6 (2026-11-02): the stalk's tail leaves the rump
+// cleanly. The stalk drops the body 10 cm, but the tail hangs on the cat, not
+// the body, so its root ball stayed where it stood: a round bulb 18-22 cm over
+// the rump's end in the side view (folds.test.js 'the stalk reads as one
+// body'). Stalking, the root rides the body (bob included), TAIL_DY above
+// the torso's centre and TAIL_DZ forward of its built place: the root ball
+// sunk into the rump and the tail streaming out of its back, low behind the
+// creeping cat. TAIL_DY 0.02 leaves the root at most -0.3 cm over the rump's
+// line (0.04 stood 1.7 cm over its end).
+const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
+
+// polish-catlooks Task 6 (2026-11-02): the walking stalk swings a crouched leg
+// about its hip pivot, which a long-legged cat carries higher (base.hipY) over
+// the same crouched top (limbs.js FOLDS.crouch, at the lowered hip): Digit's
+// top hangs 31 cm under its pivot against a standard cat's 19, so the same
+// swing rocked its upper legs 1.6 times as far, out through its narrow chest
+// and rump. The swing is scaled by the standard pivot-to-top drop over this
+// rig's, so every cat's crouched top travels alike (exactly 1 on every cat
+// but Digit; Digit's swing is 0.61 of what it was, its paws stepping 0.8 as
+// far as a tabby's).
+function stalkReach(base) {
+  const top = REF_RIG.HIP_Y - FOLDS.crouch.drop;
+  return base.hipY ? (LEGS.HIP_Y - top) / (base.hipY - top) : 1;
+}
+
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
 
@@ -408,7 +481,14 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   for (const leg of legs) {
     leg.rotation.set(0, 0, 0);
     leg.scale.set(1, 1, 1);
+    // The sit moves the front hips forward (SIT.foreZ); every other state puts
+    // them back where they were built (remembered the first time).
+    leg.position.z = leg.userData.hipZ ??= leg.position.z;
+    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk brings Digit's in
   }
+  tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
+  const { underside } = cat.userData.parts;
+  if (underside) underside.scale.set(1, 1, 1); // the sit flattens it (SIT.chestDepth)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -522,6 +602,18 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       legs[2].rotation.x = -0.5;
       legs[3].rotation.x = -0.5;
     }
+    if (underside) {
+      // polish-catlooks (2026-11-02): no snowman. The chest is flattened (its
+      // centre held by keepChestUnderHead) and the forelegs stand forward as
+      // columns in front of it (torso.js SIT). Cats only: Hagrid has no
+      // underside, and his legs are a chicken's.
+      underside.scale.z = SIT.chestDepth;
+      for (let i = 0; i < 2; i++) {
+        const leg = legs[i];
+        leg.position.z = leg.userData.hipZ + SIT.foreZ;
+        leg.rotation.x = SIT.foreTilt;
+      }
+    }
     head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
     tail.rotation.set(-0.1 + c, 0, 0);
@@ -540,6 +632,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     head.position.set(hx, hy - 0.16, hz - 0.08);
     head.rotation.x = 0.15;
     if (!folds) for (const leg of legs) leg.scale.y = 0.7;
+    else {
+      // polish-catlooks Task 6 (2026-11-02): Digit's torso is 0.8 as wide
+      // (STYLE.body) on the same hips as every cat, so its crouched upper legs
+      // stood 2-3 cm out of its sides however slim the fold (limbs.js
+      // FOLDS.crouch): stalking, each hip comes in by the torso's width share,
+      // the paws with it. 1 on every other cat, which is left as it was.
+      const k = bsx / TORSO.SCALE[0];
+      if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
+      // (The y half is set in animateCat, after fitLongLegs has placed the body.)
+      tail.position.z = tail.userData.rootZ + STALK_TAIL.DZ;
+    }
   }
 
   if (state === 'pounce') {
@@ -716,8 +819,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // its hip (Digit at speed 1.5: 5.5 cm by Task 1's single ray, 1.8 cm over
     // the back's own top nearby; folds.test.js). A
     // rig without folds (Hagrid) keeps today's full swing.
+    const reach = state === 'stalk' && folds ? STALK_SWING * stalkReach(base) : 0;
     const freq = state === 'stalk' && folds
-      ? walkGait(legs, t, moveSpeed, 1, STALK_SWING, 0.6 * STALK_SWING)
+      ? walkGait(legs, t, moveSpeed, 1, reach, 0.6 * reach)
       : walkGait(legs, t, moveSpeed);
     if (!reducedMotion) {
       body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;
@@ -746,6 +850,10 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // The walking carriage (TAIL_S), on a rig with the resting curl (not Hagrid).
   if (state === 'follow' && c && moveSpeed > 0) {
     const w = Math.min(1, moveSpeed / TAIL_S_SPEED);
-    for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.x = -c + (TAIL_S[i] + c) * w;
+    for (let i = 0; i < tailPivots.length; i++) {
+      tailPivots[i].rotation.x = -c + (TAIL_S[i] + TAIL_HOOK_X[i] + c) * w;
+      // in a follow, rotation.y here is the plain sway the loop above wrote
+      tailPivots[i].rotation.y = tailPivots[i].rotation.y * (1 - TAIL_SWAY_DAMP[i] * w) + TAIL_HOOK_SIDE * TAIL_HOOK[i] * w; // the question mark (TAIL_HOOK)
+    }
   }
 }

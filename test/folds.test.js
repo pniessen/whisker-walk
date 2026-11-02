@@ -8,6 +8,7 @@ import { POSE_FIT } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
 import { PRESETS, fingerprintCat } from './helpers/catfingerprint.js';
 import { pokes as pokesOf, T1 } from './helpers/catpoke.js';
+import { flankLumps, tailRootAboveRump } from './helpers/catflank.js';
 
 // Legs fold at the joints (body refinement Task 5, R1-R3): sitting tucks the
 // hind legs under the haunch with the foot flat in front, napping and being
@@ -68,7 +69,17 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _v = new THREE.Vector3();
 const _o = new THREE.Vector3();
 // Standing legs: no worse than Task 1 (the old legs) + 0.002.
-const allowed = (name, state) => Math.max(0.005, T1[name === 'digit' ? 'digit' : 'tabby'][state] + 0.002);
+// Re-pinned polish-catlooks (2026-11-02), requestPet/perch front legs only:
+// the sit now stands the forelegs forward as columns in front of the chest
+// (torso.js SIT.foreZ -0.17), where the torso, tipped nose-down in the sit,
+// is low; a shoulder top there stands above the torso surface straight under
+// it (the chest's lower front), which this measure reads as a poke: 0.0691
+// full / 0.0728 simple on every standard-frame look (Task 1's old spot:
+// 0.0367). That is the shoulder in front of the chest, not a leg through the
+// back; Digit (0.1656 / 0.1691) stays under its own Task 1 ceiling. The
+// sit's only standing legs are the front pair, so this ceiling is theirs.
+const SIT_FRONT = { requestPet: 0.0728, perch: 0.0728 };
+const allowed = (name, state) => Math.max(0.005, ((name !== 'digit' && SIT_FRONT[state]) || T1[name === 'digit' ? 'digit' : 'tabby'][state]) + 0.002);
 // Folded legs get their own, tight ceiling: measured + 0.002, floor 0.005. The
 // Task 1 allowance (0.15 to 0.31 for nap, stalk and pinned) is the old squash's
 // poke and is far too loose here: the folds reach 0.0084 at most standing still
@@ -467,4 +478,46 @@ describe('legs fold at the joints (Task 5)', () => {
       expect(dims.pivotY, name).toBeCloseTo(pivotY, 4);
     }
   });
+});
+
+// Task 6, polish-catlooks (2026-11-02): Digit's stalk read as a torso with
+// separate angular lumps at the shoulder and hip (the folded upper legs) and
+// a round bulb at the tail's root above the rump line. The crouch must read
+// as one smooth low body. Measured on Digit and the tabby, full and simple,
+// still and through one stride of the walking stalk (sixteen phases).
+// Before the fix: upper legs up to 3.9-6.0 cm proud of the flank (tabby) and
+// 6.5-8.9 cm (Digit); the tail root 18-22 cm over the rump's end (the stalk
+// dropped the body 10 cm and left the tail where it stood).
+describe('the stalk reads as one body (polish-catlooks Task 6)', () => {
+  const CATS = [['tabby', false], ['tabby', true], ['digit', false], ['digit', true]];
+  const poses = () => {
+    const out = [[1.3, 0], [0.4, 0]];
+    const period = (2 * Math.PI) / (4.5 + 1.5 * 1.4); // walkGait's stride at 1.5
+    for (let k = 0; k < 16; k++) out.push([0.2 + (k / 16) * period, 1.5]);
+    return out;
+  };
+
+  it('the stalk crouch has no separate lumps at shoulder and hip', () => {
+    for (const [name, simple] of CATS) {
+      const cat = make(name, simple);
+      for (const [t, speed] of poses()) {
+        const r = flankLumps(pose(cat, 'stalk', t, speed));
+        const at = `${name}${simple ? ' simple' : ''} stalk t ${t.toFixed(3)} speed ${speed}: ${r.at}`;
+        expect(r.checked, at).toBeGreaterThan(100);
+        expect(r.worst, at).toBeLessThanOrEqual(0.012);
+      }
+    }
+  }, 120_000);
+
+  it('the tail root does not bulge above the rump in the stalk', () => {
+    for (const [name, simple] of CATS) {
+      const cat = make(name, simple);
+      for (const [t, speed] of poses()) {
+        const r = tailRootAboveRump(pose(cat, 'stalk', t, speed));
+        const at = `${name}${simple ? ' simple' : ''} stalk t ${t.toFixed(3)} speed ${speed}: ${r.at}`;
+        expect(r.checked, at).toBeGreaterThan(10);
+        expect(r.worst, at).toBeLessThanOrEqual(0.01);
+      }
+    }
+  }, 120_000);
 });

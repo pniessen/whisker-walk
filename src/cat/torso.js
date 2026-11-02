@@ -77,6 +77,28 @@ export const POSE_FIT = Object.freeze({
   perch: Object.freeze({ body: 0.004 }),
 });
 
+// The front sit (requestPet, perch), polish-catlooks (2026-11-02): from the
+// front the sit read as a snowman, a round chest ball with stub forelegs stuck
+// on behind and under it. animator.js flattens the chest and stands the
+// forelegs forward in front of it:
+//   chestDepth: the underside's own z (torso-local) is scaled by this about the
+//     chest centre (keepChestUnderHead holds the centre put), so the chest stops
+//     bulging forward like a ball. The plan asked for 0.78; measured, the sit's
+//     nose-down tip makes the chest ball's TOP its front-most point, which a z
+//     scale barely moves, so 0.78 brought a simple build's front back only
+//     1.84 cm (cat frame). 0.75 brings every build back 2.1-2.3 cm.
+//   foreZ (metres, cat frame, - is forward): both front hips move forward by
+//     this. The flattened chest's front is at z -0.437 (cat frame; the same on
+//     every breed, Digit's narrow frame and long legs too) and a standing paw
+//     sits 0.012 ahead of its hip, so -0.17 puts the paws at -0.422, at the
+//     chest's front, the shoulders still tucked against the torso (-0.18 left
+//     them standing proud of it, seen from the side).
+//   foreTilt (rad): 0, the legs hang plumb (the paw's own 0.012 offset leans
+//     the hip-to-paw line 0.03 rad, Digit's longer leg 0.025). No swing means
+//     fitLongLegs leaves each leg its fitted length, so the soles stay on the
+//     ground at every legLen.
+export const SIT = Object.freeze({ chestDepth: 0.75, foreZ: -0.17, foreTilt: 0 });
+
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   const front = Math.max(0, -z), back = Math.max(0, z);
@@ -117,6 +139,27 @@ export function torsoSurface(dir) {
   const L = Math.hypot(dir[0], dir[1], dir[2]);
   const [x, y, z] = deformTorso(dir[0] / L, dir[1] / L, dir[2] / L);
   return new THREE.Vector3(x * TORSO.R, y * TORSO.R, z * TORSO.R);
+}
+
+// The inverse of torsoSurface's direction (polish-catlooks, 2026-11-02): the
+// UNDEFORMED unit direction whose deformed surface point lies along the
+// body-local direction `dir`. The coat is painted by undeformed direction
+// (coat.js), so a part hung on the torso reads the coat under it through this.
+// Fixed-point: nudge u by how far its deformed direction misses `dir`. The
+// deformation only stretches by 0.7-1.3, so 8 steps land within ~1e-6.
+export function torsoUnitAt(dir, out = [0, 0, 0]) {
+  const L = Math.hypot(dir[0], dir[1], dir[2]);
+  const d0 = dir[0] / L, d1 = dir[1] / L, d2 = dir[2] / L;
+  let u0 = d0, u1 = d1, u2 = d2;
+  for (let k = 0; k < 8; k++) {
+    const [x, y, z] = deformTorso(u0, u1, u2);
+    const P = Math.hypot(x, y, z);
+    u0 -= x / P - d0; u1 -= y / P - d1; u2 -= z / P - d2;
+    const M = Math.hypot(u0, u1, u2);
+    u0 /= M; u1 /= M; u2 /= M;
+  }
+  out[0] = u0; out[1] = u1; out[2] = u2;
+  return out;
 }
 
 // A back-slot point authored against the old torso, moved onto the new one

@@ -207,8 +207,11 @@ export function limbGeometry(len, hind, simple = false) {
 // standing height, so its points ride with the hip: y = g - REF_RIG.HIP_Y.
 // `paw` is the foot's centre [g, z] and `pawRotX` its tip. Every control point
 // keeps g >= its radius + 0.002, so the tube stays out of the ground.
-const fold = (points, radii, paw, pawRotX = 0) => Object.freeze({
-  points: Object.freeze(points.map((p) => Object.freeze(p))), radii: Object.freeze(radii), paw: Object.freeze(paw), pawRotX,
+// `flat` (default 1, round): the upper leg's width across the body (leg-local
+// x) at its top, as a share of its radius, easing back to round by the knee
+// or elbow (the second control point): see the crouch below.
+const fold = (points, radii, paw, pawRotX = 0, flat = 1) => Object.freeze({
+  points: Object.freeze(points.map((p) => Object.freeze(p))), radii: Object.freeze(radii), paw: Object.freeze(paw), pawRotX, flat,
 });
 export const FOLDS = Object.freeze({
   stand: Object.freeze({ crouch: false }),
@@ -230,10 +233,26 @@ export const FOLDS = Object.freeze({
     hind: fold([[0.20, 0], [0.085, -0.08], [0.042, 0.035]], [0.10, 0.077, 0.036], [0.0415, 0]),
   }),
   // Bent low, paws still under the shoulders and hips, ready to go.
+  // polish-catlooks Task 6 (2026-11-02): the crouch reads as one low body.
+  // The folded upper legs stood out of the flank as separate angular lumps,
+  // 4-6 cm on the tabby and 6.5-9 cm on Digit (folds.test.js 'the stalk reads
+  // as one body'): the hind thigh's 0.10 top and its dome ran back past the
+  // hip into the narrowing rump, the shoulder's 0.085 top and dome forward
+  // past the chest, and both stood their full round width out of the side.
+  // The means chosen: a narrower upper leg that lies flat against the flank.
+  // The tops are slimmer (front 0.085 -> 0.07, hind 0.10 -> 0.08), the
+  // shoulder's top sits 3 cm further back and the thigh's 5 cm further
+  // forward (its knee 2 cm, so the thigh keeps its slope), where the torso
+  // is full, and each upper leg is flattened across the body to 0.6 of its
+  // radius at the top, easing back to round just past the elbow or knee (`flat`), as
+  // a crouching cat's thigh lies along its side. The top stays at the
+  // lowered hip (R2); the knee, the shin and the paw are unchanged.
+  // Digit's torso is 0.8 as wide on the same hips: the stalk also brings its
+  // folded hips in (animator.js).
   crouch: Object.freeze({
     crouch: true, drop: 0.10,
-    front: fold([[0.20, 0], [0.14, 0.07], [0.05, -0.005]], [0.085, 0.06, 0.038], [0.0415, -0.015]),
-    hind: fold([[0.20, 0], [0.135, -0.07], [0.095, 0.08], [0.04, 0]], [0.10, 0.08, 0.05, 0.036], [0.0415, -0.012]),
+    front: fold([[0.20, 0.03], [0.14, 0.07], [0.05, -0.005]], [0.07, 0.06, 0.038], [0.0415, -0.015], 0, 0.6),
+    hind: fold([[0.20, -0.05], [0.135, -0.09], [0.095, 0.08], [0.04, 0]], [0.08, 0.075, 0.05, 0.036], [0.0415, -0.012], 0, 0.6),
   }),
   // A ball of fur: front paws drawn back under the chest, hind forward under
   // the belly, both tipped toward each other. Each limb's last stretch runs
@@ -272,13 +291,30 @@ function bakedFold(kind, hind, simple, hipY) {
   const f = FOLDS[kind];
   const shape = f[hind ? 'hind' : 'front'];
   const y0 = f.crouch ? hipY : REF_RIG.HIP_Y;
-  const { pos, nor } = tubeArrays(shape.points.map(([g, z]) => [0, g - y0, z]), shape.radii, LIMB_SEG[simple ? 'simple' : 'full'], FOLD_BEND);
+  const { pos, nor, t } = tubeArrays(shape.points.map(([g, z]) => [0, g - y0, z]), shape.radii, LIMB_SEG[simple ? 'simple' : 'full'], FOLD_BEND);
+  if (shape.flat !== 1) flatten(pos, nor, t, shape.flat, FLAT_SPAN / (shape.points.length - 1));
   baked = Object.freeze({
     pos, nor, box: new THREE.Box3().setFromArray(pos),
     paw: new THREE.Vector3(0, shape.paw[0] - y0, shape.paw[1]), pawRotX: shape.pawRotX,
   });
   foldCache.set(key, baked);
   return baked;
+}
+
+// A fold's `flat`: each vertex's leg-local x scaled by flat at the top (t 0,
+// the dome too) easing (smoothstep) to 1 at FLAT_SPAN x the knee's (or the
+// elbow's) t and below; its normal carried through the same scale (x divided
+// by it, renormalised). 1.5: eased out by the knee itself, the ring just above
+// a walking Digit's elbow still stood 1.3-1.5 cm out of its narrow chest.
+const FLAT_SPAN = 1.5;
+function flatten(pos, nor, t, flat, knee) {
+  for (let k = 0; k < t.length; k++) {
+    const sx = flat + (1 - flat) * smooth(Math.min(1, t[k] / knee));
+    pos[k * 3] *= sx;
+    const nx = nor[k * 3] / sx, ny = nor[k * 3 + 1], nz = nor[k * 3 + 2];
+    const L = Math.hypot(nx, ny, nz);
+    nor[k * 3] = nx / L; nor[k * 3 + 1] = ny / L; nor[k * 3 + 2] = nz / L;
+  }
 }
 
 // Give a built leg its folds: leg.userData.folds (per kind { pos, nor, box,
