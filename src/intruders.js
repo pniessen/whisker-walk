@@ -493,9 +493,14 @@ export function createIntruders(scene, areaId, {
       if (!isCurrent(visit) || cur.state !== 'held' || !heldByMe()) return;
       if (st === null) cur.stage = null;
       else if (st && typeof st.pose === 'string' && Number.isFinite(st.x) && Number.isFinite(st.z)) {
+        // Every frame of a fight: written into the visitor's one staging
+        // object (and facing point), made the first time only.
         const fin = (v) => (Number.isFinite(v) ? v : 0);
-        cur.stage = { pose: st.pose, x: st.x, z: st.z, y: fin(st.y), pitch: fin(st.pitch), roll: fin(st.roll) };
-        if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) cur.face = { x: st.face.x, z: st.face.z };
+        const to = cur.stage ??= { pose: 'cross', x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+        to.pose = st.pose; to.x = st.x; to.z = st.z; to.y = fin(st.y); to.pitch = fin(st.pitch); to.roll = fin(st.roll);
+        if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) {
+          if (cur.face) { cur.face.x = st.face.x; cur.face.z = st.face.z; } else cur.face = { x: st.face.x, z: st.face.z };
+        }
       } else return;
       if (cur.inScene) { place(); syncAnchor(); }
     },

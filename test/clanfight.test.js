@@ -54,7 +54,9 @@ function harness({
     hold: vi.fn((v, id, face, o) => { calls.push({ kind: 'hold', v, id, o }); cur.state = 'held'; }),
     release: vi.fn((v, id) => { calls.push({ kind: 'release', v, id }); cur.state = 'walking'; }),
     flee: vi.fn((v) => { calls.push({ kind: 'flee', v }); cur.state = 'fleeing'; }),
-    stage: vi.fn((v, st) => { calls.push({ kind: 'stage', v, st }); }),
+    // The fight reuses one staging object (final review 8): each call's
+    // values are snapshotted here, and the object itself kept as `raw`.
+    stage: vi.fn((v, st) => { calls.push({ kind: 'stage', v, st: st && { ...st, face: st.face && { ...st.face } }, raw: st }); }),
     isFled: () => cur.state === 'fleeing',
   };
   const ui = {
@@ -1165,6 +1167,16 @@ describe('the fight plays the actions', () => {
       const losers = frames.filter((f) => f.phase === 'tumble' && f.tumbleT > 0.25).map((f) => [f.me.pose, f.it.pose]);
       expect(losers.flat()).toContain('flinch');
     }
+  });
+
+  test('actions mode stages the intruder through one reused object, no allocation a frame (final review 8)', () => {
+    const { h, frames } = play({ answers: 'right' });
+    expect(frames.length).toBeGreaterThan(100);
+    const raws = h.calls.filter((c) => c.kind === 'stage' && c.raw).map((c) => c.raw);
+    expect(raws.length).toBeGreaterThan(100);
+    expect(new Set(raws).size).toBe(1);
+    // and the values still move frame to frame
+    expect(new Set(h.calls.filter((c) => c.kind === 'stage' && c.st).map((c) => `${c.st.x},${c.st.z},${c.st.y},${c.st.pose}`)).size).toBeGreaterThan(10);
   });
 
   test('cues fire once per action: one slash for a leap, dust for a pin, a thump for each', () => {

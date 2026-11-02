@@ -823,3 +823,17 @@ describe('the intruder in my fight (Task 6)', () => {
     expect(() => NO_INTRUDERS.setScars(k, [])).not.toThrow();
   });
 });
+
+// Final review 8: stage() runs every frame of a fight; it writes into the
+// visitor's one staging object (and facing point) instead of a new one.
+describe('intruders.stage allocates nothing per call', () => {
+  test('fills cur.stage and cur.face in place once they exist', () => {
+    const src = readFileSync(new URL('../src/intruders.js', import.meta.url), 'utf8');
+    const start = src.indexOf('    stage(visit, st) {');
+    expect(start).toBeGreaterThan(-1);
+    const body = src.slice(start, src.indexOf('\n    },', start));
+    expect(body).not.toMatch(/cur\.stage = \{ pose: st\.pose/);
+    expect(body).toContain('if (cur.face) { cur.face.x = st.face.x; cur.face.z = st.face.z; } else cur.face = {');
+    expect(body).toMatch(/cur\.stage \?\?= /);
+  });
+});

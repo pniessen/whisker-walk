@@ -714,6 +714,8 @@ export function createClanFight({
   const cues = { slash: 0, dust: 0 };
   const mePl = { x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
   const itPl = { x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+  // The intruder's staging, handed to intruders.stage every frame: one object.
+  const itStage = { pose: 'cross', x: 0, z: 0, y: 0, face: null, pitch: 0, roll: 0 };
 
   function still(f, pose, along = 0) {
     f.along = along; f.side = 0; f.lift = 0; f.pitch = 0; f.roll = 0;
@@ -796,7 +798,9 @@ export function createClanFight({
     s.fightLift = me.y;
     s.fightPitch = me.pitch;
     s.fightRoll = me.roll;
-    intruders.stage(visit, { pose: its.pose, x: it.x, z: it.z, y: it.y, face: faceFar, pitch: it.pitch, roll: it.roll });
+    itStage.pose = its.pose; itStage.x = it.x; itStage.z = it.z; itStage.y = it.y;
+    itStage.face = faceFar; itStage.pitch = it.pitch; itStage.roll = it.roll;
+    intruders.stage(visit, itStage);
     if (!r) return;
     // The action's cues, each once (cuesCrossed), and one thump.
     const kind = r.a.kind;
