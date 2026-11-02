@@ -30,13 +30,6 @@ function setup({ buyResult = true, points = 9999 } = {}) {
     unequip: spy('unequip'),
     buy: spy('buy', buyResult),
     setArea: spy('setArea'),
-    // The real pickPlace's shape over this stub's own buy/setArea.
-    pickPlace(id) {
-      let out = false;
-      if (progression.isUnlocked('areas', id)) { progression.setArea(id); out = 'set'; }
-      else if (progression.buy('areas', id)) { progression.setArea(id); out = 'bought'; }
-      return out;
-    },
   };
   const sync = { autoSync: vi.fn(() => calls.push('autoSync')) };
   const onChange = vi.fn();
@@ -82,26 +75,9 @@ describe('createDressingRoom handleClick', () => {
     expect(t.sync.autoSync).not.toHaveBeenCalled();
   });
 
-  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
-    const t = setup();
-    t.state.edition = 'legacy';
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    t.state.unlocked.areas.push('woods');
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    expect(t.progression.buy).not.toHaveBeenCalled();
-    expect(t.progression.setArea).not.toHaveBeenCalled();
-    expect(t.state.area).toBe('neighborhood');
-  });
-
-  it('in Clan Edition the Woods card buys and sets it as before', () => {
-    const t = setup();
-    t.dr.handleClick(click({ drPlace: 'woods' }));
-    expect(t.progression.buy).toHaveBeenCalledWith('areas', 'woods');
-    expect(t.progression.setArea).toHaveBeenCalledWith('woods');
-  });
-
   // The territory map's Woods is a <g data-dr-place="woods">; these use a real
-  // progression so the walk gate is the real canBuy, not a stubbed answer.
+  // progression, so a place tap goes through the real pickPlace and the walk
+  // gate is the real canBuy, not a stubbed answer.
   function realSetup() {
     const map = new Map();
     const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
@@ -109,6 +85,37 @@ describe('createDressingRoom handleClick', () => {
     const dr = createDressingRoom({ progression, sync, thumbs: {}, onChange: () => {} });
     return { dr, progression, sync };
   }
+
+  it('in Legacy a Clan-only place card neither buys nor sets the place', () => {
+    const t = realSetup();
+    t.progression.setEdition('legacy');
+    t.progression.state.walks.neighborhood = 2;
+    t.progression.state.points = 9999;
+    const buy = vi.spyOn(t.progression, 'buy');
+    const setArea = vi.spyOn(t.progression, 'setArea');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).not.toHaveBeenCalled();
+    expect(t.progression.state.area).toBe('neighborhood');
+    // even owned, the Woods is not a Legacy place
+    t.progression.state.unlocked.areas.push('woods');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).not.toHaveBeenCalled();
+    expect(t.progression.state.area).toBe('neighborhood');
+    expect(t.sync.autoSync).not.toHaveBeenCalled();
+    setArea.mockRestore();
+  });
+
+  it('in Clan Edition the Woods card buys and sets it as before, through the real pickPlace', () => {
+    const t = realSetup();
+    t.progression.state.walks.neighborhood = 2;
+    const buy = vi.spyOn(t.progression, 'buy');
+    const setArea = vi.spyOn(t.progression, 'setArea');
+    t.dr.handleClick(click({ drPlace: 'woods' }));
+    expect(buy).toHaveBeenCalledWith('areas', 'woods');
+    expect(setArea).toHaveBeenCalledWith('woods');
+    expect(t.progression.state.area).toBe('woods');
+    expect(t.sync.autoSync).toHaveBeenCalledTimes(1);
+  });
 
   it('tapping the locked Woods buys nothing and keeps the area', () => {
     const t = realSetup();

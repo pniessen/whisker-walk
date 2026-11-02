@@ -8,6 +8,7 @@ import { STARTER_ACCESSORIES } from '../src/progression.js';
 import { emptyColony, isShy, TAME_FEEDS } from '../src/colony.js';
 import { CAT_NAMES } from '../src/straynames.js';
 import { pickMedicineCat, medicineOrder } from '../src/clanroles.js';
+import { effectiveArea } from '../src/edition.js';
 
 function fakeStorage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -287,6 +288,44 @@ describe('createProgression', () => {
     p.setEdition('legacy');
     p.setArea('pines');
     expect(p.state.area).toBe('pines');
+  });
+
+  it('in Legacy the Pines is out of reach by every door, and a Clan pick of it survives Legacy and a reload', () => {
+    p.completeWalk(); p.completeWalk();
+    p.buy('areas', 'woods');
+    p.completeWalk('woods'); p.completeWalk('woods');
+    p.buy('areas', 'river');
+    p.completeWalk('river'); p.completeWalk('river');
+    p.setEdition('legacy');
+    const before = JSON.stringify(p.state);
+    // the map's pick refuses it too, and nothing in the save moves
+    expect(p.pickPlace('pines')).toBe(false);
+    expect(p.isUnlocked('areas', 'pines')).toBe(false);
+    expect(JSON.stringify(p.state)).toBe(before);
+    // owned in Clan Edition and picked there...
+    p.setEdition('canon');
+    expect(p.pickPlace('pines')).toBe('bought');
+    expect(p.state.area).toBe('pines');
+    // ...then, from another place, Legacy refuses the pick of the owned Pines
+    p.setArea('neighborhood');
+    p.setEdition('legacy');
+    expect(p.pickPlace('pines')).toBe(false);
+    expect(p.state.unlocked.areas).toContain('pines');
+    expect(p.state.area).toBe('neighborhood');
+    // a Pines pick made in Clan Edition is kept, hidden, through Legacy
+    p.setEdition('canon');
+    p.setArea('pines');
+    p.setEdition('legacy');
+    expect(p.state.area).toBe('pines');
+    expect(effectiveArea(p.state, CATALOG)).toBe('neighborhood');
+    // a reload in Legacy keeps all of it, and Clan Edition gets the Pines back
+    const again = createProgression(storage);
+    expect(again.state.edition).toBe('legacy');
+    expect(again.state.unlocked.areas).toContain('pines');
+    expect(again.state.area).toBe('pines');
+    expect(again.state.walks.river).toBe(2);
+    again.setEdition('canon');
+    expect(effectiveArea(again.state, CATALOG)).toBe('pines');
   });
 
   it('a fresh save counts Pines walks from 0', () => {
