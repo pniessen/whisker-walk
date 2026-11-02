@@ -16,14 +16,19 @@ import { LEGS, TORSO, PAW_HALF, PAW_Y, REF_RIG } from './torso.js';
 // Leg-local control points (hip pivot at 0, -y down, -z forward) for a limb
 // of length LEGS.LEN, and the tube radius at each.
 export const LEG_SHAPE = Object.freeze({
-  // shoulder blade -> elbow (a little back) -> slim wrist -> over the paw
+  // shoulder blade -> elbow (a little back) -> slim wrist -> over the paw.
+  // The shoulder's top sits low and back (y -0.045, z +0.06), inside the
+  // chest: higher, it stood proud of the chest's front edge whenever the torso
+  // pitched (the sit, backUp, flinch).
   front: Object.freeze({
-    points: Object.freeze([[0, 0.015, 0.03], [0, -0.08, 0], [0, -0.19, -0.015], [0, -0.30, -0.01], [0, -0.335, -0.02]]),
+    points: Object.freeze([[0, -0.045, 0.06], [0, -0.11, 0], [0, -0.195, -0.015], [0, -0.30, -0.01], [0, -0.335, -0.02]]),
     radii: Object.freeze([0.085, 0.062, 0.046, 0.038, 0.036]),
   }),
-  // thigh -> knee forward -> hock back -> slim ankle -> over the paw
+  // thigh -> knee forward -> hock back -> slim ankle -> over the paw. The
+  // thigh's top sits 2 cm under the hip, so it stays inside Digit's narrow
+  // torso when it turns side-on (cross).
   hind: Object.freeze({
-    points: Object.freeze([[0, 0.0, 0.01], [0, -0.09, -0.025], [0, -0.20, 0.05], [0, -0.27, 0.062], [0, -0.335, 0.02]]),
+    points: Object.freeze([[0, -0.02, 0.02], [0, -0.11, -0.02], [0, -0.21, 0.05], [0, -0.27, 0.062], [0, -0.335, 0.02]]),
     radii: Object.freeze([0.10, 0.092, 0.062, 0.043, 0.036]),
   }),
 });
@@ -207,13 +212,13 @@ const fold = (points, radii, paw, pawRotX = 0) => Object.freeze({
 });
 export const FOLDS = Object.freeze({
   stand: Object.freeze({ crouch: false }),
-  // Hind only: thigh down to a knee forward, the shin back down to the hock
-  // under the haunch, the foot flat in front of it. The sit's torso is tipped
-  // (rotation.x -0.5), so its belly at the hip is high: the top sits a little
-  // forward of the hip, inside it.
+  // Hind only: an upright tucked haunch, the thigh down to a knee a little
+  // forward, the shin straight down into the heel of a foot flat in front.
+  // The sit's torso is tipped (rotation.x -0.5), so its belly at the hip is
+  // high: the top sits a little forward of the hip, inside it.
   sit: Object.freeze({
     crouch: true, drop: 0.02,
-    hind: fold([[0.28, -0.05], [0.16, -0.11], [0.085, 0.01], [0.045, -0.02]], [0.10, 0.075, 0.045, 0.036], [0.0415, -0.03]),
+    hind: fold([[0.28, -0.05], [0.18, -0.07], [0.12, 0.005], [0.05, -0.005]], [0.10, 0.078, 0.048, 0.036], [0.0415, -0.03]),
   }),
   // All four under the body: forearms forward (paws peeking out in front),
   // the hind shin back to a hock on the ground and the foot flat forward
@@ -231,11 +236,13 @@ export const FOLDS = Object.freeze({
     hind: fold([[0.20, 0], [0.135, -0.07], [0.095, 0.08], [0.04, 0]], [0.10, 0.08, 0.05, 0.036], [0.0415, -0.012]),
   }),
   // A ball of fur: front paws drawn back under the chest, hind forward under
-  // the belly, both tipped toward each other.
+  // the belly, both tipped toward each other. Each limb's last stretch runs
+  // along its tipped foot's own up axis into the heel, so its end lies inside
+  // the foot as a standing leg's does.
   ball: Object.freeze({
     crouch: false, drop: 0,
-    front: fold([[0.30, 0], [0.21, 0.06], [0.19, -0.04]], [0.085, 0.055, 0.038], [0.18, -0.07], -0.6),
-    hind: fold([[0.30, 0], [0.22, -0.12], [0.17, 0]], [0.10, 0.07, 0.045], [0.17, -0.07], 0.6),
+    front: fold([[0.30, 0], [0.25, -0.02], [0.241, -0.069], [0.20, -0.041]], [0.085, 0.055, 0.045, 0.036], [0.18, -0.07], -0.6),
+    hind: fold([[0.30, 0], [0.24, -0.05], [0.203, -0.029], [0.1615, -0.0576]], [0.10, 0.075, 0.05, 0.036], [0.17, -0.07], 0.6),
   }),
 });
 
@@ -254,7 +261,7 @@ export const FOLD_BY_STATE = Object.freeze({
 // A fold's tube keeps the inside of each bend within FOLD_BEND x its radius
 // of curvature (tubeArrays' `bend`), so a tight knee presses in, not over
 // (0.8: at 0.9 a few faces still folded over at the nap's hind knee).
-export const FOLD_BEND = 0.8;
+const FOLD_BEND = 0.8;
 // Baked fold arrays, shared read-only by every leg of the same kind (they
 // are only ever copied FROM): by (hind, simple, hipY, kind).
 const foldCache = new Map();

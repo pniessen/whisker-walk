@@ -97,18 +97,8 @@ const T1 = {
   tabby: { follow: -0.0010, nap: 0.1482, stretch: 0.0389, groom: -0.0001, requestPet: 0.0367, perch: 0.0367, sniff: -0.0001, stalk: 0.1657, pounce: -0.0314, scared: 0.0599, cross: 0.0260, land: 0.0618, wade: -0.0001, swim: 0.0169, shake: -0.0001, swipe: 0.0355, backUp: -0.0176, rearUp: -0.0001, flinch: -0.0090, pinned: 0.1440, pinning: 0.1661, roll: -0.0603, arch: -0.0531, walk: 0.0366 },
   digit: { follow: 0.0023, nap: 0.3117, stretch: 0.0426, groom: 0.0031, requestPet: 0.2331, perch: 0.2331, sniff: 0.0031, stalk: 0.2956, pounce: 0.0120, scared: 0.0631, cross: 0.0064, land: 0.0575, wade: 0.0031, swim: 0.0180, shake: 0.0031, swipe: -0.0141, backUp: -0.0280, rearUp: 0.0031, flinch: 0.0720, pinned: 0.3053, pinning: 0.1321, roll: -0.0190, arch: -0.0027, walk: 0.0713 },
 };
-// Standing legs are not this task's: Task 3's limb already lifts the front
-// shoulder's dome past T1 at the chest's front edge in these states (measured
-// at 685597b, before any fold, max over full and simple, and over t 0..3 for
-// the swept states). Pinned here so folding makes no standing leg worse.
-const T4_STANDING = {
-  tabby: { requestPet: 0.0930, perch: 0.0930, backUp: 0.0689, rearUp: 0.0260, flinch: 0.0650 },
-  digit: { cross: 0.0205, backUp: 0.0722, flinch: 0.0797 },
-};
-const allowed = (name, state, standing) => {
-  const g = name === 'digit' ? 'digit' : 'tabby';
-  return Math.max(0.005, T1[g][state] + 0.002, standing ? (T4_STANDING[g][state] ?? -Infinity) + 0.002 : -Infinity);
-};
+// Folded and standing legs alike: no worse than Task 1 (the old legs) + 0.002.
+const allowed = (name, state) => Math.max(0.005, T1[name === 'digit' ? 'digit' : 'tabby'][state] + 0.002);
 
 // A face folds over when its winding faces against the surface's own normals.
 function invertedFaces(geo) {
@@ -185,9 +175,9 @@ describe('legs fold at the joints (Task 5)', () => {
           }
         });
       }
-      for (let t = 0.1; t < 2.85; t += 0.3) {
-        pose(cat, 'stalk', t, 1.5);
-        for (const leg of cat.userData.parts.legs) expect(box(leg).min.y, `${label(v)} walking stalk t ${t}`).toBeGreaterThanOrEqual(-0.01);
+      for (const speed of [1.5, 2.0]) for (let t = 0.1; t < 2.85; t += 0.3) {
+        pose(cat, 'stalk', t, speed);
+        for (const leg of cat.userData.parts.legs) expect(box(leg).min.y, `${label(v)} walking stalk speed ${speed} t ${t}`).toBeGreaterThanOrEqual(-0.01);
       }
     }
   });
@@ -198,8 +188,8 @@ describe('legs fold at the joints (Task 5)', () => {
       const cat = make(v.name, v.simple);
       for (const state of ALL_STATES) {
         const p = pokes(pose(cat, state), state);
-        expect(p.folded, `${label(v)} ${state} folded`).toBeLessThanOrEqual(allowed(v.name, state, false));
-        expect(p.standing, `${label(v)} ${state} standing`).toBeLessThanOrEqual(allowed(v.name, state, true));
+        expect(p.folded, `${label(v)} ${state} folded`).toBeLessThanOrEqual(allowed(v.name, state));
+        expect(p.standing, `${label(v)} ${state} standing`).toBeLessThanOrEqual(allowed(v.name, state));
       }
     }
   });
@@ -211,12 +201,12 @@ describe('legs fold at the joints (Task 5)', () => {
       for (let t = 0; t <= 3; t += 0.3) {
         for (const [state, speed, key] of [['follow', 1.5, 'walk'], ['stalk', 1.5, 'stalk']]) {
           const p = pokes(pose(cat, state, t, speed), state);
-          expect(Math.max(p.folded, p.standing), `${name} ${key} t ${t}`).toBeLessThanOrEqual(allowed(name, key, true));
+          expect(Math.max(p.folded, p.standing), `${name} ${key} t ${t}`).toBeLessThanOrEqual(allowed(name, key));
         }
         for (const state of ['swipe', 'backUp', 'pinning', 'pounce', 'flinch', 'rearUp', 'cross', 'pinned', 'roll']) {
           const p = pokes(pose(cat, state, t), state);
-          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(allowed(name, state, false));
-          expect(p.standing, `${name} ${state} t ${t} standing`).toBeLessThanOrEqual(allowed(name, state, true));
+          expect(p.folded, `${name} ${state} t ${t} folded`).toBeLessThanOrEqual(allowed(name, state));
+          expect(p.standing, `${name} ${state} t ${t} standing`).toBeLessThanOrEqual(allowed(name, state));
         }
       }
     }
@@ -351,6 +341,44 @@ describe('legs fold at the joints (Task 5)', () => {
       const a = cat.userData.parts.legs.map((l) => Array.from(limbOf(l).geometry.attributes.normal.array));
       const b = fresh.userData.parts.legs.map((l) => Array.from(limbOf(l).geometry.attributes.normal.array));
       expect(a).toEqual(b);
+    }
+  });
+
+  it("every fold's limb ends inside its foot, as standing does", () => {
+    // Each vertex of the limb's last ring (t > 0.97) lies inside the paw:
+    // under it the foot's sole and over it the foot's top (a ray each way,
+    // both sides of the surface counted), and inside its outline.
+    const inside = new THREE.Mesh(undefined, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    const p = new THREE.Vector3(), NUDGE = new THREE.Vector3(1e-5, 0, 1e-5);
+    for (const name of [...PRESETS, 'fluffy', 'socks']) for (const simple of SIMPLE) {
+      const cat = make(name, simple);
+      cat.userData.parts.legs.forEach((leg, i) => {
+        for (const kind of Object.keys(FOLDS)) {
+          applyFold(leg, kind);
+          cat.updateMatrixWorld(true);
+          const limb = limbOf(leg), paw = leg.userData.paw;
+          inside.geometry = paw.geometry;
+          inside.matrixWorld.copy(paw.matrixWorld);
+          const { t } = limb.geometry.userData;
+          const pos = limb.geometry.attributes.position;
+          let out = 0, n = 0;
+          for (let k = 0; k < pos.count; k++) {
+            if (t[k] <= 0.97) continue;
+            n++;
+            // Nudged 0.01 mm off the leg's centre plane: a ray straight down
+            // the foot's own centre line runs along its seam and counts twice.
+            p.fromBufferAttribute(pos, k).applyMatrix4(limb.matrixWorld).add(NUDGE);
+            ray.set(_o.copy(p), UP);
+            const above = ray.intersectObject(inside, false).length;
+            ray.set(_o.copy(p), DOWN);
+            const below = ray.intersectObject(inside, false).length;
+            if (above % 2 !== 1 || below % 2 !== 1) out++;
+          }
+          expect(n, `${name} ${kind} leg ${i}`).toBeGreaterThan(0);
+          expect(out, `${name}${simple ? ' simple' : ''} ${kind} leg ${i}: end-ring vertices outside the foot`).toBe(0);
+        }
+        applyFold(leg, 'stand');
+      });
     }
   });
 
