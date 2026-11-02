@@ -16,6 +16,7 @@
 
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, climbBudget, fenceRunning } from '../climbing.js';
+import { FLAT_GROUND } from '../ground.js';
 import { hasSkill } from '../skills.js';
 import { pounceArc } from '../player.js';
 import { GIFT_LEAVE_RANGE } from '../gifts.js';
@@ -175,9 +176,10 @@ export function createInteractions({
         return;
       }
       // drop the yarn ball just ahead and give it a little kick to chase
+      const g = session.ground ?? FLAT_GROUND;
       const drop = session.cat.position.clone()
         .add(player.forward().multiplyScalar(0.8))
-        .setY(0.8);
+        .setY(g.flat ? 0.8 : g.y(session.cat.position.x, session.cat.position.z) + 0.8);
       session.toy.throwFrom(drop, player.forward(), 2.5);
       session.batCount = 0;
       session.batReady = true;
@@ -223,6 +225,9 @@ export function createInteractions({
     // the budget above, so the 25th vantage perch enables the wall-run on
     // the very next press.
     const budget = climbBudget(progression.state);
+    // Gorge part 1 (R5): perch heights are metres above the ground at the
+    // perch; bestPerch compares world heights and never leaves the cat's level.
+    const ground = session.ground ?? FLAT_GROUND;
     const next = bestPerch(
       session.areaData.perches ?? [], session.cat.position, player.perchY, session.perched,
       budget,
@@ -233,19 +238,21 @@ export function createInteractions({
       // is precisely the CF-10 failure this wave exists to finish cleaning up.
       // Read live off the save, same as the budget and the fence-run flag
       // above, so the 25th tip-over opens the trees on the very next press.
-      { fenceRun: fenceRunning(progression.state), state: progression.state },
+      { fenceRun: fenceRunning(progression.state), state: progression.state, ground },
     );
     if (next) {
       // Did the wall-run pay for this hop? Asked exactly — "the ordinary
       // climb rule would have refused this one" — rather than by guessing
       // from the height difference, so a short level hop that was always
       // legal is not mislabelled. Computed BEFORE the position is moved.
-      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget);
+      const dy = ground.flat ? 0
+        : ground.y(next.x, next.z) - ground.y(session.cat.position.x, session.cat.position.z);
+      const ranTheFence = !canReach(next, session.cat.position, player.perchY, budget, dy);
       session.perched = next;
-      player.perchY = next.y;
+      player.perchY = next.y; // relative: metres above the ground under the cat (R4)
       player.halt();
       const from = session.cat.position.clone();
-      session.cat.position.set(next.x, next.y, next.z);
+      session.cat.position.set(next.x, ground.flat ? next.y : ground.y(next.x, next.z) + next.y, next.z);
       catVoice();
       // A puff of dust at the take-off point, so a wall-run reads as an
       // ability firing rather than as the cat merely not falling off.
@@ -283,7 +290,7 @@ export function createInteractions({
       }
     } else if (session.perched) {
       session.perched = null;                    // hop down
-      player.perchY = 0;
+      player.perchY = 0; // onto the ground right below: the perch's own level (R5)
       session.fx.burst(session.cat.position, 0xcbb8a0, 8);
     } else if (session.pounceCooldown <= 0 && !player.swimming) {
       // v18 CF-9a: Spring Paws' OTHER half — "your pounce jump goes markedly
@@ -483,6 +490,7 @@ export function createInteractions({
   // offer a spot twice.
   function openScenicNear(s, catP) {
     const taken = new Set(s.gifts.list.map((g) => g.spot));
+    const g = s.ground ?? FLAT_GROUND; // R10: only a spot on her own level
     let best = null;
     let bestD = GIFT_LEAVE_RANGE;
     for (const sc of s.areaData.scenics ?? []) {
@@ -491,7 +499,7 @@ export function createInteractions({
       // ghost can ever bring a gift from it.
       if (sc.gifts === false) continue;
       const d = Math.hypot(sc.x - catP.x, sc.z - catP.z);
-      if (d < bestD) {
+      if (d < bestD && g.sameLevel(catP.x, catP.z, sc.x, sc.z)) {
         bestD = d;
         best = sc;
       }
@@ -605,9 +613,10 @@ export function createInteractions({
     const drawn = s.playerMarks.list;
     let best = null;
     let bestD = MARK_REACH;
+    const g = s.ground ?? FLAT_GROUND; // R10: only a post on her own level
     for (const m of markablesIn(s.areaId)) {
       const d = Math.hypot(m.x - catP.x, m.z - catP.z);
-      if (d >= bestD) continue;
+      if (d >= bestD || !g.sameLevel(catP.x, catP.z, m.x, m.z)) continue;
       const key = markKey({ kind: 'scratch', id: m.id });
       if (drawn.some((e) => e.key === key && !e.contested)) continue;
       best = m;
@@ -626,10 +635,11 @@ export function createInteractions({
     const drawn = s.playerMarks.list;
     let best = null;
     let bestD = BORDER_MARK_REACH;
+    const g = s.ground ?? FLAT_GROUND; // R10: only a mark on her own level
     for (let i = 0; i < decals.length; i++) {
       const d = decals[i];
       const dist = Math.hypot(d.x - catP.x, d.z - catP.z);
-      if (dist >= bestD) continue;
+      if (dist >= bestD || !g.sameLevel(catP.x, catP.z, d.x, d.z)) continue;
       const key = markKey({ kind: 'border', id: borderMarkId(s.areaId, d.ring) });
       if (drawn.some((e) => e.key === key)) continue;
       best = { index: i, ring: d.ring, x: d.x, z: d.z };
@@ -745,10 +755,15 @@ export function createInteractions({
       s.lastPromptKind = null;
       return;
     }
+    // Gorge part 1 (R10): the perched-collectible and knock checks compare
+    // world heights; on flat ground these are the relative heights as shipped.
+    const g = s.ground ?? FLAT_GROUND;
+    const perchWorldY = g.flat ? (s.perched?.y ?? 0)
+      : s.perched ? g.y(s.perched.x, s.perched.z) + s.perched.y : g.y(catP.x, catP.z);
     for (const c of s.areaData.collectibles) {
       if (!s.collectibleMeshes.has(c.id)) continue;
       if (Math.hypot(c.x - catP.x, c.z - catP.z) < 1.6 &&
-          Math.abs((s.perched?.y ?? 0) - (c.y ?? 0)) < 0.9) {
+          Math.abs(perchWorldY - (g.flat ? (c.y ?? 0) : g.y(c.x, c.z) + (c.y ?? 0))) < 0.9) {
         s.prompt = { kind: 'collect', data: c };
         setPrompt(s.walk.carried >= s.walk.carryCap
           ? 'Paws full! (carry limit reached)'
@@ -762,7 +777,7 @@ export function createInteractions({
     // and everything after it. Guarded so a stand-in test session without
     // knockables simply never offers it.
     if (!s.prompt && s.perched && s.knockables) {
-      const thing = s.knockables.nearest(catP, s.perched.y, KNOCK_REACH);
+      const thing = s.knockables.nearest(catP, perchWorldY, KNOCK_REACH);
       if (thing) {
         s.prompt = { kind: 'knock', data: thing };
         setPrompt('E — knock it off! 😼');
@@ -793,7 +808,8 @@ export function createInteractions({
         s.prompt = { kind: 'quest-accept' };
         setPrompt('E — meow at the neighbor');
       } else if (s.quest.state === 'active' &&
-          Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2) {
+          Math.hypot(s.quest.target.x - catP.x, s.quest.target.z - catP.z) < 2 &&
+          g.sameLevel(catP.x, catP.z, s.quest.target.x, s.quest.target.z)) {
         s.prompt = { kind: 'quest-complete' };
         setPrompt(s.quest.texts.prompt);
       }
@@ -1135,7 +1151,7 @@ export function createInteractions({
     }
 
     for (const sc of s.areaData.scenics) {
-      if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4) {
+      if (Math.hypot(sc.x - catP.x, sc.z - catP.z) < 4 && g.sameLevel(catP.x, catP.z, sc.x, sc.z)) {
         log.awardOnce('scenic', `scenic-${sc.id}`, sc.label);
         // The corner map greys out spots already visited this walk.
         s.scenicsVisited?.add(sc.id);
@@ -1183,8 +1199,10 @@ export function createInteractions({
   }
 
   // Task 6: the end of a patrol with MY buddy (s.clanBuddy), however it ends:
-  // 'bye' from my E, or 'time' / 'camp' / 'edge' / 'far' from clancats.js's
-  // update (walk.js hands its onBuddyEnd here). Pays only a patrol of at least
+  // 'bye' from my E, or 'time' / 'camp' / 'edge' / 'far' / 'terrain' from
+  // clancats.js's update (walk.js hands its onBuddyEnd here). Only 'far' (she
+  // outran it) says it couldn't keep up; 'terrain' (water or the truce path
+  // stopped it) gets the ordinary goodbye. Pays only a patrol of at least
   // PATROL_MIN seconds, under the walk's cap. Any other cat (a co-walker's
   // buddy, or one already ended) is a no-op, so nothing pays twice.
   function endClanPatrol(s, cat, reason, seconds) {
@@ -1739,7 +1757,7 @@ export function createInteractions({
       // the cat's own body hides the patch at the foot of the post.
       const m = s.prompt.data;
       if (leaveMark(s, { kind: 'scratch', id: m.id, x: m.x, z: m.z })) {
-        s.fx?.burst({ x: m.x, y: 0.3, z: m.z }, 0x9c7a55, 8);
+        s.fx?.burst({ x: m.x, y: (s.ground ?? FLAT_GROUND).y(m.x, m.z) + 0.3, z: m.z }, 0x9c7a55, 8);
       }
     } else if (s.prompt.kind === 'border-mark') {
       // v21 3b Task 12 — pays nothing, says nothing. My paw goes down on their
@@ -1748,7 +1766,7 @@ export function createInteractions({
       const d = s.prompt.data;
       if (leaveMark(s, { kind: 'border', id: borderMarkId(s.areaId, d.ring), x: d.x, z: d.z })) {
         s.rival?.borderMarks?.setContested(d.index);
-        s.fx?.burst({ x: d.x, y: 0.2, z: d.z }, 0xe0782f, 8);
+        s.fx?.burst({ x: d.x, y: (s.ground ?? FLAT_GROUND).y(d.x, d.z) + 0.2, z: d.z }, 0xe0782f, 8);
       }
     } else if (s.prompt.kind === 'border') {
       askCrossing(s, s.prompt.data);

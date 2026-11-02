@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { litMaterial } from './render/materials.js';
 import { nearestDry } from './world/builder.js';
+import { groundOf } from './ground.js';
 
 export function rollTreats(rng, pois, count = 2) {
   const treats = [];
@@ -89,7 +90,10 @@ function keepReachable(tr, area) {
   return tr;
 }
 
+// Gorge part 1: mounds, trail decals and the dug-up fish sit on the area's
+// ground (groundOf(area): y 0 on every shipped map).
 export function createScent(scene, area, rng) {
+  const ground = groundOf(area);
   const treats = rollTreats(rng, area.pois, 2).map((tr) => keepReachable({
     ...tr,
     revealed: false,
@@ -103,7 +107,7 @@ export function createScent(scene, area, rng) {
       litMaterial(0x8a6a48)
     );
     mound.scale.y = 0.25;
-    mound.position.set(tr.x, 0.02, tr.z);
+    mound.position.set(tr.x, ground.y(tr.x, tr.z) + 0.02, tr.z);
     scene.add(mound);
     tr.mound = mound;
   }
@@ -134,7 +138,7 @@ export function createScent(scene, area, rng) {
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: peak })
       );
       decal.rotation.x = -Math.PI / 2;
-      decal.position.set(p.x, 0.03, p.z);
+      decal.position.set(p.x, ground.y(p.x, p.z) + 0.03, p.z);
       scene.add(decal);
       decals.push({ mesh: decal, life, peak });
     }
@@ -152,7 +156,7 @@ export function createScent(scene, area, rng) {
       litMaterial(0x9ab8d0)
     );
     fish.scale.set(1.4, 0.7, 0.5);
-    fish.position.set(tr.x, 0.4, tr.z);
+    fish.position.set(tr.x, ground.y(tr.x, tr.z) + 0.4, tr.z);
     scene.add(fish);
     return tr;
   }
@@ -200,14 +204,15 @@ export function createScent(scene, area, rng) {
     },
     nearestMound(pos, maxDist) {
       for (const tr of treats) {
-        if (!tr.dug && Math.hypot(tr.x - pos.x, tr.z - pos.z) < maxDist) return tr;
+        if (!tr.dug && Math.hypot(tr.x - pos.x, tr.z - pos.z) < maxDist
+          && ground.sameLevel(pos.x, pos.z, tr.x, tr.z)) return tr; // R10: her own level
       }
       return null;
     },
     digAt(pos) {
       for (const tr of treats) {
         if (tr.dug) continue;
-        if (Math.hypot(tr.x - pos.x, tr.z - pos.z) <= 1.2) {
+        if (Math.hypot(tr.x - pos.x, tr.z - pos.z) <= 1.2 && ground.sameLevel(pos.x, pos.z, tr.x, tr.z)) {
           return unearth(tr);
         }
       }

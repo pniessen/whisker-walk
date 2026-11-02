@@ -8,6 +8,8 @@ import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName, isKitty
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
 import { dryGroundPoint } from './keepout.js';
+import { groundOf, leanOnGround } from './ground.js';
+import { CAT_RADIUS } from './player.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -23,6 +25,14 @@ const MEOW_RADIUS = 8;
 const FAR_CALL_RADIUS = 22;
 const FAR_CALL_STANDOFF = 1.6;
 const FAR_CALL_WALK_TIME = 12;
+// A wandering stray whose straight line to its target runs into water or a
+// keep-out is held at the edge by keepOut() below. After STUCK_GIVE_UP
+// seconds of making less than STUCK_PROGRESS of its stride towards the
+// target it gives up on it the way it would on arriving (idle, a pose and a
+// timer from its own stream), rather than leaning on the shore for the full
+// 12 s. Measured from positions only, so it draws nothing extra.
+const STUCK_GIVE_UP = 1.5;
+const STUCK_PROGRESS = 0.25;
 
 // How long a freshly-ruptured cat holds the recoil before its ordinary wander
 // FSM takes over again. It stays cross the whole time — this is only the pose
@@ -303,12 +313,53 @@ function shuffled(arr, rng) {
   return a;
 }
 
+// spreadOffShore(area, rx, rz, p) -> { x, z } (Polish 3)
+//
+// A rolled spot in the water (or a keep-out) is pushed to the nearest dry
+// ground, which is its shore: every stray rolled into the Pines' bay stood on
+// one line along the bay's west or north shore. Instead the spot is pushed on
+// inland as far as it was out in the water (up to SPREAD_MAX), mirrored over
+// the shore, so the strays stand back from it at their own distances. Pure
+// arithmetic on the values already rolled: no draw, so co-walkers agree.
+const SPREAD_MIN = 0.5; // m pushed before a spot counts as moved off the water
+const SPREAD_MAX = 12; // m, the furthest a stray is mirrored inland
+function spreadOffShore(area, rx, rz, p) {
+  const dx = p.x - rx;
+  const dz = p.z - rz;
+  const d = Math.hypot(dx, dz);
+  if (d < SPREAD_MIN) return p;
+  const k = Math.min(d, SPREAD_MAX) / d;
+  const b = area.bounds;
+  return dryGroundPoint(area,
+    THREE.MathUtils.clamp(p.x + dx * k, b.minX + 1, b.maxX - 1),
+    THREE.MathUtils.clamp(p.z + dz * k, b.minZ + 1, b.maxZ - 1));
+}
+
 // A collar is too small to be worth a shadow draw (assignShadowCastersFor honours noCast).
 function noCastCollar(group) {
   group.getObjectByName('collar')?.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
 }
 
-// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames })
+// A colony cat's saved spot, moved out of any of `discs` ({ x, z, r }: the
+// camp's den and rock, from walk.js) to CAT_RADIUS clear of its edge, along
+// the line from the disc's centre. A spot saved before the camps existed can
+// fall inside one. Display only: the save keeps the spot it has. Draws nothing.
+function outOfDiscs(x, z, discs) {
+  for (const d of Array.isArray(discs) ? discs : []) {
+    if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z) || !Number.isFinite(d.r)) continue;
+    const need = d.r + CAT_RADIUS;
+    const dx = x - d.x, dz = z - d.z;
+    const len = Math.hypot(dx, dz);
+    if (len >= need) continue;
+    const ux = len > 1e-9 ? dx / len : 1;
+    const uz = len > 1e-9 ? dz / len : 0;
+    x = d.x + ux * need;
+    z = d.z + uz * need;
+  }
+  return { x, z };
+}
+
+// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames, colonyAvoid })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
 // seeds walkRng from. It is used for ONE thing: seeding each stray's private
@@ -386,8 +437,12 @@ function noCastCollar(group) {
 // stream's position after spawn stays 47 + 5 * count (pinned with a counting
 // rng). Only a legendary name is an extra, once, and never one already cast.
 // `reducedMotion` holds a legendary glow still, at the top of its breath.
+// `ground` (Gorge part 1, R9) is the walk's ground, groundOf(area) when not
+// given: strays stand on it and a step over a rim slides along it. It draws
+// nothing, so the stream count above is unchanged.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
-  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null,
+  grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null, colonyAvoid = [],
+  ground = groundOf(area),
 } = {}) {
   const strays = [];
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
@@ -411,7 +466,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     if (!c || !isStrayName(c.name) || colonyNames.has(c.name)) continue;
     if (!Number.isFinite(c.x) || !Number.isFinite(c.z)) continue;
     colonyNames.add(c.name);
-    colony.push(c);
+    // A spot saved before the camps existed can fall inside the den or the
+    // leader's rock (colonyAvoid): moved out here, for this walk only.
+    colony.push({ ...c, ...outOfDiscs(c.x, c.z, colonyAvoid) });
   }
   const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
   const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
@@ -449,10 +506,14 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // Both the rolled spot and a colony cat's stored one go through the
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
-    const { x, z } = dryGroundPoint(area,
-      fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
-      fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
-    group.position.set(x, 0, z);
+    // A rolled spot pushed off the water is spread back from the shore
+    // (spreadOffShore); a colony cat stands where it was fed.
+    const { x, z } = fixed
+      ? dryGroundPoint(area,
+        THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5),
+        THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5))
+      : spreadOffShore(area, rolledX, rolledZ, dryGroundPoint(area, rolledX, rolledZ));
+    group.position.set(x, ground.y(x, z), z);
     group.rotation.y = rng() * Math.PI * 2;
 
     const roll = (rng() + i * GOLDEN) % 1;
@@ -494,7 +555,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       // cat's draws can shift another's. update() below uses it for every
       // roll it makes; there is no bare Math.random() left in the FSM.
       wanderRng: strayWanderRng(wanderBase, name),
-      home: new THREE.Vector3(x, 0, z),
+      home: new THREE.Vector3(x, ground.y(x, z), z),
       target: null,
       state: 'idle', // idle | wander | greet
       pose: 'follow',
@@ -532,7 +593,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     const { x, z } = dryGroundPoint(area,
       spot ? THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
       spot ? THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
-    group.position.set(x, 0, z);
+    group.position.set(x, ground.y(x, z), z);
     group.rotation.y = ex.rng() * Math.PI * 2;
     const roll = ex.rng();
     const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
@@ -550,7 +611,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       colony: false,
       wanderer: ex.wanderer === true,
       wanderRng: strayWanderRng(wanderBase, name),
-      home: new THREE.Vector3(x, 0, z),
+      home: new THREE.Vector3(x, ground.y(x, z), z),
       target: null,
       state: 'idle',
       pose: 'follow',
@@ -572,6 +633,16 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     v.x = p.x;
     v.z = p.z;
     return v;
+  }
+
+  // Gorge part 1 (R9): the end of a stray's move on raised ground. A step
+  // from (px, pz) over a rim slides along it (ground.slide), and the cat
+  // stands at the ground under it. Never inside keepOut, which also moves
+  // targets. Flat ground: nothing, so every shipped map runs today's code.
+  function onGround(v, px, pz) {
+    if (ground.flat) return;
+    ground.slide(px, pz, v);
+    v.y = ground.y(v.x, v.z);
   }
 
   // Turn a stray to face whoever is at `fromPos`. Lifted out of greet() so
@@ -649,12 +720,15 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       stray.state = 'cross';
       stray.timer = CROSS_HOLD;
       faceToward(stray, fromPos);
+      const px = stray.group.position.x;
+      const pz = stray.group.position.z;
       const away = stray.group.position.clone().sub(fromPos).setY(0);
       if (away.lengthSq() < 0.0001) away.set(0, 0, 1);   // standing exactly on you: pick a bearing
       stray.group.position.addScaledVector(away.normalize(), RECOIL_STEP);
       stray.group.position.x = THREE.MathUtils.clamp(stray.group.position.x, b.minX + 0.5, b.maxX - 0.5);
       stray.group.position.z = THREE.MathUtils.clamp(stray.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
       keepOut(stray.group.position);
+      onGround(stray.group.position, px, pz);
       setNameTagMood(stray.tag, { cross: true });
     },
 
@@ -718,6 +792,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           keepOut(target);
           s.state = 'wander';
           s.target = target;
+          s.stuck = 0;
           s.timer = Math.max(s.timer, FAR_CALL_WALK_TIME);
         }
         count += 1;
@@ -752,6 +827,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           s.tag.visible = catPos ? s.group.position.distanceTo(catPos) < range : false;
         }
         if (s.batCooldown > 0) s.batCooldown -= dt;
+        const px = s.group.position.x;
+        const pz = s.group.position.z;
 
         // shy strays scurry away from a fast, non-stalking approach — this overrides wander entirely
         if (s.personality === 'shy' && s.state !== 'greet' && s.state !== 'cross') {
@@ -772,6 +849,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.x = THREE.MathUtils.clamp(s.group.position.x, b.minX + 0.5, b.maxX - 0.5);
             s.group.position.z = THREE.MathUtils.clamp(s.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
             keepOut(s.group.position);
+            onGround(s.group.position, px, pz);
             s.group.rotation.y = Math.atan2(s.scurryDir.x, s.scurryDir.z) + Math.PI;
             animateCat(s.group, 'follow', t, SCURRY_SPEED);
             s.timer -= dt;
@@ -823,6 +901,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             const a = s.wanderRng() * Math.PI * 2;
             const r = 4 + s.wanderRng() * 8;
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
+            s.stuck = 0;
             s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
             keepOut(s.target);
@@ -842,16 +921,27 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.pose = s.wanderRng() < 0.4 ? 'sniff' : 'follow';
             s.timer = 2 + s.wanderRng() * 4;
           } else {
+            const before = dir.length();
             dir.normalize().multiplyScalar(WANDER_SPEED);
             s.group.position.addScaledVector(dir, dt);
             s.group.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             speed = WANDER_SPEED;
+            keepOut(s.group.position);
+            onGround(s.group.position, px, pz); // a rim holds it like an edge (no-op on flat ground)
+            const gained = before - Math.hypot(s.target.x - s.group.position.x, s.target.z - s.group.position.z);
+            s.stuck = gained < STUCK_PROGRESS * WANDER_SPEED * dt ? (s.stuck ?? 0) + dt : 0;
+            // Held at an edge: end the wander on the next frame's timer check,
+            // which goes idle with the same two draws an arrival makes.
+            if (s.stuck >= STUCK_GIVE_UP) { s.timer = 0; s.stuck = 0; }
           }
+        } else {
+          s.stuck = 0;
         }
         // The end of this stray's move for the frame: a straight line to a
         // target outside the keep-out can still cut across it, so the cat is
         // put back out wherever it ends up.
         keepOut(s.group.position);
+        onGround(s.group.position, px, pz);
         // v20: a cross cat's RESTING pose is 'cross' — flattened ears, tail
         // up — whatever sniff/follow the wander FSM last picked for it, so it
         // reads as cross from further away than its tag is legible (spec
@@ -861,6 +951,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         const restPose = s.cross ? 'cross' : s.pose;
         animateCat(s.group, s.state === 'idle' ? restPose : 'follow', t, speed);
       }
+      // Gorge part 1 (R7): each stray leans to the slope under it, once its
+      // spot and heading are final. Flat ground: not even the loop.
+      if (!ground.flat) for (const s of strays) leanOnGround(s.group, ground);
     },
   };
 }

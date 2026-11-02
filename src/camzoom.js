@@ -281,3 +281,64 @@ export function cameraPullScale(cat, off, dist, colliders, bounds) {
   }
   return Math.min(1, Math.max(minScale, s));
 }
+
+// Gorge part 1, ruling R8: the camera keeps out of rock and under ceilings.
+// Only on raised ground (player.js calls it behind `!ground.flat`).
+//
+// The camera goes on the segment from the cat's look point L to the wanted
+// camera position W, at L + f*(W - L). This finds f: it marches ROCK_SAMPLES
+// samples from L toward W, and at the first bad one (below ground.y +
+// CAM_ROCK_CLEAR, or above ground.ceil - CAM_CEIL_CLEAR) bisects ROCK_BISECT
+// times between the last good sample and it, so f moves continuously as the
+// cat walks rather than in twelfths. cameraRockFraction never brings the
+// camera nearer than MIN_CAM_DIST to L; cameraClearFraction is the same march
+// without that floor, for player.js, which keeps MIN_CAM_DIST by rising
+// instead of going on into the rock. Allocate nothing: they run every frame.
+export const CAM_ROCK_CLEAR = 0.35;
+export const CAM_CEIL_CLEAR = 0.3;
+export const MIN_CAM_DIST = 0.3;
+const ROCK_SAMPLES = 12;
+// R8 asked for 5 bisections. Near a rim that leaves the clear point quantised
+// to 1/384 of the segment (~3 cm at the far zoom), which made the camera jitter
+// 1-2 cm a frame right behind her head; 12 bring it under a millimetre. Only
+// raised ground pays for them.
+const ROCK_BISECT = 12;
+
+function camBad(look, dx, dy, dz, t, ground) {
+  const x = look.x + dx * t;
+  const y = look.y + dy * t;
+  const z = look.z + dz * t;
+  return y < ground.y(x, z) + CAM_ROCK_CLEAR || y > ground.ceil(x, z) - CAM_CEIL_CLEAR;
+}
+
+export function cameraClearFraction(look, wanted, ground) {
+  if (ground.flat) return 1;
+  const dx = wanted.x - look.x;
+  const dy = wanted.y - look.y;
+  const dz = wanted.z - look.z;
+  let good = 0;
+  for (let i = 1; i <= ROCK_SAMPLES; i++) {
+    const t = i / ROCK_SAMPLES;
+    if (camBad(look, dx, dy, dz, t, ground)) {
+      let bad = t;
+      for (let k = 0; k < ROCK_BISECT; k++) {
+        const m = (good + bad) / 2;
+        if (camBad(look, dx, dy, dz, m, ground)) bad = m;
+        else good = m;
+      }
+      return good;
+    }
+    good = t;
+  }
+  return 1;
+}
+
+export function cameraRockFraction(look, wanted, ground) {
+  if (ground.flat) return 1;
+  const dx = wanted.x - look.x;
+  const dy = wanted.y - look.y;
+  const dz = wanted.z - look.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (!(len > MIN_CAM_DIST)) return 1;
+  return Math.max(MIN_CAM_DIST / len, cameraClearFraction(look, wanted, ground));
+}

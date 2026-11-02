@@ -22,10 +22,12 @@ vi.stubGlobal('document', {
 const { INTRUDER_ROUTES, routeLength, routePoint } = await import('../src/intruders.js');
 const { clanWalkableFor } = await import('../src/world/clanground.js');
 const { mergeStaticProps } = await import('../src/render/mergeprops.js');
-const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
+const { fightReach, reachYFor, FIGHT_GAP } = await import('../src/game/clanfight.js');
+const { buildCat, catDims } = await import('../src/cat/model.js');
+const { clanCast } = await import('../src/clancast.js');
 const { CHALLENGE_RANGE } = await import('../src/intruders.js');
 const {
-  findOccluders, chooseFightView, subjectPoints, framePoints, firstBlocker, projectPoint, FIGHT_FRAME, OCCLUDER_PAD,
+  findOccluders, chooseFightView, subjectPoints, liftedPoints, framePoints, firstBlocker, projectPoint, FIGHT_FRAME, OCCLUDER_PAD,
 } = await import('../src/fightcam.js');
 
 const { cameraOffset } = await import('../src/catcam.js');
@@ -46,11 +48,38 @@ function world(a) {
   return { area, occluders: findOccluders(scene), ground: clanWalkableFor(area, a) };
 }
 
+// Task 5 (fight moves and scars): a clan fight's subject in actions mode, with
+// each spot's lift measured from the largest preset (mainecoon) against an
+// intruder (simple, at intruders.js's 0.85). Hagrid's fights (actions off)
+// keep today's subject, and are checked as before.
+const intruderCat = buildCat('tabby', undefined, { simple: true, style: clanCast('woods')[3].style });
+intruderCat.scale.multiplyScalar(0.85);
+const REACH_Y = reachYFor(catDims(buildCat('mainecoon')), catDims(intruderCat), FIGHT_GAP);
+// Each mode's pinned counts (see below). Actions mode, measured for Task 5,
+// with lifted tops soft in the view choice (a controller ruling): woods hides
+// 14 trees (today 12), river 9 (today 6), moor 3 (today 3), pines 1 (in 24
+// views; today none); no view hides a tree with no cat under it. Every point
+// that exists today passes the same hard checks on every map. Lifted tops a
+// tree still hides: none in woods, river and moor; in pines 3186 tops in 300
+// of its 3096 views, every one behind a stand pine's low boughs, which cannot
+// be hidden (a leap or a rear-up beside them rises into them). (Was 3229
+// before the final review's rear-up step, which steps in as the cats rear and
+// leaves their lifted tops nearer the middle; every other count unchanged.)
+const MODES = {
+  today: { opts: {}, maxHidden: { woods: 12, river: 6, moor: 5, pines: 0 }, maxNotUnder: { woods: 0, river: 3, moor: 4, pines: 0 }, maxBrushed: { woods: 0, river: 0, moor: 0, pines: 0 } },
+  actions: {
+    opts: { actions: true, reachY: REACH_Y },
+    maxHidden: { woods: 14, river: 9, moor: 3, pines: 1 },
+    maxNotUnder: { woods: 0, river: 0, moor: 0, pines: 0 },
+    maxBrushed: { woods: 0, river: 0, moor: 0, pines: 3186 },
+  },
+};
+
 // The walk-over's subject, as clanfight builds it, and the fight's.
-function walkover(from, foeAt, ok) {
+function walkover(from, foeAt, ok, opts) {
   const dx = from.x - foeAt.x, dz = from.z - foeAt.z, d = Math.hypot(dx, dz);
   const to = { x: foeAt.x + (dx / d) * FIGHT_GAP, z: foeAt.z + (dz / d) * FIGHT_GAP };
-  const sub = fightReach(to, foeAt, ok);
+  const sub = fightReach(to, foeAt, ok, opts);
   const n = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / 0.3));
   sub.path = [{ x: from.x, z: from.z }];
   for (let j = 1; j <= n; j++) {
@@ -64,12 +93,20 @@ function walkover(from, foeAt, ok) {
 // Views that hid a tree with no cat under it (framing both cats whole left no
 // clear spot); counted per map below.
 let notUnder = 0;
+// Lifted tops (actions mode) a tree still hides in the chosen view, and the
+// views with one: soft (a controller ruling on Task 5), so counted, not failed.
+let brushedTops = 0, brushedViews = 0;
 function check(view, subj, w, frame, at) {
   const left = w.occluders.filter((o) => !view.blockers.includes(o));
-  for (const p of subjectPoints(subj, true)) {
+  // every point that exists today (paws, body, head; the run) stays hard
+  for (const p of subjectPoints(subj, true, false)) {
     const hit = firstBlocker(view.pos, p, left);
     expect(hit, `${at}: a tree at ${hit?.x.toFixed(1)},${hit?.z.toFixed(1)} hides ${p.x.toFixed(2)},${p.y},${p.z.toFixed(2)}`).toBe(null);
   }
+  const brushed = liftedPoints(subj).filter((p) => firstBlocker(view.pos, p, left)).length;
+  expect(view.brushed ?? 0, `${at}: the view's own count of hidden lifted tops`).toBe(brushed);
+  brushedTops += brushed;
+  if (brushed > 0) brushedViews++;
   // The last resort hides only a tree that can be hidden on its own, nearly
   // always one with a cat right under its leaves (a spot inside the tree's
   // padded solid), so no view can see past it. The few others are counted.
@@ -89,12 +126,14 @@ function check(view, subj, w, frame, at) {
 }
 
 describe('the fight camera on every intruder route', () => {
-  for (const a of Object.keys(INTRUDER_ROUTES)) {
-    it(`${a}: both cats in sight past every tree, every ${STEP} m, from every side, portrait, landscape and desktop`, () => {
+  for (const [mode, { opts, maxHidden, maxNotUnder, maxBrushed }] of Object.entries(MODES)) for (const a of Object.keys(INTRUDER_ROUTES)) {
+    it(`${a} (${mode}): both cats in sight past every tree, every ${STEP} m, from every side, portrait, landscape and desktop`, () => {
       const w = world(a);
       expect(w.occluders.length, `${a} has tagged trees`).toBeGreaterThan(10);
       let fights = 0, followBlocked = 0, hidViews = 0;
       notUnder = 0;
+      brushedTops = 0;
+      brushedViews = 0;
       const hidden = new Set();
       for (const [clan, route] of Object.entries(INTRUDER_ROUTES[a])) {
         const len = routeLength(route);
@@ -107,8 +146,8 @@ describe('the fight camera on every intruder route', () => {
             const from = { x: foeAt.x + ux * (CHALLENGE_RANGE - 0.1), z: foeAt.z + uz * (CHALLENGE_RANGE - 0.1) };
             const spot = { x: foeAt.x + ux * FIGHT_GAP, z: foeAt.z + uz * FIGHT_GAP };
             if (!w.ground(from.x, from.z) || !w.ground(spot.x, spot.z)) continue;
-            const { sub } = walkover(from, foeAt, w.ground);
-            const fight = { ...fightReach(spot, foeAt, w.ground), path: [] };
+            const { sub } = walkover(from, foeAt, w.ground, opts);
+            const fight = { ...fightReach(spot, foeAt, w.ground, opts), path: [] };
             for (const [name, frame] of Object.entries(FRAMES)) {
               const at = `${a}.${clan} s=${s} from ${k} ${name}`;
               // the follow camera behind my cat, looking at the intruder
@@ -126,7 +165,7 @@ describe('the fight camera on every intruder route', () => {
               check(v2, fight, w, frame, `${at} rounds`);
               fights++;
               for (const b of [...v1.blockers, ...v2.blockers]) hidden.add(b);
-              hidViews += (v1.clear ? 0 : 1) + (v2.clear ? 0 : 1);
+              hidViews += (v1.blockers.length ? 1 : 0) + (v2.blockers.length ? 1 : 0);
               expect(v1.unhidden ?? 0, `${at}: a stand pine left in the way`).toBe(0);
               expect(v2.unhidden ?? 0, `${at}: a stand pine left in the way`).toBe(0);
             }
@@ -137,15 +176,16 @@ describe('the fight camera on every intruder route', () => {
       // the problem this fixes is real on every map: the follow camera alone
       // lets a tree hide a cat somewhere along the routes
       expect(followBlocked, `${a}: follow-camera views a tree spoils`).toBeGreaterThan(0);
-      process.stderr.write(`\n${a}: ${fights} fight views; follow camera blocked in ${followBlocked} of ${fights / 3}; trees hidden ${hidden.size} in ${hidViews} views\n`);
+      process.stderr.write(`\n${a} (${mode}): ${fights} fight views; follow camera blocked in ${followBlocked} of ${fights / 3}; trees hidden ${hidden.size} in ${hidViews} views; ${notUnder} not under; lifted tops brushed ${brushedTops} in ${brushedViews} views\n`);
       // Measured, with each tree padded for the wind's furthest lean: the trees
       // whose (padded) leaves reach a cat's ears where it can stand beside the
       // trunk. Pinned so a map change that adds more is seen.
-      const MAX_HIDDEN = { woods: 12, river: 6, moor: 5, pines: 0 };
-      expect(hidden.size, `${a}: trees ever hidden`).toBeLessThanOrEqual(MAX_HIDDEN[a]);
-      // measured: 3 river and 4 moor walk-over views near a map edge
-      const MAX_NOT_UNDER = { woods: 0, river: 3, moor: 4, pines: 0 };
-      expect(notUnder, `${a}: views that hid a tree with no cat under it`).toBeLessThanOrEqual(MAX_NOT_UNDER[a]);
+      // (Task 5: the actions subject's lifted tops reach more leaves; each
+      // mode's numbers are in MODES above.)
+      expect(hidden.size, `${a}: trees ever hidden`).toBeLessThanOrEqual(maxHidden[a]);
+      // measured: 3 river and 4 moor walk-over views near a map edge (today)
+      expect(notUnder, `${a}: views that hid a tree with no cat under it`).toBeLessThanOrEqual(maxNotUnder[a]);
+      expect(brushedTops, `${a}: lifted tops left behind a tree`).toBeLessThanOrEqual(maxBrushed[a]);
     }, 120000);
   }
 });

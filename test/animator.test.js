@@ -268,3 +268,85 @@ describe('animateCat: the fight poses (swipe, backUp)', () => {
     expect(cat.userData.parts.body.position.z).toBe(0);
   });
 });
+
+// Fight actions (Task 2): the six new fight states.
+describe('animateCat: the fight action states', () => {
+  const NEW = ['arch', 'rearUp', 'flinch', 'pinned', 'pinning', 'roll'];
+  const look = { ...DEFAULT_LOOK, pattern: 'patches', fur: 'long' };
+  const builds = {
+    full: () => buildCat('tabby'),
+    simple: () => buildCat('tabby', undefined, { simple: true }),
+    custom: () => buildCat('calico', undefined, { look }),
+    digit: () => buildCat('digit'),
+  };
+  const finite = (o) => [...o.position.toArray(), ...o.rotation.toArray().slice(0, 3), ...o.scale.toArray()].every(Number.isFinite);
+
+  for (const [name, build] of Object.entries(builds)) {
+    it(`${name}: every new state poses with finite transforms and never moves a leg`, () => {
+      for (const state of NEW) {
+        for (const reducedMotion of [false, true]) {
+          const cat = build();
+          const legPos = cat.userData.parts.legs.map((l) => l.position.toArray());
+          for (const t of [0, 0.37, 1.3, 4.1]) {
+            animateCat(cat, state, t, 0, reducedMotion);
+            cat.traverse((o) => expect(finite(o)).toBe(true));
+            expect(cat.userData.parts.legs.map((l) => l.position.toArray())).toEqual(legPos);
+          }
+          cat.updateMatrixWorld(true);
+          // unlifted and unrotated, nothing goes into the ground
+          expect(new THREE.Box3().setFromObject(cat, true).min.y / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+        }
+      }
+    });
+  }
+
+  it('Hagrid animated in each new state does not throw', () => {
+    for (const state of NEW) expect(() => animateCat(buildCat('hagrid'), state, 1.3, 0, false)).not.toThrow();
+  });
+
+  it('a state after a fight state is exactly as if the fight state never ran', () => {
+    const sig = (c) => {
+      const out = [];
+      c.traverse((o) => out.push(...o.position.toArray(), ...o.rotation.toArray().slice(0, 3), ...o.scale.toArray()));
+      return out.map((v) => Math.round(v * 1e9)).join(',');
+    };
+    for (const after of ['follow', 'cross', 'scared', 'stalk', 'swipe', 'backUp', 'nap', 'pounce']) {
+      const clean = buildCat('tabby');
+      animateCat(clean, after, 2.2, 0, false);
+      for (const state of NEW) {
+        const cat = buildCat('tabby');
+        animateCat(cat, state, 1.1, 0, false);
+        animateCat(cat, after, 2.2, 0, false);
+        expect(sig(cat)).toBe(sig(clean));
+      }
+    }
+  });
+
+  it('rearUp swats with the front paws in turn; roll tucks all four legs; pinned is flatter than standing', () => {
+    const at = (state, t) => { const c = buildCat('tabby'); animateCat(c, state, t, 0, false); return c.userData.parts; };
+    const a = at('rearUp', 0.1), b = at('rearUp', 0.1 + Math.PI / 9);
+    expect(a.legs[0].rotation.x).not.toBeCloseTo(b.legs[0].rotation.x, 2);
+    expect(a.legs[0].rotation.x - a.legs[1].rotation.x).toBeCloseTo(-(b.legs[0].rotation.x - b.legs[1].rotation.x), 6);
+    for (const leg of at('roll', 1).legs) expect(Math.abs(leg.rotation.x)).toBeGreaterThan(1);
+    const base = buildCat('tabby').userData.base;
+    const pinned = at('pinned', 1);
+    expect(pinned.body.position.y).toBeLessThan(base.bodyY - 0.1);
+    expect(pinned.body.scale.y).toBeLessThan(base.bodyScale[1]);
+    expect(pinned.earL.rotation.z).toBeGreaterThan(0.78);
+    const flinch = at('flinch', 1);
+    expect(flinch.earL.rotation.z).toBeGreaterThan(0.78);
+  });
+
+  it('arch lashes like cross, and reducedMotion calms it', () => {
+    const spread = (reducedMotion) => {
+      const ys = [];
+      for (let i = 0; i < 40; i++) {
+        const c = buildCat('tabby', undefined, { simple: true });
+        animateCat(c, 'arch', i * 0.05, 0, reducedMotion);
+        ys.push(c.userData.parts.tailPivots[0].rotation.y);
+      }
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    expect(spread(true)).toBeLessThan(spread(false));
+  });
+});

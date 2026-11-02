@@ -89,7 +89,7 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //   den              284      173      ~13600
 //   woods            173      152      44474   (171 / 150 merged; +1 mesh for the
 //                                               island plank, lake.js, too low to cast)
-//   river            159      133      45344   (157 / 131 merged)
+//   river            159      133      53744   (157 / 131 merged; Polish 2 thickened the west reedbed)
 //   moor              76       50      40288   (75 / 49 merged; 10 thorns, 7 pines,
 //                                               398 heather, 19 gorse, 127 reeds)
 //   pines            112       75      44642   (109 / 72 merged; 27 swaying pines,

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TORSO, HEAD, PAW_HALF } from './torso.js';
+import { fitScars } from './scarmesh.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
@@ -56,6 +57,51 @@ const CROSS = {
   lashScale: 1.9,
 };
 
+// Fight actions (2026-11-01 fight moves and scars): the six action states.
+// Each writes only parts the base reset below resets (body/head position,
+// rotation and scale, leg rotation and scale, tail, tail pivots, ears) and
+// never a leg position. Pitch, roll and lift are the GROUP's (fightactions.js
+// placeFrame); these only shape the cat inside it.
+//
+// Front legs swung past fitLongLegs' 1.0 rad limit are left at their length
+// (a swing that crossed the limit would pop the leg's length), so the swats
+// and the tuck stay above it.
+const ARCH = {
+  // The Halloween-cat arch: side-on like 'cross' but more, taller and more
+  // bunched, head low, tail straight up. Falls through to the lash.
+  bodyYaw: 0.34, bodyLift: 0.05, bodyScale: [1.06, 1.14, 0.92],
+  headDrop: 0.03, headTip: 0.2, earPin: 0.85, tailRotX: -1.65,
+};
+const REAR_UP = {
+  // Up on the hind legs (the group is pitched ~0.9 nose-up by the caller):
+  // the head tips back down so the face still looks at the other cat, the
+  // tail goes up so the pitch does not swing it into the ground, and the
+  // front paws box in turn.
+  swat: 1.4, swatAmp: 0.32, swatFreq: 9, headTip: 0.7, tailRotX: -1.5, earPin: 0.9,
+};
+const FLINCH = {
+  // Leaning back, face turned away, ears flat, the tail drooped and quivering.
+  bodyDrop: 0.05, bodyBack: 0.05, bodyTip: -0.08, head: [0, -0.04, 0.07], headRot: [-0.1, 0.35, 0.1],
+  frontLegs: -0.2, hindLegs: 0.1, earPin: 0.95, tailRotX: 0.35, quiverFreq: 14, quiver: 0.12,
+};
+const PINNED = {
+  // Flattened under the other cat: lower and flatter than a nap, head down, ears flat.
+  bodyDrop: 0.1, bodyScale: [1.12, 0.72, 1.0], legs: 0.3, head: [0, -0.22, -0.04], headTip: 0.2,
+  earPin: 0.95, tailRotX: -0.05,
+};
+const PINNING = {
+  // Crouched on the other cat's back, front paws reaching forward and down.
+  // The hind legs keep their length (a shortened leg pulls its paw up off
+  // the back it is standing on); the body sinks between them instead.
+  bodyDrop: 0.12, bodyScale: [1.05, 0.9, 1.05], frontLegs: 0.5, head: [0, -0.1, -0.04],
+  headTip: 0.35, earPin: 0.85, tailRotX: -0.9,
+};
+const ROLL = {
+  // A ball of fur: legs tucked (front back under the chest, hind forward
+  // under the belly), body rounded, head down, tail wrapped.
+  tuck: 1.25, bodyScale: [1.05, 1.05, 0.9], head: [0, -0.1, 0.04], headTip: 0.4, earPin: 0.9, tailWrap: 0.5,
+};
+
 // Poses are expressed as deltas/ratios from the model's declared base pose
 // (cat.userData.base) so differently proportioned avatars — like Hagrid the
 // chicken — animate without being squashed into cat proportions.
@@ -72,6 +118,8 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+  // Last: a scar rides the head and torso where everything above left them.
+  if (cat.userData.parts.scars) fitScars(cat);
 }
 
 // R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
@@ -198,7 +246,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   // base pose reset
   body.position.y = base.bodyY;
-  body.position.z = 0; // only backUp moves it
+  body.position.z = 0; // only backUp and flinch move it
   body.scale.set(bsx, bsy, bsz);
   body.rotation.set(0, 0, 0);
   head.position.set(hx, hy, hz);
@@ -409,6 +457,86 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     return;
   }
 
+  if (state === 'rearUp') {
+    const sw = Math.sin(t * REAR_UP.swatFreq) * REAR_UP.swatAmp;
+    legs[0].rotation.x = REAR_UP.swat + sw;
+    legs[1].rotation.x = REAR_UP.swat - sw;
+    head.rotation.x = REAR_UP.headTip;
+    tail.rotation.set(REAR_UP.tailRotX, 0, 0);
+    earL.rotation.z = REAR_UP.earPin;
+    earR.rotation.z = -REAR_UP.earPin;
+    return;
+  }
+
+  if (state === 'flinch') {
+    body.position.y = base.bodyY - FLINCH.bodyDrop;
+    body.position.z = FLINCH.bodyBack;
+    body.rotation.x = FLINCH.bodyTip;
+    head.position.set(hx + FLINCH.head[0], hy + FLINCH.head[1], hz + FLINCH.head[2]);
+    head.rotation.set(FLINCH.headRot[0], FLINCH.headRot[1], FLINCH.headRot[2]);
+    legs[0].rotation.x = FLINCH.frontLegs;
+    legs[1].rotation.x = FLINCH.frontLegs;
+    legs[2].rotation.x = FLINCH.hindLegs;
+    legs[3].rotation.x = FLINCH.hindLegs;
+    tail.rotation.set(FLINCH.tailRotX, 0, 0);
+    if (!reducedMotion) {
+      for (let i = 0; i < tailPivots.length; i++) tailPivots[i].rotation.y = Math.sin(t * FLINCH.quiverFreq - i * 0.6) * FLINCH.quiver;
+    }
+    earL.rotation.z = FLINCH.earPin;
+    earR.rotation.z = -FLINCH.earPin;
+    return;
+  }
+
+  if (state === 'pinned') {
+    body.position.y = base.bodyY - PINNED.bodyDrop;
+    body.scale.set(bsx * PINNED.bodyScale[0], bsy * PINNED.bodyScale[1], bsz * PINNED.bodyScale[2]);
+    for (const leg of legs) leg.scale.y = PINNED.legs;
+    head.position.set(hx + PINNED.head[0], hy + PINNED.head[1], hz + PINNED.head[2]);
+    head.rotation.x = PINNED.headTip;
+    tail.rotation.set(PINNED.tailRotX, 0, 0);
+    earL.rotation.z = PINNED.earPin;
+    earR.rotation.z = -PINNED.earPin;
+    return;
+  }
+
+  if (state === 'pinning') {
+    body.position.y = base.bodyY - PINNING.bodyDrop;
+    body.scale.set(bsx * PINNING.bodyScale[0], bsy * PINNING.bodyScale[1], bsz * PINNING.bodyScale[2]);
+    legs[0].rotation.x = PINNING.frontLegs;
+    legs[1].rotation.x = PINNING.frontLegs;
+    head.position.set(hx + PINNING.head[0], hy + PINNING.head[1], hz + PINNING.head[2]);
+    head.rotation.x = PINNING.headTip;
+    tail.rotation.set(PINNING.tailRotX, 0, 0);
+    earL.rotation.z = PINNING.earPin;
+    earR.rotation.z = -PINNING.earPin;
+    return;
+  }
+
+  if (state === 'roll') {
+    body.scale.set(bsx * ROLL.bodyScale[0], bsy * ROLL.bodyScale[1], bsz * ROLL.bodyScale[2]);
+    legs[0].rotation.x = -ROLL.tuck;
+    legs[1].rotation.x = -ROLL.tuck;
+    legs[2].rotation.x = ROLL.tuck;
+    legs[3].rotation.x = ROLL.tuck;
+    head.position.set(hx + ROLL.head[0], hy + ROLL.head[1], hz + ROLL.head[2]);
+    head.rotation.x = ROLL.headTip;
+    for (const p of tailPivots) p.rotation.y = ROLL.tailWrap;
+    earL.rotation.z = ROLL.earPin;
+    earR.rotation.z = -ROLL.earPin;
+    return;
+  }
+
+  if (state === 'arch') {
+    // Falls through to the tail chain below, lashing like 'cross'.
+    body.position.y = base.bodyY + ARCH.bodyLift;
+    body.scale.set(bsx * ARCH.bodyScale[0], bsy * ARCH.bodyScale[1], bsz * ARCH.bodyScale[2]);
+    body.rotation.y = ARCH.bodyYaw;
+    head.position.set(hx, hy - ARCH.headDrop, hz);
+    head.rotation.x = ARCH.headTip;
+    earL.rotation.z = ARCH.earPin;
+    earR.rotation.z = -ARCH.earPin;
+  }
+
   if (state === 'land') {
     // landing squash: wide and low for a beat
     body.scale.set(bsx * 1.14, bsy * 0.78, bsz * 1.05);
@@ -428,7 +556,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
 
   // lively lagged tail chain
   const sway = walking ? 0.1 + moveSpeed * 0.03 : 0.16;
-  const raisedTailX = state === 'scared' ? -1.35 : state === 'cross' ? CROSS.tailRotX : base.tailRotX;
+  const raisedTailX = state === 'scared' ? -1.35 : state === 'cross' ? CROSS.tailRotX : state === 'arch' ? ARCH.tailRotX : base.tailRotX;
   tail.rotation.x = raisedTailX + Math.sin(t * 2.1) * 0.08;
   // The cross lash. reducedMotion is honoured the same way the walk cycle
   // honours it — the exaggeration is dropped and the ordinary sway remains,
@@ -436,7 +564,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   // practice only main.js's own-cat call site ever passes reducedMotion;
   // strays never do. This is here so the flag stays true for the player's
   // cat if a future caller ever poses it 'cross'.)
-  const lashing = state === 'cross' && !reducedMotion;
+  const lashing = (state === 'cross' || state === 'arch') && !reducedMotion;
   const lashFreq = lashing ? CROSS.lashFreq : 2.6;
   const lashSway = lashing ? sway * CROSS.lashScale : sway;
   for (let i = 0; i < tailPivots.length; i++) {

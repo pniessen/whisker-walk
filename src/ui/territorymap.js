@@ -98,20 +98,38 @@ function labelHtml(r) {
   return `<text class="tm-label" x="${lx}" y="${n(ly - tall / 2 + 26)}" text-anchor="middle">${lines.join('')}</text>`;
 }
 
-// The clan's camp: a small dome with a dark door in the clan's colour. Mine
-// gets a gold ring and a larger icon, the sibling's a thin white ring. It
-// never takes a tap: the place under it stays tappable.
+// The camp mark's own colours (test/campmarks.test.js checks each against
+// every clan colour and every land). The dome stands on a light badge with a
+// dark edge, because a clan colour alone can sit too close to its own land:
+// DuskClan's #35584a on the Pines' green all but vanished. The rings get a
+// dark edge under them for the same reason on the pale lands.
+export const CAMP_MARK = Object.freeze({
+  badge: '#fbf3dc', edge: '#4a3522', ringEdge: '#3a2a1a', mine: '#f2c14e', ally: '#ffffff',
+});
+
+// The clan's camp: a small dome with a dark door in the clan's colour, on a
+// light badge. Mine gets a gold ring and a larger icon, the sibling's a thin
+// white ring. It never takes a tap: the place under it stays tappable.
 function campHtml(r) {
   const c = r.camp;
   if (!c) return '';
   const k = c.mine ? 1.35 : 1;
-  const ring = c.mine || c.ally ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>` : '';
+  const rr = n(27 * k);
+  const ringColour = c.mine ? CAMP_MARK.mine : CAMP_MARK.ally;
+  const ring = c.mine || c.ally
+    ? `<circle class="tm-camp-ring-edge" cx="${c.x}" cy="${c.y}" r="${rr}" stroke="${CAMP_MARK.ringEdge}"/>`
+      + `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${rr}" stroke="${ringColour}"/>`
+    : '';
+  const badge = `<circle class="tm-camp-badge" cx="${c.x}" cy="${n(c.y + 1 * k)}" r="${n(21 * k)}" fill="${CAMP_MARK.badge}" stroke="${CAMP_MARK.edge}"/>`;
   const w = 15 * k;
   const dome = `<path class="tm-camp-dome" fill="${escapeHtml(c.color)}" d="M${n(c.x - w)} ${n(c.y + 8 * k)} A${n(w)} ${n(w)} 0 0 1 ${n(c.x + w)} ${n(c.y + 8 * k)} Z"/>`
     + `<path class="tm-camp-door" d="M${n(c.x - 5 * k)} ${n(c.y + 8 * k)} A${n(5 * k)} ${n(5 * k)} 0 0 1 ${n(c.x + 5 * k)} ${n(c.y + 8 * k)} Z"/>`;
   const cls = `tm-camp${c.mine ? ' mine' : ''}${c.ally ? ' ally' : ''}`;
-  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${dome}</g>`;
+  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${badge}${dome}</g>`;
 }
+
+// Where the island is, said under its name and in its tap title.
+export const ISLAND_WHERE = 'in the Pines and Swamp';
 
 const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected ? ' sel' : ''}`;
 
@@ -128,19 +146,17 @@ export function renderTerritoryMapHtml(model) {
   const [b0, b1] = m.bridge;
   const bridge = `<line class="tm-bridge" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`
     + `<line class="tm-bridge-planks" x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}"/>`;
-  // Once the Pines is built the island is part of its tap target: the star
-  // leads to the Pines and says so. Before that it is drawn as it always was.
+  // The island is part of the Pines' tap target (territories.js: ISLAND is
+  // always built, walked as part of the Pines): the star leads to the Pines
+  // and says so, drawn over the built places.
   const isl = m.island;
-  const toPines = isl.status === 'built' && isl.areaId;
   const islandBody = `<path class="tm-island" d="${smoothPath(isl.outline, true)}"/>`
     + `<polygon class="tm-star" points="${starPoints(m.star.x, m.star.y, 13, 5.5)}"/>`
     + `<text class="tm-label tm-small" x="461" y="276" text-anchor="middle">${escapeHtml(isl.name)}</text>`;
-  const island = toPines
-    ? `<g class="tm-region ${stateClasses(isl)}" data-region="island" data-dr-place="${escapeHtml(isl.areaId)}">`
-      + `<title>${escapeHtml(`${isl.name}, in the Pines and Swamp · ${isl.line}`)}</title>`
-      + `<path class="tm-hit" d="${smoothPath(isl.outline, true)}"/>${islandBody}`
-      + `<text class="tm-label tm-small" x="461" y="352" text-anchor="middle">in the Pines and Swamp</text></g>`
-    : `<g class="tm-region soon" data-region="island"><title>${escapeHtml(`${isl.name} · coming soon`)}</title>${islandBody}</g>`;
+  const island = `<g class="tm-region ${stateClasses(isl)}" data-region="island" data-dr-place="${escapeHtml(isl.areaId)}">`
+    + `<title>${escapeHtml(`${isl.name}, ${ISLAND_WHERE} · ${isl.line}`)}</title>`
+    + `<path class="tm-hit" d="${smoothPath(isl.outline, true)}"/>${islandBody}`
+    + `<text class="tm-label tm-small" x="461" y="352" text-anchor="middle">${escapeHtml(ISLAND_WHERE)}</text></g>`;
   const unbuiltHtml = unbuilt.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}">`
     + `<title>${escapeHtml(`${r.name} · ${r.line}`)}</title>${labelHtml(r)}</g>`).join('');
   const builtHtml = built.map((r) => `<g class="tm-region ${stateClasses(r)}" data-region="${escapeHtml(r.id)}" data-dr-place="${escapeHtml(r.areaId)}">`
@@ -150,7 +166,7 @@ export function renderTerritoryMapHtml(model) {
   return `<svg viewBox="0 0 1000 700" class="territory-map" role="img" aria-label="Territory map" xmlns="http://www.w3.org/2000/svg">`
     + '<rect class="tm-paper" x="4" y="4" width="992" height="692" rx="34"/>'
     + `<g class="tm-lands">${land}</g><g class="tm-water">${water}</g><g class="tm-paths">${paths}${bridge}</g>`
-    + `${unbuiltHtml}${toPines ? '' : island}${builtHtml}${toPines ? island : ''}`
+    + `${unbuiltHtml}${builtHtml}${island}`
     + '<rect class="tm-frame" x="4" y="4" width="992" height="692" rx="34"/>'
     + '</svg>';
 }

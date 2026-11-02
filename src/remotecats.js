@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { wireLook } from './customcats.js';
+import { wireScars } from './scars.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
 import { waterPose, applyWaterLook } from './cat/waterlook.js';
+import { FLAT_GROUND, groundTilt, easeTilt } from './ground.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
@@ -65,9 +67,17 @@ function profileUnchanged(entry, profile) {
 // `waters` update() is given (null: always dry, the old look). Its shake and
 // bob follow THIS viewer's reducedMotion (the ruling), a snapshot taken at
 // the start of the walk.
-export function createRemoteCats(scene, { reducedMotion = false } = {}) {
+// `ground` (Gorge part 1, R13): a co-walker stands at THIS device's ground
+// under its streamed [x, z]; nothing about height rides the wire.
+export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
+  const tiltTarget = { pitch: 0, roll: 0 }; // leanOf's scratch
+  // `list` is read several times a frame (main.js, avatar.js), so it hands
+  // back one cached snapshot, rebuilt only when a cat joins or leaves
+  // (Polish 3). A snapshot, not a live array: a holder of an older one (the
+  // crossing's "who walks on with me") never sees it change underneath it.
+  let listCache = null;
 
   // Remote profiles arrive over the network from other players' clients,
   // which may not have enforced the same validation the local client does
@@ -94,7 +104,9 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       remove(profile.playerId); // rejoined with a different pet — drop the stale mesh and rebuild
     }
 
-    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look });
+    // Fight moves and scars (R7): her scars ride accessories.scars, repaired
+    // here; a changed scars key rebuilds through profileUnchanged above.
+    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look, scars: wireScars(profile.accessories) });
     const tag = makeNameTag(profile.petName);
     if (tag) {
       tag.visible = true; // remote pets are always labeled, unlike strays
@@ -121,8 +133,10 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       // Not placed until its first state: until then the group sits at the
       // origin, which may well be in water, so it must not sink or shake there.
       water: { ...createWaterState(), placed: false },
+      tilt: null, // its eased lean into a slope (R7), made on its first frame on raised ground
     };
     remotes.set(profile.playerId, entry);
+    listCache = null;
     return entry;
   }
 
@@ -130,7 +144,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     const entry = remotes.get(state.id);
     if (!entry) return; // state before roster upsert — drop it, roster wins the race in practice
 
-    entry.toPos.set(state.pos[0], 0, state.pos[1]);
+    entry.toPos.set(state.pos[0], ground.y(state.pos[0], state.pos[1]), state.pos[1]);
     // The first state puts a new co-walker straight where it is. Sliding it in
     // from the origin would carry it through any water on the way (the Moor's
     // river-west holds the origin), and it would dip there on arrival.
@@ -157,10 +171,12 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     scene.remove(entry.group);
     disposeGroup(entry.group);
     remotes.delete(playerId);
+    listCache = null;
   }
 
   function update(dt, now, waters = null) {
-    for (const entry of Array.from(remotes.values())) {
+    // The cached snapshot, so a remove() mid-loop is safe and nothing is allocated.
+    for (const entry of api.list) {
       if (now - entry.lastSeenAt > DESPAWN_AFTER) {
         remove(entry.playerId);
         continue;
@@ -179,8 +195,19 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
-      applyWaterLook(entry.group, entry.water, now, dt, rm, 0, amount);
+      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount, null, ground.flat ? null : leanOf(entry, x, z, dt));
     }
+  }
+
+  // A co-walker's lean into the slope under it (R7), eased at TILT_RATE like
+  // her own cat's; made at the slope's tilt the first time, then reused.
+  function leanOf(entry, x, z, dt) {
+    groundTilt(ground, x, z, entry.group.rotation.y, tiltTarget);
+    if (!entry.tilt) {
+      entry.tilt = { pitch: tiltTarget.pitch, roll: tiltTarget.roll };
+      return entry.tilt;
+    }
+    return easeTilt(entry.tilt, tiltTarget, dt);
   }
 
   function nearest(pos, maxDist) {
@@ -200,7 +227,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     for (const playerId of Array.from(remotes.keys())) remove(playerId);
   }
 
-  return {
+  const api = {
     upsert,
     applyState,
     remove,
@@ -208,7 +235,8 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     nearest,
     dispose,
     get list() {
-      return Array.from(remotes.values());
+      return (listCache ??= Array.from(remotes.values()));
     },
   };
+  return api;
 }

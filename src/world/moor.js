@@ -4,8 +4,9 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
-import { addIslandView, fromWoodsDisc } from './lake.js';
+import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
 
 // =============================================================================
@@ -158,12 +159,15 @@ export const MOOR_ISLAND = fromWoodsDisc('moor');
 // rolls), each side tinted for the neighbour over it: heather to the north
 // (the Woods paints the Moor this same colour), grey rock to the east (the
 // Gorge's unexplored edge), the Woods' deep green to the south, the dark
-// pines to the west. None where the lake and the river leave the map, so the
-// water opens out to the sky. No rooftops: Twolegplace is not next to the Moor.
+// pines to the west. Where the lake and the river leave the map the hills come
+// down to the water and rise again further out (builder.horizonBand's
+// `shore`), but never over the island or its bridge (`keepLow`). No rooftops:
+// Twolegplace is not next to the Moor.
 export const MOOR_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 11, wavelength: 48,
   color: 0x8f7f8a, salt: 41,
   avoid: Object.freeze([LAKE, LAKE_FAR, RIVER_SOUTH]),
+  keepLow: islandKeepLow('moor'),
   sideTints: Object.freeze({ north: 0x9a8a9c, east: 0x8a8478, south: 0x4f7a48, west: 0x3f5a46 }),
 });
 
@@ -267,12 +271,6 @@ export const MOOR_KEEP_CLEAR = Object.freeze([
 // data (they end up in colliders and perches).
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// Distance from (x, z) to a segment.
-function segDist(x, z, x1, z1, x2, z2) {
-  const dx = x2 - x1, dz = z2 - z1;
-  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
-}
 // Distance from (x, z) to an axis-aligned rectangle (0 inside it).
 const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));

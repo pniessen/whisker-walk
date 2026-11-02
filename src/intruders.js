@@ -31,9 +31,10 @@
 //
 // No progress lives here: this file imports nothing that stores anything.
 import * as THREE from 'three';
-import { buildCat } from './cat/model.js';
+import { buildCat, catDims } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
-import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
+import { setCatScars } from './cat/scarmesh.js';
+import { makeNameTag, NAME_TAG_RANGE, uprightTag } from './nametag.js';
 import { seedFromCode } from './rng.js';
 import { HOMES, isClanId } from './clanhomes.js';
 import { castFor, clanCast, RAIDER_SLOTS, tagSubFor } from './clancast.js';
@@ -202,6 +203,8 @@ export const NO_INTRUDERS = Object.freeze({
   dropHolder() {},
   holders: () => [],
   stage() {},
+  setScars() {},
+  measure() { return null; },
   flee() {},
   isFled: () => false,
   dispose() {},
@@ -224,7 +227,19 @@ export function createIntruders(scene, areaId, {
   hostile = () => false,
   onNotice = () => {},
   onBuild = () => {},
+  ground = null,
+  // Fight moves and scars: the scars (scars.js render entries) a cast member
+  // wears, by its cast id, applied when its mesh is built.
+  scarsFor = () => [],
 } = {}) {
+  // Gorge part 1: the walk's ground (src/ground.js), taken as given (this
+  // file's imports are on an allow-list); null or flat is flat ground, and G
+  // is set only when it has height, so a shipped map runs today's lines. The
+  // cat walks its route on the ground (plan 2/4 check routes against it), a
+  // staged lift is relative to the ground under the stage (R11), and it only
+  // notices a cat on its own level (R10).
+  const G = ground && !ground.flat ? ground : null;
+  const tilt = { pitch: 0, roll: 0 }; // place()'s lean scratch (R7)
   let cur = null;     // this visit's cat, or null
   let done = null;    // a visit that walked off its route: not built again
   let animT = 0;
@@ -247,7 +262,8 @@ export function createIntruders(scene, areaId, {
 
   function build(at) {
     const { member } = at;
-    const group = buildCat(member.breed, undefined, { simple: true, style: member.style });
+    const scars = scarsFor(member.id);
+    const group = buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(scars) ? scars : [] });
     group.scale.multiplyScalar(INTRUDER_SCALE);
     group.userData.intruder = true;
     const isHostileHere = hostile(at.clan) === true;
@@ -306,7 +322,7 @@ export function createIntruders(scene, areaId, {
       new THREE.SphereGeometry(0.35, 10, 8),
       new THREE.MeshBasicMaterial({ color: PUFF_COLOR, transparent: true, opacity: 0.7, depthWrite: false }),
     );
-    mesh.position.set(x, 0.3, z);
+    mesh.position.set(x, G ? G.y(x, z) + 0.3 : 0.3, z);
     scene.add(mesh);
     puffs.push({ mesh, age: 0 });
   }
@@ -327,19 +343,36 @@ export function createIntruders(scene, areaId, {
   }
 
   // The mesh at cur.s, facing its way (or its holder when held). A held one
-  // my fight has staged stands where the stage puts it instead.
+  // my fight has staged stands where the stage puts it instead, pitched and
+  // rolled as staged (yaw outermost); anything else stands level. This is the
+  // only place the group's rotation.x and rotation.z are written.
   function place() {
     const p = routePoint(cur.route, cur.s);
     const g = cur.group;
     const st = cur.state === 'held' ? cur.stage : null;
-    if (st) g.position.set(st.x, st.y, st.z);
-    else g.position.set(p.x, 0, p.z);
+    if (st) g.position.set(st.x, G ? G.y(st.x, st.z) + st.y : st.y, st.z);
+    else g.position.set(p.x, G ? G.y(p.x, p.z) : 0, p.z);
+    g.rotation.order = 'YXZ';
+    g.rotation.x = st ? st.pitch : 0;
+    g.rotation.z = st ? st.roll : 0;
+    // The name tag rides the group, so a pitch or roll would swing it round
+    // the cat (under it, mid-tumble): it stays straight above its torso instead.
+    uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
     if (cur.state === 'held' && cur.face) {
       g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {
       g.rotation.y = Math.atan2(-p.dx, -p.dz) + Math.PI;
     } else {
       g.rotation.y = Math.atan2(p.dx, p.dz) + Math.PI;
+    }
+    // Gorge part 1 (R7): on raised ground a route walker leans into the slope
+    // under it; a staged one keeps the fight's pitch and roll set above
+    // (fights stand on level ground, R11). Flat ground: nothing new.
+    if (G && !st) {
+      G.tilt(g.position.x, g.position.z, g.rotation.y, tilt);
+      g.rotation.x = tilt.pitch;
+      g.rotation.z = tilt.roll;
+      uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
     }
   }
 
@@ -423,7 +456,8 @@ export function createIntruders(scene, areaId, {
         pose = cur.stage ? cur.stage.pose : 'cross';
         speed = 0;
       } else if (cur.state !== 'fleeing' && cur.hostile && catPos
-        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE) {
+        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE
+        && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z))) {
         pose = 'cross';
         if (!cur.noticed) {
           cur.noticed = true;
@@ -431,9 +465,12 @@ export function createIntruders(scene, areaId, {
         }
       }
       animateCat(g, pose, animT, speed, reducedMotion);
+      // again, now the pose has put the torso where it is this frame
+      uprightTag(cur.tag, g.rotation.x, g.rotation.z, g.userData.parts?.body?.position.y ?? 0);
       if (cur.tag) {
         const range = cur.tag.userData?.revealRange ?? NAME_TAG_RANGE;
-        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range : false;
+        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range
+          && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z)) : false;
       }
     },
     // The walk's one contact-shadow follower (see above).
@@ -466,19 +503,48 @@ export function createIntruders(scene, areaId, {
       cur.holders.delete(String(holderId));
       letGo();
     },
-    // My fight's staging (Task 4): { pose, x, z, y, face? } puts the held mesh
-    // at that spot in that pose, facing `face` (my cat) or else its holder;
-    // null puts it back on its route.
+    // My fight's staging (Task 4): { pose, x, z, y, face?, pitch?, roll? }
+    // puts the held mesh at that spot in that pose (y is a lift above the
+    // ground there, R11), facing `face` (my cat) or else its holder, pitched
+    // and rolled (fight moves and scars, R20; junk is 0); null puts it back on
+    // its route, level.
     // Ignored unless I hold it; dropped when my hold ends or it flees. The
     // shared snapshot (current().pos) stays on the route.
     stage(visit, st) {
       if (!isCurrent(visit) || cur.state !== 'held' || !heldByMe()) return;
       if (st === null) cur.stage = null;
       else if (st && typeof st.pose === 'string' && Number.isFinite(st.x) && Number.isFinite(st.z)) {
-        cur.stage = { pose: st.pose, x: st.x, z: st.z, y: Number.isFinite(st.y) ? st.y : 0 };
-        if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) cur.face = { x: st.face.x, z: st.face.z };
+        // Every frame of a fight: written into the visitor's one staging
+        // object (and facing point), made the first time only.
+        const fin = (v) => (Number.isFinite(v) ? v : 0);
+        const to = cur.stage ??= { pose: 'cross', x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+        to.pose = st.pose; to.x = st.x; to.z = st.z; to.y = fin(st.y); to.pitch = fin(st.pitch); to.roll = fin(st.roll);
+        if (st.face && Number.isFinite(st.face.x) && Number.isFinite(st.face.z)) {
+          if (cur.face) { cur.face.x = st.face.x; cur.face.z = st.face.z; } else cur.face = { x: st.face.x, z: st.face.z };
+        }
       } else return;
       if (cur.inScene) { place(); syncAnchor(); }
+    },
+    // Fight moves and scars: the visitor's scars changed (a fight it lost).
+    setScars(visit, scars) {
+      if (!isCurrent(visit) || !cur.inScene) return;
+      setCatScars(cur.group, Array.isArray(scars) ? scars : []);
+    },
+    // The visitor's fight dims (src/cat/model.js catDims: top, backY,
+    // pinnedBackY, hindZ, pivotY), for the fight's actions; null for any
+    // other visit. It poses the mesh to measure and puts it back where it
+    // stood, as it stood (the next update poses it again).
+    measure(visit) {
+      if (!isCurrent(visit) || !cur.inScene) return null;
+      const g = cur.group;
+      const pos = g.position.clone();
+      const rot = g.rotation.clone();
+      g.position.set(0, 0, 0);
+      g.rotation.set(0, 0, 0);
+      const d = catDims(g);
+      g.position.copy(pos);
+      g.rotation.copy(rot);
+      return d;
     },
     flee(visit) {
       if (!isCurrent(visit) || cur.fled || cur.state === 'gone') return;

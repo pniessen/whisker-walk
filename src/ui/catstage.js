@@ -337,14 +337,18 @@ export function createCatStage({
     }
   };
 
-  stage.show = function show(nextBreed, accessories = {}, look = null) {
+  // `scars` (fight moves and scars): the shown cat's own render entries; an
+  // unscarred show calls buildCat exactly as before.
+  stage.show = function show(nextBreed, accessories = {}, look = null, scars = []) {
     if (disposed) return;
     breed = nextBreed;
     if (stage.failed) { if (el) placeFallback(); return; }
     ensureRenderer();
     if (stage.failed) return;
     disposeCat();
-    cat = look ? buildCat(breed, accessories, { look }) : buildCat(breed, accessories);
+    const scarred = Array.isArray(scars) && scars.length > 0;
+    if (look) cat = buildCat(breed, accessories, scarred ? { look, scars } : { look });
+    else cat = scarred ? buildCat(breed, accessories, { scars }) : buildCat(breed, accessories);
     bounds = look ? lookBounds(cat) : measure(cat);
     cat.rotation.y = spin.angle;
     scene.add(cat);

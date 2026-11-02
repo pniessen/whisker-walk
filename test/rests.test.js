@@ -242,7 +242,7 @@ test.each([['neighborhood', buildNeigh], ['park', buildPark]])('%s: the cat walk
 test('the walk adds the birdbath colliders to the walk\'s collider list before the first frame', async () => {
   const { readFileSync } = await import('node:fs');
   const code = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, '');
-  expect(code.match(/createRests\(scene, propsFor\(areaId\)\.rests\)/g)).toHaveLength(1);
+  expect(code.match(/createRests\(scene, propsFor\(areaId\)\.rests(, \{ ground \})?\)/g)).toHaveLength(1);
   const solid = code.indexOf('for (const c of rests.colliders) areaData.colliders.push(');
   expect(solid).toBeGreaterThan(code.indexOf('clearSpot(p, areaData.colliders'));
   expect(solid).toBeLessThan(code.indexOf('const session = {'));
