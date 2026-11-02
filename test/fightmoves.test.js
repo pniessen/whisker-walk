@@ -1,7 +1,7 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  FIGHT_MOVES, FIGHT_MOVE_IDS, moveById, earnedMoves, unlockToast, teachFor,
+  FIGHT_MOVES, FIGHT_MOVE_IDS, moveById, earnedMoves, unlockToast, teachFor, takeMoveLines,
 } from '../src/fightmoves.js';
 import { OUTSIDE_WORDS, RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
 
@@ -59,5 +59,19 @@ describe('fight move catalogue', () => {
     const imports = src.match(/^\s*import\s.*$/gm) || [];
     expect(imports).toHaveLength(1);
     expect(imports[0]).toMatch(/\{\s*CLUES\s*\}\s*from\s*['"]\.\/fight\.js['"]/);
+  });
+});
+
+describe('takeMoveLines (final review 1)', () => {
+  it('gives the session\'s move lines once, then clears them', () => {
+    const session = { moveLines: [unlockToast('rearUpSwat'), unlockToast('pin')] };
+    expect(takeMoveLines(session)).toEqual([unlockToast('rearUpSwat'), unlockToast('pin')]);
+    expect(session.moveLines).toBe(null);
+    expect(takeMoveLines(session)).toEqual([]);
+  });
+  it('is safe on a missing session, a Legacy walk (null) or junk', () => {
+    expect(takeMoveLines(null)).toEqual([]);
+    expect(takeMoveLines({ moveLines: null })).toEqual([]);
+    expect(takeMoveLines({ moveLines: ['', 3, 'ok'] })).toEqual(['ok']);
   });
 });

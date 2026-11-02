@@ -1645,8 +1645,10 @@ export function createWalkLifecycle({
     chatWheel.setVisible(true);
     hud.toast('Press 1–9 to chat · Enter for phrases'); // once per walk (startWalk runs once per walk)
     // R18: moves the save granted on load (fights she won before moves
-    // existed) are toasted once, at the next Clan Edition walk.
-    if (isClanEdition(state)) for (const id of progression.takeNewMoves()) hud.toast(unlockToast(id));
+    // existed) are toasted once, at the next Clan Edition walk. The lines wait
+    // on the session (the Ready? card covers toasts); main.js toasts them on
+    // the first engage (takeMoveLines).
+    session.moveLines = isClanEdition(state) ? progression.takeNewMoves().map(unlockToast) : null;
 
     if (session.net) {
       const net = session.net;

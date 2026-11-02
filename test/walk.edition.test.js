@@ -514,9 +514,16 @@ describe('fights teach moves and leave scars (source pins)', () => {
     expect(clan).toContain('scarsFor: (id) => progression.intruderScars(id)');
   });
 
-  it('walk start toasts moves granted on load, Clan Edition only (R18)', () => {
+  it('walk start keeps the moves granted on load on the session, Clan Edition only; main.js toasts them on the first engage (R18, final review 1)', () => {
     const s = src();
-    expect(s).toMatch(/if \(isClanEdition\(state\)\) for \(const id of progression\.takeNewMoves\(\)\) hud\.toast\(unlockToast\(id\)\);/);
+    expect(s).toContain('session.moveLines = isClanEdition(state) ? progression.takeNewMoves().map(unlockToast) : null;');
+    expect(s).not.toMatch(/hud\.toast\(unlockToast\(/);
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    const on = main.indexOf("bus.on('player:lockchange'");
+    const handler = main.slice(on, main.indexOf('});', on));
+    expect(handler).toContain('if (session && locked) {');
+    expect(handler).toContain('for (const moveLine of takeMoveLines(session)) hud.toast(moveLine);');
+    expect(main.split('takeMoveLines(').length - 1).toBe(1);
   });
 
   it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {

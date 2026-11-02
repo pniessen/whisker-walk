@@ -199,6 +199,24 @@ describe('the save', () => {
     const none = base(); delete none.fightsWon; delete none.feats;
     expect(createProgression(mem({ [KEY]: JSON.stringify(none) })).state.fightsWon).toBe(0);
   });
+  it('moves granted on load are saved once they are taken, so the toast never repeats on the next load (final review 1)', () => {
+    const s = base();
+    delete s.fightsWon; delete s.fightMoves;
+    s.feats = { intruder: 4 };
+    const store = mem({ [KEY]: JSON.stringify(s) });
+    const p = createProgression(store);
+    expect(p.takeNewMoves()).toEqual(['rearUpSwat']);
+    expect(JSON.parse(store.getItem(KEY)).fightMoves).toEqual(['rearUpSwat']);
+    expect(createProgression(store).takeNewMoves()).toEqual([]);
+  });
+  it('taking no new moves writes nothing', () => {
+    const writes = [];
+    const store = mem({ [KEY]: JSON.stringify({ ...base(), fightsWon: 4, fightMoves: ['rearUpSwat'] }) });
+    const p = createProgression({ getItem: store.getItem, setItem: (k, v) => { writes.push(k); store.setItem(k, v); } });
+    const before = writes.length;
+    expect(p.takeNewMoves()).toEqual([]);
+    expect(writes.length).toBe(before);
+  });
   it('a save that already has the moves queues nothing', () => {
     const p = withSave({ fightsWon: 4, fightMoves: ['rearUpSwat'] });
     expect(p.takeNewMoves()).toEqual([]);

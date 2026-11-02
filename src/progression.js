@@ -1220,10 +1220,12 @@ export function createProgression(storage) {
       save();
       return true;
     },
-    // Moves granted silently on load, returned once (R18).
+    // Moves granted silently on load, returned once (R18). Taking them saves
+    // the state that holds them, so the next load adds (and toasts) nothing.
     takeNewMoves() {
       const out = pendingMoves;
       pendingMoves = [];
+      if (out.length > 0) save();
       return out;
     },
     // A cat the player can scar: a preset except hagrid, or an existing custom cat.

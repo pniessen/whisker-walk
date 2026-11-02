@@ -28,6 +28,15 @@ export function unlockToast(id) {
   return `New move: ${m.name}! Use it ${m.when === null ? 'on any move' : `when ${m.when}`}.`;
 }
 
+// R18's toasts wait on the session (walk.js sets session.moveLines) until the
+// walk starts: under the Ready? card a toast would never be seen. main.js
+// takes them on the first engage, like housecats.js's takeArrivalLine.
+export function takeMoveLines(session) {
+  const lines = session?.moveLines;
+  if (session) session.moveLines = null;
+  return Array.isArray(lines) ? lines.filter((l) => typeof l === 'string' && l) : [];
+}
+
 export function teachFor(ids) {
   if (!Array.isArray(ids)) return '';
   let out = '';
