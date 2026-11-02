@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -153,6 +153,13 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const base = cat.userData.base;
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
+  // The stalk's tail root rides the body (STALK_TAIL), once the body is where
+  // the long-leg fit left it. Cats with folds only: Hagrid's tail rides his
+  // body already (rideTail).
+  if (state === 'stalk' && cat.userData.parts.legs[0].userData.folds) {
+    const { tail, body } = cat.userData.parts;
+    tail.position.y = body.position.y + STALK_TAIL.DY;
+  }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
@@ -396,6 +403,31 @@ function walkGait(legs, t, moveSpeed, freqK = 1, ampK = 1, ampMax = 0.6) {
 // the back's top at every phase and speed (folds.test.js).
 export const STALK_SWING = 0.3;
 
+// polish-catlooks Task 6 (2026-11-02): the stalk's tail leaves the rump
+// cleanly. The stalk drops the body 10 cm, but the tail hangs on the cat, not
+// the body, so its root ball stayed where it stood: a round bulb 18-22 cm over
+// the rump's end in the side view (folds.test.js 'the stalk reads as one
+// body'). Stalking, the root rides the body (bob included), TAIL_DY above
+// the torso's centre and TAIL_DZ forward of its built place: the root ball
+// sunk into the rump and the tail streaming out of its back, low behind the
+// creeping cat. TAIL_DY 0.02 leaves the root at most -0.3 cm over the rump's
+// line (0.04 stood 1.7 cm over its end).
+const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
+
+// polish-catlooks Task 6 (2026-11-02): the walking stalk swings a crouched leg
+// about its hip pivot, which a long-legged cat carries higher (base.hipY) over
+// the same crouched top (limbs.js FOLDS.crouch, at the lowered hip): Digit's
+// top hangs 31 cm under its pivot against a standard cat's 19, so the same
+// swing rocked its upper legs 1.6 times as far, out through its narrow chest
+// and rump. The swing is scaled by the standard pivot-to-top drop over this
+// rig's, so every cat's crouched top travels alike (exactly 1 on every cat
+// but Digit; Digit's swing is 0.61 of what it was, its paws stepping 0.8 as
+// far as a tabby's).
+function stalkReach(base) {
+  const top = REF_RIG.HIP_Y - FOLDS.crouch.drop;
+  return base.hipY ? (LEGS.HIP_Y - top) / (base.hipY - top) : 1;
+}
+
 // Swimming (sketch A): the legs paddle in diagonal pairs.
 const PADDLE_PHASE = [0, Math.PI, Math.PI, 0];
 
@@ -423,7 +455,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // The sit moves the front hips forward (SIT.foreZ); every other state puts
     // them back where they were built (remembered the first time).
     leg.position.z = leg.userData.hipZ ??= leg.position.z;
+    leg.position.x = leg.userData.hipX ??= leg.position.x; // the stalk brings Digit's in
   }
+  tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
   if (underside) underside.scale.set(1, 1, 1); // the sit flattens it (SIT.chestDepth)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
@@ -568,6 +602,16 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     head.position.set(hx, hy - 0.16, hz - 0.08);
     head.rotation.x = 0.15;
     if (!folds) for (const leg of legs) leg.scale.y = 0.7;
+    else {
+      // polish-catlooks Task 6 (2026-11-02): Digit's torso is 0.8 as wide
+      // (STYLE.body) on the same hips as every cat, so its crouched upper legs
+      // stood 2-3 cm out of its sides however slim the fold (limbs.js
+      // FOLDS.crouch): stalking, each hip comes in by the torso's width share,
+      // the paws with it. 1 on every other cat, which is left as it was.
+      const k = bsx / TORSO.SCALE[0];
+      if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
+      tail.position.z = tail.userData.rootZ + STALK_TAIL.DZ;
+    }
   }
 
   if (state === 'pounce') {
@@ -745,7 +789,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     // the back's own top nearby; folds.test.js). A
     // rig without folds (Hagrid) keeps today's full swing.
     const freq = state === 'stalk' && folds
-      ? walkGait(legs, t, moveSpeed, 1, STALK_SWING, 0.6 * STALK_SWING)
+      ? walkGait(legs, t, moveSpeed, 1, STALK_SWING * stalkReach(base), 0.6 * STALK_SWING * stalkReach(base))
       : walkGait(legs, t, moveSpeed);
     if (!reducedMotion) {
       body.position.y += Math.abs(Math.sin(t * freq)) * 0.028;

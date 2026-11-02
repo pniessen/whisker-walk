@@ -8,6 +8,7 @@ import { POSE_FIT } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
 import { PRESETS, fingerprintCat } from './helpers/catfingerprint.js';
 import { pokes as pokesOf, T1 } from './helpers/catpoke.js';
+import { flankLumps, tailRootAboveRump } from './helpers/catflank.js';
 
 // Legs fold at the joints (body refinement Task 5, R1-R3): sitting tucks the
 // hind legs under the haunch with the foot flat in front, napping and being
@@ -477,4 +478,46 @@ describe('legs fold at the joints (Task 5)', () => {
       expect(dims.pivotY, name).toBeCloseTo(pivotY, 4);
     }
   });
+});
+
+// Task 6, polish-catlooks (2026-11-02): Digit's stalk read as a torso with
+// separate angular lumps at the shoulder and hip (the folded upper legs) and
+// a round bulb at the tail's root above the rump line. The crouch must read
+// as one smooth low body. Measured on Digit and the tabby, full and simple,
+// still and through one stride of the walking stalk (sixteen phases).
+// Before the fix: upper legs up to 3.9-6.0 cm proud of the flank (tabby) and
+// 6.5-8.9 cm (Digit); the tail root 18-22 cm over the rump's end (the stalk
+// dropped the body 10 cm and left the tail where it stood).
+describe('the stalk reads as one body (polish-catlooks Task 6)', () => {
+  const CATS = [['tabby', false], ['tabby', true], ['digit', false], ['digit', true]];
+  const poses = () => {
+    const out = [[1.3, 0], [0.4, 0]];
+    const period = (2 * Math.PI) / (4.5 + 1.5 * 1.4); // walkGait's stride at 1.5
+    for (let k = 0; k < 16; k++) out.push([0.2 + (k / 16) * period, 1.5]);
+    return out;
+  };
+
+  it('the stalk crouch has no separate lumps at shoulder and hip', () => {
+    for (const [name, simple] of CATS) {
+      const cat = make(name, simple);
+      for (const [t, speed] of poses()) {
+        const r = flankLumps(pose(cat, 'stalk', t, speed));
+        const at = `${name}${simple ? ' simple' : ''} stalk t ${t.toFixed(3)} speed ${speed}: ${r.at}`;
+        expect(r.checked, at).toBeGreaterThan(100);
+        expect(r.worst, at).toBeLessThanOrEqual(0.012);
+      }
+    }
+  }, 120_000);
+
+  it('the tail root does not bulge above the rump in the stalk', () => {
+    for (const [name, simple] of CATS) {
+      const cat = make(name, simple);
+      for (const [t, speed] of poses()) {
+        const r = tailRootAboveRump(pose(cat, 'stalk', t, speed));
+        const at = `${name}${simple ? ' simple' : ''} stalk t ${t.toFixed(3)} speed ${speed}: ${r.at}`;
+        expect(r.checked, at).toBeGreaterThan(10);
+        expect(r.worst, at).toBeLessThanOrEqual(0.01);
+      }
+    }
+  }, 120_000);
 });
