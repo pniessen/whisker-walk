@@ -6,12 +6,14 @@ function fakeParam(v = 1) {
   // oscillator's pitch that way rather than by assigning .value, so it is the
   // only place the note actually is. Additive — .value keeps meaning what it
   // always did (see the master-gain assertion below).
+  // `events` records every scheduling call in order, [kind, value, time].
   const p = {
     value: v,
     scheduled: [],
-    setValueAtTime(x) { p.scheduled.push(x); },
-    linearRampToValueAtTime() {},
-    exponentialRampToValueAtTime() {},
+    events: [],
+    setValueAtTime(x, t) { p.scheduled.push(x); p.events.push(['set', x, t]); },
+    linearRampToValueAtTime(x, t) { p.events.push(['linear', x, t]); },
+    exponentialRampToValueAtTime(x, t) { p.events.push(['exp', x, t]); },
   };
   return p;
 }
@@ -413,6 +415,16 @@ describe('layered ambience', () => {
         for (const g of gains) {
           expect(g.gain.scheduled.length).toBeGreaterThan(0);
           for (const v of g.gain.scheduled) expect(v).toBeLessThanOrEqual(0.02 * cave + 1e-12);
+          // final review M1: no hard onset. The gain starts near 0 and ramps
+          // up over a few milliseconds to at most 0.02, then fades out.
+          const [first, second] = g.gain.events;
+          expect(first[0]).toBe('set');
+          expect(first[1]).toBeLessThanOrEqual(1e-3);
+          expect(second[0]).toBe('linear');
+          expect(second[1]).toBeLessThanOrEqual(0.02 * cave + 1e-12);
+          expect(second[1]).toBeGreaterThan(0);
+          expect(second[2] - first[2]).toBeGreaterThanOrEqual(0.005);
+          expect(second[2] - first[2]).toBeLessThanOrEqual(0.012);
         }
       }
     }

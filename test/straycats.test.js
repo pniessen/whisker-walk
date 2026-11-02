@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import {
   createStrayCats, friendRungCrossed, friendRungs, isGrudgeableStray, CAT_NAMES, legendPulse, strayStream,
@@ -1736,15 +1737,65 @@ describe('createStrayCats — homes (Gorge part 3, C8)', () => {
   });
 
   it('with no homes, every stray is exactly as before', () => {
+    // Pinned from the pre-homes code (690c39d, before part 3): the cast,
+    // where each stands and faces, its personality and timer, at spawn and
+    // after 10 s of wandering, rounded to 1e-6 and hashed, for three seeds;
+    // and the first four of seed 7 written out.
+    const PINNED = {
+      1: 'f2c3186b4f98dfe59eb5daa4a14610d475449b722ab38b3c1f7e226578303dac',
+      7: 'd46e7c3745c2f20fb06bd42ed510422a8162c0ab83cc6f4d25c33498cbc1ee88',
+      22: '7e48749a73603a29f8886b88d430ca0a4aa1e5022c1b811a73145a29d40b5364',
+    };
+    const r6 = (rows) => rows.map((row) => row.map((v) => (typeof v === 'number' ? +v.toFixed(6) : v)));
     for (const seed of [1, 7, 22]) {
-      const a = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed), { roomSeed: seed });
-      const b = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed), { roomSeed: seed, homes: [] });
-      expect(b.strays.map(look)).toEqual(a.strays.map(look));
-      for (let f = 0; f < 300; f++) {
-        a.update(1 / 30, f / 30, FAR, NO_OPTS);
-        b.update(1 / 30, f / 30, FAR, NO_OPTS);
+      for (const opts of [{ roomSeed: seed }, { roomSeed: seed, homes: [] }]) {
+        const c = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed), opts);
+        const spawn = r6(c.strays.map(look));
+        if (seed === 7) {
+          expect(spawn.slice(0, 4).map((r) => [r[0], r[1], r[2]])).toEqual([
+            ['Doppler', 31.235482, 14.229676],
+            ['Churro', -25.284616, -25.669472],
+            ['Pepper', 9.254612, -11.426035],
+            ['Tofu', 3.351085, 22.860427],
+          ]);
+        }
+        for (let f = 0; f < 300; f++) c.update(1 / 30, f / 30, FAR, NO_OPTS);
+        const after = r6(c.strays.map(look));
+        expect(createHash('sha256').update(JSON.stringify({ spawn, after })).digest('hex'), `seed ${seed}`).toBe(PINNED[seed]);
       }
-      expect(b.strays.map(look)).toEqual(a.strays.map(look));
+    }
+  });
+
+  it('a homed playful stray chases a toy only within its roam', () => {
+    // A constant 0.4 rolls 'playful' for the first stray. The toy lies 5 m
+    // from home, well inside a stray's 8 m reach for it.
+    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+    const [s] = cats.strays;
+    expect(s.personality).toBe('playful');
+    const toy = { active: true, mesh: { position: new THREE.Vector3(HOME.x + 5, 0, HOME.z) }, bat() {} };
+    let toward = 0;
+    for (let f = 0; f < 600; f++) {
+      cats.update(1 / 30, f / 30, FAR, { ...NO_OPTS, toy });
+      const p = s.group.position;
+      expect(Math.hypot(p.x - HOME.x, p.z - HOME.z), `frame ${f}`).toBeLessThanOrEqual(HOME.roam + 1e-9);
+      if (s.target) expect(Math.hypot(s.target.x - HOME.x, s.target.z - HOME.z), `frame ${f}`).toBeLessThanOrEqual(HOME.roam + 1e-9);
+      toward = Math.max(toward, p.x - HOME.x);
+    }
+    expect(toward).toBeGreaterThan(1.5); // it did run for the toy, to near the end of its roam
+  });
+
+  it('a homed stray\'s recoil never pushes it past its roam', () => {
+    const cats = createStrayCats(fakeScene(), AREA, 1, () => 0.4, { homes: [HOME] });
+    const [s] = cats.strays;
+    // at the edge of its roam, and she stands on its home side
+    s.group.position.set(HOME.x + HOME.roam, 0, HOME.z);
+    cats.turnHostile(s, new THREE.Vector3(HOME.x, 0, HOME.z));
+    expect(s.state).toBe('cross');
+    expect(Math.hypot(s.group.position.x - HOME.x, s.group.position.z - HOME.z)).toBeLessThanOrEqual(HOME.roam + 1e-9);
+    for (let f = 0; f < 300; f++) {
+      cats.update(1 / 30, f / 30, FAR, NO_OPTS);
+      const p = s.group.position;
+      expect(Math.hypot(p.x - HOME.x, p.z - HOME.z), `frame ${f}`).toBeLessThanOrEqual(HOME.roam + 1e-9);
     }
   });
 

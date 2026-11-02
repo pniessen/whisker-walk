@@ -83,7 +83,9 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     return ctx;
   }
 
-  function tone(freq, dur, { type = 'sine', gain = 0.12, slideTo = null, delay = 0 } = {}) {
+  // `attack` (seconds) ramps the gain up from silence instead of starting at
+  // full gain; 0 (every caller but the cave drips) is the old hard start.
+  function tone(freq, dur, { type = 'sine', gain = 0.12, slideTo = null, delay = 0, attack = 0 } = {}) {
     if (muted) return;
     const ac = ensure();
     const osc = ac.createOscillator();
@@ -92,7 +94,12 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     const t0 = ac.currentTime + delay;
     osc.frequency.setValueAtTime(freq, t0);
     if (slideTo) osc.frequency.linearRampToValueAtTime(slideTo, t0 + dur);
-    g.gain.setValueAtTime(gain, t0);
+    if (attack > 0) {
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(gain, t0 + attack);
+    } else {
+      g.gain.setValueAtTime(gain, t0);
+    }
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     osc.connect(g).connect(master);
     osc.start(t0);
@@ -322,8 +329,10 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
 
   // Gorge part 3 (C7): soft drips in a cave. A high plink at random gaps of
   // 0.8-2.2 s, never a beat, at gain 0.02 x mix.cave: silent while cave is 0
-  // (everywhere outside a cave), and never louder than 0.02. Math.random is
-  // right here: audio is per-device and never on the wire.
+  // (everywhere outside a cave), and never louder than 0.02, each fading in
+  // over DRIP_ATTACK (review M1). Math.random is right here: audio is
+  // per-device and never on the wire.
+  const DRIP_ATTACK = 0.008; // seconds: a soft start, never a click
   function dripLayer() {
     let cave = 0;
     let id = null;
@@ -331,7 +340,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     const schedule = () => {
       id = setTimeout(() => {
         if (stopped) return;
-        if (!muted && cave > 0) tone(1800 + 600 * Math.random(), 0.05, { gain: 0.02 * cave });
+        if (!muted && cave > 0) tone(1800 + 600 * Math.random(), 0.05, { gain: 0.02 * cave, attack: DRIP_ATTACK });
         schedule();
       }, 800 + Math.random() * 1400);
     };

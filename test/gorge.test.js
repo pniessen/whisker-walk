@@ -694,11 +694,12 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
   // put exactly where catcam.cameraOffset puts it: it is inside no pine (a
   // trunk, or a cone as wide as builder.js draws it at that height).
   //
-  // Not asserted (the Pines' precedent): step 2 with the view dragged right
-  // down to pitch -0.25. The camera hangs 6.8 m back and low there, past the
-  // default camera's reach plus a metre that gorge.js keeps (CAM_CLEAR), and
-  // can graze the bottom cone of a pine 8 m off; keeping clear of that too
-  // would leave the floor fewer than eight near pines.
+  // Not asserted (a Gorge-only exception: the Pines' test leaves out step 3,
+  // not this): step 2 with the view dragged right down to pitch -0.25. The
+  // camera hangs 6.8 m back and low there, past the default camera's reach
+  // plus a metre that gorge.js keeps (CAM_CLEAR), and can graze the bottom
+  // cone of a pine 8 m off; keeping clear of that too would leave the floor
+  // fewer than eight near pines.
   it('the chase camera at a cave or den mouth or a scenic is inside no pine', () => {
     const { near } = gorgeTrees();
     const solidR = (y) => {
