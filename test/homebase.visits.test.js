@@ -210,6 +210,43 @@ describe('the welcome line beside the head', () => {
     expect(parseFloat(line.style.left)).toBeGreaterThan(0 + 390 / 2);
   });
 
+  it('mirrors to the left of the head when there is no room on the right', () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    // A scrollbar: innerWidth counts it, the page's clientWidth does not.
+    doc.defaultView.innerWidth = 315;
+    doc.documentElement = { clientWidth: 300 };
+    const stageEl = fakeEl(doc);
+    stageEl.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 400, right: 300 });
+    doc.root.querySelector = (sel) => (sel === '#dr-stage' ? stageEl : null);
+    hb.showVisit(visit, { onClosed: () => {} });
+    const line = doc.body.children.find((c) => c.className === 'visit-welcome');
+    expect(line.attrs['data-side']).toBe('left');
+    expect(line.style.left).toBe('auto');
+    expect(line.style.right).toMatch(/^\d+px$/);
+    const headHalf = Math.min(90, 300 * 0.17);
+    const bubbleRight = 300 - parseFloat(line.style.right); // measured from the page's own width
+    expect(bubbleRight).toBeLessThanOrEqual(150 - headHalf);
+    expect(bubbleRight).toBeGreaterThan(150 - headHalf - 2);
+    expect(parseFloat(line.style.maxWidth)).toBeGreaterThanOrEqual(120);
+  });
+
+  it('never goes up over an open sheet or the cat builder', () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    hb.showVisit(visit, { onClosed: () => {} });
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+    dressingMock.opts.onOpenSheet(null);
+    dressingMock.ui = { builder: { breed: 'tabby' } };
+    hb.showVisit(visit, { onClosed: () => {} });
+    expect(doc.body.children.find((c) => c.className === 'visit-welcome')).toBe(undefined);
+  });
+
   it('goes at once when the cat builder opens', () => {
     const { line } = plainVisit();
     dressingMock.ui = { builder: { breed: 'tabby' } };
@@ -321,5 +358,57 @@ describe('the visit badge style', () => {
   it('marks a milestone badge', () => {
     expect(visitBadgeHtml(30)).toContain('class="dr-chip visit milestone"');
     expect(visitBadgeHtml(23)).toContain('class="dr-chip visit"');
+  });
+});
+
+describe('Settings keeps keyboard focus across its re-render', () => {
+  // The focused control is in the sheet until the re-render replaces it.
+  function focusOn(id) {
+    const old = { id };
+    doc.activeElement = old;
+    const st = { fresh: null, rebuilt: false };
+    let html = doc.root.innerHTML;
+    Object.defineProperty(doc.root, 'innerHTML', {
+      get: () => html, set: (v) => { html = v; st.rebuilt = true; }, configurable: true,
+    });
+    doc.root.contains = (el) => (el === old && !st.rebuilt) || (st.fresh != null && el === st.fresh);
+    doc.root.querySelector = (sel) => {
+      if (sel !== `#${id}`) return null;
+      st.fresh = { id, focus: vi.fn(() => { doc.activeElement = st.fresh; }) };
+      return st.fresh;
+    };
+    return st;
+  }
+  it('a switch keeps focus after it is toggled', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-muted');
+    doc.root.listeners.click({ target: { id: 'set-muted', checked: true, dataset: {}, closest: () => null } });
+    expect(st.rebuilt).toBe(true);
+    expect(doc.activeElement).toBe(st.fresh);
+    expect(doc.activeElement.id).toBe('set-muted');
+    expect(st.fresh.focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it('a select keeps focus after it changes', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-quality');
+    doc.root.listeners.change({ target: { id: 'set-quality', value: 'low', dataset: {}, closest: () => null } });
+    expect(st.rebuilt).toBe(true);
+    expect(doc.activeElement).toBe(st.fresh);
+  });
+
+  it('nothing focused in the sheet, nothing is focused after', () => {
+    const { hb } = setup();
+    hb.show();
+    dressingMock.opts.onOpenSheet('settings');
+    const st = focusOn('set-muted');
+    doc.activeElement = doc.body; // focus is elsewhere
+    doc.root.listeners.click({ target: { id: 'set-muted', checked: true, dataset: {}, closest: () => null } });
+    expect(st.fresh).toBe(null);
+    expect(doc.activeElement).toBe(doc.body);
   });
 });

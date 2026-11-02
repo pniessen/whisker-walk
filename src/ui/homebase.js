@@ -662,7 +662,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   }
   function showWelcome(text) {
     closeWelcome();
-    if (!text || !homeVisible()) return;
+    if (!text || !homeVisible() || openSheet || dressing?.ui?.builder) return;
     welcomeEl = document.createElement('div');
     welcomeEl.className = 'visit-welcome';
     welcomeEl.setAttribute('role', 'status');
@@ -685,7 +685,11 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         welcomeEl.style.maxWidth = `${Math.round(Math.max(120, right - x - 10))}px`;
       } else {
         const xl = mid - headHalf;
-        const vw = document.defaultView?.innerWidth ?? (typeof window !== 'undefined' ? window.innerWidth : right);
+        // The page's own width, without a scrollbar: `right` is measured from
+        // the same edge the bubble's box is.
+        const vw = document.documentElement?.clientWidth
+          || document.defaultView?.innerWidth
+          || (typeof window !== 'undefined' ? window.innerWidth : right);
         welcomeEl.setAttribute('data-side', 'left');
         welcomeEl.style.left = 'auto';
         welcomeEl.style.right = `${Math.round(vw - xl)}px`;
@@ -847,7 +851,26 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     }
   }
 
+  // A re-render rebuilds the controls, so the one she was on (a Settings
+  // switch, a select) would lose keyboard focus: put it back on its twin.
+  function focusedId() {
+    try {
+      const a = document.activeElement;
+      return a && a.id && root.contains?.(a) ? a.id : null;
+    } catch { return null; }
+  }
+  function refocus(id) {
+    if (!id) return;
+    try {
+      const a = document.activeElement;
+      if (a && a.id === id && root.contains?.(a)) return; // already there (the dressing room put it back)
+      const sel = typeof CSS !== 'undefined' && CSS.escape ? `#${CSS.escape(id)}` : (/^[\w-]+$/.test(id) ? `#${id}` : null);
+      if (sel) root.querySelector(sel)?.focus?.({ preventScroll: true });
+    } catch { /* focus is a nicety */ }
+  }
+
   function render() {
+    const fid = focusedId();
     // The welcome line belongs to the cat on the home screen: a sheet or the
     // cat builder sends it away at once.
     if (openSheet || dressing?.ui?.builder) closeWelcome();
@@ -878,6 +901,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           ${startRowHtml(roomState)}
         </footer>
       </div>`;
+      refocus(fid);
       if (stage) stage.setVisible(false); // no frames for a cat nobody can see
       syncPairingPoll();
       if (cloud && cloud.available && openSheet === 'social') loadPlayerPets();
@@ -927,6 +951,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     });
     room.afterRender(root);
     room.restoreFocus(root, f);
+    refocus(fid);
     stage.setVisible(shown);
     syncPairingPoll();
   }
