@@ -1323,7 +1323,30 @@ body.den-shop-open .chat-wheel { display: none !important; }
 }
 .fight-move:active { transform: scale(0.97); }
 .fight-moves.idle .fight-move { opacity: 0.6; }
+/* Owned special moves: a smaller row above the three big buttons (>= 48 px).
+   Expected portrait sheet with four specials (390x844, 34 px home bar): 10 pad
+   + 120 top + 52 specials + 88 moves + ~30 teach (2 lines) + 3x8 gaps + 46 pad
+   = ~370 px <= 46vh (388). On 375x667 (46vh = 307) the short-portrait rule
+   below trims the top block: ~280 px. */
+.fight-specials { display: flex; flex-direction: row; gap: 6px; width: 100%; }
+.fight-special {
+  flex: 1 1 0; min-width: 0; min-height: 48px; padding: 2px 4px;
+  border: 0; border-radius: 12px; background: #e8a33d; color: #3a2a10;
+  font: inherit; font-size: 0.85rem; font-weight: 800; line-height: 1.1; cursor: pointer;
+}
+.fight-special:active { transform: scale(0.97); }
+.fight-special.used, .fight-special:disabled { opacity: 0.35; cursor: default; transform: none; }
 .fight-teach { font-size: 0.8rem; opacity: 0.8; text-align: center; }
+.hud-fight.has-specials .fight-teach {
+  font-size: 0.72rem; max-height: 2.6em; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+/* Short portrait phones (375x667): shrink the clue block so four specials fit
+   in 46vh (307 px): 10 + (20 pips + 48 icon + 4) + 52 + 88 + ~26 + 24 + 12 = ~284. */
+@media (min-height: 501px) and (max-height: 760px) {
+  .hud-fight.has-specials .fight-top { min-height: 0; }
+  .hud-fight.has-specials .fight-clue-icon { font-size: 48px; }
+}
 #hud.fighting .tui-actions, #hud.fighting .tui-zoom { display: none; }
 /* The chat wheel (and its tray) is fixed in <body> at z-index 5, above the
    sheet's layer: it steps aside for the fight. */
@@ -1332,7 +1355,7 @@ body.fighting .chat-wheel { display: none !important; }
    tray opens). Only the body is marked: #hud keeps its action buttons and
    zoom while the kid decides. */
 body.fight-asking .chat-wheel { display: none !important; }
-#hud.fighting .hud-toasts { bottom: calc(290px + env(safe-area-inset-bottom)); }
+#hud.fighting .hud-toasts { bottom: calc(290px + env(safe-area-inset-bottom)); bottom: calc(var(--fight-sheet-h, 290px) + 8px); }
 /* Each button's key, for a pointer-locked desktop cat; touch has no keys. */
 .fight-key {
   display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px;
@@ -1359,6 +1382,17 @@ body.touch-mode .fight-key { display: none; }
   .hud-fight .fight-moves { grid-area: moves; flex-direction: row; width: auto; }
   .hud-fight .fight-move { min-height: clamp(64px, 22vh, 88px); min-width: 0; }
   .hud-fight .fight-teach { grid-area: teach; font-size: 0.7rem; text-align: left; }
+  /* With specials: the left column is clue / specials / teach. Expected height
+     at 375x667-landscape (375 tall, 46vh = 172): 6 pad + ~76 top (pips, line,
+     36 px icon) + 44 specials + ~14 teach + 3x2 gaps + 8 pad = ~154 px; the
+     moves column is 82 px so the left column sets the height. 667x375: same. */
+  .hud-fight.has-specials {
+    grid-template-areas: "top moves" "specials moves" "teach moves"; max-height: 46vh;
+  }
+  .hud-fight .fight-specials { grid-area: specials; width: auto; }
+  .hud-fight .fight-special { min-height: 44px; font-size: 0.72rem; }
+  .hud-fight.has-specials .fight-teach { font-size: 0.65rem; max-height: 1.4em; -webkit-line-clamp: 1; }
+  #hud.fighting:has(.hud-fight.has-specials) .hud-toasts { bottom: calc(46vh + 8px); }
   /* toasts centred just above the sheet's top edge, never over a move */
   #hud.fighting .hud-toasts { bottom: calc(40vh + 8px); left: 50%; max-width: calc(100vw - 32px); }
 }

@@ -16,6 +16,7 @@
 import { BUTTONS } from '../fight.js';
 import { clanName } from '../clanhomes.js';
 import { escapeHtml } from '../game/util.js';
+import { teachFor } from '../fightmoves.js';
 
 export const FIGHT_TEACH = 'Crouch → Dodge · Paw up → Pounce · Backs up → Swipe';
 export const FIGHT_READ = 'Read its move!';
@@ -40,7 +41,23 @@ const pips = (n) => {
   return [0, 1].map((i) => (i < on ? '<span class="pip on">🐾</span>' : '<span class="pip">🐾</span>')).join('');
 };
 
-export function renderFightHtml({ phase, clue, wins, losses, line } = {}) {
+// The specials worth drawing: at most four (keys 4-7), plain-letter ids that
+// are not one of the three basic buttons, each once.
+const MAX_SPECIALS = 4;
+function cleanSpecials(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const s of list) {
+    if (out.length >= MAX_SPECIALS) break;
+    if (!s || typeof s.id !== 'string' || !/^[A-Za-z]{2,24}$/.test(s.id)) continue;
+    if (BUTTONS.includes(s.id) || out.some((o) => o.id === s.id)) continue;
+    out.push({ id: s.id, name: typeof s.name === 'string' ? s.name : s.id, used: s.used === true });
+  }
+  return out;
+}
+
+export function renderFightHtml({ phase, clue, wins, losses, line, specials = [] } = {}) {
+  const sp = cleanSpecials(specials);
   const showClue = phase === 'clue' && clue && typeof clue.icon === 'string';
   const head = typeof line === 'string' && line ? line : showClue ? '' : FIGHT_READ;
   const idle = phase === 'clue' ? '' : ' idle';
@@ -51,10 +68,15 @@ export function renderFightHtml({ phase, clue, wins, losses, line } = {}) {
       ? `<div class="fight-clue"><span class="fight-clue-icon">${escapeHtml(clue.icon)}</span><span class="fight-clue-text">${escapeHtml(clue.text)}</span></div>`
       : '')
     + '</div>'
+    + (sp.length
+      ? '<div class="fight-specials">'
+        + sp.map((m, i) => `<button type="button" class="fight-special${m.used ? ' used' : ''}" data-move="${m.id}"${m.used ? ' disabled' : ''}>${escapeHtml(m.name)}<span class="fight-key">${BUTTONS.length + 1 + i}</span></button>`).join('')
+        + '</div>'
+      : '')
     + `<div class="fight-moves${idle}">`
     + BUTTONS.map((b, i) => `<button type="button" class="fight-move" data-move="${b}">${MOVE_LABELS[b]}<span class="fight-key">${i + 1}</span></button>`).join('')
     + '</div>'
-    + `<div class="fight-teach">${escapeHtml(FIGHT_TEACH)}</div>`;
+    + `<div class="fight-teach">${escapeHtml(FIGHT_TEACH + (sp.length ? teachFor(sp.map((m) => m.id)) : ''))}</div>`;
 }
 
 export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, onMove = () => {} } = {}) {
@@ -62,6 +84,7 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
   let sheet = null;
   let lastSheetHtml = null;
   let showing = null;
+  let shownSpecials = [];   // [{ id, used }] on the sheet now: the only specials a tap or key can play
 
   const onClick = (e) => {
     const el = e?.target?.closest?.('[data-fight], [data-move]');
@@ -70,7 +93,10 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
     const move = el.getAttribute('data-move');
     if (go === 'go' && showing === 'challenge') onFight();
     else if (go === 'off' && showing === 'challenge') onBackOff();
-    else if (move && showing === 'fight' && BUTTONS.includes(move)) onMove(move);
+    else if (move && showing === 'fight') {
+      if (BUTTONS.includes(move)) onMove(move);
+      else if (shownSpecials.some((m) => m.id === move && !m.used)) onMove(move);
+    }
   };
 
   // The body gets `fight-asking` / `fighting` too: the chat wheel is fixed in
@@ -88,6 +114,8 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
     if (sheet) sheet.remove();
     sheet = null;
     lastSheetHtml = null;
+    shownSpecials = [];
+    root.style?.removeProperty?.('--fight-sheet-h');
     root.classList.remove('fighting');
     body()?.classList?.remove('fighting');
   }
@@ -118,9 +146,14 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
       // Redrawn only when it changes: a button replaced between a finger
       // going down and coming up would lose the tap.
       const html = renderFightHtml(model);
+      shownSpecials = cleanSpecials(model?.specials);
       if (html !== lastSheetHtml) {
         sheet.innerHTML = html;
+        sheet.classList.toggle('has-specials', shownSpecials.length > 0);
         lastSheetHtml = html;
+        // The fight toasts sit just above the sheet, whatever height it has.
+        const h = sheet.offsetHeight;
+        if (h > 0) root.style?.setProperty?.('--fight-sheet-h', `${Math.round(h)}px`);
       }
       root.classList.add('fighting');
       body()?.classList?.add('fighting');
@@ -143,6 +176,10 @@ export function createFightUi(root, { onFight = () => {}, onBackOff = () => {}, 
       if (showing === 'fight') {
         const i = ['1', '2', '3'].indexOf(key);
         if (i >= 0) onMove(BUTTONS[i]);
+        else {
+          const s = shownSpecials['4567'.indexOf(key)];
+          if (key.length === 1 && s && !s.used) onMove(s.id);
+        }
         return true;
       }
       return false;

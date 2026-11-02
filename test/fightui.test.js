@@ -246,3 +246,125 @@ describe('the sheet on a phone (style.css)', () => {
     expect(rule('.hud-fight')).toContain('env(safe-area-inset-right)');
   });
 });
+
+describe('the specials row', () => {
+  const clue = { phase: 'clue', clue: CLUES.pounce, round: 1, wins: 0, losses: 0, line: null };
+  const SP = [
+    { id: 'pin', name: 'Pin', hint: 'x', used: false },
+    { id: 'rearUpSwat', name: 'Rear-up Swat', hint: 'x', used: true },
+    { id: 'leapScratch', name: 'Leap and Scratch', hint: 'x', used: false },
+  ];
+  const specialIds = (html) => [...html.matchAll(/class="fight-special[^"]*" data-move="([A-Za-z]+)"/g)].map((m) => m[1]);
+
+  test('with no specials the HTML is byte-identical to today\'s', () => {
+    for (const m of PHASES) {
+      expect(renderFightHtml({ ...m, specials: [] })).toBe(renderFightHtml(m));
+      expect(renderFightHtml({ ...m, specials: undefined })).toBe(renderFightHtml(m));
+      expect(renderFightHtml(m)).not.toContain('fight-special');
+    }
+  });
+
+  test('a row before the three buttons, keys 4 and up, a spent one disabled', () => {
+    const html = renderFightHtml({ ...clue, specials: SP });
+    expect(html.indexOf('fight-specials')).toBeGreaterThan(html.indexOf('fight-top'));
+    expect(html.indexOf('fight-specials')).toBeLessThan(html.indexOf('class="fight-moves'));
+    expect(specialIds(html)).toEqual(['pin', 'rearUpSwat', 'leapScratch']);
+    expect(html).toMatch(/data-move="pin">Pin<span class="fight-key">4<\/span>/);
+    expect(html).toMatch(/data-move="leapScratch">Leap and Scratch<span class="fight-key">6<\/span>/);
+    expect(html).toMatch(/class="fight-special used" data-move="rearUpSwat" disabled>/);
+    expect((html.match(/ disabled/g) ?? []).length).toBe(1);
+    expect(movesOf(html).slice(-3)).toEqual(BUTTONS);
+  });
+
+  test('the teach line lists the owned specials, short', () => {
+    const html = renderFightHtml({ ...clue, specials: SP });
+    const teach = html.slice(html.indexOf('fight-teach'));
+    expect(teach).toContain(FIGHT_TEACH);
+    expect(teach).toContain('⬇️ → Pin');
+    expect(teach).toContain('→ Rear-up Swat');
+    expect(teach).toContain('→ Leap and Scratch');
+  });
+
+  test('labels are escaped; at most four are drawn', () => {
+    const html = renderFightHtml({ ...clue, specials: [{ id: 'pin', name: '<img src=x>', used: false }] });
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img');
+    const many = ['pin', 'leapScratch', 'rearUpSwat', 'rollingTumble', 'pin'].map((id) => ({ id, name: id, used: false }));
+    expect(specialIds(renderFightHtml({ ...clue, specials: many })).length).toBe(4);
+  });
+
+  test('hostile ids never reach the markup', () => {
+    const html = renderFightHtml({ ...clue, specials: [{ id: '"><b>', name: 'x', used: false }, { id: 'pin', name: 'Pin' }] });
+    expect(html).not.toContain('<b>');
+    expect(specialIds(html)).toEqual(['pin']);
+  });
+
+  test('taps and keys 4-7 reach the shown specials only; a spent one does nothing', () => withDoc(() => {
+    const root = new FakeEl();
+    const onMove = vi.fn();
+    const ui = createFightUi(root, { onMove });
+    ui.showFight({ ...clue, specials: SP });
+    ui.key('4'); ui.key('5'); ui.key('6'); ui.key('7');
+    expect(onMove.mock.calls.map((c) => c[0])).toEqual(['pin', 'leapScratch']);
+    onMove.mockClear();
+    const sheet = root.children[0];
+    sheet.clickOn('data-move', 'pin');
+    sheet.clickOn('data-move', 'rearUpSwat');
+    sheet.clickOn('data-move', 'rollingTumble');   // not shown
+    sheet.clickOn('data-move', 'toString');
+    expect(onMove.mock.calls.map((c) => c[0])).toEqual(['pin']);
+    expect(ui.key('7')).toBe(true);
+  }));
+
+  test('a special from an earlier sheet is forgotten when the next has none', () => withDoc(() => {
+    const root = new FakeEl();
+    const onMove = vi.fn();
+    const ui = createFightUi(root, { onMove });
+    ui.showFight({ ...clue, specials: SP });
+    ui.showFight(clue);
+    ui.key('4');
+    root.children[0].clickOn('data-move', 'pin');
+    expect(onMove).not.toHaveBeenCalled();
+    expect(root.children[0].cls.has('has-specials')).toBe(false);
+  }));
+
+  test('--fight-sheet-h follows the measured sheet and goes on hide', () => withDoc(() => {
+    const props = {};
+    const root = new FakeEl();
+    root.style = { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } };
+    const ui = createFightUi(root, {});
+    ui.showFight({ ...clue, specials: SP });
+    root.children[0].offsetHeight = 301;
+    ui.showFight({ ...clue, specials: SP, line: 'again' });
+    expect(props['--fight-sheet-h']).toBe('301px');
+    expect(root.children[0].cls.has('has-specials')).toBe(true);
+    ui.hide();
+    expect(props['--fight-sheet-h']).toBeUndefined();
+  }));
+});
+
+describe('the specials row on a phone (style.css)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const rule = (sel) => {
+    const at = css.indexOf(`${sel} {`);
+    return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+  };
+  test('portrait: a row of at least 48 px; the basic buttons keep 88', () => {
+    expect(rule('.fight-special')).toMatch(/min-height: (4[89]|5\d)px/);
+    expect(rule('.fight-move')).toMatch(/min-height: (8[89]|9\d)px/);
+    expect(rule('.fight-specials')).toContain('display: flex');
+  });
+  test('landscape: a specials grid area under the clue, at least 44 px, Part 2 clamp kept', () => {
+    const at = css.indexOf('@media (max-height: 500px) {\n  .hud-fight');
+    const block = css.slice(at, css.indexOf('\n}\n', at));
+    expect(block).toContain('.hud-fight.has-specials');
+    expect(block).toMatch(/"top moves" "specials moves" "teach moves"/);
+    expect(block).toMatch(/\.fight-special \{[^}]*min-height: 44px/);
+    expect(block).toMatch(/\.fight-special \{[^}]*grid-area|\.fight-specials \{[^}]*grid-area: specials/);
+    expect(block).toContain('min-height: clamp(64px, 22vh, 88px)');
+    expect(block).toMatch(/has-specials[^{]*\{[^}]*max-height: 46vh/);
+  });
+  test('toasts follow the measured sheet', () => {
+    expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*var\(--fight-sheet-h/);
+  });
+});
