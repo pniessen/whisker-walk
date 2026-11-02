@@ -254,8 +254,6 @@ export function campDressing(areaId, colliders = []) {
 const DOORWAY = 0x140f0a;
 const ROCK_GREY = 0x8e8c88; // builder.tor's grey, the territories' rock
 const DEN_SQUASH = 0.8;
-// The ledge den's bedding: a flat disc of dry stuff under each elder and kit.
-const BEDDING = { r: 0.45, h: 0.06, segments: 12, color: 0x9a7a4a };
 
 // The flat camps' look (polish-camps). Every number below is drawn from a
 // position hash or from campDressing, never from walkRng or Math.random.
@@ -546,15 +544,21 @@ function clearingMesh(clearing) {
 
 // The nests: a squashed moss ring under each elder and kit, dry bracken in
 // its hollow. One vertex-coloured mesh, out of the shadow pass.
-function nestsMesh(nests) {
+function nestsMesh(nests, groundY = () => 0, flat = 1) {
   const parts = [];
+  // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
+  // low enough, under 0.1 m, that the contact-shadow scan gives the bedding no
+  // decal).
+  const press = (m, gy) => (flat === 1 ? m : m.premultiply(new THREE.Matrix4().makeTranslation(0, -gy, 0))
+    .premultiply(new THREE.Matrix4().makeScale(1, flat, 1)).premultiply(new THREE.Matrix4().makeTranslation(0, gy, 0)));
   for (const n of nests) {
+    const gy = groundY(n.x, n.z);
     const ring = new THREE.TorusGeometry(NEST.r, NEST.tube, 4, 10);
     const sy = NEST.squash;
-    parts.push(bake(ring, place(n.x, NEST.tube * sy, n.z, 1, sy, 1, hash01(n.x, 0, n.z, 13) * Math.PI, Math.PI / 2),
+    parts.push(bake(ring, press(place(n.x, gy + NEST.tube * sy, n.z, 1, sy, 1, hash01(n.x, 0, n.z, 13) * Math.PI, Math.PI / 2), gy),
       (vx, vy, vz, c) => c.setHex(NEST.moss).multiplyScalar(0.8 + 0.35 * hash01(vx, vy, vz, 14))));
     const hollow = new THREE.CircleGeometry(NEST.r - 0.02, 10);
-    parts.push(bake(hollow, place(n.x, 0.03, n.z, 1, 1, 1, 0, -Math.PI / 2),
+    parts.push(bake(hollow, press(place(n.x, gy + 0.03, n.z, 1, 1, 1, 0, -Math.PI / 2), gy),
       (vx, vy, vz, c) => c.setHex(NEST.bracken).multiplyScalar(0.85 + 0.25 * hash01(vx, vy, vz, 15))));
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial({ roughness: 0.9 }));
@@ -568,7 +572,7 @@ function nestsMesh(nests) {
 // The fresh-kill pile: two mice and a bird side by side and a vole on top,
 // small lumps with a head (and a tail for the mice), all within ~0.3 m of the
 // spot and under 0.2 m tall. One vertex-coloured mesh, out of the shadow pass.
-function killMesh(kill) {
+function killMesh(kill, groundY = () => 0) {
   const parts = [];
   const turn = hash01(kill.x, 0, kill.z, 16) * Math.PI * 2;
   const lump = (ox, y, oz, sx, sy, sz, yaw, hex) => {
@@ -576,7 +580,7 @@ function killMesh(kill) {
     const sn = Math.sin(turn);
     const x = kill.x + ox * cs - oz * sn;
     const z = kill.z + ox * sn + oz * cs;
-    parts.push(bake(new THREE.IcosahedronGeometry(1, 0), place(x, y, z, sx, sy, sz, yaw - turn), solid(hex)));
+    parts.push(bake(new THREE.IcosahedronGeometry(1, 0), place(x, groundY(x, z) + y, z, sx, sy, sz, yaw - turn), solid(hex)));
   };
   // [x, z, yaw, colour, is a mouse]
   for (const [ox, oz, yaw, hex, mouse] of [[0, 0, 0.3, KILL_LOOK.mouse, true], [0.14, 0.1, 2.1, KILL_LOOK.vole, true]]) {
@@ -611,7 +615,9 @@ function campRockMesh(rockSpot) {
   return rock;
 }
 
-// A ledge camp: two top-level meshes, the rock and the bedding, and one
+const LEDGE_DISC_DRAWS = 24;
+
+// A ledge camp: three top-level meshes, the rock, the bedding (moss nests) and the fresh-kill pile, and one
 // collider, the rock (a cave den is the rock round it). They are separate
 // children of the scene, not a Group, because the contact-shadow scan boxes
 // one top-level child at a time and the bedding sits ~17 m from the rock: in
@@ -619,7 +625,7 @@ function campRockMesh(rockSpot) {
 // seated on the ground under its own centre. The bedding is one merged mesh at
 // the origin, so seating it as the rock is seated would lift it by the ground at
 // (0, 0), the floor: instead each disc is baked in at its seat, at the ground
-// under that seat (ruling P3). Out of the shadow pass: it is flat.
+// under that seat (ruling P3); each pile lump is seated at the ground under it. Both are low and out of the shadow pass.
 function addLedgeCamp(scene, area, L) {
   const ground = area.ground ?? null;
   const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
@@ -628,17 +634,29 @@ function addLedgeCamp(scene, area, L) {
   if (ground) seatOnGround(rock, ground);
   scene.add(rock);
 
-  const discs = [...L.seats.elders, ...L.seats.kits].map((s) => {
-    const g = new THREE.CylinderGeometry(BEDDING.r, BEDDING.r, BEDDING.h, BEDDING.segments);
-    g.translate(s.x, groundY(s.x, s.z) + BEDDING.h / 2, s.z);
-    return g;
-  });
-  const bedGeo = mergeGeometries(discs, false);
-  for (const g of discs) g.dispose();
-  const bedding = new THREE.Mesh(bedGeo, litMaterial(BEDDING.color, surfaceProps('foliage')));
+  // The nests and the pile are drawn under withLocalUuids, so the Gorge's
+  // build takes the Math.random draws it always took (camp.test.js): the
+  // bedding is handed over to a fresh mesh, geometry and material, as the old
+  // discs were, and the pile adds nothing on Math.random.
+  const D = campDressing('gorge', area.colliders);
+  const made = withLocalUuids('gorge', () => ({
+    nests: nestsMesh(D.nests, groundY, 0.5),
+    kill: killMesh(D.kill, groundY),
+  }));
+  const bedding = new THREE.Mesh(adopt(made.nests.geometry), vcMaterial({ roughness: 0.9 }));
   bedding.name = 'campBedding';
   bedding.userData.noCast = true;
+  bedding.userData.noMerge = true;
+  bedding.receiveShadow = true;
+  made.nests.geometry.dispose();
+  made.nests.material.dispose();
+  made.kill.name = 'campKill';
   scene.add(bedding);
+  scene.add(made.kill);
+  // The six flat discs this replaced took 24 of the Math.random draws (four
+  // uuids for each cylinder); the build's seeded tests and every draw after
+  // it expect them, so they are still taken. Nothing reads the values.
+  for (let i = 0; i < LEDGE_DISC_DRAWS; i++) Math.random();
   area.colliders.push({ x: L.rock.x, z: L.rock.z, r: L.rock.r });
 }
 
@@ -661,7 +679,7 @@ function addLedgeCamp(scene, area, L) {
  * the colliders already in area.colliders (campDressing). A no-op where
  * campLayout is null. Materials are made per call (walk.js disposes them at
  * the walk's end). A ledge camp (L.den.cave) draws its rock and bedding
- * instead, seated on area.ground when given (addLedgeCamp above).
+ * instead, with the nests and the pile, seated on area.ground when given (addLedgeCamp above).
  */
 export function addCamp(scene, area, areaId) {
   const L = campLayout(areaId);

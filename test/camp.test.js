@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { campLayout, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS } = await import('../src/world/camp.js');
+const { campLayout, campDressing, addCamp, CAMP_TURN, campDiscs, LEDGE_CAMPS } = await import('../src/world/camp.js');
 const { CAMP_DEN, WIDE_LEDGE_RECT, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { DISCS } = await import('../src/rivalclans.js');
@@ -342,12 +342,12 @@ describe('the ledge camp in the Gorge', () => {
     expect(inRect(CAMP_DEN, L.den)).toBe(true);
   });
 
-  it('addCamp draws the rock and the bedding on the ledge, with one collider', () => {
+  it('addCamp draws the rock, the moss nests and the pile on the ledge, with one collider', () => {
     const scene = new THREE.Scene();
     const ground = gorgeGround();
     const area = { colliders: [], ground };
     addCamp(scene, area, 'gorge');
-    expect(scene.children.map((o) => o.name).sort()).toEqual(['campBedding', 'campRock']);
+    expect(scene.children.map((o) => o.name).sort()).toEqual(['campBedding', 'campKill', 'campRock']);
     const rock = scene.getObjectByName('campRock');
     const bedding = scene.getObjectByName('campBedding');
     expect(bedding.userData.noCast).toBe(true);
@@ -358,9 +358,11 @@ describe('the ledge camp in the Gorge', () => {
     expect(Math.abs(rb.max.y - 8.8)).toBeLessThanOrEqual(0.01);
     expect((rb.min.x + rb.max.x) / 2).toBeCloseTo(8.3, 1);
     const bb = lowest(bedding);
-    expect(Math.abs(bb.min.y - 8)).toBeLessThanOrEqual(0.01);
-    expect(bb.max.y).toBeLessThan(8.1);
-    // six discs, one under each elder and kit seat, all in the den
+    expect(bb.min.y - 8).toBeGreaterThanOrEqual(-0.05); // the nests rest within 5 cm of the ground
+    expect(bb.min.y - 8).toBeLessThanOrEqual(0.05);
+    expect(bb.max.y - bb.min.y).toBeLessThan(0.1); // low: no decal of its own
+    expect(bb.max.y).toBeLessThan(8.25);
+    // six nests, one under each elder and kit seat, all in the den
     const L = campLayout('gorge');
     expect(inRect(CAMP_DEN, { x: bb.min.x, z: bb.min.z })).toBe(true);
     expect(inRect(CAMP_DEN, { x: bb.max.x, z: bb.max.z })).toBe(true);
@@ -373,16 +375,56 @@ describe('the ledge camp in the Gorge', () => {
     expect(area.colliders).toEqual([{ x: 8.3, z: 41.5, r: 0.6 }]);
   });
 
-  it('the rock alone is footprinted: the bedding, 17 m off, does not swallow its decal', async () => {
+  it('the pile is one noCast mesh on the ledge, every vertex within 0.25 m above the ground under it', () => {
+    const scene = new THREE.Scene();
+    const ground = gorgeGround();
+    addCamp(scene, { colliders: [], ground }, 'gorge');
+    scene.updateMatrixWorld(true);
+    const kill = scene.getObjectByName('campKill');
+    expect(kill.isMesh).toBe(true);
+    expect(kill.userData.noCast).toBe(true);
+    expect(kill.userData.noMerge).toBe(true);
+    const K = campDressing('gorge').kill;
+    const pos = kill.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      expect(Math.hypot(x - K.x, z - K.z)).toBeLessThanOrEqual(0.4);
+      const dy = pos.getY(i) - ground.y(x, z);
+      expect(dy).toBeGreaterThanOrEqual(-0.03);
+      expect(dy).toBeLessThanOrEqual(0.25);
+    }
+  });
+
+  it('takes exactly the Math.random draws (THREE uuids) the Gorge camp took before the nests and the pile', () => {
+    // the build's seeded tests count these; withLocalUuids keeps the new objects off Math.random
+    const real = Math.random;
+    for (const withGround of [true, false]) {
+      let draws = 0;
+      Math.random = () => { draws++; return real(); };
+      try {
+        addCamp(new THREE.Scene(), withGround ? { colliders: [], ground: gorgeGround() } : { colliders: [] }, 'gorge');
+      } finally {
+        Math.random = real;
+      }
+      expect(draws, String(withGround)).toBe(52);
+    }
+  });
+
+  it('the rock keeps its own decal: the bedding, 17 m off, makes none and the pile only its own small one', async () => {
     const { scanFootprints } = await import('../src/render/contactshadows.js');
     const scene = new THREE.Scene();
     const ground = gorgeGround();
     addCamp(scene, { colliders: [], ground }, 'gorge');
     scene.updateMatrixWorld(true);
     const fps = scanFootprints(scene, ground);
-    expect(fps).toHaveLength(1);
-    expect(fps[0].x).toBeCloseTo(8.3, 0);
-    expect(fps[0].z).toBeCloseTo(41.5, 0);
+    // the rock's, and the pile's own (1.5 m off, 0.6 m across); none for the nests
+    expect(fps).toHaveLength(2);
+    const rockFp = fps.filter((f) => Math.hypot(f.x - 8.3, f.z - 41.5) < 0.3);
+    expect(rockFp).toHaveLength(1);
+    const K = campDressing('gorge').kill;
+    expect(fps.filter((f) => Math.hypot(f.x - K.x, f.z - K.z) < 0.3)).toHaveLength(1);
+    expect(fps.every((f) => f.x < 12)).toBe(true); // nothing in the den
   });
 
   it('on flat ground (no ground given) the rock and the bedding stand at y 0', () => {
@@ -390,7 +432,8 @@ describe('the ledge camp in the Gorge', () => {
     addCamp(scene, { colliders: [] }, 'gorge');
     scene.updateMatrixWorld(true);
     expect(Math.abs(lowest(scene.getObjectByName('campRock')).min.y)).toBeLessThanOrEqual(0.01);
-    expect(Math.abs(lowest(scene.getObjectByName('campBedding')).min.y)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(lowest(scene.getObjectByName('campBedding')).min.y)).toBeLessThanOrEqual(0.05);
+    expect(Math.abs(lowest(scene.getObjectByName('campKill')).min.y)).toBeLessThanOrEqual(0.03);
   });
 
   it('campDiscs is the rock alone', () => {
