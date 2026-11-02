@@ -184,9 +184,12 @@ export function createYardDog(scene, yard, {
   const homeZ = Y.kennel.z + uz * HOME_OFF;
   const homeYaw = heading(ux, uz);
 
+  // Gorge part 1: the kennel, the lawn patch and the dog stand on the ground
+  // (G only when it has height, so a shipped map runs today's lines).
+  const G = ground && !ground.flat ? ground : null;
   const added = [];
   const kennel = buildKennel();
-  kennel.position.set(Y.kennel.x, 0, Y.kennel.z);
+  kennel.position.set(Y.kennel.x, G ? G.y(Y.kennel.x, Y.kennel.z) : 0, Y.kennel.z);
   kennel.rotation.y = homeYaw;
   scene.add(kennel);
   added.push(kennel);
@@ -196,7 +199,7 @@ export function createYardDog(scene, yard, {
     color: 0x000000, transparent: true, opacity: PATCH_ALPHA, depthWrite: false,
   }));
   patch.rotation.x = -Math.PI / 2;
-  patch.position.set(Y.x, PATCH_LIFT, Y.z);
+  patch.position.set(Y.x, G ? G.y(Y.x, Y.z) + PATCH_LIFT : PATCH_LIFT, Y.z);
   patch.castShadow = false;
   patch.receiveShadow = false;
   patch.userData.contactDecal = true;
@@ -205,7 +208,7 @@ export function createYardDog(scene, yard, {
 
   const dog = buildDog();
   const { torso, head, tail, legs } = dog.userData.parts;
-  dog.position.set(homeX, 0, homeZ);
+  dog.position.set(homeX, G ? G.y(homeX, homeZ) : 0, homeZ);
   dog.rotation.y = homeYaw;
   scene.add(dog);
   added.push(dog);
@@ -264,6 +267,7 @@ export function createYardDog(scene, yard, {
     const moved = Math.hypot(nx - dog.position.x, nz - dog.position.z) > 1e-4;
     dog.position.x = nx;
     dog.position.z = nz;
+    if (G) dog.position.y = G.y(nx, nz);
     return moved;
   }
 
@@ -279,6 +283,7 @@ export function createYardDog(scene, yard, {
         const w = smooth(Math.min(1, returnT / RETURN_TIME));
         dog.position.x = leftX + (homeX - leftX) * w;
         dog.position.z = leftZ + (homeZ - leftZ) * w;
+        if (G) dog.position.y = G.y(dog.position.x, dog.position.z);
         dog.rotation.y = heading(homeX - leftX, homeZ - leftZ);
         if (w >= 1) {
           state = 'lie';

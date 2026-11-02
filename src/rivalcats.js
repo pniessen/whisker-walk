@@ -241,7 +241,10 @@ export function createRivalPatrol(scene, areaId, {
   const pp = { x: cx, z: cz }; // patrol position now (scratch)
   const ahead = { x: cx, z: cz }; // half a second on (scratch)
   patrolInto(areaId, now(), pp);
-  mesh.position.set(pp.x, 0, pp.z);
+  // Gorge part 1: the patrol cat stands on the ground under it (its route is
+  // authored; plan 2/4 check it against the ground). G only when it has height.
+  const G = ground && !ground.flat ? ground : null;
+  mesh.position.set(pp.x, G ? G.y(pp.x, pp.z) : 0, pp.z);
   scene.add(mesh);
 
   let state = 'patrol'; // 'patrol' | 'scamper' | 'return'
@@ -275,12 +278,14 @@ export function createRivalPatrol(scene, areaId, {
         mesh.position.z = dashZ + (pp.z - dashZ) * w;
         if (w >= 1) state = 'patrol';
       }
+      if (G) mesh.position.y = G.y(mesh.position.x, mesh.position.z);
       mesh.rotation.y = facing(ahead.x - pp.x, ahead.z - pp.z);
       animateCat(mesh, 'follow', t, PATROL_SPEED, reducedMotion);
 
       if (state === 'patrol' && cooldown <= 0 && canChase() !== false
         && isTrespassing(areaId, catPos.x, catPos.z)
-        && Math.hypot(catPos.x - pp.x, catPos.z - pp.z) <= NOTICE_DIST) {
+        && Math.hypot(catPos.x - pp.x, catPos.z - pp.z) <= NOTICE_DIST
+        && (!G || G.sameLevel(catPos.x, catPos.z, pp.x, pp.z))) { // R10: not across a rim
         const out = chaseOutcome(areaId, catPos, pp);
         const land = out.chased ? findLanding(areaId, out.to, isWalkable, { ground, from: catPos }) : null;
         if (land) {
@@ -318,6 +323,7 @@ export function createRivalPatrol(scene, areaId, {
       const step = Math.min(DASH_SPEED * dt, dist - DASH_STOP);
       mesh.position.x += (dx / dist) * step;
       mesh.position.z += (dz / dist) * step;
+      if (G) mesh.position.y = G.y(mesh.position.x, mesh.position.z);
       animateCat(mesh, 'follow', t, DASH_SPEED, reducedMotion);
     }
     if (u >= 1) {

@@ -982,7 +982,8 @@ function init() {
       // quiet (despawned, dropped) shouldn't leave a phantom ball behind.
       if (session.remoteToy && !session.toy.active && nowSec() - session.remoteToy.at < 1) {
         session.toyGhost.visible = true;
-        session.toyGhost.position.set(session.remoteToy.pos[0], 0.13, session.remoteToy.pos[1]);
+        const [rx, rz] = session.remoteToy.pos;
+        session.toyGhost.position.set(rx, session.ground.y(rx, rz) + 0.13, rz);
       } else {
         session.toyGhost.visible = false;
       }

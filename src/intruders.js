@@ -224,7 +224,15 @@ export function createIntruders(scene, areaId, {
   hostile = () => false,
   onNotice = () => {},
   onBuild = () => {},
+  ground = null,
 } = {}) {
+  // Gorge part 1: the walk's ground (src/ground.js), taken as given (this
+  // file's imports are on an allow-list); null or flat is flat ground, and G
+  // is set only when it has height, so a shipped map runs today's lines. The
+  // cat walks its route on the ground (plan 2/4 check routes against it), a
+  // staged lift is relative to the ground under the stage (R11), and it only
+  // notices a cat on its own level (R10).
+  const G = ground && !ground.flat ? ground : null;
   let cur = null;     // this visit's cat, or null
   let done = null;    // a visit that walked off its route: not built again
   let animT = 0;
@@ -306,7 +314,7 @@ export function createIntruders(scene, areaId, {
       new THREE.SphereGeometry(0.35, 10, 8),
       new THREE.MeshBasicMaterial({ color: PUFF_COLOR, transparent: true, opacity: 0.7, depthWrite: false }),
     );
-    mesh.position.set(x, 0.3, z);
+    mesh.position.set(x, G ? G.y(x, z) + 0.3 : 0.3, z);
     scene.add(mesh);
     puffs.push({ mesh, age: 0 });
   }
@@ -332,8 +340,8 @@ export function createIntruders(scene, areaId, {
     const p = routePoint(cur.route, cur.s);
     const g = cur.group;
     const st = cur.state === 'held' ? cur.stage : null;
-    if (st) g.position.set(st.x, st.y, st.z);
-    else g.position.set(p.x, 0, p.z);
+    if (st) g.position.set(st.x, G ? G.y(st.x, st.z) + st.y : st.y, st.z);
+    else g.position.set(p.x, G ? G.y(p.x, p.z) : 0, p.z);
     if (cur.state === 'held' && cur.face) {
       g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {
@@ -423,7 +431,8 @@ export function createIntruders(scene, areaId, {
         pose = cur.stage ? cur.stage.pose : 'cross';
         speed = 0;
       } else if (cur.state !== 'fleeing' && cur.hostile && catPos
-        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE) {
+        && Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < NOTICE_RANGE
+        && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z))) {
         pose = 'cross';
         if (!cur.noticed) {
           cur.noticed = true;
@@ -433,7 +442,8 @@ export function createIntruders(scene, areaId, {
       animateCat(g, pose, animT, speed, reducedMotion);
       if (cur.tag) {
         const range = cur.tag.userData?.revealRange ?? NAME_TAG_RANGE;
-        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range : false;
+        cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range
+          && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z)) : false;
       }
     },
     // The walk's one contact-shadow follower (see above).
@@ -467,7 +477,7 @@ export function createIntruders(scene, areaId, {
       letGo();
     },
     // My fight's staging (Task 4): { pose, x, z, y, face? } puts the held mesh
-    // at that spot in that pose, facing `face` (my cat) or else its holder;
+    // at that spot in that pose (y is a lift above the ground there, R11), facing `face` (my cat) or else its holder;
     // null puts it back on its route.
     // Ignored unless I hold it; dropped when my hold ends or it flees. The
     // shared snapshot (current().pos) stays on the route.

@@ -310,7 +310,7 @@ export function createWalkLifecycle({
           greets: f.greets,
         })),
         Math.random,
-        { gift: handover }
+        { gift: handover, ground: mySession.ground }
       );
       // Ghosts are the one mover class that arrives asynchronously, so they
       // cannot be registered in the startWalk pass with the cat, the strays
@@ -676,6 +676,7 @@ export function createWalkLifecycle({
       // to this device like every critter position; nothing rides the wire.
       hides: propsFor(areaId).hides,
       onHide: (c) => hud.toast(hideToastFor(c.type)),
+      ground,
     });
 
     const collectibleMeshes = new Map();
@@ -894,6 +895,7 @@ export function createWalkLifecycle({
       excludeNames,
       extras,
       reducedMotion,
+      ground,
     });
     // The clan walks on the map AS BUILT, frozen here, before anything is
     // added to it: the live areaData.colliders later gains this device's own
@@ -922,13 +924,14 @@ export function createWalkLifecycle({
       onBuddyEnd: (cat, reason, secs) => onClanBuddyEnd(cat, reason, secs),
       // A patrol ends at this territory's camp disc (rivalclans.isTrespassing).
       areaId,
+      ground,
     }) : NO_CLAN_CATS;
     // The camp on the corner map (Clan Edition only; Legacy shows no clan layer).
     const campAt = clanCast.length ? campLayout(areaId) : null;
     const campMarker = !isDen && campAt && isClanEdition(state)
       ? { x: campAt.cx, z: campAt.cz, color: CLAN_COLOURS[areaId] }
       : null;
-    const remotes = createRemoteCats(scene, { reducedMotion });
+    const remotes = createRemoteCats(scene, { reducedMotion, ground });
 
     // v18 Task 3.2 Gift Paws — the gifts this player has stashed at scenic
     // spots on earlier walks, rendered where they were left. Read off the
@@ -1341,6 +1344,7 @@ export function createWalkLifecycle({
       hostile: (clan) => isHostile({ clan }, { clanHome, picks }),
       onNotice: () => audio.hiss(),
       onBuild: (g) => { assignShadowCastersFor(g); },
+      ground,
     }) : NO_INTRUDERS;
     if (session.intruders.anchor) decals.follow(session.intruders.anchor, INTRUDER_DECAL_RADIUS);
     // The clan fight (Part 2, Task 4): only at home, over these intruders. It
@@ -1497,7 +1501,7 @@ export function createWalkLifecycle({
       ? kittenPlan(progression.state.kitten.stage, areaId)
       : null;
     session.kittenEnc = kittenPlanResult
-      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5) })
+      ? createKittenEncounter(scene, kittenPlanResult, areaData.spawn, { onMew: () => audio.trill(0.7, 1.5), ground })
       : { group: null, update() {}, promptAt: () => null, interact: () => null, dispose() {} };
     // Fixed at walk start, from the SAME kittenPlanResult that built the
     // encounter above — handleInteract's 'kitten' branch dispatches on this,

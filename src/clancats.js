@@ -124,10 +124,18 @@ const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 export function createClanCats(scene, area, cast, {
   campLayout = null, roamHomes = [], isWalkable = () => true, roomSeed, showNames = false,
   reducedMotion = false, onBuddyEnd = () => {}, areaId = area?.id ?? null,
+  ground = area?.ground ?? null,
 } = {}) {
   const bounds = area?.bounds ?? null;
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
   const ok = (x, z) => isWalkable(x, z) === true;
+  // Gorge part 1 (R9): the walk's ground (src/ground.js), taken as given (this
+  // module's imports are pinned), null or flat meaning flat ground. G is set
+  // only when the ground has height, so a shipped map runs today's lines. On
+  // it a cat stands at G.y, and a step over a rim is refused like a step onto
+  // water: a roamer's leg ends, a buddy slides along the rim axis by axis.
+  const G = ground && !ground.flat ? ground : null;
+  const okStep = (ax, az, bx, bz) => ok(bx, bz) && (!G || G.canStep(ax, az, bx, bz));
   const cx = campLayout?.cx ?? 0;
   const cz = campLayout?.cz ?? 0;
   const kitSeats = campLayout?.seats?.kits ?? [];
@@ -141,7 +149,9 @@ export function createClanCats(scene, area, cast, {
     const scale = RANK_SCALE[member.rank] ?? 1;
     const group = buildCat(member.breed, undefined, { simple: true, style: member.style });
     group.scale.multiplyScalar(scale);
-    group.position.set(seat.x, seat.y, seat.z);
+    // A seat's y (the leader's rock) is metres above the ground under it (R4).
+    const seatY = G ? G.y(seat.x, seat.z) + seat.y : seat.y;
+    group.position.set(seat.x, seatY, seat.z);
     const face = camp
       ? yawToward(seat.x, seat.z, cx, cz)
       : (seedFromCode(member.id) / 2 ** 32) * Math.PI * 2;
@@ -178,7 +188,7 @@ export function createClanCats(scene, area, cast, {
       slot: member.slot,
       group,
       tag,
-      home: new THREE.Vector3(seat.x, seat.y, seat.z),
+      home: new THREE.Vector3(seat.x, seatY, seat.z),
       state: camp ? 'post' : 'idle',
       greeted: false,
       booped: false,
@@ -241,10 +251,10 @@ export function createClanCats(scene, area, cast, {
       const bow = Math.sin(Math.PI * c.hopT) * KIT_HOP_BOW;
       p.x = c.hopFrom.x + dx * c.hopT - (dz / dl) * bow;
       p.z = c.hopFrom.z + dz * c.hopT + (dx / dl) * bow;
-      p.y = Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT;
+      p.y = G ? G.y(p.x, p.z) + Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT : Math.sin(Math.PI * c.hopT) * KIT_HOP_HEIGHT;
       animateCat(c.group, 'pounce', t, ROAM_SPEED);
       if (c.hopT >= 1) {
-        p.set(c.hopTo.x, 0, c.hopTo.z);
+        p.set(c.hopTo.x, G ? G.y(c.hopTo.x, c.hopTo.z) : 0, c.hopTo.z);
         c.state = 'post';
         c.timer = 2 + c.wanderRng() * 2;
       }
@@ -293,11 +303,12 @@ export function createClanCats(scene, area, cast, {
       } else {
         const nx = p.x + (dx / d) * Math.min(step, d);
         const nz = p.z + (dz / d) * Math.min(step, d);
-        if (!ok(nx, nz)) {
+        if (!okStep(p.x, p.z, nx, nz)) {
           endLeg(c);
         } else {
           p.x = nx;
           p.z = nz;
+          if (G) p.y = G.y(nx, nz);
           c.group.rotation.y = Math.atan2(dx, dz) + Math.PI;
           animateCat(c.group, 'follow', t, ROAM_SPEED);
           return;
@@ -353,14 +364,15 @@ export function createClanCats(scene, area, cast, {
         const nx = p.x + (dx / d) * step;
         const nz = p.z + (dz / d) * step;
         let to = null;
-        if (ok(nx, nz)) to = [nx, nz];
-        else if (ok(nx, p.z)) to = [nx, p.z];
-        else if (ok(p.x, nz)) to = [p.x, nz];
+        if (okStep(p.x, p.z, nx, nz)) to = [nx, nz];
+        else if (okStep(p.x, p.z, nx, p.z)) to = [nx, p.z];
+        else if (okStep(p.x, p.z, p.x, nz)) to = [p.x, nz];
         if (to) {
           const moved = Math.hypot(to[0] - p.x, to[1] - p.z);
           if (moved > 1e-6) c.group.rotation.y = yawToward(p.x, p.z, to[0], to[1]);
           p.x = to[0];
           p.z = to[1];
+          if (G) p.y = G.y(p.x, p.z);
           speed = moved / dt;
         }
       }
@@ -397,9 +409,10 @@ export function createClanCats(scene, area, cast, {
     const dz = to.z - p.z;
     const d = Math.hypot(dx, dz);
     const step = HOME_SPEED * dt;
-    if (d <= Math.max(step, 0.05) && (!last || ok(to.x, to.z))) {
+    if (d <= Math.max(step, 0.05) && (!last || okStep(p.x, p.z, to.x, to.z))) {
       p.x = to.x;
       p.z = to.z;
+      if (G) p.y = G.y(p.x, p.z);
       if (!last) trail.pop();
       else {
         c.trail = null;
@@ -412,7 +425,7 @@ export function createClanCats(scene, area, cast, {
       let next = [nx, nz];
       if (last) {
         // Only a step that is on clan ground AND brings it closer to home.
-        const closer = ([x, z]) => ok(x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
+        const closer = ([x, z]) => okStep(p.x, p.z, x, z) && Math.hypot(to.x - x, to.z - z) < d - 1e-4;
         next = [[nx, nz], [nx, p.z], [p.x, nz]].find(closer) ?? null;
       }
       if (!next) {
@@ -422,6 +435,7 @@ export function createClanCats(scene, area, cast, {
         c.group.rotation.y = yawToward(p.x, p.z, next[0], next[1]);
         p.x = next[0];
         p.z = next[1];
+        if (G) p.y = G.y(p.x, p.z);
       }
     }
     animateCat(c.group, 'follow', t, HOME_SPEED);

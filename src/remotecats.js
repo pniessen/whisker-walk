@@ -7,6 +7,7 @@ import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
 import { waterPose, applyWaterLook } from './cat/waterlook.js';
+import { FLAT_GROUND } from './ground.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
@@ -65,7 +66,9 @@ function profileUnchanged(entry, profile) {
 // `waters` update() is given (null: always dry, the old look). Its shake and
 // bob follow THIS viewer's reducedMotion (the ruling), a snapshot taken at
 // the start of the walk.
-export function createRemoteCats(scene, { reducedMotion = false } = {}) {
+// `ground` (Gorge part 1, R13): a co-walker stands at THIS device's ground
+// under its streamed [x, z]; nothing about height rides the wire.
+export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
 
@@ -130,7 +133,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
     const entry = remotes.get(state.id);
     if (!entry) return; // state before roster upsert — drop it, roster wins the race in practice
 
-    entry.toPos.set(state.pos[0], 0, state.pos[1]);
+    entry.toPos.set(state.pos[0], ground.y(state.pos[0], state.pos[1]), state.pos[1]);
     // The first state puts a new co-walker straight where it is. Sliding it in
     // from the origin would carry it through any water on the way (the Moor's
     // river-west holds the origin), and it would dip there on arrival.
@@ -179,7 +182,7 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
-      applyWaterLook(entry.group, entry.water, now, dt, rm, 0, amount);
+      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount);
     }
   }
 

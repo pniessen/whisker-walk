@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { litMaterial } from './render/materials.js';
+import { FLAT_GROUND } from './ground.js';
 
 const mat = (color) => litMaterial(color);
 const box = (w, h, d, color) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
@@ -191,10 +192,20 @@ export function createCritters(scene, spawns, opts = {}) {
   // Math.random so a caller that passes no rng (and a solo walk, whose
   // walkRng *is* Math.random) behaves precisely as before.
   const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
+  // Gorge part 1 (R9): the walk's ground. Critters stand, hop and float above
+  // it; one that flees or runs for cover slides along a rim and never crosses
+  // it; cover on another level is not its cover. Flat: today's lines.
+  const ground = opts.ground ?? FLAT_GROUND;
+  // A free step from (px, pz) ends here: slid along a rim, stood on the ground.
+  const onGround = (p, px, pz) => {
+    if (ground.flat) return;
+    ground.slide(px, pz, p);
+    p.y = ground.y(p.x, p.z);
+  };
   // Task 13: the area's cover, and who to tell when a critter gets away.
   const hides = (Array.isArray(opts.hides) ? opts.hides : [])
     .filter((h) => h && Number.isFinite(h.x) && Number.isFinite(h.z))
-    .map((h) => new THREE.Vector3(h.x, 0, h.z));
+    .map((h) => new THREE.Vector3(h.x, ground.y(h.x, h.z), h.z));
   const onHide = typeof opts.onHide === 'function' ? opts.onHide : null;
   // markStalked's latest isStalking. update() runs before it in the frame
   // (main.js, then game/avatar.js), so it reads last frame's — one frame late,
@@ -211,7 +222,7 @@ export function createCritters(scene, spawns, opts = {}) {
 
   function spawn(def) {
     const group = buildCritter(def.type);
-    group.position.set(def.x, def.type === 'butterfly' || def.type === 'firefly' ? 1 : 0, def.z);
+    group.position.set(def.x, ground.y(def.x, def.z) + (def.type === 'butterfly' || def.type === 'firefly' ? 1 : 0), def.z);
     scene.add(group);
     const c = {
       id: `${def.type}-${nextId++}`,
@@ -272,7 +283,7 @@ export function createCritters(scene, spawns, opts = {}) {
     let bestD = Infinity;
     for (const h of hides) {
       const d = Math.hypot(h.x - p.x, h.z - p.z);
-      if (d <= HIDE_SEARCH && d < bestD) {
+      if (d <= HIDE_SEARCH && d < bestD && ground.sameLevel(p.x, p.z, h.x, h.z)) {
         bestD = d;
         best = h;
       }
@@ -288,7 +299,7 @@ export function createCritters(scene, spawns, opts = {}) {
     c.hideAt = null;
     c.spottable = false;
     c.stalkClose = false;
-    if (c.type === 'frog') c.group.position.y = 0; // never left mid-hop
+    if (c.type === 'frog') c.group.position.y = ground.y(c.group.position.x, c.group.position.z); // never left mid-hop
     c.group.visible = false; // contactshadows.js collapses a hidden mover's decal
     if (!c.tagged && onHide) onHide(c);
   }
@@ -448,6 +459,8 @@ export function createCritters(scene, spawns, opts = {}) {
       for (const c of [...list]) {
         if (c.hidden) continue; // Task 13: in cover for the rest of the walk
         const p = c.group.position;
+        const px = p.x;
+        const pz = p.z;
         const dPlayer = p.distanceTo(playerPos);
         const dCat = p.distanceTo(catPos);
         const threat = Math.min(dPlayer, dCat);
@@ -477,7 +490,10 @@ export function createCritters(scene, spawns, opts = {}) {
           const target = c.moment.t < 3 ? c.moment.target
             : c.anchor.clone();
           const dir = target.clone().sub(p).setY(0);
-          if (dir.length() > 0.2) p.addScaledVector(dir.normalize(), dt * 5);
+          if (dir.length() > 0.2) {
+            p.addScaledVector(dir.normalize(), dt * 5);
+            onGround(p, px, pz);
+          }
           if (c.moment.t > 6) remove(c);
           continue;
         }
@@ -487,13 +503,14 @@ export function createCritters(scene, spawns, opts = {}) {
             p.y += dt * 6;
             p.x += Math.sin(c.phase) * dt * 4;
             p.z += Math.cos(c.phase) * dt * 4;
+            if (!ground.flat) ground.slide(px, pz, p); // flying up: its height is its own
             c.cooldown -= dt;
             if (c.cooldown <= 0) {
-              p.set(c.anchor.x, 0, c.anchor.z);
+              p.set(c.anchor.x, ground.y(c.anchor.x, c.anchor.z), c.anchor.z);
               c.fleeing = false;
             }
           } else {
-            p.y = Math.abs(Math.sin(t * 3 + c.phase)) * 0.08; // hop
+            p.y = ground.y(p.x, p.z) + Math.abs(Math.sin(t * 3 + c.phase)) * 0.08; // hop
             if (threat < 2.5 * fleeScale * fleeModifier * (c.type === 'seagull' ? 1.4 : 1)) {
               c.fleeing = true;
               c.cooldown = 18;
@@ -524,7 +541,10 @@ export function createCritters(scene, spawns, opts = {}) {
             // running for cover: straight there, at the dash speed, until it is in
             const to = c.hideAt.clone().sub(p).setY(0);
             const d = to.length();
-            if (d > HIDE_REACH) p.addScaledVector(to.normalize(), Math.min(dt * fleeSpeed, d));
+            if (d > HIDE_REACH) {
+              p.addScaledVector(to.normalize(), Math.min(dt * fleeSpeed, d));
+              onGround(p, px, pz);
+            }
             if (p.distanceTo(c.hideAt) <= HIDE_REACH) hide(c);
           } else if (c.fleeing) {
             // pounce-tagged: dash away from the cat for a few seconds, then resume patrol
@@ -532,6 +552,7 @@ export function createCritters(scene, spawns, opts = {}) {
             if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
             away.normalize();
             p.addScaledVector(away, dt * fleeSpeed);
+            onGround(p, px, pz);
             c.cooldown -= dt;
             if (c.cooldown <= 0) {
               c.fleeing = false;
@@ -544,24 +565,27 @@ export function createCritters(scene, spawns, opts = {}) {
             const bPt = a.clone().add(c.patrolSpan);
             const k = (Math.sin(t * 0.6 + c.phase) + 1) / 2;
             p.lerpVectors(a, bPt, k);
+            if (!ground.flat) p.y = ground.y(p.x, p.z);
           }
           // A bolting frog hops; every other frame (patrol, startle, hidden) it sits on the ground.
           if (c.type === 'frog') {
-            p.y = c.fleeing && !(c.startleT > 0) ? 0.12 * Math.abs(Math.sin(12 * t)) : 0;
+            p.y = ground.y(p.x, p.z) + (c.fleeing && !(c.startleT > 0) ? 0.12 * Math.abs(Math.sin(12 * t)) : 0);
           }
         } else if (c.type === 'butterfly' || c.type === 'firefly') {
           const cx = c.trail ? catPos.x : c.anchor.x;
           const cz = c.trail ? catPos.z : c.anchor.z;
           p.x = cx + Math.sin(t * 0.8 + c.phase) * 1.5;
           p.z = cz + Math.cos(t * 0.6 + c.phase) * 1.5;
-          p.y = 0.8 + Math.sin(t * 2 + c.phase) * 0.3;
+          p.y = ground.y(p.x, p.z) + 0.8 + Math.sin(t * 2 + c.phase) * 0.3;
         } else if (c.type === 'duck') {
           const r = 2;
           p.x = c.anchor.x + Math.cos(t * 0.3 + c.phase) * r;
           p.z = c.anchor.z + Math.sin(t * 0.3 + c.phase) * r;
           c.group.rotation.y = -(t * 0.3 + c.phase);
+          if (!ground.flat) p.y = ground.y(p.x, p.z);
         } else if (c.type === 'crab') {
           p.x = c.anchor.x + Math.sin(t * 1.5 + c.phase) * 1.2;
+          if (!ground.flat) p.y = ground.y(p.x, p.z);
         } else if (c.type === 'villager') {
           const arm = c.group.userData.arm;
           if (c.meowWaveT > 0) c.meowWaveT -= dt;

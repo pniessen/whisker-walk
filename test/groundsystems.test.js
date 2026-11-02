@@ -473,3 +473,369 @@ describe('the camera keeps out of rock', () => {
     expect(src).toContain('session.shadows.update(session.ground.y(player.position.x, player.position.z), dt)');
   });
 });
+
+// Task 6 (R9, R10, R13): strays, clan cats, critters, intruders, rivals, the
+// yard dog, ghosts, the kitten and co-walkers stand on the ground; free
+// walkers stop at rims; encounters don't reach across one.
+const { createStrayCats } = await import('../src/straycats.js');
+const { CAT_NAMES } = await import('../src/straynames.js');
+const { mulberry32 } = await import('../src/rng.js');
+const { createClanCats } = await import('../src/clancats.js');
+const { clanCast } = await import('../src/clancast.js');
+const { createCritters } = await import('../src/critters.js');
+const { createIntruders, intruderAt, visitAt, INTRUDER_PERIOD, ENTER_AT } = await import('../src/intruders.js');
+const { createRemoteCats } = await import('../src/remotecats.js');
+const { createNetEvents } = await import('../src/game/netevents.js');
+const { meowVolumeForDistance } = await import('../src/game/util.js');
+const { createKittenEncounter, KITTEN_SPOT } = await import('../src/kitten.js');
+const { createGhosts } = await import('../src/ghosts.js');
+const { createRivalPatrol, patrolAt } = await import('../src/rivalcats.js');
+const { createYardDog } = await import('../src/yarddog.js');
+
+const FAR_CAT = new THREE.Vector3(-19, 0, -19);
+
+describe('the walk’s other cats and critters stand on the ground', () => {
+  it('a stray stands on the ground wherever it wanders', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const cats = createStrayCats(new THREE.Scene(), area, 3, mulberry32(3), { roomSeed: 3 });
+    let off = 0;
+    for (const s of cats.strays) expect(s.group.position.y).toBe(g.y(s.group.position.x, s.group.position.z));
+    for (let f = 0; f < 3000; f++) {
+      cats.update(DT, f * DT, FAR_CAT, {});
+      for (const s of cats.strays) {
+        const p = s.group.position;
+        expect(Math.abs(p.y - g.y(p.x, p.z))).toBeLessThan(1e-9);
+        if (p.y !== 0) off++;
+      }
+    }
+    expect(off).toBeGreaterThan(0); // some of it really was up off the base
+  });
+
+  it('a stray never crosses a rim', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const cats = createStrayCats(new THREE.Scene(), area, 1, mulberry32(9), {
+      roomSeed: 9, colonyCats: [{ name: CAT_NAMES[0], x: 8, z: 4 }],
+    });
+    const [s] = cats.strays;
+    const p = s.group.position;
+    expect([p.x, p.y, p.z]).toEqual([8, 3, 4]);
+    let px = p.x;
+    let pz = p.z;
+    let moved = 0;
+    for (let f = 0; f < 3000; f++) {
+      cats.update(DT, f * DT, FAR_CAT, {});
+      expect(p.y).toBe(3);
+      expect(g.canStep(px, pz, p.x, p.z)).toBe(true);
+      if (p.x !== px || p.z !== pz) moved++;
+      px = p.x;
+      pz = p.z;
+    }
+    expect(moved).toBeGreaterThan(100); // it did wander
+    // a shy one scurrying straight at the rim stops there too
+    s.personality = 'shy';
+    s.state = 'idle';
+    s.scurry = 0;
+    p.set(8, 3, 4.6);
+    const fast = new THREE.Vector3(8, 3, 2.6);
+    for (let f = 0; f < 120; f++) {
+      cats.update(DT, f * DT, fast, { catSpeed: 4 });
+      expect(p.y).toBe(3);
+      expect(g.y(p.x, p.z)).toBe(3);
+    }
+    // and a cross one recoiling off the rim stays on the plateau
+    p.set(8, 3, 4.8);
+    cats.turnHostile(s, new THREE.Vector3(8, 3, 4));
+    expect(p.y).toBe(3);
+    expect(g.y(p.x, p.z)).toBe(3);
+  });
+
+  it('the stray stream is not drawn any more than before', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const counting = () => { let n = 0; const f = () => { n++; return ((n * 0.6180339887) % 1); }; f.count = () => n; return f; };
+    for (const count of [0, 3, 14]) {
+      const r = counting();
+      createStrayCats(new THREE.Scene(), area, count, r, { colonyCats: [{ name: CAT_NAMES[0], x: 8, z: 4 }] });
+      expect(r.count()).toBe(47 + 5 * count);
+    }
+  });
+
+  it('clan cats sit, roam and hop on the ground', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const layout = {
+      cx: 8, cz: 0,
+      seats: {
+        leader: { x: 8, y: 0.8, z: -2 },
+        deputy: { x: 9.5, z: -2 },
+        elders: [{ x: 6, z: -1 }, { x: 6, z: 1 }],
+        kits: [{ x: 7, z: 1.5 }, { x: 9, z: 1.5 }, { x: 7, z: 2.5 }, { x: 9, z: 2.5 }],
+      },
+    };
+    const homes = [{ x: 8, z: 3.5 }, { x: 10, z: 2 }, { x: 6, z: -3 }, { x: 11, z: -2 }, { x: 5, z: 2 }];
+    const cast = clanCast('woods').slice(0, 9);
+    const cats = createClanCats(new THREE.Scene(), area, cast, {
+      campLayout: layout, roamHomes: homes, roomSeed: 4, areaId: null,
+    });
+    const leader = cats.list.find((c) => c.slot === 0);
+    expect(leader.group.position.y).toBeCloseTo(3.8, 12);
+    for (const c of cats.list) {
+      if (c === leader) continue;
+      expect(c.group.position.y).toBe(3);
+    }
+    const kits = cats.list.filter((c) => c.kitSeat >= 0);
+    const roamers = cats.list.filter((c) => !c.camp);
+    expect(roamers.length).toBeGreaterThan(0);
+    const prev = new Map(roamers.map((c) => [c, { x: c.group.position.x, z: c.group.position.z }]));
+    let peak = 0;
+    let leftHome = 0;
+    for (let f = 0; f < 3000; f++) {
+      cats.update(DT, f * DT, FAR_CAT);
+      for (const k of kits) peak = Math.max(peak, k.group.position.y);
+      for (const c of roamers) {
+        const p = c.group.position;
+        const q = prev.get(c);
+        expect(Math.abs(p.y - g.y(p.x, p.z))).toBeLessThan(1e-9);
+        expect(g.canStep(q.x, q.z, p.x, p.z)).toBe(true);
+        expect(p.y).toBe(3); // homes on the plateau: never off it
+        if (Math.hypot(p.x - c.home.x, p.z - c.home.z) > 1) leftHome++;
+        q.x = p.x;
+        q.z = p.z;
+      }
+    }
+    expect(leftHome).toBeGreaterThan(0);
+    expect(peak).toBeGreaterThan(3.1);
+    expect(peak).toBeLessThanOrEqual(3 + 0.12 + 1e-12); // KIT_HOP_HEIGHT
+    for (const k of kits) if (k.state === 'post') expect(k.group.position.y).toBe(3);
+  });
+
+  it('critters perch, hop and fly above the ground', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const crit = createCritters(new THREE.Scene(), [
+      { type: 'bird', x: 8, z: 1 },
+      { type: 'butterfly', x: 8, z: -1 },
+      { type: 'frog', x: 9, z: 2, x2: 9.5, z2: 2 }, // a patrol on the plateau
+    ], { ground: g, hides: [{ x: 10, z: 2 }] });
+    const [bird, fly, frog] = crit.list;
+    expect(bird.group.position.y).toBe(3);
+    expect(fly.group.position.y).toBe(4);
+    expect(frog.group.position.y).toBe(3);
+    for (let f = 0; f < 300; f++) {
+      crit.update(DT, f * DT, FAR_CAT, FAR_CAT);
+      expect(bird.group.position.y).toBeGreaterThanOrEqual(3);
+      expect(bird.group.position.y).toBeLessThanOrEqual(3.08 + 1e-12);
+      expect(fly.group.position.y).toBeGreaterThanOrEqual(3.5 - 1e-12);
+      expect(fly.group.position.y).toBeLessThanOrEqual(4.1 + 1e-12);
+      expect(frog.group.position.y).toBe(3);
+    }
+    // the frog bolts for its cover on the plateau and hides there, at 3
+    const cat = new THREE.Vector3(8.5, 3, 2);
+    for (let f = 300; f < 600 && !frog.hidden; f++) {
+      crit.update(DT, f * DT, cat, cat);
+      expect(frog.group.position.y).toBeGreaterThanOrEqual(3);
+      expect(frog.group.position.y).toBeLessThanOrEqual(3.12 + 1e-12);
+    }
+    expect(frog.hidden).toBe(true);
+    expect(frog.group.position.y).toBe(3);
+  });
+
+  it('a fleeing critter never crosses a rim', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    // no cover: it dashes straight away from the cat, at the rim
+    {
+      const crit = createCritters(new THREE.Scene(), [{ type: 'squirrel', x: 8, z: 3.5, x2: 9, z2: 3.5 }], { ground: g });
+      const [sq] = crit.list;
+      const cat = new THREE.Vector3(8, 3, 1.5);
+      let fled = false;
+      let px = sq.group.position.x;
+      let pz = sq.group.position.z;
+      for (let f = 0; f < 3 * 60; f++) {
+        crit.update(DT, 1 + f * DT, cat, cat);
+        if (sq.fleeing) fled = true;
+        const p = sq.group.position;
+        expect(p.y).toBe(3);
+        expect(g.canStep(px, pz, p.x, p.z)).toBe(true);
+        px = p.x;
+        pz = p.z;
+      }
+      expect(fled).toBe(true);
+      expect(sq.group.position.z).toBeGreaterThan(4.4); // it ran right up to the rim
+    }
+    // cover just below the rim is not its cover; the plateau's is, and it gets there
+    {
+      const crit = createCritters(new THREE.Scene(), [{ type: 'squirrel', x: 8, z: 3.5, x2: 9, z2: 3.5 }], {
+        ground: g, hides: [{ x: 8, z: 6 }, { x: 11, z: 2 }],
+      });
+      const [sq] = crit.list;
+      const cat = new THREE.Vector3(8, 3, 1.5);
+      for (let f = 0; f < 3 * 60 && !sq.hidden; f++) {
+        crit.update(DT, 1 + f * DT, cat, cat);
+        expect(sq.group.position.y).toBe(3);
+      }
+      expect(sq.hidden).toBe(true);
+      expect(Math.hypot(sq.group.position.x - 11, sq.group.position.z - 2)).toBeLessThanOrEqual(0.4 + 1e-9);
+    }
+  });
+
+  it('a ghost and the kitten stand on the ground', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const ghosts = createGhosts(new THREE.Scene(), area, [{ playerId: 'p1', petName: 'Bo', breed: 'tabby', greets: 0 }],
+      mulberry32(2), { gift: { x: 8, z: 4 } });
+    const [gh] = ghosts.list;
+    const p = gh.group.position;
+    expect(p.y).toBe(3);
+    let px = p.x;
+    let pz = p.z;
+    for (let f = 0; f < 3000; f++) {
+      ghosts.update(DT, f * DT);
+      expect(Math.abs(p.y - g.y(p.x, p.z))).toBeLessThan(1e-9); // the ramp down is a legal way off
+      expect(g.canStep(px, pz, p.x, p.z)).toBe(true);
+      px = p.x;
+      pz = p.z;
+    }
+    // Mochi at home on the plateau, round its spawn
+    const home = createKittenEncounter(new THREE.Scene(), { kind: 'home' }, { x: 8, z: 0 }, { ground: g });
+    for (let f = 0; f < 600; f++) {
+      home.update(DT, FAR_CAT);
+      expect(home.group.position.y).toBe(3);
+    }
+    // the trail's paw prints lie on the ground under them
+    const ground = createGround({ discs: [{ x: 0, z: 0, r: 30, y: 2 }] });
+    const trail = createKittenEncounter(new THREE.Scene(), { kind: 'trail' }, { x: 0, z: 0 }, { ground });
+    for (const d of trail.group.children) expect(d.position.y).toBeCloseTo(2.02, 12);
+  });
+
+  it('an intruder walks its route on the ground and is staged on it', () => {
+    let k = Math.floor(1e9 / INTRUDER_PERIOD);
+    while (!visitAt('woods', k * INTRUDER_PERIOD)) k++;
+    const T = k * INTRUDER_PERIOD + ENTER_AT + 20;
+    const at = intruderAt('woods', T);
+    const ground = createGround({ discs: [{ x: at.x, z: at.z, r: 5, y: 3 }] });
+    const scene = new THREE.Scene();
+    const clock = { T };
+    const intr = createIntruders(scene, 'woods', { now: () => clock.T, hostile: () => true, ground });
+    intr.update(DT, FAR_CAT);
+    const mesh = () => scene.children.find((o) => o.userData?.intruder);
+    expect(mesh().position.y).toBe(3);
+    clock.T += 1;
+    intr.update(1, FAR_CAT);
+    expect(mesh().position.y).toBe(3);
+    // held and staged by my fight: the lift is relative to the ground (R11)
+    const cur = intr.current();
+    const pos = cur.pos;
+    intr.hold(cur.visit, 'me', pos, { local: true });
+    intr.stage(cur.visit, { pose: 'cross', x: pos.x + 1, z: pos.z, y: 0.2 });
+    expect(mesh().position.y).toBeCloseTo(3.2, 12);
+    // with no ground, exactly what it always was
+    const flatScene = new THREE.Scene();
+    const flatIntr = createIntruders(flatScene, 'woods', { now: () => T, hostile: () => true });
+    flatIntr.update(DT, FAR_CAT);
+    const fm = flatScene.children.find((o) => o.userData?.intruder);
+    expect(fm.position.y).toBe(0);
+    const fc = flatIntr.current();
+    flatIntr.hold(fc.visit, 'me', fc.pos, { local: true });
+    flatIntr.stage(fc.visit, { pose: 'cross', x: fc.pos.x, z: fc.pos.z, y: 0.2 });
+    expect(fm.position.y).toBe(0.2);
+  });
+
+  it('a co-walker stands at the ground under its streamed spot', () => {
+    const g = buildHeightFixture(new THREE.Scene()).ground;
+    const run = (ground) => {
+      const remotes = createRemoteCats(new THREE.Scene(), ground ? { ground } : {});
+      remotes.upsert({ playerId: 'p2', breed: 'tabby', petName: 'Bo', accessories: {} }, 0);
+      remotes.applyState({ id: 'p2', pos: [8, 0], yaw: 0, pose: 'follow', speed: 0 }, 0);
+      const ys = [];
+      for (let f = 1; f <= 30; f++) {
+        remotes.update(DT, f * DT, []);
+        ys.push(remotes.list[0].group.position.y);
+      }
+      return ys;
+    };
+    const flat = run(null);
+    const raised = run(g);
+    raised.forEach((y, i) => expect(y).toBe(3 + flat[i]));
+    // a meow from (8, 0) is heard from (8, 3, 0), right where it came from
+    const vols = [];
+    const { applyRemoteEvent } = createNetEvents({
+      MP: 1, getCloud: () => null, getPsecret: () => null, log: {}, hud: { toast() {} },
+      audio: { meow: (v) => vols.push(v) }, samples: { has: () => false }, catVoice() {}, applyGoalResult() {},
+    });
+    const heard = [];
+    const s = {
+      playerId: 'me', ground: g, cat: { position: new THREE.Vector3(8, 3, 0) },
+      critters: { reactToMeow: (pos) => heard.push(pos.clone()) },
+    };
+    applyRemoteEvent(s, { type: 'meow', id: 'p2', breed: 'tabby', pos: [8, 0] });
+    expect(vols).toEqual([meowVolumeForDistance(0)]);
+    expect(heard[0].toArray()).toEqual([8, 3, 0]);
+    // the toy ghost and the handed-over yarn sit on the ground too
+    const mainSrc = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    expect(mainSrc).toContain('session.toyGhost.position.set(rx, session.ground.y(rx, rz) + 0.13, rz);');
+  });
+
+  it('encounters do not reach across a rim', () => {
+    // an intruder on the floor does not puff up at a cat on a clifftop 1.5 m away
+    let k = Math.floor(1e9 / INTRUDER_PERIOD);
+    while (!visitAt('woods', k * INTRUDER_PERIOD)) k++;
+    const T = k * INTRUDER_PERIOD + ENTER_AT + 20;
+    const at = intruderAt('woods', T);
+    const cat = new THREE.Vector3(at.x + 1.5, 3, at.z);
+    const ground = createGround({ discs: [{ x: cat.x + 0.5, z: cat.z, r: 0.8, y: 3 }] });
+    expect(ground.y(at.x, at.z)).toBe(0);
+    const notices = [];
+    const intr = createIntruders(new THREE.Scene(), 'woods', {
+      now: () => T, hostile: () => true, ground, onNotice: (v) => notices.push(v),
+    });
+    intr.update(DT, cat);
+    expect(notices).toEqual([]);
+    // the same cat on the same level: noticed
+    const level = createIntruders(new THREE.Scene(), 'woods', {
+      now: () => T, hostile: () => true, onNotice: (v) => notices.push(v),
+    });
+    level.update(DT, new THREE.Vector3(cat.x, 0, cat.z));
+    expect(notices).toHaveLength(1);
+
+    // a rival patrol does not chase a trespasser on another level
+    const p = patrolAt('park', 1000);
+    const { cx, cz } = rivalFor('park');
+    const tres = new THREE.Vector3(p.x + (cx - p.x) * 0.2, 0, p.z + (cz - p.z) * 0.2);
+    const chases = [];
+    const rg = createGround({ discs: [{ x: tres.x, z: tres.z, r: 0.4, y: 3 }] });
+    const patrolUp = createRivalPatrol(new THREE.Scene(), 'park', { now: () => 1000, ground: rg, onChase: () => chases.push(1) });
+    patrolUp.update(DT, tres.clone().setY(3));
+    expect(chases).toEqual([]);
+    const patrolFlat = createRivalPatrol(new THREE.Scene(), 'park', { now: () => 1000, onChase: () => chases.push(1) });
+    patrolFlat.update(DT, tres.clone());
+    expect(chases).toEqual([1]);
+
+    // the kitten does not ask to be comforted from the floor below
+    const kg = createGround({ discs: [{ x: KITTEN_SPOT.x, z: KITTEN_SPOT.z, r: 1, y: 3 }] });
+    const meet = createKittenEncounter(new THREE.Scene(), { kind: 'meet' }, { x: 0, z: 0 }, { ground: kg });
+    expect(meet.group.position.y).toBe(3);
+    expect(meet.promptAt({ x: KITTEN_SPOT.x + 1.5, z: KITTEN_SPOT.z })).toBeNull();
+    expect(meet.promptAt({ x: KITTEN_SPOT.x + 0.5, z: KITTEN_SPOT.z })).toBeTruthy();
+  });
+
+  it('the rival patrol and the yard dog stand on the ground', () => {
+    const p = patrolAt('park', 1000);
+    const rg = createGround({ discs: [{ x: p.x, z: p.z, r: 3, y: 3 }] });
+    const scene = new THREE.Scene();
+    const patrol = createRivalPatrol(scene, 'park', { now: () => 1000, ground: rg });
+    patrol.update(DT, FAR_CAT);
+    expect(scene.children[0].position.y).toBe(3);
+    const yard = { x: 0, z: 0, r: 4, kennel: { x: 0, z: -3 } };
+    const dg = createGround({ discs: [{ x: 0, z: 0, r: 6, y: 2 }] });
+    const dogScene = new THREE.Scene();
+    const dog = createYardDog(dogScene, yard, { ground: dg });
+    const flatScene = new THREE.Scene();
+    createYardDog(flatScene, yard);
+    expect(dog.group.position.y).toBe(2);
+    dogScene.children.forEach((o, i) => expect(o.position.y).toBe(2 + flatScene.children[i].position.y));
+    dog.update(DT, FAR_CAT, null);
+    expect(dog.group.position.y).toBe(2);
+  });
+});

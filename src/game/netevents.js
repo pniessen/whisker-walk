@@ -12,6 +12,10 @@ import { voiceFor } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
 import { isStrayName } from '../straynames.js';
 import { shedKittypetCollar } from '../housecats.js';
+import { FLAT_GROUND } from '../ground.js';
+
+// Gorge part 1 (R13): the receiver's own ground under a streamed [x, z].
+const groundY = (s, x, z) => (s.ground ?? FLAT_GROUND).y(x, z);
 
 // v21 3b Task 8 — a co-walker who disappears takes what she was carrying with
 // her. takeHeldItemsWithRemotes(remotes, items, localCat) wraps the walk's
@@ -177,17 +181,17 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       }
     } else if (ev.type === 'dig') {
       const treat = s.scent.digById(ev.treatId);
-      if (treat) maybeSnipeToast(s, ev, new THREE.Vector3(treat.x, 0, treat.z));
+      if (treat) maybeSnipeToast(s, ev, new THREE.Vector3(treat.x, groundY(s, treat.x, treat.z), treat.z));
     } else if (ev.type === 'collect') {
       if (s.collectibleMeshes.has(ev.collectibleId)) {
         const c = s.areaData.collectibles.find((x) => x.id === ev.collectibleId);
         s.scene.remove(s.collectibleMeshes.get(ev.collectibleId));
         s.collectibleMeshes.delete(ev.collectibleId);
-        if (c) maybeSnipeToast(s, ev, new THREE.Vector3(c.x, 0, c.z));
+        if (c) maybeSnipeToast(s, ev, new THREE.Vector3(c.x, groundY(s, c.x, c.z), c.z));
       }
     } else if (ev.type === 'meow') {
       const pos = Array.isArray(ev.pos) && ev.pos.length === 2
-        ? new THREE.Vector3(ev.pos[0], 0, ev.pos[1])
+        ? new THREE.Vector3(ev.pos[0], groundY(s, ev.pos[0], ev.pos[1]), ev.pos[1])
         : s.cat.position;
       const dist = s.cat.position.distanceTo(pos);
       const vol = meowVolumeForDistance(dist);
@@ -230,7 +234,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       }
     } else if (ev.type === 'yarn-authority') {
       if (ev.toId === s.playerId && Array.isArray(ev.pos) && ev.pos.length === 2) {
-        s.toy.setPosition(new THREE.Vector3(ev.pos[0], 0.13, ev.pos[1]));
+        s.toy.setPosition(new THREE.Vector3(ev.pos[0], groundY(s, ev.pos[0], ev.pos[1]) + 0.13, ev.pos[1]));
         s.batReady = true; // freshly acquired — ready to bat right away
       }
     } else if (ev.type === 'pounce-tag') {
