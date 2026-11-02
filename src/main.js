@@ -841,10 +841,9 @@ function init() {
       session.clanFight.update(dt, session);
       // The fight camera, over the follow camera player.update placed: while a
       // fight is on, no tree hides either cat (src/fightcam.js).
-      const fightSubject = session.clanFight.cameraSubject;
       session.fightCam?.update(dt, {
-        subject: fightSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
-        sheetTop: fightSubject ? sheetTopFrom(parseFloat(hudEl?.style.getPropertyValue('--fight-sheet-h')), window.innerHeight) : null,
+        subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
+        sheetTop: session.clanFight.cameraSubject ? sheetTopFrom(parseFloat(hudEl?.style.getPropertyValue('--fight-sheet-h')), window.innerHeight) : null,
       });
       // The tree fade, over the camera's final place this frame: a tree between
       // it and the cat (at CAT_LOOK_Y, the fight camera's look) turns
