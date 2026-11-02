@@ -296,7 +296,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
-  // folded leg, and roll drops its +-ROLL.tuck leg rotations   // still swings the crouched legs through walkGait); a rig without them (Hagrid) keeps today's lines.
+  // folded leg, and roll drops its +-ROLL.tuck leg rotations (stalk still swings
+  // the crouched legs through walkGait); a rig without them (Hagrid) keeps
+  // today's lines.
   const f = FOLD_BY_STATE[state];
   legs.forEach((leg, i) => applyFold(leg, f ? f[i < 2 ? 0 : 1] : 'stand'));
   const folds = !!legs[0].userData.folds;
