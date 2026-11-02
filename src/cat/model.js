@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt } from './coat.js';
-import { limbGeometry, paintLimb, legTopDir } from './limbs.js';
+import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
@@ -132,19 +132,6 @@ function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
-}
-
-// Same shape as ball(), but with the non-uniform scale BAKED INTO THE GEOMETRY
-// and mesh.scale left at 1. Used for the paws, and only for the paws, because
-// the `feet` accessories reach in and write `paw.scale` directly — three of the
-// four call `scale.set(...)`, which would wipe a shape carried in mesh.scale and
-// hand a boot back its old round ball. Carrying the paw's shape in the geometry
-// instead means every existing accessory multiplier composes on top of it
-// unchanged.
-function shapedBall(r, color, sx, sy, sz, wSeg = BALL_W, hSeg = BALL_H) {
-  const geo = new THREE.SphereGeometry(r, wSeg, hSeg);
-  geo.scale(sx, sy, sz);
-  return new THREE.Mesh(geo, mat(color));
 }
 
 // -----------------------------------------------------------------------------
@@ -888,22 +875,16 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
       paintLimb(limbGeometry(LEGS.LEN, hind, opts.simple), legHex, topColour),
       litMaterial(0xffffff, { vertexColors: true }));
     leg.add(limb);
-    // Wave 6. Two things were wrong with the paw. It was a near-sphere, so it
-    // read as a knob on the end of a peg rather than as a foot; and it was
-    // parked at -0.27, which put its underside at world y -0.0196 — the cat
-    // stood 2cm INTO the ground on every surface in the game, measured off the
-    // model's own bounding box. It is now flatter, wider, longer front-to-back
-    // and pushed a little forward (-z is the cat's facing direction), and sits
-    // AT y = 0 rather than through it.
-    //
-    // The shape lives in the geometry, not in mesh.scale — see shapedBall() for
-    // why the `feet` accessories require that.
-    // The width is deliberately held near the limb's own 0.058 bottom radius:
-    // flaring it wider turns a pale paw into a clog. The read comes from the
-    // depth (1.42, so it reaches forward under the leg) and the flatness (0.62),
-    // not from the width.
+    // The foot (body refinement Task 4, limbs.js footGeometry): a soft oval
+    // with a flat sole and a low top, four toes scalloped into its front edge
+    // and claw tips just showing, in today's paw colour on the shared
+    // vertex-coloured material. Its sole is PAW_HALF below its centre, so it
+    // stands where the old paw stood (on y = 0), and its heel is where the old
+    // paw's was. The shape lives in the geometry, not in mesh.scale, because
+    // the `feet` accessories write paw.scale directly; they also swap in the
+    // plain paw (plainPawGeometry), so a boot sits exactly where it always did.
     const pawColour = s.socks ? WHITE_FUR : s.points ? s.accent : s.belly;
-    const paw = shapedBall(0.062, pawColour, 1.02, 0.62, 1.42, 12, 9);
+    const paw = new THREE.Mesh(footGeometry(pawColour, opts.simple), litMaterial(0xffffff, { vertexColors: true }));
     paw.position.set(0, PAW_Y, -0.012); // the sole stays where it always was
     leg.add(paw);
     leg.userData.paw = paw;
@@ -1300,14 +1281,24 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
+  // Every item first swaps the toed foot for today's plain paw (R8), so it
+  // wraps the shape it was made for and sits exactly where it always sat.
+  const plainPaw = (leg) => {
+    const paw = leg.userData.paw;
+    paw.geometry.dispose();
+    paw.geometry = plainPawGeometry();
+    return paw;
+  };
   if (accessories.feet === 'booties') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(0xf2c14e);
       leg.userData.paw.scale.multiplyScalar(1.15);
     }
   } else if (accessories.feet === 'goldbooties') {
     // shiny gold paws with a darker gold cuff at the ankle
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(PRIZE_GOLD);
       leg.userData.paw.scale.multiplyScalar(1.18);
       const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 8), mat(0xd9a000));
@@ -1316,6 +1307,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.feet === 'sneakers') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(SNEAKER_WHITE);
       leg.userData.paw.scale.set(1.2, 0.95, 1.25);
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.09), mat(SNEAKER_ACCENT));
@@ -1324,11 +1316,13 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     }
   } else if (accessories.feet === 'rainboots') {
     for (const leg of legs) {
+      plainPaw(leg);
       leg.userData.paw.material = mat(RAINBOOT_COLOR);
       leg.userData.paw.scale.set(1.15, 1.4, 1.15);
     }
   } else if (accessories.feet === 'socks') {
     legs.forEach((leg, i) => {
+      plainPaw(leg);
       leg.userData.paw.material = mat(SOCK_COLORS[i % SOCK_COLORS.length]);
       leg.userData.paw.scale.set(1.1, 1.3, 1.1);
     });

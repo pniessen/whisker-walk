@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { buildCat, coatColor, CAT_LOOK_Y } from '../src/cat/model.js';
 import { samples, lum as lumC, meshCount, surfaceHit, PRESETS, triangles, colourDistance } from './helpers/catfingerprint.js';
 import { animateCat } from '../src/cat/animator.js';
-import { LEG_BLEND } from '../src/cat/limbs.js';
+import { LEG_BLEND, CLAW_HEX } from '../src/cat/limbs.js';
 import { CATALOG } from '../src/progression.js';
 import { VISIT_PRIZES } from '../src/visits.js';
 
@@ -145,7 +145,14 @@ describe("cat model: Robbie's real coat", () => {
       limb.userData.t.forEach((t, i) => {
         if (t >= LEG_BLEND) expect(lumC(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)))).toBeGreaterThan(0.8);
       });
-      expect(lum(leg.userData.paw.material)).toBeGreaterThan(0.8);
+      // The paw is vertex-coloured too (Task 4): white but for its claw tips.
+      const paw = leg.userData.paw.geometry.attributes.color;
+      const claw = new THREE.Color(CLAW_HEX);
+      for (let i = 0; i < paw.count; i++) {
+        const c = new THREE.Color(paw.getX(i), paw.getY(i), paw.getZ(i));
+        if (c.getHex() === claw.getHex()) continue;
+        expect(lumC(c)).toBeGreaterThan(0.8);
+      }
     }
     // The coat is painted (Task 4): read the torso's own vertex colours.
     const s = samples('robbie');

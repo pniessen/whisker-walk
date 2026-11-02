@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEGS, TORSO } from './torso.js';
+import { LEGS, TORSO, PAW_HALF } from './torso.js';
 
 // The smooth limb (body refinement, docs/superpowers/specs/2026-11-01-body-refinement-design.md):
 // each leg is ONE tube along a smooth curve, from a shoulder (front) or a
@@ -184,4 +184,127 @@ export function legTopDir(x, z, f = [1, 1, 1]) {
   ];
   const L = Math.hypot(...d);
   return d.map((v) => v / L);
+}
+
+// ---------------------------------------------------------------------------
+// THE FOOT (body refinement Task 4; the sketch's smoothFoot): one soft oval
+// with a flat sole and a low rounded top, four toes scalloped into its front
+// edge, and four small claws just showing at the toe tips (R6), all one
+// vertex-coloured geometry on the shared white material. Its origin is where
+// today's paw's centre was, so the sole is PAW_HALF below it and the heel
+// where today's was.
+
+// The claws' colour (the sketch's).
+export const CLAW_HEX = 0xd9d4c8;
+// R: the paw radius the oval is built from; TOES: each toe's centre across
+// the foot, as a fraction of its half-width (the sketch's).
+export const FOOT = Object.freeze({ R: 0.062, TOES: Object.freeze([-0.62, -0.21, 0.21, 0.62]) });
+
+// The oval: half-width 0.95 R (the sketch's), reaching 1.3 R forward to the
+// toes' base line (the sketch's) and 1.4 R back to the heel (today's paw's
+// 1.42, so the heel stays where it was). Its top is 0.75 R up (the sketch's).
+const FOOT_W = 0.95 * FOOT.R;
+const FOOT_FRONT = 1.3 * FOOT.R;
+const FOOT_BACK = 1.4 * FOOT.R;
+const FOOT_TOP = 0.75 * FOOT.R;
+// The front edge in the oval's unit outline: u across (-1 left .. 1 right),
+// v forward (1 is the toes' base line). Each toe is a rounded tip (its centre
+// and two flanks) and between neighbouring toes is a scallop; the middle toes
+// reach furthest, the outer two sit a little back, as on a real paw. Left to
+// right, from the side of the foot round the front to the other side.
+const TOE_V = [1.0, 1.1, 1.1, 1.0]; // each toe's tip
+const TOE_FLANK = [0.075, 0.03];       // a flank: this far across, this much behind the tip
+const SCALLOP_V = [0.86, 0.98, 0.86]; // between toes 1|2, 2|3, 3|4
+const FRONT_EDGE = (() => {
+  const pts = [[-1, 0], [-0.86, 0.66]];
+  FOOT.TOES.forEach((u, i) => {
+    pts.push([u - TOE_FLANK[0], TOE_V[i] - TOE_FLANK[1]], [u, TOE_V[i]], [u + TOE_FLANK[0], TOE_V[i] - TOE_FLANK[1]]);
+    if (i < 3) pts.push([(u + FOOT.TOES[i + 1]) / 2, SCALLOP_V[i]]);
+  });
+  pts.push([0.86, 0.66], [1, 0]);
+  return pts;
+})();
+// Points round the heel, between the two sides (full / simple): the only
+// difference between the two feet, so both have the same toes.
+const HEEL_PTS = { full: 9, simple: 5 };
+// The rings up the side, as [outline scale, height]: the flat sole's edge,
+// the widest ring a little below the middle, a shoulder under the low top.
+// The sole's centre and the top's apex close it.
+const FOOT_RINGS = [[0.72, -PAW_HALF], [1, -0.25 * PAW_HALF], [0.78, 0.55 * FOOT_TOP]];
+// R6: a claw is a 3-sided open cone, radius 0.0045 and 0.018 long, angled
+// forward and down 0.5 rad, its tip CLAW_OUT beyond the toe's front point:
+// the rest is inside the toe.
+const CLAW = { R: 0.0045, LEN: 0.018, DIP: 0.5, OUT: 0.008 };
+
+// The unit outline, closed, anticlockwise seen from above: the front edge
+// left to right, then round the heel right to left.
+function footOutline(simple) {
+  const pts = FRONT_EDGE.slice();
+  const n = HEEL_PTS[simple ? 'simple' : 'full'];
+  for (let k = 1; k <= n; k++) {
+    const a = (k / (n + 1)) * Math.PI;
+    pts.push([Math.cos(a), -Math.sin(a)]);
+  }
+  return pts;
+}
+const outlineX = (u) => u * FOOT_W;
+const outlineZ = (v) => -v * (v > 0 ? FOOT_FRONT : FOOT_BACK);
+
+export function footGeometry(pawHex, simple = false) {
+  const outline = footOutline(simple);
+  const n = outline.length;
+  const pos = [];
+  const put = (x, y, z) => { pos.push(x, y, z); return pos.length / 3 - 1; };
+  const sole = put(0, -PAW_HALF, 0);
+  const ring0 = pos.length / 3;
+  for (const [s, y] of FOOT_RINGS) for (const [u, v] of outline) put(outlineX(u) * s, y, outlineZ(v) * s);
+  const apex = put(0, FOOT_TOP, 0);
+  const idx = [];
+  const at = (k, j) => ring0 + k * n + (j % n);
+  // The outline runs anticlockwise from above (-z forward, +x right), so each
+  // face is wound to face out.
+  for (let j = 0; j < n; j++) idx.push(sole, at(0, j), at(0, j + 1));
+  for (let k = 0; k < FOOT_RINGS.length - 1; k++) {
+    for (let j = 0; j < n; j++) idx.push(at(k, j), at(k + 1, j), at(k + 1, j + 1), at(k, j), at(k + 1, j + 1), at(k, j + 1));
+  }
+  const top = FOOT_RINGS.length - 1;
+  for (let j = 0; j < n; j++) idx.push(apex, at(top, j + 1), at(top, j));
+  const footCount = pos.length / 3;
+
+  // The claws, one at each toe's tip on the widest ring.
+  const [, tipY] = FOOT_RINGS[1];
+  const d = new THREE.Vector3(0, -Math.sin(CLAW.DIP), -Math.cos(CLAW.DIP));
+  const a = new THREE.Vector3(1, 0, 0);
+  const b = new THREE.Vector3().crossVectors(d, a);
+  FOOT.TOES.forEach((u, i) => {
+    const tip = new THREE.Vector3(outlineX(u), tipY, outlineZ(TOE_V[i])).addScaledVector(d, CLAW.OUT);
+    const base = tip.clone().addScaledVector(d, -CLAW.LEN);
+    const k0 = pos.length / 3;
+    for (let j = 0; j < 3; j++) {
+      const ang = (j / 3) * Math.PI * 2;
+      const c = Math.cos(ang) * CLAW.R, sn = Math.sin(ang) * CLAW.R;
+      put(base.x + a.x * c + b.x * sn, base.y + a.y * c + b.y * sn, base.z + a.z * c + b.z * sn);
+    }
+    const t = put(tip.x, tip.y, tip.z);
+    for (let j = 0; j < 3; j++) idx.push(k0 + j, k0 + (j + 1) % 3, t);
+  });
+
+  const count = pos.length / 3;
+  const col = new Float32Array(count * 3);
+  const paw = new THREE.Color(pawHex), claw = new THREE.Color(CLAW_HEX);
+  for (let i = 0; i < count; i++) (i < footCount ? paw : claw).toArray(col, i * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// R8: today's plain paw (radius 0.062, flattened 0.62, long 1.42; no toes,
+// no claws, no vertex colours), for feet items to sit on exactly as before.
+export function plainPawGeometry() {
+  const geo = new THREE.SphereGeometry(FOOT.R, 12, 9);
+  geo.scale(1.02, 0.62, 1.42);
+  return geo;
 }

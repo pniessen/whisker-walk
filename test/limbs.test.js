@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCat } from '../src/cat/model.js';
 import { coatColourAt, coatFromStyle } from '../src/cat/coat.js';
-import { LEGS } from '../src/cat/torso.js';
-import { LEG_SHAPE, LIMB_SEG, LEG_BLEND, tubeGeometry, limbGeometry, paintLimb, legTopDir } from '../src/cat/limbs.js';
+import { LEGS, PAW_Y, PAW_HALF } from '../src/cat/torso.js';
+import { LEG_SHAPE, LIMB_SEG, LEG_BLEND, tubeGeometry, limbGeometry, paintLimb, legTopDir, CLAW_HEX, FOOT, footGeometry, plainPawGeometry } from '../src/cat/limbs.js';
 import { lookToStyle, DEFAULT_LOOK, PATTERNS, FURS } from '../src/customcats.js';
 import { PRESETS, meshCount, triangles, lum } from './helpers/catfingerprint.js';
 
@@ -252,5 +252,233 @@ describe('the smooth limb', () => {
     const src = fs.readFileSync(new URL('../src/cat/limbs.js', import.meta.url), 'utf8');
     expect(src).not.toMatch(/Math\.random/);
     expect(src).not.toMatch(/rng/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The foot (body refinement Task 4): a soft oval with a flat sole and a low
+// rounded top, four toes scalloped into its front edge, claw tips just
+// showing (R6). Feet items swap back to today's plain paw (R8).
+
+const CLAW_F32 = f32(new THREE.Color(CLAW_HEX));
+const isClaw = (geo, i) => {
+  const col = geo.attributes.color;
+  if (!col) return false;
+  return col.getX(i) === CLAW_F32[0] && col.getY(i) === CLAW_F32[1] && col.getZ(i) === CLAW_F32[2];
+};
+const geoBox = (geo) => { geo.computeBoundingBox(); return geo.boundingBox.clone(); };
+
+// The front edge, seen from above, of the foot's lower 60% (claws left out):
+// x binned into 24 bins across the foot's width, each bin's front-most point
+// (forward is -z). The points are the vertices plus points along every edge
+// between them, so a coarse oval reads as the convex outline it is rather
+// than as dips between its sparse vertices (a plain 12-sided ball's vertices
+// alone show dips of several cm between its longitudes).
+function frontProfile(geo) {
+  const p = geo.attributes.position;
+  const box = geoBox(geo);
+  const lower = box.min.y + 0.6 * (box.max.y - box.min.y);
+  const width = box.max.x - box.min.x;
+  const bins = new Array(24).fill(-Infinity);
+  const put = (x, y, z) => {
+    if (y > lower + 1e-9) return;
+    const b = Math.min(23, Math.max(0, Math.floor(((x - box.min.x) / width) * 24)));
+    bins[b] = Math.max(bins[b], -z);
+  };
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  const idx = geo.index ? geo.index.array : Array.from({ length: p.count }, (_, i) => i);
+  for (let i = 0; i < idx.length; i += 3) {
+    for (let k = 0; k < 3; k++) {
+      const i0 = idx[i + k], i1 = idx[i + (k + 1) % 3];
+      if (isClaw(geo, i0) || isClaw(geo, i1)) continue;
+      a.fromBufferAttribute(p, i0); b.fromBufferAttribute(p, i1);
+      for (let s = 0; s <= 8; s++) {
+        const u = s / 8;
+        put(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u);
+      }
+    }
+  }
+  const profile = [];
+  bins.forEach((f, i) => { if (f > -Infinity) profile.push({ x: box.min.x + ((i + 0.5) / 24) * width, f }); });
+  return { profile, width, box, lower };
+}
+// The toes: local forward maxima of the front profile, each with >= 0.004 of
+// prominence over the scallop between it and its neighbouring maximum (the
+// shallower scallop when it has two). A maximum with no neighbour has no
+// scallop, so a plain oval has none. Maxima below the prominence are dropped
+// one at a time, weakest first, so a sampling ripple can't split a scallop.
+function toeMaxima(geo, minProm = 0.004) {
+  const { profile: p, width } = frontProfile(geo);
+  let peaks = [];
+  for (let i = 1; i < p.length - 1; i++) if (p[i].f > p[i - 1].f && p[i].f >= p[i + 1].f) peaks.push(i);
+  for (;;) {
+    const prom = peaks.map((i, k) => {
+      const dips = [];
+      if (k > 0) dips.push(Math.min(...p.slice(peaks[k - 1], i + 1).map((q) => q.f)));
+      if (k < peaks.length - 1) dips.push(Math.min(...p.slice(i, peaks[k + 1] + 1).map((q) => q.f)));
+      return dips.length ? p[i].f - Math.max(...dips) : 0;
+    });
+    let w = -1;
+    prom.forEach((v, k) => { if (v < minProm && (w < 0 || v < prom[w])) w = k; });
+    if (w < 0) return { peaks: peaks.map((i) => p[i]), prom, width };
+    peaks.splice(w, 1);
+  }
+}
+
+const bareCats = () => {
+  const out = [];
+  for (const simple of [false, true]) {
+    for (const b of PRESETS) out.push([buildCat(b, undefined, { simple }), simple, b]);
+    for (const look of ALL_LOOKS()) out.push([buildCat('tabby', undefined, { look, simple }), simple, look.pattern]);
+  }
+  return out;
+};
+
+describe('the foot', () => {
+  it('four toes scalloped into the front edge', () => {
+    for (const simple of [false, true]) {
+      const geo = footGeometry(0xd8c39a, simple);
+      const { peaks, width } = toeMaxima(geo);
+      expect(peaks.length, simple ? 'simple' : 'full').toBe(4);
+      peaks.forEach((q, i) => expect(Math.abs(q.x - FOOT.TOES[i] * width / 2)).toBeLessThanOrEqual(0.012));
+    }
+    // The same foot on every bare cat.
+    for (const [cat, simple] of bareCats().slice(0, 3)) {
+      for (const leg of cat.userData.parts.legs) expect(toeMaxima(leg.userData.paw.geometry).peaks.length, `${simple}`).toBe(4);
+    }
+  });
+
+  it('claws just showing at the toe tips', () => {
+    for (const simple of [false, true]) {
+      const geo = footGeometry(0xd8c39a, simple);
+      const p = geo.attributes.position;
+      const claws = [];
+      for (let i = 0; i < p.count; i++) if (isClaw(geo, i)) claws.push(new THREE.Vector3().fromBufferAttribute(p, i));
+      expect(claws.length).toBeGreaterThan(0);
+      // Clusters: claw vertices left to right, a new claw wherever there is a
+      // gap of more than 0.006 across.
+      claws.sort((a, b) => a.x - b.x);
+      const clusters = [];
+      for (const v of claws) {
+        const last = clusters[clusters.length - 1];
+        if (last && v.x - last[last.length - 1].x <= 0.006) last.push(v); else clusters.push([v]);
+      }
+      expect(clusters.length).toBe(4);
+      const { width, lower } = frontProfile(geo);
+      clusters.forEach((cl, k) => {
+        // The toe's front-most point: the front-most non-claw vertex of the
+        // foot's lower part near that toe's centre.
+        const tx = FOOT.TOES[k] * width / 2;
+        let tip = null;
+        for (let i = 0; i < p.count; i++) {
+          if (isClaw(geo, i)) continue;
+          const v = new THREE.Vector3().fromBufferAttribute(p, i);
+          if (v.y > lower || Math.abs(v.x - tx) > 0.008) continue;
+          if (!tip || v.z < tip.z) tip = v;
+        }
+        expect(tip).toBeTruthy();
+        const centre = cl.reduce((s, v) => s.add(v), new THREE.Vector3()).divideScalar(cl.length);
+        expect(centre.distanceTo(tip)).toBeLessThanOrEqual(0.015);
+        const reach = Math.max(...cl.map((v) => tip.z - v.z));
+        expect(reach).toBeGreaterThan(0);          // showing
+        expect(reach).toBeLessThanOrEqual(0.012);  // just
+      });
+    }
+  });
+
+  it('a flat sole at PAW_HALF and the heel where it was', () => {
+    for (const simple of [false, true]) {
+      const geo = footGeometry(0xd8c39a, simple);
+      const box = geoBox(geo);
+      expect(Math.abs(box.min.y + PAW_HALF)).toBeLessThanOrEqual(1e-6);
+      const p = geo.attributes.position;
+      let flat = 0;
+      for (let i = 0; i < p.count; i++) if (p.getY(i) - box.min.y <= 0.002) flat++;
+      expect(flat).toBeGreaterThanOrEqual(8);
+      expect(Math.abs(box.max.z - 0.012 - 0.0747)).toBeLessThanOrEqual(0.01);
+      expect(box.max.x - box.min.x).toBeLessThanOrEqual(0.13); // no clogs
+    }
+    for (const leg of buildCat('tabby').userData.parts.legs) {
+      expect(leg.userData.paw.position.toArray()).toEqual([0, PAW_Y, -0.012]);
+    }
+  });
+
+  it('feet items get the plain paw', () => {
+    const plain = plainPawGeometry().attributes.position.array;
+    const want = {
+      booties: () => 0xf2c14e,
+      goldbooties: () => 0xf5c518,
+      sneakers: () => 0xf2f2f2,
+      rainboots: () => 0x3a6ea5,
+      socks: (i) => [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5][i],
+    };
+    expect(plainPawGeometry().attributes.color).toBeUndefined();
+    for (const breed of ['tabby', 'digit']) {
+      for (const [feet, hex] of Object.entries(want)) {
+        buildCat(breed, { feet }).userData.parts.legs.forEach((leg, i) => {
+          const paw = leg.userData.paw;
+          expect(paw.geometry.attributes.color, feet).toBeUndefined();
+          expect(paw.material.vertexColors).toBeFalsy();
+          expect(toeMaxima(paw.geometry).peaks.length, feet).toBe(0);
+          expect(paw.material.color.getHex(), feet).toBe(new THREE.Color(hex(i)).getHex());
+          expect(Array.from(paw.geometry.attributes.position.array)).toEqual(Array.from(plain));
+        });
+      }
+    }
+  });
+
+  it("paw colours keep each cat's scheme, no ready-made cat gains socks", () => {
+    // Today's paw colours, read off the built paws before the foot.
+    const today = {
+      tabby: 0xd8c39a, siamese: 0x4a3b32, persian: 0xe8e8ec, black: 0x3a3a42, calico: 0xf8f4e8,
+      mainecoon: 0xb99a72, zeetoo: 0xe0cca0, robbie: 0xf5f5f5, d2: 0xf5f5f2, digit: 0xf5f5f5,
+    };
+    const cases = PRESETS.map((b) => [buildCat(b), today[b], b]);
+    for (const pattern of ['socks', 'points']) {
+      const look = { ...DEFAULT_LOOK, pattern };
+      const s = lookToStyle(look);
+      cases.push([buildCat('tabby', undefined, { look }), pattern === 'socks' ? 0xf5f5f5 : s.accent, pattern]);
+    }
+    for (const [cat, hex, name] of cases) {
+      const want = f32(new THREE.Color(hex));
+      for (const leg of cat.userData.parts.legs) {
+        const geo = leg.userData.paw.geometry;
+        const col = geo.attributes.color;
+        expect(col, name).toBeTruthy();
+        expect(leg.userData.paw.material.vertexColors).toBe(true);
+        for (let i = 0; i < col.count; i++) {
+          if (isClaw(geo, i)) continue;
+          expect([col.getX(i), col.getY(i), col.getZ(i)], name).toEqual(want);
+        }
+      }
+    }
+  });
+
+  it('a smooth ankle', () => {
+    for (const [cat, simple, name] of bareCats().filter((c, i) => i % 3 === 0)) {
+      for (const leg of cat.userData.parts.legs) {
+        const rs = rings(leg.children[0].geometry);
+        const bottom = rs[rs.length - 1];
+        expect(bottom.r, name).toBeGreaterThanOrEqual(0.03);
+        const paw = leg.userData.paw;
+        paw.updateMatrix();
+        const pawBox = geoBox(paw.geometry).applyMatrix4(paw.matrix).expandByScalar(1e-9);
+        expect(pawBox.containsBox(bottom.box), `${name} ${simple}`).toBe(true);
+      }
+    }
+  });
+
+  it('a whole leg is within budget', () => {
+    for (const [cat, simple, name] of bareCats()) {
+      for (const leg of cat.userData.parts.legs) {
+        expect(triangles(leg.userData.paw), name).toBeLessThanOrEqual(simple ? 160 : 180);
+        expect(triangles(leg), name).toBeLessThanOrEqual(simple ? 340 : 400);
+      }
+    }
+  });
+
+  it('no randomness in the foot', () => {
+    const src = fs.readFileSync(new URL('../src/cat/limbs.js', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/Math\.random/);
   });
 });
