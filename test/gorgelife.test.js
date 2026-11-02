@@ -20,7 +20,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor } = await import('../src/gorgelife.js');
+const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor, ENV_DARK_FLOOR } = await import('../src/gorgelife.js');
 const { GORGE_CAVES, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { CAVE_SHOW_R, CAVE_SHOW_DY } = await import('../src/gorgelife.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
@@ -176,8 +176,9 @@ const ECHO = GORGE_CAVES.find((c) => c.id === 'echo');
 const OUTSIDE = [-10, 23.5]; // on the gorge floor, in front of the Echo Cave's mouth
 const CHAMBER = ECHO.path[ECHO.path.length - 1]; // the far end: depth 1
 
-function makeCave({ sunIntensity = 3, fillIntensity = 1, weather = { setSheltered: vi.fn() } } = {}) {
+function makeCave({ sunIntensity = 3, fillIntensity = 1, weather = { setSheltered: vi.fn() }, envIntensity = 0.45 } = {}) {
   const scene = new THREE.Scene();
+  scene.environmentIntensity = envIntensity; // walk.js's HIGH tier
   const sun = { intensity: sunIntensity };
   const fill = { intensity: fillIntensity };
   const audio = { setAmbientMix: vi.fn() };
@@ -210,7 +211,8 @@ function settle(k, [x, z], seconds, t0 = 0) {
 describe('gorge life: the caves', () => {
   it('the constants', () => {
     expect(DARK_FLOOR).toBe(0.3);
-    expect(GLOW_MAX).toBe(2.0);
+    expect(GLOW_MAX).toBe(1.0); // ruling C-F9: a cosy pool, not a hotspot
+    expect(ENV_DARK_FLOOR).toBe(0.55); // tuned live: Echo chamber 51% of the floor, day and dusk
     expect(darkFor(0)).toBe(1);
     expect(darkFor(1)).toBeCloseTo(0.3, 12);
     expect(darkFor(0.5)).toBeCloseTo(0.65, 12);
@@ -243,8 +245,8 @@ describe('gorge life: the caves', () => {
     expect(glow).toBeDefined();
     expect(glow.castShadow).toBe(false);
     expect(glow.color.getHex()).toBe(0xffd9a8);
-    expect(glow.distance).toBe(6);
-    expect(glow.decay).toBe(1.5);
+    expect(glow.distance).toBe(5);
+    expect(glow.decay).toBe(2);
     expect(glow.intensity).toBe(0);
     settle(k, OUTSIDE, 1);
     expect(glow.intensity).toBe(0);
@@ -254,7 +256,7 @@ describe('gorge life: the caves', () => {
       const cat = catAt(x, z);
       k.life.update(1 / 60, t, cat);
       expect(glow.position.x).toBe(cat.x);
-      expect(glow.position.y).toBeCloseTo(cat.y + 0.7, 12);
+      expect(glow.position.y).toBeCloseTo(cat.y + 1.3, 12);
       expect(glow.position.z).toBe(cat.z);
       expect(glow.intensity).toBeGreaterThanOrEqual(0);
       expect(glow.intensity).toBeLessThanOrEqual(GLOW_MAX);
@@ -358,6 +360,35 @@ describe('gorge life: the caves', () => {
     expect(glowOf(k.scene).intensity).toBe(GLOW_MAX);
   });
 
+  it('the environment light dims with depth, never below ENV_DARK_FLOOR; a Night Eyes write is the new base; dispose restores it', () => {
+    // Ruling C-F9: in a roofed chamber the image-based light is the biggest
+    // term, so it dims with the same eased depth as the sun and fill.
+    const k = makeCave({ envIntensity: 0.45 });
+    const env = () => k.scene.environmentIntensity;
+    settle(k, OUTSIDE, 1);
+    expect(env()).toBe(0.45);
+    let t = 1;
+    let last = Infinity;
+    for (const [x, z] of walkLine([OUTSIDE, ...ECHO.path], 1.5 / 60)) {
+      t += 1 / 60;
+      k.life.update(1 / 60, t, catAt(x, z));
+      expect(env()).toBeLessThanOrEqual(last + 1e-12);
+      expect(env()).toBeGreaterThanOrEqual(0.45 * ENV_DARK_FLOOR - 1e-12);
+      expect(env()).toBeCloseTo(0.45 * (1 - (1 - ENV_DARK_FLOOR) * k.life.depth), 10);
+      last = env();
+    }
+    t = settle(k, CHAMBER, 2, t);
+    expect(env()).toBeCloseTo(0.45 * ENV_DARK_FLOOR, 10);
+    // Night Eyes (composer.js applyLighting) writes it while she is deep in:
+    // that value is the new base, still dimmed
+    k.scene.environmentIntensity = 0.7;
+    k.life.update(1 / 60, t + 1 / 60, catAt(...CHAMBER));
+    expect(env()).toBeCloseTo(0.7 * ENV_DARK_FLOOR, 10);
+    // the walk ends in the chamber: the next walk gets it back whole
+    k.life.dispose();
+    expect(env()).toBe(0.7);
+  });
+
   it('rain is hidden under a ceiling', () => {
     const k = makeCave();
     const cam = { position: new THREE.Vector3() };
@@ -400,8 +431,12 @@ describe('gorge life: the caves', () => {
     expect(walk).toMatch(/const NO_AREA_LIFE = \{ update\(\) \{\}, dispose\(\) \{\} \};/);
     // and a life handed no caves never dims for one
     const { scene, sun, life } = make();
+    scene.environmentIntensity = 0.45;
     for (let i = 0; i < 60; i++) life.update(1 / 60, i / 60, at(0));
     expect(sun.intensity).toBeCloseTo(3 * 0.6, 10);
+    expect(scene.environmentIntensity).toBe(0.45); // and never the image-based light
+    life.dispose();
+    expect(scene.environmentIntensity).toBe(0.45);
   });
 });
 

@@ -33,7 +33,14 @@ import { caveDepth, underCeiling } from './caves.js';
 //     going in and 2.0 coming out (a bend's small depth jump never flickers).
 //     The sun gets shade x dark, the fill (0.85 + 0.15 shade) x dark, through
 //     the same composeIntensity state, so a weather write is still the base.
-//   * A WARM GLOW (C3). One PointLight round her cat, no shadow, added here
+//     The scene's image-based light (scene.environmentIntensity, the biggest
+//     light in a roofed chamber) dims by the same eased depth, never under
+//     ENV_DARK_FLOOR, through composeIntensity too: a Night Eyes write
+//     (composer.js applyLighting) becomes its base, and dispose hands it back
+//     (ruling C-F9).
+//   * A WARM GLOW (C3, ruling C-F9). A soft pool of warm light over her cat
+//     (short reach, falling off fast, at most GLOW_MAX: never a hotspot on
+//     her coat). One PointLight, no shadow, added here
 //     before the first frame (so no shader recompiles mid-walk) and always
 //     there on a Gorge walk, at 0 outside. Removed by dispose.
 //   * RAIN OUTSIDE (C6). While the camera is under a ceiling the weather
@@ -59,15 +66,21 @@ const MIX_EVERY = 0.25;
 // --- The caves (part 3) ---------------------------------------------------------
 // Lights never fall below this share of what they were outside.
 export const DARK_FLOOR = 0.3;
+// The image-based light never falls below this share of what it was outside.
+export const ENV_DARK_FLOOR = 0.55;
 // The glow's intensity at full depth.
-export const GLOW_MAX = 2.0;
+export const GLOW_MAX = 1.0;
 // The light factor's linear rates, per second: in (darker) and out (lighter).
 const DARK_IN_RATE = 1.2;
 const DARK_OUT_RATE = 2.0;
 // The glow reaches GLOW_MAX by this depth.
 const GLOW_FULL_DEPTH = 0.35;
-// The glow sits this far over her cat.
-const GLOW_LIFT = 0.7;
+// The glow sits this far over her cat: high enough to light the floor round
+// her as a pool rather than her back as a spot.
+const GLOW_LIFT = 1.3;
+// Its reach (m) and fall-off.
+const GLOW_DISTANCE = 5;
+const GLOW_DECAY = 2;
 
 // A cave's insides are drawn within this far (2D, m) of its rectangles, and
 // only while the ground under her is within CAVE_SHOW_DY of its floor.
@@ -79,13 +92,20 @@ const rectDist = (r, x, z) => Math.hypot(Math.max(r.minX - x, 0, x - r.maxX), Ma
 // Whether a cave's insides are drawn with her cat at (x, z) on ground groundY.
 export function interiorShown(cave, x, z, groundY) {
   if (Math.abs(groundY - cave.y) > CAVE_SHOW_DY) return false;
-  return cave.rects.some((r) => rectDist(r, x, z) <= CAVE_SHOW_R);
+  for (const r of cave.rects) if (rectDist(r, x, z) <= CAVE_SHOW_R) return true;
+  return false;
 }
 
 // The light factor at a depth: 1 outside, DARK_FLOOR at the far end.
 export function darkFor(depth) {
   return 1 - (1 - DARK_FLOOR) * depth;
 }
+
+// The depth a light factor stands for (darkFor's inverse).
+const depthFor = (dark) => (1 - dark) / (1 - DARK_FLOOR);
+
+// The image-based light's factor at a depth: 1 outside, ENV_DARK_FLOOR at the far end.
+const envFor = (depth) => 1 - (1 - ENV_DARK_FLOOR) * depth;
 
 // `value` moved toward `target` by at most `up` (rising) or `down` (falling).
 function approach(value, target, up, down) {
@@ -181,7 +201,7 @@ function createBirds(scene) {
 // The warm glow round her cat (C3). Never a shadow: castShadow stays false,
 // and the caster sweep (render/rig.js) only ever touches meshes.
 function createGlow(scene) {
-  const glow = new THREE.PointLight(0xffd9a8, 0, 6, 1.5);
+  const glow = new THREE.PointLight(0xffd9a8, 0, GLOW_DISTANCE, GLOW_DECAY);
   glow.castShadow = false;
   glow.name = 'caveGlow';
   scene.add(glow);
@@ -198,6 +218,12 @@ function createGlow(scene) {
 export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null, interiors = [] }) {
   const sunState = lightState(sun);
   const fillState = lightState(fill);
+  // scene.environmentIntensity as a light, so composeIntensity can scale it.
+  const env = {
+    get intensity() { return scene.environmentIntensity; },
+    set intensity(v) { scene.environmentIntensity = v; },
+  };
+  const envState = lightState(env);
   const birds = reducedMotion ? null : createBirds(scene);
   const glow = createGlow(scene);
   let shade = 1;
@@ -215,12 +241,13 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
   function light() {
     composeIntensity(sunState, sun, shade * dark);
     composeIntensity(fillState, fill, (FILL_FLOOR + (1 - FILL_FLOOR) * shade) * dark);
+    composeIntensity(envState, env, envFor(depthFor(dark)));
   }
 
   return {
     get shade() { return shade; },
     // How deep she is, eased: the depth the light factor stands for.
-    get depth() { return (1 - dark) / (1 - DARK_FLOOR); },
+    get depth() { return depthFor(dark); },
     update(dt, t, catPos, camera) {
       const groundY = ground.y(catPos.x, catPos.z);
       const target = shadeFor(groundY);
@@ -255,15 +282,16 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
       mixTimer -= dt;
       if (mixTimer <= 0) {
         mixTimer = MIX_EVERY;
-        audio?.setAmbientMix({ high: highFor(groundY), cave: (1 - dark) / (1 - DARK_FLOOR) });
+        audio?.setAmbientMix({ high: highFor(groundY), cave: depthFor(dark) });
       }
     },
-    // Hands the lights back at full strength (keeping any weather write made
-    // since the last frame), the rain back if it was hidden, and takes the
-    // birds and the glow out.
+    // Hands the sun, fill and image-based light back at full strength
+    // (keeping any weather or Night Eyes write made since the last frame),
+    // the rain back if it was hidden, and takes the birds and the glow out.
     dispose() {
       composeIntensity(sunState, sun, 1);
       composeIntensity(fillState, fill, 1);
+      composeIntensity(envState, env, 1);
       if (sheltered) {
         sheltered = false;
         weather?.setSheltered(false);
