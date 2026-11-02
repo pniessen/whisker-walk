@@ -34,7 +34,7 @@ import * as THREE from 'three';
 import { buildCat, catDims } from './cat/model.js';
 import { animateCat } from './cat/animator.js';
 import { setCatScars } from './cat/scarmesh.js';
-import { makeNameTag, NAME_TAG_RANGE } from './nametag.js';
+import { makeNameTag, NAME_TAG_RANGE, uprightTag } from './nametag.js';
 import { seedFromCode } from './rng.js';
 import { HOMES, isClanId } from './clanhomes.js';
 import { castFor, clanCast, RAIDER_SLOTS, tagSubFor } from './clancast.js';
@@ -346,6 +346,9 @@ export function createIntruders(scene, areaId, {
     g.rotation.order = 'YXZ';
     g.rotation.x = st ? st.pitch : 0;
     g.rotation.z = st ? st.roll : 0;
+    // The name tag rides the group, so a pitch or roll would swing it round
+    // the cat (under it, mid-tumble): it stays straight above instead.
+    uprightTag(cur.tag, g.rotation.x, g.rotation.z);
     if (cur.state === 'held' && cur.face) {
       g.rotation.y = yawToward(g.position.x, g.position.z, cur.face.x, cur.face.z);
     } else if (cur.state === 'fleeing' && cur.run && cur.run.to < cur.run.from) {

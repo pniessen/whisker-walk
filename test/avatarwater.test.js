@@ -203,3 +203,40 @@ describe('my cat\'s fight pose on the wire', () => {
     }
   });
 });
+
+// Live check (Task 10): her custom cat's own name tag rides the group, so a
+// fight's roll swung it under her and a rear-up swung it aside. It stays
+// straight above her through the fight and is back where it was after.
+describe('her own name tag in a fight', () => {
+  it('stays upright above her while she is pitched and rolled, and goes home after', () => {
+    const h = harness();
+    h.at(20);
+    const tag = new THREE.Object3D();
+    tag.position.set(0, 1.1, 0);
+    h.cat.add(tag);
+    h.cat.userData.ownTag = tag;
+    const above = () => {
+      h.cat.updateMatrixWorld(true);
+      const w = new THREE.Vector3();
+      tag.getWorldPosition(w);
+      return { dx: w.x - h.cat.position.x, dy: w.y - h.cat.position.y, dz: w.z - h.cat.position.z };
+    };
+    const level = above();
+    h.s.fight = {};
+    h.s.fightPose = 'roll';
+    for (const [pitch, roll] of [[0.9, 0], [0, Math.PI], [0.3, -2.2]]) {
+      h.s.fightPitch = pitch;
+      h.s.fightRoll = roll;
+      h.tick(1);
+      expect(h.cat.rotation.x).toBeCloseTo(pitch, 9);
+      const a = above();
+      expect(a.dx).toBeCloseTo(0, 6);
+      expect(a.dz).toBeCloseTo(0, 6);
+      expect(a.dy).toBeCloseTo(level.dy, 6);
+    }
+    h.s.fight = null;
+    h.s.fightPose = null;
+    h.tick(1);
+    expect([tag.position.x, tag.position.y, tag.position.z]).toEqual([0, 1.1, 0]);
+  });
+});

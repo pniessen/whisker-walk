@@ -19,6 +19,7 @@ import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
 import { wirePose } from '../fightactions.js';
+import { uprightTag } from '../nametag.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 
@@ -204,6 +205,12 @@ export function createAvatarUpdater({
     if (s.fight) { fightTilt.pitch = s.fightPitch ?? 0; fightTilt.roll = s.fightRoll ?? 0; }
     applyWaterLook(cat, ws, t, dt, reducedMotion, player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0), amount,
       s.fight ? fightTilt : null);
+    // Her own name tag (a custom cat's) rides the group: through a fight's
+    // pitch and roll it stays straight above her, and is put back after.
+    const ownTag = cat.userData.ownTag;
+    if (ownTag && (s.fight || ownTag.userData.restY !== undefined)) {
+      uprightTag(ownTag, s.fight ? cat.rotation.x : 0, s.fight ? cat.rotation.z : 0);
+    }
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

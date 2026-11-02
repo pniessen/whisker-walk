@@ -409,6 +409,18 @@ function paintTag(ctx, name, cross, legend = false, wide = false) {
   ctx.fillText(label, left + starRoom(px), LABEL_BASELINE);
 }
 
+// A tag that rides a cat group which a fight pitches (rotation.x) and rolls
+// (rotation.z), order 'YXZ': its local offset is set so it stays straight
+// above the group's origin at the height it was built at, (0, h, 0) =
+// Rx·Rz·local. Level, it is back exactly where it was built. No allocation.
+export function uprightTag(tag, pitch, roll) {
+  if (!tag) return;
+  if (tag.userData.restY === undefined) tag.userData.restY = tag.position.y;
+  const h = tag.userData.restY;
+  if (pitch === 0 && roll === 0) tag.position.set(0, h, 0);
+  else tag.position.set(h * Math.cos(pitch) * Math.sin(roll), h * Math.cos(pitch) * Math.cos(roll), -h * Math.sin(pitch));
+}
+
 // Guards on `document` so it's a safe no-op in non-DOM test/SSR contexts —
 // callers should treat a null return as "no tag" and skip adding it.
 //
@@ -491,6 +503,7 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   // CROSS_TAG_Y. Without this the forgiven cat keeps the raised tag forever,
   // floating above a tail that has just come back down.
   tag.position.y = (next ? CROSS_TAG_Y : TAG_Y) + (sub ? SUB_LIFT : 0);
+  if (tag.userData.restY !== undefined) tag.userData.restY = tag.position.y; // uprightTag's height
   // The one line that actually gets the new pixels onto the GPU.
   if (tag.material && tag.material.map) tag.material.map.needsUpdate = true;
   return tag;

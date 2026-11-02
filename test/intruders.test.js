@@ -720,6 +720,45 @@ describe('the intruder in my fight (Task 6)', () => {
     expect([g.rotation.x, g.rotation.z]).toEqual([0, 0]);
   });
 
+  // Live check (Task 10): the name tag is a child of the group, so a staged
+  // roll swung it under the cats and into the ground mid-tumble, and a
+  // rear-up swung it off to one side. It stays straight above the cat.
+  test('the name tag stays upright above the cat while it is pitched and rolled', () => {
+    withFakeDocument(() => {
+      const { clock, intr, step, meshes } = spawnIntruders({ showNames: true });
+      const k = slotWith('woods');
+      clock.T = enterOf(k) + 10;
+      step(DT);
+      const g = meshes()[0];
+      const tag = g.children.find((c) => c.isSprite);
+      expect(tag).toBeTruthy();
+      const restY = tag.position.y;
+      const above = () => {
+        g.updateMatrixWorld(true);
+        const w = new THREE.Vector3();
+        tag.getWorldPosition(w);
+        return { dx: w.x - g.position.x, dy: w.y - g.position.y, dz: w.z - g.position.z };
+      };
+      const level = above();
+      const at = flat(g.position);
+      intr.hold(k, 'me', { x: at.x + 1.6, z: at.z }, { local: true });
+      for (const [pitch, roll] of [[0.9, 0], [0, Math.PI], [0, -2.5], [0.3, 4], [0.9, 0.2]]) {
+        intr.stage(k, { pose: 'roll', x: at.x, z: at.z, y: 0.2, pitch, roll, face: { x: at.x + 1.6, z: at.z } });
+        step(DT);
+        const a = above();
+        expect(a.dx).toBeCloseTo(0, 6);
+        expect(a.dz).toBeCloseTo(0, 6);
+        expect(a.dy).toBeCloseTo(level.dy, 6);
+      }
+      // unstaged: back where it was built
+      intr.stage(k, null);
+      step(DT);
+      expect(tag.position.x).toBe(0);
+      expect(tag.position.y).toBe(restY);
+      expect(tag.position.z).toBe(0);
+    });
+  });
+
   test('setScars puts one scar mesh on the current mesh and takes it off again', () => {
     const { clock, intr, step, meshes } = spawnIntruders();
     const k = slotWith('woods');

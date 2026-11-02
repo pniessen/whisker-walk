@@ -25,5 +25,6 @@ export function attachOwnTag(cat, state) {
   tag.renderOrder = OWN_TAG_RENDER_ORDER;
   tag.visible = true;
   cat.add(tag);
+  cat.userData.ownTag = tag; // kept upright through a fight's pitch and roll (game/avatar.js)
   return tag;
 }
