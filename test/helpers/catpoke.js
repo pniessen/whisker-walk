@@ -12,7 +12,17 @@ const _o = new THREE.Vector3();
 // The worst poke of the cat's legs, split by `isFolded(legIndex)` into
 // { folded, standing } (-Infinity where no vertex qualifies). The cat's
 // matrices are updated here.
-export function pokes(cat, isFolded = () => false) {
+//
+// `reach` (default 0, Task 1's measure exactly): measure each vertex against
+// the highest torso point within `reach` of it (four more rays, +-x and +-z),
+// not the one straight under it. A thigh top sitting beside the flank right at
+// the torso's silhouette edge sends its own ray grazing down the steep side,
+// a few cm under the back just inward of it, and reads as a poke that swings
+// in and out with tenths of a degree of leg swing (the walking stalk: a
+// 0.01 rad step makes or unmakes 1-2 cm). A vertex truly over the back is
+// above its neighbours' top too, so it still counts.
+const REACH = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+export function pokes(cat, isFolded = () => false, { reach = 0 } = {}) {
   cat.updateMatrixWorld(true);
   const { body, legs } = cat.userData.parts;
   const out = { folded: -Infinity, standing: -Infinity };
@@ -30,7 +40,15 @@ export function pokes(cat, isFolded = () => false) {
       if (_v.y < torso.min.y || _v.z < torso.min.z || _v.z > torso.max.z || Math.abs(_v.x) > Math.max(-torso.min.x, torso.max.x)) continue;
       ray.set(_o.set(_v.x, 5, _v.z), DOWN);
       const hit = ray.intersectObject(body, false)[0];
-      if (hit) out[key] = Math.max(out[key], _v.y - hit.point.y);
+      if (!hit) continue;
+      let top = hit.point.y;
+      // Only a vertex that could set a new worst needs its neighbours.
+      if (reach && _v.y - top > out[key]) for (const [dx, dz] of REACH) {
+        ray.set(_o.set(_v.x + dx * reach, 5, _v.z + dz * reach), DOWN);
+        const near = ray.intersectObject(body, false)[0];
+        if (near) top = Math.max(top, near.point.y);
+      }
+      out[key] = Math.max(out[key], _v.y - top);
     }
   });
   return out;
