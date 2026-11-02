@@ -149,8 +149,12 @@ export const ISLAND_MOMENTS = freeze([freeze({
   from: freeze({ x: 38, z: 15 }),
 })]);
 
-// The island's golden mice, by id, so the reeds keep off them too.
-const ISLAND_GOLD = GOLD_MICE.pines.filter((m) => ['gm-pines-4', 'gm-pines-5', 'gm-pines-6'].includes(m.id));
+// The island's golden mice, so the reeds keep off them too: the Pines' mice
+// that stand on the island's ground, found from the list rather than typed in
+// by id, so they cannot drift from it (Polish 3).
+export const ISLAND_GOLD = freeze(GOLD_MICE.pines.filter(
+  (m) => Math.hypot(m.x - ISLAND_LAND.x, m.z - ISLAND_LAND.z) <= ISLAND_LAND.r,
+));
 
 // Everything on the island a kid looks for, climbs or watches from. pines.js
 // adds these to PINES_KEEP_CLEAR; the reeds below keep 3 m off them.
