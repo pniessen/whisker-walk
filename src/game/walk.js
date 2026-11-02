@@ -31,6 +31,7 @@ import { skyBackground } from '../render/sky.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
+import { herCatPortrait } from '../thumbnails.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
@@ -164,14 +165,22 @@ const SKILL_BY_ID = new Map(SKILLS.map((s) => [s.id, s]));
 // calibrated rig, shared with the verify harnesses: see render/rig.js.
 
 // The pause / Ready? card, rebuilt on demand (the crossing card puts it back).
-export function pauseCardHtml({ welcome, touch }) {
-  return `<div class="pause-card"><h1>Ready?</h1>
+// It sits on a panel like the home screen's, her cat on top when there is a
+// portrait (session.portrait; none without WebGL). The buttons hold plain
+// text only: main.js routes overlay clicks by e.target.id and rewrites
+// #btn-resume's text on the first touch.
+export function pauseCardHtml({ welcome, touch, portrait = null }) {
+  return `<div class="pause-card"><div class="screen-panel">
+    ${portrait ? `<img class="screen-cat" src="${escapeHtml(portrait)}" alt="">` : ''}
+    <div class="screen-body"><h1>Ready?</h1>
     ${welcome ? `<p class="home-welcome">${escapeHtml(welcome)}</p>` : ''}
-    <button id="btn-resume">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
-    <button id="btn-end">End walk &amp; head home</button>
+    <div class="screen-actions">
+      <button id="btn-resume" class="primary">${touch ? 'Tap to explore' : 'Start exploring (click)'}</button>
+      <button id="btn-end" class="secondary">End walk &amp; head home</button>
+    </div>
     <p class="controls-hint">${touch
       ? 'Joystick to move · drag to look · buttons to pounce/meow/yarn/camera · + − or pinch to zoom · tap the prompt to interact'
-      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div>`;
+      : 'Arrows move · Shift stalk · Space pounce/climb · E interact/sniff · V meow · T yarn · C camera · +/− or wheel zoom'}</p></div></div></div>`;
 }
 
 export function createWalkLifecycle({
@@ -1811,7 +1820,10 @@ export function createWalkLifecycle({
     denShop?.setActive(isDen && roomSeed === undefined); // never in a room walk
     getHomebase().hide();
     session.welcome = welcome;
-    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch() });
+    // Her cat's picture for the Ready card (and the summary), snapped after
+    // the area is built so its throwaway build can't move any draw count.
+    session.portrait = herCatPortrait(progression.state);
+    overlay.innerHTML = pauseCardHtml({ welcome, touch: getIsTouch(), portrait: session.portrait });
     overlay.classList.remove('hidden');
     player.enable();
     touchUI.setVisible(getIsTouch());

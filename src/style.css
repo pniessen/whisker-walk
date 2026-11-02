@@ -347,14 +347,14 @@ body.touch-mode:not(.left-handed) .hud-top {
 .card.locked { opacity: 0.75; }
 .card-name { font-weight: 700; }
 .card-sub { font-size: 0.8rem; color: #a8c0e0; min-height: 2em; }
-.card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+.card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
   border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer;
   background: #4a6ea5; color: #fff; font-weight: 700;
 }
 .card button:hover, .walk-together button:hover, .friend-code-block button:hover { background: #5a7eb5; }
 .walk-together button:disabled, .friend-code-block button:disabled { background: #3a4560; color: #8896b0; cursor: default; }
 @media (pointer: coarse) {
-  .card button, .pause-card button, .walk-together button, .friend-code-block button, .settings-section button {
+  .card button, .cross-card button, .walk-together button, .friend-code-block button, .settings-section button {
     min-height: 44px;
   }
 }
@@ -458,6 +458,45 @@ body.touch-mode:not(.left-handed) .hud-top {
 .pause-card { display: grid; place-items: center; align-content: center; gap: 12px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
 .pause-card h1 { font-size: 2.2rem; }
+/* The Ready? / pause card (and, from Task 2, the walk summary) sits on the
+   home screen's panel: navy gradient, soft line, rounded, her cat on top.
+   The scrim stays full screen; the panel scrolls inside itself if a short
+   window can't hold it. */
+.screen-panel {
+  display: grid; justify-items: center; gap: 12px; box-sizing: border-box;
+  width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow-y: auto;
+  padding: 22px 26px; border-radius: 20px; color: #f1e0c2;
+  background: linear-gradient(170deg, #2c3d58, #223047); border: 1px solid #33425e;
+  box-shadow: 0 14px 40px rgba(8, 12, 20, 0.5);
+  font-family: Avenir, Nunito, 'Trebuchet MS', sans-serif;
+}
+.screen-body { display: grid; justify-items: center; gap: 12px; min-width: 0; }
+.screen-panel h1 { margin: 0; color: #fff; }
+.screen-cat { display: block; width: 132px; height: 132px; margin: -6px 0 -10px; }
+.screen-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pause-card .primary, .pause-card .secondary {
+  border-radius: 999px; min-height: 48px; min-width: 220px; padding: 12px 30px;
+  font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer;
+}
+.pause-card .primary { background: #e7a9a0; color: #1c2431; border: 0; }
+.pause-card .secondary { background: transparent; color: #f1e0c2; border: 1px solid #8c9bb4;
+  font-size: 0.95rem; }
+.pause-card .primary:hover { filter: brightness(1.08); }
+.pause-card .secondary:hover { background: rgba(241, 224, 194, 0.08); }
+.screen-panel .controls-hint { margin: 2px 0 0; font-size: 0.85rem; line-height: 1.45;
+  color: #a8c0e0; background: rgba(28, 36, 49, 0.55); border-radius: 12px; padding: 8px 12px; }
+/* A landscape phone: the cat sits left, the words and buttons right. */
+@media (max-height: 500px) {
+  .screen-panel:has(.screen-cat) { width: min(620px, calc(100vw - 32px));
+    grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 18px; }
+  .screen-panel { padding: 14px 20px; gap: 8px; }
+  .screen-body { gap: 8px; }
+  .screen-panel h1 { font-size: 1.7rem; }
+  .screen-cat { width: 96px; height: 96px; margin: 0; }
+  .screen-actions { gap: 8px; }
+  .pause-card .primary, .pause-card .secondary { min-height: 44px; padding: 8px 24px; }
+  .screen-panel .controls-hint { font-size: 0.78rem; padding: 6px 10px; }
+}
 .cross-card h2 { font-size: 1.6rem; }
 .cross-card button { min-height: 48px; min-width: 200px; }
 .cross-card #btn-cross-yes { background: #f2c14e; color: #3a2a10; }

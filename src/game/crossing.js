@@ -26,7 +26,7 @@ export function createCrossing({
   catalog = CATALOG, setTimeout = globalThis.setTimeout,
 }) {
   function restoreCard(s) {
-    overlay.innerHTML = pauseCardHtml({ welcome: s.welcome, touch: getIsTouch() });
+    overlay.innerHTML = pauseCardHtml({ welcome: s.welcome, touch: getIsTouch(), portrait: s.portrait });
     s.crossing = null;
   }
 

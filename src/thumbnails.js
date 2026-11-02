@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { CATALOG } from './progression.js';
+import { activeCat } from './customcats.js';
+import { mulberry32, seedFromCode } from './rng.js';
 
 // Renders menu thumbnails from the real in-game models, so the shop pictures
 // always match what you get. One throwaway WebGL context renders everything
@@ -143,4 +145,60 @@ export function customThumbnails(entries) {
   const out = {};
   for (const e of entries) if (customCache.has(e.key)) out[e.key] = customCache.get(e.key);
   return out;
+}
+
+// Her cat's portrait for the Ready card and the walk summary: the cat she
+// walks as (a custom cat's own look on its preset breed), wearing what she
+// wears, whole and three-quarter like the menu's cat pictures.
+// portraitEntry(state) -> { key, breed, look, wear }, pure.
+export function portraitEntry(state) {
+  const { breed, look } = activeCat(state);
+  const wear = {};
+  for (const [slot, id] of Object.entries(state?.equipped ?? {})) {
+    if (slot === 'cat' || slot === 'custom' || id == null) continue;
+    wear[slot] = id;
+  }
+  return { key: `her:${breed}:${JSON.stringify(look ?? null)}:${JSON.stringify(wear)}`, breed, look: look ?? null, wear };
+}
+
+// herCatPortrait(state) -> data URL, or null (no WebGL, a lost GPU, anything).
+// One throwaway context per new key, cached in memory, never saved. While it
+// builds, Math.random is a local seeded stream (camp.js's withLocalUuids):
+// the walk's own build and every seeded draw after it are untouched.
+const PORTRAIT_SIZE = 264; // shown at 132px: crisp on a 2x screen
+const portraitCache = new Map();
+let portraitWarned = false;
+
+export function herCatPortrait(state) {
+  const e = portraitEntry(state);
+  if (portraitCache.has(e.key)) return portraitCache.get(e.key);
+  const real = Math.random;
+  let renderer = null;
+  Math.random = mulberry32(seedFromCode('portrait'));
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = PORTRAIT_SIZE;
+    canvas.height = PORTRAIT_SIZE;
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.setClearColor(0x000000, 0);
+    renderer.setSize(PORTRAIT_SIZE, PORTRAIT_SIZE);
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xfff2d8, 2.4);
+    sun.position.set(2, 4, -3);
+    scene.add(sun, new THREE.AmbientLight(0xbfd8ff, 1.1));
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 20);
+    const snap = makeSnapper(renderer, scene, camera, canvas);
+    const url = snap(buildCat(e.breed, e.wear, e.look ? { look: e.look } : {}), false);
+    portraitCache.set(e.key, url);
+    return url;
+  } catch (err) {
+    if (!portraitWarned) { portraitWarned = true; console.warn('Whisker Walk: her cat portrait unavailable', err); }
+    return null;
+  } finally {
+    try {
+      if (renderer) { renderer.dispose(); renderer.forceContextLoss(); }
+    } finally {
+      Math.random = real;
+    }
+  }
 }
