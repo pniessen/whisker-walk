@@ -955,7 +955,7 @@ function init() {
           if (!dot) { dot = { x: 0, z: 0, color: 0 }; mapRemotePool.push(dot); }
           dot.x = r.group.position.x;
           dot.z = r.group.position.z;
-          dot.color = coatColor(r.breed);
+          dot.color = coatColor(r.breed, r.look);
           mapRemotes.push(dot);
         }
         session.minimap.update(mapView, mapFrame);

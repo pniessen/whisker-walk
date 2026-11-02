@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createSpin } from './spin.js';
+import { SIZE } from '../customcats.js';
 
 // The dressing room's live hero cat: ONE WebGL canvas for the page's life.
 // The home screen rebuilds its DOM on every render, so mount(el) is called
@@ -232,6 +233,19 @@ export function createCatStage({
     return { minY: box.min.y, maxY: box.max.y, radius: Math.hypot(rx, rz) };
   }
 
+  // A custom look is framed for the biggest size the slider allows (measured
+  // at scale 1, then grown to SIZE.MAX), so the frame does not follow the
+  // size: Small shows smaller and Big bigger. Ready-made cats keep measure().
+  function lookBounds(obj) {
+    const saved = obj.scale.clone();
+    obj.scale.set(1, 1, 1);
+    const b = measure(obj);
+    obj.scale.copy(saved);
+    obj.updateMatrixWorld(true);
+    if (!b) return null;
+    return { minY: b.minY * SIZE.MAX, maxY: b.maxY * SIZE.MAX, radius: b.radius * SIZE.MAX };
+  }
+
   function draw() {
     if (!renderer || stage.failed) return;
     if (cat) cat.rotation.y = spin.angle;
@@ -323,15 +337,15 @@ export function createCatStage({
     }
   };
 
-  stage.show = function show(nextBreed, accessories = {}) {
+  stage.show = function show(nextBreed, accessories = {}, look = null) {
     if (disposed) return;
     breed = nextBreed;
     if (stage.failed) { if (el) placeFallback(); return; }
     ensureRenderer();
     if (stage.failed) return;
     disposeCat();
-    cat = buildCat(breed, accessories);
-    bounds = measure(cat);
+    cat = look ? buildCat(breed, accessories, { look }) : buildCat(breed, accessories);
+    bounds = look ? lookBounds(cat) : measure(cat);
     cat.rotation.y = spin.angle;
     scene.add(cat);
     frameCat();

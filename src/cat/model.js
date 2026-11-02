@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
+import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
@@ -51,6 +52,12 @@ const STYLE = {
 //                 below 1 lifts the belly off the ground in the stalk and the
 //                 sit (the poses where a standard cat's torso is the low point)
 //                 — catmodel.test.js's grounding tests will say so.
+//   eyeColor    — eye hex; default EYE_COLORS[breed] (a look's row sets it).
+//   headPatch   — hex of the skull patch when `patches` is set, default the
+//                 calico orange 0xd88030.
+//   tailFluff   — factor on every tail link and joint radius, default 1 (the
+//                 root ball is unchanged). Long fur thickens the tail with it.
+//   bib         — a belly-coloured chest bib (see coat.js).
 //   tagCollar   — a built-in black collar with a round silver tag, drawn only
 //                 when no collar accessory is worn (never two collars).
 const INNER_EAR = 0xe8a0a8;
@@ -734,7 +741,8 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
 
 // The corner map draws a remote sibling's dot in their cat's main coat colour.
 // Hagrid has no STYLE entry (he is built by buildChicken), so he is named here.
-export function coatColor(breed) {
+export function coatColor(breed, look = null) {
+  if (look != null) return COATS[sanitizeLook(look).coat].hex;
   if (breed === 'hagrid') return HAGRID_FEATHER;
   return (Object.hasOwn(STYLE, breed) ? STYLE[breed] : STYLE.tabby).base;
 }
@@ -747,7 +755,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // the eyes. With a style, STYLE[breed] is never read. Without one, nothing
   // changes (the golden test pins it). The cat builder's lookToStyle(look)
   // will come in through this same seam.
-  const s = opts.style ?? STYLE[breed];
+  // opts.look (the cat builder): a Look, used when opts.style is absent. It is
+  // turned into a frozen style row by lookToStyle, so buildCat only ever reads
+  // `s`, never writes it. `breed` stays userData.breed; the row, not the
+  // breed, supplies the eyes (eyeColor), skull patch (headPatch) and tail
+  // fluff (tailFluff).
+  const s = opts.style ?? (opts.look != null ? lookToStyle(opts.look) : STYLE[breed]);
   const g = new THREE.Group();
   const pointColor = s.points ? s.accent : s.base;
 
@@ -840,7 +853,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     if (side === -1) head.userData.earL = ear;
     else head.userData.earR = ear;
 
-    const eye = ball(0.036, EYE_COLORS[breed] ?? 0x4e9440, 1, 1.15, 0.7, 8, 6);
+    const eye = ball(0.036, s.eyeColor ?? EYE_COLORS[breed] ?? 0x4e9440, 1, 1.15, 0.7, 8, 6);
     eye.position.set(side * 0.083, 0.03, -0.165);
     head.add(eye);
     const pupil = ball(0.017, 0x1a1a1e, 0.7, 1.2, 0.6, 6, 5);
@@ -924,21 +937,22 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // full curl, link 0 leaves level and each further link bends up by CURL.
   const tail = new THREE.Group();
   const tailPivots = [];
+  const TF = s.tailFluff ?? 1;
   let parent = tail;
   for (let i = 0; i < 5; i++) {
     const pivot = new THREE.Group();
     if (i > 0) pivot.position.set(0, 0, TAIL.LINK);
     // The link runs from its pivot along +z: the cylinder's +y axis turned onto
     // +z. Open-ended; the balls below close every end.
-    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5), tailR(i / 5), TAIL.LINK, 12, 1, true)
+    const parts = [new THREE.CylinderGeometry(tailR((i + 1) / 5) * TF, tailR(i / 5) * TF, TAIL.LINK, 12, 1, true)
       .rotateX(Math.PI / 2).translate(0, 0, TAIL.LINK / 2)];
     // A simple build (strays, rivals, ghosts) rounds them at 8×5: Digit's
     // simple cat sits at the 5,500-triangle cap once the chest is in.
     const [rw, rh, jw, jh] = opts.simple ? [8, 5, 8, 5] : [12, 8, 10, 6];
     parts.push(i === 0
       ? new THREE.SphereGeometry(TAIL.ROOT_BALL, rw, rh)   // the root, into the rump
-      : new THREE.SphereGeometry(tailR(i / 5), jw, jh));   // a rounded joint
-    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1), jw, jh).translate(0, 0, TAIL.LINK)); // the tip
+      : new THREE.SphereGeometry(tailR(i / 5) * TF, jw, jh));   // a rounded joint
+    if (i === 4) parts.push(new THREE.SphereGeometry(tailR(1) * TF, jw, jh).translate(0, 0, TAIL.LINK)); // the tip
     const seg = new THREE.Mesh(mergeGeometries(parts), mat(i >= 3 && (s.stripes || s.points) ? s.accent : s.base));
     pivot.add(seg);
     parent.add(pivot);
@@ -996,7 +1010,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     onMuzzle(WHITE_FUR, [{ at: [0, -0.114, -0.209], halfX: 0.45, halfZ: 0.35 }]);
   }
   if (s.patches) {
-    onSkull(0xd88030, [{ at: [0.09, 0.14, -0.05], halfX: 0.50, halfZ: 0.56 }]);
+    onSkull(s.headPatch ?? 0xd88030, [{ at: [0.09, 0.14, -0.05], halfX: 0.50, halfZ: 0.56 }]);
   }
   if (s.cow) {
     // Robbie's coat, from the photo: black on top with white flanks and bib

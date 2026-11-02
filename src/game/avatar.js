@@ -19,9 +19,18 @@ import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
+import { validPetName } from '../net.js';
 
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
 export const CHASE_GAIT_SPEED = 6;
+
+// The perk line for a mid-air catch: every ready-made pouncer keeps the
+// Calico line; a custom pouncer uses its own name.
+export function pounceCatchLine(cat) {
+  const u = cat.userData;
+  if (!u.custom) return 'a Calico masterclass';
+  return validPetName(u.customName) ? `${u.customName}'s masterclass` : "a pouncer's masterclass";
+}
 
 export function createAvatarUpdater({
   player, progression, settings, log, hud, audio,
@@ -291,7 +300,7 @@ export function createAvatarUpdater({
       const caught = s.critters.catchAt(cat.position.clone().setY(0.8));
       if (caught) {
         log.award('perk', 'catch', 'a mid-air catch!');
-        if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', 'a Calico masterclass');
+        if (p.special === 'pouncer') log.award('perk', 'pouncer-catch', pounceCatchLine(cat));
         progression.recordSighting(caught.type);
       }
       // From the paws, not the drawn body: this runs on every frame of the

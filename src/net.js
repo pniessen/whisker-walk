@@ -3,8 +3,8 @@
 // createNet(transport) holds ALL shared logic: message validation, roster
 // sorting, host election (smallest playerId), echo suppression, and
 // malformed/oversized-message dropping. Transports are intentionally dumb —
-// they only need to implement `{ join(code, profile, handlers), send(kind,
-// payload), leave() }`. This keeps createSupabaseTransport thin enough that
+// they only need to implement `{ join(code, profile, handlers), updateProfile(profile),
+// send(kind, payload), leave() }` (updateProfile is optional). This keeps createSupabaseTransport thin enough that
 // it doesn't need its own unit tests (it's exercised against a live project
 // in Task 6); all the logic that *can* be unit tested lives in createNet and
 // is tested here against createFakeHub.
@@ -87,7 +87,7 @@ function sortRoster(list) {
 /**
  * createNet(transport) -> net
  *
- * transport is a `{ join(code, profile, handlers), send(kind, payload), leave() }`
+ * transport is a `{ join(code, profile, handlers), updateProfile?(profile), send(kind, payload), leave() }`
  * implementation — either createSupabaseTransport(url, key) or a
  * createFakeHub().transport() endpoint.
  *
@@ -141,6 +141,12 @@ export function createNet(transport) {
     setRoster([]);
   }
 
+  // Re-publish this player's profile to the room (a cat or outfit changed).
+  async function updateProfile(profile) {
+    if (selfId == null) return;
+    await transport.updateProfile?.(profile);
+  }
+
   function sendState(state) {
     if (!isValidStateMsg(state)) return;
     transport.send('state', state);
@@ -185,7 +191,7 @@ export function createNet(transport) {
     return roster.length > 0 && selfId != null && roster[0].playerId === selfId;
   }
 
-  return { join, leave, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
+  return { join, leave, updateProfile, sendState, sendEvent, sendChat, onState, onEvent, onChat, onRoster, isHost };
 }
 
 /**
@@ -224,6 +230,15 @@ export function createFakeHub() {
         joined = true;
         broadcastRoster(room);
         return { ok: true, roster: rosterFor(room) };
+      },
+
+      async updateProfile(profile) {
+        if (!joined) return;
+        const room = rooms.get(code);
+        const entry = room?.get(playerId);
+        if (!entry) return;
+        entry.profile = profile;
+        broadcastRoster(room);
       },
 
       send(kind, payload) {
@@ -290,9 +305,11 @@ export async function getSupabaseClient(url, key) {
 export function createSupabaseTransport(url, key) {
   let client = null;
   let channel = null;
+  let current = null; // the profile to (re)track: join's, then any updateProfile
 
   return {
     async join(code, profile, handlers) {
+      current = profile;
       client = await getSupabaseClient(url, key);
       channel = client.channel('room:' + code, {
         config: {
@@ -327,7 +344,7 @@ export function createSupabaseTransport(url, key) {
         channel.subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             settled = true;
-            await channel.track(profile);
+            await channel.track(current); // the latest profile, so a reconnect keeps a retrack
             resolve({ ok: true, roster: flattenPresenceState(channel.presenceState()) });
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             if (!settled) {
@@ -346,6 +363,11 @@ export function createSupabaseTransport(url, key) {
           }
         });
       });
+    },
+
+    async updateProfile(profile) {
+      current = profile;
+      if (channel) await channel.track(current);
     },
 
     send(kind, payload) {

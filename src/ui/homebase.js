@@ -1,6 +1,7 @@
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
+import { activeCat } from '../customcats.js';
 import { renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
@@ -689,7 +690,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     if (milestone && !visitOpen()) {
       visitClosed = typeof onClosed === 'function' ? onClosed : null;
       const shownOk = celebration.show(milestone, {
-        petName: progression.state.petName || '',
+        petName: activeCat(progression.state).name || '',
         anchor: () => heroStage()?.getBoundingClientRect?.(),
         thumb: thumbs?.accessories?.[milestone.prize?.id],
       });
@@ -721,6 +722,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       progression, catalog: CATALOG, stage, sync, thumbs,
       onChange: render,
       onOpenSheet: (id) => setSheet(id),
+      onProfileChange: () => rooms?.retrackProfile?.(),
+      onCatSaved: () => rooms?.pushProfileNow?.(),
     });
     return dressing;
   }
@@ -884,10 +887,13 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       ${duskHtml}
       ${roomState ? '' : `<button id="btn-visit-den">Visit your den 🏠</button>`}`.trim();
     const room = ensureDressing();
+    if (room.deferRender?.(root)) return; // she is typing her cat's name: runs on blur
+    const f = room.captureFocus(root);
     root.innerHTML = room.html({
       headerHtml, statsHtml, startHtml: startRowHtml(roomState), extrasHtml, sheets: availableSheets(),
     });
     room.afterRender(root);
+    room.restoreFocus(root, f);
     stage.setVisible(shown);
     syncPairingPoll();
   }
@@ -973,6 +979,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       return;
     }
     if (e.target.id === 'btn-start') {
+      if (dressing && !dressing.startAllowed({ detail: e.detail })) return; // the tail of a double-tap on Done
       const dusk = root.querySelector('#dusk-toggle');
       // A previewed cat or a tried-on accessory is never walked: the walk
       // reads the save's equipped cat and accessories (Review Focus 1).
@@ -1277,6 +1284,7 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // would tear down and recreate the <input type="range"> element on every
   // tick, which fights native drag handling.
   root.addEventListener('input', (e) => {
+    if (dressing?.handleInput(e)) return;
     if (e.target.id === 'redeem-input') {
       redeemText = e.target.value;
       return;
@@ -1349,6 +1357,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
         .then((r) => { if (r && !r.ok) render(); }, () => render()); // a refusal puts the select back
     }
   });
+
+  root.addEventListener('focusout', (e) => { dressing?.onFocusOut?.(e, render); });
 
   // room state (roster arrivals, host migration) can change while sitting on
   // this screen waiting for friends — re-render to keep the roster/host

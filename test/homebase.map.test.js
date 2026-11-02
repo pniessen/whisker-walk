@@ -14,6 +14,7 @@ vi.mock('../src/ui/dressingroomview.js', () => ({
       html: ({ headerHtml }) => `<header>${headerHtml}</header>`,
       afterRender() {}, handleClick() { return false; }, clearPreview() {},
       setPill(p) { pillCalls.push(p); },
+      handleInput() { return false; }, captureFocus() { return null; }, restoreFocus() {}, startAllowed() { return true; },
     };
   },
 }));

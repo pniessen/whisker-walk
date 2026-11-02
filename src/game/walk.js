@@ -28,6 +28,8 @@ import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
 import { buildCat, CAT_LOOK_Y } from '../cat/model.js';
+import { activeCat } from '../customcats.js';
+import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
 import { createCritters } from '../critters.js';
@@ -523,7 +525,8 @@ export function createWalkLifecycle({
     // relocated the one that would have) — it is the guard rail, not a fix.
     const walkPois = areaData.pois.map((p) => clearSpot(p, areaData.colliders, areaData.bounds, areaData.waters));
 
-    const cat = buildCat(state.equipped.cat, {
+    const active = activeCat(state);
+    const cat = buildCat(active.breed, {
       collar: state.equipped.collar,
       head: state.equipped.head,
       face: state.equipped.face,
@@ -531,12 +534,14 @@ export function createWalkLifecycle({
       body: state.equipped.body,
       back: state.equipped.back,
       feet: state.equipped.feet,
-    });
+    }, { look: active.look });
+    // her own custom cat wears its name on her own screen, like a co-walker
+    attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, 0, areaData.spawn.z);
     cat.rotation.y = 0; // rotation 0 faces -z, into the area
     scene.add(cat);
     // your pace IS the world's pace: breed speed sets how fast anything scrolls
-    const pace = 2.2 + PERSONALITIES[state.equipped.cat].speed * 0.8;
+    const pace = 2.2 + PERSONALITIES[active.breed].speed * 0.8;
     player.setAvatar(cat, pace);
     // v18 CF-10b: without this, Long Zoomies did nothing in the running game —
     // player.js shipped the tuning and the state machine, but nothing ever

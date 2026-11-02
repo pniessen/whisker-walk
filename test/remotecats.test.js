@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { createRemoteCats } from '../src/remotecats.js';
+import { fingerprintCat } from './helpers/catfingerprint.js';
+import { buildCat } from '../src/cat/model.js';
 import { shallowExcess } from '../src/world/builder.js';
 
 function fakeScene() {
@@ -341,5 +343,40 @@ describe('a new co-walker arrives where it is', () => {
       expect(entry.water.mode).toBe('dry');
       expect(entry.group.position.y).toBe(0);
     }
+  });
+});
+
+describe('a custom look on the wire', () => {
+  const LOOK = { coat: 'apricot', marks: 'black', pattern: 'patches', fur: 'long', eyes: 'blue', size: 0.9 };
+  const SLOTS = { collar: 'bell', head: null, face: null, neck: null, body: null, back: null, feet: null };
+  const CUSTOM = { playerId: 'bbb', petName: 'Willow', breed: 'calico', accessories: { ...SLOTS, look: LOOK, home: 'woods' } };
+  const strip = (g) => { g.remove(...g.children.filter((c) => c.isSprite)); return g; };
+
+  it('two receivers of the same profile draw byte-identical cats', () => {
+    withFakeDocument(() => {
+      const a = createRemoteCats(fakeScene()).upsert(CUSTOM);
+      const b = createRemoteCats(fakeScene()).upsert(JSON.parse(JSON.stringify(CUSTOM)));
+      expect(fingerprintCat(strip(a.group))).toEqual(fingerprintCat(strip(b.group)));
+      expect(a.look).toEqual(LOOK);
+      expect(a.petName).toBe('Willow');
+    });
+  });
+  it('an old build ignores look: the extra key changes nothing it draws', () => {
+    const withLook = buildCat('calico', { ...SLOTS, look: LOOK, home: 'woods' }, { simple: true });
+    expect(fingerprintCat(withLook)).toEqual(fingerprintCat(buildCat('calico', SLOTS, { simple: true })));
+  });
+  it('a junk or newer look falls back without throwing', () => {
+    withFakeDocument(() => {
+      const r = createRemoteCats(fakeScene());
+      expect(r.upsert({ ...CUSTOM, accessories: { ...SLOTS, look: 'x' } }).look).toBe(null);
+      expect(r.upsert({ ...CUSTOM, playerId: 'ccc', accessories: { ...SLOTS, look: { coat: 'galaxy', size: 'big' } } }).look.coat).toBe('ginger');
+    });
+  });
+  it('a changed look rebuilds the cat', () => {
+    withFakeDocument(() => {
+      const r = createRemoteCats(fakeScene());
+      const first = r.upsert(CUSTOM).group;
+      expect(r.upsert({ ...CUSTOM, accessories: { ...CUSTOM.accessories, look: { ...LOOK, coat: 'cream' } } }).group).not.toBe(first);
+    });
   });
 });

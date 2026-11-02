@@ -94,8 +94,8 @@ describe('the edition switch and the save', () => {
     expect(s.marks.park).toHaveLength(2);
     expect(s.clan).toEqual({ name: 'MossClan', adopted: true });
   });
-  test('edition and clanPick are the only new top-level keys', () => {
-    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick'].sort());
+  test('edition, clanPick and customCats are the only new top-level keys', () => {
+    expect(Object.keys(load().state).sort()).toEqual([...KEYS_AT_FB6BA0F, 'edition', 'clanPick', 'customCats'].sort());
   });
   test('the caps are unchanged', () => {
     expect([COLONY_MAX, SOLO_MAX, colonyCap(1), colonyCap(2)]).toEqual([24, 12, 12, 24]);

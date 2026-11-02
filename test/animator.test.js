@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { animateCat } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
+import { DEFAULT_LOOK } from '../src/customcats.js';
 
 // The real rig, built exactly the way strays are ({ simple: true }, which
 // skips whiskers) — poses are only meaningful against the model's declared
@@ -170,8 +171,9 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
 // Clan Life Part 2, Task 4: the fight's two new poses.
 describe('animateCat: the fight poses (swipe, backUp)', () => {
   const lowest = (obj) => new THREE.Box3().setFromObject(obj, true).min.y;
-  const posed = (breed, state, simple = false) => {
-    const cat = buildCat(breed, undefined, simple ? { simple: true } : undefined);
+  const posed = (breed, state, simple = false, extra = {}) => {
+    const opts = { ...(simple && { simple: true }), ...extra };
+    const cat = buildCat(breed, undefined, Object.keys(opts).length ? opts : undefined);
     animateCat(cat, state, 1.3, 0, false);
     cat.updateMatrixWorld(true);
     return cat;
@@ -223,6 +225,40 @@ describe('animateCat: the fight poses (swipe, backUp)', () => {
       expect(sig(later)).toBe(sig(cat));
     }
     expect(() => animateCat(buildCat('hagrid'), 'backUp', 1.3, 0, false)).not.toThrow();
+  });
+
+  it('a long-haired, patched custom cat runs swipe and backUp with its paws above the ground', () => {
+    const look = { ...DEFAULT_LOOK, pattern: 'patches', fur: 'long' };
+    // a fingerprint of the build: meshes, total vertices (long fur and patches
+    // each change the geometry, in opposite directions) and every material colour
+    const fingerprint = (o) => {
+      const cols = [];
+      let n = 0, verts = 0;
+      o.traverse((m) => {
+        n++;
+        if (m.geometry) verts += m.geometry.attributes.position.count;
+        if (m.material && m.material.color) cols.push(m.material.color.getHexString());
+      });
+      return `${n}:${verts}:${cols.join(',')}`;
+    };
+    for (const simple of [false, true]) {
+      const build = (l) => buildCat('calico', undefined, { ...(simple ? { simple: true } : {}), look: l });
+      const custom = build(look);
+      // each of long fur and patches really took effect: dropping either one, or both, changes the build
+      for (const l of [DEFAULT_LOOK, { ...look, fur: DEFAULT_LOOK.fur }, { ...look, pattern: DEFAULT_LOOK.pattern }]) {
+        expect(fingerprint(custom)).not.toBe(fingerprint(build(l)));
+      }
+      for (const state of ['swipe', 'backUp']) {
+        const cat = posed('calico', state, simple, { look });
+        expect(fingerprint(cat)).toBe(fingerprint(custom));
+        expect(lowest(cat) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+        for (const leg of cat.userData.parts.legs) expect(lowest(leg.userData.paw) / cat.scale.x).toBeGreaterThanOrEqual(-0.01);
+        if (state === 'swipe') {
+          const [fl, fr] = cat.userData.parts.legs;
+          expect(lowest(fl.userData.paw) - lowest(fr.userData.paw)).toBeGreaterThan(0.08 * cat.scale.x);
+        }
+      }
+    }
   });
 
   it('no other pose keeps the body moved back after a backUp', () => {

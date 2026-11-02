@@ -56,7 +56,7 @@ describe('reduceDressingUi', () => {
       { pill: 'more', openSlot: 'head', previewCat: 'hagrid', tryOn: { slot: 'head', id: 'tophat' } },
       { type: 'clear-preview' },
     );
-    expect(ui).toEqual({ pill: 'more', openSlot: 'head', previewCat: null, tryOn: null });
+    expect(ui).toEqual({ pill: 'more', openSlot: 'head', previewCat: null, tryOn: null, builder: null });
   });
 
   it('an unknown action returns ui unchanged (same object)', () => {
