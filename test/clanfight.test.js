@@ -4,7 +4,10 @@ import * as THREE from 'three';
 import {
   createClanFight, NO_CLAN_FIGHT, FIGHT_GAP, WALKOVER_MAX, SIDE_STEP, fightReach, reachYFor,
 } from '../src/game/clanfight.js';
-import { ACTION_KINDS, actionFrame, beatFrame, placeFrame } from '../src/fightactions.js';
+import { ACTION_KINDS, actionFrame, beatFrame, placeFrame, preludeFrame, actionFor, siteFor } from '../src/fightactions.js';
+import { moveById } from '../src/fightmoves.js';
+import { createAvatarUpdater } from '../src/game/avatar.js';
+import { createWaterState } from '../src/waterstate.js';
 import { buildCat, catDims } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { clanCast } from '../src/clancast.js';
@@ -30,15 +33,23 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // Fakes for everything the controller is handed, one call ledger for all of
 // them, and a clock the test moves.
+// The fight dims (src/cat/model.js catDims) the harness's two cats measure.
+const ME_DIMS = Object.freeze({ top: 0.95, backY: 0.5, pinnedBackY: 0.32, hindZ: 0.34, pivotY: 0.24 });
+const IT_DIMS = Object.freeze({ top: 0.8, backY: 0.42, pinnedBackY: 0.27, hindZ: 0.29, pivotY: 0.2 });
+const CAST_ID = 'moor-2';
+
 function harness({
   answers = 'right', clanHome = true, picks = ['woods'], clan = 'moor', reducedMotion = false,
   special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
+  actions, ownedMoves = () => [], cat = null, player: playerIn = null, sExtra = {}, dt = DT, answerAt = 15,
+  measureCat = () => ({ ...ME_DIMS }), onFrame = null,
 } = {}) {
   const calls = [];
   const sent = [];
   const clock = { T: 5000 };
-  const cur = { visit: 7, clan, member: { name: 'Mossjaw' }, pos: { x: 0, z: 0 }, state: 'walking' };
+  const cur = { visit: 7, clan, member: { name: 'Mossjaw', id: CAST_ID }, pos: { x: 0, z: 0 }, state: 'walking' };
   const intruders = {
+    measure: vi.fn((v) => (v === cur.visit ? { ...IT_DIMS } : null)),
     current: () => (cur.state === 'gone' ? null : { ...cur, pos: { ...cur.pos } }),
     hold: vi.fn((v, id, face, o) => { calls.push({ kind: 'hold', v, id, o }); cur.state = 'held'; }),
     release: vi.fn((v, id) => { calls.push({ kind: 'release', v, id }); cur.state = 'walking'; }),
@@ -58,42 +69,56 @@ function harness({
     pounceWhoosh: vi.fn(() => calls.push({ kind: 'audio', what: 'whoosh' })),
     landThump: vi.fn(() => calls.push({ kind: 'audio', what: 'thump' })),
   };
-  const fx = { burst: vi.fn((p, c, n) => calls.push({ kind: 'fx', p: { x: p.x, z: p.z }, n })) };
+  const fx = {
+    burst: vi.fn((p, c, n) => calls.push({ kind: 'fx', p: { x: p.x, z: p.z }, n })),
+    slash: vi.fn((p, yaw) => calls.push({ kind: 'fx', what: 'slash', p: { x: p.x, y: p.y, z: p.z }, yaw })),
+  };
   const hud = { toast: vi.fn((t) => calls.push({ kind: 'toast', t })) };
   const theLog = log ?? { awardOnce: vi.fn(() => { calls.push({ kind: 'award' }); return AWARDS.intruder; }) };
-  const player = { inWater: false, halt: vi.fn() };
+  const player = playerIn ?? { inWater: false, halt: vi.fn() };
+  if (cat) cat.position.set(startAt, 0, 0);
   const s = {
-    cat: { position: { x: startAt, y: 0, z: 0 }, rotation: { y: 0 } },
+    cat: cat ?? { position: { x: startAt, y: 0, z: 0 }, rotation: { y: 0 } },
     fight: null, fightPose: null, perched: null, chasing: false, cameraMode: false,
+    ...sExtra,
   };
+  // The callbacks are not on the call ledger: Hagrid's fights call them too
+  // (with site null), and the ledger pins what today's fights do.
+  const onWon = vi.fn();
+  const onLost = vi.fn();
   const cf = createClanFight({
     intruders, ui, audio, fx, hud, log: theLog, areaId: 'woods', walkStamp, playerId: 'me',
     playerSpecial: special, reducedMotion, now: () => clock.T, isGround: ground, player,
     runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
+    ...(actions === undefined ? {} : { actions }), ownedMoves, onWon, onLost, measureCat,
   });
-  const frame = (dt = DT) => { clock.T += dt; cf.update(dt, s); };
+  const frame = (step = dt) => { clock.T += step; cf.update(step, s); };
   const moves = [];
   let clueFrames = 0;
   const h = {
-    calls, sent, clock, cur, intruders, ui, audio, fx, hud, log: theLog, player, s, cf, frame, moves,
+    calls, sent, clock, cur, intruders, ui, audio, fx, hud, log: theLog, player, s, cf, frame, moves, onWon, onLost,
     challenge() { frame(); },
     fight() { cf.startFight(); },
-    // One frame of a fight, answering half a second into each clue.
+    // One frame of a fight, answering `answerAt` frames (half a second by
+    // default) into each clue. `answers` may be a function of the fight,
+    // giving the button (or special) to tap.
     fightFrame() {
       frame();
+      onFrame?.(h); // after the frame is staged, before a tap
       const f = s.fight;
       if (!f) return;
       if (f.phase !== 'clue') { clueFrames = 0; return; }
       if (clueFrames === 0) moves.push(f.move);
       clueFrames += 1;
-      if (clueFrames === 15) {
-        if (answers === 'right') cf.answer(COUNTER[f.move]);
-        else if (BUTTONS.includes(answers)) cf.answer(answers);
-        else if (answers === 'wrong') cf.answer(BUTTONS.find((b) => b !== COUNTER[f.move]));
+      if (clueFrames === answerAt) {
+        const a = typeof answers === 'function' ? answers(f) : answers;
+        if (a === 'right') cf.answer(COUNTER[f.move]);
+        else if (a === 'wrong') cf.answer(BUTTONS.find((b) => b !== COUNTER[f.move]));
+        else if (typeof a === 'string' && a !== 'none') cf.answer(a);
       }
     },
     runToEnd(each = () => {}) {
-      for (let i = 0; i < 60 * 30 && s.fight; i++) { h.fightFrame(); each(); }
+      for (let i = 0; i < 60 * 30 / (dt / DT) && s.fight; i++) { h.fightFrame(); each(); }
       expect(s.fight).toBeNull();
     },
   };
@@ -587,6 +612,62 @@ describe('the fight camera\'s subject', () => {
     }
   });
 
+  test('with actions, every spot the fight stages either cat on is within 0.2 m of the subject\'s spots', () => {
+    const special = (f) => (f.round === 2 ? 'rollingTumble' : 'wrong');
+    for (const opts of [
+      { answers: 'right' }, { answers: 'wrong' }, { answers: 'dodge' }, { answers: special, ownedMoves: () => ['rollingTumble'] },
+      { answers: 'right', walkStamp: 'walk-3' }, { answers: 'wrong', walkStamp: 'walk-4' },
+      { answers: 'right', startAt: 3.4, ground: (x) => x >= 2.6 }, { answers: 'right', reducedMotion: true },
+    ]) {
+      const h = harness({ ...opts, actions: true });
+      h.challenge(); h.fight();
+      let checked = 0;
+      // A rolling cat stands where its torso centre is: the roll turns the
+      // group's origin round it (fightReach's spots are the centre's).
+      const centre = (p, roll, pivotY, from, to) => {
+        const n = Math.hypot(to.x - from.x, to.z - from.z);
+        const fx = (to.x - from.x) / n, fz = (to.z - from.z) / n;
+        const k = pivotY * Math.sin(roll || 0);
+        return { x: p.x + fz * k, z: p.z - fx * k };
+      };
+      h.runToEnd(() => {
+        const subj = h.cf.cameraSubject;
+        if (!subj) return;
+        const all = [...subj.me, ...subj.it, ...subj.path];
+        const rounds = subj.path.length === 0;
+        const me = rounds ? centre(h.s.cat.position, h.s.fightRoll, ME_DIMS.pivotY, subj.me[0], subj.it[0]) : h.s.cat.position;
+        expect(near(all, me, 0.2), `me ${me.x.toFixed(2)},${me.z.toFixed(2)}`).toBe(true);
+        const st = h.intruders.stage.mock.calls.at(-1)?.[1];
+        if (st && rounds) {
+          const it = centre(st, st.roll, IT_DIMS.pivotY, subj.it[0], subj.me[0]);
+          expect(near(all, it, 0.2), `it ${it.x.toFixed(2)},${it.z.toFixed(2)}`).toBe(true);
+        }
+        checked++;
+      });
+      expect(checked).toBeGreaterThan(100);
+    }
+  });
+
+  test('with actions, both subjects carry the action reach: measured at FIGHT_GAP for the walk-over, at the real gap for the rounds', () => {
+    const h = harness({ actions: true, startAt: 3.4, ground: (x) => x >= 2.9 });
+    h.challenge(); h.fight();
+    const walk = h.cf.cameraSubject;
+    expect(walk.me.some((q) => q.y > 0)).toBe(true);
+    for (let i = 0; i < 400 && h.cf.cameraSubject === walk; i++) h.fightFrame();
+    const rounds = h.cf.cameraSubject;
+    expect(rounds.path).toEqual([]);
+    const spot = { ...h.s.cat.position };
+    const gap = Math.hypot(spot.x, spot.z);
+    expect(gap).toBeGreaterThan(FIGHT_GAP + 0.5); // the walk stopped short
+    expect(rounds).toEqual({
+      ...fightReach({ x: rounds.me[0].x, z: rounds.me[0].z }, { x: 0, z: 0 }, (x) => x >= 2.9,
+        { actions: true, reachY: reachYFor(ME_DIMS, IT_DIMS, gap) }),
+      path: [],
+    });
+    expect(walk.me).toEqual(fightReach({ x: FIGHT_GAP, z: 0 }, { x: 0, z: 0 }, (x) => x >= 2.9,
+      { actions: true, reachY: reachYFor(ME_DIMS, IT_DIMS, FIGHT_GAP) }).me);
+  });
+
   test('fightReach: both anchors, the dodge, the step backs and the tumble circle', () => {
     const r = fightReach({ x: FIGHT_GAP, z: 0 }, { x: 0, z: 0 });
     expect(r.mid).toEqual({ x: FIGHT_GAP / 2, z: 0 });
@@ -720,6 +801,13 @@ describe('the fight camera sees every action', () => {
         check('it', f, u * 3, `beat ${beat} it u ${u}`);
       }
     }
+    // the answer preludes (Task 6 stages them before every action)
+    for (const u of us) {
+      for (const answer of [...BUTTONS, 'rearUpSwat', 'leapScratch', 'pin', 'rollingTumble', null]) {
+        check('me', preludeFrame({ answer }, 'me', u), u * 3, `prelude ${answer} me u ${u}`);
+      }
+      for (const move of MOVES) check('it', preludeFrame({ move }, 'it', u), u * 3, `prelude ${move} it u ${u}`);
+    }
     expect(checked).toBeGreaterThan(3000);
     expect(lifted).toBeGreaterThan(100); // the leaps, the rear-ups and the pins were all in there
     // and the camera's points reach the leap's top
@@ -817,6 +905,434 @@ describe('the fight camera follows the fight', () => {
   });
 });
 
+// Task 6 (fight moves and scars): with `actions` the rounds play as leaps,
+// rear-ups, pins and rolling tumbles, the cats square up between rounds, and
+// the end of a fight is reported through onWon / onLost.
+describe('the fight plays the actions', () => {
+  const yawTo = (from, to) => Math.atan2(to.x - from.x, to.z - from.z) + Math.PI;
+  const turn = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+  // A walk stamp whose first three clues pass `ok`.
+  const stampWith = (ok) => {
+    for (let i = 0; ; i++) {
+      const s = `walk-${i}`;
+      const rng = mulberry32(seedFromCode(`${s}|7|0`));
+      if (ok([0, 1, 2].map(() => MOVES[Math.floor(rng() * 3)]))) return s;
+    }
+  };
+  // Every frame of the rounds (the walk-over is over): my cat and the
+  // intruder as staged, with the anchors the rounds stand on.
+  function play(opts) {
+    const frames = [];
+    let anchors = null;
+    let tumbleT = 0;
+    const h = harness({ actions: true, ...opts, onFrame: record });
+    h.challenge(); h.fight();
+    h.runToEnd();
+    return { h, frames, anchors };
+    // Each frame as staged, before the harness taps an answer.
+    function record() {
+      const f = h.s.fight;
+      const subj = h.cf.cameraSubject;
+      if (!f || !subj || subj.path.length !== 0) return;
+      anchors ??= { me: subj.me[0], it: subj.it[0] };
+      tumbleT = f.phase === 'tumble' ? tumbleT + (opts.dt ?? DT) : 0;
+      const st = h.intruders.stage.mock.calls.at(-1)?.[1];
+      const s = h.s;
+      frames.push({
+        phase: f.phase, round: f.round, tumbleT,
+        me: { x: s.cat.position.x, z: s.cat.position.z, y: s.fightLift, pitch: s.fightPitch, roll: s.fightRoll, pose: s.fightPose, yaw: s.cat.rotation.y },
+        it: { x: st.x, z: st.z, y: st.y, pitch: st.pitch, roll: st.roll, pose: st.pose, yaw: yawTo(st, st.face) },
+      });
+    }
+  }
+  const max = (l, f) => Math.max(...l.map(f));
+  const min = (l, f) => Math.min(...l.map(f));
+  // How far p is to the side of the anchor line, from anchor a.
+  const lateral = (p, a, anchors) => {
+    const ax = anchors.it.x - anchors.me.x, az = anchors.it.z - anchors.me.z;
+    const n = Math.hypot(ax, az);
+    return Math.abs(((p.x - a.x) * az - (p.z - a.z) * ax) / n);
+  };
+  const along = (p, a, toward) => {
+    const ax = toward.x - a.x, az = toward.z - a.z;
+    return ((p.x - a.x) * ax + (p.z - a.z) * az) / Math.hypot(ax, az);
+  };
+
+  test('with actions, a won round plays its action and both cats come home before the beat', () => {
+    // a right answer: swipe (to a back-up) leaps, pounce (to a raised paw) rears up, dodge (to a crouch) pins
+    for (const clue of ['charge', 'swipe', 'pounce']) {
+      const { frames, anchors } = play({ answers: 'right', walkStamp: stampWith((m) => m[0] === clue) });
+      const r1 = frames.filter((f) => f.phase === 'tumble' && f.round === 1);
+      expect(r1.length).toBeGreaterThan(60);
+      // first today's answer poses (the prelude), then the action
+      const prelude = r1.filter((f) => f.tumbleT < 0.35 - 1e-9);
+      expect(prelude.length).toBeGreaterThan(5);
+      const answer = COUNTER[clue];
+      for (const f of prelude) {
+        expect(f.me.pose).toBe(answer === 'dodge' ? 'land' : answer);
+        expect(f.it.pose).toBe(clue === 'charge' ? 'follow' : clue);
+      }
+      if (answer === 'dodge') expect(max(prelude, (f) => lateral(f.me, anchors.me, anchors))).toBeGreaterThan(0.6);
+      if (clue === 'charge') {
+        expect(min(r1, (f) => dist(f.me, anchors.it))).toBeLessThan(0.7);
+        expect(max(r1, (f) => f.me.y)).toBeGreaterThanOrEqual(0.4);
+        expect(r1.map((f) => f.me.pose)).toContain('pounce');
+        expect(r1.map((f) => f.it.pose)).toContain('flinch');
+      } else if (clue === 'swipe') {
+        expect(max(r1, (f) => f.me.pitch)).toBeGreaterThanOrEqual(0.8);
+        expect(max(r1, (f) => f.it.pitch)).toBeGreaterThanOrEqual(0.8);
+        expect(r1.map((f) => f.me.pose)).toContain('rearUp');
+      } else {
+        const on = r1.filter((f) => dist(f.me, f.it) < 0.05 && Math.abs(f.me.y - IT_DIMS.pinnedBackY) <= 0.05);
+        expect(on.length).toBeGreaterThan(10);
+        expect(on.map((f) => f.me.pose)).toContain('pinning');
+        expect(on.map((f) => f.it.pose)).toContain('pinned');
+      }
+      // home before every beat, and a beat starts at the anchors, level
+      let beats = 0;
+      for (let i = 1; i < frames.length; i++) {
+        const [a, b] = [frames[i - 1], frames[i]];
+        if (b.phase !== 'beat' || a.phase === 'beat') continue;
+        beats++;
+        for (const f of [a, b]) {
+          expect(dist(f.me, anchors.me)).toBeLessThan(0.06);
+          expect(dist(f.it, anchors.it)).toBeLessThan(0.06);
+        }
+        for (const c of [b.me, b.it]) expect([c.y, c.pitch, c.roll]).toEqual([0, 0, 0]);
+      }
+      expect(beats).toBe(1);
+    }
+  });
+
+  test('a lost round: the intruder lands the action its clue promised', () => {
+    for (const clue of ['pounce', 'swipe', 'charge']) {
+      const { frames, anchors } = play({ answers: 'wrong', walkStamp: stampWith((m) => m[0] === clue) });
+      const r1 = frames.filter((f) => f.phase === 'tumble' && f.round === 1);
+      if (clue === 'pounce') {
+        // crouch: it pins me
+        const on = r1.filter((f) => dist(f.it, anchors.me) < 0.05 && Math.abs(f.it.y - ME_DIMS.pinnedBackY) <= 0.05);
+        expect(on.length).toBeGreaterThan(10);
+        expect(on.map((f) => f.me.pose)).toContain('pinned');
+      } else if (clue === 'swipe') {
+        // a raised paw: it rears up and swats
+        expect(max(r1, (f) => f.it.pitch)).toBeGreaterThanOrEqual(0.8);
+        expect(r1.map((f) => f.it.pose)).toContain('rearUp');
+      } else {
+        // backs up: it leaps and scratches
+        expect(min(r1, (f) => dist(f.it, anchors.me))).toBeLessThan(0.7);
+        expect(max(r1, (f) => f.it.y)).toBeGreaterThanOrEqual(0.4);
+      }
+      // R21: no clue pose outside the clue and the answer prelude
+      for (const f of frames) {
+        if (f.phase === 'clue' || (f.phase === 'tumble' && f.tumbleT <= 0.35 + 1e-9)) continue;
+        expect(['stalk', 'swipe', 'backUp'], `${f.phase} ${f.tumbleT}`).not.toContain(f.it.pose);
+      }
+    }
+  });
+
+  test('a special plays its big action and greys out', () => {
+    const ROLL = moveById('rollingTumble');
+    // 2–0 from one round
+    const one = play({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
+    expect(one.h.moves).toHaveLength(1);
+    expect(one.h.onWon).toHaveBeenCalledTimes(1);
+    expect(one.h.onLost).not.toHaveBeenCalled();
+    const r1 = one.frames.filter((f) => f.phase === 'tumble');
+    expect(r1.map((f) => f.me.pose)).toContain('roll');
+    expect(max(r1, (f) => Math.abs(f.me.roll))).toBeGreaterThan(1);
+    expect(max(r1, (f) => Math.abs(f.it.roll))).toBeGreaterThan(1);
+    const sheets = one.h.ui.showFight.mock.calls.map((c) => c[0]);
+    expect(sheets[0].specials).toEqual([{ id: ROLL.id, name: ROLL.name, hint: ROLL.hint, used: false }]);
+    expect(sheets.at(-1).specials).toEqual([{ id: ROLL.id, name: ROLL.name, hint: ROLL.hint, used: true }]);
+    // 0–1 turns into a win; owned specials come in catalogue order
+    const two = play({
+      answers: (f) => (f.round === 1 ? 'wrong' : 'leapScratch'),
+      walkStamp: stampWith((m) => m[1] === 'charge'),
+      ownedMoves: () => ['leapScratch', 'rearUpSwat', 'nope'],
+    });
+    expect(two.h.moves).toHaveLength(2);
+    expect(two.h.onWon).toHaveBeenCalledTimes(1);
+    const last = two.h.ui.showFight.mock.calls.at(-1)[0];
+    expect(last.specials.map((m) => [m.id, m.used])).toEqual([['rearUpSwat', false], ['leapScratch', true]]);
+    expect(last.wins).toBe(2);
+    // the big leap peaks higher than the basic one
+    const big = two.frames.filter((f) => f.phase === 'tumble' && f.round === 2);
+    expect(max(big, (f) => f.me.y)).toBeGreaterThanOrEqual(0.6);
+  });
+
+  test('onLost once with the deciding action\'s site; onWon once with castId and site', () => {
+    const lost = play({ answers: 'wrong' });
+    expect(lost.h.onWon).not.toHaveBeenCalled();
+    expect(lost.h.onLost).toHaveBeenCalledTimes(1);
+    const lastMove = lost.h.moves.at(-1);
+    expect(lost.h.onLost).toHaveBeenCalledWith({ site: siteFor(actionFor({ move: lastMove, won: false }).kind, null) });
+    expect(lost.h.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal in a few walks!');
+    for (const stamp of ['walk-1', 'walk-2', 'walk-5']) {
+      const won = play({ answers: 'right', walkStamp: stamp });
+      expect(won.h.onLost).not.toHaveBeenCalled();
+      expect(won.h.onWon).toHaveBeenCalledTimes(1);
+      const m = won.h.moves.at(-1);
+      const site = siteFor(actionFor({ move: m, answer: COUNTER[m], won: true }).kind, CAST_ID);
+      expect(won.h.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site, together: false });
+      expect(site).toMatch(/^(face|shoulder|back)$/);
+    }
+    // a special's roll scars the side or the hindquarters, by the cast id
+    const rolled = play({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
+    expect(rolled.h.onWon.mock.calls[0][0].site).toBe(siteFor('roll', CAST_ID));
+  });
+
+  test('Hagrid (actions:false) reports site null and plays today\'s tumble', () => {
+    const won = harness({ answers: 'right' });
+    won.challenge(); won.fight(); won.runToEnd();
+    expect(won.onWon).toHaveBeenCalledTimes(1);
+    expect(won.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: null, together: false });
+    expect(won.onLost).not.toHaveBeenCalled();
+    expect(won.fx.slash).not.toHaveBeenCalled();
+    const lost = harness({ answers: 'wrong' });
+    lost.challenge(); lost.fight();
+    let spot = null, far = 0;
+    lost.runToEnd(() => {
+      if (!lost.s.fight) return;
+      expect(lost.s.fightPitch ?? 0).toBe(0);
+      expect(lost.s.fightRoll ?? 0).toBe(0);
+      if (lost.s.fight.round >= 1 && !spot) spot = { ...lost.s.cat.position };
+      if (spot) far = Math.max(far, dist(lost.s.cat.position, spot));
+    });
+    expect(lost.onLost).toHaveBeenCalledTimes(1);
+    expect(lost.onLost).toHaveBeenCalledWith({ site: null });
+    expect(lost.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. Try again soon!');
+    expect(far).toBeGreaterThan(FIGHT_GAP - 0.1); // today's tumble circles
+    // R6: Hagrid may use a special too; it wins like any answer and plays today's tumble
+    const sp = harness({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
+    sp.challenge(); sp.fight(); sp.runToEnd();
+    expect(sp.moves).toHaveLength(1);
+    expect(sp.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: null, together: false });
+    expect(sp.ui.showFight.mock.calls.at(-1)[0].specials.map((m) => m.used)).toEqual([true]);
+  });
+
+  test('square-off beats: arch, sidestep, stare, never a circle', () => {
+    const { h, frames, anchors } = play({
+      answers: (f) => (f.round === 2 ? 'wrong' : 'right'),
+    });
+    expect(h.moves).toHaveLength(3);
+    const square = frames.filter((f) => f.phase === 'squareOff');
+    expect(square.length).toBeGreaterThan(20);
+    for (const f of square) expect([f.me.pose, f.it.pose]).toEqual(['arch', 'arch']);
+    expect(h.audio.hiss).toHaveBeenCalledTimes(2); // "Fight!" and the arch
+    const beat1 = frames.filter((f) => f.phase === 'beat' && f.round === 1);
+    const beat2 = frames.filter((f) => f.phase === 'beat' && f.round === 2);
+    expect(max(beat1, (f) => lateral(f.me, anchors.me, anchors))).toBeGreaterThan(0.25);
+    expect(max(beat1, (f) => lateral(f.it, anchors.it, anchors))).toBeGreaterThan(0.25);
+    expect(max(beat2, (f) => along(f.me, anchors.me, anchors.it))).toBeGreaterThan(0.1);
+    expect(max(beat2, (f) => along(f.it, anchors.it, anchors.me))).toBeGreaterThan(0.1);
+    for (const f of [...beat1, ...beat2]) expect([f.me.pose, f.it.pose]).toEqual(['cross', 'cross']);
+    // outside an action and its prelude nobody strays more than 0.35 m sideways
+    for (const f of frames) {
+      if (f.phase === 'tumble') continue;
+      expect(lateral(f.me, anchors.me, anchors), f.phase).toBeLessThanOrEqual(0.35);
+      expect(lateral(f.it, anchors.it, anchors), f.phase).toBeLessThanOrEqual(0.35);
+    }
+  });
+
+  test('no time reaches the outcome or the action', () => {
+    for (const answers of ['right', 'wrong', (f) => (f.round === 1 ? 'pin' : 'right')]) {
+      const runs = [9, 117].map((answerAt) => {
+        const r = play({ answers, answerAt, ownedMoves: () => ['pin'] });
+        const segs = [];
+        for (const f of r.frames) {
+          if (f.phase !== 'tumble') continue;
+          if (f.tumbleT === DT) segs.push([]);
+          segs.at(-1).push(f);
+        }
+        return { segs, won: r.h.onWon.mock.calls.length, lost: r.h.onLost.mock.calls, sites: r.h.onWon.mock.calls };
+      });
+      expect(runs[0].segs.length).toBeGreaterThan(1);
+      expect(runs[1]).toEqual(runs[0]);
+    }
+  });
+
+  test('reduced motion: no lift, pitch or roll, ever', () => {
+    for (const opts of [{ answers: 'right' }, { answers: 'wrong' }, { answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] }]) {
+      const { h, frames } = play({ ...opts, reducedMotion: true });
+      expect(frames.length).toBeGreaterThan(60);
+      for (const f of frames) {
+        for (const c of [f.me, f.it]) expect([c.y, c.pitch, c.roll]).toEqual([0, 0, 0]);
+        expect(f.it.pose).not.toBe('roll');
+      }
+      expect(h.fx.slash).not.toHaveBeenCalled();
+      // one puff a round
+      expect(h.fx.burst.mock.calls.map((c) => c[2])).toEqual(h.moves.map(() => 8));
+      const losers = frames.filter((f) => f.phase === 'tumble' && f.tumbleT > 0.25).map((f) => [f.me.pose, f.it.pose]);
+      expect(losers.flat()).toContain('flinch');
+    }
+  });
+
+  test('cues fire once per action: one slash for a leap, dust for a pin, a thump for each', () => {
+    const leap = play({ answers: 'right', walkStamp: stampWith((m) => m[0] === 'charge' && m[1] === 'charge') });
+    expect(leap.h.fx.slash).toHaveBeenCalledTimes(2);
+    expect(leap.h.audio.landThump).toHaveBeenCalledTimes(2);
+    const [p, yaw] = leap.h.fx.slash.mock.calls[0];
+    expect(p.y).toBeGreaterThan(0.2);
+    expect(dist(p, leap.anchors.it)).toBeLessThan(0.6);
+    expect(turn(yaw, yawTo(leap.anchors.me, leap.anchors.it))).toBeLessThan(1e-9);
+    const pin = play({ answers: 'right', walkStamp: stampWith((m) => m[0] === 'pounce' && m[1] === 'pounce') });
+    expect(pin.h.fx.slash).not.toHaveBeenCalled();
+    expect(pin.h.fx.burst.mock.calls.map((c) => c[2])).toEqual([14, 14]);
+    const roll = play({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
+    expect(roll.h.fx.burst.mock.calls.map((c) => c[2])).toEqual([14, 14]);
+    expect(roll.h.audio.landThump).toHaveBeenCalledTimes(1);
+  });
+
+  // updateAvatar (src/game/avatar.js) on a real cat, as main.js runs it after
+  // the clan fight each frame.
+  function withRealCat(opts = {}) {
+    const cat = buildCat('tabby');
+    const waterState = createWaterState();
+    const player = {
+      inWater: false, halt: vi.fn(), perchY: 0, hopY: 0, speed: 0, speedFactor: 1, inputActive: false,
+      stalking: false, swimming: false, wading: false, shaking: false, waterState,
+      forward: () => new THREE.Vector3(0, 0, -1),
+    };
+    const { updateAvatar } = createAvatarUpdater({
+      player, progression: createProgression(fakeStorage()), settings: { get: () => false },
+      log: { awardOnce: () => 0, award: () => 0 }, hud: { toast() {} },
+      audio: { landThump() {}, bell() {}, fanfare() {}, purr() {}, step() {}, waterSplash() {} },
+      petNameFor: () => 'x', completeTag() {}, noteBat() {},
+    });
+    const sExtra = {
+      net: null, rest: null, freezeTime: 0, pounceTime: 0, pounceCooldown: 0, landTime: 0, idleTime: 0,
+      stepPhase: 0, stretchTime: 0, sniffTime: 0, boxTime: 0, pose: 'follow',
+      balkedPuddles: new Set(), toy: { active: false }, toyGhost: { visible: false },
+      groomTimers: new Map(), remotes: { list: [] }, fx: { burst() {} },
+      areaData: { puddles: [], boxes: [] },
+      critters: { setFleeModifier() {}, markStalked() {}, catchAt: () => null, pounceCatch: () => null },
+    };
+    const h = harness({ actions: true, cat, player, sExtra, measureCat: catDims, ...opts });
+    let t = 0;
+    const avatar = () => { t += DT; updateAvatar(h.s, DT, t); };
+    return { h, cat, avatar };
+  }
+
+  test('her cat really rolls', () => {
+    const { h, cat, avatar } = withRealCat({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
+    h.challenge(); h.fight();
+    let rolled = 0, reared = 0;
+    for (let i = 0; i < 2000 && h.s.fight; i++) {
+      h.fightFrame();
+      avatar();
+      if (h.s.fightPose === 'roll' && Math.abs(h.s.fightRoll) > 0.5) {
+        rolled++;
+        expect(cat.rotation.z).toBeCloseTo(h.s.fightRoll, 12);
+        expect(cat.rotation.order).toBe('YXZ');
+        expect(cat.position.y).toBeCloseTo(h.s.fightLift, 12);
+      }
+      if (h.s.fight && Math.abs(h.s.fightPitch) > 0.1) reared++;
+    }
+    expect(rolled).toBeGreaterThan(10);
+    expect(h.s.fight).toBeNull();
+    avatar();
+    expect([cat.rotation.x, cat.rotation.z]).toEqual([0, 0]);
+    expect(h.s.fightPitch).toBe(0);
+    expect(h.s.fightRoll).toBe(0);
+    // and her rear-up pitches the group
+    const r = withRealCat({ answers: 'right', walkStamp: stampWith((m) => m[0] === 'swipe') });
+    r.h.challenge(); r.h.fight();
+    let up = 0;
+    for (let i = 0; i < 2000 && r.h.s.fight; i++) {
+      r.h.fightFrame();
+      r.avatar();
+      if (r.h.s.fight && r.h.s.fightPitch > 0.8) { up++; expect(r.cat.rotation.x).toBe(r.h.s.fightPitch); }
+    }
+    expect(up).toBeGreaterThan(5);
+    void reared;
+  });
+
+  test('a refused spot never hovers', () => {
+    // clan ground is her own line only: every side step (the pin's shake, a sidestep beat) is refused
+    const onLine = (x, z) => Math.abs(z) < 1e-9;
+    for (const answers of ['right', 'wrong']) {
+      const { frames, anchors } = play({ answers, ground: onLine, walkStamp: stampWith((m) => m[0] === 'pounce') });
+      let lifted = 0;
+      for (const f of frames) {
+        expect(onLine(f.me.x, f.me.z)).toBe(true);
+        expect(onLine(f.it.x, f.it.z)).toBe(true);
+        // (an answer's pounce hops on the cat's own anchor)
+        if (f.phase === 'tumble' && f.tumbleT <= 0.35 + 1e-9) continue;
+        if (dist(f.me, anchors.me) < 1e-12) expect([f.me.y, f.me.pitch, f.me.roll]).toEqual([0, 0, 0]);
+        if (dist(f.it, anchors.it) < 1e-12) expect([f.it.y, f.it.pitch, f.it.roll]).toEqual([0, 0, 0]);
+        if (f.me.y > 0.2 || f.it.y > 0.2) lifted++;
+      }
+      expect(lifted).toBeGreaterThan(5); // the pin's flight is on the line, so it still flies
+    }
+  });
+
+  test('the pin and the roll keep both yaws steady', () => {
+    for (const opts of [
+      { answers: 'right', walkStamp: stampWith((m) => m[0] === 'pounce') },
+      { answers: 'wrong', walkStamp: stampWith((m) => m[0] === 'pounce') },
+      { answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] },
+    ]) {
+      const { frames, anchors } = play(opts);
+      const facing = yawTo(anchors.me, anchors.it);
+      for (let i = 1; i < frames.length; i++) {
+        expect(turn(frames[i].me.yaw, frames[i - 1].me.yaw)).toBeLessThan(0.5);
+        expect(turn(frames[i].it.yaw, frames[i - 1].it.yaw)).toBeLessThan(0.5);
+        // R19: along the anchor line
+        expect(turn(frames[i].me.yaw, facing)).toBeLessThan(1e-9);
+        expect(turn(frames[i].it.yaw, facing + Math.PI)).toBeLessThan(0.02);
+      }
+    }
+  });
+
+  test('a dodge never jumps', () => {
+    for (const walkStamp of ['walk-1', 'walk-2', stampWith((m) => m[0] === 'pounce')]) {
+      const { frames } = play({ answers: 'dodge', dt: 1 / 60, answerAt: 30, walkStamp });
+      expect(frames.length).toBeGreaterThan(300);
+      for (let i = 1; i < frames.length; i++) {
+        expect(dist(frames[i].me, frames[i - 1].me), `${frames[i].phase} ${frames[i].tumbleT}`).toBeLessThanOrEqual(0.25);
+      }
+    }
+  });
+
+  test('ending mid-action leaves no tilt, no stage, no callback', () => {
+    const midAction = (h) => h.s.fight?.phase === 'tumble' && (Math.abs(h.s.fightPitch) > 0.2 || h.s.fightLift > 0.2);
+    for (const end of ['abort', 'gone', 'together']) {
+      const { h, cat, avatar } = withRealCat({ answers: 'right', walkStamp: stampWith((m) => m[0] === 'pounce') });
+      h.challenge(); h.fight();
+      for (let i = 0; i < 2000 && !midAction(h); i++) { h.fightFrame(); avatar(); }
+      expect(midAction(h)).toBe(true);
+      expect(cat.position.y).toBeGreaterThan(0.2);
+      if (end === 'abort') h.cf.abort();
+      else if (end === 'gone') { h.cur.state = 'gone'; h.frame(); }
+      else expect(h.cf.chasedOffTogether(7, 'Robin')).toBe(true);
+      const staged = h.intruders.stage.mock.calls.length;
+      avatar();
+      for (let i = 0; i < 30; i++) { h.frame(); avatar(); }
+      expect(h.s.fight).toBeNull();
+      expect([cat.rotation.x, cat.rotation.z]).toEqual([0, 0]);
+      expect(cat.position.y).toBe(0);
+      expect([h.s.fightPitch, h.s.fightRoll, h.s.fightLift]).toEqual([0, 0, 0]);
+      expect(h.intruders.stage.mock.calls.length).toBe(staged);
+      expect(h.onLost).not.toHaveBeenCalled();
+      if (end === 'together') {
+        // R11: the round she was winning when her brother won it (a pin)
+        expect(h.onWon).toHaveBeenCalledTimes(1);
+        expect(h.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: 'back', together: true });
+      } else expect(h.onWon).not.toHaveBeenCalled();
+    }
+    // chased off together before she won a round: R11's roll site
+    const early = harness({ actions: true, answers: 'none' });
+    early.challenge(); early.fight(); early.fightFrame();
+    early.cf.chasedOffTogether(7, 'Robin');
+    expect(early.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: siteFor('roll', CAST_ID), together: true });
+    // ...and Hagrid's: no site
+    const hagrid = harness({ answers: 'none' });
+    hagrid.challenge(); hagrid.fight(); hagrid.fightFrame();
+    hagrid.cf.chasedOffTogether(7, 'Robin');
+    expect(hagrid.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: null, together: true });
+  });
+});
+
 describe('clanfight.js is pinned', () => {
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
@@ -825,7 +1341,7 @@ describe('clanfight.js is pinned', () => {
     const specs = [...SRC.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
     expect(specs.length).toBeGreaterThan(0);
     for (const s of specs) {
-      expect(['../fight.js', '../fightactions.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js']).toContain(s);
+      expect(['../fight.js', '../fightactions.js', '../fightmoves.js', '../intruders.js', '../ui/fightui.js', '../clanhomes.js', '../rng.js']).toContain(s);
     }
     expect(SRC).toMatch(/progression/); // ...and the header says why
   });
@@ -842,5 +1358,23 @@ describe('clanfight.js is pinned', () => {
     expect(slice).toContain('hud.toast(');
     // The one thing it may add is telling the co-walker the fight is over.
     expect(slice).toContain('sendDone(false)');
+    // ...and reporting the loss (fightrecord.js writes her cat's scar from it).
+    expect(slice).toContain('onLost(');
+    expect(slice).not.toContain('onWon(');
+  });
+
+  test('the win branch flees, pays once, reports the win, toasts and clears the fight', () => {
+    const a = SRC.indexOf('// WON:');
+    const b = SRC.indexOf('// END WON');
+    expect(a).toBeGreaterThan(-1);
+    expect(b).toBeGreaterThan(a);
+    expect(SRC.indexOf('// WON:', a + 1)).toBe(-1);
+    const slice = SRC.slice(a, b).replace(/\/\/.*$/gm, '');
+    for (const w of ['intruders.flee(', 'log.awardOnce(', 'onWon(', 'hud.toast(', 'sendDone(true)', 'endFight()']) expect(slice).toContain(w);
+    expect(slice).not.toMatch(/progression/i);
+    expect(slice).not.toContain('onLost(');
+    // the calls in it are those (and clanName in a toast's text), nothing else
+    const called = new Set([...slice.matchAll(/([A-Za-z_$][\w$.]*)\(/g)].map((m) => m[1]));
+    expect([...called].sort()).toEqual(['clanName', 'endFight', 'hud.toast', 'intruders.flee', 'log.awardOnce', 'onWon', 'sendDone']);
   });
 });
