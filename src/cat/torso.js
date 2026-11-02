@@ -119,6 +119,27 @@ export function torsoSurface(dir) {
   return new THREE.Vector3(x * TORSO.R, y * TORSO.R, z * TORSO.R);
 }
 
+// The inverse of torsoSurface's direction (polish-catlooks, 2026-11-02): the
+// UNDEFORMED unit direction whose deformed surface point lies along the
+// body-local direction `dir`. The coat is painted by undeformed direction
+// (coat.js), so a part hung on the torso reads the coat under it through this.
+// Fixed-point: nudge u by how far its deformed direction misses `dir`. The
+// deformation only stretches by 0.7-1.3, so 8 steps land within ~1e-6.
+export function torsoUnitAt(dir, out = [0, 0, 0]) {
+  const L = Math.hypot(dir[0], dir[1], dir[2]);
+  const d0 = dir[0] / L, d1 = dir[1] / L, d2 = dir[2] / L;
+  let u0 = d0, u1 = d1, u2 = d2;
+  for (let k = 0; k < 8; k++) {
+    const [x, y, z] = deformTorso(u0, u1, u2);
+    const P = Math.hypot(x, y, z);
+    u0 -= x / P - d0; u1 -= y / P - d1; u2 -= z / P - d2;
+    const M = Math.hypot(u0, u1, u2);
+    u0 /= M; u1 /= M; u2 /= M;
+  }
+  out[0] = u0; out[1] = u1; out[2] = u2;
+  return out;
+}
+
 // A back-slot point authored against the old torso, moved onto the new one
 // with the same "how far from the fur": its unit-ellipsoid coordinates in
 // LEGACY_BODY (scaled by the cat's body factors f), radius ρ and direction d,
