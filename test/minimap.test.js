@@ -21,6 +21,7 @@ class FakeEl {
     this.calls = {}; // 2D context method name -> call count
     this.arcs = []; // [x, y, r] of every arc() call
     this.fills = []; // the fillStyle in force at each fill() / fillRect()
+    this.ops = []; // every context call in order: { op, args, fillStyle }
     this.classList = {
       add: (c) => this.cls.add(c),
       remove: (c) => this.cls.delete(c),
@@ -61,6 +62,7 @@ class FakeEl {
         }
         return (...args) => {
           this.calls[key] = (this.calls[key] ?? 0) + 1;
+          this.ops.push({ op: key, args, fillStyle: state.fillStyle });
           if (key === 'arc') this.arcs.push(args.slice(0, 3));
           if (key === 'fill' || key === 'fillRect') this.fills.push(state.fillStyle);
         };
@@ -288,11 +290,22 @@ describe('createMinimap', () => {
   it('createMinimap adds one canvas to the host and dispose removes it', () => {
     const { host, map, canvas } = makeMap();
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(1);
+    // A picture whose label says what a tap on it does.
     expect(canvas.getAttribute('role')).toBe('img');
-    expect(canvas.getAttribute('aria-label')).toBe('Map');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
     expect(canvas.style.pointerEvents).toBe('auto');
     map.dispose();
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(0);
+  });
+
+  it("the label follows the map's mode, so it always says what the next tap does", () => {
+    const { map, canvas } = makeMap({ mode: 'turn' });
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
+    map.setMode('north');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
+    map.setMode('turn');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
+    map.dispose();
   });
 
   it('sizes the canvas backing store for devicePixelRatio', () => {
@@ -415,6 +428,74 @@ describe('createMinimap', () => {
     expect(island).toBeGreaterThan(water);
     const deck = canvas.fills.indexOf('rgba(250,244,228,0.85)', island + 1);
     expect(deck).toBeGreaterThan(island);
+  });
+
+  // Polish 3: the island's land fill stays inside the map's edge, and a path
+  // across the island is drawn over it, not hidden under it.
+  const ISLAND_LAYER = {
+    ...LAYER,
+    ground: '#5a8a4a',
+    edge: { minX: -50, maxX: 50, minZ: -50, maxZ: 50 },
+    water: [{ kind: 'rect', minX: 30, maxX: 60, minZ: -10, maxZ: 10, islands: [{ x: 45, z: 0, r: 8 }] }],
+    paths: [{ kind: 'strip', x: 45, z: 0, ux: 1, uz: 0, halfW: 1, halfL: 6 }],
+  };
+  const islandFill = (canvas) => canvas.ops.findIndex((o, i) => o.op === 'fill' && o.fillStyle === '#5a8a4a'
+    && canvas.ops.slice(0, i).some((p) => p.op === 'arc' && p.args[0] === 45 && p.args[2] === 8));
+
+  it('clips an island to the map edge', () => {
+    const { map, canvas } = makeMap({ layer: ISLAND_LAYER });
+    map.update({ cx: 40, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const at = islandFill(canvas);
+    expect(at).toBeGreaterThan(-1);
+    const before = canvas.ops.slice(0, at);
+    const edge = before.findLastIndex((o) => o.op === 'rect' && o.args.join() === '-50,-50,100,100');
+    expect(edge).toBeGreaterThan(-1);
+    expect(before.slice(edge).some((o) => o.op === 'clip')).toBe(true);
+    // ...and the clip is lifted again: the restore comes after the island.
+    expect(canvas.ops.slice(at).some((o) => o.op === 'restore')).toBe(true);
+  });
+
+  it('draws a path across an island over the island', () => {
+    const { map, canvas } = makeMap({ layer: ISLAND_LAYER });
+    map.update({ cx: 40, cz: 0, heading: 0 }, EMPTY_FRAME);
+    const at = islandFill(canvas);
+    expect(at).toBeGreaterThan(-1);
+    expect(canvas.ops.slice(at + 1).some((o) => o.op === 'fillRect' && o.fillStyle === 'rgba(250,244,228,0.85)'
+      && o.args.join() === '-1,-6,2,12')).toBe(true);
+  });
+
+  it("keeps a border post's arrow out from under the N badge (Polish 3)", () => {
+    const { map, canvas } = makeMap();
+    // The Twolegplace's post for the Moor, due north and off the map.
+    map.update({ cx: 0, cz: 0, heading: 0 }, { ...EMPTY_FRAME, posts: [{ x: 3.6, z: -52, faces: 'north' }] });
+    const [c, , radiusPx] = canvas.arcs[0];
+    const arrow = canvas.ops.findIndex((o) => o.op === 'fill' && o.fillStyle === '#8a6a48');
+    expect(arrow).toBeGreaterThan(-1);
+    const t = canvas.ops.slice(0, arrow).findLast((o) => o.op === 'translate');
+    const [x, y] = t.args;
+    const badge = { x: c, y: c - (radiusPx - 9) };
+    expect(Math.hypot(x - badge.x, y - badge.y)).toBeGreaterThanOrEqual(8 + 5);
+    // Still on the rim, on its own (east) side of north.
+    expect(Math.hypot(x - c, y - c)).toBeCloseTo(radiusPx - 6, 3);
+    expect(x).toBeGreaterThan(c);
+  });
+
+  it('two markers slid out from under the badge do not land on each other (Polish 3)', () => {
+    const { map, canvas } = makeMap();
+    // The town's Moor post and a scenic star, both due north and off the map.
+    map.update({ cx: 0, cz: 0, heading: 0 }, {
+      ...EMPTY_FRAME, posts: [{ x: 3.6, z: -52, faces: 'north' }], scenics: [{ id: 's', x: 2, z: -60 }],
+    });
+    const [c, , radiusPx] = canvas.arcs[0];
+    const arrow = canvas.ops.findIndex((o) => o.op === 'fill' && o.fillStyle === '#8a6a48');
+    const post = canvas.ops.slice(0, arrow).findLast((o) => o.op === 'translate').args;
+    // the star's first vertex is its top point, 5 px above its centre
+    const starAt = canvas.ops.findIndex((o, i) => i > arrow && o.op === 'moveTo');
+    const [sx, sy] = canvas.ops[starAt].args;
+    const star = [sx, sy + 5];
+    const badge = [c, c - (radiusPx - 9)];
+    expect(Math.hypot(star[0] - badge[0], star[1] - badge[1])).toBeGreaterThanOrEqual(13 - 1e-6);
+    expect(Math.hypot(star[0] - post[0], star[1] - post[1])).toBeGreaterThanOrEqual(10);
   });
 
   // coatColor hands back a number (0x2a2a30); a canvas ignores a number

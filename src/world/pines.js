@@ -10,6 +10,7 @@ import {
 } from './island.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { segDist } from '../segdist.js';
 import { ZOOM_STEPS } from '../camzoom.js';
 import { addCamp } from './camp.js';
 
@@ -368,12 +369,6 @@ export const PINES_KEEP_CLEAR = Object.freeze([
 
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// Distance from (x, z) to a segment.
-function segDist(x, z, x1, z1, x2, z2) {
-  const dx = x2 - x1, dz = z2 - z1;
-  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
-}
 // Distance from (x, z) to an axis-aligned rectangle (0 inside it).
 const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
@@ -487,7 +482,19 @@ function pineFits(x, z, scale, kept) {
   if ([LIGHTNING_STUMP, FROG_STONE].some((c) => Math.hypot(x - c.x, z - c.z) < 6)) return false;
   return kept.every((t) => Math.hypot(x - t.x, z - t.z) >= PINE_SPACING);
 }
+// The placement is a pure function of this file's constants, and a build
+// asks for it three times (the trees, the birds in them, the floor that keeps
+// off their trunks), so it is worked out once per load and frozen (Polish 3).
+let placedOnce = null;
 function placedPines() {
+  if (!placedOnce) placedOnce = freezePines(placePines());
+  return placedOnce;
+}
+const freezePines = ({ near, stand }) => Object.freeze({
+  near: Object.freeze(near.map(Object.freeze)),
+  stand: Object.freeze(stand.map(Object.freeze)),
+});
+function placePines() {
   const G = PINE_GRID;
   const rng = mulberry32(seedFromCode(G.seed));
   const near = [];
@@ -514,10 +521,17 @@ function placedPines() {
 // trail comes out (clear of it by half its width, its cone's reach and half a
 // metre, measured from the trail stretched like CAM_PATHS). Applied to the
 // finished lists, so no cap or spacing check changes.
+// Worked out once, like the placement, and frozen.
+let treesOnce = null;
 export function pinesTrees() {
+  if (treesOnce) return treesOnce;
   const { near, stand } = placedPines();
   const onTrail = (t) => !trailClear(t.x, t.z, canopyClearFor(TRAIL_W, t.scale), true);
-  return { near: near.filter((t) => !onTrail(t)), stand: stand.filter((t) => !onTrail(t)) };
+  treesOnce = Object.freeze({
+    near: Object.freeze(near.filter((t) => !onTrail(t))),
+    stand: Object.freeze(stand.filter((t) => !onTrail(t))),
+  });
+  return treesOnce;
 }
 
 // The forest floor: ferns and toadstools, one rng between them, ferns first.

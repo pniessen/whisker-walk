@@ -27,8 +27,9 @@ import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
 import { skyBackground } from '../render/sky.js';
-import { buildCat, CAT_LOOK_Y } from '../cat/model.js';
-import { activeCat } from '../customcats.js';
+import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
+import { setCatScars } from '../cat/scarmesh.js';
+import { activeCat, scarKey } from '../customcats.js';
 import { attachOwnTag } from './owntag.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { cameraOffset } from '../catcam.js';
@@ -36,7 +37,7 @@ import { createCritters } from '../critters.js';
 import { createStrayCats, strayStream } from '../straycats.js';
 import { createClanCats } from '../clancats.js';
 import { castFor, CLAN_COLOURS, clanCountFor, clanHomeFor, lonersFor, roamHomes } from '../clancast.js';
-import { campLayout } from '../world/camp.js';
+import { campLayout, campDiscs } from '../world/camp.js';
 import { clanWalkableFor } from '../world/clanground.js';
 import { DISCS } from '../rivalclans.js';
 import { createRemoteCats } from '../remotecats.js';
@@ -98,6 +99,8 @@ import { createWind } from '../render/wind.js';
 import { createSun, createFill, SUN_BIAS, assignShadowCasters, assignShadowCastersFor } from '../render/rig.js';
 import { createIntruders, isHostile, NO_INTRUDERS, INTRUDER_DECAL_RADIUS } from '../intruders.js';
 import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
+import { createFightRecord } from './fightrecord.js';
+import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
 import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
@@ -183,6 +186,9 @@ export function createWalkLifecycle({
   denShop,
   // Clan Life Task 6: game/interactions.js's end of a patrol together.
   endClanPatrol = () => {},
+  // Fight moves and scars: her cat's rendered scars changed (a lost fight, a
+  // walk's fade). main.js re-tracks the room profile and re-pushes the cloud one.
+  onScarsChanged = () => {},
 }) {
   // ------------------------------------------------------------------
   // v18 Task 2.7 — the in-walk skill-unlock celebration.
@@ -529,6 +535,9 @@ export function createWalkLifecycle({
     const walkPois = areaData.pois.map((p) => clearSpot(p, areaData.colliders, areaData.bounds, areaData.waters));
 
     const active = activeCat(state);
+    // Fight moves and scars: the key her cat's scars are filed under (null for
+    // Hagrid, who never scars); she walks wearing them.
+    const myScarKey = scarKey(state);
     const cat = buildCat(active.breed, {
       collar: state.equipped.collar,
       head: state.equipped.head,
@@ -537,7 +546,7 @@ export function createWalkLifecycle({
       body: state.equipped.body,
       back: state.equipped.back,
       feet: state.equipped.feet,
-    }, { look: active.look });
+    }, { look: active.look, scars: progression.catScars(myScarKey) });
     // her own custom cat wears its name on her own screen, like a co-walker
     attachOwnTag(cat, state);
     cat.position.set(areaData.spawn.x, ground.y(areaData.spawn.x, areaData.spawn.z), areaData.spawn.z);
@@ -897,6 +906,7 @@ export function createWalkLifecycle({
       collarFor: (name) => collarFor(progression.state, name),
       roomSeed,
       colonyCats,
+      colonyAvoid: campDiscs(areaId),
       excludeNames,
       extras,
       reducedMotion,
@@ -930,6 +940,8 @@ export function createWalkLifecycle({
       // A patrol ends at this territory's camp disc (rivalclans.isTrespassing).
       areaId,
       ground,
+      // A camp cat she beat wears her scar (applied at build).
+      scarsFor: (id) => progression.intruderScars(id),
     }) : NO_CLAN_CATS;
     // The camp on the corner map (Clan Edition only; Legacy shows no clan layer).
     const campAt = clanCast.length ? campLayout(areaId) : null;
@@ -1352,8 +1364,19 @@ export function createWalkLifecycle({
       onNotice: () => audio.hiss(),
       onBuild: (g) => { assignShadowCastersFor(g); },
       ground,
+      scarsFor: (id) => progression.intruderScars(id),
     }) : NO_INTRUDERS;
     if (session.intruders.anchor) decals.follow(session.intruders.anchor, INTRUDER_DECAL_RADIUS);
+    // Fight moves and scars: the fight's record (game/fightrecord.js) is the
+    // only fight code holding progression; the fight gets its two callbacks
+    // and a reader of the moves she owns, both built here, outside its slice.
+    const fightRecord = createFightRecord({
+      progression, hud, scarKey: myScarKey,
+      setMyScars: (scars) => setCatScars(cat, scars),
+      setIntruderScars: (visit, scars) => session.intruders.setScars(visit, scars),
+      onScarsChanged,
+    });
+    const ownedMovesNow = () => progression.ownedMoves();
     // The clan fight (Part 2, Task 4): only at home, over these intruders. It
     // is given no progression; it stands only on the clan cats' own ground
     // (ruling R3). The sheet's buttons and keys call back into it.
@@ -1369,6 +1392,9 @@ export function createWalkLifecycle({
       reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
       sendEvent: (ev) => session.net?.sendEvent(ev),
       terrain: ground,
+      // Hagrid fights as he always has (R6); everyone else fights in actions.
+      actions: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...fightRecord,
+      measureCat: catDims,
     }) : NO_CLAN_FIGHT;
     // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
     // Read once from the trees' tags; null where no fight can happen.
@@ -1636,6 +1662,11 @@ export function createWalkLifecycle({
     session.chatWheel = chatWheel;
     chatWheel.setVisible(true);
     hud.toast('Press 1–9 to chat · Enter for phrases'); // once per walk (startWalk runs once per walk)
+    // R18: moves the save granted on load (fights she won before moves
+    // existed) are toasted once, at the next Clan Edition walk. The lines wait
+    // on the session (the Ready? card covers toasts); main.js toasts them on
+    // the first engage (takeMoveLines).
+    session.moveLines = isClanEdition(state) ? progression.takeNewMoves().map(unlockToast) : null;
 
     if (session.net) {
       const net = session.net;
@@ -1760,7 +1791,11 @@ export function createWalkLifecycle({
     // areaOverride ?? state.area) — pass it explicitly so a den walk (which
     // never persists state.area) increments walks.den, not whatever other
     // area state.area still points at.
+    // Fight moves and scars: a walk fades her scars (R1); when what her cat
+    // shows changed, her brother's screen and the cloud profile follow.
+    const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));
     progression.completeWalk(session.areaId, { dusk: session.duskActive });
+    if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();
     // A crossing: this walk counted toward the gate above; now pick the place.
     let crossLines = [];
     lastCrossing = null;

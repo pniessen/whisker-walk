@@ -1195,8 +1195,10 @@ export function createInteractions({
   }
 
   // Task 6: the end of a patrol with MY buddy (s.clanBuddy), however it ends:
-  // 'bye' from my E, or 'time' / 'camp' / 'edge' / 'far' from clancats.js's
-  // update (walk.js hands its onBuddyEnd here). Pays only a patrol of at least
+  // 'bye' from my E, or 'time' / 'camp' / 'edge' / 'far' / 'terrain' from
+  // clancats.js's update (walk.js hands its onBuddyEnd here). Only 'far' (she
+  // outran it) says it couldn't keep up; 'terrain' (water or the truce path
+  // stopped it) gets the ordinary goodbye. Pays only a patrol of at least
   // PATROL_MIN seconds, under the walk's cap. Any other cat (a co-walker's
   // buddy, or one already ended) is a no-op, so nothing pays twice.
   function endClanPatrol(s, cat, reason, seconds) {

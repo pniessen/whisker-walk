@@ -226,6 +226,33 @@ describe('picking a clan', () => {
     expect(noteOwnPick).toHaveBeenCalledTimes(1);
   });
 
+  it('re-tapping the clan already picked pushes nothing again', async () => {
+    const { progression, noteOwnPick } = setupSync();
+    noteOwnPick.mockResolvedValue(true);
+    await clickPick('moor');
+    await clickPick('moor');
+    expect(progression.state.clanPick.mine).toBe('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    await clickPick('river');
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+    doc.root.listeners.change({ target: { id: 'set-clan-pick', value: 'river', dataset: {} } });
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+  });
+
+  it('after a failed push, re-tapping the same clan pushes it again', async () => {
+    const { noteOwnPick } = setupSync();
+    noteOwnPick.mockResolvedValue(false);
+    await clickPick('moor');
+    await Promise.resolve(); await Promise.resolve();
+    expect(noteOwnPick).toHaveBeenCalledTimes(1);
+    noteOwnPick.mockResolvedValue(true);
+    await clickPick('moor');
+    await Promise.resolve(); await Promise.resolve();
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+    await clickPick('moor');
+    expect(noteOwnPick).toHaveBeenCalledTimes(2);
+  });
+
   it('a refused pick (the gorge) neither changes the save nor pushes', async () => {
     const { progression, noteOwnPick } = setupSync();
     await clickPick('gorge');
@@ -265,5 +292,39 @@ describe('picking a clan', () => {
       expect(doc.root.innerHTML).not.toContain('StormClan');
     }
     expect(progression.state.clanPick.mine).toBe('woods');
+  });
+});
+
+describe('Fighting moves in the Skills sheet', () => {
+  function clickBuy(id) {
+    const btn = { id: '', dataset: { buyMove: id } };
+    const target = { id: '', dataset: {}, closest: (sel) => (sel === '[data-buy-move]' ? btn : null) };
+    return doc.root.listeners.click({ target });
+  }
+  it('Clan Edition shows the section at the end of Skills; Legacy does not', () => {
+    const { progression } = setup();
+    openSheet('skills');
+    expect(doc.root.innerHTML).toContain('fight-moves-list');
+    expect(doc.root.innerHTML.indexOf('fight-moves-list')).toBeGreaterThan(doc.root.innerHTML.indexOf('Abilities earned'));
+    progression.setEdition('legacy');
+    openSheet('skills');
+    expect(doc.root.innerHTML).not.toContain('fight-moves-list');
+  });
+  it('tapping Learn now buys the move and charges the price', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('rearUpSwat');
+    expect(progression.ownedMoves()).toContain('rearUpSwat');
+    expect(progression.state.points).toBe(100);
+    expect(doc.root.innerHTML).not.toContain('data-buy-move="rearUpSwat"');
+  });
+  it('a tap that cannot buy changes nothing', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('leapScratch');
+    expect(progression.ownedMoves()).toEqual([]);
+    expect(progression.state.points).toBe(400);
   });
 });

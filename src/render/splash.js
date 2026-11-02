@@ -52,11 +52,15 @@ const WAKE_BACK = 0.35; // × cat scale, behind
 const WAKE_DRIFT = 0.5; // m/s, out and back: the V
 const RING_ALPHA = 0.55;
 
-// splashEmits(st, speed, dt, reducedMotion, out) -> out
+// splashEmits(st, speed, dt, reducedMotion, out, lift = 0) -> out
 // Pure: advances st.fxClock / st.ringClock and fills `out` with this frame's
 // counts — drops (droplets), wake (left-and-right ring pairs), ring (head or
 // still rings) and puff (shake droplets).
-export function splashEmits(st, speed, dt, reducedMotion, out) {
+//
+// `lift` is how high the cat is drawn above its paws' ground (a pounce's hop,
+// player.hopY). A running entry made mid-hop waits on st.entryPending and
+// splashes on the frame the paws come down, still in the water (Polish 3).
+export function splashEmits(st, speed, dt, reducedMotion, out, lift = 0) {
   out.drops = 0;
   out.wake = 0;
   out.ring = 0;
@@ -66,9 +70,14 @@ export function splashEmits(st, speed, dt, reducedMotion, out) {
   if (reducedMotion || st.mode === 'dry') {
     st.fxClock = 0;
     st.ringClock = 0;
+    st.entryPending = false;
     return out;
   }
-  if (st.entered && speed > ENTER_SPEED) out.drops += ENTER_DROPS;
+  if (st.entered && speed > ENTER_SPEED) st.entryPending = true;
+  if (st.entryPending && !(lift > 0)) {
+    st.entryPending = false;
+    out.drops += ENTER_DROPS;
+  }
   if (st.mode === 'wade') {
     st.ringClock = 0;
     if (!moving) {
@@ -191,11 +200,12 @@ diffuseColor.a *= vRingAlpha;`);
     dp[o + 6] = 0; dp[o + 7] = ttl;
   }
 
-  function spawnRing(x, z, vx, vz, kind) {
+  // k is the cat's scale: a kitten's ring is a kitten-sized ring (Polish 3).
+  function spawnRing(x, z, vx, vz, kind, k) {
     const o = (ringHead % ringCap) * 8;
     ringHead++;
     rp[o] = x; rp[o + 1] = z; rp[o + 2] = vx; rp[o + 3] = vz;
-    rp[o + 4] = 0; rp[o + 5] = kind.ttl; rp[o + 6] = kind.r0; rp[o + 7] = kind.r1;
+    rp[o + 4] = 0; rp[o + 5] = kind.ttl; rp[o + 6] = kind.r0 * k; rp[o + 7] = kind.r1 * k;
   }
 
   // n drops from around (x, z) at height y, flung out at hMin..hMax m/s
@@ -210,12 +220,13 @@ diffuseColor.a *= vRingAlpha;`);
     }
   }
 
-  // track(st, x, z, yaw, speed, scale, dt) — once per frame per cat in view,
-  // after its water state has stepped this frame.
-  function track(st, x, z, yaw, speed, scale, dt) {
+  // track(st, x, z, yaw, speed, scale, dt, lift = 0) — once per frame per cat
+  // in view, after its water state has stepped this frame. `lift` is the
+  // cat's hop height (see splashEmits); a co-walker's is always 0.
+  function track(st, x, z, yaw, speed, scale, dt, lift = 0) {
     if (!st) return;
     const k = scale > 0 ? scale : 1;
-    splashEmits(st, speed, dt, reducedMotion, out);
+    splashEmits(st, speed, dt, reducedMotion, out, lift);
     // The cat faces -(sin yaw, cos yaw) (player.js: yaw = atan2(vx, vz) + PI).
     const fx = -Math.sin(yaw);
     const fz = -Math.cos(yaw);
@@ -235,16 +246,16 @@ diffuseColor.a *= vRingAlpha;`);
       const sz = fx;
       const bx = -fx;
       const bz = -fz;
-      const d = WAKE_DRIFT / Math.SQRT2;
+      const d = (WAKE_DRIFT * k) / Math.SQRT2;
       for (let side = -1; side <= 1; side += 2) {
         spawnRing(
           x + (sx * side * WAKE_SIDE + bx * WAKE_BACK) * k,
           z + (sz * side * WAKE_SIDE + bz * WAKE_BACK) * k,
-          (sx * side + bx) * d, (sz * side + bz) * d, RING,
+          (sx * side + bx) * d, (sz * side + bz) * d, RING, k,
         );
       }
     }
-    if (out.ring > 0) spawnRing(x, z, 0, 0, speed > MOVING ? RING : STILL_RING);
+    if (out.ring > 0) spawnRing(x, z, 0, 0, speed > MOVING ? RING : STILL_RING, k);
   }
 
   // update(dt) — once per frame, after every track(): ages, moves and draws.
@@ -261,6 +272,12 @@ diffuseColor.a *= vRingAlpha;`);
       dp[o] += dp[o + 3] * t;
       dp[o + 1] += dp[o + 4] * t;
       dp[o + 2] += dp[o + 5] * t;
+      // Falling back through the surface: the drop is gone into the water
+      // (Polish 3), never parked on top of it until its time runs out.
+      if (dp[o + 4] < 0 && dp[o + 1] <= RING_Y) {
+        dp[o + 6] = dp[o + 7];
+        continue;
+      }
       const u = dp[o + 6] / dp[o + 7];
       const s = 1 - 0.5 * u * u;
       pos.set(dp[o], Math.max(dp[o + 1], RING_Y), dp[o + 2]);

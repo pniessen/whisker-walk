@@ -60,7 +60,7 @@ describe('the constants', () => {
   it('starts dry', () => {
     expect(createWaterState()).toEqual({
       mode: 'dry', wetTime: 0, swam: false, shake: 0, entered: false, shook: false,
-      sink: 0, fxClock: 0, ringClock: 0, placed: true,
+      sink: 0, fxClock: 0, ringClock: 0, entryPending: false, placed: true,
     });
   });
 });

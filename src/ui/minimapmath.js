@@ -56,6 +56,42 @@ export function pinToRim(p, radiusPx, inset) {
   return { u: p.u * k, v: p.v * k };
 }
 
+// The N badge rides the rim at north's bearing, BADGE_INSET px in from the
+// rim, BADGE_R px across; MARK_R is about the reach of a marker round its
+// point (a post's arrow is 9 px long).
+export const BADGE_R = 8;
+export const BADGE_INSET = 9;
+export const MARK_R = 5;
+
+// Where the badge's centre is, in pixels from the disc centre: straight up in
+// north mode, at north's bearing in turn mode.
+export function badgeAt(view) {
+  const nu = view.mode === 'turn' ? Math.sin(view.heading) : 0;
+  const nv = view.mode === 'turn' ? -Math.cos(view.heading) : -1;
+  const r = view.radiusPx - BADGE_INSET;
+  return { u: nu * r, v: nv * r };
+}
+
+// A marker point under the badge (closer than `clear` to its centre) is
+// turned about the disc centre, keeping its distance from it, just far
+// enough to clear the badge, on the side it already leans to (east when it
+// is dead on). Any other point comes back as it was.
+export function clearOfBadge(p, badge, clear) {
+  const d = Math.hypot(p.u - badge.u, p.v - badge.v);
+  if (d >= clear) return p;
+  const r = Math.hypot(p.u, p.v);
+  const rb = Math.hypot(badge.u, badge.v);
+  if (r === 0 || rb === 0) return p;
+  const aB = Math.atan2(badge.v, badge.u);
+  let lean = Math.atan2(p.v, p.u) - aB;
+  lean = Math.atan2(Math.sin(lean), Math.cos(lean));
+  // The angle about the centre at which the two are exactly `clear` apart.
+  const cos = (r * r + rb * rb - clear * clear) / (2 * r * rb);
+  const turn = Math.acos(Math.max(-1, Math.min(1, cos)));
+  const a = aB + (lean < 0 ? -turn : turn);
+  return { u: Math.cos(a) * r, v: Math.sin(a) * r };
+}
+
 // Which things get a marker. Reads only the keys listed here, so anything
 // hidden (golden mice, secrets, gifts, collectibles, strays) cannot leak onto
 // the map even if the caller's frame carries it. The cat itself is not a

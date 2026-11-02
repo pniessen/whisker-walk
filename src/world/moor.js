@@ -4,6 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
@@ -270,12 +271,6 @@ export const MOOR_KEEP_CLEAR = Object.freeze([
 // data (they end up in colliders and perches).
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// Distance from (x, z) to a segment.
-function segDist(x, z, x1, z1, x2, z2) {
-  const dx = x2 - x1, dz = z2 - z1;
-  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
-}
 // Distance from (x, z) to an axis-aligned rectangle (0 inside it).
 const rectDist = (d, x, z) => Math.hypot(
   Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));

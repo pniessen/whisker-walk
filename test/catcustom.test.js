@@ -15,6 +15,15 @@ describe('custom looks', () => {
       expect(triangles(buildCat(breed, undefined, { look, simple: true }))).toBeLessThanOrEqual(5500);
     }
   });
+  it('a scarred look (two scars) stays under 32 meshes full and 26 simple, and under the triangle caps', () => {
+    const scars = [{ site: 'face', stage: 'full', side: 'l' }, { site: 'hind', stage: 'half', side: 'r' }];
+    for (const look of looks()) for (const breed of ['tabby', 'mainecoon']) {
+      expect(meshCount(buildCat(breed, undefined, { look, scars })), JSON.stringify(look)).toBeLessThanOrEqual(32);
+      expect(meshCount(buildCat(breed, undefined, { look, scars, simple: true }))).toBeLessThanOrEqual(26);
+      expect(triangles(buildCat(breed, undefined, { look, scars }))).toBeLessThanOrEqual(8000);
+      expect(triangles(buildCat(breed, undefined, { look, scars, simple: true }))).toBeLessThanOrEqual(5500);
+    }
+  });
   it('colours never change the mesh count', () => {
     const n = meshCount(buildCat('tabby', undefined, { look: DEFAULT_LOOK }));
     for (const coat of Object.keys(COATS)) for (const marks of Object.keys(MARKS)) {

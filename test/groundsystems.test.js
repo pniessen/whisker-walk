@@ -1095,7 +1095,7 @@ const FACE_PLUS_X = Math.atan2(1, 0) + Math.PI; // yaw whose nose points at +x
 function drawHer(ground, cat, player, s, t, speed) {
   const tilt = avatarSlopeTilt(ground, cat, player, s, DT);
   animateCat(cat, 'follow', t, speed);
-  applyWaterLook(cat, player.waterState, t, DT, false, avatarBaseY(ground, cat, player, s), 1, tilt);
+  applyWaterLook(cat, player.waterState, t, DT, false, avatarBaseY(ground, cat, player, s), 1, null, tilt);
 }
 
 function pawWorld(cat) {
@@ -1224,12 +1224,19 @@ describe('cats lean into slopes', () => {
     intr.stage(cur.visit, { pose: 'cross', x: cur.pos.x, z: cur.pos.z, y: 0 });
     expect(mesh.rotation.x).toBe(0);
     expect(mesh.rotation.z).toBe(0);
-    // flat ground: rotation.x/z and order are never written
+    // staged with the fight's pitch and roll (fight moves and scars, R20):
+    // the fight's tilt, not the slope's, and its lift above the ground there
+    intr.stage(cur.visit, { pose: 'roll', x: cur.pos.x, z: cur.pos.z, y: 0.2, pitch: 0.4, roll: -1.1 });
+    expect(mesh.rotation.order).toBe('YXZ');
+    expect(mesh.rotation.x).toBe(0.4);
+    expect(mesh.rotation.z).toBe(-1.1);
+    expect(mesh.position.y).toBeCloseTo(ground.y(cur.pos.x, cur.pos.z) + 0.2, 12);
+    // flat ground: exactly the fight build's look (yaw outermost, level)
     const flatScene = new THREE.Scene();
     const flatIntr = createIntruders(flatScene, 'woods', { now: () => T, hostile: () => true });
     flatIntr.update(DT, FAR_CAT);
     const fm = flatScene.children.find((o) => o.userData?.intruder);
-    expect(fm.rotation.order).toBe('XYZ');
+    expect(fm.rotation.order).toBe('YXZ');
     expect(fm.rotation.x).toBe(0);
     expect(fm.rotation.z).toBe(0);
   });
@@ -1292,7 +1299,8 @@ describe('cats lean into slopes', () => {
 
   it('updateAvatar hands its eased slope tilt to applyWaterLook', () => {
     const src = readFileSync(new URL('../src/game/avatar.js', import.meta.url), 'utf8');
-    expect(src).toContain('applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount, avatarSlopeTilt(s.ground, cat, player, s, dt));');
+    // after the fight's tilt (9th argument, R7: a fight's tilt wins)
+    expect(src).toMatch(/applyWaterLook\(cat, ws, t, dt, reducedMotion, avatarBaseY\(s\.ground, cat, player, s\), amount,\s*s\.fight \? fightTilt : null, avatarSlopeTilt\(s\.ground, cat, player, s, dt\)\);/);
   });
 });
 
@@ -1399,6 +1407,7 @@ describe('the whole branch stands on the ground', () => {
     'straycats.js': [['glow'], 'the legendary glow, a child decal under the stray group'],
     'render/playermarks.js': [['d'], 'flatDisc: a disc inside a mark group whose origin is placed on ground.y'],
     'knockables.js': [['group'], 'liftFor measures a pose with the group at the origin, before it joins the scene'],
+    'intruders.js': [['g'], 'measure() poses the visitor at the origin to read its fight dims (catDims), then puts it back where it stood'],
     'game/walk.js': [['marker', 'questObject'], 'the quest marker is a child of the giver group; the quest object gets ground.y(t) added after its relative y'],
     'secrets.js': [['body', 'leg', 'neck', 'head', 'horn', 'tail', 'hat', 'dome', 'ufoState.group'], 'unicorn and gnome parts are local to their group (placed on ground.y); the UFO is a sky object (R14)'],
   };

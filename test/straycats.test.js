@@ -1639,3 +1639,42 @@ describe('createStrayCats — the extras wear the kittypet collar', () => {
     for (const s of cats.strays) expect(s.group.getObjectByName('collar')).toBeFalsy();
   });
 });
+
+describe('a colony cat whose saved spot is now inside the camp', () => {
+  // A spot saved before the camps existed can fall inside the den or the
+  // leader's rock. It is nudged out where the walk is built (display only:
+  // nothing is written back to the save) and draws nothing.
+  const DEN = { x: 10, z: 10, r: 1.4 };
+  const ROCK = { x: 14, z: 10, r: 1.1 };
+  const MARGIN = 0.35; // CAT_RADIUS
+
+  it('is moved just outside the den or the rock, and its home with it', () => {
+    for (const [x, z] of [[10, 10], [10.5, 10.4], [14, 10.2], [13.2, 10], [10, 11.3]]) {
+      const cats = createStrayCats(fakeScene(), AREA, 3, mulberry32(7), {
+        colonyCats: [{ name: CAT_NAMES[0], x, z, wear: null }], colonyAvoid: [DEN, ROCK],
+      });
+      const s = cats.strays.find((c) => c.name === CAT_NAMES[0]);
+      const p = s.group.position;
+      for (const d of [DEN, ROCK]) {
+        expect(Math.hypot(p.x - d.x, p.z - d.z), `${x},${z}`).toBeGreaterThanOrEqual(d.r + MARGIN - 1e-9);
+      }
+      expect(Math.hypot(p.x - x, p.z - z), `${x},${z} moved only a little`).toBeLessThan(2.5);
+      expect([s.home.x, s.home.z]).toEqual([p.x, p.z]);
+    }
+  });
+
+  it('a spot clear of the camp is left exactly where it was, and the draws are the same', () => {
+    const count = (r) => { const c = { n: 0 }; c.rng = () => { c.n++; return r(); }; return c; };
+    const a = count(mulberry32(7));
+    const b = count(mulberry32(7));
+    const plain = createStrayCats(fakeScene(), AREA, 3, a.rng, { colonyCats: [{ name: CAT_NAMES[0], x: 20, z: -5, wear: null }] });
+    const nudged = createStrayCats(fakeScene(), AREA, 3, b.rng, { colonyCats: [{ name: CAT_NAMES[0], x: 20, z: -5, wear: null }], colonyAvoid: [DEN, ROCK] });
+    expect(nudged.strays.map((s) => s.group.position.toArray())).toEqual(plain.strays.map((s) => s.group.position.toArray()));
+    expect(b.n).toBe(a.n);
+  });
+
+  it('walk.js hands it the camp\'s den and rock', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toMatch(/colonyAvoid: campDiscs\(areaId\)/);
+  });
+});

@@ -2,7 +2,7 @@ import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
 import { menuThumbnails } from '../thumbnails.js';
 import { validPetName } from '../net.js';
 import { activeCat } from '../customcats.js';
-import { renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
+import { renderFightMovesHtml, renderSkillsHtml, renderStarNamePicker, goldenFound, renderGoldenTallyHtml } from './hometabs.js';
 import { HOME_SHEETS, resolveSheet, PLACE_PICTURE } from './dressingroom.js';
 import { createDressingRoom } from './dressingroomview.js';
 import { createCatStage } from './catstage.js';
@@ -769,6 +769,9 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
           <p class="skills-intro">Abilities aren’t bought — they’re earned. Pull off the feat and the
             ability is yours forever.</p>
           ${renderSkillsHtml(s)}
+          ${isClanEdition(progression.state)
+    ? renderFightMovesHtml(s, { owned: progression.ownedMoves(), canBuy: (id) => progression.canBuyMove(id) })
+    : ''}
         </section>`;
       case 'colony': return `
         <section class="colony-section"><h2>Your colony 🐈</h2>
@@ -906,9 +909,16 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
 
   // A clan card or the Settings select: save the pick, then tell the sibling's
   // device (fire-and-forget; a refusal changes nothing and sends nothing).
+  // Re-picking the clan already picked sends nothing once that pick has been
+  // pushed; after a failed push a re-tap is the way to try again.
+  let pushedPick;
   function pickClan(id) {
-    if (progression.setClanPick(id)) {
-      Promise.resolve(colonySync?.noteOwnPick()).catch(() => {});
+    const before = progression.state.clanPick?.mine ?? null;
+    if (progression.setClanPick(id) && (progression.state.clanPick?.mine !== before || pushedPick !== id)) {
+      pushedPick = id;
+      Promise.resolve(colonySync?.noteOwnPick())
+        .then((ok) => { if (ok === false && pushedPick === id) pushedPick = undefined; })
+        .catch(() => { if (pushedPick === id) pushedPick = undefined; });
     }
     render();
   }
@@ -925,6 +935,12 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
     // clan layer, so flipping never loses anything.
     if (e.target.closest?.('[data-edition-toggle]')) {
       progression.setEdition(isClanEdition(progression.state) ? 'legacy' : 'canon');
+      render();
+      return;
+    }
+    const buyMoveBtn = e.target.closest?.('[data-buy-move]');
+    if (buyMoveBtn) {
+      progression.buyMove(buyMoveBtn.dataset.buyMove);
       render();
       return;
     }

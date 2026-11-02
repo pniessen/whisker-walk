@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeLook, sanitizeCustomCats, lookToStyle, lookKey, activeCat, ownTagName, wireLook, catProfileFields, presetFor,
+import { sanitizeLook, sanitizeCustomCats, lookToStyle, lookKey, activeCat, ownTagName, wireLook, catProfileFields, scarKey, presetFor,
   DEFAULT_LOOK, CUSTOM_PERSONALITIES, COATS, MARKS, EYES, PATTERNS, FURS, SIZE } from '../src/customcats.js';
 import { PERSONALITIES } from '../src/cat/brain.js';
 import { readFileSync, globSync } from 'node:fs';
@@ -104,6 +104,23 @@ describe('the wire', () => {
     expect(f.accessories.collar).toBe('bell');
     expect(JSON.stringify(f.accessories.look).length).toBeLessThanOrEqual(120);
     expect(Object.hasOwn(catProfileFields({ ...st, equipped: { ...st.equipped, custom: null } }).accessories, 'look')).toBe(false);
+  });
+  it('scarKey is the custom id, else the preset, never Hagrid', () => {
+    const eq = { cat: 'tabby', collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null };
+    expect(scarKey({ equipped: eq, customCats: [] })).toBe('tabby');
+    expect(scarKey({ equipped: { ...eq, cat: 'siamese' } })).toBe('siamese');
+    expect(scarKey({ equipped: { ...eq, cat: 'hagrid' } })).toBe(null);
+    expect(scarKey({ equipped: { ...eq, cat: 'hagrid', custom: 'mine1' }, customCats: [cat()] })).toBe('mine1');
+    expect(scarKey({ equipped: { ...eq, custom: 'mine1' }, customCats: [] })).toBe('tabby');
+    expect(scarKey(null)).toBe('tabby');
+  });
+  it('catProfileFields adds accessories.scars only when there are scars', () => {
+    const st = { equipped: { cat: 'tabby', collar: 'bell', head: null, face: null, neck: null, body: null, back: null, feet: null, custom: null }, customCats: [] };
+    const plain = JSON.stringify(catProfileFields(st));
+    expect(JSON.stringify(catProfileFields(st, []))).toBe(plain);
+    expect(plain).not.toContain('scars');
+    const sc = [{ site: 'face', stage: 'full', side: 'l' }];
+    expect(catProfileFields(st, sc).accessories.scars).toEqual(sc);
   });
   it('lookKey is stable over field order', () => {
     expect(lookKey({ size: 1, eyes: 'green', fur: 'short', pattern: 'stripes', marks: 'chocolate', coat: 'ginger' })).toBe(lookKey(DEFAULT_LOOK));

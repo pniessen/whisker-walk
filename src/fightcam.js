@@ -10,7 +10,8 @@
 // the first one whose lines to both cats (paws, body and head, everywhere the
 // fight can put them) clear every solid, that keeps both cats in the frame
 // above the fight sheet, and that is inside the map and out of every
-// collider. The choice is made a handful of times per fight, never per frame,
+// collider. (A lifted top, an action's leap or rear-up, must be in frame but
+// only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
 // The solids grow by a margin and by as far as the wind can lean each tree.
@@ -163,13 +164,30 @@ export function firstBlocker(a, b, occluders, pad = null) {
 
 // The 3D points to keep in view: every spot either cat can stand on (me, it),
 // at each of CAT_HEIGHTS, plus (withPath) the walk-over's run, which must not
-// be hidden but may cross the frame's edge. Every height rides g0, the
-// ground under the pair's middle (fightGround; 0 on flat ground, R11: a fight
-// stands on one level).
-export function subjectPoints(subject, withPath = false, g0 = 0) {
+// be hidden but may cross the frame's edge. With `lifted` (the default), a
+// spot an action lifts a cat on also gives its top (liftedPoints). Every
+// height rides g0, the ground under the pair's middle (fightGround; 0 on flat
+// ground, Gorge part 1 R11: a fight stands on one level).
+export function subjectPoints(subject, withPath = false, lifted = true, g0 = 0) {
   const out = [];
   const spots = withPath ? [...subject.me, ...subject.it, ...(subject.path || [])] : [...subject.me, ...subject.it];
-  for (const p of spots) for (const y of CAT_HEIGHTS) out.push({ x: p.x, y: y + g0, z: p.z });
+  for (const p of spots) {
+    for (const y of CAT_HEIGHTS) out.push({ x: p.x, y: y + g0, z: p.z });
+    if (lifted && p.y > 0) out.push(liftedTop(p, g0));
+  }
+  return out;
+}
+
+// A spot an action lifts a cat on (fight moves and scars, Task 5) carries `y`,
+// how far the cat's top rises there above its standing top: that top is kept
+// in frame like every other point, but seeing it only ranks the views (a
+// controller ruling: a stand pine's low boughs may brush a leap's top where
+// no camera can see it, and that must never cost the paws, body or head).
+// Its y rides g0 too (reachYFor's heights are relative to the ground).
+const liftedTop = (p, g0 = 0) => ({ x: p.x, y: CAT_HEIGHTS[2] + p.y + g0, z: p.z });
+export function liftedPoints(subject, g0 = 0) {
+  const out = [];
+  for (const p of [...subject.me, ...subject.it]) if (p.y > 0) out.push(liftedTop(p, g0));
   return out;
 }
 
@@ -184,7 +202,7 @@ export const CAT_BODY = 0.55;
 // The points that must be on screen above the sheet: subjectPoints (no run),
 // plus each spot's body reach in the four directions at body height.
 export function framePoints(subject, g0 = 0) {
-  const out = subjectPoints(subject, false, g0);
+  const out = subjectPoints(subject, false, true, g0);
   const y = CAT_HEIGHTS[1] + g0;
   for (const p of [...subject.me, ...subject.it]) {
     out.push({ x: p.x + CAT_BODY, y, z: p.z }, { x: p.x - CAT_BODY, y, z: p.z },
@@ -279,9 +297,14 @@ function candidates(subject, yaw0, ring0) {
   return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.cost - q.cost || p.i - q.i);
 }
 
-// The fight view: { pos, look, yaw, ring, clear, blockers }. clear is false
-// only when no spot clears every tree; blockers then lists the trees (each
-// with its Group) whose hiding clears the chosen spot.
+// The fight view: { pos, look, yaw, ring, clear, blockers, brushed }. Every
+// point that is not a lifted top (subjectPoints(…, false)) is hard: a view
+// must clear them all, or (no spot can) hide the fewest trees for them.
+// Lifted tops are soft: among the views that clear every hard point, the one
+// with the fewest tops behind a tree that cannot be hidden (`brushed`), then
+// the fewest trees to hide for the rest, then the cheapest, wins. clear is
+// true only when nothing is hidden and nothing brushed; blockers lists the
+// trees (each with its Group) to hide.
 // `ground` (src/ground.js): every height rides g0, the ground under the
 // pair's middle, and a spot in rock or over a ceiling is never taken (R11).
 export function chooseFightView({ subject, occluders = [], colliders = [], bounds = null, yaw0 = 0, ring0 = null, aspect = 1, fovY = 70, ground = FLAT_GROUND }) {
@@ -290,7 +313,9 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   const lookY = LOOK_Y + g0;
   const near = occluders.filter((o) => Math.hypot(o.x - mid.x, o.z - mid.z) <= REACH + o.R);
   const framePts = framePoints(subject, g0);
-  const seePts = subjectPoints(subject, true, g0);
+  const seePts = subjectPoints(subject, true, false, g0);
+  const liftPts = liftedPoints(subject, g0);
+  let best = null;     // the best view that clears every hard point
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
   for (const c of candidates(subject, yaw0, ring0)) {
@@ -310,6 +335,8 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
         if (blockers.has(o) || !segmentBlocked(pos, p, o)) continue;
         blockers.add(o);
         if (!o.obj) hideable = false;
+        // A view that clears every hard point beats any that does not.
+        if (best) { whole = false; break scan; }
         // Stop once this spot can beat neither the fallback nor the least
         // blocked spot (which counts only while there is no fallback).
         const noFallback = !hideable || (fallback && blockers.size >= fallback.blockers.length);
@@ -317,7 +344,26 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
         if (noFallback && noLeast) { whole = false; break scan; }
       }
     }
-    if (blockers.size === 0) return { ...view, yaw: c.yaw, ring: c.ri, clear: true, blockers: [] };
+    if (blockers.size === 0) {
+      // Hard-clear: rank by its lifted tops.
+      let brushed = 0;
+      const hide = new Set();
+      let worse = false;
+      for (const p of liftPts) {
+        const by = near.filter((o) => segmentBlocked(pos, p, o));
+        if (by.length === 0) continue;
+        if (by.some((o) => !o.obj)) brushed++;
+        else for (const o of by) hide.add(o);
+        if (best && (brushed > best.brushed || (brushed === best.brushed && hide.size >= best.blockers.length))) { worse = true; break; }
+      }
+      if (worse) continue;
+      if (!best || brushed < best.brushed || (brushed === best.brushed && hide.size < best.blockers.length)) {
+        best = { ...view, yaw: c.yaw, ring: c.ri, clear: brushed === 0 && hide.size === 0, blockers: [...hide], brushed };
+        if (best.clear) return best;
+      }
+      continue;
+    }
+    if (best) continue;
     if (hideable && (!fallback || blockers.size < fallback.blockers.length)) {
       fallback = { ...view, yaw: c.yaw, ring: c.ri, clear: false, blockers: [...blockers] };
     }
@@ -326,19 +372,39 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
       least = { view, yaw: c.yaw, ring: c.ri, count: blockers.size, blockers: [...blockers] };
     }
   }
-  if (fallback) return fallback;
+  if (best) return best;
+  // The lifted tops a last-resort view leaves behind a tree it does not hide.
+  const brushedFor = (pos, hidden) => liftPts.filter((p) => near.some((o) => !hidden.includes(o) && segmentBlocked(pos, p, o))).length;
+  if (fallback) return { ...fallback, brushed: brushedFor(fallback.pos, fallback.blockers) };
   // No spot is clear even with trees hidden (the blockers include stand
   // pines, which cannot be hidden one by one): the spot with the fewest
   // blockers, hiding those that can be.
   if (least) {
+    const blockers = least.blockers.filter((o) => o.obj);
     return { ...least.view, yaw: least.yaw, ring: least.ring, clear: false,
-      blockers: least.blockers.filter((o) => o.obj), unhidden: least.blockers.filter((o) => !o.obj).length };
+      blockers, unhidden: least.blockers.filter((o) => !o.obj).length, brushed: brushedFor(least.view.pos, blockers) };
   }
   // No spot frames the pair at all (a cat pinned in a corner of the map): the
-  // first ring straight back, as the follow camera would be.
-  const ring = RINGS[0];
-  const pos = { x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d };
-  return { ...viewFrom(pos, mid, fovY, lookY), yaw: yaw0, ring: 0, clear: false, blockers: [] };
+  // first ring straight back, as the follow camera would be. Off flat
+  // ground, the cheapest spot out of rock (in the map and off the colliders)
+  // instead, when there is one (Gorge part 1, R8).
+  let ring = RINGS[0];
+  let yaw = yaw0;
+  let ri = 0;
+  if (!ground.flat && inRock({ x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d }, mid, lookY, ground)) {
+    for (const c of candidates(subject, yaw0, ring0)) {
+      const r = RINGS[c.ri];
+      const q = { x: mid.x + Math.sin(c.yaw) * r.d, y: r.h + g0, z: mid.z + Math.cos(c.yaw) * r.d };
+      if (bounds && (q.x < bounds.minX + BOUNDS_GAP || q.x > bounds.maxX - BOUNDS_GAP ||
+        q.z < bounds.minZ + BOUNDS_GAP || q.z > bounds.maxZ - BOUNDS_GAP)) continue;
+      if (colliders.some((k) => Math.hypot(q.x - k.x, q.z - k.z) < k.r + COLLIDER_GAP)) continue;
+      if (inRock(q, mid, lookY, ground)) continue;
+      ring = r; yaw = c.yaw; ri = c.ri;
+      break;
+    }
+  }
+  const pos = { x: mid.x + Math.sin(yaw) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw) * ring.d };
+  return { ...viewFrom(pos, mid, fovY, lookY), yaw, ring: ri, clear: false, blockers: [], brushed: brushedFor(pos, []) };
 }
 
 // --- the blend ---------------------------------------------------------------
@@ -357,7 +423,7 @@ export const BLEND_SAMPLES = Object.freeze([0, 1 / 8, 2 / 8, 3 / 8, 4 / 8, 5 / 8
 export function blendClear(from, to, subject, occluders, aspect, fovY, ground = FLAT_GROUND) {
   const g0 = fightGround(subject, ground);
   const framePts = framePoints(subject, g0);
-  const seePts = subjectPoints(subject, true, g0);
+  const seePts = subjectPoints(subject, true, false, g0); // lifted tops are soft (chooseFightView)
   // only the trees within reach of the move's lines: inside a circle round
   // the pair's middle that holds both ends of the move
   const mid = subject.mid;

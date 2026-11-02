@@ -22,7 +22,26 @@
 // On the network (Task 5): startFight sends one 'intruder-fight' and the end
 // of that fight (won, lost, aborted, or ended by a sibling's win) sends one
 // 'intruder-done'. Nothing is sent solo. See netevents.js for the receiving side.
-import { createFight, edgeFor, CLUES, NEUTRAL_POSE, TIMING } from '../fight.js';
+//
+// FIGHT MOVES AND SCARS (2026-11-01). With `actions` (every cat but Hagrid)
+// each round's result plays as an action from fightactions.js (a leap and
+// scratch, a rear-up, a pin, a rolling tumble), after today's answer poses,
+// and the cats square up between rounds (an arch, a sidestep, a stare) where
+// they used to circle. Both cats stand on their anchors (my spot and where
+// the intruder is held) and face along the line between them (R19); each
+// frame of an action is placed through placeFrame (R20). My cat's pitch and
+// roll go out as s.fightPitch / s.fightRoll for avatar.js to set (it owns the
+// group's rotation x/z and runs after this each frame). The end of a fight is
+// reported through onWon / onLost: game/fightrecord.js turns those into the
+// save writes, so this file still never holds progression. Without `actions`
+// (Hagrid, R6) the rounds are today's, verbatim, and every `site` is null.
+// Specials (fightmoves.js) answer a clue like a button either way.
+import { createFight, edgeFor, CLUES, MOVES, NEUTRAL_POSE, TIMING } from '../fight.js';
+import {
+  ACTION_KINDS, actionFrame, beatFrame, preludeFrame, placeFrame, makeFrame, makeActionFrames,
+  actionFor, actionTime, siteFor, beatFor, cuesCrossed, BEAT_TIME, ANSWER_PRELUDE, ANSWER_PRELUDE_REDUCED,
+} from '../fightactions.js';
+import { FIGHT_MOVES } from '../fightmoves.js';
 import { isHostile, CHALLENGE_RANGE, CHALLENGE_KEEP, RECHALLENGE_DELAY } from '../intruders.js';
 import { FIGHT_LINES } from '../ui/fightui.js';
 import { clanName } from '../clanhomes.js';
@@ -70,15 +89,39 @@ const TUMBLE_SPOTS = 16; // points round the tumble's circle: 0.31 m apart at th
 // between is within 0.2 m of one (test/clanfight.test.js). stagePoses below
 // puts the cats nowhere else, and never on a spot that is not clan ground
 // (R3), so `ok` (clan ground) drops those; the two anchors always stay.
+//
+// With `actions` (fight moves and scars, Task 5) the rounds play as leaps,
+// rear-ups, pins and rolls instead of the tumble, so there is no circle; each
+// cat's spots are today's (less the circle), its line toward the other every
+// <= 0.2 m (from its flinch spot 0.5 m behind it out to the far anchor), the
+// meeting point in the middle, the stare's step-in, the beats' sidesteps and
+// my dodge, both ways (whichever way the stager turns a side). With a
+// `reachY` (reachYFor below) each spot also carries `y`: the most the cat's
+// top rises there, above its own standing top, in any action, beat or answer
+// (fightcam.js keeps that top in frame too). Without `actions` the result is
+// exactly today's, `reachY` or not.
 // `terrain` (the walk's ground, src/ground.js; null or flat is flat) also
-// drops every spot off my anchor's level (R11).
-export function fightReach(spot, foeAt, ok = () => true, terrain = null) {
+// drops every spot off my anchor's level (Gorge part 1, R11); a spot's `y`
+// stays relative to the ground under it.
+export function fightReach(spot, foeAt, ok = () => true, { actions = false, reachY = null, terrain = null } = {}) {
   let nx = spot.x - foeAt.x;
   let nz = spot.z - foeAt.z;
   const gap = Math.hypot(nx, nz);
   if (gap < 1e-6) { nx = 1; nz = 0; } else { nx /= gap; nz /= gap; }
   const sx = -nz, sz = nx;
   const mid = { x: (spot.x + foeAt.x) / 2, z: (spot.z + foeAt.z) / 2 };
+  const T = terrain && !terrain.flat ? terrain : null;
+  const y0 = T ? T.y(spot.x, spot.z) : 0;
+  const keep = T
+    ? (p, i) => i === 0 || (ok(p.x, p.z) === true && Math.abs(T.y(p.x, p.z) - y0) <= FIGHT_LEVEL_TOL)
+    : (p, i) => i === 0 || ok(p.x, p.z) === true;
+  if (actions) {
+    return {
+      mid, axis: { x: nx, z: nz },
+      me: actionSpots(spot, -nx, -nz, gap, [LOSER_STEP], [BEAT_SIDE, SIDE_STEP / 2, SIDE_STEP], reachY?.me).filter(keep),
+      it: actionSpots(foeAt, nx, nz, gap, [BACKUP_EASE / 2, BACKUP_EASE, LOSER_STEP], [BEAT_SIDE], reachY?.it).filter(keep),
+    };
+  }
   const me = [
     { x: spot.x, z: spot.z },
     { x: spot.x + sx * SIDE_STEP / 2, z: spot.z + sz * SIDE_STEP / 2 },
@@ -97,18 +140,154 @@ export function fightReach(spot, foeAt, ok = () => true, terrain = null) {
       me.push({ x: mid.x + Math.cos(a) * gap / 2, z: mid.z + Math.sin(a) * gap / 2 });
     }
   }
-  const T = terrain && !terrain.flat ? terrain : null;
-  const y0 = T ? T.y(spot.x, spot.z) : 0;
-  const keep = T
-    ? (p, i) => i === 0 || (ok(p.x, p.z) === true && Math.abs(T.y(p.x, p.z) - y0) <= FIGHT_LEVEL_TOL)
-    : (p, i) => i === 0 || ok(p.x, p.z) === true;
   return { mid, axis: { x: nx, z: nz }, me: me.filter(keep), it: it.filter(keep) };
+}
+
+const REACH_STEP = 0.2;   // m at most between two spots of a line
+const FLINCH_BACK = 0.5;  // m behind its anchor a loser flinches to (the big rear-up's)
+const BEAT_SIDE = 0.3;    // m of a beat's sidestep (fightactions.js beatFrame)
+const STEP_IN = 0.15;     // m of the stare beat's step in
+
+// One cat's action spots, from its anchor `at` with (fx, fz) toward the other
+// cat, in its own along/side coordinates first (side: to its right); `backs`
+// are today's spots behind it (a loser's step back, the charge's ease-back)
+// and `sides` its sidesteps beside its anchor, each taken both ways.
+// Each of
+// `samples` (reachYFor's, for this cat) lifts the spot nearest it, and the one
+// nearest its mirror image (whichever way a sidestep goes): a spot's y is the
+// most of the samples it is nearest to. Only the nearest, so a leap's height
+// is never put on a spot nearer a tree than the leap is.
+function actionSpots(at, fx, fz, gap, backs, sides, samples) {
+  const local = [{ a: 0, s: 0 }, ...backs.map((b) => ({ a: -b, s: 0 }))];
+  const from = -FLINCH_BACK, to = Math.max(gap, 0);
+  const n = Math.max(1, Math.ceil((to - from) / REACH_STEP));
+  for (let i = 0; i <= n; i++) local.push({ a: from + ((to - from) * i) / n, s: 0 });
+  local.push({ a: gap / 2, s: 0 }, { a: STEP_IN, s: 0 });
+  for (const s of sides) local.push({ a: 0, s }, { a: 0, s: -s });
+  const spots = [];
+  for (const p of local) {
+    if (!spots.some((q) => Math.abs(q.a - p.a) < 1e-9 && Math.abs(q.s - p.s) < 1e-9)) spots.push({ a: p.a, s: p.s, y: 0 });
+  }
+  if (Array.isArray(samples)) {
+    const nearest = (a, s) => {
+      let best = spots[0], bd = Infinity;
+      for (const q of spots) {
+        const d = (q.a - a) ** 2 + (q.s - s) ** 2;
+        if (d < bd) { bd = d; best = q; }
+      }
+      return best;
+    };
+    for (const q of samples) {
+      if (!(q.y > 0)) continue;
+      for (const sp of [nearest(q.along, q.side), nearest(q.along, -q.side)]) if (q.y > sp.y) sp.y = q.y;
+    }
+  }
+  const rx = -fz, rz = fx;
+  return spots.map(({ a, s, y }) => {
+    const p = { x: at.x + fx * a + rx * s, z: at.z + fz * a + rz * s };
+    if (y > 0) p.y = y;
+    return p;
+  });
+}
+
+// How much higher than its standing top each pose puts a cat's top, beyond
+// placeFrame's y without the roll's term (its lift plus the pitch about its
+// hind heels; a roll turns the curled cat about its torso centre, which stays
+// at its lift), as a fraction of that top. Measured over every preset and an
+// intruder, over every action, beat and prelude frame and its tail's swing
+// (most of it is the tail: 0.147 in 'cross' and 'arch', 0.165 reared, 0.077
+// in the leap's pitched 'pounce'; a curled roll, a flattened pin or a flinch
+// never rises above its lift), each with 0.03 to spare; a pose not listed
+// takes the most.
+const POSE_TOP = Object.freeze({
+  cross: 0.18, arch: 0.18, rearUp: 0.2, swipe: 0.2, stalk: 0.2,
+  pounce: 0.11, pinning: 0.07, land: 0.03, follow: 0.03, flinch: 0.03, scared: 0.03,
+  pinned: 0, roll: 0,
+});
+const POSE_TOP_MAX = 0.2;
+// Samples over each action, beat and prelude: the pin's flight, the fastest
+// move, covers 0.03 m between two.
+const REACH_US = 240;
+const REACH_CELL = 0.01; // m: samples are kept as the most per cell
+
+// The `reachY` option of fightReach, from the two cats measured at fight start
+// (src/cat/model.js catDims: { top, backY, pinnedBackY, hindZ, pivotY }) and
+// the gap between their anchors: for each cat, where every action (either cat
+// winning, big or not), beat and answer prelude puts it, relative to its own
+// anchor (`along` toward the other cat, `side` to its right; for the roll the
+// torso centre it turns about), and `y`, how far its top rises there above its
+// standing top: placeFrame's y (without the roll's term) plus its pose's
+// POSE_TOP of its top. Pure: no THREE.
+export function reachYFor(meDims, itDims, gap) {
+  const dims = { me: cleanDims(meDims), it: cleanDims(itDims) };
+  const g = Number.isFinite(gap) && gap > 0 ? gap : FIGHT_GAP;
+  const cells = { me: new Map(), it: new Map() };
+  const placed = { dAlong: 0, dSide: 0, y: 0 };
+  const add = (who, f) => {
+    const d = dims[who];
+    placeFrame(f, d, placed);
+    const along = placed.dAlong;
+    const side = placed.dSide - d.pivotY * Math.sin(f.roll || 0);
+    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0))
+      + (Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX) * d.top;
+    if (!(y > 0)) return;
+    const key = `${Math.round(along / REACH_CELL)},${Math.round(side / REACH_CELL)}`;
+    const c = cells[who].get(key);
+    if (!c || y > c.y) cells[who].set(key, { along: Math.round(along / REACH_CELL) * REACH_CELL, side: Math.round(side / REACH_CELL) * REACH_CELL, y });
+  };
+  const fr = makeActionFrames();
+  const f = makeFrame();
+  for (let i = 0; i <= REACH_US; i++) {
+    const u = i / REACH_US;
+    for (const kind of ACTION_KINDS) {
+      for (const big of kind === 'roll' ? [true] : [false, true]) {
+        for (const by of ['me', 'it']) {
+          const other = by === 'me' ? 'it' : 'me';
+          actionFrame(kind, big, u, { gap: g, winBackY: dims[by].backY, loseBackY: dims[other].pinnedBackY }, fr);
+          add(by, fr.win);
+          add(other, fr.lose);
+        }
+      }
+    }
+    for (const beat of [0, 1, 2]) {
+      beatFrame(beat, u, f);
+      add('me', f);
+      add('it', f);
+    }
+    for (const answer of ['pounce', 'swipe', 'dodge']) add('me', preludeFrame({ answer }, 'me', u, f));
+    for (const move of MOVES) add('it', preludeFrame({ move }, 'it', u, f));
+  }
+  const list = (m) => [...m.values()].map((c) => ({ along: c.along + 0, side: c.side + 0, y: c.y }));
+  return { me: list(cells.me), it: list(cells.it) };
+}
+
+function cleanDims(d) {
+  const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+  return { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
 }
 
 
 const smooth = (u) => u * u * (3 - 2 * u);
 const clamp01 = (u) => Math.max(0, Math.min(1, u));
 const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
+
+// With actions: the point the intruder is turned to, FACE_FAR beyond my
+// anchor on the anchor line, so it faces along the line wherever an action
+// puts it (R19), my own anchor included (its pin lands there).
+const FACE_FAR = 50; // m
+// Where in each action (u of its body) the landing thumps: the leap's
+// scratch, the rear-up's loser dropping, the pin landing, the roll's end.
+// Under reduced motion, as the action starts (with its puff).
+const THUMP_AT = Object.freeze({ leap: 0.55, rearUp: 0.7, pin: 0.4, roll: 0.72 });
+const SLASH_TOWARD = 0.25; // m from the scratched cat toward the scratcher
+const SLASH_UP = 0.55;     // of the scratched cat's standing top
+const SLASH_Y = 0.35;      // m, when its top is unknown
+
+// The owned specials, in catalogue order: [{ id, name, hint, answers }].
+function ownedSpecials(ids) {
+  if (!Array.isArray(ids)) return [];
+  return FIGHT_MOVES.filter((m) => ids.includes(m.id));
+}
 
 export function createClanFight({
   intruders, ui, audio, fx, hud, log,
@@ -125,6 +304,16 @@ export function createClanFight({
   // `ground` below. null or flat is flat ground, and T is set only when it
   // has height, so a shipped map runs today's lines (R10, R11).
   terrain = null,
+  // Fight moves and scars (Task 6). `actions` false is Hagrid (R6): today's
+  // rounds verbatim. `ownedMoves` is read at each startFight; `onWon` /
+  // `onLost` are called once at the end of a fight that was won or lost (never
+  // for an abort); `measureCat(cat)` gives my cat's fight dims (src/cat/model.js
+  // catDims), as intruders.measure(visit) gives the intruder's.
+  actions = false,
+  ownedMoves = () => [],
+  onWon = () => {},
+  onLost = () => {},
+  measureCat = () => null,
 }) {
   let mode = 'idle'; // 'idle' | 'challenge' | 'walkover' | 'fight'
   let sess = null;
@@ -140,6 +329,13 @@ export function createClanFight({
   let sheetKey = null;
   let sentVisit = null; // the visit whose 'intruder-fight' I sent and not yet closed
   let camSubject = null; // the fight camera's subject (cameraSubject below)
+  let owned = [];       // this fight's owned specials (ownedSpecials)
+  let castId = null;    // this fight's intruder's cast id
+  let dims = null;      // with actions: { me, it } fight dims, measured at startFight
+  let lastRound = null;    // the latest 'round' event: the deciding one at 'over'
+  let lastWonRound = null; // the latest round I won (R11)
+  let myYaw = 0;           // with actions: both cats face along the anchor line
+  let faceFar = null;      // ...the intruder toward this point (FACE_FAR)
   const attempts = new Map(); // visit -> fights this device started on it
   const locks = new Map();    // visit -> { away, until }
 
@@ -184,7 +380,8 @@ export function createClanFight({
 
   function showSheet() {
     const phase = mode === 'walkover' ? 'squareOff' : fight.phase;
-    const key = `${phase}|${fight.round}|${fight.wins}|${fight.losses}|${line}|${phase === 'clue' ? fight.move : ''}`;
+    const used = fight.used;
+    const key = `${phase}|${fight.round}|${fight.wins}|${fight.losses}|${line}|${phase === 'clue' ? fight.move : ''}|${used.join(',')}`;
     if (key === sheetKey) return;
     sheetKey = key;
     ui.showFight({
@@ -194,6 +391,7 @@ export function createClanFight({
       wins: fight.wins,
       losses: fight.losses,
       line,
+      specials: owned.map((m) => ({ id: m.id, name: m.name, hint: m.hint, used: used.includes(m.id) })),
     });
   }
 
@@ -203,9 +401,17 @@ export function createClanFight({
       sess.fight = null;
       sess.fightPose = null;
       sess.fightLift = 0;
+      sess.fightPitch = 0;
+      sess.fightRoll = 0;
       sess.fightGait = 0;
     }
     fight = null;
+    owned = [];
+    castId = null;
+    dims = null;
+    lastRound = null;
+    lastWonRound = null;
+    faceFar = null;
     mode = 'idle';
     visit = null;
     foe = null;
@@ -225,19 +431,30 @@ export function createClanFight({
     const attempt = attempts.get(visit) ?? 0;
     attempts.set(visit, attempt + 1);
     foe = { name: cur.member.name, clan: cur.clan };
+    castId = cur.member.id;
     const cat = s.cat.position;
     intruders.hold(visit, playerId, { x: cat.x, z: cat.z }, { local: true });
     audio.hiss();
     sentVisit = visit;
     sendEvent({ v: 1, id: playerId, type: 'intruder-fight', area: areaId, visit });
+    owned = ownedSpecials(ownedMoves());
+    // Specials whatever `actions` is (R6); the actions' lengths and the
+    // longer beats only with them.
     fight = createFight({
       rng: mulberry32(seedFromCode(`${walkStamp}|${visit}|${attempt}`)),
       edge: edgeFor(playerSpecial),
       reducedMotion,
+      specials: owned.map((m) => ({ id: m.id, answers: m.answers })),
+      ...(actions ? { actionTime: (e) => actionTime(e, reducedMotion), beatTime: BEAT_TIME } : {}),
     });
+    dims = actions ? { me: cleanDims(measureCat(s.cat)), it: cleanDims(intruders.measure?.(visit)) } : null;
+    lastRound = null;
+    lastWonRound = null;
     s.fight = fight;
     s.fightPose = NEUTRAL_POSE;
     s.fightLift = 0;
+    s.fightPitch = 0;
+    s.fightRoll = 0;
     s.fightGait = 0;
     player?.halt?.();
     foeAt = { x: cur.pos.x, z: cur.pos.z };
@@ -270,7 +487,10 @@ export function createClanFight({
   // leave clan ground, where walkOver stops it).
   function walkoverSubject(from) {
     const to = gapSpot(from);
-    const sub = fightReach(to, foeAt, ground, terrain);
+    // The action reach at the fight's own gap: beginRounds measures it again
+    // at the real one (the walk-over can stop short, R3).
+    const reachY = actions ? reachYFor(dims.me, dims.it, FIGHT_GAP) : null;
+    const sub = fightReach(to, foeAt, ground, { actions, reachY, terrain });
     const d = Math.hypot(to.x - from.x, to.z - from.z);
     const n = Math.max(1, Math.ceil(d / 0.3));
     sub.path = [{ x: from.x, z: from.z }];
@@ -316,9 +536,18 @@ export function createClanFight({
     spot = { x: cat.x, z: cat.z };
     s.fightGait = 0;
     intruders.hold(visit, playerId, spot, { local: true }); // face me where I stand
-    camSubject = { ...fightReach(spot, foeAt, ground, terrain), path: [] };
+    const gap = Math.hypot(spot.x - foeAt.x, spot.z - foeAt.z);
+    const reachY = actions ? reachYFor(dims.me, dims.it, gap) : null;
+    camSubject = { ...fightReach(spot, foeAt, ground, { actions, reachY, terrain }), path: [] };
     mode = 'fight';
-    act = { kind: 'squareOff', t: 0 };
+    act = { kind: 'squareOff', t: 0, beat: 0 };
+    if (actions) {
+      myYaw = yawToward(spot.x, spot.z, foeAt.x, foeAt.z);
+      const nx = gap > 1e-6 ? (spot.x - foeAt.x) / gap : 1;
+      const nz = gap > 1e-6 ? (spot.z - foeAt.z) / gap : 0;
+      faceFar = { x: spot.x + nx * FACE_FAR, z: spot.z + nz * FACE_FAR };
+      audio.hiss(); // the square-off is the arch beat
+    }
     stagePoses(s);
     showSheet();
   }
@@ -339,6 +568,16 @@ export function createClanFight({
       } else if (e.type === 'round') {
         line = e.won ? FIGHT_LINES.won : FIGHT_LINES.lost;
         act = { kind: 'round', t: 0, move: e.move, answer: e.answer, won: e.won, bursts: 0, landed: false };
+        lastRound = e;
+        if (e.won) lastWonRound = e;
+        if (actions) {
+          act.ev = e;
+          act.a = actionFor(e);
+          act.len = actionTime(e, reducedMotion) - preludeTime;
+          act.prevU = -1;
+          act.slashed = false;
+          act.thumped = false;
+        }
         if (e.answer) audio.pounceWhoosh();
       } else if (e.type === 'over') {
         finish(e.won);
@@ -348,23 +587,38 @@ export function createClanFight({
     if (mode === 'fight') showSheet();
   }
 
+  // Where the deciding round's action scars the loser: the intruder (by its
+  // cast id) when I won, her cat (never rolled) when I lost. Null for Hagrid.
+  function siteOf(won) {
+    if (!actions || !lastRound) return null;
+    return siteFor(actionFor(lastRound).kind, won ? castId : null);
+  }
+
   function finish(won) {
     const v = visit;
     const { name, clan } = foe;
+    const site = siteOf(won);
     if (won) {
+      // WON: it runs home, I am paid once, the win is reported, two toasts.
       intruders.flee(v);
       // The HUD shows an 'intruder' label as it is, with no "You spotted"
       // lead (ui/hud.js); the second toast says where it ran.
       log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
+      onWon({ visit: v, castId, site, together: false });
       hud.toast(`${name} ran back to ${clanName(clan)}'s land! 🏃`);
       sendDone(true);
       endFight();
+      // END WON
       return;
     }
-    // LOST: the intruder walks on, the challenge waits, one toast. Nothing else.
+    // LOST: the intruder walks on, the challenge waits, the loss is reported
+    // (her cat's fading scar, fightrecord.js), one toast. Nothing else.
     intruders.release(v, playerId);
     locks.set(v, { away: false, until: now() + RECHALLENGE_DELAY });
-    hud.toast(`${name} shook it off and walked on. Try again soon!`);
+    onLost({ site });
+    hud.toast(actions
+      ? `${name} shook it off and walked on. That scratch will heal in a few walks!`
+      : `${name} shook it off and walked on. Try again soon!`);
     sendDone(false);
     endFight();
     // END LOST
@@ -372,6 +626,7 @@ export function createClanFight({
 
   // Where both cats stand and how they look this frame.
   function stagePoses(s) {
+    if (actions) { stageActions(s); return; }
     const cat = s.cat.position;
     let nx = spot.x - foeAt.x;
     let nz = spot.z - foeAt.z;
@@ -477,6 +732,131 @@ export function createClanFight({
     intruders.stage(visit, { pose: itPose, x: it.x, z: it.z, y: itLift, face: me });
   }
 
+  // ---- With actions (fight moves and scars) -------------------------------
+  const preludeTime = reducedMotion ? ANSWER_PRELUDE_REDUCED : ANSWER_PRELUDE;
+  const fm = makeFrame();          // my frame (clue, prelude)
+  const fi = makeFrame();          // its frame (clue, prelude)
+  const fb = makeFrame();          // both cats' beat frame
+  const fr = makeActionFrames();   // an action's winner and loser
+  const placed = { dAlong: 0, dSide: 0, y: 0 };
+  const cues = { slash: 0, dust: 0 };
+  const mePl = { x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+  const itPl = { x: 0, z: 0, y: 0, pitch: 0, roll: 0 };
+  // The intruder's staging, handed to intruders.stage every frame: one object.
+  const itStage = { pose: 'cross', x: 0, z: 0, y: 0, face: null, pitch: 0, roll: 0 };
+
+  function still(f, pose, along = 0) {
+    f.along = along; f.side = 0; f.lift = 0; f.pitch = 0; f.roll = 0;
+    f.pose = pose; f.slash = false; f.dust = false;
+    return f;
+  }
+
+  // One cat's frame as a spot on the ground and a tilt (R20): from its anchor
+  // `at`, (fx, fz) toward the other cat, its right (-fz, fx). A spot that is
+  // not clan ground (R3) is never stood on: that cat stays on its anchor,
+  // level and on the ground, this frame. Reduced motion: never a lift, a
+  // pitch or a roll. Nor is a spot off my anchor spot's level (Gorge part 1,
+  // R11); `y` stays a lift above the ground (avatar.js and intruders.place()
+  // add the ground under the spot).
+  function placeOn(f, d, at, fx, fz, out) {
+    placeFrame(f, d, placed);
+    out.x = at.x + fx * placed.dAlong - fz * placed.dSide;
+    out.z = at.z + fz * placed.dAlong + fx * placed.dSide;
+    out.y = placed.y;
+    out.pitch = f.pitch;
+    out.roll = f.roll;
+    if (reducedMotion) { out.y = 0; out.pitch = 0; out.roll = 0; }
+    if (!ground(out.x, out.z) || (T && !onMyLevel(out.x, out.z))) {
+      out.x = at.x; out.z = at.z;
+      out.y = 0; out.pitch = 0; out.roll = 0;
+    }
+    return out;
+  }
+
+  function stageActions(s) {
+    const cat = s.cat.position;
+    let nx = spot.x - foeAt.x;
+    let nz = spot.z - foeAt.z;
+    const gap = Math.hypot(nx, nz);
+    if (gap < 1e-6) { nx = 1; nz = 0; } else { nx /= gap; nz /= gap; }
+    const ph = fight.phase;
+    let mine = still(fm, 'cross');
+    let its = still(fi, 'cross');
+    let r = null;
+    let u = 0;
+    cues.slash = 0;
+    cues.dust = 0;
+    if (ph === 'squareOff' || ph === 'beat') {
+      // R9: the beat by round number (the square-off is beat 0, the arch).
+      if (ph === 'beat' && act?.kind !== 'beat') {
+        act = { kind: 'beat', t: 0, beat: beatFor(fight.round) };
+        if (act.beat === 0) audio.hiss();
+      }
+      const len = ph === 'squareOff' ? TIMING.squareOff : BEAT_TIME;
+      mine = its = beatFrame(act?.beat ?? 0, clamp01((act?.t ?? 0) / len), fb);
+    } else if (ph === 'clue') {
+      // Today's clue: it shows its move, I wait. The only clue poses (R21).
+      still(fm, NEUTRAL_POSE);
+      const t = act?.kind === 'clue' ? act.t : 0;
+      still(fi, CLUES[fight.move].pose, fight.move === 'charge' ? -smooth(clamp01(t / BACKUP_TIME)) * BACKUP_EASE : 0);
+    } else if (ph === 'tumble' && act?.kind === 'round') {
+      r = act;
+      if (r.t < preludeTime) {
+        // Today's answer poses (and its move landing), home again at the end.
+        const k = clamp01(r.t / preludeTime);
+        mine = preludeFrame(r.ev, 'me', k, fm);
+        its = preludeFrame(r.ev, 'it', k, fi);
+        r = null;
+      } else {
+        u = clamp01((r.t - preludeTime) / r.len);
+        const { kind, big, by } = r.a;
+        const winner = by === 'me' ? 'me' : 'it';
+        const loser = by === 'me' ? 'it' : 'me';
+        actionFrame(kind, big, u, { gap, winBackY: dims[winner].backY, loseBackY: dims[loser].pinnedBackY, reducedMotion }, fr);
+        mine = by === 'me' ? fr.win : fr.lose;
+        its = by === 'me' ? fr.lose : fr.win;
+        cuesCrossed(kind, big, reducedMotion, r.prevU, u, cues);
+        r.prevU = u;
+      }
+    }
+    const me = placeOn(mine, dims.me, spot, -nx, -nz, mePl);
+    const it = placeOn(its, dims.it, foeAt, nx, nz, itPl);
+    cat.x = me.x;
+    cat.z = me.z;
+    s.cat.rotation.y = myYaw;
+    s.fightPose = mine.pose;
+    s.fightLift = me.y;
+    s.fightPitch = me.pitch;
+    s.fightRoll = me.roll;
+    itStage.pose = its.pose; itStage.x = it.x; itStage.z = it.z; itStage.y = it.y;
+    itStage.face = faceFar; itStage.pitch = it.pitch; itStage.roll = it.roll;
+    intruders.stage(visit, itStage);
+    if (!r) return;
+    // The action's cues, each once (cuesCrossed), and one thump.
+    const kind = r.a.kind;
+    if (cues.slash > 0 && !r.slashed && !reducedMotion) {
+      r.slashed = true;
+      // On the scratched cat, toward the scratcher, turned the scratcher's way.
+      const byMe = r.a.by === 'me';
+      const hit = byMe ? it : me;
+      const toward = byMe ? SLASH_TOWARD : -SLASH_TOWARD;
+      const top = dims[byMe ? 'it' : 'me'].top;
+      // hit.y is a lift above the ground; the fx take world positions.
+      const sx = hit.x + nx * toward, sz = hit.z + nz * toward;
+      const sy = hit.y + (top > 0 ? top * SLASH_UP : SLASH_Y);
+      fx.slash?.({ x: sx, y: T ? T.y(hit.x, hit.z) + sy : sy, z: sz },
+        byMe ? myYaw : yawToward(foeAt.x, foeAt.z, spot.x, spot.z));
+    }
+    for (let i = 0; i < cues.dust; i++) {
+      const mx = (me.x + it.x) / 2, mz = (me.z + it.z) / 2;
+      fx.burst({ x: mx, y: T ? T.y(mx, mz) + 0.2 : 0.2, z: mz }, DUST, reducedMotion ? 8 : 14);
+    }
+    if (!r.thumped && u >= (reducedMotion ? 0 : THUMP_AT[kind] ?? 0)) {
+      r.thumped = true;
+      audio.landThump();
+    }
+  }
+
   return {
     get uiShowing() {
       return mode === 'challenge' ? 'challenge' : mode === 'idle' ? null : 'fight';
@@ -542,6 +922,11 @@ export function createClanFight({
       if ((mode !== 'walkover' && mode !== 'fight') || visit !== v) return false;
       const { name } = foe;
       log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
+      // R11: the intruder is scarred where the last round I won hit it, else
+      // by a roll's site (its side or hindquarters, by its id).
+      const site = !actions ? null
+        : siteFor(lastWonRound ? actionFor(lastWonRound).kind : 'roll', castId);
+      onWon({ visit: v, castId, site, together: true });
       hud.toast(`You and ${petName} chased ${name} off together! 🏃`);
       sendDone(true);
       endFight();

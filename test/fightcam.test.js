@@ -20,8 +20,9 @@ vi.stubGlobal('document', {
 const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
-  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear,
+  projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
 } = await import('../src/fightcam.js');
+const RINGS0 = RINGS[0];
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -296,12 +297,111 @@ describe('chooseFightView', () => {
   });
 });
 
+// Controller ruling on Task 5: a lifted top (CAT_HEIGHTS[2] + y) must stay in
+// frame, but its line of sight only ranks views. Every point that exists today
+// stays hard, exactly as before.
+describe('lifted tops are soft in the view choice', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const lifted = () => subject({ ...me, y: 0.75 }, it); // its top at (0.8, 1.6, 0)
+  const TOP = { x: 0.8, y: CAT_HEIGHTS[2] + 0.75, z: 0 };
+  // one bare ball (no pad) of radius r at (x, y, z)
+  const ball = (obj, x, y, z, r) => ({ obj, x, z, R: r, top: y + r, shapes: [{ t: 'ell', x, y, z, r, ry: r, p: 0 }] });
+  const hardClear = (v, subj, occ) => subjectPoints(subj, true, false).every((p) => !firstBlocker(v.pos, p, occ));
+
+  test('subjectPoints(…, false) leaves the lifted tops out', () => {
+    const subj = lifted();
+    expect(subjectPoints(subj, true, false)).toEqual(subjectPoints(subject(me, it), true));
+    expect(subjectPoints(subj, true).length).toBe(subjectPoints(subj, true, false).length + 1);
+  });
+
+  test('a stand pine round a lifted top never disqualifies a view', () => {
+    const subj = lifted();
+    const occ = [ball(null, TOP.x, TOP.y, TOP.z, 0.3)]; // no camera can see that top
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(hardClear(v, subj, occ)).toBe(true);
+    expect(v.unhidden ?? 0).toBe(0);
+    expect(v.blockers).toEqual([]);
+    expect(v.brushed).toBe(1);
+    expect(v.clear).toBe(false);
+    // the same view as with no tree at all: nothing could do better
+    const free = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(v.pos).toEqual(free.pos);
+    expect(free.brushed).toBe(0);
+    expect(free.clear).toBe(true);
+  });
+
+  test('a hideable tree round a lifted top is hidden; a hard point still rules', () => {
+    const subj = lifted();
+    const tree = ball({ name: 'oak' }, TOP.x, TOP.y, TOP.z, 0.3);
+    const v = chooseFightView({ subject: subj, occluders: [tree], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(v.blockers).toEqual([tree]);
+    expect(v.brushed).toBe(0);
+    expect(v.clear).toBe(false);
+  });
+
+  test('among views that clear every hard point, one that also sees the lifted top wins', () => {
+    const subj = lifted();
+    // from yaw 0 (camera at +z, 2.2 m up) a stand pine's ball sits on the line to the top only
+    const cam = { x: 0, y: RINGS0.h, z: RINGS0.d };
+    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
+    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
+    const straight = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(straight.pos.x).toBeCloseTo(0, 9);
+    expect(firstBlocker(straight.pos, TOP, occ)).not.toBe(null); // the old view really loses the top
+    expect(hardClear(straight, subj, occ)).toBe(true);           // ...and only the top
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(v.clear).toBe(true);
+    expect(v.brushed).toBe(0);
+    expect(firstBlocker(v.pos, TOP, occ)).toBe(null);
+  });
+
+  test('the lifted top must still be in frame', () => {
+    const subj = subject({ ...me, y: 0.75 }, it);
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1, ...frame });
+      const q = projectPoint(v, TOP, frame.aspect, frame.fovY);
+      expect(q.y).toBeLessThanOrEqual(FIGHT_FRAME.top);
+      expect(q.y).toBeGreaterThanOrEqual(FIGHT_FRAME.bottom);
+      expect(Math.abs(q.x)).toBeLessThanOrEqual(FIGHT_FRAME.x);
+    }
+  });
+
+  test('blendClear: a lifted top behind a tree does not stop an ease; a hard point does', () => {
+    const subj = lifted();
+    const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.4, ...PORTRAIT });
+    expect(blendClear(v, v, subj, [ball(null, TOP.x, TOP.y, TOP.z, 0.3)], PORTRAIT.aspect, PORTRAIT.fovY)).toBe(true);
+    expect(blendClear(v, v, subj, [ball(null, 0.8, 0.4, 0, 0.3)], PORTRAIT.aspect, PORTRAIT.fovY)).toBe(false);
+  });
+});
+
 // A fake camera: what the follow camera wrote this frame, and where we point it.
 function fakeCamera(aspect = PORTRAIT.aspect) {
   const cam = { aspect, fov: 70, position: { x: 0, y: 2.2, z: 4.5, set(x, y, z) { this.x = x; this.y = y; this.z = z; } }, looked: null };
   cam.lookAt = (x, y, z) => { cam.looked = { x, y, z }; };
   return cam;
 }
+
+// Task 5 (fight moves and scars): a spot may carry `y`, how far the cat's top
+// rises above its standing top there; the camera then also keeps that top.
+describe('subjectPoints keeps a lifted cat\'s top', () => {
+  test('adds exactly one point per lifted spot, CAT_HEIGHTS[2] + y up; spots without y are unchanged', () => {
+    const plain = { me: [{ x: 1, z: 2 }], it: [{ x: -1, z: 0 }], path: [{ x: 4, z: 4 }] };
+    const lifted = {
+      me: [{ x: 1, z: 2 }, { x: 1.2, z: 2, y: 0.3 }, { x: 1.4, z: 2, y: 0 }],
+      it: [{ x: -1, z: 0, y: 0.75 }],
+      path: [{ x: 4, z: 4 }],
+    };
+    expect(subjectPoints(plain, false)).toEqual(CAT_HEIGHTS.flatMap((y) => [{ x: 1, y, z: 2 }]).concat(CAT_HEIGHTS.map((y) => ({ x: -1, y, z: 0 }))));
+    const pts = subjectPoints(lifted, false);
+    expect(pts.length).toBe(4 * CAT_HEIGHTS.length + 2);
+    expect(pts).toContainEqual({ x: 1.2, y: CAT_HEIGHTS[2] + 0.3, z: 2 });
+    expect(pts).toContainEqual({ x: -1, y: CAT_HEIGHTS[2] + 0.75, z: 0 });
+    expect(pts.filter((p) => p.x === 1.4)).toEqual(CAT_HEIGHTS.map((y) => ({ x: 1.4, y, z: 2 })));
+    expect(subjectPoints(lifted, true).length).toBe(5 * CAT_HEIGHTS.length + 2);
+    // framePoints frames the lifted top too
+    expect(framePoints(lifted)).toContainEqual({ x: 1.2, y: CAT_HEIGHTS[2] + 0.3, z: 2 });
+  });
+});
 
 describe('createFightCam (the blend)', () => {
   const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
@@ -517,7 +617,7 @@ describe('the fight camera rides the ground and stays out of rock', () => {
       }
     }
     // the points it keeps in view stand on the plateau too
-    expect(subjectPoints(subj, false, 3).map((p) => p.y)).toEqual(subjectPoints(subj).map((p) => p.y + 3));
+    expect(subjectPoints(subj, false, true, 3).map((p) => p.y)).toEqual(subjectPoints(subj).map((p) => p.y + 3));
     expect(framePoints(subj, 3).map((p) => p.y)).toEqual(framePoints(subj).map((p) => p.y + 3));
   });
 
@@ -545,6 +645,44 @@ describe('the fight camera rides the ground and stays out of rock', () => {
     }
   });
 
+  test('the fight\'s reach points (lifted tops included) ride the ground; the plateau view is the flat one + 3 m', () => {
+    // a subject as clanfight hands it over with actions: spots carrying reachY lifts
+    const subj = subject({ x: 8.8, z: 0 }, { x: 7.2, z: 0 }, {
+      me: [{ x: 8.8, z: 0, y: 0 }, { x: 8.5, z: 0, y: 0.4 }, { x: 8.8, z: 0.3, y: 0.1 }],
+      it: [{ x: 7.2, z: 0, y: 0 }, { x: 7.6, z: 0, y: 0.6 }],
+    });
+    const lifts = liftedPoints(subj);
+    expect(lifts.length).toBe(3);
+    expect(liftedPoints(subj, 3)).toEqual(lifts.map((p) => ({ ...p, y: p.y + 3 })));
+    expect(subjectPoints(subj, true, true, 3)).toEqual(subjectPoints(subj, true).map((p) => ({ ...p, y: p.y + 3 })));
+    expect(framePoints(subj, 3)).toEqual(framePoints(subj).map((p) => ({ ...p, y: p.y + 3 })));
+    for (const yaw0 of [0, 1, -0.6, Math.PI]) {
+      for (const view of [PORTRAIT, LAND]) {
+        const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...view });
+        const v = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: G, ...view });
+        expect([v.pos.x, v.pos.z, v.ring, v.brushed]).toEqual([flat.pos.x, flat.pos.z, flat.ring, flat.brushed]);
+        expect(v.pos.y).toBeCloseTo(flat.pos.y + 3, 12);
+        expect(camOk(v.pos)).toBe(true);
+      }
+    }
+  });
+
+  test('the last resort (no spot frames the pair) keeps out of rock too; flat it is today\'s', () => {
+    // a sliver of a screen nothing fits in, at the cliff foot, looking from the plateau's side
+    const SLIVER = { aspect: 0.02, fovY: 10 };
+    const subj = subject({ x: 8.8, z: 6.8 }, { x: 7.2, z: 6.8 });
+    for (const yaw0 of [Math.PI, Math.PI - 0.5, Math.PI + 0.5]) {
+      const flat = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ...SLIVER });
+      expect(flat.ring).toBe(0);
+      expect(flat.yaw).toBe(yaw0); // the straight-back fallback...
+      expect(camOk(flat.pos)).toBe(false); // ...which is in the rock here
+      expect(chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: FLAT_GROUND, ...SLIVER })).toEqual(flat);
+      const v = chooseFightView({ subject: subj, bounds: BOUNDS, yaw0, ground: G, ...SLIVER });
+      expect(camOk(v.pos)).toBe(true);
+      expect(segmentClear(v.pos, subj.mid, 0)).toBe(true);
+    }
+  });
+
   test('createFightCam takes the ground and holds the grounded view', () => {
     const subj = subject({ x: 8.8, z: 0 }, { x: 7.2, z: 0 });
     const fc = createFightCam({ bounds: BOUNDS, ground: G });
@@ -566,7 +704,7 @@ describe('the fight camera rides the ground and stays out of rock', () => {
       const a = chooseFightView({ subject: subj, occluders: occ, bounds: BOUNDS, yaw0, ...PORTRAIT });
       expect(chooseFightView({ subject: subj, occluders: occ, bounds: BOUNDS, yaw0, ground: FLAT_GROUND, ...PORTRAIT })).toEqual(a);
     }
-    expect(subjectPoints(subj, true, 0)).toEqual(subjectPoints(subj, true));
+    expect(subjectPoints(subj, true, true, 0)).toEqual(subjectPoints(subj, true));
     const run = (opts) => {
       const fc = createFightCam({ occluders: occ, bounds: BOUNDS, ...opts });
       const cam = fakeCamera();

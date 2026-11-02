@@ -552,7 +552,7 @@ describe('islands', () => {
       expect(x).toBeLessThanOrEqual(20 + 1e-9);
     }
 
-    // a disc that swallows the whole rect would cut it into nothing
+    // a disc over the middle that reaches all four edges would cut the rect apart
     expect(() => rectMinusDiscs(BOX40, [{ x: 0, z: 0, r: 25 }], 64)).toThrow();
     // two islands that touch would make one hole cross another
     expect(() => rectMinusDiscs(BOX40, [{ x: -3, z: 0, r: 4 }, { x: 3, z: 0, r: 4 }], 64)).toThrow();
@@ -563,6 +563,21 @@ describe('islands', () => {
     expect(holes).toEqual([]);
     expect(outline.some(([x, z]) => x === 20 && z === 20)).toBe(false);
     expect(outline.filter(([x, z]) => Math.abs(x) === 20 && Math.abs(z) === 20)).toHaveLength(3);
+  });
+
+  // Polish 3: a disc over two corners is not refused (its arc stands in for
+  // both), and a disc touching an edge from inside is refused for what it is.
+  it('notches a disc that swallows two corners, its arc standing in for both', () => {
+    const { outline, holes } = rectMinusDiscs(BOX40, [{ x: 20, z: 0, r: 30 }], 64);
+    expect(holes).toEqual([]);
+    expect(outline.some(([x, z]) => x === 20 && Math.abs(z) === 20)).toBe(false);
+    expect(outline.filter(([x, z]) => x === -20 && Math.abs(z) === 20)).toHaveLength(2);
+  });
+
+  it('refuses a disc that only touches an edge from inside, and says so', () => {
+    expect(() => rectMinusDiscs(BOX40, [{ x: 15, z: 0, r: 5 }], 64)).toThrow(/touches the rect's edge/);
+    expect(() => rectMinusDiscs(BOX40, [{ x: 0, z: 0, r: 30 }], 64)).toThrow(/covers the whole rect/);
+    expect(() => rectMinusDiscs(BOX40, [{ x: 0, z: 0, r: 25 }], 64)).toThrow(/8 times, cutting it apart/);
   });
 
   it('drops a disc wholly outside the rect', () => {

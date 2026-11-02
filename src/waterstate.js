@@ -29,7 +29,7 @@ export const DRY_HYST = 0.1; // metres at the waterline and every deck edge
 export function createWaterState() {
   return {
     mode: 'dry', wetTime: 0, swam: false, shake: 0, entered: false, shook: false,
-    sink: 0, fxClock: 0, ringClock: 0, placed: true,
+    sink: 0, fxClock: 0, ringClock: 0, entryPending: false, placed: true,
   };
 }
 

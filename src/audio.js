@@ -30,6 +30,21 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   let reverb = null;
   let wet = null;
 
+  // One burst of white noise as long as the longest splash, built on the first
+  // splash and shared by every one after it (Polish 3): each splash plays the start
+  // of it and stops at its own length, so no splash allocates a buffer.
+  let splashBuffer = null;
+  function splashNoise(ac) {
+    if (splashBuffer) return splashBuffer;
+    let longest = 0;
+    for (const k of Object.keys(WATER_SPLASHES)) longest = Math.max(longest, WATER_SPLASHES[k].dur);
+    const size = Math.ceil(ac.sampleRate * longest);
+    splashBuffer = ac.createBuffer(1, size, ac.sampleRate);
+    const data = splashBuffer.getChannelData(0);
+    for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+    return splashBuffer;
+  }
+
   function buildImpulse(ac) {
     const len = Math.floor(ac.sampleRate * 1.2);
     const buffer = ac.createBuffer(2, len, ac.sampleRate);
@@ -587,12 +602,8 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       if (!spec || muted) return;
       const ac = ensure();
       const { dur } = spec;
-      const size = Math.floor(ac.sampleRate * dur);
-      const buffer = ac.createBuffer(1, size, ac.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
       const src = ac.createBufferSource();
-      src.buffer = buffer;
+      src.buffer = splashNoise(ac);
       const bp = ac.createBiquadFilter();
       bp.type = 'bandpass';
       const t0 = ac.currentTime;

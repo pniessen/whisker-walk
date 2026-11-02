@@ -4,6 +4,7 @@ import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { segDist } from '../segdist.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { addIslandView, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
@@ -202,12 +203,6 @@ const KEEP_CLEAR = [
   ...GOLD_BUSHES.map(([x, z]) => ({ x, z })), ...PUDDLES, SPAWN,
 ].map(({ x, z }) => [x, z]);
 
-// Distance from (x, z) to a segment.
-function segDist(x, z, x1, z1, x2, z2) {
-  const dx = x2 - x1, dz = z2 - z1;
-  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
-}
 
 // The fallen log's two ends: it lies along its local z, turned to `yaw`.
 function fallenLogEnds() {

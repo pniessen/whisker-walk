@@ -37,7 +37,8 @@ import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
-import { createCrossing } from './game/crossing.js';
+import { takeMoveLines } from './fightmoves.js';
+import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -379,6 +380,9 @@ function init() {
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
     endClanPatrol,
+    // Fight moves and scars: her cat's scars changed; her brother and the
+    // cloud profile see it.
+    onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -558,6 +562,7 @@ function init() {
     if (session && locked) {
       const line = takeArrivalLine(session);
       if (line) hud.toast(line);
+      for (const moveLine of takeMoveLines(session)) hud.toast(moveLine);
     }
   });
   bus.on('villager:wave', ({ id }) => {
@@ -569,6 +574,15 @@ function init() {
     if (isTouch) player.setTouchEngaged(true);
     else Promise.resolve(canvas.requestPointerLock()).catch(() => {}); // refused without a click: the pause card stays
   }
+  // During a room crossing's "Off we go!" pause a click on the game canvas
+  // would re-lock the pointer (player.js's click handler): stopped here, in
+  // the capture phase, before it reaches the canvas.
+  document.addEventListener('click', (e) => {
+    if (e.target === canvas && swallowsCanvasClick(session)) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
   overlay.addEventListener('click', (e) => {
     if (e.target.id === 'btn-resume') resumeWalk();
     if (e.target.id === 'btn-end') endWalk();
@@ -927,7 +941,7 @@ function init() {
       session.ambient.update(t, session.weather.condition === 'rain' ? 1.7 : 1);
       session.remotes.update(dt, nowSec(), session.areaData.waters);
       // Splashes, ripples and the wake for my cat, then each placed co-walker.
-      session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt);
+      session.splash.track(player.waterState, session.cat.position.x, session.cat.position.z, session.cat.rotation.y, player.speed, session.cat.scale.y, dt, player.hopY);
       for (const r of session.remotes.list) {
         if (r.water.placed) session.splash.track(r.water, r.group.position.x, r.group.position.z, r.group.rotation.y, r.speed, r.group.scale.y, dt);
       }

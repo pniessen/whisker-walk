@@ -267,6 +267,45 @@ describe('layered ambience', () => {
     wet.audio.stopAmbient();
   });
 
+  // Each interval layer run once with Math.random at 0 (it always plays):
+  // the pitches each one scheduled. Frogs sit under 400 Hz, birdsong at
+  // 1500-2200, crickets at 4200.
+  const pitchesOf = (probe) => probe.intervalFns.map((fn) => {
+    const before = probe.ctx.created.oscs.length;
+    const realRandom = Math.random;
+    Math.random = () => 0;
+    try { fn(); } finally { Math.random = realRandom; }
+    return probe.ctx.created.oscs.slice(before).flatMap((o) => o.frequency.scheduled);
+  });
+
+  it('a dusk Pines is the low wind, the frogs and the crickets, and still never birdsong', () => {
+    const dusk = ambienceProbe('pines', { dusk: true });
+    expect(dusk.bufferSources).toHaveLength(1); // the wind
+    expect(dusk.timeouts).toBe(0); // no gulls, no horn
+    expect(dusk.intervals).toBe(2); // the frogs and the crickets
+    expect(dusk.ctx.created.gains.map((g) => g.gain.value)).toContain(0.035);
+    const [frogs, crickets] = pitchesOf(dusk);
+    expect(frogs.length).toBeGreaterThan(0);
+    for (const f of frogs) expect(f).toBeLessThan(400);
+    expect(crickets.length).toBeGreaterThan(0);
+    for (const f of crickets) expect(f).toBe(4200);
+    for (const f of [...frogs, ...crickets]) expect(f < 1400 || f > 2300, `${f} Hz is birdsong`).toBe(true);
+    dusk.audio.stopAmbient();
+    for (const src of dusk.bufferSources) expect(src.stopped).toBe(true);
+  });
+
+  it('a rainy dusk Pines has the wind, the rain, the frogs and the crickets', () => {
+    const p = ambienceProbe('pines', { dusk: true, rain: true });
+    expect(p.bufferSources).toHaveLength(2); // wind + rain
+    expect(p.intervals).toBe(2);
+    expect(p.timeouts).toBe(0);
+    const [frogs, crickets] = pitchesOf(p);
+    for (const f of frogs) expect(f).toBeLessThan(400);
+    for (const f of crickets) expect(f).toBe(4200);
+    p.audio.stopAmbient();
+    for (const src of p.bufferSources) expect(src.stopped).toBe(true);
+  });
+
   it('routes every docks layer through the master bus, never to destination', () => {
     const { ctx, bufferSources } = ambienceProbe('docks');
     for (const node of [...ctx.created.oscs, ...ctx.created.gains, ...bufferSources]) {
@@ -485,6 +524,23 @@ describe('waterSplash (swimming)', () => {
     expect(wade).toBeCloseTo(0.12, 5);
     expect(shake).toBeCloseTo(0.5, 5);
     expect(shake).toBeGreaterThan(wade);
+  });
+
+  it('builds its noise buffer once and reuses it for every splash (Polish 3)', () => {
+    const ctx = splashCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.chime();
+    let built = 0;
+    const mkBuf = ctx.createBuffer;
+    ctx.createBuffer = (...a) => { built++; return mkBuf(...a); };
+    const before = ctx.sources.length;
+    for (const kind of ['wade', 'paddle', 'shake', 'wade', 'shake']) audio.waterSplash(kind);
+    const started = ctx.sources.slice(before);
+    expect(started).toHaveLength(5);
+    expect(built).toBe(1);
+    for (const s of started) expect(s.buffer).toBe(started[0].buffer);
+    // Long enough for the longest kind (the shake, 0.5 s).
+    expect(started[0].buffer.length).toBeGreaterThanOrEqual(Math.floor(ctx.sampleRate * 0.5));
   });
 
   it('plays nothing while muted', () => {

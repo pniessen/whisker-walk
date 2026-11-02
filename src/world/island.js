@@ -4,6 +4,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { GOLD_MICE } from '../goldmice.js';
 import { mulberry32, seedFromCode } from '../rng.js';
+import { segDist } from '../segdist.js';
 import { BRIDGE_PLANK, ISLAND_WOODS, bridgeEnds, fromWoods } from './lake.js';
 
 // The island in the Pines' lake, and the bridge to it, as ground a cat walks
@@ -148,8 +149,12 @@ export const ISLAND_MOMENTS = freeze([freeze({
   from: freeze({ x: 38, z: 15 }),
 })]);
 
-// The island's golden mice, by id, so the reeds keep off them too.
-const ISLAND_GOLD = GOLD_MICE.pines.filter((m) => ['gm-pines-4', 'gm-pines-5', 'gm-pines-6'].includes(m.id));
+// The island's golden mice, so the reeds keep off them too: the Pines' mice
+// that stand on the island's ground, found from the list rather than typed in
+// by id, so they cannot drift from it (Polish 3).
+export const ISLAND_GOLD = freeze(GOLD_MICE.pines.filter(
+  (m) => Math.hypot(m.x - ISLAND_LAND.x, m.z - ISLAND_LAND.z) <= ISLAND_LAND.r,
+));
 
 // Everything on the island a kid looks for, climbs or watches from. pines.js
 // adds these to PINES_KEEP_CLEAR; the reeds below keep 3 m off them.
@@ -171,12 +176,7 @@ const ISLAND_RECORDS = freeze([
 // candidates, rather than a looser clearance, keep every find in the open.
 const REED_RING = freeze({ r: 12.6, step: 2, jitter: 0.15 });
 const r2 = (v) => Math.round(v * 100) / 100;
-function deckDist(x, z) {
-  const D = BRIDGE_DECK;
-  const dx = D.x2 - D.x1, dz = D.z2 - D.z1;
-  const t = Math.max(0, Math.min(1, ((x - D.x1) * dx + (z - D.z1) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - (D.x1 + t * dx), z - (D.z1 + t * dz));
-}
+const deckDist = (x, z) => segDist(x, z, BRIDGE_DECK.x1, BRIDGE_DECK.z1, BRIDGE_DECK.x2, BRIDGE_DECK.z2);
 export function islandReeds() {
   const rng = mulberry32(seedFromCode('island-reeds'));
   const n = Math.round((2 * Math.PI * REED_RING.r) / REED_RING.step);

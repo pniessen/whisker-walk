@@ -261,3 +261,31 @@ describe('fitFraming', () => {
     expect(Number.isFinite(f.targetY)).toBe(true);
   });
 });
+
+// Fight moves and scars (Task 8): the dressing room shows her cat's scars.
+describe('createCatStage: scars', () => {
+  it('show(…, scars) builds them; an unscarred show is called exactly as before', () => {
+    const SCARS = [{ site: 'face', stage: 'full', side: 'l' }];
+    const LOOK = { coat: 'ginger', pattern: 'stripes' };
+    const build = vi.fn(() => new THREE.Group());
+    const { stage } = setup({ buildCat: build });
+    stage.mount(fakeEl());
+    stage.show('tabby', { collar: 'bell' }, null, SCARS);
+    expect(build).toHaveBeenLastCalledWith('tabby', { collar: 'bell' }, { scars: SCARS });
+    stage.show('calico', {}, LOOK, SCARS);
+    expect(build).toHaveBeenLastCalledWith('calico', {}, { look: LOOK, scars: SCARS });
+    stage.show('calico', {}, LOOK, []);
+    expect(build).toHaveBeenLastCalledWith('calico', {}, { look: LOOK });
+    stage.show('tabby', {}, null, []);
+    expect(build.mock.calls.at(-1)).toHaveLength(2);
+  });
+
+  it('with the real buildCat, a scarred show has a scar mesh', async () => {
+    const { buildCat } = await import('../src/cat/model.js');
+    let shown = null;
+    const { stage } = setup({ buildCat: (...a) => (shown = buildCat(...a)) });
+    stage.mount(fakeEl());
+    stage.show('tabby', {}, null, [{ site: 'back', stage: 'half', side: 'r' }]);
+    expect(shown.userData.parts.scars?.name).toBe('scars');
+  });
+});
