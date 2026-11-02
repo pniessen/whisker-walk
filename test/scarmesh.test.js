@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { buildCat, coatColor, catPivot } from '../src/cat/model.js';
 import { placeFrame } from '../src/fightactions.js';
 import { animateCat } from '../src/cat/animator.js';
-import { setCatScars, fitScars } from '../src/cat/scarmesh.js';
+import { setCatScars, fitScars, SCAR_COLOURS, SCAR_LAYOUT } from '../src/cat/scarmesh.js';
 import { DEFAULT_LOOK, PATTERNS, FURS, COATS } from '../src/customcats.js';
 import { CLAN_COATS } from '../src/clancast.js';
 import { pokes } from './helpers/catpoke.js';
@@ -25,19 +25,27 @@ const STRIP_VERTS = 10; // 4 segments, two vertices a section
 const skullOf = (cat) => cat.userData.parts.head.children.find((m) => m.isMesh && m.geometry.parameters?.radius === 0.21);
 const scarsOf = (cat) => cat.userData.parts.scars;
 
-// Each strip's centroid in world space, in build order.
+// Each strip's centroid in world space, in build order. polish-catlooks
+// (2026-11-02): a face scar's ear nick sits between the face's strips and the
+// body's ([split, earSplit), shorter strips); it is skipped here and checked
+// by its own test below.
 function centroids(cat) {
   cat.updateMatrixWorld(true);
   const mesh = scarsOf(cat);
   const pos = mesh.geometry.attributes.position;
+  const { split } = mesh.userData;
+  const earSplit = mesh.userData.earSplit ?? split;
   const out = [];
-  for (let s = 0; s < pos.count / STRIP_VERTS; s++) {
-    const c = new THREE.Vector3();
-    for (let i = 0; i < STRIP_VERTS; i++) c.add(new THREE.Vector3().fromBufferAttribute(pos, s * STRIP_VERTS + i));
-    out.push(c.divideScalar(STRIP_VERTS).applyMatrix4(mesh.matrixWorld));
+  for (const [from, to] of [[0, split], [earSplit, pos.count]]) {
+    for (let o = from; o < to; o += STRIP_VERTS) {
+      const c = new THREE.Vector3();
+      for (let i = 0; i < STRIP_VERTS; i++) c.add(new THREE.Vector3().fromBufferAttribute(pos, o + i));
+      out.push(c.divideScalar(STRIP_VERTS).applyMatrix4(mesh.matrixWorld));
+    }
   }
   return out;
 }
+const NICK_VERTS = 12; // polish-catlooks (2026-11-02): two 2-segment strokes
 
 // Distance from `p` to the surface of `mesh` (not its children), cast from
 // outside back toward the mesh's centre.
@@ -93,7 +101,8 @@ describe('scar mesh', () => {
     expect(mesh.isMesh).toBe(true);
     expect(mesh.name).toBe('scars');
     expect(mesh.parent).toBeTruthy();
-    expect(mesh.geometry.attributes.position.count).toBeLessThanOrEqual(60);
+    // polish-catlooks (2026-11-02): the ear nick raises the cap from 60 to 80.
+    expect(mesh.geometry.attributes.position.count).toBeLessThanOrEqual(80);
     expect(mesh.position.toArray()).toEqual([0, 0, 0]);
     expect(mesh.scale.toArray()).toEqual([1, 1, 1]);
     expect(mesh.quaternion.toArray()).toEqual([0, 0, 0, 1]);
@@ -101,15 +110,21 @@ describe('scar mesh', () => {
     expect(mesh.material.type).toBe(buildCat('tabby').userData.parts.body.material.type);
   });
 
-  it('every site builds three strips, at most 60 vertices for two scars', () => {
+  // polish-catlooks (2026-11-02): was "at most 60 vertices" (R13). A face
+  // scar now also nicks the ear (two 2-segment strokes, 12 vertices, 8
+  // triangles), so two scars are at most 80 vertices and 64 triangles.
+  it('every site builds three strips (a face scar plus its ear nick), at most 80 vertices / 64 triangles for two scars', () => {
     for (const site of SITES) for (const side of ['l', 'r']) {
       const mesh = scarsOf(buildCat('tabby', undefined, { scars: [{ site, stage: 'full', side }] }));
-      expect(mesh.geometry.attributes.position.count).toBe(3 * STRIP_VERTS);
+      expect(mesh.geometry.attributes.position.count).toBe(3 * STRIP_VERTS + (site === 'face' ? NICK_VERTS : 0));
     }
     for (let i = 0; i < SITES.length; i++) for (let j = i + 1; j < SITES.length; j++) {
       const scars = [{ site: SITES[i], stage: 'full', side: 'l' }, { site: SITES[j], stage: 'faint', side: 'r' }];
       for (const simple of [false, true]) {
-        expect(scarsOf(buildCat('d2', undefined, { simple, scars })).geometry.attributes.position.count).toBe(60);
+        const geo = scarsOf(buildCat('d2', undefined, { simple, scars })).geometry;
+        expect(geo.attributes.position.count).toBe(60 + (i === 0 ? NICK_VERTS : 0));
+        expect(geo.attributes.position.count).toBeLessThanOrEqual(80);
+        expect(geo.index.count / 3).toBeLessThanOrEqual(64);
       }
     }
   });
@@ -186,15 +201,24 @@ describe('scar mesh', () => {
     }
   });
 
-  it('full is the soft red, or a pale pink on a reddish coat; the coat under a plain cat is its base', () => {
-    const red = new THREE.Color(0xd04a5a), pale = new THREE.Color(0xf2a6ae);
+  // polish-catlooks (2026-11-02): full is now a paler healed pink (was the
+  // soft red 0xd04a5a), pale 0xf6c6cb (was 0xf2a6ae).
+  it('full is the healed pink, or a pale pink on a reddish coat; the coat under a plain cat is its base', () => {
+    const red = new THREE.Color(0xe0848f), pale = new THREE.Color(0xf6c6cb);
     const black = buildCat('black', undefined, { scars: [{ site: 'side', stage: 'full', side: 'l' }] });
     for (const c of colours(black)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
     const under = scarsOf(black).userData.under;
     const base = new THREE.Color(coatColor('black'));
     for (let i = 0; i < under.length; i += 3) expect(colourDistance(new THREE.Color(under[i], under[i + 1], under[i + 2]), base)).toBeLessThan(1e-6);
+    // polish-catlooks (2026-11-02): ginger was within 0.25 of the old red and
+    // got the pale pink; it is 0.46 from the healed pink, and no shipped coat
+    // is within 0.25 of it (measured: every preset, look and clan row gets
+    // full). The pale rule is kept, so a coat painted the pink itself checks it.
     const ginger = buildCat('tabby', undefined, { look: { ...DEFAULT_LOOK, coat: 'ginger', pattern: 'solid' }, scars: [{ site: 'face', stage: 'full', side: 'l' }] });
-    for (const c of colours(ginger)) expect(colourDistance(c, pale)).toBeLessThan(1e-6);
+    for (const c of colours(ginger)) expect(colourDistance(c, red)).toBeLessThan(1e-6);
+    const row = { ...clanRows()[0], base: 0xe0848f };
+    const pinkCoat = buildCat(row.eyes, undefined, { simple: true, style: row, scars: [{ site: 'side', stage: 'full', side: 'l' }] });
+    for (const c of colours(pinkCoat)) expect(colourDistance(c, pale)).toBeLessThan(1e-6);
   });
 
   it('Hagrid never gets one', () => {
@@ -253,8 +277,10 @@ describe('scar mesh', () => {
     const b = miss();
     expect(() => setCatScars(b, TWO)).not.toThrow();
     const mesh = scarsOf(b);
-    expect(mesh.geometry.attributes.position.count).toBe(3 * STRIP_VERTS);
+    // polish-catlooks (2026-11-02): the face scar's ear nick follows it.
+    expect(mesh.geometry.attributes.position.count).toBe(3 * STRIP_VERTS + NICK_VERTS);
     expect(mesh.userData.split).toBe(3 * STRIP_VERTS);
+    expect(mesh.userData.earSplit).toBe(3 * STRIP_VERTS + NICK_VERTS);
     expect(meshCount(b)).toBe(before + 1);
   });
 
@@ -438,6 +464,120 @@ describe('scar mesh', () => {
       expect(meshCount(cat), `${name} ${simple}`).toBe(meshCount(plain) + 1);
       expect(meshCount(cat), `${name} ${simple} meshes`).toBeLessThanOrEqual(cap(simple, name).meshes);
       expect(tris(cat), `${name} ${simple} tris`).toBeLessThanOrEqual(cap(simple, name).tris);
+    }
+  });
+  // ---- polish-catlooks (2026-11-02), Task 5: scars seen from behind ----
+
+  // The cat's visible meshes other than the scars (a hidden dummy occludes nothing).
+  function occluders(cat) {
+    const out = [];
+    cat.traverse((m) => {
+      if (!m.isMesh || m.name === 'scars') return;
+      for (let o = m; o; o = o.parent) if (!o.visible) return;
+      out.push(m);
+    });
+    return out;
+  }
+
+  // Share of the scar's vertices the walk camera sees: a camera 2.2 m behind
+  // and 1.0 m above the cat (it faces -z), a ray to each vertex, unoccluded
+  // when nothing of the cat is hit before it (1.5 mm slack).
+  function walkCameraShare(cat) {
+    animateCat(cat, 'follow', 1.3, 1.5);
+    cat.updateMatrixWorld(true);
+    const mesh = scarsOf(cat);
+    const cam = new THREE.Vector3(0, 1.0, 2.2).add(cat.getWorldPosition(new THREE.Vector3()));
+    const occ = occluders(cat);
+    const pos = mesh.geometry.attributes.position;
+    const ray = new THREE.Raycaster();
+    let seen = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      const dist = v.distanceTo(cam);
+      ray.set(cam, v.clone().sub(cam).normalize());
+      ray.far = dist;
+      const hit = ray.intersectObjects(occ, false)[0];
+      if (!hit || hit.distance >= dist - 0.0015) seen++;
+    }
+    return seen / pos.count;
+  }
+
+  it('a scar shows from the walk camera', () => {
+    for (const b of ['tabby', 'digit']) for (const site of ['shoulder', 'side', 'hind', 'back']) for (const side of ['l', 'r']) {
+      const cat = buildCat(b, undefined, { scars: [{ site, stage: 'full', side }] });
+      expect(walkCameraShare(cat), `${b} ${site} ${side}`).toBeGreaterThanOrEqual(0.4);
+    }
+  }, 120_000);
+
+  // Distance (cat units) from `p` (world) to the nearest facet of `mesh`.
+  function meshDistance(mesh, p, sc) {
+    const pos = mesh.geometry.attributes.position, index = mesh.geometry.index;
+    const at = (k) => (index ? index.getX(k) : k);
+    const tri = new THREE.Triangle(), q = new THREE.Vector3();
+    let best = Infinity;
+    const n = index ? index.count : pos.count;
+    for (let k = 0; k < n; k += 3) {
+      tri.a.fromBufferAttribute(pos, at(k)).applyMatrix4(mesh.matrixWorld);
+      tri.b.fromBufferAttribute(pos, at(k + 1)).applyMatrix4(mesh.matrixWorld);
+      tri.c.fromBufferAttribute(pos, at(k + 2)).applyMatrix4(mesh.matrixWorld);
+      tri.closestPointToPoint(p, q);
+      best = Math.min(best, q.distanceTo(p));
+    }
+    return best / sc;
+  }
+
+  it('a face scar nicks the ear on its side, and the nick rides the ear', () => {
+    for (const b of ['tabby', 'digit', 'persian']) for (const simple of [false, true]) for (const side of ['r', 'l']) {
+      const cat = buildCat(b, undefined, { simple, scars: [{ site: 'face', stage: 'full', side }] });
+      const mesh = scarsOf(cat);
+      const { split, earSplit } = mesh.userData;
+      expect(earSplit - split, `${b} ${side}`).toBe(NICK_VERTS);
+      const ear = side === 'r' ? cat.userData.parts.earR : cat.userData.parts.earL;
+      const other = side === 'r' ? cat.userData.parts.earL : cat.userData.parts.earR;
+      const nick = () => {
+        cat.updateMatrixWorld(true);
+        const pos = mesh.geometry.attributes.position;
+        const out = [];
+        for (let i = split; i < earSplit; i++) out.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+        return out;
+      };
+      const sc = cat.getWorldScale(new THREE.Vector3()).x;
+      const check = (label) => {
+        const pts = nick();
+        const geo = ear.geometry.parameters;
+        for (const p of pts) {
+          expect(meshDistance(ear, p, sc), `${b} ${simple} ${side} ${label}`).toBeLessThanOrEqual(0.003);
+          expect(meshDistance(other, p, sc), `${b} ${simple} ${side} ${label} other ear`).toBeGreaterThan(0.02);
+          // On the ear's back (+z), toward its outer edge, about 60% up.
+          const l = ear.worldToLocal(p.clone());
+          expect(l.z, `${b} ${side} ${label} back`).toBeGreaterThan(0);
+          expect(l.x * (side === 'r' ? 1 : -1), `${b} ${side} ${label} outer`).toBeGreaterThan(0);
+          const up = (l.y + geo.height / 2) / geo.height;
+          expect(up, `${b} ${side} ${label} height`).toBeGreaterThan(0.45);
+          expect(up, `${b} ${side} ${label} height`).toBeLessThan(0.75);
+        }
+        return pts;
+      };
+      animateCat(cat, 'follow', 1.3, 1.5);
+      const a = check('follow');
+      animateCat(cat, 'cross', 1.3, 0);
+      const c = check('cross');
+      // The ear pinned back, and the nick went with it.
+      expect(Math.max(...a.map((p, i) => p.distanceTo(c[i]))), `${b} ${side} moved`).toBeGreaterThan(0.005);
+      animateCat(cat, 'nap', 1.3, 0);
+      check('nap');
+    }
+  }, 120_000);
+
+  it('scars are a healed pink, a touch wider', () => {
+    expect(SCAR_COLOURS.full).toBe(0xe0848f);
+    expect(SCAR_COLOURS.pale).toBe(0xf6c6cb);
+    expect(SCAR_COLOURS.minDistance).toBe(0.25);
+    expect(SCAR_LAYOUT.face.width).toBe(0.011);
+    expect(SCAR_LAYOUT.face.length).toBe(0.065);
+    for (const site of ['shoulder', 'back', 'side', 'hind']) {
+      expect(SCAR_LAYOUT[site].width, site).toBe(0.014);
+      expect(SCAR_LAYOUT[site].length, site).toBe(0.075);
     }
   });
 });

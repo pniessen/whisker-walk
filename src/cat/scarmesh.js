@@ -18,7 +18,9 @@ import { HEAD, SKULL } from './torso.js';
 // body item or a fluffy ruff is simply hidden by it.
 
 // Each strip: 4 segments, so 10 vertices and 8 triangles; three strips a scar,
-// two scars a cat: 60 vertices, 48 triangles at most (R13).
+// two scars a cat: 60 vertices, 48 triangles (R13). polish-catlooks
+// (2026-11-02): a face scar also nicks its ear (SCAR_NICK, 12 vertices and 8
+// triangles), so two scars are at most 72 vertices and 56 triangles (cap 80 / 64).
 export const SCAR_STRIP = Object.freeze({ lift: 0.004, segments: 4 });
 const STRIP_SCARS_MAX = 2;
 // Narrower at the ends, like a claw's scratch. Index = section along the strip.
@@ -28,7 +30,10 @@ const TAPER = [0.55, 0.9, 1, 0.9, 0.55];
 // minDistance, the L1 metric over linear 0-1 channels of
 // test/helpers/catfingerprint.js) gets a pale pink instead. Half and faint
 // lerp that colour toward the coat under each vertex by `half` and `faint`.
-export const SCAR_COLOURS = Object.freeze({ full: 0xd04a5a, pale: 0xf2a6ae, half: 0.45, faint: 0.75, minDistance: 0.25 });
+// polish-catlooks (2026-11-02): full is a paler, healed pink (was the soft red
+// 0xd04a5a, which read as a fresh wound) and pale is lighter to match (was
+// 0xf2a6ae): the kids should be proud of a scar, not find it gory.
+export const SCAR_COLOURS = Object.freeze({ full: 0xe0848f, pale: 0xf6c6cb, half: 0.45, faint: 0.75, minDistance: 0.25 });
 
 // Where each site's three lines go, in the cat group's own units (before its
 // scale). `dir` is the direction from the owner's centre to the scar's middle
@@ -42,19 +47,42 @@ export const SCAR_COLOURS = Object.freeze({ full: 0xd04a5a, pale: 0xf2a6ae, half
 // torso is seen from further off (the walk camera rides behind it).
 //   face: over the eye, on the brow above it and a little outward, slanting
 //         down and in across the eye's top (sketch E).
-//   shoulder: high on the front of the flank. side: mid flank. hind: over the
-//         hip. They rake down and back, the way a paw swipes.
+//   shoulder: on top of the shoulder blade. side: mid flank, a little high.
+//         hind: over the hip. They rake down and back, the way a paw swipes.
 //   back: beside the spine, three lines slanting across the back.
+// polish-catlooks (2026-11-02): the walk camera rides behind the cat and ~25
+// degrees above it, so a scar has to face up or back to be seen at all. The
+// shoulder moved from the front of the flank (dir [0.9, 0.5, -0.85], ~0% of
+// it visible from there) to the top of the shoulder blade (the brief's
+// [0.45, 1, -0.7] put it just under the back of the head on screen in the game's
+// walk view, so it was tuned back and out to [0.55, 1, -0.5]); side and hind rose
+// 0.15 in y so their top line clears the flank's curve; every line is wider
+// (face 0.008 -> 0.011, body 0.01 -> 0.014). Lengths are unchanged.
 const UP = [0, 1, 0];
 const FWD = [0, 0, -1];
 const OUT = 'out';
 export const SCAR_LAYOUT = Object.freeze({
-  face: Object.freeze({ dir: [0.1, 0.1, -0.155], ref: UP, toward: OUT, slant: 0.5, length: 0.065, gap: 0.02, width: 0.008 }),
-  shoulder: Object.freeze({ dir: [0.9, 0.5, -0.85], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.01 }),
-  back: Object.freeze({ dir: [0.28, 1, 0.1], ref: FWD, toward: OUT, slant: 0.6, length: 0.075, gap: 0.025, width: 0.01 }),
-  side: Object.freeze({ dir: [1, 0.15, 0.05], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.01 }),
-  hind: Object.freeze({ dir: [0.8, 0.5, 0.75], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.01 }),
+  face: Object.freeze({ dir: [0.1, 0.1, -0.155], ref: UP, toward: OUT, slant: 0.5, length: 0.065, gap: 0.02, width: 0.011 }),
+  shoulder: Object.freeze({ dir: [0.55, 1, -0.5], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
+  back: Object.freeze({ dir: [0.28, 1, 0.1], ref: FWD, toward: OUT, slant: 0.6, length: 0.075, gap: 0.025, width: 0.014 }),
+  side: Object.freeze({ dir: [1, 0.3, 0.05], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
+  hind: Object.freeze({ dir: [0.8, 0.65, 0.75], ref: UP, toward: FWD, slant: 0.45, length: 0.075, gap: 0.025, width: 0.014 }),
 });
+
+// The ear nick (polish-catlooks, 2026-11-02): a face scar also marks the ear
+// on its side, where the walk camera sees it: two short strokes in a shallow
+// V across the back of the ear, toward its outer edge, about 60% of the way up
+// from its base. The ear is a 4-sided cone whose base corners point back
+// (+z), out, forward and in, so its back-outer facet faces the camera behind
+// the cat. `points` are the V's [across, up] on that facet: across runs from
+// the back corner (0) to the outer corner (1), up from the base (0) to the tip
+// (1); the strokes are points[0]->points[1] and points[1]->points[2]. `lift`
+// and `width` are in the cat group's units, like the layout's. 2 segments a
+// stroke: 6 vertices, 4 triangles.
+export const SCAR_NICK = Object.freeze({
+  points: Object.freeze([[0.28, 0.64], [0.55, 0.56], [0.78, 0.63]]), lift: 0.002, width: 0.008, segments: 2,
+});
+const NICK_TAPER = [0.6, 1, 0.6];
 
 // ---------------------------------------------------------------------------
 // Build-time surfaces. Each takes a direction from the owner's centre (in the
@@ -176,6 +204,54 @@ function layScar(layout, sx, surface, out) {
         out.under.push(colour);
       }
     }
+    out.strips.push(segs);
+  }
+  return true;
+}
+
+// The ear nick's two strokes on `ear` (the face scar's side, sx), in the ear's
+// own local space (it is fitted through head × ear each frame, so it rolls
+// with the ear when the animator pins it), appended to `out` like layScar's.
+// False when the ear is not the 4-sided cone it is expected to be.
+function layNick(ear, sx, out) {
+  const prm = ear.geometry.parameters;
+  if (!prm || prm.radialSegments !== 4 || !(prm.radius > 0) || !(prm.height > 0)) return false;
+  const r = prm.radius, h = prm.height;
+  // three.js puts a cone's base corner k at (r sin(k pi/2), -h/2, r cos(k pi/2)).
+  const A = new THREE.Vector3(0, h / 2, 0);
+  const B = new THREE.Vector3(0, -h / 2, r);
+  const C = new THREE.Vector3(sx * r, -h / 2, 0);
+  const N = new THREE.Vector3().crossVectors(C.clone().sub(B), A.clone().sub(B)).normalize();
+  if (N.x * sx + N.z < 0) N.negate();
+  const at = ([v, u]) => B.clone().lerp(C, v).lerp(A, u);
+  // The coat under the nick: the ear's colour, shaded by its painted back.
+  const col = ear.geometry.attributes.color;
+  const mid = at(SCAR_NICK.points[1]);
+  const pos = ear.geometry.attributes.position;
+  let near = 0, nd = Infinity;
+  const tmp = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const dd = tmp.fromBufferAttribute(pos, i).distanceToSquared(mid);
+    if (dd < nd && tmp.clone().normalize().dot(N) > 0) { nd = dd; near = i; }
+  }
+  const colour = ear.material.color.clone();
+  if (col) colour.multiply(new THREE.Color(col.getX(near), col.getY(near), col.getZ(near)));
+  const units = out.units;
+  const segs = SCAR_NICK.segments;
+  for (let k = 0; k < 2; k++) {
+    const P0 = at(SCAR_NICK.points[k]), P1 = at(SCAR_NICK.points[k + 1]);
+    const along = P1.clone().sub(P0).normalize();
+    const side = new THREE.Vector3().crossVectors(N, along).normalize();
+    for (let j = 0; j <= segs; j++) {
+      const H = P0.clone().lerp(P1, j / segs).addScaledVector(N, SCAR_NICK.lift / units);
+      const w = (SCAR_NICK.width / 2) * NICK_TAPER[j] / units;
+      for (const s of [1, -1]) {
+        out.points.push(H.clone().addScaledVector(side, s * w));
+        out.normals.push(N.clone());
+        out.under.push(colour);
+      }
+    }
+    out.strips.push(segs);
   }
   return true;
 }
@@ -221,25 +297,39 @@ export function setCatScars(cat, scars) {
   const onSkull = skullSurface(skull ? skull.material.color.clone() : base);
   const onTorso = torsoHit(body.geometry, S);
 
-  const rest = [], restNormal = [], under = [], colours = [];
-  let split = 0;
+  const rest = [], restNormal = [], under = [], colours = [], strips = [];
+  let split = 0, earSplit = 0, earKey = null;
   for (const scar of list) {
     const face = scar.site === 'face';
-    const out = { points: [], normals: [], under: [], units: face ? HEAD.SCALE : 1 };
-    if (!layScar(SCAR_LAYOUT[scar.site], scar.side === 'l' ? -1 : 1, face ? onSkull : onTorso, out)) continue;
+    const sx = scar.side === 'l' ? -1 : 1;
+    const out = { points: [], normals: [], under: [], strips: [], units: face ? HEAD.SCALE : 1 };
+    if (!layScar(SCAR_LAYOUT[scar.site], sx, face ? onSkull : onTorso, out)) continue;
+    // The face scar's ear nick follows its strips, in the ear's local space
+    // (polish-catlooks, 2026-11-02). parts.earR is the cat's right (+x) ear.
+    const nick = { points: [], normals: [], under: [], strips: [], units: HEAD.SCALE };
+    const key = sx > 0 ? 'earR' : 'earL';
+    const hasNick = face && parts[key]?.isMesh && layNick(parts[key], sx, nick);
     // Rest positions in the owner's local space: the body mesh's scale is in
     // its matrix, so a torso point is divided by it (the head's layout is
-    // already head-local).
+    // already head-local, the nick's ear-local).
     for (const p of out.points) rest.push(...(face ? p.toArray() : [p.x / S[0], p.y / S[1], p.z / S[2]]));
-    for (const n of out.normals) restNormal.push(...n.toArray());
-    const full = fullColour(out.under, base);
+    if (hasNick) for (const p of nick.points) rest.push(...p.toArray());
+    const normals = hasNick ? [...out.normals, ...nick.normals] : out.normals;
+    const unders = hasNick ? [...out.under, ...nick.under] : out.under;
+    for (const n of normals) restNormal.push(...n.toArray());
+    const full = fullColour(unders, base);
     const fade = STAGE_FADE[scar.stage] ?? 0;
-    for (const u of out.under) {
+    for (const u of unders) {
       under.push(u.r, u.g, u.b);
       const c = full.clone().lerp(u, fade);
       colours.push(c.r, c.g, c.b);
     }
-    if (face) split = rest.length / 3;
+    strips.push(...out.strips);
+    if (face) {
+      split = (rest.length / 3) - (hasNick ? nick.points.length : 0);
+      earSplit = rest.length / 3;
+      if (hasNick) { strips.push(...nick.strips); earKey = key; }
+    }
   }
 
   const n = rest.length / 3;
@@ -251,13 +341,13 @@ export function setCatScars(cat, scars) {
   geo.setAttribute('normal', normal);
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colours), 3));
   const index = [];
-  const segs = SCAR_STRIP.segments;
-  for (let s = 0; s < n / ((segs + 1) * 2); s++) {
-    const o = s * (segs + 1) * 2;
+  let o = 0;
+  for (const segs of strips) {
     for (let j = 0; j < segs; j++) {
       const a0 = o + j * 2, a1 = a0 + 1, b0 = a0 + 2, b1 = a0 + 3;
       index.push(a0, a1, b0, a1, b1, b0); // counter-clockwise seen from outside
     }
+    o += (segs + 1) * 2;
   }
   geo.setIndex(index);
 
@@ -271,7 +361,9 @@ export function setCatScars(cat, scars) {
   mesh.userData.noCast = true;
   mesh.userData.rest = new Float32Array(rest);
   mesh.userData.restNormal = new Float32Array(restNormal);
-  mesh.userData.split = split;
+  mesh.userData.split = split;       // [0, split): the face scar, on the head
+  mesh.userData.earSplit = earSplit; // [split, earSplit): its ear nick, on parts[earKey]
+  mesh.userData.earKey = earKey;     // [earSplit, end): the body scar, on the torso
   mesh.userData.under = new Float32Array(under);
   cat.add(mesh);
   parts.scars = mesh;
@@ -281,6 +373,8 @@ export function setCatScars(cat, scars) {
 // Scratch, module-level: fitScars allocates nothing.
 const _head = new THREE.Matrix4();
 const _body = new THREE.Matrix4();
+const _ear = new THREE.Matrix4();
+const _earQ = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 
 // Re-place every scar vertex from its owner's transform this frame (position,
@@ -293,14 +387,23 @@ export function fitScars(cat) {
   const { head, body } = parts;
   _head.compose(head.position, head.quaternion, head.scale);
   _body.compose(body.position, body.quaternion, body.scale);
-  const { rest, restNormal, split } = mesh.userData;
+  const { rest, restNormal, split, earSplit, earKey } = mesh.userData;
+  // The ear nick rides head × ear, so it rolls with an ear the animator pins.
+  const ear = earKey ? parts[earKey] : null;
+  if (ear) {
+    _ear.compose(ear.position, ear.quaternion, ear.scale).premultiply(_head);
+    _earQ.multiplyQuaternions(head.quaternion, ear.quaternion);
+  }
   const position = mesh.geometry.attributes.position;
   const normal = mesh.geometry.attributes.normal;
   const pa = position.array, na = normal.array;
   for (let i = 0; i < position.count; i++) {
+    const onEar = ear && i >= split && i < earSplit;
     const onHead = i < split;
-    _v.fromArray(rest, i * 3).applyMatrix4(onHead ? _head : _body).toArray(pa, i * 3);
-    _v.fromArray(restNormal, i * 3).applyQuaternion(onHead ? head.quaternion : body.quaternion).toArray(na, i * 3);
+    const m = onEar ? _ear : onHead ? _head : _body;
+    const q = onEar ? _earQ : onHead ? head.quaternion : body.quaternion;
+    _v.fromArray(rest, i * 3).applyMatrix4(m).toArray(pa, i * 3);
+    _v.fromArray(restNormal, i * 3).applyQuaternion(q).toArray(na, i * 3);
   }
   position.needsUpdate = true;
   normal.needsUpdate = true;
