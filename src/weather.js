@@ -58,8 +58,14 @@ export const RAIN_LOOK = Object.freeze({
   speedMin: 14, speedMax: 18,
   dropColor: 0xb8c8d8, dropOpacity: 0.45,
   skyTop: 0x7d868f, skyHorizon: 0x969ea5,
-  fogNear: 14, fogFar: 75,
-  sun: 0.9,
+  // Rain ADJUSTS whatever sky and light it finds (the day, a dusk Gorge...),
+  // so these are factors on the entry state, not absolute numbers. On a
+  // standard day (fog 40/130, sun 2.2) they reproduce the old look: 14/75, 0.9.
+  fogMix: 0.7,         // entry fog colour -> the rain grey (skyHorizon)
+  fogNearK: 0.35, fogFarK: 0.5769,
+  sunK: 0.9 / 2.2,
+  topDarken: 0.85,     // sky top when the background is a texture: fog, a bit deeper
+  topMix: 0.7,         // base sky top -> the rain top grey (skyTop)
   fillScale: 0.8,
   // Wet is told by colour, not gloss: dropping roughness made the lawn pick up
   // a pale sky sheen from the environment light, so roughness stays put.
@@ -243,12 +249,20 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
   const prevBackground =
     scene.background && scene.background.isTexture ? scene.background : scene.background.clone();
   const prevFog = { color: scene.fog.color.clone(), near: scene.fog.near, far: scene.fog.far };
-  // Same gradient treatment as sunset, horizon stop matching the fog color
-  // set two lines below.
+  const prevSun = sun.intensity;
   const L = RAIN_LOOK;
-  scene.background = skyBackground(L.skyTop, L.skyHorizon);
-  scene.fog = new THREE.Fog(L.skyHorizon, L.fogNear, L.fogFar);
-  sun.intensity = L.sun;
+  // The fog greys toward the rain colour from wherever it stood; the sky's
+  // horizon stop IS that fog colour (render/sky.js contract) and its top is
+  // the base top greyed the same way. sky.js hands out no stops, so a texture
+  // background's top is taken as the entry fog a little deeper.
+  const fogColor = prevFog.color.clone().lerp(new THREE.Color(L.skyHorizon), L.fogMix);
+  const baseTop = prevBackground.isColor
+    ? prevBackground.clone()
+    : prevFog.color.clone().multiplyScalar(L.topDarken);
+  const rainTop = baseTop.lerp(new THREE.Color(L.skyTop), L.topMix);
+  scene.background = skyBackground(rainTop.getHex(), fogColor.getHex());
+  scene.fog = new THREE.Fog(fogColor, prevFog.near * L.fogNearK, prevFog.far * L.fogFarK);
+  sun.intensity = prevSun * L.sunK;
   const fill = opts.fill ?? null;
   const fillBase = fill ? fill.intensity : 0;
   let fillDimmed = false;
@@ -320,6 +334,13 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
     if (disposed) return;
     disposed = true;
     dry();
+    // Dispose in the middle of the rain: the sky and light go back as found
+    // (after the rainbow they already have, and are not touched again).
+    if (!rainbow && schedule.phase(elapsed) === 'rain') {
+      scene.background = prevBackground;
+      scene.fog = new THREE.Fog(prevFog.color, prevFog.near, prevFog.far);
+      sun.intensity = prevSun;
+    }
     for (const m of [rain, rings]) {
       if (!m) continue;
       scene.remove(m);
@@ -364,7 +385,7 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
         dry();
         scene.background = prevBackground;
         scene.fog = new THREE.Fog(prevFog.color, prevFog.near, prevFog.far);
-        sun.intensity = 2.2;
+        sun.intensity = prevSun;
         rainbow = new THREE.Group();
         RAINBOW_COLORS.forEach((color, i) => {
           const arc = new THREE.Mesh(

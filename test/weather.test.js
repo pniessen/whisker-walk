@@ -486,6 +486,54 @@ describe('createWeather — rain that reads', () => {
     expect(fill.intensity).toBe(0.7);
   });
 
+  // Rain is an ADJUSTMENT on whatever sky and light it finds (a dusk Gorge, a
+  // warm evening), not a replacement with fixed numbers.
+  it('rain on a different base mixes that base, scales its sun, and restores the entry look', () => {
+    const base = new THREE.Color(0x8a6a70);
+    const mk = (bg) => { const s = new THREE.Scene(); s.background = bg; s.fog = new THREE.Fog(base.clone(), 30, 110); return s; };
+    const dusk = new THREE.Color(0x4a3a5a);
+    const scene = mk(dusk);
+    const sun = mkSun();
+    sun.intensity = 0.7;
+    const w = createWeather(scene, sun, 'rain', () => 0, true, undefined, { tier: TIER_HIGH });
+    const grey = new THREE.Color(RAIN_LOOK.skyHorizon);
+    const want = base.clone().lerp(grey, RAIN_LOOK.fogMix);
+    expect(scene.fog.color.getHex()).toBe(want.getHex());
+    expect(scene.fog.color.getHex()).not.toBe(grey.getHex()); // not today's absolute grey
+    expect(scene.fog.near).toBeCloseTo(30 * RAIN_LOOK.fogNearK, 10);
+    expect(scene.fog.far).toBeCloseTo(110 * RAIN_LOOK.fogFarK, 10);
+    expect(sun.intensity).toBeCloseTo(0.7 * RAIN_LOOK.sunK, 10);
+    w.update(61, cam());
+    expect(sun.intensity).toBe(0.7);
+    expect(scene.fog.color.getHex()).toBe(base.getHex());
+    expect([scene.fog.near, scene.fog.far]).toEqual([30, 110]);
+    expect(scene.background.getHex()).toBe(dusk.getHex());
+  });
+
+  it('a standard day base reproduces the day rain look (about 14 / 75, sun 0.9)', () => {
+    const scene = mkScene();
+    const sun = mkSun();
+    createWeather(scene, sun, 'rain', () => 0, true, undefined, { tier: TIER_HIGH });
+    expect(scene.fog.near).toBeCloseTo(14, 0);
+    expect(scene.fog.far).toBeCloseTo(75, 0);
+    expect(sun.intensity).toBeCloseTo(0.9, 1);
+    expect(scene.fog.color.getHex()).not.toBe(0x123456);
+  });
+
+  it('dispose() mid-rain gives back the entry sun, fog and background', () => {
+    const scene = mkScene();
+    const bg = scene.background;
+    const sun = mkSun();
+    sun.intensity = 1.1;
+    const f = scene.fog.color.getHex();
+    const w = createWeather(scene, sun, 'rain', () => 0.5, true, undefined, { tier: TIER_HIGH });
+    w.dispose();
+    expect(sun.intensity).toBe(1.1);
+    expect(scene.fog.color.getHex()).toBe(f);
+    expect([scene.fog.near, scene.fog.far]).toEqual([40, 130]);
+    expect(scene.background.getHex?.()).toBe(bg.getHex?.());
+  });
+
   it('puddle rings: one InstancedMesh, capped, gone at the rainbow, fewer on low', () => {
     const puddles = [0, 1, 2].map((i) => ({ x: i * 3, z: 1, r: 0.8, y: 0 }));
     const scene = mkScene();
