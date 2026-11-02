@@ -141,12 +141,15 @@ export const BACK_MIN_RHO = 1.04;
 // move forward (head-local z, front is -z) to lie on the new deeper chest
 // instead of inside it. Signed off by screenshot (R5, Task 10). Never Hagrid's.
 export const NECK_FORWARD = -0.10;
-// Fluffy cats (the ruff): their neck items, neck prizes and collar drop DOWN
-// onto the ruff's front, under the chin, and move only a little further
-// forward (head-local; `forward` adds to NECK_FORWARD, front is -z; `drop` is
-// taken off y). Moving them forward alone, past the ruff, put them in front of
-// the face: the ruff reaches almost to the muzzle. Signed off by screenshot (R5).
-export const NECK_FLUFFY = { forward: -0.02, drop: 0.07 };
+// Fluffy cats: their neck items, neck prizes and collar rest on the chest
+// under the small bib (ruff.js), which sits close to the chest, inside its
+// front, instead of out on the old torus's front (body refinement, Task 7).
+// Head-local; `forward` adds to NECK_FORWARD (front is -z), `drop` is taken off
+// y. So they sit where a tabby's do, 1 cm further back for the fluffy cats'
+// fuller chests (persian 1.05, Maine Coon 1.3, D2 1.15): every piece's front
+// stays out of the fur and none floats further off it than on a tabby (the
+// 'rests on the bib' test). Was { forward: -0.02, drop: 0.07 } on the torus.
+export const NECK_FLUFFY = { forward: 0.01, drop: 0 };
 // The hood bunched at the neck (under a hat) keeps its old head-relative spot,
 // HEAD.POS + (0, -0.06, 0.08) x HEAD.SCALE, mostly hidden in the neck fur: no
 // NECK_FORWARD, no NECK_FLUFFY (forward, the roll crossed the face at mouth

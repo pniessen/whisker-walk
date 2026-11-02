@@ -6,6 +6,7 @@ import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, att
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
 import { setCatScars } from './scarmesh.js';
+import { ruffGeometry } from './ruff.js';
 import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
@@ -664,7 +665,7 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
 export const CAT_LOOK_Y = HEAD.POS[1] + 0.04;
 
 // -----------------------------------------------------------------------------
-// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff, merged
+// THE UNDERSIDE (Task 6): belly, chest and, on a fluffy cat, the ruff (ruff.js), merged
 // into one vertex-coloured geometry in TORSO-LOCAL space (the body mesh's own
 // frame: less (0, CENTRE_Y, 0), divided by the body scale), so it is hung on
 // the torso and posed with it. Each part is authored in the cat's frame
@@ -692,8 +693,9 @@ export function undersideGeometry(s, coat, f = [1, 1, 1], opts = {}) {
       .translate(0, TORSO.CENTRE_Y + 0.06, -0.33 * fz)), coat.chest),
   };
   if (s.fluffy) {
-    parts.ruff = painted(toTorso(new THREE.TorusGeometry(0.19, 0.075, 6, 12).rotateX(Math.PI / 2 - 0.35)
-      .translate(HEAD.POS[0], HEAD.POS[1] - 0.12, HEAD.POS[2] + 0.10)), s.belly);
+    // a small bib under the chin, jaw fluff and a fringe (ruff.js), already
+    // vertex-coloured and without uv
+    parts.ruff = toTorso(ruffGeometry(s, opts.simple));
   }
   const ranges = {};
   let at = 0;
@@ -756,8 +758,8 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const onBackMain = (x, y, z) => torsoRetarget([x, y, z], [fx, fy, fz], BACK_MIN_RHO);
   const from = (main, dx, dy, dz) => [main[0] + dx, main[1] + dy, main[2] + dz];
   // Neck items, the neck prize and the collar sit NECK_FORWARD ahead of where
-  // they sat on the old torso. A fluffy cat's drop onto the front of its ruff,
-  // under the chin (NECK_FLUFFY), rather than out past it. (Not the hood bunch:
+  // they sat on the old torso. A fluffy cat's rest on its chest under the
+  // small bib (NECK_FLUFFY), as a tabby's do. (Not the hood bunch:
   // see HOOD_BUNCH_DROP.)
   const neckZ = NECK_FORWARD + (s.fluffy ? NECK_FLUFFY.forward : 0);
   const neckY = s.fluffy ? -NECK_FLUFFY.drop : 0;
