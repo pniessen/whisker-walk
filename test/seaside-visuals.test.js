@@ -57,8 +57,11 @@ describe('seaside: wet sand at the waterline', () => {
     const col = band.geometry.attributes.color;
     let min = 1;
     for (let i = 0; i < col.count; i++) min = Math.min(min, col.getX(i), col.getY(i), col.getZ(i));
-    expect(min).toBeLessThan(0.45);
-    expect(min).toBeGreaterThan(0.25);
+    // Darker than the first pass (0.31 at its darkest channel): at the
+    // waterline the sand reads soaked, behind the foam strip (polish-water
+    // Task 4).
+    expect(min).toBeLessThan(0.28);
+    expect(min).toBeGreaterThan(0.2);
   });
 });
 

@@ -900,7 +900,7 @@ function islandGeometry(w, box, segments) {
  *                          only, so where this water runs under another no
  *                          pale stripe crosses the open water (realShoreOf).
  *   style        {string}  'clear' (default), 'bog' (peat-murky ramp, dull
- *                          edge) or 'sea' (will be set by the seaside, Task 4; same ramp as
+ *                          edge) or 'sea' (the seaside's; same ramp as
  *                          'clear' here). Also read by waterdress.js.
  *   glare        {number}  specular strength, 0..1 (default GLARE). The
  *                          seaside passes GLARE_SEA.

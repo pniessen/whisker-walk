@@ -44,7 +44,9 @@ import { groundOf } from '../ground.js';
 //   additive  sunlit glints add light rather than cover what is behind them
 const KINDS = Object.freeze({
   leaves: Object.freeze({ base: 40, size: 0.4, sprite: 'leaf' }),
-  spray: Object.freeze({ base: 26, size: 1.1, sprite: 'soft' }),
+  // Small since polish-water Task 4: the foam strip (waterdress.js) draws the
+  // surf, so the mist is only a faint flat haze lying over it.
+  spray: Object.freeze({ base: 26, size: 0.45, sprite: 'soft' }),
   moths: Object.freeze({ base: 24, size: 0.24, sprite: 'moth' }),
   motes: Object.freeze({ base: 14, size: 0.12, sprite: 'soft', additive: true }),
   fluff: Object.freeze({ base: 12, size: 0.4, sprite: 'fluff' }),
@@ -85,7 +87,11 @@ const LEAF_COLOURS = [0x9cb84a, 0x86a843, 0xc9b03c, 0xd98a32, 0xb8652e];
 // Seaside mist.
 const SPRAY_SPAN = 16; // along the shore either side of the view, metres
 const SPRAY_REACH = 45; // no mist when the view is further than this from the surf
-const SPRAY_ALPHA = 0.36;
+// Faint and squashed flat (SPRAY_SQUASH of its height, turned on its side):
+// at 0.36 and round, a puff 1.1 m across stood up out of the waves as a fuzzy
+// white ball.
+const SPRAY_ALPHA = 0.18;
+const SPRAY_SQUASH = 0.35;
 // Docks moths.
 const MOTHS_PER_LAMP = 3;
 const MOTH_RANGE = 40;
@@ -514,13 +520,13 @@ export function createAmbient(scene, {
     if (Math.abs(focus.x - shore.minX) > SPRAY_REACH) { wait(i, 1, 2); return; }
     bx[i] = shore.minX - 0.8 + rand() * 2.4; // either side of the waterline
     bz[i] = clamp(focus.z + (rand() * 2 - 1) * SPRAY_SPAN, bounds.minZ + 1, bounds.maxZ - 1);
-    by[i] = 0.12 + rand() * 0.15;
+    by[i] = 0.06 + rand() * 0.08;
     if (!ground.flat) by[i] += ground.y(bx[i], bz[i]);
     mode[i] = 1;
     age[i] = 0;
     life[i] = 2.6 + rand() * 2;
     p0[i] = rand() * Math.PI * 2;
-    p1[i] = 0.06 + rand() * 0.1; // rise, m/s
+    p1[i] = 0.02 + rand() * 0.03; // rise, m/s: a haze lifting, not a puff
     setColour(i, 0xf2f6f8);
   }
 
@@ -535,9 +541,11 @@ export function createAmbient(scene, {
     out.x = bx[i];
     out.y = by[i];
     out.z = bz[i];
-    out.rot = p0[i];
-    out.squash = 1;
-    out.scale = 0.55 + 0.65 * u; // a puff spreads as it thins
+    // On its side: the shader narrows the sprite's x after turning it, so a
+    // quarter turn squashes it in screen height — a flat wisp, not a ball.
+    out.rot = Math.PI / 2;
+    out.squash = SPRAY_SQUASH;
+    out.scale = 0.55 + 0.65 * u; // a wisp spreads as it thins
     alpha[i] = SPRAY_ALPHA * Math.sin(Math.PI * Math.min(1, u));
     if (u >= 1) wait(i, 0, 1.5);
   }

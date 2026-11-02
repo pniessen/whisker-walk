@@ -209,7 +209,8 @@ describe('water dressing', () => {
   }, 120_000);
 
   it('stones sit on land by real shore, clear of decks and colliders', () => {
-    for (const id of DRESSED_AREAS) {
+    // Not the Seaside: a sandy beach takes no stones (Task 4, see below).
+    for (const id of DRESSED_AREAS.filter((a) => a !== 'seaside')) {
       const { fx, areaData } = dress(id);
       const stones = byName(fx, 'waterdress:stones');
       expect(stones, id).toBeTruthy();
@@ -229,10 +230,12 @@ describe('water dressing', () => {
     }
   }, 120_000);
 
-  it('LOW tier keeps the band but has no stones or reeds', () => {
+  it('LOW tier keeps the band (and the sea apron) but has no stones or reeds', () => {
     for (const id of DRESSED_AREAS) {
       const { fx } = dress(id, { tier: LOW });
-      expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band']);
+      // The apron is not decoration: without it the sea ends in a corner.
+      const want = id === 'seaside' ? ['waterdress:band', 'waterdress:apron'] : ['waterdress:band'];
+      expect(fx.meshes.map((m) => m.name)).toEqual(want);
     }
   }, 120_000);
 
@@ -288,6 +291,93 @@ describe('water dressing', () => {
     still.update(1.3);
     still.update(5);
     expect(snap()).toBe(s0);
+  }, 120_000);
+
+  // --- Task 4: the Seaside's shoreline ('sea' style) -------------------------
+
+  it('the sea is styled "sea" and takes no stones on its sandy beach', () => {
+    const { fx, areaData } = dress('seaside');
+    expect(areaData.waterFx.find((h) => h.footprint.id === 'sea').style).toBe('sea');
+    expect(fx.meshes.map((m) => m.name)).toEqual(['waterdress:band', 'waterdress:apron']);
+  }, 120_000);
+
+  it('the sea gets a wavy foam strip along its beach', () => {
+    const { fx, areaData } = dress('seaside');
+    const sea = areaData.waters.find((w) => w.id === 'sea');
+    const band = byName(fx, 'waterdress:band');
+    // The waterline: where the foam's lace edge meets the sand, one point per
+    // sample along the shore.
+    const line = band.userData.waterline;
+    expect(line.length).toBeGreaterThan(50);
+    const xs = line.map((p) => p.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThanOrEqual(0.4);
+    // and it is a wave, not noise: neighbours a sample apart barely differ
+    for (let i = 1; i < line.length; i++) expect(Math.abs(line[i].x - line[i - 1].x)).toBeLessThan(0.25);
+    // across the walkable beach and 30 m past both ends of it
+    const zs = line.map((p) => p.z);
+    const b = areaData.bounds;
+    expect(Math.min(...zs)).toBeLessThanOrEqual(b.minZ - 30 + 0.5);
+    expect(Math.max(...zs)).toBeGreaterThanOrEqual(b.maxZ + 30 - 0.5);
+    // it stays at the shore: nothing out over the sea past x 28, nothing up
+    // the beach past the wet sand
+    for (const p of worldPoints(band)) {
+      expect(p.x).toBeLessThanOrEqual(28);
+      expect(p.x).toBeGreaterThan(sea.minX - 1.5);
+    }
+    // white-ish foam, strongest at the lace edge
+    const col = band.geometry.getAttribute('color');
+    const foam = band.geometry.getAttribute('aFoam');
+    let strong = 0;
+    for (let i = 0; i < col.count; i++) {
+      if (foam.getX(i) < 0.5 || col.getW(i) < 0.5) continue;
+      strong++;
+      expect((col.getX(i) + col.getY(i) + col.getZ(i)) / 3).toBeGreaterThan(0.85);
+    }
+    expect(strong).toBeGreaterThan(50);
+  }, 120_000);
+
+  it('the foam strip washes in and out, and holds still under reduced motion', () => {
+    const live = dress('seaside').fx;
+    const u = byName(live, 'waterdress:band').material.userData.swash;
+    const before = u.value;
+    live.update(1.3);
+    expect(u.value).not.toBe(before);
+    const still = dress('seaside', { reducedMotion: true }).fx;
+    const s = byName(still, 'waterdress:band').material.userData.swash;
+    const s0 = s.value;
+    still.update(1.3);
+    expect(s.value).toBe(s0);
+  }, 120_000);
+
+  it('a far-sea apron carries the sea past its slab, so the shore has no corner', () => {
+    const { fx, areaData } = dress('seaside');
+    const sea = areaData.waters.find((w) => w.id === 'sea');
+    const h = areaData.waterFx.find((f) => f.footprint.id === 'sea');
+    const apron = byName(fx, 'waterdress:apron');
+    expect(apron.castShadow).toBe(false);
+    expect(apron.material.fog).toBe(true);
+    const pts = worldPoints(apron);
+    for (const p of pts) {
+      expect(p.y).toBeLessThan(h.y);
+      expect(p.y).toBeGreaterThan(0);
+      expect(p.x).toBeGreaterThanOrEqual(sea.minX - 1e-6);
+    }
+    // every point east of the shore line, z -200..200, is under sea or apron
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    for (let z = -200; z <= 200; z += 10) {
+      for (const x of [sea.minX + 0.2, 40, 80, 104.8, 106, 150, 220]) {
+        const inSea = x > sea.minX && x < sea.maxX && z > sea.minZ && z < sea.maxZ;
+        if (inSea) continue;
+        ray.set(new THREE.Vector3(x, 5, z), down);
+        expect(ray.intersectObject(apron).length, `${x},${z}`).toBeGreaterThan(0);
+      }
+    }
+    // and it tucks under the sea's own edges, so no seam of sky shows
+    for (const [x, z] of [[60, sea.maxZ - 0.2], [60, sea.minZ + 0.2], [sea.maxX - 0.2, 0]]) {
+      ray.set(new THREE.Vector3(x, 5, z), down);
+      expect(ray.intersectObject(apron).length, `${x},${z}`).toBeGreaterThan(0);
+    }
   }, 120_000);
 
   it('dispose removes and frees everything', () => {

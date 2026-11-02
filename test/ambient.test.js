@@ -353,6 +353,25 @@ describe('seaside mist', () => {
     }
     expect(shown).toBeGreaterThan(0);
   });
+
+  // Polish-water Task 4: the foam strip (waterdress.js) carries the surf now,
+  // so the mist is a faint, flat, low haze over it rather than round fuzzy
+  // balls standing up out of the waves.
+  it('is small, flat, faint and low', () => {
+    const { ambient } = make('seaside');
+    run(ambient, 3);
+    expect(ambient.mesh.material.size).toBeLessThanOrEqual(0.5);
+    const { position, aSize, aSpin, color } = ambient.mesh.geometry.attributes;
+    let shown = 0;
+    for (let i = 0; i < ambient.capacity; i++) {
+      if (aSize.array[i] === 0) continue;
+      shown++;
+      expect(position.getY(i)).toBeLessThan(0.4);
+      expect(aSpin.array[i * 2 + 1]).toBeLessThanOrEqual(0.4); // squashed flat
+      expect(color.array[i * 4 + 3]).toBeLessThanOrEqual(0.2);
+    }
+    expect(shown).toBeGreaterThan(0);
+  });
 });
 
 describe('dispose', () => {

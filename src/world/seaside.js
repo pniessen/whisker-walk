@@ -53,7 +53,10 @@ const WET_TO = 25.4;
 // Strong on purpose: the beach is lit so far up ACES's shoulder that a 0.7
 // multiplier measured 207 against the dry sand's 221 on screen (invisible) and
 // 0.5 only 191. At ~0.35 the damp sand lands near 165, which reads as wet.
-const WET_TINT = [0.37, 0.34, 0.31];
+// Polish-water Task 4 takes it a step darker again (0.37/0.34/0.31 before):
+// with the white foam strip lying along the waterline the soaked sand behind
+// it needs the contrast, or foam and sand blur into one pale stripe.
+const WET_TINT = [0.31, 0.28, 0.25];
 
 // A deterministic 0..1 value for an integer, for the strata tones.
 function hash1(n) {
@@ -65,9 +68,12 @@ function hash1(n) {
 // WET_FROM, WET_TINT at the waterline, with a wavy edge where the last wave
 // reached.
 export function wetness(x, z) {
-  // The wet edge wanders +-0.5m along the beach; the ramp itself runs 2m.
+  // The wet edge wanders +-0.5m along the beach; the ramp itself runs 1.7m,
+  // and reaches full wet ~0.5m short of the foam strip's lace edge
+  // (waterdress.js, x ~24.1..25), so the soaked sand shows behind the foam
+  // instead of only under it (polish-water Task 4; it ran 22.4..24.4 before).
   const reach = 0.32 * Math.sin(z * 0.33 + 1.3) + 0.16 * Math.sin(z * 0.91);
-  const t = Math.min(1, Math.max(0, (x - 22.4 + reach) / 2));
+  const t = Math.min(1, Math.max(0, (x - 22.2 + reach) / 1.7));
   return t * t * (3 - 2 * t);
 }
 
@@ -171,6 +177,10 @@ const PIER = { minX: 22, maxX: 46, minZ: -11.5, maxZ: -8.5 };
 const SEA = {
   id: 'sea', kind: 'rect', minX: 25, maxX: 105, minZ: -70, maxZ: 70, shallow: 1.5, decks: [PIER],
 };
+// The sea as the horizon band sees it: the slab carried on north and south
+// past the band's outer rim (126), so no dune stands across either end. Data
+// only (see the horizon band below).
+const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, maxX: 105, minZ: -140, maxZ: 140 });
 
 // -----------------------------------------------------------------------------
 // SURFACES, WATER AND WIND (v20). The Old Docks was the pilot (see the block at
@@ -243,7 +253,8 @@ export function build(scene, { water = {}, wind } = {}) {
   // 140m rather than 120m: the inner rim still lands four metres inside the
   // plane's own edge (70) so the seam is buried under it.
   //
-  // `avoid: [SEA]` IS THE WHOLE DIFFERENCE HERE, and it is the same record the
+  // `avoid` IS THE WHOLE DIFFERENCE HERE (SEA, carried on past its ends since
+  // polish-water Task 4 — see SEA_VIEW below), and it is the same rectangle the
   // sea itself is drawn from and that test/water.test.js reads — so the dunes
   // stop at the declared waterline by construction and cannot drift from it
   // the way a hand-typed keep-out rectangle would. It carves the band into
@@ -277,9 +288,19 @@ export function build(scene, { water = {}, wind } = {}) {
   // at depth and held together with marram grass, and they are visibly duller
   // than the dry beach in front of them. The silhouette needs a value step and
   // this is the physically honest direction to find one in.
+  //
+  // NO DUNES ACROSS THE SEA'S ENDS (polish-water Task 4). With `avoid: [SEA]`
+  // the dunes rose straight off the slab's north and south edges (z +-70),
+  // so the beach's straight waterline ran into a straight crosswise edge and
+  // stopped in a corner far down the beach. They avoid SEA_VIEW instead: the
+  // same water carried on north and south past the fog, so the dunes slope
+  // down to the beach's own line (x 25) on both sides and the shore runs on
+  // into the haze. The open water past the slab is waterdress.js's far-sea
+  // apron, render-side; SEA_VIEW is a plain record, no object, and not a
+  // `waters` entry (nothing swims in it).
   scene.add(b.horizonBand({
     kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
-    color: 0xc9ba90, salt: 59, avoid: [SEA], closeWater: false,
+    color: 0xc9ba90, salt: 59, avoid: [SEA_VIEW], closeWater: false,
     headland: { x: -92, z: -84, r: 46, h: 0.9 },
   }));
 
@@ -323,6 +344,9 @@ export function build(scene, { water = {}, wind } = {}) {
     y: 0.05,
     color: 0x4a90c0,
     shores: ['minX'],
+    // waterdress.js reads it: a wavy foam strip on the sand instead of a
+    // bank, and a far-sea apron so the slab's corners never show.
+    style: 'sea',
     glare: WATER_TUNING.GLARE_SEA,
     quality: water.quality ?? 'high',
     reducedMotion: water.reducedMotion ?? false,
