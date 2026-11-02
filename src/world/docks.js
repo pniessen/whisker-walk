@@ -3,6 +3,7 @@ import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import { SURE_CLAWS_ID } from '../climbing.js';
+import { dressDocks } from './docksdressing.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -390,7 +391,7 @@ export function build(scene, { water = {} } = {}) {
     scene.add(b.cardboardBox(x, z, rot));
   }
 
-  return {
+  const area = {
     name: 'The Old Docks',
     colliders,
     // The most compact walk area in the game (76 x 80). That is the whole
@@ -553,4 +554,9 @@ export function build(scene, { water = {} } = {}) {
       ...clawPerches,
     ],
   };
+  // polish-docks: the harbour dressing — crates, barrels, nets, rope and
+  // lobster pots, on their own local uuid stream and adding no record. Last,
+  // so its meshes are the scene's last children. See world/docksdressing.js.
+  dressDocks(scene, area);
+  return area;
 }
