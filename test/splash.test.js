@@ -269,6 +269,99 @@ describe('createSplash', () => {
     expect(splash.drawCount).toBe(0);
   });
 
+  // Polish 3: a droplet that falls back to the water is gone, not parked on
+  // top of it until its time runs out.
+  for (const [label, st0] of [
+    ['a wading kick', { mode: 'wade' }],
+    ['a shake puff', { mode: 'dry', shook: true }],
+  ]) {
+    it(`${label}: no droplet lingers on the surface after it falls back`, () => {
+      const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+      const st = { ...createWaterState(), ...st0 };
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      let parked = 0;
+      let peak = 0;
+      for (let f = 0; f < 60; f++) {
+        // Only the first frames emit: one burst (the wader keeps walking for
+        // a quarter second so it kicks once).
+        splash.track(st, 0, 0, 0, f < 14 ? 1 : 0, 1, DT);
+        st.shook = false;
+        splash.update(DT);
+        const drops = splash.meshes[0];
+        peak = Math.max(peak, drops.count);
+        for (let i = 0; i < drops.count; i++) {
+          drops.getMatrixAt(i, m);
+          p.setFromMatrixPosition(m);
+          if (f > 6 && p.y <= RING_Y + 1e-6) parked++;
+        }
+      }
+      expect(peak).toBeGreaterThan(0);
+      expect(parked).toBe(0);
+    });
+  }
+
+  it("a kitten's ripples and wake are kitten-sized (Polish 3)", () => {
+    const maxRadius = (scale) => {
+      const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+      const st = { ...createWaterState(), mode: 'swim' };
+      const m = new THREE.Matrix4();
+      const pos = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      const scl = new THREE.Vector3();
+      let r = 0;
+      for (const speed of [1, 0]) {
+        for (let f = 0; f < 120; f++) {
+          splash.track(st, 0, 0, 0, speed, scale, DT);
+          splash.update(DT);
+          const rings = splash.meshes[1];
+          for (let i = 0; i < rings.count; i++) {
+            rings.getMatrixAt(i, m);
+            m.decompose(pos, q, scl);
+            r = Math.max(r, scl.x);
+          }
+        }
+      }
+      return r;
+    };
+    const adult = maxRadius(1);
+    const kitten = maxRadius(0.6);
+    expect(adult).toBeGreaterThan(0.5);
+    expect(kitten).toBeCloseTo(adult * 0.6, 1);
+  });
+
+  it('a pounce into the water splashes when the paws meet the water, not mid-hop (Polish 3)', () => {
+    const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    const st = { ...createWaterState(), mode: 'wade', entered: true };
+    // Crossing the waterline 0.3 m up: nothing yet.
+    splash.track(st, 0, 0, 0, 5, 1, DT, 0.3);
+    st.entered = false;
+    splash.update(DT);
+    expect(splash.meshes[0].count).toBe(0);
+    splash.track(st, 0, 0.1, 0, 5, 1, DT, 0.1);
+    splash.update(DT);
+    expect(splash.meshes[0].count).toBe(0);
+    // Paws down: the entry splash, once.
+    splash.track(st, 0, 0.2, 0, 5, 1, DT, 0);
+    splash.update(DT);
+    expect(splash.meshes[0].count).toBe(6);
+    splash.track(st, 0, 0.3, 0, 0, 1, DT, 0);
+    splash.update(DT);
+    expect(splash.meshes[0].count).toBe(6);
+  });
+
+  it('a hop that leaves the water again before landing throws no entry splash', () => {
+    const splash = createSplash(new THREE.Scene(), { areaData: AREA, tier: LADDER[0], reducedMotion: false });
+    const st = { ...createWaterState(), mode: 'wade', entered: true };
+    splash.track(st, 0, 0, 0, 5, 1, DT, 0.3);
+    st.entered = false;
+    st.mode = 'dry';
+    splash.track(st, 0, 0, 0, 5, 1, DT, 0.1);
+    splash.track(st, 0, 0, 0, 5, 1, DT, 0);
+    splash.update(DT);
+    expect(splash.meshes[0].count).toBe(0);
+  });
+
   it('dispose removes both meshes', () => {
     const scene = new THREE.Scene();
     const splash = createSplash(scene, { areaData: AREA, tier: LADDER[0], reducedMotion: false });
