@@ -6,13 +6,13 @@ import { DEFAULT_PITCH } from '../src/player.js';
 import {
   FLOOR, LOOKOUT, WIDE_LEDGE, CLIFFTOP, WEST_TOP, SHOULDER, RIM, SNUG_Y, LIP_H, LIP_W,
   rect, rampZ, toStrip, subtractRects,
-  WALK_SHAPES, MASSES, GORGE_CAVES, GORGE_DENS, CEILINGS, STAND_ON, CAMP_DEN_RESERVE, WIDE_LEDGE_RECT,
+  WALK_SHAPES, MASSES, GORGE_CAVES, GORGE_DENS, CEILINGS, STAND_ON, CAMP_DEN, CAMP_DEN_HEADROOM, CLAN_STAND_ON, WIDE_LEDGE_RECT,
   GORGE_GROUND_SPEC, gorgeGround, cY, mapShapes,
 } from '../src/world/gorgeshape.js';
 import { floodGorge, GORGE_BOUNDS, GORGE_SPAWN, FLOOD_STEP } from './helpers/gorgeflood.js';
 
 const CAVE_RECTS = GORGE_CAVES.flatMap((c) => c.rects);
-const OPENINGS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS];
+const OPENINGS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS, CAMP_DEN];
 const ALL_SHAPES = [...OPENINGS, ...MASSES];
 const inRect = (r, x, z) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
 const inBox = ([minX, maxX, minZ, maxZ], x, z) => x >= minX && x <= maxX && z >= minZ && z <= maxZ;
@@ -43,7 +43,9 @@ describe('the Gorge shape', () => {
       for (const item of list) expect(Object.isFrozen(item)).toBe(true);
     }
     expect(Object.isFrozen(GORGE_GROUND_SPEC)).toBe(true);
-    expect(Object.isFrozen(CAMP_DEN_RESERVE) && Object.isFrozen(WIDE_LEDGE_RECT)).toBe(true);
+    expect(Object.isFrozen(CAMP_DEN) && Object.isFrozen(CAMP_DEN.mouth) && Object.isFrozen(WIDE_LEDGE_RECT)).toBe(true);
+    expect(Object.isFrozen(CLAN_STAND_ON)).toBe(true);
+    for (const r of CLAN_STAND_ON) expect(Object.isFrozen(r)).toBe(true);
   });
 
   it("the Gorge's ground is valid", () => {
@@ -80,6 +82,7 @@ describe('the Gorge shape', () => {
     };
     for (const c of GORGE_CAVES) targets[`${c.id} chamber`] = c.path[c.path.length - 1];
     for (const d of GORGE_DENS) targets[d.id] = centre(d);
+    targets["the camp den's back corner"] = [25.5, 42.5];
     expect(GORGE_DENS).toHaveLength(5);
     const missed = Object.entries(targets).filter(([, [x, z]]) => !reached(x, z)).map(([k]) => k);
     expect(missed).toEqual([]);
@@ -221,16 +224,117 @@ describe('the Gorge shape', () => {
     expect([stop.minX, stop.maxX, stop.minZ, stop.maxZ, stop.y0]).toEqual([12.2, 15, 18.7, 21.7, SNUG_Y]);
   });
 
-  it('the reserved wide ledge and den are left for part 4', () => {
-    expect(WIDE_LEDGE_RECT.reserved).toBe('part 4');
-    expect(CAMP_DEN_RESERVE.reserved).toBe('part 4');
-    expect(CAMP_DEN_RESERVE.kind).toBe('rock');
-    expect(MASSES).toContain(CAMP_DEN_RESERVE);
+  it("the camp den is cut into the rock at the Wide Ledge's height", () => {
+    expect([CAMP_DEN.minX, CAMP_DEN.maxX, CAMP_DEN.minZ, CAMP_DEN.maxZ]).toEqual([20, 26, 37, 43]);
+    expect([CAMP_DEN.y0, CAMP_DEN.y1, CAMP_DEN.kind, CAMP_DEN.id, CAMP_DEN.tag]).toEqual([WIDE_LEDGE, WIDE_LEDGE, 'den', 'campDen', 'campDen']);
+    expect(CAMP_DEN.mouth).toEqual({ x: 20, z: 40 });
+    expect(CAMP_DEN_HEADROOM).toBe(2.6);
+    // not a small den (no nap) and not a deep cave (never darkened)
+    expect(GORGE_DENS).not.toContain(CAMP_DEN);
+    expect(GORGE_CAVES.flatMap((c) => c.rects)).not.toContain(CAMP_DEN);
+    // the camp's ledge carries no tag any more
+    expect(WIDE_LEDGE_RECT.reserved).toBeUndefined();
     expect([WIDE_LEDGE_RECT.minX, WIDE_LEDGE_RECT.maxX, WIDE_LEDGE_RECT.minZ, WIDE_LEDGE_RECT.maxZ]).toEqual([5.8, 20, 35.5, 48]);
-    expect([CAMP_DEN_RESERVE.minX, CAMP_DEN_RESERVE.maxX, CAMP_DEN_RESERVE.minZ, CAMP_DEN_RESERVE.maxZ]).toEqual([20, 26, 37, 43]);
+    // no mass over it
+    const over = MASSES.filter((m) => Math.min(m.maxX, CAMP_DEN.maxX) - Math.max(m.minX, CAMP_DEN.minX) > 1e-9
+      && Math.min(m.maxZ, CAMP_DEN.maxZ) - Math.max(m.minZ, CAMP_DEN.minZ) > 1e-9);
+    expect(over.map((m) => m.tag)).toEqual([]);
+    // its cap, at a corridor's headroom
+    const want = WIDE_LEDGE + CAMP_DEN_HEADROOM;
+    expect(want).toBeCloseTo(10.6, 12);
+    const caps = CEILINGS.filter((c) => c.minX === 20 && c.maxX === 26 && c.minZ === 37 && c.maxZ === 43);
+    expect(caps.map((c) => c.y0)).toEqual([want]);
+    // rock round it on three sides; the west side (x = 20) is its mouth onto the ledge
+    const masses = MASSES.filter((m) => m.kind === 'rock');
+    const badRock = [];
+    const r = CAMP_DEN;
+    const edges = [
+      { name: 'maxX', at: (t) => [r.maxX + 0.3, t], span: [r.minZ, r.maxZ] },
+      { name: 'minZ', at: (t) => [t, r.minZ - 0.3], span: [r.minX, r.maxX] },
+      { name: 'maxZ', at: (t) => [t, r.maxZ + 0.3], span: [r.minX, r.maxX] },
+    ];
+    for (const e of edges) {
+      for (let t = e.span[0]; t <= e.span[1] + 1e-9; t += 0.25) {
+        const [x, z] = e.at(Math.min(t, e.span[1]));
+        if (!masses.some((m) => inRect(m, x, z))) badRock.push([e.name, x, z]);
+      }
+    }
+    expect(badRock).toEqual([]);
+    // and the ground: the ledge's height inside, under the cap (inset by 1 mm)
+    const ground = gorgeGround();
+    expect(ground.y(23, 40)).toBe(8);
+    expect(ground.ceil(23, 40)).toBeCloseTo(want, 12);
+    const badCeil = [];
+    for (let x = r.minX + 0.05; x <= r.maxX - 0.05 + 1e-9; x += 0.5) {
+      for (let z = r.minZ + 0.05; z <= r.maxZ - 0.05 + 1e-9; z += 0.5) {
+        if (ground.y(x, z) !== 8 || Math.abs(ground.ceil(x, z) - want) > 1e-9) badCeil.push([x, z]);
+      }
+    }
+    expect(badCeil).toEqual([]);
+    // the B -> C turn stays outside the camp, open to all
     const TURN_BOX = [5.8, 20, 32, 35.5];
-    expect(TURN_BOX[3] <= WIDE_LEDGE_RECT.minZ).toBe(true); // the B -> C turn is outside it
+    expect(TURN_BOX[3] <= WIDE_LEDGE_RECT.minZ).toBe(true);
     expect(floodGorge().reached(13, 33.75)).toBe(true);
+  });
+
+  it('clan ground is every open ledge and path, never a lip, cave or small den', () => {
+    const box = (r) => [r.minX, r.maxX, r.minZ, r.maxZ];
+    expect(CLAN_STAND_ON.map(box)).toEqual([
+      ...STAND_ON.map(box),
+      [2.4, 5.4, -2, 34], // leg A
+      [2.4, 8.8, -8, -2], // the Lookout
+      [5.8, 8.8, -2, 32], // leg B
+      [5.8, 20, 32, 48], // the turn and the Wide Ledge
+      [9.2, 12.2, -18, 32], // leg C
+      [20, 26, 37, 43], // the camp den
+    ]);
+    // Cell centres (n * 0.5 + 0.25, Global Constraints), so no sample lands on
+    // a rect's edge, where the ground answers with the wall's height.
+    const { reached } = floodGorge();
+    const NONE = -1e9;
+    const alone = ALL_SHAPES.map((s) => ({ s, g: createGround({ base: NONE, strips: [toStrip(s)] }) }));
+    const topShape = (x, z) => {
+      let top = null;
+      let best = -Infinity;
+      for (const { s, g } of alone) {
+        const h = g.y(x, z);
+        if (h === NONE) continue;
+        if (h > best || (h === best && s.kind === 'rock')) {
+          best = h;
+          top = s;
+        }
+      }
+      return top;
+    };
+    const unreached = [];
+    const badShape = [];
+    let n = 0;
+    for (const r of CLAN_STAND_ON) {
+      for (let x = Math.ceil((r.minX - 0.25) / 0.5) * 0.5 + 0.25; x < r.maxX; x += 0.5) {
+        for (let z = Math.ceil((r.minZ - 0.25) / 0.5) * 0.5 + 0.25; z < r.maxZ; z += 0.5) {
+          n++;
+          if (!reached(x, z)) unreached.push([x, z]);
+          // the open floor, the approach and the Narrows have no shape: the base
+          const top = topShape(x, z);
+          if (top && top.kind !== 'walk' && top !== CAMP_DEN) badShape.push([x, z, top.tag]);
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(5000);
+    expect(unreached.slice(0, 10)).toEqual([]);
+    expect(badShape.slice(0, 10)).toEqual([]);
+    // never a deep cave, a small den or a lip
+    const lips = WALK_SHAPES.filter((s) => s.kind === 'lip');
+    const overlaps = [];
+    for (const o of [...CAVE_RECTS, ...GORGE_DENS, ...lips]) {
+      for (const r of CLAN_STAND_ON) {
+        const ox = Math.min(r.maxX, o.maxX) - Math.max(r.minX, o.minX);
+        const oz = Math.min(r.maxZ, o.maxZ) - Math.max(r.minZ, o.minZ);
+        if (ox > 1e-9 && oz > 1e-9) overlaps.push(o.tag);
+      }
+    }
+    expect(overlaps).toEqual([]);
+    expect(lips.length).toBeGreaterThan(0);
   });
 
   it('built the same every time', () => {
@@ -253,5 +357,7 @@ describe('the Gorge shape', () => {
     expect(shapes.every((s) => s.tone === 'rock' || s.tone === 'ledge')).toBe(true);
     expect(shapes.filter((s) => s.tone === 'rock').length).toBeGreaterThanOrEqual(MASSES.length);
     expect(shapes.some((s) => s.tone === 'ledge' && s.minX === 2.4 && s.maxZ === -18)).toBe(true); // the clifftop
+    // the camp den is roofed rock on the map, as the small dens are
+    expect(shapes).toContainEqual({ minX: 20, maxX: 26, minZ: 37, maxZ: 43, tone: 'rock' });
   });
 });

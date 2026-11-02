@@ -3,7 +3,7 @@ import * as b from './builder.js';
 import { litMaterial, surfaceProps } from '../render/materials.js';
 import { createWater } from '../render/water.js';
 import {
-  WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE,
+  WALK_SHAPES, MASSES, CEILINGS, GORGE_CAVES, GORGE_DENS, STAND_ON, CLAN_STAND_ON, WIDE_LEDGE_RECT, CAMP_DEN,
   FLOOR, CLIFFTOP, WEST_TOP, gorgeGround, mapShapes,
 } from './gorgeshape.js';
 import { GOLD_MICE } from '../goldmice.js';
@@ -48,9 +48,10 @@ import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 // something. The west wall is lower (9 m), so the view from the clifftop goes
 // over it towards the Moor.
 //
-// The three deep caves are cut into the rock here, but they are walked (lit,
-// dressed, and given a camera of their own) in part 3. The Wide Ledge's south
-// end and the den behind it wait for the camp: nothing is put there yet.
+// The three deep caves are cut into the rock here, and walked (lit, dressed,
+// and given a camera of their own) in part 3. CliffClan's camp (part 4) lives
+// on the Wide Ledge's south end, and its den is cut into the east rock behind
+// it: no scenery is scattered in either.
 //
 // Nothing here reads which way the game is being played: the Gorge builds the
 // same for everyone.
@@ -206,10 +207,10 @@ export const GORGE_KEEP_CLEAR = Object.freeze([
   ...NAPS, ...GORGE_HIDES, SPAWN, ...POSTS, RACE_PAD,
 ].map(({ x, z }) => Object.freeze([x, z])));
 
-// And the rectangles nothing is scattered in: every cave and den, the Wide
-// Ledge's south end and the den behind it (kept for the camp, part 4).
+// And the rectangles nothing is scattered in: every cave and den, and the
+// camp: the Wide Ledge's south end and the den behind it (part 4).
 export const GORGE_KEEP_CLEAR_RECTS = Object.freeze([
-  ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE,
+  ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN,
 ].map(({ minX, maxX, minZ, maxZ }) => Object.freeze({ minX, maxX, minZ, maxZ })));
 
 // --- the scenery ---------------------------------------------------------------
@@ -560,9 +561,11 @@ const MOMENTS = [
 ];
 
 // What the rock is drawn from: the walkable shapes and every cave and den
-// floor, the masses and the ceilings. The same records the ground is built
-// from, so what she stops at is what she sees.
-const ROCK_WALKS = Object.freeze([...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS]);
+// floor (the camp den's too), the masses and the ceilings. The same records
+// the ground is built from, so what she stops at is what she sees.
+export const ROCK_WALKS = Object.freeze([
+  ...WALK_SHAPES, ...GORGE_CAVES.flatMap((c) => c.rects), ...GORGE_DENS, CAMP_DEN,
+]);
 
 const GROUND_COLOR = 0x5f5d52;
 
@@ -690,6 +693,9 @@ export function build(scene, { water = {}, wind } = {}) {
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).
     keepOut: { rects: [], capsules: [], margin: 0.4, onlyOn: STAND_ON },
+    // Where a clan cat may stand (K4): the strays' ground plus the ledges,
+    // the path's legs and the camp den.
+    clanStandOn: CLAN_STAND_ON,
     // Someone lives in the Snug Cave (part 3, C8): the first ordinary stray
     // has its home in the chamber, and only the cave's bend and chamber to
     // stand on (ruling C-F2; they are not in STAND_ON, ruling F35).

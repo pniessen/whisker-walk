@@ -28,10 +28,13 @@ import { createGround } from '../ground.js';
 // a wall both ways. The cat stops at a low rock band she can see and never
 // hangs over a drop, and the legs only meet at their hairpins.
 //
-// KEPT FOR THE CAMP. The Wide Ledge's southern part (WIDE_LEDGE_RECT) and the
-// den in the rock behind it (CAMP_DEN_RESERVE, still solid rock) are tagged
-// `reserved: 'part 4'`: nothing is placed there until the camp is built. The
-// B -> C turn at the ledge's north end stays open to all.
+// THE CAMP (part 4). CliffClan lives on the Wide Ledge's southern part
+// (WIDE_LEDGE_RECT), and its den (CAMP_DEN) is cut into the east rock behind
+// it, at the ledge's own height, open to the ledge along x = 20. The den is
+// not a deep cave (it is lit, never darkened) and not a small den (no nap).
+// CLAN_STAND_ON is the clan's ground: the strays' ground plus every open
+// ledge and path leg and the camp den, so a clan cat can walk the cliff path
+// on patrol. The B -> C turn at the ledge's north end stays open to all.
 // =============================================================================
 
 // Heights (G6).
@@ -125,7 +128,7 @@ const LEG_A = rampZ(2.4, 5.4, 34, FLOOR, -2, LOOKOUT, 'legA');
 const LOOKOUT_LEDGE = rect(2.4, 8.8, -8, -2, LOOKOUT, 'lookout');
 const LEG_B = rampZ(5.8, 8.8, -2, LOOKOUT, 32, WIDE_LEDGE, 'legB');
 const TURN = rect(5.8, 20, 32, 35.5, WIDE_LEDGE, 'turn'); // the B -> C turn, open to all
-export const WIDE_LEDGE_RECT = Object.freeze({ ...rect(5.8, 20, 35.5, 48, WIDE_LEDGE, 'wideLedge'), reserved: 'part 4' });
+export const WIDE_LEDGE_RECT = rect(5.8, 20, 35.5, 48, WIDE_LEDGE, 'wideLedge'); // the camp's ledge
 const LEG_C = rampZ(9.2, 12.2, C_SOUTH, WIDE_LEDGE, C_NORTH, CLIFFTOP, 'legC');
 const CLIFF = rect(2.4, 34, -40, -18, CLIFFTOP, 'clifftop');
 const SNUG_STOP = rect(12.2, 15, 18.7, 21.7, SNUG_Y, 'snugStop');
@@ -181,8 +184,14 @@ export const GORGE_DENS = Object.freeze([
   den('denTop', 10, 12.6, -42.6, -40, CLIFFTOP, { x: 11.3, z: -40 }),
 ]);
 
-// The den behind the Wide Ledge, still rock until the camp opens it.
-export const CAMP_DEN_RESERVE = Object.freeze({ ...rect(20, 26, 37, 43, RIM, 'campDenReserve', 'rock'), reserved: 'part 4' });
+// CliffClan's den (K2): cut into the rock behind the Wide Ledge, at the
+// ledge's height, its mouth the middle of its open west side. A corridor's
+// headroom, room for kits to hop and for the close cave camera. Not in
+// GORGE_DENS (no nap) and not in GORGE_CAVES (never darkened).
+export const CAMP_DEN_HEADROOM = 2.6;
+export const CAMP_DEN = Object.freeze({
+  ...rect(20, 26, 37, 43, WIDE_LEDGE, 'campDen', 'den'), id: 'campDen', mouth: Object.freeze({ x: 20, z: 40 }),
+});
 
 // ---- Rock masses, cut round every opening ----
 const MASSES_UNCUT = [
@@ -199,12 +208,9 @@ const MASSES_UNCUT = [
 ];
 
 const CAVE_RECTS = GORGE_CAVES.flatMap((c) => c.rects);
-const OPENINGS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS, CAMP_DEN_RESERVE];
+const OPENINGS = [...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS, CAMP_DEN];
 
-export const MASSES = Object.freeze([
-  ...MASSES_UNCUT.flatMap((m) => subtractRects(m, OPENINGS)),
-  CAMP_DEN_RESERVE,
-]);
+export const MASSES = Object.freeze(MASSES_UNCUT.flatMap((m) => subtractRects(m, OPENINGS)));
 
 // ---- Ceilings: one cap over every cave and den rectangle, full size ----
 export const CEILINGS = Object.freeze([
@@ -213,6 +219,7 @@ export const CEILINGS = Object.freeze([
     return Object.freeze({ ...r, y0: r.y0 + headroom, y1: r.y0 + headroom });
   })),
   ...GORGE_DENS.map((d) => Object.freeze({ ...d, y0: d.y0 + DEN_HEADROOM, y1: d.y0 + DEN_HEADROOM })),
+  Object.freeze({ ...CAMP_DEN, y0: CAMP_DEN.y0 + CAMP_DEN_HEADROOM, y1: CAMP_DEN.y0 + CAMP_DEN_HEADROOM }),
 ]);
 
 // The ground's ceilings: each cap inset by CEIL_INSET, plus a thin bridge
@@ -263,9 +270,24 @@ export const STAND_ON = Object.freeze([
   { minX: 2.4, maxX: 34, minZ: -40, maxZ: -18 }, // the clifftop
 ].map(Object.freeze));
 
+// Where a clan cat may stand (K4): the strays' ground plus every open ledge
+// and path leg and the camp den. Never a lip, a deep cave, a small den or the
+// Snug Cave stop.
+export const CLAN_STAND_ON = Object.freeze([
+  ...STAND_ON,
+  ...[
+    { minX: 2.4, maxX: 5.4, minZ: -2, maxZ: 34 }, // leg A
+    { minX: 2.4, maxX: 8.8, minZ: -8, maxZ: -2 }, // the Lookout
+    { minX: 5.8, maxX: 8.8, minZ: -2, maxZ: 32 }, // leg B
+    { minX: 5.8, maxX: 20, minZ: 32, maxZ: 48 }, // the turn and the Wide Ledge
+    { minX: 9.2, maxX: 12.2, minZ: -18, maxZ: 32 }, // leg C
+    { minX: 20, maxX: 26, minZ: 37, maxZ: 43 }, // the camp den
+  ].map(Object.freeze),
+]);
+
 export const GORGE_GROUND_SPEC = Object.freeze({
   base: FLOOR,
-  strips: Object.freeze([...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS, ...MASSES].map((s) => Object.freeze(toStrip(s)))),
+  strips: Object.freeze([...WALK_SHAPES, ...CAVE_RECTS, ...GORGE_DENS, CAMP_DEN, ...MASSES].map((s) => Object.freeze(toStrip(s)))),
   discs: Object.freeze([]),
   ceilings: Object.freeze(groundCeilings()),
 });
@@ -282,6 +304,7 @@ export function mapShapes() {
     ...MASSES.map((s) => box(s, 'rock')),
     ...CAVE_RECTS.map((s) => box(s, 'rock')),
     ...GORGE_DENS.map((s) => box(s, 'rock')),
+    box(CAMP_DEN, 'rock'),
     ...WALK_SHAPES.map((s) => box(s, s.kind === 'lip' ? 'rock' : 'ledge')),
   ];
 }
