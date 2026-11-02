@@ -83,25 +83,44 @@ was a big step, but up close three things still read as a toy:
 - **Every cat gets it**: ready-made cats, Robbie, D2, Digit, the cat
   builder's custom cats, strays, clan cats, intruders and kittypets. Fluffy
   cats get the new ruff; short-haired cats have none, as today.
-- **Mesh count stays the same per cat** (the 31 full / 25 simple caps in
-  test/catmodel.test.js and test/catcustom.test.js, plus the fight build's
-  +1 for a scarred cat). Each leg stays **one limb mesh + one paw mesh**:
+- **Mesh count stays the same per cat.** The caps are per breed in
+  test/catmodel.test.js (30–31; Digit 34 full / 28 simple; simple = full − 6;
+  its "final mesh ceilings" test checks exact equality) and 31/25 in
+  test/catcustom.test.js; the fight build adds +1 only on a scarred cat. Each leg stays **one limb mesh + one paw mesh**:
   toes and claws are part of the paw's geometry (claws as vertex colour or a
   merged sliver), never extra meshes. The ruff stays inside the merged
   underside geometry.
-- **Triangles:** the smooth limbs and scalloped paws must fit the existing
-  per-cat triangle ceilings (8000 full / 5500 simple, per the cat-builder
-  plan's tests). The `simple` build (strays, clan cats, intruders) uses fewer
-  rings and sides so the iPhone 18 still holds 60 fps at a busy clan camp.
+- **Triangles** (builder-check ruling, Claude's call): the ceilings are
+  8,000 full / 5,500 simple (test/catmodel.test.js, test/catcustom.test.js).
+  Digit's full build already uses 7,876, and today's four legs+paws cost
+  1,344 triangles in every build. Target: the new legs+paws cost about the
+  same as today (roughly 350–400 per leg including the paw, e.g. a tube of
+  ~10 rings × 8–10 sides and a foot of ~12×8 before deformation; the
+  sketch's 28×16 counts are for looks only). If that can't hold the look,
+  the full-build ceiling may rise to 9,000 (simple stays 5,500); the plan
+  says so with measured numbers. The `simple` build never changed legs and
+  is also used for the remote co-walker, ghosts and rival strays, so a
+  sibling's cat looks the same on both screens: simple may use fewer sides,
+  never a different leg shape.
 - **The paw contract stays:** `leg.userData.paw` remains a separate mesh at
   `PAW_Y` with the sole where it is today, because the feet accessories
   (boots and the like) write `paw.scale` and the `shapedBall` comment in
   model.js explains why. The new paw shape lives in its geometry, as today.
   Boots and other feet items must still sit right on the new paw.
-- **Animation:** legs stay hip-pivoted groups (walk, trot, sit, pounce, swim
-  paddle, the fight actions). The knee and hock bends are baked into the
-  shape. Sit and lie-down poses must not push a paw or knee through the body
-  or the ground; the builder checks every pose in the animator.
+- **Animation:** legs stay hip-pivoted groups (walk, trot, pounce, swim
+  paddle, the fight actions).
+- **Sitting and lying down fold the legs (owner, 2026-11-01).** Today the
+  poses squash the whole leg group in y (nap 0.25, raised to ~0.42 by
+  `fitLongLegs`; sit via requestPet/perch: hind 0.45 rotated −0.5; stalk
+  0.7; the fight build's roll/pinned/pinning tuck the same way). With the
+  new legs they fold at the joints instead: sitting tucks the back legs
+  under the haunch with the foot flat in front, and napping folds all four
+  under the body. Same mesh count: the builder picks how (e.g. a skinned
+  limb with 2–3 bones, or baked fold shapes swapped per pose), within the
+  triangle budget. Stalk lowers the body by bending, not squashing. No paw,
+  knee or hock passes through the body or the ground in any pose; the
+  builder checks every animator pose, the fight build's tuck poses
+  included.
 - **Markings and accessories stay placed**: socks, points, D2's shoulder band,
   Robbie's white flanks and bib, the calico's patches, collars and neck items
   (which sit at `NECK_FORWARD`; on fluffy cats today they drop onto the front
@@ -117,6 +136,55 @@ was a big step, but up close three things still read as a toy:
   off by screenshot (before/after of each ready-made cat, a custom cat, a
   stray, a clan cat and Hagrid, in the game's own lighting). The write-once
   rule then applies again to the new files.
+
+### Builder-check rulings (Claude's calls)
+
+- **Hagrid keeps today's size and proportions** (body centre 0.42, head
+  centre 0.78, head radius 0.13 in the game); the sketch's details are
+  scaled to him (the sketch's "Today" Hagrid was drawn bigger than the
+  game's). Hats, face and neck items, the water fit, camera and fight
+  placement then need only small re-placements.
+- **Hagrid's 19-mesh cap holds** (test/catmodel.test.js): feathers, toes,
+  claws, scales, hackles and tail feathers are merged into a few
+  vertex-coloured meshes. Hagrid keeps ignoring `simple`.
+- **Hagrid's comb stays two pieces**, front and back halves of one joined
+  crest, because the animator drives `earL`/`earR` (rest ±0.22, twitch,
+  shake, cross) and those are the comb today.
+- **Hagrid's neck lives in the head group**, long enough at its lower end to
+  stay tucked into the body, with hackle feathers on the body covering the
+  join, so a nap or sniff that drops the head 0.18–0.24 never opens a gap.
+- **Leg colours keep each cat's scheme.** The limb is today's leg colour
+  (coat, belly for `whiteLegs`, point colour on a siamese) and the paw
+  today's paw colour (belly, white for `socks`, point colour). The only
+  blend is at the very top, toward the torso's own painted colour at that
+  spot (sampled from the coat paint), so the thigh never shows a patch the
+  coat doesn't have: Robbie's white flanks, calico patches and D2's white
+  underside stay right, and no ready-made cat gains socks.
+- **The bib is `s.belly`**, today's ruff colour (pale grey on the Persian,
+  tan on the Maine Coon, the belly colour on custom fluffy cats).
+- **The ruff stays on the torso** in the merged underside geometry, at the
+  game's z −0.30 (not the sketch's −0.36); it is small enough that a head
+  dropping in sniff or nap passes over it.
+- **Feet items keep a smooth paw:** boots and other feet items swap the paw
+  back to a plain rounded shape in the item's colour, with no toes or claws.
+- **Code a builder must keep working:**
+  - the limb stays the first child of each leg (the feet lift moves what
+    follows it; the leg-length pass rebuilds it);
+  - limbs are still built from a length (`limbGeometry(LEGS.LEN * legLen)`;
+    Digit's legs are 1.35×);
+  - `fitLongLegs`' ground cap assumes the paw centre sits `PAW_HALF`
+    (0.0384) above the sole; the new foot keeps that, or `PAW_HALF` changes
+    with it;
+  - the paw stays near today's z (−0.012) unless the plan moves it on
+    purpose and re-checks the fight build's `catPivot` (it reads the
+    hind-foot position);
+  - the test "a front leg is a plain limb" (front limb width < 0.12) is
+    updated on purpose for the shoulder.
+- **Hagrid's golden is write-once in code** (`UPDATE_GOLDEN` writes
+  hagrid-golden.json only if missing; its test is named "never changes"):
+  the regeneration commit deletes and rewrites it and renames the test,
+  after the owner's screenshot sign-off. The fight build forbids
+  regenerating goldens, which is fine since this lands after it.
 
 ## Constraints
 
