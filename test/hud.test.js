@@ -226,4 +226,10 @@ describe('HUD layout (style.css)', () => {
     });
   });
 
+  describe('desktop toasts', () => {
+    test('toasts sit above the prompt pill, and above the fight pill when it is up', () => {
+      expect(rule('.hud-toasts')).toContain('bottom: 146px');
+      expect(css).toMatch(/\n#hud\.fight-asking \.hud-toasts\s*\{[^}]*bottom: 210px/);
+    });
+  });
 });

@@ -94,10 +94,15 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px;
 }
 .goal.done { color: #7ee2a0; }
+/* Desktop: the interact prompt (.hud-prompt, bottom 96px, ~40px tall) tops out
+   near 136px, so a toast's bottom edge sits at 146px, ~10px clear of it. While
+   the fight challenge pill is up (two 48px buttons, ~100px tall, same bottom
+   96px) the toasts rise to 210px. Touch overrides both further down. */
 .hud-toasts {
-  position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: 146px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
+#hud.fight-asking .hud-toasts { bottom: 210px; }
 .toast {
   background: rgba(20,26,38,0.75); padding: 8px 18px; border-radius: 999px;
   transition: opacity 0.8s; font-size: 1.05rem;
