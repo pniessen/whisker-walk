@@ -135,7 +135,17 @@ export function wireLook(accessories) {
   return isObj(l) ? sanitizeLook(l) : null;
 }
 
-export function catProfileFields(state) {
+// The key her cat's scars are filed under: the active custom cat's id, else the
+// preset breed. Hagrid never scars, so he has no key.
+export function scarKey(state) {
+  const a = activeCat(state);
+  if (a.custom) return a.custom;
+  return a.breed === 'hagrid' ? null : a.breed;
+}
+
+// `scars` are render entries [{ site, stage, side }]; they ride the wire only
+// when there is one, so an unscarred profile is byte-identical to before.
+export function catProfileFields(state, scars = []) {
   const a = activeCat(state);
   const eq = state?.equipped ?? {};
   const accessories = {
@@ -143,5 +153,6 @@ export function catProfileFields(state) {
     body: eq.body ?? null, back: eq.back ?? null, feet: eq.feet ?? null,
   };
   if (a.look) accessories.look = a.look;
+  if (Array.isArray(scars) && scars.length > 0) accessories.scars = scars;
   return { breed: a.breed, accessories };
 }

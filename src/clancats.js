@@ -131,6 +131,9 @@ const yawToward = (x, z, tx, tz) => Math.atan2(tx - x, tz - z) + Math.PI;
 export function createClanCats(scene, area, cast, {
   campLayout = null, roamHomes = [], isWalkable = () => true, roomSeed, showNames = false,
   reducedMotion = false, onBuddyEnd = () => {}, areaId = area?.id ?? null,
+  // Fight moves and scars: a cast member's scars (scars.js render entries),
+  // applied at build. A member without any is built exactly as before.
+  scarsFor = () => [],
 } = {}) {
   const bounds = area?.bounds ?? null;
   const wanderBase = (roomSeed ?? (Math.random() * 2 ** 31)) >>> 0;
@@ -146,7 +149,8 @@ export function createClanCats(scene, area, cast, {
     if (!seat) continue;
     const camp = CAMP_RANKS.has(member.rank);
     const scale = RANK_SCALE[member.rank] ?? 1;
-    const group = buildCat(member.breed, undefined, { simple: true, style: member.style });
+    const scars = scarsFor(member.id);
+    const group = buildCat(member.breed, undefined, { simple: true, style: member.style, scars: Array.isArray(scars) ? scars : [] });
     group.scale.multiplyScalar(scale);
     group.position.set(seat.x, seat.y, seat.z);
     const face = camp

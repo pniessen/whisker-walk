@@ -32,11 +32,18 @@ export function edgeFor(special) {
   return Object.hasOwn(EDGE_BY_SPECIAL, special) ? EDGE_BY_SPECIAL[special] : null;
 }
 
-export function createFight({ rng, edge = null, reducedMotion = false }) {
+export function createFight({
+  rng, edge = null, reducedMotion = false, specials = [], actionTime = null, beatTime = TIMING.beat,
+}) {
   let clock = 0;
   let secondLookUsed = false;
 
-  const f = { phase: 'squareOff', round: 0, wins: 0, losses: 0, move: null, won: null };
+  const f = { phase: 'squareOff', round: 0, wins: 0, losses: 0, move: null, won: null, used: [] };
+  const owned = new Map();
+  for (const s of Array.isArray(specials) ? specials : []) {
+    if (s && typeof s.id === 'string' && typeof s.answers === 'string' && !owned.has(s.id)) owned.set(s.id, s.answers);
+  }
+  let actionLen = null;
 
   const startClue = (events) => {
     f.round += 1;
@@ -46,16 +53,27 @@ export function createFight({ rng, edge = null, reducedMotion = false }) {
     events.push({ type: 'clue', round: f.round, move: f.move });
   };
 
-  const endRound = (events, button) => {
-    const won = button !== null && COUNTER[f.move] === button;
-    if (won) f.wins += 1; else f.losses += 1;
-    events.push({ type: 'round', round: f.round, move: f.move, answer: button, won });
+  const endRound = (events, button, special = false) => {
+    let won;
+    if (special) {
+      const answers = owned.get(button);
+      won = answers === 'any' || answers === f.move;
+      if (won) f.wins += 2; else f.losses += 1;
+      f.used.push(button);
+    } else {
+      won = button !== null && COUNTER[f.move] === button;
+      if (won) f.wins += 1; else f.losses += 1;
+    }
+    const ev = { type: 'round', round: f.round, move: f.move, answer: button, won };
+    if (special) ev.special = true;
+    events.push(ev);
+    actionLen = typeof actionTime === 'function' ? actionTime(ev) : null;
     f.phase = 'tumble';
     clock = 0;
   };
 
   const windowLength = () => TIMING.answer + (edge === 'longerLook' ? LONGER_LOOK : 0);
-  const tumbleLength = () => (reducedMotion ? TIMING.tumbleReduced : TIMING.tumble);
+  const tumbleLength = () => (actionLen > 0 ? actionLen : (reducedMotion ? TIMING.tumbleReduced : TIMING.tumble));
 
   f.step = (dt) => {
     const events = [];
@@ -65,7 +83,7 @@ export function createFight({ rng, edge = null, reducedMotion = false }) {
       const len = f.phase === 'squareOff' ? TIMING.squareOff
         : f.phase === 'clue' ? windowLength()
         : f.phase === 'tumble' ? tumbleLength()
-        : TIMING.beat;
+        : beatTime;
       if (clock + left < len) { clock += left; break; }
       left -= len - clock;
       clock = 0;
@@ -76,9 +94,9 @@ export function createFight({ rng, edge = null, reducedMotion = false }) {
           events.push({ type: 'secondLook', round: f.round });
         } else endRound(events, null);
       } else if (f.phase === 'tumble') {
-        if (f.wins === 2 || f.losses === 2) {
+        if (f.wins >= 2 || f.losses >= 2) {
           f.phase = 'over';
-          f.won = f.wins === 2;
+          f.won = f.wins >= 2;
           events.push({ type: 'over', won: f.won });
         } else f.phase = 'beat';
       } else startClue(events);
@@ -89,8 +107,9 @@ export function createFight({ rng, edge = null, reducedMotion = false }) {
   f.answer = (button) => {
     const events = [];
     if (f.phase !== 'clue' || clock < TIMING.ignoreFirst) return events;
-    if (typeof button !== 'string' || !BUTTONS.includes(button)) return events;
-    endRound(events, button);
+    if (typeof button !== 'string') return events;
+    if (BUTTONS.includes(button)) endRound(events, button);
+    else if (owned.has(button) && !f.used.includes(button)) endRound(events, button, true);
     return events;
   };
 

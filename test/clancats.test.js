@@ -706,3 +706,30 @@ describe('patrol together (the buddy)', () => {
     expect(cat.buddy).not.toBe(null);
   });
 });
+
+// Fight moves and scars (Task 8): a camp cat she beat wears her scar, applied
+// at build from scarsFor(member.id). Every other member is built as before.
+describe('camp cats wear her scars', () => {
+  it('scarsFor returning a scar for one member gives that member (only) a scar mesh', () => {
+    const cast = castFor('woods').slice(0, 9);
+    const target = cast[3].id;
+    const asked = [];
+    const cats = createClanCats(fakeScene(), AREA, cast, {
+      campLayout: campLayout('woods'), roamHomes: roamHomes('woods', AREA, OPEN), isWalkable: OPEN, roomSeed: 42, areaId: 'woods',
+      scarsFor: (id) => { asked.push(id); return id === target ? [{ site: 'side', stage: 'half', side: 'r' }] : []; },
+    });
+    expect(asked).toEqual(expect.arrayContaining(cast.map((m) => m.id)));
+    const scarred = cats.list.filter((c) => c.group.userData.parts.scars);
+    expect(scarred.map((c) => c.id)).toEqual([target]);
+    expect(scarred[0].group.userData.parts.scars.castShadow).toBe(false);
+  });
+
+  it('without scarsFor, or with junk from it, nobody is scarred', () => {
+    const cast = castFor('woods').slice(0, 9);
+    const opts = { campLayout: campLayout('woods'), roamHomes: roamHomes('woods', AREA, OPEN), isWalkable: OPEN, roomSeed: 42, areaId: 'woods' };
+    for (const extra of [{}, { scarsFor: () => null }, { scarsFor: () => 'face' }]) {
+      const cats = createClanCats(fakeScene(), AREA, cast, { ...opts, ...extra });
+      expect(cats.list.some((c) => c.group.userData.parts.scars)).toBe(false);
+    }
+  });
+});

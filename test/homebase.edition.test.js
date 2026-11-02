@@ -294,3 +294,37 @@ describe('picking a clan', () => {
     expect(progression.state.clanPick.mine).toBe('woods');
   });
 });
+
+describe('Fighting moves in the Skills sheet', () => {
+  function clickBuy(id) {
+    const btn = { id: '', dataset: { buyMove: id } };
+    const target = { id: '', dataset: {}, closest: (sel) => (sel === '[data-buy-move]' ? btn : null) };
+    return doc.root.listeners.click({ target });
+  }
+  it('Clan Edition shows the section at the end of Skills; Legacy does not', () => {
+    const { progression } = setup();
+    openSheet('skills');
+    expect(doc.root.innerHTML).toContain('fight-moves-list');
+    expect(doc.root.innerHTML.indexOf('fight-moves-list')).toBeGreaterThan(doc.root.innerHTML.indexOf('Abilities earned'));
+    progression.setEdition('legacy');
+    openSheet('skills');
+    expect(doc.root.innerHTML).not.toContain('fight-moves-list');
+  });
+  it('tapping Learn now buys the move and charges the price', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('rearUpSwat');
+    expect(progression.ownedMoves()).toContain('rearUpSwat');
+    expect(progression.state.points).toBe(100);
+    expect(doc.root.innerHTML).not.toContain('data-buy-move="rearUpSwat"');
+  });
+  it('a tap that cannot buy changes nothing', async () => {
+    const { progression } = setup();
+    progression.state.points = 400;
+    openSheet('skills');
+    await clickBuy('leapScratch');
+    expect(progression.ownedMoves()).toEqual([]);
+    expect(progression.state.points).toBe(400);
+  });
+});

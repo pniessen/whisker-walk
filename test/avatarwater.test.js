@@ -187,3 +187,57 @@ describe('a pounce landing', () => {
     expect(h.sounds).not.toContain('wade');
   });
 });
+
+// Fight moves and scars (Task 8, R8): the new fight states go on the wire as
+// states every build knows; the drawn pose is still the fight's own.
+describe('my cat\'s fight pose on the wire', () => {
+  it('s.pose carries wirePose(pose) for every fight state', async () => {
+    const { WIRE_POSE } = await import('../src/fightactions.js');
+    for (const [fightPose, wire] of [...Object.entries(WIRE_POSE), ['swipe', 'swipe'], ['cross', 'cross']]) {
+      const h = harness();
+      h.at(20);
+      h.s.fight = {};
+      h.s.fightPose = fightPose;
+      h.tick(1);
+      expect(h.s.pose).toBe(wire);
+    }
+  });
+});
+
+// Live check (Task 10): her custom cat's own name tag rides the group, so a
+// fight's roll swung it under her and a rear-up swung it aside. It stays
+// straight above her through the fight and is back where it was after.
+describe('her own name tag in a fight', () => {
+  it('stays upright above her while she is pitched and rolled, and goes home after', () => {
+    const h = harness();
+    h.at(20);
+    const tag = new THREE.Object3D();
+    tag.position.set(0, 1.1, 0);
+    h.cat.add(tag);
+    h.cat.userData.ownTag = tag;
+    // from her torso centre (on the group's up axis at the body's height)
+    const above = () => {
+      h.cat.updateMatrixWorld(true);
+      const w = new THREE.Vector3();
+      tag.getWorldPosition(w);
+      const c = h.cat.localToWorld(new THREE.Vector3(0, h.cat.userData.parts.body.position.y, 0));
+      return { dx: w.x - c.x, dy: w.y - c.y, dz: w.z - c.z };
+    };
+    h.s.fight = {};
+    h.s.fightPose = 'roll';
+    for (const [pitch, roll] of [[0.9, 0], [0, Math.PI], [0.3, -2.2]]) {
+      h.s.fightPitch = pitch;
+      h.s.fightRoll = roll;
+      h.tick(1);
+      expect(h.cat.rotation.x).toBeCloseTo(pitch, 9);
+      const a = above();
+      expect(a.dx).toBeCloseTo(0, 6);
+      expect(a.dz).toBeCloseTo(0, 6);
+      expect(a.dy).toBeCloseTo((1.1 - h.cat.userData.parts.body.position.y) * h.cat.scale.y, 6);
+    }
+    h.s.fight = null;
+    h.s.fightPose = null;
+    h.tick(1);
+    expect([tag.position.x, tag.position.y, tag.position.z]).toEqual([0, 1.1, 0]);
+  });
+});

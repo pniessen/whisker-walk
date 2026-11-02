@@ -37,6 +37,7 @@ import { nowSec } from './game/util.js';
 import { setTextureAnisotropy } from './render/textures.js';
 import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
+import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
@@ -379,6 +380,9 @@ function init() {
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
     endClanPatrol,
+    // Fight moves and scars: her cat's scars changed; her brother and the
+    // cloud profile see it.
+    onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({
@@ -558,6 +562,7 @@ function init() {
     if (session && locked) {
       const line = takeArrivalLine(session);
       if (line) hud.toast(line);
+      for (const moveLine of takeMoveLines(session)) hud.toast(moveLine);
     }
   });
   bus.on('villager:wave', ({ id }) => {

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import {
-  WATERLINE, WATER_FIT, SINK_RATE, BOB, waterFit, sinkTarget, waterPose, applyWaterLook,
+  WATERLINE, WATER_FIT, SINK_RATE, BOB, SHAKE_ROLL, waterFit, sinkTarget, waterPose, applyWaterLook,
 } from '../src/cat/waterlook.js';
 import { createWaterState, SHAKE_TIME } from '../src/waterstate.js';
 import { PRESETS, fingerprintCat } from './helpers/catfingerprint.js';
@@ -311,5 +311,35 @@ describe('applyWaterLook amount default', () => {
     applyWaterLook(cat, st, 0.37, 1 / 60, false, 0);
     expect(Number.isFinite(cat.rotation.z)).toBe(true);
     expect(cat.rotation.z).not.toBe(0);
+  });
+});
+
+// Fight moves and scars (Task 6): a fight's pitch and roll reach the group
+// here, after the fight has placed the cat (R20); nothing else writes them.
+describe('applyWaterLook fight tilt', () => {
+  it('sets the fight\'s pitch and roll with yaw outermost, the shake added to the roll', () => {
+    const cat = buildCat('tabby');
+    const st = createWaterState();
+    applyWaterLook(cat, st, 0.5, 1 / 60, false, 0, 1, { pitch: 0.7, roll: -1.2 });
+    expect(cat.rotation.order).toBe('YXZ');
+    expect(cat.rotation.x).toBe(0.7);
+    expect(cat.rotation.z).toBe(-1.2);
+    st.shake = SHAKE_TIME;
+    applyWaterLook(cat, st, 0.37, 1 / 60, false, 0, 1, { pitch: 0, roll: 0.5 });
+    expect(cat.rotation.z).toBeCloseTo(0.5 + SHAKE_ROLL * Math.sin(0.37 * 30), 12);
+  });
+
+  it('with no tilt, x is 0 and z is today\'s', () => {
+    const cat = buildCat('tabby');
+    const st = createWaterState();
+    applyWaterLook(cat, st, 0.5, 1 / 60, false, 0, 1, { pitch: 0.7, roll: 1 });
+    applyWaterLook(cat, st, 0.5, 1 / 60, false, 0, 1);
+    expect(cat.rotation.x).toBe(0);
+    expect(cat.rotation.z).toBe(0);
+    applyWaterLook(cat, st, 0.5, 1 / 60, false, 0, 1, null);
+    expect(cat.rotation.x).toBe(0);
+    st.shake = SHAKE_TIME;
+    applyWaterLook(cat, st, 0.37, 1 / 60, false, 0, 1, null);
+    expect(cat.rotation.z).toBeCloseTo(SHAKE_ROLL * Math.sin(0.37 * 30), 12);
   });
 });

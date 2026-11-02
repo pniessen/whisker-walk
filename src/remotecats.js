@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
 import { wireLook } from './customcats.js';
+import { wireScars } from './scars.js';
 import { animateCat } from './cat/animator.js';
 import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
@@ -99,7 +100,9 @@ export function createRemoteCats(scene, { reducedMotion = false } = {}) {
       remove(profile.playerId); // rejoined with a different pet — drop the stale mesh and rebuild
     }
 
-    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look });
+    // Fight moves and scars (R7): her scars ride accessories.scars, repaired
+    // here; a changed scars key rebuilds through profileUnchanged above.
+    const group = buildCat(profile.breed, profile.accessories, { simple: true, look: profile.look, scars: wireScars(profile.accessories) });
     const tag = makeNameTag(profile.petName);
     if (tag) {
       tag.visible = true; // remote pets are always labeled, unlike strays

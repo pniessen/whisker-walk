@@ -414,3 +414,36 @@ describe('a custom look on the wire', () => {
     });
   });
 });
+
+// Fight moves and scars (Task 8): her brother sees her scar. Only
+// accessories.scars is new on the wire (R7), repaired by wireScars.
+describe('a co-walker wears the scars on its profile', () => {
+  const meshes = (g) => { let n = 0; g.traverse((o) => { if (o.isMesh) n++; }); return n; };
+  const SCAR = [{ site: 'face', stage: 'full', side: 'l' }];
+
+  it('a profile with accessories.scars builds one more mesh, named scars', () => {
+    const plain = createRemoteCats(fakeScene()).upsert(PROFILE, 0);
+    const scarred = createRemoteCats(fakeScene()).upsert({ ...PROFILE, accessories: { scars: SCAR } }, 0);
+    expect(meshes(scarred.group)).toBe(meshes(plain.group) + 1);
+    expect(scarred.group.userData.parts.scars?.name).toBe('scars');
+    expect(plain.group.userData.parts.scars).toBeUndefined();
+  });
+
+  it('junk scars build none and never throw', () => {
+    const plain = createRemoteCats(fakeScene()).upsert(PROFILE, 0);
+    for (const junk of ['face', 7, null, [{ site: 'ear', stage: 'full', side: 'l' }], [{ site: 'face', stage: 'raw', side: 'l' }], { 0: SCAR[0] }]) {
+      const e = createRemoteCats(fakeScene()).upsert({ ...PROFILE, accessories: { scars: junk } }, 0);
+      expect(meshes(e.group)).toBe(meshes(plain.group));
+    }
+  });
+
+  it('an unchanged scarred profile is not rebuilt; a changed stage is', () => {
+    const scene = fakeScene();
+    const remotes = createRemoteCats(scene);
+    const first = remotes.upsert({ ...PROFILE, accessories: { scars: SCAR } }, 0);
+    expect(remotes.upsert({ ...PROFILE, accessories: { scars: [{ ...SCAR[0] }] } }, 0)).toBe(first);
+    const next = remotes.upsert({ ...PROFILE, accessories: { scars: [{ ...SCAR[0], stage: 'half' }] } }, 0);
+    expect(next).not.toBe(first);
+    expect(scene.objects.size).toBe(1);
+  });
+});
