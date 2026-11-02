@@ -15,7 +15,7 @@
 import { rankFor, CATALOG } from '../progression.js';
 import { createNet, createSupabaseTransport, generateRoomCode } from '../net.js';
 import { seedFromCode } from '../rng.js';
-import { catProfileFields } from '../customcats.js';
+import { catProfileFields, scarKey } from '../customcats.js';
 import { roomAreaMove } from '../edition.js';
 import { decideLobbyEvent, pickRoomStart, walkersIn, START_GATHER_MS, MEMBER_GATHER_MS } from './lobby.js';
 
@@ -64,7 +64,7 @@ export function createRooms({
 
   function roomProfile() {
     const st = progression.state;
-    return { playerId: pid, petName: st.petName, ...catProfileFields(st) };
+    return { playerId: pid, petName: st.petName, ...catProfileFields(st, progression.catScars(scarKey(st))) };
   }
 
   // Re-publish the room profile (a cat or accessory changed while a room is
@@ -90,7 +90,7 @@ export function createRooms({
     if (!st.petName) return Promise.resolve();
     const cloud = getCloud();
     if (!cloud) return Promise.resolve();
-    const fields = catProfileFields(st);
+    const fields = catProfileFields(st, progression.catScars(scarKey(st)));
     return cloud.pushProfile({
       playerId: pid,
       secret: getPsecret(),

@@ -406,3 +406,47 @@ describe('a custom cat on the wire', () => {
     expect(mine.petName).toBe('Mittens');
   });
 });
+
+// Fight moves and scars (Task 8, R7): her cat's scars ride the profile, and
+// only when there is one.
+describe('her cat\'s scars on the wire', () => {
+  function pushing() {
+    const cloud = { pushProfile: vi.fn(async () => 'ok') };
+    const progression = createProgression(fakeStorage());
+    progression.setPetName('Mittens');
+    const made = createRooms({
+      MP: 1, pid: HOST, supabaseUrl: 'x', supabaseAnonKey: 'y',
+      progression, getCloud: () => cloud, getPsecret: () => 'sec', getSession: () => null, startWalk() {},
+      colonySync: { status: () => ({ mode: 'unpaired' }), pull() {} },
+      createTransport: () => createFakeHub().transport(),
+    });
+    return { cloud, progression, made };
+  }
+  const SLOTS = '"collar":null,"head":null,"face":null,"neck":null,"body":null,"back":null,"feet":null';
+
+  it('an unscarred profile is byte-identical to today', async () => {
+    const { cloud, made } = pushing();
+    expect(JSON.stringify(made.roomProfile())).toBe(`{"playerId":"${HOST}","petName":"Mittens","breed":"tabby","accessories":{${SLOTS}}}`);
+    await made.pushProfileNow();
+    expect(JSON.stringify(cloud.pushProfile.mock.calls[0][0])).toBe(
+      `{"playerId":"${HOST}","secret":"sec","petName":"Mittens","breed":"tabby","accessories":{${SLOTS},"home":null},"rankTitle":${JSON.stringify(cloud.pushProfile.mock.calls[0][0].rankTitle)}}`);
+  });
+
+  it('a scarred cat carries accessories.scars in the room profile and the push', async () => {
+    const { cloud, progression, made } = pushing();
+    expect(progression.scarCat('tabby', 'face')).toBe(true);
+    const scars = progression.catScars('tabby');
+    expect(scars).toHaveLength(1);
+    expect(made.roomProfile().accessories.scars).toEqual(scars);
+    await made.pushProfileNow();
+    expect(cloud.pushProfile.mock.calls[0][0].accessories.scars).toEqual(scars);
+  });
+
+  it('Hagrid sends no scars, whatever the save holds', async () => {
+    const { progression, made } = pushing();
+    progression.scarCat('tabby', 'face');
+    progression.state.unlocked.cats.push('hagrid');
+    progression.equipCat('hagrid');
+    expect(made.roomProfile().accessories).not.toHaveProperty('scars');
+  });
+});

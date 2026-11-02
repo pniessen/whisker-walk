@@ -187,3 +187,19 @@ describe('a pounce landing', () => {
     expect(h.sounds).not.toContain('wade');
   });
 });
+
+// Fight moves and scars (Task 8, R8): the new fight states go on the wire as
+// states every build knows; the drawn pose is still the fight's own.
+describe('my cat\'s fight pose on the wire', () => {
+  it('s.pose carries wirePose(pose) for every fight state', async () => {
+    const { WIRE_POSE } = await import('../src/fightactions.js');
+    for (const [fightPose, wire] of [...Object.entries(WIRE_POSE), ['swipe', 'swipe'], ['cross', 'cross']]) {
+      const h = harness();
+      h.at(20);
+      h.s.fight = {};
+      h.s.fightPose = fightPose;
+      h.tick(1);
+      expect(h.s.pose).toBe(wire);
+    }
+  });
+});

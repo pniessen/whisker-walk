@@ -475,3 +475,67 @@ describe('a crossing ends the walk the normal way (source pins)', () => {
     expect(s).toMatch(/return \{ beginWalkFromHomebase, beginDenWalk, startWalk, endWalk, takeCrossing/);
   });
 });
+
+// Fight moves and scars (Task 8): the wiring (source pins).
+describe('fights teach moves and leave scars (source pins)', () => {
+  const src = () => readFileSync('src/game/walk.js', 'utf8');
+
+  it('the clan fight acts unless she walks Hagrid, with her owned moves, the record and her measure', () => {
+    const s = src();
+    const at = s.indexOf('session.clanFight = ');
+    const line = s.slice(at, s.indexOf('NO_CLAN_FIGHT', at));
+    expect(line).toContain("actions: active.breed !== 'hagrid'");
+    expect(line).toContain('ownedMoves: ownedMovesNow');
+    expect(line).toContain('...fightRecord');
+    expect(line).toContain('measureCat: catDims');
+    expect(line).not.toContain('progression');
+    // both are built before that line, out of its slice
+    expect(s.indexOf('const fightRecord = createFightRecord(')).toBeGreaterThan(-1);
+    expect(s.indexOf('const fightRecord = createFightRecord(')).toBeLessThan(at);
+    expect(s.indexOf('const ownedMovesNow = () => progression.ownedMoves()')).toBeLessThan(at);
+    expect(s.indexOf('const ownedMovesNow = () => progression.ownedMoves()')).toBeGreaterThan(-1);
+  });
+
+  it('the record sets her scars on her cat and the intruder\'s on its visit', () => {
+    const s = src();
+    const rec = s.slice(s.indexOf('const fightRecord = createFightRecord('), s.indexOf('session.clanFight = '));
+    expect(rec).toContain('scarKey: myScarKey');
+    expect(rec).toContain('setMyScars: (scars) => setCatScars(cat, scars)');
+    expect(rec).toContain('setIntruderScars: (visit, scars) => session.intruders.setScars(visit, scars)');
+    expect(rec).toContain('onScarsChanged');
+  });
+
+  it("her own cat is built wearing its scars; intruders and camp cats wear theirs", () => {
+    const s = src();
+    expect(s).toMatch(/const cat = buildCat\(active\.breed, \{[^}]*\}, \{ look: active\.look, scars: progression\.catScars\(myScarKey\) \}\);/);
+    const intr = s.slice(s.indexOf('session.intruders = '), s.indexOf('session.clanFight = '));
+    expect(intr).toContain('scarsFor: (id) => progression.intruderScars(id)');
+    const clan = s.slice(s.indexOf('createClanCats(scene, areaData, clanCast, {'), s.indexOf('}) : NO_CLAN_CATS;'));
+    expect(clan).toContain('scarsFor: (id) => progression.intruderScars(id)');
+  });
+
+  it('walk start toasts moves granted on load, Clan Edition only (R18)', () => {
+    const s = src();
+    expect(s).toMatch(/if \(isClanEdition\(state\)\) for \(const id of progression\.takeNewMoves\(\)\) hud\.toast\(unlockToast\(id\)\);/);
+  });
+
+  it('endWalk re-pushes the profile when the fade changed her rendered scars', () => {
+    const s = src();
+    const end = s.indexOf('function endWalk(');
+    const before = s.indexOf('const scarsBefore = JSON.stringify(progression.catScars(scarKey(progression.state)));', end);
+    const done = s.indexOf('progression.completeWalk(', end);
+    const after = s.indexOf('if (JSON.stringify(progression.catScars(scarKey(progression.state))) !== scarsBefore) onScarsChanged();', end);
+    expect(before).toBeGreaterThan(end);
+    expect(before).toBeLessThan(done);
+    expect(after).toBeGreaterThan(done);
+  });
+
+  it('main.js hands walk.js the hook that re-tracks and re-pushes the profile', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    expect(m).toMatch(/onScarsChanged: \(\) => \{ rooms\.retrackProfile\(\); pushProfileNow\(\); \}/);
+  });
+
+  it('ghosts stay unscarred (R12)', () => {
+    expect(readFileSync('src/ghosts.js', 'utf8')).not.toContain('scars');
+  });
+});

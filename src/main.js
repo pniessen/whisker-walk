@@ -379,6 +379,9 @@ function init() {
     getPendingRoom, clearPendingRoom, pushProfileNow, startRoomTogether,
     awardStrayGreet, applyRemoteEvent, colonySync, qualityAdapter, denShop,
     endClanPatrol,
+    // Fight moves and scars: her cat's scars changed; her brother and the
+    // cloud profile see it.
+    onScarsChanged: () => { rooms.retrackProfile(); pushProfileNow(); },
   });
   // resumeWalk is a hoisted function declaration, so it is safe to pass here.
   crossing = createCrossing({

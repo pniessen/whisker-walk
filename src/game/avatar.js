@@ -18,6 +18,7 @@ import { shakeProgress } from '../waterstate.js';
 import { tagState, groomTimer } from '../verbs.js';
 import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
+import { wirePose } from '../fightactions.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
 
@@ -188,8 +189,10 @@ export function createAvatarUpdater({
     // Clan Life Part 2: the fight sets the pose (game/clanfight.js).
     if (s.fight && s.fightPose) { pose = s.fightPose; s.stretchTime = 0; }
     // s.pose stays the LAND pose: it is what goes on the wire, and every
-    // remote works out its own water look from where this cat is.
-    s.pose = pose;
+    // remote works out its own water look from where this cat is. The new
+    // fight states go out as states every build knows (R8); the drawn pose
+    // below stays `pose`.
+    s.pose = wirePose(pose);
     const reducedMotion = settings.get('reducedMotion');
     const ws = player.waterState;
     const amount = Math.sin(Math.PI * shakeProgress(ws));

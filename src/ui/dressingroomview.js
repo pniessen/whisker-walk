@@ -174,10 +174,14 @@ export function createDressingRoom({
     const m = model();
     // equipped slots with the try-on applied (the model already folds it in)
     const accessories = Object.fromEntries(m.slots.map((s) => [s.slot, s.itemId]));
-    const key = JSON.stringify([m.hero.breed, accessories, m.hero.look ? lookKey(m.hero.look) : null]);
+    // Fight moves and scars: a cat she owns shows its own scars (by its preset
+    // or custom id); a preview of one she doesn't, none.
+    const scars = m.hero.owned ? (progression.catScars?.(m.hero.id) ?? []) : [];
+    const key = JSON.stringify([m.hero.breed, accessories, m.hero.look ? lookKey(m.hero.look) : null, scars]);
     if (key !== lastShown || stage.failed) {
       lastShown = key;
-      stage.show(m.hero.breed, accessories, m.hero.look);
+      if (scars.length > 0) stage.show(m.hero.breed, accessories, m.hero.look, scars);
+      else stage.show(m.hero.breed, accessories, m.hero.look);
     }
   }
 

@@ -588,3 +588,49 @@ describe('createDressingRoom: her own cats and the builder', () => {
     });
   });
 });
+
+// Fight moves and scars (Task 8): the room's stage shows the shown cat's own
+// scars when it is hers; a preview of a cat she doesn't own, and the builder,
+// show none (and call the stage exactly as before).
+describe('createDressingRoom: her cat\'s scars on the stage', () => {
+  function real() {
+    const map = new Map();
+    const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
+    const stage = { mount() {}, show: vi.fn(), failed: false };
+    const dr = createDressingRoom({
+      progression, sync: { autoSync: vi.fn() }, stage, onChange: vi.fn(), onProfileChange: vi.fn(), snapCustom: () => ({}),
+      thumbs: { cats: {}, accessories: {}, mine: {} },
+    });
+    return { dr, progression, stage };
+  }
+
+  it('a scarred preset she walks shows its scars', () => {
+    const { dr, progression, stage } = real();
+    const breed = progression.state.equipped.cat;
+    progression.scarCat(breed, 'face');
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show.mock.calls.at(-1)).toEqual([breed, expect.any(Object), null, progression.catScars(breed)]);
+    expect(progression.catScars(breed)).toHaveLength(1);
+  });
+
+  it('a scarred custom cat shows its own scars, by its id', () => {
+    const { dr, progression, stage } = real();
+    const id = progression.createCustomCat({ name: 'Ash', personality: 'steady', look: DEFAULT_LOOK });
+    progression.equipCustom(id);
+    progression.scarCat(id, 'back');
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show.mock.calls.at(-1)).toEqual(['mainecoon', expect.any(Object), DEFAULT_LOOK, progression.catScars(id)]);
+  });
+
+  it('a preview of a cat she does not own, and the builder, show no scars', () => {
+    const { dr, progression, stage } = real();
+    progression.scarCat(progression.state.equipped.cat, 'face');
+    const locked = Object.keys(CATALOG.cats).find((id) => !progression.isUnlocked('cats', id) && id !== 'hagrid');
+    dr.handleClick(click({ drCat: locked }));
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show.mock.calls.at(-1)).toHaveLength(3);
+    dr.handleClick(click({ drMake: '' }));
+    dr.afterRender({ id: 'dr-stage' });
+    expect(stage.show.mock.calls.at(-1)).toHaveLength(3);
+  });
+});
