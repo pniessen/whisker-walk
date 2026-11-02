@@ -1271,7 +1271,11 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   }
 
   // neck: at the neck seam, where the collar also sits, NECK_FORWARD ahead of
-  // where it sat on the old torso so it lies on the deeper chest
+  // where it sat on the old torso so it lies on the deeper chest. Every neck
+  // piece (and the neck prize's) is recorded in head.userData.neckwear, so the
+  // animator carries them on the neck with the collar (animator.js fitNeck).
+  const neckwear = [];
+  let neckFrom = head.children.length;
   if (accessories.neck === 'bandana') {
     const tri = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.17, 3), mat(0x3a6ea5));
     tri.rotation.x = Math.PI;
@@ -1306,10 +1310,15 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     head.add(tail);
   }
 
+  neckwear.push(...head.children.slice(neckFrom));
+
   // visit prizes (collar prizes go through buildCollar above)
   addPrizeHead(head, accessories.head, { k: 1, y: 0.24, rx: 0.11, rz: 0.07 });
   addPrizeFace(head, accessories.face, { k: 1, x: 0.083, y: 0.03, z: -0.17, starZ: -0.19, skull: [0.21, 0.193, 0.1995] });
+  neckFrom = head.children.length;
   addPrizeNeck(head, accessories.neck, { k: 1, y: -0.15 + neckY, z: 0.08 + neckZ, ringR: 0.15 });
+  neckwear.push(...head.children.slice(neckFrom));
+  if (neckwear.length) head.userData.neckwear = neckwear;
 
   // body: over the torso — hoodie is a shell plus a hood, cape drapes behind/down.
   // The three shells are the torso's own geometry, inflated (more on the back

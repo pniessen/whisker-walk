@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { animateCat } from '../src/cat/animator.js';
+import { animateCat, refitNeck } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
+import { closeDiffs } from './helpers/closeto.js';
 
 // The real rig, built exactly the way strays are ({ simple: true }, which
 // skips whiskers) — poses are only meaningful against the model's declared
@@ -391,11 +392,14 @@ describe('animateCat: the walking tail is carried in a soft S (polish 1a, Task 5
     expect(base0(0.3)).toBeGreaterThan(base0(0));
     expect(base0(1.5)).toBeGreaterThan(base0(0.3));
   });
-  it('the stalk, the sniff and the fight poses keep their own tails', () => {
+  it('the stalk and the fight poses keep their own tails; the sniff keeps the resting curl, not the carriage', () => {
     for (const s of ['stalk', 'cross', 'scared']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 1.3, 1.5, false);
       for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBe(0);
     }
+    // the carriage is a walking 'follow' only: a sniffing cat on the move keeps its curl
+    const sniff = buildCat('tabby'); animateCat(sniff, 'sniff', 1.3, 1.5, false);
+    for (const p of sniff.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28, 6);
   });
 });
 
@@ -444,11 +448,100 @@ describe("animateCat: Digit's tag collar follows the neck in the stalk (polish 1
     });
   }
 
+  // Fix wave I1: the sniff and the pinned pose carry the collar on the neck too.
+  // (Lower and flatter than the stalk, so only the ring's place on the neck and
+  // the tag showing are pinned here, not the stalk's tag-to-chest distances.)
+  for (const state of ['sniff', 'pinned']) for (const t of [0.7, 1.3]) {
+    it(`${state} t ${t}: the ring keeps its place on the neck; the tag shows`, () => {
+      const cat = posed(state, t, 0), p = parts(cat);
+      expect(ringOffset(cat).distanceTo(restOffset), 'ring on the neck').toBeLessThanOrEqual(0.01);
+      const skull = p.head.children[0], muzzle = p.head.children[1];
+      const tagC = new THREE.Box3().setFromObject(p.tag, true).getCenter(new THREE.Vector3());
+      expect(inside(skull, 0.21, tagC) || inside(muzzle, 0.09, tagC), 'the tag shows').toBe(false);
+    });
+  }
+  // keepChestUnderHead holds the chest at the UNYAWED point (T + S·c) when the
+  // torso yaws, so the posed chest must be read through the underside: a body
+  // turned side-on under a neck pose still keeps the ring on the neck.
+  it('a yawed torso (pinned, turned 0.3 rad): the ring still keeps its place on the neck', () => {
+    for (const yaw of [0.3, -0.34]) {
+      const cat = posed('pinned', 1.3, 0);
+      cat.userData.parts.body.rotation.y = yaw;
+      refitNeck(cat, 'pinned');
+      cat.updateMatrixWorld(true);
+      expect(ringOffset(cat).distanceTo(restOffset), `yaw ${yaw}`).toBeLessThanOrEqual(0.01);
+    }
+  });
+
   it('standing, the collar sits exactly where it was built; leaving the stalk puts it back', () => {
     const fresh = buildCat('digit').userData.parts.head.getObjectByName('collar');
     const cat = posed('stalk', 1.3, 0); animateCat(cat, 'follow', 1.3, 0, false);
     const c = cat.userData.parts.head.getObjectByName('collar');
     expect(c.position.toArray()).toEqual(fresh.position.toArray());
     expect(c.quaternion.toArray()).toEqual(fresh.quaternion.toArray());
+  });
+});
+
+// Fix wave I3: the neck-slot pieces (bandana, necktie, bowtie, scarf, the
+// streamer scarf) hang on the head at the collar's seam. In a COLLAR_ON_NECK
+// pose they ride the neck with the collar (the same rigid move), so a scarf's
+// ring never sticks out under the chin; every other pose puts them back.
+describe('animateCat: neckwear rides the neck with the collar (fix wave I3)', () => {
+  const PIECES = { bandana: 1, necktie: 2, bowtie: 3, scarf: 2, streamerscarf: 6 };
+  // an item's move from where it was built, in the head's frame: posed · built⁻¹
+  const moveOf = (item, built) => {
+    item.updateMatrix(); built.updateMatrix();
+    return item.matrix.clone().multiply(built.matrix.clone().invert()).toArray();
+  };
+  it('the head records its neck pieces at build time, and only those', () => {
+    for (const [neck, n] of Object.entries(PIECES)) {
+      const head = buildCat('tabby', { collar: 'bell', neck }).userData.parts.head;
+      expect(head.userData.neckwear, neck).toHaveLength(n);
+      for (const item of head.userData.neckwear) expect(item.parent, neck).toBe(head);
+      expect(head.userData.neckwear.includes(head.userData.collar), neck).toBe(false);
+    }
+    expect(buildCat('tabby').userData.parts.head.userData.neckwear ?? []).toEqual([]);
+    expect(buildCat('tabby', { neck: 'scarf' }, { simple: true }).userData.parts.head.userData.neckwear).toHaveLength(2);
+  });
+  for (const state of ['stalk', 'sniff', 'pinned']) for (const neck of ['scarf', 'bowtie']) {
+    it(`${state}, ${neck}: every piece makes the collar's move; leaving the pose restores them exactly`, () => {
+      const fresh = buildCat('tabby', { collar: 'bell', neck }).userData.parts.head;
+      const cat = buildCat('tabby', { collar: 'bell', neck });
+      const head = cat.userData.parts.head;
+      animateCat(cat, state, 1.3, 0, false);
+      const collarMove = moveOf(head.userData.collar, fresh.userData.collar);
+      // the collar did move: otherwise "same move" would be vacuous
+      expect(head.userData.collar.position.distanceTo(fresh.userData.collar.position)).toBeGreaterThan(0.005);
+      head.userData.neckwear.forEach((item, i) => {
+        expect(closeDiffs(moveOf(item, fresh.userData.neckwear[i]), collarMove, 1e-6), `${neck} piece ${i}`).toEqual([]);
+      });
+      animateCat(cat, 'follow', 1.3, 0, false);
+      head.userData.neckwear.forEach((item, i) => {
+        expect(item.position.toArray()).toEqual(fresh.userData.neckwear[i].position.toArray());
+        expect(item.quaternion.toArray()).toEqual(fresh.userData.neckwear[i].quaternion.toArray());
+      });
+    });
+  }
+  it('with no collar, a scarf makes the move a collar would have made', () => {
+    const withCollar = buildCat('tabby', { collar: 'bell', neck: 'scarf' });
+    const bare = buildCat('tabby', { neck: 'scarf' });
+    const fresh = buildCat('tabby', { neck: 'scarf' }).userData.parts.head;
+    animateCat(withCollar, 'stalk', 1.3, 0, false); animateCat(bare, 'stalk', 1.3, 0, false);
+    const wHead = withCollar.userData.parts.head, bHead = bare.userData.parts.head;
+    bHead.userData.neckwear.forEach((item, i) => {
+      expect(closeDiffs(moveOf(item, fresh.userData.neckwear[i]), moveOf(wHead.userData.neckwear[i], fresh.userData.neckwear[i]), 1e-6)).toEqual([]);
+    });
+    expect(bHead.userData.neckwear[0].position.distanceTo(fresh.userData.neckwear[0].position)).toBeGreaterThan(0.005);
+  });
+  it('standing and walking, the neck pieces stay exactly as built', () => {
+    const fresh = buildCat('tabby', { neck: 'bowtie' }).userData.parts.head;
+    for (const [state, speed] of [['follow', 0], ['follow', 1.5], ['cross', 0], ['nap', 0]]) {
+      const head = buildCat('tabby', { neck: 'bowtie' }).userData.parts.head;
+      animateCat(head.parent, state, 1.3, speed, false);
+      head.userData.neckwear.forEach((item, i) => {
+        expect(item.position.toArray(), state).toEqual(fresh.userData.neckwear[i].position.toArray());
+        expect(item.quaternion.toArray(), state).toEqual(fresh.userData.neckwear[i].quaternion.toArray());
+      });
+    }
   });
 });
