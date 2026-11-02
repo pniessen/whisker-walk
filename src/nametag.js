@@ -157,6 +157,47 @@ export const CROSS_NAME_TAG_RANGE = 12;
 // tabby's highest point rose, rounded up to 1 cm, so the margins are kept:
 // TAG_Y = 1.05 + 0.13: tabby 'follow' max 0.9684 vs 0.8467 before (+0.1217).
 // CROSS_TAG_Y = 1.32 + 0.06: tabby 'cross' max 1.0382 vs 0.9848 (+0.0534).
+// Camp declutter: at a camp only the CAMP_TAG_MAX tags nearest her cat show
+// (the buddy's always one of them), and a shown tag fades over the last
+// TAG_FADE_M metres of its reveal range. Pure; render-only callers.
+export const CAMP_TAG_MAX = 2;
+export const TAG_FADE_M = 1;
+// entries: [{ d, range, keep }] -> Map<entry, opacity>. Entries absent from the
+// map are hidden. In range only; `keep` first, then nearest (ties by list
+// order); at most `max`. The nearest shown entry is always fully opaque.
+// `out`: a Map to fill (cleared first), so a per-frame caller allocates
+// nothing; a fresh one when left out.
+const picked = []; // scratch: the indices chosen so far (no per-call allocation)
+// Whether entry i (e) goes before entry j (f): keep first, then nearer, then earlier.
+const before = (e, i, f, j) => (e.keep !== f.keep ? !!e.keep : e.d !== f.d ? e.d < f.d : i < j);
+export function tagBudget(entries, max = CAMP_TAG_MAX, out = new Map()) {
+  out.clear();
+  if (!entries || !(max > 0)) return out;
+  // max is small (2): pick the best unpicked in-range entry max times, a
+  // stable partial selection sort with no arrays or wrappers built
+  picked.length = 0;
+  let nearest = null;
+  for (let k = 0; k < max; k++) {
+    let bi = -1;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      if (!e || !(e.d < e.range) || picked.includes(i)) continue;
+      if (bi < 0 || before(e, i, entries[bi], bi)) bi = i;
+    }
+    if (bi < 0) break;
+    picked.push(bi);
+    const e = entries[bi];
+    if (!nearest || e.d < nearest.d) nearest = e;
+  }
+  for (const i of picked) {
+    const e = entries[i];
+    const f = (e.range - e.d) / TAG_FADE_M;
+    out.set(e, e === nearest ? 1 : Math.min(1, Math.max(0, f)));
+  }
+  picked.length = 0;
+  return out;
+}
+
 export const TAG_Y = 1.18;
 export const CROSS_TAG_Y = 1.38;
 

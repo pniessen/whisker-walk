@@ -201,17 +201,23 @@ export const PINES_KEEP_OUT = Object.freeze({
 // 44..50, by the bay's south-east pocket; the bay's south shore keeps its foam.
 const WATER_COLOR = 0x5f98a8;
 const MIRE_COLOR = 0x4a5a48;
+// The four bogs are small stands of still, peat-stained water: a murky
+// green-brown (olive-brown, hue ~0.16, lightness ~0.24) that style 'bog' keeps murky all the
+// way down and edges with a dull green-brown instead of white foam. The two
+// mires keep their own dour grey-green on the clear ramp (a gentler foam band
+// only): a big dark water that stays dark is the Black Mire's identity.
+const BOG_COLOR = 0x4a4a28;
 const WATER_LOOK = {
-  lake: { y: 0.03, shores: ['minZ'] },
-  'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'] },
-  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'] },
-  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'] },
-  'bog-1': { y: 0.03, color: MIRE_COLOR },
-  'bog-2': { y: 0.03, color: MIRE_COLOR },
-  'bog-3': { y: 0.03, color: MIRE_COLOR },
-  'bog-4': { y: 0.03, color: MIRE_COLOR },
-  'moor-river': { y: 0.035, shores: [] },
-  'moor-mouth': { y: 0.045, shores: [] },
+  lake: { y: 0.03, shores: ['minZ'], foamStrength: 0.22 },
+  'lake-bay': { y: 0.025, shores: ['minX', 'minZ', 'maxZ'], foamStrength: 0.22 },
+  'mire-north': { y: 0.035, color: MIRE_COLOR, shores: ['minX', 'maxX'], foamStrength: 0.25 },
+  'mire-west': { y: 0.02, color: MIRE_COLOR, shores: ['minZ', 'maxZ', 'maxX'], foamStrength: 0.25 },
+  'bog-1': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
+  'bog-2': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
+  'bog-3': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
+  'bog-4': { y: 0.03, color: BOG_COLOR, style: 'bog', foamStrength: 0.25 },
+  'moor-river': { y: 0.035, shores: [], foamStrength: 0.22 },
+  'moor-mouth': { y: 0.045, shores: [], foamStrength: 0.22 },
 };
 
 // The paths, as [x1, z1, x2, z2] centreline segments, all 3 m wide. The truce

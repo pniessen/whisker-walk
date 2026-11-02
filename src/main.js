@@ -39,6 +39,7 @@ import { waterClearance, nearestDry } from './world/builder.js';
 import { takeArrivalLine } from './housecats.js';
 import { takeMoveLines } from './fightmoves.js';
 import { createCrossing, swallowsCanvasClick } from './game/crossing.js';
+import { sheetTopFrom } from './fightcam.js';
 
 // stable per-browser identity for co-walk rooms — generated once and cached,
 // survives reloads so a mid-walk refresh doesn't orphan a room membership.
@@ -704,6 +705,10 @@ function init() {
   const mapRemotePool = [];
   // The tree fade's look point (the cat at CAT_LOOK_Y), mutated every frame.
   const treeFadeLook = { x: 0, y: 0, z: 0 };
+  // The fight camera frames the pair just above the fight sheet (Task 5b):
+  // the sheet's height is fightui's --fight-sheet-h on #hud, an inline style
+  // read (no layout), only while a fight is on.
+  const hudEl = document.getElementById('hud');
   const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null, posts: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
@@ -821,7 +826,7 @@ function init() {
           toyPos.z += (dz / d) * step;
         }
       }
-      session.weather.update(dt, camera.position);
+      session.weather.update(dt, camera.position, camera);
       // After the weather: a rainbow's sun write becomes the base the Gorge shades.
       session.areaLife.update(dt, t, session.cat.position, camera);
       session.secrets.update(dt, t, session.cat.position, player.speed);
@@ -838,6 +843,7 @@ function init() {
       // fight is on, no tree hides either cat (src/fightcam.js).
       session.fightCam?.update(dt, {
         subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
+        sheetTop: session.clanFight.cameraSubject ? sheetTopFrom(parseFloat(hudEl?.style.getPropertyValue('--fight-sheet-h')), window.innerHeight) : null,
       });
       // The tree fade, over the camera's final place this frame: a tree between
       // it and the cat (at CAT_LOOK_Y, the fight camera's look) turns
@@ -921,6 +927,7 @@ function init() {
       // canal and the foliage down with them reads as the whole world
       // lurching, which is the same reason skyLife and weather sit here.
       session.water.update(dt);
+      session.waterDress.update(dt);
       // Re-fits the sun's shadow frustum around the view. It reads where the
       // camera ended up this frame, which is why it
       // has to sit AFTER player.update above (which is what moves the camera)

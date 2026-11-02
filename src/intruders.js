@@ -482,7 +482,8 @@ export function createIntruders(scene, areaId, {
       if (cur.tag) {
         const range = cur.tag.userData?.revealRange ?? NAME_TAG_RANGE;
         cur.tag.visible = catPos ? Math.hypot(catPos.x - g.position.x, catPos.z - g.position.z) < range
-          && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z)) : false;
+          && (!G || G.sameLevel(catPos.x, catPos.z, g.position.x, g.position.z))
+          && !(cur.state === 'held' && heldByMe()) : false;
       }
     },
     // The walk's one contact-shadow follower (see above).

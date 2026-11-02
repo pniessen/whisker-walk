@@ -36,10 +36,16 @@ export function renderChallengeHtml({ name, clan } = {}) {
 }
 
 const count = (n) => (Number.isFinite(n) ? Math.max(0, Math.min(2, Math.floor(n))) : 0);
+// One score paw: a main pad and four toes. Won = filled gold with a dark edge;
+// empty = a bright gold outline only, so both read on the dark sheet.
+const PAW_PARTS = '<ellipse cx="12" cy="16" rx="5.2" ry="4.4"/><ellipse cx="5.2" cy="11" rx="2.1" ry="2.7"/><ellipse cx="9.3" cy="6.6" rx="2.1" ry="2.8"/><ellipse cx="14.7" cy="6.6" rx="2.1" ry="2.8"/><ellipse cx="18.8" cy="11" rx="2.1" ry="2.7"/>';
+const PAW_ON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="#ffc93c" stroke="#5a3800" stroke-width="1.2">${PAW_PARTS}</svg>`;
+const PAW_OFF = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#ffd45a" stroke-width="1.8">${PAW_PARTS}</svg>`;
 const pips = (n) => {
   const on = count(n);
-  return [0, 1].map((i) => (i < on ? '<span class="pip on">🐾</span>' : '<span class="pip">🐾</span>')).join('');
+  return [0, 1].map((i) => (i < on ? `<span class="pip on">${PAW_ON}</span>` : `<span class="pip">${PAW_OFF}</span>`)).join('');
 };
+const side = (who, n) => `<span class="fight-side" role="img" aria-label="${who}: ${count(n)} of 2">${who} ${pips(n)}</span>`;
 
 // The clue icon a special answers, shown on its own button so the hint is
 // always there (Rolling Tumble answers anything).
@@ -77,7 +83,7 @@ export function renderFightHtml({ phase, clue, wins, losses, line, specials = []
   const head = typeof line === 'string' && line ? line : showClue ? '' : FIGHT_READ;
   const idle = phase === 'clue' ? '' : ' idle';
   return '<div class="fight-top">'
-    + `<div class="fight-pips"><span class="fight-side">You ${pips(wins)}</span><span class="fight-side">It ${pips(losses)}</span></div>`
+    + `<div class="fight-pips">${side('You', wins)}${side('It', losses)}</div>`
     + (head ? `<div class="fight-line">${escapeHtml(head)}</div>` : '')
     + (showClue
       ? `<div class="fight-clue"><span class="fight-clue-icon">${escapeHtml(clue.icon)}</span><span class="fight-clue-text">${escapeHtml(clue.text)}</span></div>`
