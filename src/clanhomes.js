@@ -22,7 +22,7 @@ export const HOMES = Object.freeze({
   river: row(['pines', 'woods'], true),
   moor: row(['woods', 'pines'], true),
   pines: row(['river', 'moor'], true),
-  gorge: row([], false), // named now; pickable once the Gorge is built
+  gorge: row([], false), // named now; pickable once its camp is built
 });
 
 // Places where no clan patrols, ever.

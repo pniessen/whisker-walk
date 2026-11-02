@@ -113,3 +113,28 @@ describe('clanPickerModel', () => {
     expect(html).toContain('data-clan-pick="moor"');
   });
 });
+
+// Final review M2: the greyed card's text was about 3:1. With no opacity on
+// the card, white text, the .92 small line and the .8 "coming soon" all reach
+// 4.5:1 over both of the gradient's stops.
+describe('the greyed clan card (style.css)', () => {
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  it('reads at 4.5:1 or better', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.dr \.dr-home\.dr-home-off \{([^}]*)\}/)[1];
+    expect(rule).not.toMatch(/opacity/);
+    const stops = rule.match(/#[0-9a-f]{6}/gi);
+    expect(stops).toHaveLength(2);
+    for (const stop of stops) {
+      const bg = rgb(stop);
+      for (const a of [1, 0.92, 0.8]) {
+        const fg = bg.map((c) => a + c * (1 - a));
+        expect(ratio(fg, bg), `${stop} at ${a}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+});

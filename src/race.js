@@ -73,7 +73,7 @@ function disposeGroup(group) {
 // Gorge part 2: each ring stores its ground y and counts only when the cat is
 // on that ring's level (ground.sameLevel; always true on flat ground, so every
 // other race is unchanged). kind 'climb' is the Gorge's fixed course; it only
-// changes the pad's prompt.
+// changes the pad's prompt and what finishing it is called (finishLabel).
 export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 'daily' } = {}) {
   const group = new THREE.Group();
 
@@ -131,6 +131,13 @@ export function createRace(scene, course, spawn, { ground = FLAT_GROUND, kind = 
     },
     get pad() {
       return padPosition;
+    },
+    get kind() {
+      return kind;
+    },
+    // the discovery-log line the finish pays under (main.js)
+    get finishLabel() {
+      return kind === 'climb' ? 'the climb to the clifftop' : 'the daily zoomies race';
     },
     // update(dt, catPos) — while running, accumulates elapsed time and
     // checks the cat against ONLY the current ring (rings[currentRing - 1]);

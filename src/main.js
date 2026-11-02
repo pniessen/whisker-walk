@@ -896,7 +896,7 @@ function init() {
         // 'running' would otherwise reopen the same hole silently. The
         // awardOnce return (0 when already seen this walk, points otherwise)
         // is the same per-walk dedup the perch tally now rides.
-        const racePaid = log.awardOnce('goal', 'race-done', 'the daily zoomies race');
+        const racePaid = log.awardOnce('goal', 'race-done', session.race.finishLabel);
         if (racePaid > 0) progression.recordFeat?.('race');
         session.fx.burst(session.cat.position, 0xffe27a, 14);
       }

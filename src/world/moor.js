@@ -295,8 +295,8 @@ export const MOOR_TRAIL = Object.freeze([
 // The way in to the Gorge (Gorge part 2): a 2 m track from the north path's
 // bend at (34, -8) east to the border at (50, -11), where the Gorge's Narrows
 // path begins (its (-50, -11): a Moor point (x, z) is the Gorge point
-// (x - 100, z)). It passes 3.4 m from the moor-gorge post and keeps 1 m of
-// edge off the tor at (42, -6). Its own constant, like MOOR_TRAIL and for the
+// (x - 100, z)). Its centreline passes 3.41 m from the moor-gorge post at
+// (47.5, -14) and it keeps 1 m of edge off the tor at (42, -6). Its own constant, like MOOR_TRAIL and for the
 // same reason, and filtered last in the same way.
 export const MOOR_GORGE_TRAIL = Object.freeze([
   [34, -8, 50, -11],
@@ -304,7 +304,9 @@ export const MOOR_GORGE_TRAIL = Object.freeze([
 export const TRAIL_W = 2;
 // Whether (x, z) is at least `d` from both trails. It is the last filter in
 // each scatter export, applied to the finished lists, so no rng draw, cap or
-// spacing check changes and nothing but the trees and beds on a trail moves.
+// spacing check changes: the trees and beds on a trail go, and nothing else
+// moves. (A bed after a removed one can be drawn as a different cushion
+// shape, as the shapes are dealt down the list; its position stays.)
 const TRAILS = [...MOOR_TRAIL, ...MOOR_GORGE_TRAIL];
 const trailClear = (x, z, d) => TRAILS.every((seg) => segDist(x, z, ...seg) >= d);
 const BED_TRAIL_CLEAR = TRAIL_W / 2 + 0.8; // the paths' 2.3 m rule less 0.5 m

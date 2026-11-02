@@ -29,18 +29,18 @@ vi.stubGlobal('document', {
 const gorge = await import('../src/world/gorge.js');
 const { build: buildPines } = await import('../src/world/pines.js');
 const {
-  shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater, waterGap, PINE_CONES, PINE_TRUNK,
+  shallowExcess, rooftopSpots, ROOFTOP_SALT, inWater, waterGap, PINE_CONES, PINE_TRUNK, capTopFor,
 } = await import('../src/world/builder.js');
 const { surfaceProps } = await import('../src/render/materials.js');
 const {
   CLIFFTOP, SHOULDER, WEST_TOP, STAND_ON, GORGE_CAVES, GORGE_DENS, WIDE_LEDGE_RECT, CAMP_DEN_RESERVE, mapShapes,
+  CEILINGS, MASSES,
 } = await import('../src/world/gorgeshape.js');
 const { segDist } = await import('../src/segdist.js');
 const { GOLD_MICE } = await import('../src/goldmice.js');
 const { propsFor } = await import('../src/propsets.js');
 const { canReach } = await import('../src/climbing.js');
 const { clearSpot } = await import('../src/world/spots.js');
-const { createGoals, GOAL_POOL } = await import('../src/goals.js');
 const { mulberry32 } = await import('../src/rng.js');
 const { OUTSIDE_WORDS, RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } = await import('../src/clanwords.js');
 const { cameraOffset } = await import('../src/catcam.js');
@@ -62,6 +62,10 @@ const built = () => {
 const { scene, area } = built();
 scene.updateMatrixWorld(true);
 const STREAM = GORGE_WATERS[0];
+
+// The scan in Global Constraints: a book place name, or a scanned word.
+const BOOK = /gathering|four ?trees|moon|high ?stones|high ?rock|high ?ledge|mother ?mouth|sunning|snake ?rocks|tall ?pines|rock ?pile|sky ?oak|hollow|rushing water/i;
+const SCANNED = /\b(kit|apprentice|warrior|elder|queen|medicine cat|deputy|leader|loner|rogue|kittypet|twolegplace|clan)\b/i;
 
 // Distance from (x, z) to an axis-aligned rectangle (0 inside it).
 const rectDist = (d, x, z) => Math.hypot(Math.max(d.minX - x, 0, x - d.maxX), Math.max(d.minZ - z, 0, z - d.maxZ));
@@ -307,8 +311,6 @@ describe('the Gorge: the area record', () => {
       ...[...area.pois, ...area.scenics, ...area.collectibles, ...area.moments, ...area.perches]
         .map((o) => o.label).filter(Boolean),
     ];
-    const BOOK = /gathering|four ?trees|moon|high ?stones|high ?rock|high ?ledge|mother ?mouth|sunning|snake ?rocks|tall ?pines|rock ?pile|sky ?oak|hollow|rushing water/i;
-    const SCANNED = /\b(kit|apprentice|warrior|elder|queen|medicine cat|deputy|leader|loner|rogue|kittypet|twolegplace|clan)\b/i;
     for (const l of labels) {
       expect(l).not.toMatch(BOOK);
       expect(l).not.toMatch(SCANNED);
@@ -317,10 +319,8 @@ describe('the Gorge: the area record', () => {
 });
 
 
-// The scan in Global Constraints, and test/clanwords.test.js's borrowedIn
-// (every borrowed word, matched as a whole word, case-blind).
-const BOOK = /gathering|four ?trees|moon|high ?stones|high ?rock|high ?ledge|mother ?mouth|sunning|snake ?rocks|tall ?pines|rock ?pile|sky ?oak|hollow|rushing water/i;
-const SCANNED = /\b(kit|apprentice|warrior|elder|queen|medicine cat|deputy|leader|loner|rogue|kittypet|twolegplace|clan)\b/i;
+// test/clanwords.test.js's borrowedIn (every borrowed word, matched as a
+// whole word, case-blind). The scan's BOOK and SCANNED are at the top.
 const BORROWED = [...Object.values(OUTSIDE_WORDS), ...Object.values(RANK_WORDS), ...Object.values(PLACE_WORDS), CLAN_SUFFIX];
 const borrowedIn = (text) => BORROWED.filter((w) => new RegExp(`\\b${w}\\b`, 'i').test(text));
 
@@ -518,22 +518,13 @@ describe('the Gorge: things to find, climb and nap in', () => {
     }
   });
 
-  it('goals: every goal drawn in the Gorge can be finished there', () => {
+  // (test/goalsarea.test.js draws the Gorge's goals over 400 seeds and finds
+  // no tipping, box or head-scratch goal among them.)
+  it('goals: the Gorge has nothing to tip, no box and no villager', () => {
     // nothing Twoleg-made to tip or sit in, and no villagers to scratch a head
     expect(area.tippables).toEqual([]);
     expect(area.boxes).toEqual([]);
     expect(area.critterSpawns.some((c) => c.type === 'villager')).toBe(false);
-  });
-
-  it('the Gorge never offers tipping, a box or head scratches', () => {
-    const seen = new Set();
-    for (let i = 0; i < 400; i++) {
-      for (const g of createGoals(mulberry32(1000 + i * 7919), area).goals) seen.add(g.id);
-    }
-    expect(seen.has('tip-things')).toBe(false);
-    expect(seen.has('box-sit')).toBe(false);
-    expect(seen.has('get-scratches')).toBe(false);
-    expect(seen.size).toBe(GOAL_POOL.length - 3);
   });
 
   it('carries its mice, the goat, one moment, five naps and three hides', () => {
@@ -903,6 +894,14 @@ describe('the Gorge: the climb race', () => {
     expect(run(course, { x: 5.0, z: 19.6 }).currentRing).toBe(2);
   });
 
+  // Final review M4: the course and the pad pinned to the numbers table.
+  it("the climb's five rings and its pad are the table's", () => {
+    expect(area.raceCourse.map(({ x, z }) => [x, z])).toEqual([[-3, 6], [3.9, 28], [5.6, -5], [10.5, 33.5], [16, -24]]);
+    const climb = raceMod.createRace(sceneStub(), area.raceCourse, area.spawn, { ground: area.ground, kind: 'climb' });
+    expect(climb.pad).toEqual({ x: -42, z: -14 });
+    expect(GORGE_KEEP_CLEAR).toContainEqual([-42, -14]);
+  });
+
   it("the climb race's pad says race to the clifftop", () => {
     const climb = raceMod.createRace(sceneStub(), area.raceCourse, SPAWN, { ground: area.ground, kind: 'climb' });
     const daily = raceMod.createRace(sceneStub(), area.raceCourse, SPAWN, { ground: area.ground });
@@ -1231,5 +1230,21 @@ describe('the Gorge: no stray or ghost goes under a roof', () => {
         expect(overlap, `STAND_ON ${JSON.stringify(r)} over ${JSON.stringify(h)}`).toBe(false);
       }
     }
+  });
+});
+
+// Final review M3: how high each cave's and den's roof is drawn (the cap from
+// its ceiling up to the highest rock beside it): 9 m under the west wall, 20 m
+// under the rims, 14 m under the shoulder.
+describe('the Gorge: the roofs over the caves and dens', () => {
+  it('each cap tops out at the rock it is cut into', () => {
+    const want = (tag) => {
+      if (tag.startsWith('echo-') || tag === 'denW1' || tag === 'denW2') return WEST_TOP;
+      if (tag === 'denLookout') return SHOULDER;
+      return 20; // the Snug and Glitter Caves, denE, denTop
+    };
+    expect(CEILINGS).toHaveLength(14);
+    for (const c of CEILINGS) expect(capTopFor(c, MASSES), c.tag).toBe(want(c.tag));
+    expect([WEST_TOP, SHOULDER]).toEqual([9, 14]);
   });
 });

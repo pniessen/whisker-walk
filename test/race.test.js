@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { raceCourse, createRace } from '../src/race.js';
 import { mulberry32 } from '../src/rng.js';
 
@@ -111,6 +113,21 @@ describe('createRace', () => {
     expect(race.promptAt({ x: padPos.x + 20, z: padPos.z })).toBeNull();
     race.begin();
     expect(race.promptAt(padPos)).toBeNull(); // no re-triggering once running
+  });
+
+  // Final review M1: the Gorge's climb paid out as "the daily zoomies race".
+  it('names its kind, and what finishing it is called', () => {
+    const daily = createRace(fakeScene(), makeCourse(), SPAWN);
+    expect(daily.kind).toBe('daily');
+    expect(daily.finishLabel).toBe('the daily zoomies race');
+    const climb = createRace(fakeScene(), makeCourse(), SPAWN, { kind: 'climb' });
+    expect(climb.kind).toBe('climb');
+    expect(climb.finishLabel).toBe('the climb to the clifftop');
+  });
+
+  it('main.js pays the finish under the race\'s own name', () => {
+    const src = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+    expect(src).toContain("log.awardOnce('goal', 'race-done', session.race.finishLabel)");
   });
 
   it('update does nothing while idle (no time accrues, prompts still work)', () => {

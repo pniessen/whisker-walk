@@ -2962,8 +2962,9 @@ function shapeY(s, x, z) {
 
 const strictlyIn = (s, x, z) => x > s.minX && x < s.maxX && z > s.minZ && z < s.maxZ;
 
-// The highest mass touching r along an edge, or overlapping it.
-function capTopFor(r, masses) {
+// The highest mass touching r along an edge, or overlapping it: how high a
+// cave or den ceiling's cap is drawn (exported for test/gorge.test.js).
+export function capTopFor(r, masses) {
   let top = -Infinity;
   for (const m of masses) {
     const ox = Math.min(r.maxX, m.maxX) - Math.max(r.minX, m.minX);

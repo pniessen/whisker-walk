@@ -4,7 +4,9 @@
 // from her drawing; keep them as she placed them.
 //
 // A 'built' territory is a walkable area (areaId names its CATALOG.areas
-// entry); 'soon' ones are drawn but not walkable yet; 'later' is unexplored.
+// entry). Every territory listed is built now; the model and the map still
+// know 'soon' (drawn, not walkable yet) and 'later' (unexplored) for the next
+// one drawn before it is walkable.
 import { PLACE_WORDS } from './clanwords.js';
 import { placeName, isClanEdition } from './edition.js';
 import { castFor, CLAN_COLOURS } from './clancast.js';

@@ -333,15 +333,14 @@ describe('buildMapLayer', () => {
       const layer = buildMapLayer(areaData, scene);
       expect(layer.rock).toEqual([]);
       expect(layer.paths).toEqual(flatFootprints(scene).filter((f) => f.kind === 'strip'));
-      // The same layer without the rock key (what every map was before the
-      // Gorge) paints the very same calls.
-      const { rock, ...before } = layer;
-      const paintOf = (l) => {
-        const { map, canvas } = makeMap({ areaId, layer: l });
-        map.update({ cx: areaData.spawn.x, cz: areaData.spawn.z, heading: 0.3 }, EMPTY_FRAME);
-        return canvas.ops;
-      };
-      expect(paintOf(layer)).toEqual(paintOf(before));
+      // Painted, it has no rock: no fill in either rock tone, and no clip but
+      // the map's round face and (where there are islands) the islands' two.
+      const { map, canvas } = makeMap({ areaId, layer });
+      map.update({ cx: areaData.spawn.x, cz: areaData.spawn.z, heading: 0.3 }, EMPTY_FRAME);
+      const ROCK_FILLS = ['rgba(92,86,80,0.55)', 'rgba(214,198,170,0.85)'];
+      expect(canvas.ops.some((o) => ROCK_FILLS.includes(o.fillStyle))).toBe(false);
+      const islands = layer.water.some((w) => (w.islands ?? []).length > 0);
+      expect(canvas.ops.filter((o) => o.op === 'clip')).toHaveLength(islands ? 3 : 1);
     });
   }
 

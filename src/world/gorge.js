@@ -160,7 +160,7 @@ const COLLECTIBLES = [
 // mouse on top (src/goldmice.js). The colliders sit under the perches, so a
 // cat walks round the rocks and up onto them; the pillar is as wide at its
 // foot as its collider. It stands south of z -27, in the afternoon sun (G5),
-// and 6 m and more from every rim, so a cat can always walk round it (G13).
+// and 5 m and more from every rim, so a cat can always walk round it (G13).
 const PILLAR = { y: 1.9, r: 0.9, rTop: 0.75, rBottom: 0.9, sides: 7 };
 const SUMMIT_ROCK = { x: 25, z: -24 };
 const SUMMIT_BOULDER = { x: 24, z: -23, r: 0.7 };

@@ -896,7 +896,9 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .dr-home .dr-home-tag { font-weight: 700; opacity: 1; }
 .dr-home.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
 /* a clan whose camp isn't built yet: greyed, and nothing happens on a tap */
-.dr .dr-home.dr-home-off { background: linear-gradient(165deg, #9a9a94, #6c6c66); opacity: .75; cursor: default; }
+/* no opacity on the card: its white text (and the .8 "coming soon") keeps
+   4.5:1 over the lighter stop (6.1:1 bold, 5.5:1 small, 4.6:1 coming soon) */
+.dr .dr-home.dr-home-off { background: linear-gradient(165deg, #62625c, #4a4a46); cursor: default; }
 .dr-home-both { margin: 8px 0 0; font-weight: 700; }
 @media (max-width: 480px) { .dr-homes { grid-template-columns: 1fr 1fr; gap: 8px; } }
 .home-welcome { margin: 0; font-weight: 700; }

@@ -629,7 +629,7 @@ describe('fights teach moves and leave scars (source pins)', () => {
 // Gorge G9, end to end: walk.js drops the goat and its leap on a no-goat day,
 // by the UTC date, right after the build (Task 7 tested goatForDay alone).
 describe("the goat's day in a Gorge walk", () => {
-  const days = Array.from({ length: 40 }, (_, i) => `2026-11-${String((i % 30) + 1).padStart(2, '0')}`);
+  const days = Array.from({ length: 30 }, (_, i) => `2026-11-${String(i + 1).padStart(2, '0')}`);
   const goatDay = days.find((d) => goatToday(d));
   const noGoatDay = days.find((d) => !goatToday(d));
 

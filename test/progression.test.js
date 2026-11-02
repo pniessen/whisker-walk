@@ -394,9 +394,14 @@ describe('createProgression', () => {
     p.setEdition('canon');
     p.setArea('gorge');
     expect(p.state.area).toBe('gorge');
+    // the Clan pick survives the switch to Legacy...
     p.setEdition('legacy');
-    p.setArea('gorge');
     expect(p.state.area).toBe('gorge');
+    // ...but once she moves to a Legacy place, Legacy won't set the Gorge again
+    p.setArea('neighborhood');
+    expect(p.state.area).toBe('neighborhood');
+    p.setArea('gorge');
+    expect(p.state.area).toBe('neighborhood');
   });
 
   it('a fresh save counts Gorge walks from 0', () => {
