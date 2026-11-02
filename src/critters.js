@@ -324,28 +324,21 @@ export function createCritters(scene, spawns, opts = {}) {
     list.splice(list.indexOf(c), 1);
   }
 
-  // The nearest cover within HIDE_SEARCH of `p` on its own level (G9: the
-  // goat never runs at the floor's hides), falling back to the nearest at any
-  // level when none is on its own; null when there is none in reach. On flat
-  // ground every hide is on its level, so the choice is today's.
+  // The nearest cover within HIDE_SEARCH of `p` on its own level, or null
+  // (G9: the goat never runs at the floor's hides). With none on its level it
+  // does its ordinary dash and comes back, so it never runs at a rim all walk.
+  // On flat ground every hide is on its level, so the choice is today's.
   function nearestHide(p) {
     let best = null;
     let bestD = Infinity;
-    let any = null;
-    let anyD = Infinity;
     for (const h of hides) {
       const d = Math.hypot(h.x - p.x, h.z - p.z);
-      if (d > HIDE_SEARCH) continue;
-      if (d < anyD) {
-        anyD = d;
-        any = h;
-      }
-      if (d < bestD && ground.sameLevel(p.x, p.z, h.x, h.z)) {
+      if (d <= HIDE_SEARCH && d < bestD && ground.sameLevel(p.x, p.z, h.x, h.z)) {
         bestD = d;
         best = h;
       }
     }
-    return best ?? any;
+    return best;
   }
 
   // Into cover, for good. A caught critter was already paid for, so only one

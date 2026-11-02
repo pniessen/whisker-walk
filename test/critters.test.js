@@ -7,6 +7,7 @@ import {
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
+import { FLAT_GROUND } from '../src/ground.js';
 import { propsFor } from '../src/propsets.js';
 
 // A scene stand-in — createCritters only ever add()s and remove()s groups, so
@@ -912,8 +913,11 @@ describe('createCritters — the mountain goat (Gorge G9)', () => {
   });
 
   it('a goat never runs for a hide on another level', () => {
-    const floorHides = propsFor('gorge').hides.filter((h) => ground.y(h.x, h.z) === 0);
-    expect(floorHides.length).toBeGreaterThan(0);
+    // The map's floor hides, and one on the floor 4 m from the goat, the
+    // nearest of all and well inside HIDE_SEARCH.
+    const NEAR_FLOOR = { x: 0, z: -16 };
+    expect(ground.y(NEAR_FLOOR.x, NEAR_FLOOR.z)).toBe(0);
+    const floorHides = [NEAR_FLOOR, ...propsFor('gorge').hides.filter((h) => ground.y(h.x, h.z) === 0)];
     const c = createCritters(scene, [GOAT], { ground, hides: floorHides });
     const goat = c.list[0];
     const last = { x: 4, z: -16 };
@@ -925,6 +929,7 @@ describe('createCritters — the mountain goat (Gorge G9)', () => {
     let fled = 0;
     for (let f = 0; f < 5 * 60; f++) {
       frame(c, goat, away, last);
+      expect(goat.hideAt ?? null).toBe(null); // never the floor's cover
       if (goat.fleeing) fled++;
     }
     expect(fled).toBeGreaterThan(2.5 * 60);
@@ -934,14 +939,18 @@ describe('createCritters — the mountain goat (Gorge G9)', () => {
     expect(goat.group.position.y).toBe(SHOULDER);
   });
 
-  it('with no cover on its own level within reach, a critter falls back to the nearest cover', () => {
-    // A mouse on the floor below the shoulder; the only cover in reach is the goat's, 14 m up.
-    const c = createCritters(scene, [{ type: 'mouse', x: -2, z: -16, x2: -2, z2: -16 }], { ground, hides: [GOAT_HIDE] });
-    const mouse = c.list[0];
-    c.update(1 / 60, 1, catAt(-3, -16), catAt(-3, -16));
-    expect(mouse.fleeing).toBe(true);
-    expect(mouse.hideAt.x).toBe(GOAT_HIDE.x);
-    expect(mouse.hideAt.z).toBe(GOAT_HIDE.z);
+  it('with no ground, hides are chosen exactly as before', () => {
+    // Two hides 5 m off on either side: the first listed wins the tie, as it
+    // always has, with no ground and with the flat ground passed in.
+    for (const opts of [{}, { ground: FLAT_GROUND }]) {
+      for (const [a, b] of [[{ x: 5, z: 0 }, { x: -5, z: 0 }], [{ x: -5, z: 0 }, { x: 5, z: 0 }]]) {
+        const c = createCritters(scene, [{ type: 'mouse', x: 0, z: 0, x2: 0, z2: 0 }], { ...opts, hides: [a, b, { x: 0, z: 9 }] });
+        const mouse = c.list[0];
+        c.update(1 / 60, 1, V(0, -3), V(0, -3));
+        expect(mouse.fleeing).toBe(true);
+        expect([mouse.hideAt.x, mouse.hideAt.z]).toEqual([a.x, a.z]);
+      }
+    }
   });
 
   it("a goat can't be stalked, pounced or called", () => {
