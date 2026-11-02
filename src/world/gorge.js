@@ -119,7 +119,7 @@ export const GORGE_PATHS = Object.freeze([
 // A clear canyon day: blue sky over a warm haze (which is also the fog).
 export const GORGE_SKY = Object.freeze({ top: 0x86bde6, horizon: 0xeed8b8 });
 const PATH_W = 3;
-export const PATH_STYLE = { surface: 'sand', color: 0xb8a27e };
+export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
@@ -438,10 +438,15 @@ export function gorgeScree() {
 // banks of the stream, and small grass tufts on the clifftop and the two open
 // ledges. Seeded by its own name; every candidate draws all its numbers
 // whether it is kept or not. Visual only: nothing here is read by the walk.
-// Clifftop patches and tufts sit 2 cm up so they cannot z-fight the rock at
-// distance; floor bank patches stay under the path strips (y 0.01).
-const MEADOW_LIFT_TOP = 0.02;
-const MEADOW_LIFT_BANK = 0.008;
+// Depth ordering over the ground beneath (every patch, top and bank, and every
+// tuft base, sits MEADOW_LIFT = 6 mm up): the material has polygonOffset
+// factor -1 / units -1, so it beats the ledgeTops and the ground plane (no
+// offset) and cannot sink behind them. It ties the paw prints (PRINT_Y 0.012,
+// -1/-1, physically higher so they win) and loses to the contact-shadow decals
+// (DECAL_Y 0.015, -2/-2), so prints and the cat's ground shadow show on the
+// meadow. Patch cells keep MEADOW_PATH_CLEAR off every path, so they never
+// compete with the path strips.
+const MEADOW_LIFT = 0.006;
 // A cell's centre this far off a path keeps its whole 1 m footprint off the strip.
 export const MEADOW_PATH_CLEAR = PATH_W / 2 + 0.75;
 const CLIFF_INSET = 0.6;
@@ -462,7 +467,10 @@ export function gorgeMeadow() {
   const g = shapeGround();
   const rng = mulberry32(seedFromCode('gorge-meadow'));
   const patches = [];
-  const clear = (x, z) => pathDist(x, z) >= MEADOW_PATH_CLEAR && keepClearDist(x, z) >= 1.2 && holeDist(x, z) > 0;
+  // Patch cells do not skip keep-clear points: a flat colour overlay cannot
+  // hide a find, and dropping cells there left hard-edged bare squares that
+  // read as rugs. Only the tufts (3D) keep their 1.2 m rule.
+  const clear = (x, z) => pathDist(x, z) >= MEADOW_PATH_CLEAR && holeDist(x, z) > 0;
   // the clifftop: 1 m cells inset off the lips
   const x0 = CLIFF.minX + CLIFF_INSET, x1 = CLIFF.maxX - CLIFF_INSET;
   const z0 = CLIFF.minZ + CLIFF_INSET, z1 = CLIFF.maxZ - CLIFF_INSET;
@@ -472,7 +480,7 @@ export function gorgeMeadow() {
       const cx = (ax + bx) / 2, cz = (az + bz) / 2;
       rng(); // every cell draws its number whether kept or not
       if (g.y(cx, cz) !== CLIFFTOP || !clear(cx, cz) || !oneShape(cx, cz, 0.7)) continue;
-      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT_TOP, kind: 'top' }));
+      patches.push(Object.freeze({ x0: r2(ax), z0: r2(az), x1: r2(bx), z1: r2(bz), y: CLIFFTOP + MEADOW_LIFT, kind: 'top' }));
     }
   }
   // the banks: 1 m cells on the floor either side of the water
@@ -483,7 +491,7 @@ export function gorgeMeadow() {
         const cx = (ax + bx) / 2, cz = az + 0.5;
         rng();
         if (g.y(cx, cz) !== FLOOR || !clear(cx, cz) || rectDist(STEPPING_STONES, cx, cz) < 0.5 || !oneShape(cx, cz, 0.7)) continue;
-        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT_BANK, kind: 'bank' }));
+        patches.push(Object.freeze({ x0: r2(ax), z0: az, x1: r2(bx), z1: az + 1, y: FLOOR + MEADOW_LIFT, kind: 'bank' }));
       }
     }
   }
@@ -561,7 +569,7 @@ function meadowMesh() {
       const px = -Math.sin(a) * w, pz = Math.cos(a) * w;
       const tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
       const h = t.s * (0.85 + 0.15 * k);
-      const y = t.y + MEADOW_LIFT_TOP;
+      const y = t.y + MEADOW_LIFT;
       // front and back, so a blade shows from both sides
       vert(bx - px, y, bz - pz, tc); vert(bx + px, y, bz + pz, tc); vert(tx, y + h, tz, tip);
       vert(bx + px, y, bz + pz, tc); vert(bx - px, y, bz - pz, tc); vert(tx, y + h, tz, tip);
@@ -575,8 +583,11 @@ function meadowMesh() {
   // The 'grass' preset's light response with no map (surfaceProps leaves it
   // off): a texture would fight the vertex colours.
   const mat = litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('grass') });
-  // Draws before the pawprints (-2) and contact shadows (-1). No polygonOffset:
-  // cells keep clear of every path, and a push-back would lose to the ground.
+  // Draws before the pawprints (-2) and contact shadows (-1); polygonOffset
+  // -1/-1 as described above the MEADOW_LIFT constant.
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -1;
+  mat.polygonOffsetUnits = -1;
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'gorgeMeadow';
   mesh.renderOrder = -3;

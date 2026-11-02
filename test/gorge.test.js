@@ -1574,10 +1574,10 @@ describe('Gorge meadow (polish #1b)', () => {
     for (const p of meadow.patches) {
       const cx = (p.x0 + p.x1) / 2, cz = (p.z0 + p.z1) / 2;
       const at = `patch (${cx}, ${cz})`;
-      expect(nearKeep(cx, cz), at).toBeGreaterThanOrEqual(1.2);
+      // patch cells deliberately ignore keep-clear points (a flat overlay can't hide a find); tufts keep the rule below
       expect(nearPath(cx, cz), at).toBeGreaterThanOrEqual(PATH_HALF + 0.75);
       for (const r of GORGE_KEEP_CLEAR_RECTS) expect(inRectXZ(r, cx, cz), at).toBe(false);
-      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + (p.kind === 'top' ? 0.02 : 0.008), 9);
+      expect(p.y, at).toBeCloseTo(ground.y(cx, cz) + 0.006, 9);
     }
     for (const t of meadow.tufts) {
       const at = `tuft (${t.x}, ${t.z})`;
@@ -1598,11 +1598,19 @@ describe('Gorge meadow (polish #1b)', () => {
     expect(meadow.tufts.length).toBeLessThanOrEqual(140);
   });
 
-  it('has no polygonOffset', () => {
-    // cells never touch a path, and any offset that pushes back loses to the surface beneath
+  it('uses polygonOffset -1/-1: ties the paw prints, loses to the contact decals', () => {
     const scene = new THREE.Scene();
     gorge.build(scene);
-    expect(scene.getObjectByName('gorgeMeadow').material.polygonOffset).toBe(false);
+    const mat = scene.getObjectByName('gorgeMeadow').material;
+    expect(mat.polygonOffset).toBe(true);
+    expect(mat.polygonOffsetFactor).toBe(-1);
+    expect(mat.polygonOffsetUnits).toBe(-1);
+    // pawprints.js (~line 309): -1/-1 (prints sit higher, so they win the tie);
+    // contactshadows.js (~line 424): -2/-2, so the decals win.
+    const PRINT_OFFSET = -1, DECAL_OFFSET = -2;
+    expect(mat.polygonOffsetFactor).toBeGreaterThanOrEqual(PRINT_OFFSET);
+    expect(mat.polygonOffsetFactor).toBeGreaterThan(DECAL_OFFSET);
+    expect(mat.polygonOffsetUnits).toBeGreaterThan(DECAL_OFFSET);
   });
 
   it('is one unshadowed, light mesh with one material', () => {
