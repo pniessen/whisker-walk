@@ -523,7 +523,7 @@ describe('cat model: the chest, merged with the belly and ruff, kept under the h
       const { body, underside: u } = buildCat(b).userData.parts;
       const pos = u.geometry.attributes.position, col = u.geometry.attributes.color, [a, z] = u.userData.ranges.chest;
       const centre = new THREE.Vector3(...u.userData.chestCentre).multiply(body.scale);
-      const front = new THREE.Vector3(0, -0.35, -1).normalize(), v = new THREE.Vector3();
+      const front = new THREE.Vector3(0, 0.15, -1).normalize(), v = new THREE.Vector3();
       let best = -2, at = a;
       for (let i = a; i < z; i++) {
         const d = v.fromBufferAttribute(pos, i).multiply(body.scale).sub(centre).normalize().dot(front);

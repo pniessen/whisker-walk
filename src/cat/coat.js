@@ -126,24 +126,28 @@ export function paintCoat(geo, coat) {
 
 // The underside's chest and belly (polish-catlooks, 2026-11-02). Painted one
 // solid pale colour, each ball showed a hard disc where it left the torso (the
-// "snowman"). Now each is its pale colour only where it faces straight out
-// along its front axis, easing (smoothstep) to the coat painted on the torso
-// under it by its rim, so stripes, patches, Robbie's bib and D2's band run on
-// over it. `inner`/`outer` are cosine distances off the front axis (0 on the
-// axis, 1 at 90° off it). The chest leaves the torso no nearer its axis than
-// 0.67, so its band must end by then (0.64); it starts on the axis because the
-// ball's 22.5° (30° simple) steps leave only about two edges for the ease, and
-// every bit of width keeps one edge from carrying the whole step. The belly
-// hugs the torso (never more than ~4 mm proud) and sinks under the coat from
-// ~0.2-0.45 off straight down, so its band is tighter: a soft pale smudge,
-// never a disc. Brief's starting values were { inner: 0.35, outer: 0.85 }:
-// past the chest's rim, so the rim kept a pale edge.
-export const UNDER_BLEND = Object.freeze({ inner: 0, outer: 0.64 });
+// "snowman"). Now each is its pale colour only where it faces out along its
+// front axis, easing (smoothstep) to the coat painted on the torso under it by
+// its rim, so stripes, patches, Robbie's bib and D2's band run on over it.
+// `inner`/`outer` are cosine distances off the front axis (0 on the axis, 1 at
+// 90° off it).
+// The chest's axis looks forward and a little UP, (0, 0.15, -1): the sit
+// pitches the torso nose-down by 0.5 rad, and an axis tilted down (the first
+// try, (0, -0.35, -1)) put the pale part at the very bottom of the ball there,
+// under a striped top. Tilted up it points 8° up standing and 20° down in the
+// sit, so a front camera sees the bib's middle in both. On this axis the chest
+// meets the torso no nearer than 1.13 off it (its lower edge, ~97°), so the bib
+// holds full colour out to 0.25 (~41°) and fades to the coat by 1.0 (90°).
+// The belly hugs the torso (never more than ~4 mm proud) and sinks under the
+// coat from ~0.2-0.45 off straight down, so its band is tight: a soft pale
+// smudge, mostly hidden. Brief's starting values were { inner: 0.35, outer:
+// 0.85 } on the down-tilted axis: past that axis's rim (0.67), so it kept a
+// pale edge.
+export const UNDER_BLEND = Object.freeze({ inner: 0.25, outer: 1 });
 export const BELLY_BLEND = Object.freeze({ inner: 0, outer: 0.38 });
-// The parts' front axes, cat frame (nose at -z): the chest looks forward and
-// down, the belly straight down.
+// The parts' front axes, cat frame (nose at -z).
 export const UNDER_FRONT = Object.freeze({
-  chest: Object.freeze(new THREE.Vector3(0, -0.35, -1).normalize().toArray()),
+  chest: Object.freeze(new THREE.Vector3(0, 0.15, -1).normalize().toArray()),
   belly: Object.freeze([0, -1, 0]),
 });
 

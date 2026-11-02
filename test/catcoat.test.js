@@ -136,7 +136,7 @@ describe('the underside eases into the coat', async () => {
   // + outside) from the torso surface along its direction from the torso
   // centre, its cosine distance from the part's front axis, and the coat
   // colour painted on the torso there.
-  const FRONT = { chest: new THREE.Vector3(0, -0.35, -1).normalize(), belly: new THREE.Vector3(0, -1, 0) };
+  const FRONT = { chest: new THREE.Vector3(0, 0.15, -1).normalize(), belly: new THREE.Vector3(0, -1, 0) };
   function read(breed, opts, part) {
     const cat = buildCat(breed, undefined, opts);
     const { body } = cat.userData.parts;
@@ -187,9 +187,8 @@ describe('the underside eases into the coat', async () => {
 
     // The brief asked for an absolute L1 step of at most 0.35 per edge. That
     // cannot hold on these balls: 16×12 (12×8 simple) puts 22.5-30° between
-    // neighbours, and the chest must be the coat by 0.67 off its axis (where it
-    // first meets the torso), so the ease spans about two edges, and Robbie's or
-    // D2's white against near-black is an L1 of ~2.7. Nor was it red before:
+    // neighbours, the ease spans only a few of them (the belly's two), and
+    // Robbie's or D2's white against near-black is an L1 of ~2.7. Nor was it red before:
     // a solid ball has no colour step at all; its hard edge was where it met
     // the torso, which the rim test above covers. What is checked instead is
     // the share of the pale-to-coat change one edge carries (its blend weight,
@@ -210,6 +209,40 @@ describe('the underside eases into the coat', async () => {
       expect(worst, label).toBeLessThanOrEqual(opts.simple ? 0.9 : 0.8);
     }, 120_000);
   }
+});
+
+// Controller's screenshot (2026-11-02): with the chest's axis tilted down, the
+// sit's 0.5 rad nose-down pitch put the bib at the very bottom of the ball,
+// under a striped top. The palest chest vertex must face a front camera
+// (the cat looks along -z) standing and sitting alike.
+describe('the bib faces the front camera', async () => {
+  const { animateCat } = await import('../src/cat/animator.js');
+  it.each(['follow', 'perch', 'requestPet'])('%s', (state) => {
+    for (const breed of ['tabby', 'd2', 'digit']) {
+      const cat = buildCat(breed);
+      animateCat(cat, state, 1.3, 0, false);
+      cat.updateMatrixWorld(true);
+      const { underside: u, body } = cat.userData.parts;
+      const pos = u.geometry.attributes.position, col = u.geometry.attributes.color, [a, z] = u.userData.ranges.chest;
+      const pale = new THREE.Color(body.userData.coat.chest);
+      let best = Infinity;
+      for (let i = a; i < z; i++) {
+        const d = colourDistance(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)), pale);
+        best = Math.min(best, d);
+      }
+      // the mean of all pale-coloured vertices, not one: a cap of them
+      const sum = new THREE.Vector3(), v = new THREE.Vector3();
+      let n = 0;
+      for (let i = a; i < z; i++) {
+        const c = new THREE.Color(col.getX(i), col.getY(i), col.getZ(i));
+        if (colourDistance(c, pale) < best + 0.02) { sum.add(v.fromBufferAttribute(pos, i).applyMatrix4(u.matrixWorld)); n++; }
+      }
+      const centre = new THREE.Vector3(...u.userData.chestCentre).applyMatrix4(u.matrixWorld);
+      const dir = sum.divideScalar(n).sub(centre).normalize();
+      const angle = Math.acos(Math.max(-1, Math.min(1, -dir.z))) * 180 / Math.PI;
+      expect(angle, `${breed} ${state}: the bib faces ${angle.toFixed(0)}° off the front`).toBeLessThan(30);
+    }
+  });
 });
 
 describe('undersideColourAt and torsoUnitAt (polish-catlooks Task 1)', () => {
