@@ -23,6 +23,15 @@ const CROSS_DIST = 1.2; // horizontal distance that counts as "through" a ring/o
 // course, never the whole of it. The shuffle is untouched (same draws), and a
 // POI with no group is never skipped, so every other area's course is the
 // same as before.
+//
+// Polish 2: with 8 of the Pines' 17 POIs on the island, the one island stop
+// still came up 20 days in 21. So on a course whose POIs carry groups, one
+// more draw from this same seeded stream (after the shuffle, so the shuffle
+// is unchanged; never walkRng) decides whether the groups are in the running
+// today: GROUP_DAY_SHARE of days. On the other days the course is drawn from
+// the ungrouped POIs alone, unless there are too few of them for a course.
+// Pure in (pois, seed) like the rest, so both devices still agree.
+export const GROUP_DAY_SHARE = 0.5;
 export function raceCourse(pois, seed) {
   const rng = mulberry32(seed);
   const copy = pois.slice();
@@ -30,11 +39,14 @@ export function raceCourse(pois, seed) {
     const j = Math.floor(rng() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
+  const anyGroup = copy.some((p) => p.group !== undefined);
+  const ungrouped = copy.filter((p) => p.group === undefined).length;
+  const groupsToday = !anyGroup || rng() < GROUP_DAY_SHARE || ungrouped < 5;
   const course = [];
   const groups = new Set();
   for (const p of copy) {
     if (p.group !== undefined) {
-      if (groups.has(p.group)) continue;
+      if (!groupsToday || groups.has(p.group)) continue;
       groups.add(p.group);
     }
     course.push(p);
