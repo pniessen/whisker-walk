@@ -75,7 +75,9 @@ function skullSurface(colour) {
 // The torso: a ray from its centre along `d` against the body mesh's own
 // geometry (its base scale applied), so a strip lies on the facets actually
 // drawn, full or simple. Normal and colour are the hit triangle's vertex
-// normals and painted colours, interpolated.
+// normals and painted colours, interpolated. A ray that meets no facet gives
+// null (layScar then skips that scar): setCatScars runs inside buildCat for
+// every cat that wears a scar, so it must never throw.
 function torsoHit(geo, S) {
   const pos = geo.attributes.position;
   const nor = geo.attributes.normal;
@@ -100,7 +102,7 @@ function torsoHit(geo, S) {
       const dist = hit.length();
       if (dist < best) { best = dist; bi = k; bestPt.copy(hit); }
     }
-    if (bi < 0) throw new Error('scar: no torso surface along ' + d.toArray());
+    if (bi < 0) return null;
     const ia = at(3 * bi), ib = at(3 * bi + 1), ic = at(3 * bi + 2);
     A.fromBufferAttribute(pos, ia); B.fromBufferAttribute(pos, ib); C.fromBufferAttribute(pos, ic);
     const bary = THREE.Triangle.getBarycoord(bestPt, A, B, C, new THREE.Vector3());
@@ -143,12 +145,15 @@ function tangent(v, ...ns) {
 }
 
 // One scar's three strips: positions (in the layout's units), normals and the
-// coat colour under each vertex, appended to `out`.
+// coat colour under each vertex, appended to `out`. False (and `out` left
+// unused) when the surface is missing anywhere under the scar.
 function layScar(layout, sx, surface, out) {
   const { length, gap, slant } = layout;
   const units = out.units;
   const d = new THREE.Vector3(layout.dir[0] * sx, layout.dir[1], layout.dir[2]);
-  const { point: P, normal: N } = surface(d);
+  const centre = surface(d);
+  if (!centre) return false;
+  const { point: P, normal: N } = centre;
   const U = tangent(new THREE.Vector3(...layout.ref), N);
   const T = tangent(layout.toward === OUT ? new THREE.Vector3(sx, 0, 0) : new THREE.Vector3(...layout.toward), N, U);
   const along = U.clone().multiplyScalar(Math.cos(slant)).addScaledVector(T, Math.sin(slant));
@@ -159,7 +164,9 @@ function layScar(layout, sx, surface, out) {
       const q = P.clone()
         .addScaledVector(along, (j / segs - 0.5) * length / units)
         .addScaledVector(perp, off / units);
-      const { point: H, normal: Nh, colour } = surface(q);
+      const at = surface(q);
+      if (!at) return false;
+      const { point: H, normal: Nh, colour } = at;
       const side = tangent(perp, Nh);
       const w = (layout.width / 2) * TAPER[j] / units;
       const lifted = H.clone().addScaledVector(Nh, SCAR_STRIP.lift / units);
@@ -170,6 +177,7 @@ function layScar(layout, sx, surface, out) {
       }
     }
   }
+  return true;
 }
 
 // The full stage's colour for a scar over `under` (every vertex's coat) on a
@@ -218,7 +226,7 @@ export function setCatScars(cat, scars) {
   for (const scar of list) {
     const face = scar.site === 'face';
     const out = { points: [], normals: [], under: [], units: face ? HEAD.SCALE : 1 };
-    layScar(SCAR_LAYOUT[scar.site], scar.side === 'l' ? -1 : 1, face ? onSkull : onTorso, out);
+    if (!layScar(SCAR_LAYOUT[scar.site], scar.side === 'l' ? -1 : 1, face ? onSkull : onTorso, out)) continue;
     // Rest positions in the owner's local space: the body mesh's scale is in
     // its matrix, so a torso point is divided by it (the head's layout is
     // already head-local).
@@ -235,6 +243,7 @@ export function setCatScars(cat, scars) {
   }
 
   const n = rest.length / 3;
+  if (n === 0) return; // every scar was skipped: no mesh at all
   const geo = new THREE.BufferGeometry();
   const position = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
   const normal = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
@@ -255,7 +264,9 @@ export function setCatScars(cat, scars) {
   const mesh = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
   mesh.name = 'scars';
   mesh.castShadow = false;
-  mesh.receiveShadow = false;
+  // It receives shadows (controller ruling); rig.js's shadow sweep skips a
+  // noCast mesh, so the flag is set here on the mesh itself.
+  mesh.receiveShadow = true;
   mesh.frustumCulled = false;
   mesh.userData.noCast = true;
   mesh.userData.rest = new Float32Array(rest);

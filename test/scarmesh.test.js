@@ -228,6 +228,34 @@ describe('scar mesh', () => {
     expect(() => fitScars(cat)).not.toThrow();
   });
 
+  it('a torso the ray misses skips that scar instead of throwing (final review 4)', () => {
+    // A torso geometry that is one small triangle off to the side: no ray from
+    // the centre toward a body site meets it.
+    const miss = () => {
+      const cat = buildCat('tabby');
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([5, 5, 5, 5.1, 5, 5, 5, 5.1, 5]), 3));
+      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]), 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array([1, 1, 1, 1, 1, 1, 1, 1, 1]), 3));
+      cat.userData.parts.body.geometry = g;
+      return cat;
+    };
+    // Only a body scar: nothing is left, so no mesh at all.
+    const a = miss();
+    const before = meshCount(a);
+    expect(() => setCatScars(a, [{ site: 'side', stage: 'full', side: 'r' }])).not.toThrow();
+    expect('scars' in a.userData.parts).toBe(false);
+    expect(meshCount(a)).toBe(before);
+    expect(() => fitScars(a)).not.toThrow();
+    // A face scar and a body scar: the face scar is still drawn, on the head.
+    const b = miss();
+    expect(() => setCatScars(b, TWO)).not.toThrow();
+    const mesh = scarsOf(b);
+    expect(mesh.geometry.attributes.position.count).toBe(3 * STRIP_VERTS);
+    expect(mesh.userData.split).toBe(3 * STRIP_VERTS);
+    expect(meshCount(b)).toBe(before + 1);
+  });
+
   it('a scarred cat built later matches one scarred at build', () => {
     const a = buildCat('persian', undefined, { scars: TWO });
     const b = buildCat('persian');
@@ -235,10 +263,10 @@ describe('scar mesh', () => {
     expect(fingerprintCat(b)).toEqual(fingerprintCat(a));
   });
 
-  it('never casts a shadow', () => {
+  it('never casts a shadow, but receives one (final review 3: rig.js skips a noCast mesh, so the flag is set on the mesh)', () => {
     const mesh = scarsOf(buildCat('tabby', undefined, { scars: TWO }));
     expect(mesh.castShadow).toBe(false);
-    expect(mesh.receiveShadow).toBe(false);
+    expect(mesh.receiveShadow).toBe(true);
     expect(mesh.userData.noCast).toBe(true);
     expect(mesh.frustumCulled).toBe(false);
   });
