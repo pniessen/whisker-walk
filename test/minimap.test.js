@@ -288,11 +288,22 @@ describe('createMinimap', () => {
   it('createMinimap adds one canvas to the host and dispose removes it', () => {
     const { host, map, canvas } = makeMap();
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(1);
+    // A picture whose label says what a tap on it does.
     expect(canvas.getAttribute('role')).toBe('img');
-    expect(canvas.getAttribute('aria-label')).toBe('Map');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
     expect(canvas.style.pointerEvents).toBe('auto');
     map.dispose();
     expect(host.children.filter((c) => c.tagName === 'CANVAS')).toHaveLength(0);
+  });
+
+  it("the label follows the map's mode, so it always says what the next tap does", () => {
+    const { map, canvas } = makeMap({ mode: 'turn' });
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
+    map.setMode('north');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, north up. Tap to make it turn with you.');
+    map.setMode('turn');
+    expect(canvas.getAttribute('aria-label')).toBe('Map, turns with you. Tap to keep north up.');
+    map.dispose();
   });
 
   it('sizes the canvas backing store for devicePixelRatio', () => {
