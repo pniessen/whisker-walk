@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial } from '../render/materials.js';
 import { WHITE_FUR, coatFromStyle, paintCoat } from './coat.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
+import { animateCat } from './animator.js';
 import { TORSO, torsoGeometry, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, shellInflate, torsoSurface, torsoRetarget, BACK_MIN_RHO, NECK_FORWARD, NECK_FLUFFY, HOOD_BUNCH_DROP, REF_RIG, POSE_FIT, TAIL, tailR } from './torso.js';
 
 const STYLE = {
@@ -1412,4 +1413,83 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     hipY, legLift: hipY - REF_RIG.HIP_Y, legReach: REF_RIG.REACH, poseFit: POSE_FIT,
   };
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Fight measurements (2026-11-01 fight moves and scars, Task 2). Each poses the
+// cat with animateCat to measure it, and leaves it posed: a fight's staging
+// re-poses both cats every frame. Nothing else is touched (not the group's
+// position, rotation or scale), and every number is in the cat's own frame
+// with its scale applied: where it would be standing at the origin, unrotated.
+// Call them once at fight start, before staging.
+// ---------------------------------------------------------------------------
+
+const _toGroup = new THREE.Matrix4();
+const _m = new THREE.Matrix4();
+const _pt = new THREE.Vector3();
+
+// The extent of `obj` (with its descendants when `deep`) in the group's own
+// frame, scaled by the group: every vertex, so a rotated part is measured as
+// it is, not by its loose bounding box. Sprites (name tags) are skipped.
+function localBox(group, obj, deep) {
+  const box = new THREE.Box3();
+  group.updateMatrixWorld(true);
+  _toGroup.copy(group.matrixWorld).invert();
+  const add = (o) => {
+    const pos = o.geometry?.attributes?.position;
+    if (o.isSprite || !pos) return;
+    _m.multiplyMatrices(_toGroup, o.matrixWorld);
+    for (let i = 0; i < pos.count; i++) box.expandByPoint(_pt.fromBufferAttribute(pos, i).applyMatrix4(_m).multiply(group.scale));
+  };
+  if (deep) obj.traverse(add); else add(obj);
+  return box;
+}
+
+// The top of the body mesh (the torso alone) in `state`: where a cat landing
+// on this one's back stands. The pin uses catBackY(loser, 'pinned'), measured
+// rather than worked out from TORSO, so it lands on the flattened back.
+export function catBackY(group, state = 'follow') {
+  animateCat(group, state, 0, 0);
+  return localBox(group, group.userData.parts.body, false).max.y;
+}
+
+// What fightactions.js placeFrame turns a cat about: `hindZ`, how far behind
+// the group's origin the hind paws' heels are (the pitch turns about them, so
+// the hind paws rock on their heels and never dip into the ground), and
+// `pivotY`, the torso centre's height in the 'roll' pose (the roll turns
+// about it).
+// How far in from the heel, as a fraction of half the paw's length, the pitch
+// pivot sits. Rocked 0.9 rad (the rear-up) about the heel itself (0) the hind
+// paws hover 2-3 cm; about the sole's centre (1) they dip ~3 cm and the hind
+// limb's hock (it tips back behind the paw) goes 4-5 cm into the ground. A
+// quarter in keeps the paws within ~1.5 cm above the ground and the hock
+// within ~2.5 cm below it (measured on tabby, mainecoon, digit, an intruder).
+const HEEL_IN = 0.25;
+export function catPivot(group) {
+  const { body, legs } = group.userData.parts;
+  animateCat(group, 'roll', 0, 0);
+  group.updateMatrixWorld(true);
+  _toGroup.copy(group.matrixWorld).invert();
+  _pt.setFromMatrixPosition(_m.multiplyMatrices(_toGroup, body.matrixWorld));
+  const pivotY = _pt.y * group.scale.y;
+  animateCat(group, 'follow', 0, 0);
+  const hind = legs.length >= 4 ? legs.slice(2) : legs;
+  let hindZ = 0;
+  for (const leg of hind) {
+    const b = localBox(group, leg.userData.paw ?? leg, true);
+    hindZ = Math.max(hindZ, b.max.z - HEEL_IN * (b.max.z - b.min.z) / 2);
+  }
+  return { hindZ, pivotY };
+}
+
+// Everything the fight needs to know about a cat's size, measured once:
+// `top` (the standing cat's highest point, accessories included), `backY`
+// and `pinnedBackY` (catBackY standing and pinned) and catPivot's hindZ and
+// pivotY. Leaves the cat standing ('follow' at t 0).
+export function catDims(group) {
+  const pinnedBackY = catBackY(group, 'pinned');
+  const { hindZ, pivotY } = catPivot(group);
+  const backY = catBackY(group);
+  const top = localBox(group, group, true).max.y;
+  return { top, backY, pinnedBackY, hindZ, pivotY };
 }
