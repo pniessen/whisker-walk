@@ -10,7 +10,9 @@
 // the first one whose lines to both cats (paws, body and head, everywhere the
 // fight can put them) clear every solid, that keeps both cats in the frame
 // above the fight sheet, and that is inside the map and out of every
-// collider. (A lifted top, an action's leap or rear-up, must be in frame but
+// collider. Spots where the intruder stands in front of our cat, or nearer
+// the camera than it, are tried later (ourCatHidden, itNearer): the kid's own
+// cat is the one in front. (A lifted top, an action's leap or rear-up, must be in frame but
 // only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
@@ -51,20 +53,33 @@ export function maxLean(scale) {
 // fight sheet covers at most the lower 40% of the screen (to -0.2); the
 // bottom edge leaves a margin over it.
 export const FIGHT_FRAME = Object.freeze({ x: 0.85, top: 0.85, bottom: -0.08 });
-// Where the pair's middle (LOOK_Y up) sits on screen: high, in the open part
-// above the sheet.
-export const AIM_Y = 0.3;
+// Where the pair's middle (LOOK_Y up) sits on screen: just above the middle,
+// so the cats fill the open part over the sheet rather than its top third
+// (polish, camps Task 5: the survey's cats sat small under empty grass).
+export const AIM_Y = 0.12;
 const LOOK_Y = 0.3;
 // Camera spots round the pair's middle: distance and height, best first.
-// Low rings look in under the canopies; high ones over the undergrowth.
+// Low rings look in under the canopies; high ones over the undergrowth. The
+// first two are tight, close shots; where they do not frame the pair (a
+// phone held upright, side-on) the chooser falls through to the wider ones.
+// `rank` prices a ring (RING_COST each): the wider rings keep their old
+// order and spacing, just behind the tight pair, and the first wide ring
+// straight on (rank 0.4) beats a tight one turned a yaw step (rank 0 + 1
+// step), so a screen the tight rings do not fit keeps today's angle rather
+// than swinging round for a closer shot.
 export const RINGS = Object.freeze([
-  { d: 5.5, h: 2.2 }, { d: 5.0, h: 1.3 }, { d: 6.5, h: 2.8 }, { d: 4.6, h: 1.0 },
-  { d: 7.5, h: 3.4 }, { d: 6.0, h: 1.1 }, { d: 4.2, h: 0.8 }, { d: 8.5, h: 1.4 },
+  { d: 4.2, h: 1.5, rank: 0 }, { d: 4.6, h: 1.1, rank: 0.25 },
+  ...[
+    { d: 5.5, h: 2.2 }, { d: 5.0, h: 1.3 }, { d: 6.5, h: 2.8 }, { d: 4.6, h: 1.0 },
+    { d: 7.5, h: 3.4 }, { d: 6.0, h: 1.1 }, { d: 4.2, h: 0.8 }, { d: 8.5, h: 1.4 },
+  ].map((r, i) => ({ ...r, rank: i + 0.4 })),
 ].map((r) => Object.freeze(r)));
 const YAW_STEPS = 24;               // every 15 degrees round
 const RING_COST = 2;                // one ring further down the list costs two yaw steps
 const AXIS_COST = 4;                // looking down the line between the cats, where one hides the other
 const AXIS_ANGLE = (25 * Math.PI) / 180;
+const HIDE_COST = 10;               // ...times the share of our cat the intruder hides (ourCatHidden)
+const NEAR_COST = 5;                // the intruder nearer the camera than our cat (itNearer)
 const COLLIDER_GAP = 0.3;           // m the camera keeps off a collider
 const BOUNDS_GAP = 0.5;             // m it keeps inside the map's edge
 const EASE_IN = 0.35;               // s
@@ -280,19 +295,121 @@ function inRock(pos, mid, lookY, ground) {
   return false;
 }
 
+// --- our cat past the intruder ----------------------------------------------
+
+// The intruder's body, for whether it stands between the camera and our cat:
+// a vertical segment from its paws IT_BODY_H up, grown by IT_BODY_R.
+export const IT_BODY_R = 0.32;
+const IT_BODY_H = 0.9;
+const NEAR_MARGIN = 0.3; // m: the intruder counts as nearer only by more than this
+
+// Where each cat stands for most of the fight: its spots on its own half,
+// at least a quarter of the gap out from the middle along the axis. (A real
+// subject's spots run right up to the other cat, for the leaps and the
+// tumble; counted as they are, every view would have the intruder "hiding"
+// our cat, standing where our cat's leap lands.) The anchors (spot 0) always
+// qualify; a subject whose anchors sit on the middle keeps every spot.
+function ownHalf(subject, who) {
+  const { mid, axis } = subject;
+  const spots = subject[who];
+  const sign = who === 'me' ? 1 : -1; // the axis points from the intruder to our cat
+  const a = subject.me[0], b = subject.it[0];
+  const q = Math.abs((a.x - b.x) * axis.x + (a.z - b.z) * axis.z) / 4;
+  const out = [];
+  for (const p of spots) if (sign * ((p.x - mid.x) * axis.x + (p.z - mid.z) * axis.z) >= q - 1e-9) out.push(p);
+  return out.length ? out : spots;
+}
+
+// The squared distance from segment p0→p1 (scalars) to the vertical segment
+// at (sx, sz) from y0 to y1: Ericson's closest points between two segments
+// (Real-Time Collision Detection 5.1.9), with the second one upright. No
+// allocation.
+function segToPostSq(px, py, pz, dx, dy, dz, sx, y0, sz, y1) {
+  const ey = y1 - y0;                            // the post's direction (0, ey, 0)
+  const rx = px - sx, ry = py - y0, rz = pz - sz;
+  const a = dx * dx + dy * dy + dz * dz;         // |d1|^2
+  const e = ey * ey;                              // |d2|^2
+  const f = ey * ry;                              // d2 . r
+  let s, t;
+  if (a < 1e-12) {
+    s = 0;
+    t = Math.min(1, Math.max(0, f / e));
+  } else {
+    const c = dx * rx + dy * ry + dz * rz;        // d1 . r
+    const b = dy * ey;                            // d1 . d2
+    const denom = a * e - b * b;
+    s = denom > 1e-12 ? Math.min(1, Math.max(0, (b * f - c * e) / denom)) : 0;
+    t = (b * s + f) / e;
+    if (t < 0) { t = 0; s = Math.min(1, Math.max(0, -c / a)); }
+    else if (t > 1) { t = 1; s = Math.min(1, Math.max(0, (b - c) / a)); }
+  }
+  const qx = px + dx * s - sx, qy = py + dy * s - (y0 + ey * t), qz = pz + dz * s - sz;
+  return qx * qx + qy * qy + qz * qz;
+}
+
+// How much of our cat the intruder hides from `pos`: the share (0..1) of our
+// cat's own-half spots x CAT_HEIGHTS whose line from pos passes within
+// IT_BODY_R of the intruder's body at any of its own-half spots. g0: the
+// ground under the pair's middle (fightGround), 0 on flat ground.
+export function ourCatHidden(pos, subject, g0 = 0) {
+  return hiddenShare(pos, ownHalf(subject, 'me'), ownHalf(subject, 'it'), g0);
+}
+
+// ourCatHidden with each cat's own-half spots already picked (candidates
+// picks them once for every spot it prices).
+function hiddenShare(pos, me, it, g0) {
+  const r2 = IT_BODY_R * IT_BODY_R;
+  let hid = 0;
+  for (const p of me) {
+    const dx = p.x - pos.x, dz = p.z - pos.z;
+    const L2 = dx * dx + dz * dz;
+    // the intruder spots near this line on the ground plan (a 3D distance is
+    // never less than its ground-plan part), whatever the height
+    for (const h of CAT_HEIGHTS) {
+      const dy = h + g0 - pos.y;
+      for (const s of it) {
+        const fx = s.x - pos.x, fz = s.z - pos.z;
+        const t = L2 < 1e-12 ? 0 : Math.min(1, Math.max(0, (fx * dx + fz * dz) / L2));
+        const ex = fx - dx * t, ez = fz - dz * t;
+        if (ex * ex + ez * ez > r2) continue;
+        if (segToPostSq(pos.x, pos.y, pos.z, dx, dy, dz, s.x, g0, s.z, g0 + IT_BODY_H) <= r2) { hid++; break; }
+      }
+    }
+  }
+  return hid / (me.length * CAT_HEIGHTS.length);
+}
+
+// Whether the intruder stands nearer the camera than our cat, on the ground
+// plan, by more than NEAR_MARGIN: each at its anchor (spot 0), where it
+// stands for the square-off and between the beats. (Every spot would let a
+// sidestep or the tumble's circle, a moment's move toward the camera, count
+// our cat as the nearer from the intruder's side.)
+export function itNearer(pos, subject) {
+  const a = subject.me[0], b = subject.it[0];
+  return Math.hypot(b.x - pos.x, b.z - pos.z) < Math.hypot(a.x - pos.x, a.z - pos.z) - NEAR_MARGIN;
+}
+
 // The camera spots to try, cheapest first: yaw0 itself, then 15-degree steps
 // either way, on each ring; ring0 (the ring already in use) costs nothing.
-function candidates(subject, yaw0, ring0) {
+// A spot where the intruder hides our cat, or stands nearer the camera than
+// our cat, costs more (HIDE_COST, NEAR_COST): the kid's own cat is in front.
+// These only reorder the spots; every check in chooseFightView still applies.
+function candidates(subject, yaw0, ring0, g0 = 0) {
   const list = [];
   const ax = Math.atan2(subject.axis.x, subject.axis.z);
+  const { mid } = subject;
+  const pos = { x: 0, y: 0, z: 0 };
+  const me = ownHalf(subject, 'me'), it = ownHalf(subject, 'it');
   RINGS.forEach((ring, ri) => {
-    const rc = ri === ring0 ? 0 : RING_COST * (ri + (ring0 == null ? 0 : 1));
+    const rc = ri === ring0 ? 0 : RING_COST * (ring.rank + (ring0 == null ? 0 : 1));
     for (let k = 0; k < YAW_STEPS; k++) {
       const step = k === 0 ? 0 : Math.ceil(k / 2) * (k % 2 ? 1 : -1);
       const yaw = wrap(yaw0 + (step * 2 * Math.PI) / YAW_STEPS);
       const off = Math.abs(wrap(yaw - ax));
       const along = off < AXIS_ANGLE || Math.PI - off < AXIS_ANGLE;
-      list.push({ yaw, ri, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) });
+      pos.x = mid.x + Math.sin(yaw) * ring.d; pos.y = ring.h + g0; pos.z = mid.z + Math.cos(yaw) * ring.d;
+      const ours = HIDE_COST * hiddenShare(pos, me, it, g0) + (itNearer(pos, subject) ? NEAR_COST : 0);
+      list.push({ yaw, ri, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + ours });
     }
   });
   // a stable sort: equal costs keep their order, so the choice is deterministic
@@ -320,7 +437,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   let best = null;     // the best view that clears every hard point
   let fallback = null; // the spot with the fewest blockers, every one of them hideable
   let least = null;    // the spot with the fewest blockers of any kind, while there is no fallback
-  for (const c of candidates(subject, yaw0, ring0)) {
+  for (const c of candidates(subject, yaw0, ring0, g0)) {
     const ring = RINGS[c.ri];
     const pos = { x: mid.x + Math.sin(c.yaw) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(c.yaw) * ring.d };
     if (bounds && (pos.x < bounds.minX + BOUNDS_GAP || pos.x > bounds.maxX - BOUNDS_GAP ||
@@ -394,7 +511,7 @@ export function chooseFightView({ subject, occluders = [], colliders = [], bound
   let yaw = yaw0;
   let ri = 0;
   if (!ground.flat && inRock({ x: mid.x + Math.sin(yaw0) * ring.d, y: ring.h + g0, z: mid.z + Math.cos(yaw0) * ring.d }, mid, lookY, ground)) {
-    for (const c of candidates(subject, yaw0, ring0)) {
+    for (const c of candidates(subject, yaw0, ring0, g0)) {
       const r = RINGS[c.ri];
       const q = { x: mid.x + Math.sin(c.yaw) * r.d, y: r.h + g0, z: mid.z + Math.cos(c.yaw) * r.d };
       if (bounds && (q.x < bounds.minX + BOUNDS_GAP || q.x > bounds.maxX - BOUNDS_GAP ||

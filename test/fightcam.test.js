@@ -21,8 +21,9 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
+  ourCatHidden, itNearer,
 } = await import('../src/fightcam.js');
-const RINGS0 = RINGS[0];
+const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
 
 const BOUNDS = { minX: -50, maxX: 50, minZ: -50, maxZ: 50 };
@@ -193,8 +194,10 @@ describe('chooseFightView', () => {
 
   test('with no trees it keeps the current angle', () => {
     const subj = subject(me, it);
-    // (the pair lies along x, so none of these looks down the line between them)
-    for (const yaw0 of [0, 1, -0.6, 2.6, Math.PI]) {
+    // (the pair lies along x, so none of these looks down the line between
+    // them; and none looks from the intruder's side, where our cat would be
+    // the farther, which turns the camera: see 'our cat stays in view' below)
+    for (const yaw0 of [0, 1, 0.6, 2.6, Math.PI]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...PORTRAIT });
       expect(v.clear).toBe(true);
       const yaw = Math.atan2(v.pos.x - subj.mid.x, v.pos.z - subj.mid.z);
@@ -314,6 +317,65 @@ describe('chooseFightView', () => {
   });
 });
 
+// Polish (camps) Task 5: the survey's fight shots had the camera behind the
+// intruder, so it hid my cat. The ranking now prefers views where our cat is
+// seen past the intruder, and our cat is the nearer one; and it frames
+// tighter and lower.
+describe('our cat stays in view, tight and low', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const subj = subject(me, it);
+  const behindIt = { x: -0.8 - 3.4, y: 1.5, z: 0 };  // on the line through both cats, past the intruder
+  const behindMe = { x: 0.8 + 3.4, y: 1.5, z: 0 };
+  const side = { x: 0, y: 1.5, z: 4.2 };
+
+  test('ourCatHidden: 1 straight behind the intruder, 0 behind our cat and side-on', () => {
+    expect(ourCatHidden(behindIt, subj)).toBe(1);
+    expect(ourCatHidden(behindMe, subj)).toBe(0);
+    expect(ourCatHidden(side, subj)).toBe(0);
+    // riding the ground: the same, lifted with the pair
+    expect(ourCatHidden({ ...behindIt, y: behindIt.y + 3 }, subj, 3)).toBe(1);
+  });
+
+  test('itNearer: true behind the intruder, false behind our cat and side-on', () => {
+    expect(itNearer(behindIt, subj)).toBe(true);
+    expect(itNearer(behindMe, subj)).toBe(false);
+    expect(itNearer(side, subj)).toBe(false);
+  });
+
+  test('a real fight subject (spots that run to the other cat): side-on hides nothing, end-on past the intruder hides it all', () => {
+    for (const actions of [false, true]) {
+      const f = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions });
+      expect(ourCatHidden(side, f), `actions ${actions}`).toBe(0);
+      expect(ourCatHidden(behindMe, f), `actions ${actions}`).toBe(0);
+      expect(ourCatHidden(behindIt, f), `actions ${actions}`).toBeGreaterThan(0.5);
+      expect(itNearer(behindIt, f)).toBe(true);
+      expect(itNearer(behindMe, f)).toBe(false);
+    }
+  });
+
+  test('looking from behind the intruder, it turns so the intruder hides nothing and our cat is the nearer', () => {
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      for (const yaw0 of [-Math.PI / 2, -Math.PI / 2 + 0.6, -Math.PI / 2 - 0.6]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...frame });
+        expect(v.clear).toBe(true);
+        expect(ourCatHidden(v.pos, subj)).toBe(0);
+        expect(itNearer(v.pos, subj)).toBe(false);
+      }
+    }
+  });
+
+  test('on open ground at desktop it takes a tight ring, with the pair low in the open part of the screen', () => {
+    for (const yaw0 of [0, 1, Math.PI, -2.5]) {
+      const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...DESK });
+      expect(v.ring).toBeLessThanOrEqual(1);
+      expect(RINGS[v.ring].d).toBeLessThan(5);
+      const m = projectPoint(v, { x: subj.mid.x, y: 0.3, z: subj.mid.z }, DESK.aspect, DESK.fovY);
+      expect(m.y).toBeLessThan(0.2);
+      expect(m.y).toBeGreaterThan(FIGHT_FRAME.bottom);
+    }
+  });
+});
+
 // Controller ruling on Task 5: a lifted top (CAT_HEIGHTS[2] + y) must stay in
 // frame, but its line of sight only ranks views. Every point that exists today
 // stays hard, exactly as before.
@@ -358,12 +420,12 @@ describe('lifted tops are soft in the view choice', () => {
 
   test('among views that clear every hard point, one that also sees the lifted top wins', () => {
     const subj = lifted();
-    // from yaw 0 (camera at +z, 2.2 m up) a stand pine's ball sits on the line to the top only
-    const cam = { x: 0, y: RINGS0.h, z: RINGS0.d };
-    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
-    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
+    // from yaw 0 (camera at +z) a stand pine's ball sits on the line to the top only
     const straight = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
     expect(straight.pos.x).toBeCloseTo(0, 9);
+    const cam = straight.pos;
+    const mid = { x: (cam.x + TOP.x) / 2, y: (cam.y + TOP.y) / 2, z: (cam.z + TOP.z) / 2 };
+    const occ = [ball(null, mid.x, mid.y, mid.z, 0.2)];
     expect(firstBlocker(straight.pos, TOP, occ)).not.toBe(null); // the old view really loses the top
     expect(hardClear(straight, subj, occ)).toBe(true);           // ...and only the top
     const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
@@ -530,8 +592,10 @@ describe('camera moves are checked: ease only when every step of it is clear', (
   const subj = subject(me, it);
 
   test('blendClear: a clear straight move passes, one through a canopy or out of frame fails', () => {
-    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0.6, ...DESK });
-    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: -0.6, ...DESK });
+    // two views 1.1 rad apart, both on our cat's side and off the line between the cats
+    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1.1, ...DESK });
+    expect([a.yaw, c.yaw]).toEqual([0, 1.1]);
     expect(blendClear(a, c, subj, [], DESK.aspect, DESK.fovY)).toBe(true);
     // an oak whose canopy sits on the move's middle, clear of both ends' lines
     const midPos = { x: (a.pos.x + c.pos.x) / 2, z: (a.pos.z + c.pos.z) / 2 };
