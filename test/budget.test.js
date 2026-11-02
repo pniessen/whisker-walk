@@ -107,7 +107,7 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             54       36      33184   (43 / 26 merged; part 4's camp
+//   gorge             54       36      43051   (43 / 26 merged; part 4's camp
 //                                               adds two meshes: the leader's
 //                                               rock (a caster, 36 tris) and the
 //                                               den's bedding (noCast, six discs
@@ -124,7 +124,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               flecks), no caster; before them
 //                                               it was 48 / 35 / 31594, 37 / 25
 //                                               merged. The rock in three
-//                                               merged meshes (5,570 tris), 9
+//                                               merged meshes (15,437 tris: the
+//                                               shell 8,688 / 398 / 1,251, then
+//                                               275 lip stones, 3,300 tris, and
+//                                               90 foot boulders, 1,800 tris,
+//                                               no new mesh; the shell alone was
+//                                               37,951 in all, and the first,
+//                                               unrelieved rock 5,570 tris at
+//                                               54 / 36 / 33184), 9
 //                                               swaying pines, 43 in the stand on
 //                                               the west top, 11 tors (one group,
 //                                               one draw merged), 134 scree spots

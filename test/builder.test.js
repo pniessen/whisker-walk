@@ -839,15 +839,21 @@ describe('the Woods builders', () => {
 // The Gorge's real shape records (builder.js itself imports nothing from the
 // Gorge: the shapes are passed in).
 const gorgeShape = await import('../src/world/gorgeshape.js');
-const { ROCK_WALKS: gorgeRockWalks } = await import('../src/world/gorge.js');
+const { ROCK_WALKS: gorgeRockWalks, GORGE_ROCK_MOUTHS, GORGE_ROCK_KEEP } = await import('../src/world/gorge.js');
+const { seedFromCode } = await import('../src/rng.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
+const { findTJunctions } = await import('./helpers/meshcheck.js');
+const { MAX_PASSES } = await import('../src/world/meshconform.js');
+const { createRockRelief, ROCK_PROUD, CAVE_PROUD } = await import('../src/world/rockrelief.js');
 
 describe('the Gorge rock: rockTerrain and scree', () => {
   const { WALK_SHAPES, MASSES, CEILINGS } = gorgeShape;
   // The walks gorge.js draws the rock from: every walkable shape, cave and
   // den floor, the camp den's too (the masses are cut round it).
   const WALKS = gorgeRockWalks;
-  const build = () => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7 });
+  const build = (opts = {}) => b.rockTerrain({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7, mouths: GORGE_ROCK_MOUTHS, ...opts });
+  // The relief field the build moves its vertices by (keep [] here, as in build()).
+  const relief = createRockRelief({ walks: WALKS, masses: MASSES, ceilings: CEILINGS, seed: 7 });
 
   // Raycasts see both sides of every face, so a face wound the wrong way can
   // still be found (the rim test checks the winding on its own).
@@ -888,8 +894,364 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     }
   });
 
+  // The shell of a mesh: its first userData.shellTris triangles (anything a
+  // later pass dresses the rock with is appended after them).
+  const shellOf = (group) => {
+    const out = {};
+    const counts = group.userData.shellTris;
+    group.traverse((o) => {
+      if (o.isMesh) out[o.name] = o.geometry.attributes.position.array.subarray(0, counts[o.name] * 9);
+    });
+    return out;
+  };
+  // Every vertex of a position array: fn(x, y, z, i).
+  const eachVertex = (arr, fn) => {
+    for (let i = 0; i < arr.length; i += 3) fn(arr[i], arr[i + 1], arr[i + 2], i / 3);
+  };
+  const keyOf = (x, y, z) => `${x},${y},${z}`;
+  const shapeY = (s, x, z) => {
+    if (s.along !== 'z' || s.maxZ === s.minZ) return s.y0;
+    const f = Math.min(1, Math.max(0, (z - s.minZ) / (s.maxZ - s.minZ)));
+    return s.y0 + f * (s.y1 - s.y0);
+  };
+  const inRectE = (s, x, z, e = 1e-6) => x >= s.minX - e && x <= s.maxX + e && z >= s.minZ - e && z <= s.maxZ + e;
+  const CAPS = CEILINGS.map((c) => ({ ...c, top: b.capTopFor(c, MASSES) })).filter((c) => c.top > c.y0);
+
+  // Conforming after the relief: no vertex of any of the three shells lies
+  // inside an edge of another triangle, and no two distinct vertices sit
+  // within 1e-4 of each other (a split vertex would be keyed apart, move
+  // apart and tear).
+  it('the relieved shell is still conforming', () => {
+    expect(terrain.userData.shellTris).toBeTruthy();
+    const shell = shellOf(terrain);
+    expect(findTJunctions(shell)).toEqual([]);
+    const C = 1e-4;
+    const cells = new Map();
+    const uniq = new Map();
+    for (const arr of Object.values(shell)) eachVertex(arr, (x, y, z) => uniq.set(keyOf(x, y, z), [x, y, z]));
+    for (const v of uniq.values()) {
+      const k = v.map((c) => Math.floor(c / C)).join(',');
+      if (!cells.has(k)) cells.set(k, []);
+      cells.get(k).push(v);
+    }
+    const close = [];
+    for (const v of uniq.values()) {
+      const [i, j, k] = v.map((c) => Math.floor(c / C));
+      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let d = -1; d <= 1; d++) {
+        for (const w of cells.get(`${i + a},${j + c},${k + d}`) ?? []) {
+          if (w === v) continue;
+          const dd = Math.sqrt((v[0] - w[0]) ** 2 + (v[1] - w[1]) ** 2 + (v[2] - w[2]) ** 2);
+          if (dd < C) close.push(`${v} ~ ${w}`);
+        }
+      }
+    }
+    expect(close.slice(0, 8)).toEqual([]);
+  }, 120_000);
+
+  // The check above runs on the MOVED shell, where a missed split has already
+  // pulled its T-point off the edge it sat on (and so can't be seen). So: the
+  // unmoved shell is conforming, conforming converged (it stops silently at
+  // MAX_PASSES), and the moved shell's open edges are exactly the unmoved
+  // one's (a crack the relief opened would add some).
+  it('the unmoved shell is conforming, and conforming converged', () => {
+    const flat = build({ relief: false, dressing: false });
+    expect(findTJunctions(shellOf(flat))).toEqual([]);
+    expect(terrain.userData.conformPasses).toBeGreaterThan(0);
+    expect(terrain.userData.conformPasses).toBeLessThan(MAX_PASSES);
+    expect(flat.userData.conformPasses).toBe(terrain.userData.conformPasses);
+  }, 120_000);
+
+  // One-sided edges: those of exactly one triangle in the three shells
+  // together, vertices keyed by position. Each is named by its triangle's
+  // vertex indices (mesh and index), the same in both builds (same order).
+  const openEdges = (shell) => {
+    const count = new Map();
+    const where = new Map();
+    for (const [name, arr] of Object.entries(shell)) {
+      for (let t = 0; t < arr.length; t += 9) {
+        for (let e = 0; e < 3; e++) {
+          const i = t + 3 * e;
+          const j = t + 3 * ((e + 1) % 3);
+          const ka = keyOf(arr[i], arr[i + 1], arr[i + 2]);
+          const kb = keyOf(arr[j], arr[j + 1], arr[j + 2]);
+          const k = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+          count.set(k, (count.get(k) ?? 0) + 1);
+          const [a, c] = i < j ? [i / 3, j / 3] : [j / 3, i / 3];
+          where.set(k, `${name}:${a}-${c}`);
+        }
+      }
+    }
+    return [...count].filter(([, n]) => n === 1).map(([k]) => where.get(k)).sort();
+  };
+
+  it("the relief opens no edge: the moved shell's open edges are the unmoved one's", () => {
+    const flatEdges = openEdges(shellOf(build({ relief: false })));
+    const movedEdges = openEdges(shellOf(terrain));
+    console.log(`[rock] open edges: ${flatEdges.length} unmoved, ${movedEdges.length} moved`);
+    expect(flatEdges.length).toBeGreaterThan(0);
+    expect(movedEdges.length).toBe(flatEdges.length);
+    expect(movedEdges).toEqual(flatEdges);
+  }, 120_000);
+
+  // No triangle turns over: each moved shell triangle (unmoved area over
+  // 1e-6) faces the way it did unmoved (the same build, the same order, so
+  // triangle t is triangle t). In the test's build (seed 7) and the Gorge's
+  // own (its seed and keep discs).
+  const flipsOf = (flatGroup, movedGroup) => {
+    const flat = shellOf(flatGroup);
+    const moved = shellOf(movedGroup);
+    let n = 0;
+    const flipped = [];
+    const nrm = (arr, t) => {
+      const ux = arr[t + 3] - arr[t], uy = arr[t + 4] - arr[t + 1], uz = arr[t + 5] - arr[t + 2];
+      const vx = arr[t + 6] - arr[t], vy = arr[t + 7] - arr[t + 1], vz = arr[t + 8] - arr[t + 2];
+      return [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+    };
+    for (const name of ALL) {
+      const f = flat[name];
+      const m = moved[name];
+      expect(m.length, name).toBe(f.length);
+      for (let t = 0; t < f.length; t += 9) {
+        const a = nrm(f, t);
+        const area = Math.sqrt(a[0] ** 2 + a[1] ** 2 + a[2] ** 2) / 2;
+        if (!(area > 1e-6)) continue;
+        n++;
+        const c = nrm(m, t);
+        const dot = a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+        if (!(dot > 0)) flipped.push(`${name} area ${area.toFixed(4)}: ${Array.from(f.slice(t, t + 9)).map((v) => +v.toFixed(3))} -> ${Array.from(m.slice(t, t + 9)).map((v) => +v.toFixed(3))}`);
+      }
+    }
+    return { n, flipped };
+  };
+  // One known exception in this build (seed 7), none in the Gorge's own: a
+  // 0.02 m2 fan sliver at the top of eastMass's south wall (z -18), 0.1 m
+  // wide at one end and 1.4 m long, from the crest band's corner at x 13.7
+  // fanned to the row line's (15, 19.6). Its middle vertex sits 0.03 m off
+  // the line through the other two, so the crest jag's 0.095 m difference
+  // in lift over the 0.1 m between x 13.6 and 13.7 turns it. It stands
+  // edge-on in a vertical wall and its neighbours close round it (the open
+  // edges test above). Pinned exactly: a new flip, or this one gone, fails.
+  const KNOWN_FLIPS = [
+    'rockFaces area 0.0200: 13.6,20,-18,13.7,20,-18,15,19.6,-18 -> 13.6,20.383,-17.724,13.7,20.288,-17.728,15,19.6,-18.025',
+  ];
+  it('no shell triangle flips', () => {
+    const { n, flipped } = flipsOf(build({ relief: false }), terrain);
+    expect(n).toBeGreaterThan(5000);
+    expect(flipped).toEqual(KNOWN_FLIPS);
+  }, 120_000);
+  it("no shell triangle flips in the Gorge's own rock", () => {
+    const own = { seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP };
+    const { n, flipped } = flipsOf(build({ ...own, relief: false }), build(own));
+    expect(n).toBeGreaterThan(5000);
+    expect(flipped).toEqual([]);
+  }, 120_000);
+
+  // rockTerrain caches its arrays (keyed on the records' identity and the
+  // options): a second build is equal but owns its own buffers, and any
+  // other option misses the cache.
+  it('a second build is served from the cache, on its own buffers', () => {
+    const arrays = (g) => {
+      const out = {};
+      g.traverse((o) => {
+        if (o.isMesh) out[o.name] = ['position', 'color', 'normal'].filter((a) => o.geometry.attributes[a]).map((a) => o.geometry.attributes[a].array);
+      });
+      return out;
+    };
+    const t0 = performance.now();
+    const cold = build({ seed: 8 });
+    const t1 = performance.now();
+    const warm = build({ seed: 8 });
+    const t2 = performance.now();
+    console.log(`[rock] rockTerrain cold ${(t1 - t0).toFixed(1)} ms, warm ${(t2 - t1).toFixed(1)} ms`);
+    const a = arrays(cold);
+    const c = arrays(warm);
+    for (const n of ALL) {
+      expect(c[n].length, n).toBe(a[n].length);
+      for (let k = 0; k < a[n].length; k++) {
+        expect(c[n][k].buffer, n).not.toBe(a[n][k].buffer);
+        expect(Array.from(c[n][k]), n).toEqual(Array.from(a[n][k]));
+      }
+    }
+    expect(warm.userData).toEqual(cold.userData);
+    expect(warm.userData.shellTris).not.toBe(cold.userData.shellTris);
+    // materials are the walk's own, every build
+    expect(warm.getObjectByName('rockFaces').material).not.toBe(cold.getObjectByName('rockFaces').material);
+    // a walk disposing (or scribbling on) its rock leaves the next build whole
+    cold.getObjectByName('rockFaces').geometry.attributes.position.array.fill(0);
+    cold.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+    expect(Array.from(build({ seed: 8 }).getObjectByName('rockFaces').geometry.attributes.position.array)).toEqual(Array.from(c.rockFaces[0]));
+    // another seed is another rock
+    const other = build({ seed: 9 }).getObjectByName('rockFaces').geometry.attributes.position.array;
+    expect(Array.from(other)).not.toEqual(Array.from(c.rockFaces[0]));
+  }, 120_000);
+
+  it('the rock stays within its triangle budget', () => {
+    const t = terrain.userData.shellTris;
+    expect(t).toBeTruthy();
+    for (const n of ALL) {
+      expect(t[n], n).toBeGreaterThan(0);
+      expect(t[n], n).toBeLessThanOrEqual(tris(meshes[n]));
+    }
+    // the whole rock, its dressing included
+    expect(tris(meshes.rockFaces) + tris(meshes.ledgeTops) + tris(meshes.lips)).toBeLessThanOrEqual(16000);
+  });
+
+  // ROCK_PROUD (Global Constraints): no drawn rock vertex over walkable
+  // ground stands more than ROCK_PROUD (2D) from a wall-forming rock column;
+  // inside a cave or den, under its ceiling, CAVE_PROUD. A vertex is over
+  // walkable ground when it is not in rock and the highest column under it
+  // (not above it: a ceiling cap's column runs from its ceiling up, so a
+  // vertex under the ceiling stands on the cave or den floor) is a walk, cave
+  // or den floor (or the base), it is above that and below any ceiling there.
+  // A crest vertex lifted over every column near it is measured against
+  // those columns just under their tops. Rock columns are open rectangles
+  // here, so a vertex on a wall's own line (a wall foot, a cave wall the
+  // relief left in place) is tested too, and is within r of that wall.
+  // Every vertex, the dressing (lip stones, foot boulders) included.
+  it('no drawn rock stands proud over walkable ground', () => {
+    const shell = Object.fromEntries(ALL.map((n) => [n, meshes[n].geometry.attributes.position.array]));
+    const rockCols = [...MASSES, ...WALKS.filter((w) => w.kind === 'lip')];
+    const walkCols = WALKS.filter((w) => w.kind !== 'lip');
+    const allCols = [...rockCols, ...walkCols, ...CAPS];
+    let tested = 0;
+    let caveTested = 0;
+    const bad = [];
+    for (const [name, arr] of Object.entries(shell)) {
+      eachVertex(arr, (x, y, z) => {
+        let top = 0;
+        let rock = false;
+        const consider = (t, isRock) => {
+          if (t > top + 1e-6) { top = t; rock = isRock; } else if (t >= top - 1e-6) rock = rock || isRock;
+        };
+        // strictly inside rock: not drawn over anything
+        const inOpen = (s) => x > s.minX && x < s.maxX && z > s.minZ && z < s.maxZ;
+        if (rockCols.some((s) => inOpen(s) && y < shapeY(s, x, z) - 1e-6)) return;
+        if (CAPS.some((c) => inOpen(c) && y > c.y0 + 1e-6 && y < c.top - 1e-6)) return;
+        for (const s of rockCols) if (inOpen(s)) consider(shapeY(s, x, z), true);
+        for (const c of CAPS) if (inOpen(c) && y >= c.y0 - 1e-6) consider(c.top, true);
+        for (const s of walkCols) if (inRectE(s, x, z)) consider(shapeY(s, x, z), false);
+        if (rock || !(y > top + 1e-6)) return;
+        let cave = false;
+        for (const c of CEILINGS) {
+          if (!inRectE(c, x, z) || c.y0 <= top) continue;
+          if (!(y < c.y0 - 1e-6)) return;
+          cave = true;
+        }
+        tested++;
+        if (cave) caveTested++;
+        const r = (cave ? CAVE_PROUD : ROCK_PROUD) + 1e-4;
+        if (relief.wallNear(x, y, z, r)) return;
+        // over every column within r: measured just under the highest of them
+        let hNear = -Infinity;
+        for (const s of allCols) {
+          const px = Math.min(Math.max(x, s.minX), s.maxX);
+          const pz = Math.min(Math.max(z, s.minZ), s.maxZ);
+          if (Math.sqrt((x - px) ** 2 + (z - pz) ** 2) > r) continue;
+          hNear = Math.max(hNear, s.top ?? shapeY(s, px, pz));
+        }
+        if (y >= hNear && relief.wallNear(x, hNear - 1e-3, z, r)) return;
+        bad.push(`${name} (${x}, ${y}, ${z})${cave ? ' in a cave' : ''}`);
+      });
+    }
+    expect(tested).toBeGreaterThan(1000);
+    expect(caveTested).toBeGreaterThan(0);
+    expect(bad.slice(0, 12)).toEqual([]);
+  }, 120_000);
+
+  // Walk tops, cave and den floors, and every wall foot on them: drawn at
+  // the ground's height in the unmoved shell, and still there once moved.
+  it("walk-top vertices don't move", () => {
+    const flat = shellOf(build({ relief: false }));
+    const moved = new Set();
+    for (const arr of Object.values(shellOf(terrain))) eachVertex(arr, (x, y, z) => moved.add(keyOf(x, y, z)));
+    const tops = WALKS.filter((w) => w.kind === 'walk' || w.kind === 'cave' || w.kind === 'den');
+    let n = 0;
+    const lost = [];
+    for (const [name, arr] of Object.entries(flat)) {
+      eachVertex(arr, (x, y, z) => {
+        if (!tops.some((s) => inRectE(s, x, z) && Math.abs(y - shapeY(s, x, z)) <= 1e-6)) return;
+        n++;
+        if (!moved.has(keyOf(x, y, z))) lost.push(`${name} (${x}, ${y}, ${z})`);
+      });
+    }
+    expect(n).toBeGreaterThan(1000);
+    expect(lost.slice(0, 12)).toEqual([]);
+  }, 120_000);
+
+  // The base floor (y 0), the commonest seam: every wall foot on it stays
+  // exactly where it is (same build, same order: vertex i is vertex i).
+  it("floor-foot vertices (y 0) don't move", () => {
+    const flat = shellOf(build({ relief: false }));
+    const moved = shellOf(terrain);
+    let n = 0;
+    const lost = [];
+    for (const name of ALL) {
+      const f = flat[name];
+      const m = moved[name];
+      eachVertex(f, (x, y, z, i) => {
+        if (y !== 0) return;
+        n++;
+        if (m[3 * i] !== x || m[3 * i + 1] !== y || m[3 * i + 2] !== z) lost.push(`${name} (${x}, ${y}, ${z}) -> (${m[3 * i]}, ${m[3 * i + 1]}, ${m[3 * i + 2]})`);
+      });
+    }
+    expect(n).toBeGreaterThan(500);
+    expect(lost.slice(0, 12)).toEqual([]);
+  }, 120_000);
+
+  it('roofs never come down', () => {
+    const shell = shellOf(terrain);
+    let n = 0;
+    const low = [];
+    for (const c of CEILINGS) {
+      const r = { minX: c.minX + 0.2, maxX: c.maxX - 0.2, minZ: c.minZ + 0.2, maxZ: c.maxZ - 0.2 };
+      for (const [name, arr] of Object.entries(shell)) {
+        eachVertex(arr, (x, y, z) => {
+          if (!inRectE(r, x, z, 0) || Math.abs(y - c.y0) > 0.3) return;
+          n++;
+          if (y < c.y0 - 1e-6) low.push(`${name} (${x}, ${y}, ${z}) under ${c.y0}`);
+        });
+      }
+    }
+    expect(n).toBeGreaterThan(0);
+    expect(low.slice(0, 12)).toEqual([]);
+  }, 120_000);
+
+  // Wall vertices: those of a triangle whose face normal is mostly horizontal
+  // in the unmoved build. Same build, same order, so vertex i is vertex i.
+  it('the rock has relief', () => {
+    const flat = shellOf(build({ relief: false })).rockFaces;
+    const moved = shellOf(terrain).rockFaces;
+    expect(moved.length).toBe(flat.length);
+    const seen = new Set();
+    let walls = 0;
+    let movedWalls = 0;
+    let highest = -Infinity;
+    for (let t = 0; t < flat.length; t += 9) {
+      const p = (k) => new THREE.Vector3(flat[t + 3 * k], flat[t + 3 * k + 1], flat[t + 3 * k + 2]);
+      const n = p(1).sub(p(0)).cross(p(2).sub(p(0))).normalize();
+      for (let k = 0; k < 3; k++) highest = Math.max(highest, moved[t + 3 * k + 1]);
+      if (Math.abs(n.y) >= 0.5) continue;
+      for (let k = 0; k < 3; k++) {
+        const i = t + 3 * k;
+        const key = keyOf(flat[i], flat[i + 1], flat[i + 2]);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        walls++;
+        const d = Math.sqrt((moved[i] - flat[i]) ** 2 + (moved[i + 1] - flat[i + 1]) ** 2 + (moved[i + 2] - flat[i + 2]) ** 2);
+        if (d > 0.05) movedWalls++;
+      }
+    }
+    expect(walls).toBeGreaterThan(1000);
+    expect(movedWalls / walls).toBeGreaterThanOrEqual(0.5);
+    expect(highest).toBeGreaterThanOrEqual(20.5);
+  }, 120_000);
+
+  // The rays start ROCK_PROUD + 0.05 in from the edge: a wall may stand
+  // ROCK_PROUD proud of the line the cat stops at, and is never further back
+  // than its relief (near the foot, where these rays run, it is barely moved).
   it('every rim is drawn where the cat stops', () => {
     const OUT = 0.05;
+    const IN = ROCK_PROUD + 0.05;
     const cands = [];
     for (const s of WALKS.filter((w) => w.kind !== 'lip')) {
       const edges = [
@@ -903,9 +1265,9 @@ describe('the Gorge rock: rockTerrain and scree', () => {
         for (let d = 0.2; d <= len - 0.2; d += 0.23) {
           const ex = e.nx ? e.x : e.x0 + d;
           const ez = e.nx ? e.z0 + d : e.z;
-          const ix = ex - e.nx * 0.1;
-          const iz = ez - e.nz * 0.1;
-          if (!reached(ix, iz) && !reached(ex - e.nx * 0.25, ez - e.nz * 0.25)) continue;
+          const ix = ex - e.nx * IN;
+          const iz = ez - e.nz * IN;
+          if (!reached(ex - e.nx * 0.1, ez - e.nz * 0.1) && !reached(ex - e.nx * 0.25, ez - e.nz * 0.25)) continue;
           const gy = ground.y(ix, iz);
           if (ground.y(ex + e.nx * OUT, ez + e.nz * OUT) - gy < 0.3) continue;
           cands.push({ ix, iz, y: gy + 0.15, nx: e.nx, nz: e.nz });
@@ -916,13 +1278,13 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(points.length).toBe(400);
     for (const p of points) {
       const dir = new THREE.Vector3(p.nx, 0, p.nz);
-      const hits = cast(new THREE.Vector3(p.ix, p.y, p.iz), dir, ['rockFaces', 'lips'], 0.15);
+      const hits = cast(new THREE.Vector3(p.ix, p.y, p.iz), dir, ['rockFaces', 'lips'], IN + 0.15);
       expect(hits.length, `(${p.ix}, ${p.iz}) toward (${p.nx}, ${p.nz})`).toBeGreaterThan(0);
       // and the face is turned toward the cat (its front side faces her)
       const n = hits[0].face.normal.clone().transformDirection(hits[0].object.matrixWorld);
       expect(n.dot(dir), `(${p.ix}, ${p.iz}) winding`).toBeLessThan(0);
     }
-  });
+  }, 120_000);
 
   it('no rock hangs over walkable ground', () => {
     // A grid point can sit exactly on a wall's line (the ground counts it as
@@ -932,13 +1294,26 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     // clears the 1 mm inset of the ground's ceilings (CEIL_INSET): there
     // ground.ceil is the full-size cap the rock draws (Infinity where nothing
     // is overhead).
+    //
+    // A wall may stand up to ROCK_PROUD proud of its line, and a cap's mouth
+    // face proud of its rectangle, so a point that close to either is left to
+    // the vertex test below ('no drawn rock stands proud over walkable ground').
     const D = 0.002;
+    const NEAR = ROCK_PROUD + 0.01;
+    const nearCapEdge = (x, z, gy) => CEILINGS.some((c) => c.y0 > gy
+      && x >= c.minX - NEAR && x <= c.maxX + NEAR && z >= c.minZ - NEAR && z <= c.maxZ + NEAR
+      && !(x > c.minX + NEAR && x < c.maxX - NEAR && z > c.minZ + NEAR && z < c.maxZ - NEAR));
     let n = 0;
     let open = 0;
+    let skipped = 0;
     forEachReached((x, z) => {
       if (!Number.isInteger(x) || !Number.isInteger(z)) return;
       n++;
       const gy = ground.y(x, z);
+      if (relief.wallNear(x, gy + 0.05, z, NEAR) || nearCapEdge(x, z, gy)) {
+        skipped++;
+        return;
+      }
       let tested = 0;
       for (const [dx, dz] of [[D, D], [D, -D], [-D, D], [-D, -D]]) {
         const px = x + dx;
@@ -958,8 +1333,9 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(tested, `(${x}, ${z})`).toBeGreaterThan(0);
     });
     expect(n).toBeGreaterThan(2000);
+    expect(skipped).toBeLessThan(n / 4);
     expect(open).toBeLessThan(4 * n);
-  });
+  }, 120_000);
 
   it('the walkable tops are drawn at the ground\'s height', () => {
     const raised = WALK_SHAPES.filter((s) => s.kind === 'walk');
@@ -968,7 +1344,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       const gy = ground.y(x, z);
       if (gy < 0.05 || ground.ceil(x, z) !== Infinity) return;
       // well inside a raised shape: a ray down a wall's own line grazes its top
-      const M = 0.05;
+      const M = ROCK_PROUD + 0.05;
       if (raised.some((s) => x > s.minX + M && x < s.maxX - M && z > s.minZ + M && z < s.maxZ - M)) cands.push([x, z, gy]);
     });
     const points = pick(cands, 200);
@@ -979,7 +1355,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       expect(['ledgeTops', 'lips'], `(${x}, ${z})`).toContain(hits[0].object.name);
       expect(Math.abs(hits[0].point.y - gy), `(${x}, ${z})`).toBeLessThanOrEqual(0.02);
     }
-  });
+  }, 120_000);
 
   it('only exposed rock is drawn, within its triangle cap', () => {
     const rock = meshes.rockFaces;
@@ -1003,7 +1379,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
           if (ax !== cx) continue;
           const lo = dir === 'x' ? Math.max(a.minZ, c.minZ) : Math.max(a.minX, c.minX);
           const hi = dir === 'x' ? Math.min(a.maxZ, c.maxZ) : Math.min(a.maxX, c.maxX);
-          if (hi - lo > 0.5) seams.push({ dir, at: ax, lo, hi, h: a.y0 });
+          if (hi - lo > 2.5) seams.push({ dir, at: ax, lo, hi, h: a.y0 });
         }
       }
     }
@@ -1012,7 +1388,9 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     for (let k = 0; points.length < 200; k++) {
       const s = seams[k % seams.length];
       const f = ((k * 0.618034) % 1);
-      const t = s.lo + 0.2 + f * (s.hi - s.lo - 0.4);
+      // 1 m in from each end: a wall that meets the seam's line there may
+      // stand ROCK_PROUD proud of it, or its crest be lifted over it.
+      const t = s.lo + 1.0 + f * (s.hi - s.lo - 2.0);
       const y = 0.1 + (((k * 0.414214) % 1) * (s.h - 0.2));
       points.push({ ...s, t, y });
     }
@@ -1021,7 +1399,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       const d = p.dir === 'x' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
       expect(cast(o, d, ['rockFaces'], 0.1).length, `${p.dir} ${p.at} at ${p.t}, y ${p.y}`).toBe(0);
     }
-  });
+  }, 120_000);
 
   it('a lip closes the gap between legs', () => {
     // from leg A (x 2.4..5.4) east toward leg B, and from leg B (5.8..8.8) toward leg C
@@ -1030,7 +1408,7 @@ describe('the Gorge rock: rockTerrain and scree', () => {
       const z = 10;
       const hits = cast(new THREE.Vector3(x, ground.y(x, z) + 0.2, z), new THREE.Vector3(1, 0, 0), ['lips', 'rockFaces'], 0.1 + 0.15);
       expect(hits.length, label).toBeGreaterThan(0);
-      expect(hits[0].point.x, label).toBeGreaterThanOrEqual(edge - 1e-6);
+      expect(hits[0].point.x, label).toBeGreaterThanOrEqual(edge - ROCK_PROUD);
     }
   });
 
@@ -1055,6 +1433,118 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(lum(low)).toBeLessThan(lum(high));
     expect(low[2] / low[0]).toBeGreaterThan(high[2] / high[0]);
   });
+
+  // CliffClan's coats are shaded at HSL saturation 0.45 or more
+  // (test/clancast.test.js), so no drawn rock colour, tints and strata
+  // included, comes near them.
+  it('no drawn rock colour is saturated enough to hide a CliffClan coat', () => {
+    const sat = (r, g, bl) => {
+      const max = Math.max(r, g, bl);
+      const min = Math.min(r, g, bl);
+      const l = (max + min) / 2;
+      return max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+    };
+    let worst = 0;
+    for (const n of ['rockFaces', 'lips']) {
+      const col = meshes[n].geometry.attributes.color;
+      expect(col, n).toBeTruthy();
+      for (let i = 0; i < col.count; i++) worst = Math.max(worst, sat(col.getX(i), col.getY(i), col.getZ(i)));
+    }
+    expect(worst).toBeGreaterThan(0);
+    expect(worst).toBeLessThanOrEqual(0.42);
+  });
+
+  // ---- The dressing: appended to the merged meshes after their shells ----
+  const LIPS = WALKS.filter((w) => w.kind === 'lip');
+  // The part of a mesh after its shell.
+  const dressingOf = (name) => meshes[name].geometry.attributes.position.array.subarray(terrain.userData.shellTris[name] * 9);
+  // The foot boulders: 20 triangles each, in order after the rockFaces shell;
+  // each one's centre is the mean of its 12 distinct vertices.
+  const boulders = () => {
+    const arr = dressingOf('rockFaces');
+    const out = [];
+    for (let s = 0; s < arr.length; s += 20 * 9) {
+      const uniq = new Map();
+      eachVertex(arr.subarray(s, s + 20 * 9), (x, y, z) => uniq.set(keyOf(x, y, z), [x, y, z]));
+      const vs = [...uniq.values()];
+      const c = [0, 1, 2].map((k) => vs.reduce((a, v) => a + v[k], 0) / vs.length);
+      out.push({ vs, c });
+    }
+    return out;
+  };
+
+  it('the dressing is counted, and appended after the shells', () => {
+    const d = terrain.userData.dressing;
+    expect(d).toBeTruthy();
+    const t = terrain.userData.shellTris;
+    expect(tris(meshes.lips) - t.lips).toBe(12 * d.lipStones);
+    expect(tris(meshes.rockFaces) - t.rockFaces).toBe(20 * d.footBoulders);
+    expect(tris(meshes.ledgeTops)).toBe(t.ledgeTops);
+    expect(d.lipStones).toBeGreaterThanOrEqual(200);
+    expect(d.lipStones).toBeLessThanOrEqual(360);
+    expect(d.footBoulders).toBeGreaterThanOrEqual(40);
+    expect(d.footBoulders).toBeLessThanOrEqual(90);
+    // dressing: false draws the shell alone
+    const bare = build({ dressing: false });
+    let n = 0;
+    bare.traverse((o) => { if (o.isMesh) { n++; expect(tris(o), o.name).toBe(t[o.name]); } });
+    expect(n).toBe(3);
+    expect(bare.userData.dressing).toEqual({ lipStones: 0, footBoulders: 0 });
+  }, 120_000);
+
+  it('lip stones sit on their lips', () => {
+    const arr = dressingOf('lips');
+    expect(arr.length).toBeGreaterThan(0);
+    const bad = [];
+    eachVertex(arr, (x, y, z) => {
+      const ok = LIPS.some((l) => {
+        if (!inRectE(l, x, z, 0.1)) return false;
+        const top = shapeY(l, Math.min(Math.max(x, l.minX), l.maxX), Math.min(Math.max(z, l.minZ), l.maxZ));
+        return y >= top - 0.2 && y <= top + 0.13;
+      });
+      if (!ok) bad.push(`(${x}, ${y}, ${z})`);
+    });
+    expect(bad.slice(0, 12)).toEqual([]);
+  });
+
+  it('cave and den mouths stay open: no foot boulder within 1 m of one', () => {
+    const mouths = [...gorgeShape.GORGE_CAVES.map((c) => c.mouth), ...gorgeShape.GORGE_DENS.map((d) => d.mouth), gorgeShape.CAMP_DEN.mouth];
+    expect(GORGE_ROCK_MOUTHS.map(({ x, z }) => ({ x, z }))).toEqual(mouths.map(({ x, z }) => ({ x, z })));
+    const bs = boulders();
+    expect(bs.length).toBe(terrain.userData.dressing.footBoulders);
+    for (const { vs, c } of bs) {
+      expect(vs).toHaveLength(12);
+      for (const m of mouths) expect(Math.sqrt((c[0] - m.x) ** 2 + (c[2] - m.z) ** 2), `${c} by ${m.x}, ${m.z}`).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  // A foot boulder shows only at the foot of a wall that rises a metre over
+  // the ground in front of it: every vertex is in rock, or within 0.12 m of
+  // rock that still stands a metre over that vertex's ground, and never in a
+  // cave or den (so none pokes through a lip onto the walk behind it, into a
+  // void, or out of thin rock's far side).
+  it('every foot boulder shows only at the foot of a tall wall', () => {
+    const walkTops = WALKS.filter((w) => w.kind !== 'lip');
+    const bad = [];
+    let exposed = 0;
+    for (const { vs } of boulders()) {
+      for (const [x, y, z] of vs) {
+        if (relief.rockAt(x, y, z)) continue;
+        exposed++;
+        let g = 0;
+        for (const s of walkTops) {
+          if (!inRectE(s, x, z)) continue;
+          const t = shapeY(s, x, z);
+          if (t <= y + 1e-6 && t > g) g = t;
+        }
+        const inVoid = CEILINGS.some((c) => inRectE(c, x, z) && y < c.y0);
+        const near = relief.wallNear(x, y, z, 0.12 + 1e-6) && relief.wallNear(x, g + 1.0 - 1e-3, z, 0.12 + 1e-6);
+        if (inVoid || !near) bad.push(`(${x}, ${y}, ${z}) ground ${g}${inVoid ? ' in a void' : ''}`);
+      }
+    }
+    expect(exposed).toBeGreaterThan(40);
+    expect(bad.slice(0, 12)).toEqual([]);
+  }, 120_000);
 
   it('scree is low, noCast and merged', () => {
     const spots = [{ x: 0, z: 0 }, { x: 3, z: -2 }, { x: -5, z: 6 }];

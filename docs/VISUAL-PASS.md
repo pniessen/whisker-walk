@@ -2353,3 +2353,68 @@ GaleClan (the patrol on the ring). Draws (shadow / scene), triangles, frame ms
 
 Shots: the scratchpad's `snaps-cliffclan` folder (`home-*`, `cc-*` at home,
 `away-*` as GaleClan, `moor-*`, `perf-*`).
+
+## The Gorge's rock — polish pass (2026-11-02)
+
+Branch `gorge-rock`. The owner asked for rocks and cliffs that "aren't just right angles and straight lines". The ground is untouched: test/gorgerock-guard.test.js pins the ground spec, a sampled ground digest, the whole area record, and 54 meshes / 36 casters.
+
+**How it works.** `rockTerrain` still draws the same exposed faces of the same shape records.
+- They are cut finer, into 1.6 m cells and 1.4 m rows, with a 1.5 m ring round each rock top.
+- The result is made conforming, with no T-junctions (`src/world/meshconform.js`).
+- Every vertex is then moved by `src/world/rockrelief.js`, a pure function of position, so the shell stays watertight. A test compares the moved and unmoved shells' open edges.
+
+The field:
+- **Recess and shelves.** Walls recess into the rock by up to 0.8 m, with strata shelves 1.1 m apart.
+- **Corners.** Outer corners are cut by up to 0.7 m.
+- **Crests.** Crests are broken and mostly raised, by up to about 1.1 m on the 20 m rims.
+- **Hard limits:**
+  - wall feet and walk surfaces never move;
+  - nothing stands more than 0.15 m proud over walkable ground, or 0.02 m in caves and dens;
+  - ceilings never come down;
+  - recesses never cross half the rock's thickness;
+  - the goat's ground on the shoulder is held still.
+
+Dressing:
+- 275 jittered edge stones run along the lips. They are 12 triangles each, sit in the `lips` mesh, and stand at most 0.10 m proud.
+- 90 half-buried boulders sit at the wall feet. They are 20 triangles each, sit in `rockFaces`, and are at most 0.12 m out of the wall. None blocks a mouth.
+
+Colour:
+- The rock is warm sandstone with strata bands, and recesses are darker.
+- ROCK_LOW is 0x6f6a66 and ROCK_HIGH is 0xc8b496. The colour stays dull enough (saturation ≤ 0.42, test/clancast.test.js) for CliffClan's coats to stand out.
+- The Narrows' shaded wall is no longer blue-grey.
+
+**Numbers.**
+
+| | before | after |
+|---|---|---|
+| rockFaces / ledgeTops / lips | 4,686 / 36 / 848 | 10,488 / 398 / 4,551 |
+| rock total | 5,570 | 15,437 (cap 16,000 in test) |
+| Gorge `build(scene)` | 54 meshes, 36 casters, 33,184 tris | 54 meshes, 36 casters, 43,051 tris |
+| rockTerrain | ~20 ms | ~120–140 ms cold, 0.2 ms warm (cached per walk session) |
+
+**In-game `?perf`.** HIGH, 1280x720, same fixed cameras, one walk each. Strays re-roll, so draws are only roughly comparable.
+
+| view | draws before (shadow / scene) | draws after | scene tris before → after |
+|---|---|---|---|
+| Narrows spawn | 938 (235 / 689) | 912 (211 / 687) | 214,834 → 225,418 |
+| floor (-5, -6) S | 647 (203 / 430) | 644 (248 / 382) | 171,080 → 190,110 |
+| clifftop look-down | 735 (174 / 547) | 710 (174 / 522) | 177,136 → 192,082 |
+| high over the north end | 717 (146 / 556) | 745 (173 / 557) | 176,104 → 200,352 |
+
+**Live check** (headless Chromium, SwiftShader, port 5199). The camera was overridden to the same 14 spots before and after, plus three phone (375x812) shots:
+- the Narrows spawn;
+- the floor looking N, S, E and W;
+- leg B climbing;
+- the Wide Ledge camp;
+- the clifftop look-down, and the clifftop toward the shoulder;
+- the Echo Cave mouth;
+- the cat against lip A, against the west wall's foot, and at the Echo Cave mouth's jamb.
+
+No clipping was seen, and there were no console errors.
+
+Not checked here:
+- the iPhone 18 (rockFaces casts, and its shadow-pass triangles went from 4.7k to 10.5k);
+- dusk;
+- walking with the keys along every wall.
+
+Shots are in the scratchpad's `snaps-gorge-rock` folder (`before/`, `after/`, `pairs/`).

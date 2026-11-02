@@ -178,6 +178,28 @@ describe('the Gorge: the rock and the view', () => {
     expect(scene.getObjectByName('groundPlane')).toBeTruthy();
   });
 
+  // Review Focus 4: the goat leaps along the shoulder (3.5..7.5, -16) and
+  // lands and hides at (8, -12.5). The drawn top under it is the ground's
+  // 14 (GORGE_ROCK_KEEP holds it still; the crest jag stays out).
+  it("the shoulder top under the goat's line and hide is drawn at 14", () => {
+    const rock = scene.getObjectByName('rockFaces');
+    rock.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+    const pts = [];
+    for (let x = 3; x <= 7.5 + 1e-9; x += 0.25) pts.push([x, -16]);
+    for (const dx of [-0.3, 0, 0.3]) for (const dz of [-0.3, 0, 0.3]) pts.push([8 + dx, -12.5 + dz]);
+    const off = [];
+    for (const [x, z] of pts) {
+      ray.set(new THREE.Vector3(x, 30, z), down);
+      const hit = ray.intersectObject(rock, false)[0];
+      const y = hit ? hit.point.y : null;
+      if (y === null || Math.abs(y - 14) > 0.03) off.push(`(${x}, ${z}) at ${y}`);
+    }
+    expect(pts.length).toBe(28);
+    expect(off).toEqual([]);
+  });
+
   // Review Focus 3. The highest camera there is: on top of the Summit Rock
   // (the clifftop plus the pillar's 1.9 m), at zoom step 3, pitched as far up
   // as the player allows.
@@ -699,6 +721,21 @@ describe('the Gorge: tall pines, boulders, scree and grass', () => {
     for (const t of all) {
       expect(area.colliders.some((c) => c.x === t.x && c.z === t.z && c.r === Math.round(40 * t.scale) / 100)).toBe(true);
     }
+  });
+
+  // Review Focus 4: the rock's relief must not lift or drop the west top under
+  // the stand, whose trees are lifted to WEST_TOP by their y.
+  it('the pine stand stands on rock drawn at the west top', () => {
+    const { stand } = gorgeTrees();
+    const rock = scene.getObjectByName('rockFaces');
+    const down = new THREE.Raycaster();
+    for (const t of stand) {
+      down.set(new THREE.Vector3(t.x, 30, t.z), new THREE.Vector3(0, -1, 0));
+      const hit = down.intersectObject(rock, false)[0];
+      expect(hit, `stand pine (${t.x}, ${t.z})`).toBeTruthy();
+      expect(Math.abs(hit.point.y - WEST_TOP), `stand pine (${t.x}, ${t.z})`).toBeLessThanOrEqual(0.01);
+    }
+    expect(WEST_TOP).toBe(9);
   });
 
   it('no pine stands over a path, a ledge below it or a cave mouth', () => {

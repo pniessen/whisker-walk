@@ -1,0 +1,1466 @@
+{
+  "specSha": "b693822e0b5a36bca67dd770fe90e874fba7a21c91c7918f50433d94df4dbb97",
+  "groundSha": "6cdd6cd11326b27f09b95b8d17840a32bf980f08122c67e34dc7077c5c27c1b6",
+  "area": {
+    "name": "The Gorge",
+    "colliders": [
+      {
+        "x": 24,
+        "z": -23,
+        "r": 0.7
+      },
+      {
+        "x": 25,
+        "z": -24,
+        "r": 0.9
+      },
+      {
+        "x": -13.99,
+        "z": -35.58,
+        "r": 1.25
+      },
+      {
+        "x": -12.8,
+        "z": 37.37,
+        "r": 1.3
+      },
+      {
+        "x": -13.12,
+        "z": 31.75,
+        "r": 1.15
+      },
+      {
+        "x": -12.9,
+        "z": -4.74,
+        "r": 1.19
+      },
+      {
+        "x": -13.75,
+        "z": 47.08,
+        "r": 1.15
+      },
+      {
+        "x": -14.2,
+        "z": 0.93,
+        "r": 1.3
+      },
+      {
+        "x": -13.83,
+        "z": -44.28,
+        "r": 1.24
+      },
+      {
+        "x": -12.68,
+        "z": -20.31,
+        "r": 1.09
+      },
+      {
+        "x": 10.66,
+        "z": -26.23,
+        "r": 1.13
+      },
+      {
+        "x": 27.77,
+        "z": -35.05,
+        "r": 1.18
+      },
+      {
+        "x": 12.3,
+        "z": -34.32,
+        "r": 1.23
+      },
+      {
+        "x": -12.58,
+        "z": -48.08,
+        "r": 0.68
+      },
+      {
+        "x": -12.7,
+        "z": -40.82,
+        "r": 0.65
+      },
+      {
+        "x": 24.33,
+        "z": -33.52,
+        "r": 0.53
+      },
+      {
+        "x": 8.27,
+        "z": -31.72,
+        "r": 0.76
+      },
+      {
+        "x": 19.81,
+        "z": -29.09,
+        "r": 0.72
+      },
+      {
+        "x": 23.26,
+        "z": -28.87,
+        "r": 0.68
+      },
+      {
+        "x": -13.34,
+        "z": -25.3,
+        "r": 0.65
+      },
+      {
+        "x": -13.83,
+        "z": -15.16,
+        "r": 0.5
+      },
+      {
+        "x": -5.43,
+        "z": 34.79,
+        "r": 0.62
+      },
+      {
+        "x": -33.57,
+        "z": -47.31,
+        "r": 0.71
+      },
+      {
+        "x": -27.43,
+        "z": -47.34,
+        "r": 0.58
+      },
+      {
+        "x": -22.13,
+        "z": -48.5,
+        "r": 0.5
+      },
+      {
+        "x": -33.59,
+        "z": -43.05,
+        "r": 0.61
+      },
+      {
+        "x": -30.02,
+        "z": -44.37,
+        "r": 0.54
+      },
+      {
+        "x": -25.89,
+        "z": -43.06,
+        "r": 0.51
+      },
+      {
+        "x": -22.39,
+        "z": -44.78,
+        "r": 0.5
+      },
+      {
+        "x": -33.89,
+        "z": -39.37,
+        "r": 0.74
+      },
+      {
+        "x": -29.63,
+        "z": -39.14,
+        "r": 0.55
+      },
+      {
+        "x": -26.12,
+        "z": -38.84,
+        "r": 0.66
+      },
+      {
+        "x": -30.41,
+        "z": -35.15,
+        "r": 0.62
+      },
+      {
+        "x": -33.92,
+        "z": -34.08,
+        "r": 0.59
+      },
+      {
+        "x": -27.47,
+        "z": -33.2,
+        "r": 0.52
+      },
+      {
+        "x": -35.1,
+        "z": -30.58,
+        "r": 0.7
+      },
+      {
+        "x": -31.38,
+        "z": -29.86,
+        "r": 0.67
+      },
+      {
+        "x": -34.69,
+        "z": -27.34,
+        "r": 0.7
+      },
+      {
+        "x": -31.45,
+        "z": -25.34,
+        "r": 0.58
+      },
+      {
+        "x": -25.28,
+        "z": -25.04,
+        "r": 0.56
+      },
+      {
+        "x": -34.45,
+        "z": -22.81,
+        "r": 0.71
+      },
+      {
+        "x": -30.28,
+        "z": -21.34,
+        "r": 0.7
+      },
+      {
+        "x": -22.69,
+        "z": -22.57,
+        "r": 0.64
+      },
+      {
+        "x": -34.17,
+        "z": 0.97,
+        "r": 0.73
+      },
+      {
+        "x": -29.38,
+        "z": -0.93,
+        "r": 0.57
+      },
+      {
+        "x": -25.62,
+        "z": -0.83,
+        "r": 0.58
+      },
+      {
+        "x": -28.11,
+        "z": 2.43,
+        "r": 0.57
+      },
+      {
+        "x": -32.29,
+        "z": 4.56,
+        "r": 0.64
+      },
+      {
+        "x": -35.11,
+        "z": 8.02,
+        "r": 0.52
+      },
+      {
+        "x": -30.9,
+        "z": 8.84,
+        "r": 0.67
+      },
+      {
+        "x": -27.07,
+        "z": 7.97,
+        "r": 0.49
+      },
+      {
+        "x": -34.39,
+        "z": 14.2,
+        "r": 0.55
+      },
+      {
+        "x": -30.21,
+        "z": 14.46,
+        "r": 0.62
+      },
+      {
+        "x": -25.98,
+        "z": 14.47,
+        "r": 0.57
+      },
+      {
+        "x": -34.42,
+        "z": 17.54,
+        "r": 0.69
+      },
+      {
+        "x": -34.17,
+        "z": 22.68,
+        "r": 0.62
+      },
+      {
+        "x": -34.63,
+        "z": 39.77,
+        "r": 0.59
+      },
+      {
+        "x": -27.04,
+        "z": 40.08,
+        "r": 0.62
+      },
+      {
+        "x": -30.9,
+        "z": 41.72,
+        "r": 0.76
+      },
+      {
+        "x": -24.32,
+        "z": 42.25,
+        "r": 0.48
+      },
+      {
+        "x": -34.76,
+        "z": 43.29,
+        "r": 0.57
+      },
+      {
+        "x": -27.45,
+        "z": 44.81,
+        "r": 0.67
+      },
+      {
+        "x": -32.23,
+        "z": 46.91,
+        "r": 0.75
+      },
+      {
+        "x": -23.39,
+        "z": 46.59,
+        "r": 0.6
+      },
+      {
+        "x": -29.03,
+        "z": 48.56,
+        "r": 0.75
+      },
+      {
+        "x": 8.3,
+        "z": 41.5,
+        "r": 0.6
+      }
+    ],
+    "bounds": {
+      "minX": -50,
+      "maxX": 50,
+      "minZ": -50,
+      "maxZ": 50
+    },
+    "spawn": {
+      "x": -44,
+      "z": -11
+    },
+    "boxes": [],
+    "tippables": [],
+    "pois": [
+      {
+        "x": -34,
+        "z": -11
+      },
+      {
+        "x": -13,
+        "z": -30
+      },
+      {
+        "x": -3,
+        "z": -2
+      },
+      {
+        "x": -14,
+        "z": 14
+      },
+      {
+        "x": 0,
+        "z": 24
+      },
+      {
+        "x": -13,
+        "z": 42
+      },
+      {
+        "x": -3,
+        "z": -44
+      },
+      {
+        "x": 14,
+        "z": -30
+      },
+      {
+        "x": 29,
+        "z": -30
+      }
+    ],
+    "collectibles": [
+      {
+        "id": "gorge-find-1",
+        "x": -27,
+        "z": 33,
+        "label": "a smooth white pebble"
+      },
+      {
+        "id": "gorge-find-2",
+        "x": 24.5,
+        "z": 8,
+        "label": "a tuft of soft grey fur"
+      },
+      {
+        "id": "gorge-find-3",
+        "x": 43,
+        "z": -40,
+        "label": "a gold-flecked stone"
+      },
+      {
+        "id": "gorge-find-4",
+        "x": -4,
+        "z": 18,
+        "label": "a curly fern frond"
+      },
+      {
+        "id": "gorge-find-5",
+        "x": 20,
+        "z": -34,
+        "label": "a hawk feather"
+      }
+    ],
+    "scenics": [
+      {
+        "id": "gorge-view",
+        "x": 4,
+        "z": -24,
+        "label": "the view down the gorge"
+      },
+      {
+        "id": "lookout-ledge",
+        "x": 3.5,
+        "z": -5,
+        "label": "the gorge from the Lookout Ledge"
+      },
+      {
+        "id": "echo-mouth",
+        "x": -16.5,
+        "z": 23.5,
+        "label": "the mouth of the Echo Cave"
+      }
+    ],
+    "critterSpawns": [
+      {
+        "type": "bird",
+        "x": -12.58,
+        "z": -48.08
+      },
+      {
+        "type": "bird",
+        "x": -12.7,
+        "z": -40.82
+      },
+      {
+        "type": "bird",
+        "x": 24.33,
+        "z": -33.52
+      },
+      {
+        "type": "bird",
+        "x": 8.27,
+        "z": -31.72
+      },
+      {
+        "type": "mouse",
+        "x": -15,
+        "z": 36,
+        "x2": -12,
+        "z2": 40
+      },
+      {
+        "type": "mouse",
+        "x": -2,
+        "z": -36,
+        "x2": -4,
+        "z2": -40
+      },
+      {
+        "type": "goat",
+        "x": 3.5,
+        "z": -16,
+        "x2": 7.5,
+        "z2": -16
+      }
+    ],
+    "moments": [
+      {
+        "id": "goat-leap",
+        "type": "goat",
+        "label": "a goat leaping over the rocks",
+        "x": 8,
+        "z": -12.5,
+        "from": {
+          "x": 4,
+          "z": -16
+        }
+      }
+    ],
+    "puddles": [],
+    "waters": [
+      {
+        "id": "stream",
+        "kind": "rect",
+        "minX": -9.5,
+        "maxX": -8,
+        "minZ": -62,
+        "maxZ": 62,
+        "shallow": 0.75,
+        "decks": [
+          {
+            "minX": -10.5,
+            "maxX": -7,
+            "minZ": -11.75,
+            "maxZ": -10.25
+          }
+        ]
+      }
+    ],
+    "groundBounce": 6249810,
+    "skyDusk": {
+      "top": 2502730,
+      "horizon": 6969960
+    },
+    "perches": [
+      {
+        "x": 24,
+        "z": -23,
+        "y": 0.72,
+        "kind": "stone"
+      },
+      {
+        "x": 25,
+        "z": -24,
+        "y": 1.9,
+        "kind": "stone",
+        "label": "summit rock",
+        "vantage": true
+      },
+      {
+        "x": -13.99,
+        "z": -35.58,
+        "y": 1.05,
+        "kind": "stone"
+      },
+      {
+        "x": -12.8,
+        "z": 37.37,
+        "y": 1.39,
+        "kind": "stone"
+      },
+      {
+        "x": -13.12,
+        "z": 31.75,
+        "y": 1.4,
+        "kind": "stone"
+      },
+      {
+        "x": -12.9,
+        "z": -4.74,
+        "y": 1.13,
+        "kind": "stone"
+      },
+      {
+        "x": -13.75,
+        "z": 47.08,
+        "y": 1.35,
+        "kind": "stone"
+      },
+      {
+        "x": -14.2,
+        "z": 0.93,
+        "y": 1.15,
+        "kind": "stone"
+      },
+      {
+        "x": -13.83,
+        "z": -44.28,
+        "y": 1.03,
+        "kind": "stone"
+      },
+      {
+        "x": -12.68,
+        "z": -20.31,
+        "y": 1.32,
+        "kind": "stone"
+      },
+      {
+        "x": 10.66,
+        "z": -26.23,
+        "y": 1.28,
+        "kind": "stone"
+      },
+      {
+        "x": 27.77,
+        "z": -35.05,
+        "y": 1.01,
+        "kind": "stone"
+      },
+      {
+        "x": 12.3,
+        "z": -34.32,
+        "y": 1.03,
+        "kind": "stone"
+      }
+    ],
+    "keepOut": {
+      "rects": [],
+      "capsules": [],
+      "margin": 0.4,
+      "onlyOn": [
+        {
+          "minX": -18,
+          "maxX": 2,
+          "minZ": -50,
+          "maxZ": 50
+        },
+        {
+          "minX": 2,
+          "maxX": 5.4,
+          "minZ": 34,
+          "maxZ": 50
+        },
+        {
+          "minX": -50,
+          "maxX": -18,
+          "minZ": -16,
+          "maxZ": -6
+        },
+        {
+          "minX": 2.4,
+          "maxX": 34,
+          "minZ": -40,
+          "maxZ": -18
+        }
+      ]
+    },
+    "clanStandOn": [
+      {
+        "minX": -18,
+        "maxX": 2,
+        "minZ": -50,
+        "maxZ": 50
+      },
+      {
+        "minX": 2,
+        "maxX": 5.4,
+        "minZ": 34,
+        "maxZ": 50
+      },
+      {
+        "minX": -50,
+        "maxX": -18,
+        "minZ": -16,
+        "maxZ": -6
+      },
+      {
+        "minX": 2.4,
+        "maxX": 34,
+        "minZ": -40,
+        "maxZ": -18
+      },
+      {
+        "minX": 2.4,
+        "maxX": 5.4,
+        "minZ": -2,
+        "maxZ": 34
+      },
+      {
+        "minX": 2.4,
+        "maxX": 8.8,
+        "minZ": -8,
+        "maxZ": -2
+      },
+      {
+        "minX": 5.8,
+        "maxX": 8.8,
+        "minZ": -2,
+        "maxZ": 32
+      },
+      {
+        "minX": 5.8,
+        "maxX": 20,
+        "minZ": 32,
+        "maxZ": 48
+      },
+      {
+        "minX": 9.2,
+        "maxX": 12.2,
+        "minZ": -18,
+        "maxZ": 32
+      },
+      {
+        "minX": 20,
+        "maxX": 26,
+        "minZ": 37,
+        "maxZ": 43
+      }
+    ],
+    "strayHomes": [
+      {
+        "x": 22.5,
+        "z": 9.5,
+        "roam": 2,
+        "onlyOn": [
+          {
+            "minX": 21,
+            "maxX": 24,
+            "minZ": 12,
+            "maxZ": 21.7,
+            "y0": 8.944,
+            "y1": 8.944,
+            "along": null,
+            "tag": "snug-bend",
+            "kind": "cave"
+          },
+          {
+            "minX": 19,
+            "maxX": 26,
+            "minZ": 7,
+            "maxZ": 12,
+            "y0": 8.944,
+            "y1": 8.944,
+            "along": null,
+            "tag": "snug-chamber",
+            "kind": "cave"
+          }
+        ]
+      }
+    ],
+    "raceCourse": [
+      {
+        "x": -3,
+        "z": 6
+      },
+      {
+        "x": 3.9,
+        "z": 28
+      },
+      {
+        "x": 5.6,
+        "z": -5
+      },
+      {
+        "x": 10.5,
+        "z": 33.5
+      },
+      {
+        "x": 16,
+        "z": -24
+      }
+    ],
+    "mapShapes": [
+      {
+        "minX": -62,
+        "maxX": -40,
+        "minZ": -62,
+        "maxZ": -16,
+        "tone": "rock"
+      },
+      {
+        "minX": -62,
+        "maxX": -40,
+        "minZ": -6,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -40,
+        "maxX": -20.6,
+        "minZ": -62,
+        "maxZ": -16,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": -62,
+        "maxZ": -34,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": -31.4,
+        "maxZ": -16,
+        "tone": "rock"
+      },
+      {
+        "minX": -40,
+        "maxX": -32,
+        "minZ": -6,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -32,
+        "maxX": -29,
+        "minZ": -6,
+        "maxZ": 30,
+        "tone": "rock"
+      },
+      {
+        "minX": -32,
+        "maxX": -29,
+        "minZ": 35,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -29,
+        "maxX": -26,
+        "minZ": -6,
+        "maxZ": 22,
+        "tone": "rock"
+      },
+      {
+        "minX": -29,
+        "maxX": -26,
+        "minZ": 35,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -26,
+        "maxX": -20.6,
+        "minZ": -6,
+        "maxZ": 22,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": -6,
+        "maxZ": 6,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": 8.6,
+        "maxZ": 22,
+        "tone": "rock"
+      },
+      {
+        "minX": -25,
+        "maxX": -18,
+        "minZ": 25,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -26,
+        "maxX": -25,
+        "minZ": 25,
+        "maxZ": 30,
+        "tone": "rock"
+      },
+      {
+        "minX": -26,
+        "maxX": -25,
+        "minZ": 35,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": 4.6,
+        "maxX": 10,
+        "minZ": -62,
+        "maxZ": -40,
+        "tone": "rock"
+      },
+      {
+        "minX": 12.6,
+        "maxX": 38,
+        "minZ": -62,
+        "maxZ": -40,
+        "tone": "rock"
+      },
+      {
+        "minX": 10,
+        "maxX": 12.6,
+        "minZ": -62,
+        "maxZ": -42.6,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 4.6,
+        "minZ": -62,
+        "maxZ": -46,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 4.6,
+        "minZ": -43.4,
+        "maxZ": -40,
+        "tone": "rock"
+      },
+      {
+        "minX": 45,
+        "maxX": 62,
+        "minZ": -62,
+        "maxZ": -40,
+        "tone": "rock"
+      },
+      {
+        "minX": 38,
+        "maxX": 45,
+        "minZ": -62,
+        "maxZ": -42,
+        "tone": "rock"
+      },
+      {
+        "minX": 45,
+        "maxX": 62,
+        "minZ": -40,
+        "maxZ": -18,
+        "tone": "rock"
+      },
+      {
+        "minX": 43,
+        "maxX": 45,
+        "minZ": -37,
+        "maxZ": -18,
+        "tone": "rock"
+      },
+      {
+        "minX": 34,
+        "maxX": 38,
+        "minZ": -40,
+        "maxZ": -26,
+        "tone": "rock"
+      },
+      {
+        "minX": 38,
+        "maxX": 40,
+        "minZ": -37,
+        "maxZ": -26,
+        "tone": "rock"
+      },
+      {
+        "minX": 34,
+        "maxX": 43,
+        "minZ": -23,
+        "maxZ": -18,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 4,
+        "minZ": -18,
+        "maxZ": -8,
+        "tone": "rock"
+      },
+      {
+        "minX": 6.6,
+        "maxX": 8.8,
+        "minZ": -18,
+        "maxZ": -8,
+        "tone": "rock"
+      },
+      {
+        "minX": 4,
+        "maxX": 6.6,
+        "minZ": -18,
+        "maxZ": -10.6,
+        "tone": "rock"
+      },
+      {
+        "minX": 26,
+        "maxX": 62,
+        "minZ": -18,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 24,
+        "maxX": 26,
+        "minZ": -18,
+        "maxZ": 7,
+        "tone": "rock"
+      },
+      {
+        "minX": 24,
+        "maxX": 26,
+        "minZ": 12,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 15,
+        "maxX": 19,
+        "minZ": -18,
+        "maxZ": 18.7,
+        "tone": "rock"
+      },
+      {
+        "minX": 19,
+        "maxX": 21,
+        "minZ": -18,
+        "maxZ": 7,
+        "tone": "rock"
+      },
+      {
+        "minX": 19,
+        "maxX": 21,
+        "minZ": 12,
+        "maxZ": 18.7,
+        "tone": "rock"
+      },
+      {
+        "minX": 21,
+        "maxX": 24,
+        "minZ": -18,
+        "maxZ": 7,
+        "tone": "rock"
+      },
+      {
+        "minX": 15,
+        "maxX": 24,
+        "minZ": 21.7,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 12.2,
+        "maxX": 15,
+        "minZ": -18,
+        "maxZ": 18.7,
+        "tone": "rock"
+      },
+      {
+        "minX": 12.2,
+        "maxX": 15,
+        "minZ": 21.7,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 26,
+        "maxX": 62,
+        "minZ": 32,
+        "maxZ": 48,
+        "tone": "rock"
+      },
+      {
+        "minX": 20,
+        "maxX": 26,
+        "minZ": 32,
+        "maxZ": 37,
+        "tone": "rock"
+      },
+      {
+        "minX": 20,
+        "maxX": 26,
+        "minZ": 43,
+        "maxZ": 48,
+        "tone": "rock"
+      },
+      {
+        "minX": 5.4,
+        "maxX": 62,
+        "minZ": 48,
+        "maxZ": 62,
+        "tone": "rock"
+      },
+      {
+        "minX": -26,
+        "maxX": -18,
+        "minZ": 22,
+        "maxZ": 25,
+        "tone": "rock"
+      },
+      {
+        "minX": -29,
+        "maxX": -26,
+        "minZ": 22,
+        "maxZ": 30,
+        "tone": "rock"
+      },
+      {
+        "minX": -32,
+        "maxX": -25,
+        "minZ": 30,
+        "maxZ": 35,
+        "tone": "rock"
+      },
+      {
+        "minX": 15,
+        "maxX": 24,
+        "minZ": 18.7,
+        "maxZ": 21.7,
+        "tone": "rock"
+      },
+      {
+        "minX": 21,
+        "maxX": 24,
+        "minZ": 12,
+        "maxZ": 21.7,
+        "tone": "rock"
+      },
+      {
+        "minX": 19,
+        "maxX": 26,
+        "minZ": 7,
+        "maxZ": 12,
+        "tone": "rock"
+      },
+      {
+        "minX": 34,
+        "maxX": 43,
+        "minZ": -26,
+        "maxZ": -23,
+        "tone": "rock"
+      },
+      {
+        "minX": 40,
+        "maxX": 43,
+        "minZ": -37,
+        "maxZ": -23,
+        "tone": "rock"
+      },
+      {
+        "minX": 38,
+        "maxX": 45,
+        "minZ": -42,
+        "maxZ": -37,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": 6,
+        "maxZ": 8.6,
+        "tone": "rock"
+      },
+      {
+        "minX": -20.6,
+        "maxX": -18,
+        "minZ": -34,
+        "maxZ": -31.4,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 4.6,
+        "minZ": -46,
+        "maxZ": -43.4,
+        "tone": "rock"
+      },
+      {
+        "minX": 4,
+        "maxX": 6.6,
+        "minZ": -10.6,
+        "maxZ": -8,
+        "tone": "rock"
+      },
+      {
+        "minX": 10,
+        "maxX": 12.6,
+        "minZ": -42.6,
+        "maxZ": -40,
+        "tone": "rock"
+      },
+      {
+        "minX": 20,
+        "maxX": 26,
+        "minZ": 37,
+        "maxZ": 43,
+        "tone": "rock"
+      },
+      {
+        "minX": 2.4,
+        "maxX": 5.4,
+        "minZ": -2,
+        "maxZ": 34,
+        "tone": "ledge"
+      },
+      {
+        "minX": 2.4,
+        "maxX": 8.8,
+        "minZ": -8,
+        "maxZ": -2,
+        "tone": "ledge"
+      },
+      {
+        "minX": 5.8,
+        "maxX": 8.8,
+        "minZ": -2,
+        "maxZ": 32,
+        "tone": "ledge"
+      },
+      {
+        "minX": 5.8,
+        "maxX": 20,
+        "minZ": 32,
+        "maxZ": 35.5,
+        "tone": "ledge"
+      },
+      {
+        "minX": 5.8,
+        "maxX": 20,
+        "minZ": 35.5,
+        "maxZ": 48,
+        "tone": "ledge"
+      },
+      {
+        "minX": 9.2,
+        "maxX": 12.2,
+        "minZ": -18,
+        "maxZ": 32,
+        "tone": "ledge"
+      },
+      {
+        "minX": 2.4,
+        "maxX": 34,
+        "minZ": -40,
+        "maxZ": -18,
+        "tone": "ledge"
+      },
+      {
+        "minX": 12.2,
+        "maxX": 15,
+        "minZ": 18.7,
+        "maxZ": 21.7,
+        "tone": "ledge"
+      },
+      {
+        "minX": 2,
+        "maxX": 2.4,
+        "minZ": -2,
+        "maxZ": 34,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 2.4,
+        "minZ": -8,
+        "maxZ": -2,
+        "tone": "rock"
+      },
+      {
+        "minX": 5.4,
+        "maxX": 5.8,
+        "minZ": -2,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 5.4,
+        "maxX": 5.8,
+        "minZ": 32,
+        "maxZ": 48,
+        "tone": "rock"
+      },
+      {
+        "minX": 8.8,
+        "maxX": 9.2,
+        "minZ": -18,
+        "maxZ": 32,
+        "tone": "rock"
+      },
+      {
+        "minX": 2,
+        "maxX": 2.4,
+        "minZ": -40,
+        "maxZ": -18,
+        "tone": "rock"
+      }
+    ],
+    "caves": [
+      {
+        "id": "echo",
+        "name": "the Echo Cave",
+        "mouth": {
+          "x": -18,
+          "z": 23.5
+        },
+        "path": [
+          [
+            -18,
+            23.5
+          ],
+          [
+            -27.5,
+            23.5
+          ],
+          [
+            -27.5,
+            30
+          ],
+          [
+            -28.5,
+            32.5
+          ]
+        ],
+        "rects": [
+          {
+            "minX": -26,
+            "maxX": -18,
+            "minZ": 22,
+            "maxZ": 25,
+            "y0": 0,
+            "y1": 0,
+            "along": null,
+            "tag": "echo-corridor",
+            "kind": "cave"
+          },
+          {
+            "minX": -29,
+            "maxX": -26,
+            "minZ": 22,
+            "maxZ": 30,
+            "y0": 0,
+            "y1": 0,
+            "along": null,
+            "tag": "echo-bend",
+            "kind": "cave"
+          },
+          {
+            "minX": -32,
+            "maxX": -25,
+            "minZ": 30,
+            "maxZ": 35,
+            "y0": 0,
+            "y1": 0,
+            "along": null,
+            "tag": "echo-chamber",
+            "kind": "cave"
+          }
+        ],
+        "y": 0
+      },
+      {
+        "id": "snug",
+        "name": "the Snug Cave",
+        "mouth": {
+          "x": 15,
+          "z": 20.2
+        },
+        "path": [
+          [
+            15,
+            20.2
+          ],
+          [
+            22.5,
+            20.2
+          ],
+          [
+            22.5,
+            12
+          ],
+          [
+            22.5,
+            9.5
+          ]
+        ],
+        "rects": [
+          {
+            "minX": 15,
+            "maxX": 24,
+            "minZ": 18.7,
+            "maxZ": 21.7,
+            "y0": 8.944,
+            "y1": 8.944,
+            "along": null,
+            "tag": "snug-corridor",
+            "kind": "cave"
+          },
+          {
+            "minX": 21,
+            "maxX": 24,
+            "minZ": 12,
+            "maxZ": 21.7,
+            "y0": 8.944,
+            "y1": 8.944,
+            "along": null,
+            "tag": "snug-bend",
+            "kind": "cave"
+          },
+          {
+            "minX": 19,
+            "maxX": 26,
+            "minZ": 7,
+            "maxZ": 12,
+            "y0": 8.944,
+            "y1": 8.944,
+            "along": null,
+            "tag": "snug-chamber",
+            "kind": "cave"
+          }
+        ],
+        "y": 8.944
+      },
+      {
+        "id": "glitter",
+        "name": "the Glitter Cave",
+        "mouth": {
+          "x": 34,
+          "z": -24.5
+        },
+        "path": [
+          [
+            34,
+            -24.5
+          ],
+          [
+            41.5,
+            -24.5
+          ],
+          [
+            41.5,
+            -37
+          ],
+          [
+            41.5,
+            -39.5
+          ]
+        ],
+        "rects": [
+          {
+            "minX": 34,
+            "maxX": 43,
+            "minZ": -26,
+            "maxZ": -23,
+            "y0": 12,
+            "y1": 12,
+            "along": null,
+            "tag": "glitter-corridor",
+            "kind": "cave"
+          },
+          {
+            "minX": 40,
+            "maxX": 43,
+            "minZ": -37,
+            "maxZ": -23,
+            "y0": 12,
+            "y1": 12,
+            "along": null,
+            "tag": "glitter-bend",
+            "kind": "cave"
+          },
+          {
+            "minX": 38,
+            "maxX": 45,
+            "minZ": -42,
+            "maxZ": -37,
+            "y0": 12,
+            "y1": 12,
+            "along": null,
+            "tag": "glitter-chamber",
+            "kind": "cave"
+          }
+        ],
+        "y": 12
+      }
+    ],
+    "skyBirdY": 34
+  },
+  "meshes": 54,
+  "casters": 36,
+  "rockMeshes": [
+    "ledgeTops",
+    "lips",
+    "rockFaces"
+  ]
+}

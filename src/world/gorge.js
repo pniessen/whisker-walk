@@ -34,8 +34,10 @@ import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 //     rooftops there, past the stream leaving the map;
 //   * north and east are more mountains, so the hills are rock-coloured.
 //
-// SHADED BELOW, BRIGHT ABOVE (G5). The rock's baked colours run from cool and
-// dark at the floor to warm at the top (builder.rockTerrain), and the floor's
+// SHADED BELOW, BRIGHT ABOVE (G5). The rock's baked colours run from a cool,
+// dark grey-brown at the floor to warm sandstone at the top, in 1.1 m strata
+// (alternately warm and cream) that line up with the relief's shelves, and
+// darker in its recesses (builder.rockTerrain), and the floor's
 // ground plane is darker and cooler than any other map's, so the floor reads
 // shaded from the clifftop even past the shadow map's reach. The clifftop is
 // lit, and what a kid goes up there for sits south of z -27, out of the north
@@ -570,6 +572,28 @@ export const ROCK_WALKS = Object.freeze([
 
 const GROUND_COLOR = 0x5f5d52;
 
+// Where things stand on the rock's top, the relief leaves the top still (no
+// crest jag, no move): the goat's leap along the shoulder, (3.5..7.5, -16),
+// and where it lands and hides, (8, -12.5). Kept small (the relief fades back
+// in over a further metre): at r 1.2 the three goat-line discs froze the
+// shoulder's west crest dead straight. The line's west end is wider (1.4):
+// the shoulder is 2 m wide there, its top one crest cell across, so a lifted
+// vertex on its west edge (x 2) tilts the top under the goat. At 0.6 the top
+// stood 0.13 m high at (3, -16.3), at 0.9 0.09 m and at 1.2 0.04 m at (3, -16);
+// 1.4 keeps x 3..7.5 within 0.03 of 14 (test/gorge.test.js).
+export const GORGE_ROCK_KEEP = Object.freeze([
+  { x: 8, z: -12.5, r: 1.0 },
+  { x: 3.5, z: -16, r: 1.4 },
+  { x: 5.5, z: -16, r: 0.6 },
+  { x: 7.5, z: -16, r: 0.6 },
+].map(Object.freeze));
+
+// Every cave and den mouth, the camp den's too: no foot boulder is set
+// within a metre of one (builder.rockTerrain's `mouths`).
+export const GORGE_ROCK_MOUTHS = Object.freeze([
+  ...GORGE_CAVES.map((c) => c.mouth), ...GORGE_DENS.map((d) => d.mouth), CAMP_DEN.mouth,
+]);
+
 // The sky's passing flock flies at GORGE_BIRD_Y (34), over every 20 m rim and
 // the highest camera (G11); defined in gorgelife.js beside the wheeling birds.
 export { GORGE_BIRD_Y };
@@ -586,7 +610,8 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // --- the rock ---------------------------------------------------------------
   const rock = b.rockTerrain({
-    walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'),
+    walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
+    mouths: GORGE_ROCK_MOUTHS,
   });
   rock.name = 'gorgeRock';
   scene.add(rock);
