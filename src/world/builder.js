@@ -2761,6 +2761,9 @@ export function pine(x, z, scale = 1, { wind } = {}) {
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
   g.userData.occluder = PINE_OCCLUDER;
+  // The crown's radius for the corner map (ui/minimap.js), in the Group's own
+  // frame: the bottom cone's. Not `canopy`, which would drop leaves.
+  g.userData.mapCrown = PINE_CONES[0][0];
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
   return g;
 }
@@ -2803,6 +2806,8 @@ export function pineStand(trees, seed) {
   // Each pine's spot for the fight camera (TREE_OCCLUDER): one merged pair
   // cannot be told apart by mesh, so the stand lists its trees.
   g.userData.occluderStand = { shapes: PINE_OCCLUDER, trees: trees.map(({ x, z, scale }) => ({ x, z, scale })) };
+  // And each crown for the corner map (ui/minimap.js), in the stand's frame.
+  g.userData.mapCrowns = trees.map(({ x, z, scale }) => ({ x, z, r: PINE_CONES[0][0] * scale }));
   return g;
 }
 
