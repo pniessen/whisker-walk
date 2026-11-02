@@ -36,6 +36,7 @@ const SLASH_STROKES = Object.freeze([
   [-0.075, 0.15, 0.012], [0, 0.18, 0.014], [0.075, 0.15, 0.012],
 ]);
 const SLASH_TILT = 0.45; // rad the strokes lean back from upright
+const SLASH_RENDER_ORDER = 5; // after the other transparent things, under tags (10)
 
 function slashGeometry() {
   const pos = [];
@@ -62,11 +63,15 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
   // The slash mesh is built here, with the walk, and drawn (fully transparent)
   // on the walk's first frame so its shader compiles then, not at the first
   // scratch; it hides from the second update on and is only ever moved,
-  // shown and faded after that. Never a shadow.
+  // shown and faded after that. Never a shadow. It spawns inside the
+  // scratched cat's head and chest, so it is drawn with no depth test (it
+  // lives 0.3 s), in the transparent pass after the cats and under the name
+  // tags and chat bubbles (renderOrder 10).
   const slashMesh = new THREE.Mesh(slashGeometry(), new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
   }));
   slashMesh.name = 'fight-slash';
+  slashMesh.renderOrder = SLASH_RENDER_ORDER;
   slashMesh.castShadow = false;
   slashMesh.receiveShadow = false;
   slashMesh.userData.noCast = true;

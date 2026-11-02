@@ -108,6 +108,21 @@ describe('createFx.slash', () => {
     expect(mesh.castShadow).toBe(false);
   });
 
+  it('draws over the cats it sits in: no depth test, drawn after them (final review 2)', () => {
+    const scene = fakeScene();
+    createFx(scene, { makeText: fakeText });
+    const m = slashes(scene)[0];
+    // It spawns inside the scratched cat's head and chest, so with a depth
+    // test almost none of it showed (0-3 of 12 vertices live).
+    expect(m.material.depthTest).toBe(false);
+    expect(m.material.depthWrite).toBe(false);
+    expect(m.material.transparent).toBe(true);
+    // After the other transparent things (it is drawn in the transparent
+    // pass, after every opaque cat), under the name tags and bubbles (10).
+    expect(m.renderOrder).toBeGreaterThan(0);
+    expect(m.renderOrder).toBeLessThan(10);
+  });
+
   it('fades out over 0.3 s, three strokes in one draw', () => {
     const scene = fakeScene();
     const fx = createFx(scene, { makeText: fakeText });
