@@ -136,6 +136,15 @@ export function createClanCats(scene, area, cast, {
   // water: a roamer's leg ends, a buddy slides along the rim axis by axis.
   const G = ground && !ground.flat ? ground : null;
   const okStep = (ax, az, bx, bz) => ok(bx, bz) && (!G || G.canStep(ax, az, bx, bz));
+  // R7: a clan cat's lean into the slope (ground.tilt is groundTilt; set
+  // outright, order 'YXZ'). Called only when G is set.
+  const tilt = { pitch: 0, roll: 0 };
+  const lean = (group) => {
+    G.tilt(group.position.x, group.position.z, group.rotation.y, tilt);
+    group.rotation.order = 'YXZ';
+    group.rotation.x = tilt.pitch;
+    group.rotation.z = tilt.roll;
+  };
   const cx = campLayout?.cx ?? 0;
   const cz = campLayout?.cz ?? 0;
   const kitSeats = campLayout?.seats?.kits ?? [];
@@ -562,6 +571,9 @@ export function createClanCats(scene, area, cast, {
         }
         updateRoamer(c, dt, t);
       }
+      // Gorge part 1 (R7): each clan cat leans to the slope under it, once its
+      // spot and heading are final. Only on raised ground (G).
+      if (G) for (const c of list) lean(c.group);
     },
     dispose() {
       for (const c of list) scene.remove(c.group);

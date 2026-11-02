@@ -8,7 +8,7 @@ import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES, strayBreed, isStrayName, isKitty
 import { isShy } from './colony.js';
 import { isLegendaryName } from './legendary.js';
 import { dryGroundPoint } from './keepout.js';
-import { groundOf } from './ground.js';
+import { groundOf, leanOnGround } from './ground.js';
 
 const WANDER_SPEED = 1.4;
 const SCURRY_SPEED = 2.6;
@@ -883,6 +883,9 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         const restPose = s.cross ? 'cross' : s.pose;
         animateCat(s.group, s.state === 'idle' ? restPose : 'follow', t, speed);
       }
+      // Gorge part 1 (R7): each stray leans to the slope under it, once its
+      // spot and heading are final. Flat ground: not even the loop.
+      if (!ground.flat) for (const s of strays) leanOnGround(s.group, ground);
     },
   };
 }

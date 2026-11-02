@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildCat } from './cat/model.js';
-import { FLAT_GROUND } from './ground.js';
+import { FLAT_GROUND, leanOnGround } from './ground.js';
 
 // The lost-kitten quest chain, spread across multiple solo walks (a co-walk
 // kitten would desync the shared canon — main.js only ever wires this up
@@ -139,6 +139,7 @@ function createMeet(scene, onMew, ground) {
           group.position.y = ground.y(group.position.x, group.position.z);
         }
         group.rotation.y = Math.atan2(nx, nz) + Math.PI;
+        leanOnGround(group, ground); // R7: into the slope; flat ground writes nothing
       }
     },
     promptAt(catPos) {
@@ -185,6 +186,7 @@ function createHome(scene, spawn, ground) {
         group.position.y = ground.y(group.position.x, group.position.z);
       }
       group.rotation.y = ang + Math.PI / 2;
+      leanOnGround(group, ground); // R7: into the slope; flat ground writes nothing
     },
     promptAt(catPos) {
       return Math.hypot(catPos.x - group.position.x, catPos.z - group.position.z) < PROMPT_RANGE

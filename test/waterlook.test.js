@@ -313,3 +313,54 @@ describe('applyWaterLook amount default', () => {
     expect(cat.rotation.z).not.toBe(0);
   });
 });
+
+// Gorge part 1, Task 9 (R7): applyWaterLook's 8th argument, a slope tilt.
+// Without it (or with null) it does exactly what it did before: y and
+// rotation.z only, never rotation.x or the order.
+describe('applyWaterLook slope tilt', () => {
+  const run = (breed, { mode = 'dry', shake = 0, rm = false, pass = false, tilt = null } = {}) => {
+    const cat = buildCat(breed);
+    const st = createWaterState();
+    st.mode = mode;
+    st.shake = shake;
+    const out = [];
+    for (let i = 0; i < 20; i++) {
+      const t = 0.37 + i / 60;
+      if (pass) applyWaterLook(cat, st, t, 1 / 60, rm, 0.3, 0.7, tilt);
+      else applyWaterLook(cat, st, t, 1 / 60, rm, 0.3, 0.7);
+      out.push([cat.position.y, cat.rotation.x, cat.rotation.y, cat.rotation.z, cat.rotation.order]);
+    }
+    return out;
+  };
+
+  it('with no slope tilt nothing changes', () => {
+    for (const breed of ['tabby', 'hagrid']) {
+      for (const mode of ['dry', 'wade', 'swim']) {
+        for (const shake of [0, SHAKE_TIME]) {
+          for (const rm of [false, true]) {
+            const today = run(breed, { mode, shake, rm });
+            expect(run(breed, { mode, shake, rm, pass: true, tilt: null })).toEqual(today);
+            for (const row of today) {
+              expect(row[1]).toBe(0);
+              expect(row[4]).toBe('XYZ');
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('with a slope tilt: order YXZ, x is the pitch, z is the roll plus the shake', () => {
+    const tilt = { pitch: 0.3, roll: -0.1 };
+    for (const shake of [0, SHAKE_TIME]) {
+      const today = run('tabby', { mode: 'wade', shake });
+      const leaned = run('tabby', { mode: 'wade', shake, pass: true, tilt });
+      leaned.forEach((row, i) => {
+        expect(row[0]).toBe(today[i][0]); // y is untouched by the tilt
+        expect(row[1]).toBe(0.3);
+        expect(row[3]).toBe(-0.1 + today[i][3]);
+        expect(row[4]).toBe('YXZ');
+      });
+    }
+  });
+});

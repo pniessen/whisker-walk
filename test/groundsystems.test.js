@@ -1080,3 +1080,218 @@ describe('a fight stands on the ground', () => {
     expect(src).toMatch(/createFightCam\(\{[^}]*\bground\b[^}]*\}\)/);
   });
 });
+
+// Task 9 (R7): every cat that walks leans fully into the slope under it, so
+// its paws sit on the slope plane. Her cat's and a co-walker's lean is eased
+// at TILT_RATE; the NPCs set theirs outright. Flat ground writes nothing new.
+const { groundTilt, TILT_RATE } = await import('../src/ground.js');
+const { animateCat } = await import('../src/cat/animator.js');
+const { avatarSlopeTilt } = await import('../src/game/avatar.js');
+
+const UPHILL = Math.atan(1 / 3); // the fixture ramp's pitch, facing +x
+const FACE_PLUS_X = Math.atan2(1, 0) + Math.PI; // yaw whose nose points at +x
+
+// One frame of her drawn cat, as updateAvatar draws it.
+function drawHer(ground, cat, player, s, t, speed) {
+  const tilt = avatarSlopeTilt(ground, cat, player, s, DT);
+  animateCat(cat, 'follow', t, speed);
+  applyWaterLook(cat, player.waterState, t, DT, false, avatarBaseY(ground, cat, player, s), 1, tilt);
+}
+
+function pawWorld(cat) {
+  cat.updateMatrixWorld(true);
+  return cat.userData.parts.legs.map((leg) => leg.userData.paw.getWorldPosition(new THREE.Vector3()));
+}
+
+describe('cats lean into slopes', () => {
+  it('her cat leans into the ramp and its paws touch it', () => {
+    const { ground, player, cat, step } = rig(-7, 0);
+    const s = { ground, fight: null };
+    player.setTouchMove({ x: 1, z: 0, mag: 1 });
+    let f = 0;
+    while (cat.position.x < -1.5 && f < 600) {
+      step();
+      drawHer(ground, cat, player, s, f * DT, 1.5);
+      f++;
+    }
+    expect(cat.position.x).toBeGreaterThan(-1.5);
+    player.setTouchMove({ x: 0, z: 0, mag: 0 });
+    for (let i = 0; i < 60; i++) {
+      step();
+      drawHer(ground, cat, player, s, (f + i) * DT, 0);
+    }
+    expect(cat.rotation.order).toBe('YXZ');
+    expect(cat.rotation.x).toBeCloseTo(UPHILL, 4); // nose up: +rotation.x raises it
+    expect(Math.abs(cat.rotation.z)).toBeLessThan(1e-4);
+    // paws on the slope plane, at speed 0 (the gait lifts paws)
+    const flatCat = buildCat('tabby');
+    animateCat(flatCat, 'follow', 0, 0);
+    const rest = pawWorld(flatCat).map((p) => p.y); // each paw's own height over flat ground
+    const paws = pawWorld(cat);
+    expect(paws.length).toBe(4);
+    paws.forEach((p, i) => {
+      expect(Math.abs(p.y - ground.y(p.x, p.z) - rest[i])).toBeLessThan(0.03);
+    });
+    // ...where an upright cat would sink its front paws and float its back ones
+    cat.rotation.x = 0;
+    const upright = pawWorld(cat).map((p, i) => Math.abs(p.y - ground.y(p.x, p.z) - rest[i]));
+    expect(Math.max(...upright)).toBeGreaterThan(0.05);
+    // on flat ground: no tilt is passed, nothing new is written
+    expect(avatarSlopeTilt(FLAT_GROUND, cat, player, s, DT)).toBeNull();
+    expect(avatarSlopeTilt(null, cat, player, s, DT)).toBeNull();
+  });
+
+  it('every cat-shaped NPC on the ramp leans when facing up it', () => {
+    const area = buildHeightFixture(new THREE.Scene());
+    const g = area.ground;
+    const leans = (group) => {
+      const want = groundTilt(g, group.position.x, group.position.z, group.rotation.y);
+      expect(group.rotation.order).toBe('YXZ');
+      expect(group.rotation.x).toBe(want.pitch);
+      expect(group.rotation.z).toBe(want.roll);
+      expect(Math.abs(group.rotation.x)).toBeGreaterThan(0.2);
+    };
+    const onRamp = (group, x) => {
+      group.position.set(x, g.y(x, 0), 0);
+      group.rotation.y = FACE_PLUS_X;
+    };
+    // a stray, held in a greet
+    const strays = createStrayCats(new THREE.Scene(), area, 1, mulberry32(3), { roomSeed: 3 });
+    const st = strays.strays[0];
+    onRamp(st.group, -2);
+    st.state = 'greet';
+    st.timer = 10;
+    strays.update(DT, 0, FAR_CAT, {});
+    leans(st.group);
+    // the clan leader at its post
+    const layout = {
+      cx: -2, cz: 3,
+      seats: { leader: { x: -2, y: 0, z: 3 }, deputy: { x: -1, z: 3 }, elders: [{ x: -3, z: 0 }], kits: [] },
+    };
+    const clan = createClanCats(new THREE.Scene(), area, clanCast('woods').slice(0, 3), {
+      campLayout: layout, roamHomes: [], roomSeed: 4, areaId: null,
+    });
+    const leader = clan.list.find((c) => c.slot === 0);
+    expect(leader.camp).toBe(true);
+    onRamp(leader.group, -3);
+    clan.update(DT, 0, FAR_CAT);
+    leans(leader.group);
+    // a ghost, held in a greet
+    const ghosts = createGhosts(new THREE.Scene(), area, [{ playerId: 'p1', petName: 'Bo', breed: 'tabby', greets: 0 }],
+      mulberry32(2), {});
+    const gh = ghosts.list[0];
+    onRamp(gh.group, -2.5);
+    gh.state = 'greet';
+    gh.timer = 10;
+    ghosts.update(DT, 0);
+    leans(gh.group);
+    // Mochi at home, half way round her circle: walking +x up the ramp
+    const mochi = createKittenEncounter(new THREE.Scene(), { kind: 'home' }, { x: -0.5, z: 0 }, { ground: g });
+    mochi.update(4 * Math.PI, FAR_CAT);
+    expect(mochi.group.position.x).toBeCloseTo(-3.5, 9);
+    leans(mochi.group);
+    // a co-walker streamed onto the ramp, facing up it
+    const remotes = createRemoteCats(new THREE.Scene(), { ground: g });
+    remotes.upsert({ playerId: 'p2', breed: 'tabby', petName: 'Bo', accessories: {} }, 0);
+    remotes.applyState({ id: 'p2', pos: [-2, 0], yaw: FACE_PLUS_X, pose: 'follow', speed: 0 }, 0);
+    for (let i = 1; i <= 60; i++) remotes.update(DT, i * DT, []);
+    const rg = remotes.list[0].group;
+    expect(rg.rotation.order).toBe('YXZ');
+    expect(rg.rotation.x).toBeCloseTo(UPHILL, 4);
+    expect(Math.abs(rg.rotation.z)).toBeLessThan(1e-4);
+  });
+
+  it('an intruder leans walking its route up a slope, and stands level when staged', () => {
+    let k = Math.floor(1e9 / INTRUDER_PERIOD);
+    while (!visitAt('woods', k * INTRUDER_PERIOD)) k++;
+    const T = k * INTRUDER_PERIOD + ENTER_AT + 20;
+    const at = intruderAt('woods', T);
+    // a 1-in-3 strip rising along the route's heading where it walks
+    const ground = createGround({ strips: [{
+      x0: at.x - 20 * at.dx, z0: at.z - 20 * at.dz, x1: at.x + 20 * at.dx, z1: at.z + 20 * at.dz,
+      width: 20, y0: 0, y1: 40 / 3,
+    }] });
+    const scene = new THREE.Scene();
+    const clock = { T };
+    const intr = createIntruders(scene, 'woods', { now: () => clock.T, hostile: () => true, ground });
+    intr.update(DT, FAR_CAT);
+    const mesh = scene.children.find((o) => o.userData?.intruder);
+    expect(mesh.rotation.order).toBe('YXZ');
+    expect(mesh.rotation.x).toBeCloseTo(UPHILL, 9);
+    expect(Math.abs(mesh.rotation.z)).toBeLessThan(1e-9);
+    const cur = intr.current();
+    intr.hold(cur.visit, 'me', cur.pos, { local: true });
+    intr.stage(cur.visit, { pose: 'cross', x: cur.pos.x, z: cur.pos.z, y: 0 });
+    expect(mesh.rotation.x).toBe(0);
+    expect(mesh.rotation.z).toBe(0);
+    // flat ground: rotation.x/z and order are never written
+    const flatScene = new THREE.Scene();
+    const flatIntr = createIntruders(flatScene, 'woods', { now: () => T, hostile: () => true });
+    flatIntr.update(DT, FAR_CAT);
+    const fm = flatScene.children.find((o) => o.userData?.intruder);
+    expect(fm.rotation.order).toBe('XYZ');
+    expect(fm.rotation.x).toBe(0);
+    expect(fm.rotation.z).toBe(0);
+  });
+
+  it('tilt eases in at the ramp’s foot', () => {
+    const { ground, player, cat, step } = rig(-9, 0);
+    const s = { ground, fight: null };
+    player.setTouchMove({ x: 1, z: 0, mag: 1 });
+    let px = cat.rotation.x;
+    let pz = cat.rotation.z;
+    let moved = 0;
+    for (let f = 0; f < 3 * 60; f++) {
+      step();
+      drawHer(ground, cat, player, s, f * DT, 1.5);
+      expect(Math.abs(cat.rotation.x - px)).toBeLessThanOrEqual(TILT_RATE * DT + 1e-9);
+      expect(Math.abs(cat.rotation.z - pz)).toBeLessThanOrEqual(TILT_RATE * DT + 1e-9);
+      if (cat.rotation.x !== px) moved++;
+      px = cat.rotation.x;
+      pz = cat.rotation.z;
+    }
+    expect(moved).toBeGreaterThan(5); // it eased, over several frames
+    expect(cat.rotation.x).toBeGreaterThan(0.3);
+    // a co-walker streamed across the foot eases the same way
+    const remotes = createRemoteCats(new THREE.Scene(), { ground });
+    remotes.upsert({ playerId: 'p2', breed: 'tabby', petName: 'Bo', accessories: {} }, 0);
+    remotes.applyState({ id: 'p2', pos: [-6.2, 0], yaw: FACE_PLUS_X, pose: 'follow', speed: 0 }, 0);
+    remotes.update(DT, DT, []);
+    remotes.applyState({ id: 'p2', pos: [-4, 0], yaw: FACE_PLUS_X, pose: 'follow', speed: 3 }, DT);
+    const rg = remotes.list[0].group;
+    let rx = rg.rotation.x;
+    for (let f = 2; f <= 60; f++) {
+      remotes.update(DT, f * DT, []);
+      expect(Math.abs(rg.rotation.x - rx)).toBeLessThanOrEqual(TILT_RATE * DT + 1e-9);
+      rx = rg.rotation.x;
+    }
+    expect(rx).toBeGreaterThan(0.3);
+  });
+
+  it('on flat ground no NPC or co-walker writes a new rotation', () => {
+    const area = { ...buildHeightFixture(new THREE.Scene()), ground: undefined };
+    const strays = createStrayCats(new THREE.Scene(), area, 3, mulberry32(3), { roomSeed: 3 });
+    const ghosts = createGhosts(new THREE.Scene(), area, [{ playerId: 'p1', petName: 'Bo', breed: 'tabby', greets: 0 }],
+      mulberry32(2), {});
+    const mochi = createKittenEncounter(new THREE.Scene(), { kind: 'home' }, { x: 0, z: 0 });
+    const remotes = createRemoteCats(new THREE.Scene(), {});
+    remotes.upsert({ playerId: 'p2', breed: 'tabby', petName: 'Bo', accessories: {} }, 0);
+    remotes.applyState({ id: 'p2', pos: [1, 0], yaw: 1, pose: 'follow', speed: 0 }, 0);
+    for (let f = 1; f <= 300; f++) {
+      strays.update(DT, f * DT, FAR_CAT, {});
+      ghosts.update(DT, f * DT);
+      mochi.update(DT, FAR_CAT);
+      remotes.update(DT, f * DT, []);
+    }
+    for (const grp of [...strays.strays.map((x) => x.group), ...ghosts.list.map((x) => x.group), mochi.group, remotes.list[0].group]) {
+      expect(grp.rotation.order).toBe('XYZ');
+      expect(grp.rotation.x).toBe(0);
+      expect(grp.rotation.z).toBe(0);
+    }
+  });
+
+  it('updateAvatar hands its eased slope tilt to applyWaterLook', () => {
+    const src = readFileSync(new URL('../src/game/avatar.js', import.meta.url), 'utf8');
+    expect(src).toContain('applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount, avatarSlopeTilt(s.ground, cat, player, s, dt));');
+  });
+});

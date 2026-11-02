@@ -20,6 +20,7 @@ import { labelFor } from './labels.js';
 import { nowSec } from './util.js';
 import { tickRest, NAP_PURR_LEN } from '../rests.js';
 import { validPetName } from '../net.js';
+import { groundTilt, easeTilt } from '../ground.js';
 
 // The y the local cat is drawn at, before the water look: the ground under
 // it (Gorge part 1, R4), then perchY + hopY (where player.js drew it) and a
@@ -28,6 +29,27 @@ export function avatarBaseY(ground, cat, player, s) {
   const rel = player.perchY + player.hopY + (s.fight ? (s.fightLift ?? 0) : 0);
   if (!ground || ground.flat) return rel;
   return ground.y(cat.position.x, cat.position.z) + rel;
+}
+
+// Her cat's lean into the slope under it (Gorge part 1, R7), eased at
+// TILT_RATE, for applyWaterLook. Null on flat ground, so applyWaterLook runs
+// today's lines. On a perch she stands on the perch, not the slope, so it
+// eases back to level. The eased { pitch, roll } lives on the session, made
+// once per walk at the slope's own tilt, so a spawn on a slope starts leaning.
+const slopeTarget = { pitch: 0, roll: 0 };
+export function avatarSlopeTilt(ground, cat, player, s, dt) {
+  if (!ground || ground.flat) return null;
+  if (player.perchY > 0) {
+    slopeTarget.pitch = 0;
+    slopeTarget.roll = 0;
+  } else {
+    groundTilt(ground, cat.position.x, cat.position.z, cat.rotation.y, slopeTarget);
+  }
+  if (!s.slopeTilt) {
+    s.slopeTilt = { pitch: slopeTarget.pitch, roll: slopeTarget.roll };
+    return s.slopeTilt;
+  }
+  return easeTilt(s.slopeTilt, slopeTarget, dt);
 }
 
 // Gait pace while a rival's chase scampers the cat (m/s-equivalent).
@@ -207,7 +229,7 @@ export function createAvatarUpdater({
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
     animateCat(cat, drawn, t, speed, reducedMotion, amount);
     // Sets y outright: ground + perchY + hopY (where player.js drew it) − sink + bob.
-    applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount);
+    applyWaterLook(cat, ws, t, dt, reducedMotion, avatarBaseY(s.ground, cat, player, s), amount, avatarSlopeTilt(s.ground, cat, player, s, dt));
 
     // nap pile: napping near another napping remote pet is worth a shared award;
     // toast text scales with the pile size (n nearby nappers + you)

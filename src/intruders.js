@@ -233,6 +233,7 @@ export function createIntruders(scene, areaId, {
   // staged lift is relative to the ground under the stage (R11), and it only
   // notices a cat on its own level (R10).
   const G = ground && !ground.flat ? ground : null;
+  const tilt = { pitch: 0, roll: 0 }; // place()'s lean scratch (R7)
   let cur = null;     // this visit's cat, or null
   let done = null;    // a visit that walked off its route: not built again
   let animT = 0;
@@ -348,6 +349,15 @@ export function createIntruders(scene, areaId, {
       g.rotation.y = Math.atan2(-p.dx, -p.dz) + Math.PI;
     } else {
       g.rotation.y = Math.atan2(p.dx, p.dz) + Math.PI;
+    }
+    // Gorge part 1 (R7): a route walker leans into the slope under it; a staged
+    // one stands level (fights stand on level ground). Raised ground only.
+    if (G) {
+      if (st) tilt.pitch = tilt.roll = 0;
+      else G.tilt(g.position.x, g.position.z, g.rotation.y, tilt);
+      g.rotation.order = 'YXZ';
+      g.rotation.x = tilt.pitch;
+      g.rotation.z = tilt.roll;
     }
   }
 

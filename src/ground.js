@@ -22,6 +22,7 @@ export const SUBSTEP = 0.25; // canStep's longest sub-step, so a fast frame can'
 export const MAX_PATH_GRADE = 1 / 3; // no walkable strip is steeper than 1 in 3
 export const LEVEL_TOL = 0.5; // "the same level" for proximity checks
 export const TILT_MAX = 0.35; // rad, cap on a cat's pitch and roll to a slope
+export const TILT_RATE = 10; // 1/s, how fast her cat's and a co-walker's lean eases to the slope
 
 // validateGround: every ceiling must clear the ground under it by this much
 // (MIN_CAMERA_Y 0.5 + CAM_CEIL_CLEAR 0.3, ruling R8).
@@ -59,6 +60,11 @@ export const FLAT_GROUND = Object.freeze({
   gradient(x, z, out) {
     out.x = 0;
     out.z = 0;
+    return out;
+  },
+  tilt(x, z, yaw, out) {
+    out.pitch = 0;
+    out.roll = 0;
     return out;
   },
 });
@@ -162,7 +168,13 @@ export function createGround({ base = 0, strips = [], discs = [], ceilings = [] 
     return out;
   }
 
-  return Object.freeze({ flat: false, y, ceil, canStep, slide, sameLevel, gradient });
+  // groundTilt as a method, for the modules whose imports are pinned (clancats,
+  // intruders) and so take the ground as given.
+  const self = Object.freeze({
+    flat: false, y, ceil, canStep, slide, sameLevel, gradient,
+    tilt: (x, z, yaw, out) => groundTilt(self, x, z, yaw, out),
+  });
+  return self;
 }
 
 export function groundOf(areaData) {
@@ -213,6 +225,30 @@ export function groundTilt(ground, x, z, yaw, out = { pitch: 0, roll: 0 }) {
   // tan r = b cos p = b / sqrt(1 + a^2). Derived, then verified in the tests.
   out.roll = Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.atan(across / Math.sqrt(1 + along * along)))) + 0;
   return out;
+}
+
+// Eases `cur` toward `target` ({ pitch, roll }) at TILT_RATE, in place. An
+// exponential ease: a frame never moves either angle by more than
+// TILT_RATE * dt * |target - cur|, which is under TILT_RATE * dt (each angle
+// is capped at TILT_MAX, so |target - cur| <= 2 * TILT_MAX < 1).
+export function easeTilt(cur, target, dt) {
+  const k = 1 - Math.exp(-TILT_RATE * dt);
+  cur.pitch += (target.pitch - cur.pitch) * k;
+  cur.roll += (target.roll - cur.roll) * k;
+  return cur;
+}
+
+// An NPC cat leans to the slope under it, set outright (R7): order 'YXZ',
+// rotation.x = pitch, rotation.z = roll for its own yaw. Call once its
+// position and rotation.y are final for the frame. Flat ground: nothing is
+// written, so every shipped map runs today's code.
+const leanScratch = { pitch: 0, roll: 0 };
+export function leanOnGround(obj, ground) {
+  if (ground.flat) return;
+  groundTilt(ground, obj.position.x, obj.position.z, obj.rotation.y, leanScratch);
+  obj.rotation.order = 'YXZ';
+  obj.rotation.x = leanScratch.pitch;
+  obj.rotation.z = leanScratch.roll;
 }
 
 // validateGround(spec) -> string[] of problems: non-finite numbers, a strip

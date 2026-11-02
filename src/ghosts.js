@@ -6,7 +6,7 @@ import { makeNameTag } from './nametag.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { keepOutPoint } from './keepout.js';
-import { groundOf } from './ground.js';
+import { groundOf, leanOnGround } from './ground.js';
 
 const WANDER_SPEED = 1.1; // ghosts amble slower than strays — they're just visiting
 
@@ -237,6 +237,8 @@ export function createGhosts(scene, area, profiles, rng = Math.random, opts = {}
         }
         animateCat(g.group, g.state === 'idle' ? g.pose : 'follow', t, speed);
       }
+      // Gorge part 1 (R7): each ghost leans to the slope under it. Flat: nothing.
+      if (!ground.flat) for (const g of ghosts) leanOnGround(g.group, ground);
     },
   };
 }

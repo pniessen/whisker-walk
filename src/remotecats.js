@@ -7,7 +7,7 @@ import { PERSONALITIES } from './cat/brain.js';
 import { validPetName } from './net.js';
 import { createWaterState, stepWaterState, shakeProgress } from './waterstate.js';
 import { waterPose, applyWaterLook } from './cat/waterlook.js';
-import { FLAT_GROUND } from './ground.js';
+import { FLAT_GROUND, groundTilt, easeTilt } from './ground.js';
 
 const INTERP_WINDOW = 0.15; // seconds — matches the 8Hz state broadcast cadence
 const DESPAWN_AFTER = 5; // seconds of silence before a remote pet is removed
@@ -71,6 +71,7 @@ function profileUnchanged(entry, profile) {
 export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_GROUND } = {}) {
   const rm = !!reducedMotion;
   const remotes = new Map(); // playerId -> entry
+  const tiltTarget = { pitch: 0, roll: 0 }; // leanOf's scratch
 
   // Remote profiles arrive over the network from other players' clients,
   // which may not have enforced the same validation the local client does
@@ -124,6 +125,7 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       // Not placed until its first state: until then the group sits at the
       // origin, which may well be in water, so it must not sink or shake there.
       water: { ...createWaterState(), placed: false },
+      tilt: null, // its eased lean into a slope (R7), made on its first frame on raised ground
     };
     remotes.set(profile.playerId, entry);
     return entry;
@@ -182,8 +184,19 @@ export function createRemoteCats(scene, { reducedMotion = false, ground = FLAT_G
       const amount = Math.sin(Math.PI * shakeProgress(entry.water));
       const drawn = waterPose(entry.pose, entry.water, { hagrid: entry.breed === 'hagrid', reducedMotion: rm });
       animateCat(entry.group, drawn, now, entry.speed, rm, amount);
-      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount);
+      applyWaterLook(entry.group, entry.water, now, dt, rm, ground.y(x, z), amount, ground.flat ? null : leanOf(entry, x, z, dt));
     }
+  }
+
+  // A co-walker's lean into the slope under it (R7), eased at TILT_RATE like
+  // her own cat's; made at the slope's tilt the first time, then reused.
+  function leanOf(entry, x, z, dt) {
+    groundTilt(ground, x, z, entry.group.rotation.y, tiltTarget);
+    if (!entry.tilt) {
+      entry.tilt = { pitch: tiltTarget.pitch, roll: tiltTarget.roll };
+      return entry.tilt;
+    }
+    return easeTilt(entry.tilt, tiltTarget, dt);
   }
 
   function nearest(pos, maxDist) {
