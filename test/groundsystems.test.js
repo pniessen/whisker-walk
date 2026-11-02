@@ -1711,6 +1711,7 @@ const { GORGE_CAVES, GORGE_DENS } = await import('../src/world/gorgeshape.js');
 const { CAM_ROCK_CLEAR, CAM_CEIL_CLEAR, ZOOM_STEPS } = await import('../src/camzoom.js');
 const { cameraOffset } = await import('../src/catcam.js');
 const { DEFAULT_PITCH } = await import('../src/player.js');
+const { CAT_LOOK_Y } = await import('../src/cat/model.js');
 
 let gorgeArea = null;
 const UP_Y = new THREE.Vector3(0, 1, 0);
@@ -1879,7 +1880,7 @@ describe('the camera in a cave', () => {
       const isIn = cat.position.x < mx;
       if (isIn !== wasIn) crossings++;
       wasIn = isIn;
-      if (f >= 90) { // once the first glide in has landed
+      if (f >= 150) { // once the first glide in has landed (the blend carries the 12 m/s cap, ~0.9 s of time inside at the far step, and she is inside half the time)
         const d = Math.hypot(camera.position.x - cat.position.x, camera.position.z - cat.position.z);
         lo = Math.min(lo, d);
         hi = Math.max(hi, d);
@@ -1948,6 +1949,88 @@ describe('the camera in a cave', () => {
       }
       expect(rr.cat.position.z, den.id).toBeGreaterThan(den.minZ + 1.5); // she walked along it
     }
+  });
+
+  it('zooming inside a cave never jams the camera', () => {
+    // Final review C1: a zoom press while she stands in a cave used to drive
+    // the shown distance below zero and run the safety pull away, so the
+    // camera sat in her head (or in front of her) for the rest of the walk.
+    // In each cave's corridor and chamber, at 60, 30 and 5 fps, for every
+    // from -> to pair of zoom steps (stepping one press at a time, the presses
+    // one frame or a quarter second apart): for 3 s the pull stays in [0, 1],
+    // the camera stays at least MIN_CAM_DIST from the look point, never goes
+    // in front of her and never jumps; and once she has walked out, the
+    // chosen step's view is back exactly within 3 s.
+    const MIN_CAM_DIST = 0.3;
+    const look = new THREE.Vector3();
+    const want = new THREE.Vector3();
+    let runs = 0;
+    for (const fps of [60, 30, 5]) {
+      const dt = 1 / fps;
+      for (const cave of GORGE_CAVES) {
+        const n = cave.path.length;
+        const spots = [
+          // the corridor: halfway along the first leg, facing in
+          { at: [(cave.path[0][0] + cave.path[1][0]) / 2, (cave.path[0][1] + cave.path[1][1]) / 2], from: cave.path[0], to: cave.path[1], back: [cave.path[0]] },
+          // the chamber: at the end of the path, facing on
+          { at: cave.path[n - 1], from: cave.path[n - 2], to: cave.path[n - 1], back: cave.path.slice(0, n - 1).reverse() },
+        ];
+        for (const spot of spots) {
+          for (let from = 0; from < ZOOM_STEPS.length; from++) {
+            for (let to = 0; to < ZOOM_STEPS.length; to++) {
+              if (to === from) continue;
+              for (const gap of [dt, 0.25]) {
+                const r = gorgeRig(spot.at[0], spot.at[1], from, { dt, mag: 1 });
+                const { player, cat, camera } = r;
+                r.setYaw(Math.atan2(-(spot.to[0] - spot.from[0]), -(spot.to[1] - spot.from[1])));
+                r.wait(0.5);
+                const prev = camera.position.clone();
+                const where = () => `${cave.id} (${spot.at}) ${fps} fps ${from}->${to} gap ${gap.toFixed(3)}`;
+                const onFrame = () => {
+                  const c = camera.position;
+                  look.copy(cat.position);
+                  look.y += CAT_LOOK_Y;
+                  expect(c.distanceTo(look), where()).toBeGreaterThanOrEqual(MIN_CAM_DIST - 1e-6);
+                  const bx = Math.sin(r.yaw);
+                  const bz = Math.cos(r.yaw);
+                  expect((c.x - look.x) * bx + (c.z - look.z) * bz, where()).toBeGreaterThanOrEqual(-1e-6); // never in front of her
+                  expect(c.distanceTo(prev), where()).toBeLessThanOrEqual(0.6);
+                  prev.copy(c);
+                  expect(player.cameraPull, where()).toBeGreaterThanOrEqual(0);
+                  expect(player.cameraPull, where()).toBeLessThanOrEqual(1);
+                };
+                // the presses, one step at a time
+                const dir = Math.sign(to - from);
+                let t = 0;
+                for (let s = from + dir; ; s += dir) {
+                  player.setCameraZoom(s);
+                  if (s === to) break;
+                  for (let f = 0; f < Math.max(1, Math.round(gap / dt)); f++) {
+                    r.step();
+                    onFrame();
+                    t += dt;
+                  }
+                }
+                r.wait(Math.max(dt, 3 - t), onFrame);
+                // walk out, look back at the mouth (camera over the open)
+                for (const [bx, bz] of spot.back) r.walkTo(bx, bz);
+                const [ox, oz] = outsideMouth(cave, 5);
+                r.walkTo(ox, oz);
+                r.turnTo(Math.atan2(-(cave.path[0][0] - ox), -(cave.path[0][1] - oz)));
+                r.wait(3);
+                expect(player.cameraZoomStep, where()).toBe(to);
+                expect(player.cameraCaveBlend, where()).toBe(0);
+                cameraOffset(r.yaw, DEFAULT_PITCH, ZOOM_STEPS[to].dist, ZOOM_STEPS[to].height, want);
+                const got = camera.position.clone().sub(cat.position);
+                expect(got.distanceTo(want), where()).toBeLessThan(1e-3);
+                runs++;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(runs).toBe(3 * 3 * 2 * 12 * 2);
   });
 
   it('with no ceiling overhead the view is never the cave view', () => {

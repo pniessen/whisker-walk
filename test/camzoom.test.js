@@ -79,6 +79,20 @@ describe('easeZoomLevel', () => {
 // Gorge part 3, ruling C4: under a ceiling the view eases toward a close, low
 // one, taking the smaller of each value and the step's own.
 describe('caveView', () => {
+  it('the shown cave view is never nearer than the cave view itself, at any zoom level and blend', () => {
+    // Final review C1: player.js shows exactly caveView(zoom view, blend), so
+    // a zoom press mid-blend can never take the camera inside the cave view.
+    for (let level = 0; level <= ZOOM_STEPS.length - 1 + 1e-9; level += 0.05) {
+      const view = zoomView(level, {});
+      for (let b = 0; b <= 1 + 1e-9; b += 0.05) {
+        const v = caveView(view, Math.min(b, 1), {});
+        expect(v.dist).toBeGreaterThanOrEqual(Math.min(view.dist, CAVE_VIEW.dist) - 1e-12);
+        expect(v.height).toBeGreaterThanOrEqual(Math.min(view.height, CAVE_VIEW.height) - 1e-12);
+        expect(v.dist).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('caveView eases each step toward the cave view and never widens it', () => {
     expect(CAVE_VIEW).toEqual({ dist: 2.4, height: 0.9 });
     for (let i = 0; i < ZOOM_STEPS.length; i++) {
