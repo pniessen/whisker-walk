@@ -52,7 +52,7 @@ describe('the constants', () => {
     expect(SHAKE_TIME).toBe(0.8);
     expect(SHAKE_PACE).toBe(0.6);
     expect(SHAKE_AFTER_WADE).toBe(3);
-    expect(SHAKE_AFTER_SWIM).toBe(0.5);
+    expect(SHAKE_AFTER_SWIM).toBe(1.0); // Polish 2: was 0.5
     expect(DEEP_HYST).toBe(0.1);
     expect(DRY_HYST).toBe(0.1);
   });
@@ -134,7 +134,7 @@ describe('stepWaterState', () => {
 
   it('shakes after a swim, once', () => {
     const st = createWaterState();
-    hold(st, WATERS, 0, 0, 1);
+    hold(st, WATERS, 0, 0, 1.5); // past SHAKE_AFTER_SWIM (1 s)
     expect(st.mode).toBe('swim');
     stepWaterState(st, WATERS, 6, 0, DT);
     expect(st.mode).toBe('dry');
@@ -154,6 +154,24 @@ describe('stepWaterState', () => {
     expect(st.shake).toBe(0);
     expect(shakeProgress(st)).toBe(0);
     expect(shookAgain).toBe(0);
+  });
+
+  // Polish 2: a dip of under a second off a pier or a bank no longer ends in
+  // a shake; a real swim, a second or more, always does.
+  it('a dip of under SHAKE_AFTER_SWIM in deep water never shakes', () => {
+    const st = createWaterState();
+    hold(st, WATERS, 0, 0, 0.9);
+    expect(st.mode).toBe('swim');
+    expect(hold(st, WATERS, 6, 0, 0.5)).toBe(0);
+  });
+
+  it('every swim of SHAKE_AFTER_SWIM or longer shakes on the way out', () => {
+    for (const secs of [SHAKE_AFTER_SWIM + 2 * DT, 1.5, 4, 20]) {
+      const st = createWaterState();
+      hold(st, WATERS, 0, 0, secs);
+      expect(st.mode).toBe('swim');
+      expect(hold(st, WATERS, 6, 0, 0.5)).toBe(1);
+    }
   });
 
   it('no shake after a quick paddle in the surf', () => {
