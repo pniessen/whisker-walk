@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {
   ACTION_KINDS, ACTION_LEN, ACTION_LEN_BIG, ANSWER_PRELUDE, ANSWER_PRELUDE_REDUCED, REDUCED_ACTION, BEAT_TIME,
   actionFor, actionTime, preludeFrame, siteFor, actionFrame, placeFrame, beatFrame, beatFor, WIRE_POSE, wirePose,
-  makeFrame,
+  makeFrame, CUES, cuesCrossed,
 } from '../src/fightactions.js';
 import { TIMING, LONGER_LOOK } from '../src/fight.js';
 import { FIGHT_MOVES } from '../src/fightmoves.js';
@@ -313,5 +313,74 @@ describe('wire poses (R8)', () => {
     expect(WIRE_POSE).toEqual({ arch: 'cross', rearUp: 'swipe', flinch: 'scared', pinned: 'scared', pinning: 'stalk', roll: 'pounce' });
     for (const s of [...NEW_STATES, ...OLD_STATES]) expect(OLD_STATES).toContain(wirePose(s));
     for (const s of OLD_STATES) expect(wirePose(s)).toBe(s);
+  });
+});
+
+describe('no cat goes into the ground during any action (review fix 1)', () => {
+  it('every kind, big and not, both roles, real cats placed through placeFrame', () => {
+    const intruder = buildCat('tabby', undefined, { simple: true, style: clanCast('woods')[3].style });
+    intruder.scale.multiplyScalar(0.85);
+    const cats = [buildCat('tabby'), buildCat('mainecoon'), intruder];
+    const dims = cats.map((c) => catDims(c));
+    for (const { kind, big } of variants()) {
+      for (let i = 0; i < cats.length; i++) {
+        for (const j of [0, 1, 2]) {
+          const o = { gap: 1.6, winBackY: dims[i].backY, loseBackY: dims[j].pinnedBackY };
+          for (const u of us(100)) {
+            const fr = actionFrame(kind, big, u, o);
+            for (const [role, f, ci] of [['win', fr.win, i], ['lose', fr.lose, j]]) {
+              if (kind === 'pin' && role === 'win' && f.lift > 0.05) continue;
+              const cat = cats[ci];
+              const p = placeFrame(f, dims[ci]);
+              animateCat(cat, f.pose, u * 3, 0, false);
+              cat.rotation.order = 'YXZ';
+              cat.rotation.set(f.pitch, 0, f.roll);
+              cat.position.set(p.dSide, p.y, -p.dAlong);
+              cat.updateMatrixWorld(true);
+              const min = new THREE.Box3().setFromObject(cat, true).min.y;
+              if (min < -0.03) throw new Error(`${kind}${big ? ' big' : ''} ${role} cat ${ci} u ${u}: min y ${min.toFixed(3)}`);
+            }
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('cuesCrossed (review fix 2)', () => {
+  it('exports the cue points', () => {
+    expect(CUES.roll.dust).toEqual([0.2, 0.5]);
+    expect(CUES.reduced.dust).toEqual([0]);
+    expect(CUES.leap.slash.length).toBe(1);
+    expect(CUES.pin.dust.length).toBe(1);
+  });
+  it('counts crossings prevU < at <= u; the first frame passes -1 so a cue at 0 fires', () => {
+    expect(cuesCrossed('leap', false, true, -1, 0)).toEqual({ slash: 0, dust: 1 });
+    expect(cuesCrossed('leap', false, true, 0, 0.5)).toEqual({ slash: 0, dust: 0 });
+    // one big 0.6 s step crosses every cue once
+    expect(cuesCrossed('roll', true, false, -1, 1)).toEqual({ slash: 0, dust: 2 });
+    expect(cuesCrossed('leap', false, false, -1, 1)).toEqual({ slash: 1, dust: 0 });
+    expect(cuesCrossed('pin', true, false, -1, 1)).toEqual({ slash: 0, dust: 1 });
+    expect(cuesCrossed('rearUp', false, false, -1, 1)).toEqual({ slash: 0, dust: 0 });
+    expect(cuesCrossed('roll', true, true, -1, 1)).toEqual({ slash: 0, dust: 1 });
+    // stepping through in small steps fires each exactly once
+    let dust = 0;
+    for (let k = 0; k < 100; k++) dust += cuesCrossed('roll', true, false, k === 0 ? -1 : (k - 1) / 99, k / 99).dust;
+    expect(dust).toBe(2);
+    expect(cuesCrossed('roll', true, false, 0.2, 0.3).dust).toBe(0);
+    expect(cuesCrossed('roll', true, false, 0.1, 0.2).dust).toBe(1);
+    const out = { slash: 0, dust: 0 };
+    expect(cuesCrossed('leap', false, false, 0, 1, out)).toBe(out);
+  });
+  it('the frame flags sit on the same points', () => {
+    expect(actionFrame('leap', false, CUES.leap.slash[0], OPTS).win.slash).toBe(true);
+    expect(actionFrame('pin', false, CUES.pin.dust[0], OPTS).win.dust).toBe(true);
+  });
+});
+
+describe('actionFor fallback', () => {
+  it('a won special with an unknown id plays the basic mapping', () => {
+    expect(actionFor({ move: 'charge', answer: 'nope', won: true, special: true })).toEqual({ kind: 'leap', by: 'me', big: false });
+    expect(actionFor({ move: 'pounce', answer: 'nope', won: true, special: true })).toEqual({ kind: 'pin', by: 'me', big: false });
   });
 });

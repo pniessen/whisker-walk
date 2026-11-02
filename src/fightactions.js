@@ -53,7 +53,7 @@ const REAR = {
   boxFrom: 0.25, boxTo: 0.7, bob: 0.05, bobs: 6, bobsBig: 8,
   winDownFrom: 0.75, winDownTo: 0.88, winHomeFrom: 0.82, winHomeTo: 0.95,
   loseDropFrom: 0.7, loseDropTo: 0.82, loseDownTo: 0.8, loseHomeFrom: 0.85, loseHomeTo: 0.98,
-  back: 0.3, backBig: 0.5, settle: 0.95,
+  back: 0.3, backBig: 0.5, settle: 0.95, flinchBelow: 0.1,
 };
 // Sketch c, a 3.4 s loop: crouch 0-0.22, flight 0.22-0.42, hold 0.42-0.82,
 // hop home 0.82-1. The loser flattens just before the landing.
@@ -67,8 +67,17 @@ const PIN = {
 // break apart.
 const ROLL = {
   meet: 0.12, rolled: 0.72, ease: 0.15, turns: 2, lift: 0.25, spread: 0.18, hop: 0.1,
-  dustAt: [0.2, 0.5], loseAway: 0.86, winAway: 0.92, settle: 0.96,
+  dustAt: Object.freeze([0.2, 0.5]), loseAway: 0.86, winAway: 0.92, settle: 0.96,
 };
+// The cue points (u of the action body) the caller fires once each, through
+// cuesCrossed. The frames' slash/dust flags are short windows from them.
+export const CUES = Object.freeze({
+  leap: Object.freeze({ slash: Object.freeze([LEAP.slashAt]), dust: Object.freeze([]) }),
+  rearUp: Object.freeze({ slash: Object.freeze([]), dust: Object.freeze([]) }),
+  pin: Object.freeze({ slash: Object.freeze([]), dust: Object.freeze([PIN.land]) }),
+  roll: Object.freeze({ slash: Object.freeze([]), dust: Object.freeze(ROLL.dustAt) }),
+  reduced: Object.freeze({ slash: Object.freeze([]), dust: Object.freeze([0]) }),
+});
 // R9: the square-off beats.
 const BEAT = { sideStep: 0.3, stareStep: 0.15 };
 
@@ -198,7 +207,10 @@ function rearUp(big, u, win, lose) {
   const drop = ramp(u, R.loseDropFrom, R.loseDropTo);
   const lAlong = R.step * (ramp(u, 0, R.stepTo) - drop) - back * (drop - ramp(u, R.loseHomeFrom, R.loseHomeTo));
   const lPitch = R.pitch * (up - ramp(u, R.loseDropFrom, R.loseDownTo));
-  const lPose = u >= R.loseDropFrom ? (u < R.settle ? 'flinch' : 'cross') : (lPitch > 0.05 ? 'rearUp' : 'cross');
+  // Reared until its pitch is nearly down: 'flinch' hangs the front legs,
+  // which a nose-up cat would push into the ground.
+  const lPose = lPitch > R.flinchBelow ? 'rearUp'
+    : u >= R.loseDropFrom ? (u < R.settle ? 'flinch' : 'cross') : 'cross';
   set(lose, lAlong, 0, loseBob, lPitch, 0, lPose);
 }
 
@@ -309,4 +321,19 @@ export const WIRE_POSE = Object.freeze({ arch: 'cross', rearUp: 'swipe', flinch:
 
 export function wirePose(state) {
   return Object.hasOwn(WIRE_POSE, state) ? WIRE_POSE[state] : state;
+}
+
+// How many of an action's cues fall in (prevU, u]: the caller passes the
+// previous frame's u (-1 on an action's first frame, so a cue at 0 fires) and
+// fires each counted cue once. However long a frame is, every cue is crossed
+// exactly once over an action. Writes into `out` when given.
+export function cuesCrossed(kind, big, reducedMotion, prevU, u, out = { slash: 0, dust: 0 }) {
+  void big; // the big variants share their cue points
+  const c = reducedMotion ? CUES.reduced : (Object.hasOwn(CUES, kind) && kind !== 'reduced' ? CUES[kind] : CUES.leap);
+  let slash = 0, dust = 0;
+  for (let i = 0; i < c.slash.length; i++) if (prevU < c.slash[i] && c.slash[i] <= u) slash++;
+  for (let i = 0; i < c.dust.length; i++) if (prevU < c.dust[i] && c.dust[i] <= u) dust++;
+  out.slash = slash;
+  out.dust = dust;
+  return out;
 }
