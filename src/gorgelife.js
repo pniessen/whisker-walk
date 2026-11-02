@@ -16,7 +16,8 @@ import { caveDepth, underCeiling } from './caves.js';
 //   * SHADE BY HEIGHT (G5). Down on the gorge floor the walls keep the sun
 //     off her; up on the clifftop it is bright. The sun is scaled by
 //     shadeFor(the ground under her) and the fill by 0.85 + 0.15 * shade,
-//     eased so a climb brightens gradually. Both go through composeIntensity,
+//     eased so a climb brightens gradually. At dusk the floor's sun share
+//     is SHADE_FLOOR_DUSK (0.45): the rims glow orange, the floor sits in shade. Both go through composeIntensity,
 //     so weather's own writes (the rainbow's 2.2, a sunset's 1.5, dusk's 0.7)
 //     become the new base and are never lost or undone.
 //   * WHEELING BIRDS (G11). Three birds circling high over the gorge, above
@@ -54,6 +55,8 @@ import { caveDepth, underCeiling } from './caves.js';
 
 // The sun's share on the gorge floor; 1 from y 10 up.
 export const SHADE_FLOOR = 0.6;
+// At dusk the low sun leaves the floor in deeper shade and only the rims glow.
+export const SHADE_FLOOR_DUSK = 0.45;
 const SHADE_LOW = 2;
 const SHADE_HIGH = 10;
 // How fast shade moves toward its target, per second.
@@ -121,8 +124,9 @@ function smoothstep(e0, e1, x) {
 // 0 on the floor, 1 from y 10: how high she is, for shade and the ambience.
 const highFor = (groundY) => smoothstep(SHADE_LOW, SHADE_HIGH, groundY);
 
-export function shadeFor(groundY) {
-  return SHADE_FLOOR + (1 - SHADE_FLOOR) * highFor(groundY);
+export function shadeFor(groundY, dusk = false) {
+  const floor = dusk ? SHADE_FLOOR_DUSK : SHADE_FLOOR;
+  return floor + (1 - floor) * highFor(groundY);
 }
 
 // Scales a light that someone else may also write. `state` is
@@ -209,13 +213,15 @@ function createGlow(scene) {
 }
 
 // --- The life ---------------------------------------------------------------
-// ctx: { scene, sun, fill, ground, reducedMotion, audio, caves, weather }.
+// ctx: { scene, sun, fill, ground, reducedMotion, audio, caves, weather, dusk }.
+// `dusk`: on a dusk walk the floor sits deeper in shade (SHADE_FLOOR_DUSK) so the
+// orange sun reads only on the rims and clifftop; the fill floor is unchanged.
 // `audio` is the game's audio (setAmbientMix); without it the mix is skipped.
 // `caves` is gorge.js's GORGE_CAVES (none: nowhere is a cave). `weather` is
 // the walk's weather (setSheltered); without it the shelter is skipped.
 // `interiors` are the caves' inside groups, each with userData.caveId.
 // update(dt, t, catPos, camera): `camera` (its position) for the shelter.
-export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null, interiors = [] }) {
+export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = false, audio = null, caves = null, weather = null, interiors = [], dusk = false }) {
   const sunState = lightState(sun);
   const fillState = lightState(fill);
   // scene.environmentIntensity as a light, so composeIntensity can scale it.
@@ -250,7 +256,7 @@ export function createGorgeLife({ scene, sun, fill, ground, reducedMotion = fals
     get depth() { return depthFor(dark); },
     update(dt, t, catPos, camera) {
       const groundY = ground.y(catPos.x, catPos.z);
-      const target = shadeFor(groundY);
+      const target = shadeFor(groundY, dusk);
       const depth = caveDepth(caves, catPos.x, catPos.z);
       const darkTarget = darkFor(depth);
       const glowTarget = GLOW_MAX * smoothstep(0, GLOW_FULL_DEPTH, depth);

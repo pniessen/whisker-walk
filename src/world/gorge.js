@@ -880,7 +880,8 @@ export function build(scene, { water = {}, wind } = {}) {
     waters: GORGE_WATERS,
     waterFx,
     groundBounce: GROUND_COLOR,
-    skyDusk: { top: 0x26304a, horizon: 0x6a5a68 },
+    skyDusk: { top: 0x2c3460, horizon: 0xc98a6a },
+    duskLight: { sunColor: 0xff9a52, sunIntensity: 1.0, hemiSky: 0x7a84bc },
     perches,
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).

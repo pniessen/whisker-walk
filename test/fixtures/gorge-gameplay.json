@@ -515,8 +515,13 @@
     ],
     "groundBounce": 10127978,
     "skyDusk": {
-      "top": 2502730,
-      "horizon": 6969960
+      "top": 2896992,
+      "horizon": 13208170
+    },
+    "duskLight": {
+      "sunColor": 16751186,
+      "sunIntensity": 1,
+      "hemiSky": 8029372
     },
     "perches": [
       {

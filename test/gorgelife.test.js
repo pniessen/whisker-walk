@@ -20,7 +20,7 @@ vi.stubGlobal('document', {
   }),
 });
 
-const { SHADE_FLOOR, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor, ENV_DARK_FLOOR } = await import('../src/gorgelife.js');
+const { SHADE_FLOOR, SHADE_FLOOR_DUSK, shadeFor, composeIntensity, createGorgeLife, DARK_FLOOR, GLOW_MAX, darkFor, ENV_DARK_FLOOR } = await import('../src/gorgelife.js');
 const { GORGE_CAVES, gorgeGround } = await import('../src/world/gorgeshape.js');
 const { CAVE_SHOW_R, CAVE_SHOW_DY } = await import('../src/gorgelife.js');
 const { floodGorge } = await import('./helpers/gorgeflood.js');
@@ -51,6 +51,24 @@ function birdPositions(scene) {
   }
   return out;
 }
+
+describe('gorge life: the dusk floor', () => {
+  it('shadeFor takes a dusk flag: 0.45 on the floor, 1 high up, daytime unchanged', () => {
+    expect(SHADE_FLOOR_DUSK).toBe(0.45);
+    expect(shadeFor(0, true)).toBe(SHADE_FLOOR_DUSK);
+    expect(shadeFor(10, true)).toBe(1);
+    expect(shadeFor(0)).toBe(SHADE_FLOOR);
+  });
+  it('a dusk walk settled on the floor gives the sun base x 0.45', () => {
+    const scene = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
+    const fill = new THREE.HemisphereLight(0xffffff, 0x5f5d52, 1);
+    const life = createGorgeLife({ scene, sun, fill, ground: RAMP, audio: { setAmbientMix: vi.fn() }, dusk: true });
+    life.update(0.1, 0, at(0));
+    expect(sun.intensity).toBeCloseTo(3 * 0.45, 6);
+    life.dispose();
+  });
+});
 
 describe('gorge life: shade by height', () => {
   it('shade is 0.6 on the floor, 1 on the clifftop, eased', () => {

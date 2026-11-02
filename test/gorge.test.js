@@ -77,6 +77,18 @@ function along([x1, z1, x2, z2], step) {
   return Array.from({ length: n + 1 }, (_, k) => [x1 + ((x2 - x1) * k) / n, z1 + ((z2 - z1) * k) / n]);
 }
 
+describe('the Gorge: its own dusk', () => {
+  it('has a warmer sun than the common dusk and a canyon-sunset horizon', async () => {
+    const { DUSK, duskLook } = await import('../src/render/dusk.js');
+    const gr = (c) => ((c >> 8) & 255) / ((c >> 16) & 255);
+    expect(gr(area.duskLight.sunColor)).toBeLessThan(gr(DUSK.sunColor));
+    expect(duskLook(area).sunColor).toBe(0xff9a52);
+    expect(area.skyDusk.top).toBe(0x2c3460);
+    const h = area.skyDusk.horizon;
+    expect((h >> 16) & 255).toBeGreaterThan(h & 255);
+  });
+});
+
 describe('the Gorge: the stream', () => {
   it('declares one wadeable stream with one dry crossing', () => {
     expect(area.waters).toBe(GORGE_WATERS);
