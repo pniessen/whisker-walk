@@ -98,19 +98,34 @@ function labelHtml(r) {
   return `<text class="tm-label" x="${lx}" y="${n(ly - tall / 2 + 26)}" text-anchor="middle">${lines.join('')}</text>`;
 }
 
-// The clan's camp: a small dome with a dark door in the clan's colour. Mine
-// gets a gold ring and a larger icon, the sibling's a thin white ring. It
-// never takes a tap: the place under it stays tappable.
+// The camp mark's own colours (test/campmarks.test.js checks each against
+// every clan colour and every land). The dome stands on a light badge with a
+// dark edge, because a clan colour alone can sit too close to its own land:
+// DuskClan's #35584a on the Pines' green all but vanished. The rings get a
+// dark edge under them for the same reason on the pale lands.
+export const CAMP_MARK = Object.freeze({
+  badge: '#fbf3dc', edge: '#4a3522', ringEdge: '#3a2a1a', mine: '#f2c14e', ally: '#ffffff',
+});
+
+// The clan's camp: a small dome with a dark door in the clan's colour, on a
+// light badge. Mine gets a gold ring and a larger icon, the sibling's a thin
+// white ring. It never takes a tap: the place under it stays tappable.
 function campHtml(r) {
   const c = r.camp;
   if (!c) return '';
   const k = c.mine ? 1.35 : 1;
-  const ring = c.mine || c.ally ? `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${n(22 * k)}"/>` : '';
+  const rr = n(27 * k);
+  const ringColour = c.mine ? CAMP_MARK.mine : CAMP_MARK.ally;
+  const ring = c.mine || c.ally
+    ? `<circle class="tm-camp-ring-edge" cx="${c.x}" cy="${c.y}" r="${rr}" stroke="${CAMP_MARK.ringEdge}"/>`
+      + `<circle class="tm-camp-ring" cx="${c.x}" cy="${c.y}" r="${rr}" stroke="${ringColour}"/>`
+    : '';
+  const badge = `<circle class="tm-camp-badge" cx="${c.x}" cy="${n(c.y + 1 * k)}" r="${n(21 * k)}" fill="${CAMP_MARK.badge}" stroke="${CAMP_MARK.edge}"/>`;
   const w = 15 * k;
   const dome = `<path class="tm-camp-dome" fill="${escapeHtml(c.color)}" d="M${n(c.x - w)} ${n(c.y + 8 * k)} A${n(w)} ${n(w)} 0 0 1 ${n(c.x + w)} ${n(c.y + 8 * k)} Z"/>`
     + `<path class="tm-camp-door" d="M${n(c.x - 5 * k)} ${n(c.y + 8 * k)} A${n(5 * k)} ${n(5 * k)} 0 0 1 ${n(c.x + 5 * k)} ${n(c.y + 8 * k)} Z"/>`;
   const cls = `tm-camp${c.mine ? ' mine' : ''}${c.ally ? ' ally' : ''}`;
-  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${dome}</g>`;
+  return `<g class="${cls}"><title>${escapeHtml(`${clanName(r.id)} camp`)}</title>${ring}${badge}${dome}</g>`;
 }
 
 const stateClasses = (r) => `${r.status}${r.locked ? ' locked' : ''}${r.selected ? ' sel' : ''}`;

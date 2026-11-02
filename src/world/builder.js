@@ -1120,6 +1120,17 @@ function macroSalt(surface) {
 // makes them read as distance rather than as a green fence.
 // =============================================================================
 const BAND_SINK = 0.03;
+// The band at the water (see `shore` in horizonBand): how far from a footprint
+// the hills take to come down to it, where past the water they rise again (as
+// fractions of the band's span), and the height under which a wet cell is
+// left out because the water drawn over it hides it anyway (water is at 0.03).
+const SHORE_RAMP = 12;
+const CLOSE_FROM = 0.4;
+const CLOSE_TO = 0.65;
+const DROP_AT = 0.02;
+// Within this many metres of a `keepLow` zone the band rises back from the
+// waterline to its usual height.
+const KEEP_LOW_RAMP = 4;
 
 // The unit square's perimeter at parameter u in [0, 1): four sides, corner to
 // corner. A SQUARE ring rather than a circular one, because every area's
@@ -1138,6 +1149,16 @@ function squarePoint(u) {
 function smoothstep(a, b, x) {
   const t = clamp01((x - a) / (b - a || 1e-6));
   return t * t * (3 - 2 * t);
+}
+
+// Distance from (x, z) to a capsule's spine: the segment (x1, z1)-(x2, z2),
+// or the point (x1, z1) when x2/z2 are left out.
+function segmentDist(x, z, { x1, z1, x2 = x1, z2 = z1 }) {
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 > 0 ? clamp01(((x - x1) * dx + (z - z1) * dz) / len2) : 0;
+  return Math.hypot(x - (x1 + t * dx), z - (z1 + t * dz));
 }
 
 // Skyline facade tones, as multipliers on the band's own colour (so an area's
@@ -1287,8 +1308,9 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
  *   height    peak crest height.
  *   wavelength  the ridge spacing, in metres.
  *   avoid     an array of water footprints (an area's own `waters` records —
- *             the same data test/water.test.js reads). Cells whose centre
- *             falls in one are dropped, which is how the Seaside's dunes stop
+ *             the same data test/water.test.js reads). The band slopes down
+ *             to each one and a cell is dropped where it lies under the water
+ *             all round (see `shore`), which is how the Seaside's dunes stop
  *             at the tideline instead of paving the bay.
  *   headland  { x, z, r, h } — one extra smooth lobe added to the height
  *             field, for the promontory the plan asks the Seaside for.
@@ -1300,6 +1322,12 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
  *             perimeter arc u in [from, to) (0-0.25 is the east side), on any
  *             kind, merged into the same mesh. `height` defaults to the
  *             band's. Omitted: none.
+ *   closeWater  true (default): a water in `avoid` that runs on past the
+ *             bounds meets hills further out (see `shore`). false for the
+ *             open sea, which runs to the horizon.
+ *   keepLow   [{ x1, z1, x2, z2, r }] capsules (x2/z2 may be left out for a
+ *             disc) where the band stays at the waterline, for things drawn
+ *             out on the water such as the lake's island and its bridge.
  */
 export function horizonBand({
   kind = 'hills',
@@ -1319,6 +1347,8 @@ export function horizonBand({
   headland = null,
   sideTints = null,
   rooftops = null,
+  closeWater = true,
+  keepLow = [],
 } = {}) {
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
@@ -1346,7 +1376,35 @@ export function horizonBand({
   // sliding off a hill — so the ring drops to a gentle swell and `height`
   // becomes the roofline instead.
   const ringHeight = kind === 'skyline' ? Math.min(2, height * 0.2) : height;
-  const heightAt = (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d);
+  // Where the band meets water (Polish 2). Dropping the wet cells alone left
+  // the dry cells beside them at full hill height, so every lake, river and
+  // mire that ran out under the band cut it into flat-edged slabs with white
+  // sky under their cut sides. Two terms fix it, both 1 away from any water:
+  //   * the shore: within SHORE_RAMP of a footprint the hills come down to
+  //     the waterline, so the band meets the water as a slope;
+  //   * the far side: from CLOSE_FROM to CLOSE_TO of the span out, the hills
+  //     rise again even over the water, so a lake or river that runs on past
+  //     the bounds ends at far hills instead of a notch of open sky. The sea
+  //     (`closeWater: false`) is meant to run to the horizon, and keeps that.
+  // A cell is only dropped now when it is wet AND lies at the waterline all
+  // round, so the water mesh covers the gap and no cut edge stands up.
+  // `keepLow` zones (the lake's island and its bridge, seen from the Woods,
+  // the River and the Moor) hold the band at the waterline whatever the two
+  // terms say, so the far hills never bury something drawn out on the water.
+  const lowZone = (x, z) => {
+    let m = Infinity;
+    for (const k of keepLow) m = Math.min(m, segmentDist(x, z, k) - k.r);
+    return smoothstep(0, KEEP_LOW_RAMP, m);
+  };
+  const shore = (x, z, d) => {
+    if (avoid.length === 0) return 1;
+    const c = waterClearance(avoid, x, z);
+    const dry = smoothstep(0, SHORE_RAMP, c);
+    const far = closeWater ? smoothstep(CLOSE_FROM * span, CLOSE_TO * span, d) : 0;
+    const f = Math.max(c < 0 ? 0 : dry, far);
+    return keepLow.length ? Math.min(f, lowZone(x, z)) : f;
+  };
+  const heightAt = (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d) * shore(x, z, d);
   const wet = (x, z) => avoid.length > 0 && waterClearance(avoid, x, z) < 0;
 
   // ---- the ring surface ----------------------------------------------------
@@ -1375,7 +1433,8 @@ export function horizonBand({
       // the waterline rather than a fringe of half-cells.
       const [cx, cz] = squarePoint((i + 0.5) / around);
       const cs = inner + ((j + 0.5) / outSegs) * span;
-      if (wet(cx * cs, cz * cs)) continue;
+      if (wet(cx * cs, cz * cs)
+        && [at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)].every((v) => pos[v * 3 + 1] <= DROP_AT)) continue;
       // Winding derived once and then trusted: on side 0 of the square,
       // increasing i moves +z and increasing j moves +x, and z-hat cross x-hat
       // is +y — so (i,j), (i+1,j), (i+1,j+1) is counter-clockwise from above.
@@ -2702,6 +2761,9 @@ export function pine(x, z, scale = 1, { wind } = {}) {
   g.scale.setScalar(scale);
   g.position.set(x, 0, z);
   g.userData.occluder = PINE_OCCLUDER;
+  // The crown's radius for the corner map (ui/minimap.js), in the Group's own
+  // frame: the bottom cone's. Not `canopy`, which would drop leaves.
+  g.userData.mapCrown = PINE_CONES[0][0];
   if (wind) wind.add(g, { sizeHint: scale, amplitude: swayFor(scale) });
   return g;
 }
@@ -2744,6 +2806,8 @@ export function pineStand(trees, seed) {
   // Each pine's spot for the fight camera (TREE_OCCLUDER): one merged pair
   // cannot be told apart by mesh, so the stand lists its trees.
   g.userData.occluderStand = { shapes: PINE_OCCLUDER, trees: trees.map(({ x, z, scale }) => ({ x, z, scale })) };
+  // And each crown for the corner map (ui/minimap.js), in the stand's frame.
+  g.userData.mapCrowns = trees.map(({ x, z, scale }) => ({ x, z, r: PINE_CONES[0][0] * scale }));
   return g;
 }
 

@@ -22,7 +22,7 @@ export const WADE_SPEED = 0.8; // fraction of pace while wading
 export const SHAKE_TIME = 0.8; // seconds; the shake cannot be skipped
 export const SHAKE_PACE = 0.6; // fraction of pace while shaking
 export const SHAKE_AFTER_WADE = 3; // seconds in the water before a shake
-export const SHAKE_AFTER_SWIM = 0.5; // ...or this, if the cat swam
+export const SHAKE_AFTER_SWIM = 1.0; // ...or this, if the cat swam (Polish 2: was 0.5)
 export const DEEP_HYST = 0.1; // metres either side of the band line
 export const DRY_HYST = 0.1; // metres at the waterline and every deck edge
 

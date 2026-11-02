@@ -70,9 +70,32 @@ export function buildMapLayer(areaData, scene) {
 function treesFor(areaData, scene) {
   if (!scene || typeof scene.traverse !== 'function') return [];
   const big = (areaData.colliders ?? []).filter((c) => c.r >= 1);
-  return findTrees(scene)
+  return [...findTrees(scene), ...findPines(scene)]
     .filter((t) => !big.some((c) => Math.hypot(t.x - c.x, t.z - c.z) < 0.5))
     .map((t) => ({ x: t.x, z: t.z, r: Math.min(CROWN_MAX, t.r * CROWN) }));
+}
+
+// Pines carry no `canopy` (they shed no leaves, so findTrees leaves them for
+// the ambient leaf-fall's sake). A swaying pine says its crown's radius in
+// userData.mapCrown, and a merged stand lists its crowns in userData.mapCrowns
+// (builder.pine / builder.pineStand), both in the object's own frame.
+function findPines(scene) {
+  const out = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    const one = o.userData?.mapCrown;
+    const many = o.userData?.mapCrowns;
+    if (!(one > 0) && !Array.isArray(many)) return;
+    const e = o.matrixWorld.elements;
+    const s = Math.hypot(e[0], e[1], e[2]);
+    if (one > 0) out.push({ x: e[12], z: e[14], r: one * s });
+    if (Array.isArray(many)) {
+      for (const c of many) {
+        out.push({ x: e[0] * c.x + e[8] * c.z + e[12], z: e[2] * c.x + e[10] * c.z + e[14], r: c.r * s });
+      }
+    }
+  });
+  return out;
 }
 
 // A canvas ignores a numeric fillStyle and keeps the previous one, and

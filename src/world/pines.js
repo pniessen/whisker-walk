@@ -260,9 +260,11 @@ const TRUCE_STONE_H = 0.9;
 // The horizon. Hills all round, each side tinted for the neighbour over it:
 // more dark pines to the north (the colour the River and the Moor paint the
 // Pines), the Moor's heather to the east, the River's green to the south, the
-// swamp's wet olive to the west. None where the lake, the mire and the Moor's
-// river leave the map, so the water opens out to the sky. No rooftops:
-// Twolegplace is not next to the Pines.
+// swamp's wet olive to the west. Where the lake, the mire and the Moor's river
+// leave the map the hills come down to the water and rise again further out
+// (builder.horizonBand's `shore`), so the water runs off between far hills
+// rather than under a gap of sky. No rooftops: Twolegplace is not next to the
+// Pines.
 export const PINES_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 8, wavelength: 30,
   color: 0x34503e, salt: 47,

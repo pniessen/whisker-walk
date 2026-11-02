@@ -5,7 +5,7 @@ import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
-import { addIslandView, fromWoodsDisc } from './lake.js';
+import { addIslandView, fromWoodsDisc, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
 
 // =============================================================================
@@ -361,11 +361,11 @@ export function riverTrees() {
 // a cat pushes through. Every clump keeps off the paths, the crossings, the
 // spawn, the meadow, every find and the fallen log, so nothing the kids walk
 // to or look for is hidden.
-export const MAX_REEDS = 480;
+export const MAX_REEDS = 560;
 export const REED_SPACING = 1.0;
-const REED_GRID = 1.8;
+const REED_GRID = 1.15;
 const REED_JITTER = 0.6;
-const REED_KEEP = 0.8;
+const REED_KEEP = 0.9;
 function reedFits(x, z, trunks) {
   if (!inBounds(x, z)) return false;
   if (b.inWater(OPEN_WATERS, x, z)) return false;
@@ -481,11 +481,13 @@ export function build(scene, { water = {}, wind } = {}) {
 
   // The horizon. Hills all round, each side tinted for the neighbour over it:
   // dark pine to the north, the Woods' oak green to the east, a drier green
-  // to the south, the reedbeds' pale straw-green to the west. None where the
-  // lake and the river leave the map, so the water opens out to the sky.
+  // to the south, the reedbeds' pale straw-green to the west. Where the lake
+  // and the river leave the map the hills come down to the water and rise
+  // again further out (builder.horizonBand's `shore`), but never over the
+  // island or its bridge (`keepLow`).
   scene.add(b.horizonBand({
     kind: 'hills', inner: 56, outer: 116, height: 4, wavelength: 40,
-    color: 0x7f9a66, salt: 37, avoid: [LAKE, LAKE_FAR, RIVER_WEST, RIVER_EAST],
+    color: 0x7f9a66, salt: 37, avoid: [LAKE, LAKE_FAR, RIVER_WEST, RIVER_EAST], keepLow: islandKeepLow('river'),
     sideTints: { north: 0x3f5a46, east: 0x4f7a48, south: 0x8a9a62, west: 0xa3a878 },
   }));
 

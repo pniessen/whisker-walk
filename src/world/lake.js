@@ -51,6 +51,18 @@ export function bridgeEnds(areaId) {
   ]);
 }
 
+// Where a neighbour's horizon band must stay at the waterline (builder's
+// horizonBand `keepLow`): the island with a few metres to spare, and the
+// bridge's span, so the far hills never bury either.
+export function islandKeepLow(areaId) {
+  const isl = fromWoodsDisc(areaId);
+  const [a, c] = bridgeEnds(areaId);
+  return Object.freeze([
+    Object.freeze({ x1: isl.x, z1: isl.z, r: isl.r + 1 }),
+    Object.freeze({ x1: a.x, z1: a.z, x2: c.x, z2: c.z, r: 2 }),
+  ]);
+}
+
 export function islandBridgePlank(areaId) {
   const [island, land] = bridgeEnds(areaId);
   const P = BRIDGE_PLANK;

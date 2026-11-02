@@ -5,7 +5,7 @@ import { createWater } from '../render/water.js';
 import { sureClawsTreePerch } from '../climbing.js';
 import { mulberry32, seedFromCode } from '../rng.js';
 import { GOLD_MICE } from '../goldmice.js';
-import { addIslandView } from './lake.js';
+import { addIslandView, islandKeepLow } from './lake.js';
 import { addCamp } from './camp.js';
 
 // =============================================================================
@@ -380,11 +380,12 @@ export function build(scene, { water = {}, wind } = {}) {
   // side tinted for the neighbour over it: heather to the north (the Moor),
   // the reedbeds' pale green to the west (the River and Marshes), the wood's
   // own deep green to the south, a garden green to the east, with Twolegplace's
-  // rooftops over the fence on the south-east stretch. None where the lake
-  // is, so the lake opens out to the sky.
+  // rooftops over the fence on the south-east stretch. At the lake the hills
+  // come down to the water and rise again further out (builder.horizonBand's
+  // `shore`), but never over the island or its bridge (`keepLow`).
   scene.add(b.horizonBand({
     kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
-    color: 0x5d8a55, salt: 31, avoid: [LAKE],
+    color: 0x5d8a55, salt: 31, avoid: [LAKE], keepLow: islandKeepLow('woods'),
     sideTints: { north: 0x9a8a9c, east: 0x7e9a6e, south: 0x4f7a48, west: 0x8fa070 },
     rooftops: { from: 0.1, to: 0.25, count: 14, height: 6 },
   }));

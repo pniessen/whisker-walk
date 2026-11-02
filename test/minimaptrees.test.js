@@ -115,6 +115,35 @@ describe('trees on the corner map', () => {
     }
   });
 
+  // Polish 2: the Pines' pines are builder.pine Groups and one merged
+  // pineStand, neither of which carries `canopy` (a pine sheds no leaves, so
+  // the ambient leaf-fall must not find them). They say where their crowns
+  // are for the map alone, and every one of them is drawn.
+  it('the Pines list every pine, near and in the stand', async () => {
+    const { pinesTrees } = await import('../src/world/pines.js');
+    const { near, stand } = pinesTrees();
+    const trees = layerOf(buildPines).trees;
+    expect(trees.length).toBeGreaterThanOrEqual(near.length + stand.length);
+    for (const p of [...near, ...stand]) {
+      const t = trees.find((c) => Math.hypot(c.x - p.x, c.z - p.z) < 0.01);
+      expect(t).toBeDefined();
+      expect(t.r).toBeGreaterThan(0.5);
+      expect(t.r).toBeLessThanOrEqual(2.5);
+    }
+  });
+
+  it('pines still give the ambient leaf-fall nothing', async () => {
+    const { findTrees } = await import('../src/render/ambient.js');
+    const scene = new THREE.Scene();
+    buildPines(scene);
+    const { pinesTrees } = await import('../src/world/pines.js');
+    const { near } = pinesTrees();
+    const leafy = findTrees(scene);
+    for (const p of near) expect(leafy.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 0.01)).toBe(false);
+  });
+
+  // The Seaside has no trees at all (seaside.js: "There is not a tree in the
+  // area"), only six beach-grass tufts, which are not trees on a map.
   it('an area with no trees has an empty list', () => {
     expect(layerOf(buildSeaside).trees).toEqual([]);
     expect(layerOf(buildPark).trees.length).toBeGreaterThan(0);
