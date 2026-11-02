@@ -224,3 +224,123 @@ describe('fight rules', () => {
     expect(LONGER_LOOK).toBe(1.0);
   });
 });
+
+describe('special moves', () => {
+  const SP = { id: 'rearUpSwat', answers: 'swipe' };
+  const toAnswerable = (f) => { toClue(f); run(f, 0.3); };
+
+  test('a special on its clue wins and counts two', () => {
+    // 0-0: a right special ends the fight
+    let f = createFight({ rng: seq(['swipe', 'charge']), specials: [SP] });
+    toAnswerable(f);
+    let ev = f.answer('rearUpSwat');
+    expect(ev).toEqual([{ type: 'round', round: 1, move: 'swipe', answer: 'rearUpSwat', won: true, special: true }]);
+    expect(f.wins).toBe(2);
+    ev = run(f, TIMING.tumble + 0.1);
+    expect(ev).toEqual([{ type: 'over', won: true }]);
+    expect(f.won).toBe(true);
+    expect(f.used).toEqual(['rearUpSwat']);
+
+    // 0-1: a right special wins the fight
+    f = createFight({ rng: seq(['charge', 'swipe']), specials: [SP] });
+    toAnswerable(f);
+    f.answer('dodge');
+    run(f, TIMING.tumble + TIMING.beat + 0.5);
+    expect(f.round).toBe(2);
+    f.answer('rearUpSwat');
+    expect(f.wins).toBe(2);
+    expect(f.losses).toBe(1);
+    expect(run(f, TIMING.tumble + 0.1)).toEqual([{ type: 'over', won: true }]);
+
+    // 1-0: it ends the fight with three wins
+    f = createFight({ rng: seq(['swipe']), specials: [{ id: 'pin', answers: 'swipe' }] });
+    toAnswerable(f);
+    f.answer('pounce');
+    run(f, TIMING.tumble + TIMING.beat + 0.5);
+    f.answer('pin');
+    expect(f.wins).toBe(3);
+    expect(run(f, TIMING.tumble + 0.1)).toEqual([{ type: 'over', won: true }]);
+    expect(f.won).toBe(true);
+  });
+
+  test('a special on the wrong clue loses the round and is spent', () => {
+    const f = createFight({ rng: seq(['charge', 'pounce', 'swipe']), specials: [SP] });
+    toAnswerable(f);
+    const ev = f.answer('rearUpSwat');
+    expect(ev).toEqual([{ type: 'round', round: 1, move: 'charge', answer: 'rearUpSwat', won: false, special: true }]);
+    expect(f.losses).toBe(1);
+    expect(f.wins).toBe(0);
+    expect(f.used).toContain('rearUpSwat');
+    run(f, TIMING.tumble + TIMING.beat + 0.5);
+    expect(f.phase).toBe('clue');
+    expect(f.answer('rearUpSwat')).toEqual([]);
+    expect(f.losses).toBe(1);
+    expect(f.phase).toBe('clue');
+  });
+
+  test('Rolling Tumble answers any clue', () => {
+    for (const move of MOVES) {
+      const f = createFight({ rng: seq([move]), specials: [{ id: 'rollingTumble', answers: 'any' }] });
+      toAnswerable(f);
+      const ev = f.answer('rollingTumble');
+      expect(ev[0]).toMatchObject({ move, won: true, special: true });
+      expect(f.wins).toBe(2);
+    }
+  });
+
+  test('a special is ignored, not spent, before ignoreFirst, outside a clue, or when not owned', () => {
+    const f = createFight({ rng: seq(['swipe', 'charge']), specials: [SP] });
+    expect(f.answer('rearUpSwat')).toEqual([]); // square-off
+    toClue(f); // 0.05 s in
+    expect(f.answer('rearUpSwat')).toEqual([]); // inside ignoreFirst
+    run(f, 0.3);
+    expect(f.answer('pin')).toEqual([]); // not owned
+    expect(f.answer('leapScratch')).toEqual([]);
+    expect(f.used).toEqual([]);
+    expect(f.wins + f.losses).toBe(0);
+    f.answer('dodge'); // a basic round: tumble phase
+    expect(f.answer('rearUpSwat')).toEqual([]); // tumble
+    run(f, TIMING.tumble + 0.1);
+    expect(f.phase).toBe('beat');
+    expect(f.answer('rearUpSwat')).toEqual([]); // beat
+    expect(f.used).toEqual([]);
+    run(f, TIMING.beat + 0.5);
+    // still spendable afterwards
+    expect(f.answer('rearUpSwat')).toHaveLength(1);
+    expect(f.used).toEqual(['rearUpSwat']);
+  });
+
+  test('no specials by default, and a basic round event keeps its shape', () => {
+    const f = createFight({ rng: seq(['swipe']) });
+    toAnswerable(f);
+    expect(f.used).toEqual([]);
+    expect(f.answer('rearUpSwat')).toEqual([]);
+    expect(Object.keys(f.answer('pounce')[0]).sort()).toEqual(['answer', 'move', 'round', 'type', 'won']);
+  });
+
+  test("actionTime sets each round's action length from the round alone", () => {
+    const seen = [];
+    const actionTime = (e) => { seen.push(e); return e.won ? 2 : 3; };
+    let f = createFight({ rng: seq(['swipe']), actionTime });
+    toAnswerable(f);
+    f.answer('pounce'); // won
+    run(f, 1.9);
+    expect(f.phase).toBe('tumble');
+    run(f, 0.2);
+    expect(f.phase).toBe('beat');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toEqual({ type: 'round', round: 1, move: 'swipe', answer: 'pounce', won: true });
+    // beat length
+    f = createFight({ rng: seq(['swipe']), actionTime, beatTime: 1.2 });
+    toAnswerable(f);
+    f.answer('dodge'); // lost: 3 s
+    run(f, 2.9);
+    expect(f.phase).toBe('tumble');
+    run(f, 0.2);
+    expect(f.phase).toBe('beat');
+    run(f, 1.0);
+    expect(f.phase).toBe('beat');
+    run(f, 0.3);
+    expect(f.phase).toBe('clue');
+  });
+});
