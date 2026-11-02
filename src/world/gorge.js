@@ -61,6 +61,14 @@ export const SPAWN = Object.freeze({ x: -44, z: -11 });
 
 const BOUNDS = Object.freeze({ minX: -50, maxX: 50, minZ: -50, maxZ: 50 });
 
+// The Snug Cave's cat's home (part 3, C8): the chamber's end of the cave's
+// path, 2 m to roam, standing only on the cave's bend and chamber.
+const SNUG_CAVE = GORGE_CAVES.find((c) => c.id === 'snug');
+const SNUG_HOME = Object.freeze({
+  x: 22.5, z: 9.5, roam: 2,
+  onlyOn: Object.freeze(SNUG_CAVE.rects.filter((r) => r.tag === 'snug-bend' || r.tag === 'snug-chamber')),
+});
+
 // The stepping stones over the stream, on the Narrows path's line: the Woods'
 // broad flat stones, eight of them across 3.5 m, 0.5 m apart (the Woods' are
 // 0.54), so they overlap with no open water between them anywhere on the deck.
@@ -682,6 +690,10 @@ export function build(scene, { water = {}, wind } = {}) {
     // Strays and ghosts stand only where a cat can walk (G7; keepout.js reads
     // onlyOn from Task 10).
     keepOut: { rects: [], capsules: [], margin: 0.4, onlyOn: STAND_ON },
+    // Someone lives in the Snug Cave (part 3, C8): the first ordinary stray
+    // has its home in the chamber, and only the cave's bend and chamber to
+    // stand on (ruling C-F2; they are not in STAND_ON, ruling F35).
+    strayHomes: [SNUG_HOME],
     ground,
     raceCourse: RACE_COURSE.map((r) => ({ ...r })),
     mapShapes: mapShapes(),

@@ -1678,3 +1678,107 @@ describe('a colony cat whose saved spot is now inside the camp', () => {
     expect(src).toMatch(/colonyAvoid: campDiscs\(areaId\)/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Gorge part 3 (C8, ruling C-F2): someone lives in the Snug Cave. `homes`
+// gives the first ordinary strays a fixed home each, with only the home's own
+// rectangles to stand on, and costs the stray stream nothing.
+// ---------------------------------------------------------------------------
+describe('createStrayCats — homes (Gorge part 3, C8)', () => {
+  const counting = () => { let n = 0; const f = () => { n++; return ((n * 0.6180339887) % 1); }; f.count = () => n; return f; };
+  const HOME = { x: 22.5, z: 9.5, roam: 2 };
+  const look = (s) => [s.name, s.group.position.x, s.group.position.z, s.group.rotation.y, s.personality, s.timer];
+
+  it('a home is taken by the first ordinary stray, and the stream is unchanged', () => {
+    const a = counting(), b = counting(), c = counting();
+    const plain = createStrayCats(fakeScene(), AREA, 6, a);
+    const homed = createStrayCats(fakeScene(), AREA, 6, b, { homes: [HOME] });
+    expect(a.count()).toBe(47 + 5 * 6);
+    expect(b.count()).toBe(47 + 5 * 6);
+    expect([homed.strays[0].group.position.x, homed.strays[0].group.position.z]).toEqual([22.5, 9.5]);
+    expect([homed.strays[0].home.x, homed.strays[0].home.z]).toEqual([22.5, 9.5]);
+    expect(homed.strays[0].roam).toBe(2);
+    // the same cat (same name), just at home; everyone else exactly as before
+    expect(homed.strays[0].name).toBe(plain.strays[0].name);
+    expect(homed.strays.slice(1).map(look)).toEqual(plain.strays.slice(1).map(look));
+    expect(homed.strays.slice(1).every((s) => s.roam === null)).toBe(true);
+
+    // With one colony cat, the colony cat keeps its spot and the second cast
+    // member takes the home.
+    const withColony = createStrayCats(fakeScene(), AREA, 6, c, {
+      homes: [HOME], colonyCats: [{ name: 'Pickles', x: 5, z: -7, wear: null }],
+    });
+    expect(c.count()).toBe(47 + 5 * 6);
+    const [colonyCat, second] = withColony.strays;
+    expect([colonyCat.name, colonyCat.group.position.x, colonyCat.group.position.z, colonyCat.roam]).toEqual(['Pickles', 5, -7, null]);
+    expect([second.group.position.x, second.group.position.z, second.roam]).toEqual([22.5, 9.5, 2]);
+  });
+
+  it('a home never goes to an extra, and a bad home is ignored', () => {
+    const r = counting();
+    const cats = createStrayCats(fakeScene(), AREA, 0, r, {
+      homes: [HOME], extras: [{ name: 'Captain Barnacle', rng: mulberry32(5) }],
+    });
+    expect(r.count()).toBe(47);
+    expect(cats.strays[0].roam).toBe(null);
+    const plain = createStrayCats(fakeScene(), AREA, 4, mulberry32(9));
+    const junk = createStrayCats(fakeScene(), AREA, 4, mulberry32(9), { homes: [null, { x: NaN, z: 1, roam: 2 }, 'x'] });
+    expect(junk.strays.map(look)).toEqual(plain.strays.map(look));
+  });
+
+  it('a rolled shy cat at home is bold, so she can greet it', () => {
+    // A constant 0.1 rolls 'shy' for the first stray.
+    const plain = createStrayCats(fakeScene(), AREA, 2, () => 0.1);
+    const homed = createStrayCats(fakeScene(), AREA, 2, () => 0.1, { homes: [HOME] });
+    expect(plain.strays[0].personality).toBe('shy');
+    expect(homed.strays[0].personality).toBe('bold');
+    expect(homed.strays[1].personality).toBe(plain.strays[1].personality);
+  });
+
+  it('with no homes, every stray is exactly as before', () => {
+    for (const seed of [1, 7, 22]) {
+      const a = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed), { roomSeed: seed });
+      const b = createStrayCats(fakeScene(), AREA, 22, mulberry32(seed), { roomSeed: seed, homes: [] });
+      expect(b.strays.map(look)).toEqual(a.strays.map(look));
+      for (let f = 0; f < 300; f++) {
+        a.update(1 / 30, f / 30, FAR, NO_OPTS);
+        b.update(1 / 30, f / 30, FAR, NO_OPTS);
+      }
+      expect(b.strays.map(look)).toEqual(a.strays.map(look));
+    }
+  });
+
+  it('a homed stray stays home and is never shy', async () => {
+    const { build } = await import('../src/world/gorge.js');
+    const { SNUG_Y } = await import('../src/world/gorgeshape.js');
+    const area = build(new THREE.Scene());
+    const [home] = area.strayHomes;
+    const inRects = (x, z) => home.onlyOn.some((r) => x >= r.minX - 1e-9 && x <= r.maxX + 1e-9 && z >= r.minZ - 1e-9 && z <= r.maxZ + 1e-9);
+    const bad = [];
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const cats = createStrayCats(fakeScene(), area, 22, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+      const s = cats.strays.find((c) => c.roam !== null);
+      expect(cats.strays.filter((c) => c.roam !== null)).toHaveLength(1);
+      expect(s.personality).not.toBe('shy');
+      // her cat comes into the chamber, fast, and calls from the cave mouth
+      const near = new THREE.Vector3(20, SNUG_Y, 8);
+      let wandered = 0;
+      for (let f = 0; f < 3000; f++) {
+        const here = f % 600 < 300;
+        if (f % 500 === 250) cats.reactToMeow(new THREE.Vector3(15, SNUG_Y, 20.2), { far: true });
+        cats.update(1 / 30, f / 30, here ? near : FAR, { stalking: false, catSpeed: 4, toy: null });
+        const p = s.group.position;
+        const d = Math.hypot(p.x - home.x, p.z - home.z);
+        wandered = Math.max(wandered, d);
+        if (d > home.roam + 0.5) bad.push(`seed ${seed} f${f} ${d.toFixed(2)} m from home`);
+        if (Math.abs(p.y - SNUG_Y) > 1e-9) bad.push(`seed ${seed} f${f} y ${p.y}`);
+        if (!inRects(p.x, p.z)) bad.push(`seed ${seed} f${f} out of the cave (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`);
+        if (s.target && !inRects(s.target.x, s.target.z)) bad.push(`seed ${seed} f${f} target out of the cave`);
+        if (s.personality === 'shy') bad.push(`seed ${seed} f${f} shy`);
+      }
+      // ...and it does walk about its home, not stand frozen
+      if (wandered < 0.5) bad.push(`seed ${seed} never left the spot (${wandered.toFixed(2)} m)`);
+    }
+    expect(bad.slice(0, 12)).toEqual([]);
+  });
+});

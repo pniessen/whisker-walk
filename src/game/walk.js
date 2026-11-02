@@ -920,6 +920,8 @@ export function createWalkLifecycle({
       extras,
       reducedMotion,
       ground,
+      // Gorge part 3 (C8): the Snug Cave's cat. No homes off the Gorge.
+      homes: areaData.strayHomes ?? [],
     });
     // The clan walks on the map AS BUILT, frozen here, before anything is
     // added to it: the live areaData.colliders later gains this device's own

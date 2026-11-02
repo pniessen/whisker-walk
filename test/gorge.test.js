@@ -1188,9 +1188,9 @@ describe('the Gorge: rain puddles sit on their own ground', () => {
   });
 });
 
-// Final review I2 (ruling F35): the Snug Cave is out of STAND_ON until part 3
-// gives its homed cave cat a rectangle of its own, so no stray or ghost
-// spawns, wanders to or walks into a cave or den.
+// Final review I2 (ruling F35): the Snug Cave is out of STAND_ON, and part 3
+// gives only its homed cave cat a rectangle of its own, so no other stray and
+// no ghost spawns, wanders to or walks into a cave or den.
 describe('the Gorge: no stray or ghost goes under a roof', () => {
   const ghostProfile = (id) => ({ playerId: id, petName: id, breed: 'tabby', accessories: {}, greets: 2 });
   const FAR_CAT = new THREE.Vector3(-44, 0, -11);
@@ -1203,14 +1203,19 @@ describe('the Gorge: no stray or ghost goes under a roof', () => {
     try {
       for (let seed = 1; seed <= 200; seed++) {
         random.mockImplementation(mulberry32(2000 + seed)); // the ghosts' wander, seeded
-        const strays = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed });
+        // The Snug Cave's homed cat (part 3, C8) lives under its roof: every
+        // other stray is checked.
+        const strays = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+        const homed = strays.strays.filter((s) => s.roam !== null);
+        if (homed.length !== 1) bad.push(`seed ${seed}: ${homed.length} homed cats`);
         const ghosts = createGhosts(new THREE.Scene(), area, [ghostProfile('g1'), ghostProfile('g2')], mulberry32(seed));
-        for (const [i, s] of strays.strays.entries()) check(`seed ${seed} stray ${i} spawn`, s.group.position.x, s.group.position.z);
+        for (const [i, s] of strays.strays.entries()) if (s.roam === null) check(`seed ${seed} stray ${i} spawn`, s.group.position.x, s.group.position.z);
         for (const [i, g] of ghosts.list.entries()) check(`seed ${seed} ghost ${i} spawn`, g.group.position.x, g.group.position.z);
         for (let f = 0; f < 100; f++) {
           strays.update(0.1, f * 0.1, FAR_CAT, {});
           ghosts.update(0.1, f * 0.1);
           for (const [i, s] of strays.strays.entries()) {
+            if (s.roam !== null) continue;
             check(`seed ${seed} stray ${i}`, s.group.position.x, s.group.position.z);
             if (s.target) check(`seed ${seed} stray ${i} target`, s.target.x, s.target.z);
           }
@@ -1230,6 +1235,44 @@ describe('the Gorge: no stray or ghost goes under a roof', () => {
         expect(overlap, `STAND_ON ${JSON.stringify(r)} over ${JSON.stringify(h)}`).toBe(false);
       }
     }
+  });
+});
+
+// Part 3, Task 5 (C8, ruling C-F2): a cat lives in the Snug Cave.
+describe('the Gorge: the Snug Cave\'s cat', () => {
+  const snug = GORGE_CAVES.find((c) => c.id === 'snug');
+  const rectOf = (tag) => snug.rects.find((r) => r.tag === tag);
+
+  it('its home is the chamber, and only the bend and chamber are its to stand on', () => {
+    expect(area.strayHomes).toHaveLength(1);
+    const [home] = area.strayHomes;
+    expect([home.x, home.z, home.roam]).toEqual([22.5, 9.5, 2]);
+    expect(home.onlyOn).toEqual([rectOf('snug-bend'), rectOf('snug-chamber')]);
+    expect(area.ground.y(home.x, home.z)).toBe(snug.y);
+    expect(area.ground.ceil(home.x, home.z)).not.toBe(Infinity);
+  });
+
+  it('the Snug Cave always has a cat, and both co-walkers see the same one', () => {
+    const at = (cats) => cats.strays.find((s) => s.group.position.x === 22.5 && s.group.position.z === 9.5);
+    const names = new Set();
+    for (const seed of [12345, 1, 2, 3, 99]) {
+      const one = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+      const two = createStrayCats(new THREE.Scene(), area, 22, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+      // a co-walker on the low rung casts a prefix of the same list
+      const low = createStrayCats(new THREE.Scene(), area, 14, strayStream(seed), { roomSeed: seed, homes: area.strayHomes });
+      const [a, b, c] = [one, two, low].map(at);
+      expect(a, `seed ${seed}`).toBeTruthy();
+      expect([b.name, c.name]).toEqual([a.name, a.name]);
+      expect(a.group.position.y).toBe(snug.y);
+      names.add(a.name);
+    }
+    // the name changes walk to walk
+    expect(names.size).toBeGreaterThan(1);
+  });
+
+  it('walk.js gives the strays the area\'s homes', () => {
+    const walkSrc = readFileSync(fileURLToPath(new URL('../src/game/walk.js', import.meta.url)), 'utf8');
+    expect(walkSrc).toMatch(/createStrayCats\(scene, areaData, strayCount, strayStream\(roomSeed\), \{[\s\S]*?homes: areaData\.strayHomes \?\? \[\],[\s\S]*?\}\);/);
   });
 });
 

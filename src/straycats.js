@@ -359,7 +359,38 @@ function outOfDiscs(x, z, discs) {
   return { x, z };
 }
 
-// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames, colonyAvoid })
+// A home (Gorge part 3, C8) as the caller gave it, checked: a finite spot, a
+// roam of 0 or more, and its own rectangles to stand on (or null: the area's).
+function homeOf(h) {
+  if (!h || typeof h !== 'object' || !Number.isFinite(h.x) || !Number.isFinite(h.z)) return null;
+  const onlyOn = Array.isArray(h.onlyOn) && h.onlyOn.length > 0 ? h.onlyOn : null;
+  return { x: h.x, z: h.z, roam: Number.isFinite(h.roam) ? Math.max(0, h.roam) : 0, onlyOn };
+}
+
+// The area as a homed stray sees it: the same, except that the ONLY places it
+// may stand are its home's own rectangles (ruling C-F2). The Snug Cave is not
+// in the Gorge's STAND_ON (ruling F35), so no other stray can go in, and the
+// cave cat, kept to the cave, is never clamped out of it or into rock. Built
+// once at spawn, so keepout.js's per-record cache holds.
+function homeArea(area, home) {
+  if (!home.onlyOn) return area;
+  return { ...area, keepOut: { rects: [], capsules: [], margin: 0, ...area.keepOut, onlyOn: home.onlyOn } };
+}
+
+// Pulls v (a Vector3, in place) to within `roam` of `home` in the ground
+// plane. Nothing for a stray without a home.
+function leash(v, home, roam) {
+  if (roam === null) return v;
+  const dx = v.x - home.x, dz = v.z - home.z;
+  const d = Math.hypot(dx, dz);
+  if (d > roam) {
+    v.x = home.x + (dx / d) * roam;
+    v.z = home.z + (dz / d) * roam;
+  }
+  return v;
+}
+
+// createStrayCats(scene, area, count, rng, { grudges, roomSeed, colonyCats, excludeNames, colonyAvoid, homes })
 //
 // `roomSeed` (optional) is the co-walk room seed, the same value game/walk.js
 // seeds walkRng from. It is used for ONE thing: seeding each stray's private
@@ -440,9 +471,27 @@ function outOfDiscs(x, z, discs) {
 // `ground` (Gorge part 1, R9) is the walk's ground, groundOf(area) when not
 // given: strays stand on it and a step over a rim slides along it. It draws
 // nothing, so the stream count above is unchanged.
+//
+// `homes` (Gorge part 3, C8) is the area's `strayHomes`,
+// `[{ x, z, roam, onlyOn }]` (empty everywhere but the Gorge). After the
+// colony cats, the first ordinary stray of the cast takes the first home, the
+// next the second, and so on; never a colony cat, never an extra. A homed
+// stray:
+//   * stands at its home, and its `home` is there, so its wander targets,
+//     drawn round home, are pulled within `roam` of it (`roam` is on the
+//     stray; null on every other one), as are a Far Call's and a toy's;
+//   * stands only on its home's `onlyOn` rectangles (homeArea), in every
+//     spawn, target and per-frame clamp, so the Snug Cave's cat lives in its
+//     bend and chamber while every other stray stays out of the cave;
+//   * keeps its name, and its personality is the rolled one with 'shy'
+//     turned into 'bold' (the colony cats' rule), so she can greet it.
+// It still spends all five draws for its index and throws away the two
+// position values, a colony cat's way, so the stream position after spawn is
+// 47 + 5 * count with or without homes, and two co-walkers (one stream, one
+// cast) see the same cat at home. No homes: every stray exactly as before.
 export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   grudges = [], roomSeed, colonyCats = [], excludeNames = [], extras = [], reducedMotion = false, collarFor = () => null, colonyAvoid = [],
-  ground = groundOf(area),
+  ground = groundOf(area), homes = [],
 } = {}) {
   const strays = [];
   // v21 3b: the legendary glows under this walk's cats (none, usually), and
@@ -472,9 +521,12 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   }
   const excluded = new Set(Array.isArray(excludeNames) ? excludeNames : []);
   const cast = [...colony, ...names.filter((n) => !colonyNames.has(n) && !excluded.has(n))];
+  const homeList = (Array.isArray(homes) ? homes : []).map(homeOf).filter(Boolean);
 
   for (let i = 0; i < count; i++) {
     const fixed = i < colony.length ? colony[i] : null;
+    const homed = fixed ? null : homeList[i - colony.length] ?? null;
+    const stand = homed ? homeArea(area, homed) : area;
     const name = fixed ? fixed.name : cast[i % cast.length];
     // breed is derived from the name, not rolled, so a given cat (e.g. "Pickles")
     // is always the same breed across walks
@@ -507,18 +559,22 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
     // A rolled spot pushed off the water is spread back from the shore
-    // (spreadOffShore); a colony cat stands where it was fed.
-    const { x, z } = fixed
-      ? dryGroundPoint(area,
-        THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5),
-        THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5))
+    // (spreadOffShore); a colony cat stands where it was fed, a homed one at
+    // home (on its own rectangles).
+    const spot = fixed ?? homed;
+    const { x, z } = spot
+      ? dryGroundPoint(stand,
+        THREE.MathUtils.clamp(spot.x, b.minX + 0.5, b.maxX - 0.5),
+        THREE.MathUtils.clamp(spot.z, b.minZ + 0.5, b.maxZ - 0.5))
       : spreadOffShore(area, rolledX, rolledZ, dryGroundPoint(area, rolledX, rolledZ));
     group.position.set(x, ground.y(x, z), z);
     group.rotation.y = rng() * Math.PI * 2;
 
     const roll = (rng() + i * GOLDEN) % 1;
     const rolled = roll < 0.25 ? 'shy' : roll < 0.55 ? 'playful' : 'bold';
-    const personality = !fixed ? rolled : isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled;
+    const personality = fixed
+      ? (isShy(name) ? 'shy' : rolled === 'shy' ? 'bold' : rolled)
+      : homed && rolled === 'shy' ? 'bold' : rolled;
 
     const cross = crossNames.has(name);
     const tag = makeNameTag(name, { cross, legend: isLegendaryName(name) });
@@ -556,6 +612,11 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       // roll it makes; there is no bare Math.random() left in the FSM.
       wanderRng: strayWanderRng(wanderBase, name),
       home: new THREE.Vector3(x, ground.y(x, z), z),
+      // Gorge part 3 (C8): how far a homed stray roams from home, and the
+      // area it stands in (its home's rectangles). null / the area for
+      // every other stray.
+      roam: homed ? homed.roam : null,
+      stand,
       target: null,
       state: 'idle', // idle | wander | greet
       pose: 'follow',
@@ -612,6 +673,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       wanderer: ex.wanderer === true,
       wanderRng: strayWanderRng(wanderBase, name),
       home: new THREE.Vector3(x, ground.y(x, z), z),
+      roam: null,
+      stand: area,
       target: null,
       state: 'idle',
       pose: 'follow',
@@ -629,9 +692,10 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
   // as dry). Already dry and outside any keep-out, it is left exactly as it
   // was. Draws nothing, so co-walkers still agree on every stray. `hold` for
   // the cat's own position, clamped every frame: held at an onlyOn edge, not
-  // thrown back the margin (keepout.js). Targets keep the margin.
-  function keepOut(v, hold = false) {
-    const p = dryGroundPoint(area, v.x, v.z, hold);
+  // thrown back the margin (keepout.js). Targets keep the margin. Each stray
+  // is kept to its own `stand` area (a homed one to its home's rectangles).
+  function keepOut(s, v, hold = false) {
+    const p = dryGroundPoint(s.stand, v.x, v.z, hold);
     v.x = p.x;
     v.z = p.z;
     return v;
@@ -729,7 +793,8 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
       stray.group.position.addScaledVector(away.normalize(), RECOIL_STEP);
       stray.group.position.x = THREE.MathUtils.clamp(stray.group.position.x, b.minX + 0.5, b.maxX - 0.5);
       stray.group.position.z = THREE.MathUtils.clamp(stray.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
-      keepOut(stray.group.position, true);
+      leash(stray.group.position, stray.home, stray.roam);
+      keepOut(stray, stray.group.position, true);
       onGround(stray.group.position, px, pz);
       setNameTagMood(stray.tag, { cross: true });
     },
@@ -791,7 +856,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           const target = pos.clone().setY(0).addScaledVector(away.normalize(), FAR_CALL_STANDOFF);
           target.x = THREE.MathUtils.clamp(target.x, b.minX + 2, b.maxX - 2);
           target.z = THREE.MathUtils.clamp(target.z, b.minZ + 2, b.maxZ - 2);
-          keepOut(target);
+          keepOut(s, leash(target, s.home, s.roam));
           s.state = 'wander';
           s.target = target;
           s.stuck = 0;
@@ -850,7 +915,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.addScaledVector(s.scurryDir, SCURRY_SPEED * dt);
             s.group.position.x = THREE.MathUtils.clamp(s.group.position.x, b.minX + 0.5, b.maxX - 0.5);
             s.group.position.z = THREE.MathUtils.clamp(s.group.position.z, b.minZ + 0.5, b.maxZ - 0.5);
-            keepOut(s.group.position, true);
+            keepOut(s, s.group.position, true);
             onGround(s.group.position, px, pz);
             s.group.rotation.y = Math.atan2(s.scurryDir.x, s.scurryDir.z) + Math.PI;
             animateCat(s.group, 'follow', t, SCURRY_SPEED);
@@ -864,7 +929,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           const dToy = s.group.position.distanceTo(opts.toy.mesh.position);
           if (dToy < 8) {
             s.state = 'wander';
-            s.target = keepOut(opts.toy.mesh.position.clone());
+            s.target = keepOut(s, leash(opts.toy.mesh.position.clone(), s.home, s.roam));
             s.timer = Math.max(s.timer, 1.5);
             if (dToy < 0.5 && s.batCooldown <= 0) {
               opts.toy.bat(s.group.position);
@@ -901,12 +966,14 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
           if (s.state === 'idle') {
             s.state = 'wander';
             const a = s.wanderRng() * Math.PI * 2;
-            const r = 4 + s.wanderRng() * 8;
+            // A homed stray (C8) draws the same two values and stays within
+            // its roam of home.
+            const r = s.roam === null ? 4 + s.wanderRng() * 8 : s.wanderRng() * s.roam;
             s.target = s.home.clone().add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
             s.stuck = 0;
             s.target.x = THREE.MathUtils.clamp(s.target.x, b.minX + 2, b.maxX - 2);
             s.target.z = THREE.MathUtils.clamp(s.target.z, b.minZ + 2, b.maxZ - 2);
-            keepOut(s.target);
+            keepOut(s, s.target);
             s.timer = 12; // give up on unreachable targets eventually
           } else {
             s.state = 'idle';
@@ -928,7 +995,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
             s.group.position.addScaledVector(dir, dt);
             s.group.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
             speed = WANDER_SPEED;
-            keepOut(s.group.position, true);
+            keepOut(s, s.group.position, true);
             onGround(s.group.position, px, pz); // a rim holds it like an edge (no-op on flat ground)
             const gained = before - Math.hypot(s.target.x - s.group.position.x, s.target.z - s.group.position.z);
             s.stuck = gained < STUCK_PROGRESS * WANDER_SPEED * dt ? (s.stuck ?? 0) + dt : 0;
@@ -942,7 +1009,7 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
         // The end of this stray's move for the frame: a straight line to a
         // target outside the keep-out can still cut across it, so the cat is
         // put back out wherever it ends up.
-        keepOut(s.group.position, true);
+        keepOut(s, s.group.position, true);
         onGround(s.group.position, px, pz);
         // v20: a cross cat's RESTING pose is 'cross' — flattened ears, tail
         // up — whatever sniff/follow the wander FSM last picked for it, so it
