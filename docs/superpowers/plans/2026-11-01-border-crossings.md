@@ -75,7 +75,7 @@
     - Each map's colliders follow automatically (moor.test.js:746 and pines.test.js:1557 derive their counts from the exports).
 
 
-## Posts per map (R1–R6; measured on main 105c95e)
+## Posts per map (R1–R6; measured on main 105c95e, updated to the posts' final positions in `src/borderposts.js`)
 
 | Map | id | x | z | faces | to | Notes |
 |---|---|---|---|---|---|---|
@@ -84,20 +84,20 @@
 | Neighborhood | `town-river` | -52 | 44.6 | west | river | the Clan-only footpath's west end (R14) |
 | Woods | `woods-town-short` | 47.5 | 14.5 | east | neighborhood | the short path, through the garden fence; 4.3 m from the spawn |
 | Woods | `woods-town-long` | 47.5 | 37.6 | east | neighborhood | the long path's east end |
-| Woods | `woods-river-long` | -47.5 | 37.6 | west | river | the long path's west end; twin `river-woods-long` |
-| Woods | `woods-river-pond` | -47.5 | 5.5 | west | river | south of the pond, where the river leaves; twin `river-woods-pond` |
+| Woods | `woods-river-long` | -47.5 | 42.6 | west | river | the long path's west end, moved south of the path (z 37.6 → 42.6) to clear the River's race start pad by 3 m; twin `river-woods-long` |
+| Woods | `woods-river-pond` | -47.5 | 7 | west | river | south of the pond, where the river leaves; moved (z 5.5 → 7) to clear the intruders' routes by 0.8 m or more; twin `river-woods-pond` |
 | Woods | `woods-moor-path` | 43.4 | -47.5 | north | moor | the north path; twin `moor-woods-path` |
 | Woods | `woods-moor-river` | 25.5 | -47.5 | north | moor | east bank of river-north; twin `moor-woods-river` |
-| River | `river-woods-long` | 47.5 | 37.6 | east | woods | the long path, north side; 4.2 m from the spawn |
-| River | `river-town-long` | 47.5 | 42.6 | east | neighborhood | the long path, south side (R14); 4.4 m from the spawn |
-| River | `river-woods-pond` | 47.5 | 5.5 | east | woods | south of the pond, where river-east leaves |
+| River | `river-woods-long` | 47.5 | 42.6 | east | woods | the long path, moved south of it (z 37.6 → 42.6) to clear the race start pad by 3 m or more; 4.4 m from the spawn |
+| River | `river-town-long` | 47.5 | 44.8 | east | neighborhood | the long path, south side (R14), moved south (z 42.6 → 44.8) to make room for `river-woods-long`; no twin; 5.9 m from the spawn |
+| River | `river-woods-pond` | 47.5 | 7 | east | woods | south of the pond, where river-east leaves; moved with its twin (z 5.5 → 7) |
 | River | `river-pines-path` | -23 | -47.5 | north | pines | the north path, past the log bridge; twin `pines-river-path` |
 | Moor | `moor-woods-path` | 43.4 | 47.5 | south | woods | the north path; 4.4 m from the spawn |
 | Moor | `moor-woods-river` | 25.5 | 47.5 | south | woods | east bank of river-south |
 | Moor | `moor-gorge` | 47.5 | -14 | east | gorge | R3: always "not explored yet" |
-| Moor | `moor-pines-trail` | -47.5 | -14.5 | west | pines | the new trail (R15); twin `pines-moor-trail` |
+| Moor | `moor-pines-trail` | -47.5 | -15.5 | west | pines | the new trail (R15), moved (z -14.5 → -15.5) to clear the intruders' routes by 0.8 m or more; twin `pines-moor-trail` |
 | Pines | `pines-river-path` | -23 | 47.5 | south | river | beside the truce path; 4.6 m from the spawn, 10.35 m beyond the camp disc's rim |
-| Pines | `pines-moor-trail` | 47.5 | -14.5 | east | moor | the new trail (R15) |
+| Pines | `pines-moor-trail` | 47.5 | -15.5 | east | moor | the new trail (R15); moved with its twin (z -14.5 → -15.5) |
 
 The four new posts, probed on 105c95e: `town-river` 20.5 m from any collider; `river-town-long` 8.6 m, 4.4 m from the spawn; `pines-moor-trail` 3.6 m, 3.5 m off the trail; `moor-pines-trail` 2.03 m (the border pine at (-47, -11.9); 2.80 m once the trail clearing drops it, R15), nearest perch 3.36 m, 4.23 m off the trail; all 2.5–3.0 m inside their edge and flood-reached. Measured clearances for the first fifteen (probe on main 105c95e, re-measured by the reviewer; Task 2's test re-proves them): nearest other collider edge 1.51 m (Pines, a pine at (-21, 47.8)) to 41.9 m; nearest water footprint 2.5 m (the two river-bank posts) or more; nearest find 8.2 m or more, nearest perch 2.79 m or more; every camp disc 10.35 m or more beyond its rim; every post 2.5–3.0 m inside its edge; spawn 4.24 m or more; every one flood-reached from its spawn without wading.
 

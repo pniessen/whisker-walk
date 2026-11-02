@@ -423,6 +423,8 @@ body.left-handed .hud-top {
 .cross-card button { min-height: 48px; min-width: 200px; }
 .cross-card #btn-cross-yes { background: #f2c14e; color: #3a2a10; }
 .cross-card #btn-cross-yes:hover { filter: brightness(1.08); }
+/* The post's prompt pill would show, dimmed, under the card's scrim. */
+body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
 .controls-hint { color: #a8c0e0; font-size: 0.9rem; }
 .summary-card { display: grid; place-items: center; align-content: center; gap: 14px;
   height: 100%; background: rgba(20, 26, 38, 0.55); text-align: center; }
