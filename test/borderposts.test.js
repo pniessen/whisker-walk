@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 // The same headless canvas stub every world test uses (see test/moor.test.js).
 vi.stubGlobal('document', {
@@ -21,7 +21,7 @@ vi.stubGlobal('document', {
 });
 
 const {
-  BORDER_POSTS, POST_R, POST_REACH, TOWN_FOOTPATH, FOOTPATH_W, postsFor, postNear,
+  BORDER_POSTS, POST_R, POST_REACH, TOWN_FOOTPATH, FOOTPATH_W, postsFor, postNear, FACINGS, borderPost,
 } = await import('../src/borderposts.js');
 const neighborhood = await import('../src/world/neighborhood.js');
 const woods = await import('../src/world/woods.js');
@@ -257,5 +257,25 @@ describe('border posts: intruder routes', () => {
         }
       }
     }
+  });
+});
+
+describe('border posts: faces and the plan (Polish 3)', () => {
+  it('every post faces one of the four ways; a misspelt facing throws instead of pointing north', () => {
+    for (const p of Object.values(BORDER_POSTS).flat()) expect(FACINGS, p.id).toContain(p.faces);
+    expect(FACINGS).toEqual(['north', 'south', 'east', 'west']);
+    expect(() => borderPost('x', 0, 0, 'nort', 'moor')).toThrow(/x.*nort/);
+    expect(() => borderPost('x', 0, 0, undefined, 'moor')).toThrow();
+    expect(borderPost('x', 1, 2, 'east', 'moor')).toEqual({ id: 'x', x: 1, z: 2, faces: 'east', to: 'moor' });
+  });
+
+  it("the plan's coordinates table matches where the posts really stand", () => {
+    const md = readFileSync(new URL('../docs/superpowers/plans/2026-11-01-border-crossings.md', import.meta.url), 'utf8');
+    const rows = md.split('\n')
+      .map((l) => l.match(/^\| [A-Za-z]+ \| `([a-z-]+)` \| (-?[\d.]+) \| (-?[\d.]+) \| (\w+) \| (\w+) \|/))
+      .filter(Boolean)
+      .map(([, id, x, z, faces, to]) => ({ id, x: Number(x), z: Number(z), faces, to }));
+    const posts = Object.values(BORDER_POSTS).flat().map(({ id, x, z, faces, to }) => ({ id, x, z, faces, to }));
+    expect(rows).toEqual(posts);
   });
 });

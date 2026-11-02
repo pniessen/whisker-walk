@@ -72,3 +72,36 @@ describe('the park oak golden mouse (gm-park-2)', () => {
     expect(gm.checkFind({ x: mouse.x, z: mouse.z }, 0)).toBeNull();
   });
 });
+
+// Polish 3 asked for the limb to cast a shadow like the rest of the oak. It
+// does, as built for a walk: mergeStaticProps folds it into the trunk's bark
+// mesh (same material colour, same top-level Group) and the caster sweep
+// makes that one mesh cast, so it costs no extra shadow-pass draw. Where the
+// sun puts its shadow, it lies inside the oak's own trunk-and-canopy shadow.
+describe('the park oak limb casts with the oak (Polish 3)', () => {
+  it('casts after the walk build, merged into the trunk: no extra caster', async () => {
+    const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+    const { assignShadowCasters } = await import('../src/render/rig.js');
+    const { scene, oak } = park();
+    const limb = oak.getObjectByName('oakLimb');
+    expect(limb).toBeTruthy();
+    const limbVerts = limb.geometry.attributes.position.count;
+    mergeStaticProps(scene);
+    assignShadowCasters(scene);
+    const meshes = [];
+    oak.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(oak.getObjectByName('oakLimb') ?? null).toBe(null); // folded in
+    expect(meshes).toHaveLength(2); // canopy, and trunk + limb
+    const bark = meshes.find((m) => m.geometry.attributes.position.count > limbVerts && m.material.color.getHex() === 0x7a5230);
+    expect(bark).toBeTruthy();
+    expect(bark.castShadow).toBe(true);
+    for (const m of meshes) expect(m.castShadow).toBe(true);
+  });
+
+  it('a limb on its own still casts under the sweep', async () => {
+    const { assignShadowCasters } = await import('../src/render/rig.js');
+    const { scene, oak } = park();
+    assignShadowCasters(scene);
+    expect(oak.getObjectByName('oakLimb').castShadow).toBe(true);
+  });
+});

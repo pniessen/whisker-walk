@@ -526,6 +526,23 @@ describe('waterSplash (swimming)', () => {
     expect(shake).toBeGreaterThan(wade);
   });
 
+  it('builds its noise buffer once and reuses it for every splash (Polish 3)', () => {
+    const ctx = splashCtx();
+    const audio = createAudio({ contextFactory: () => ctx });
+    audio.chime();
+    let built = 0;
+    const mkBuf = ctx.createBuffer;
+    ctx.createBuffer = (...a) => { built++; return mkBuf(...a); };
+    const before = ctx.sources.length;
+    for (const kind of ['wade', 'paddle', 'shake', 'wade', 'shake']) audio.waterSplash(kind);
+    const started = ctx.sources.slice(before);
+    expect(started).toHaveLength(5);
+    expect(built).toBe(1);
+    for (const s of started) expect(s.buffer).toBe(started[0].buffer);
+    // Long enough for the longest kind (the shake, 0.5 s).
+    expect(started[0].buffer.length).toBeGreaterThanOrEqual(Math.floor(ctx.sampleRate * 0.5));
+  });
+
   it('plays nothing while muted', () => {
     for (const kind of ['wade', 'paddle', 'shake']) {
       expect(play(kind, { muted: true }).started).toHaveLength(0);

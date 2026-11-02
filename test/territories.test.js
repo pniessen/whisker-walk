@@ -6,7 +6,7 @@ import { PLACE_WORDS } from '../src/clanwords.js';
 import {
   BOARD, TERRITORIES, LAKE, ISLAND, STAR, POND, RIVER, PATHS, BRIDGE, territoryMapModel,
 } from '../src/territories.js';
-import { renderTerritoryMapHtml } from '../src/ui/territorymap.js';
+import { renderTerritoryMapHtml, ISLAND_WHERE } from '../src/ui/territorymap.js';
 
 function clanState() {
   return {
@@ -168,6 +168,16 @@ describe('territories', () => {
     expect(html.lastIndexOf('data-region="island"')).toBeGreaterThan(html.lastIndexOf('data-region="pines"'));
     // Twolegplace, the Woods, the River, the Moor, the Pines, and the island leading to the Pines
     expect((html.match(/data-dr-place=/g) || []).length).toBe(6);
+  });
+
+  it('the island is always built and says where it is, in its title and under its name, from one string (Polish 3)', () => {
+    expect(ISLAND).toMatchObject({ status: 'built', areaId: 'pines' });
+    expect(Object.isFrozen(ISLAND)).toBe(true);
+    const html = renderTerritoryMapHtml(territoryMapModel(clanState(), CATALOG));
+    const isl = regionHtml(html, 'island');
+    expect(isl).toContain(`<title>The island, ${ISLAND_WHERE} · `);
+    expect(isl).toContain(`>${ISLAND_WHERE}</text>`);
+    expect(html).not.toContain('coming soon');
   });
 
   it('the map has the lake, the island, the pond, the river, three paths and the bridge', () => {

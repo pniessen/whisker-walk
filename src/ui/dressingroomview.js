@@ -6,7 +6,7 @@
 // and before Start) drops them, so a walk always uses the owned, equipped cat.
 import { CATALOG } from '../progression.js';
 import { areaInEdition } from '../edition.js';
-import { menuThumbnails, customThumbnails } from '../thumbnails.js';
+import { menuThumbnails, customThumbnails, accessoryFraming } from '../thumbnails.js';
 import { CONFIRM_DELAY_MS } from './colonypanel.js';
 import { CUSTOM_MAX, lookKey } from '../customcats.js';
 import { buildDressingModel, renderDressingRoomHtml, renderSlotPickerHtml, resolveSheet } from './dressingroom.js';
@@ -84,9 +84,11 @@ export function createDressingRoom({
   let renderPending = false; // a render skipped while she typed her cat's name
   let inClick = false; // a tap's own render is never deferred
   let stripScroll = null; // the portrait strip's scroll, carried across a render
+  let revealedFor = null; // the pick last scrolled into view; a render for the same pick keeps her scroll
   const getThumbs = () => {
     if (!thumbs) thumbs = menuThumbnails();
     if (!thumbs.mine) thumbs.mine = {};
+    if (!thumbs.worn) thumbs.worn = {};
     return thumbs;
   };
   const dispatch = (action) => { ui = reduceDressingUi(ui, action); };
@@ -115,6 +117,32 @@ export function createDressingRoom({
     }
   }
 
+  // The Wearing slots' pictures: each worn accessory on the cat on show
+  // (Polish 3: they were the menu's, on a tabby). Snapped once per look and
+  // item, the way her portraits are; a plain tabby keeps the menu's own.
+  // slot -> data URL, for the slots that have one.
+  function snapWorn(m, t) {
+    const h = m.hero;
+    const out = {};
+    if (h.breed === 'tabby' && !h.look) return out;
+    const look = h.look ? lookKey(h.look) : '';
+    // Worn items only: a try-on keeps the menu's picture, so browsing the
+    // picker never builds a WebGL context on a tap.
+    const want = m.slots.filter((s) => s.itemId && !s.trying).map((s) => ({ slot: s.slot, id: s.itemId, key: `worn|${h.breed}|${look}|${s.itemId}` }));
+    const missing = want.filter((w) => !has(t.worn, w.key) && !failedSnaps.has(w.key));
+    if (missing.length) {
+      const entries = missing.map((w) => ({ key: w.key, breed: h.breed, look: h.look, wear: { [w.slot]: w.id }, ...accessoryFraming(w.id) }));
+      let got = {};
+      try { got = snapCustom(entries) || {}; } catch { got = {}; }
+      for (const e of entries) {
+        if (typeof got[e.key] === 'string' && got[e.key]) t.worn[e.key] = got[e.key];
+        else failedSnaps.add(e.key);
+      }
+    }
+    for (const w of want) if (has(t.worn, w.key)) out[w.slot] = t.worn[w.key];
+    return out;
+  }
+
   function html({ headerHtml = '', statsHtml = '', startHtml = '', extrasHtml = '', sheets } = {}) {
     const state = progression.state;
     const t = getThumbs();
@@ -130,9 +158,10 @@ export function createDressingRoom({
       });
     }
     snapMine(m, t);
+    const wearing = snapWorn(m, t);
     const pickerHtml = ui.openSlot ? renderSlotPickerHtml(state, catalog, ui.openSlot, ui.tryOn, t) : '';
     return renderDressingRoomHtml({
-      model: m, headerHtml, statsHtml, startHtml, extrasHtml, sheets, thumbs: t,
+      model: m, headerHtml, statsHtml, startHtml, extrasHtml, sheets, thumbs: { ...t, wearing },
       ui: { pill: ui.pill, openSlot: ui.openSlot, pickerHtml },
     });
   }
@@ -141,11 +170,18 @@ export function createDressingRoom({
 
   // The portrait strip: put back where she had scrolled it, then make sure the
   // cat she is walking (or previewing) is in view: after Done or ✏️ Change
-  // her own cat sits at the far end. (Test fakes have no layout: skipped.)
+  // her own cat sits at the far end. Only for a new pick (or the first
+  // render, or after the builder): a background render for the same pick
+  // leaves the strip where she has scrolled it (Polish 3: it snapped back to
+  // her cat mid-scroll). (Test fakes have no layout: skipped.)
   function revealSelected(rootEl) {
     const strip = rootEl.querySelector?.('.dr-strip');
     if (!strip || typeof strip.getBoundingClientRect !== 'function') return;
     if (stripScroll !== null) strip.scrollLeft = stripScroll;
+    const eq = progression.state?.equipped ?? {};
+    const pick = JSON.stringify([eq.cat ?? null, eq.custom ?? null, ui.previewCat]);
+    if (pick === revealedFor) return;
+    revealedFor = pick;
     const tile = strip.querySelector?.('.dr-portrait[aria-pressed="true"]');
     if (!tile || typeof tile.getBoundingClientRect !== 'function') return;
     const s = strip.getBoundingClientRect();
@@ -156,6 +192,7 @@ export function createDressingRoom({
   }
 
   function afterRender(rootEl) {
+    if (ui.builder) revealedFor = null; // Done or Leave shows her pick again
     if (rootEl && !ui.builder) revealSelected(rootEl);
     if (!stage || !rootEl) return;
     const el = rootEl.id === 'dr-stage' ? rootEl : rootEl.querySelector?.('#dr-stage');
@@ -393,8 +430,11 @@ export function createDressingRoom({
     return doneAt === null || now() - doneAt >= CONFIRM_DELAY_MS;
   }
 
+  // Also called before a walk starts: coming home, her pick is brought into
+  // view again (the strip's scroll does not survive the hidden home screen).
   function clearPreview() {
     dispatch({ type: 'clear-preview' });
+    revealedFor = null;
   }
 
   // A walk that ended at a border post opens the home screen on Where to.

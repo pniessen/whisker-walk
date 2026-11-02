@@ -312,6 +312,28 @@ function shuffled(arr, rng) {
   return a;
 }
 
+// spreadOffShore(area, rx, rz, p) -> { x, z } (Polish 3)
+//
+// A rolled spot in the water (or a keep-out) is pushed to the nearest dry
+// ground, which is its shore: every stray rolled into the Pines' bay stood on
+// one line along the bay's west or north shore. Instead the spot is pushed on
+// inland as far as it was out in the water (up to SPREAD_MAX), mirrored over
+// the shore, so the strays stand back from it at their own distances. Pure
+// arithmetic on the values already rolled: no draw, so co-walkers agree.
+const SPREAD_MIN = 0.5; // m pushed before a spot counts as moved off the water
+const SPREAD_MAX = 12; // m, the furthest a stray is mirrored inland
+function spreadOffShore(area, rx, rz, p) {
+  const dx = p.x - rx;
+  const dz = p.z - rz;
+  const d = Math.hypot(dx, dz);
+  if (d < SPREAD_MIN) return p;
+  const k = Math.min(d, SPREAD_MAX) / d;
+  const b = area.bounds;
+  return dryGroundPoint(area,
+    THREE.MathUtils.clamp(p.x + dx * k, b.minX + 1, b.maxX - 1),
+    THREE.MathUtils.clamp(p.z + dz * k, b.minZ + 1, b.maxZ - 1));
+}
+
 // A collar is too small to be worth a shadow draw (assignShadowCastersFor honours noCast).
 function noCastCollar(group) {
   group.getObjectByName('collar')?.traverse((o) => { if (o.isMesh) o.userData.noCast = true; });
@@ -479,9 +501,13 @@ export function createStrayCats(scene, area, count = 3, rng = Math.random, {
     // Both the rolled spot and a colony cat's stored one go through the
     // area's keep-out (keepout.js), which draws nothing, so the stream's
     // count is the same either way.
-    const { x, z } = dryGroundPoint(area,
-      fixed ? THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5) : rolledX,
-      fixed ? THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5) : rolledZ);
+    // A rolled spot pushed off the water is spread back from the shore
+    // (spreadOffShore); a colony cat stands where it was fed.
+    const { x, z } = fixed
+      ? dryGroundPoint(area,
+        THREE.MathUtils.clamp(fixed.x, b.minX + 0.5, b.maxX - 0.5),
+        THREE.MathUtils.clamp(fixed.z, b.minZ + 0.5, b.maxZ - 0.5))
+      : spreadOffShore(area, rolledX, rolledZ, dryGroundPoint(area, rolledX, rolledZ));
     group.position.set(x, 0, z);
     group.rotation.y = rng() * Math.PI * 2;
 
