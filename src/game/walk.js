@@ -103,6 +103,7 @@ import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
 import { createFightRecord } from './fightrecord.js';
 import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
+import { createTreeFade } from '../treefade.js';
 import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
@@ -1421,9 +1422,18 @@ export function createWalkLifecycle({
       actions: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...fightRecord,
       measureCat: catDims,
     }) : NO_CLAN_FIGHT;
+    // The trees' shapes (src/fightcam.js), read once per walk from their tags
+    // and shared by the fight camera and the tree fade. The den has none.
+    const occluders = isDen ? [] : findOccluders(scene);
     // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
-    // Read once from the trees' tags; null where no fight can happen.
-    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders: findOccluders(scene), colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
+    // Null where no fight can happen.
+    session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders, colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
+    // The tree fade (src/treefade.js, polish 1a Task 4): a tree between the
+    // walk camera and the cat, or round the camera, turns see-through. It
+    // changes materials only, never `visible` (the fight camera owns that).
+    // The den: an empty list, so the render loop's unconditional calls are
+    // no-ops.
+    session.treeFade = createTreeFade(occluders, { reducedMotion });
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like
@@ -1920,6 +1930,8 @@ export function createWalkLifecycle({
     // stand held). Idempotent; solo it sends nothing.
     session.clanFight.abort();
     session.fightCam?.dispose();
+    // Puts every tree's own material back before the traversal below frees them.
+    session.treeFade?.dispose();
 
     if (session.net) {
       const net = session.net;

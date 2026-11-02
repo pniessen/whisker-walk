@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { bus } from './events.js';
 import { createPlayer } from './player.js';
-import { coatColor } from './cat/model.js';
+import { coatColor, CAT_LOOK_Y } from './cat/model.js';
 import { PERSONALITIES } from './cat/brain.js';
 import { createProgression, rankFor, CATALOG } from './progression.js';
 import { colonyNews, tradeEffect } from './colony.js';
@@ -702,6 +702,8 @@ function init() {
   const mapView = { cx: 0, cz: 0, heading: 0 };
   const mapRemotes = [];
   const mapRemotePool = [];
+  // The tree fade's look point (the cat at CAT_LOOK_Y), mutated every frame.
+  const treeFadeLook = { x: 0, y: 0, z: 0 };
   const mapFrame = { race: null, quest: null, scenics: null, visitedScenics: null, remotes: mapRemotes, camp: null, posts: null };
   renderer.setAnimationLoop(() => {
     perfHud.frameStart(performance.now(), session);
@@ -837,6 +839,13 @@ function init() {
       session.fightCam?.update(dt, {
         subject: session.clanFight.cameraSubject, cameraMode: session.cameraMode, camera, cat: session.cat.position,
       });
+      // The tree fade, over the camera's final place this frame: a tree between
+      // it and the cat (at CAT_LOOK_Y, the fight camera's look) turns
+      // see-through. Materials only; the den's list is empty.
+      treeFadeLook.x = session.cat.position.x;
+      treeFadeLook.y = session.cat.position.y + CAT_LOOK_Y;
+      treeFadeLook.z = session.cat.position.z;
+      session.treeFade?.update(dt, camera, treeFadeLook);
       // Gorge part 1: the paws' world height, the ground under the cat plus perchY.
       const pawsY = session.ground.flat ? player.perchY
         : session.ground.y(session.cat.position.x, session.cat.position.z) + player.perchY;

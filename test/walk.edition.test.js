@@ -457,10 +457,30 @@ describe('the clan in the walk (source pins)', () => {
     expect(at).toBeGreaterThan(s.indexOf('session.clanFight = '));
     const line = s.slice(at, s.indexOf(';\n', at));
     expect(line).toContain('session.clanFight !== NO_CLAN_FIGHT');
-    expect(line).toContain('findOccluders(scene)');
+    // The trees are read once per walk and shared with the tree fade
+    // (polish 1a Task 4); the den reads none.
+    expect(line).toContain('occluders');
+    const occ = s.indexOf('const occluders = isDen ? [] : findOccluders(scene);');
+    expect(occ).toBeGreaterThan(s.indexOf('session.clanFight = '));
+    expect(occ).toBeLessThan(at);
     expect(line).toContain('reducedMotion');
     const end = s.indexOf('session.fightCam?.dispose()');
     expect(end).toBeGreaterThan(s.indexOf('session.clanFight.abort()'));
+  });
+
+  it('the tree fade shares the trees, runs after the fight camera, and lets go at the end', () => {
+    const s = readFileSync('src/game/walk.js', 'utf8');
+    const fade = s.indexOf('session.treeFade = createTreeFade(occluders, { reducedMotion });');
+    expect(fade).toBeGreaterThan(s.indexOf('const occluders = '));
+    const end = s.indexOf('session.treeFade?.dispose();');
+    expect(end).toBeGreaterThan(s.indexOf('session.fightCam?.dispose()'));
+    // before the scene traversal frees the materials
+    expect(end).toBeLessThan(s.indexOf('session.skyLife.dispose()', end));
+    const m = readFileSync('src/main.js', 'utf8');
+    const call = m.indexOf('session.treeFade?.update(dt, camera, treeFadeLook);');
+    expect(call).toBeGreaterThan(m.indexOf('session.fightCam?.update(dt, {'));
+    expect(call).toBeLessThan(m.indexOf('session.shadows.update('));
+    expect(m).toContain('treeFadeLook.y = session.cat.position.y + CAT_LOOK_Y;');
   });
 
   it("main.js's keydown hands every key to the fight sheet first", () => {
