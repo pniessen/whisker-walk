@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CHAMBER_HEADROOM } from './gorgeshape.js';
 import { mulberry32 } from '../rng.js';
+import { litMaterial } from '../render/materials.js';
 
 // =============================================================================
 // A deep cave's chamber, dressed (polish-gorgesky, Task 5).
@@ -11,7 +12,9 @@ import { mulberry32 } from '../rng.js';
 // soft seeded unevenness; a few stubby STALACTITES hanging from the cove and
 // the roof (the Echo Cave the most, with two little stalagmites under them);
 // MOSS in low flat blobs along the wall feet and on the lower walls; and in
-// the Snug Cave, a NEST of twigs lined with moss and fur.
+// the Snug Cave, a NEST of twigs lined with moss and fur. Near the cave's
+// crystal clusters the liner and the moss are tinted toward their colour, a
+// baked glow (Task 6). The clusters themselves are crystalClusters, below.
 //
 // Pure geometry from the cave's record and a seed: no Math.random, no scene.
 // It never touches gameplay: the walk stands on the ground record, which this
@@ -28,6 +31,10 @@ export const COVE_FROM = 2.0; // above the floor: where the liner may lean in
 export const LINER_IN = 0.05; // the most a low liner vertex stands in, unchecked
 export const CORNER_R = 1.1; // each corner's radius in plan
 export const STALACTITE_MIN_Y = 2.0; // a stalactite's tip, over the floor
+export const STALACTITE_MAX_LEN = 0.6; // stubby: none hangs longer than this
+export const CLUSTER_SPREAD = 0.32; // a crystal cluster's half-width along its wall
+export const CLUSTER_REACH = CLUSTER_SPREAD + 0.1; // every crystal vertex, across the ground, from its spot
+export const GLOW_R = 1.5; // the walls catch a cluster's light this far
 
 const TOP = CHAMBER_HEADROOM - 0.01; // the liner's top edge, just under the roof
 const FOOT = -0.02; // its foot, just into the floor
@@ -51,6 +58,11 @@ const STALACTITES = { echo: [7, 3], glitter: [5, 3], snug: [4, 2] }; // [min, sp
 const FLOOR_MOSS = { echo: 9, glitter: 5, snug: 14 };
 const WALL_MOSS = { echo: 3, glitter: 1, snug: 4 };
 const NEST_R = 0.45;
+const NEST_RIM = 0.02; // the twig rim's jitter reaches a little past NEST_R
+const MOSS_REACH = 1.2; // a floor blob's outer ring reaches 1.175 of its radius
+const MOUTH_KEEP = 2.0; // no stalactite this near the opening, where the camera mostly is
+const GLOW_MIX = 0.6; // how far a vertex right by a cluster goes toward its colour
+const GLOW_CENTRE_Y = 0.35; // the glow's centre, over a cluster's spot
 const NEST_FROM = { x: 20.6, z: 8.4 };
 
 const smooth = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -136,8 +148,10 @@ function mesher() {
   };
 }
 
+// `crystals` (optional): { spots: [{ x, z }], color } — the liner and the moss
+// within GLOW_R of a cluster are tinted toward its colour (a baked glow; no
+// lights), most strongly right by it.
 export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
-  void crystals; // Task 6: the liner will glow toward the cave's colour near these
   const r = cave.rects.find((q) => q.tag.endsWith('-chamber'));
   const y0 = cave.y;
   const out = outlineOf(r);
@@ -224,6 +238,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
       return m.vert(q.x, q.y, q.z, c);
     })
     : null));
+  const linerVerts = m.pos.length / 3;
   for (let i = 0; i < ss.length; i++) {
     const j = (i + 1) % ss.length;
     if (!rock[i] || !rock[j]) continue;
@@ -240,14 +255,17 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const [sMin, sSpread] = STALACTITES[cave.id] ?? STALACTITES.echo;
   const want = sMin + Math.floor(rng() * sSpread);
   const hangs = [];
+  // the opening's middle(s), on the wall line: the camera mostly looks in from there
+  const mouths = gaps.map(([a, b2]) => out.at((a + b2) / 2)).map((p) => ({ x: p.wx, z: p.wz }));
   for (let t = 0; t < 80; t++) {
-    const s = rng() * L, d = 0.45 + rng() * 0.7, len = 0.3 + rng() * 0.6;
+    const s = rng() * L, d = 0.45 + rng() * 0.7, len = 0.25 + rng() * (STALACTITE_MAX_LEN - 0.25);
     const sides = 5 + Math.floor(rng() * 3), turn = rng() * Math.PI * 2, lean = rng();
     if (hangs.length >= want) continue;
     if (!rockOn(s) || taper(s) < 1) continue;
     const p = out.at(s);
+    // d (0.45-1.15 in from the outline) keeps each within 1.2 m of the walls
     const x = p.x + p.nx * d, z = p.z + p.nz * d;
-    if (inward(x, z) > 1.2 + CORNER_R * (Math.SQRT2 - 1)) continue;
+    if (mouths.some((q) => Math.hypot(q.x - x, q.z - z) < MOUTH_KEEP)) continue;
     if (!clear(x, z, 0.3)) continue;
     if (!hangs.every((o) => Math.hypot(o.x - x, o.z - z) >= 0.8)) continue;
     // its root, up in the rock above the cove (or at the roof past it)
@@ -259,8 +277,10 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const tipColor = base.clone().lerp(new THREE.Color(0xffffff), 0.15);
   const stalactiteTips = [];
   const spike = (part, x, z, yBase, yTip, r0, sides, turn, col0, col1) => {
-    // rings from the root to a blunt, rounded-looking tip
-    const prof = [[0, 1], [0.45, 0.62], [0.8, 0.32], [0.93, 0.15]];
+    // rings from a wide root to a blunt, rounded tip: the last two rings close
+    // in over the last 10% like a dome, and the point is a short drop below
+    // a ring still a quarter of the root's width (no fangs)
+    const prof = [[0, 1], [0.4, 0.8], [0.7, 0.58], [0.9, 0.4], [0.97, 0.25]];
     const ringIds = prof.map(([t, k], ri) => {
       const y = lerp(yBase, yTip, t);
       const ids = [];
@@ -289,8 +309,8 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   };
   for (const h of hangs) {
     const len = h.root - h.tipH;
-    spike('stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.08 + 0.1 * len, h.sides, h.turn, hangColor, tipColor);
-    stalactiteTips.push({ x: h.x, y: y0 + h.tipH, z: h.z });
+    spike('stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.13 + 0.12 * len, h.sides, h.turn, hangColor, tipColor);
+    stalactiteTips.push({ x: h.x, y: y0 + h.tipH, z: h.z, root: y0 + h.root });
   }
   // The Echo Cave's two stubby stalagmites, each under a stalactite.
   if (cave.id === 'echo') {
@@ -306,7 +326,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   let nest = null;
   if (cave.id === 'snug') {
     const midX = (r.minX + r.maxX) / 2;
-    const fits = (x, z) => x <= midX && inward(x, z) >= NEST_R + 0.25 && clear(x, z, NEST_R)
+    const fits = (x, z) => x <= midX && inward(x, z) >= NEST_R + 0.25 && clear(x, z, NEST_R + NEST_RIM)
       && cornerRoom(r, x, z) >= NEST_R + 0.2;
     search: for (let k = 0; k <= 30; k++) {
       const rad = k * 0.1;
@@ -322,6 +342,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   }
 
   // --- moss ---------------------------------------------------------------------
+  const mossFrom = m.pos.length / 3;
   const mossA = new THREE.Color(MOSS[0]), mossB = new THREE.Color(MOSS[1]);
   const blobs = [];
   const floorCap = FLOOR_MOSS[cave.id] ?? 6;
@@ -331,7 +352,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     if (!rockOn(s)) continue;
     const p = out.at(s);
     const x = p.x + p.nx * rad * 0.8, z = p.z + p.nz * rad * 0.8;
-    if (!clear(x, z, rad * 1.1)) continue;
+    if (!clear(x, z, rad * MOSS_REACH)) continue;
     if (nest && Math.hypot(x - nest.x, z - nest.z) < nest.r + rad) continue;
     if (!blobs.every((o) => Math.hypot(o.x - x, o.z - z) >= 0.6 * (o.rad + rad))) continue;
     blobs.push({ x, z, rad, tint, turn });
@@ -392,6 +413,27 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
       // ring runs along the walk (+s) and up (+h): faces into the room
       m.tri('moss', mid, ring[i], ring[j]);
     }
+  }
+
+  // --- the glow: the liner and the moss near a crystal cluster catch its colour
+  if (crystals?.spots?.length) {
+    const glow = new THREE.Color(crystals.color ?? 0xffffff);
+    const near = (i) => {
+      const x = m.pos[i * 3], y = m.pos[i * 3 + 1], z = m.pos[i * 3 + 2];
+      let d = Infinity;
+      for (const sp of crystals.spots) d = Math.min(d, Math.hypot(x - sp.x, y - (y0 + GLOW_CENTRE_Y), z - sp.z));
+      return d;
+    };
+    const tint = (i) => {
+      const d = near(i);
+      if (d >= GLOW_R) return;
+      const w = GLOW_MIX * (1 - d / GLOW_R) ** 2;
+      m.col[i * 3] = lerp(m.col[i * 3], glow.r, w);
+      m.col[i * 3 + 1] = lerp(m.col[i * 3 + 1], glow.g, w);
+      m.col[i * 3 + 2] = lerp(m.col[i * 3 + 2], glow.b, w);
+    };
+    for (let i = 0; i < linerVerts; i++) tint(i);
+    for (let i = mossFrom; i < m.pos.length / 3; i++) tint(i);
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -468,4 +510,97 @@ function nestMesh(m, nest, y0, rng, c) {
       m.tri('nest', a, cc, d);
     }
   }
+}
+
+// --- crystal clusters (Task 6) -----------------------------------------------------
+// Each spot { x, y, z, nx, nz } is a point on the cave's floor in front of a
+// wall, (nx, nz) the wall's normal into the room. A spot grows 4-7 hexagonal
+// prisms with pointed tips: the tallest in the middle (0.62-0.75 m × size),
+// the rest shorter toward either side (0.25-0.6 m × size), 0.06-0.14 m × size
+// in radius, each leaning out from the wall 10-35° (the middle least) and
+// fanning a little to its side. Every vertex stays within CLUSTER_REACH of its
+// spot across the ground (a prism that would reach further leans less), and
+// each prism's foot sits flat on the floor. One merged, emissive, flat-shaded
+// mesh, out of the shadow pass, the same every time for one seed.
+const DEG = Math.PI / 180;
+const BACK_KEEP = 0.07;
+export function crystalClusters(spots, seed, { color = 0x9fc7d8, size = 1, id = 'cave' } = {}) {
+  const pos = [], col = [], idx = [];
+  // vertex colours shade the material's own colour: darker at the foot
+  const foot = new THREE.Color(0.65, 0.65, 0.65), tone = new THREE.Color(0.95, 0.95, 0.95), tip = new THREE.Color(1, 1, 1);
+  const vert = (v, c) => { pos.push(v.x, v.y, v.z); col.push(c.r, c.g, c.b); return pos.length / 3 - 1; };
+  const a = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const o = new THREE.Vector3(), q = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0);
+  spots.forEach((sp, si) => {
+    const rng = mulberry32((seed + Math.imul(si + 1, 0x9e3779b1)) >>> 0);
+    const n = 4 + Math.floor(rng() * 4);
+    const maxRank = Math.ceil((n - 1) / 2);
+    const tx = -sp.nz, tz = sp.nx; // along the wall
+    for (let i = 0; i < n; i++) {
+      const hr = rng(), hu = rng(), hh = rng(), hl = rng(), hv = rng(), hp = rng();
+      const rank = Math.ceil(i / 2), side = i % 2 ? 1 : -1, f = rank / maxRank;
+      const rad = (rank === 0 ? 0.11 + 0.03 * hr : 0.06 + 0.06 * hr * (1 - 0.5 * f)) * size;
+      let u = rank === 0 ? (hu - 0.5) * 0.06 : side * f * (0.7 + 0.3 * hu) * Math.max(0.02, CLUSTER_SPREAD - rad);
+      // out from the spot enough that its foot never reaches back more than
+      // BACK_KEEP behind it (a spot stands 0.1 m and more off the wall line)
+      // (a leaning prism's foot reaches back rad / cos(lean))
+      const v0 = 0.02 + 0.05 * hv;
+      const H = size * (rank === 0 ? 0.62 + 0.13 * hh : 0.25 + 0.35 * (1 - rank / (maxRank + 1)) * (0.75 + 0.25 * hh));
+      let lean = rank === 0 ? (10 + 5 * hl) * DEG : (10 + 25 * f * (0.6 + 0.4 * hl)) * DEG;
+      const fan = rank === 0 ? 0 : side * 0.5 * f;
+      const ring = [], cap = [];
+      let tipV = null;
+      // build it, and lean it less (then draw it in) until it fits its reach
+      for (let k = 0; k < 40; k++) {
+        let dx = sp.nx + tx * fan, dz = sp.nz + tz * fan;
+        const dl = Math.hypot(dx, dz);
+        dx /= dl; dz /= dl;
+        a.set(Math.sin(lean) * dx, Math.cos(lean), Math.sin(lean) * dz);
+        e1.crossVectors(X, a).normalize();
+        e2.crossVectors(a, e1);
+        const v = Math.max(v0, rad / Math.cos(lean) - BACK_KEEP);
+        const bx = sp.x + tx * u + sp.nx * v, bz = sp.z + tz * u + sp.nz * v;
+        const shoulder = H - rad * 1.6;
+        ring.length = 0; cap.length = 0;
+        let far = 0;
+        for (let j = 0; j < 6; j++) {
+          const phi = hp * Math.PI + (j / 6) * Math.PI * 2;
+          o.copy(e1).multiplyScalar(Math.cos(phi) * rad).addScaledVector(e2, Math.sin(phi) * rad);
+          // the foot: straight down the axis onto the floor
+          const t0 = -o.y / a.y;
+          q.set(bx, sp.y, bz).add(o).addScaledVector(a, t0);
+          ring.push(q.clone());
+          q.set(bx, sp.y, bz).add(o).addScaledVector(a, shoulder);
+          cap.push(q.clone());
+        }
+        tipV = new THREE.Vector3(bx, sp.y, bz).addScaledVector(a, H);
+        for (const p of [...ring, ...cap, tipV]) far = Math.max(far, Math.hypot(p.x - sp.x, p.z - sp.z));
+        if (far <= CLUSTER_REACH - 0.005) break;
+        if (lean > 4 * DEG) lean *= 0.85;
+        else u *= 0.9;
+      }
+      const r0 = ring.map((p) => vert(p, foot));
+      const r1 = cap.map((p) => vert(p, tone));
+      const t = vert(tipV, tip);
+      for (let j = 0; j < 6; j++) {
+        const jn = (j + 1) % 6;
+        idx.push(r0[j], r0[jn], r1[jn], r0[j], r1[jn], r1[j]);
+        idx.push(r1[j], r1[jn], t);
+      }
+    }
+  });
+  let geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  // flat facets: a crystal's faces catch the light one by one
+  const flat = geo.toNonIndexed();
+  geo.dispose();
+  geo = flat;
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, litMaterial(color, { emissive: color, emissiveIntensity: 0.9, vertexColors: true }));
+  mesh.name = `caveCrystals:${id}`;
+  mesh.castShadow = false;
+  mesh.userData.noCast = true;
+  return mesh;
 }

@@ -13,7 +13,7 @@ import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
-import { caveRoom } from './caveroom.js';
+import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -588,8 +588,10 @@ function meadowMesh() {
 }
 
 // --- inside the deep caves (part 3, C5) -----------------------------------------
-// Each deep cave's chamber has crystals at the foot of its walls, in the
-// cave's own colour, and the Glitter Cave has gold flecks on its walls too.
+// Each deep cave's chamber has crystal clusters at the foot of its walls, in
+// the cave's own colour (caveroom.js's crystalClusters; the Glitter Cave the
+// most and biggest, the Snug Cave a few small ones), and the walls near them
+// catch their glow; the Glitter Cave has gold flecks on its walls too.
 // They are soft and emissive and never move. Spots are seeded by the cave's
 // name, and every candidate draws all its numbers whether it is kept or not.
 // A spot is kept only where the wall really is rock (not the opening into the
@@ -602,10 +604,18 @@ const FLECK_COLOR = 0xe8b84a;
 export const CAVE_PATH_CLEAR = 0.6;
 export const CAVE_FIND_CLEAR = 0.4;
 const CRYSTAL_TRIES = 80;
-const CRYSTAL_CAP = 14;
-const CRYSTAL_GAP = 1.0; // between two spots
-const CRYSTAL_OFF = [0.1, 0.2]; // a spot's distance out from its wall
-const CRYSTAL_REACH = b.CRYSTAL_SPREAD + 0.1; // a cluster's reach from its spot
+// Each cave its own: the Glitter Cave the most and the biggest, the Snug Cave
+// a few small ones (it has the moss and the nest).
+const CRYSTAL_CAP = Object.freeze({ glitter: 14, echo: 8, snug: 6 });
+const CRYSTAL_GAP = Object.freeze({ glitter: 0.75, echo: 1.0, snug: 1.1 }); // between two spots
+export const CRYSTAL_SIZE = Object.freeze({ glitter: 1.3, echo: 1.0, snug: 0.85 });
+const CRYSTAL_OFF = [0.1, 0.2]; // a spot's distance out from its wall (then out past the liner)
+const CRYSTAL_REACH = CLUSTER_SPREAD + 0.1; // a cluster's reach from its spot
+// The liner stands up to 0.07 m in from the wall line beside a spot
+// (caveroom.js's WALL_BUMP; spots keep off its corner arcs), and a cluster's
+// spot moves out by it: the clear check allows for that.
+const LINER_SLACK = 0.08;
+const LINER_HS = [0.05, 0.35, 0.7, 1.0]; // heights the liner's depth is read at
 const FLECK_TRIES = 120;
 const FLECK_CAP = 40;
 const FLECK_H = [0.35, 2.4]; // over the cave's floor, under the chamber's 3 m roof
@@ -665,12 +675,23 @@ export function chamberRockAt(cave) {
 }
 // The chamber's dressing (caveroom.js): the rounded liner with its cove,
 // stalactites, moss, and the Snug Cave's nest. Seeded by the cave's name.
-export function caveRoomFor(caveId) {
+// The walls and moss catch the crystals' glow (glow: false leaves it out).
+export function caveRoomFor(caveId, { glow = true } = {}) {
   const cave = GORGE_CAVES.find((c) => c.id === caveId);
   return caveRoom(cave, {
     clear: (x, z, reach) => caveClear(cave, x, z, reach),
     rockAt: chamberRockAt(cave),
     seed: seedFromCode(`gorge-caveroom-${cave.id}`),
+    crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
+  });
+}
+// Where each crystal cluster stands: its spot moved out from the wall by the
+// liner's depth there (the deepest of a few heights up the cluster), so the
+// liner never swallows a cluster.
+export function crystalBases(cave, room) {
+  return caveCrystalSpots(cave).map((s) => {
+    const depth = Math.max(...LINER_HS.map((h) => room.linerDepth(s.wx, cave.y + h, s.wz, s.nx, s.nz)));
+    return { ...s, x: s.x + s.nx * depth, z: s.z + s.nz * depth };
   });
 }
 
@@ -679,19 +700,24 @@ export function caveCrystalSpots(cave) {
   if (crystalsOnce.has(cave.id)) return crystalsOnce.get(cave.id);
   const walls = chamberWalls(chamberOf(cave));
   const perimeter = walls.reduce((s, w) => s + w.len, 0);
+  const r = chamberOf(cave);
+  const cap = CRYSTAL_CAP[cave.id] ?? 10, gap = CRYSTAL_GAP[cave.id] ?? 1.0;
   const rng = mulberry32(seedFromCode(`gorge-crystals-${cave.id}`));
   const kept = [];
   for (let i = 0; i < CRYSTAL_TRIES; i++) {
     const t = perimeter * rng();
     const off = CRYSTAL_OFF[0] + (CRYSTAL_OFF[1] - CRYSTAL_OFF[0]) * rng();
-    if (kept.length >= CRYSTAL_CAP) continue;
+    if (kept.length >= cap) continue;
     const p = wallPoint(walls, t);
     if (!p || !wallHolds(cave, p, CRYSTAL_REACH + 0.05)) continue;
+    // off the liner's rounded corners (it stands up to 0.46 m in on an arc)
+    const along = p.nz ? Math.min(p.x - r.minX, r.maxX - p.x) : Math.min(p.z - r.minZ, r.maxZ - p.z);
+    if (along < CORNER_R) continue;
     const x = r2(p.x + p.nx * off);
     const z = r2(p.z + p.nz * off);
-    if (!caveClear(cave, x, z, CRYSTAL_REACH)) continue;
-    if (!kept.every((o) => Math.hypot(x - o.x, z - o.z) >= CRYSTAL_GAP)) continue;
-    kept.push({ x, z, y: cave.y, nx: p.nx, nz: p.nz });
+    if (!caveClear(cave, x, z, CRYSTAL_REACH + LINER_SLACK)) continue;
+    if (!kept.every((o) => Math.hypot(x - o.x, z - o.z) >= gap)) continue;
+    kept.push({ x, z, y: cave.y, nx: p.nx, nz: p.nz, wx: r2(p.x), wz: r2(p.z) });
   }
   const out = Object.freeze(kept.map(Object.freeze));
   crystalsOnce.set(cave.id, out);
@@ -721,23 +747,26 @@ export function glitterFleckSpots() {
 
 // One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
 // shows it (only near its cave and on its level, C5).
-// The chamber's room (caveroom.js) is one more mesh in it, made on local
-// uuids so the Gorge build's Math.random draws stay as pinned (5108,
-// waterlooks.test.js). The Glitter Cave's flecks sit on the room's liner,
-// which stands a little in from the wall line they were placed on.
+// The chamber's room and its crystal clusters (caveroom.js) are made on local
+// uuids, so they take no Math.random draws from the Gorge build (pinned in
+// waterlooks.test.js). The clusters and the Glitter Cave's flecks sit on or in
+// front of the room's liner, which stands a little in from the wall line
+// they were placed on.
 function caveInterior(cave) {
   const g = new THREE.Group();
   g.name = `caveInterior:${cave.id}`;
   g.userData.caveId = cave.id;
-  const { room, mesh } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
+  const { room, mesh, crystals } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
     const made = caveRoomFor(cave.id);
     const m = new THREE.Mesh(made.geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
     m.name = `caveRoom:${cave.id}`;
     m.castShadow = false;
     m.userData.noCast = true;
-    return { room: made, mesh: m };
+    const c = crystalClusters(crystalBases(cave, made), seedFromCode(`gorge-crystals-${cave.id}`),
+      { color: CAVE_COLORS[cave.id], size: CRYSTAL_SIZE[cave.id], id: cave.id });
+    return { room: made, mesh: m, crystals: c };
   });
-  g.add(b.caveCrystals(caveCrystalSpots(cave), seedFromCode(`gorge-crystals-${cave.id}`), { color: CAVE_COLORS[cave.id] }));
+  g.add(crystals);
   if (cave.id === 'glitter') {
     const flecks = glitterFleckSpots().map((f) => {
       const d = room.linerDepth(f.x, f.y, f.z, f.nx, f.nz);

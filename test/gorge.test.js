@@ -1445,19 +1445,21 @@ describe('the Gorge: inside the deep caves', () => {
       const all = meshesOf(g);
       expect(all.at(-1).name).toBe(`caveRoom:${cave.id}`);
       const meshes = all.slice(0, -1);
-      // at most two merged meshes, both out of the shadow pass; the Glitter
-      // Cave's second is its gold flecks
-      expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? ['caveCrystals', 'caveFlecks'] : ['caveCrystals']);
+      // at most two merged meshes, both out of the shadow pass: the crystal
+      // clusters (caveroom.js, glowing brighter), and the Glitter Cave's gold flecks
+      const crystalName = `caveCrystals:${cave.id}`;
+      expect(meshes.map((m) => m.name)).toEqual(cave.id === 'glitter' ? [crystalName, 'caveFlecks'] : [crystalName]);
       for (const m of meshes) {
         expect(m.userData.noCast, m.name).toBe(true);
         expect(m.castShadow).toBe(false);
-        expect(m.material.emissiveIntensity).toBe(0.6);
+        expect(m.material.emissiveIntensity).toBe(m.name === crystalName ? 0.9 : 0.6);
       }
       expect(meshes[0].material.emissive.getHex()).toBe(COLORS[cave.id]);
-      // 10-16 crystal spots along the chamber's walls, each within 0.25 m of a wall
+      // 5-14 crystal spots along the chamber's walls (the Glitter Cave 7 and
+      // more), each within 0.25 m of a wall
       const spots = gorge.caveCrystalSpots(cave);
-      expect(spots.length, cave.id).toBeGreaterThanOrEqual(10);
-      expect(spots.length, cave.id).toBeLessThanOrEqual(16);
+      expect(spots.length, cave.id).toBeGreaterThanOrEqual(cave.id === 'glitter' ? 7 : 5);
+      expect(spots.length, cave.id).toBeLessThanOrEqual(14);
       const chamber = cave.rects.find((r) => r.tag.endsWith('-chamber'));
       for (const s of spots) {
         const wall = Math.min(s.x - chamber.minX, chamber.maxX - s.x, s.z - chamber.minZ, chamber.maxZ - s.z);
@@ -1476,8 +1478,8 @@ describe('the Gorge: inside the deep caves', () => {
           // on its floor and under its roof
           expect(v.y, where).toBeGreaterThanOrEqual(cave.y - 1e-6);
           expect(v.y, where).toBeLessThan(cave.y + 2.6);
-          // a crystal is never taller than 0.3 m
-          if (m === crystal) expect(v.y - cave.y, where).toBeLessThanOrEqual(0.3);
+          // a crystal is never taller than 0.75 m by its cave's size (0.98 m at most)
+          if (m === crystal) expect(v.y - cave.y, where).toBeLessThanOrEqual(0.75 * gorge.CRYSTAL_SIZE[cave.id] + 1e-3);
           // off the walking line, and clear of the finds
           expect(pathDist(cave, v.x, v.z), where).toBeGreaterThanOrEqual(0.6);
           for (const f of finds) expect(Math.hypot(v.x - f.x, v.z - f.z), `${where} by ${f.id}`).toBeGreaterThanOrEqual(0.4);
