@@ -237,7 +237,7 @@ function invert(f, target, lo, hi) {
 }
 // The core's half-width at (y, z) in the cat's frame (its surface's x there),
 // held to a sliver past the silhouette so a wing tip there stays on the body.
-function henBodyHalfWidth(y, z) {
+export function henBodyHalfWidth(y, z) {
   const uz = invert(coreZ, z, -1, 1);
   const lim = Math.sqrt(Math.max(0, 1 - uz * uz));
   const uy = invert((v) => coreY(v, uz), y, -lim, lim);
@@ -245,47 +245,122 @@ function henBodyHalfWidth(y, z) {
   return ux * (1 - 0.18 * Math.max(0, uz) ** 2) * HEN_BODY.R[0];
 }
 
-// One folded wing (s = -1 left, +1 right): long coverts, a shoulder and four
-// primaries stepping down and back to separate feather tips, in the cat's
-// frame, shrink-wrapped onto the flank: each vertex's x is the body's
-// half-width at its (y, z) plus its depth in the wing, so the wing follows
-// the body as it narrows toward the tail instead of standing off in the air.
+// One folded wing (s = -1 left, +1 right): a rounded shoulder covert over
+// WING_FEATHERS layered feather blades, in the cat's frame, shrink-wrapped
+// onto the flank: each vertex's x is the body's half-width at its (y, z) plus
+// its depth in the wing, so the wing follows the body as it narrows toward
+// the tail instead of standing off in the air.
+//
+// polish-catlooks (2026-11-02), Task 4: the wing used to be one long flat
+// oval (plus four thin primaries mostly hidden under it), which read as a
+// brown patch pasted on his side. Now it is shingles: each blade a thin lens
+// (wide near its root, tapering to a rounded point, under 6 mm thick), each a
+// little longer, lower and further back than the one above and tipped further
+// down, darkening to near-black over its last third, so the folded wing reads
+// as overlapping feathers. Its upper edge tucks in toward the flank and its
+// lower edge stands proud, and each blade sits a hair outside the one below,
+// so every blade's lower edge lies over the next one's root. Same triangle
+// budget as before (312 a side): 48 for the covert, 64 a blade.
+export const WING_FEATHERS = 4;
 const WING_SINK = 0.012; // how far the wing's inner face sits inside the flank
+// rings along a blade (u = 0 root .. 1 tip), bunched toward the tip so it rounds
+const BLADE_U = [0, 0.1, 0.28, 0.48, 0.66, 0.8, 0.9, 0.97];
+// One blade: root (y, z), length, downward tilt (rad), half-width, layer depth
+// (x), root colour. Four vertices a ring: upper edge, outer face, lower edge,
+// inner face; closed at the root and the tip by a single vertex each.
+function wingBlade({ y0, z0, len, tilt, w, layer, root, edge = null }) {
+  const dy = -Math.sin(tilt), dz = Math.cos(tilt); // along the blade
+  const ny = Math.cos(tilt), nz = Math.sin(tilt); // across it, toward its upper edge
+  const tip = mix(HEN.DARK, HEN.TAIL, 0.6), rootC = hexColour(root);
+  const pos = [], col = [];
+  const put = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  const colourAt = (u) => rootC.clone().lerp(tip, smooth(0.6, 0.8, u));
+  const centre = (u) => {
+    const sag = 0.02 * u * u; // the tip curls down a little, as a folded primary does
+    return [y0 + dy * len * u - sag, z0 + dz * len * u];
+  };
+  for (const u of BLADE_U) {
+    // half-width: rounded at the root, widest at a quarter, then an ogive to a rounded point
+    const h = w * (u < 0.25 ? Math.sqrt(0.35 + 0.65 * u / 0.25) : Math.pow(1 - ((u - 0.25) / 0.75) ** 2, 0.6));
+    const f = h / w;
+    const th = 0.0028 * Math.sqrt(f); // half-thickness: 5.6 mm at most
+    const [cy, cz] = centre(u);
+    const c = colourAt(u);
+    const xMid = layer + 0.01, tiltX = 0.0045 * f; // upper edge tucked in, lower edge proud
+    put(xMid - tiltX, cy + ny * h, cz + nz * h, edge && u < 0.6 ? c.clone().lerp(hexColour(edge), 0.45) : c);
+    put(xMid + th, cy, cz, c);
+    put(xMid + tiltX, cy - ny * h, cz - nz * h, c);
+    put(xMid - 0.3 * th, cy, cz, c);
+  }
+  const [ty, tz] = centre(1);
+  const [ry, rz] = centre(0);
+  const rings = BLADE_U.length;
+  const idx = [];
+  for (let r = 0; r < rings - 1; r++) {
+    for (let k = 0; k < 4; k++) {
+      const a = r * 4 + k, b = r * 4 + (k + 1) % 4;
+      idx.push(a, a + 4, b, b, a + 4, b + 4);
+    }
+  }
+  const tipAt = pos.length / 3;
+  put(layer + 0.01, ty, tz, tip);
+  const last = (rings - 1) * 4;
+  for (let k = 0; k < 4; k++) idx.push(last + k, tipAt, last + (k + 1) % 4);
+  const rootAt = pos.length / 3;
+  put(layer + 0.01, ry, rz - 0.004, rootC);
+  for (let k = 0; k < 4; k++) idx.push(k, (k + 1) % 4, rootAt);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
 function henWing(s) {
   const k = 0.85;
-  const parts = [
-    ball(0.16 * k, 10, 7, { scale: [0.17, 0.4, 1.4], rot: [0.16, 0, 0], pos: [0, 0.04 * k, -0.04 * k] }, HEN.DARK),
-    ball(0.08 * k, 6, 5, { scale: [0.3, 0.7, 0.9], pos: [0, 0.07 * k, -0.17 * k] }, mix(HEN.FEATHER, HEN.DARK, 0.4)),
-  ];
-  const zs = [1.15, 1.05, 0.95, 0.85];
-  for (let i = 0; i < 4; i++) {
-    parts.push(ball(0.11 * k, 6, 4, {
-      scale: [0.1, 0.16, zs[i]],
-      rot: [0.3 + i * 0.08, 0, 0],
-      pos: [-0.004 * k, (-0.03 - i * 0.025) * k, (0.1 + i * 0.03) * k],
-    }, mix(HEN.DARK, HEN.TAIL, 0.3 + i / 8)));
+  // the shoulder covert, a rounded lobe over the blades' roots; its inner face
+  // is the wing's inner face (x 0)
+  const shoulder = ball(0.08 * k, 6, 5, { scale: [0.2, 0.7, 1.1], pos: [0.0156, 0.07 * k, -0.17 * k] }, mix(HEN.FEATHER, HEN.DARK, 0.4));
+  const parts = [shoulder];
+  for (let i = 0; i < WING_FEATHERS; i++) {
+    parts.push(wingBlade({
+      y0: 0.064 - i * 0.024,
+      z0: -0.165 + i * 0.03,
+      len: 0.235 + i * 0.015,
+      tilt: 0.12 + i * 0.06,
+      w: 0.046 - i * 0.003,
+      layer: (WING_FEATHERS - 1 - i) * 0.004,
+      root: mix(HEN.FEATHER, HEN.DARK, 0.25 + i * 0.15),
+      edge: i === 0 ? HEN.HACKLE : null, // a thin lighter edge on the top blade
+    }));
   }
+  const blades = [];
+  let at = parts[0].attributes.position.count;
+  for (const b of parts.slice(1)) { blades.push([at, b.attributes.position.count]); at += b.attributes.position.count; }
   const g = mergeGeometries(parts, false);
   parts.forEach((x) => x.dispose());
-  // the wing's inner face (min local x) goes WING_SINK inside the flank
-  g.computeBoundingBox();
-  const inner = g.boundingBox.min.x;
-  g.boundingBox = null;
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i) + 0.02, z = p.getZ(i) + 0.02;
-    p.setXYZ(i, s * (henBodyHalfWidth(y, z) - WING_SINK + p.getX(i) - inner), y, z);
+    p.setXYZ(i, s * (henBodyHalfWidth(y, z) - WING_SINK + p.getX(i)), y, z);
   }
   if (s < 0) g.index.array.reverse(); // mirrored: keep the faces outward
   g.computeVertexNormals();
+  g.userData.blades = blades;
   return g;
 }
 
 export function henBodyGeometry() {
-  const { geo, ranges } = merge([henCore(), henHackles(), henWing(-1), henWing(1)]);
+  const wingL = henWing(-1), wingR = henWing(1);
+  const bladesL = wingL.userData.blades, bladesR = wingR.userData.blades;
+  const { geo, ranges } = merge([henCore(), henHackles(), wingL, wingR]);
   const [sx, sy, sz] = HEN_BODY.SCALE;
   geo.scale(1 / sx, 1 / sy, 1 / sz);
-  geo.userData.ranges = { body: ranges[0], hackles: ranges[1], wingL: ranges[2], wingR: ranges[3] };
+  const shift = (bl, [s]) => bl.map(([a, n]) => [s + a, n]);
+  geo.userData.ranges = {
+    body: ranges[0], hackles: ranges[1], wingL: ranges[2], wingR: ranges[3],
+    wingFeathersL: shift(bladesL, ranges[2]), wingFeathersR: shift(bladesR, ranges[3]),
+  };
   return geo;
 }
 
