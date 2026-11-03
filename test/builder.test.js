@@ -1708,3 +1708,68 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     expect(() => b.scree([], 4)).not.toThrow();
   });
 });
+
+// polish-places Task 4: the Seaside's backing dunes get an edge of their own.
+describe('the dune edge', () => {
+  it('the dune edge: marram tufts and fence posts, dry, under 1.6 near the edge', async () => {
+    const { SEA_VIEW } = await import('../src/world/seaside.js');
+    const spots = b.edgeSpots({ half: 70, style: 'dune' }, 59, [SEA_VIEW]);
+    expect(spots.length).toBeGreaterThan(60);
+    for (const s of spots) expect(b.waterClearance([SEA_VIEW], s.x, s.z)).toBeGreaterThanOrEqual(1.5);
+    const kinds = new Set(spots.map((s) => s.kind));
+    expect(kinds.has('piece')).toBe(true);
+    expect(kinds.has('post')).toBe(true);
+    expect(kinds.has('tree')).toBe(false);
+    // Deterministic: the same spots twice.
+    expect(b.edgeSpots({ half: 70, style: 'dune' }, 59, [SEA_VIEW])).toEqual(spots);
+
+    // Built without props, every piece is low: tufts and posts only.
+    const band = b.horizonBand({
+      kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26, salt: 59,
+      avoid: [SEA_VIEW], closeWater: false, edge: { half: 70, style: 'dune' },
+    });
+    const edge = band.children.find((c) => c.name === 'horizonEdge');
+    expect(edge.userData.noCast).toBe(true);
+    const pos = edge.geometry.attributes.position;
+    expect(pos.count).toBeGreaterThan(0);
+    for (let v = 0; v < pos.count; v++) {
+      expect(pos.getY(v)).toBeLessThanOrEqual(1.6);
+      expect(b.waterClearance([SEA_VIEW], pos.getX(v), pos.getZ(v))).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  it('props: huts and a chair stand where the edge puts them, taller than the ring, and wet ones are dropped', async () => {
+    const { SEA_VIEW } = await import('../src/world/seaside.js');
+    const props = [
+      { x: 10, z: 74, yaw: Math.PI, kind: 'hut' },
+      { x: 20, z: 73, yaw: Math.PI, kind: 'chair' },
+      { x: 40, z: 74, yaw: Math.PI, kind: 'hut' }, // in the sea
+    ];
+    const spots = b.edgeSpots({ half: 70, style: 'dune', props }, 59, [SEA_VIEW]);
+    expect(spots.filter((s) => s.kind === 'hut')).toHaveLength(1);
+    expect(spots.filter((s) => s.kind === 'chair')).toHaveLength(1);
+    const band = b.horizonBand({
+      kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26, salt: 59,
+      avoid: [SEA_VIEW], closeWater: false, edge: { half: 70, style: 'dune', props },
+    });
+    const pos = band.children[0].geometry.attributes.position;
+    const topNear = (px, pz, r) => {
+      let top = -Infinity;
+      for (let v = 0; v < pos.count; v++) {
+        if (Math.hypot(pos.getX(v) - px, pos.getZ(v) - pz) < r) top = Math.max(top, pos.getY(v));
+      }
+      return top;
+    };
+    expect(topNear(10, 74, 1.8)).toBeGreaterThan(2.3);
+    expect(topNear(10, 74, 1.8)).toBeLessThan(2.8);
+    expect(topNear(20, 73, 1.2)).toBeGreaterThan(2.2);
+    expect(topNear(20, 73, 1.2)).toBeLessThan(2.7);
+  });
+
+  it('no other style grows posts, props or a different ring', () => {
+    for (const style of ['hedge', 'scrub', 'reeds', 'wall', 'pinescrub']) {
+      const spots = b.edgeSpots({ half: 60, style }, 7, []);
+      expect(spots.some((s) => s.kind === 'post' || s.kind === 'hut' || s.kind === 'chair'), style).toBe(false);
+    }
+  });
+});

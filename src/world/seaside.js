@@ -336,7 +336,7 @@ const SEA = {
 // The sea as the horizon band sees it: the slab carried on north and south
 // past the band's outer rim (126), so no dune stands across either end. Data
 // only (see the horizon band below).
-const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, maxX: 105, minZ: -140, maxZ: 140 });
+export const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, maxX: 105, minZ: -140, maxZ: 140 });
 
 // -----------------------------------------------------------------------------
 // SURFACES, WATER AND WIND (v20). The Old Docks was the pilot (see the block at
@@ -391,6 +391,24 @@ const SEA_VIEW = Object.freeze({ id: 'sea-view', kind: 'rect', minX: 25, maxX: 1
 // -----------------------------------------------------------------------------
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 18, z: 42 });
+
+// The backing dunes' band and their edge (see the horizon band in build()).
+export const SEASIDE_HORIZON = Object.freeze({
+  kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
+  color: 0xc9ba90, salt: 59, avoid: Object.freeze([SEA_VIEW]), closeWater: false,
+  headland: Object.freeze({ x: -92, z: -84, r: 46, h: 0.9 }),
+  edge: Object.freeze({
+    half: 70, style: 'dune', avoid: Object.freeze([SEA_VIEW]),
+    props: Object.freeze([
+      { x: 9.2, z: 74.1, yaw: Math.PI + 0.04, kind: 'hut' },
+      { x: 12.0, z: 74.3, yaw: Math.PI - 0.03, kind: 'hut' },
+      { x: 14.8, z: 74.0, yaw: Math.PI + 0.02, kind: 'hut' },
+      { x: 20.6, z: 73.2, yaw: Math.PI - 0.25, kind: 'chair' },
+      { x: -61.5, z: 73.8, yaw: 2.75, kind: 'hut' },
+      { x: -58.6, z: 74.5, yaw: 2.88, kind: 'hut' },
+    ].map((p) => Object.freeze(p))),
+  }),
+});
 
 export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, 0x9fc8e8, 0xe8e0d0);
@@ -454,11 +472,16 @@ export function build(scene, { water = {}, wind } = {}) {
   // into the haze. The open water past the slab is waterdress.js's far-sea
   // apron, render-side; SEA_VIEW is a plain record, no object, and not a
   // `waters` entry (nothing swims in it).
-  scene.add(b.horizonBand({
-    kind: 'dunes', inner: 66, outer: 126, height: 7, wavelength: 26,
-    color: 0xc9ba90, salt: 59, avoid: [SEA_VIEW], closeWater: false,
-    headland: { x: -92, z: -84, r: 46, h: 0.9 },
-  }));
+  //
+  // THE DUNES' EDGE (polish-places). Turning round at the spawn showed the
+  // boardwalk stopping in bare sand under a featureless pale dune. The band
+  // now carries the 'dune' edge (builder.js EDGE_STYLES): marram tufts along
+  // the ground's edge with weathered sand-fence posts and rope, a row of
+  // three striped beach huts and a lifeguard chair just past the back edge
+  // behind the spawn (the chair nearest the sea), and a pair of huts toward
+  // the far south-west corner. Every one stands 22m or more past the bounds,
+  // so the 2.6m huts never come between the camera and the cat.
+  scene.add(b.horizonBand(SEASIDE_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });
@@ -520,6 +543,27 @@ export function build(scene, { water = {}, wind } = {}) {
   walk.rotation.x = -Math.PI / 2;
   walk.position.set(20, 0.03, 0);
   scene.add(walk);
+  // The boardwalk's +z end (polish-places): it used to stop dead in the sand
+  // behind the spawn. A low step board across the end and a short post at
+  // each corner finish it. One merged mesh, its geometry, material and mesh
+  // all made under their own uuid stream (the area's Math.random draw count
+  // is pinned), noCast, and NO collider: the cat walks over the board and
+  // past the posts as it always walked off the end.
+  scene.add(withLocalUuids('seaside-boardwalk-end', () => {
+    const parts = [];
+    const piece = (w, h, d, x, y, z) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      g.translate(x, y, z);
+      parts.push(g);
+    };
+    piece(4.3, 0.12, 0.4, 20, 0.04, 45.2);
+    for (const x of [17.85, 22.15]) piece(0.18, 0.6, 0.18, x, 0.26, 45.3);
+    const mesh = new THREE.Mesh(mergeGeometries(parts, false), surfNoMap(0x8a6a48, 'wood'));
+    for (const g of parts) g.dispose();
+    mesh.name = 'boardwalkEnd';
+    mesh.userData.noCast = true;
+    return mesh;
+  }));
   // pier heading out over the water — the area's dry crossing, drawn from
   // PIER. The two rotations put the plane's WIDTH along world z and its
   // LENGTH along world x, which is why the geometry arguments look swapped.

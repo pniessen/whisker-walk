@@ -223,6 +223,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // icosahedra, 240 triangles) in place of a 7-sided cylinder. Woods 51,953 ->
 // 52,171, meshes 181 (unchanged). The Gorge, whose band also has rooftops,
 // is byte-identical (59,307).
+//
+// 2026-11-03, polish-places Task 4: the Seaside's band gained the 'dune' edge
+// (marram tufts, sand-fence posts and rope, five beach huts and a lifeguard
+// chair, all in one noCast 'horizonEdge' child) and the boardwalk an end (a
+// step board and two posts, one noCast mesh). Seaside 23,740 -> 26,904
+// triangles, meshes 66 -> 68, casters 33 (unchanged); merged 49 -> 51 meshes,
+// 28 casters. Every other area and every ceiling unchanged.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

@@ -1477,6 +1477,18 @@ export const EDGE_STYLES = freezeDeep({
     sapling: { r: 0.6, h: 1.5, sides: 5 }, crowns: [0x2a4430, 0x34503a, 0x2f4a36], trunk: 0x4a3a2c,
     tree: 'pine', max: 1.6,
   },
+  // The Seaside's backing dunes (polish-places): marram tufts (single-triangle
+  // blades fanned from one root, pale sea-green and straw), every third spot
+  // a pair of weathered grey sand-fence posts with a sagging rope between,
+  // and the area's own `props` (beach huts, a lifeguard chair) past the edge.
+  dune: {
+    step: 3.2, greens: [0x8fa47c, 0x9db287, 0xaab68a, 0xc2b680, 0xb7a873], blades: 7, tufts: 3,
+    wMin: 0.1, wMax: 0.18, hMin: 0.45, hMax: 0.95,
+    post: [0x8c877e, 0x9d978c, 0x7d796f], postH: 1.0, rope: 0xb09a78,
+    huts: [[0xf2a7b5, 0xd9707f], [0x9fdcc0, 0x5fae8c], [0x9cc8ec, 0x5c8fc2], [0xf3dc7a, 0xd8a842], [0xc4b0e6, 0x8f78c0]],
+    trim: 0xf6f2ea, chair: 0xf2efe8, chairRed: 0xd8463c,
+    max: 1.1, trees: false,
+  },
 });
 // An edge style by name; an unknown one is a typo in an area file, and a
 // silent fallback would ship an undressed band, so it throws.
@@ -1517,13 +1529,15 @@ const onArcs = (arcs, u) => !arcs || arcs.some(([a, b]) => u >= a && u <= b);
 /**
  * edgeSpots(edge, salt, avoid) — where horizonBand's `edge` puts its pieces,
  * as [{ x, z, yaw, kind, u }]: 'piece' (or the style's variant, 'gorse' for
- * the wall and 'sapling' for the pine scrub), 'corner', 'gate' (hedges only,
- * one per gap, with the gap's `r`) and 'tree' (the far row). `u` is the spot's
+ * the wall, 'sapling' for the pine scrub and 'post' for the dunes), 'corner',
+ * 'gate' (hedges only, one per gap, with the gap's `r`), the edge's own
+ * `props` ({ x, z, yaw, kind: 'hut' | 'chair' }, `u` null) and 'tree' (the
+ * far row). `u` is the spot's
  * perimeter parameter (see EDGE_STYLES' `arcs`). Pure, so a test can check
  * placement without a mesh. A spot within EDGE_DRY of water in `avoid`, inside
  * a gap disc or off the style's arcs is left out (a gate is the gap's own).
  */
-export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
+export function edgeSpots({ half, style, gaps = [], props = [] }, salt = 0, avoid = []) {
   const S = edgeStyle(style);
   const st = salt + EDGE_SALT;
   const spots = [];
@@ -1546,7 +1560,14 @@ export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
     if (k % perSide === 0) kind = 'corner';
     else if (style === 'wall' && k % 3 === 0) kind = 'gorse';
     else if (style === 'pinescrub' && k % 4 === 0) kind = 'sapling';
+    else if (style === 'dune' && k % 3 === 0) kind = 'post';
     spots.push({ x, z, yaw, kind, u });
+  }
+  // An area's own props (the Seaside's huts and lifeguard chair), where it
+  // put them, with the yaw it gave; dropped like any piece when wet.
+  for (const p of props) {
+    if (!dry(p.x, p.z)) continue;
+    spots.push({ x: p.x, z: p.z, yaw: p.yaw ?? 0, kind: p.kind, u: null });
   }
   if (style === 'hedge') {
     for (const g of gaps) {
@@ -1731,6 +1752,117 @@ function wallBlock(L, d0, d1, hMid, greyLo, greyHi, cap, h) {
   return facetGeo(tris, (f) => shade(greys[tone[f]], 0.9 + 0.16 * h(12 + (f % 6))), [0, hMid / 2, 0]);
 }
 
+// A square beam of width w from point a to point b (local [x, y, z]), its
+// four sides and a cap at b (the foot end is sunk or out of sight): 10
+// triangles in one colour, wound out from its own middle.
+function beam(a, b, w, col, { capA = false } = {}) {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize();
+  const up = Math.abs(d.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(d, up).normalize().multiplyScalar(w / 2);
+  const v = new THREE.Vector3().crossVectors(d, u).normalize().multiplyScalar(w / 2);
+  const ring = (p) => [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+    .map(([i, j]) => [p[0] + u.x * i + v.x * j, p[1] + u.y * i + v.y * j, p[2] + u.z * i + v.z * j]);
+  const A = ring(a);
+  const B = ring(b);
+  const tris = [];
+  for (let i = 0; i < 4; i++) {
+    const i1 = (i + 1) % 4;
+    tris.push([A[i], A[i1], B[i1]], [A[i], B[i1], B[i]]);
+  }
+  tris.push([B[0], B[1], B[2]], [B[0], B[2], B[3]]);
+  if (capA) tris.push([A[0], A[1], A[2]], [A[0], A[2], A[3]]);
+  return facetGeo(tris, () => col, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
+}
+
+// A closed box (12 triangles) centred on c with sizes s, coloured per face by
+// faceColor(f).
+function slab(c, s, faceColor) {
+  const P = (i, j, k) => [c[0] + i * s[0] / 2, c[1] + j * s[1] / 2, c[2] + k * s[2] / 2];
+  const tris = [];
+  const quad = (a, b2, c2, d) => tris.push([a, b2, c2], [a, c2, d]);
+  for (const e of [-1, 1]) {
+    quad(P(e, -1, -1), P(e, 1, -1), P(e, 1, 1), P(e, -1, 1));
+    quad(P(-1, e, -1), P(1, e, -1), P(1, e, 1), P(-1, e, 1));
+    quad(P(-1, -1, e), P(1, -1, e), P(1, 1, e), P(-1, 1, e));
+  }
+  return facetGeo(tris, faceColor, c);
+}
+
+// A beach hut (the Seaside's dune edge), front door facing local +z: walls
+// in vertical stripes of its pastel and white, a pastel door, white gables
+// and a pitched roof in the deeper pastel, a timber step at the door.
+// 2.2m wide, 1.9m deep, 2.6m to the ridge. ~58 triangles, as two parts.
+function beachHut([pastel, deep], trim, h) {
+  const W = 2.2;
+  const D = 1.9;
+  const Hw = 1.85;
+  const ridge = 2.58;
+  const o = 0.14;
+  const tris = [];
+  const cols = [];
+  const quad = (a, b2, c2, d, col) => {
+    tris.push([a, b2, c2], [a, c2, d]);
+    cols.push(col, col);
+  };
+  const tone = (col, j) => shade(col, 0.94 + 0.1 * h(50 + j));
+  // Stripes across a wall from p0 to p1 (bottom corners), n strips.
+  const stripes = (p0, p1, n, j) => {
+    for (let i = 0; i < n; i++) {
+      const a = i / n;
+      const b2 = (i + 1) / n;
+      const lerp = (t) => [p0[0] + (p1[0] - p0[0]) * t, 0, p0[2] + (p1[2] - p0[2]) * t];
+      const l = lerp(a);
+      const r = lerp(b2);
+      quad(l, r, [r[0], Hw, r[2]], [l[0], Hw, l[2]], tone(i % 2 ? trim : pastel, j));
+    }
+  };
+  stripes([-W / 2, 0, D / 2], [W / 2, 0, D / 2], 5, 0);
+  stripes([W / 2, 0, D / 2], [W / 2, 0, -D / 2], 4, 1);
+  stripes([W / 2, 0, -D / 2], [-W / 2, 0, -D / 2], 4, 2);
+  stripes([-W / 2, 0, -D / 2], [-W / 2, 0, D / 2], 4, 3);
+  // The door, just proud of the front stripes.
+  const dz = D / 2 + 0.015;
+  quad([-0.34, 0.05, dz], [0.34, 0.05, dz], [0.34, 1.5, dz], [-0.34, 1.5, dz], tone(deep, 4));
+  for (const e of [-1, 1]) {
+    tris.push([[-W / 2, Hw, e * D / 2], [W / 2, Hw, e * D / 2], [0, ridge, e * D / 2]]);
+    cols.push(tone(trim, 5));
+  }
+  for (const s of [-1, 1]) {
+    quad([s * (W / 2 + o), Hw - 0.1, -(D / 2 + o)], [s * (W / 2 + o), Hw - 0.1, D / 2 + o],
+      [0, ridge + 0.04, D / 2 + o], [0, ridge + 0.04, -(D / 2 + o)], tone(deep, 6 + (s > 0 ? 1 : 0)));
+  }
+  const hut = facetGeo(tris, (f) => cols[f], [0, Hw * 0.55, 0]);
+  const wood = shade(0x9a7a55, 0.92 + 0.12 * h(58));
+  const step = slab([0, 0.06, D / 2 + 0.24], [1.0, 0.16, 0.44], () => wood);
+  return [hut, step];
+}
+
+// A lifeguard chair (the Seaside's dune edge), facing local +z: four white
+// splayed legs with two ladder rungs at the front, a white platform, a red
+// seat back and a red sun canopy on two posts. 2.5m tall. ~112 triangles.
+function lifeguardChair(white, red, h) {
+  const w = (j) => shade(white, 0.94 + 0.08 * h(60 + j));
+  const r = (j) => shade(red, 0.92 + 0.1 * h(66 + j));
+  const parts = [];
+  const legAt = (sx, sz, y) => {
+    const t = (y + 0.2) / 1.75;
+    return [sx * (0.78 - 0.26 * t), y, sz * (0.68 - 0.22 * t)];
+  };
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) parts.push(beam(legAt(sx, sz, -0.2), legAt(sx, sz, 1.55), 0.1, w(sx + sz + 2)));
+  }
+  for (const y of [0.5, 1.02]) parts.push(beam(legAt(-1, 1, y), legAt(1, 1, y), 0.07, w(5), { capA: true }));
+  parts.push(slab([0, 1.6, 0], [1.2, 0.09, 1.08], () => w(0)));
+  parts.push(slab([0, 1.98, -0.46], [1.04, 0.68, 0.07], () => r(0)));
+  for (const sx of [-1, 1]) parts.push(beam([sx * 0.5, 1.6, -0.52], [sx * 0.5, 2.42, -0.52], 0.06, w(1)));
+  // The canopy tips down toward the front a little, its top red, its
+  // underside and rim white.
+  const can = slab([0, 2.46, -0.2], [1.3, 0.06, 1.15], (f) => (f === 8 || f === 9 ? r(1) : w(2)));
+  can.rotateX(0.1);
+  parts.push(can);
+  return parts;
+}
+
 // A box standing on the ground never shows its underside: leave its bottom
 // face out (BoxGeometry's groups run +x, -x, +y, -y, +z, -z).
 function dropBottom(g) {
@@ -1772,6 +1904,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
     out.push(g);
   };
   const pick = (list, hv) => list[Math.min(list.length - 1, Math.floor(hv * list.length))];
+  let hutCount = 0;
 
   spots.forEach((sp, k) => {
     const { x, z, yaw, kind } = sp;
@@ -1853,6 +1986,87 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
         paintGeo(brace, () => wood(9));
         put(brace);
       }
+      return;
+    }
+
+    if (kind === 'hut' || kind === 'chair') {
+      // The area's own props, each all-or-nothing (one geometry, so the
+      // per-vertex water check keeps or drops the whole of it). Huts take
+      // the style's pastel pairs in turn, so a row never repeats a colour.
+      const parts = kind === 'hut'
+        ? beachHut(S.huts[(hutCount++) % S.huts.length], S.trim, h)
+        : lifeguardChair(S.chair, S.chairRed, h);
+      const g = mergeGeometries(parts, false);
+      for (const p of parts) p.dispose();
+      place(g, x, z, yaw, kind === 'hut' ? 1.2 : 0.9);
+      return;
+    }
+
+    if (edge.style === 'dune') {
+      // Marram: S.tufts tufts a piece (one more at a corner, one fewer at a
+      // post), each S.blades single-triangle blades fanned out from one root
+      // and arching away from it, every blade wound to face in toward the
+      // area like the reeds'. A 'post' spot also gets two weathered grey
+      // sand-fence posts with a rope sagging between them.
+      const nT = kind === 'corner' ? S.tufts + 1 : kind === 'post' ? S.tufts - 1 : S.tufts;
+      const tris = [];
+      const tones = [];
+      for (let q = 0; q < nT; q++) {
+        const hq = (j) => h(30 + 40 * q + j);
+        const tc = nT === 1 ? (hq(0) - 0.5) * 1.2 : ((q + 0.5) / nT - 0.5) * S.step + (hq(0) - 0.5) * 0.6;
+        const [cx, cz] = at(tc, (hq(1) - 0.5) * 1.0);
+        const tall = 0.8 + 0.4 * hq(2);
+        const tone = pick(S.greens, hq(3));
+        for (let i = 0; i < S.blades; i++) {
+          const hb = (j) => hq(4 + 5 * i + j);
+          // Around the root, mostly across the line (a blade turned edge-on
+          // to the camera vanishes), leaning out from the root.
+          const ang = ((i + 0.5) / S.blades - 0.5) * Math.PI * 1.1 + (hb(0) - 0.5) * 0.3;
+          const dx = tx * Math.sin(ang) - ox * Math.cos(ang) * 0.35;
+          const dz = tz * Math.sin(ang) - oz * Math.cos(ang) * 0.35;
+          const w = S.wMin + (S.wMax - S.wMin) * hb(1);
+          const ht = Math.min(S.max, (S.hMin + (S.hMax - S.hMin) * hb(2)) * tall);
+          const lean = 0.15 + 0.35 * hb(3);
+          const bx = cx - x + dx * 0.08;
+          const bz = cz - z + dz * 0.08;
+          tris.push([
+            [bx - tx * w / 2, 0, bz - tz * w / 2],
+            [bx + tx * w / 2, 0, bz + tz * w / 2],
+            [bx + dx * lean, ht, bz + dz * lean],
+          ]);
+          tones.push(i % 3 === 2 ? pick(S.greens, hb(4)) : tone);
+        }
+      }
+      const g = facetGeo(tris, (f) => shade(tones[f], 0.86 + 0.26 * hash01(f, k, st + 21)), [ox * 1e3, 0.4, oz * 1e3]);
+      if (kind !== 'post') {
+        place(g, x, z, 0, 1.8);
+        return;
+      }
+      // The posts, 1.8m apart along the line just inside the tufts, each
+      // leaning its own way, and the rope between their tops.
+      const parts = [g];
+      const tops = [];
+      for (const side of [-1, 1]) {
+        const hp = (j) => h(70 + 6 * (side + 1) + j);
+        const [px2, pz2] = at(side * 0.9, -0.35);
+        const ph = S.postH * (0.82 + 0.18 * hp(0));
+        const top = [px2 - x + (hp(1) - 0.5) * 0.12, ph, pz2 - z + (hp(2) - 0.5) * 0.12];
+        tops.push(top);
+        parts.push(beam([px2 - x, -0.2, pz2 - z], top, 0.11, shade(pick(S.post, hp(3)), 0.9 + 0.15 * hp(4))));
+      }
+      const sag = 0.2 + 0.1 * h(80);
+      const mid = [(tops[0][0] + tops[1][0]) / 2, (tops[0][1] + tops[1][1]) / 2 - sag, (tops[0][2] + tops[1][2]) / 2];
+      // Two flat 5cm ribbon segments a little under the post tops.
+      const rope = [];
+      const dn = (p, d) => [p[0], p[1] - d, p[2]];
+      for (const [a, c] of [[tops[0], mid], [mid, tops[1]]]) {
+        rope.push([dn(a, 0.06), dn(c, 0.06), dn(c, 0.11)], [dn(a, 0.06), dn(c, 0.11), dn(a, 0.11)]);
+      }
+      const ropeCol = shade(S.rope, 0.95 + 0.1 * h(81));
+      parts.push(facetGeo(rope, () => ropeCol, [ox * 1e3, 0.4, oz * 1e3]));
+      const all = mergeGeometries(parts, false);
+      for (const p of parts) p.dispose();
+      place(all, x, z, 0, 1.8);
       return;
     }
 
@@ -2030,14 +2244,16 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
  *             by smoothstep to its usual colour (side tint or `color`) by
  *             flat + ramp/2: the lawn carries on instead of stopping at a pale
  *             strip. Vertex colours then, material white. Omitted: none.
- *   edge      { half, style, gaps, avoid } — low dressing straddling the
+ *   edge      { half, style, gaps, avoid, props } — low dressing straddling the
  *             ground plane's edge (`half` its half-size) and a sparse tree row
  *             well outside it, in one of EDGE_STYLES (see edgeSpots), as ONE
  *             separate mesh 'horizonEdge', a noCast child of the band (see
  *             edgeMesh). `gaps` [{ x, z, r }] are left open (a hedge gets a
  *             gate in each); `avoid` (default: the band's) is the water the
- *             pieces keep off. The band itself is byte-for-byte what it is
- *             without an edge. Omitted: no child.
+ *             pieces keep off. `props` [{ x, z, yaw, kind }] are the
+ *             area's own set pieces drawn into the same mesh (the dune
+ *             edge's 'hut' and 'chair'). The band itself is byte-for-byte
+ *             what it is without an edge. Omitted: no child.
  */
 export function horizonBand({
   kind = 'hills',

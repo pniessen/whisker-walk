@@ -97,9 +97,10 @@ describe('edgeSpots', () => {
     });
   }
 
-  it('EDGE_STYLES is frozen and has the five styles', () => {
+  it('EDGE_STYLES is frozen and has the six styles', () => {
+    // polish-places Task 4 added 'dune' (the Seaside's; test/seaside.test.js).
     expect(Object.isFrozen(b.EDGE_STYLES)).toBe(true);
-    expect(Object.keys(b.EDGE_STYLES).sort()).toEqual(['hedge', 'pinescrub', 'reeds', 'scrub', 'wall']);
+    expect(Object.keys(b.EDGE_STYLES).sort()).toEqual(['dune', 'hedge', 'pinescrub', 'reeds', 'scrub', 'wall']);
   });
 
   it('the River and the Moor: the near ring only on the arc behind the spawn, no tree row', () => {

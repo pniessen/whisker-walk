@@ -63,7 +63,9 @@ const AREAS = [
   ['neighborhood', buildNeighborhood, 61, false],
   ['park', buildPark, 42, false],
   ['docks', buildDocks, 67, false],
-  ['seaside', buildSeaside, 26, false],
+  // Seaside 26 -> 27: polish-places Task 4's boardwalk end (step board and
+  // two posts) is a new low prop on the sand and takes its own decal.
+  ['seaside', buildSeaside, 27, false],
   ['den', buildDen, 20, true],
 ];
 
