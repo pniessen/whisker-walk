@@ -120,6 +120,10 @@ function rowBody(row, model) {
     + '<p class="cb-hint">Pet names are 2–16 letters, spaces, or hyphens.</p>';
 }
 
+export const DONE_LABEL = 'Done, now dress it up →';
+export const NEED_NAME_LABEL = 'Name your cat first ✏️';
+export const doneLabel = (canDone) => (canDone ? DONE_LABEL : NEED_NAME_LABEL);
+
 export function renderBuilderHtml(model) {
   const rows = model.rows.map((r) => `<section class="cb-row" data-cb-row="${r.key}"><h3>${e(r.title)}</h3>${rowBody(r, model)}</section>`).join('');
   const leave = model.confirmLeave
@@ -129,6 +133,6 @@ export function renderBuilderHtml(model) {
   return `<div class="cb-head"><h2>${e(model.title)}</h2></div>`
     + rows
     + `<div class="cb-foot"><button data-cb-cancel>✕ Not now</button>`
-    + `<button class="cb-done" data-cb-done${model.canDone ? '>Done, now dress it up →' : ' disabled>Name your cat first ✏️'}</button></div>`
+    + `<button class="cb-done" data-cb-done${model.canDone ? '' : ' disabled'}>${doneLabel(model.canDone)}</button></div>`
     + leave;
 }

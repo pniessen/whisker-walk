@@ -272,13 +272,14 @@ describe('createDressingRoom handleClick', () => {
 
 // The cat builder inside the dressing room, with a real progression.
 describe('createDressingRoom: her own cats and the builder', () => {
-  const doneBtn = { disabled: true };
+  const doneBtn = { disabled: true, textContent: '' };
   const heroName = { textContent: '' };
   const fakeRoot = { querySelector: (sel) => (sel.includes('cb-done') ? doneBtn : sel.includes('dr-hero-name') ? heroName : null) };
   const input = (dataset, value) => ({ target: { dataset, value, closest: () => fakeRoot } });
 
   function real({ now, snapCustom = () => ({}) } = {}) {
     doneBtn.disabled = true;
+    doneBtn.textContent = '';
     heroName.textContent = '';
     const map = new Map();
     const progression = createProgression({ getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)) });
@@ -301,6 +302,14 @@ describe('createDressingRoom: her own cats and the builder', () => {
     expect(doneBtn.disabled).toBe(false);
     expect(heroName.textContent).toBe('Ember');
     expect(onChange).not.toHaveBeenCalled();
+  });
+  it('the Done label follows the name: invalid to valid and back', () => {
+    const { dr } = real();
+    dr.handleClick(click({ drMake: '' }));
+    dr.handleInput(input({ cbName: '' }, 'Ember'));
+    expect(doneBtn).toMatchObject({ disabled: false, textContent: 'Done, now dress it up →' });
+    dr.handleInput(input({ cbName: '' }, ''));
+    expect(doneBtn).toMatchObject({ disabled: true, textContent: 'Name your cat first ✏️' });
   });
   it('Done saves, walks and dresses the new cat, and re-tracks the room', () => {
     const { dr, progression, onProfileChange, sync } = real();

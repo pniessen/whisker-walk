@@ -91,7 +91,9 @@ describe('the builder', () => {
 
   it('the disabled Done is dimmed pink, not khaki', () => {
     const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
-    const rule = css.match(/\.cb-done:disabled \{[^}]*\}/)[0];
+    const match = css.match(/\.cb-done:disabled \{[^}]*\}/);
+    expect(match).not.toBeNull();
+    const rule = match[0];
     expect(rule).toContain('rgba(231,169,160,.30)');
     expect(rule).not.toContain('#6a6250');
     expect(css).toContain('.cb-foot::before');
