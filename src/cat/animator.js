@@ -678,6 +678,25 @@ export const STALK_SWING = 0.3;
 // line (0.04 stood 1.7 cm over its end).
 const STALK_TAIL = Object.freeze({ DY: 0.02, DZ: -0.03 });
 
+// polish-tails (2026-11-03), Task 2: the stalking tail's carriage. It was a
+// straight spike down-back from the rump, its tip the lowest point. Now the
+// root leaves as it did (rotX, today's root tilt on the generic slow bob: a
+// steeper root lifted the root ring 1-2 cm over the rump's line, folds.test.js
+// 'the tail root does not bulge'), link 1 droops so the middle hangs ~11 cm
+// over the ground, and the last links bend up so the end is lifted ~7 cm
+// over that (pivotX: + tips a link down). The side sway is damped near
+// the root (swayKeep: a stalking tail is still) and the last two links
+// twitch: a fast flick under a slow envelope, plus a small slow flick so it
+// is never dead still, and the tip lifts with the fast flick. All of it is a
+// function of t; reducedMotion keeps the curve and the slow flick only.
+// Cats with folds only (base.tailCurl): Hagrid keeps the generic chain.
+export const STALK_CARRIAGE = Object.freeze({
+  rotX: 0.28, // TAIL.ROOT_TILT
+  pivotX: Object.freeze([0.00, 0.22, -0.20, -0.45, -0.50]),
+  swayKeep: Object.freeze([0.2, 0.2, 0.3, 0.5, 0.5]),
+  twitch: Object.freeze({ amp: 0.2, freq: 9, slow: 0.7, flick: 0.08, flickFreq: 2.3, lift: 0.12, share: Object.freeze([0, 0, 0.3, 0.6, 0.8]) }),
+});
+
 // polish-catlooks Task 6 (2026-11-02): the walking stalk swings a crouched leg
 // about its hip pivot, which a long-legged cat carries higher (base.hipY) over
 // the same crouched top (limbs.js FOLDS.crouch, at the lowered hip): Digit's
@@ -1141,5 +1160,17 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // in a follow, rotation.y here is the plain sway the loop above wrote
       tailPivots[i].rotation.y = tailPivots[i].rotation.y * (1 - TAIL_SWAY_DAMP[i] * w) + TAIL_HOOK_SIDE * TAIL_HOOK[i] * w; // the question mark (TAIL_HOOK)
     }
+  }
+  // The stalking carriage (STALK_CARRIAGE), on a rig with the resting curl.
+  if (state === 'stalk' && base.tailCurl) {
+    const SC = STALK_CARRIAGE, TW = SC.twitch;
+    tail.rotation.x = SC.rotX + Math.sin(t * 2.1) * 0.08; // the generic slow bob
+    const fast = reducedMotion ? 0 : Math.max(0, Math.sin(t * TW.slow)) * Math.sin(t * TW.freq);
+    const side = TW.amp * fast + TW.flick * Math.sin(t * TW.flickFreq);
+    for (let i = 0; i < tailPivots.length; i++) {
+      tailPivots[i].rotation.x = SC.pivotX[i];
+      tailPivots[i].rotation.y = tailPivots[i].rotation.y * SC.swayKeep[i] + TW.share[i] * side;
+    }
+    tailPivots[tailPivots.length - 1].rotation.x -= TW.lift * Math.abs(fast); // the tip lifts as it flicks
   }
 }
