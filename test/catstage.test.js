@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { createCatStage, fitFraming } from '../src/ui/catstage.js';
+import { createCatStage, fitFraming, defaultPoseCat, STAGE_POSE } from '../src/ui/catstage.js';
+import { buildCat } from '../src/cat/model.js';
+import { SIT } from '../src/cat/torso.js';
 
 // Minimal hand-made fakes: only what catstage.js calls.
 function fakeEl() {
@@ -287,5 +289,49 @@ describe('createCatStage: scars', () => {
     stage.mount(fakeEl());
     stage.show('tabby', {}, null, [{ site: 'back', stage: 'half', side: 'r' }]);
     expect(shown.userData.parts.scars?.name).toBe('scars');
+  });
+});
+
+describe('the stage cat sits (Ruling P4/P5)', () => {
+  it('poses the built cat once, before the bounds are measured', () => {
+    const cat = new THREE.Group();
+    const child = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    cat.add(child);
+    const poseCat = vi.fn((c) => { c.children[0].position.y = 5; });
+    const { stage } = setup({ buildCat: () => cat, poseCat });
+    stage.mount(fakeEl());
+    stage.show('tabby', {});
+    expect(poseCat).toHaveBeenCalledTimes(1);
+    expect(poseCat).toHaveBeenCalledWith(cat);
+    expect(new THREE.Box3().setFromObject(cat).max.y).toBeCloseTo(5.5);
+    // framing was computed on the posed cat: an unposed stage frames differently
+    const camOf = (poseFn) => {
+      const mk = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1))); return g; };
+      const o = setup({ buildCat: mk, poseCat: poseFn });
+      o.stage.mount(fakeEl());
+      o.stage.show('tabby', {});
+      return o.renderer.render.mock.calls.at(-1)[1].position.clone();
+    };
+    const posed = camOf((c) => { c.children[0].position.y = 5; });
+    expect(posed.distanceTo(camOf(() => {}))).toBeGreaterThan(0.5);
+  });
+
+  it('the default poseCat sits a real cat, skips a bare group, and the builder path sits too', () => {
+    expect(STAGE_POSE).toEqual({ state: 'requestPet', t: 1.3 });
+    const real = buildCat('tabby');
+    defaultPoseCat(real);
+    expect(real.userData.parts.body.rotation.x).toBe(SIT.pitch);
+    const bare = new THREE.Group();
+    expect(() => defaultPoseCat(bare)).not.toThrow();
+    expect(bare.children).toHaveLength(0);
+    expect(() => defaultPoseCat(undefined)).not.toThrow();
+
+    const built = [];
+    const { stage } = setup({ buildCat: (...a) => { const c = buildCat(...a); built.push(c); return c; } });
+    stage.mount(fakeEl());
+    stage.show('tabby', {}, { coat: 'ginger', pattern: 'stripes' });
+    expect(built.at(-1).userData.parts.body.rotation.x).toBe(SIT.pitch);
+    stage.show('hagrid', {});
+    expect(built.at(-1).userData.parts).toBeTruthy();
   });
 });
