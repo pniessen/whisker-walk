@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { PERSONALITIES } from '../cat/brain.js';
 import { animateCat } from '../cat/animator.js';
+import { henFightState } from '../cat/henfight.js';
 import { waterPose, applyWaterLook } from '../cat/waterlook.js';
 import { shakeProgress } from '../waterstate.js';
 import { tagState, groomTimer } from '../verbs.js';
@@ -232,7 +233,9 @@ export function createAvatarUpdater({
     const ws = player.waterState;
     const amount = Math.sin(Math.PI * shakeProgress(ws));
     const drawn = waterPose(pose, ws, { hagrid: cat.userData.breed === 'hagrid', reducedMotion });
-    animateCat(cat, drawn, t, speed, reducedMotion, amount);
+    // Hagrid draws a fight's states as his hen ones (cat/henfight.js); the wire
+    // pose above is untouched, so every other build sees the usual fight states.
+    animateCat(cat, s.fight && cat.userData.breed === 'hagrid' ? henFightState(drawn) : drawn, t, speed, reducedMotion, amount);
     // Sets y outright: ground + perchY + hopY (where player.js drew it) − sink + bob.
     // A fight (game/clanfight.js) lifts, pitches and rolls the cat through
     // s.fightLift / s.fightPitch / s.fightRoll; applyWaterLook sets them. The

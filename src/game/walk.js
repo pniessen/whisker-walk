@@ -1459,8 +1459,8 @@ export function createWalkLifecycle({
       reducedMotion, isGround: clanWalkable, player, runSpeed: pace, clanHome, picks,
       sendEvent: (ev) => session.net?.sendEvent(ev),
       terrain: ground,
-      // Hagrid fights as he always has (R6); everyone else fights in actions.
-      actions: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...fightRecord,
+      // Everyone fights in actions (Hagrid as a hen); Hagrid is never scarred (R6).
+      actions: true, scars: active.breed !== 'hagrid', ownedMoves: ownedMovesNow, ...fightRecord,
       measureCat: catDims,
     }) : NO_CLAN_FIGHT;
     // The trees' shapes (src/fightcam.js), read once per walk from their tags

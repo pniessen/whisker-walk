@@ -579,11 +579,12 @@ describe('a crossing ends the walk the normal way (source pins)', () => {
 describe('fights teach moves and leave scars (source pins)', () => {
   const src = () => readFileSync('src/game/walk.js', 'utf8');
 
-  it('the clan fight acts unless she walks Hagrid, with her owned moves, the record and her measure', () => {
+  it('the clan fight always acts, and scars unless she walks Hagrid, with her owned moves, the record and her measure', () => {
     const s = src();
     const at = s.indexOf('session.clanFight = ');
     const line = s.slice(at, s.indexOf('NO_CLAN_FIGHT', at));
-    expect(line).toContain("actions: active.breed !== 'hagrid'");
+    expect(line).toContain('actions: true');
+    expect(line).toContain("scars: active.breed !== 'hagrid'");
     expect(line).toContain('ownedMoves: ownedMovesNow');
     expect(line).toContain('...fightRecord');
     expect(line).toContain('measureCat: catDims');

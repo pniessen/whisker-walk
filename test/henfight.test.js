@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import fs from 'node:fs';
-import { buildCat } from '../src/cat/model.js';
+import { buildCat, catDims, catBackY } from '../src/cat/model.js';
 import { animateCat } from '../src/cat/animator.js';
 import { henBodyGeometry, henWingGeometry } from '../src/cat/hen.js';
 import { HEN_FIGHT_STATES, henFightState, isHenFightState } from '../src/cat/henfight.js';
@@ -175,5 +175,26 @@ describe('hen fight poses', () => {
     const tabby = buildCat('tabby');
     expect(() => animateCat(tabby, 'henArch', 1.3, 0)).not.toThrow();
     expect(tabby.userData.henRig).toBeUndefined();
+  });
+});
+
+// polish-hen Task 2: Hagrid's fight dims are measured from his hen poses.
+describe('catDims for Hagrid', () => {
+  it('has a real heel and a hen-pinned back, and leaves him a fresh follow', () => {
+    const hen = buildCat('hagrid');
+    const d = catDims(hen);
+    for (const v of Object.values(d)) expect(Number.isFinite(v)).toBe(true);
+    expect(d.hindZ).toBeGreaterThan(0);
+    expect(d.pinnedBackY).toBeCloseTo(catBackY(buildCat('hagrid'), 'henPinned'), 9);
+    const fresh = buildCat('hagrid');
+    animateCat(fresh, 'follow', 0, 0);
+    expect(visibleFingerprint(hen)).toEqual(visibleFingerprint(fresh));
+  });
+
+  it('leaves a tabby\'s numbers exactly as they were', () => {
+    expect(catDims(buildCat('tabby'))).toEqual({
+      top: 0.9683838503046882, backY: 0.6722790867090225, pinnedBackY: 0.4144409424304961,
+      hindZ: 0.2949736685231328, pivotY: 0.43,
+    });
   });
 });
