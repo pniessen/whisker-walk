@@ -54,6 +54,11 @@ function fakeEl(doc) {
 function fakeDocument() {
   const doc = { defaultView: { innerWidth: 375, innerHeight: 812 } };
   doc.createElement = () => fakeEl(doc);
+  // Document-level listeners, with the options they were added with.
+  doc.docListeners = [];
+  doc.addEventListener = (t, f, o) => { doc.docListeners.push({ t, f, o }); };
+  doc.removeEventListener = (t, f) => { doc.docListeners = doc.docListeners.filter((l) => !(l.t === t && l.f === f)); };
+  doc.dispatchEvent = (e) => { for (const l of [...doc.docListeners]) if (l.t === e.type) l.f(e); };
   doc.body = fakeEl(doc);
   doc.root = fakeEl(doc);
   doc.root.classList.add('hidden');
@@ -120,6 +125,38 @@ describe('the home base on a visit', () => {
     vi.advanceTimersByTime(6000);
     expect(line.removed).toBe(true);
     expect(onClosed).not.toHaveBeenCalled();
+  });
+
+  it('the welcome bubble closes when the page scrolls', () => {
+    const storage = memStorage({ [KEY]: JSON.stringify({ version: 4, visits: 1, visitPrizesSeen: 1 }) });
+    const { progression, hb } = setup({ storage });
+    const visit = progression.recordVisit();
+    hb.show();
+    hb.showVisit(visit);
+    const line = () => doc.body.children.find((c) => c.className === 'visit-welcome');
+    expect(line()).toBeTruthy();
+    const scrolls = doc.docListeners.filter((l) => l.t === 'scroll');
+    expect(scrolls).toHaveLength(1);
+    expect(scrolls[0].o).toMatchObject({ capture: true, passive: true });
+    // The scroll from the bubble's own appearance (same frame) does not close it.
+    doc.dispatchEvent({ type: 'scroll' });
+    expect(line()).toBeTruthy();
+    vi.advanceTimersByTime(100);
+    doc.dispatchEvent({ type: 'scroll' });
+    expect(line()).toBeUndefined();
+    expect(doc.docListeners.filter((l) => l.t === 'scroll')).toHaveLength(0);
+    expect(() => doc.dispatchEvent({ type: 'scroll' })).not.toThrow();
+  });
+
+  it('showing the welcome again does not leak scroll listeners', () => {
+    const { progression, hb } = setup();
+    hb.show();
+    const v = { milestone: null, visits: 2 };
+    hb.showVisit(v);
+    hb.showVisit(v);
+    expect(doc.docListeners.filter((l) => l.t === 'scroll')).toHaveLength(1);
+    vi.advanceTimersByTime(6000);
+    expect(doc.docListeners.filter((l) => l.t === 'scroll')).toHaveLength(0);
   });
 
   it('visit 1: news and notices yield, the present is worn, then onClosed runs', () => {
