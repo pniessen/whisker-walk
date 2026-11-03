@@ -10,6 +10,7 @@ import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
 import { buildHat, HAT_BLACK, BEANIE_COLOR, WIZARD_COLOR } from './hats.js';
 import { buildBackItem, buildHood } from './backitems.js';
+import { CAPE, CAPE_SIT, capePoint, capeGeometry } from './cape.js';
 import { HEN, HEN_BODY, HEN_SKULL, HEN_COMB, HEN_LEG, henBodyGeometry, henSkullNeckGeometry, henBeakGeometry, henWattlesGeometry, henCombHalves, henEyeGeometry, henTailGeometries, henShankGeometry, henFootGeometry, henNeckAt, henNeckFrontZ } from './hen.js';
 import { TORSO, torsoGeometry, deformTorso, LEGACY_BODY, LEGS, PAW_Y, PAW_HALF, HEAD, SKULL, shellInflate, torsoSurface, torsoRetarget, NECK_FORWARD, NECK_FLUFFY, CHEST, REF_RIG, POSE_FIT, TAIL, tailR, torsoUnitAt } from './torso.js';
 
@@ -79,40 +80,6 @@ const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
 const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
 const CAPE_COLOR = 0xd8303c;       // superhero red
 const CAPE_ACCENT = 0xf2c14e;      // gold clasp
-// A cape (either) is a cloak (polish-pose Task 2): cloth hung on the torso
-// (capeGeometry, below), with no scale of its own, so it follows every pose as
-// the coats do. It was a 32×40 cm slab behind the rump that read, the owner
-// said, "like a dishtowel draped over the tail". Its grid runs across a (-1 one
-// flank, 0 the spine, +1 the other) and along s (0 the neck edge, 1 the hem):
-// the unit direction's z goes from zFront to zBackAt(a) = zBack + (zBackSide -
-// zBack)·a², short at the spine so the tail comes out from under the hem, long
-// round the haunches; its half-wrap from the top line blends wrapFront (over
-// the shoulders) through wrapMid to wrapBack (the haunch), radians. A point is
-// the torso's own surface there, inflated like a coat (shellInflate) and by
-// `inflate` more, the lower edge pushed out sideways by up to `flare` so it
-// hangs off the flank like cloth. Measured on every preset, full and simple,
-// in every state at t 0.4/1.3/2.2 (and walking at 1.5): the cloth is never
-// nearer the fur than 1.5 cm (nap) nor the ground than 16 cm (the stalk; the
-// sit wears CAPE_SIT, below, which is 15.6 cm up; this cloth was 1.6), and
-// never nearer the tail's root than 4.2 cm (stretch) — a longer spine (zBack)
-// reaches it. The neck edge's spine end lies under the head.
-export const CAPE = Object.freeze({ zFront: -0.8, zBack: 0.68, zBackSide: 0.98, wrapFront: 1.9, wrapMid: 1.85, wrapBack: 1.7, inflate: 1.03, flare: 0.08 });
-// The sit's cloth (polish-pose fix wave): the same cloak with its haunch hem
-// taken up, worn only in the sit (animator.js swaps the geometry; both are
-// built here). The upright sit curls the tail forward round the left haunch
-// on the ground, and the standing hem (zBackSide 0.98, half-wrap 1.7 down the
-// flank, flared) lay over that curl: from behind and above 192 of 464 seen
-// tabby tail vertices were under the cloth, and it came within 0.1 mm of
-// link 2 (it clipped). Here the hem ends further forward round the haunch
-// (zBackSide 0.75) and higher up the flank (wrapBack 1.0 rad). Measured on
-// every preset, full and simple, both sits at t 0..3 every 0.5, from behind
-// and from behind-left at the walk camera's distance: no seen tail vertex is
-// under the cloth (wrapBack 1.1 left Digit's flicking tip 3-5% under it), and
-// the cloth is at least 4.5 cm from every tail vertex (Digit; 5.7 the
-// others). Its lowest point is 15.6 cm off the ground (the standing cloth came to 1.6 in the sit). The
-// neck edge (s 0) is the same, so the clasp does not move; the sitting back
-// is still covered from the shoulders to the hips.
-export const CAPE_SIT = Object.freeze({ ...CAPE, zBackSide: 0.75, wrapBack: 1.0 });
 // The clasp: a gold brooch (radius r, flattened to `flat` through the cloth)
 // on the front of each shoulder, just behind the neck edge (s, a ±a), `lift`
 // off the cloth. Not at the spine: the head hides the neck edge there from
@@ -175,6 +142,10 @@ const PRIZE_BALLOONS = [0xf25c8a, 0x4ec9d4, 0xf2c14e];
 const PRIZE_STREAMERS = [0xe0405a, 0xf2c14e, 0x4ec9d4, 0x8a6cf2];
 const SOCK_COLORS = [0xf27ab0, 0x7ec9b8, 0xf2c14e, 0xf5f5f5]; // mismatched on purpose
 
+// The cape's cloth lives in cape.js (a leaf module, so backitems.js can read
+// it without importing this file); re-exported for existing imports.
+export { CAPE, CAPE_SIT, capePoint, capeGeometry };
+
 const mat = (color) => litMaterial(color);
 
 // Wave 6. The default segment counts for the LARGE forms only — every small
@@ -190,46 +161,6 @@ const mat = (color) => litMaterial(color);
 // segments in a close-up, for no extra mesh and no extra draw call.
 const BALL_W = 16;
 const BALL_H = 12;
-
-// The cape's point at (a, s): a across (-1 one flank, 0 the spine, +1 the
-// other), s along (0 the neck edge, 1 the hem). Body-local, before the body's
-// scale (the frame of the torso's own geometry). See CAPE.
-const capeSmooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-export function capePoint(a, s, out = new THREE.Vector3(), C = CAPE) {
-  const wrap = s < 0.5
-    ? C.wrapFront + (C.wrapMid - C.wrapFront) * capeSmooth(0, 0.5, s)
-    : C.wrapMid + (C.wrapBack - C.wrapMid) * capeSmooth(0.5, 1, s);
-  const zBackAt = C.zBack + (C.zBackSide - C.zBack) * a * a;
-  const uz = C.zFront + (zBackAt - C.zFront) * s;
-  const r = Math.sqrt(1 - uz * uz), phi = a * wrap;
-  const dx = r * Math.sin(phi), dy = r * Math.cos(phi);
-  const [x, y, z] = deformTorso(dx, dy, uz);
-  const k = TORSO.R * shellInflate(dy) * C.inflate;
-  out.set(x * k, y * k, z * k);
-  out.x += Math.sign(dx) * C.flare * capeSmooth(0.3, -0.2, dy);
-  return out;
-}
-
-// The cape's cloth: a grid of (a, s), 24×20 (12×10 simple), double-sided.
-export function capeGeometry(simple, C = CAPE) {
-  const [na, ns] = simple ? [12, 10] : [24, 20];
-  const pos = new Float32Array((na + 1) * (ns + 1) * 3), idx = [], p = new THREE.Vector3();
-  for (let j = 0; j <= ns; j++) {
-    for (let i = 0; i <= na; i++) {
-      capePoint(-1 + (2 * i) / na, j / ns, p, C);
-      p.toArray(pos, (j * (na + 1) + i) * 3);
-      if (i < na && j < ns) {
-        const q = j * (na + 1) + i, r = q + na + 1;
-        idx.push(q, r, q + 1, q + 1, r, r + 1);
-      }
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  return geo;
-}
 
 function ball(r, color, sx = 1, sy = 1, sz = 1, wSeg = BALL_W, hSeg = BALL_H) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(r, wSeg, hSeg), mat(color));
@@ -428,6 +359,7 @@ function buildCollar(style, ringR, tubeR, charmPos) {
   const group = new THREE.Group();
   const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, tubeR, 6, 12), mat(COLLAR_COLORS[style] ?? 0xd84040));
   ring.rotation.x = Math.PI / 2 - NECK_RING_TILT;
+  ring.name = 'collarRing';
   group.add(ring);
   if (style === 'bell') {
     const bell = ball(tubeR * 1.35, 0xf2c14e, 1, 1, 1, 8, 6);
@@ -745,12 +677,13 @@ function buildChicken(accessories = { collar: null, head: null, face: null, neck
     const q = new THREE.Quaternion().setFromUnitVectors(_Z, axis);
     const charm = front.clone().multiplyScalar(0.17).addScaledVector(axis, 0.01).applyQuaternion(q.clone().invert());
     const collar = buildCollar(accessories.collar, 0.135, 0.024, charm);
-    collar.children[0].rotation.set(0, 0, 0);
+    collar.getObjectByName('collarRing').rotation.set(0, 0, 0);
     // the charms are built facing forward (-z) in the head's frame: undo the
     // ring's turn on each, about the charm's spot, so the tag, star and heart
     // still face forward rather than down the neck
     const qInv = q.clone().invert();
-    for (const piece of collar.children.slice(1)) {
+    for (const piece of collar.children) {
+      if (piece.name === 'collarRing') continue;
       piece.position.sub(charm).applyQuaternion(qInv).add(charm);
       piece.quaternion.premultiply(qInv);
     }
@@ -1300,7 +1233,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   const collarStyle = accessories.collar ?? (s.tagCollar ? 'tag' : null);
   if (collarStyle) {
     const collar = buildCollar(collarStyle, 0.15, 0.028, new THREE.Vector3(...COLLAR_CHARM));
-    collar.children[0].position.z = NECK_RING_BACK.collar;
+    collar.getObjectByName('collarRing').position.z = NECK_RING_BACK.collar;
     collar.position.set(0, -0.14 + neckY, 0.1 + neckZ);
     collar.name = 'collar';
     head.add(collar);

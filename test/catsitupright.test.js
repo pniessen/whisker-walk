@@ -253,7 +253,6 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
       const cat = kitCat(b, kit, simple);
       const its = items(cat);
       expect(its.length, `${kit.back}: on the body`).toBe(kit.back === 'wings' ? 2 : 1);
-      cat.traverse((o) => expect(o.userData.ridesBody).toBeUndefined());
       animateCat(cat, state, 1.3, 0, false);
       cat.updateMatrixWorld(true);
       for (const item of its) {
@@ -351,11 +350,6 @@ describe('the back items ride the upright sit (polish-sit Task 3, accessories po
     animateCat(fresh, 'follow', 2.1, 0, false);
     const fu = fresh.userData.parts.underside;
     expect([u.position.toArray(), u.scale.toArray(), u.userData.drop]).toEqual([fu.position.toArray(), fu.scale.toArray(), fu.userData.drop]);
-  });
-
-  it('nothing outside the cat builder rides: Hagrid has no riders', () => {
-    const hen = buildCat('hagrid', { collar: null, head: null, face: null, neck: null, feet: null, back: 'backpack', body: 'cape' });
-    hen.traverse((o) => expect(o.userData.ridesBody).toBeUndefined());
   });
 
   // The chest bib faces the front camera standing and sitting: the chest

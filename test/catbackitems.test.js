@@ -43,7 +43,6 @@ describe('back items are shaped things on the back (accessories polish Task 2)',
       expect(m.material.vertexColors).toBe(true);
     }
     for (const c of cat.children) expect(c.userData.backItem).toBeUndefined();
-    cat.traverse((o) => expect(o.userData.ridesBody).toBeUndefined());
   });
 
   it('mesh counts: backpack 1, jetpack 1, wings 2', () => {
@@ -390,5 +389,24 @@ describe('hoods lie on the neck behind the head (accessories polish Task 3)', ()
     hb.geometry.addEventListener('dispose', () => disposed++);
     ha.geometry.dispose();
     expect(disposed).toBe(0);
+  });
+
+  it('the hood\'s bounding sphere holds it at every step of its slide (never culled early)', () => {
+    for (const opts of [{ drawstrings: true }, { tuck: true }, { simple: true, tuck: true }]) {
+      const hood = buildHood(0x6a4c93, opts);
+      const g = hood.geometry, { center, radius } = g.boundingSphere;
+      const p = g.attributes.position, v = new THREE.Vector3();
+      for (const s of [0, 0.13, 0.5, 0.77, 1]) {
+        slideHoodTo(hood, s);
+        const w = hood.morphTargetInfluences;
+        let far = 0;
+        for (let i = 0; i < p.count; i++) {
+          v.fromBufferAttribute(p, i);
+          g.morphAttributes.position.forEach((t, j) => { if (w[j]) { v.x += w[j] * t.getX(i); v.y += w[j] * t.getY(i); v.z += w[j] * t.getZ(i); } });
+          far = Math.max(far, v.distanceTo(center));
+        }
+        expect(far, `slide ${s}`).toBeLessThanOrEqual(radius + 1e-6);
+      }
+    }
   });
 });

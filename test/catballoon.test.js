@@ -68,7 +68,6 @@ describe('balloons float upright in every pose (polish-pose Task 3)', () => {
     expect(ps.length, 'every piece the back slot added floats').toBe(cat.children.length - bare.children.length);
     expect(ps.length).toBe(back === 'balloon' ? 3 : 6);
     for (const p of ps) {
-      expect(p.userData.ridesBody, 'no balloon piece rides the body').toBeUndefined();
       expect(p.userData.float.tie).toHaveLength(3);
     }
     expect(ps.filter((p) => p.userData.span)).toHaveLength(back === 'balloon' ? 1 : 3);

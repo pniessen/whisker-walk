@@ -203,19 +203,13 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
-  // The sit carries any group-hung rider (userData.ridesBody; none today —
-  // the back items hang on the body) on the posed torso (below, rideBody).
-  // Each remembers its rest here, before fitLongLegs first moves
-  // it; every other state puts it back there first, so fitLongLegs and the
-  // pose fit move it exactly as they always did.
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
   // The balloons (userData.float, below: floatBalloons) remember their rest
-  // the same way; they are written outright every frame, so never restored.
+  // here, before fitLongLegs first moves anything; they are written outright
+  // every frame, so never restored.
   for (const item of cat.children) {
-    const { ridesBody, float } = item.userData;
-    if (!ridesBody && !float) continue;
+    if (!item.userData.float) continue;
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
-    if (ridesBody && !sitting) restore(item);
   }
   wearCape(cat.userData.parts.body, sitting);
   flutterWings(cat.userData.parts.body, t, reducedMotion, sitting);
@@ -245,7 +239,6 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
-    if (sitting) rideBody(cat);
   }
   // Every state, once the body is where the pose fit left it.
   floatBalloons(cat);
@@ -374,38 +367,18 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
-// The sit's riders (polish-sit Task 3, ruling R4): an item hung on the cat
-// group, not on the body, and tagged userData.ridesBody, is carried by the
-// posed body in the sit: position = bodyPosed · bodyRest⁻¹ · rest (the body's
-// rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned by the
-// body's own rotation. Its rest (as built) is remembered by animateCat before
-// anything moves it, which also puts it back in every other state.
-//
-// Nothing is tagged today: the backpack, wings and jetpack hang on the body
-// itself since accessories polish Task 2 (backitems.js), as the capes do
-// since polish-pose Task 2, so they follow the sit and every other pose.
+// The posed body's carry: _ride = bodyPosed · bodyRest⁻¹, the body's rest
+// being (0, base.bodyY, 0), unrotated, at base.bodyScale (floatBalloons).
 // Allocates nothing.
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
 const _rideScale = new THREE.Vector3();
-// _ride = bodyPosed · bodyRest⁻¹ (rideBody and floatBalloons)
 function carryBody(cat) {
   const { body } = cat.userData.parts;
   const { bodyY, bodyScale } = cat.userData.base;
   body.updateMatrix();
   _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
 }
-function rideBody(cat) {
-  const { body } = cat.userData.parts;
-  carryBody(cat);
-  for (const item of cat.children) {
-    if (!item.userData.ridesBody) continue;
-    const { rest } = item.userData;
-    item.position.copy(rest.position).applyMatrix4(_ride);
-    item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
-  }
-}
-
 // The balloons float upright in every pose (polish-pose Task 3, ruling P3).
 // Carried like the sit's back items they leaned back ~45° with the sitting
 // torso, and in the nap the string's tie hung in the air over the lowered

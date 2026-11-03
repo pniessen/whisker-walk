@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import { TORSO, deformTorso, shellInflate, torsoUnitAt } from './torso.js';
-import { CAPE, CAPE_SIT } from './model.js';
+import { CAPE, CAPE_SIT } from './cape.js';
 
 // BACK ITEMS AS SHAPED THINGS ON THE BACK (accessories polish Task 2, 2026-11-03).
 //
@@ -754,6 +754,19 @@ export function buildHood(color, { bodyScale = TORSO.SCALE, simple = false, draw
   }
   geo.morphAttributes.position = targets;
   geo.morphTargetsRelative = true;
+  // The bounds cover the hood at every step of its slide, not only at rest,
+  // so it is never frustum-culled early while slid back. (three's own
+  // computeBoundingSphere takes the morph targets in; each slid hood is a
+  // blend of two neighbouring targets, inside any sphere holding both. The
+  // loop below makes sure of it rather than rely on that.)
+  geo.computeBoundingSphere();
+  const bs = geo.boundingSphere, v = new THREE.Vector3();
+  for (const t of targets) {
+    for (let i = 0; i < t.count; i++) {
+      v.set(a[i * 3] + t.getX(i), a[i * 3 + 1] + t.getY(i), a[i * 3 + 2] + t.getZ(i));
+      bs.radius = Math.max(bs.radius, v.distanceTo(bs.center));
+    }
+  }
   const m = new THREE.Mesh(geo, litMaterial(0xffffff, { vertexColors: true }));
   m.userData.hood = true;
   m.userData.hoodSlide = 0;
