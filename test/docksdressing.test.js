@@ -338,7 +338,30 @@ describe('docks dressing', () => {
     }
     expect(onBollards).toBe(5);
     expect(onRoofs).toBe(2);
-    expect(dressing.itemsOf().filter((it) => it.what === 'gull').length).toBe(dressing.GULL_SPOTS.length);
+    expect(dressing.itemsOf().filter((it) => it.what === 'gull').length)
+      .toBe(dressing.GULL_SPOTS.length + dressing.FLOAT_GULLS.length);
+  });
+
+  it('floats a few gulls on the canal, clear of the bridges, barges, boats and duck circles', () => {
+    expect(dressing.FLOAT_GULLS.length).toBeGreaterThanOrEqual(2);
+    expect(dressing.FLOAT_GULLS.length).toBeLessThanOrEqual(4);
+    const decks = [{ minX: -2.5, maxX: 2.5, minZ: -6.5, maxZ: 6.5 }, { minX: -25.1, maxX: -22.9, minZ: -5.5, maxZ: 5.5 }];
+    const barges = [{ minX: 9.5, maxX: 18.5, minZ: -1.7, maxZ: 1.7 }, { minX: -18.5, maxX: -9.5, minZ: -1.7, maxZ: 1.7 }];
+    const ducks = [{ x: 5, z: 0, r: 2.5 }, { x: -8, z: 0, r: 2.5 }];
+    const gap = (x, z, r) => Math.hypot(x - Math.min(Math.max(x, r.minX), r.maxX), z - Math.min(Math.max(z, r.minZ), r.maxZ));
+    for (const g of dressing.FLOAT_GULLS) {
+      const where = `gull at ${g.x},${g.z}`;
+      expect(Math.abs(g.z), where).toBeLessThanOrEqual(3.5 - 0.6);
+      expect(Math.abs(g.x), where).toBeLessThanOrEqual(38);
+      // body low in the water: its 0.17-high centre sits a few cm above the 0.04 surface
+      expect(g.y + 0.17, where).toBeGreaterThan(0.04);
+      expect(g.y + 0.17 - 0.085, where).toBeLessThan(0.04);
+      for (const r of [...decks, ...barges]) expect(gap(g.x, g.z, r), `${where} by ${JSON.stringify(r)}`).toBeGreaterThan(1);
+      for (const d of ducks) expect(Math.hypot(g.x - d.x, g.z - d.z) - d.r, `${where} by a duck`).toBeGreaterThan(1);
+      for (const b of dressing.BOATS) {
+        expect(Math.hypot(g.x - b.x, g.z - b.z) - Math.hypot(b.len / 2, 0.65), `${where} by a boat`).toBeGreaterThan(0.5);
+      }
+    }
   });
 
   it('floats every boat in the canal, clear of the bridges, barges and duck circles', () => {
@@ -561,14 +584,69 @@ describe('docks dressing', () => {
     expect(trisOf(m.geometry)).toBeLessThanOrEqual(8_000);
   }, 120_000);
 
-  it('adds nothing that moves', () => {
+  it('moves only the gulls, in the props shader, and nothing at all under reduced motion', () => {
     const scene = new THREE.Scene();
     const area = WORLDS.docks.build(scene);
     expect(area.waterFx.length).toBe(1);
     for (const m of dressingOf(scene)) {
-      expect(Object.prototype.hasOwnProperty.call(m, 'onBeforeRender')).toBe(false);
-      expect(m.onBeforeRender).toBe(THREE.Object3D.prototype.onBeforeRender);
       expect(m.userData.update).toBeUndefined();
+      if (m.name === 'docksDressing') continue;
+      expect(Object.prototype.hasOwnProperty.call(m, 'onBeforeRender')).toBe(false);
+      expect(m.userData.gulls).toBeUndefined();
     }
+    const props = scene.children.find((c) => c.name === 'docksDressing');
+    expect(props.material.customProgramCacheKey()).toBe(dressing.GULL_SHADER_KEY);
+    // onBeforeRender only writes the clock
+    props.onBeforeRender();
+    expect(props.userData.gulls.uGullTime.value).toBeGreaterThan(0);
+    expect(props.userData.gulls.uGullTime.value).toBeLessThan(3600);
+
+    const still = new THREE.Scene();
+    WORLDS.docks.build(still, { water: { reducedMotion: true } });
+    const p2 = still.children.find((c) => c.name === 'docksDressing');
+    expect(Object.prototype.hasOwnProperty.call(p2, 'onBeforeRender')).toBe(false);
+    expect(p2.userData.gulls).toBeUndefined();
+    expect(p2.material.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
+    expect(p2.geometry.attributes.position.count).toBe(props.geometry.attributes.position.count);
   }, 120_000);
+
+  it('tags every gull vertex with its kind, pivot and phase, and every other vertex still', () => {
+    const scene = new THREE.Scene();
+    WORLDS.docks.build(scene);
+    const geo = scene.children.find((c) => c.name === 'docksDressing').geometry;
+    const a = geo.attributes.aGull, pos = geo.attributes.position;
+    expect(a.itemSize).toBe(4);
+    expect(a.count).toBe(pos.count);
+    const kinds = [0, 0, 0];
+    const phases = { 1: new Set(), 2: new Set() };
+    for (let i = 0; i < a.count; i++) {
+      const w = a.getW(i);
+      const kind = Math.floor(w);
+      expect(kind, `vertex ${i}`).toBeGreaterThanOrEqual(0);
+      expect(kind, `vertex ${i}`).toBeLessThanOrEqual(2);
+      kinds[kind]++;
+      if (kind === 0) {
+        expect(w).toBe(0);
+        continue;
+      }
+      phases[kind].add(w.toFixed(4));
+      // every moving vertex is within a gull's length of its pivot
+      const d = Math.hypot(pos.getX(i) - a.getX(i), pos.getY(i) - a.getY(i), pos.getZ(i) - a.getZ(i));
+      expect(d, `vertex ${i}`).toBeLessThan(kind === 1 ? 0.45 : 0.2);
+    }
+    expect(phases[1].size).toBe(dressing.FLOAT_GULLS.length);
+    expect(phases[2].size).toBe(dressing.GULL_SPOTS.length);
+    expect(kinds[0]).toBeGreaterThan(kinds[1] + kinds[2]);
+  }, 120_000);
+
+  it('patches the props shader with the gull motion', () => {
+    const m = new THREE.MeshStandardMaterial();
+    const u = dressing.gullMotion(m);
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader };
+    m.onBeforeCompile(shader);
+    expect(shader.uniforms.uGullTime).toBe(u.uGullTime);
+    expect(shader.vertexShader).toContain('attribute vec4 aGull;');
+    expect(shader.vertexShader).toContain('objectNormal = gullTurn(aGull) * objectNormal;');
+    expect(shader.vertexShader).toContain('transformed.y += gullLift(aGull);');
+  });
 });
