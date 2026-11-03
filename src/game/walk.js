@@ -27,7 +27,7 @@ import * as gorge from '../world/gorge.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
-import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn } from '../render/dusk.js';
+import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
@@ -1217,6 +1217,11 @@ export function createWalkLifecycle({
     // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
     // water (the den, the park, the docks, the gorge) get the no-op stub.
     const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
+    // Polish-light — warm pools of lamp light on the ground at dusk
+    // (render/dusk.js). Here for the grass's reason: after the contact-shadow
+    // scan, the caster sweep and the prop merge (+1 main-pass draw, 0 shadow).
+    // endWalk's scene traversal disposes it.
+    if (duskLookNow && !isDen) createLampPools(scene);
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and

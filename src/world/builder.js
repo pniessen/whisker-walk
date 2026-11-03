@@ -2460,6 +2460,10 @@ export function lampPost(x, z) {
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 10),
     litMaterial(0xfff2c0, { emissive: 0x8a7a40 }));
   lamp.position.y = 3.3;
+  // render/dusk.js lights the globe at dusk (a material swap, so the globe
+  // must survive render/mergeprops.js's merge as its own mesh).
+  lamp.userData.lampGlobe = true;
+  lamp.userData.noMerge = true;
   g.add(lamp);
   g.position.set(x, 0, z);
   // The globe's height, for render/ambient.js's dusk moths (read off the
