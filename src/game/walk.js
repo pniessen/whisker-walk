@@ -749,7 +749,7 @@ export function createWalkLifecycle({
       );
       marker.rotation.x = Math.PI;
       marker.position.y = 2.1;
-      giver.group.add(marker);
+      (giver.figure ?? giver.group).add(marker);
       questGiver.marker = marker;
       // quest object at the target, revealed on accept
       const t = quest.target;
@@ -1161,7 +1161,7 @@ export function createWalkLifecycle({
     decals.follow(cat);
     for (const stray of strayCats.strays) decals.follow(stray.group);
     for (const c of clanCats.list) decals.follow(c.group);
-    for (const critter of critters.list) decals.follow(critter.group);
+    for (const critter of critters.list) decals.follow(critter.figure ?? critter.group);
     for (const dc of denCats.list) decals.follow(dc.group);
 
     // The shadow camera used to be nailed to the world origin at +/-70 so it

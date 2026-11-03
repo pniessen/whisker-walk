@@ -322,10 +322,19 @@ function buildCritter(type, def = {}) {
     // real Math.random draws are exactly the peg's. The look comes from the
     // spawn's position, never a roll. Faces -z, like the other critters.
     const look = twolegLook(def);
+    // The figure Group holds body, head and arm so a spawn can ask the Twoleg
+    // to stand off its spawn point (def.standOff, metres, group frame). The
+    // group itself never moves: critter positions are recorded in the flat
+    // trace, and wave/scratch ranges stay measured from group.position.
+    const figure = withLocalUuids('twoleg-figure', () => new THREE.Group());
+    figure.position.x = def.standOff?.x ?? 0;
+    figure.position.z = def.standOff?.z ?? 0;
+    g.add(figure);
+    g.userData.figure = figure;
     const body = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-body', () => twolegBody(look)), false), twolegMat());
-    g.add(body);
+    figure.add(body);
     const head = new THREE.Mesh(mergeGeometries(withLocalUuids('twoleg-head', () => twolegHead(look)), false), twolegMat());
-    g.add(head);
+    figure.add(head);
     // The arm hangs DOWN from its shoulder pivot. Baked 0.2 rad inward, so
     // update()'s rest pose (rotation.z 0.4) holds it a little out from the
     // coat and its wave (2.6 +/- 0.3) swings the hand up and out.
@@ -334,7 +343,7 @@ function buildCritter(type, def = {}) {
     const arm = new THREE.Mesh(armGeo, twolegMat());
     arm.position.set(0.27, 1.3, 0);
     arm.rotation.z = 0.4;
-    g.add(arm);
+    figure.add(arm);
     g.userData.arm = arm;
   }
   return g;
@@ -388,6 +397,7 @@ export function createCritters(scene, spawns, opts = {}) {
       type: def.type,
       def,
       group,
+      figure: group.userData.figure, // villagers only
       spottable: true,
       fleeing: false,
       phase: Math.random() * Math.PI * 2,
