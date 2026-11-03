@@ -129,6 +129,61 @@ describe('marsh life', () => {
     expect(triCount(f.geometry)).toBe(14 * 10);
   });
 
+  it('the flies shrink away as rain comes, and come back after', () => {
+    let raining = false;
+    const weather = { condition: 'rain', isRaining: () => raining };
+    const m = { mist: makeMist(), flies: makeFlies() };
+    const life = createMarshLife({ ...m, dusk: false, weather, reducedMotion: false });
+    const u = m.flies.userData.dragonflies;
+    run(life, 5);
+    expect(u.uShow.value).toBe(1);
+    raining = true;
+    life.update(0.1, 0, null, null);
+    // Easing, not popping.
+    expect(m.flies.visible).toBe(true);
+    expect(u.uShow.value).toBeCloseTo(0.9, 5);
+    run(life, 15);
+    expect(u.uShow.value).toBe(0);
+    expect(m.flies.visible).toBe(false);
+    raining = false;
+    life.update(0.1, 0, null, null);
+    expect(m.flies.visible).toBe(true);
+    expect(u.uShow.value).toBeCloseTo(0.1, 5);
+  });
+
+  it('the shader patches land in three\'s basic shader', () => {
+    const patched = (mesh) => {
+      const shader = {
+        vertexShader: THREE.ShaderLib.basic.vertexShader,
+        fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+        uniforms: {},
+      };
+      mesh.material.onBeforeCompile(shader);
+      return shader;
+    };
+    const mist = patched(makeMist());
+    for (const id of ['attribute float aSheet', 'vMistW = (modelMatrix', 'vSheet = aSheet']) {
+      expect(mist.vertexShader).toContain(id);
+    }
+    for (const id of ['uniform float uMist', 'uniform float uTime', 'uniform vec3 uColor', 'diffuseColor.a *= uMist', 'cameraPosition', 'discard']) {
+      expect(mist.fragmentShader).toContain(id);
+    }
+    expect(Object.keys(mist.uniforms).sort()).toEqual(['uColor', 'uMist', 'uTime']);
+    const fly = patched(makeFlies());
+    for (const id of ['attribute vec3 aHome', 'attribute float aSeed', 'attribute float aWing', 'uniform float uCalm', 'uniform float uShow', 'transformed = vec3(', 'mod(k, 256.0)', 'uTime * 70.0']) {
+      expect(fly.vertexShader).toContain(id);
+    }
+    expect(Object.keys(fly.uniforms).sort()).toEqual(['uCalm', 'uShow', 'uTime']);
+  });
+
+  it('the dragonflies are storybook-sized, 1.6x a 0.1 m fly', () => {
+    const pos = makeFlies().geometry.attributes.position;
+    // Fly 0's body is its first 18 vertices; its local x runs tail to head.
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < 18; i++) { lo = Math.min(lo, pos.getX(i)); hi = Math.max(hi, pos.getX(i)); }
+    expect(hi - lo).toBeCloseTo(0.16, 5);
+  });
+
   it('reduced motion calms the dragonflies', () => {
     const m = { mist: makeMist(), flies: makeFlies() };
     run(createMarshLife({ ...m, dusk: false, weather: sunset, reducedMotion: true }), 10);

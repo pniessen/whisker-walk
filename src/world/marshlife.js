@@ -36,12 +36,17 @@ const MIST_STRIP = 10;
 // so fog and the camera fade are sampled finely enough across a 70 m sheet.
 const MIST_SEG = 4;
 // Fade distances (m): from the grown edge inward, and in from the bounds.
-const SHORE_FADE = 1.5;
+const SHORE_FADE = 2.0;
 const BOUNDS_FADE = 4;
 const MIST_BASE = 0xdfe4ea;
 export const MIST_DUSK = 0xb8b4c8;
 export const MIST_SUNSET = 0xe8d4c4;
 const MIST_RATE = 0.5; // strength per second
+// Each sheet's densest wisp. Two sheets drift apart, so the densest spot seen
+// through both is about 0.25 and most of the mist is far thinner.
+export const MIST_PEAK = 0.14;
+// The noise band mapped to 0..1: below the first value the water is clear.
+const MIST_CUT = [0.48, 0.74];
 
 const f1 = (v) => (Math.round(v * 1000) / 1000).toFixed(3);
 
@@ -142,8 +147,8 @@ float mistNoise(vec2 q) {
   return mix(mix(mistHash(i), mistHash(i + vec2(1.0, 0.0)), u.x),
              mix(mistHash(i + vec2(0.0, 1.0)), mistHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
-// Two soft octaves: big slow banks with gentle wisps in them.
-float mistField(vec2 q) { return 0.65 * mistNoise(q) + 0.35 * mistNoise(q * 2.3 + 17.0); }`)
+// Two octaves at different scales, drifting their own ways.
+float mistField(vec2 q, vec2 q2) { return 0.6 * mistNoise(q) + 0.4 * mistNoise(q2); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec2 p = vMistW.xz;
@@ -156,10 +161,17 @@ ${shapeLines}
   // Each sheet drifts its own way, the upper one a touch faster.
   float drift = 1.0 + vMistW.y;
   vec2 q = p * 0.18 + vec2(uTime * 0.05 * drift, uTime * 0.03 * drift) + vMistW.y * 9.0;
-  float n = smoothstep(0.12, 0.75, mistField(q));
+  vec2 q2 = p * 0.47 + vec2(-uTime * 0.03 * drift, uTime * 0.06 * drift) + 17.0 + vMistW.y * 5.0;
+  // Drifting patches, not a sheet: about half the water is clear between
+  // them, and a fine third octave frays each patch into wisps.
+  float n = smoothstep(${f1(MIST_CUT[0])}, ${f1(MIST_CUT[1])}, mistField(q, q2));
+  n *= 0.55 + 0.45 * mistNoise(p * 1.3 + vec2(uTime * 0.08 * drift, 0.0) + 41.0);
+  // Thinner out over the middle of wide still water, so a pond's outline
+  // never prints as a lid of mist.
+  float wide = 1.0 - 0.5 * smoothstep(2.0, 6.0, edge);
   float near = smoothstep(1.0, 3.0, distance(cameraPosition, vMistW));
   diffuseColor.rgb = uColor;
-  diffuseColor.a *= uMist * 0.32 * n * edgeFade * near;
+  diffuseColor.a *= uMist * ${f1(MIST_PEAK)} * n * wide * edgeFade * near;
   if (diffuseColor.a < 0.002) discard;
 }`);
   };
@@ -177,8 +189,8 @@ ${shapeLines}
 }
 
 // --- The dragonflies --------------------------------------------------------
-// Each fly is a thin three-sided body 0.1 m long (6 triangles) and two pairs
-// of glassy wings (one quad a pair, 4 triangles). All the motion is in the
+// Each fly is a thin three-sided body 0.1 m long, drawn FLY_SCALE (1.6x) big
+// for a storybook marsh (6 triangles), and two pairs of glassy wings (one quad a pair, 4 triangles). All the motion is in the
 // vertex shader: a fly hovers over its stretch of water, then every 1.6-3 s
 // dashes (0.25 s, eased) to a new spot within 1.8 m of home, 0.35-0.9 m up,
 // turning to face where it went. Its wings are a blur of flapping. With
@@ -187,6 +199,10 @@ const FLY_HUES = [0x2f8fb0, 0x3fa070, 0xc04a3a];
 const WING_COLOR = 0xd6eaee;
 const FLY_COUNT = 14;
 const FLY_ROAM = 1.8;
+// Storybook-sized (owner ruling): 1.6x a real one, so the kids can spot them.
+export const FLY_SCALE = 1.6;
+// How fast the flies come and go with the rain (share per second).
+const FLY_FADE = 1.0;
 const FLY_Y = [0.35, 0.9];
 
 function flyParts() {
@@ -208,7 +224,8 @@ function flyParts() {
     return [rf, tl, rb, rf, rb, tr];
   };
   const wings = [...pair(0.02, 0.06), ...pair(0.0, 0.055)];
-  return { body, wings };
+  const sc = (v) => v.map((c) => c * FLY_SCALE);
+  return { body: body.map(sc), wings: wings.map(sc) };
 }
 
 export function dragonflies(homes) {
@@ -223,7 +240,7 @@ export function dragonflies(homes) {
       pos.push(...v); col.push(c.r, c.g, c.b); home.push(h.x, h.y, h.z); seed.push(s); wing.push(0);
     }
     for (const v of wings) {
-      const tip = Math.abs(v[2]) > 0.01 ? 1 : 0;
+      const tip = Math.abs(v[2]) > 0.02 ? 1 : 0;
       // Roots take a little of the body's colour, tips are clear.
       const wc = tip ? w : w.clone().lerp(c, 0.35);
       pos.push(...v); col.push(wc.r, wc.g, wc.b); home.push(h.x, h.y, h.z); seed.push(s); wing.push(tip);
@@ -236,7 +253,7 @@ export function dragonflies(homes) {
   geometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(seed, 1));
   geometry.setAttribute('aWing', new THREE.Float32BufferAttribute(wing, 1));
 
-  const uniforms = { uTime: { value: 0 }, uCalm: { value: 0 } };
+  const uniforms = { uTime: { value: 0 }, uCalm: { value: 0 }, uShow: { value: 1 } };
   const material = new THREE.MeshBasicMaterial({ vertexColors: true, fog: true, side: THREE.DoubleSide });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -247,10 +264,13 @@ attribute float aSeed;
 attribute float aWing;
 uniform float uTime;
 uniform float uCalm;
+uniform float uShow;
 float dfHash(float n) { return fract(sin(n) * 43758.5453); }
 // Where a fly is headed in its k-th hop: an offset within the roam disc, and
-// a height in the band.
+// a height in the band. The hop index wraps at 256 so sin() never sees a
+// big argument on a phone GPU (hop k's start is hop k-1's end, wrapped too).
 vec3 dfTarget(float s, float k) {
+  k = mod(k, 256.0);
   float r = ${f1(FLY_ROAM)} * sqrt(dfHash(s * 12.9898 + k * 78.233));
   float a = 6.2831853 * dfHash(s * 39.346 + k * 11.135 + 1.7);
   float y = ${f1(FLY_Y[0])} + ${f1(FLY_Y[1] - FLY_Y[0])} * dfHash(s * 73.156 + k * 52.235 + 3.1);
@@ -258,7 +278,8 @@ vec3 dfTarget(float s, float k) {
 }`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
-  vec3 local = position;
+  // Shrinks to nothing as the rain comes, grows back after.
+  vec3 local = position * uShow;
   // Wings: a fast blur of beats, the front and hind pairs out of step.
   local.y += aWing * 0.022 * sin(uTime * 70.0 + aSeed + position.x * 60.0) * (1.0 - uCalm);
   float period = 1.6 + 1.4 * dfHash(aSeed * 1.31 + 0.5);
@@ -355,7 +376,11 @@ export function createMarshLife({ mist, flies, dusk = false, weather = null, red
   mist.visible = false;
   fu.uCalm.value = reducedMotion ? 1 : 0;
   const fliesOut = () => !dusk && !weather?.isRaining?.();
-  flies.visible = fliesOut();
+  // Flies already gone (dusk, a rainy start) are simply not there; rain
+  // arriving or passing mid-walk shrinks or grows them over a second.
+  let show = fliesOut() ? 1 : 0;
+  fu.uShow.value = show;
+  flies.visible = show > 0.001;
   return {
     update(dt) {
       if (!(dt > 0)) return;
@@ -367,10 +392,15 @@ export function createMarshLife({ mist, flies, dusk = false, weather = null, red
       time += dt;
       fu.uTime.value = time;
       if (!reducedMotion) mu.uTime.value += dt;
-      flies.visible = fliesOut();
+      const want = fliesOut() ? 1 : 0;
+      const fstep = FLY_FADE * dt;
+      show = want > show ? Math.min(want, show + fstep) : Math.max(want, show - fstep);
+      fu.uShow.value = show;
+      flies.visible = show > 0.001;
     },
     dispose() {
       mist.visible = false;
+      fu.uShow.value = 1;
       flies.visible = true;
     },
   };
