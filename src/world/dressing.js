@@ -61,6 +61,20 @@ export function dressMesh(geoms, { name, side = THREE.DoubleSide, roughness = 0.
   return mesh;
 }
 
+// Thin double-sided dressing (grass blades, cattail stems) is lit by the
+// normals it was built with on BOTH faces: three.js flips a DoubleSide
+// normal on a back face, so a blade seen from behind would point its normal
+// down and go dark. Closed shapes (lobes, caps, shells) only ever show their
+// front faces, so leaving the flip out changes nothing for them.
+const NORMAL_BEGIN_NO_FLIP = THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', '');
+export function bothSidesLit(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', NORMAL_BEGIN_NO_FLIP);
+  };
+  material.customProgramCacheKey = () => 'dressing-both-sides-v1';
+  return material;
+}
+
 // Flat paint just above the ground: every vertex is put on PAINT_Y.
 export function paintMesh(geoms, { name = 'groundPaint' } = {}) {
   const geo = mergeParts(geoms);
