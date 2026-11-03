@@ -350,11 +350,20 @@ function henWing(s) {
   return g;
 }
 
-export function henBodyGeometry() {
+// { wings: false } (polish-hen Task 1): the body without its folded wings,
+// for the fight, where henfight.js hangs each wing (henWingGeometry) on its
+// own hinge so it can flap. With no argument, exactly today's merge.
+export function henBodyGeometry({ wings = true } = {}) {
+  const [sx, sy, sz] = HEN_BODY.SCALE;
+  if (!wings) {
+    const { geo, ranges } = merge([henCore(), henHackles()]);
+    geo.scale(1 / sx, 1 / sy, 1 / sz);
+    geo.userData.ranges = { body: ranges[0], hackles: ranges[1] };
+    return geo;
+  }
   const wingL = henWing(-1), wingR = henWing(1);
   const bladesL = wingL.userData.blades, bladesR = wingR.userData.blades;
   const { geo, ranges } = merge([henCore(), henHackles(), wingL, wingR]);
-  const [sx, sy, sz] = HEN_BODY.SCALE;
   geo.scale(1 / sx, 1 / sy, 1 / sz);
   const shift = (bl, [s]) => bl.map(([a, n]) => [s + a, n]);
   geo.userData.ranges = {
@@ -362,6 +371,22 @@ export function henBodyGeometry() {
     wingFeathersL: shift(bladesL, ranges[2]), wingFeathersR: shift(bladesR, ranges[3]),
   };
   return geo;
+}
+
+// One folded wing on its own (s = -1 left, +1 right): exactly the wing
+// henBodyGeometry merges, in the cat's frame about the body centre (cat units,
+// not divided by SCALE), its blades' ranges in userData.blades.
+export function henWingGeometry(s) {
+  return henWing(s);
+}
+
+// The wing's shoulder hinge (cat frame about the body centre, cat units): at
+// the top front of the folded wing, on the flank, where a hen's wing joins
+// her. henfight.js turns the fight wing about it.
+export const HEN_WING_HINGE = Object.freeze({ Y: 0.095, Z: -0.165 });
+export function henWingHinge(s) {
+  const { Y, Z } = HEN_WING_HINGE;
+  return [s * (henBodyHalfWidth(Y, Z) - WING_SINK), Y, Z];
 }
 
 // -----------------------------------------------------------------------------
