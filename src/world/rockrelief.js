@@ -25,7 +25,8 @@
 //      from 1.0 to 1.8 m above the walk top under the point, gone by 3.2:
 //      water-worn feet with an overhang belly over them); plus a corner cut
 //      that rounds convex corners (a 0.75 m ring is about half rock on a
-//      flat wall, a quarter at a convex corner).
+//      flat wall, a quarter at a convex corner). Before the clamps the
+//      deepest recess is so about RELIEF_DEPTH + UNDERCUT (plus the cut).
 //   4. Clamps: never more than half the rock's thickness along the inward
 //      direction less 0.05 m (two faces of thin rock, like a 0.4 m lip, can
 //      never cross); in a cave or den never proud (and at most 0.08 m deep,
@@ -43,9 +44,12 @@
 //      ground: the plateau over a cave is no drop) comes down towards the
 //      drop, by up to RIM_ROUND times (1 - crest / CREST_BAND) squared (a
 //      bullnose, not a saw-tooth), and undulates gently with broad noise.
-//      It comes down at most ROUND_ROOM of the way to the wall's row line
-//      under the top (rockTerrain's rows, mirrored here), so the wall's top
-//      row never turns over, and never more than CREST_JAG either way. In
+//      It comes down at most ROUND_ROOM of the way to the row line under
+//      the top (ROCK_ROW, ROW_MIN: rockTerrain's own rows), so the wall's
+//      top row never turns over, and never more than CREST_JAG either way.
+//      On a short wall whose foot is above that row line (no row line on
+//      it), the bound still holds: the crest drop is at most
+//      0.12 * drop + 0.06 * drop = 0.18 * drop, well short of the foot. In
 //      the keep discs, where things stand on the rock, a rock top doesn't
 //      move at all.
 //
@@ -68,12 +72,12 @@ export const GULLY = 0.4; // the share of the recess mix from the gullies (tall,
 export const UNDERCUT = 0.3; // the extra recess of the undercut band just over a wall's foot
 export const RIM_ROUND = 0.65; // the most a rim's edge is rounded down
 
-// rockTerrain cuts walls into rows at whole multiples of 1 m, none within
-// 0.3 m of a face's top (builder.js's ROCK_ROW and ROW_MIN, mirrored): a
-// rounded rim may come down at most ROUND_ROOM of the way to the row below,
-// so the wall's top row never turns over.
-const ROW = 1.0;
-const ROW_MIN = 0.3;
+// rockTerrain (builder.js imports these) cuts walls into rows at whole
+// multiples of ROCK_ROW, leaving out a row line within ROW_MIN of a face's
+// foot or top. A rounded rim may come down at most ROUND_ROOM of the way to
+// the row line under its top, so the wall's top row never turns over.
+export const ROCK_ROW = 1.0;
+export const ROW_MIN = 0.3;
 const ROUND_ROOM = 0.85;
 const BUCKET = 4; // the shape index's cell size
 const PROBE = 0.3; // the inward-direction samples' radius
@@ -455,7 +459,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     const t = 1 - crest / CREST_BAND;
     const dy = -Math.min(RIM_ROUND, 0.12 * drop) * t * t
       + Math.min(0.5, 0.06 * drop) * t * (2 * noise3(x / 4, 7.7, z / 4, seed + 2) - 1);
-    const row = (-Math.floor(-(y - ROW_MIN) / ROW) - 1) * ROW; // the row line under the top
+    const row = (-Math.floor(-(y - ROW_MIN) / ROCK_ROW) - 1) * ROCK_ROW; // the row line under the top
     const low = Math.max(-CREST_JAG, -ROUND_ROOM * (y - row));
     return dy < low ? low : dy > CREST_JAG ? CREST_JAG : dy;
   }

@@ -104,11 +104,14 @@ const WALL_N = -16; // the north wall's line (rock at z < -16, facing +z)
 const WALL_S = -6; // the south wall's line (rock at z > -6, facing -z)
 // The rock triangles a ray here can hit: centroid in the Narrows' box.
 const ROCK_BOX = Object.freeze({ maxX: -18.5, minZ: -17.6, maxZ: -4.4 });
+// Shelves count from ny 0.1 and crests down to 0.9 m under the top (were 0.15
+// and 0.6): the fluted walls have fewer flat shelves and the rims round down
+// (polish-gorgerock2), and these keep the plants they had.
 const SHELF = Object.freeze({
-  x0: -49, x1: -20, dx: 1.3, y0: 1.5, dy: 1.0, out: 0.9, minNy: 0.15, minY: 1.2, cap: 50,
+  x0: -49, x1: -20, dx: 1.3, y0: 1.5, dy: 1.0, out: 0.9, minNy: 0.1, minY: 1.2, cap: 50,
 });
 const TOPS = Object.freeze({
-  x0: -49, x1: -19.5, dx: 1.1, back: [0.3, 1.0], above: 3, minNy: 0.5, drop: 0.6, tufts: 40, shrubs: 16,
+  x0: -49, x1: -19.5, dx: 1.1, back: [0.3, 1.0], above: 3, minNy: 0.5, drop: 0.9, tufts: 40, shrubs: 16,
 });
 const TUFT_GREENS = [0x7f9a52, 0x6f8040];
 const TUFT_DRY = 0xb0a46e;

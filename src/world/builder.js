@@ -5,7 +5,7 @@ import { skyBackground } from '../render/sky.js';
 import { conformTriangles } from './meshconform.js';
 import { withLocalUuids } from './localuuids.js';
 import { makeRustleMaterial } from '../render/rustle.js';
-import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH } from './rockrelief.js';
+import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH, ROCK_ROW, ROW_MIN } from './rockrelief.js';
 import { smoothNormals } from './rocknormals.js';
 
 const mat = (color) => litMaterial(color);
@@ -3831,9 +3831,11 @@ export const LEDGE_COLOR = 0xbca682;
 // against its wall, a step's corner); gentler ones shade smooth.
 export const ROCK_CREASE = 60;
 const ROCK_CELL = 1.2; // side faces (and a top's ring) are cut into steps about this wide (was 1.6; finer for polish-gorgerock2)
-const ROCK_ROW = 1.0; // and walls into rows at whole multiples of this height
+// ROCK_ROW: walls are cut into rows at whole multiples of this height
+// (rockrelief.js's, so the rounded rims' row bound can't drift from it).
 // (CREST_BAND, how deep the cut ring round a rock top is, is the relief's own.)
-const ROW_MIN = 0.3; // a row line this close to a face's foot or top is left out (no slivers)
+// ROW_MIN: a row line this close to a face's foot or top is left out (no
+// slivers); also rockrelief.js's.
 const ROCK_STRATA = 0.09; // each strata band is +-9% lighter or darker
 const STRATA_WARM = [1.03, 0.99, 0.95]; // alternate bands tinted warm
 const STRATA_CREAM = [1.01, 1.01, 1.00]; // and cream
