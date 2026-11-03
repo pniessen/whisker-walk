@@ -118,6 +118,39 @@ export const POSE_FIT = Object.freeze({
 //     ground at every legLen.
 export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, foreZ: -0.06, foreTilt: 0 });
 
+// polish-sit Task 2 (2026-11-02): the sitting tail lies round the paws, the
+// Warrior Cats sit's other half (animator.js; cats with folds only, Hagrid's
+// fan keeps his). Before, the root stayed where the standing cat carries it
+// (y 0.446, 18 cm off the pitched rump) and the tail stuck straight out behind.
+// Measured in the cat's frame on every preset, full and simple, t 0..3:
+//   ROOT [y, z] (m, the torso's own frame before the body's scale and pitch,
+//     i.e. the offset from the torso centre in an unpitched cat): [0.035,
+//     0.347]. Carried through the posed body's matrix the root lands low on
+//     the rump (y 0.070, z 0.218), 1.0 cm under its fur: a sitting cat's tail
+//     leaves the bottom of the spine, at the ground. (Rooted higher, 0.157,
+//     the first link fell straight down and the tail turned in a hard L.)
+//   rotX (tail.rotation.x, + tips the chain down): 0.425.
+//   pivotX, pivotY (each pivot's rotation.x and the size of its rotation.y,
+//     swung to TAIL_HOOK_SIDE, the cat's left, as the walking tail's hook):
+//     link 0 already turns left out of the rump, and the chain runs in one
+//     even curve round the back and the left haunch, low along the ground
+//     (lowest vertex 0.4 cm up, the tip 3.5 cm at most), at least 3.5 cm
+//     clear of the torso past the root link, and off the hind foot. The
+//     tip ends at x -0.18..-0.21, z -0.14..-0.15 (the hind hips are at
+//     +0.24, the front paws at -0.31), turned in toward the front paws: the
+//     tail is 0.6 m long and the haunch 0.45 m wide, so it cannot reach the
+//     paws themselves. Fitted by a search over all twelve numbers on tabby
+//     and Digit (the narrowest torso) for: tip forward, every link outside
+//     the torso and the legs at either end of the flick, nothing in the
+//     ground, even bends.
+export const SIT_TAIL = Object.freeze({
+  ROOT: [0.035, 0.347],
+  rotX: 0.425,
+  pivotX: [-0.3, 0.281, 0.241, 0.219, 0.116],
+  pivotY: [1.299, 0.728, 0.672, 0.499, 0.159],
+  flick: 0.15, // the tip link's sideways flick, sin(t*2.2)
+});
+
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   const front = Math.max(0, -z), back = Math.max(0, z);

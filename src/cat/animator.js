@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -188,6 +188,18 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     const { tail, body } = cat.userData.parts;
     // (The z half is set in pose(), with the stalk's other folds offsets.)
     tail.position.y = body.position.y + STALK_TAIL.DY;
+  }
+  // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
+  // Task 2), once the pose fit has set the body down: the tail hangs on the
+  // cat, so without this it stayed 18 cm off the pitched rump. Only y and z
+  // are written (x stays 0); fitLongLegs and pose() put both back next frame.
+  if ((state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds) {
+    const { tail, body } = cat.userData.parts;
+    const [, sy, sz] = cat.userData.base.bodyScale;
+    body.updateMatrix();
+    _anchor.set(0, SIT_TAIL.ROOT[0] / sy, SIT_TAIL.ROOT[1] / sz).applyMatrix4(body.matrix);
+    tail.position.y = _anchor.y;
+    tail.position.z = _anchor.z;
   }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
@@ -633,6 +645,19 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     if (folds) head.position.set(hx, hy + SIT.headDY, hz + SIT.headDZ);
     else head.position.set(hx, hy + 0.06, hz + 0.1);
     head.rotation.x = state === 'perch' ? 0.05 : -0.18;
+    if (folds) {
+      // polish-sit Task 2: the tail lies round the paws (torso.js SIT_TAIL).
+      // Every pivot is written outright, so the sit's resting curl
+      // (TAIL_CURL_BY_STATE, c) is dropped here: bending each link up would
+      // lift the chain off the ground it lies on. The root rides the posed
+      // body (animateCat, after the pose fit). Only the tip link flicks.
+      tail.rotation.set(SIT_TAIL.rotX, 0, 0);
+      for (let i = 0; i < tailPivots.length; i++) {
+        tailPivots[i].rotation.set(SIT_TAIL.pivotX[i], TAIL_HOOK_SIDE * SIT_TAIL.pivotY[i], 0);
+      }
+      tailPivots[4].rotation.y += Math.sin(t * 2.2) * SIT_TAIL.flick; // the tip flicks
+      return;
+    }
     tail.rotation.set(-0.1 + c, 0, 0);
     for (const p of tailPivots) p.rotation.y = 0.5; // tail curled round the front
     tailPivots[0].rotation.y = 0.2 + Math.sin(t * 2.2) * 0.15; // tip flicks

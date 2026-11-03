@@ -141,3 +141,88 @@ describe('an upright sit: rump down, chest up, head high (polish-sit Task 1)', (
     });
   });
 });
+
+// polish-sit Task 2 (2026-11-02): the sitting tail lies round the paws, the
+// Warrior Cats sit's other half. Its root rides the posed torso at the rump,
+// it falls to the ground and curls round the cat's left haunch, low along the
+// ground, the tip forward of the hind hips and beside (not under) the cat. The
+// tip flicks (sin(t*2.2)), so every check sweeps t 0..3 by 0.25. Every
+// measure is in the cat's own frame.
+describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
+  const TS = Array.from({ length: 13 }, (_, i) => i * 0.25);
+  const TAIL_LINK = 0.14; // torso.js TAIL.LINK, one link along the pivot's +z
+  const v = new THREE.Vector3();
+  // Every vertex of tail link i, cat frame.
+  const linkVerts = (cat, i) => {
+    const seg = cat.userData.parts.tailPivots[i].children[0], p = seg.geometry.attributes.position, out = [];
+    for (let k = 0; k < p.count; k++) out.push(v.fromBufferAttribute(p, k).applyMatrix4(seg.matrixWorld).divideScalar(cat.scale.x).clone());
+    return out;
+  };
+  // How far a cat-frame point P lies outside (+) or inside (-) the torso
+  // (body + underside), along the line from the torso's centre through P: a
+  // ray cast from 1 m out back toward the centre meets the outer surface first
+  // (the faces are one-sided, so a ray from inside would see none).
+  const ray = new THREE.Raycaster();
+  const outside = (cat, P) => {
+    const { body, underside } = cat.userData.parts, s = cat.scale.x;
+    const C = body.getWorldPosition(new THREE.Vector3());
+    const Pw = P.clone().multiplyScalar(s), dir = Pw.clone().sub(C).normalize();
+    const F = Pw.clone().addScaledVector(dir, 1);
+    ray.set(F, dir.clone().negate());
+    const hit = ray.intersectObjects([body, underside], false)[0];
+    if (!hit) return Infinity;
+    return (hit.distance - F.distanceTo(Pw)) / s; // + : the surface lies beyond P, so P is outside
+  };
+
+  it.each(CASES)('%s (simple %s) %s: the root sits in the rump, within 3 cm of its surface', (b, simple, state) => {
+    const cat = posed(b, state, simple);
+    const root = world(cat.userData.parts.tail, cat.scale.x);
+    expect(root.z, 'at the rump, behind the torso centre').toBeGreaterThan(world(cat.userData.parts.body, cat.scale.x).z);
+    const d = outside(cat, root);
+    expect(d, 'not more than 3 cm out of the fur').toBeLessThanOrEqual(0.03);
+    expect(d, 'not more than 3 cm under it').toBeGreaterThanOrEqual(-0.03);
+  });
+
+  it.each(CASES)('%s (simple %s) %s: the tail lies on the ground round the left haunch, the tip forward and beside the cat', (b, simple, state) => {
+    const cat = buildCat(b, undefined, { simple });
+    const s = cat.scale.x;
+    for (const t of TS) {
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      const { tailPivots, legs } = cat.userData.parts;
+      let low = Infinity;
+      for (let i = 0; i < 5; i++) for (const p of linkVerts(cat, i)) low = Math.min(low, p.y);
+      expect(low, `t ${t}: no tail in the ground`).toBeGreaterThanOrEqual(-0.01);
+      const tip = tailPivots[4].localToWorld(new THREE.Vector3(0, 0, TAIL_LINK)).divideScalar(s);
+      expect(tip.y, `t ${t}: the tip lies low`).toBeLessThanOrEqual(0.12);
+      const hipZ = Math.min(world(legs[2], s).z, world(legs[3], s).z);
+      expect(tip.z, `t ${t}: the tip comes round ahead of the hind hips`).toBeLessThan(hipZ);
+      expect(Math.abs(tip.x), `t ${t}: the tip beside the cat, not under it`).toBeGreaterThanOrEqual(0.08);
+    }
+  }, 120_000);
+
+  it.each(CASES)('%s (simple %s) %s: past the root, no tail goes through the torso', (b, simple, state) => {
+    const cat = buildCat(b, undefined, { simple });
+    // Links 2 and 3 do not move with t; the tip link flicks, so it is swept.
+    for (const t of TS) {
+      animateCat(cat, state, t, 0, false);
+      cat.updateMatrixWorld(true);
+      for (const i of t === 0 ? [2, 3, 4] : [4]) {
+        let worst = Infinity;
+        for (const p of linkVerts(cat, i)) worst = Math.min(worst, outside(cat, p));
+        expect(worst, `t ${t}: link ${i} outside the torso`).toBeGreaterThanOrEqual(0);
+      }
+    }
+  }, 120_000);
+
+  // Ruling R1: Hagrid's fan rides his body (rideTail) and keeps the old sit
+  // tail. Read from the tree before this change (5a04fb3).
+  it.each(SITS)('Hagrid keeps his %s tail', (state) => {
+    const cat = buildCat('hagrid');
+    animateCat(cat, state, 1.3, 0, false);
+    const { tail, tailPivots } = cat.userData.parts;
+    expect(tail.position.toArray()).toEqual([0, 0.6323986029234785, 0.237678121330541]);
+    expect(tail.rotation.toArray().slice(0, 3)).toEqual([-0.1, 0, 0]);
+    expect(tailPivots.map((p) => p.rotation.toArray().slice(0, 3))).toEqual([[0, 0.24168288887248796, 0], [0, 0.5, 0], [0, 0.5, 0], [0, 0.5, 0], [0, 0.5, 0]]);
+  });
+});
