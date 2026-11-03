@@ -60,11 +60,10 @@ export const CLAN_COATS = Object.freeze({
   // BrookClan: grey-blues and silvers.
   river: rows(
     coat('siamese', 0x6f7d8c, 0xb7c0ca, 0x4e5966),
-    coat('siamese', 0xb4c6e0, 0xeef1f4, 0x5a6470, { stripes: true, headStripes: true }),
-    coat('siamese', 0x7a8ca4, 0xf2f4f6, 0x55667c, { whiteLegs: true, chin: true }),
-    coat('siamese', 0x445268, 0x6a7a90, 0x2a3446, { stripes: true }),
-    coat('siamese', 0xc8dcf6, 0xf8fafc, 0x6a7684, { patches: true, patch2: 0x6a7684 }),
-    coat('siamese', 0x8ca6c8, 0xdbe5f0, 0x647c9c, { fluffy: true }),
+    coat('siamese', 0xb4c6e0, 0xeef1f4, 0x3a4452, { stripes: true, headStripes: true }),
+    coat('siamese', 0x445268, 0x6a7a90, 0x2a3446),
+    coat('siamese', 0x7a8ca4, 0xf8fafc, 0x55667c, { socks: true, chin: true }),
+    coat('siamese', 0xc8dcf6, 0xf0f5fb, 0x7c8ea8, { fluffy: true }),
   ),
   // DuskClan: blacks and dark tortoiseshells.
   pines: rows(
