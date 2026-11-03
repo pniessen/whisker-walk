@@ -113,8 +113,8 @@ function wetSandBand() {
 //     (cream, ochre, rust, pale) picked per band by hash1, never the same tone
 //     twice running, as multipliers on cliffMat's white. The damp foot stays.
 //   * A GRASS CAP: BoxGeometry gives the top face its own vertices, so they
-//     alone turn green and the side faces' top edge keeps its rock colour — a
-//     crisp green rim rather than a smear down the face.
+//     turn green as a block; the back face's top edge keeps its rock colour,
+//     and the seaward and end faces carry a ragged green lip (see below).
 //   * RELIEF: every vertex lying on the seaward (+z) face or either end face is
 //     pushed INTO the rock by 0..0.9m — vertical gullies about every 3.5m plus
 //     a small per-column hash. The push is a function of the vertex's original
@@ -126,7 +126,21 @@ function wetSandBand() {
 //   * THE TOP JAG is +-0.8m of sine, eased into the 7..8.5m the bluff has
 //     always stood at, and spread over the top 1.5m of the face so the finer
 //     rows below the edge never fold over it. Still y only.
-const ROCK_TONES = [0xe2cfa8, 0xc9a46c, 0xb07c58, 0xd8c4a0].map((h) => new THREE.Color(h));
+//
+// Fix round 1, from the live look: the four tones are SCALED so their mean is
+// the old cliff's, 0xb09878 x 0.9 (on white they lifted the bluff into the
+// haze); vertices are darkened by how deep they are pushed (baked
+// occlusion, so a gully reads as a shadowed cleft at walk distance); and the
+// grass spills over the top edge of the seaward and end faces, a ragged lip
+// about 0.2..0.45m deep, so the cap shows from the beach below.
+const meanOf = (c) => (c.r + c.g + c.b) / 3;
+const ROCK_TONES = (() => {
+  const tones = [0xe2cfa8, 0xc9a46c, 0xb07c58, 0xd8c4a0].map((h) => new THREE.Color(h));
+  // 0.9: the old cliff was 0xb09878 times a band multiplier that averaged 0.9.
+  const k = 0.9 * meanOf(new THREE.Color(0xb09878)) / (tones.reduce((a, c) => a + meanOf(c), 0) / tones.length);
+  return tones.map((c) => c.multiplyScalar(k));
+})();
+const GULLY_MAX = 0.9;
 const CAP_TONES = [0x8a9a5a, 0x7d8f50].map((h) => new THREE.Color(h));
 // How far a face point sits inside the rock, 0..0.9m, by its position along
 // the face. The ridges between gullies come out at 0, so the outermost ribs
@@ -134,7 +148,7 @@ const CAP_TONES = [0x8a9a5a, 0x7d8f50].map((h) => new THREE.Color(h));
 function gully(u, salt) {
   const g = Math.abs(Math.sin(u * 0.9 + salt)) ** 3;
   const n = hash1(Math.round(u * 4) + salt * 31);
-  return Math.min(0.9, Math.max(0, 0.85 * g + 0.25 * n - 0.2));
+  return Math.min(GULLY_MAX, Math.max(0, 0.85 * g + 0.25 * n - 0.2));
 }
 // A band's tone index: hashed, then nudged so two neighbours never match.
 function bandTone(band, salt) {
@@ -156,24 +170,44 @@ function strata(geo, worldX, salt) {
     const lz = pos.getZ(i);
     const x = lx + worldX;
     let y = pos.getY(i);
+    const raw = 0.8 * Math.sin(x * 0.41 + salt) + 0.3 * Math.sin(x * 1.13 + lz * 0.6 + salt * 2);
+    const jag = -0.25 + 0.74 * Math.tanh(raw / 0.74); // inside -0.99..+0.49
     if (y > top - 1.5 - eps) {
-      const raw = 0.8 * Math.sin(x * 0.41 + salt) + 0.3 * Math.sin(x * 1.13 + lz * 0.6 + salt * 2);
-      const jag = -0.25 + 0.74 * Math.tanh(raw / 0.74); // inside -0.99..+0.49
       y += jag * Math.min(1, (y - (top - 1.5)) / 1.5);
       pos.setY(i, y);
     }
-    if (lz > max.z - eps) pos.setZ(i, lz - gully(x, salt));
-    if (lx > max.x - eps) pos.setX(i, lx - gully(lz - 50, salt + 0.7));
-    else if (lx < min.x + eps) pos.setX(i, lx + gully(lz + 50, salt + 1.3));
+    // Pushes, by original position (so coincident copies agree); the deeper
+    // of the two at a corner sets the occlusion.
+    let push = 0;
+    let lipKey = null;
+    if (lz > max.z - eps) {
+      const p = gully(x, salt);
+      pos.setZ(i, lz - p);
+      push = p;
+      lipKey = Math.round(x * 3);
+    }
+    if (lx > max.x - eps || lx < min.x + eps) {
+      const p = lx > 0 ? gully(lz - 50, salt + 0.7) : gully(lz + 50, salt + 1.3);
+      pos.setX(i, lx > 0 ? lx - p : lx + p);
+      push = Math.max(push, p);
+      lipKey = lipKey ?? 1000 + Math.round(lz * 3) * (lx > 0 ? 1 : -1);
+    }
+    const capTone = () => CAP_TONES[Math.floor(hash1(Math.round(x * 3) * 7 + Math.round(lz * 3) + salt) * 2) % 2];
+    const side = nrm.getY(i) <= 0.9;
+    // The grass lip: a seaward or end face vertex within a ragged 0.2..0.45m
+    // of its column's (jagged) top.
+    const lip = side && lipKey !== null && Math.abs(nrm.getY(i)) < 0.5
+      && y > top + jag - (0.2 + 0.25 * hash1(lipKey + salt * 17)) - eps;
     let c;
     let v = 1;
-    if (nrm.getY(i) > 0.9) {
-      c = CAP_TONES[Math.floor(hash1(Math.round(x * 3) * 7 + Math.round(lz * 3) + salt) * 2) % 2];
+    if (!side || lip) {
+      c = capTone();
     } else {
       const h = y - bottom;
       const band = Math.floor(h / 1.05 + 0.35 * Math.sin(x * 0.17 + salt));
       c = ROCK_TONES[bandTone(band, salt)];
       if (h < 0.9) v = 0.86 + 0.14 * (h / 0.9); // a darker, damp foot
+      v *= 1 - 0.35 * (push / GULLY_MAX); // the cleft's shadow
     }
     col[i * 3] = c.r * v;
     col[i * 3 + 1] = c.g * v;
@@ -208,8 +242,11 @@ function boatBox(w, h, d, bowW, y0) {
     if (pos.getZ(v) < -d / 2 + 1e-6) pos.setX(v, Math.sign(pos.getX(v)) * bowW / 2);
   }
   geo.translate(0, y0 + h / 2, 0);
-  geo.computeVertexNormals();
-  return geo;
+  // Non-indexed BEFORE the normals, so each face keeps its own flat normal
+  // instead of smearing across the bow-taper seam.
+  const flat = geo.toNonIndexed();
+  flat.computeVertexNormals();
+  return flat;
 }
 // One flat triangle wound both ways, so it shows from either side.
 function sailTri(a, b, c, hex) {

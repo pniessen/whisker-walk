@@ -313,10 +313,70 @@ describe('Seaside boats and cliff', () => {
     const a = await buildSea();
     const c = await buildSea();
     const arrs = (s) => [...boatsOf(s).map((bt) => bt.children.find((m) => m.geometry?.attributes.color)),
-      cliffOf(s)].map((m) => Array.from(m.geometry.attributes.position.array));
+      cliffOf(s)].flatMap((m) => [Array.from(m.geometry.attributes.position.array),
+      Array.from(m.geometry.attributes.color.array)]);
     const A = arrs(a);
     const C = arrs(c);
-    expect(A).toHaveLength(4);
+    expect(A).toHaveLength(8);
     for (let i = 0; i < A.length; i++) expect(A[i]).toEqual(C[i]);
+  }, 120_000);
+
+  // Fix round 1: what the live look asked for.
+  const rockBoxes = (scene) => scene.children.filter((c) => c.isMesh && c.geometry.type === 'BoxGeometry'
+    && c.geometry.parameters.height === 8);
+  const lum = (col, v) => (col.getX(v) + col.getY(v) + col.getZ(v)) / 3;
+  const isGreen = (col, v) => col.getY(v) > col.getX(v) * 1.1 && col.getY(v) > col.getZ(v) * 1.1;
+
+  it('cliff and overlook: every push stays inside the original box', async () => {
+    const scene = await buildSea();
+    const boxes = rockBoxes(scene);
+    expect(boxes).toHaveLength(2);
+    for (const m of boxes) {
+      const { width, depth } = m.geometry.parameters;
+      const pos = m.geometry.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        expect(Math.abs(pos.getX(v))).toBeLessThanOrEqual(width / 2 + 1e-5);
+        expect(Math.abs(pos.getZ(v))).toBeLessThanOrEqual(depth / 2 + 1e-5);
+      }
+    }
+  }, 120_000);
+
+  it('the cliff face is about the old 0xb09878 on average, its gullies darker, a green lip at its top', async () => {
+    const scene = await buildSea();
+    const cliff = cliffOf(scene);
+    const geo = cliff.geometry;
+    const pos = geo.attributes.position;
+    const col = geo.attributes.color;
+    const g = geo.groups[4];
+    const idx = geo.index.array;
+    const seen = new Set();
+    let sum = 0;
+    let n = 0;
+    let flatMax = 0;
+    const deep = [];
+    let lip = 0;
+    let topY = -Infinity;
+    for (let v = 0; v < pos.count; v++) topY = Math.max(topY, pos.getY(v));
+    for (let k = g.start; k < g.start + g.count; k++) {
+      const v = idx[k];
+      if (seen.has(v)) continue;
+      seen.add(v);
+      if (isGreen(col, v)) { lip++; continue; }
+      if (pos.getY(v) < -4 + 0.95) continue; // the damp foot
+      const push = -(pos.getZ(v) - 9); // depth 18: the face stood at local z 9
+      if (push < 1e-6) flatMax = Math.max(flatMax, lum(col, v));
+      else if (push > 0.6) deep.push(lum(col, v));
+      sum += lum(col, v);
+      n++;
+    }
+    const old = new THREE.Color(0xb09878);
+    const oldMean = (old.r + old.g + old.b) / 3;
+    expect(sum / n).toBeGreaterThan(oldMean * 0.75);
+    expect(sum / n).toBeLessThan(oldMean * 1.1);
+    expect(deep.length).toBeGreaterThan(0);
+    for (const d of deep) expect(d).toBeLessThanOrEqual(flatMax * 0.8);
+    expect(lip).toBeGreaterThan(20);
+    // The lip is a lip: every green face vertex sits in the top 0.6m of its column.
+    for (const v of seen) if (isGreen(col, v)) expect(pos.getY(v)).toBeGreaterThan(4 - 1 - 0.6);
   }, 120_000);
 });
