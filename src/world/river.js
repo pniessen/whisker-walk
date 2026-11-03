@@ -670,6 +670,6 @@ export function build(scene, { water = {}, wind } = {}) {
     skyDusk: { top: 0x283652, horizon: 0x6a6478 },
     perches,
     // The mist and the dragonflies, run by walk.js once a walk.
-    life: (ctx) => createMarshLife({ ...ctx, ...life }),
+    life: (ctx) => createMarshLife({ ...ctx, ...life, quality: water.quality ?? 'high' }),
   };
 }

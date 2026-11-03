@@ -43,10 +43,10 @@ export const MIST_DUSK = 0xb8b4c8;
 export const MIST_SUNSET = 0xe8d4c4;
 const MIST_RATE = 0.5; // strength per second
 // Each sheet's densest wisp. Two sheets drift apart, so the densest spot seen
-// through both is about 0.25 and most of the mist is far thinner.
-export const MIST_PEAK = 0.14;
+// through both is about 0.45 and most of the mist is far thinner.
+export const MIST_PEAK = 0.27;
 // The noise band mapped to 0..1: below the first value the water is clear.
-const MIST_CUT = [0.48, 0.74];
+const MIST_CUT = [0.45, 0.74];
 
 const f1 = (v) => (Math.round(v * 1000) / 1000).toFixed(3);
 
@@ -175,7 +175,7 @@ ${shapeLines}
   if (diffuseColor.a < 0.002) discard;
 }`);
   };
-  material.customProgramCacheKey = () => 'marsh-mist-v1';
+  material.customProgramCacheKey = () => 'marsh-mist-v2';
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = 'marshMist';
@@ -364,11 +364,12 @@ export function riverDragonflyHomes() {
 // Lavender-grey at dusk, warm at sunset. Dragonflies by day and out of the
 // rain; calm (hovering, wings still) with reduced motion, and the mist does
 // not drift then either.
-export function createMarshLife({ mist, flies, dusk = false, weather = null, reducedMotion = false }) {
+export function createMarshLife({ mist, flies, dusk = false, weather = null, reducedMotion = false, quality = 'high' }) {
   const mu = mist.userData.marshMist;
   const fu = flies.userData.dragonflies;
   const sunset = () => weather?.condition === 'sunset';
-  const target = () => (dusk ? 1 : sunset() ? 0.7 : 0);
+  // Quality 'low' (phones on the lowest setting) never shows the mist.
+  const target = () => (quality === 'low' ? 0 : dusk ? 1 : sunset() ? 0.7 : 0);
   let strength = 0;
   let time = 0;
   mu.uColor.value.setHex(dusk || !sunset() ? MIST_DUSK : MIST_SUNSET);

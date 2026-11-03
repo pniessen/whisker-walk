@@ -58,7 +58,7 @@ describe('marsh life', () => {
     expect(mist.castShadow).toBe(false);
     expect(mist.visible).toBe(false);
     expect(mist.renderOrder).toBe(2);
-    expect(mist.material.customProgramCacheKey()).toBe('marsh-mist-v1');
+    expect(mist.material.customProgramCacheKey()).toBe('marsh-mist-v2');
     const u = mist.userData.marshMist;
     expect(u.uTime.value).toBe(0);
     expect(u.uMist.value).toBe(0);
@@ -100,6 +100,28 @@ describe('marsh life', () => {
     life.dispose();
     expect(eve.mist.visible).toBe(false);
   });
+
+  it('the mist never shows on low quality', () => {
+    const m = { mist: makeMist(), flies: makeFlies() };
+    run(createMarshLife({ ...m, dusk: true, weather: clear, reducedMotion: false, quality: 'low' }));
+    expect(m.mist.visible).toBe(false);
+    expect(m.mist.userData.marshMist.uMist.value).toBe(0);
+    const s = { mist: makeMist(), flies: makeFlies() };
+    run(createMarshLife({ ...s, dusk: false, weather: sunset, quality: 'low' }));
+    expect(s.mist.visible).toBe(false);
+    const hi = { mist: makeMist(), flies: makeFlies() };
+    run(createMarshLife({ ...hi, dusk: true, weather: clear, quality: 'high' }));
+    expect(hi.mist.visible).toBe(true);
+  });
+
+  it('river build passes its water quality to the mist', () => {
+    const scene = new THREE.Scene();
+    const data = river.build(scene, { water: { quality: 'low' } });
+    const life = data.life({ dusk: true, weather: clear, reducedMotion: false });
+    run(life);
+    expect(scene.children.find((c) => c.name === 'marshMist').visible).toBe(false);
+    life.dispose();
+  }, 120_000);
 
   it('dragonflies fly by day and rest at dusk and in rain', () => {
     const day = { mist: makeMist(), flies: makeFlies() };
