@@ -2547,6 +2547,10 @@ totalEmissiveRadiance += vec3(${glsl(L.glint)}) * (1.0 - smoothstep(0.0, 0.22, l
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y + 0.02, z);
   m.userData.puddle = true;
+  // Transparent now, so it sorts with the other see-through ground layers:
+  // after the contact decals (-1) and paw prints (-2), but always before the
+  // rain rings, splash rings and dusk lamp pools (0) that sit on top of it.
+  m.renderOrder = -0.5;
   // vPud reads the disc's OWN local XY: a merge would bake the world
   // transform into position and break it (today a puddle is always a
   // top-level mesh, which mergeprops skips anyway).

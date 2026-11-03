@@ -96,6 +96,8 @@ describe('builder — additive surface pass', () => {
     expect(p.material.polygonOffsetUnits).toBeLessThan(0);
     expect(p.userData.puddle).toBe(true);
     expect(p.material.customProgramCacheKey()).toBe('puddle-v1');
+    // Sorts after contact decals (-1) and paw prints (-2), before rain/splash rings and lamp pools (0).
+    expect(p.renderOrder).toBe(-0.5);
   });
 
   it('shades the puddle dark in the middle, sky-light toward the rim, and gone before the 12-gon edge', () => {

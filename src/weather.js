@@ -10,8 +10,9 @@ import { tintDuskLawn, duskLawnColor } from './render/dusk.js';
 // orange sky. Frozen so a test (and the next person) can read the numbers.
 export const SUNSET_LOOK = Object.freeze({
   sunColor: 0xffa860,   // a deeper amber than the old 0xffb060, so the lit side reads warm
-  sunIntensity: 2.0,    // brighter than the old 1.5: a low sun lights less ground per lux, and the warm rim is the point
-  elevationDeg: 10,     // down from rig.js's ~19 deg: long shadows, light raking across the grass
+  sunIntensity: 2.4,    // brighter than the old 1.5: a low sun lights less ground per lux; 2.0 read olive in the Woods
+  elevationDeg: 15,     // down from rig.js's ~19 deg: longer shadows. Not lower: below ~15 deg the
+                        // shadow fit's depth range (shadowfit.js BACKOFF 80) clips at radius 20
   hemiSky: 0xffc89a,    // the fill's sky side takes the peach of the horizon
   hemiGround: 0x8a6a48, // the fill's bounce goes half-way to a warm earth brown
   hemiScale: 0.85,      // a little less fill, so the sun's warm side and the shade differ more
@@ -19,7 +20,7 @@ export const SUNSET_LOOK = Object.freeze({
   // The lawn tint (render/dusk.js's duskLawnColor): a touch less saturated, a
   // little darker, and warmer per channel. dusk.js calls the per-channel
   // multiplier `cool`; here it warms (red up, blue down).
-  lawnTint: Object.freeze({ desat: 0.12, dark: 0.9, cool: Object.freeze([1.1, 0.97, 0.8]) }),
+  lawnTint: Object.freeze({ desat: 0.12, dark: 0.95, cool: Object.freeze([1.1, 0.97, 0.8]) }),
 });
 
 export function rollWeather(rng) {

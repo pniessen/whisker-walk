@@ -701,7 +701,8 @@ describe('sunset light', () => {
     expect(Math.abs(elevDeg(after) - SUNSET_LOOK.elevationDeg)).toBeLessThan(0.5);
     expect(azDeg(after)).toBeCloseTo(azDeg(before), 6);
     expect(after.length()).toBeCloseTo(before.length(), 6);
-    expect(elevDeg(before)).toBeGreaterThan(SUNSET_LOOK.elevationDeg + 5); // it really moved
+    expect(elevDeg(before)).toBeGreaterThan(SUNSET_LOOK.elevationDeg + 3); // it really moved
+    expect(SUNSET_LOOK.elevationDeg).toBeGreaterThanOrEqual(15); // shadowfit depth headroom
     expect(sun.color.getHex()).toBe(SUNSET_LOOK.sunColor);
     expect(sun.intensity).toBe(SUNSET_LOOK.sunIntensity);
   });
