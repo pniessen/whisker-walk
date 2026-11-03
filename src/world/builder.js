@@ -1299,6 +1299,363 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
   for (let i = before; i < parts.length; i++) bases.push(tint);
 }
 
+// =============================================================================
+// THE GROUND'S EDGE (polish "edges"). Turning round at a spawn used to show the
+// lawn stopping at a hard line, a flat pale strip (the band's sunk FLAT
+// stretch, in the band's muted colour), then hills. Two band options fix it:
+// `nearColor` paints that strip the lawn's own colour, and `edge` sets a low
+// ring of dressing straddling the ground plane's edge — clipped hedges, scrub,
+// reeds, a dry-stone wall, dark pine scrub — with a sparse row of trees well
+// outside it. Every piece is merged into the band's one mesh (no new draw
+// call), vertex-coloured and flat-shaded like the band, and every variation is
+// hash01 so two co-walkers see the same hedge.
+//
+// The heights are set by the camera, not by taste: the main camera can stand
+// up to 11m behind the cat at 6.5m up, and every area's bounds come within 5m
+// of the ground's edge, so anything near the edge stays under 1.6m (the camera
+// looks over it, never into it) and the trees stand at least 12m past the edge.
+// =============================================================================
+const freezeDeep = (o) => {
+  for (const v of Object.values(o)) if (v && typeof v === 'object') freezeDeep(v);
+  return Object.freeze(o);
+};
+// Per style: the palette and the sizes its pieces are drawn from. `max` is the
+// tallest any near piece may reach; `crowns` colour the far tree row.
+export const EDGE_STYLES = freezeDeep({
+  hedge: {
+    greens: [0x3f7a3a, 0x4d8a42], len: 2.4, depth: 1.0, hMin: 1.0, hMax: 1.3, lift: 0.12,
+    gate: 0x8a6a48, gateH: 1.1, crowns: [0x4f7f3e, 0x5a8a46, 0x48743a], trunk: 0x5e4632, max: 1.6,
+  },
+  scrub: {
+    greens: [0x4f7d3e, 0x5f8f48, 0x6b8a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    crowns: [0x4a7a3c, 0x557f40, 0x5f8a46], max: 1.4,
+  },
+  reeds: {
+    greens: [0x8a9a5a, 0x9aa868, 0x7f9a56], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    crowns: [0x6f8a4e, 0x7a9256, 0x66804a], max: 1.3,
+  },
+  wall: {
+    greys: [0x8c8a84, 0x9a978e, 0x7d7b75], hMin: 0.7, hMax: 0.9, gorse: 0x6f7a3a, bloom: 0xd8b84a,
+    rMin: 0.5, rMax: 0.7, ys: 0.7, crowns: [0x5a6a3a, 0x64703e, 0x545f36], max: 1.2,
+  },
+  pinescrub: {
+    greens: [0x2f4a34, 0x3a5a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    sapling: { r: 0.6, h: 1.5, sides: 6 }, crowns: [0x2a4430, 0x34503a, 0x2f4a36], max: 1.6,
+  },
+});
+// The near ring: just outside the ground's edge, a piece every EDGE_STEP along
+// it, jittered in and out. A piece is skipped this close to water (its centre).
+const EDGE_OUT = 0.6;
+const EDGE_STEP = 2.2;
+const EDGE_JITTER = 0.4;
+const EDGE_DRY = 1.5;
+// What no vertex of a piece may come closer to water than.
+const EDGE_VERTEX_DRY = 1.0;
+// The far tree row: 12-18m past the edge, one every ~9m, 40% left out.
+const TREE_FROM = 12;
+const TREE_TO = 18;
+const TREE_STEP = 9;
+const TREE_SKIP = 0.4;
+const EDGE_SALT = 200;
+
+// The perimeter side squarePoint(u) is on, as the yaw that runs a piece's
+// local x along it: the east and west sides run along z.
+function sideYaw(u) {
+  const s = Math.floor(u * 4) % 4;
+  return s === 0 || s === 2 ? Math.PI / 2 : 0;
+}
+
+/**
+ * edgeSpots(edge, salt, avoid) — where horizonBand's `edge` puts its pieces,
+ * as [{ x, z, yaw, kind }]: 'piece' (or the style's variant, 'gorse' for the
+ * wall and 'sapling' for the pine scrub), 'corner', 'gate' (hedges only, one
+ * per gap, with the gap's `r`) and 'tree' (the far row). Pure, so a test can
+ * check placement without a mesh. A spot within EDGE_DRY of water in `avoid`
+ * or inside a gap disc is left out (a gate is the gap's own).
+ */
+export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
+  const st = salt + EDGE_SALT;
+  const spots = [];
+  const inGap = (x, z) => gaps.some((g) => Math.hypot(x - g.x, z - g.z) < g.r);
+  const dry = (x, z) => waterClearance(avoid, x, z) >= EDGE_DRY;
+  const s0 = half + EDGE_OUT;
+  const perSide = Math.max(1, Math.round((2 * s0) / EDGE_STEP));
+  const n = 4 * perSide;
+  for (let k = 0; k < n; k++) {
+    const u = k / n;
+    const [px, pz] = squarePoint(u);
+    const s = s0 + (hash01(k, 1, st) * 2 - 1) * EDGE_JITTER;
+    const x = px * s;
+    const z = pz * s;
+    if (!dry(x, z) || inGap(x, z)) continue;
+    const yaw = sideYaw(u) + (hash01(k, 2, st) - 0.5) * 0.1;
+    let kind = 'piece';
+    if (k % perSide === 0) kind = 'corner';
+    else if (style === 'wall' && k % 3 === 0) kind = 'gorse';
+    else if (style === 'pinescrub' && k % 4 === 0) kind = 'sapling';
+    spots.push({ x, z, yaw, kind });
+  }
+  if (style === 'hedge') {
+    for (const g of gaps) {
+      if (!dry(g.x, g.z)) continue;
+      spots.push({ x: g.x, z: g.z, yaw: Math.abs(g.x) >= Math.abs(g.z) ? Math.PI / 2 : 0, kind: 'gate', r: g.r });
+    }
+  }
+  const tMid = half + (TREE_FROM + TREE_TO) / 2;
+  const m = 4 * Math.max(1, Math.round((2 * tMid) / TREE_STEP));
+  for (let k = 0; k < m; k++) {
+    if (hash01(k, 3, st) < TREE_SKIP) continue;
+    const u = (k + 0.2 + 0.6 * hash01(k, 4, st)) / m;
+    const [px, pz] = squarePoint(u);
+    const s = half + TREE_FROM + (TREE_TO - TREE_FROM) * hash01(k, 5, st);
+    const x = px * s;
+    const z = pz * s;
+    if (!dry(x, z) || inGap(x, z)) continue;
+    spots.push({ x, z, yaw: hash01(k, 6, st) * Math.PI * 2, kind: 'tree' });
+  }
+  return spots;
+}
+
+// A geometry's vertex colours from fn(vertexIndex, x, y, z) -> THREE.Color.
+function paintGeo(g, fn) {
+  const p = g.attributes.position;
+  const c = new Float32Array(p.count * 3);
+  for (let v = 0; v < p.count; v++) {
+    const col = fn(v, p.getX(v), p.getY(v), p.getZ(v));
+    c[v * 3] = col.r;
+    c[v * 3 + 1] = col.g;
+    c[v * 3 + 2] = col.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return g;
+}
+
+// mergeGeometries wants every part indexed or none; the band's ring is.
+function indexedGeo(g) {
+  if (!g.index) g.setIndex(Array.from({ length: g.attributes.position.count }, (_, i) => i));
+  return g;
+}
+
+// A hex nudged in lightness by f (1 = as is), as a linear THREE.Color.
+function shade(hex, f) {
+  return new THREE.Color(hex).multiplyScalar(f);
+}
+
+// A squashed low-poly blob, coloured per face (so the facets read as leaves
+// catching the light differently), centred at (0, cy, 0) in its own frame.
+function edgeBlob(r, ys, cy, detail, faceColor) {
+  const g = new THREE.IcosahedronGeometry(r, detail);
+  g.scale(1, ys, 1);
+  g.translate(0, cy, 0);
+  paintGeo(g, (v) => faceColor(Math.floor(v / 3)));
+  return indexedGeo(g);
+}
+
+// Builds the edge's pieces (see edgeSpots) into `out`, a list of geometries in
+// world space, each already vertex-coloured. `groundAt(x, z)` is the band's
+// own surface height there, for the far trees.
+function buildEdge(out, edge, salt, avoid, groundAt) {
+  const S = EDGE_STYLES[edge.style];
+  if (!S) return;
+  const st = salt + EDGE_SALT;
+  const gaps = edge.gaps ?? [];
+  const base = -BAND_SINK;
+  const spots = edgeSpots(edge, salt, avoid);
+  const isGreen = (c) => c.g > c.r * 1.2;
+  // Places a local-frame geometry at a spot and keeps it only if it is dry
+  // and, unless it is the gate, has no green vertex inside a gap.
+  const place = (g, x, y, z, yaw, { gate = false } = {}) => {
+    g.rotateY(yaw);
+    g.translate(x, y, z);
+    const p = g.attributes.position;
+    const c = g.attributes.color;
+    for (let v = 0; v < p.count; v++) {
+      const vx = p.getX(v);
+      const vz = p.getZ(v);
+      if (avoid.length && waterClearance(avoid, vx, vz) < EDGE_VERTEX_DRY) return g.dispose();
+      if (!gate && gaps.length && isGreen({ r: c.getX(v), g: c.getY(v) })
+        && gaps.some((gp) => Math.hypot(vx - gp.x, vz - gp.z) < gp.r)) return g.dispose();
+    }
+    out.push(g);
+  };
+  const pick = (list, h) => list[Math.min(list.length - 1, Math.floor(h * list.length))];
+
+  spots.forEach((sp, k) => {
+    const { x, z, yaw, kind } = sp;
+    const h = (i) => hash01(x, z, st + 10 + i);
+    // The tangent along the ground's edge and the outward normal, in world xz.
+    const tx = Math.cos(yaw);
+    const tz = -Math.sin(yaw);
+    const ox = Math.abs(x) >= Math.abs(z) ? Math.sign(x) : 0;
+    const oz = Math.abs(x) >= Math.abs(z) ? 0 : Math.sign(z);
+    const at = (t, nOut) => [x + tx * t + ox * nOut, z + tz * t + oz * nOut];
+
+    if (kind === 'tree') {
+      const crown = pick(S.crowns, h(0));
+      const faces = (salt2) => (f) => shade(crown, 0.86 + 0.24 * hash01(f, k, st + salt2));
+      const y0 = groundAt(x, z) - 0.2;
+      if (edge.style === 'hedge') {
+        // A round oak: trunk and a crown of two lobes, top under 5m.
+        const trunkH = 1.8 + 0.6 * h(1);
+        const trunk = new THREE.CylinderGeometry(0.22, 0.32, trunkH + 0.4, 5);
+        trunk.translate(0, (trunkH + 0.4) / 2 - 0.2, 0);
+        paintGeo(trunk, () => shade(S.trunk, 0.9 + 0.2 * h(2)));
+        place(trunk, x, y0, z, yaw);
+        const r = Math.min(1.5 + 0.5 * h(3), (5 - trunkH) / 1.4);
+        place(edgeBlob(r, 0.85, trunkH + 0.55 * r, 1, faces(1)), x, y0, z, yaw);
+        const r2 = r * 0.65;
+        const off = r * 0.55;
+        place(edgeBlob(r2, 0.85, trunkH + 0.2 * r, 0, faces(2)), x + Math.cos(yaw) * off, y0, z - Math.sin(yaw) * off, yaw);
+      } else {
+        const r = 1.5 + 1.0 * h(3);
+        const cy = 0.72 * r;
+        place(edgeBlob(r, 0.9, cy, 1, faces(1)), x, y0, z, yaw);
+        const r2 = r * 0.7;
+        const top = Math.min(cy + 0.6 * r, 5 - 0.9 * r2);
+        const off = r * 0.4;
+        place(edgeBlob(r2, 0.9, top, 0, faces(2)), x + Math.cos(yaw) * off, y0, z - Math.sin(yaw) * off, yaw);
+      }
+      return;
+    }
+
+    if (kind === 'gate') {
+      // A five-bar field gate in two leaves across the gap, posts at the ends
+      // and in the middle. Brown, so it reads as wood and not hedge.
+      const span = 2 * sp.r;
+      const wood = (i) => shade(S.gate, 0.88 + 0.22 * hash01(i, k, st + 3));
+      const post = (t, i) => {
+        const g = new THREE.BoxGeometry(0.16, S.gateH + 0.1, 0.16);
+        g.translate(t, (S.gateH + 0.1) / 2, 0);
+        paintGeo(g, () => wood(i));
+        place(g, x, base, z, yaw, { gate: true });
+      };
+      post(-span / 2 + 0.08, 0);
+      post(0, 1);
+      post(span / 2 - 0.08, 2);
+      const leaf = span / 2 - 0.16;
+      for (const side of [-1, 1]) {
+        const cxl = side * (span / 4);
+        for (let i = 0; i < 5; i++) {
+          const rail = new THREE.BoxGeometry(leaf, 0.07, 0.05);
+          rail.translate(cxl, 0.22 + i * 0.2, 0);
+          paintGeo(rail, () => wood(3 + i));
+          place(rail, x, base, z, yaw, { gate: true });
+        }
+        const rise = 0.8;
+        const brace = new THREE.BoxGeometry(Math.hypot(leaf, rise), 0.07, 0.05);
+        brace.rotateZ(side * Math.atan2(rise, leaf));
+        brace.translate(cxl, 0.62, 0.03);
+        paintGeo(brace, () => wood(9));
+        place(brace, x, base, z, yaw, { gate: true });
+      }
+      return;
+    }
+
+    if (edge.style === 'hedge') {
+      // Clipped privet: a box along the edge, its top corners lifted a little
+      // so it reads clipped by hand rather than extruded. A corner is square.
+      const corner = kind === 'corner';
+      const hh = S.hMin + (S.hMax - S.hMin) * h(0);
+      let a = corner ? -1.0 : -S.len / 2;
+      let bEnd = corner ? 1.0 : S.len / 2;
+      const depth = corner ? 2.0 : S.depth;
+      // Trim the piece where it would run into a gap (the gate fills it).
+      for (const gp of gaps) {
+        const dx = gp.x - x;
+        const dz = gp.z - z;
+        const gt = dx * tx + dz * tz;
+        const gn = Math.abs(dx * ox + dz * oz);
+        const across = Math.max(0, gn - depth / 2);
+        if (across >= gp.r) continue;
+        const w = Math.sqrt(gp.r * gp.r - across * across) + 0.05;
+        if (gt >= 0) bEnd = Math.min(bEnd, gt - w);
+        else a = Math.max(a, gt + w);
+      }
+      if (bEnd - a < 0.8) return;
+      const len = bEnd - a;
+      const g = new THREE.BoxGeometry(len, hh, depth, 3, 1, 1);
+      g.translate((a + bEnd) / 2, hh / 2, 0);
+      const p = g.attributes.position;
+      for (let v = 0; v < p.count; v++) {
+        if (p.getY(v) > hh * 0.75) {
+          const lx = Math.round(p.getX(v) * 100);
+          const lz = Math.round(p.getZ(v) * 100);
+          p.setY(v, p.getY(v) + S.lift * hash01(lx, lz, st + k));
+        }
+      }
+      g.computeVertexNormals();
+      const green = pick(S.greens, h(1));
+      const light = 0.92 + 0.14 * h(2);
+      paintGeo(g, (v, vx, vy, vz) => shade(green, light * (0.95 + 0.1 * hash01(Math.round(vx * 100), Math.round(vz * 100), st + 7))));
+      place(g, x, base, z, yaw);
+      return;
+    }
+
+    if (edge.style === 'wall') {
+      // Dry-stone: a chain of jittered grey boxes, tops a little ragged; a
+      // corner turns the chain round. Every third piece a gorse bush leans
+      // on the outside of it, with a few yellow flowers.
+      const stones = kind === 'corner'
+        ? [[0, 0, 0], [0, 0, Math.PI / 2]]
+        : [[-0.55, 0, 0], [0.55, 0, 0]];
+      stones.forEach(([t, nOut, turn], i) => {
+        const L = 1.0 + 0.25 * h(3 + i);
+        const hh = S.hMin + (S.hMax - S.hMin) * h(5 + i);
+        const d = 0.55 + 0.1 * h(7 + i);
+        const g = new THREE.BoxGeometry(L, hh, d, 2, 1, 1);
+        g.translate(0, hh / 2, 0);
+        const p = g.attributes.position;
+        for (let v = 0; v < p.count; v++) {
+          if (p.getY(v) > hh * 0.75) p.setY(v, p.getY(v) + 0.1 * hash01(Math.round(p.getX(v) * 100), Math.round(p.getZ(v) * 100), st + k + i));
+        }
+        g.rotateZ((h(9 + i) - 0.5) * 0.06);
+        g.computeVertexNormals();
+        const grey = pick(S.greys, h(11 + i));
+        paintGeo(g, (v, vx, vy, vz) => shade(grey, 0.92 + 0.14 * hash01(Math.round(vx * 100), Math.round(vy * 100 + vz * 7), st + 13)));
+        const [wx, wz] = at(t, nOut);
+        place(g, wx, base, wz, yaw + turn + (h(13 + i) - 0.5) * 0.12);
+      });
+      if (kind === 'gorse') {
+        const r = S.rMin + (S.rMax - S.rMin) * h(15);
+        const cy = Math.min(0.35 * r, S.max - 0.1 - S.ys * r);
+        const g = edgeBlob(r, S.ys, cy, 0, (f) => (hash01(f, k, st + 17) < 0.22
+          ? shade(S.bloom, 0.95 + 0.1 * hash01(f, k, st + 18))
+          : shade(S.gorse, 0.88 + 0.22 * hash01(f, k, st + 19))));
+        const [wx, wz] = at((h(16) - 0.5) * 0.8, 0.75);
+        place(g, wx, base, wz, yaw);
+      }
+      return;
+    }
+
+    // Scrub, reeds and pine scrub: two or three overlapping squashed blobs,
+    // the middle one sometimes heaped higher; three at a corner.
+    const count = kind === 'corner' ? 3 : 2 + (h(0) > 0.5 ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      const r = S.rMin + (S.rMax - S.rMin) * h(1 + i);
+      const heap = i === 1 ? 0.3 * h(4) : 0;
+      const cy = Math.min(0.45 * S.ys * r + heap, S.max - 0.05 - S.ys * r);
+      const col = pick(S.greens, h(5 + i));
+      const g = edgeBlob(r, S.ys, cy, 0, (f) => shade(col, 0.86 + 0.24 * hash01(f, k * 3 + i, st + 21)));
+      g.rotateZ((h(8 + i) - 0.5) * 0.12);
+      const t = kind === 'corner' ? (i - 1) * 0.6 : (i - (count - 1) / 2) * 0.8 + (h(11 + i) - 0.5) * 0.4;
+      const nOut = kind === 'corner' ? (i === 1 ? 0.6 : 0) : (h(14 + i) - 0.5) * 0.6;
+      const [wx, wz] = at(t, nOut);
+      place(g, wx, base, wz, yaw + h(17 + i) * Math.PI);
+    }
+    if (kind === 'sapling') {
+      const { r, h: ch, sides } = S.sapling;
+      const g = new THREE.ConeGeometry(r, ch, sides);
+      g.translate(0, ch / 2, 0);
+      g.rotateZ((h(20) - 0.5) * 0.08);
+      g.rotateX((h(21) - 0.5) * 0.08);
+      const col = pick(S.greens, h(22));
+      paintGeo(g, (v, vx, vy) => shade(col, (vy > ch * 0.9 ? 1.1 : 0.95) * (0.92 + 0.12 * h(23))));
+      const [wx, wz] = at((h(24) - 0.5) * 1.2, 0.5);
+      place(g, wx, base, wz, yaw);
+    }
+  });
+}
+
 /**
  * horizonBand(opts) — one decorative mesh that breaks an area's horizon.
  *
@@ -1338,6 +1695,18 @@ function addRoofBlock(parts, tones, bases, { k, x, z, yaw, base, bh, salt, tint 
  *   keepLow   [{ x1, z1, x2, z2, r }] capsules (x2/z2 may be left out for a
  *             disc) where the band stays at the waterline, for things drawn
  *             out on the water such as the lake's island and its bridge.
+ *   nearColor hex — the ring's colour from the inner rim out to `flat` (the
+ *             stretch under and just past the ground plane's edge), blending
+ *             by smoothstep to its usual colour (side tint or `color`) by
+ *             flat + ramp/2: the lawn carries on instead of stopping at a pale
+ *             strip. Vertex colours then, material white. Omitted: none.
+ *   edge      { half, style, gaps, avoid } — low dressing straddling the
+ *             ground plane's edge (`half` its half-size) and a sparse tree row
+ *             well outside it, in one of EDGE_STYLES, merged after everything
+ *             else (see edgeSpots). `gaps` [{ x, z, r }] are left open (a hedge
+ *             gets a gate in each); `avoid` (default: the band's) is the water
+ *             the pieces keep off. Vertex colours, material white. Omitted:
+ *             none, and the band is byte-for-byte what it was.
  */
 export function horizonBand({
   kind = 'hills',
@@ -1359,6 +1728,8 @@ export function horizonBand({
   rooftops = null,
   closeWater = true,
   keepLow = [],
+  nearColor = null,
+  edge = null,
 } = {}) {
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
@@ -1511,18 +1882,47 @@ export function horizonBand({
     });
   }
 
+  // The ground's edge (polish "edges"): its pieces come AFTER the ring and
+  // every rooftop, so tests that read the ring and then the blocks by vertex
+  // index still find them where they were. Made under their own uuid stream,
+  // so the area builds' pinned Math.random draw counts do not move.
+  const beforeEdge = parts.length;
+  if (edge) {
+    const groundAt = (x, z) => heightAt(x, z, Math.max(Math.abs(x), Math.abs(z)) - inner);
+    withLocalUuids(`band-edge-${salt}`, () => {
+      const out = [];
+      buildEdge(out, edge, salt, edge.avoid ?? avoid, groundAt);
+      for (const g of out) {
+        parts.push(g);
+        tones.push(SKYLINE_PLAIN);
+        bases.push(null);
+      }
+    });
+  }
+
   // Vertex colours: the skyline's per-block tones, and/or the side tints. A
   // part's colour is its tint (white when there are none) times its tone.
-  const coloured = kind === 'skyline' || !!sideTints || !!rooftops;
+  // With `nearColor` or `edge` the material is white too, so the band's own
+  // colour moves into the vertex colours; an edge piece brings its own.
+  const white = !!sideTints || nearColor != null || !!edge;
+  const plain = white && !sideTints ? new THREE.Color(color) : null;
+  const near = nearColor != null ? new THREE.Color(nearColor) : null;
+  const nearMix = new THREE.Color();
+  const coloured = kind === 'skyline' || !!sideTints || !!rooftops || nearColor != null || !!edge;
   if (coloured) {
     parts.forEach((p, i) => {
+      if (p.attributes.color) return;
       const [r, g2, bl] = tones[i];
       const n = p.attributes.position.count;
       const pp = p.attributes.position;
       const c = new Float32Array(n * 3);
       for (let v = 0; v < n; v++) {
         // The ring takes its tint per vertex; a block takes one for the lot.
-        const t = i === 0 && sideTints ? sideTintColor(pp.getX(v), pp.getZ(v), sideTints) : bases[i];
+        let t = i === 0 && sideTints ? sideTintColor(pp.getX(v), pp.getZ(v), sideTints) : (bases[i] ?? plain);
+        if (i === 0 && near) {
+          const d = Math.max(Math.abs(pp.getX(v)), Math.abs(pp.getZ(v))) - inner;
+          t = nearMix.copy(near).lerp(t, smoothstep(flat, flat + 0.5 * ramp, d));
+        }
         c[v * 3] = r * (t ? t.r : 1);
         c[v * 3 + 1] = g2 * (t ? t.g : 1);
         c[v * 3 + 2] = bl * (t ? t.b : 1);
@@ -1530,7 +1930,12 @@ export function horizonBand({
       p.setAttribute('color', new THREE.BufferAttribute(c, 3));
     });
   }
-  const geo = parts.length === 1 ? ring : mergeGeometries(parts, false);
+  // The merge makes one geometry (a uuid). A band that merged anyway draws it
+  // from the real stream as it always did; one that merges only because of
+  // its edge draws it from the edge's own.
+  const merge = () => mergeGeometries(parts, false);
+  const geo = parts.length === 1 ? ring
+    : beforeEdge === 1 ? withLocalUuids(`band-edge-merge-${salt}`, merge) : merge();
   if (parts.length > 1) for (const p of parts) p.dispose();
   geo.computeBoundingSphere();
 
@@ -1547,7 +1952,7 @@ export function horizonBand({
   // the band's whole job is to be a SHAPE — see the note in materials.js's
   // header about a texture resolving to its flat mean at distance, which here
   // is not a compromise but the correct answer.
-  const m = new THREE.Mesh(geo, litMaterial(sideTints ? 0xffffff : color, { flatShading: true, vertexColors: coloured }));
+  const m = new THREE.Mesh(geo, litMaterial(white ? 0xffffff : color, { flatShading: true, vertexColors: coloured }));
   // Named so a test (and a future draw-call audit) can find it without the
   // area files having to publish it as a record — the same trick path() uses.
   m.name = 'horizonBand';

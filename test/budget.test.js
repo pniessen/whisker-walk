@@ -155,6 +155,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // (docs/VISUAL-PASS.md) exists specifically to spend triangles here — rounded
 // box bevels, higher segment counts on trunks/bollards/lamp globes, a
 // horizon band — and none of it should have to renegotiate this ceiling.
+//
+// 2026-11-03, polish "edges": the horizon band gained a ring of low hedges,
+// scrub, reeds or dry-stone wall along the ground's edge and a sparse tree row
+// past it, merged into the band's one mesh (no mesh, no caster, no draw):
+// +11,400 to +12,700 triangles per green area. The Woods, River, Moor and
+// Pines went to 61,205 / 70,131 / 69,705 / 61,041, so their triangle ceiling
+// is 75,000; meshes and casters are untouched.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
@@ -197,10 +204,10 @@ const AREAS = [
   ['den', buildDen, 340, 220, 40000],
   // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
   // was measured holding 60 fps in (plan Global Constraints).
-  ['woods', buildWoods, 450, 380, 60000],
-  ['river', buildRiver, 450, 380, 60000],
-  ['moor', buildMoor, 450, 380, 60000],
-  ['pines', buildPines, 450, 380, 60000],
+  ['woods', buildWoods, 450, 380, 75000],
+  ['river', buildRiver, 450, 380, 75000],
+  ['moor', buildMoor, 450, 380, 75000],
+  ['pines', buildPines, 450, 380, 75000],
   ['gorge', buildGorge, 450, 380, 60000],
 ];
 
