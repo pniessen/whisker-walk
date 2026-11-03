@@ -470,7 +470,7 @@ describe('the clan in the walk (source pins)', () => {
 
   it('the tree fade shares the trees, runs after the fight camera, and lets go at the end', () => {
     const s = readFileSync('src/game/walk.js', 'utf8');
-    const fade = s.indexOf('session.treeFade = createTreeFade(occluders, { reducedMotion });');
+    const fade = s.indexOf('session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });');
     expect(fade).toBeGreaterThan(s.indexOf('const occluders = '));
     const end = s.indexOf('session.treeFade?.dispose();');
     expect(end).toBeGreaterThan(s.indexOf('session.fightCam?.dispose()'));
