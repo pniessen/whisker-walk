@@ -18,10 +18,14 @@
 //      point 0.3 m away is rock (just under the point's height, so a vertex at
 //      a column's top still sees its column). Too weak a sum (inside rock, in
 //      open air, on a sliver) means no horizontal move.
-//   3. Recess: value noise plus strata (a per-band depth: the shelves), from
-//      ROCK_PROUD proud to RELIEF_DEPTH deep, plus a corner cut that rounds
-//      convex corners (a 0.75 m ring is about half rock on a flat wall, a
-//      quarter at a convex corner).
+//   3. Recess: a mix of value noise (0.35), strata (0.25, a per-band depth:
+//      the shelves) and gullies (GULLY, noise stretched tall: 3.2 m across,
+//      12 m up, so the walls are fluted rather than banded), from ROCK_PROUD
+//      proud to RELIEF_DEPTH deep; plus an undercut (UNDERCUT, a band full
+//      from 1.0 to 1.8 m above the walk top under the point, gone by 3.2:
+//      water-worn feet with an overhang belly over them); plus a corner cut
+//      that rounds convex corners (a 0.75 m ring is about half rock on a
+//      flat wall, a quarter at a convex corner).
 //   4. Clamps: never more than half the rock's thickness along the inward
 //      direction less 0.05 m (two faces of thin rock, like a 0.4 m lip, can
 //      never cross); in a cave or den never proud (and at most 0.08 m deep,
@@ -34,11 +38,19 @@
 //      half way, less 0.05, to the nearest boundary (of a shape touching the
 //      top) ahead of it along x and along z, so a narrow column of the top's
 //      grid by a crest can't fold.
-//   7. Crest jag: a rock top (a mass or a ceiling cap, never a walk or lip)
-//      within CREST_BAND of a drop of at least 1 m (cap tops count as
-//      ground: the plateau over a cave is no drop) is lifted or dropped by
-//      noise, so the rims' silhouettes break up. In the keep discs, where
-//      things stand on the rock, a rock top doesn't move at all.
+//   7. Rounded rims: a rock top (a mass or a ceiling cap, never a walk or
+//      lip) within CREST_BAND of a drop of at least 1 m (cap tops count as
+//      ground: the plateau over a cave is no drop) comes down towards the
+//      drop, by up to RIM_ROUND times (1 - crest / CREST_BAND) squared (a
+//      bullnose, not a saw-tooth), and undulates gently with broad noise.
+//      It comes down at most ROUND_ROOM of the way to the wall's row line
+//      under the top (rockTerrain's rows, mirrored here), so the wall's top
+//      row never turns over, and never more than CREST_JAG either way. In
+//      the keep discs, where things stand on the rock, a rock top doesn't
+//      move at all.
+//
+// at() returns { dx, dy, dz, recess, foot }: foot is the point's height over
+// the walkable top under it (0 on a walk top), for the talus colouring.
 //
 // Determinism: noise3 and every hash use Math.imul on integer lattice
 // coordinates; the field uses only + - * / floor and Math.sqrt (no Math.sin,
@@ -52,7 +64,17 @@ export const FOOT_RISE = 1.0; // the relief grows to full over this height above
 export const CREST_JAG = 1.2; // the largest lift of a crest
 export const CREST_BAND = 1.5; // how far in from a drop a rock top is a crest
 export const FRAME_FADE = 3; // the relief fades out over this distance to the map's frame
+export const GULLY = 0.4; // the share of the recess mix from the gullies (tall, narrow flutes)
+export const UNDERCUT = 0.3; // the extra recess of the undercut band just over a wall's foot
+export const RIM_ROUND = 0.65; // the most a rim's edge is rounded down
 
+// rockTerrain cuts walls into rows at whole multiples of 1 m, none within
+// 0.3 m of a face's top (builder.js's ROCK_ROW and ROW_MIN, mirrored): a
+// rounded rim may come down at most ROUND_ROOM of the way to the row below,
+// so the wall's top row never turns over.
+const ROW = 1.0;
+const ROW_MIN = 0.3;
+const ROUND_ROOM = 0.85;
 const BUCKET = 4; // the shape index's cell size
 const PROBE = 0.3; // the inward-direction samples' radius
 const UNDER = 0.02; // how far below the point the rock is sampled
@@ -351,7 +373,10 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     return f;
   };
 
-  function recessAt(x, y, z, fadeAll) {
+  // The undercut band: 0 at the foot, full from 1.0 to 1.8 m up, gone by 3.2.
+  const undercutAt = (foot) => smoothstep(0.3, 1.0, foot) * (1 - smoothstep(1.8, 3.2, foot));
+
+  function recessAt(x, y, z, fadeAll, foot) {
     // 2. the inward direction
     const ys = y - UNDER;
     // Summed as whole counts of the axis and diagonal unit parts, so the
@@ -382,7 +407,9 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     // 3. noise, strata and the corner cut
     const band = strataBand(x, y, z, seed);
     const strata = hash3(band, 0, 0, seed + 3);
-    let r = -ROCK_PROUD + (ROCK_PROUD + RELIEF_DEPTH) * (0.55 * noise3(x / 2.4, y / 3.0, z / 2.4, seed) + 0.45 * strata);
+    const mix = 0.35 * noise3(x / 2.4, y / 3.0, z / 2.4, seed) + 0.25 * strata
+      + GULLY * noise3(x / 3.2, y / 12, z / 3.2, seed + 4);
+    let r = -ROCK_PROUD + (ROCK_PROUD + RELIEF_DEPTH) * mix + UNDERCUT * undercutAt(foot);
     let rock = 0;
     for (const [ux, uz] of RING16) if (rockAt(x + ux * RING, ys, z + uz * RING)) rock++;
     const cut = CORNER_CUT * clamp01((0.5 - rock / 16) / 0.25);
@@ -424,8 +451,13 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
       }
     }
     if (crest > CREST_BAND) return 0;
-    return Math.min(CREST_JAG, 0.3 * drop) * (1 - crest / CREST_BAND)
-      * (1.3 * noise3(x / 1.3, 7.7, z / 1.3, seed + 2) - 0.3);
+    // Rounded down towards the drop (a bullnose), and gently undulating.
+    const t = 1 - crest / CREST_BAND;
+    const dy = -Math.min(RIM_ROUND, 0.12 * drop) * t * t
+      + Math.min(0.5, 0.06 * drop) * t * (2 * noise3(x / 4, 7.7, z / 4, seed + 2) - 1);
+    const row = (-Math.floor(-(y - ROW_MIN) / ROW) - 1) * ROW; // the row line under the top
+    const low = Math.max(-CREST_JAG, -ROUND_ROOM * (y - row));
+    return dy < low ? low : dy > CREST_JAG ? CREST_JAG : dy;
   }
 
   function at(x, y, z) {
@@ -433,10 +465,11 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
     let dx = 0;
     let dz = 0;
     let recess = 0;
+    const foot = Math.max(0, y - walkTop(x, y, z));
     if (ff > 0 && !onLipTop(x, y, z)) {
-      const s = smoothstep(0, FOOT_RISE, y - walkTop(x, y, z));
+      const s = smoothstep(0, FOOT_RISE, foot);
       if (s > 0) {
-        const m = recessAt(x, y, z, s * ff);
+        const m = recessAt(x, y, z, s * ff, foot);
         if (m) {
           recess = m.r;
           dx = m.ix * m.r;
@@ -459,7 +492,7 @@ export function createRockRelief({ walks, masses, ceilings, seed = 0, keep = [] 
       dz *= f;
     }
     // + 0 turns -0 into 0
-    return { dx: dx + 0, dy: dy + 0, dz: dz + 0, recess: recess + 0 };
+    return { dx: dx + 0, dy: dy + 0, dz: dz + 0, recess: recess + 0, foot: foot + 0 };
   }
 
   return { at, rockAt, wallNear };

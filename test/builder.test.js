@@ -1324,10 +1324,14 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     let walls = 0;
     let movedWalls = 0;
     let highest = -Infinity;
+    let rimLow = Infinity; // the lowest moved vertex of the 20 m rim tops
     for (let t = 0; t < flat.length; t += 9) {
       const p = (k) => new THREE.Vector3(flat[t + 3 * k], flat[t + 3 * k + 1], flat[t + 3 * k + 2]);
       const n = p(1).sub(p(0)).cross(p(2).sub(p(0))).normalize();
-      for (let k = 0; k < 3; k++) highest = Math.max(highest, moved[t + 3 * k + 1]);
+      for (let k = 0; k < 3; k++) {
+        highest = Math.max(highest, moved[t + 3 * k + 1]);
+        if (flat[t + 3 * k + 1] === 20) rimLow = Math.min(rimLow, moved[t + 3 * k + 1]);
+      }
       if (Math.abs(n.y) >= 0.5) continue;
       for (let k = 0; k < 3; k++) {
         const i = t + 3 * k;
@@ -1341,7 +1345,10 @@ describe('the Gorge rock: rockTerrain and scree', () => {
     }
     expect(walls).toBeGreaterThan(1000);
     expect(movedWalls / walls).toBeGreaterThanOrEqual(0.5);
-    expect(highest).toBeGreaterThanOrEqual(20.5);
+    // The rims are rounded now (polish-gorgerock2 task 4), not jagged: their
+    // edges come down (this asked for a crest lifted 0.5 m over 20 before).
+    expect(rimLow).toBeLessThanOrEqual(19.5);
+    expect(highest).toBeLessThanOrEqual(20 + 1.2);
   }, 120_000);
 
   // The rays start ROCK_PROUD + 0.05 in from the edge: a wall may stand
