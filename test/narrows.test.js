@@ -20,8 +20,12 @@ vi.stubGlobal('document', {
 });
 
 const b = await import('../src/world/builder.js');
-const { narrowsTint, localTop, NARROWS_TINT_KEY } = await import('../src/world/narrows.js');
-const { ROCK_WALKS, GORGE_ROCK_KEEP, GORGE_ROCK_MOUTHS } = await import('../src/world/gorge.js');
+const {
+  narrowsTint, localTop, NARROWS_TINT_KEY, narrowsTuftBases, narrowsRockTris,
+} = await import('../src/world/narrows.js');
+const {
+  ROCK_WALKS, GORGE_ROCK_KEEP, GORGE_ROCK_MOUTHS, build,
+} = await import('../src/world/gorge.js');
 const { MASSES, CEILINGS } = await import('../src/world/gorgeshape.js');
 const { strataBand } = await import('../src/world/rockrelief.js');
 const { seedFromCode } = await import('../src/rng.js');
@@ -95,5 +99,98 @@ describe('the Narrows tint', () => {
     }
     expect(differ).toBeGreaterThan(0);
     expect(attr(tinted, 'ledgeTops', 'position')).toEqual(attr(plain, 'ledgeTops', 'position'));
+  }, 120_000);
+});
+
+// The dressing: tufts on the Narrows' shelves and crests, shrubs on the
+// crests, and the low Moor seen out of the corridor's west end.
+describe('the Narrows dressing', () => {
+  let built = null;
+  const scene = () => {
+    if (!built) {
+      built = new THREE.Scene();
+      build(built);
+    }
+    return built;
+  };
+  const dressing = () => scene().getObjectByName('narrowsDressing');
+
+  it('the Narrows dressing is one shadowless mesh, under 1,300 triangles', () => {
+    const m = dressing();
+    expect(m?.isMesh).toBe(true);
+    expect(scene().children.filter((o) => o.name === 'narrowsDressing')).toHaveLength(1);
+    expect(m.children).toHaveLength(0);
+    expect(m.castShadow).toBe(false);
+    expect(m.userData.noCast).toBe(true);
+    expect(m.userData.ground).toBeFalsy();
+    expect(m.geometry.index).toBeNull();
+    const tris = m.geometry.getAttribute('position').count / 3;
+    expect(tris).toBeLessThanOrEqual(1300);
+    expect(m.userData.counts.shelfTufts).toBeGreaterThanOrEqual(15);
+    expect(m.userData.counts.crestTufts).toBeGreaterThanOrEqual(15);
+    expect(m.userData.counts.shrubs).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('nothing of it stands on the walk', () => {
+    const p = dressing().geometry.getAttribute('position').array;
+    let low = 0;
+    for (let i = 0; i < p.length; i += 3) if (p[i] > -50 && p[i + 1] < 1.2) low++;
+    expect(low).toBe(0);
+  }, 120_000);
+
+  it('the view out lies outside the map', () => {
+    const m = dressing();
+    const p = m.geometry.getAttribute('position').array;
+    const n = m.userData.counts.viewTris * 9;
+    expect(n).toBeGreaterThan(0);
+    let inside = 0;
+    for (let i = p.length - n; i < p.length; i += 3) if (p[i] > -58) inside++;
+    expect(inside).toBe(0);
+  }, 120_000);
+
+  it('every tuft sits on the rock', () => {
+    const tris = narrowsRockTris(scene().getObjectByName('rockFaces'));
+    const bases = narrowsTuftBases();
+    const m = dressing();
+    const c = m.userData.counts;
+    expect(bases).toHaveLength(c.shelfTufts + c.crestTufts + c.shrubs);
+    const a = new THREE.Vector3(), bb = new THREE.Vector3(), cc = new THREE.Vector3(), hit = new THREE.Vector3();
+    const ray = new THREE.Ray();
+    let off = 0;
+    for (const t of bases) {
+      // Straight down, and down toward the nearer wall (a shelf's own ray).
+      const toWall = Math.abs(t.z + 16) < Math.abs(t.z + 6) ? -1 : 1;
+      let best = Infinity;
+      for (const dir of [[0, -1, 0], [0, -0.6, 0.8 * toWall]]) {
+        ray.origin.set(t.x, t.y + 0.05, t.z);
+        ray.direction.set(...dir).normalize();
+        for (let i = 0; i < tris.length; i += 9) {
+          a.fromArray(tris, i); bb.fromArray(tris, i + 3); cc.fromArray(tris, i + 6);
+          if (ray.intersectTriangle(a, bb, cc, true, hit)) best = Math.min(best, hit.distanceTo(ray.origin));
+        }
+      }
+      if (!(best <= 0.1)) off++;
+    }
+    expect(off).toBe(0);
+  }, 120_000);
+
+  it('the horizon dips at the end of the Narrows', () => {
+    const p = scene().getObjectByName('horizonBand').geometry.getAttribute('position').array;
+    const maxNear = (x0, z0) => {
+      let m = -Infinity;
+      for (let i = 0; i < p.length; i += 3) if (Math.hypot(p[i] - x0, p[i + 2] - z0) <= 6) m = Math.max(m, p[i + 1]);
+      return m;
+    };
+    expect(maxNear(-90, -11)).toBeLessThanOrEqual(0.5);
+    expect(maxNear(-90, -40)).toBeGreaterThanOrEqual(5);
+  }, 120_000);
+
+  it('two builds give the same dressing', () => {
+    const again = new THREE.Scene();
+    build(again);
+    const p1 = dressing().geometry.getAttribute('position').array;
+    const p2 = again.getObjectByName('narrowsDressing').geometry.getAttribute('position').array;
+    expect(p2).not.toBe(p1); // a fresh geometry each build (walk.js disposes it)
+    expect(Array.from(p2)).toEqual(Array.from(p1));
   }, 120_000);
 });

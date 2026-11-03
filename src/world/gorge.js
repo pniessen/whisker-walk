@@ -13,7 +13,9 @@ import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
-import { narrowsTint, NARROWS_TINT_KEY } from './narrows.js';
+import {
+  narrowsTint, NARROWS_TINT_KEY, narrowsDressing, NARROWS_VIEW,
+} from './narrows.js';
 import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
@@ -125,12 +127,17 @@ export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
 // the gorge's mouth with its rooftops on the south arc, the Moor's heather to
-// the west. The hills come down to the stream where it leaves the map.
+// the west. The hills come down to the stream where it leaves the map. Out
+// of the Narrows' west end they dip to the ground (NARROWS_VIEW, a keepLow
+// capsule; it works because `avoid` is not empty), so the low Moor of the
+// Narrows dressing shows through the gap; the west tint is lighter, toward
+// the haze.
 export const GORGE_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40,
   color: 0xa8957a, salt: 53,
   avoid: Object.freeze([STREAM]),
-  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c }),
+  keepLow: Object.freeze([NARROWS_VIEW]),
+  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0xa99aa4 }),
   rooftops: Object.freeze({ from: 0.28, to: 0.47, count: 10, height: 6 }),
 });
 
@@ -864,6 +871,9 @@ export function build(scene, { water = {}, wind } = {}) {
   });
   rock.name = 'gorgeRock';
   scene.add(rock);
+  // The Narrows' tufts, crest shrubs and the view out to the Moor: one
+  // noCast mesh at the scene root, under local uuids (BUILD_DRAWS stays put).
+  scene.add(withLocalUuids('gorge-uuids-narrows', () => narrowsDressing(rock.getObjectByName('rockFaces'))));
 
   // --- the stream -------------------------------------------------------------
   // Built from its footprint record and added to the scene root directly

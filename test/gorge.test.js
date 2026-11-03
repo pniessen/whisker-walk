@@ -258,7 +258,8 @@ describe('the Gorge: the rock and the view', () => {
   it("the horizon faces the Gorge's neighbours", () => {
     expect(scene.children.filter((o) => o.name === 'horizonBand')).toHaveLength(1);
     // more rock north and east, the town south, the Moor's heather west
-    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c });
+    // (lighter since polish-gorgeway, toward the haze over the Narrows' view)
+    expect(GORGE_HORIZON.sideTints).toEqual({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0xa99aa4 });
     expect(GORGE_HORIZON.rooftops).toBeTruthy();
     // The blocks as drawn: horizonBand merges them after its ring, so every
     // vertex past the ring's is a rooftop's. The ring is horizonBand's

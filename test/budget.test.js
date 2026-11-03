@@ -111,7 +111,14 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             54       36      43051   (43 / 26 merged; part 4's camp
+//   gorge             60       36      55647   (polish-gorgeway's narrowsDressing:
+//                                               +1 noCast mesh, 1,066 tris: 30
+//                                               shelf and 33 crest tufts, 16
+//                                               crest shrubs and the 560-tri
+//                                               view out to the Moor; it was
+//                                               59 / 36 / 54,581 before it.
+//                                               Earlier: 54 / 36 / 43051,
+//                                               43 / 26 merged; part 4's camp
 //                                               adds two meshes: the leader's
 //                                               rock (a caster, 36 tris) and the
 //                                               den's bedding (noCast, six discs
