@@ -101,7 +101,7 @@ const NORMAL_BIAS_TEXELS = 0.7;
 // uniform, so there is no shader change, no extra taps, and the shadow-pass
 // draws are unchanged. The radius is derived from WORLD metres (softness /
 // texelSize), so every tier gets the same penumbra: HIGH 2048 -> ~2.05 texels,
-// LOW 1024 -> ~1.02 texels, i.e. LOW is unchanged from three's default of 1.
+// LOW 1024 -> ~1.02 texels, i.e. LOW is effectively unchanged from three's default of 1.
 // 4 cm was picked from a live sweep: a radius of 3+ texels on HIGH washed out
 // the cat's own cast shadow on the Neighborhood street; 2 kept it. Intensity
 // 0.8 lightens the pine wedges ("ink") without losing them. The contact-shadow
