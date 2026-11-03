@@ -110,8 +110,9 @@ describe('the sit: a flatter chest with forelegs standing in front of it (polish
   // the fur (body + underside) at h; `near` = min |h - z| (how far the closest
   // point is off the fur), `stand` = max (h - z) (how far the item stands out
   // of it). The nearest point is within 3 cm of the fur and the item never
-  // sits more than 1 cm inside it. Measured: bowtie near 0.14-0.15 cm,
-  // necktie 0.50-0.53 cm; both stand 4.9-7.2 cm out (tabby, persian).
+  // sits more than 1 cm inside it. Measured with the sit's chestDrop
+  // (polish-sit Task 3): bowtie near 1.14-1.19 cm, necktie 1.29-1.36 cm;
+  // both stand 6.3-9.1 cm out (tabby, persian).
   function neckFit(cat) {
     const { body, head } = cat.userData.parts, rc = new THREE.Raycaster(), p0 = new THREE.Vector3(), dir = new THREE.Vector3(0, 0, 1);
     let near = Infinity, stand = -Infinity;

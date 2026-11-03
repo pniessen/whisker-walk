@@ -186,7 +186,7 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
   for (const item of cat.children) {
     if (!item.userData.ridesBody) continue;
-    item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone() };
+    item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
     if (!sitting) restore(item);
   }
   if (base?.legLift) fitLongLegs(cat);
@@ -257,21 +257,24 @@ function rideTail(cat) {
 // by the body's own rotation. Its rest (as built) is remembered by animateCat
 // before anything moves it, which also puts it back in every other state.
 //
-// A cape (userData.hang) is the one exception. It hangs 0.4 down from behind
-// the rump, and the rump is now on the ground: carried rigidly its centre
-// lands at y -0.005 and its hem 18 cm under the ground, swung in under the
-// cat. So it hangs from its clasp instead: its top edge's centre at the
-// clasp's carried point (y 0.257, z 0.195 on every preset), swung back from
-// its resting tilt (0.15) only as far as its hem needs to clear the ground
-// (CAPE_HEM_CLEAR; 0.95 rad here), so it falls from the clasp to the ground
-// behind her. Allocates nothing.
+// The capes and the wings are the exceptions (fix round 1): turned with the
+// torso they read as a plank leaning off the rump and as plates drooping down
+// the haunch. They keep their built orientation and only move:
+//   * a wing (userData.sitShift) goes to its sit spot over the shoulders
+//     (model.js WING_SIT_Z), rest + sitShift, carried by the body;
+//   * a cape (userData.hang) moves with its clasp (rest + clasp offset,
+//     carried), so it hangs at its authored tilt behind the rump as it does
+//     standing. Its top edge then sits only ~0.25 above the ground and its
+//     0.4 m would reach into it, so it is shortened, scaled in its own y about
+//     that top edge, until its lowest corner is CAPE_HEM_CLEAR off the ground.
+// Allocates nothing.
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
 const _rideScale = new THREE.Vector3();
 const _hinge = new THREE.Vector3();
-const _XAXIS = new THREE.Vector3(1, 0, 0);
-const CAPE_REST_TILT = 0.15;   // model.js: cape.rotation.x = -0.15
-const CAPE_HEM_CLEAR = 0.025;  // the hem's centre over the ground: its 2 cm half-thickness, and 5 mm
+const _top = new THREE.Vector3();
+const CAPE_HEM_CLEAR = 0.01;  // its lowest corner over the ground
+const CAPE_THICK_HALF = 0.02; // the cape is 4 cm thick (model.js)
 function rideBody(cat) {
   const { body } = cat.userData.parts;
   const { bodyY, bodyScale } = cat.userData.base;
@@ -279,12 +282,24 @@ function rideBody(cat) {
   _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
   for (const item of cat.children) {
     if (!item.userData.ridesBody) continue;
-    const { rest, hang } = item.userData;
+    const { rest, hang, sitShift } = item.userData;
+    if (sitShift) {
+      item.position.fromArray(sitShift).add(rest.position).applyMatrix4(_ride);
+      item.quaternion.copy(rest.quaternion);
+      continue;
+    }
     if (hang) {
-      _hinge.fromArray(hang.clasp).add(rest.position).applyMatrix4(_ride);
-      const tilt = Math.max(CAPE_REST_TILT, Math.acos(Math.min(1, (_hinge.y - CAPE_HEM_CLEAR) / (2 * hang.half))));
-      item.quaternion.setFromAxisAngle(_XAXIS, -tilt);
-      item.position.set(_hinge.x, _hinge.y - hang.half * Math.cos(tilt), _hinge.z + hang.half * Math.sin(tilt));
+      // the clasp's move, carried
+      _hinge.fromArray(hang.clasp).add(rest.position);
+      _top.copy(_hinge).applyMatrix4(_ride).sub(_hinge);           // the move
+      _top.add(rest.position);                                      // the cape's centre, moved
+      item.quaternion.copy(rest.quaternion);
+      // its top edge: centre + R·(0, half, 0); its lowest corner: the hem's inner edge
+      const c = Math.cos(hang.tilt), sn = Math.sin(hang.tilt);
+      const topY = _top.y + hang.half * c, topZ = _top.z - hang.half * sn;
+      const k = Math.min(1, (topY - CAPE_THICK_HALF * sn - CAPE_HEM_CLEAR) / (2 * hang.half * c));
+      item.scale.y = k;
+      item.position.set(_top.x, topY - hang.half * k * c, topZ + hang.half * k * sn);
       continue;
     }
     item.position.copy(rest.position).applyMatrix4(_ride);
@@ -383,7 +398,7 @@ export function refitNeck(cat, state) {
 
 function restore(item) {
   const rest = item.userData.rest;
-  if (rest) { item.position.copy(rest.position); item.quaternion.copy(rest.quaternion); }
+  if (rest) { item.position.copy(rest.position); item.quaternion.copy(rest.quaternion); if (rest.scale) item.scale.copy(rest.scale); }
 }
 
 // item (head frame) = _X · rest, its rest remembered the first time it is moved

@@ -102,7 +102,8 @@ export const POSE_FIT = Object.freeze({
 //     the shoulders' 0.689) and forward over the chest, so the sitting cat is
 //     still no taller than the standing one (+0.0065; R3, the name tag's
 //     margin) and the throat clears the chest: a bowtie's nearest point is
-//     0.14-0.18 cm off the fur, a necktie's 0.45-0.66 cm (catsit.test.js).
+//     1.0-1.5 cm off the fur, a necktie's 0.7-1.7 cm (catsit.test.js; tabby,
+//     Persian, Siamese, Maine Coon, Digit, with chestDrop; 0.14-0.66 cm before it).
 //     Further back (+0.16, the first try) the neck items sank 5 cm into the chest.
 //   chestDepth: the underside's own z (torso-local) is scaled by this about the
 //     chest centre (keepChestUnderHead holds the centre put), so the chest does

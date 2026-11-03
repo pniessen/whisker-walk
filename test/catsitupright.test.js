@@ -266,20 +266,76 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
         new THREE.Vector3(0, bodyY, 0), new THREE.Quaternion(), new THREE.Vector3(...bodyScale)).invert());
       const builtItems = riders(built);
       items.forEach((item, i) => {
-        const { hang } = item.userData;
+        const { hang, sitShift } = item.userData;
+        const restPos = builtItems[i].position, restQ = builtItems[i].quaternion;
         if (hang) {
-          // a cape hangs from its clasp: its top edge's centre at the clasp's carried point
-          const want = builtItems[i].position.clone().add(new THREE.Vector3(...hang.clasp)).applyMatrix4(carry);
-          const top = new THREE.Vector3(0, hang.half, 0).applyQuaternion(item.quaternion).add(item.position);
-          expect(top.distanceTo(want), `${kit.body}: hangs from its clasp`).toBeLessThanOrEqual(0.01);
+          // a cape moves with its clasp and keeps its built tilt (shortened, if
+          // at all, about its top edge): its top edge's centre made the clasp's move
+          const clasp = restPos.clone().add(new THREE.Vector3(...hang.clasp));
+          const move = clasp.clone().applyMatrix4(carry).sub(clasp);
+          const topRest = new THREE.Vector3(0, hang.half, 0).applyQuaternion(restQ).add(restPos);
+          const top = new THREE.Vector3(0, hang.half * item.scale.y, 0).applyQuaternion(item.quaternion).add(item.position);
+          expect(top.distanceTo(topRest.add(move)), `${kit.body}: moves with its clasp`).toBeLessThanOrEqual(0.01);
+          expect(item.quaternion.angleTo(restQ), `${kit.body}: its built tilt`).toBeLessThan(1e-6);
+          expect(item.scale.y).toBeLessThanOrEqual(1);
+        } else if (sitShift) {
+          // a wing: at its shoulder spot, carried, standing as built
+          const want = restPos.clone().add(new THREE.Vector3(...sitShift)).applyMatrix4(carry);
+          expect(item.position.distanceTo(want), `wing ${i}: at its carried shoulder spot`).toBeLessThanOrEqual(0.01);
+          expect(item.quaternion.angleTo(restQ), `wing ${i}: as built`).toBeLessThan(1e-6);
         } else {
-          const want = builtItems[i].position.clone().applyMatrix4(carry);
+          const want = restPos.clone().applyMatrix4(carry);
           expect(item.position.distanceTo(want), `${kit.back}+${kit.body} item ${i}: on the posed torso`).toBeLessThanOrEqual(0.01);
+          expect(item.quaternion.angleTo(body.quaternion.clone().multiply(restQ))).toBeLessThan(1e-6);
         }
         expect(lowest(item, cat.scale.x), `${kit.back}+${kit.body} item ${i}: above the ground`).toBeGreaterThanOrEqual(0);
       });
     }
   });
+
+  // The capes and wings stay out of the fur, and a cape out of the tail too
+  // (swept over the tip's flick).
+  const ray = new THREE.Raycaster();
+  const outside = (cat, Pw) => {
+    const { body, underside } = cat.userData.parts;
+    const C = body.getWorldPosition(new THREE.Vector3());
+    const dir = Pw.clone().sub(C).normalize(), F = Pw.clone().addScaledVector(dir, 1);
+    ray.set(F, dir.clone().negate());
+    const hit = ray.intersectObjects([body, underside], false)[0];
+    return hit ? (hit.distance - F.distanceTo(Pw)) / cat.scale.x : Infinity;
+  };
+  const meshVerts = (obj) => {
+    const out = [];
+    obj.traverse((m) => {
+      if (!m.isMesh) return;
+      const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld));
+    });
+    return out;
+  };
+  it.each(CASES)('%s (simple %s) %s: capes and wings stay out of the fur, a cape out of the tail', (b, simple, state) => {
+    for (const kit of [{ back: 'wings', body: 'cape' }, { back: null, body: 'confetticape' }]) {
+      const cat = kitCat(b, kit, simple);
+      for (const t of [0, 0.7, 1.3, 2.1, 2.9]) {
+        animateCat(cat, state, t, 0, false);
+        cat.updateMatrixWorld(true);
+        for (const item of riders(cat).filter((c) => c.userData.hang || c.userData.sitShift)) {
+          let worst = Infinity;
+          for (const P of meshVerts(item)) worst = Math.min(worst, outside(cat, P));
+          expect(worst, `${kit.back}+${kit.body} t ${t}: out of the fur`).toBeGreaterThanOrEqual(0);
+          if (!item.userData.hang) continue;
+          // no tail vertex inside the cape's box (its own frame: 0.32 x 0.4 x 0.04)
+          const inv = item.matrixWorld.clone().invert();
+          let inside = 0;
+          for (const P of meshVerts(cat.userData.parts.tail)) {
+            const q = P.applyMatrix4(inv);
+            if (Math.abs(q.x) < 0.16 && Math.abs(q.y) < 0.2 && Math.abs(q.z) < 0.02) inside++;
+          }
+          expect(inside, `${kit.body} t ${t}: no tail through the cape`).toBe(0);
+        }
+      }
+    }
+  }, 120_000);
 
   it.each(CASES)('%s (simple %s) %s: the backpack sits on the fur, within 3 cm of it', (b, simple, state) => {
     const cat = kitCat(b, { back: 'backpack' }, simple);
@@ -307,18 +363,18 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
 
   it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built; a follow never moves them', (b, simple) => {
     for (const kit of [...KITS, { back: 'balloon', body: null }, { back: 'balloonbunch', body: 'confetticape' }]) {
-      const built = riders(kitCat(b, kit, simple)).map((c) => [c.position.toArray(), c.quaternion.toArray()]);
+      const built = riders(kitCat(b, kit, simple)).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
       const fresh = kitCat(b, kit, simple);
       for (const t of [0.4, 2.1]) {
         animateCat(fresh, 'follow', t, 0, false);
-        expect(riders(fresh).map((c) => [c.position.toArray(), c.quaternion.toArray()]), `${kit.back} follow t ${t}`).toEqual(built);
+        expect(riders(fresh).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]), `${kit.back} follow t ${t}`).toEqual(built);
       }
       for (const state of SITS) {
         const cat = kitCat(b, kit, simple);
         animateCat(cat, state, 1.3, 0, false);
         expect(riders(cat).some((c, i) => c.position.distanceTo(new THREE.Vector3(...built[i][0])) > 0.01), `${kit.back} ${state}: moved`).toBe(true);
         animateCat(cat, 'follow', 2.1, 0, false);
-        expect(riders(cat).map((c) => [c.position.toArray(), c.quaternion.toArray()]), `${kit.back} ${state} → follow`).toEqual(built);
+        expect(riders(cat).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]), `${kit.back} ${state} → follow`).toEqual(built);
       }
     }
   });
