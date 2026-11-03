@@ -21,7 +21,7 @@
   renderer.setSize(W, H);
   renderer.setPixelRatio(1);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;                 // main.js
   const aniso = Math.min(4, renderer.capabilities.getMaxAnisotropy());

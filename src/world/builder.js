@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial, repeatFor, surfaceProps, tileMetres } from '../render/materials.js';
 import { skyBackground } from '../render/sky.js';
 import { conformTriangles } from './meshconform.js';
+import { withLocalUuids } from './localuuids.js';
+import { makeRustleMaterial } from '../render/rustle.js';
 import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH } from './rockrelief.js';
 
 const mat = (color) => litMaterial(color);
@@ -2586,26 +2588,99 @@ export function brambleBed(spots, seed) {
   return mergedNoCast(geoms, 0x3b5e2e, 'foliage');
 }
 
-// Heather, one merged mesh: each spot is two flat purple cushions, the second
-// shoved 0.3-0.5 m to one side. Under half a metre, so a cat pushes through it
-// as through any bed, and out of the caster sweep like the other beds.
+// Heather: a Group of two merged meshes. Each spot is two low dark-green
+// cushions (the second shoved 0.3-0.5 m to one side) bristling with pink
+// flower spikes that lean away from a cat walking through (render/rustle.js).
+// Under half a metre, no collider (a cat pushes through, as through any bed),
+// and out of the caster sweep like the other beds.
+//
+// It used to be the cushions alone, in purple, and from the path they looked
+// exactly like pink rocks a cat could walk through. The cushions are still
+// made on the real Math.random, one geometry each in the same order, so the
+// Moor's pinned build draw count and the flat trace do not move; the spikes,
+// their material and the Group are made under withLocalUuids.
+export const HEATHER_BASE = 0x3f4a2e;
+const HEATHER_STEM = 0x46532f;
+const HEATHER_SPIKE_ROOT = 0x8e4f8e;
+const HEATHER_SPIKE_TIP = 0xe39ad6;
+const HEATHER_SPIKES_PER_CUSHION = 6;
 export function heatherBed(spots, seed) {
   const geoms = [];
+  const cushions = [];
   spots.forEach((sp, i) => {
     for (let k = 0; k < 2; k++) {
       const r = 0.35 + 0.2 * hash01(i, k, seed + 1);
       const cushion = new THREE.IcosahedronGeometry(r, 0);
-      cushion.scale(1, 0.5, 1);
+      cushion.scale(1, 0.22, 1);
       cushion.computeBoundingBox();
       // sat on the ground: its lowest point at y 0
+      const top = cushion.boundingBox.max.y - cushion.boundingBox.min.y;
       cushion.translate(0, -cushion.boundingBox.min.y, 0);
       const a = hash01(k, i, seed + 2) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.3 + 0.2 * hash01(i, k, seed + 3);
-      cushion.translate(sp.x + Math.cos(a) * d, 0, sp.z + Math.sin(a) * d);
+      const cx = sp.x + Math.cos(a) * d;
+      const cz = sp.z + Math.sin(a) * d;
+      cushion.translate(cx, 0, cz);
       geoms.push(cushion);
+      cushions.push({ i, k, r, top, cx, cz });
     }
   });
-  return mergedNoCast(geoms, 0x8a5a86, 'foliage');
+  const base = mergedNoCast(geoms, HEATHER_BASE, 'foliage');
+  base.name = 'heatherBase';
+  return withLocalUuids(`heather-uuids-${seed}`, () => {
+    const spikes = heatherSpikes(cushions, seed);
+    const g = new THREE.Group();
+    g.add(base, spikes);
+    return g;
+  });
+}
+
+function heatherSpikes(cushions, seed) {
+  const geoms = [];
+  const stem = new THREE.Color(HEATHER_STEM);
+  const root = new THREE.Color(HEATHER_SPIKE_ROOT);
+  const tip = new THREE.Color(HEATHER_SPIKE_TIP);
+  const c = new THREE.Color();
+  for (const { i, k, r, top, cx, cz } of cushions) {
+    for (let s = 0; s < HEATHER_SPIKES_PER_CUSHION; s++) {
+      const h = 0.22 + 0.14 * hash01(i * 7 + s, k, seed + 11);
+      const a = hash01(s, i * 3 + k, seed + 12) * Math.PI * 2;
+      const dr = 0.8 * r * Math.sqrt(hash01(i + s, k * 5 + s, seed + 13));
+      // Rooted a little inside the cushion's dome, so no stalk floats.
+      const y0 = 0.7 * top * (1 - (dr / r) ** 2);
+      const cone = new THREE.ConeGeometry(0.08, h, 3, 1, true);
+      cone.translate(0, h / 2, 0);
+      const lean = new Float32Array(cone.attributes.position.count);
+      const col = new Float32Array(cone.attributes.position.count * 3);
+      const shade = 0.85 + 0.3 * hash01(s, i, seed + 14);
+      for (let v = 0; v < lean.length; v++) {
+        const f = cone.attributes.position.getY(v) / h;
+        lean[v] = f;
+        // a green stem for the bottom third, then the flowers, purple to pink
+        if (f < 0.3) c.copy(stem);
+        else c.copy(root).lerp(tip, (f - 0.3) / 0.7).multiplyScalar(shade);
+        col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b;
+      }
+      cone.setAttribute('aLean', new THREE.BufferAttribute(lean, 1));
+      cone.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      // splayed outward a little, like a real clump
+      cone.rotateZ((hash01(i, s, seed + 15) - 0.5) * 0.5);
+      cone.rotateY(a);
+      cone.translate(cx + Math.cos(a) * dr, y0, cz + Math.sin(a) * dr);
+      geoms.push(cone);
+    }
+  }
+  const geo = geoms.length === 0 ? new THREE.BufferGeometry() : mergeGeometries(geoms, false);
+  for (const g of geoms) g.dispose();
+  if (!geo.attributes.aLean) geo.setAttribute('aLean', new THREE.BufferAttribute(new Float32Array(0), 1));
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  const rustle = makeRustleMaterial(mat);
+  const m = new THREE.Mesh(geo, mat);
+  m.name = 'heatherBloom';
+  m.castShadow = false;
+  m.userData.noCast = true;
+  m.userData.rustle = rustle;
+  return m;
 }
 
 // Gorse: brambleBed's huddle of squashed lobes in dark green, plus a second

@@ -106,6 +106,7 @@ import { createFightRecord } from './fightrecord.js';
 import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
 import { createTreeFade } from '../treefade.js';
+import { createRustle } from '../render/rustle.js';
 import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
 import { createContactShadows } from '../render/contactshadows.js';
@@ -1457,6 +1458,9 @@ export function createWalkLifecycle({
     session.treeFade = createTreeFade(occluders, { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
+    // Plants that lean away from the cat as it walks through (render/rustle.js):
+    // the Moor's heather. Visual only; none in most areas.
+    session.rustle = createRustle(scene, { reducedMotion });
     onClanBuddyEnd = (cat, reason, secs) => endClanPatrol(session, cat, reason, secs);
 
     // The rival's border and its patrol (v21 Stream 3a). Built per walk, like

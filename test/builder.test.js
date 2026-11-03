@@ -588,17 +588,42 @@ describe('the Woods builders', () => {
     expect(m.userData.noCast).toBe(true);
   });
 
-  it('heatherBed is one flat-ish mesh out of the shadow pass', () => {
+  it('heatherBed is a green base and pink leaning spikes, low, out of the shadow pass', () => {
     const spots = [{ x: 0, z: 0 }, { x: 4, z: 1 }];
-    const m = b.heatherBed(spots, 5);
-    expect(m.isMesh).toBe(true);
-    const bb = bbox(m);
-    expect(bb.max.y).toBeLessThanOrEqual(0.5);
-    expect(bb.min.y).toBeGreaterThanOrEqual(-1e-6);
-    expect(m.castShadow).toBe(false);
-    expect(m.userData.noCast).toBe(true);
-    expect(b.heatherBed(spots, 5).geometry.attributes.position.array).toEqual(m.geometry.attributes.position.array);
+    const g = b.heatherBed(spots, 5);
+    const base = g.getObjectByName('heatherBase');
+    const bloom = g.getObjectByName('heatherBloom');
+    expect(base.isMesh && bloom.isMesh).toBe(true);
+    for (const m of [base, bloom]) {
+      const bb = bbox(m);
+      expect(bb.max.y).toBeLessThanOrEqual(0.5);
+      expect(bb.min.y).toBeGreaterThanOrEqual(-1e-6);
+      expect(m.castShadow).toBe(false);
+      expect(m.userData.noCast).toBe(true);
+    }
+    // not pink rocks: the lumps are green, the colour is in the spikes
+    expect(base.material.color.getHex()).toBe(b.HEATHER_BASE);
+    expect(bloom.material.vertexColors).toBe(true);
+    // the spikes lean (render/rustle.js): roots at 0, tips at 1
+    const lean = bloom.geometry.attributes.aLean.array;
+    expect(Math.min(...lean)).toBeCloseTo(0, 5);
+    expect(Math.max(...lean)).toBeCloseTo(1, 5);
+    expect(bloom.userData.rustle.uCat).toBeTruthy();
+    // the same every time
+    const again = b.heatherBed(spots, 5);
+    expect(again.getObjectByName('heatherBloom').geometry.attributes.position.array).toEqual(bloom.geometry.attributes.position.array);
+    expect(again.getObjectByName('heatherBase').geometry.attributes.position.array).toEqual(base.geometry.attributes.position.array);
     expect(() => b.heatherBed([], 5)).not.toThrow();
+  });
+
+  it('heatherBed draws on the real Math.random only for its base, as the old cushions did', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 4, z: 1 }, { x: 8, z: 2 }];
+    const real = Math.random;
+    let n = 0;
+    Math.random = () => { n++; return real(); };
+    try { b.heatherBed(spots, 5); } finally { Math.random = real; }
+    // 4 per uuid: 6 cushion geometries, the merged geometry, its material, its mesh
+    expect(n).toBe(4 * (spots.length * 2 + 3));
   });
 
   it('gorseBed is two noCast meshes, gorse and gorseBloom, never taller than 0.95', () => {
