@@ -173,3 +173,32 @@ describe('the greyed clan card (style.css)', () => {
     }
   });
 });
+
+describe('the pickable clan cards (style.css, final fix wave)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  it('small text on a coloured card is full strength, the soon line included', () => {
+    const m = css.match(/\.dr \.dr-home:not\(\.dr-home-off\) small[^{]*\{([^}]*)\}/);
+    expect(m, 'a rule for small text on pickable cards').not.toBeNull();
+    expect(m[0]).toContain('.dr-home-soon');
+    expect(m[1]).toMatch(/opacity: 1;/);
+  });
+  it('an unknown pickable id gets no empty emblem circle', () => {
+    const model = { mine: null, both: false, cards: [{ id: 'nowhere', name: 'Nowhere', line: 'x', place: 'Nowhere', soon: false, pickable: true, mine: false, partner: false }] };
+    const html = renderClanPickerHtml(model, 'Robin');
+    expect(html).not.toContain('dr-home-emblem');
+    expect(html).toContain('<span class="dr-home-name">Nowhere</span>');
+  });
+  it('the emblems are single shapes: the gorge is one cliff, the woods bolt has an outline', () => {
+    expect(CLAN_EMBLEMS.gorge.match(/<path/g)).toHaveLength(1);
+    expect(CLAN_EMBLEMS.woods).toContain('stroke="#2f5a33"');
+  });
+});
+
+describe('disabled buttons (style.css)', () => {
+  it('no khaki #6a6250 is left; the dimmed pink is one shared pair of variables', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).not.toContain('#6a6250');
+    expect(css).toContain('--btn-off-bg: rgba(231,169,160,.30)');
+    expect(css.match(/var\(--btn-off-bg\)/g).length).toBeGreaterThanOrEqual(4);
+  });
+});

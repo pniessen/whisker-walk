@@ -21,9 +21,9 @@ function escapeHtml(str) {
 // cream badge on its card. Keyed by territory id; an unknown id gets none.
 const emblem = (body) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">${body}</svg>`;
 export const CLAN_EMBLEMS = Object.freeze({
-  // storm cloud with a gold bolt
-  woods: emblem('<path fill="#2f5a33" d="M7 15a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 6.6 4.2 4.2 0 0 1 17.5 15z"/>'
-    + '<path fill="#f2c14e" d="M13 11l-3.2 5h2.4l-1.2 5 4.2-6.2h-2.5z"/>'),
+  // storm cloud with a gold bolt (dark outline so it holds on the cream badge)
+  woods: emblem('<path fill="#2f5a33" d="M7 14.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 6.1 4.2 4.2 0 0 1 17.5 14.5z"/>'
+    + '<path fill="#e0a21c" stroke="#2f5a33" stroke-width="1" stroke-linejoin="round" d="M14.2 9.5L8.8 16.2h3.4L10.4 22.6l6.2-8h-3.5z"/>'),
   // fish
   river: emblem('<path fill="#24516b" d="M3 12c3-5 9-6 13-1.5L21 7v10l-5-3.5C12 18 6 17 3 12z"/>'
     + '<circle cx="8" cy="11" r="1.1" fill="#f1e0c2"/>'),
@@ -33,9 +33,8 @@ export const CLAN_EMBLEMS = Object.freeze({
   // crescent moon with a small star
   pines: emblem('<path fill="#353d68" d="M14.5 3.5a9 9 0 1 0 6 13.5A7.5 7.5 0 0 1 14.5 3.5z"/>'
     + '<circle cx="17.5" cy="6.5" r="1.4" fill="#353d68"/>'),
-  // flat-topped cliff with a step
-  gorge: emblem('<path fill="#6b4128" d="M3 20V9h8V5h10v15z"/>'
-    + '<path fill="none" stroke="#f1e0c2" stroke-width="1.2" d="M7 20v-6M15 20v-9"/>'),
+  // one cliff: sloped face, a single ledge, a flat top
+  gorge: emblem('<path fill="#6b4128" d="M3 20.5L6.5 13.5h4L12.5 6H21v14.5z"/>'),
 });
 
 // The line on a clan's card that can't be picked yet (G10): its territory is
@@ -78,7 +77,7 @@ export function renderClanPickerHtml(model, partnerName) {
     : '<button class="dr-home dr-home-off" type="button" aria-disabled="true">');
   const buttons = model.cards.map((c) => open(c)
     + (c.pickable
-      ? `<span class="dr-home-name"><span class="dr-home-emblem">${CLAN_EMBLEMS[c.id] ?? ''}</span>${escapeHtml(c.name)}</span>`
+      ? `<span class="dr-home-name">${CLAN_EMBLEMS[c.id] ? `<span class="dr-home-emblem">${CLAN_EMBLEMS[c.id]}</span>` : ''}${escapeHtml(c.name)}</span>`
       : `<span class="dr-home-name">${escapeHtml(c.name)}</span>`)
     + `<small>of ${escapeHtml(c.place)}</small>`
     + `<small>${escapeHtml(c.line)}</small>`

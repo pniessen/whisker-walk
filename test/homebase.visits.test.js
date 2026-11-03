@@ -138,7 +138,7 @@ describe('the home base on a visit', () => {
     const scrolls = doc.docListeners.filter((l) => l.t === 'scroll');
     expect(scrolls).toHaveLength(1);
     expect(scrolls[0].o).toMatchObject({ capture: true, passive: true });
-    // The scroll from the bubble's own appearance (same frame) does not close it.
+    // The scroll from the bubble's own appearance (within 60 ms) does not close it.
     doc.dispatchEvent({ type: 'scroll' });
     expect(line()).toBeTruthy();
     vi.advanceTimersByTime(100);
@@ -149,7 +149,7 @@ describe('the home base on a visit', () => {
   });
 
   it('showing the welcome again does not leak scroll listeners', () => {
-    const { progression, hb } = setup();
+    const { hb } = setup();
     hb.show();
     const v = { milestone: null, visits: 2 };
     hb.showVisit(v);

@@ -467,10 +467,10 @@ describe('the fight sheet between beats (style.css)', () => {
     expect(idle).toContain('fight-wait');
     expect(idle).toContain('#ffd45a');
     expect(css).toContain('@keyframes fight-wait');
-    const at = css.indexOf('@media (prefers-reduced-motion: reduce) {\n  .fight-moves.idle .fight-move');
-    expect(at).toBeGreaterThan(-1);
-    const block = css.slice(at, css.indexOf('\n}\n', at));
-    expect(block).toMatch(/animation: none/);
+    const block = css.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.fight-moves\.idle \.fight-move \{([^}]*)\}/);
+    expect(block, 'reduced-motion block for idle moves').not.toBeNull();
+    expect(block[1]).toMatch(/animation: none/);
+    expect(block[1]).toMatch(/opacity: \.85/);
     expect(rule('.fight-move')).toMatch(/min-height: (8[89]|9\d)px/);
   });
   it('the top block is only as tall as the clue row, so a beat leaves no dead band', () => {
