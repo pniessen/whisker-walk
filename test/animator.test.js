@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { animateCat, refitNeck } from '../src/cat/animator.js';
 import { buildCat } from '../src/cat/model.js';
-import { SIT_TAIL } from '../src/cat/torso.js';
+import { SIT_TAIL, NAP_TAIL } from '../src/cat/torso.js';
 import { DEFAULT_LOOK } from '../src/customcats.js';
 import { closeDiffs } from './helpers/closeto.js';
 
@@ -154,13 +154,16 @@ describe('animateCat: the resting tail curl (Task 5, R3)', () => {
     const cross = buildCat('tabby'); animateCat(cross, 'cross', 0, 0, false);
     expect(cross.userData.parts.tail.rotation.x).toBeCloseTo(-1.5, 6);
   });
-  it('lying down softens the curl to a fifth', () => {
+  it('lying down and sitting write the tail outright (no curl)', () => {
     // polish-sit Task 2 (2026-11-02): the sit (perch, requestPet) no longer
     // takes the curl: its tail lies round the paws, every pivot written from
-    // torso.js SIT_TAIL (test/catsitupright.test.js). The nap keeps it.
+    // torso.js SIT_TAIL (test/catsitupright.test.js). polish-pose Task 1: nor
+    // does the nap (it took a fifth of the curl before): its tail lies flush
+    // and curls round the body, every pivot written from torso.js NAP_TAIL
+    // (test/catnap.test.js).
     for (const s of ['nap']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 1, 0, false);
-      for (const p of cat.userData.parts.tailPivots) expect(p.rotation.x).toBeCloseTo(-0.28 * 0.2, 6);
+      cat.userData.parts.tailPivots.forEach((p, i) => expect(p.rotation.x).toBe(NAP_TAIL.pivotX[i]));
     }
     for (const s of ['perch', 'requestPet']) {
       const cat = buildCat('tabby'); animateCat(cat, s, 1, 0, false);

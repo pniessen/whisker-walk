@@ -161,6 +161,46 @@ export const SIT_TAIL = Object.freeze({
   flick: 0.15, // the tip link's sideways flick, sin(t*2.2)
 });
 
+// polish-pose Task 1 (2026-11-02): the napping tail lies flush and curls
+// round the body, nose to tail (animator.js; cats with folds only, Hagrid's
+// fan rides his body already). Before, the nap lowered and squashed the body
+// but the root stayed where the standing cat carries it, 12.7 cm out of the
+// lowered rump, and the chain stuck straight out sideways in the air (its top
+// 0.50, over the 0.42 back). Same meanings as SIT_TAIL. Measured in the cat's
+// frame on every preset, full and simple, t 0..7 (the breathing and the tip's
+// sway):
+//   ROOT [y, z]: [-0.094, 0.323]. Carried through the posed nap body it lands
+//     low on the rump (y 0.173, z 0.288), 1.0 cm out of the fur.
+//   rotX 0.4 and the five pivots: link 0 drops out of the rump to the left
+//     and down, and the rest lie on the ground (links 1-4 each come within
+//     1.6 cm of it, no vertex under 0.3 cm) in one curve round
+//     the left haunch, bending 0.62, 0.71, 0.63 rad link to link, the tip
+//     link straightening (0.14) along the cat's left side. The tip's pivot
+//     stands 3.1 cm up at x -0.287, 0.174 forward of the root; the tail ends
+//     at z 0.00 (the torso runs -0.41..0.32), 1.3 cm outside the widest
+//     torso seen from above (tabby, x 0.273), so the tail shows round the
+//     body from the walk camera. Past the root every link is at least 5.5 cm
+//     clear of the torso; the tail's top is 18 cm under the back's.
+//   The left, TAIL_HOOK_SIDE, because the nap head turns its nose to the
+//     cat's left (rotation.y 0.5, nose x -0.48): nose to tail.
+//   The tail is 0.6 m long on a 0.73 m body, so the tip reaches the middle of
+//     the flank, not the nose. Coming round the haunch the first two links
+//     pass through the outside of the tucked left thigh (FOLDS.tuck), which
+//     reads as the tail lying over the hind leg. Fitted by a search over the
+//     links' headings on tabby and Digit (simple) for: root flush, every link
+//     outside the torso and above the ground at either end of the breathing
+//     and the sway, the tip forward and outside the body, even bends.
+export const NAP_TAIL = Object.freeze({
+  ROOT: [-0.094, 0.323],
+  rotX: 0.4,
+  pivotX: [0.532, 0.465, 0.537, 0.628, 0.136],
+  pivotY: [0.804, 0.419, 0.487, -0.014, 0.049],
+  // The tip link's slow sway, sin(t*0.9). The chain's frames roll as it
+  // turns, so on the ground this lifts and lowers the tip: the tip end's
+  // centre moves between 1.5 and 3.3 cm up, a sleeping tail's twitch.
+  sway: 0.08,
+});
+
 // A point on the unit sphere (nose at -z, rump at +z) pushed into the cat's torso.
 export function deformTorso(x, y, z, S = TORSO.SHAPE) {
   const front = Math.max(0, -z), back = Math.max(0, z);
