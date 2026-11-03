@@ -422,6 +422,45 @@ describe('horizonBand side tints and rooftops', () => {
     }))).toBe('923b0516f4882a6a');
   });
 
+  // polish-places Task 5 added `shoreLip`. Hashes taken from the code before
+  // it existed: the Woods', Pines' and Gorge's bands (water, keepLow, side
+  // tints, near colour, an edge, the Gorge's rooftops) do not use it and must
+  // be byte-identical.
+  it('bands without shoreLip are unchanged', async () => {
+    const { WOODS_HORIZON } = await import('../src/world/woods.js');
+    const { PINES_HORIZON } = await import('../src/world/pines.js');
+    for (const o of [WOODS_HORIZON, PINES_HORIZON, GORGE_HORIZON]) expect(o.shoreLip).toBeUndefined();
+    expect(fingerprint(b.horizonBand(WOODS_HORIZON))).toBe('ad43278f378768ec');
+    expect(fingerprint(b.horizonBand(PINES_HORIZON))).toBe('eb0eea2daee4dc8d');
+    expect(fingerprint(b.horizonBand(GORGE_HORIZON))).toBe('c9031015d29d5c21');
+  });
+
+  it('shoreLip leaves a band with no water alone in shape, and lifts a far water to a lip', () => {
+    const base = { kind: 'hills', inner: 56, outer: 116, height: 8, color: 0x8ac27e, salt: 5 };
+    const pos = (m) => Array.from(m.geometry.attributes.position.array);
+    expect(pos(b.horizonBand({ ...base, shoreLip: { width: 8, color: 0xffffff } }))).toEqual(pos(b.horizonBand(base)));
+    // a water running out past the bounds to the west
+    const avoid = [{ id: 'w', kind: 'rect', minX: -130, maxX: -20, minZ: -10, maxZ: 10 }];
+    const plain = b.horizonBand({ ...base, avoid });
+    const lipped = b.horizonBand({ ...base, avoid, shoreLip: { width: 8, color: 0xd0c090 } });
+    const heightAt = (m, x) => {
+      const p = m.geometry.attributes.position;
+      let best = null;
+      for (let v = 0; v < p.count; v++) {
+        if (Math.abs(p.getZ(v)) > 0.5) continue;
+        if (!best || Math.abs(p.getX(v) - x) < Math.abs(best[0] - x)) best = [p.getX(v), p.getY(v)];
+      }
+      return best[1];
+    };
+    // 0.4 of the 60 m span out is 24 m past the inner edge, x = -80: there the
+    // plain band starts to climb; the lipped one holds a lip past it.
+    const lipY = heightAt(lipped, -86);
+    expect(lipY).toBeGreaterThan(0.1);
+    expect(lipY).toBeLessThan(0.45);
+    expect(heightAt(plain, -86)).toBeGreaterThan(lipY);
+    expect(lipped.material.vertexColors).toBe(true);
+  });
+
   const tints = { north: 0x336633, east: 0x884422, south: 0x224488, west: 0x888822 };
 
   it('sideTint gives each side its colour', () => {

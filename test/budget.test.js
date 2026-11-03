@@ -185,8 +185,9 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // once, not again in the shadow pass), built from hand-made low-poly pieces.
 // Its triangles count here like any other mesh's. The ceilings did not move
 // (a first cut merged into the band raised four of them; that was undone):
-// where there was not room for the whole ring, it runs only along the arc a
-// kid sees on turning round at the spawn (builder.js EDGE_STYLES `arcs`).
+// where there was not room for the whole ring, it ran only along the arc a
+// kid sees on turning round at the spawn (builder.js EDGE_STYLES `arcs`; no
+// style uses it since polish-places Task 5, below).
 //
 //   area          edge mesh   build total   ceiling   (ring)
 //   neighborhood      3,860        29,759    60,000   all round, tree row
@@ -197,10 +198,11 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                                     no trees (105 left)
 //   moor                756        59,761    60,000   +x/+z corner arc only,
 //                                                     no trees (239 left)
+//   (river and moor as of that pass; see polish-places Task 5 below for
+//   their whole rings.)
 //
-// THE RIVER AND THE MOOR ARE NOW WITHIN A FEW HUNDRED TRIANGLES OF THEIR
-// CEILINGS: the next build that adds triangles there must trim something,
-// or raise the ceiling with a written reason.
+// At the time the River and the Moor were within a few hundred triangles of
+// their ceilings; polish-places Task 1 (below) freed 10,660 and 8,700.
 //
 // The same pass gave the Seaside's cliff and overlook a finer face grid so
 // their gullies can be cut: the two rock boxes went from 2,292 triangles
@@ -230,6 +232,21 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // step board and two posts, one noCast mesh). Seaside 23,740 -> 26,904
 // triangles, meshes 66 -> 68, casters 33 (unchanged); merged 49 -> 51 meshes,
 // 28 casters. Every other area and every ceiling unchanged.
+//
+// 2026-11-03, polish-places Task 5: the River's reeds and the Moor's wall run
+// all the way round (the spawn-corner arc is gone), each with a sparse far
+// tree row (low round marsh trees; lone wind-bent hawthorns), and the bands
+// gained a `shoreLip` (a flat pale beach where a water running off the map
+// meets the far hills: the Moor's lake, the River's lake and rivers), which
+// keeps a few more band cells. Meshes and casters unchanged (the edge is the
+// same one noCast mesh).
+//
+//   area     edge mesh         band            build total        left
+//   river      424 -> 2,254    3,338 -> 3,384  49,235 -> 51,111   8,889
+//   moor       756 -> 3,582    3,434 -> 3,438  51,061 -> 53,891   6,109
+//
+// The Woods', Pines' and Gorge's bands are byte-identical (test/builder.test.js
+// pins their hashes); every other area and every ceiling unchanged.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

@@ -289,6 +289,34 @@ describe('the River: the island and the horizon', () => {
   });
 });
 
+// polish-places Task 5: the reeds used to run only along the arc behind the
+// spawn; Task 1's trimmed reed beds paid for the whole ring and a row of low
+// marsh trees. The waters that run off the map end at a pale muddy shore
+// before the far hills (the band's `shoreLip`).
+const b = await import('../src/world/builder.js');
+describe('the River: the edge all the way round', () => {
+  const { RIVER_HORIZON } = river;
+  const side = (u) => Math.floor(u * 4) % 4;
+
+  it('the edge runs round every corner', () => {
+    const E = RIVER_HORIZON.edge;
+    const spots = b.edgeSpots(E, RIVER_HORIZON.salt, E.avoid);
+    const near = new Set(spots.filter((s) => s.kind !== 'tree' && s.u !== null).map((s) => side(s.u)));
+    expect([...near].sort()).toEqual([0, 1, 2, 3]);
+    const trees = spots.filter((s) => s.kind === 'tree');
+    expect(new Set(trees.map((s) => side(s.u))).size).toBeGreaterThanOrEqual(3);
+    const edge = scene.getObjectByName('horizonEdge');
+    const pos = edge.geometry.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      expect(b.waterClearance(area.waters, pos.getX(v), pos.getZ(v)), `vertex ${v}`).toBeGreaterThanOrEqual(1.0);
+    }
+  }, 120_000);
+
+  it('the lake ends at a shore before the far hills', () => {
+    expect(RIVER_HORIZON.shoreLip).toEqual({ width: 6, color: 0xa8a47a });
+  });
+});
+
 describe('the River: the area record', () => {
   it('builds the same camp, a den and a leader\'s rock, every time', async () => {
     const { campLayout } = await import('../src/world/camp.js');

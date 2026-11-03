@@ -315,6 +315,69 @@ describe('the Moor: the island and the horizon', () => {
   });
 });
 
+// polish-places Task 5: the wall used to run only along the arc behind the
+// spawn; Task 1's trimmed heather paid for the whole ring and a few hawthorns.
+// And the lake, where it runs out west under the hills, now reaches a pale
+// beach (the band's `shoreLip`) before the hills rise, not a dark hill face.
+const b = await import('../src/world/builder.js');
+describe('the Moor: the edge all the way round, and the lake\'s far shore', () => {
+  const side = (u) => Math.floor(u * 4) % 4;
+
+  it('the edge runs round every corner', () => {
+    const E = MOOR_HORIZON.edge;
+    const spots = b.edgeSpots(E, MOOR_HORIZON.salt, E.avoid);
+    const near = new Set(spots.filter((s) => s.kind !== 'tree' && s.u !== null).map((s) => side(s.u)));
+    expect([...near].sort()).toEqual([0, 1, 2, 3]);
+    const trees = spots.filter((s) => s.kind === 'tree');
+    expect(new Set(trees.map((s) => side(s.u))).size).toBeGreaterThanOrEqual(3);
+    // sparse: lone hawthorns, not a wood
+    expect(trees.length).toBeGreaterThan(8);
+    expect(trees.length).toBeLessThan(40);
+    // ... and every vertex of the edge mesh is a metre or more off the water
+    const edge = scene.getObjectByName('horizonEdge');
+    const pos = edge.geometry.attributes.position;
+    for (let v = 0; v < pos.count; v++) {
+      expect(b.waterClearance(area.waters, pos.getX(v), pos.getZ(v)), `vertex ${v}`).toBeGreaterThanOrEqual(1.0);
+    }
+  }, 120_000);
+
+  it('the lake meets the far hills at a shore', () => {
+    expect(MOOR_HORIZON.shoreLip).toEqual({ width: 8, color: 0xb8ac80 });
+    const band = scene.getObjectByName('horizonBand');
+    const ray = new THREE.Raycaster();
+    const at = (x, z) => {
+      ray.set(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObject(band, false)[0];
+      return hit ? hit.point.y : -Infinity; // a dropped cell: open water
+    };
+    for (const z of [40, 60]) {
+      const xs = [];
+      for (let x = -70; x >= -110; x -= 0.25) xs.push([x, at(x, z)]);
+      // over the lake at first, at the waterline or under it
+      expect(xs[0][1], `z ${z}`).toBeLessThan(0.1);
+      const out = xs.findIndex(([, y]) => y >= 0.1);
+      const up = xs.findIndex(([, y]) => y >= 0.6);
+      expect(out, `z ${z}: the band comes out of the water`).toBeGreaterThan(0);
+      expect(up, `z ${z}: the hills rise`).toBeGreaterThan(out);
+      // a lip of 6 m or more under 0.6 m before the hills
+      expect(xs[out][0] - xs[up][0], `z ${z}`).toBeGreaterThanOrEqual(6);
+      expect(Math.max(...xs.map(([, y]) => y)), `z ${z}`).toBeGreaterThan(2);
+    }
+    // the lip is painted the lip's colour
+    const lip = new THREE.Color(0xb8ac80);
+    const pos = band.geometry.attributes.position;
+    const col = band.geometry.attributes.color;
+    let painted = 0;
+    for (let v = 0; v < pos.count; v++) {
+      const x = pos.getX(v); const y = pos.getY(v); const z = pos.getZ(v);
+      if (x > -76 || x < -110 || z < 36 || z > 64 || y < 0.2 || y > 0.35) continue;
+      const off = Math.max(Math.abs(col.getX(v) - lip.r), Math.abs(col.getY(v) - lip.g), Math.abs(col.getZ(v) - lip.b));
+      if (off < 0.01) painted++;
+    }
+    expect(painted).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('the Moor: the area record', () => {
   it('builds the same camp, a den and a leader\'s rock, every time', async () => {
     const { campLayout } = await import('../src/world/camp.js');

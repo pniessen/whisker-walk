@@ -1137,6 +1137,13 @@ const DROP_AT = 0.02;
 // Within this many metres of a `keepLow` zone the band rises back from the
 // waterline to its usual height.
 const KEEP_LOW_RAMP = 4;
+// A `shoreLip` (see horizonBand): how high its flat stretch stands over the
+// band's sunk zero (just above the 0.03 waterline), how far in front of
+// CLOSE_FROM it climbs out of the water, and over how much height above the
+// lip its colour fades back into the hills'.
+const LIP_H = 0.3;
+const LIP_RISE = 2;
+const LIP_FADE = 1.2;
 
 // The unit square's perimeter at parameter u in [0, 1): four sides, corner to
 // corner. A SQUARE ring rather than a circular one, because every area's
@@ -1426,8 +1433,9 @@ function addHouse(parts, tones, bases, { k, x, z, yaw, surface, height, salt, ti
 // (userData.noCast), vertex-coloured and flat-shaded like the band, and dusk
 // tints it with the band (userData.duskTint, render/dusk.js). Its pieces are
 // hand-built low-poly solids (a mound is 10 triangles, a reed blade 1, a wall
-// block 14, a tree 18-26), and where an area's ceiling is tight the ring only
-// runs along the arc a kid sees on turning round at the spawn (`arcs`).
+// block 14, a tree 18-26). A style may limit its ring to arcs of the
+// perimeter (`arcs`); none does now (the River's and the Moor's ran only along
+// the arc behind the spawn until polish-places freed room for the whole ring).
 //
 // The heights are set by the camera, not by taste: the main camera can stand
 // up to 11m behind the cat at 6.5m up, and every area's bounds come within 5m
@@ -1440,18 +1448,17 @@ const freezeDeep = (o) => {
   for (const v of Object.values(o)) if (v && typeof v === 'object') freezeDeep(v);
   return Object.freeze(o);
 };
-// The River's spawn (44, 40) and the Moor's (46, 44) both sit near the +x/+z
-// corner. This arc (squarePoint's perimeter parameter) runs the +x side from
-// z ~ 12 round that corner to x ~ 7 on the +z side: everything a kid sees on
-// turning round at either spawn. Those two areas have under 1,000 triangles
-// left under their ceilings, so their near ring runs only here.
-const SPAWN_CORNER_ARC = [[0.15, 0.36]];
 // Per style: the palette and the sizes its pieces are drawn from. `max` is the
 // tallest any near piece may reach; `crowns` colour the far tree row, `tree`
 // is its shape ('oak', 'round' or 'pine'). `arcs` [[u0, u1], ...] limits the
 // near ring to those arcs of the perimeter (squarePoint's u: 0-0.25 the +x
 // side running toward +z, 0.25-0.5 the +z side running toward -x, ...);
-// omitted, it runs all the way round. `trees: false` leaves the far row out.
+// omitted, it runs all the way round. `trees: false` leaves the far row out;
+// `treeSkip` is the share of the row's spots left empty (TREE_SKIP when
+// omitted), and a round tree's `treeShape` { trunk: [min, range], r: [min,
+// range], ry, lean } sets its trunk height, crown radius, crown height (as a
+// share of the radius) and how far the crown is blown downwind (+x, the
+// moor's westerly), omitted: the Woods' bushy low round tree.
 // `jitter` is how far a piece wanders in and out of the line (EDGE_JITTER
 // when omitted): a wall is laid straighter than a hedge grows.
 export const EDGE_STYLES = freezeDeep({
@@ -1465,12 +1472,18 @@ export const EDGE_STYLES = freezeDeep({
   },
   reeds: {
     step: 2.9, greens: [0x8a9a5a, 0x9aa868, 0x7f9a56, 0xa7a86a], blades: 12, wMin: 0.16, wMax: 0.3, hMin: 0.7, hMax: 1.25,
-    crowns: [0x6f8a4e, 0x7a9256, 0x66804a], max: 1.3, arcs: SPAWN_CORNER_ARC, trees: false,
+    // The far row: low round marsh trees (alder, willow), half the spots
+    // empty, under 3.6m.
+    crowns: [0x6f8a4e, 0x7a9256, 0x66804a], trunk: 0x5a4a38, tree: 'round', max: 1.3, treeSkip: 0.5,
+    treeShape: { trunk: [0.8, 0.3], r: [1.3, 0.6], ry: 0.72, lean: 0 },
   },
   wall: {
     step: 2.2, greys: [0x7f7b73, 0x938f86, 0x726f69], cap: 0xaba79c, hMin: 0.7, hMax: 0.9, jitter: 0.08,
     gorse: 0x5a6630, bloom: 0xd8b84a, rMin: 0.6, rMax: 0.85, gorseH: 0.6,
-    crowns: [0x5a6a3a, 0x64703e, 0x545f36], max: 1.2, arcs: SPAWN_CORNER_ARC, trees: false,
+    // The far row: lone wind-bent hawthorns, two spots in three empty, each a
+    // leaning trunk under a squat crown blown east, under 3.5m.
+    crowns: [0x5a6a3a, 0x64703e, 0x545f36], trunk: 0x4a3c30, tree: 'round', max: 1.2, treeSkip: 0.65,
+    treeShape: { trunk: [1.2, 0.4], r: [1.0, 0.4], ry: 0.7, lean: 0.6 },
   },
   pinescrub: {
     step: 2.9, greens: [0x2f4a34, 0x3a5a3c], rMin: 0.6, rMax: 1.0, hMin: 0.6, hMax: 0.95,
@@ -1579,7 +1592,7 @@ export function edgeSpots({ half, style, gaps = [], props = [] }, salt = 0, avoi
   const tMid = half + (TREE_FROM + TREE_TO) / 2;
   const m = 4 * Math.max(1, Math.round((2 * tMid) / TREE_STEP));
   for (let k = 0; k < m; k++) {
-    if (hash01(k, 3, st) < TREE_SKIP) continue;
+    if (hash01(k, 3, st) < (S.treeSkip ?? TREE_SKIP)) continue;
     const u = (k + 0.2 + 0.6 * hash01(k, 4, st)) / m;
     if (Array.isArray(S.trees) && !onArcs(S.trees, u)) continue;
     const [px, pz] = squarePoint(u);
@@ -1933,6 +1946,26 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       // A round tree: a trunk and one crown, top under 5m. The hedge's oaks
       // stand taller on their trunks; the Woods' trees are bushier and low.
       const oak = S.tree === 'oak';
+      const TS = S.treeShape;
+      if (TS) {
+        // A style's own round tree (the River's marsh trees, the Moor's
+        // hawthorns): its crown pushed `lean` downwind (+x in the world, so
+        // the whole row bends one way) and the trunk's top leaning after it.
+        const trunkH = TS.trunk[0] + TS.trunk[1] * h(1);
+        const r = TS.r[0] + TS.r[1] * h(3);
+        const ry = TS.ry * r;
+        const lx = TS.lean * Math.cos(yaw);
+        const lz = TS.lean * Math.sin(yaw);
+        const tg = trunk(0.2, trunkH + 0.3 * ry, shade(S.trunk, 0.9 + 0.2 * h(2)));
+        const tp = tg.attributes.position;
+        for (let v = 0; v < tp.count; v++) {
+          const f = Math.max(0, tp.getY(v)) / (trunkH + 0.3 * ry);
+          tp.setXYZ(v, tp.getX(v) + 0.6 * lx * f, tp.getY(v), tp.getZ(v) + 0.6 * lz * f);
+        }
+        place(tg, x, z, yaw, r);
+        place(crown(r, ry, trunkH + 0.85 * ry, faces(1), hh).translate(lx, 0, lz), x, z, yaw, r);
+        return;
+      }
       const trunkH = oak ? 1.8 + 0.6 * h(1) : 1.0 + 0.4 * h(1);
       const r = oak ? Math.min(1.6 + 0.5 * h(3), (5 - trunkH) / 1.5) : 1.6 + 0.8 * h(3);
       const ry = Math.min(0.85 * r, (5 - trunkH) / 1.85);
@@ -2244,6 +2277,14 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
  *             by smoothstep to its usual colour (side tint or `color`) by
  *             flat + ramp/2: the lawn carries on instead of stopping at a pale
  *             strip. Vertex colours then, material white. Omitted: none.
+ *   shoreLip  { width, color } — where the far side of `shore` lifts the hills
+ *             over a water that runs on past the bounds, the band first climbs
+ *             out of the water to a flat lip LIP_H over its zero (a beach, in
+ *             `color`), holds it for `width` metres, and only then ramps up
+ *             into the hills (the ramp moved out by `width`). Without it the
+ *             hills rose straight out of the water as a dark face. Vertex
+ *             colours then, material white. Omitted: the band is
+ *             byte-for-byte what it was.
  *   edge      { half, style, gaps, avoid, props } — low dressing straddling the
  *             ground plane's edge (`half` its half-size) and a sparse tree row
  *             well outside it, in one of EDGE_STYLES (see edgeSpots), as ONE
@@ -2277,6 +2318,7 @@ export function horizonBand({
   keepLow = [],
   nearColor = null,
   edge = null,
+  shoreLip = null,
 } = {}) {
   const span = outer - inner;
   // The vertical profile, as a pure function of how far out a point is. See
@@ -2324,15 +2366,31 @@ export function horizonBand({
     for (const k of keepLow) m = Math.min(m, segmentDist(x, z, k) - k.r);
     return smoothstep(0, KEEP_LOW_RAMP, m);
   };
+  // With a `shoreLip` the far rise starts `width` further out, and `lipAt`
+  // (0-1) is how much of the lip stands at a point: past CLOSE_FROM, as much
+  // as the point is water rather than dry shore, never over a keepLow zone.
+  const lipW = shoreLip ? shoreLip.width : 0;
   const shore = (x, z, d) => {
     if (avoid.length === 0) return 1;
     const c = waterClearance(avoid, x, z);
     const dry = smoothstep(0, SHORE_RAMP, c);
-    const far = closeWater ? smoothstep(CLOSE_FROM * span, CLOSE_TO * span, d) : 0;
+    const far = closeWater
+      ? (shoreLip ? smoothstep(CLOSE_FROM * span + lipW, CLOSE_TO * span + lipW, d)
+        : smoothstep(CLOSE_FROM * span, CLOSE_TO * span, d))
+      : 0;
     const f = Math.max(c < 0 ? 0 : dry, far);
     return keepLow.length ? Math.min(f, lowZone(x, z)) : f;
   };
-  const heightAt = (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d) * shore(x, z, d);
+  const lipAt = (x, z, d) => {
+    if (!shoreLip || !closeWater || avoid.length === 0) return 0;
+    const c = waterClearance(avoid, x, z);
+    const k = (1 - (c < 0 ? 0 : smoothstep(0, SHORE_RAMP, c)))
+      * smoothstep(CLOSE_FROM * span - LIP_RISE, CLOSE_FROM * span, d);
+    return keepLow.length ? k * lowZone(x, z) : k;
+  };
+  const heightAt = shoreLip
+    ? (x, z, d) => -BAND_SINK + Math.max(ringHeight * relief(x, z) * lift(d) * shore(x, z, d), LIP_H * lipAt(x, z, d))
+    : (x, z, d) => -BAND_SINK + ringHeight * relief(x, z) * lift(d) * shore(x, z, d);
   const wet = (x, z) => avoid.length > 0 && waterClearance(avoid, x, z) < 0;
 
   // ---- the ring surface ----------------------------------------------------
@@ -2454,11 +2512,13 @@ export function horizonBand({
   // own colour moves into the vertex colours. (Rooftops: a roof block's tint already IS the band colour, so on a
   // band-coloured material it would be applied twice. Every shipped band with
   // rooftops has sideTints and was white already, so none changes.)
-  const white = !!sideTints || nearColor != null || !!rooftops;
+  const white = !!sideTints || nearColor != null || !!rooftops || !!shoreLip;
   const plain = white && !sideTints ? new THREE.Color(color) : null;
   const near = nearColor != null ? new THREE.Color(nearColor) : null;
   const nearMix = new THREE.Color();
-  const coloured = kind === 'skyline' || !!sideTints || !!rooftops || nearColor != null;
+  const lipCol = shoreLip ? new THREE.Color(shoreLip.color) : null;
+  const lipMix = new THREE.Color();
+  const coloured = kind === 'skyline' || !!sideTints || !!rooftops || nearColor != null || !!shoreLip;
   if (coloured) {
     parts.forEach((p, i) => {
       if (p.attributes.color) return;
@@ -2472,6 +2532,15 @@ export function horizonBand({
         if (i === 0 && near) {
           const d = Math.max(Math.abs(pp.getX(v)), Math.abs(pp.getZ(v))) - inner;
           t = nearMix.copy(near).lerp(t, smoothstep(flat, flat + 0.5 * ramp, d));
+        }
+        if (i === 0 && lipCol) {
+          // The lip in its own colour, fading into the hills' as they rise
+          // above it.
+          const x = pp.getX(v);
+          const z = pp.getZ(v);
+          const d = Math.max(Math.abs(x), Math.abs(z)) - inner;
+          const k = lipAt(x, z, d) * (1 - smoothstep(LIP_H - BAND_SINK, LIP_H - BAND_SINK + LIP_FADE, pp.getY(v)));
+          if (k > 0) t = lipMix.copy(t).lerp(lipCol, k);
         }
         c[v * 3] = r * (t ? t.r : 1);
         c[v * 3 + 1] = g2 * (t ? t.g : 1);
