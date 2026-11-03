@@ -57,7 +57,8 @@ export const CLAN_COATS = Object.freeze({
     coat('tabby', 0xdcc49a, 0xf4ead2, 0xb39468, { stripes: true }),
     coat('tabby', 0xbcb6aa, 0xf5f5f2, 0x8e887c, { whiteLegs: true, chin: true }),
   ),
-  // BrookClan: grey-blues and silvers.
+  // BrookClan: a blue-grey, a pale silver tabby, a dark slate, a grey-and-white
+  // (socks and chin), and a pale smoky fluffy.
   river: rows(
     coat('siamese', 0x6f7d8c, 0xb7c0ca, 0x4e5966),
     coat('siamese', 0xb4c6e0, 0xeef1f4, 0x3a4452, { stripes: true, headStripes: true }),

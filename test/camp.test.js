@@ -176,7 +176,6 @@ describe('addCamp', () => {
         if (Math.hypot(v.x - L.rock.x, v.z - L.rock.z) > 0.42) continue;
         const at = `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
         expect(v.y, at).toBeLessThanOrEqual(0.82);
-        expect(v.y, at).toBeLessThanOrEqual(0.85);
         if (v.y >= 0.78 && v.y <= 0.82) flat++;
       }
       expect(flat, a).toBeGreaterThanOrEqual(6);
@@ -248,12 +247,25 @@ describe('addCamp', () => {
         const t = Math.max(0, Math.min(1, ((v.x - p.x) * dx + (v.z - p.z) * dz) / (dx * dx + dz * dz)));
         return Math.hypot(v.x - (p.x + dx * t), v.z - (p.z + dz * t));
       };
+      let strandOnly = 0;
       for (const v of verts) {
         const inClump = cs.some((c) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s + 1e-6 && v.y <= c.h + 1e-6);
         const onStrand = cs.some((c, i) => i > 0 && Math.hypot(c.x - cs[i - 1].x, c.z - cs[i - 1].z) <= 0.6 && nearSeg(v, cs[i - 1], c) <= 0.03);
         expect(inClump || onStrand, `${a} ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`).toBe(true);
         expect(v.y).toBeLessThanOrEqual(1.0);
+        if (!inClump && onStrand) strandOnly++;
       }
+      // the strands are there: some of their vertices lie outside every
+      // clump, and the triangle count is 28 a clump (icosahedron 20 +
+      // octahedron 8) plus 24 a strand, one strand over each pair of
+      // consecutive kept clumps (0-1, 2-3, ...) 0.6 m or less apart
+      expect(strandOnly, a).toBeGreaterThan(0);
+      let strands = 0;
+      for (let i = 1; i < cs.length; i += 2) if (Math.hypot(cs[i].x - cs[i - 1].x, cs[i].z - cs[i - 1].z) <= 0.6) strands++;
+      expect(strands, a).toBeGreaterThan(0);
+      const g = scene.getObjectByName('campRing').geometry;
+      const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+      expect(tris, a).toBe(28 * cs.length + 24 * strands);
       // ...and every clump is drawn
       for (const c of cs) expect(verts.some((v) => Math.hypot(v.x - c.x, v.z - c.z) <= CLUMP_R * c.s)).toBe(true);
       // the clearing lies flat just over the ground, within its radius

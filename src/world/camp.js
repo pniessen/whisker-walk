@@ -162,7 +162,7 @@ const RING_IN = 0.6;          // the ring's radius: disc.r - 0.6
 const RING_GAP_HALF = 0.33;   // radians either side of the gap's centre
 // polish-viewclear: a wall, not a dotted circle. Clumps every 0.36 m of arc in
 // two staggered rows (slot i's row is i % 2: row 0 sits 0.16 m in from the
-// ring, row 1 0.16 m out), so neighbours overlap and the wall reads solid; the
+// ring, row 1 0.16 m out), so neighbours sit close and the wall reads solid; the
 // clumps at the two ends of the gap (the first and last slot) are the gate
 // posts, 1.25 times as tall (to 0.95 m at most).
 const RING_STEP = 0.36;       // metres of arc per clump
@@ -486,7 +486,8 @@ function highrockGeometry(rockSpot, cx, cz) {
   parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(bx, 0.85, bz, 0.22, 0.85, 0.14, Math.PI / 2 - away)));
   const side = hash01(rockSpot.x, 0, rockSpot.z, 9) < 0.5 ? 1 : -1;
   const [stx, stz] = at(0.48, away + side * 1.25);
-  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(stx, 0.2, stz, 0.2, 0.27, 0.2, away)));
+  // y scale 0.26: the dodecahedron's top vertex (0.934) lands at 0.443 m
+  parts.push(bake(new THREE.DodecahedronGeometry(1, 0), place(stx, 0.2, stz, 0.2, 0.26, 0.2, away)));
   return merged(parts);
 }
 
@@ -519,9 +520,12 @@ function adopt(local) {
 // icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
 // side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
 // and no higher than its h; the staggered rows (campDressing) put neighbours
-// 0.41 to 0.57 m apart and 0.36 m along the ring, where the main lumps are
-// 0.39 m or more across, so they overlap. Over every other gap (between slot
-// pairs, kept clumps 0.6 m or less apart) one arched bramble strand: a thin
+// 0.41 to 0.57 m apart and 0.36 m along the ring, about the main lumps' own
+// width (0.39 to 0.59 m across), so big neighbours meet or overlap and small
+// ones leave a gap the other row's lumps and the back lumps mostly fill.
+// Over every other gap between consecutive KEPT clumps (the kept list's
+// 0-1, 2-3, ... pairs, not campDressing's slots, so a dropped clump shifts
+// the pairing; pairs 0.6 m or less apart) one arched bramble strand: a thin
 // half torus (24 triangles) standing upright between their crowns, its arch
 // squashed where it would rise over 1 m (ruling R3). Greens by hash, dark at
 // the foot; the strands darker. One vertex-coloured mesh, out of the shadow
