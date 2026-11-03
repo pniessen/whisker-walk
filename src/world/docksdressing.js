@@ -185,12 +185,13 @@ export const GULL_SPOTS = Object.freeze([
 ].map((g) => Object.freeze(g)));
 
 // Gulls afloat on the canal (polish-gulls): no legs, the body sitting low in
-// the water (y is the gull's origin, 0.1 under the canal's 0.04 surface), and
+// the water (y is the gull's origin, 0.125 under the canal's 0.04 surface, deep
+// enough that the top of its 2.5 cm bob never lifts the body clear), and
 // clear of both bridges, both barges, every boat and both duck circles.
 export const FLOAT_GULLS = Object.freeze([
-  { x: -4.5, z: 1.6, y: -0.06, rot: -2.0 },
-  { x: 21, z: -1.3, y: -0.06, rot: 0.9 },
-  { x: -35, z: -0.8, y: -0.06, rot: 2.4 },
+  { x: -4.5, z: 1.6, y: -0.085, rot: -2.0 },
+  { x: 21, z: -1.3, y: -0.085, rot: 0.9 },
+  { x: -35, z: -0.8, y: -0.085, rot: 2.4 },
 ].map((g) => Object.freeze(g)));
 
 // The decorative wet patches (polish-docks Task 3): darker blue-grey stone a
@@ -559,10 +560,11 @@ float gullLift(vec4 g) {
   return (kind > 0.5 && kind < 1.5) ? sin(uGullTime * 1.3 + fract(g.w) * 6.2831853) * 0.025 : 0.0;
 }`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-objectNormal = gullTurn(aGull) * objectNormal;`)
+mat3 gTurn = gullTurn(aGull);
+objectNormal = gTurn * objectNormal;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 if (aGull.w > 0.5) {
-  transformed = aGull.xyz + gullTurn(aGull) * (transformed - aGull.xyz);
+  transformed = aGull.xyz + gTurn * (transformed - aGull.xyz);
   transformed.y += gullLift(aGull);
 }`);
   };

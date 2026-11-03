@@ -355,7 +355,8 @@ describe('docks dressing', () => {
       expect(Math.abs(g.x), where).toBeLessThanOrEqual(38);
       // body low in the water: its 0.17-high centre sits a few cm above the 0.04 surface
       expect(g.y + 0.17, where).toBeGreaterThan(0.04);
-      expect(g.y + 0.17 - 0.085, where).toBeLessThan(0.04);
+      // and stays in it at the top of its 0.025 bob
+      expect(g.y + 0.17 - 0.085 + 0.025, where).toBeLessThan(0.04);
       for (const r of [...decks, ...barges]) expect(gap(g.x, g.z, r), `${where} by ${JSON.stringify(r)}`).toBeGreaterThan(1);
       for (const d of ducks) expect(Math.hypot(g.x - d.x, g.z - d.z) - d.r, `${where} by a duck`).toBeGreaterThan(1);
       for (const b of dressing.BOATS) {
@@ -646,7 +647,7 @@ describe('docks dressing', () => {
     m.onBeforeCompile(shader);
     expect(shader.uniforms.uGullTime).toBe(u.uGullTime);
     expect(shader.vertexShader).toContain('attribute vec4 aGull;');
-    expect(shader.vertexShader).toContain('objectNormal = gullTurn(aGull) * objectNormal;');
+    expect(shader.vertexShader).toContain('objectNormal = gTurn * objectNormal;');
     expect(shader.vertexShader).toContain('transformed.y += gullLift(aGull);');
   });
 });
