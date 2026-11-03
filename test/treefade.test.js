@@ -6,9 +6,9 @@
 // clone per faded tree), and puts every original back when clear and on dispose.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { tree, pine, pineStand } from '../src/world/builder.js';
+import { tree, pine, pineStand, house, warehouse } from '../src/world/builder.js';
 import { findOccluders } from '../src/fightcam.js';
-import { createTreeFade, FADE_OPACITY, PAST_LOOK } from '../src/treefade.js';
+import { createTreeFade, findFadeOccluders, segmentHitsBox, BUILDING_PAD, FADE_OPACITY, PAST_LOOK } from '../src/treefade.js';
 import { closeDiffs } from './helpers/closeto.js';
 
 const meshesOf = (g) => {
@@ -419,5 +419,215 @@ describe('treefade', () => {
     expect(() => fade.update(1, camera, LOOK)).not.toThrow();
     expect(fade.faded().size).toBe(0);
     fade.dispose();
+  });
+});
+
+
+// Buildings (window-bearing groups) and fade-only shapes (viewclear2 Task 1).
+function bworld(extra) {
+  const scene = new THREE.Scene();
+  const h = house(0, 0);
+  scene.add(h);
+  if (extra) extra(scene);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+  return { scene, h, camera, entries: findFadeOccluders(scene) };
+}
+const fadedAll = (g) => meshesOf(g).every((m) => (
+  closeDiffs(m.material.opacity, FADE_OPACITY).length === 0 && m.material.transparent && m.material.depthWrite === false));
+const BOX = { minX: -1, maxX: 1, minY: 0, maxY: 2, minZ: -1, maxZ: 1 };
+
+describe('treefade buildings and fade shapes', () => {
+  it('findFadeOccluders finds houses and warehouses as boxes, not trees', () => {
+    const scene = new THREE.Scene();
+    const h = house(10, 5);
+    const w = warehouse(-20, 3, 12, 8, 6);
+    scene.add(h, w, tree(0, 0));
+    const out = findFadeOccluders(scene);
+    expect(out.length).toBe(2);
+    // Explicit numbers: xz from the wall-level meshes (a house's pyramid roof and a
+    // warehouse's parapet are left out), y from everything, door/window/lintel depth included.
+    const want = new Map([
+      [h, [7.5, 12.5, 0, 5, 3, 7.06]], // house(10, 5): x 10 +- 2.5, z 5 - 2 .. 5 + 2.06 (door)
+      [w, [-26.06, -13.94, 0, 6.3, -1.06, 7.15]], // warehouse(-20, 3, 12, 8, 6): windows, lintel, parapet top
+    ]);
+    for (const g of [h, w]) {
+      const e = out.find((o) => o.obj === g);
+      const exp = want.get(g);
+      expect(closeDiffs([e.box.minX, e.box.maxX, e.box.minY, e.box.maxY, e.box.minZ, e.box.maxZ], exp, 1e-6)).toEqual([]);
+      expect(closeDiffs([e.x, e.z, e.top], [(exp[0] + exp[1]) / 2, (exp[4] + exp[5]) / 2, exp[3]], 1e-6)).toEqual([]);
+      expect(closeDiffs(e.R, Math.hypot(exp[1] - exp[0], exp[5] - exp[4]) / 2, 1e-6)).toEqual([]);
+    }
+  });
+
+  it('a camera just above a box top (0.2 m) over its middle does not fade it; inside does', () => {
+    const { h, camera, entries } = bworld();
+    const b = entries[0].box;
+    const look = { x: 30, y: b.maxY + 0.2, z: 30 }; // level with the camera, so the line stays above the box
+    for (const [y, want] of [[b.maxY + 0.2, false], [b.maxY - 0.2, true]]) {
+      const fade = createTreeFade(entries);
+      camera.position.set((b.minX + b.maxX) / 2, y, (b.minZ + b.maxZ) / 2);
+      fade.update(1, camera, look);
+      expect(fade.faded().has(h)).toBe(want);
+      fade.dispose();
+    }
+  });
+
+  it('a fadeOccluder group holding a window mesh yields one entry only', () => {
+    const scene = new THREE.Scene();
+    const g = house(0, 0);
+    g.userData.fadeOccluder = [{ t: 'cyl', r: 0.5, y0: 0, y1: 3 }];
+    scene.add(g);
+    const out = findFadeOccluders(scene);
+    expect(out.filter((e) => e.obj === g).length).toBe(1);
+    expect(out.length).toBe(1);
+  });
+
+  it('prewarm swaps one warehouse of two with different window counts (one kind)', () => {
+    const scene = new THREE.Scene();
+    const a = warehouse(0, 0, 8, 6, 4), c = warehouse(30, 0, 14, 6, 6);
+    scene.add(a, c);
+    const fade = createTreeFade(findFadeOccluders(scene));
+    let swapped = null;
+    fade.prewarm(() => {
+      swapped = [a, c].map((g) => meshesOf(g).every((m) => [].concat(m.material).every((x) => x.transparent && !x.depthWrite)));
+    });
+    expect(swapped.filter(Boolean).length).toBe(1);
+    fade.dispose();
+  });
+
+  it('finds a tagged group with its shapes placed at the group', () => {
+    const scene = new THREE.Scene();
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 0.1), new THREE.MeshStandardMaterial()));
+    g.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }, { t: 'ell', y: 3.3, r: 0.22, ry: 0.22 }];
+    g.position.set(4, 0, -6);
+    scene.add(g);
+    const [e] = findFadeOccluders(scene);
+    expect(e.obj).toBe(g);
+    expect(closeDiffs([e.x, e.z, e.R, e.top], [4, -6, 0.22, 3.52])).toEqual([]);
+    expect(e.shapes.length).toBe(2);
+    expect(closeDiffs([e.shapes[0].x, e.shapes[0].z, e.shapes[0].r, e.shapes[0].y0, e.shapes[0].y1, e.shapes[0].p], [4, -6, 0.08, 0, 3.2, 0])).toEqual([]);
+    expect(closeDiffs([e.shapes[1].x, e.shapes[1].y, e.shapes[1].z, e.shapes[1].p], [4, 3.3, -6, 0])).toEqual([]);
+  });
+
+  it('fades a house the camera is inside, or 0.3 m outside a wall; not 1 m out', () => {
+    const { h, camera, entries } = bworld();
+    const b = entries[0].box;
+    const look = { x: 30, y: 0.35, z: 30 };
+    for (const [x, z, want] of [[(b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2, true], [b.maxX + 0.3, 0, true], [b.maxX + 1, 0, false]]) {
+      const fade = createTreeFade(entries);
+      camera.position.set(x, 1.5, z);
+      fade.update(1, camera, look);
+      expect(fade.faded().has(h)).toBe(want);
+      if (want) expect(fadedAll(h)).toBe(true);
+      fade.dispose();
+    }
+  });
+
+  it('fades a house on the camera line, not one 3 m beyond the look point', () => {
+    const { h, camera, entries } = bworld();
+    const fade = createTreeFade(entries);
+    camera.position.set(0, 1.5, -12);
+    fade.update(1, camera, { x: 0, y: 0.35, z: 8 });
+    expect(fade.faded().has(h)).toBe(true);
+    expect(fadedAll(h)).toBe(true);
+    fade.dispose();
+    const b = entries[0].box;
+    const f2 = createTreeFade(entries);
+    camera.position.set(0, 1.5, b.minZ - 20);
+    f2.update(1, camera, { x: 0, y: 0.35, z: b.minZ - 3 }); // house is 3 m beyond the look point
+    expect(f2.faded().has(h)).toBe(false);
+    f2.dispose();
+  });
+
+  it('fades a tagged pole between camera and cat, not one 1 m to the side', () => {
+    const mk = (x) => {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 0.1), new THREE.MeshStandardMaterial()));
+      g.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }];
+      g.position.set(x, 0, 0);
+      return g;
+    };
+    const { camera } = bworld();
+    for (const [x, want] of [[0, true], [1, false]]) {
+      const scene = new THREE.Scene();
+      const pole = mk(x);
+      scene.add(pole);
+      const fade = createTreeFade(findFadeOccluders(scene));
+      camera.position.set(0, 1.5, -4);
+      fade.update(1, camera, { x: 0, y: 0.35, z: 3 });
+      expect(fade.faded().has(pole)).toBe(want);
+      fade.dispose();
+    }
+  });
+
+  it('puts the originals back when clear and on dispose, never writing visible', () => {
+    const { h, camera, entries } = bworld();
+    const originals = meshesOf(h).map((m) => m.material);
+    const vis = meshesOf(h).map((m) => m.visible);
+    const fade = createTreeFade(entries);
+    camera.position.set(0, 1.5, -12);
+    fade.update(1, camera, { x: 0, y: 0.35, z: 8 });
+    expect(fade.faded().has(h)).toBe(true);
+    camera.position.set(0, 1.5, 30);
+    fade.update(5, camera, { x: 0, y: 0.35, z: 40 });
+    expect(fade.faded().size).toBe(0);
+    meshesOf(h).forEach((m, i) => expect(m.material).toBe(originals[i]));
+    camera.position.set(0, 1.5, -12);
+    fade.update(1, camera, { x: 0, y: 0.35, z: 8 });
+    expect(fade.faded().has(h)).toBe(true);
+    fade.dispose();
+    meshesOf(h).forEach((m, i) => { expect(m.material).toBe(originals[i]); expect(m.visible).toBe(vis[i]); });
+    expect(h.visible).toBe(true);
+  });
+
+  it('segmentHitsBox', () => {
+    const P = (x, y, z) => ({ x, y, z });
+    expect(segmentHitsBox(P(-3, 1, 0), P(3, 1, 0), BOX)).toBe(true); // through
+    expect(segmentHitsBox(P(-3, 3, 0), P(3, 3, 0), BOX)).toBe(false); // miss (over)
+    expect(segmentHitsBox(P(-3, 1, 0), P(0, 1, 0), BOX)).toBe(true); // ends inside
+    expect(segmentHitsBox(P(0, 1, 0), P(3, 1, 0), BOX)).toBe(true); // starts inside
+    expect(segmentHitsBox(P(-3, 1, 2), P(3, 1, 2), BOX)).toBe(false); // parallel to a face, outside
+    expect(segmentHitsBox(P(-3, 1, 0), P(-2, 1, 0), BOX)).toBe(false); // stops short
+    expect(BUILDING_PAD).toBe(0.4);
+  });
+});
+
+describe('treefade near poles (viewclear2)', () => {
+  function pole(x, z) {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 0.1), new THREE.MeshStandardMaterial()));
+    g.userData.fadeOccluder = [{ t: 'cyl', r: 0.08, y0: 0, y1: 3.2 }, { t: 'ell', y: 3.3, r: 0.22, ry: 0.22 }];
+    g.position.set(x, 0, z);
+    return g;
+  }
+  const run = (g) => {
+    const scene = new THREE.Scene();
+    scene.add(g);
+    const fade = createTreeFade(findFadeOccluders(scene).concat(findOccluders(scene)));
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(0, 2, -3);
+    fade.update(1, camera, LOOK);
+    return fade.faded().has(g);
+  };
+  it('a pole 1 m beside the camera, off the line, fades', () => { expect(run(pole(1, -3))).toBe(true); });
+  it('a pole 2 m beside the camera, off the line, does not', () => { expect(run(pole(2, -3))).toBe(false); });
+  it('a pole 1 m beside but above the camera does not', () => {
+    const g = pole(1, -3);
+    const scene = new THREE.Scene();
+    scene.add(g);
+    const fade = createTreeFade(findFadeOccluders(scene));
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+    camera.position.set(0, 4, -3);
+    fade.update(1, camera, LOOK);
+    expect(fade.faded().has(g)).toBe(false);
+  });
+  it('a tree 1 m beside the camera, outside its R and off the line, is unchanged', () => {
+    const t = tree(1, -3);
+    const [o] = findOccluders((() => { const s = new THREE.Scene(); s.add(t); return s; })());
+    expect(o.near).toBeUndefined();
+    // off the line and not inside its canopy: only the old rules apply
+    const inside = o.R > 1;
+    expect(run(t)).toBe(inside);
   });
 });

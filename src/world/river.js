@@ -109,6 +109,18 @@ export const RIVER_WATERS = Object.freeze([
   LAKE, LAKE_FAR, RIVER_WEST, RIVER_BEND, RIVER_EAST, POND, POOL_1, POOL_2, POOL_3,
 ]);
 
+// The horizon band (see the note at its scene.add in build). Polish "edges":
+// the strip past the ground's edge is the ground's own colour, and pale reeds
+// line the edge, keeping off every water.
+export const RIVER_HORIZON = Object.freeze({
+  kind: 'hills', inner: 56, outer: 116, height: 4, wavelength: 40,
+  color: 0x7f9a66, salt: 37,
+  avoid: Object.freeze([LAKE, LAKE_FAR, RIVER_WEST, RIVER_EAST]), keepLow: islandKeepLow('river'),
+  sideTints: Object.freeze({ north: 0x3f5a46, east: 0x4f7a48, south: 0x8a9a62, west: 0xa3a878 }),
+  nearColor: 0x7d9c55,
+  edge: Object.freeze({ half: 60, style: 'reeds', avoid: RIVER_WATERS }),
+});
+
 // How each water is drawn. One peaty green-blue for the lake, river and pond
 // (they are one water), a greener one for the standing pools. Heights differ
 // wherever footprints overlap so the planes never fight for a pixel.
@@ -480,11 +492,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // and the river leave the map the hills come down to the water and rise
   // again further out (builder.horizonBand's `shore`), but never over the
   // island or its bridge (`keepLow`).
-  scene.add(b.horizonBand({
-    kind: 'hills', inner: 56, outer: 116, height: 4, wavelength: 40,
-    color: 0x7f9a66, salt: 37, avoid: [LAKE, LAKE_FAR, RIVER_WEST, RIVER_EAST], keepLow: islandKeepLow('river'),
-    sideTints: { north: 0x3f5a46, east: 0x4f7a48, south: 0x8a9a62, west: 0xa3a878 },
-  }));
+  scene.add(b.horizonBand(RIVER_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });

@@ -654,9 +654,20 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
   // and never takes a click (pointer-events: none in style.css).
   let welcomeEl = null;
   let welcomeTimer = null;
+  let welcomeArmTimer = null;
+  let welcomeArmed = false;
+  // The bubble is position: fixed beside the cat's head; if the page scrolls
+  // (a tap on "Where to" does) it would float over other buttons, so any
+  // scroll closes it. Scrolls in the first moments (the render that put the
+  // bubble up) are ignored.
+  function onWelcomeScroll() { if (welcomeArmed) closeWelcome(); }
   function closeWelcome() {
     if (welcomeTimer !== null) clearTimeout(welcomeTimer);
+    if (welcomeArmTimer !== null) clearTimeout(welcomeArmTimer);
     welcomeTimer = null;
+    welcomeArmTimer = null;
+    welcomeArmed = false;
+    document.removeEventListener?.('scroll', onWelcomeScroll, { capture: true });
     welcomeEl?.remove();
     welcomeEl = null;
   }
@@ -697,6 +708,8 @@ export function createHomeBase(progression, album, onStartWalk, rooms, sync, clo
       }
     }
     document.body.appendChild(welcomeEl);
+    document.addEventListener?.('scroll', onWelcomeScroll, { capture: true, passive: true });
+    welcomeArmTimer = setTimeout(() => { welcomeArmTimer = null; welcomeArmed = true; }, 60);
     welcomeTimer = setTimeout(closeWelcome, WELCOME_MS);
   }
 

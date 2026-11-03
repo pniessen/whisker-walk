@@ -30,6 +30,13 @@ const POPUP_NEAR = 1.5; // m: only floaters this close (across the ground) stack
 
 // Reused across burst spawns to avoid per-call allocation of the velocity scratch vector.
 const _tmpVec = new THREE.Vector3();
+const _camPos = new THREE.Vector3();
+
+// The largest a score floater may read on screen, as a fraction of the
+// viewport height (about 58 px on a 720 px desktop, under 70 px on a phone).
+// A floater is a world-size sprite, so a camera pulled in close would blow it
+// up; update() shrinks it to this and no further.
+export const FLOATER_MAX_SCREEN = 0.08;
 
 // The fight's scratch (fight moves and scars, Task 6): three white claw
 // strokes, one pooled mesh. Each stroke is a thin quad in the mesh's own YZ
@@ -65,6 +72,7 @@ function slashGeometry() {
 export function createFx(scene, { reducedMotion = false, makeText = defaultMakeText } = {}) {
   /** @type {Array<{ obj: THREE.Object3D, life: number, ttl: number, kind: 'popup' | 'burst', velocities?: Float32Array, key?: string | null, total?: number }>} */
   const effects = [];
+  let lastCamera = null; // the camera update() last saw, so a new popup starts clamped
 
   // The slash mesh is built here, with the walk, and drawn (fully transparent)
   // on the walk's first frame so its shader compiles then, not at the first
@@ -126,6 +134,16 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
   //  - every floater keeps POPUP_GAP of air above the one under it: a new
   //    one starts at the head and pushes any live floater still too close
   //    upward, so a burst reads as a short column of numbers.
+  // Shrink a popup's sprite so it is at most FLOATER_MAX_SCREEN of the view
+  // height at its distance from the camera (never enlarges it). No allocation.
+  function clampPopup(effect, camera) {
+    if (!(effect.baseY > 0)) return;
+    const d = effect.obj.position.distanceTo(camera.getWorldPosition(_camPos));
+    const viewH = (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / (camera.zoom || 1);
+    const k = Math.min(1, (FLOATER_MAX_SCREEN * viewH) / effect.baseY);
+    effect.obj.scale.set(effect.baseX * k, effect.baseY * k, 1);
+  }
+
   function popup(position, text, opts = {}) {
     const key = opts.merge || null;
     const value = Number.isFinite(opts.value) ? opts.value : 0;
@@ -141,6 +159,8 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
         effect.obj.material.dispose();
       }
       effect.obj = fresh;
+      effect.baseX = fresh.scale.x;
+      effect.baseY = fresh.scale.y;
       scene.add(fresh);
       effect.life = 0;
       // re-file it as the newest effect, so a later floater stacks on it
@@ -149,10 +169,11 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     } else {
       const obj = makeText(text);
       scene.add(obj);
-      effect = { obj, life: 0, ttl: 1.1, kind: 'popup', key, total: value };
+      effect = { obj, life: 0, ttl: 1.1, kind: 'popup', key, total: value, baseX: obj.scale.x, baseY: obj.scale.y };
       effects.push(effect);
     }
     effect.obj.position.copy(position).add(_tmpVec.set(0, POPUP_RISE_FROM, 0));
+    if (lastCamera) clampPopup(effect, lastCamera);
     // push the floaters above it up, lowest first, so each clears the last
     let floor = effect.obj.position.y + POPUP_GAP;
     const above = effects
@@ -234,8 +255,10 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
     }
   }
 
-  function update(dt) {
+  function update(dt, camera) {
     updateSlash(dt);
+    const cam = camera?.isPerspectiveCamera ? camera : null;
+    if (cam) lastCamera = cam;
     for (let i = effects.length - 1; i >= 0; i--) {
       const effect = effects[i];
       effect.life += dt;
@@ -250,6 +273,7 @@ export function createFx(scene, { reducedMotion = false, makeText = defaultMakeT
         if (t > 0.6 && effect.obj.material) {
           effect.obj.material.opacity = 1 - (t - 0.6) / 0.4;
         }
+        if (cam) clampPopup(effect, cam);
       } else if (effect.kind === 'burst') {
         const positions = effect.obj.geometry.attributes.position.array;
         const velocities = effect.velocities;

@@ -154,7 +154,7 @@ export function campDiscs(areaId) {
 
 // ---------------------------------------------------------------------------
 // The camp's dressing (polish-camps): a bramble wall round the camp with
-// one gap, a sandy clearing inside it, a moss nest under each elder and kit,
+// one gap, a trampled clearing inside it, a moss nest under each elder and kit,
 // and a fresh-kill pile beside the leader's rock. All of it is visual only:
 // no collider, no seat, no route changes. campDressing is pure (no THREE) and
 // seeded from the area id alone (never walkRng), so every device agrees.
@@ -268,16 +268,75 @@ export function campDressing(areaId, colliders = []) {
 }
 
 const DOORWAY = 0x140f0a;
-const ROCK_GREY = 0x8e8c88; // builder.tor's grey, the territories' rock
 const DEN_SQUASH = 0.8;
 
-// The flat camps' look (polish-camps). Every number below is drawn from a
+// Each clan's camp in its own colours (polish-camps3). One record per camp:
+//   ring:  greens (a clump's green, by hash), strand (the arched strands),
+//          specks ([hex, share]: berries, flowers, seed heads; a share of the
+//          clumps' triangles recoloured whole, by a hash of each centroid)
+//   den:   base (the mound, dark at its foot), streak (new growth), strand
+//          (the woven strands and bands), frame (the doorway's stick arch)
+//   floor: the clearing's colour and its SURFACE_PRESETS surface
+//   nest:  moss (the ring) and bracken (the hollow)
+//   rock:  the leader's rock
+// A ledge camp (the Gorge) has no ring, den or floor: its record carries the
+// woods values for those so campLook always returns a whole record.
+const deepFreeze = (o) => {
+  for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v);
+  return Object.freeze(o);
+};
+const WOODS_LOOK = {
+  // StormClan: oak and fern bramble, blackberries
+  ring: { greens: [0x34521f, 0x46632a, 0x2a421c], strand: 0x3a2a18, specks: [[0x4a1430, 0.07], [0x9a2630, 0.03]] },
+  den: { base: 0x34481f, streak: 0x62803a, strand: 0x3a2c1c, frame: 0x5a4128 },
+  floor: { color: 0xa4845c, surface: 'sand' },   // trampled earth
+  nest: { moss: 0x6f8f3a, bracken: 0x8a6a3a },
+  rock: 0x8a8a80,
+};
+export const CAMP_LOOKS = deepFreeze({
+  woods: WOODS_LOOK,
+  // BrookClan: reeds and pebbles, bulrush heads; a woven reed and straw den
+  river: {
+    ring: { greens: [0x5e7f48, 0x6f8c50, 0x4a7466], strand: 0x56603a, specks: [[0x5e4630, 0.04]] },
+    den: { base: 0x5a6a3a, streak: 0xa29e62, strand: 0x4a5a34, frame: 0x6a5a3a },
+    floor: { color: 0xbdb8a8, surface: 'gravel' }, // pale pebbles
+    nest: { moss: 0x6f9a6a, bracken: 0xb0a46a },
+    rock: 0x7d8890,
+  },
+  // GaleClan: gorse and heather in flower; a dry heather den
+  moor: {
+    ring: { greens: [0x56632a, 0x667030, 0x48522a], strand: 0x3e3622, specks: [[0xc9a42e, 0.06], [0x8a5a80, 0.05]] },
+    den: { base: 0x4a4030, streak: 0x8a5a80, strand: 0x3a3022, frame: 0x6a5a3e },
+    floor: { color: 0x84984f, surface: 'grass' },  // cropped turf
+    nest: { moss: 0x8a6a80, bracken: 0xa89a62 },
+    rock: 0x9a9488,
+  },
+  // DuskClan: needles and moss, fern tips; a moss den
+  pines: {
+    ring: { greens: [0x1d3a2f, 0x27483a, 0x15302a], strand: 0x24263a, specks: [[0x4f7a3a, 0.07]] },
+    den: { base: 0x1e3228, streak: 0x3e5e3a, strand: 0x2a2620, frame: 0x3e2e22 },
+    floor: { color: 0x7a5a3c, surface: 'sand' },   // needle litter
+    nest: { moss: 0x5f8a3a, bracken: 0x6a4a30 },
+    rock: 0x5e6070,
+  },
+  // CliffClan: sandstone (a ledge camp: only its nest and rock are drawn)
+  gorge: {
+    ring: WOODS_LOOK.ring,
+    den: WOODS_LOOK.den,
+    floor: WOODS_LOOK.floor,
+    nest: { moss: 0xa08a50, bracken: 0xc8b48a },
+    rock: 0xb8825a,
+  },
+});
+
+/** campLook(areaId) -> CAMP_LOOKS[areaId], or the woods look for any other id. */
+export function campLook(areaId) {
+  return (typeof areaId === 'string' && Object.hasOwn(CAMP_LOOKS, areaId)) ? CAMP_LOOKS[areaId] : CAMP_LOOKS.woods;
+}
+
+// The flat camps' shapes (polish-camps). Every number below is drawn from a
 // position hash or from campDressing, never from walkRng or Math.random.
 const DEN_LOOK = {
-  base: 0x2f4a24,      // the woven mound, dark at its foot
-  streak: 0x5a7d3a,    // lighter streaks of new growth
-  strand: 0x3a4a22,    // the arched bramble strands woven over it
-  frame: 0x5a4128,     // the stick arch round the doorway
   bump: 0.05,          // ± share of the radius each corner is pushed in or out
   strands: 7,          // quarter arcs from the ground to the crown
   doorClear: 0.6,      // radians either side of the door kept free of strands
@@ -287,19 +346,17 @@ const DEN_LOOK = {
 const DOOR = { w: 0.3, y: 0.3, at: 1.04, tilt: 0.31 };
 const FRAME_AT = 1.02;
 const RING_LOOK = {
-  greens: [0x2e5524, 0x3f6b2c, 0x24451c], // two greens and a darker one, by hash
-  foot: 0.62,
-  crown: 1.12,
-  strand: 0x2a3a1a,   // the arched bramble strands between clumps
+  foot: 0.62,         // a clump's green, times, at its foot ...
+  crown: 1.12,        // ... and at its crown (specks are not shaded)
   strandTube: 0.025,
   strandMax: 0.6,     // clumps further apart than this get no strand
   top: 1.0,           // ruling R3: no ring vertex above 1 m
 };
 // y 0.011: over the path strips (0.01) and wet sand (0.008), under the paw
 // prints (pawprints PRINT_Y 0.012) and the contact-shadow decals (DECAL_Y
-// 0.015), so the opaque sand neither hides the prints nor ties the shadows.
-const CLEARING = { color: 0xc9b38a, y: 0.011, segments: 28, edge: 0.1 };
-const NEST = { moss: 0x6f8f3a, bracken: 0x8a7a48, r: 0.35, tube: 0.09, squash: 0.55 };
+// 0.015), so the opaque floor neither hides the prints nor ties the shadows.
+const CLEARING = { y: 0.011, segments: 28, edge: 0.1 };
+const NEST = { r: 0.35, tube: 0.09, squash: 0.55 };
 const KILL_LOOK = { mouse: 0x7a5a3e, vole: 0x5e4a36, bird: 0x8a8478, wing: 0xa59d8c };
 
 // A position hash in [0, 1): the same corner always moves the same way, so the
@@ -370,7 +427,7 @@ const angleOff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))
 // and a short one lower down, and a stick arch round the doorway. One
 // vertex-coloured geometry. Every vertex stays within 1.25 m of the den's
 // centre and under 1 m (camp.test.js).
-function denGeometry(den, out) {
+function denGeometry(den, out, look) {
   const { x, z, r } = den;
   const parts = [];
 
@@ -384,8 +441,8 @@ function denGeometry(den, out) {
     if (angleOff(Math.atan2(pz, px), out) < 0.7 && py < 0.85) d = -Math.abs(d);
     pos.setXYZ(i, px * (1 + d), py * (1 + d), pz * (1 + d));
   }
-  const base = new THREE.Color(DEN_LOOK.base);
-  const streak = new THREE.Color(DEN_LOOK.streak);
+  const base = new THREE.Color(look.den.base);
+  const streak = new THREE.Color(look.den.streak);
   parts.push(bake(dome, place(x, 0, z, 1, DEN_SQUASH, 1), (vx, vy, vz, c) => {
     const col = Math.round(Math.atan2(vz - z, vx - x) * 5);
     const t = (0.65 * hash01(col, 0, 0, 2) + 0.35 * hash01(vx, vy, vz, 3)) * (0.35 + 0.65 * Math.min(1, vy / 0.8));
@@ -394,7 +451,7 @@ function denGeometry(den, out) {
 
   // Strands: quarter arcs from the ground up to the crown, none in front of
   // the door.
-  const strandAt = (vx, vy, vz, c) => c.setHex(DEN_LOOK.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 4));
+  const strandAt = (vx, vy, vz, c) => c.setHex(look.den.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 4));
   const free = Math.PI * 2 - DEN_LOOK.doorClear * 2;
   for (let k = 0; k < DEN_LOOK.strands; k++) {
     const a = out + DEN_LOOK.doorClear + (free * k) / (DEN_LOOK.strands - 1) + (hash01(x, k, z, 5) - 0.5) * 0.2;
@@ -414,7 +471,7 @@ function denGeometry(den, out) {
   // leaning back with the dome like the door.
   const yaw = Math.PI / 2 - out;
   const foot = -DOOR.y / Math.cos(DOOR.tilt);
-  const frameAt = (vx, vy, vz, c) => c.setHex(DEN_LOOK.frame).multiplyScalar(0.8 + 0.4 * hash01(vx, vy, vz, 8));
+  const frameAt = (vx, vy, vz, c) => c.setHex(look.den.frame).multiplyScalar(0.8 + 0.4 * hash01(vx, vy, vz, 8));
   for (const [Rf, tube, top] of [[0.36, 0.04, 0.38], [0.42, 0.035, 0.44]]) {
     const arch = new THREE.TorusGeometry(Rf, tube, 4, 12, Math.PI);
     arch.scale(1, (top - foot) / Rf, 1);
@@ -516,6 +573,34 @@ function adopt(local) {
   return g;
 }
 
+// The ring's specks (polish-camps3): berries, flowers or seed heads, each a
+// whole triangle recoloured flat (all three corners, so no gradient smears
+// out of it). A triangle's speck is picked by a hash of its centroid, walking
+// the specks' shares cumulatively, so the same camp is the same on every
+// build. `geo` is a baked, non-indexed part with a colour attribute.
+function speckle(geo, specks, salt) {
+  if (!specks.length) return geo;
+  const pos = geo.attributes.position;
+  const col = geo.attributes.color;
+  const hexes = specks.map(([hex]) => new THREE.Color(hex));
+  for (let t = 0; t < pos.count; t += 3) {
+    const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3;
+    const cy = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3;
+    const cz = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+    const h = hash01(cx, cy, cz, salt);
+    let acc = 0;
+    for (let k = 0; k < specks.length; k++) {
+      acc += specks[k][1];
+      if (h < acc) {
+        const c = hexes[k];
+        for (let v = t; v < t + 3; v++) col.setXYZ(v, c.r, c.g, c.b);
+        break;
+      }
+    }
+  }
+  return geo;
+}
+
 // The bramble wall (polish-viewclear): each clump a wide main lump (an
 // icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
 // side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
@@ -527,15 +612,16 @@ function adopt(local) {
 // 0-1, 2-3, ... pairs, not campDressing's slots, so a dropped clump shifts
 // the pairing; pairs 0.6 m or less apart) one arched bramble strand: a thin
 // half torus (24 triangles) standing upright between their crowns, its arch
-// squashed where it would rise over 1 m (ruling R3). Greens by hash, dark at
-// the foot; the strands darker. One vertex-coloured mesh, out of the shadow
-// pass: ~3,360 triangles a camp, so the River and the Moor stay under the
-// area's 60,000 (test/budget.test.js; ruling R7).
+// squashed where it would rise over 1 m (ruling R3). The clan's greens by
+// hash, dark at the foot, with the clan's specks on the lumps (speckle); the
+// strands in the clan's strand colour. One vertex-coloured mesh, out of the
+// shadow pass: ~3,360 triangles a camp, so the River and the Moor stay under
+// the area's 60,000 (test/budget.test.js; ruling R7).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
 // and Pines (test/flattrace.test.js); cats walk through brambles.
-function ringMesh(ring, cx, cz) {
+function ringMesh(ring, cx, cz, look) {
   const parts = [];
   const cs = ring.clumps;
   for (const c of cs) {
@@ -544,7 +630,8 @@ function ringMesh(ring, cx, cz) {
     const along = out + Math.PI / 2;
     const ox = Math.cos(out);
     const oz = Math.sin(out);
-    const green = new THREE.Color(RING_LOOK.greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * 3)]);
+    const greens = look.ring.greens;
+    const green = new THREE.Color(greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * greens.length)]);
     const at = (vx, vy, vz, col) => {
       const t = Math.max(0, Math.min(1, vy / c.h));
       col.copy(green).multiplyScalar(RING_LOOK.foot + (RING_LOOK.crown - RING_LOOK.foot) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
@@ -554,16 +641,16 @@ function ringMesh(ring, cx, cz) {
     const mainTop = c.h * 0.85;
     const msy = mainTop / (2 * ICO_Y);
     const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-    parts.push(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at));
+    parts.push(speckle(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at), look.ring.specks, 19));
     // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
     const bsy = c.h / 2;
     const back = new THREE.OctahedronGeometry(1, 0);
-    parts.push(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at));
+    parts.push(speckle(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at), look.ring.specks, 19));
   }
   // The strands: from crown to crown, the arch's feet a little down in the
   // lumps, its rise the half-span or what is left under 1 m.
   const tube = RING_LOOK.strandTube;
-  const strandAt = (vx, vy, vz, col) => col.setHex(RING_LOOK.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
+  const strandAt = (vx, vy, vz, col) => col.setHex(look.ring.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
   for (let i = 1; i < cs.length; i += 2) {
     const p = cs[i - 1];
     const q = cs[i];
@@ -587,11 +674,13 @@ function ringMesh(ring, cx, cz) {
   return mesh;
 }
 
-// The clearing: a sandy, trampled disc with a hash-jittered edge, lifted
-// 1.5 cm and pulled towards the camera (polygonOffset) so it never fights the
-// ground or a path. A CircleGeometry lying flat at the top level: grass.js's
-// flatFootprints reads it as a disc and grows no tufts through it.
-function clearingMesh(clearing) {
+// The clearing: the camp's trampled floor in the clan's colour and surface
+// (trampled earth, pale pebbles, cropped turf, needle litter), a disc with a
+// hash-jittered edge, lifted 1.5 cm and pulled towards the camera
+// (polygonOffset) so it never fights the ground or a path. A CircleGeometry
+// lying flat at the top level: grass.js's flatFootprints reads it as a disc
+// and grows no tufts through it.
+function clearingMesh(clearing, look) {
   const { x, z, r } = clearing;
   const geo = new THREE.CircleGeometry(r, CLEARING.segments);
   const pos = geo.attributes.position;
@@ -599,9 +688,10 @@ function clearingMesh(clearing) {
     const k = (1 - CLEARING.edge) + CLEARING.edge * hash01(x, (i - 1) % CLEARING.segments, z, 12);
     pos.setXY(i, pos.getX(i) * k, pos.getY(i) * k);
   }
-  const mesh = new THREE.Mesh(geo, litMaterial(CLEARING.color, {
-    surface: 'sand',
-    repeat: repeatFor('sand', r * 2, r * 2),
+  const { color, surface } = look.floor;
+  const mesh = new THREE.Mesh(geo, litMaterial(color, {
+    surface,
+    repeat: repeatFor(surface, r * 2, r * 2),
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
@@ -617,7 +707,7 @@ function clearingMesh(clearing) {
 
 // The nests: a squashed moss ring under each elder and kit, dry bracken in
 // its hollow. One vertex-coloured mesh, out of the shadow pass.
-function nestsMesh(nests, groundY = () => 0, flat = 1) {
+function nestsMesh(nests, look, groundY = () => 0, flat = 1) {
   const parts = [];
   // `flat` < 1 presses a nest down towards the ground under it (the ledge's:
   // low enough, under 0.1 m, that the contact-shadow scan gives the bedding no
@@ -629,10 +719,10 @@ function nestsMesh(nests, groundY = () => 0, flat = 1) {
     const ring = new THREE.TorusGeometry(NEST.r, NEST.tube, 4, 10);
     const sy = NEST.squash;
     parts.push(bake(ring, press(place(n.x, gy + NEST.tube * sy, n.z, 1, sy, 1, hash01(n.x, 0, n.z, 13) * Math.PI, Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(NEST.moss).multiplyScalar(0.8 + 0.35 * hash01(vx, vy, vz, 14))));
+      (vx, vy, vz, c) => c.setHex(look.nest.moss).multiplyScalar(0.8 + 0.35 * hash01(vx, vy, vz, 14))));
     const hollow = new THREE.CircleGeometry(NEST.r - 0.02, 10);
     parts.push(bake(hollow, press(place(n.x, gy + 0.03, n.z, 1, 1, 1, 0, -Math.PI / 2), gy),
-      (vx, vy, vz, c) => c.setHex(NEST.bracken).multiplyScalar(0.85 + 0.25 * hash01(vx, vy, vz, 15))));
+      (vx, vy, vz, c) => c.setHex(look.nest.bracken).multiplyScalar(0.85 + 0.25 * hash01(vx, vy, vz, 15))));
   }
   const mesh = new THREE.Mesh(merged(parts), vcMaterial({ roughness: 0.9 }));
   mesh.name = 'campNests';
@@ -675,13 +765,14 @@ function killMesh(kill, groundY = () => 0) {
   return mesh;
 }
 
-// The leader's rock: a dodecahedron squashed to rock.h, its base at y 0.
-function campRockMesh(rockSpot) {
+// The leader's rock: a dodecahedron squashed to rock.h, its base at y 0, in
+// the clan's rock colour.
+function campRockMesh(rockSpot, hex) {
   const rockGeo = new THREE.DodecahedronGeometry(rockSpot.r, 0);
   rockGeo.computeBoundingBox();
   const { min, max } = rockGeo.boundingBox;
   const sy = rockSpot.h / (max.y - min.y);
-  const rock = new THREE.Mesh(rockGeo, litMaterial(ROCK_GREY, surfaceProps('cobble')));
+  const rock = new THREE.Mesh(rockGeo, litMaterial(hex, surfaceProps('cobble')));
   rock.name = 'campRock';
   rock.scale.set(1, sy, 1);
   rock.position.set(rockSpot.x, -min.y * sy, rockSpot.z);
@@ -701,7 +792,8 @@ function addLedgeCamp(scene, area, L) {
   const ground = area.ground ?? null;
   const groundY = (x, z) => (ground && !ground.flat ? ground.y(x, z) : 0);
 
-  const rock = campRockMesh(L.rock);
+  const look = campLook('gorge');
+  const rock = campRockMesh(L.rock, look.rock);
   if (ground) seatOnGround(rock, ground);
   scene.add(rock);
 
@@ -711,7 +803,7 @@ function addLedgeCamp(scene, area, L) {
   // discs were, and the pile adds nothing on Math.random.
   const D = campDressing('gorge', area.colliders);
   const made = withLocalUuids('gorge', () => ({
-    nests: nestsMesh(D.nests, groundY, 0.5),
+    nests: nestsMesh(D.nests, look, groundY, 0.5),
     kill: killMesh(D.kill, groundY),
   }));
   const bedding = new THREE.Mesh(adopt(made.nests.geometry), vcMaterial({ roughness: 0.9 }));
@@ -738,7 +830,9 @@ function addLedgeCamp(scene, area, L) {
  *    noCast and noMerge (a merge would drop their noCast). Its box stays
  *    under the contact-shadow scan's MAX_SPAN, so den and rock keep a decal.
  *  - `campRing`, the bramble ring, one noCast mesh.
- *  - `campClearing`, the sandy floor, one flat noCast disc.
+ *  - `campClearing`, the camp's floor, one flat noCast disc.
+ * Every colour is the clan's (CAMP_LOOKS, by campLook(areaId); woods for an
+ * id with no record).
  * The ring and the clearing are separate top-level children because the
  * scan boxes one top-level child at a time (they are ~11 m wide). Seven
  * main-pass draws in all. Pushes { x, z, r } colliders for the den and the
@@ -757,14 +851,15 @@ export function addCamp(scene, area, areaId) {
   }
   const D = campDressing(areaId, area.colliders);
   const out = CAMP_TURN[areaId] + Math.PI; // from the den towards the centre
+  const look = campLook(areaId);
   const made = withLocalUuids(areaId, () => ({
-    den: denGeometry(L.den, out),
+    den: denGeometry(L.den, out, look),
     door: doorGeometry(L.den, out),
     rock: highrockGeometry(L.rock, L.cx, L.cz),
-    nests: nestsMesh(D.nests),
+    nests: nestsMesh(D.nests, look),
     kill: killMesh(D.kill),
-    ring: ringMesh(D.ring, L.cx, L.cz),
-    clearing: clearingMesh(D.clearing),
+    ring: ringMesh(D.ring, L.cx, L.cz, look),
+    clearing: clearingMesh(D.clearing, look),
   }));
 
   // The objects a flat camp has always made on Math.random (withLocalUuids).
@@ -776,7 +871,7 @@ export function addCamp(scene, area, areaId) {
   door.name = 'campDoor';
   door.userData.noCast = true;
   door.userData.noMerge = true;
-  const rock = new THREE.Mesh(adopt(made.rock), litMaterial(ROCK_GREY, surfaceProps('cobble')));
+  const rock = new THREE.Mesh(adopt(made.rock), litMaterial(look.rock, surfaceProps('cobble')));
   rock.name = 'campRock';
   group.add(den, door, rock, made.nests, made.kill);
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { createFx } from '../src/fx.js';
+import { createFx, FLOATER_MAX_SCREEN } from '../src/fx.js';
+import { closeDiffs } from './helpers/closeto.js';
 
 const fakeScene = () => ({ children: [], add(o) { this.children.push(o); }, remove(o) { this.children = this.children.filter((c) => c !== o); } });
 const fakeText = () => new THREE.Object3D();
@@ -243,5 +244,68 @@ describe('createFx.popup — review follow-ups', () => {
     const far = spawned(scene)[0];
     fx.popup(new THREE.Vector3(0, 0, 0), '+12', { value: 12 });
     expect(far.position.y).toBeCloseTo(1.03, 5);
+  });
+});
+
+describe('createFx.popup — on-screen size (viewclear2)', () => {
+  const sprite = (t) => { const o = new THREE.Sprite(new THREE.SpriteMaterial()); o.scale.set(1.4, 0.35, 1); o.userData.text = t; return o; };
+  const camAt = (d) => {
+    const c = new THREE.PerspectiveCamera(70, 1.5, 0.1, 300);
+    c.position.set(0, 1.03, d); // level with a fresh floater, d metres off
+    c.updateMatrixWorld(true);
+    return c;
+  };
+  const sizeOf = (o) => [o.scale.x, o.scale.y, o.scale.z];
+  const clampH = (d) => FLOATER_MAX_SCREEN * 2 * Math.tan((35 * Math.PI) / 180) * d;
+
+  it('a camera 5 m away leaves the sprite at 1.4 x 0.35', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: sprite });
+    fx.popup(new THREE.Vector3(), '+5', { value: 5 });
+    fx.update(0, camAt(5));
+    expect(closeDiffs(sizeOf(spawned(scene)[0]), [1.4, 0.35, 1])).toEqual([]);
+  });
+
+  it('a camera 1 m away clamps the height, width in proportion', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: sprite });
+    fx.popup(new THREE.Vector3(), '+5', { value: 5 });
+    fx.update(0, camAt(1));
+    const h = clampH(1);
+    expect(closeDiffs(sizeOf(spawned(scene)[0]), [h * 4, h, 1])).toEqual([]);
+  });
+
+  it('without a camera there is no change', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: sprite });
+    fx.popup(new THREE.Vector3(), '+5', { value: 5 });
+    fx.update(0.1);
+    expect(closeDiffs(sizeOf(spawned(scene)[0]), [1.4, 0.35, 1])).toEqual([]);
+  });
+
+  it('a merged popup is clamped too', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: sprite });
+    const cam = camAt(1);
+    fx.popup(new THREE.Vector3(), '+5', { merge: 'k', value: 5 });
+    fx.update(0.05, cam);
+    fx.popup(new THREE.Vector3(), '+5', { merge: 'k', value: 5 });
+    fx.update(0.05, cam);
+    expect(fx.active()).toBe(1);
+    const o = spawned(scene)[0];
+    const h = clampH(o.position.distanceTo(cam.position)); // it has risen a little since the merge
+    expect(closeDiffs(sizeOf(o), [h * 4, h, 1])).toEqual([]);
+  });
+
+  it('popup() after a clamped update starts clamped', () => {
+    const scene = fakeScene();
+    const fx = createFx(scene, { makeText: sprite });
+    fx.popup(new THREE.Vector3(), '+5', { value: 5 });
+    fx.update(0.01, camAt(1));
+    fx.popup(new THREE.Vector3(), '+7', { value: 7 });
+    const fresh = spawned(scene)[1];
+    const h = clampH(fresh.position.distanceTo(new THREE.Vector3(0, 1.03, 1)));
+    expect(fresh.scale.y).toBeLessThan(0.35);
+    expect(closeDiffs(sizeOf(fresh), [h * 4, h, 1])).toEqual([]);
   });
 });

@@ -660,3 +660,183 @@ describe('rain near the camera', () => {
     expect(shader.fragmentShader).toContain('diffuseColor.a *= vRainNear');
   });
 });
+
+// polish-light: a sunset walk lights the ground like a sunset — the sun
+// drops lower on the same bearing, the fill warms, the image light dims a
+// little and the lawns, paths, horizon band and grass go amber. All per-walk,
+// all put back on dispose().
+const { SUNSET_LOOK } = await import('../src/weather.js');
+const { FLAT_GROUND } = await import('../src/ground.js');
+describe('sunset light', () => {
+  const mkScene = () => {
+    const s = new THREE.Scene();
+    s.background = new THREE.Color(0x445566);
+    s.fog = new THREE.Fog(0x123456, 40, 130);
+    s.environmentIntensity = 0.8;
+    return s;
+  };
+  const mkSun = () => {
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.set(-36, 15, -24);
+    sun.target.position.set(0, 0, 0);
+    return sun;
+  };
+  const dirOf = (sun) => sun.position.clone().sub(sun.target.position);
+  const elevDeg = (v) => THREE.MathUtils.radToDeg(Math.atan2(v.y, Math.hypot(v.x, v.z)));
+  const azDeg = (v) => THREE.MathUtils.radToDeg(Math.atan2(v.z, v.x));
+  const mkLawn = (name) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshStandardMaterial({ color: 0x6cb058 }));
+    m.userData.ground = true;
+    if (name) m.name = name;
+    return m;
+  };
+
+  it('drops the sun to SUNSET_LOOK.elevationDeg on the same bearing and distance', () => {
+    const sun = mkSun();
+    sun.target.position.set(2, 0, -1);
+    const before = dirOf(sun);
+    createWeather(mkScene(), sun, 'sunset', () => 0.9, false, FLAT_GROUND, {});
+    const after = dirOf(sun);
+    expect(elevDeg(after)).toBeCloseTo(SUNSET_LOOK.elevationDeg, 0);
+    expect(Math.abs(elevDeg(after) - SUNSET_LOOK.elevationDeg)).toBeLessThan(0.5);
+    expect(azDeg(after)).toBeCloseTo(azDeg(before), 6);
+    expect(after.length()).toBeCloseTo(before.length(), 6);
+    expect(elevDeg(before)).toBeGreaterThan(SUNSET_LOOK.elevationDeg + 3); // it really moved
+    expect(SUNSET_LOOK.elevationDeg).toBeGreaterThanOrEqual(15); // shadowfit depth headroom
+    expect(sun.color.getHex()).toBe(SUNSET_LOOK.sunColor);
+    expect(sun.intensity).toBe(SUNSET_LOOK.sunIntensity);
+  });
+
+  it('keeps the sun where it was on a non-flat ground (the Gorge)', () => {
+    const sun = mkSun();
+    const before = sun.position.clone();
+    const gorgeLike = { y: () => 0 };
+    createWeather(mkScene(), sun, 'sunset', () => 0.9, false, gorgeLike, {});
+    expect(sun.position.equals(before)).toBe(true);
+  });
+
+  it('warms and dims the fill and the image light, and puts them back on dispose', () => {
+    const scene = mkScene();
+    const fill = new THREE.HemisphereLight(0xdde8ff, 0x556644, 0.7);
+    const sky = fill.color.getHex();
+    const grd = fill.groundColor.getHex();
+    const w = createWeather(scene, mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, { fill });
+    expect(fill.color.getHex()).toBe(SUNSET_LOOK.hemiSky);
+    expect(fill.groundColor.getHex()).not.toBe(grd);
+    expect(fill.intensity).toBeCloseTo(0.7 * SUNSET_LOOK.hemiScale, 6);
+    expect(scene.environmentIntensity).toBeCloseTo(0.8 * SUNSET_LOOK.envScale, 6);
+    w.dispose();
+    expect(fill.color.getHex()).toBe(sky);
+    expect(fill.groundColor.getHex()).toBe(grd);
+    expect(fill.intensity).toBe(0.7);
+    expect(scene.environmentIntensity).toBe(0.8);
+  });
+
+  it('a wet mesh and the horizon band wear a warmer clone, and get the original back', () => {
+    const scene = mkScene();
+    const lawn = mkLawn();
+    const band = mkLawn('horizonBand');
+    band.userData.ground = false;
+    scene.add(lawn, band);
+    const lawnMat = lawn.material;
+    const bandMat = band.material;
+    const ratio = (c) => c.r / c.b;
+    const w = createWeather(scene, mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, { wet: [lawn] });
+    for (const [m, orig] of [[lawn, lawnMat], [band, bandMat]]) {
+      expect(m.material).not.toBe(orig);
+      expect(ratio(m.material.color)).toBeGreaterThan(ratio(orig.color));
+      expect(orig.color.getHex()).toBe(0x6cb058); // the shared original is never written
+    }
+    w.dispose();
+    expect(lawn.material).toBe(lawnMat);
+    expect(band.material).toBe(bandMat);
+  });
+
+  it('a horizon band already in wet is tinted once', () => {
+    const scene = mkScene();
+    const band = mkLawn('horizonBand');
+    scene.add(band);
+    const orig = band.material;
+    const w = createWeather(scene, mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, { wet: [band] });
+    // tinted exactly once: same colour a single tint gives
+    const single = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x6cb058 }));
+    const w2 = createWeather(mkScene(), mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, { wet: [single] });
+    expect(band.material.color.getHex()).toBe(single.material.color.getHex());
+    w.dispose(); w2.dispose();
+    expect(band.material).toBe(orig);
+  });
+
+  it('tintWet warms the grass in place once, and dispose restores it to the bit', () => {
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6cb058 });
+    const { r, g, b } = mat.color;
+    const w = createWeather(mkScene(), mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, {});
+    w.tintWet(mat);
+    const tinted = mat.color.getHex();
+    expect(tinted).not.toBe(0x6cb058);
+    expect(mat.color.r / mat.color.b).toBeGreaterThan(r / b);
+    w.tintWet(mat); // a second call is a no-op
+    expect(mat.color.getHex()).toBe(tinted);
+    w.dispose();
+    expect([mat.color.r, mat.color.g, mat.color.b]).toEqual([r, g, b]);
+    w.tintWet(mat); // after dispose: nothing
+    expect([mat.color.r, mat.color.g, mat.color.b]).toEqual([r, g, b]);
+  });
+
+  it('dispose twice is safe and changes nothing the second time', () => {
+    const scene = mkScene();
+    const fill = new THREE.HemisphereLight(0xdde8ff, 0x556644, 0.7);
+    const lawn = mkLawn();
+    scene.add(lawn);
+    const orig = lawn.material;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6cb058 });
+    const w = createWeather(scene, mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, { fill, wet: [lawn] });
+    w.tintWet(mat);
+    w.dispose();
+    fill.intensity = 0.3; // someone else's later write
+    scene.environmentIntensity = 0.5;
+    expect(() => w.dispose()).not.toThrow();
+    expect(fill.intensity).toBe(0.3);
+    expect(scene.environmentIntensity).toBe(0.5);
+    expect(lawn.material).toBe(orig);
+    expect(mat.color.getHex()).toBe(0x6cb058);
+  });
+
+  it('keeps the sky and fog exactly as before', () => {
+    const scene = mkScene();
+    createWeather(scene, mkSun(), 'sunset', () => 0.9, false, FLAT_GROUND, {});
+    expect(scene.fog.color.getHex()).toBe(0xf8c890);
+    expect(scene.background).toBe(skyBackground(0xf0a060, 0xf8c890));
+  });
+
+  it('draws no rng numbers and never touches Math.random', () => {
+    const real = Math.random;
+    let n = 0;
+    const spy = vi.spyOn(Math, 'random').mockImplementation(() => {
+      if (!/generateUUID/.test(new Error().stack)) throw new Error('Math.random used');
+      return real();
+    });
+    try {
+      const scene = mkScene();
+      const lawn = mkLawn();
+      scene.add(lawn, mkLawn('horizonBand'));
+      const w = createWeather(scene, mkSun(), 'sunset', () => { n++; return 0.5; }, false, FLAT_GROUND, {
+        fill: new THREE.HemisphereLight(), wet: [lawn],
+      });
+      w.tintWet(new THREE.MeshStandardMaterial());
+      w.update(1, new THREE.Vector3());
+      w.dispose();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(n).toBe(0);
+  });
+
+  it('copes with a bare scene and sun (no children, no target, no env)', () => {
+    const scene = { background: new THREE.Color(), fog: new THREE.Fog(0, 1, 2), add: () => {} };
+    const sun = { color: new THREE.Color(), intensity: 2.2, position: new THREE.Vector3(-36, 15, -24) };
+    const w = createWeather(scene, sun, 'sunset', () => 0, true);
+    expect(elevDeg(sun.position)).toBeCloseTo(SUNSET_LOOK.elevationDeg, 0);
+    expect(() => w.dispose()).not.toThrow();
+    expect(scene.environmentIntensity).toBeUndefined();
+  });
+});

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { clanPickerModel, renderClanPickerHtml, PICK_ATTR } from '../src/ui/clanpicker.js';
+import { readFileSync } from 'node:fs';
+import { clanPickerModel, renderClanPickerHtml, PICK_ATTR, CLAN_EMBLEMS } from '../src/ui/clanpicker.js';
 import { TERRITORIES } from '../src/territories.js';
 import { clanName, pickableClans, HOMES } from '../src/clanhomes.js';
 import { CLAN_SUFFIX, HOME_LINES } from '../src/clanwords.js';
@@ -66,12 +67,30 @@ describe('clanPickerModel', () => {
       expect(cardOf(m, id)).toEqual({
         id, name: clanName(id), line: HOME_LINES[id], place: t.name, soon: false, pickable: true, mine, partner: id === 'moor',
       });
-      expect(html).toContain(`<button class="dr-home ${mine ? 'sel' : ''}" ${PICK_ATTR}="${id}" aria-pressed="${mine}">`
-        + `<span class="dr-home-name">${clanName(id)}</span><small>of ${t.name}</small><small>${HOME_LINES[id]}</small>`
+      expect(html).toContain(`<button class="dr-home ${mine ? 'sel' : ''} dr-home-${id}" ${PICK_ATTR}="${id}" aria-pressed="${mine}">`
+        + `<span class="dr-home-name"><span class="dr-home-emblem">${CLAN_EMBLEMS[id]}</span>${clanName(id)}</span><small>of ${t.name}</small><small>${HOME_LINES[id]}</small>`
         + (mine ? '<small class="dr-home-tag">✓ yours</small>' : '')
         + (id === 'moor' ? "<small class=\"dr-home-tag\">🤝 Robin's</small>" : '')
         + '</button>');
     }
+  });
+
+  it('every clan has its own emblem and colour class; the off card has neither', () => {
+    const html = renderClanPickerHtml(clanPickerModel(save()), 'Robin');
+    for (const id of pickableClans()) {
+      expect(CLAN_EMBLEMS[id].startsWith('<svg')).toBe(true);
+      expect(CLAN_EMBLEMS[id]).toContain('aria-hidden="true"');
+      expect(html).toContain(`dr-home-${id}`);
+    }
+    expect(new Set(pickableClans().map((id) => CLAN_EMBLEMS[id])).size).toBe(5);
+    expect(Object.isFrozen(CLAN_EMBLEMS)).toBe(true);
+    const homes = { ...HOMES, gorge: { neighbours: ['moor'], pickable: false } };
+    const off = renderClanPickerHtml(clanPickerModel(save(), TERRITORIES, homes), 'Robin')
+      .split('<button').find((b) => b.includes(`>${clanName('gorge')}<`));
+    expect(off).not.toContain('dr-home-gorge');
+    expect(off).not.toContain('dr-home-emblem');
+    const css = readFileSync('src/style.css', 'utf8');
+    for (const id of pickableClans()) expect(css).toContain(`.dr-home-${id}`);
   });
 
   it('a pick marks exactly one card mine', () => {
@@ -152,5 +171,34 @@ describe('the greyed clan card (style.css)', () => {
         expect(ratio(fg, bg), `${stop} at ${a}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+});
+
+describe('the pickable clan cards (style.css, final fix wave)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  it('small text on a coloured card is full strength, the soon line included', () => {
+    const m = css.match(/\.dr \.dr-home:not\(\.dr-home-off\) small[^{]*\{([^}]*)\}/);
+    expect(m, 'a rule for small text on pickable cards').not.toBeNull();
+    expect(m[0]).toContain('.dr-home-soon');
+    expect(m[1]).toMatch(/opacity: 1;/);
+  });
+  it('an unknown pickable id gets no empty emblem circle', () => {
+    const model = { mine: null, both: false, cards: [{ id: 'nowhere', name: 'Nowhere', line: 'x', place: 'Nowhere', soon: false, pickable: true, mine: false, partner: false }] };
+    const html = renderClanPickerHtml(model, 'Robin');
+    expect(html).not.toContain('dr-home-emblem');
+    expect(html).toContain('<span class="dr-home-name">Nowhere</span>');
+  });
+  it('the emblems are single shapes: the gorge is one cliff, the woods bolt has an outline', () => {
+    expect(CLAN_EMBLEMS.gorge.match(/<path/g)).toHaveLength(1);
+    expect(CLAN_EMBLEMS.woods).toContain('stroke="#2f5a33"');
+  });
+});
+
+describe('disabled buttons (style.css)', () => {
+  it('no khaki #6a6250 is left; the dimmed pink is one shared pair of variables', () => {
+    const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+    expect(css).not.toContain('#6a6250');
+    expect(css).toContain('--btn-off-bg: rgba(231,169,160,.30)');
+    expect(css.match(/var\(--btn-off-bg\)/g).length).toBeGreaterThanOrEqual(4);
   });
 });

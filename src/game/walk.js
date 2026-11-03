@@ -27,7 +27,7 @@ import * as gorge from '../world/gorge.js';
 import { hideToastFor } from './labels.js';
 import { clearSpot } from '../world/spots.js';
 import { puddle as puddleProp, onAnyDeck } from '../world/builder.js';
-import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn } from '../render/dusk.js';
+import { applyDusk, duskEnv, addCollarGlow, tintDuskLawn, createLampPools } from '../render/dusk.js';
 import { buildCat, CAT_LOOK_Y, catDims } from '../cat/model.js';
 import { setCatScars } from '../cat/scarmesh.js';
 import { activeCat, scarKey } from '../customcats.js';
@@ -105,7 +105,7 @@ import { createClanFight, NO_CLAN_FIGHT } from './clanfight.js';
 import { createFightRecord } from './fightrecord.js';
 import { unlockToast } from '../fightmoves.js';
 import { createFightCam, findOccluders } from '../fightcam.js';
-import { createTreeFade } from '../treefade.js';
+import { createTreeFade, findFadeOccluders } from '../treefade.js';
 import { createRustle } from '../render/rustle.js';
 import { createFightUi } from '../ui/fightui.js';
 import { createShadowFit } from '../render/shadowfit.js';
@@ -1217,6 +1217,11 @@ export function createWalkLifecycle({
     // nothing (at most 3 main-pass draws, 0 shadow). Areas without dressed
     // water (the den, the park, the docks, the gorge) get the no-op stub.
     const waterDress = createWaterDressing(scene, { areaId, areaData, tier, reducedMotion, keepOut: grassKeepOut });
+    // Polish-light — warm pools of lamp light on the ground at dusk
+    // (render/dusk.js). Here for the grass's reason: after the contact-shadow
+    // scan, the caster sweep and the prop merge (+1 main-pass draw, 0 shadow).
+    // endWalk's scene traversal disposes it.
+    if (duskLookNow && !isDen) createLampPools(scene);
     // Stream 4 round four — ambient life (render/ambient.js): one Points mesh,
     // one draw, no shadow draws; created here for the same reason as grass.
     // Purely local and off its own random stream, never walkRng. The den and
@@ -1464,12 +1469,12 @@ export function createWalkLifecycle({
     // The fight camera (src/fightcam.js): no tree hides either cat in a fight.
     // Null where no fight can happen.
     session.fightCam = session.clanFight !== NO_CLAN_FIGHT ? createFightCam({ occluders, colliders: areaData.colliders, bounds: areaData.bounds, reducedMotion, lookY: CAT_LOOK_Y, ground }) : null;
-    // The tree fade (src/treefade.js, polish 1a Task 4): a tree between the
-    // walk camera and the cat, or round the camera, turns see-through. It
-    // changes materials only, never `visible` (the fight camera owns that).
+    // The tree fade (src/treefade.js): a tree, lamp post or building between
+    // the walk camera and the cat, or round the camera, turns see-through. The
+    // fight camera keeps `occluders` alone. Materials only, never `visible`.
     // The den: an empty list, so the render loop's unconditional calls are
     // no-ops.
-    session.treeFade = createTreeFade(occluders, { reducedMotion });
+    session.treeFade = createTreeFade(isDen ? [] : [...occluders, ...findFadeOccluders(scene)], { reducedMotion });
     // Compile the faded trees' shaders now, not at the first fade mid-walk.
     if (typeof renderer?.compile === 'function') session.treeFade.prewarm(() => renderer.compile(scene, camera));
     // Plants that lean away from the cat as it walks through (render/rustle.js):

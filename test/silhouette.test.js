@@ -169,7 +169,9 @@ describe('builder — roundedBox (Wave 4.1)', () => {
       let meshes = 0;
       let band = 0;
       scene.traverse((o) => { if (o.isMesh) meshes++; });
-      scene.traverse((o) => { if (o.name === 'horizonBand') band++; });
+      // polish-edges: the band's edge dressing ('horizonEdge', a child of the
+      // band) is subtracted with it.
+      scene.traverse((o) => { if (o.name === 'horizonBand' || o.name === 'horizonEdge') band++; });
       // polish-docks: the harbour dressing is subtracted like the band.
       for (const c of scene.children) if (c.userData.dressing) c.traverse((o) => { if (o.isMesh) band++; });
       expect(meshes - band, name).toBe(expected[name]);
