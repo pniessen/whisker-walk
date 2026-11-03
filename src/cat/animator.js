@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -7,11 +7,12 @@ const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
 
 // R3: the tail's resting curl (base.tailCurl per link) by state. Standing,
-// walking, grooming and sniffing get the full curl; lying and sitting a fifth,
-// so the tail lies round the cat. Every other state (cross, scared, stalk,
-// pounce, stretch) keeps today's straight chain. A rig without tailCurl
-// (Hagrid) gets no curl in any state.
-const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, perch: 0.2, requestPet: 0.2 };
+// walking, grooming and sniffing get the full curl; sitting a fifth, so the
+// tail lies round the cat. Every other state (cross, scared, stalk, pounce,
+// stretch) keeps today's straight chain. A rig without tailCurl (Hagrid) gets
+// no curl in any state. The nap took a fifth too until polish-pose Task 1:
+// its pivots are now written outright (torso.js NAP_TAIL), as the sit's are.
+const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, perch: 0.2, requestPet: 0.2 };
 
 // Polish 1a, Task 5 (2026-11-02): the walking carriage. From the walk camera,
 // behind the cat, the resting curl (link 0 level, straight back at the camera,
@@ -201,16 +202,21 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   }
   // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
   // Task 2), once the pose fit has set the body down: the tail hangs on the
-  // cat, so without this it stayed 18 cm off the pitched rump. Only y and z
-  // are written (x stays 0); fitLongLegs and pose() put both back next frame.
-  if (sitting) {
+  // cat, so without this it stayed 18 cm off the pitched rump. The napping
+  // tail's root rides the lowered, squashed and breathing nap body the same
+  // way (NAP_TAIL.ROOT, polish-pose Task 1; it stayed 12.7 cm out of the
+  // rump). Only y and z are written (x stays 0); fitLongLegs and pose() put
+  // both back next frame. Cats with folds only, as the sit's.
+  const napping = state === 'nap' && cat.userData.parts.legs[0].userData.folds;
+  if (sitting || napping) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
+    const root = (sitting ? SIT_TAIL : NAP_TAIL).ROOT;
     body.updateMatrix();
-    _anchor.set(0, SIT_TAIL.ROOT[0] / sy, SIT_TAIL.ROOT[1] / sz).applyMatrix4(body.matrix);
+    _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
-    rideBody(cat);
+    if (sitting) rideBody(cat);
   }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
@@ -655,8 +661,23 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
     head.rotation.set(0.55, 0.5, 0);
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
-    tail.rotation.set(-0.12 + c, 0, 0);
-    for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
+    if (folds) {
+      // polish-pose Task 1: the tail lies flush on the ground and curls round
+      // the left haunch, toward the nose (the head above turns it to the
+      // cat's left), torso.js NAP_TAIL. Every pivot is written outright, so
+      // the nap no longer takes the resting curl (TAIL_CURL_BY_STATE drops
+      // it): bending each link up would lift the chain off the ground. The
+      // root rides the posed body (animateCat). The tip link sways slowly.
+      tail.rotation.set(NAP_TAIL.rotX, 0, 0);
+      for (let i = 0; i < tailPivots.length; i++) {
+        tailPivots[i].rotation.set(NAP_TAIL.pivotX[i], TAIL_HOOK_SIDE * NAP_TAIL.pivotY[i], 0);
+      }
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NAP_TAIL.sway; // the tip sways
+    } else {
+      // Hagrid (ruling P1): his fan rides his body (rideTail) and keeps this.
+      tail.rotation.set(-0.12 + c, 0, 0);
+      for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
+    }
     body.scale.y += Math.sin(t * 1.4) * 0.015; // slow sleepy breathing
     return;
   }
