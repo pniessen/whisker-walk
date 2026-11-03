@@ -515,15 +515,18 @@ function adopt(local) {
   return g;
 }
 
-// The bramble wall (polish-viewclear): each clump three lumps, two side by
-// side along the ring and a taller one behind them on the outer side, every
-// vertex within CLUMP_R · s of the clump's spot and no higher than its h; the
-// staggered rows (campDressing) put neighbours 0.41 to 0.57 m apart, so the
-// lumps overlap from either side. Between each kept clump and the next, when
-// they are 0.6 m or less apart, one arched bramble strand: a thin half torus
-// standing upright between their crowns, its arch squashed where it would rise
-// over 1 m (ruling R3). Greens by hash, dark at the foot; the strands darker.
-// One vertex-coloured mesh, out of the shadow pass.
+// The bramble wall (polish-viewclear): each clump a wide main lump (an
+// icosahedron, 20 triangles) and a taller, smaller one behind it on the outer
+// side (an octahedron, 8), every vertex within CLUMP_R · s of the clump's spot
+// and no higher than its h; the staggered rows (campDressing) put neighbours
+// 0.41 to 0.57 m apart and 0.36 m along the ring, where the main lumps are
+// 0.39 m or more across, so they overlap. Over every other gap (between slot
+// pairs, kept clumps 0.6 m or less apart) one arched bramble strand: a thin
+// half torus (24 triangles) standing upright between their crowns, its arch
+// squashed where it would rise over 1 m (ruling R3). Greens by hash, dark at
+// the foot; the strands darker. One vertex-coloured mesh, out of the shadow
+// pass: ~3,360 triangles a camp, so the River and the Moor stay under the
+// area's 60,000 (test/budget.test.js; ruling R7).
 //
 // Ruling R4: the wall has no collider. A collider would change the walkable
 // ground, the clan cats' routes and the flat trace for the Woods, River, Moor
@@ -535,8 +538,6 @@ function ringMesh(ring, cx, cz) {
     const R = CLUMP_R * c.s;
     const out = Math.atan2(c.z - cz, c.x - cx);
     const along = out + Math.PI / 2;
-    const ux = Math.cos(along);
-    const uz = Math.sin(along);
     const ox = Math.cos(out);
     const oz = Math.sin(out);
     const green = new THREE.Color(RING_LOOK.greens[Math.floor(hash01(c.x, c.rot, c.z, 10) * 3)]);
@@ -544,24 +545,22 @@ function ringMesh(ring, cx, cz) {
       const t = Math.max(0, Math.min(1, vy / c.h));
       col.copy(green).multiplyScalar(RING_LOOK.foot + (RING_LOOK.crown - RING_LOOK.foot) * t * (0.8 + 0.4 * hash01(vx, vy, vz, 11)));
     };
-    // [offset along, offset out, half-width along, half-depth across, share
-    // of h]: each lump's reach, offset plus half-width, stays under R
-    for (const [off, back, sa, sd, sh] of [[0.3, 0, 0.68, 0.6, 0.8], [-0.32, 0, 0.64, 0.56, 0.65], [0, 0.4, 0.55, 0.55, 1]]) {
-      const top = c.h * sh;
-      const sy = top / (2 * ICO_Y);
-      const yaw = -along + Math.sin(c.rot) * 0.15;
-      // a widest corner turned onto the lump's long axis, so neighbours touch
-      const lump = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
-      const lx = c.x + (ux * off + ox * back) * R;
-      const lz = c.z + (uz * off + oz * back) * R;
-      parts.push(bake(lump, place(lx, top - ICO_Y * sy, lz, sa * R, sy, sd * R, yaw), at));
-    }
+    const yaw = -along + Math.sin(c.rot) * 0.15;
+    // the main lump, a widest corner turned onto the ring, so neighbours touch
+    const mainTop = c.h * 0.85;
+    const msy = mainTop / (2 * ICO_Y);
+    const main = new THREE.IcosahedronGeometry(1, 0).rotateY(ICO_TIP);
+    parts.push(bake(main, place(c.x, mainTop - ICO_Y * msy, c.z, 0.95 * R, msy, 0.8 * R, yaw), at));
+    // the back lump, 0.4 R out: its reach, 0.4 + 0.55, stays under R
+    const bsy = c.h / 2;
+    const back = new THREE.OctahedronGeometry(1, 0);
+    parts.push(bake(back, place(c.x + ox * 0.4 * R, bsy, c.z + oz * 0.4 * R, 0.55 * R, bsy, 0.55 * R, yaw + Math.PI / 4), at));
   }
   // The strands: from crown to crown, the arch's feet a little down in the
   // lumps, its rise the half-span or what is left under 1 m.
   const tube = RING_LOOK.strandTube;
   const strandAt = (vx, vy, vz, col) => col.setHex(RING_LOOK.strand).multiplyScalar(0.85 + 0.3 * hash01(vx, vy, vz, 18));
-  for (let i = 1; i < cs.length; i++) {
+  for (let i = 1; i < cs.length; i += 2) {
     const p = cs[i - 1];
     const q = cs[i];
     const span = Math.hypot(q.x - p.x, q.z - p.z);
@@ -569,7 +568,7 @@ function ringMesh(ring, cx, cz) {
     const half = span / 2;
     const foot = 0.85 * Math.min(p.h, q.h);
     const rise = Math.max(0, Math.min(half, RING_LOOK.top - tube - foot));
-    const arch = new THREE.TorusGeometry(half, tube, 3, 8, Math.PI);
+    const arch = new THREE.TorusGeometry(half, tube, 3, 4, Math.PI);
     // the torus lies in its xy plane, feet at (±half, 0): squash its rise,
     // then stand it on the line from p to q
     arch.scale(1, rise / half, 1);

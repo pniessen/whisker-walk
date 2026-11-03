@@ -183,7 +183,7 @@ describe('addCamp', () => {
     }
   });
 
-  it('the ring is taller and arched, out of the shadow pass, under 12,000 triangles', () => {
+  it('the ring is taller and arched, out of the shadow pass, under 3,500 triangles', () => {
     for (const a of CAMPS) {
       const scene = new THREE.Scene();
       addCamp(scene, { colliders: [] }, a);
@@ -197,7 +197,7 @@ describe('addCamp', () => {
       expect(ring.castShadow, a).toBe(false);
       const g = ring.geometry;
       const tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
-      expect(tris, a).toBeLessThanOrEqual(12000);
+      expect(tris, a).toBeLessThanOrEqual(3500);
       expect(g.attributes.color, a).toBeDefined();
     }
   });
