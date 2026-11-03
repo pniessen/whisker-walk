@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
-import { createCatStage, fitFraming, defaultPoseCat, STAGE_POSE } from '../src/ui/catstage.js';
+import { createCatStage, fitFraming, defaultPoseCat, STAGE_POSE, BACK_TURN } from '../src/ui/catstage.js';
 import { buildCat } from '../src/cat/model.js';
 import { SIT } from '../src/cat/torso.js';
 
@@ -333,5 +333,65 @@ describe('the stage cat sits (Ruling P4/P5)', () => {
     expect(built.at(-1).userData.parts.body.rotation.x).toBe(SIT.pitch);
     stage.show('hagrid', {});
     expect(built.at(-1).userData.parts).toBeTruthy();
+  });
+});
+
+const REST = -0.45; // spin.js rest angle
+describe('back-item turn', () => {
+  function turnSetup() {
+    const cats = [];
+    const ctx = setup({ buildCat: () => { const g = new THREE.Group(); cats.push(g); return g; } });
+    ctx.stage.mount(fakeEl());
+    return { ...ctx, cats };
+  }
+  it('the first show has no turn, even wearing a back item', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', { back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+  });
+  it('trying on wings turns the cat to show its back', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', { head: 'crown' });
+    stage.show('calico', { head: 'crown', back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+    stage.show('calico', { head: 'crown', back: 'jetpack' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+  });
+  it('resets after another change, a new breed, or removing the back item', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', {});
+    stage.show('calico', { back: 'wings' });
+    stage.show('calico', { back: 'wings', head: 'tophat' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+    stage.show('calico', { back: 'backpack', head: 'tophat' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+    stage.show('tabby', { back: 'backpack', head: 'tophat' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+    stage.show('tabby', { back: 'wings', head: 'tophat' });
+    stage.show('tabby', { head: 'tophat' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+  });
+  it('keeps the turn when the same set is shown again', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', {});
+    stage.show('calico', { back: 'wings' });
+    stage.show('calico', { back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+  });
+  it('dragging turns relative to the offset', () => {
+    const drag = (acc) => {
+      const { stage, cats, canvas, renderer } = turnSetup();
+      stage.show('calico', {});
+      if (acc) stage.show('calico', acc);
+      canvas.emit('pointerdown', { pointerId: 1, clientX: 0, button: 0 });
+      canvas.emit('pointermove', { pointerId: 1, clientX: 60 });
+      stage.setVisible(true); // forces a draw
+      stage.show('calico', acc || {});
+      return cats.at(-1).rotation.y;
+    };
+    const plain = drag(null);
+    const turned = drag({ back: 'wings' });
+    expect(plain).not.toBeCloseTo(REST, 3);
+    expect(turned - plain).toBeCloseTo(BACK_TURN, 6);
   });
 });

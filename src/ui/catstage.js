@@ -11,6 +11,10 @@ import { animateCat } from '../cat/animator.js';
 export const STAGE_POSE = Object.freeze({ state: 'requestPet', t: 1.3 });
 
 // Skips objects without a rig (the tests' bare groups, anything unbuilt).
+// Trying on a back item (wings, jetpack, backpack) turns the hero so the
+// new thing is in view: the yaw added to the spin angle, in radians.
+export const BACK_TURN = 2.85;
+
 export function defaultPoseCat(cat) {
   if (!cat?.userData?.parts) return;
   animateCat(cat, STAGE_POSE.state, STAGE_POSE.t, 0);
@@ -128,6 +132,9 @@ export function createCatStage({
   let disposed = false;
   let img = null;
   let bounds = null; // the current cat's spin-proof bounds (measure)
+  let lastBreed = null;
+  let lastAcc = null; // the accessories last shown (null before the first show)
+  let turn = 0; // yaw offset on top of the spin angle
   let activeId = null; // the one pointer currently dragging
   const spin = createSpin();
   const stage = { failed: false };
@@ -263,7 +270,7 @@ export function createCatStage({
 
   function draw() {
     if (!renderer || stage.failed) return;
-    if (cat) cat.rotation.y = spin.angle;
+    if (cat) cat.rotation.y = spin.angle + turn;
     renderer.render(scene, camera);
   }
 
@@ -366,7 +373,16 @@ export function createCatStage({
     else cat = scarred ? buildCat(breed, accessories, { scars }) : buildCat(breed, accessories);
     poseCat(cat);
     bounds = look ? lookBounds(cat) : measure(cat);
-    cat.rotation.y = spin.angle;
+    if (!lastAcc || breed !== lastBreed) turn = 0;
+    else if (lastAcc) {
+      const keys = new Set([...Object.keys(lastAcc), ...Object.keys(accessories || {})]);
+      const changed = [...keys].filter((k) => (lastAcc[k] ?? null) !== ((accessories || {})[k] ?? null));
+      if (changed.length === 1 && changed[0] === 'back' && accessories.back) turn = BACK_TURN;
+      else if (changed.length) turn = 0; // no change at all keeps the turn
+    }
+    lastBreed = breed;
+    lastAcc = { ...(accessories || {}) };
+    cat.rotation.y = spin.angle + turn;
     scene.add(cat);
     frameCat();
     if (el && visible) draw();
