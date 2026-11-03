@@ -385,6 +385,10 @@ function view(B) {
   }
 }
 
+// Built once per page and reused: it assumes the Gorge's one fixed rock (its
+// rockFaces never change between builds), so `rockFaces` is NOT part of any
+// key. A second caller with different rock would get these stale tufts; key
+// the cache on it (or drop it) before adding one.
 let cached = null; // { pos, col, nor, counts, bases }
 
 function compute(rockFaces) {
