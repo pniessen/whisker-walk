@@ -466,7 +466,7 @@ export function gorgeTrees() {
 // so their mouths), every find, and anywhere the wall isn't rock after all.
 const SCREE_STEP = 1.5;
 const SCREE_OUT = 0.6;
-const FLOOR_WALLS = [
+export const FLOOR_WALLS = [
   [-18, -50, -18, -16, 1, 0], // the west wall, north of the Narrows
   [-18, -6, -18, 50, 1, 0], // the west wall, south of the Narrows
   [-50, -16, -18, -16, 0, 1], // the Narrows' north side
@@ -524,6 +524,12 @@ export const MEADOW_SAND = 0xc8b28a;
 export const MEADOW_DRY = 0xb0a46e;
 export const MEADOW_GREEN = 0x7f9a52;
 const BANK_GREEN = 0x7f9358;
+// The talus apron: the grey gravel the wall's own tint (rockshade TALUS_TINT)
+// carries on across the floor, a 1 m strip every metre along each floor wall,
+// 0.8-1.4 m out, fading to the floor colour at its outer edge.
+export const MEADOW_TALUS = 0xa59b89;
+const TALUS_OUT = 0.8;
+const TALUS_VAR = 0.6;
 const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
 const NOISE_N = 16;
 const NOISE_SCALE = 4; // metres per lattice step: patches 3-5 m across
@@ -575,7 +581,23 @@ export function gorgeMeadow() {
     if (keepClearDist(x, z) < 1.2 || pathDist(x, z) < PATH_W / 2 || !oneShape(x, z, 0.4)) continue;
     tufts.push(Object.freeze({ x, z, y: zy, s: r2(0.12 + us * 0.1), rot: r2(ur * Math.PI * 2) }));
   }
-  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts) });
+  // the talus: its own stream, so the patches and tufts above do not move
+  const tr = mulberry32(seedFromCode('gorge-talus'));
+  const talus = [];
+  for (const [wx1, wz1, wx2, wz2, nx, nz] of FLOOR_WALLS) {
+    const len = Math.hypot(wx2 - wx1, wz2 - wz1);
+    const tx = (wx2 - wx1) / len, tz = (wz2 - wz1) / len;
+    for (let k = 0; k + 1 <= len + 1e-9; k++) {
+      const d = r2(TALUS_OUT + TALUS_VAR * tr()); // every cell draws whether kept or not
+      const bx = wx1 + tx * (k + 0.5), bz = wz1 + tz * (k + 0.5);
+      const pts = [0.1, d / 2, d].map((f) => [bx + nx * f, bz + nz * f]);
+      if (pts.some(([x, z]) => !inBounds(x, z) || g.y(x, z) !== FLOOR || pathDist(x, z) < MEADOW_PATH_CLEAR
+        || holeDist(x, z) <= 0 || mouthDist(x, z) < 1.5 || rectDist(STREAM, x, z) < 0.5)) continue;
+      if (g.y(bx - nx * 0.1, bz - nz * 0.1) < 0.3) continue; // no rock there
+      talus.push(Object.freeze({ x: r2(pts[1][0]), z: r2(pts[1][1]), w: 1, d, nx, nz }));
+    }
+  }
+  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts), talus: Object.freeze(talus) });
   return meadowOnce;
 }
 
@@ -613,9 +635,24 @@ function bankColor(out, x, z) {
 }
 
 function meadowMesh() {
-  const { patches, tufts } = gorgeMeadow();
+  const { patches, tufts, talus } = gorgeMeadow();
   const pos = [], col = [];
   const vert = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  const gravel = new THREE.Color(MEADOW_TALUS), sand = new THREE.Color(GORGE_FLOOR_COLOR);
+  for (const t of talus) {
+    // wall edge in gravel, outer edge faded into the floor
+    const tx = -t.nz * t.w / 2, tz = t.nx * t.w / 2;
+    const ox = t.x - t.nx * t.d / 2, oz = t.z - t.nz * t.d / 2;
+    const ex = t.x + t.nx * t.d / 2, ez = t.z + t.nz * t.d / 2;
+    const y = FLOOR + MEADOW_LIFT;
+    const q = [[ox - tx, oz - tz, gravel], [ox + tx, oz + tz, gravel], [ex + tx, ez + tz, sand], [ex - tx, ez - tz, sand]];
+    for (const tri of [[0, 1, 2], [0, 2, 3]]) {
+      const [a, b, c] = tri.map((i) => q[i]);
+      // wound to face up whichever way the wall faces
+      const up = (b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) > 0;
+      for (const [x, z, col2] of (up ? [a, b, c] : [a, c, b])) vert(x, y, z, col2);
+    }
+  }
   for (const p of patches) {
     // Colour is a pure function of world position, so cells that share a
     // corner share its colour and the patches read as soft blobs, not tiles.

@@ -271,4 +271,37 @@ describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
     expect(near.mid[1]).toBeGreaterThan(500);
     expect(near.low[0] / near.low[1]).toBeLessThan(near.mid[0] / near.mid[1]);
   }, 120_000);
+  it('a talus apron runs along the floor walls', async () => {
+    const { FLOOR_WALLS, gorgeMeadow, MEADOW_TALUS, MEADOW_PATH_CLEAR, GORGE_PATHS, GORGE_WATERS } = await import('../src/world/gorge.js');
+    const { GORGE_CAVES, GORGE_DENS } = await import('../src/world/gorgeshape.js');
+    const { talus } = gorgeMeadow();
+    expect(MEADOW_TALUS).toBe(0xa59b89);
+    const seg = (x, z, ax, az, bx, bz) => {
+      const dx = bx - ax, dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      return Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+    };
+    const mouths = [...GORGE_CAVES.map((c) => c.mouth), ...GORGE_DENS.map((d) => d.mouth)];
+    for (const [x1, z1, x2, z2, nx, nz] of FLOOR_WALLS) {
+      const len = Math.hypot(x2 - x1, z2 - z1);
+      const mine = talus.filter((c) => {
+        const wx = c.x - nx * c.d / 2, wz = c.z - nz * c.d / 2; // the cell's foot on the wall line
+        return c.nx === nx && c.nz === nz && seg(wx, wz, x1, z1, x2, z2) < 0.01;
+      });
+      expect(mine.length * 1, `wall ${x1},${z1}`).toBeGreaterThanOrEqual(len * 0.6);
+    }
+    for (const c of talus) {
+      expect(c.d).toBeGreaterThanOrEqual(0.8);
+      expect(c.d).toBeLessThanOrEqual(1.4);
+      for (const f of [0.5, 1]) {
+        const x = c.x - c.nx * c.d * (1 - f), z = c.z - c.nz * c.d * (1 - f);
+        for (const s of GORGE_PATHS) expect(seg(x, z, ...s)).toBeGreaterThanOrEqual(MEADOW_PATH_CLEAR);
+        for (const m of mouths) expect(Math.hypot(x - m.x, z - m.z)).toBeGreaterThanOrEqual(1.5);
+        for (const w of GORGE_WATERS) expect(x < w.minX - 0.1 || x > w.maxX + 0.1).toBe(true);
+      }
+    }
+    const meadow = scene.getObjectByName('gorgeMeadow');
+    expect(triCount(meadow) - 3136).toBeLessThanOrEqual(700);
+    expect(triCount(meadow)).toBeGreaterThan(3136);
+  });
 });
