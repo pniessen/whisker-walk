@@ -57,13 +57,14 @@ export const CLAN_COATS = Object.freeze({
     coat('tabby', 0xdcc49a, 0xf4ead2, 0xb39468, { stripes: true }),
     coat('tabby', 0xbcb6aa, 0xf5f5f2, 0x8e887c, { whiteLegs: true, chin: true }),
   ),
-  // BrookClan: grey-blues and silvers.
+  // BrookClan: a blue-grey, a pale silver tabby, a dark slate, a grey-and-white
+  // (socks and chin), and a pale smoky fluffy.
   river: rows(
     coat('siamese', 0x6f7d8c, 0xb7c0ca, 0x4e5966),
-    coat('siamese', 0x7c94b8, 0xd6e0ec, 0x4a5c78, { stripes: true, headStripes: true }),
-    coat('siamese', 0x5b6878, 0x9aa6b4, 0x3d4652),
-    coat('siamese', 0x7a8ca4, 0xf2f4f6, 0x55667c, { socks: true, chin: true }),
-    coat('siamese', 0x8ca6c8, 0xdbe5f0, 0x647c9c, { fluffy: true }),
+    coat('siamese', 0xb4c6e0, 0xeef1f4, 0x3a4452, { stripes: true, headStripes: true }),
+    coat('siamese', 0x445268, 0x6a7a90, 0x2a3446),
+    coat('siamese', 0x7a8ca4, 0xf8fafc, 0x55667c, { socks: true, chin: true }),
+    coat('siamese', 0xc8dcf6, 0xf0f5fb, 0x7c8ea8, { fluffy: true }),
   ),
   // DuskClan: blacks and dark tortoiseshells.
   pines: rows(

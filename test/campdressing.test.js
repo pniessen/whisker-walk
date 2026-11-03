@@ -78,7 +78,7 @@ describe('campDressing (pure)', () => {
     }
   });
 
-  it('rings each flat camp with low clumps, leaving one gap away from the den', () => {
+  it('rings each flat camp with clumps in two staggered rows, leaving one gap away from the den', () => {
     for (const a of CAMPS) {
       const { cx, cz, r } = DISCS[a];
       const D = campDressing(a);
@@ -86,20 +86,55 @@ describe('campDressing (pure)', () => {
       expect(D.ring.r).toBeCloseTo(RING_R, 9);
       expect(angleOff(D.ring.gap.a, CAMP_TURN[a] + Math.PI)).toBeLessThan(1e-9);
       expect(D.ring.gap.half).toBe(0.33);
-      // ~0.55 m of arc apiece round the ring less the gap
+      // ~0.36 m of arc apiece round the ring less the gap
       const arc = (2 * Math.PI - 2 * D.ring.gap.half) * RING_R;
-      expect(D.ring.clumps.length, a).toBeGreaterThanOrEqual(Math.floor(arc / 0.55) - 2);
-      expect(D.ring.clumps.length, a).toBeLessThanOrEqual(Math.ceil(arc / 0.55) + 1);
+      expect(D.ring.clumps.length, a).toBeGreaterThanOrEqual(Math.floor(arc / 0.36) - 2);
+      expect(D.ring.clumps.length, a).toBeLessThanOrEqual(Math.ceil(arc / 0.36) + 1);
       for (const c of D.ring.clumps) {
         const at = `${a} ${c.x.toFixed(2)},${c.z.toFixed(2)}`;
         const d = Math.hypot(c.x - cx, c.z - cz);
-        expect(Math.abs(d - RING_R), at).toBeLessThanOrEqual(0.15);
+        // the row's 0.16 m in or out, and 0.06 m of jitter
+        expect(Math.abs(d - RING_R), at).toBeLessThanOrEqual(0.22 + 1e-9);
+        expect(Math.sign(d - RING_R), at).toBe(c.row ? 1 : -1);
         expect(angleOff(Math.atan2(c.z - cz, c.x - cx), D.ring.gap.a), at).toBeGreaterThan(D.ring.gap.half);
         expect(c.s, at).toBeGreaterThanOrEqual(0.8);
         expect(c.s, at).toBeLessThanOrEqual(1.2);
-        expect(c.h, at).toBeGreaterThanOrEqual(0.3);
-        expect(c.h, at).toBeLessThanOrEqual(0.55);
+        expect(c.h, at).toBeGreaterThanOrEqual(0.55);
+        expect(c.h, at).toBeLessThanOrEqual(c.gate ? 0.95 : 0.8);
         expect(Number.isFinite(c.rot), at).toBe(true);
+      }
+    }
+  });
+
+  it('the ring is a continuous two-row wall', () => {
+    for (const a of CAMPS) {
+      const { cx, cz } = DISCS[a];
+      const L = campLayout(a);
+      const D = campDressing(a);
+      // round the ring from one gap edge to the other
+      const from = (c) => {
+        const t = Math.atan2(c.z - cz, c.x - cx) - D.ring.gap.a;
+        return ((t % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      };
+      const cs = [...D.ring.clumps].sort((p, q) => from(p) - from(q));
+      // no clump dropped on an empty map: every seat and the den and rock
+      // are well inside the ring
+      const arc = (2 * Math.PI - 2 * D.ring.gap.half) * D.ring.r;
+      expect(cs.length, a).toBe(Math.round(arc / 0.36));
+      for (const c of cs) {
+        for (const s of seatsOf(L)) expect(dist(c, s)).toBeGreaterThanOrEqual(0.5);
+      }
+      for (let i = 0; i < cs.length; i++) {
+        expect(cs[i].row, `${a} ${i}`).toBe(i % 2);
+        expect(cs[i].gate, `${a} ${i}`).toBe(i === 0 || i === cs.length - 1);
+      }
+      for (let i = 1; i < cs.length; i++) {
+        const p = cs[i - 1];
+        const q = cs[i];
+        // a slot's step along the ring, rows 0.32 m apart across it: within
+        // the 0.6 m a bramble strand bridges, so every neighbour is joined
+        expect((from(q) - from(p)) * D.ring.r, `${a} ${i} along`).toBeLessThanOrEqual(0.45);
+        expect(dist(p, q), `${a} ${i}`).toBeLessThanOrEqual(0.6);
       }
     }
   });
@@ -124,7 +159,7 @@ describe('campDressing (pure)', () => {
       const dropped = free.ring.clumps.filter((c) => !D.ring.clumps.some((k) => k.x === c.x && k.z === c.z));
       expect(dropped.length, a).toBeGreaterThan(0);
       for (const c of D.ring.clumps) expect(dist(c, post)).toBeGreaterThanOrEqual(post.r + 0.25);
-      for (const c of dropped) expect(dist(c, post)).toBeLessThan(post.r + 0.35);
+      for (const c of dropped) expect(dist(c, post)).toBeLessThan(post.r + 0.37);
       // the clumps that stay are the very same clumps: a collider never shifts the rest
       for (const c of D.ring.clumps) expect(free.ring.clumps).toContainEqual(c);
       // a collider far off changes nothing

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, LEGS, REF_RIG } from './torso.js';
+import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from './torso.js';
 import { fitScars } from './scarmesh.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
 
@@ -7,11 +7,12 @@ const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
 
 // R3: the tail's resting curl (base.tailCurl per link) by state. Standing,
-// walking, grooming and sniffing get the full curl; lying and sitting a fifth,
-// so the tail lies round the cat. Every other state (cross, scared, stalk,
-// pounce, stretch) keeps today's straight chain. A rig without tailCurl
-// (Hagrid) gets no curl in any state.
-const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, nap: 0.2, perch: 0.2, requestPet: 0.2 };
+// walking, grooming and sniffing get the full curl; sitting a fifth, so the
+// tail lies round the cat. Every other state (cross, scared, stalk, pounce,
+// stretch) keeps today's straight chain. A rig without tailCurl (Hagrid) gets
+// no curl in any state. The nap took a fifth too until polish-pose Task 1:
+// its pivots are now written outright (torso.js NAP_TAIL), as the sit's are.
+const TAIL_CURL_BY_STATE = { follow: 1, sniff: 1, groom: 1, land: 1, perch: 0.2, requestPet: 0.2 };
 
 // Polish 1a, Task 5 (2026-11-02): the walking carriage. From the walk camera,
 // behind the cat, the resting curl (link 0 level, straight back at the camera,
@@ -179,16 +180,20 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
-  // The sit carries the body- and back-slot items on the posed torso (below,
+  // The sit carries the back-slot items on the posed torso (below,
   // rideBody). Each remembers its rest here, before fitLongLegs first moves
   // it; every other state puts it back there first, so fitLongLegs and the
   // pose fit move it exactly as they always did.
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
+  // The balloons (userData.float, below: floatBalloons) remember their rest
+  // the same way; they are written outright every frame, so never restored.
   for (const item of cat.children) {
-    if (!item.userData.ridesBody) continue;
+    const { ridesBody, float } = item.userData;
+    if (!ridesBody && !float) continue;
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
-    if (!sitting) restore(item);
+    if (ridesBody && !sitting) restore(item);
   }
+  wearCape(cat.userData.parts.body, sitting);
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -201,20 +206,39 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   }
   // The sitting tail's root rides the posed body (SIT_TAIL.ROOT, polish-sit
   // Task 2), once the pose fit has set the body down: the tail hangs on the
-  // cat, so without this it stayed 18 cm off the pitched rump. Only y and z
-  // are written (x stays 0); fitLongLegs and pose() put both back next frame.
-  if (sitting) {
+  // cat, so without this it stayed 18 cm off the pitched rump. The napping
+  // tail's root rides the lowered, squashed and breathing nap body the same
+  // way (NAP_TAIL.ROOT, polish-pose Task 1; it stayed 12.7 cm out of the
+  // rump). Only y and z are written (x stays 0); fitLongLegs and pose() put
+  // both back next frame. Cats with folds only, as the sit's.
+  const napping = state === 'nap' && cat.userData.parts.legs[0].userData.folds;
+  if (sitting || napping) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
+    const root = (sitting ? SIT_TAIL : NAP_TAIL).ROOT;
     body.updateMatrix();
-    _anchor.set(0, SIT_TAIL.ROOT[0] / sy, SIT_TAIL.ROOT[1] / sz).applyMatrix4(body.matrix);
+    _anchor.set(0, root[0] / sy, root[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
-    rideBody(cat);
+    if (sitting) rideBody(cat);
   }
+  // Every state, once the body is where the pose fit left it.
+  floatBalloons(cat);
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
+}
+
+// A cape (and the confetti cape's dots) wears its sit cloth in the sit and
+// its standing cloth in every other pose (model.js CAPE_SIT, userData.capeGeo:
+// both built with the cat, so this only points at one). In the sit the
+// standing hem lay over the tail curled round the haunch. Allocates nothing.
+function wearCape(body, sitting) {
+  const kids = body.children;
+  for (let i = 0; i < kids.length; i++) {
+    const geo = kids[i].userData.capeGeo;
+    if (geo) kids[i].geometry = sitting ? geo.sit : geo.stand;
+  }
 }
 
 // R4: the underside hangs on the torso, so a yawed torso ('cross') would swing
@@ -248,62 +272,106 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
-// The sit's back and body items (polish-sit Task 3, ruling R4). The capes,
-// clasps, backpack, wings, jetpack and balloons hang on the cat, not on the
-// body (model.js tags them userData.ridesBody), so the upright sit's nose-up
-// pitch (SIT.pitch 0.75) left them floating behind the back. Here each is
+// The sit's back items (polish-sit Task 3, ruling R4). The backpack, wings,
+// jetpack hang on the cat, not on the body (model.js tags them
+// userData.ridesBody), so the upright sit's nose-up pitch (SIT.pitch 0.75)
+// left them floating behind the back. Here each is
 // carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
 // body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
 // by the body's own rotation. Its rest (as built) is remembered by animateCat
 // before anything moves it, which also puts it back in every other state.
 //
-// The capes and the wings are the exceptions (fix round 1): turned with the
-// torso they read as a plank leaning off the rump and as plates drooping down
-// the haunch. They keep their built orientation and only move:
-//   * a wing (userData.sitShift) goes to its sit spot over the shoulders
-//     (model.js WING_SIT_Z), rest + sitShift, carried by the body;
-//   * a cape (userData.hang) moves with its clasp (rest + clasp offset,
-//     carried), so it hangs at its authored tilt behind the rump as it does
-//     standing. Its top edge then sits only ~0.25 above the ground and its
-//     0.4 m would reach into it, so it is shortened, scaled in its own y about
-//     that top edge, until its lowest corner is CAPE_HEM_CLEAR off the ground.
+// The wings are the exception (fix round 1): turned with the torso they read
+// as plates drooping down the haunch. They keep their built orientation and
+// only move: a wing (userData.sitShift) goes to its sit spot over the
+// shoulders (model.js WING_SIT), rest + sitShift, carried by the body.
+// The capes no longer ride: since polish-pose Task 2 they are cloth on the
+// body itself (model.js CAPE), so they follow the sit like the coats do.
 // Allocates nothing.
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
 const _rideScale = new THREE.Vector3();
-const _hinge = new THREE.Vector3();
-const _top = new THREE.Vector3();
-const CAPE_HEM_CLEAR = 0.01;  // its lowest corner over the ground
-const CAPE_THICK_HALF = 0.02; // the cape is 4 cm thick (model.js)
-function rideBody(cat) {
+// _ride = bodyPosed · bodyRest⁻¹ (rideBody and floatBalloons)
+function carryBody(cat) {
   const { body } = cat.userData.parts;
   const { bodyY, bodyScale } = cat.userData.base;
   body.updateMatrix();
   _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
+}
+function rideBody(cat) {
+  const { body } = cat.userData.parts;
+  carryBody(cat);
   for (const item of cat.children) {
     if (!item.userData.ridesBody) continue;
-    const { rest, hang, sitShift } = item.userData;
+    const { rest, sitShift } = item.userData;
     if (sitShift) {
       item.position.fromArray(sitShift).add(rest.position).applyMatrix4(_ride);
       item.quaternion.copy(rest.quaternion);
       continue;
     }
-    if (hang) {
-      // the clasp's move, carried
-      _hinge.fromArray(hang.clasp).add(rest.position);
-      _top.copy(_hinge).applyMatrix4(_ride).sub(_hinge);           // the move
-      _top.add(rest.position);                                      // the cape's centre, moved
-      item.quaternion.copy(rest.quaternion);
-      // its top edge: centre + R·(0, half, 0); its lowest corner: the hem's inner edge
-      const c = Math.cos(hang.tilt), sn = Math.sin(hang.tilt);
-      const topY = _top.y + hang.half * c, topZ = _top.z - hang.half * sn;
-      const k = Math.min(1, (topY - CAPE_THICK_HALF * sn - CAPE_HEM_CLEAR) / (2 * hang.half * c));
-      item.scale.y = k;
-      item.position.set(_top.x, topY - hang.half * k * c, topZ + hang.half * k * sn);
-      continue;
-    }
     item.position.copy(rest.position).applyMatrix4(_ride);
     item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
+  }
+}
+
+// The balloons float upright in every pose (polish-pose Task 3, ruling P3).
+// Carried like the sit's back items they leaned back ~45° with the sitting
+// torso, and in the nap the string's tie hung in the air over the lowered
+// back. Now only the TIE rides the posed body, in every state: tieNow =
+// _ride · tie (model.js userData.float.tie, cat frame), Δ = tieNow − tie.
+// The balloons and the knot never turn; they keep their built height unless
+// the tie rises (then they rise with it), and follow the tie sideways:
+// position = rest + (Δx, max(0, Δy), Δz), quaternion and scale as built. Each
+// string (userData.span: its knot end and built length) stretches from the
+// carried tie to its knot end, top = span.top + (Δx, max(0, Δy), Δz): placed
+// at the midpoint, its axis (+y) turned onto foot → top, scale.y the stretch.
+//
+// Measured tie moves (the single balloon's tie on a tabby; Digit, the
+// longest legs, in brackets; the bunch's tie within 0.5 cm of it): the sit
+// (requestPet, perch) carries the tie 33.2 cm [45.4] down and 7.2 cm back, the
+// nap 26.0 cm [38.2] down, the stalk 19.0 cm [31.3], the land 10.7 cm; the
+// cross lifts it 3.6 cm and swings it 3.6 cm sideways. So in a sit or a nap a
+// string is that much longer than standing, its balloons where they always
+// hang; in the cross the whole bunch rises 3.6 cm with the tie.
+//
+// FLOAT_SLACK: the string's play. Every component of Δ gives up its first
+// 5 mm (Δ − clamp(Δ, ±5 mm), continuous), so the follow's breathing (the
+// body's scale.y ± 0.012 moves the tie up to ± 4.3 mm) and the matrix's float
+// noise (~1e-17) leave every piece exactly as built: standing still, the
+// balloons are exactly where they always were. The string's foot is the tie
+// carried within that play (≤ 5 mm from tieNow in practice, Δy alone being
+// large). Allocates nothing.
+const FLOAT_SLACK = 0.005;
+const _tie = new THREE.Vector3();
+const _rise = new THREE.Vector3();
+const _top = new THREE.Vector3();
+const _foot = new THREE.Vector3();
+const _span = new THREE.Vector3();
+const slack = (d) => d - Math.min(FLOAT_SLACK, Math.max(-FLOAT_SLACK, d));
+function floatBalloons(cat) {
+  let carried = false;
+  for (const item of cat.children) {
+    const { float, span, rest } = item.userData;
+    if (!float) continue;
+    if (!carried) { carryBody(cat); carried = true; }
+    _tie.fromArray(float.tie);
+    _foot.copy(_tie).applyMatrix4(_ride).sub(_tie); // Δ
+    _foot.set(slack(_foot.x), slack(_foot.y), slack(_foot.z));
+    if (_foot.x === 0 && _foot.y === 0 && _foot.z === 0) { restore(item); continue; }
+    _rise.set(_foot.x, Math.max(0, _foot.y), _foot.z);
+    if (!span) {
+      item.position.copy(rest.position).add(_rise);
+      item.quaternion.copy(rest.quaternion);
+      item.scale.copy(rest.scale);
+      continue;
+    }
+    _foot.add(_tie);
+    _top.fromArray(span.top).add(_rise);
+    _span.subVectors(_top, _foot);
+    const len = _span.length();
+    item.position.addVectors(_top, _foot).multiplyScalar(0.5);
+    item.quaternion.setFromUnitVectors(_Y, _span.divideScalar(len));
+    item.scale.set(1, len / span.len, 1);
   }
 }
 
@@ -655,8 +723,23 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
     head.position.set(hx + 0.08, hy - 0.24, hz + 0.14);
     head.rotation.set(0.55, 0.5, 0);
     if (!folds) for (const leg of legs) leg.scale.y = 0.25;
-    tail.rotation.set(-0.12 + c, 0, 0);
-    for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
+    if (folds) {
+      // polish-pose Task 1: the tail lies flush on the ground and curls round
+      // the left haunch, toward the nose (the head above turns it to the
+      // cat's left), torso.js NAP_TAIL. Every pivot is written outright, so
+      // the nap no longer takes the resting curl (TAIL_CURL_BY_STATE drops
+      // it): bending each link up would lift the chain off the ground. The
+      // root rides the posed body (animateCat). The tip link sways slowly.
+      tail.rotation.set(NAP_TAIL.rotX, 0, 0);
+      for (let i = 0; i < tailPivots.length; i++) {
+        tailPivots[i].rotation.set(NAP_TAIL.pivotX[i], TAIL_HOOK_SIDE * NAP_TAIL.pivotY[i], 0);
+      }
+      tailPivots[tailPivots.length - 1].rotation.y += Math.sin(t * 0.9) * NAP_TAIL.sway; // the tip sways
+    } else {
+      // Hagrid (ruling P1): his fan rides his body (rideTail) and keeps this.
+      tail.rotation.set(-0.12 + c, 0, 0);
+      for (const p of tailPivots) p.rotation.y = 0.55; // wrap around the body
+    }
     body.scale.y += Math.sin(t * 1.4) * 0.015; // slow sleepy breathing
     return;
   }

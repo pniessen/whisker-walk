@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHAMBER_HEADROOM } from './gorgeshape.js';
+import { CHAMBER_HEADROOM, CORRIDOR_HEADROOM } from './gorgeshape.js';
 import { mulberry32 } from '../rng.js';
 import { litMaterial } from '../render/materials.js';
 
@@ -11,7 +11,7 @@ import { litMaterial } from '../render/materials.js';
 // plan at every corner and curving inward as a cove under the roof, with a
 // soft seeded unevenness; a few stubby STALACTITES hanging from the cove and
 // the roof (the Echo Cave the most, with two little stalagmites under them);
-// MOSS in low flat blobs along the wall feet and on the lower walls; and in
+// MOSS in lumpy mounds along the wall feet and on the lower walls; and in
 // the Snug Cave, a NEST of twigs lined with moss and fur. Near the cave's
 // crystal clusters the liner and the moss are tinted toward their colour, a
 // baked glow (Task 6). The clusters themselves are crystalClusters, below.
@@ -55,11 +55,13 @@ const TWIGS = [0x6b4f33, 0x7f6142, 0x5e452d];
 const FUR = 0xa89f94;
 
 const STALACTITES = { echo: [7, 3], glitter: [5, 3], snug: [4, 2] }; // [min, spread]
-const FLOOR_MOSS = { echo: 9, glitter: 5, snug: 14 };
+// The Snug Cave keeps its first 11 floor mounds (of 14 flat blobs): a mound
+// is 45 triangles, and the room may grow by 300 at most (polish-gorgeway Task 3).
+const FLOOR_MOSS = { echo: 9, glitter: 5, snug: 11 };
 const WALL_MOSS = { echo: 3, glitter: 1, snug: 4 };
 const NEST_R = 0.45;
 const NEST_RIM = 0.02; // the twig rim's jitter reaches a little past NEST_R
-const MOSS_REACH = 1.2; // a floor blob's outer ring reaches 1.175 of its radius
+const MOSS_REACH = 1.25; // a floor mound's rim reaches at most 1.2 of its radius
 const MOUTH_KEEP = 2.0; // no stalactite this near the opening, where the camera mostly is
 const GLOW_MIX = 0.6; // how far a vertex right by a cluster goes toward its colour
 const GLOW_CENTRE_Y = 0.35; // the glow's centre, over a cluster's spot
@@ -138,14 +140,130 @@ const coveHeight = (d) => {
 };
 
 // One growing list of triangles, by part.
-function mesher() {
+export function mesher(names = ['liner', 'stalactites', 'moss', 'nest']) {
   const pos = [], col = [], idx = [];
-  const parts = { liner: 0, stalactites: 0, moss: 0, nest: 0 };
+  const parts = Object.fromEntries(names.map((k) => [k, 0]));
   return {
     pos, col, idx, parts,
     vert(x, y, z, c) { pos.push(x, y, z); col.push(c.r, c.g, c.b); return pos.length / 3 - 1; },
     tri(part, a, b, c) { idx.push(a, b, c); parts[part]++; },
   };
+}
+
+// --- a blunt stalactite (or, pointing up, a stalagmite) ------------------------------
+// Rings from a wide root to a blunt, rounded tip: the last two rings close in
+// over the last 10% like a dome, and the point is a short drop below a ring
+// still a quarter of the root's width (no fangs). Appended to a mesher() as
+// `part`; `sides` round, the rings turned by `turn`, coloured col0 to col1.
+const spikeColor = new THREE.Color();
+const SPIKE_PROFILE = [[0, 1], [0.4, 0.8], [0.7, 0.58], [0.9, 0.4], [0.97, 0.25]];
+function spike(m, part, x, z, yBase, yTip, r0, sides, turn, col0, col1) {
+  const c = spikeColor;
+  const ringIds = SPIKE_PROFILE.map(([t, k], ri) => {
+    const y = lerp(yBase, yTip, t);
+    const ids = [];
+    for (let i = 0; i < sides; i++) {
+      const a = turn + ri * 0.35 + (i / sides) * Math.PI * 2;
+      c.copy(col0).lerp(col1, t);
+      ids.push(m.vert(x + Math.cos(a) * r0 * k, y, z + Math.sin(a) * r0 * k, c));
+    }
+    return ids;
+  });
+  c.copy(col1);
+  const tip = m.vert(x, yTip, z, c);
+  const down = yTip < yBase; // a stalactite hangs; a stalagmite stands
+  for (let ri = 0; ri + 1 < ringIds.length; ri++) {
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides;
+      const a = ringIds[ri][i], b = ringIds[ri][j], cc = ringIds[ri + 1][j], d = ringIds[ri + 1][i];
+      if (down) { m.tri(part, a, b, cc); m.tri(part, a, cc, d); } else { m.tri(part, a, cc, b); m.tri(part, a, d, cc); }
+    }
+  }
+  const last = ringIds[ringIds.length - 1];
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides;
+    if (down) m.tri(part, last[i], last[j], tip); else m.tri(part, last[i], tip, last[j]);
+  }
+}
+
+// --- a moss mound -------------------------------------------------------------------
+// One lumpy mound, appended to a mesher() as part 'moss': a centre and three
+// rings of 9 at 0.35, 0.7 and 1.0 of `rad` round (x, y, z) in the plane across
+// the normal (nx, ny, nz), lifted along it by 0.4, 0.28 and 0.02 of `rad` (the
+// centre a touch over the first ring, at least 0.03 m; no vertex higher
+// than MOUND_MAX, the jittered first ring clamped to it too). Each ring vertex's radius is jittered ±20% (by a
+// wobble round the mound that all three rings share, so neighbouring rings
+// keep their order and the rim's slope never folds over) and its lift ±30%,
+// all by hashOf on (x, z, salt): it draws nothing. Darker at the rim (×0.9),
+// lighter on top (×1.08). 45 triangles, facing along the normal.
+// Returns the centre's top point, and the rim as appended: `rim` (vertex ids).
+const MOUND_SEGS = 9;
+const MOUND_RINGS = [[0.35, 0.4, 1.05], [0.7, 0.28, 0.99], [1.0, 0.02, 0.9]]; // [radius, lift, shade]
+const MOUND_TOP = 0.42; // the centre's lift, of rad
+const MOUND_MAX = 0.14; // no mound stands taller than this, however wide
+export function mossLump(m, { x, y, z, nx, ny, nz, rad, color, salt = 0 }) {
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+  // u across the normal (level where it can be), v = n × u: u × v = n
+  let ux, uy, uz;
+  if (Math.abs(ny) < 0.9) { ux = nz; uy = 0; uz = -nx; } else { ux = 0; uy = -nz; uz = ny; }
+  const ul = Math.hypot(ux, uy, uz);
+  ux /= ul; uy /= ul; uz /= ul;
+  const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+  const k = Math.min(1, MOUND_MAX / (MOUND_TOP * rad)); // a wide mound is squatter
+  const turn = hashOf(x + salt, z - salt) * Math.PI * 2;
+  // the outline's wobble round the mound, -1..1: two lobes and three, at hashed
+  // phases. Every ring follows it, so a ring never reaches past the next one out.
+  const p2 = hashOf(x * 1.7 - salt, z + 0.3) * Math.PI * 2, p3 = hashOf(z * 2.3 + salt, x - 0.7) * Math.PI * 2;
+  const wobble = (a) => 0.6 * Math.sin(2 * a + p2) + 0.4 * Math.sin(3 * a + p3);
+  const c = new THREE.Color();
+  const at = (a, rr, lift) => {
+    const cu = Math.cos(a) * rr, sv = Math.sin(a) * rr;
+    return [x + ux * cu + vx * sv + nx * lift, y + uy * cu + vy * sv + ny * lift, z + uz * cu + vz * sv + nz * lift];
+  };
+  c.copy(color).multiplyScalar(1.08);
+  const lift0 = Math.max(0.03, MOUND_TOP * rad * k);
+  const top = at(0, 0, lift0);
+  const mid = m.vert(...top, c);
+  const rings = MOUND_RINGS.map(([kr, kl, shade], ri) => {
+    c.copy(color).multiplyScalar(shade);
+    return Array.from({ length: MOUND_SEGS }, (_, i) => {
+      const a = turn + ((i + 0.5 * ri) / MOUND_SEGS) * Math.PI * 2;
+      const jr = 1 + 0.2 * wobble(a);
+      const jl = 1 + 0.6 * (hashOf(z * 1.9 + i * 2.11 + salt, x * 1.3 + ri * 3.7) - 0.5);
+      return m.vert(...at(a, rad * kr * jr, Math.min(MOUND_MAX, rad * kl * k * jl)), c);
+    });
+  });
+  for (let i = 0; i < MOUND_SEGS; i++) {
+    const j = (i + 1) % MOUND_SEGS;
+    // round from u toward v, i.e. anticlockwise seen from along the normal
+    m.tri('moss', mid, rings[0][i], rings[0][j]);
+    // each ring sits half a step round from the one inside it: ring ri + 1's
+    // vertex i stands between ring ri's i and j
+    for (let ri = 0; ri + 1 < rings.length; ri++) {
+      const a = rings[ri][i], b = rings[ri][j], d = rings[ri + 1][i], e = rings[ri + 1][j];
+      m.tri('moss', a, d, b);
+      m.tri('moss', b, d, e);
+    }
+  }
+  return { x: top[0], y: top[1], z: top[2], rim: rings[rings.length - 1] };
+}
+
+// The baked glow: vertices [from, to) of a mesher() within GLOW_R of a
+// crystal cluster (its spot, GLOW_CENTRE_Y over the floor y0) go toward the
+// cluster's colour, by GLOW_MIX right by it, fading out by GLOW_R.
+function glowTint(m, crystals, y0, from, to) {
+  const glow = new THREE.Color(crystals.color ?? 0xffffff);
+  for (let i = from; i < to; i++) {
+    const x = m.pos[i * 3], y = m.pos[i * 3 + 1], z = m.pos[i * 3 + 2];
+    let d = Infinity;
+    for (const sp of crystals.spots) d = Math.min(d, Math.hypot(x - sp.x, y - (y0 + GLOW_CENTRE_Y), z - sp.z));
+    if (d >= GLOW_R) continue;
+    const w = GLOW_MIX * (1 - d / GLOW_R) ** 2;
+    m.col[i * 3] = lerp(m.col[i * 3], glow.r, w);
+    m.col[i * 3 + 1] = lerp(m.col[i * 3 + 1], glow.g, w);
+    m.col[i * 3 + 2] = lerp(m.col[i * 3 + 2], glow.b, w);
+  }
 }
 
 // `crystals` (optional): { spots: [{ x, z }], color } — the liner and the moss
@@ -276,40 +394,9 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
   const hangColor = base.clone().multiplyScalar(1.05);
   const tipColor = base.clone().lerp(new THREE.Color(0xffffff), 0.15);
   const stalactiteTips = [];
-  const spike = (part, x, z, yBase, yTip, r0, sides, turn, col0, col1) => {
-    // rings from a wide root to a blunt, rounded tip: the last two rings close
-    // in over the last 10% like a dome, and the point is a short drop below
-    // a ring still a quarter of the root's width (no fangs)
-    const prof = [[0, 1], [0.4, 0.8], [0.7, 0.58], [0.9, 0.4], [0.97, 0.25]];
-    const ringIds = prof.map(([t, k], ri) => {
-      const y = lerp(yBase, yTip, t);
-      const ids = [];
-      for (let i = 0; i < sides; i++) {
-        const a = turn + ri * 0.35 + (i / sides) * Math.PI * 2;
-        c.copy(col0).lerp(col1, t);
-        ids.push(m.vert(x + Math.cos(a) * r0 * k, y, z + Math.sin(a) * r0 * k, c));
-      }
-      return ids;
-    });
-    c.copy(col1);
-    const tip = m.vert(x, yTip, z, c);
-    const down = yTip < yBase; // a stalactite hangs; a stalagmite stands
-    for (let ri = 0; ri + 1 < ringIds.length; ri++) {
-      for (let i = 0; i < sides; i++) {
-        const j = (i + 1) % sides;
-        const a = ringIds[ri][i], b = ringIds[ri][j], cc = ringIds[ri + 1][j], d = ringIds[ri + 1][i];
-        if (down) { m.tri(part, a, b, cc); m.tri(part, a, cc, d); } else { m.tri(part, a, cc, b); m.tri(part, a, d, cc); }
-      }
-    }
-    const last = ringIds[ringIds.length - 1];
-    for (let i = 0; i < sides; i++) {
-      const j = (i + 1) % sides;
-      if (down) m.tri(part, last[i], last[j], tip); else m.tri(part, last[i], tip, last[j]);
-    }
-  };
   for (const h of hangs) {
     const len = h.root - h.tipH;
-    spike('stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.13 + 0.12 * len, h.sides, h.turn, hangColor, tipColor);
+    spike(m, 'stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.13 + 0.12 * len, h.sides, h.turn, hangColor, tipColor);
     stalactiteTips.push({ x: h.x, y: y0 + h.tipH, z: h.z, root: y0 + h.root });
   }
   // The Echo Cave's two stubby stalagmites, each under a stalactite.
@@ -317,7 +404,7 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     let made = 0;
     for (const h of hangs) {
       if (made >= 2 || !clear(h.x, h.z, 0.35)) continue;
-      spike('stalactites', h.x, h.z, y0 - 0.02, y0 + 0.18 + 0.12 * h.lean, 0.2, h.sides, h.turn + 1, hangColor.clone().multiplyScalar(0.9), tipColor);
+      spike(m, 'stalactites', h.x, h.z, y0 - 0.02, y0 + 0.18 + 0.12 * h.lean, 0.2, h.sides, h.turn + 1, hangColor.clone().multiplyScalar(0.9), tipColor);
       made++;
     }
   }
@@ -357,30 +444,20 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     if (!blobs.every((o) => Math.hypot(o.x - x, o.z - z) >= 0.6 * (o.rad + rad))) continue;
     blobs.push({ x, z, rad, tint, turn });
   }
+  // Each a lumpy mound on the floor; any rim point past the chamber's walls is
+  // pulled back inside them, as the flat blobs' were.
+  const mossBlobs = [];
   for (const bl of blobs) {
-    const col0 = mossA.clone().lerp(mossB, bl.tint);
-    const segsN = 9;
-    c.copy(col0).multiplyScalar(1.08);
-    const mid = m.vert(bl.x, y0 + 0.028, bl.z, c);
-    const ring = (k, y, jit, shade) => Array.from({ length: segsN }, (_, i) => {
-      const a = bl.turn + (i / segsN) * Math.PI * 2;
-      const rr = bl.rad * k * (1 + jit * (hashOf(bl.x + i, bl.z) - 0.5));
-      const x = Math.min(r.maxX - 0.005, Math.max(r.minX + 0.005, bl.x + Math.cos(a) * rr));
-      const z = Math.min(r.maxZ - 0.005, Math.max(r.minZ + 0.005, bl.z + Math.sin(a) * rr));
-      c.copy(col0).multiplyScalar(shade);
-      return m.vert(x, y0 + y, z, c);
-    });
-    const inner = ring(0.55, 0.022, 0.2, 1.0);
-    const outer = ring(1.0, 0.004, 0.35, 0.92);
-    for (let i = 0; i < segsN; i++) {
-      const j = (i + 1) % segsN;
-      // counter-clockwise seen from above (x east, z south): up-facing
-      m.tri('moss', mid, inner[j], inner[i]);
-      m.tri('moss', inner[i], inner[j], outer[j]);
-      m.tri('moss', inner[i], outer[j], outer[i]);
+    const from = m.pos.length / 3;
+    const top = mossLump(m, { x: bl.x, y: y0, z: bl.z, nx: 0, ny: 1, nz: 0, rad: bl.rad, color: mossA.clone().lerp(mossB, bl.tint), salt: bl.turn });
+    for (let i = from; i < m.pos.length / 3; i++) {
+      m.pos[i * 3] = Math.min(r.maxX - 0.005, Math.max(r.minX + 0.005, m.pos[i * 3]));
+      m.pos[i * 3 + 2] = Math.min(r.maxZ - 0.005, Math.max(r.minZ + 0.005, m.pos[i * 3 + 2]));
     }
+    const rim = top.rim.map((i) => ({ x: m.pos[i * 3], y: m.pos[i * 3 + 1], z: m.pos[i * 3 + 2] }));
+    mossBlobs.push({ x: bl.x, z: bl.z, rad: bl.rad, top: top.y, rim });
   }
-  // A few on the lower walls, lying on the liner.
+  // A few on the lower walls.
   const wallCap = WALL_MOSS[cave.id] ?? 1;
   const patches = [];
   for (let t = 0; t < 60; t++) {
@@ -392,48 +469,23 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     if (!patches.every((o) => Math.abs(o.s - s) >= 0.8)) continue;
     patches.push({ s, h, rad, tint });
   }
+  // Each a mound standing out of the liner at its spot, along the wall's
+  // normal into the room, 0.02 off it.
+  const wallMoss = [];
   for (const pt of patches) {
-    const col0 = mossA.clone().lerp(mossB, pt.tint).multiplyScalar(0.95);
-    const segsN = 8;
-    const on = (ds, dh, lift) => {
-      const q = linerAt(pt.s + ds, pt.h + dh);
-      const p = q.p;
-      return [q.x + p.nx * lift, q.y, q.z + p.nz * lift];
-    };
-    c.copy(col0).multiplyScalar(1.06);
-    const mid = m.vert(...on(0, 0, 0.03), c);
-    const ring = Array.from({ length: segsN }, (_, i) => {
-      const a = (i / segsN) * Math.PI * 2;
-      const k = 1 + 0.3 * (hashOf(pt.s + i, pt.h) - 0.5);
-      c.copy(col0);
-      return m.vert(...on(Math.cos(a) * pt.rad * k, Math.sin(a) * pt.rad * k * 0.8, 0.02), c);
+    const q = linerAt(pt.s, pt.h);
+    const p = q.p;
+    const top = mossLump(m, {
+      x: q.x + p.nx * 0.02, y: q.y, z: q.z + p.nz * 0.02, nx: p.nx, ny: 0, nz: p.nz,
+      rad: pt.rad, color: mossA.clone().lerp(mossB, pt.tint).multiplyScalar(0.95), salt: pt.s + pt.h,
     });
-    for (let i = 0; i < segsN; i++) {
-      const j = (i + 1) % segsN;
-      // ring runs along the walk (+s) and up (+h): faces into the room
-      m.tri('moss', mid, ring[i], ring[j]);
-    }
+    wallMoss.push({ x: p.wx, y: q.y, z: p.wz, nx: p.nx, nz: p.nz, top: { x: top.x, y: top.y, z: top.z } });
   }
 
   // --- the glow: the liner and the moss near a crystal cluster catch its colour
   if (crystals?.spots?.length) {
-    const glow = new THREE.Color(crystals.color ?? 0xffffff);
-    const near = (i) => {
-      const x = m.pos[i * 3], y = m.pos[i * 3 + 1], z = m.pos[i * 3 + 2];
-      let d = Infinity;
-      for (const sp of crystals.spots) d = Math.min(d, Math.hypot(x - sp.x, y - (y0 + GLOW_CENTRE_Y), z - sp.z));
-      return d;
-    };
-    const tint = (i) => {
-      const d = near(i);
-      if (d >= GLOW_R) return;
-      const w = GLOW_MIX * (1 - d / GLOW_R) ** 2;
-      m.col[i * 3] = lerp(m.col[i * 3], glow.r, w);
-      m.col[i * 3 + 1] = lerp(m.col[i * 3 + 1], glow.g, w);
-      m.col[i * 3 + 2] = lerp(m.col[i * 3 + 2], glow.b, w);
-    };
-    for (let i = 0; i < linerVerts; i++) tint(i);
-    for (let i = mossFrom; i < m.pos.length / 3; i++) tint(i);
+    glowTint(m, crystals, y0, 0, linerVerts);
+    glowTint(m, crystals, y0, mossFrom, m.pos.length / 3);
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -463,7 +515,371 @@ export function caveRoom(cave, { clear, rockAt, seed, crystals } = {}) {
     return Math.max(0, best ?? 0);
   };
 
-  return { geometry, parts: { ...m.parts }, stalactiteTips, nest, linerDepth };
+  return { geometry, parts: { ...m.parts }, stalactiteTips, nest, linerDepth, mossBlobs, wallMoss };
+}
+
+// =============================================================================
+// A deep cave's corridor and bend, dressed (polish-gorgeway, Task 4).
+//
+// The corridor and the bend are a bare L of rock box (builder.rockTerrain):
+// flat slab walls and a flat ceiling the chase camera often hugs. This sweeps
+// a rounded, rough TUNNEL liner along the cave's walking line from the mouth
+// (path[0]) round the corner (path[1]) to the chamber's edge (path[2]):
+// straight walls low down, rounding over into a vault under the roof. Each
+// liner vertex moves only inward (toward the axis, and down on the vault) by
+// seeded value noise: at most TUNNEL_BUMP_LOW below COVE_FROM, where the
+// camera sits between the cat and the wall, and TUNNEL_BUMP_VAULT above;
+// the bumps fade out over TUNNEL_TAPER at both ends, where an END FRAME fills
+// between the arch and the box's rectangle so no bare box shows round it.
+// Two stubby STALACTITES (the chamber's blunt spike) hang from the vault, none
+// near the mouth; three thin hanging ROOTS hang near the mouth, no lower than
+// ROOT_MIN_Y; three lumpy MOSS mounds (mossLump) grow on the low walls.
+//
+// The corner: on each leg a station's lateral axis is level and points to the
+// bend's outer side, so u = ±1.5 lands on the box's side walls. Within 1.5 m
+// either side of the corner the stations fan round the L's inner corner I: a
+// station's u = -1.5 stays at I and u = +1.5 walks along the outer walls, so
+// the corner station's axis is the legs' bisector scaled by √2 (a mitre) and
+// |u| = 1.5 lands exactly on the L's inner and outer corners. (Ordinary leg
+// stations there would fold over behind the inner corner.)
+//
+// Pure geometry from the cave's record and a seed: no Math.random, no scene.
+// `clear(x, z, reach)` (gorge.js's caveClear for the cave) is asked for every
+// low liner vertex, and one that fails goes back to the wall line.
+// =============================================================================
+export const TUNNEL_BUMP_LOW = 0.12; // the most a liner vertex stands in below COVE_FROM
+export const TUNNEL_BUMP_VAULT = 0.2; // ... and on the vault above it
+export const ROOT_MIN_Y = 1.7; // no hanging root comes lower over the floor
+const TUNNEL_HALF = 1.5; // the corridor's and the bend's half-width
+const TUNNEL_STEP = 0.55; // at most this between stations along the walking line
+const TUNNEL_TAPER = 0.8; // the bumps fade out over this at both ends
+// (u, h): one side of the profile, from the foot up to the vault's crown
+const TUNNEL_SIDE = [[1.5, -0.02], [1.5, 0.8], [1.5, 1.55], [1.35, 2.1], [0.9, 2.45]];
+const TUNNEL_PROFILE = [
+  ...TUNNEL_SIDE,
+  [0, CORRIDOR_HEADROOM - 0.02],
+  ...TUNNEL_SIDE.slice().reverse().map(([u, h]) => [-u, h]),
+];
+const EDGE_R = 0.08; // the L's inner corner, rounded to this radius low down
+const EDGE_FADE = 0.6; // ... blending into the legs' bumps over this
+const ROOT_COLORS = [0x5e452d, 0x6b4f33];
+const TUNNEL_STALACTITES = 2;
+const HANG_BURY = 0.1; // a tunnel stalactite's root, this far up into the vault
+const TUNNEL_ROOTS = 3;
+const TUNNEL_MOSS = 3;
+const MOSS_SEAT = 0.02; // a tunnel moss mound's foot, this far behind the liner's face
+
+// Seeded value noise on (s along the tunnel, p along the profile), two octaves.
+function tunnelNoise(rng, sLen, pLen) {
+  const octaves = NOISE_STEP.map((step) => {
+    const ns = Math.ceil(sLen / step) + 2, np = Math.ceil(pLen / step) + 2;
+    return { ns, np, step, table: Array.from({ length: ns * np }, () => rng()) };
+  });
+  const one = ({ np, step, table }, s, p) => {
+    const fs = Math.max(0, s) / step, fp = Math.max(0, p) / step;
+    const i0 = Math.floor(fs), j0 = Math.floor(fp);
+    const u = smooth(fs - i0), v = smooth(fp - j0);
+    const cell = (i, j) => table[i * np + j];
+    return lerp(lerp(cell(i0, j0), cell(i0 + 1, j0), u), lerp(cell(i0, j0 + 1), cell(i0 + 1, j0 + 1), u), v);
+  };
+  // stretched about the middle for a rougher look, held to 0..1
+  return (s, p) => Math.min(1, Math.max(0, ((one(octaves[0], s, p) * 2 + one(octaves[1], s, p)) / 3 - 0.5) * 1.8 + 0.5));
+}
+
+// The vault's height over the floor at |u| (the profile without its bumps).
+function vaultHeight(au) {
+  const side = TUNNEL_PROFILE.slice(2, 6).reverse(); // crown out to (1.5, 1.55)
+  for (let k = 0; k + 1 < side.length; k++) {
+    const [u0, h0] = side[k], [u1, h1] = side[k + 1];
+    if (au <= u1) return lerp(h0, h1, (au - u0) / (u1 - u0));
+  }
+  return side[side.length - 1][1];
+}
+
+export function caveTunnel(cave, { clear, seed, crystals } = {}) {
+  const y0 = cave.y;
+  const [p0, pc, p2] = cave.path;
+  const L1 = Math.hypot(pc[0] - p0[0], pc[1] - p0[1]);
+  const L2 = Math.hypot(p2[0] - pc[0], p2[1] - pc[1]);
+  const S = L1 + L2;
+  const d1 = [(pc[0] - p0[0]) / L1, (pc[1] - p0[1]) / L1];
+  const d2 = [(p2[0] - pc[0]) / L2, (p2[1] - pc[1]) / L2];
+  const H = TUNNEL_HALF;
+  const at = (o, a, ka, b, kb) => [o[0] + a[0] * ka + b[0] * kb, o[1] + a[1] * ka + b[1] * kb];
+  const I = at(pc, d1, -H, d2, H); // the L's inner corner
+  const A = at(pc, d1, -H, d2, -H); // the outer walls' corner zone: A, the outer corner, B
+  const Oc = at(pc, d1, H, d2, -H);
+  const B = at(pc, d1, H, d2, H);
+  // A station's frame at s along the walking line: its centre, its lateral
+  // axis (u = 1.5 on the outer side's wall) and its forward direction.
+  const frameAt = (s) => {
+    if (s <= L1 - H) return { c: at(p0, d1, s, d1, 0), l: [-d2[0], -d2[1]], f: d1 };
+    if (s >= L1 + H) return { c: at(pc, d2, s - L1, d2, 0), l: d1, f: d2 };
+    const O = s < L1
+      ? [lerp(A[0], Oc[0], (s - L1 + H) / H), lerp(A[1], Oc[1], (s - L1 + H) / H)]
+      : [lerp(Oc[0], B[0], (s - L1) / H), lerp(Oc[1], B[1], (s - L1) / H)];
+    const f = [d1[0] + d2[0], d1[1] + d2[1]];
+    const fl = Math.hypot(...f);
+    return { c: [(I[0] + O[0]) / 2, (I[1] + O[1]) / 2], l: [(O[0] - I[0]) / (2 * H), (O[1] - I[1]) / (2 * H)], f: [f[0] / fl, f[1] / fl] };
+  };
+  const onLeg = (s) => s <= L1 - H || s >= L1 + H;
+  // 1 through the corner's fan, fading out over EDGE_FADE either side of it
+  const fanW = (s) => smooth(1 - (Math.abs(s - L1) - H) / EDGE_FADE);
+
+  // the stations: ~TUNNEL_STEP apart on each leg, and as many either side of
+  // the corner through its fan
+  const ss = [];
+  const run = (from, to, first) => {
+    const n = Math.max(1, Math.ceil((to - from) / TUNNEL_STEP - 1e-9));
+    for (let i = first; i <= n; i++) ss.push(from + ((to - from) * i) / n);
+  };
+  run(0, L1 - H, 0);
+  run(L1 - H, L1, 1);
+  run(L1, L1 + H, 1);
+  run(L1 + H, S, 1);
+
+  // the profile's length along itself (for the noise) and its inward normals
+  const P = TUNNEL_PROFILE;
+  const pa = [0];
+  for (let k = 1; k < P.length; k++) pa.push(pa[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+  const inN = P.map(([u, h], k) => {
+    if (Math.abs(u) >= H - 1e-9 && h < COVE_FROM) return [-Math.sign(u), 0]; // the low walls: straight in
+    const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)];
+    const tu = b[0] - a[0], th = b[1] - a[1], tl = Math.hypot(tu, th);
+    return [-th / tl, tu / tl];
+  });
+
+  const rng = mulberry32(seed >>> 0);
+  const noise = tunnelNoise(rng, S, pa[pa.length - 1]);
+  const m = mesher(['liner', 'frames', 'stalactites', 'roots', 'moss']);
+  const ranges = {};
+  const mark = (part, from) => { ranges[part] = [from, m.pos.length / 3]; };
+  const taper = (s) => smooth(Math.min(s, S - s) / TUNNEL_TAPER);
+  const world = (fr, u, h) => ({ x: fr.c[0] + fr.l[0] * u, y: y0 + h, z: fr.c[1] + fr.l[1] * u });
+  // how far in a liner vertex at (s, k) stands, and whether it went back to the wall
+  const bumpOf = (s, k) => {
+    const n = noise(s, pa[k]);
+    return { n, b: taper(s) * n * (P[k][1] < COVE_FROM ? TUNNEL_BUMP_LOW : TUNNEL_BUMP_VAULT) };
+  };
+  const base = new THREE.Color(LINER_COLORS[cave.id] ?? LINER_COLORS.echo);
+  const c = new THREE.Color();
+  const shade = (h, n) => c.copy(base).multiplyScalar(0.75 + 0.25 * (0.5 * Math.min(1, Math.max(0, h) / 1.6) + 0.5 * n));
+
+  // --- the liner ---------------------------------------------------------------------
+  let from = 0;
+  const stations = [];
+  const bumps = []; // per station, per profile point: how far in it stands
+  for (const s of ss) {
+    const fr = frameAt(s);
+    const row = [];
+    const ids = P.map(([u, h], k) => {
+      let { n, b } = bumpOf(s, k);
+      // the inner corner's low wall: a steady rounded edge round I (a bump of
+      // changing depth there would turn its faces along the walk)
+      if (u <= -H + 1e-9 && h < COVE_FROM) b = lerp(b, EDGE_R / Math.hypot(...fr.l), fanW(s));
+      let q = world(fr, u + inN[k][0] * b, h + inN[k][1] * b);
+      if (h < COVE_FROM && !clear(q.x, q.z, 0)) { q = world(fr, u, h); b = 0; n = 0; }
+      row.push(b);
+      return m.vert(q.x, q.y, q.z, shade(h, n));
+    });
+    bumps.push(row);
+    stations.push({ s, x: fr.c[0], z: fr.c[1], lx: fr.l[0], lz: fr.l[1], ids });
+  }
+  // (b - a) × (cc - a), along the walk and up the outer wall, faces into the
+  // tunnel when the bend turns to the legs' right; else the other way round
+  const flip = -d1[1] * d2[0] + d1[0] * d2[1] < 0;
+  const quad = (part, a, b, cc, d) => {
+    if (flip) { m.tri(part, a, cc, b); m.tri(part, a, d, cc); } else { m.tri(part, a, b, cc); m.tri(part, a, cc, d); }
+  };
+  for (let i = 0; i + 1 < stations.length; i++) {
+    const s0 = stations[i].ids, s1 = stations[i + 1].ids;
+    for (let k = 0; k + 1 < P.length; k++) quad('liner', s0[k], s1[k], s1[k + 1], s0[k + 1]);
+  }
+  mark('liner', from);
+
+  // A triangle turned to face along (wx, wy, wz).
+  const V = (i) => new THREE.Vector3(m.pos[i * 3], m.pos[i * 3 + 1], m.pos[i * 3 + 2]);
+  const facing = (part, a, b, cc, want) => {
+    const n = V(b).sub(V(a)).cross(V(cc).sub(V(a)));
+    if (n.dot(want) >= 0) m.tri(part, a, b, cc); else m.tri(part, a, cc, b);
+  };
+
+  // --- the end frames: between the end's arch and the box's rectangle ---------------
+  from = m.pos.length / 3;
+  for (const [s, out] of [[0, -1], [S, 1]]) {
+    const fr = frameAt(s);
+    const want = new THREE.Vector3(fr.f[0] * out, 0, fr.f[1] * out);
+    const v = (u, h) => { const q = world(fr, u, h); return m.vert(q.x, q.y, q.z, shade(h, 0.5)); };
+    // the arch from (1.5, 1.55) over to (-1.5, 1.55); the bumps are tapered away here
+    const arch = P.map(([u, h], k) => (k >= 2 && k <= 8 ? v(u, h) : -1));
+    const top = v(0, CORRIDOR_HEADROOM);
+    for (const [sgn, ks] of [[1, [2, 3, 4, 5]], [-1, [8, 7, 6, 5]]]) {
+      const q = v(sgn * H, CORRIDOR_HEADROOM);
+      for (let j = 0; j + 1 < ks.length; j++) facing('frames', q, arch[ks[j]], arch[ks[j + 1]], want);
+      facing('frames', q, arch[5], top, want);
+    }
+  }
+  mark('frames', from);
+
+  // --- stalactites ---------------------------------------------------------------------
+  // The liner's height over the floor at (s, u) on a leg, |u| < 0.9: across
+  // the two stations either side of s, between the vault's profile points
+  // (u 0.9, 0, -0.9), bumps and all.
+  const clamp01 = (t) => Math.min(1, Math.max(0, t));
+  const linerVault = (s, u) => {
+    let i = 0;
+    while (i + 2 < stations.length && stations[i + 1].s < s) i++;
+    const heightOn = (st) => {
+      const pts = [4, 5, 6].map((k) => {
+        const id = st.ids[k];
+        const dx = m.pos[id * 3] - st.x, dz = m.pos[id * 3 + 2] - st.z;
+        return [dx * st.lx + dz * st.lz, m.pos[id * 3 + 1] - y0];
+      }).sort((a, b) => a[0] - b[0]);
+      const [a, b] = u <= pts[1][0] ? [pts[0], pts[1]] : [pts[1], pts[2]];
+      return lerp(a[1], b[1], clamp01((u - a[0]) / (b[0] - a[0])));
+    };
+    const s0 = stations[i], s1 = stations[i + 1];
+    return lerp(heightOn(s0), heightOn(s1), clamp01((s - s0.s) / (s1.s - s0.s)));
+  };
+  from = m.pos.length / 3;
+  const hangColor = base.clone().multiplyScalar(1.05);
+  const tipColor = base.clone().lerp(new THREE.Color(0xffffff), 0.15);
+  const hangs = [];
+  for (let t = 0; t < 60; t++) {
+    const s = 2.2 + rng() * (S - 3.0), u = (rng() * 2 - 1) * 0.6, len = 0.25 + rng() * 0.25;
+    const sides = 5 + Math.floor(rng() * 2), turn = rng() * Math.PI * 2;
+    if (hangs.length >= TUNNEL_STALACTITES) continue;
+    if (!onLeg(s) || Math.abs(s - L1 + H) < 0.3 || Math.abs(s - L1 - H) < 0.3) continue;
+    const q = world(frameAt(s), u, 0);
+    if (Math.hypot(q.x - p0[0], q.z - p0[1]) < MOUTH_KEEP) continue;
+    if (!hangs.every((o) => Math.abs(o.s - s) >= 1.5)) continue;
+    // Measured from the liner's bumped vault there (it can stand 0.2 lower
+    // than the bare one): the visible length stays len, and the root goes
+    // HANG_BURY up into the vault, no higher than the box's roof.
+    const vault = linerVault(s, u);
+    const root = Math.min(vault + HANG_BURY, CORRIDOR_HEADROOM - 0.005);
+    hangs.push({ s, x: q.x, z: q.z, root, vault, tipH: Math.max(STALACTITE_MIN_Y + 0.01, vault - len), sides, turn });
+  }
+  const stalactiteTips = [];
+  for (const h of hangs) {
+    const len = h.vault - h.tipH;
+    spike(m, 'stalactites', h.x, h.z, y0 + h.root, y0 + h.tipH, 0.13 + 0.12 * len, h.sides, h.turn, hangColor, tipColor);
+    stalactiteTips.push({ x: h.x, y: y0 + h.tipH, z: h.z, root: y0 + h.root });
+  }
+  mark('stalactites', from);
+
+  // --- hanging roots: two crossed thin strips, both faces, curling at the end -------
+  from = m.pos.length / 3;
+  const rootTips = [];
+  const roots = [];
+  for (let t = 0; t < 40; t++) {
+    const s = 1 + rng() * 2, au = 0.5 + rng() * 0.6, side = rng() < 0.5 ? -1 : 1;
+    const tipH = ROOT_MIN_Y + 0.05 + rng() * 0.25, w = 0.02 + rng() * 0.01;
+    const twist = rng() * Math.PI, curl = rng() * Math.PI * 2, tint = rng();
+    if (roots.length >= TUNNEL_ROOTS) continue;
+    if (!roots.every((o) => Math.abs(o.s - s) >= 0.5)) continue;
+    roots.push({ s, u: side * au, tipH, w, twist, curl, tint });
+  }
+  const rootA = new THREE.Color(ROOT_COLORS[0]), rootB = new THREE.Color(ROOT_COLORS[1]);
+  for (const rt of roots) {
+    const q = world(frameAt(rt.s), rt.u, 0);
+    const topH = vaultHeight(Math.abs(rt.u));
+    // the line down it: 3 segments, swinging out a little toward the tip
+    const line = [0, 1 / 3, 2 / 3, 1].map((t) => ({
+      x: q.x + Math.cos(rt.curl) * 0.07 * t * t,
+      y: y0 + lerp(topH, rt.tipH, t),
+      z: q.z + Math.sin(rt.curl) * 0.07 * t * t,
+      w: rt.w * (1 - 0.45 * t),
+    }));
+    for (const a of [rt.twist, rt.twist + Math.PI / 2]) {
+      const ex = Math.cos(a), ez = Math.sin(a);
+      const want = new THREE.Vector3(-ez, 0, ex);
+      for (const face of [1, -1]) {
+        const ids = line.map((p, i) => {
+          c.copy(rootA).lerp(rootB, rt.tint).multiplyScalar(1 - 0.15 * (i / 3));
+          return [m.vert(p.x - ex * p.w / 2, p.y, p.z - ez * p.w / 2, c), m.vert(p.x + ex * p.w / 2, p.y, p.z + ez * p.w / 2, c)];
+        });
+        const fw = want.clone().multiplyScalar(face);
+        for (let i = 0; i + 1 < ids.length; i++) {
+          facing('roots', ids[i][0], ids[i][1], ids[i + 1][1], fw);
+          facing('roots', ids[i][0], ids[i + 1][1], ids[i + 1][0], fw);
+        }
+      }
+    }
+    const tip = line[line.length - 1];
+    rootTips.push({ x: tip.x, y: tip.y, z: tip.z });
+  }
+  mark('roots', from);
+
+  // --- moss on the low walls, in the first 4 m ---------------------------------------
+  // Each mound is draped over the liner: every vertex moves in along the
+  // wall's normal by the liner's own depth at its spot (the bumps interpolated
+  // between stations and up the low wall's profile points), less MOSS_SEAT,
+  // so the rim sits a touch into the rock and none of it hangs in front.
+  // (The mounds stand on the first leg, s < 4.3 < L1 - 1.5, where a
+  // station's lateral axis is a unit.)
+  from = m.pos.length / 3;
+  const mossA = new THREE.Color(MOSS[0]), mossB = new THREE.Color(MOSS[1]);
+  // the liner's depth in from the wall line at (s, h) on a low side wall: on
+  // the very triangles the liner's quads split into (a-b-cc and a-cc-d, a at
+  // station i's profile point k, cc at station i + 1's point k + 1)
+  const wallDepth = (s, h, side) => {
+    const kWall = side > 0 ? [0, 1, 2] : [10, 9, 8]; // up the wall: h -0.02, 0.8, 1.55
+    let i = 0;
+    while (i + 2 < stations.length && stations[i + 1].s < s) i++;
+    let w = 0;
+    while (w + 2 < kWall.length && P[kWall[w + 1]][1] < h) w++;
+    const k = Math.min(kWall[w], kWall[w + 1]);
+    const ts = clamp01((s - stations[i].s) / (stations[i + 1].s - stations[i].s));
+    const th = clamp01((h - P[k][1]) / (P[k + 1][1] - P[k][1]));
+    const at = (j, kk) => bumps[j][kk] * Math.hypot(stations[j].lx, stations[j].lz);
+    const da = at(i, k), db = at(i + 1, k), dc = at(i + 1, k + 1), dd = at(i, k + 1);
+    return ts >= th ? da + ts * (db - da) + th * (dc - db) : da + th * (dd - da) + ts * (dc - dd);
+  };
+  const mounds = [];
+  for (let t = 0; t < 60; t++) {
+    const s = 0.9 + rng() * 3.1, side = rng() < 0.5 ? -1 : 1, h = 0.35 + rng() * 0.4;
+    const rad = 0.15 + rng() * 0.1, tint = rng();
+    if (mounds.length >= TUNNEL_MOSS) continue;
+    if (!mounds.every((o) => Math.abs(o.s - s) >= 0.8)) continue;
+    const fr = frameAt(s);
+    const ll = Math.hypot(...fr.l);
+    const depth = Math.max(0, wallDepth(s, h, side) - MOSS_SEAT);
+    const q = world(fr, side * (H - depth / ll), h);
+    if (!clear(q.x, q.z, rad * MOSS_REACH + 0.15)) continue;
+    mounds.push({ s, side, h, q, nx: -side * fr.l[0] / ll, nz: -side * fr.l[1] / ll, fx: fr.f[0], fz: fr.f[1], depth, rad, tint });
+  }
+  const mossMounds = [];
+  for (const md of mounds) {
+    const first = m.pos.length / 3;
+    const { rim } = mossLump(m, {
+      x: md.q.x, y: md.q.y, z: md.q.z, nx: md.nx, ny: 0, nz: md.nz,
+      rad: md.rad, color: mossA.clone().lerp(mossB, md.tint).multiplyScalar(0.95), salt: md.s,
+    });
+    for (let i = first; i < m.pos.length / 3; i++) {
+      const dx = m.pos[i * 3] - md.q.x, dz = m.pos[i * 3 + 2] - md.q.z;
+      const sv = md.s + dx * md.fx + dz * md.fz, hv = m.pos[i * 3 + 1] - y0;
+      const shift = Math.max(0, wallDepth(sv, hv, md.side) - MOSS_SEAT) - md.depth;
+      m.pos[i * 3] += md.nx * shift;
+      m.pos[i * 3 + 2] += md.nz * shift;
+    }
+    mossMounds.push({ s: md.s, nx: md.nx, nz: md.nz, rim });
+  }
+  mark('moss', from);
+
+  // the chamber's glow reaches the tunnel's last stations and its end frame too
+  // (the same rule as caveRoom's), so no colour seam shows where they meet
+  if (crystals?.spots?.length) {
+    glowTint(m, crystals, y0, ...ranges.liner);
+    glowTint(m, crystals, y0, ...ranges.frames);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(m.pos, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(m.col, 3));
+  geometry.setIndex(m.idx);
+  geometry.computeVertexNormals();
+  return { geometry, parts: { ...m.parts }, stalactiteTips, rootTips, stations, ranges, mossMounds };
 }
 
 // How far (x, z) stands inside the chamber's rounded corners (Infinity away from them).

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { portraitEntry, herCatPortrait } from '../src/thumbnails.js';
-import { pauseCardHtml } from '../src/game/walk.js';
+import { pauseCardHtml, chatHintLine } from '../src/game/walk.js';
 import { DEFAULT_LOOK, presetFor } from '../src/customcats.js';
 import { summaryCheer, countUp, bestWalkConfetti, prefersReducedMotion, summaryStatsHtml, settingsSwitchHtml } from '../src/ui/screencards.js';
 import { readFileSync } from 'node:fs';
@@ -266,5 +266,14 @@ describe('Settings: switches, soft sliders, pill selects', () => {
     const reset = rule('.settings-section .danger {');
     expect(reset).toContain('#e98a8a');
     expect(reset).toContain('border-radius: 999px');
+  });
+});
+
+// polish-floaters: phones have no number keys.
+describe('chatHintLine', () => {
+  it('points a touch player at the 💬 button, and a keyboard player at the keys', () => {
+    expect(chatHintLine(true)).toBe('Tap 💬 to chat');
+    expect(chatHintLine(true)).not.toMatch(/Press|Enter|1–9/);
+    expect(chatHintLine(false)).toBe('Press 1–9 to chat · Enter for phrases');
   });
 });

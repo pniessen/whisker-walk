@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import { createSpin } from './spin.js';
 import { SIZE } from '../customcats.js';
+import { animateCat } from '../cat/animator.js';
+
+// Every cat on the stage sits (Ruling P4): the hero, the try-ons and the cat
+// builder's draft. One static pose, posed once per show() BEFORE the bounds
+// are measured, so the framing fits the sitting cat (its tail, cape and
+// balloons included) and no animation loop is needed. Hagrid gets whatever
+// sit animateCat gives him (P5).
+export const STAGE_POSE = Object.freeze({ state: 'requestPet', t: 1.3 });
+
+// Skips objects without a rig (the tests' bare groups, anything unbuilt).
+export function defaultPoseCat(cat) {
+  if (!cat?.userData?.parts) return;
+  animateCat(cat, STAGE_POSE.state, STAGE_POSE.t, 0);
+}
 
 // The dressing room's live hero cat: ONE WebGL canvas for the page's life.
 // The home screen rebuilds its DOM on every render, so mount(el) is called
@@ -91,6 +105,7 @@ const defaultCreateRenderer = () => new THREE.WebGLRenderer({ alpha: true, antia
 export function createCatStage({
   buildCat,
   thumbs,
+  poseCat = defaultPoseCat,
   createRenderer = defaultCreateRenderer,
   raf: rafFn = (cb) => requestAnimationFrame(cb),
   caf: cafFn = (id) => cancelAnimationFrame(id),
@@ -349,6 +364,7 @@ export function createCatStage({
     const scarred = Array.isArray(scars) && scars.length > 0;
     if (look) cat = buildCat(breed, accessories, scarred ? { look, scars } : { look });
     else cat = scarred ? buildCat(breed, accessories, { scars }) : buildCat(breed, accessories);
+    poseCat(cat);
     bounds = look ? lookBounds(cat) : measure(cat);
     cat.rotation.y = spin.angle;
     scene.add(cat);

@@ -13,7 +13,11 @@ import { segDist } from '../segdist.js';
 import { seatOnGround } from '../ground.js';
 import { addCamp } from './camp.js';
 import { withLocalUuids } from './localuuids.js';
-import { caveRoom, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
+import {
+  narrowsTint, NARROWS_TINT_KEY, narrowsDressing, NARROWS_VIEW,
+} from './narrows.js';
+import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
@@ -124,12 +128,17 @@ export const PATH_STYLE = Object.freeze({ surface: 'sand', color: 0xb8a27e });
 // The horizon: tall hills (40 m, over the 20 m rims), tinted for what is over
 // each edge: more rock north and east, the town's warm brick to the south past
 // the gorge's mouth with its rooftops on the south arc, the Moor's heather to
-// the west. The hills come down to the stream where it leaves the map.
+// the west. The hills come down to the stream where it leaves the map. Out
+// of the Narrows' west end they dip to the ground (NARROWS_VIEW, a keepLow
+// capsule; it works because `avoid` is not empty), so the low Moor of the
+// Narrows dressing shows through the gap; the west tint is a muted moor
+// green-grey (a lilac one read as a pale wall beside the gap).
 export const GORGE_HORIZON = Object.freeze({
   kind: 'hills', inner: 56, outer: 116, height: 40, wavelength: 40,
   color: 0xa8957a, salt: 53,
   avoid: Object.freeze([STREAM]),
-  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9a8a9c }),
+  keepLow: Object.freeze([NARROWS_VIEW]),
+  sideTints: Object.freeze({ north: 0xa8957a, east: 0x9e8c76, south: 0xa8866e, west: 0x9d9f8f }),
   rooftops: Object.freeze({ from: 0.28, to: 0.47, count: 10, height: 6 }),
 });
 
@@ -698,6 +707,17 @@ export function caveRoomFor(caveId, { glow = true } = {}) {
     crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
   });
 }
+// The corridor's and the bend's rounded, rough tunnel (caveroom.js's
+// caveTunnel), with its roots, stalactites and moss. Seeded by the cave's name.
+// Its walls by the chamber catch the crystals' glow as the chamber's do.
+export function caveTunnelFor(caveId, { glow = true } = {}) {
+  const cave = GORGE_CAVES.find((c) => c.id === caveId);
+  return caveTunnel(cave, {
+    clear: (x, z, reach) => caveClear(cave, x, z, reach),
+    seed: seedFromCode('gorge-cavetunnel-' + cave.id),
+    crystals: glow ? { spots: caveCrystalSpots(cave), color: CAVE_COLORS[cave.id] } : null,
+  });
+}
 // Where each crystal cluster stands: its spot moved out from the wall by the
 // liner's depth there (the deepest of a few heights up the cluster), so the
 // liner never swallows a cluster.
@@ -760,6 +780,7 @@ export function glitterFleckSpots() {
 
 // One group per deep cave, `caveInterior:<id>`, hidden until gorgelife.js
 // shows it (only near its cave and on its level, C5).
+// The chamber's room and the corridor's tunnel are one mesh, `caveRoom:<id>`.
 // The chamber's room and its crystal clusters (caveroom.js) are made on local
 // uuids, so they take no Math.random draws from the Gorge build (pinned in
 // waterlooks.test.js). The clusters and the Glitter Cave's flecks sit on or in
@@ -771,7 +792,14 @@ function caveInterior(cave) {
   g.userData.caveId = cave.id;
   const { room, mesh, crystals } = withLocalUuids(`gorge-uuids-caveroom-${cave.id}`, () => {
     const made = caveRoomFor(cave.id);
-    const m = new THREE.Mesh(made.geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
+    // the corridor's tunnel rides in the same mesh: no new draw
+    const tunnel = caveTunnelFor(cave.id);
+    const geometry = mergeGeometries([made.geometry, tunnel.geometry]);
+    // the merged copy is the one drawn; room.linerDepth (used below for the
+    // clusters and flecks) reads the room's own position list, not its geometry
+    made.geometry.dispose();
+    tunnel.geometry.dispose();
+    const m = new THREE.Mesh(geometry, litMaterial(0xffffff, { vertexColors: true, ...surfaceProps('cobble') }));
     m.name = `caveRoom:${cave.id}`;
     m.castShadow = false;
     m.userData.noCast = true;
@@ -859,10 +887,13 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the rock ---------------------------------------------------------------
   const rock = b.rockTerrain({
     walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
-    mouths: GORGE_ROCK_MOUTHS,
+    mouths: GORGE_ROCK_MOUTHS, tint: narrowsTint, tintKey: NARROWS_TINT_KEY,
   });
   rock.name = 'gorgeRock';
   scene.add(rock);
+  // The Narrows' tufts, crest shrubs and the view out to the Moor: one
+  // noCast mesh at the scene root, under local uuids (BUILD_DRAWS stays put).
+  scene.add(withLocalUuids('gorge-uuids-narrows', () => narrowsDressing(rock.getObjectByName('rockFaces'))));
 
   // --- the stream -------------------------------------------------------------
   // Built from its footprint record and added to the scene root directly
