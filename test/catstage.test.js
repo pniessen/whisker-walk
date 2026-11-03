@@ -378,20 +378,59 @@ describe('back-item turn', () => {
     stage.show('calico', { back: 'wings' });
     expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
   });
+  it('null and undefined accessories never throw, even after a back item', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', { back: 'wings' });
+    expect(() => stage.show('calico', null)).not.toThrow();
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+    stage.show('calico', undefined);
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+    stage.show('calico', null);
+    stage.show('calico', { back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+  });
+  it('{back: null} counts the same as no back item', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', { back: null });
+    stage.show('calico', {});
+    stage.show('calico', { back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+    stage.show('calico', { back: 'wings', head: null });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+  });
+  it('a change of look or scars resets the turn', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', {}, { coat: 'ginger' });
+    stage.show('calico', { back: 'wings' }, { coat: 'ginger' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+    stage.show('calico', { back: 'wings' }, { coat: 'black' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+    stage.show('calico', { back: 'jetpack' }, { coat: 'black' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST + BACK_TURN, 6);
+    stage.show('calico', { back: 'jetpack' }, { coat: 'black' }, [{ id: 'x' }]);
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+  });
+  it('removing the head item while the back stays resets the turn', () => {
+    const { stage, cats } = turnSetup();
+    stage.show('calico', { head: 'crown' });
+    stage.show('calico', { head: 'crown', back: 'wings' });
+    stage.show('calico', { back: 'wings' });
+    expect(cats.at(-1).rotation.y).toBeCloseTo(REST, 6);
+  });
   it('dragging turns relative to the offset', () => {
     const drag = (acc) => {
-      const { stage, cats, canvas, renderer } = turnSetup();
+      const { stage, cats, canvas, raf } = turnSetup();
       stage.show('calico', {});
       if (acc) stage.show('calico', acc);
       canvas.emit('pointerdown', { pointerId: 1, clientX: 0, button: 0 });
       canvas.emit('pointermove', { pointerId: 1, clientX: 60 });
-      stage.setVisible(true); // forces a draw
-      stage.show('calico', acc || {});
+      raf.mock.calls.at(-1)[0](1000); // the per-frame draw
+      raf.mock.calls.at(-1)[0](1016);
       return cats.at(-1).rotation.y;
     };
     const plain = drag(null);
     const turned = drag({ back: 'wings' });
-    expect(plain).not.toBeCloseTo(REST, 3);
+    expect(Math.abs(plain - REST)).toBeGreaterThan(0.01);
     expect(turned - plain).toBeCloseTo(BACK_TURN, 6);
   });
 });
