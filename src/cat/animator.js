@@ -185,10 +185,13 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // it; every other state puts it back there first, so fitLongLegs and the
   // pose fit move it exactly as they always did.
   const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
+  // The balloons (userData.float, below: floatBalloons) remember their rest
+  // the same way; they are written outright every frame, so never restored.
   for (const item of cat.children) {
-    if (!item.userData.ridesBody) continue;
+    const { ridesBody, float } = item.userData;
+    if (!ridesBody && !float) continue;
     item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
-    if (!sitting) restore(item);
+    if (ridesBody && !sitting) restore(item);
   }
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
@@ -218,6 +221,8 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
     tail.position.z = _anchor.z;
     if (sitting) rideBody(cat);
   }
+  // Every state, once the body is where the pose fit left it.
+  floatBalloons(cat);
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
   if (cat.userData.parts.scars) fitScars(cat);
@@ -255,7 +260,7 @@ function rideTail(cat) {
 }
 
 // The sit's back items (polish-sit Task 3, ruling R4). The backpack, wings,
-// jetpack and balloons hang on the cat, not on the body (model.js tags them userData.ridesBody), so the upright sit's nose-up
+// jetpack hang on the cat, not on the body (model.js tags them userData.ridesBody), so the upright sit's nose-up
 // pitch (SIT.pitch 0.75) left them floating behind the back. Here each is
 // carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
 // body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
@@ -272,11 +277,16 @@ function rideTail(cat) {
 const _ride = new THREE.Matrix4();
 const _rideAt = new THREE.Vector3();
 const _rideScale = new THREE.Vector3();
-function rideBody(cat) {
+// _ride = bodyPosed · bodyRest⁻¹ (rideBody and floatBalloons)
+function carryBody(cat) {
   const { body } = cat.userData.parts;
   const { bodyY, bodyScale } = cat.userData.base;
   body.updateMatrix();
   _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
+}
+function rideBody(cat) {
+  const { body } = cat.userData.parts;
+  carryBody(cat);
   for (const item of cat.children) {
     if (!item.userData.ridesBody) continue;
     const { rest, sitShift } = item.userData;
@@ -287,6 +297,67 @@ function rideBody(cat) {
     }
     item.position.copy(rest.position).applyMatrix4(_ride);
     item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
+  }
+}
+
+// The balloons float upright in every pose (polish-pose Task 3, ruling P3).
+// Carried like the sit's back items they leaned back ~45° with the sitting
+// torso, and in the nap the string's tie hung in the air over the lowered
+// back. Now only the TIE rides the posed body, in every state: tieNow =
+// _ride · tie (model.js userData.float.tie, cat frame), Δ = tieNow − tie.
+// The balloons and the knot never turn; they keep their built height unless
+// the tie rises (then they rise with it), and follow the tie sideways:
+// position = rest + (Δx, max(0, Δy), Δz), quaternion and scale as built. Each
+// string (userData.span: its knot end and built length) stretches from the
+// carried tie to its knot end, top = span.top + (Δx, max(0, Δy), Δz): placed
+// at the midpoint, its axis (+y) turned onto foot → top, scale.y the stretch.
+//
+// Measured tie moves (the single balloon's tie on a tabby; Digit, the
+// longest legs, in brackets; the bunch's tie within 0.5 cm of it): the sit
+// (requestPet, perch) carries the tie 33.2 cm [45.4] down and 7.2 cm back, the
+// nap 26.0 cm [38.2] down, the stalk 19.0 cm [31.3], the land 10.7 cm; the
+// cross lifts it 3.6 cm and swings it 3.6 cm sideways. So in a sit or a nap a
+// string is that much longer than standing, its balloons where they always
+// hang; in the cross the whole bunch rises 3.6 cm with the tie.
+//
+// FLOAT_SLACK: the string's play. Every component of Δ gives up its first
+// 5 mm (Δ − clamp(Δ, ±5 mm), continuous), so the follow's breathing (the
+// body's scale.y ± 0.012 moves the tie up to ± 4.3 mm) and the matrix's float
+// noise (~1e-17) leave every piece exactly as built: standing still, the
+// balloons are exactly where they always were. The string's foot is the tie
+// carried within that play (≤ 5 mm from tieNow in practice, Δy alone being
+// large). Allocates nothing.
+const FLOAT_SLACK = 0.005;
+const _tie = new THREE.Vector3();
+const _rise = new THREE.Vector3();
+const _top = new THREE.Vector3();
+const _foot = new THREE.Vector3();
+const _span = new THREE.Vector3();
+const slack = (d) => d - Math.min(FLOAT_SLACK, Math.max(-FLOAT_SLACK, d));
+function floatBalloons(cat) {
+  let carried = false;
+  for (const item of cat.children) {
+    const { float, span, rest } = item.userData;
+    if (!float) continue;
+    if (!carried) { carryBody(cat); carried = true; }
+    _tie.fromArray(float.tie);
+    _foot.copy(_tie).applyMatrix4(_ride).sub(_tie); // Δ
+    _foot.set(slack(_foot.x), slack(_foot.y), slack(_foot.z));
+    if (_foot.x === 0 && _foot.y === 0 && _foot.z === 0) { restore(item); continue; }
+    _rise.set(_foot.x, Math.max(0, _foot.y), _foot.z);
+    if (!span) {
+      item.position.copy(rest.position).add(_rise);
+      item.quaternion.copy(rest.quaternion);
+      item.scale.copy(rest.scale);
+      continue;
+    }
+    _foot.add(_tie);
+    _top.fromArray(span.top).add(_rise);
+    _span.subVectors(_top, _foot);
+    const len = _span.length();
+    item.position.addVectors(_top, _foot).multiplyScalar(0.5);
+    item.quaternion.setFromUnitVectors(_Y, _span.divideScalar(len));
+    item.scale.set(1, len / span.len, 1);
   }
 }
 

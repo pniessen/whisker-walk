@@ -1405,11 +1405,31 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // sit relative to the head.
   const hoodItems = [];
   // Everything the back slot hangs on g (backpack, wings, jetpack tanks and
-  // nozzles, balloon strings, knot and balloons) is tagged userData.ridesBody
-  // below: animator.js carries them on the posed torso in the sit (polish-sit
-  // Task 3, ruling R4). Not the hood items (added after), not the shells,
-  // buttons, capes and clasps (they hang on the body).
+  // nozzles) is tagged userData.ridesBody below: animator.js carries them on
+  // the posed torso in the sit (polish-sit Task 3, ruling R4). Not the hood
+  // items (added after), not the shells, buttons, capes and clasps (they hang
+  // on the body), and not the balloons: they float (polish-pose Task 3, ruling
+  // P3). Each balloon piece remembers its tie (userData.float.tie, cat frame,
+  // where its string is tied on the back) and each string its knot end and
+  // built length (userData.span); animator.js floatBalloons carries the tie on
+  // the posed torso in every state, keeps the balloons and the knot upright at
+  // their built height unless the tie rises, and stretches each string from
+  // the tie to its knot end.
   const ridersFrom = g.children.length;
+  const floatOn = (piece, tie) => {
+    piece.userData.float = { tie: tie.toArray() };
+    g.add(piece);
+    return piece;
+  };
+  const floatString = (tie, top, r) => {
+    const len = tie.distanceTo(top);
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 4), mat(0xf5f5f5));
+    string.position.addVectors(tie, top).multiplyScalar(0.5);
+    // the cylinder's axis (+y) laid exactly along tie → top, as floatBalloons lays it
+    string.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().sub(tie).normalize());
+    string.userData.span = { top: top.toArray(), len };
+    return floatOn(string, tie);
+  };
   const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
     // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
@@ -1563,35 +1583,26 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const tie = new THREE.Vector3(...onBack(0.05, 0.58, 0.2));
     const tops = [[-0.07, 0.79, 0.19], [0.1, 0.86, 0.22], [0.03, 0.74, 0.14]];
     tops.forEach(([bx, by, bz], i) => {
-      const len = Math.hypot(bx - tie.x, by - tie.y, bz - tie.z);
-      const string = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, len, 4), mat(0xf5f5f5));
-      string.position.set((bx + tie.x) / 2, (by + tie.y) / 2, (bz + tie.z) / 2);
-      string.rotation.z = -Math.atan2(bx - tie.x, by - tie.y);
-      string.rotation.x = Math.atan2(bz - tie.z, by - tie.y);
-      g.add(string);
+      floatString(tie, new THREE.Vector3(bx, by, bz), 0.003);
       const balloon = ball(0.075, PRIZE_BALLOONS[i], 1, 1.15, 1, 10, 8);
       balloon.position.set(bx, by + 0.09, bz);
-      g.add(balloon);
+      floatOn(balloon, tie);
     });
   } else if (accessories.back === 'balloon') {
     // hovers just over the tail — low enough to stay inside the shop
     // thumbnail's whole-cat framing (~y 1.1 at this plane). The string's foot
     // moves onto the new back; its top, the knot and the balloon keep their heights.
     const foot = new THREE.Vector3(...onBack(0.06, 0.6, 0.2)), top = new THREE.Vector3(0.06, 0.9, 0.2);
-    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, foot.distanceTo(top), 4), mat(0xf5f5f5));
-    string.position.addVectors(foot, top).multiplyScalar(0.5);
-    string.rotation.z = -Math.atan2(top.x - foot.x, top.y - foot.y);
-    string.rotation.x = Math.atan2(top.z - foot.z, top.y - foot.y);
-    g.add(string);
+    floatString(foot, top, 0.004);
     const knot = ball(0.014, BALLOON_COLOR, 1, 1, 1, 5, 4);
     knot.position.set(0.06, 0.92, 0.2);
-    g.add(knot);
+    floatOn(knot, foot);
     const balloon = ball(0.09, BALLOON_COLOR, 1, 1.15, 1, 10, 8);
     balloon.position.set(0.06, 1.0, 0.2);
-    g.add(balloon);
+    floatOn(balloon, foot);
   }
 
-  for (const item of g.children.slice(ridersFrom)) item.userData.ridesBody = true;
+  for (const item of g.children.slice(ridersFrom)) if (!item.userData.float) item.userData.ridesBody = true;
   for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.
@@ -1679,6 +1690,9 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   for (const child of g.children) {
     child.position.y += dy;
     child.userData.liftY = child.position.y;
+    // a balloon piece's tie and a string's knot end rise with it (one array each)
+    if (child.userData.float) child.userData.float.tie[1] += dy;
+    if (child.userData.span) child.userData.span.top[1] += dy;
     if (!legs.includes(child) || LEG_LEN === 1) continue;
     const [limb, ...hung] = child.children;
     limb.geometry.dispose();

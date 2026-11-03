@@ -347,7 +347,9 @@ describe('the back and body items ride the upright sit (polish-sit Task 3)', () 
   });
 
   it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built; a follow never moves them', (b, simple) => {
-    for (const kit of [...KITS, { back: 'balloon', body: null }, { back: 'balloonbunch', body: 'confetticape' }]) {
+    // (the balloons no longer ride: since polish-pose Task 3 they float over
+    // their tie, which catballoon.test.js sweeps through every state)
+    for (const kit of KITS) {
       const built = riders(kitCat(b, kit, simple)).map((c) => [c.position.toArray(), c.quaternion.toArray(), c.scale.toArray()]);
       const fresh = kitCat(b, kit, simple);
       for (const t of [0.4, 2.1]) {
