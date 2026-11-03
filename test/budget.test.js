@@ -156,12 +156,16 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // box bevels, higher segment counts on trunks/bollards/lamp globes, a
 // horizon band — and none of it should have to renegotiate this ceiling.
 //
-// 2026-11-03, polish "edges": the horizon band gained a ring of low hedges,
-// scrub, reeds or dry-stone wall along the ground's edge and a sparse tree row
-// past it, merged into the band's one mesh (no mesh, no caster, no draw):
-// +11,400 to +12,700 triangles per green area. The Woods, River, Moor and
-// Pines went to 61,205 / 70,131 / 69,705 / 61,041, so their triangle ceiling
-// is 75,000; meshes and casters are untouched.
+// 2026-11-03, polish "edges": each green area's horizon band gained a ring of
+// low hedges (with field gates), scrub, reeds, pine scrub or a dry-stone wall
+// along the ground's edge and a sparse tree row past it, merged into the
+// band's one mesh: +4,800 to +6,300 triangles per area. The band is a
+// never-culled shadow caster, so those triangles draw again in the shadow
+// pass; meshes, casters and draw calls are unchanged. Measured totals after
+// it: neighborhood 30,719, park 21,711, woods 55,177, river 64,315, moor
+// 63,725, pines 54,631. The Woods, River, Moor and Pines ceilings are those
+// totals rounded up to the next 500 plus 3,000 (58,500 / 67,500 / 67,000 /
+// 58,000), so the next pass that adds triangles there has to say so here.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
@@ -202,12 +206,14 @@ const AREAS = [
   ['docks', buildDocks, 600, 500, 90000],
   ['seaside', buildSeaside, 85, 45, 30000],
   ['den', buildDen, 340, 220, 40000],
-  // The Woods is held to the Cozy Neighborhood's numbers: the area the iPhone
-  // was measured holding 60 fps in (plan Global Constraints).
-  ['woods', buildWoods, 450, 380, 75000],
-  ['river', buildRiver, 450, 380, 75000],
-  ['moor', buildMoor, 450, 380, 75000],
-  ['pines', buildPines, 450, 380, 75000],
+  // The Woods keeps the Cozy Neighborhood's mesh and caster ceilings (the
+  // area the iPhone was measured holding 60 fps in, plan Global Constraints);
+  // its triangle ceiling, like the River's, Moor's and Pines', is its measured
+  // total plus ~3,000 since polish "edges" (see above).
+  ['woods', buildWoods, 450, 380, 58500],
+  ['river', buildRiver, 450, 380, 67500],
+  ['moor', buildMoor, 450, 380, 67000],
+  ['pines', buildPines, 450, 380, 58000],
   ['gorge', buildGorge, 450, 380, 60000],
 ];
 

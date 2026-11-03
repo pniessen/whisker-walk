@@ -118,6 +118,9 @@ describe('the edge, merged into the band', () => {
       expect(pos.count).toBeGreaterThan(start);
       expect(start).toBeGreaterThanOrEqual(RING);
       const waters = rec.waters ?? [];
+      // Every area but the Neighbourhood has water, so the dry check below
+      // must have something to check against.
+      if (name !== 'neighborhood') expect(waters.length, `${name} waters`).toBeGreaterThan(0);
       const gaps = opts.edge.gaps ?? [];
       let near = 0;
       for (let v = start; v < pos.count; v++) {
@@ -139,7 +142,12 @@ describe('the edge, merged into the band', () => {
     }, 120_000);
   }
 
-  it('the neighbourhood band has gates: brown vertices inside each gap', () => {
+  it('an unknown edge style throws rather than drawing an undressed band', () => {
+    expect(() => b.horizonBand({ inner: 56, outer: 116, edge: { half: 60, style: 'hegde' } })).toThrow(/unknown style/);
+    expect(() => b.edgeSpots({ half: 60, style: 'nope' }, 1, [])).toThrow(/unknown style/);
+  });
+
+  it('the neighbourhood band has gates: brown vertices inside each gap, none over 1.1 m', () => {
     const { scene, opts } = built.neighborhood;
     const band = scene.getObjectByName('horizonBand');
     const pos = band.geometry.attributes.position;
@@ -148,7 +156,10 @@ describe('the edge, merged into the band', () => {
     for (const gp of opts.edge.gaps) {
       let brown = 0;
       for (let v = RING; v < pos.count; v++) {
-        if (Math.hypot(pos.getX(v) - gp.x, pos.getZ(v) - gp.z) < gp.r && !green(col.getX(v), col.getY(v))) brown++;
+        if (Math.hypot(pos.getX(v) - gp.x, pos.getZ(v) - gp.z) < gp.r && !green(col.getX(v), col.getY(v))) {
+          brown++;
+          expect(pos.getY(v)).toBeLessThanOrEqual(1.1);
+        }
       }
       expect(brown, `gate at ${gp.x},${gp.z}`).toBeGreaterThan(0);
     }

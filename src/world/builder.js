@@ -1323,28 +1323,39 @@ const freezeDeep = (o) => {
 // tallest any near piece may reach; `crowns` colour the far tree row.
 export const EDGE_STYLES = freezeDeep({
   hedge: {
-    greens: [0x3f7a3a, 0x4d8a42], len: 2.4, depth: 1.0, hMin: 1.0, hMax: 1.3, lift: 0.12,
+    step: 2.2, greens: [0x3f7a3a, 0x4d8a42], len: 2.4, depth: 1.0, hMin: 1.0, hMax: 1.3, lift: 0.12,
     gate: 0x8a6a48, gateH: 1.1, crowns: [0x4f7f3e, 0x5a8a46, 0x48743a], trunk: 0x5e4632, max: 1.6,
   },
   scrub: {
-    greens: [0x4f7d3e, 0x5f8f48, 0x6b8a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    step: 2.9, greens: [0x4f7d3e, 0x5f8f48, 0x6b8a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
     crowns: [0x4a7a3c, 0x557f40, 0x5f8a46], max: 1.4,
   },
   reeds: {
-    greens: [0x8a9a5a, 0x9aa868, 0x7f9a56], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    step: 2.9, greens: [0x8a9a5a, 0x9aa868, 0x7f9a56], rMin: 0.5, rMax: 0.9, ys: 0.7,
     crowns: [0x6f8a4e, 0x7a9256, 0x66804a], max: 1.3,
   },
   wall: {
-    greys: [0x8c8a84, 0x9a978e, 0x7d7b75], hMin: 0.7, hMax: 0.9, gorse: 0x6f7a3a, bloom: 0xd8b84a,
+    step: 2.2, greys: [0x8c8a84, 0x9a978e, 0x7d7b75], hMin: 0.7, hMax: 0.9, gorse: 0x6f7a3a, bloom: 0xd8b84a,
     rMin: 0.5, rMax: 0.7, ys: 0.7, crowns: [0x5a6a3a, 0x64703e, 0x545f36], max: 1.2,
   },
   pinescrub: {
-    greens: [0x2f4a34, 0x3a5a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
+    step: 2.9, greens: [0x2f4a34, 0x3a5a3c], rMin: 0.5, rMax: 0.9, ys: 0.7,
     sapling: { r: 0.6, h: 1.5, sides: 6 }, crowns: [0x2a4430, 0x34503a, 0x2f4a36], max: 1.6,
   },
 });
-// The near ring: just outside the ground's edge, a piece every EDGE_STEP along
-// it, jittered in and out. A piece is skipped this close to water (its centre).
+// An edge style by name; an unknown one is a typo in an area file, and a
+// silent fallback would ship an undressed band in white, so it throws.
+function edgeStyle(style) {
+  const S = EDGE_STYLES[style];
+  if (!S) throw new Error(`horizonBand edge: unknown style '${style}' (one of ${Object.keys(EDGE_STYLES).join(', ')})`);
+  return S;
+}
+
+// The near ring: just outside the ground's edge, a piece every style `step`
+// (EDGE_STEP when a style has none) along it, jittered in and out. The blob
+// styles space theirs wider (2.9m, two domes a piece) because the band casts
+// shadows and every triangle draws twice. A piece is skipped this close to
+// water (its centre).
 const EDGE_OUT = 0.6;
 const EDGE_STEP = 2.2;
 const EDGE_JITTER = 0.4;
@@ -1374,12 +1385,13 @@ function sideYaw(u) {
  * or inside a gap disc is left out (a gate is the gap's own).
  */
 export function edgeSpots({ half, style, gaps = [] }, salt = 0, avoid = []) {
+  const S = edgeStyle(style);
   const st = salt + EDGE_SALT;
   const spots = [];
   const inGap = (x, z) => gaps.some((g) => Math.hypot(x - g.x, z - g.z) < g.r);
   const dry = (x, z) => waterClearance(avoid, x, z) >= EDGE_DRY;
   const s0 = half + EDGE_OUT;
-  const perSide = Math.max(1, Math.round((2 * s0) / EDGE_STEP));
+  const perSide = Math.max(1, Math.round((2 * s0) / (S.step ?? EDGE_STEP)));
   const n = 4 * perSide;
   for (let k = 0; k < n; k++) {
     const u = k / n;
@@ -1443,20 +1455,49 @@ function shade(hex, f) {
 
 // A squashed low-poly blob, coloured per face (so the facets read as leaves
 // catching the light differently), centred at (0, cy, 0) in its own frame.
-function edgeBlob(r, ys, cy, detail, faceColor) {
-  const g = new THREE.IcosahedronGeometry(r, detail);
+// `dome`: a blob sat on the ground with its lower ring at ground level never
+// shows its bottom cap (five of the icosahedron's twenty faces), so a dome
+// leaves those out. The band casts shadows, so every triangle saved here is
+// saved twice.
+function edgeBlob(r, ys, cy, detail, faceColor, { dome = false } = {}) {
+  let g = new THREE.IcosahedronGeometry(r, detail);
+  if (dome) {
+    const src = g;
+    const keep = [];
+    const p = src.attributes.position;
+    for (let f = 0; f < p.count / 3; f++) {
+      if (![0, 1, 2].every((i) => p.getY(f * 3 + i) < -0.4 * r)) keep.push(f);
+    }
+    g = new THREE.BufferGeometry();
+    for (const name of ['position', 'normal', 'uv']) {
+      const a = src.attributes[name];
+      const out = new Float32Array(keep.length * 3 * a.itemSize);
+      keep.forEach((f, n) => out.set(a.array.subarray(f * 3 * a.itemSize, (f + 1) * 3 * a.itemSize), n * 3 * a.itemSize));
+      g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+    }
+    src.dispose();
+  }
   g.scale(1, ys, 1);
   g.translate(0, cy, 0);
   paintGeo(g, (v) => faceColor(Math.floor(v / 3)));
   return indexedGeo(g);
 }
 
+// A box standing on the ground never shows its underside: leave its bottom
+// face out (BoxGeometry's groups run +x, -x, +y, -y, +z, -z).
+function dropBottom(g) {
+  const bottom = g.groups[3];
+  const idx = Array.from(g.index.array).filter((_, i) => i < bottom.start || i >= bottom.start + bottom.count);
+  g.setIndex(idx);
+  g.clearGroups();
+  return g;
+}
+
 // Builds the edge's pieces (see edgeSpots) into `out`, a list of geometries in
 // world space, each already vertex-coloured. `groundAt(x, z)` is the band's
 // own surface height there, for the far trees.
 function buildEdge(out, edge, salt, avoid, groundAt) {
-  const S = EDGE_STYLES[edge.style];
-  if (!S) return;
+  const S = edgeStyle(edge.style);
   const st = salt + EDGE_SALT;
   const gaps = edge.gaps ?? [];
   const base = -BAND_SINK;
@@ -1493,39 +1534,49 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
     if (kind === 'tree') {
       const crown = pick(S.crowns, h(0));
       const faces = (salt2) => (f) => shade(crown, 0.86 + 0.24 * hash01(f, k, st + salt2));
-      const y0 = groundAt(x, z) - 0.2;
+      // Sunk to the lowest of the band's surface under the tree's footprint
+      // (its centre and four points a crown's radius out), so on a slope no
+      // side of it floats.
+      const sink = (r) => Math.min(groundAt(x, z), groundAt(x + r, z), groundAt(x - r, z),
+        groundAt(x, z + r), groundAt(x, z - r)) - 0.2;
+      // Crowns are icosahedra at detail 0: the band casts shadows, so each
+      // triangle draws twice, and at 70m in fog a 20-face crown reads round.
       if (edge.style === 'hedge') {
         // A round oak: trunk and a crown of two lobes, top under 5m.
         const trunkH = 1.8 + 0.6 * h(1);
-        const trunk = new THREE.CylinderGeometry(0.22, 0.32, trunkH + 0.4, 5);
+        const r = Math.min(1.5 + 0.5 * h(3), (5 - trunkH) / 1.4);
+        const y0 = sink(r);
+        const trunk = new THREE.CylinderGeometry(0.22, 0.32, trunkH + 0.4, 5, 1, true);
         trunk.translate(0, (trunkH + 0.4) / 2 - 0.2, 0);
         paintGeo(trunk, () => shade(S.trunk, 0.9 + 0.2 * h(2)));
         place(trunk, x, y0, z, yaw);
-        const r = Math.min(1.5 + 0.5 * h(3), (5 - trunkH) / 1.4);
-        place(edgeBlob(r, 0.85, trunkH + 0.55 * r, 1, faces(1)), x, y0, z, yaw);
+        place(edgeBlob(r, 0.85, trunkH + 0.55 * r, 0, faces(1)), x, y0, z, yaw);
         const r2 = r * 0.65;
         const off = r * 0.55;
         place(edgeBlob(r2, 0.85, trunkH + 0.2 * r, 0, faces(2)), x + Math.cos(yaw) * off, y0, z - Math.sin(yaw) * off, yaw);
       } else {
         const r = 1.5 + 1.0 * h(3);
+        const y0 = sink(r);
         const cy = 0.72 * r;
-        place(edgeBlob(r, 0.9, cy, 1, faces(1)), x, y0, z, yaw);
+        place(edgeBlob(r, 0.9, cy, 0, faces(1)), x, y0, z, yaw);
         const r2 = r * 0.7;
         const top = Math.min(cy + 0.6 * r, 5 - 0.9 * r2);
         const off = r * 0.4;
-        place(edgeBlob(r2, 0.9, top, 0, faces(2)), x + Math.cos(yaw) * off, y0, z - Math.sin(yaw) * off, yaw);
+        // The upper lobe's underside is inside the crown below it: a dome.
+        place(edgeBlob(r2, 0.9, top, 0, faces(2), { dome: true }), x + Math.cos(yaw) * off, y0, z - Math.sin(yaw) * off, yaw);
       }
       return;
     }
 
     if (kind === 'gate') {
       // A five-bar field gate in two leaves across the gap, posts at the ends
-      // and in the middle. Brown, so it reads as wood and not hedge.
+      // and in the middle, the whole of it gateH (1.1m) tall at most. Brown,
+      // so it reads as wood and not hedge.
       const span = 2 * sp.r;
       const wood = (i) => shade(S.gate, 0.88 + 0.22 * hash01(i, k, st + 3));
       const post = (t, i) => {
-        const g = new THREE.BoxGeometry(0.16, S.gateH + 0.1, 0.16);
-        g.translate(t, (S.gateH + 0.1) / 2, 0);
+        const g = new THREE.BoxGeometry(0.16, S.gateH, 0.16);
+        g.translate(t, S.gateH / 2, 0);
         paintGeo(g, () => wood(i));
         place(g, x, base, z, yaw, { gate: true });
       };
@@ -1573,7 +1624,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       }
       if (bEnd - a < 0.8) return;
       const len = bEnd - a;
-      const g = new THREE.BoxGeometry(len, hh, depth, 3, 1, 1);
+      const g = dropBottom(new THREE.BoxGeometry(len, hh, depth));
       g.translate((a + bEnd) / 2, hh / 2, 0);
       const p = g.attributes.position;
       for (let v = 0; v < p.count; v++) {
@@ -1602,7 +1653,7 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
         const L = 1.0 + 0.25 * h(3 + i);
         const hh = S.hMin + (S.hMax - S.hMin) * h(5 + i);
         const d = 0.55 + 0.1 * h(7 + i);
-        const g = new THREE.BoxGeometry(L, hh, d, 2, 1, 1);
+        const g = dropBottom(new THREE.BoxGeometry(L, hh, d));
         g.translate(0, hh / 2, 0);
         const p = g.attributes.position;
         for (let v = 0; v < p.count; v++) {
@@ -1617,34 +1668,35 @@ function buildEdge(out, edge, salt, avoid, groundAt) {
       });
       if (kind === 'gorse') {
         const r = S.rMin + (S.rMax - S.rMin) * h(15);
-        const cy = Math.min(0.35 * r, S.max - 0.1 - S.ys * r);
+        const cy = Math.min(0.45 * S.ys * r, S.max - 0.1 - S.ys * r);
         const g = edgeBlob(r, S.ys, cy, 0, (f) => (hash01(f, k, st + 17) < 0.22
           ? shade(S.bloom, 0.95 + 0.1 * hash01(f, k, st + 18))
-          : shade(S.gorse, 0.88 + 0.22 * hash01(f, k, st + 19))));
+          : shade(S.gorse, 0.88 + 0.22 * hash01(f, k, st + 19))), { dome: true });
         const [wx, wz] = at((h(16) - 0.5) * 0.8, 0.75);
         place(g, wx, base, wz, yaw);
       }
       return;
     }
 
-    // Scrub, reeds and pine scrub: two or three overlapping squashed blobs,
-    // the middle one sometimes heaped higher; three at a corner.
-    const count = kind === 'corner' ? 3 : 2 + (h(0) > 0.5 ? 1 : 0);
+    // Scrub, reeds and pine scrub: two overlapping squashed domes per piece
+    // (pieces every S.step), three at a corner.
+    const count = kind === 'corner' ? 3 : 2;
     for (let i = 0; i < count; i++) {
       const r = S.rMin + (S.rMax - S.rMin) * h(1 + i);
-      const heap = i === 1 ? 0.3 * h(4) : 0;
-      const cy = Math.min(0.45 * S.ys * r + heap, S.max - 0.05 - S.ys * r);
+      // The dome's lower ring sits at the ground (0.447 of the squashed
+      // radius up), so its left-out bottom cap is never above it.
+      const cy = Math.min(0.45 * S.ys * r, S.max - 0.05 - S.ys * r);
       const col = pick(S.greens, h(5 + i));
-      const g = edgeBlob(r, S.ys, cy, 0, (f) => shade(col, 0.86 + 0.24 * hash01(f, k * 3 + i, st + 21)));
+      const g = edgeBlob(r, S.ys, cy, 0, (f) => shade(col, 0.86 + 0.24 * hash01(f, k * 3 + i, st + 21)), { dome: true });
       g.rotateZ((h(8 + i) - 0.5) * 0.12);
-      const t = kind === 'corner' ? (i - 1) * 0.6 : (i - (count - 1) / 2) * 0.8 + (h(11 + i) - 0.5) * 0.4;
+      const t = kind === 'corner' ? (i - 1) * 0.6 : (i - (count - 1) / 2) * 1.4 + (h(11 + i) - 0.5) * 0.3;
       const nOut = kind === 'corner' ? (i === 1 ? 0.6 : 0) : (h(14 + i) - 0.5) * 0.6;
       const [wx, wz] = at(t, nOut);
       place(g, wx, base, wz, yaw + h(17 + i) * Math.PI);
     }
     if (kind === 'sapling') {
       const { r, h: ch, sides } = S.sapling;
-      const g = new THREE.ConeGeometry(r, ch, sides);
+      const g = new THREE.ConeGeometry(r, ch, sides, 1, true);
       g.translate(0, ch / 2, 0);
       g.rotateZ((h(20) - 0.5) * 0.08);
       g.rotateX((h(21) - 0.5) * 0.08);
