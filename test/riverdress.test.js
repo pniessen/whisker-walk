@@ -110,8 +110,8 @@ describe('the River marsh dressing', () => {
 
   it('every tussock, cattail and shrub keeps off paths, finds, decks, spawn and the camp', () => {
     const t = riverTussocks(), c = riverCattails(), s = riverShrubs();
-    expect(t.length).toBeGreaterThan(150);
-    expect(t.length).toBeLessThanOrEqual(240);
+    expect(t.length).toBeGreaterThan(300);
+    expect(t.length).toBeLessThanOrEqual(400);
     expect(c.length).toBeGreaterThan(30);
     expect(c.length).toBeLessThanOrEqual(80);
     expect(s.length).toBeGreaterThan(5);
@@ -178,7 +178,27 @@ describe('the River marsh dressing', () => {
     expect(shader.fragmentShader).not.toContain('#include <normal_fragment_begin>');
     expect(shader.fragmentShader).not.toContain('normal *= faceDirection;');
     const stats = budgetStats(scene);
-    expect(stats.triangles).toBeLessThanOrEqual(59400);
+    // Task 3's mist and dragonflies keep their room under the 59,400 cap
+    expect(stats.triangles).toBeLessThanOrEqual(57900);
+  }, 120_000);
+
+  it('the flower cups are lit from the side the camera sees (inside, from above)', () => {
+    const g = scene.getObjectByName('dressing').geometry;
+    const pos = g.attributes.position, nrm = g.attributes.normal;
+    const flowers = riverFlowers();
+    let rim = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      if (y < 0.135 || y > 0.145) continue; // the cups' rim ring at 0.14 (the hearts top out at 0.12)
+      const f = flowers.find((fl) => Math.abs(Math.hypot(pos.getX(i) - fl.x, pos.getZ(i) - fl.z) - 0.09) < 0.005);
+      if (!f) continue;
+      rim++;
+      expect(nrm.getY(i), `${f.x},${f.z}`).toBeGreaterThan(0);
+      // and inward, toward the cup's middle
+      const out = (pos.getX(i) - f.x) * nrm.getX(i) + (pos.getZ(i) - f.z) * nrm.getZ(i);
+      expect(out).toBeLessThan(0);
+    }
+    expect(rim).toBeGreaterThanOrEqual(flowers.length * 5);
   }, 120_000);
 
   it('the dressing is the same every build', () => {
@@ -224,8 +244,8 @@ describe('the River marsh dressing', () => {
     const far = D.riverGroundTint(30, 30);
     for (const m of [wet, far]) {
       for (const v of m) {
-        expect(v).toBeGreaterThan(0.7);
-        expect(v).toBeLessThan(1.15);
+        expect(v).toBeGreaterThan(0.6);
+        expect(v).toBeLessThan(1.2);
       }
     }
     expect(wet[0]).toBeLessThan(0.95);

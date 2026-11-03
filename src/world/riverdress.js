@@ -130,7 +130,7 @@ function ringSamples(step, off) {
 // south-east. Clump centres come off a jittered grid, each kept with its
 // area's weight, and are taken in hash order (so the cap thins evenly rather
 // than filling the north first).
-export const MAX_TUSSOCKS = 240;
+export const MAX_TUSSOCKS = 400;
 function tussockWeight(x, z) {
   const reed = rectDist(RIVER_REEDBED, x, z);
   if (reed < 5) return 0.95;
@@ -138,9 +138,9 @@ function tussockWeight(x, z) {
     const p = byId(id);
     if (Math.hypot(x - p.x, z - p.z) < p.r + 6) return 0.95;
   }
-  if (x > 10 && z > 8) return 0.18;
   if (waterDist(x, z) < 4) return 0.7;
-  return 0.42;
+  // the open meadow and the drier south-east carry most of the rest
+  return x > 10 && z > 8 ? 0.55 : 0.75;
 }
 export const riverTussocks = once(() => {
   const STEP = 3.2;
@@ -281,16 +281,20 @@ export const riverFlowers = once(() => {
 });
 
 // --- the ground tint -----------------------------------------------------------------
-// Multiplies the lawn's vertex colour: wet olive within 6 m of the water,
-// broad patches of dry straw and of lush green (about 22 m across) away from
-// it, and the west reedbed peaty.
-const WET = [0.82, 0.9, 0.78];
-const DRY = [1.06, 1.02, 0.86];
-const LUSH = [0.88, 0.96, 0.86];
-const PEATY = [0.86, 0.88, 0.76];
+// Multiplies the lawn's vertex colour: wet olive within 6 m of the water and
+// in damp hollows (about 14 m across) out on the open ground, broad patches
+// of dry straw and of deep lush green (about 22 m across), and the west
+// reedbed peaty. Bolder than the brief's first multipliers (fix round 1
+// ruling): a wide shot has to show the marsh's colour, not a flat wash.
+const WET = [0.68, 0.82, 0.62];
+const DRY = [1.18, 1.08, 0.74];
+const LUSH = [0.66, 0.86, 0.6];
+const PEATY = [0.78, 0.8, 0.64];
 const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 export function riverGroundTint(x, z) {
-  const wet = smoothstep(0, 0.7, 1 - waterDist(x, z) / 6);
+  const near = smoothstep(0, 0.7, 1 - waterDist(x, z) / 6);
+  const hollow = smoothstep(0.25, 0.6, smoothField(x, z, 81, 14)) * 0.85;
+  const wet = Math.max(near, hollow);
   const dry = smoothstep(0.05, 0.45, smoothField(x, z, 41, 22)) * (1 - wet);
   const lush = smoothstep(-0.1, 0.3, smoothField(x, z, 61, 22)) * (1 - dry);
   const reed = 1 - smoothstep(0, 4, rectDist(RIVER_REEDBED, x, z));
@@ -361,7 +365,6 @@ function addCattails(tris) {
       for (const q of [a, b, e, a, e, d]) tris.v(...at(...q), n, col);
     };
     const w = 0.0125;
-    const up = [0, 1, 0];
     quad([-w, 0, 0], [w, 0, 0], [-w, c.h, 0], [w, c.h, 0], unit(0, 0.6, 1), C_STEM);
     quad([0, 0, -w], [0, 0, w], [0, c.h, -w], [0, c.h, w], unit(1, 0.6, 0), C_STEM);
     const hw = 0.025;
@@ -373,7 +376,6 @@ function addCattails(tris) {
     for (const [[ax, az], [bx, bz], [nx, nz]] of sides) {
       quad([ax, y0, az], [bx, y0, bz], [ax, y1, az], [bx, y1, bz], unit(nx, 0.3, nz), C_HEAD);
     }
-    void up;
   }
 }
 
@@ -433,7 +435,13 @@ function padParts() {
     cup.translate(f.x, 0.07 + 0.035, f.z);
     const petal = lin(f.color);
     // the petals blush deeper toward the heart
-    parts.push(colorParts(cup, (x, y) => scale3(petal, 0.82 + 0.18 * clamp01((y - 0.07) / 0.07))));
+    const cupPart = colorParts(cup, (x, y) => scale3(petal, 0.82 + 0.18 * clamp01((y - 0.07) / 0.07)));
+    // The cup is an open shell seen from inside (from above), so its normals
+    // must face in and up: turned over, the cone's own point out and down,
+    // and bothSidesLit would light the petals from underneath.
+    const cn = cupPart.attributes.normal;
+    for (let i = 0; i < cn.count; i++) cn.setXYZ(i, -cn.getX(i), -cn.getY(i), -cn.getZ(i));
+    parts.push(cupPart);
     const heart = new THREE.IcosahedronGeometry(0.025, 0);
     heart.translate(f.x, 0.095, f.z);
     parts.push(colorParts(heart, HEART));
@@ -502,7 +510,7 @@ function stoneMossParts() {
   const parts = [];
   for (const i of picks) {
     const f = i / (S.n - 1);
-    const sx = S.x + (S.x - S.x) * f;
+    const sx = S.x;
     const sz = S.z1 + (S.z2 - S.z1) * f;
     const r = S.rMin + (S.rMax - S.rMin) * hash01(i, 3, 61);
     const top = 0.1 + (i % 2 ? -0.5 : 0.5) * S.stagger;
@@ -523,9 +531,15 @@ function stoneMossParts() {
 // water r + 0.9, drawn as a ring: the shallow water is see-through, and a
 // filled disc turned the pools brown from above). Each is broken where it
 // would cross a deck or run under other water.
-const PEAT_DARK = lin(0x5a4a32);
-const PEAT_LIGHT = lin(0x6b5a3a);
-const peat = (x, y, z) => lerp3(PEAT_DARK, PEAT_LIGHT, hash01(Math.round(x * 1.5), Math.round(z * 1.5), 829));
+// A soft olive-brown, darkest at the water and lighter toward the grass
+// (fix round 1: the plain peat read as a harsh dark band).
+const PEAT_DARK = lin(0x655a3a);
+const PEAT_LIGHT = lin(0x7a7448);
+const PEAT_EDGE = lin(0x8a8a56);
+const peat = (x, y, z) => {
+  const c = lerp3(PEAT_DARK, PEAT_LIGHT, hash01(Math.round(x * 1.5), Math.round(z * 1.5), 829));
+  return lerp3(c, PEAT_EDGE, smoothstep(0.5, 1.3, waterDist(x, z)));
+};
 function paintParts() {
   const parts = [];
   let salt = 843;

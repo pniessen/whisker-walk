@@ -64,8 +64,11 @@ export function dressMesh(geoms, { name, side = THREE.DoubleSide, roughness = 0.
 // Thin double-sided dressing (grass blades, cattail stems) is lit by the
 // normals it was built with on BOTH faces: three.js flips a DoubleSide
 // normal on a back face, so a blade seen from behind would point its normal
-// down and go dark. Closed shapes (lobes, caps, shells) only ever show their
-// front faces, so leaving the flip out changes nothing for them.
+// down and go dark. Closed shapes (lobes, caps) only ever show their front
+// faces, so leaving the flip out changes nothing for them. But any OPEN shell
+// whose inside is what the camera sees (a flower cup, a bowl) must carry
+// normals for the side that is seen: with the flip gone, a back face is lit
+// by the normal as built.
 const NORMAL_BEGIN_NO_FLIP = THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', '');
 export function bothSidesLit(material) {
   material.onBeforeCompile = (shader) => {
