@@ -3202,12 +3202,21 @@ export function fallenLog(x, z, length, yaw) {
 // at most 1.0 m before the lean (the budget is 1.1 m). A bed is wide and low,
 // so it opts out of the caster sweep like the stones do.
 const REED_BLADES = 5;
+// A reed blade's 4 cm square top is never seen and its bottom is buried: leave
+// both faces out of the index (BoxGeometry's groups run +x, -x, +y, -y, +z,
+// -z), in place, so no new geometry object is made (each draws on Math.random).
+function dropEnds(g) {
+  const idx = Array.from(g.index.array).filter((_, i) => i < g.groups[2].start || i >= g.groups[4].start);
+  g.setIndex(idx);
+  g.clearGroups();
+  return g;
+}
 export function reedBed(spots, seed) {
   const geoms = [];
   spots.forEach((sp, i) => {
     for (let k = 0; k < REED_BLADES; k++) {
       const h = 0.6 + 0.4 * hash01(sp.x + k, sp.z + i, seed + 1);
-      const blade = new THREE.BoxGeometry(0.04, h, 0.04);
+      const blade = dropEnds(new THREE.BoxGeometry(0.04, h, 0.04));
       blade.translate(0, h / 2, 0);
       blade.rotateX((hash01(sp.x, sp.z + k, seed + 2) - 0.5) * 0.3);
       blade.rotateZ((hash01(sp.x + k, sp.z, seed + 3) - 0.5) * 0.3);
@@ -3289,6 +3298,26 @@ const HEATHER_STEM = 0x46532f;
 const HEATHER_SPIKE_ROOT = 0x8e4f8e;
 const HEATHER_SPIKE_TIP = 0xe39ad6;
 const HEATHER_SPIKES_PER_CUSHION = 6;
+// A cushion sits on the ground, so the faces that point down into it are never
+// seen: keep only faces whose normal is not clearly downward. Swaps the
+// attributes on the same geometry (BufferAttribute has no uuid).
+function dropDownFaces(g) {
+  const keep = [];
+  const ny = g.attributes.normal;
+  for (let f = 0; f < ny.count; f += 3) {
+    if ((ny.getY(f) + ny.getY(f + 1) + ny.getY(f + 2)) / 3 >= -0.3) keep.push(f);
+  }
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = g.attributes[name];
+    if (!a) continue;
+    const out = new Float32Array(keep.length * 3 * a.itemSize);
+    let o = 0;
+    for (const f of keep) for (let v = 0; v < 3; v++) for (let c = 0; c < a.itemSize; c++) out[o++] = a.array[(f + v) * a.itemSize + c];
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  g.boundingBox = null;
+  g.boundingSphere = null;
+}
 export function heatherBed(spots, seed) {
   const geoms = [];
   const cushions = [];
@@ -3301,6 +3330,7 @@ export function heatherBed(spots, seed) {
       // sat on the ground: its lowest point at y 0
       const top = cushion.boundingBox.max.y - cushion.boundingBox.min.y;
       cushion.translate(0, -cushion.boundingBox.min.y, 0);
+      dropDownFaces(cushion);
       const a = hash01(k, i, seed + 2) * Math.PI * 2;
       const d = k === 0 ? 0 : 0.3 + 0.2 * hash01(i, k, seed + 3);
       const cx = sp.x + Math.cos(a) * d;

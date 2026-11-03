@@ -713,6 +713,34 @@ describe('the Woods builders', () => {
     expect(m.castShadow).toBe(false);
     expect(m.userData.noCast).toBe(true);
   });
+  it('reedBed blades have no top or bottom faces', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 1, z: 0.5 }, { x: -2, z: 3 }];
+    const m = b.reedBed(spots, 3);
+    const g = m.geometry;
+    const pos = g.attributes.position;
+    const idx = g.index ? Array.from(g.index.array) : Array.from({ length: pos.count }, (_, i) => i);
+    expect(idx.length / 3).toBe(spots.length * 5 * 8);
+    const a = new THREE.Vector3(); const bb = new THREE.Vector3(); const c = new THREE.Vector3();
+    for (let t = 0; t < idx.length; t += 3) {
+      a.fromBufferAttribute(pos, idx[t]); bb.fromBufferAttribute(pos, idx[t + 1]); c.fromBufferAttribute(pos, idx[t + 2]);
+      const n = bb.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      expect(Math.abs(n.y)).toBeLessThan(0.9);
+    }
+  });
+
+  it('heatherBed cushions keep no face that points down into the ground', () => {
+    const spots = [{ x: 0, z: 0 }, { x: 4, z: 1 }];
+    const base = b.heatherBed(spots, 5).getObjectByName('heatherBase');
+    const pos = base.geometry.attributes.position;
+    expect(pos.count / 3).toBeLessThan(spots.length * 2 * 20);
+    const a = new THREE.Vector3(); const bb = new THREE.Vector3(); const c = new THREE.Vector3();
+    for (let t = 0; t < pos.count; t += 3) {
+      a.fromBufferAttribute(pos, t); bb.fromBufferAttribute(pos, t + 1); c.fromBufferAttribute(pos, t + 2);
+      const n = bb.clone().sub(a).cross(c.clone().sub(a)).normalize();
+      expect(n.y).toBeGreaterThanOrEqual(-0.3);
+    }
+  });
+
   it('willow is three meshes and its curtain never hangs below 1.2', () => {
     const g = b.willow(3, 4);
     expect(g.children.filter((o) => o.isMesh)).toHaveLength(3);

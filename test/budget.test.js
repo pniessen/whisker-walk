@@ -208,6 +208,13 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // sails the Seaside's build is 23,740 (it was 15,724 with main's seaside.js),
 // still under its 30,000 ceiling. The Gorge's rooftop blocks gained red
 // pitched roofs: +60 triangles in its band, 59,307 in all (see its row).
+//
+// 2026-11-03, polish-places: reeds lost their 4 cm top and buried bottom faces
+// (12 -> 8 triangles a blade) and heather cushions their downward faces under
+// the ground, freeing room for the next edge work. Build totals, before ->
+// after: river 59,895 -> 49,235; moor 59,761 -> 51,061; pines 52,934 ->
+// 49,734; woods 53,873 -> 51,953. The other areas, and every ceiling, are
+// unchanged.
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the
