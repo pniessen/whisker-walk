@@ -21,7 +21,7 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
-  ourCatHidden, itNearer, sheetTopFrom, frameBottomFor, frameClutter, SIDE_COST, CLUTTER_COST, CLUTTER_HIDE,
+  ourCatHidden, intruderHidden, itNearer, sheetTopFrom, frameBottomFor, frameClutter, SIDE_COST, CLUTTER_COST, CLUTTER_HIDE,
 } = await import('../src/fightcam.js');
 const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
@@ -1223,6 +1223,45 @@ describe('the Woods spot from the live check', async () => {
     process.stderr.write(`\nwoods spot walk-over -> rounds swings (phone's anchors): ${far.length} of 72: ${far.join('; ')}\n`);
     expect(far.filter((t) => t.startsWith('PHONE'))).toEqual([]);
     expect(far.length).toBeLessThanOrEqual(6);
+  });
+
+  // Second re-review, live at d623948 (phone held upright): the intruder
+  // held at (-21.442, 9.38), my cat over from (-23.13, 7.777) to the gap
+  // spot (-22.602, 8.278). The rounds view stood right behind our cat looking
+  // down the line, (-25.69, 2.2, 4.73), and our cat hid the intruder whole.
+  test('the live spot: neither cat hides the other, side-on, on a phone held upright', () => {
+    const PHONE = { aspect: 390 / 844, fovY: 70, px: 844 };
+    const foe2 = { x: -21.442, z: 9.38 }, from2 = { x: -23.13, z: 7.777 };
+    const g = Math.hypot(from2.x - foe2.x, from2.z - foe2.z);
+    const spot2 = { x: foe2.x + ((from2.x - foe2.x) / g) * FIGHT_GAP, z: foe2.z + ((from2.z - foe2.z) / g) * FIGHT_GAP };
+    const at2 = (spot) => ({ ...fightReach(spot, foe2, ok, { actions: true, reachY: reachYFor(...dims, FIGHT_GAP) }), path: [] });
+    const walk2 = at2(spot2);
+    walk2.path = [];
+    for (let j = 0, n = Math.ceil(Math.hypot(spot2.x - from2.x, spot2.z - from2.z) / 0.3); j <= n; j++) {
+      walk2.path.push({ x: from2.x + ((spot2.x - from2.x) * j) / n, z: from2.z + ((spot2.z - from2.z) * j) / n });
+    }
+    const rounds2 = at2(spot2);
+    expect(Math.hypot(rounds2.me[0].x + 22.602, rounds2.me[0].z - 8.278)).toBeLessThan(0.01);
+    const yaws2 = [Math.atan2(from2.x - foe2.x, from2.z - foe2.z), ...Array.from({ length: 24 }, (_, k) => (k * Math.PI) / 12 - Math.PI)];
+    const look = (v, s, at) => {
+      expect(ourCatHidden(v.pos, s), `${at}: our cat hidden`).toBeLessThan(0.25);
+      expect(intruderHidden(v.pos, s), `${at}: the intruder hidden`).toBeLessThan(0.25);
+      expect(sideOnCos(v, s), at).toBeLessThan(Math.sin((25 * Math.PI) / 180));
+    };
+    for (const yaw0 of yaws2) {
+      const deg = (yaw0 * 180 / Math.PI).toFixed(0);
+      const w = choose(walk2, PHONE, 0.31, yaw0);
+      look(w, walk2, `walk-over yaw0 ${deg}: camera ${w.pos.x.toFixed(1)},${w.pos.z.toFixed(1)}`);
+      const r = chooseFightView({
+        subject: rounds2, occluders: occ, colliders: area.colliders, bounds: area.bounds, ...PHONE,
+        yaw0: Math.atan2(w.pos.x - rounds2.mid.x, w.pos.z - rounds2.mid.z), ring0: w.ring,
+        frameBottom: frameBottomFor(sheetTopFrom(0.31 * PHONE.px, PHONE.px)),
+      });
+      look(r, rounds2, `rounds after yaw0 ${deg}: camera ${r.pos.x.toFixed(1)},${r.pos.z.toFixed(1)}`);
+      const r0 = choose(rounds2, PHONE, 0.31, yaw0);
+      look(r0, rounds2, `rounds alone yaw0 ${deg}: camera ${r0.pos.x.toFixed(1)},${r0.pos.z.toFixed(1)}`);
+      if (yaw0 === yaws2[0]) process.stderr.write(`\nlive spot, portrait, follow yaw0: walk-over ${JSON.stringify(w.pos)} d ${RINGS[w.ring].d}; rounds ${JSON.stringify(r.pos)} d ${RINGS[r.ring].d}\n`);
+    }
   });
 
   // Re-review (b): in the fallback tier (no spot clear) a spot with the

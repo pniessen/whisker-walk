@@ -10,9 +10,10 @@
 // the first one whose lines to both cats (paws, body and head, everywhere the
 // fight can put them) clear every solid, that keeps both cats in the frame
 // above the fight sheet, and that is inside the map and out of every
-// collider. Spots where the intruder stands in front of our cat, or nearer
-// the camera than it, are tried only after every other spot (ourCatHidden,
-// itNearer): the kid's own cat is the one in front. (A lifted top, an action's leap or rear-up, must be in frame but
+// collider. Spots where the intruder stands nearer the camera than our cat
+// or hides much of it, or where our cat hides most of the intruder, are
+// tried only after every other spot (itNearer, ourCatHidden, intruderHidden):
+// the kid's own cat is the one in front, and the intruder's move is seen. (A lifted top, an action's leap or rear-up, must be in frame but
 // only ranks the views by whether it is seen: see chooseFightView.) The choice is made a handful of times per fight, never per frame,
 // and only against the trees near the pair: no raycast into the scene at all.
 //
@@ -506,6 +507,19 @@ export function ourCatHidden(pos, subject, g0 = 0) {
   return hiddenShare(pos, ownHalf(subject, 'me'), ownHalf(subject, 'it'), g0);
 }
 
+// The mirror: how much of the intruder our cat hides from `pos` (the kid
+// has to read the intruder's move), with our cat's body as the post.
+export function intruderHidden(pos, subject, g0 = 0) {
+  return hiddenShare(pos, ownHalf(subject, 'it'), ownHalf(subject, 'me'), g0);
+}
+
+// A spot goes behind every other (candidates) when the intruder stands
+// nearer the camera than our cat, or hides at least this share of it, or
+// our cat hides at least BEHIND_IT of the intruder. Less is a soft cost
+// (HIDE_COST x the share).
+export const BEHIND_OURS = 0.25;
+export const BEHIND_IT = 0.5;
+
 // ourCatHidden with each cat's own-half spots already picked (candidates
 // picks them once for every spot it prices).
 function hiddenShare(pos, me, it, g0) {
@@ -542,9 +556,11 @@ export function itNearer(pos, subject) {
 
 // The camera spots to try, cheapest first: yaw0 itself, then 15-degree steps
 // either way, on each ring; ring0 (the ring already in use) costs nothing.
-// A spot where the intruder hides our cat, or stands nearer the camera than
-// our cat, comes after every spot where it does not (and among those costs
-// HIDE_COST, NEAR_COST): the kid's own cat is in front.
+// A spot where the intruder stands nearer the camera than our cat, hides
+// BEHIND_OURS of it, or where our cat hides BEHIND_IT of the intruder, comes
+// after every spot where none of that holds; each cat's hidden share costs
+// HIDE_COST x it and an intruder nearer NEAR_COST: the kid's own cat is in
+// front, and the intruder's move stays readable.
 // A spot off side-on costs SIDE_COST x |cos| of its angle to the cats' line,
 // and one with trees in front of the pair filling its frame CLUTTER_COST x
 // their share (frameClutter, at today's aim over `bottom`).
@@ -565,7 +581,12 @@ function candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY)
       pos.x = mid.x + Math.sin(yaw) * ring.d; pos.y = ring.h + g0; pos.z = mid.z + Math.cos(yaw) * ring.d;
       const hid = hiddenShare(pos, me, it, g0);
       const nearer = itNearer(pos, subject);
-      const ours = HIDE_COST * hid + (nearer ? NEAR_COST : 0);
+      // our cat hides the intruder only from a spot nearer our cat's anchor
+      // than the intruder's (half the spots: this is the costly part)
+      const a = subject.me[0], b = subject.it[0];
+      const itHid = (a.x - pos.x) ** 2 + (a.z - pos.z) ** 2 < (b.x - pos.x) ** 2 + (b.z - pos.z) ** 2
+        ? hiddenShare(pos, it, me, g0) : 0;
+      const ours = HIDE_COST * (hid + itHid) + (nearer ? NEAR_COST : 0);
       let clutter = 0;
       const front = frontOf(pos, mid, near);
       if (front.length) {
@@ -573,14 +594,18 @@ function candidates(subject, yaw0, ring0, g0, near, aspect, fovY, bottom, lookY)
         const nd = nearDepthFor(view, subject, lookY, aspect, fovY);
         for (const o of front) clutter += frameClutter(pos, view, o, aspect, fovY, bottom, nd);
       }
-      list.push({ yaw, ri, behind: hid > 0 || nearer ? 1 : 0, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
+      list.push({ yaw, ri, behind: nearer || hid >= BEHIND_OURS || itHid >= BEHIND_IT ? 1 : 0, cost: Math.abs(step) + rc + (along ? AXIS_COST : 0) + SIDE_COST * Math.abs(Math.cos(yaw - ax)) + ours + CLUTTER_COST * clutter });
     }
   });
   // Our cat in front comes first, whatever the rest costs: a spot where the
-  // intruder hides it or stands nearer the camera is tried only after every
-  // spot where it does not (final review: a woods fight on a phone held
-  // upright turned to a 3/4 view with the intruder in front, two yaw steps
-  // from the current angle, over the side-on view eleven steps round). Then
+  // intruder stands nearer the camera, or hides a good part of our cat
+  // (BEHIND_OURS), or our cat hides most of the intruder (BEHIND_IT, a view
+  // down the line from behind our cat), is tried only after every spot where
+  // none of that holds (final review: a woods fight on a phone held upright
+  // turned to a 3/4 view with the intruder in front, two yaw steps from the
+  // current angle, over the side-on view eleven steps round; then, with any
+  // sliver of our cat hidden counted, to a view from right behind our cat
+  // with the intruder hidden behind it). Then
   // the cheapest; a stable sort: equal costs keep their order, so the choice
   // is deterministic.
   return list.map((c, i) => ({ ...c, i })).sort((p, q) => p.behind - q.behind || p.cost - q.cost || p.i - q.i);
