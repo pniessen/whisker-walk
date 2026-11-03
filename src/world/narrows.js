@@ -104,11 +104,14 @@ const WALL_N = -16; // the north wall's line (rock at z < -16, facing +z)
 const WALL_S = -6; // the south wall's line (rock at z > -6, facing -z)
 // The rock triangles a ray here can hit: centroid in the Narrows' box.
 const ROCK_BOX = Object.freeze({ maxX: -18.5, minZ: -17.6, maxZ: -4.4 });
+// Shelves count from ny 0.1 and crests down to 0.9 m under the top (were 0.15
+// and 0.6): the fluted walls have fewer flat shelves and the rims round down
+// (polish-gorgerock2), and these keep the plants they had.
 const SHELF = Object.freeze({
-  x0: -49, x1: -20, dx: 1.3, y0: 1.5, dy: 1.0, out: 0.9, minNy: 0.15, minY: 1.2, cap: 50,
+  x0: -49, x1: -20, dx: 1.3, y0: 1.5, dy: 1.0, out: 0.9, minNy: 0.1, minY: 1.2, cap: 50,
 });
 const TOPS = Object.freeze({
-  x0: -49, x1: -19.5, dx: 1.1, back: [0.3, 1.0], above: 3, minNy: 0.5, drop: 0.6, tufts: 40, shrubs: 16,
+  x0: -49, x1: -19.5, dx: 1.1, back: [0.3, 1.0], above: 3, minNy: 0.5, drop: 0.9, tufts: 40, shrubs: 16,
 });
 const TUFT_GREENS = [0x7f9a52, 0x6f8040];
 const TUFT_DRY = 0xb0a46e;
@@ -123,21 +126,29 @@ function hash01(x, z, salt) {
 }
 
 // rockFaces' triangles near the Narrows (9 floats each), so no ray scans the
-// whole rock. Exported for the test that checks every tuft is on the rock.
+// whole rock, with each one's face normal. Exported for the test that checks
+// every tuft is on the rock. The rock is smooth-shaded now, so the face normal
+// is worked from the positions exactly as three's computeVertexNormals works a
+// flat one (cb = C - B, ab = A - B, cb x ab, held in float32, then normalized),
+// so the placements are the same as they were under flat normals.
+const _fa = new THREE.Vector3(), _fb = new THREE.Vector3(), _fc = new THREE.Vector3();
+const _fcb = new THREE.Vector3(), _fab = new THREE.Vector3();
 export function narrowsRockTris(rockFaces) {
   const p = rockFaces.geometry.getAttribute('position').array;
-  const n = rockFaces.geometry.getAttribute('normal')?.array;
   const out = [], nor = [];
   for (let i = 0; i < p.length; i += 9) {
     const cx = (p[i] + p[i + 3] + p[i + 6]) / 3;
     const cz = (p[i + 2] + p[i + 5] + p[i + 8]) / 3;
     if (cx < ROCK_BOX.maxX && cz > ROCK_BOX.minZ && cz < ROCK_BOX.maxZ) {
       for (let k = 0; k < 9; k++) out.push(p[i + k]);
-      if (n) nor.push(n[i], n[i + 1], n[i + 2]);
+      _fa.fromArray(p, i); _fb.fromArray(p, i + 3); _fc.fromArray(p, i + 6);
+      _fcb.subVectors(_fc, _fb).cross(_fab.subVectors(_fa, _fb));
+      _fcb.set(Math.fround(_fcb.x), Math.fround(_fcb.y), Math.fround(_fcb.z)).normalize();
+      nor.push(_fcb.x, _fcb.y, _fcb.z);
     }
   }
   const tris = new Float32Array(out);
-  tris.normals = n ? new Float32Array(nor) : null;
+  tris.normals = new Float32Array(nor);
   return tris;
 }
 

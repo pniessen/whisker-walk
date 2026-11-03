@@ -19,6 +19,8 @@ import {
 import { caveRoom, caveTunnel, crystalClusters, CLUSTER_SPREAD, CORNER_R } from './caveroom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createGorgeLife, GORGE_BIRD_Y } from '../gorgelife.js';
+import { smoothNormals } from './rocknormals.js';
+import { noise3 } from './rockrelief.js';
 import { ZOOM_STEPS, DEFAULT_ZOOM_STEP } from '../camzoom.js';
 
 // =============================================================================
@@ -296,6 +298,62 @@ function torFits(t, y, kept) {
   if (!kept.every((o) => Math.hypot(t.x - o.x, t.z - o.z) >= t.r + o.r + 3)) return false;
   return oneShape(t.x, t.z, t.r + 2);
 }
+// The Gorge's tors are rounder than the Moor's granite (b.tor, shared, is
+// left alone): roundTor redraws a tor's three blocks as noisy icosahedra
+// (IcosahedronGeometry(1, 1), 80 triangles a block, each vertex pushed in or
+// out up to 10% by noise3 on its unit position), sized and placed exactly as
+// b.tor sizes and places its dodecahedra (same reach, heights, bottoms,
+// drifts and turns, so the collider r and perch h still fit), smooth-shaded.
+// The new arrays replace the attributes of the tor's own geometry; the
+// temporary geometries are made under local uuids (BUILD_DRAWS stays put).
+// Called with the (x, z) and seed b.tor was given, before it is moved.
+const TOR_BLOCKS = [[1, 0, 0.5, 0], [0.7, 0.35, 0.45, 0.15], [0.5, 0.65, 0.35, 0.12]]; // as b.tor's
+export const GORGE_TOR_COLOR = 0xa39582; // weathered sandstone: grey granite read foreign here
+const torHash = (x, z, salt) => {
+  // builder.js's private hash01, copied: b.tor turns and drifts its blocks by it
+  const v = Math.sin(x * 12.9898 + z * 78.233 + salt * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+};
+export function roundTor(mesh, { x, z, r, h, seed }) {
+  withLocalUuids('gorge-uuids-tors', () => {
+    const geoms = TOR_BLOCKS.map(([rs, bottom, tall, drift], i) => {
+      const g = new THREE.IcosahedronGeometry(1, 1);
+      const pos = g.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        const ux = pos.getX(v), uy = pos.getY(v), uz = pos.getZ(v);
+        const k = 1 + 0.2 * (noise3(ux * 1.7 + 5.3 * i, uy * 1.7, uz * 1.7, 977 + 31 * seed + i) - 0.5);
+        pos.setXYZ(v, ux * k, uy * k, uz * k);
+      }
+      if (i > 0) g.rotateY(torHash(x, z, seed + i) * Math.PI);
+      g.computeBoundingBox();
+      let reach = 0;
+      for (let v = 0; v < pos.count; v++) reach = Math.max(reach, Math.hypot(pos.getX(v), pos.getZ(v)));
+      // numbers, not the box: scale() recomputes the box in place (b.tor
+      // reads its min after that, which sinks each block a little; here each
+      // block's foot is at h * bottom, so the top block's crown is at h)
+      const minY = g.boundingBox.min.y;
+      const sy = (h * tall) / (g.boundingBox.max.y - minY);
+      g.scale((r * rs) / reach, sy, (r * rs) / reach);
+      g.translate(0, h * bottom - minY * sy, 0);
+      const a = torHash(x, z, seed + 10 + i) * Math.PI * 2;
+      g.translate(x + Math.cos(a) * r * drift, 0, z + Math.sin(a) * r * drift);
+      return g;
+    });
+    const merged = mergeGeometries(geoms, false);
+    const pos = merged.attributes.position.array;
+    const geo = mesh.geometry;
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(smoothNormals(pos, null, 180), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(merged.attributes.uv.array, 2));
+    geo.boundingBox = null;
+    geo.boundingSphere = null;
+    for (const g of geoms) g.dispose();
+    merged.dispose();
+  });
+  mesh.material.color.set(GORGE_TOR_COLOR);
+  return mesh;
+}
+
 let torsOnce = null;
 export function gorgeTors() {
   if (torsOnce) return torsOnce;
@@ -408,7 +466,7 @@ export function gorgeTrees() {
 // so their mouths), every find, and anywhere the wall isn't rock after all.
 const SCREE_STEP = 1.5;
 const SCREE_OUT = 0.6;
-const FLOOR_WALLS = [
+export const FLOOR_WALLS = [
   [-18, -50, -18, -16, 1, 0], // the west wall, north of the Narrows
   [-18, -6, -18, 50, 1, 0], // the west wall, south of the Narrows
   [-50, -16, -18, -16, 0, 1], // the Narrows' north side
@@ -466,6 +524,12 @@ export const MEADOW_SAND = 0xc8b28a;
 export const MEADOW_DRY = 0xb0a46e;
 export const MEADOW_GREEN = 0x7f9a52;
 const BANK_GREEN = 0x7f9358;
+// The talus apron: the grey gravel the wall's own tint (rockshade TALUS_TINT)
+// carries on across the floor, a 1 m strip every metre along each floor wall,
+// 0.8-1.4 m out, fading to the floor colour at its outer edge.
+export const MEADOW_TALUS = 0xa59b89;
+const TALUS_OUT = 0.8;
+const TALUS_VAR = 0.6;
 const TUFT_COLORS = Object.freeze([0x8f9a52, 0x6f8040]);
 const NOISE_N = 16;
 const NOISE_SCALE = 4; // metres per lattice step: patches 3-5 m across
@@ -517,7 +581,31 @@ export function gorgeMeadow() {
     if (keepClearDist(x, z) < 1.2 || pathDist(x, z) < PATH_W / 2 || !oneShape(x, z, 0.4)) continue;
     tufts.push(Object.freeze({ x, z, y: zy, s: r2(0.12 + us * 0.1), rot: r2(ur * Math.PI * 2) }));
   }
-  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts) });
+  // the talus: its own stream, so the patches and tufts above do not move
+  const tr = mulberry32(seedFromCode('gorge-talus'));
+  const talus = [];
+  for (const [wx1, wz1, wx2, wz2, nx, nz] of FLOOR_WALLS) {
+    const len = Math.hypot(wx2 - wx1, wz2 - wz1);
+    const tx = (wx2 - wx1) / len, tz = (wz2 - wz1) / len;
+    // One depth per cell CORNER, shared by the two cells that meet there, so
+    // the apron's outer edge is a continuous line, not a staircase. Every
+    // corner draws its number whether its cells are kept or not.
+    const cells = Math.floor(len + 1e-9);
+    const corner = Array.from({ length: cells + 1 }, () => r2(TALUS_OUT + TALUS_VAR * tr()));
+    // the mesh's tangent (-nz, nx) points along the wall or against it
+    const along = -nz * tx + nx * tz > 0;
+    for (let k = 0; k < cells; k++) {
+      const d0 = corner[k], d1 = corner[k + 1];
+      const d = r2((d0 + d1) / 2);
+      const bx = wx1 + tx * (k + 0.5), bz = wz1 + tz * (k + 0.5);
+      const pts = [0.1, d / 2, Math.max(d0, d1)].map((f) => [bx + nx * f, bz + nz * f]);
+      if (pts.some(([x, z]) => !inBounds(x, z) || g.y(x, z) !== FLOOR || pathDist(x, z) < MEADOW_PATH_CLEAR
+        || holeDist(x, z) <= 0 || mouthDist(x, z) < 1.5 || rectDist(STREAM, x, z) < 0.5)) continue;
+      if (g.y(bx - nx * 0.1, bz - nz * 0.1) < 0.3) continue; // no rock there
+      talus.push(Object.freeze({ x: r2(pts[1][0]), z: r2(pts[1][1]), w: 1, d, dm: along ? d0 : d1, dp: along ? d1 : d0, nx, nz }));
+    }
+  }
+  meadowOnce = Object.freeze({ patches: Object.freeze(patches), tufts: Object.freeze(tufts), talus: Object.freeze(talus) });
   return meadowOnce;
 }
 
@@ -555,9 +643,25 @@ function bankColor(out, x, z) {
 }
 
 function meadowMesh() {
-  const { patches, tufts } = gorgeMeadow();
+  const { patches, tufts, talus } = gorgeMeadow();
   const pos = [], col = [];
   const vert = (x, y, z, c) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  const gravel = new THREE.Color(MEADOW_TALUS), sand = new THREE.Color(GORGE_FLOOR_COLOR);
+  for (const t of talus) {
+    // wall edge in gravel, outer edge faded into the floor
+    const tx = -t.nz * t.w / 2, tz = t.nx * t.w / 2;
+    const ox = t.x - t.nx * t.d / 2, oz = t.z - t.nz * t.d / 2;
+    const y = FLOOR + MEADOW_LIFT;
+    // the outer corners take the depths shared with the neighbouring cells
+    const q = [[ox - tx, oz - tz, gravel], [ox + tx, oz + tz, gravel],
+      [ox + tx + t.nx * t.dp, oz + tz + t.nz * t.dp, sand], [ox - tx + t.nx * t.dm, oz - tz + t.nz * t.dm, sand]];
+    for (const tri of [[0, 1, 2], [0, 2, 3]]) {
+      const [a, b, c] = tri.map((i) => q[i]);
+      // wound to face up whichever way the wall faces
+      const up = (b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) > 0;
+      for (const [x, z, col2] of (up ? [a, b, c] : [a, c, b])) vert(x, y, z, col2);
+    }
+  }
   for (const p of patches) {
     // Colour is a pure function of world position, so cells that share a
     // corner share its colour and the patches read as soft blobs, not tiles.
@@ -856,12 +960,14 @@ const GROUND_COLOR = GORGE_FLOOR_COLOR;
 // the shoulder is 2 m wide there, its top one crest cell across, so a lifted
 // vertex on its west edge (x 2) tilts the top under the goat. At 0.6 the top
 // stood 0.13 m high at (3, -16.3), at 0.9 0.09 m and at 1.2 0.04 m at (3, -16);
-// 1.4 keeps x 3..7.5 within 0.03 of 14 (test/gorge.test.js).
+// 1.4 keeps x 3..7.5 within 0.03 of 14 (test/gorge.test.js). The east end
+// (7.5, -16) is 0.8: the finer wall grid (ROCK_CELL 1.2) puts a crest vertex
+// near it that 0.6 let lift the top 0.04 m.
 export const GORGE_ROCK_KEEP = Object.freeze([
   { x: 8, z: -12.5, r: 1.0 },
   { x: 3.5, z: -16, r: 1.4 },
   { x: 5.5, z: -16, r: 0.6 },
-  { x: 7.5, z: -16, r: 0.6 },
+  { x: 7.5, z: -16, r: 0.8 },
 ].map(Object.freeze));
 
 // Every cave and den mouth, the camp den's too: no foot boulder is set
@@ -874,6 +980,71 @@ export const GORGE_ROCK_MOUTHS = Object.freeze([
 // the highest camera (G11); defined in gorgelife.js beside the wheeling birds.
 export { GORGE_BIRD_Y };
 
+// The lawn plane is 120 m square but the rock masses stand on most of it, so
+// most of it is never seen. Drop each triangle every point of a 0.25 m lattice
+// over which (vertices, edges, interior) lies strictly inside a mass at least
+// 0.5 m tall and under no cave or den ceiling. The index is rebuilt in place on
+// the same geometry (no new uuid'd objects, so no Math.random draws); returns
+// the number of triangles dropped.
+//
+// Two shortcuts, both exact (the dropped set is the full lattice's): a triangle
+// whose xz box lies strictly inside one tall mass and touches no ceiling is
+// dropped without the lattice (rects are convex); and the kept index of the
+// stock plane (PlaneGeometry(120, 120, 48, 48), always the same under the same
+// masses) is remembered per masses array, so the walk's later starts reuse it.
+const HIDE_STEP = 0.25;
+const hiddenCache = new WeakMap(); // masses -> { verts, count, keep: Uint16Array|Uint32Array, dropped }
+export function trimHiddenGround(plane, masses, { cache = true } = {}) {
+  plane.updateMatrixWorld();
+  const g = plane.geometry;
+  const pos = g.attributes.position;
+  const idx = g.index;
+  const hit = cache ? hiddenCache.get(masses) : null;
+  if (hit && hit.verts === pos.count && hit.count === idx.count) {
+    g.setIndex(new THREE.BufferAttribute(hit.keep.slice(), 1));
+    return hit.dropped;
+  }
+  const tall = masses.filter((m) => m.y1 >= 0.5);
+  const buried = (x, z) => tall.some((m) => x > m.minX && x < m.maxX && z > m.minZ && z < m.maxZ)
+    && !CEILINGS.some((c) => x >= c.minX && x <= c.maxX && z >= c.minZ && z <= c.maxZ);
+  const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const keep = [];
+  let dropped = 0;
+  for (let t = 0; t < idx.count; t += 3) {
+    for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx.getX(t + k)).applyMatrix4(plane.matrixWorld);
+    const [a, bb, c] = v;
+    const lx = Math.min(a.x, bb.x, c.x), hx = Math.max(a.x, bb.x, c.x);
+    const lz = Math.min(a.z, bb.z, c.z), hz = Math.max(a.z, bb.z, c.z);
+    if (tall.some((m) => lx > m.minX && hx < m.maxX && lz > m.minZ && hz < m.maxZ)
+      && !CEILINGS.some((q) => hx >= q.minX && lx <= q.maxX && hz >= q.minZ && lz <= q.maxZ)) {
+      dropped++;
+      continue;
+    }
+    const longest = Math.max(a.distanceTo(bb), bb.distanceTo(c), c.distanceTo(a));
+    const n = Math.max(1, Math.ceil(longest / HIDE_STEP));
+    let hidden = true;
+    for (let i = 0; i <= n && hidden; i++) {
+      for (let j = 0; j <= n - i; j++) {
+        const u = i / n, w = j / n, s = 1 - u - w;
+        if (!buried(a.x * s + bb.x * u + c.x * w, a.z * s + bb.z * u + c.z * w)) { hidden = false; break; }
+      }
+    }
+    if (hidden) dropped++;
+    else keep.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
+  }
+  if (dropped) {
+    const Arr = pos.count > 65535 ? Uint32Array : Uint16Array;
+    const kept = new Arr(keep);
+    g.setIndex(new THREE.BufferAttribute(kept, 1));
+    // only the stock plane is remembered: same vertex and index counts mean
+    // the same grid (the plane is a fixed-size, fixed-place ground)
+    if (cache && pos.count === 49 * 49 && idx.count === 48 * 48 * 6) {
+      hiddenCache.set(masses, { verts: pos.count, count: idx.count, keep: kept.slice(), dropped });
+    }
+  }
+  return dropped;
+}
+
 export function build(scene, { water = {}, wind } = {}) {
   const ground = gorgeGround();
   const colliders = [];
@@ -881,6 +1052,7 @@ export function build(scene, { water = {}, wind } = {}) {
   b.applySky(scene, GORGE_SKY.top, GORGE_SKY.horizon);
   const plane = b.ground(120, GROUND_COLOR, { surface: 'grass' });
   plane.name = 'groundPlane';
+  trimHiddenGround(plane, MASSES);
   scene.add(plane);
   scene.add(b.horizonBand(GORGE_HORIZON));
 
@@ -921,6 +1093,10 @@ export function build(scene, { water = {}, wind } = {}) {
   // walk). Each is set on the clifftop with seatOnGround.
   const rockMat = litMaterial(ROCK_COLOR, surfaceProps('cobble'));
   const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), rockMat);
+  // shaded round: its normals smoothed in place, no new attribute
+  const bn = boulder.geometry.attributes.normal;
+  bn.array.set(smoothNormals(boulder.geometry.attributes.position.array, null, 180));
+  bn.needsUpdate = true;
   boulder.name = 'summitRockBoulder';
   boulder.position.set(SUMMIT_BOULDER.x, 0.3, SUMMIT_BOULDER.z);
   scene.add(seatOnGround(boulder, ground));
@@ -940,7 +1116,7 @@ export function build(scene, { water = {}, wind } = {}) {
   const tors = new THREE.Group();
   tors.name = 'tors';
   gorgeTors().forEach(({ x, z, r, h }, i) => {
-    const t = b.tor(x, z, { r, h, seed: i });
+    const t = roundTor(b.tor(x, z, { r, h, seed: i }), { x, z, r, h, seed: i });
     t.geometry.translate(-x, 0, -z);
     t.position.set(x, 0, z);
     t.name = `tor-${i}`;
@@ -965,7 +1141,7 @@ export function build(scene, { water = {}, wind } = {}) {
   // --- the scree ----------------------------------------------------------------
   // One merged bed, out of the shadow pass, on the floor (so at y 0), and no
   // collider: a cat walks over loose stones.
-  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'));
+  const scree = b.scree(gorgeScree(), seedFromCode('gorge-scree'), { pebble: true });
   scree.name = 'screeBed';
   scene.add(scree);
 
