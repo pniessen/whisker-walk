@@ -104,11 +104,18 @@ body.touch-mode .hud-area { font-size: 0.72rem; }
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 #hud.fight-asking .hud-toasts { bottom: 210px; }
+/* A toast fades in 0.35 s with a small rise (hud.js removes it right after).
+   The fade is short so the white text never outlives its dark pill, which
+   left "ghost text" over the cat when the old 0.8 s fade overlapped a busy
+   column. Reduced motion keeps the fade and drops the rise. */
 .toast {
   background: rgba(20,26,38,0.75); padding: 8px 18px; border-radius: 999px;
-  transition: opacity 0.8s; font-size: 1.05rem;
+  transition: opacity 0.35s, transform 0.35s; font-size: 1.05rem;
 }
-.toast.fade { opacity: 0; }
+.toast.fade { opacity: 0; transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) {
+  .toast.fade { transform: none; }
+}
 .hud-prompt {
   position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
   background: rgba(242,193,78,0.92); color: #3a2a10; font-weight: 700;
@@ -174,6 +181,33 @@ body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(360px + env(safe-ar
   body.touch-mode .hud-prompt { bottom: calc(96px + env(safe-area-inset-bottom)); }
   body.touch-mode .hud-toasts { bottom: calc(165px + env(safe-area-inset-bottom)); }
   body.touch-mode #hud.fight-asking .hud-toasts { bottom: calc(210px + env(safe-area-inset-bottom)); }
+}
+/* A phone held upright: the walk toasts move to the top, under the corner map,
+   its caption and the objective pill (which starts at map + 34px and can wrap
+   to two lines, ending near map + 75px: hence + 100px), and grow downward.
+   The column is reversed so the newest toast sits on top and the oldest,
+   which leaves first, at the bottom: nothing hops up when one goes. The
+   camera keeps the cat mid-screen, so toasts rising from above the action
+   cluster landed right on it. Only the
+   walk's #hud-toasts moves; the cloud-sync toasts (#cloud-toasts, same class)
+   keep their place. Tablets, desktop and landscape keep their bottom anchors.
+   The fight rules are matched too, so a fight pill or sheet never pulls them
+   back down (bottom: auto, or the box would stretch between the two). */
+@media (pointer: coarse) and (max-width: 480px) and (min-height: 501px) {
+  #hud-toasts,
+  #hud.fight-asking #hud-toasts,
+  #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;
+    flex-direction: column-reverse;
+  }
+}
+@media (max-width: 480px) and (min-height: 501px) {
+  body.touch-mode #hud-toasts,
+  body.touch-mode #hud.fight-asking #hud-toasts,
+  body.touch-mode #hud.fighting #hud-toasts {
+    top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 100px); bottom: auto;
+    flex-direction: column-reverse;
+  }
 }
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -638,14 +672,23 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
      pause now rides the top row), so the objective drops below the map and its
      caption, level with the roster. */
   .hud-objective { top: calc(max(16px, env(safe-area-inset-top)) + var(--map-size) + 34px); }
-  /* The top row shares its width with the map (and, left-handed, the pause
-     button too): keep both pills on one line, and let a long rank title
-     ("Neighborhood Legend") end in an ellipsis rather than wrap down over
-     the goals list. */
-  .hud-top { font-size: 1rem; gap: 6px; }
+  /* The top row shares its width with the map (and the touch pause button),
+     so side by side the rank was always cut off ("Mythic…"). On a phone the
+     rank goes on a second line under the points, a size smaller, where the
+     longest titles ("Neighborhood Legend", "Mythical Feline") fit whole in
+     either hand. The ellipsis stays only as a last fallback. */
+  .hud-top { font-size: 1rem; flex-direction: column; align-items: flex-start; gap: 4px; }
   .hud-points, .hud-rank { padding: 5px 10px; white-space: nowrap; }
   .hud-points { flex-shrink: 0; }
-  .hud-rank { font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .hud-rank {
+    font-size: 0.75rem; padding: 3px 8px; margin: 0;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* The goals list steps down under the two-line top row (points and rank,
+     4px apart: about 55-66px tall, the taller end with the emoji's line
+     height), with at least ~10px of air. Its three lines then end ~156px down, just above the
+     objective (map + 34px = 160px). */
+  .hud-goals { top: calc(max(16px, env(safe-area-inset-top)) + 76px); }
   .hud-roster-chip { font-size: 0.68rem; padding: 2px 8px; }
   /* Edge to edge: the scrim spans the screen, and padding (not a max-width
      margin) keeps the content in. */
@@ -674,6 +717,59 @@ body:has(#overlay:not(.hidden) .cross-card) #hud-prompt { display: none; }
   background: transparent; color: #cdd6e4; font-size: 13px; cursor: pointer; }
 body.left-handed .chat-wheel { left: 16px; right: auto; }
 body.left-handed .chat-tray { left: 0; right: auto; }
+/* On a touch screen the spot above sits right on the 📷 button (the bottom
+   cell of the action cluster), so a kid tapping for a photo opened the chat.
+   There the chat button joins the zoom row under the cluster instead, as a
+   third 44px round button to the left of + and − (right 136px = the row's
+   28px + its 98px width + a 10px gap), dressed like them. Left-handed mirrors
+   it. Both sides stay out of the joystick's 40%. The tray opens above the
+   row, fixed to the screen and clamped to its width (280px outside, the
+   desktop tray's 260px plus padding), and scrolls rather than running off
+   the top of a landscape phone. Desktop keeps the spot above. */
+@media (pointer: coarse) {
+  .chat-wheel {
+    right: max(136px, calc(120px + env(safe-area-inset-right)));
+    bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
+  }
+  .chat-toggle {
+    width: 44px; height: 44px;
+    border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
+    font-size: 20px; line-height: 1; padding: 0;
+  }
+  .chat-tray {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+    width: min(280px, calc(100vw - 32px)); box-sizing: border-box;
+    max-height: calc(100vh - 140px); overflow-y: auto;
+  }
+  body.left-handed .chat-wheel {
+    right: auto;
+    left: max(136px, calc(120px + env(safe-area-inset-left)));
+  }
+  body.left-handed .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
+}
+body.touch-mode .chat-wheel {
+  right: max(136px, calc(120px + env(safe-area-inset-right)));
+  bottom: max(24px, calc(24px + env(safe-area-inset-bottom)));
+}
+body.touch-mode .chat-toggle {
+  width: 44px; height: 44px;
+  border: 2px solid rgba(255,255,255,0.5); background: rgba(20,26,38,0.55);
+  font-size: 20px; line-height: 1; padding: 0;
+}
+body.touch-mode .chat-tray {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+  width: min(280px, calc(100vw - 32px)); box-sizing: border-box;
+  max-height: calc(100vh - 140px); overflow-y: auto;
+}
+body.left-handed.touch-mode .chat-wheel {
+  right: auto;
+  left: max(136px, calc(120px + env(safe-area-inset-left)));
+}
+body.left-handed.touch-mode .chat-tray { right: auto; left: max(16px, env(safe-area-inset-left)); }
 
 /* Boot splash (A2 mascot) — shown on load, fades into the game */
 #splash { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
@@ -1234,6 +1330,15 @@ button.dr-edition:hover, button.dr-edition:focus-visible { text-decoration: unde
 .hud-den-shop:hover { background: rgba(20,26,38,0.9); }
 /* left-handed mode moves the ⏸ button to the top right */
 body.left-handed .hud-den-shop { right: auto; left: max(16px, env(safe-area-inset-left)); }
+/* On a phone the rank sits on a second line under the points (polish-hud2),
+   so the top row ends about 66px below the top inset and the left-handed
+   button at 64px covered the rank's bottom. It steps down to + 76px, the
+   goals list's phone spot: a den walk has no goals (walk.js, Task 7.2) and
+   no quest objective, so that band is free there. This rule must follow the
+   one above (same selector), so it lives here, not in the phone block. */
+@media (max-width: 480px) {
+  body.left-handed .hud-den-shop { top: calc(max(16px, env(safe-area-inset-top)) + 76px); }
+}
 /* desktop hint: only on a den walk, only with a mouse, only while the pause card is up */
 .den-shop-hint { display: none; }
 @media (hover: hover) and (pointer: fine) {

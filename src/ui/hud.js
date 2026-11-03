@@ -1,6 +1,45 @@
 import { bus } from '../events.js';
 import { objectiveDistance } from '../questscent.js';
 
+// Toasts (polish-hud2, R2/R3). At most two on screen: a burst of discoveries
+// used to stack four or five pills in a column that climbed over the cat.
+// Lines past the cap wait in a short queue rather than being lost (a fight
+// win can fire four lines in one tick, a taming three or four). A shown
+// toast gives up its slot early only once it has been read for 1.2 s; the
+// next waiting line appears as it fades. Otherwise each toast lives 2.6 s,
+// then fades for 0.35 s (style.css .toast) and leaves the DOM. The fade is
+// short so the text never outlives its dark pill as "ghost text".
+export const MAX_TOASTS = 2;
+export const TOAST_LIFE_MS = 2600;
+export const TOAST_FADE_MS = 350;
+export const MIN_SHOWN_MS = 1200;
+// At most this many lines wait; past it the oldest waiting line is dropped,
+// so a runaway loop can't build a minute-long backlog.
+export const MAX_QUEUED_TOASTS = 6;
+
+const withPoints = (text, points) => (points ? `${text}  +${points} 🐾` : text);
+// Several critters spotted in a row fold into one toast that counts them.
+const crittersText = (n, points) => withPoints(`You spotted ${n} critters`, points);
+const GOAL_LEAD = 'goal complete: ';
+const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// The words a discovery toast leads with. Most finds are something you
+// spotted ("You spotted a daisy", "Again — a daisy"). A chased-off intruder's
+// label is a whole sentence of its own ("You chased off Mossjaw! 🛡️"). A
+// goal reads "Goal complete: …", the race finish (also type 'goal') "You
+// finished the daily zoomies race", and the jackpot and duo-goal lines stand
+// on their own, capitalised ("A goal completed TOGETHER! 🤝").
+export function discoveryText({ type, label, repeat }) {
+  if (type === 'intruder') return label;
+  if (type === 'goal') {
+    return label.startsWith(GOAL_LEAD)
+      ? `Goal complete: ${label.slice(GOAL_LEAD.length)}`
+      : `You finished ${label}`;
+  }
+  if (type === 'jackpot' || type === 'duogoal') return capitalise(label);
+  return `${repeat ? 'Again — ' : 'You spotted '}${label}`;
+}
+
 export function createHud() {
   const root = document.getElementById('hud');
   root.innerHTML = `
@@ -30,6 +69,44 @@ export function createHud() {
   const promptTapHandlers = [];
   let lastPrompt = { text: null, tappable: null };
   let lastObjective = { text: null, dist: null };
+  // Shown toasts, oldest first; a toast leaves this list as it starts to
+  // fade. Waiting lines (past the cap) queue up behind them, oldest first.
+  const liveToasts = [];
+  const toastQueue = [];
+  // Retire a toast: fade it now, take it out of the DOM after the fade, and
+  // let the next waiting line in. Its timers are cleared so they can't fire
+  // on a toast already on its way out.
+  const retireToast = (t) => {
+    const i = liveToasts.indexOf(t);
+    if (i >= 0) liveToasts.splice(i, 1);
+    clearTimeout(t.life);
+    clearTimeout(t.ripeTimer);
+    t.el.classList.add('fade');
+    t.gone = setTimeout(() => t.el.remove(), TOAST_FADE_MS);
+    pumpToasts();
+  };
+  const startToastLife = (t) => {
+    clearTimeout(t.life);
+    t.life = setTimeout(() => retireToast(t), TOAST_LIFE_MS);
+  };
+  const showToast = (item) => {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = item.build(item.count, item.points);
+    toastsEl.appendChild(el);
+    const t = { ...item, el, shownAt: Date.now(), ripe: false, life: null, ripeTimer: null, gone: null };
+    liveToasts.push(t);
+    startToastLife(t);
+    // Once read for MIN_SHOWN_MS it may give up its slot to a waiting line.
+    t.ripeTimer = setTimeout(() => { t.ripe = true; pumpToasts(); }, MIN_SHOWN_MS);
+  };
+  // Fill free slots from the queue; when lines still wait and the screen is
+  // full, the oldest shown toast makes room once it has been up 1.2 s (now
+  // if it already has, else its ripe timer calls back here then).
+  const pumpToasts = () => {
+    while (liveToasts.length < MAX_TOASTS && toastQueue.length) showToast(toastQueue.shift());
+    if (toastQueue.length && liveToasts[0]?.ripe) retireToast(liveToasts[0]);
+  };
 
   const api = {
     show() { root.classList.remove('hidden'); },
@@ -71,13 +148,36 @@ export function createHud() {
     onPromptTap(fn) {
       promptTapHandlers.push(fn);
     },
-    toast(text, points) {
-      const el = document.createElement('div');
-      el.className = 'toast';
-      el.textContent = points ? `${text}  +${points} 🐾` : text;
-      toastsEl.appendChild(el);
-      setTimeout(() => el.classList.add('fade'), 2600);
-      setTimeout(() => el.remove(), 3400);
+    // opts.merge: a key. When the newest shown toast has the same key (and
+    // isn't fading), this one folds into it (count and points add up, the
+    // text is rebuilt by opts.mergeText(count, points)) and its clock starts
+    // again. Failing that, it folds into the last waiting line if that has
+    // the same key. Otherwise it's a toast of its own, shown now if there is
+    // room, else queued.
+    toast(text, points, opts = {}) {
+      const key = opts.merge || null;
+      // One toast reads its own words; a merged one is rebuilt from the count.
+      const many = opts.mergeText || ((n, p) => withPoints(`${text} ×${n}`, p));
+      const build = (n, p) => (n > 1 ? many(n, p) : withPoints(text, p));
+      if (key) {
+        const newest = liveToasts[liveToasts.length - 1];
+        if (newest && newest.key === key) {
+          newest.count += 1;
+          newest.points += points || 0;
+          newest.el.textContent = newest.build(newest.count, newest.points);
+          startToastLife(newest);
+          return;
+        }
+        const last = toastQueue[toastQueue.length - 1];
+        if (last && last.key === key) {
+          last.count += 1;
+          last.points += points || 0;
+          return;
+        }
+      }
+      toastQueue.push({ key, count: 1, points: points || 0, build });
+      while (toastQueue.length > MAX_QUEUED_TOASTS) toastQueue.shift();
+      pumpToasts();
     },
     // Called every frame while a quest is active (the metre count follows the
     // cat), so, like setPrompt, it caches the last value and no-ops when
@@ -134,11 +234,13 @@ export function createHud() {
     },
   };
 
-  // A chased-off intruder's label is a whole sentence of its own ("You chased
-  // off Mossjaw! 🛡️"): a win is not something you spotted.
+  // The lead words live in discoveryText (above).
   bus.on('discovery', ({ type, label, points, repeat }) => {
-    const lead = type === 'intruder' ? '' : repeat ? 'Again — ' : 'You spotted ';
-    api.toast(`${lead}${label}`, points);
+    const text = discoveryText({ type, label, repeat });
+    // Critters merge (R3): a burst of songbirds and squirrels reads as one
+    // toast, "You spotted 3 critters  +15 🐾". Nothing else merges.
+    if (type === 'critter') api.toast(text, points, { merge: 'critter', mergeText: crittersText });
+    else api.toast(text, points);
   });
 
   return api;
