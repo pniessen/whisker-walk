@@ -94,14 +94,14 @@ Look (all in `dressing`, one mesh, DoubleSide):
 - Stone moss: thin flattened green caps (IcosahedronGeometry(0.2,0) scaled y 0.12) on the rims of 6 of the 14 stepping stones (hash pick), top ≤ 0.04 above the stone top (stone top ≈ 0.1). Do not cover the stone centre.
 - Paint (`groundPaint`): mud banks = `ribbon` along every SHORE edge (WATER_LOOK shores) of river-west, river-bend, river-east, the lake's minX/maxZ shores, inside the bounds, laid 0.1–1.3 m out from the water edge (centre 0.7, halfW 0.6), peat 0x5a4a32→0x6b5a3a varied by hash; `blob`s round pools and pond (r = water r + 0.9, n 16, peat). Skip ribbon parts that fall on a deck rect.
 - Ground tint (`tintGround`, river.js after `b.ground`): within 6 m of water lerp toward wet olive [0.82, 0.90, 0.78]; macro patches (`smoothField` λ 22 m) of dry straw [1.06, 1.02, 0.86] and lush [0.88, 0.96, 0.86]; west reedbed rect a peaty [0.86, 0.88, 0.76].
-- Budget: dressing + paint ≤ 7,600 triangles together.
+- Budget: dressing + paint ≤ 7,300 triangles together.
 
 - [ ] **Step 1: Write failing tests** (`test/riverdress.test.js`, document stub as in test/budget.test.js; geometry tests timeout 120_000):
   - `gameplay data is byte-identical`: sha256 of the JSON in Global Constraints equals `2e9113dc…0599`.
   - `every tussock, cattail and shrub keeps off paths, finds, decks, spawn and the camp` (via `fitsLow` rules restated as plain distance checks against the river.js exports, not by calling fitsLow).
   - `cattails stand on a bank`: each 0.2–0.9 m from the nearest water edge, on dry land.
   - `extra pads float in water, off the decks, in bounds`: `b.inWater(RIVER_WATERS with decks: [])` true, ≥ 3 m from each deck.
-  - `the dressing is two noCast meshes inside the triangle allowance`: after `build(scene)`, `scene.getObjectByName('dressing')` and `'groundPaint'` exist, noCast, and their triangles sum ≤ 7,600; whole build ≤ 59,400 triangles (budgetStats copy).
+  - `the dressing is two noCast meshes inside the triangle allowance`: after `build(scene)`, `scene.getObjectByName('dressing')` and `'groundPaint'` exist, noCast, and their triangles sum ≤ 7,300; whole build ≤ 59,400 triangles (budgetStats copy).
   - `the dressing is the same every build`: two builds → identical `position` arrays.
   - `no prop is taller than its class`: tussock h ≤ 0.45, cattail h ≤ 1.3, shrub top ≤ 0.9.
 - [ ] **Step 2: Run** → FAIL.
