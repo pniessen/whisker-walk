@@ -158,7 +158,9 @@ describe('builder — roundedBox (Wave 4.1)', () => {
     // Seaside 64 -> 65: Stream 4 round three's wet-sand band (one plane).
     // Park 171 -> 172: the oak's low limb, which golden mouse gm-park-2 now
     // sits out on (it used to sit inside the trunk).
-    const expected = { neighborhood: 380, park: 172, docks: 519, seaside: 65, den: 284 };
+    // Seaside 65 -> 66: polish-places Task 4's boardwalk end (one merged
+    // noCast mesh: the step board and its two posts).
+    const expected = { neighborhood: 380, park: 172, docks: 519, seaside: 66, den: 284 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,
@@ -350,8 +352,10 @@ describe('world files — horizon band wiring (Wave 4.3)', () => {
 
   it('does not change how many contact-shadow decals any area emits', () => {
     // The band clears three of qualifies()' four tests; only MAX_SPAN rejects
-    // it. Measured per area before the band was wired in.
-    const expected = { neighborhood: 61, park: 42, docks: 67, seaside: 26, den: 20 };
+    // it. Measured per area before the band was wired in. Seaside 26 -> 27:
+    // polish-places Task 4's boardwalk end (step board and posts) stands on
+    // the sand and takes a soft decal like any other low prop.
+    const expected = { neighborhood: 61, park: 42, docks: 67, seaside: 27, den: 20 };
     const builds = {
       neighborhood: buildNeighborhood, park: buildPark, docks: buildDocks,
       seaside: buildSeaside, den: buildDen,

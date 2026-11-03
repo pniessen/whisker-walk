@@ -21,7 +21,7 @@ const b = await import('../src/world/builder.js');
 const {
   findOccluders, segmentBlocked, firstBlocker, chooseFightView, createFightCam, subjectPoints, framePoints, CAT_BODY,
   projectPoint, FIGHT_FRAME, CAT_HEIGHTS, OCCLUDER_PAD, maxLean, blendClear, RINGS, liftedPoints,
-  ourCatHidden, itNearer, sheetTopFrom, frameBottomFor,
+  ourCatHidden, intruderHidden, itNearer, sheetTopFrom, frameBottomFor, frameClutter, SIDE_COST, CLUTTER_COST, CLUTTER_HIDE,
 } = await import('../src/fightcam.js');
 const { fightReach, FIGHT_GAP } = await import('../src/game/clanfight.js');
 const { SIDE_AMPLITUDE_FRACTION } = await import('../src/render/wind.js');
@@ -192,16 +192,20 @@ describe('segment tests', () => {
 describe('chooseFightView', () => {
   const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
 
-  test('with no trees it keeps the current angle', () => {
+  test('with no trees it takes the nearer side-on angle', () => {
     const subj = subject(me, it);
-    // (the pair lies along x, so none of these looks down the line between
-    // them; and none looks from the intruder's side, where our cat would be
-    // the farther, which turns the camera: see 'our cat stays in view' below)
+    // (the pair lies along x, so side-on is yaw 0 or pi; none of these looks
+    // from the intruder's side, where our cat would be the farther, which
+    // turns the camera: see 'our cat stays in view' below. Polish fightcam2:
+    // side-on beats keeping the current angle, SIDE_COST.)
     for (const yaw0 of [0, 1, 0.6, 2.6, Math.PI]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...PORTRAIT });
       expect(v.clear).toBe(true);
       const yaw = Math.atan2(v.pos.x - subj.mid.x, v.pos.z - subj.mid.z);
-      expect(Math.abs(Math.atan2(Math.sin(yaw - yaw0), Math.cos(yaw - yaw0)))).toBeLessThan(1e-9);
+      // within 15 degrees of perpendicular to the cats' line (along x)...
+      expect(Math.abs(Math.cos(yaw - Math.PI / 2)), `yaw0 ${yaw0}`).toBeLessThan(0.27);
+      // ...on the side nearer yaw0
+      expect(Math.cos(yaw - yaw0), `yaw0 ${yaw0}`).toBeGreaterThan(0);
     }
   });
 
@@ -374,12 +378,190 @@ describe('our cat stays in view, tight and low', () => {
   test('on open ground at desktop it takes a tight ring, with the pair low in the open part of the screen', () => {
     for (const yaw0 of [0, 1, Math.PI, -2.5]) {
       const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...DESK });
-      expect(v.ring).toBeLessThanOrEqual(1);
+      expect(v.ring).toBeLessThanOrEqual(4);
       expect(RINGS[v.ring].d).toBeLessThan(5);
       const m = projectPoint(v, { x: subj.mid.x, y: 0.3, z: subj.mid.z }, DESK.aspect, DESK.fovY);
       expect(m.y).toBeLessThan(0.2);
       expect(m.y).toBeGreaterThan(FIGHT_FRAME.bottom);
     }
+  });
+});
+
+// Polish fightcam2, Task 1: the survey's Woods fights sat small, 3/4 from
+// behind, with an oak trunk beside the camera filling a third of the screen.
+describe('framing: tight, side-on, no trunk wall', () => {
+  const me = { x: 0.8, z: 0 }, it = { x: -0.8, z: 0 };
+  const subj = subject(me, it);
+  const yawOf = (v, s) => Math.atan2(v.pos.x - s.mid.x, v.pos.z - s.mid.z);
+  const sideOn = (v, s) => Math.abs(Math.cos(yawOf(v, s) - Math.atan2(s.axis.x, s.axis.z)));
+  // the nearest a tree may stand and still count as in front of the pair
+  const nearDepthOf = (v, s, frame) => Math.min(...[s.me[0], s.it[0]].map((p) => projectPoint(v, { x: p.x, y: 0.3, z: p.z }, frame.aspect, frame.fovY).z)) - CAT_BODY;
+
+  test('on open ground, landscape and desktop take a ring of d <= 3.4', () => {
+    for (const frame of [LAND, DESK]) {
+      for (const yaw0 of [0, 1, Math.PI, -2.5]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...frame });
+        expect(RINGS[v.ring].d, `aspect ${frame.aspect} yaw0 ${yaw0}`).toBeLessThanOrEqual(3.4);
+        expect(v.clear).toBe(true);
+      }
+    }
+  });
+
+  test('on open ground every frame turns side-on', () => {
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      for (const yaw0 of [0, 0.6, 1, 2.6, Math.PI, Math.PI / 2 + 0.6]) {
+        const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0, ...frame });
+        expect(sideOn(v, subj), `aspect ${frame.aspect} yaw0 ${yaw0}`).toBeLessThan(0.27);
+      }
+    }
+  });
+
+  test('portrait keeps a side-on view', () => {
+    const v = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...PORTRAIT });
+    expect(RINGS[v.ring].d).toBeGreaterThanOrEqual(4.2);
+    expect(sideOn(v, subj)).toBeLessThan(0.27);
+    expect(ourCatHidden(v.pos, subj)).toBe(0);
+  });
+
+  // At fovY 70 a cat's 0.77 m (paws 0.08 to head 0.85) fills a quarter of
+  // the frame height only from about 2.2 m. The 2.5 m ring (a controller
+  // ruling, fix round 1) gives 0.224, measured; the 3.0 m ring gave 0.18, and
+  // before this task landscape took the 4.2 m ring: 0.125. The game always
+  // measures the sheet in a fight (main.js sheetTop), so the frame bottom is
+  // passed; with none, today's aim frames the real subject's paws too low for
+  // the tight rings.
+  test('landscape cats fill more of the frame height: the 2.5 m ring, over a fifth of it', () => {
+    const f = fightReach({ x: FIGHT_GAP / 2, z: 0 }, { x: -FIGHT_GAP / 2, z: 0 }, () => true, { actions: true });
+    const v = chooseFightView({ subject: f, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, frameBottom: FIGHT_FRAME.bottom, ...LAND });
+    expect(RINGS[v.ring].d).toBeLessThanOrEqual(2.5);
+    const a = f.me[0];
+    const bottom = projectPoint(v, { x: a.x, y: 0.08, z: a.z }, LAND.aspect, LAND.fovY);
+    const top = projectPoint(v, { x: a.x, y: 0.85, z: a.z }, LAND.aspect, LAND.fovY);
+    expect((top.y - bottom.y) / 2).toBeGreaterThanOrEqual(0.22);
+  });
+
+  // The oak in front on the intruder's side (x < 0): one yaw step toward our
+  // cat's side clears it, and our cat stays the nearer.
+  test('a big oak beside the line is avoided', () => {
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: -1.6, z: 2.2, scale: 1.4 }]));
+    const oak = occ[0];
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    const share = frameClutter(v.pos, v, oak, DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nearDepthOf(v, subj, DESK));
+    expect(share < CLUTTER_HIDE || v.clutter.includes(oak), `share ${share}`).toBe(true);
+    // the cost steers: without the oak the camera would stand elsewhere, where
+    // the oak would cover more of the frame
+    const v0 = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    expect(Math.hypot(v.pos.x - v0.pos.x, v.pos.y - v0.pos.y, v.pos.z - v0.pos.z)).toBeGreaterThan(0.1);
+    const share0 = frameClutter(v0.pos, v0, oak, DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nearDepthOf(v0, subj, DESK));
+    expect(share, `with the oak ${share}, without ${share0}`).toBeLessThan(share0);
+    expect(itNearer(v.pos, subj)).toBe(false);
+    expect(ourCatHidden(v.pos, subj)).toBe(0);
+  });
+
+  // Final review: on our cat's side (x > 0) the step round it (yaw -15) puts
+  // the intruder 0.4 m nearer the camera. Our cat in front outranks the
+  // clutter: the camera keeps the side-on spot and hides the oak instead.
+  test('dodging an oak never puts the intruder in front: the oak is hidden instead', () => {
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: 1.6, z: 2.2, scale: 1.4 }]));
+    const oak = occ[0];
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
+    expect(itNearer(v.pos, subj)).toBe(false);
+    expect(ourCatHidden(v.pos, subj)).toBe(0);
+    expect(sideOn(v, subj)).toBeLessThan(0.27);
+    expect(RINGS[v.ring].d).toBeLessThanOrEqual(3.0);
+    expect(v.clutter).toContain(oak);
+  });
+
+  test('frameClutter: a trunk right beside the camera covers much of the frame; one behind the pair none', () => {
+    const occ = findOccluders(sceneOf([{ kind: 'tree', x: 1.6, z: 2.2, scale: 1.4 }, { kind: 'tree', x: 1, z: -4, scale: 1.4 }]));
+    const v = { pos: { x: 0, y: 1.15, z: 3.0 }, look: { x: 0, y: 0.3, z: 0 } };
+    const nd = nearDepthOf(v, subj, DESK);
+    expect(frameClutter(v.pos, v, occ[0], DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nd)).toBeGreaterThan(CLUTTER_HIDE);
+    expect(frameClutter(v.pos, v, occ[1], DESK.aspect, DESK.fovY, FIGHT_FRAME.bottom, nd)).toBe(0);
+    expect(SIDE_COST).toBe(8);
+    expect(CLUTTER_COST).toBe(20);
+    expect(CLUTTER_HIDE).toBe(0.12);
+  });
+
+  function ringed() {
+    const scene = new THREE.Scene();
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2 + 0.2;
+      const r = 2.6 + (k % 4) * 0.2;
+      scene.add(b.tree(Math.cos(a) * r, Math.sin(a) * r, 1.1 + (k % 3) * 0.15));
+    }
+    scene.add(b.pineStand([{ x: 0.3, z: -3.0, scale: 1.3 }], 5));
+    return findOccluders(scene);
+  }
+
+  test('clutter lists only hideable trees in front of the pair', () => {
+    const occ = ringed();
+    let seen = 0;
+    for (const frame of [PORTRAIT, LAND, DESK]) {
+      for (const yaw0 of [0, 0.7, 2, -1.3, Math.PI]) {
+        const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0, ...frame });
+        expect(Array.isArray(v.clutter)).toBe(true);
+        const midDepth = projectPoint(v, { x: subj.mid.x, y: 0.3, z: subj.mid.z }, frame.aspect, frame.fovY).z;
+        for (const o of v.clutter) {
+          expect(o.obj).toBeTruthy();
+          expect(projectPoint(v, { x: o.x, y: 0.3, z: o.z }, frame.aspect, frame.fovY).z).toBeLessThan(midDepth);
+          expect(v.blockers.includes(o)).toBe(false);
+        }
+        seen += v.clutter.length;
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  test('createFightCam hides clutter and shows it again', () => {
+    const occ = ringed();
+    const v = chooseFightView({ subject: subj, occluders: occ, colliders: [], bounds: BOUNDS, yaw0: Math.atan2(0, 4.5), aspect: PORTRAIT.aspect, fovY: 70 });
+    expect(v.clutter.length).toBeGreaterThan(0);
+    const fc = createFightCam({ occluders: occ, colliders: [], bounds: BOUNDS, reducedMotion: true });
+    const cam = fakeCamera();
+    const step = (s) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { camera: cam, cat: me, subject: s, cameraMode: false }); };
+    step(subj);
+    expect(fc.view.clutter.length).toBeGreaterThan(0);
+    for (const o of fc.view.clutter) expect(o.obj.visible).toBe(false);
+    const held = fc.view.clutter;
+    step(null);
+    expect(fc.weight).toBe(0);
+    for (const o of held) expect(o.obj.visible).toBe(true);
+    step(subj);
+    for (const o of held) expect(o.obj.visible).toBe(false);
+    fc.dispose();
+    for (const o of occ) if (o.obj) expect(o.obj.visible).toBe(true);
+  });
+
+  // Final review: the camera eases out over about half a second, still by the
+  // fight view; a clutter trunk beside the lens must not pop back meanwhile.
+  test('the hidden trees stay hidden while the camera eases out, and come back once it is home', () => {
+    const occ = ringed();
+    const fc = createFightCam({ occluders: occ, colliders: [], bounds: BOUNDS });
+    const cam = fakeCamera();
+    const step = (s) => { cam.position.set(0, 2.2, 4.5); fc.update(1 / 60, { camera: cam, cat: me, subject: s, cameraMode: false }); };
+    for (let i = 0; i < 60; i++) step(subj);
+    expect(fc.weight).toBe(1);
+    const held = [...fc.view.clutter, ...fc.view.blockers];
+    expect(fc.view.clutter.length).toBeGreaterThan(0);
+    for (const o of held) expect(o.obj.visible).toBe(false);
+    let easing = 0;
+    for (let i = 0; i < 120 && fc.weight > 0; i++) {
+      step(null);
+      if (fc.weight > 0) {
+        easing++;
+        for (const o of held) expect(o.obj.visible, `weight ${fc.weight}`).toBe(false);
+      }
+    }
+    expect(easing).toBeGreaterThan(10);
+    expect(fc.weight).toBe(0);
+    for (const o of held) expect(o.obj.visible).toBe(true);
+    // a fight that ends mid-ease and the walk ending still bring every tree back
+    for (let i = 0; i < 60; i++) step(subj);
+    for (let i = 0; i < 5; i++) step(null);
+    expect(fc.weight).toBeGreaterThan(0);
+    fc.dispose();
+    for (const o of occ) if (o.obj) expect(o.obj.visible).toBe(true);
   });
 });
 
@@ -599,10 +781,19 @@ describe('camera moves are checked: ease only when every step of it is clear', (
   const subj = subject(me, it);
 
   test('blendClear: a clear straight move passes, one through a canopy or out of frame fails', () => {
-    // two views 1.1 rad apart, both on our cat's side and off the line between the cats
-    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ...DESK });
-    const c = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 1.1, ...DESK });
-    expect([a.yaw, c.yaw]).toEqual([0, 1.1]);
+    // two views 1.1 rad apart, both on our cat's side and off the line between
+    // the cats: the chosen side-on view, and the same view turned 1.1 rad
+    // about the pair's middle (the origin; polish fightcam2: chooseFightView
+    // now turns every view side-on, so it no longer hands back yaw 1.1), on
+    // the 4.2 m ring this test was written for (ring0 holds it: from the
+    // 3.0 m ring the straight move's middle comes in close enough to cut a
+    // cat off the frame, which blendClear rightly fails)
+    const a = chooseFightView({ subject: subj, occluders: [], colliders: [], bounds: BOUNDS, yaw0: 0, ring0: 3, ...DESK });
+    expect(RINGS[a.ring].d).toBe(4.2);
+    const turn = (p, t) => ({ x: p.x * Math.cos(t) + p.z * Math.sin(t), y: p.y, z: -p.x * Math.sin(t) + p.z * Math.cos(t) });
+    const c = { pos: turn(a.pos, 1.1), look: turn(a.look, 1.1) };
+    expect(a.yaw).toBe(0);
+    expect(Math.atan2(c.pos.x, c.pos.z)).toBeCloseTo(1.1, 9);
     expect(blendClear(a, c, subj, [], DESK.aspect, DESK.fovY)).toBe(true);
     // an oak whose canopy sits on the move's middle, clear of both ends' lines
     const midPos = { x: (a.pos.x + c.pos.x) / 2, z: (a.pos.z + c.pos.z) / 2 };
@@ -933,5 +1124,166 @@ describe('the frame fits the real sheet', () => {
       fc.update(1 / 60, { subject: subj2, camera: cam, cat: me, sheetTop: -0.38 });
       expect(lowest(fc.view, subj2, PHONE)).toBeCloseTo(lowest(first, subj, PHONE), 9);
     }
+  });
+});
+
+// Final review, a live regression: a Woods fight against BrookClan on the
+// River route (src/intruders.js INTRUDER_ROUTES.woods.river), my cat come
+// over from 27.1 m along it, the intruder held at (-20.6, 10.2), the real
+// built map and the actions subject (as test/fightcamworld.test.js builds
+// them). A big oak at (-23.4, 9.9) stands 2 m from my cat: its leaves cross
+// some line to a cat from every spot, so it is hidden in every view.
+describe('the Woods spot from the live check', async () => {
+  const THREE_ = THREE;
+  const { INTRUDER_ROUTES, routePoint } = await import('../src/intruders.js');
+  const { clanWalkableFor } = await import('../src/world/clanground.js');
+  const { mergeStaticProps } = await import('../src/render/mergeprops.js');
+  const { reachYFor } = await import('../src/game/clanfight.js');
+  const { buildCat, catDims } = await import('../src/cat/model.js');
+  const { clanCast } = await import('../src/clancast.js');
+  const { build } = await import('../src/world/woods.js');
+  const scene = new THREE_.Scene();
+  const area = build(scene, {});
+  mergeStaticProps(scene);
+  const occ = findOccluders(scene);
+  const ok = clanWalkableFor(area, 'woods');
+  const foe = buildCat('tabby', undefined, { simple: true, style: clanCast('woods')[3].style });
+  foe.scale.multiplyScalar(0.85);
+  const dims = [catDims(buildCat('mainecoon')), catDims(foe)];
+  const foeAt = { x: -20.6, z: 10.2 };
+  const from = routePoint(INTRUDER_ROUTES.woods.river, 27.1);
+  const fightAt = (spot) => ({ ...fightReach(spot, foeAt, ok, { actions: true, reachY: reachYFor(...dims, Math.hypot(spot.x - foeAt.x, spot.z - foeAt.z)) }), path: [] });
+  const d = Math.hypot(from.x - foeAt.x, from.z - foeAt.z);
+  const to = { x: foeAt.x + ((from.x - foeAt.x) / d) * FIGHT_GAP, z: foeAt.z + ((from.z - foeAt.z) / d) * FIGHT_GAP };
+  const walk = fightAt(to);
+  walk.path = [];
+  for (let j = 0, n = Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / 0.3); j <= n; j++) {
+    walk.path.push({ x: from.x + ((to.x - from.x) * j) / n, z: from.z + ((to.z - from.z) * j) / n });
+  }
+  // the rounds as the phone read them (my cat at (-21.4, 9.4)), and at the gap
+  const subjects = { walkOver: walk, rounds: fightAt({ x: -21.4, z: 9.4 }), roundsAtGap: fightAt(to) };
+  const oak = occ.find((o) => Math.hypot(o.x + 23.4, o.z - 9.9) < 0.1);
+  const sideOnCos = (v, s) => Math.abs(Math.cos(Math.atan2(v.pos.x - s.mid.x, v.pos.z - s.mid.z) - Math.atan2(s.axis.x, s.axis.z)));
+  const choose = (s, frame, sheetTop, yaw0) => chooseFightView({
+    subject: s, occluders: occ, colliders: area.colliders, bounds: area.bounds, yaw0, ...frame,
+    frameBottom: frameBottomFor(sheetTopFrom(sheetTop * frame.px, frame.px)),
+  });
+  // the follow camera behind my cat looking at the intruder, then every 15 degrees round
+  const yaws = [Math.atan2(from.x - foeAt.x, from.z - foeAt.z), ...Array.from({ length: 24 }, (_, k) => (k * Math.PI) / 12 - Math.PI)];
+
+  test('portrait: our cat in front, side-on, wherever the camera stood', () => {
+    expect(oak?.obj).toBeTruthy();
+    const PHONE = { aspect: 390 / 844, fovY: 70, px: 844 };
+    for (const [name, s] of Object.entries(subjects)) {
+      for (const yaw0 of yaws) {
+        const v = choose(s, PHONE, 0.31, yaw0);
+        const at = `${name} yaw0 ${(yaw0 * 180 / Math.PI).toFixed(0)}: camera ${v.pos.x.toFixed(1)},${v.pos.z.toFixed(1)}`;
+        expect(itNearer(v.pos, s), at).toBe(false);
+        expect(ourCatHidden(v.pos, s), at).toBe(0);
+        expect(sideOnCos(v, s), at).toBeLessThan(Math.sin((20 * Math.PI) / 180));
+      }
+    }
+  });
+
+  // Re-review of the final fix: the walk-over (no spot clear: the oak is
+  // hidden for every view) and the rounds that follow it (yaw0 the walk-over
+  // view's, ring0 its ring) must stay on one side of the pair. Pricing the
+  // oak's clutter at nothing on the walk-over (a rule since removed) sent it
+  // to the oak's side, and the rounds, clear only on the far side, swung
+  // round ~180 degrees: 35 of these 72 with the rounds at the phone's anchors.
+  const frames3 = { PHONE: { aspect: 390 / 844, fovY: 70, px: 844, sheet: 0.31 }, DESK: { aspect: 16 / 9, fovY: 70, px: 720, sheet: 0.336 }, LAND: { aspect: 844 / 390, fovY: 70, px: 390, sheet: 0.4 } };
+  function turns(rounds) {
+    const out = [];
+    for (const [name, f] of Object.entries(frames3)) {
+      for (let k = 0; k < 24; k++) {
+        const yaw0 = (k * Math.PI) / 12 - Math.PI;
+        const w = choose(walk, f, f.sheet, yaw0);
+        const r = chooseFightView({
+          subject: rounds, occluders: occ, colliders: area.colliders, bounds: area.bounds, ...f,
+          yaw0: Math.atan2(w.pos.x - rounds.mid.x, w.pos.z - rounds.mid.z), ring0: w.ring,
+          frameBottom: frameBottomFor(sheetTopFrom(f.sheet * f.px, f.px)),
+        });
+        const a = Math.atan2(w.pos.x - walk.mid.x, w.pos.z - walk.mid.z), b2 = Math.atan2(r.pos.x - rounds.mid.x, r.pos.z - rounds.mid.z);
+        const turn = Math.abs(Math.atan2(Math.sin(b2 - a), Math.cos(b2 - a))) * 180 / Math.PI;
+        if (turn >= 90) out.push(`${name} yaw0 ${(yaw0 * 180 / Math.PI).toFixed(0)}: ${turn.toFixed(0)} deg`);
+      }
+    }
+    return out;
+  }
+  test('the walk-over and the rounds stay on one side of the pair', () => {
+    // the rounds where the walk-over arrives (the gap spot): never a swing
+    expect(turns(subjects.roundsAtGap)).toEqual([]);
+    // the rounds at the phone's reading, 0.47 m short of the gap: on a
+    // phone held upright never; on a wide screen, with the camera on the
+    // oak's side (yaw0 -60..-30), the walk-over hides the oak on that side
+    // and the rounds, clear only on the far side, still turn round (a hard-
+    // clear view outranks one that hides a tree; 2 of each before this
+    // branch, 3 now). Measured, pinned.
+    const far = turns(subjects.rounds);
+    process.stderr.write(`\nwoods spot walk-over -> rounds swings (phone's anchors): ${far.length} of 72: ${far.join('; ')}\n`);
+    expect(far.filter((t) => t.startsWith('PHONE'))).toEqual([]);
+    expect(far.length).toBeLessThanOrEqual(6);
+  });
+
+  // Second re-review, live at d623948 (phone held upright): the intruder
+  // held at (-21.442, 9.38), my cat over from (-23.13, 7.777) to the gap
+  // spot (-22.602, 8.278). The rounds view stood right behind our cat looking
+  // down the line, (-25.69, 2.2, 4.73), and our cat hid the intruder whole.
+  test('the live spot: neither cat hides the other, side-on, on a phone held upright', () => {
+    const PHONE = { aspect: 390 / 844, fovY: 70, px: 844 };
+    const foe2 = { x: -21.442, z: 9.38 }, from2 = { x: -23.13, z: 7.777 };
+    const g = Math.hypot(from2.x - foe2.x, from2.z - foe2.z);
+    const spot2 = { x: foe2.x + ((from2.x - foe2.x) / g) * FIGHT_GAP, z: foe2.z + ((from2.z - foe2.z) / g) * FIGHT_GAP };
+    const at2 = (spot) => ({ ...fightReach(spot, foe2, ok, { actions: true, reachY: reachYFor(...dims, FIGHT_GAP) }), path: [] });
+    const walk2 = at2(spot2);
+    walk2.path = [];
+    for (let j = 0, n = Math.ceil(Math.hypot(spot2.x - from2.x, spot2.z - from2.z) / 0.3); j <= n; j++) {
+      walk2.path.push({ x: from2.x + ((spot2.x - from2.x) * j) / n, z: from2.z + ((spot2.z - from2.z) * j) / n });
+    }
+    const rounds2 = at2(spot2);
+    expect(Math.hypot(rounds2.me[0].x + 22.602, rounds2.me[0].z - 8.278)).toBeLessThan(0.01);
+    const yaws2 = [Math.atan2(from2.x - foe2.x, from2.z - foe2.z), ...Array.from({ length: 24 }, (_, k) => (k * Math.PI) / 12 - Math.PI)];
+    const look = (v, s, at) => {
+      expect(ourCatHidden(v.pos, s), `${at}: our cat hidden`).toBeLessThan(0.25);
+      expect(intruderHidden(v.pos, s), `${at}: the intruder hidden`).toBeLessThan(0.25);
+      expect(sideOnCos(v, s), at).toBeLessThan(Math.sin((25 * Math.PI) / 180));
+    };
+    for (const yaw0 of yaws2) {
+      const deg = (yaw0 * 180 / Math.PI).toFixed(0);
+      const w = choose(walk2, PHONE, 0.31, yaw0);
+      look(w, walk2, `walk-over yaw0 ${deg}: camera ${w.pos.x.toFixed(1)},${w.pos.z.toFixed(1)}`);
+      const r = chooseFightView({
+        subject: rounds2, occluders: occ, colliders: area.colliders, bounds: area.bounds, ...PHONE,
+        yaw0: Math.atan2(w.pos.x - rounds2.mid.x, w.pos.z - rounds2.mid.z), ring0: w.ring,
+        frameBottom: frameBottomFor(sheetTopFrom(0.31 * PHONE.px, PHONE.px)),
+      });
+      look(r, rounds2, `rounds after yaw0 ${deg}: camera ${r.pos.x.toFixed(1)},${r.pos.z.toFixed(1)}`);
+      const r0 = choose(rounds2, PHONE, 0.31, yaw0);
+      look(r0, rounds2, `rounds alone yaw0 ${deg}: camera ${r0.pos.x.toFixed(1)},${r0.pos.z.toFixed(1)}`);
+      if (yaw0 === yaws2[0]) process.stderr.write(`\nlive spot, portrait, follow yaw0: walk-over ${JSON.stringify(w.pos)} d ${RINGS[w.ring].d}; rounds ${JSON.stringify(r.pos)} d ${RINGS[r.ring].d}\n`);
+    }
+  });
+
+  // Re-review (b): in the fallback tier (no spot clear) a spot with the
+  // intruder in front never replaces one with our cat in front, even with
+  // fewer trees to hide.
+  test('the fallback keeps our cat in front over fewer hidden trees', () => {
+    const subj2 = subject({ x: 0.8, z: 0 }, { x: -0.8, z: 0 });
+    const ball = (x, y, z, r, ry = r) => ({ obj: { visible: true }, x, z, R: r, top: y + ry, shapes: [{ t: 'ell', x, y, z, r, ry, p: 0 }] });
+    // one round our cat's paws: every spot is blocked, none is clear
+    const occ2 = [ball(0.8, 0.08, 0, 0.04)];
+    // small upright eggs round our cat's body, every 15 degrees but on the
+    // intruder's side (west, where the intruder is nearer the camera): a
+    // spot with our cat in front hides at least one more tree
+    for (let deg = -180; deg < 180; deg += 15) {
+      if (Math.abs(deg + 90) <= 40) continue;
+      const a = (deg * Math.PI) / 180;
+      occ2.push(ball(0.8 + Math.sin(a) * 0.3, 0.4, Math.cos(a) * 0.3, 0.12, 0.5));
+    }
+    const v = chooseFightView({ subject: subj2, occluders: occ2, colliders: [], bounds: BOUNDS, yaw0: 0.3, ...DESK });
+    expect(v.clear).toBe(false);
+    expect(v.blockers.length).toBeGreaterThan(1);
+    expect(itNearer(v.pos, subj2)).toBe(false);
+    expect(ourCatHidden(v.pos, subj2)).toBe(0);
   });
 });

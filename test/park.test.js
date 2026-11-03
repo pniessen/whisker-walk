@@ -241,3 +241,19 @@ describe('City Park — the hemisphere fill’s bounce', () => {
     expect(area.groundBounce).toBe(0x6cb058);
   });
 });
+
+describe('City Park — the oak’s Twoleg (polish-places)', () => {
+  it('stands clear of the trunk, the canopy and the bench', () => {
+    const { area } = built();
+    const v = area.critterSpawns.find((s) => s.type === 'villager' && s.x === 4 && s.z === 27);
+    expect(v.standOff).toBeTruthy();
+    const x = v.x + v.standOff.x;
+    const z = v.z + v.standOff.z;
+    expect(Math.hypot(x - 4.5, z - 27.3)).toBeGreaterThanOrEqual(1.9);
+    expect(Math.hypot(x - 3, z - 26)).toBeGreaterThanOrEqual(1.6);
+    const b = area.bounds;
+    expect(x).toBeGreaterThan(b.minX); expect(x).toBeLessThan(b.maxX);
+    expect(z).toBeGreaterThan(b.minZ); expect(z).toBeLessThan(b.maxZ);
+    for (const w of area.waters) expect(Math.hypot(x - w.x, z - w.z)).toBeGreaterThan(w.r);
+  });
+});

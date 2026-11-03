@@ -324,6 +324,76 @@ describe('the Woods: the island and the horizon', () => {
   it('paints one horizon band', () => {
     expect(scene.children.filter((o) => o.name === 'horizonBand')).toHaveLength(1);
   });
+
+  // polish-places: the Twolegplace on the east horizon is small cottages
+  // sunk behind the crest, not a row of tall windowless blocks.
+  it('the Twolegplace over the east hills is cottages', () => {
+    expect(woods.WOODS_HORIZON.rooftops.style).toBe('houses');
+    expect(woods.WOODS_HORIZON.rooftops.height).toBeLessThanOrEqual(4);
+  });
+});
+
+// polish-places: the lookout read as a grey bin (a 7-sided cylinder). It is a
+// lumpy stacked boulder with a mossy cap, its standing top at the perch's 1.9.
+describe('the Woods: the lookout rock', () => {
+  const rock = scene.children.find((o) => o.name === 'lookoutRock');
+
+  it('is a lumpy rock, its top at the perch', () => {
+    expect(rock, 'lookoutRock').toBeTruthy();
+    expect(rock.isMesh).toBe(true);
+    expect(rock.geometry.type).not.toBe('CylinderGeometry');
+    rock.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(rock, true);
+    expect(box.max.y).toBeGreaterThanOrEqual(1.85);
+    expect(box.max.y).toBeLessThanOrEqual(2.0);
+    const cx = (box.min.x + box.max.x) / 2;
+    const cz = (box.min.z + box.max.z) / 2;
+    expect(Math.hypot(cx - -23, cz - -27)).toBeLessThan(0.3);
+    // its footprint stays near the collider (r 0.9)
+    const pos = rock.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    let top = -Infinity;
+    const near = [];
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(rock.matrixWorld);
+      const r = Math.hypot(v.x - -23, v.z - -27);
+      expect(r, `vertex ${i}`).toBeLessThanOrEqual(1.2);
+      top = Math.max(top, v.y);
+      if (r < 0.5) near.push(v.y);
+    }
+    // a flat-ish standing top: the highest vertices round the centre are at 1.9
+    const nearTop = Math.max(...near);
+    expect(Math.abs(nearTop - 1.9)).toBeLessThanOrEqual(0.08);
+    expect(Math.abs(top - 1.9)).toBeLessThanOrEqual(0.08);
+  });
+
+  it('is grey stone with a moss-green cap, in vertex colours', () => {
+    const geo = rock.geometry;
+    const col = geo.attributes.color;
+    expect(col, 'color attribute').toBeDefined();
+    expect(rock.material.vertexColors).toBe(true);
+    const pos = geo.attributes.position;
+    const idx = geo.index;
+    const tri = (t, k) => (idx ? idx.getX(t * 3 + k) : t * 3 + k);
+    const nTri = (idx ? idx.count : pos.count) / 3;
+    const a = new THREE.Vector3(), b2 = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+    let mossTop = 0, greyLow = 0, upTop = 0;
+    for (let t = 0; t < nTri; t++) {
+      a.fromBufferAttribute(pos, tri(t, 0));
+      b2.fromBufferAttribute(pos, tri(t, 1));
+      c.fromBufferAttribute(pos, tri(t, 2));
+      n.subVectors(b2, a).cross(c.clone().sub(a)).normalize();
+      const i0 = tri(t, 0);
+      const r = col.getX(i0), g = col.getY(i0), bl = col.getZ(i0);
+      const green = g > r * 1.1 && g > bl * 1.1;
+      const cy = (a.y + b2.y + c.y) / 3;
+      if (n.y > 0.8 && cy > 1.6) { upTop++; if (green) mossTop++; }
+      if (cy < 0.8 && Math.abs(n.y) < 0.6 && !green && Math.abs(r - g) < 0.08 && Math.abs(g - bl) < 0.08) greyLow++;
+    }
+    expect(upTop).toBeGreaterThan(0);
+    expect(mossTop / upTop).toBeGreaterThan(0.6);
+    expect(greyLow).toBeGreaterThan(10);
+  });
 });
 
 describe('the Woods: the area record', () => {

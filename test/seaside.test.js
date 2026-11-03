@@ -270,3 +270,81 @@ describe('Seaside — the hemisphere fill’s bounce', () => {
     expect(build(new THREE.Scene()).groundBounce).toBe(BEACH);
   });
 });
+
+// polish-places Task 4: the back of the beach behind the spawn used to be bare
+// sand under a featureless dune, and the boardwalk stopped dead in it.
+describe('Seaside — the dunes’ edge and the boardwalk’s end', () => {
+  it('the Seaside band has a dune edge', async () => {
+    const b = await import('../src/world/builder.js');
+    const { SEASIDE_HORIZON, SEA_VIEW } = await import('../src/world/seaside.js');
+    const scene = new THREE.Scene();
+    const rec = build(scene);
+    const band = scene.children.find((c) => c.name === 'horizonBand');
+    const edges = [];
+    scene.traverse((o) => { if (o.name === 'horizonEdge') edges.push(o); });
+    expect(edges).toHaveLength(1);
+    const edge = edges[0];
+    expect(edge.parent).toBe(band);
+    expect(edge.userData.noCast).toBe(true);
+    expect(edge.userData.duskTint).toBe(true);
+    const pos = edge.geometry.attributes.position;
+    expect(pos.count / 3).toBeGreaterThan(500);
+    // Dry, against the area's own water and the open sea past it.
+    for (let v = 0; v < pos.count; v++) {
+      expect(b.waterClearance([...(rec.waters ?? []), SEA_VIEW], pos.getX(v), pos.getZ(v))).toBeGreaterThanOrEqual(1.0);
+    }
+    // The spawn's back view: huts and the lifeguard chair within 30m of (18, 70),
+    // each actually drawn (something of it stands over 2m).
+    const spots = b.edgeSpots(SEASIDE_HORIZON.edge, SEASIDE_HORIZON.salt, SEASIDE_HORIZON.edge.avoid);
+    const back = spots.filter((s) => Math.hypot(s.x - 18, s.z - 70) < 30);
+    const huts = back.filter((s) => s.kind === 'hut');
+    const chairs = back.filter((s) => s.kind === 'chair');
+    expect(huts.length).toBeGreaterThanOrEqual(2);
+    expect(chairs).toHaveLength(1);
+    for (const s of [...huts, ...chairs]) {
+      let top = -Infinity;
+      for (let v = 0; v < pos.count; v++) {
+        if (Math.hypot(pos.getX(v) - s.x, pos.getZ(v) - s.z) < 1.5) top = Math.max(top, pos.getY(v));
+      }
+      expect(top, `${s.kind} at ${s.x},${s.z}`).toBeGreaterThan(2.0);
+      // Well past the bounds, so a 2.6m prop never stands between the camera and the cat.
+      expect(s.z - rec.bounds.maxZ).toBeGreaterThanOrEqual(15);
+    }
+    // A hut pair toward a far corner too.
+    expect(spots.filter((s) => s.kind === 'hut' && s.x < -40)).toHaveLength(2);
+    // The budget (test/budget.test.js holds the same ceilings).
+    let tris = 0;
+    let meshes = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      meshes++;
+      const g = o.geometry;
+      tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    });
+    expect(tris).toBeLessThanOrEqual(30000);
+    expect(meshes).toBeLessThanOrEqual(85);
+  });
+
+  it('the boardwalk ends in a step and two posts', async () => {
+    const scene = new THREE.Scene();
+    const rec = build(scene);
+    const ends = scene.children.filter((c) => c.name === 'boardwalkEnd');
+    expect(ends).toHaveLength(1);
+    const end = ends[0];
+    expect(end.isMesh).toBe(true);
+    expect(end.userData.noCast).toBe(true);
+    const box = new THREE.Box3().setFromObject(end);
+    expect(box.min.z).toBeGreaterThan(44.9);
+    expect(box.max.z).toBeLessThan(45.6);
+    expect(box.min.x).toBeLessThan(18);
+    expect(box.max.x).toBeGreaterThan(22);
+    expect(box.max.y).toBeLessThan(0.7);
+    // No collider for it: the colliders are exactly the list they were before
+    // (sha256 of their JSON, recorded off the build before this pass).
+    expect(rec.colliders.some((c) => Math.hypot(c.x - 20, c.z - 45.3) < 3)).toBe(false);
+    const { createHash } = await import('node:crypto');
+    expect(rec.colliders).toHaveLength(15);
+    expect(createHash('sha256').update(JSON.stringify(rec.colliders)).digest('hex'))
+      .toBe('de2eb599e0d9674d809f13617caac4e30d644e80ee04e1ae752eb164f3040ef0');
+  });
+});

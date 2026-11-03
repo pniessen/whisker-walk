@@ -267,7 +267,10 @@ const _size = new THREE.Vector2();
 // grown to TAG_PX_MIN never pushes up under the bubble (fitBubbleOnRender).
 // A sprite other than a name tag says how tall one of its "lines" is with
 // userData.fitLines (its height over a one-line tag's for the same letters).
-export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity) {
+// `rectOut` (optional): filled with the fitted, natural (pre-declutter) rect
+// {l,t,r,b} in CSS px (y down), its `depth` and `k` (CSS px per world unit at
+// that depth); left untouched when the tag is off screen or behind the camera.
+export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity, rectOut = null) {
   if (!camera || !camera.isPerspectiveCamera || !(viewH > 0) || !(viewW > 0)) return;
   const mw = tag.matrixWorld;
   if (tag.parent) mw.multiplyMatrices(tag.parent.matrixWorld, tag.matrix);
@@ -308,6 +311,17 @@ export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity) 
   if (x !== _pos.x) { _pos.x = x; moved = true; }
   const maxY = halfH - nsy / 2 - m;
   if (_pos.y > maxY) { _pos.y = maxY; moved = true; }
+  if (rectOut) {
+    const kx = viewW / (2 * halfW);
+    const cx = viewW / 2 + _pos.x * kx;
+    const cy = viewH / 2 - _pos.y * k;
+    rectOut.l = cx - (nsx / 2) * kx;
+    rectOut.r = cx + (nsx / 2) * kx;
+    rectOut.t = cy - (nsy / 2) * k;
+    rectOut.b = cy + (nsy / 2) * k;
+    rectOut.depth = depth;
+    rectOut.k = k;
+  }
   // Untouched: keep the natural matrix exactly as three built it.
   if (!moved && !(e[13] - sy / 2 < minBottomY)) return;
   _pos.applyMatrix4(camera.matrixWorld);
@@ -316,10 +330,257 @@ export function fitTagToView(tag, camera, viewW, viewH, minBottomY = -Infinity) 
   mw.setPosition(_pos);
 }
 
+// --- Tags step aside: for each other and for the HUD ------------------
+// At a camp, clan cats' two-line tags stacked on top of each other, and a tag
+// could sit under the fight card, a toast, the controls bar or the touch
+// buttons. So each frame, nearest first, a tag that would overlap one already
+// placed (TAG_GAP_PX apart) first drops its rank line (keeping its lower
+// edge: the name stays by the cat), then is nudged up just clear of what it
+// met (by at most LIFT_MAX_TAGS of its own heights, never off the top), and
+// failing both is hidden for the frame. A tag on a HUD box is hidden, nearest
+// or not: a tag can be read again a step later, a covered button can't.
+//
+// Why one frame of lag: tags are transparent sprites and three draws those
+// back to front, one onBeforeRender at a time, so no tag can see all the
+// others before it is drawn. The first tag of a frame decides for everyone
+// from the rects every tag had LAST frame, and each tag then applies its own
+// decision. At 60 fps a frame-old rect is a few px off at most.
+//
+// Why natural rects: each tag records its rect as fitted but BEFORE its
+// decision was applied. Deciding from nudged rects would feed a decision
+// back into itself (a lifted tag no longer overlaps, so it drops back, so it
+// overlaps again: a tag that flickers every other frame). From natural rects
+// the same scene gives the same decisions, frame after frame.
+//
+// Off without renderer.info.render.frame (headless tests, a bare renderer):
+// a tag then fits exactly as it always has. No per-frame allocation: pooled
+// entries, rects and decisions; the HUD's boxes are read from the DOM at most
+// every HUD_EVERY_MS, and only by the first tag of a frame.
+export const TAG_GAP_PX = 4;
+export const SUB_DROP_KEEP = 2 / 3; // share of a two-line rect left without its rank line
+export const LIFT_MAX_TAGS = 1.5; // the furthest a tag is nudged, in its own rect heights
+
+const _order = []; // scratch: entry indices, nearest first
+const _reuse = []; // scratch: the decision objects `out` held for each entry
+const _placed = []; // pooled rects; the first _placedN are placed this call
+let _placedN = 0;
+const _work = { l: 0, t: 0, r: 0, b: 0 };
+
+// Positive-area overlap with a placed rect grown by TAG_GAP_PX.
+const meetsGrown = (a, p) => a.l < p.r + TAG_GAP_PX && a.r > p.l - TAG_GAP_PX
+  && a.t < p.b + TAG_GAP_PX && a.b > p.t - TAG_GAP_PX;
+function meetsPlaced(a) {
+  for (let i = 0; i < _placedN; i++) if (meetsGrown(a, _placed[i])) return true;
+  return false;
+}
+
+// entries: [{ rect: {l,t,r,b} (CSS px, y down), depth, sub }], hud: [{l,t,r,b}]
+// -> Map<entry, { hide, dropSub, lift }>. Pure. `out` is cleared and refilled;
+// the decision objects it held for these same entries are reused.
+export function declutterTags(entries, hud = [], out = new Map()) {
+  const n = entries ? entries.length : 0;
+  _reuse.length = 0;
+  for (let i = 0; i < n; i++) _reuse.push(out.get(entries[i]) || null);
+  out.clear();
+  // nearest first, ties by list order (a stable insertion sort: few tags)
+  _order.length = 0;
+  for (let i = 0; i < n; i++) {
+    let j = _order.length;
+    _order.push(i);
+    while (j > 0 && entries[_order[j - 1]].depth > entries[i].depth) { _order[j] = _order[j - 1]; j--; }
+    _order[j] = i;
+  }
+  _placedN = 0;
+  for (let o = 0; o < n; o++) {
+    const i = _order[o];
+    const e = entries[i];
+    const d = _reuse[i] || { hide: false, dropSub: false, lift: 0 };
+    d.hide = false; d.dropSub = false; d.lift = 0;
+    const w = _work;
+    w.l = e.rect.l; w.t = e.rect.t; w.r = e.rect.r; w.b = e.rect.b;
+    if (e.sub && meetsPlaced(w)) {
+      d.dropSub = true;
+      w.t = w.b - (w.b - w.t) * SUB_DROP_KEEP;
+    }
+    if (meetsPlaced(w)) {
+      let lift = 0;
+      for (let p = 0; p < _placedN; p++) {
+        const q = _placed[p];
+        if (meetsGrown(w, q) && w.b - q.t + TAG_GAP_PX > lift) lift = w.b - q.t + TAG_GAP_PX;
+      }
+      d.lift = lift;
+      w.t -= lift; w.b -= lift;
+      if (lift > LIFT_MAX_TAGS * (w.b - w.t) || meetsPlaced(w) || w.t < 0) d.hide = true;
+    }
+    if (!d.hide && hud) {
+      for (let h = 0; h < hud.length; h++) {
+        const q = hud[h];
+        if (w.l < q.r && w.r > q.l && w.t < q.b && w.b > q.t) { d.hide = true; break; }
+      }
+    }
+    if (!d.hide) {
+      const p = _placed[_placedN] || (_placed[_placedN] = { l: 0, t: 0, r: 0, b: 0 });
+      p.l = w.l; p.t = w.t; p.r = w.r; p.b = w.b;
+      _placedN++;
+    }
+    out.set(e, d);
+  }
+  _reuse.length = 0;
+  return out;
+}
+
+// The HUD boxes a tag must not sit on (CSS px, relative to the canvas).
+const HUD_SELECTOR = '#hud-prompt:not(.hidden), .hud-fight-ask, #hud-toasts .toast, #hud-controls, '
+  + '.hud-fight, .tui-actions, .tui-zoom, .tui-pause';
+const HUD_EVERY_MS = 250;
+function hudRects(st, renderer) {
+  const now = typeof performance !== 'undefined' && performance.now ? performance.now() : 0;
+  if (now - st.hudAt < HUD_EVERY_MS) return st.hud;
+  st.hudAt = now;
+  st.hud.length = 0;
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return st.hud;
+  let ox = 0, oy = 0;
+  const canvas = renderer.domElement;
+  if (canvas && typeof canvas.getBoundingClientRect === 'function') {
+    const c = canvas.getBoundingClientRect();
+    ox = c.left; oy = c.top;
+  }
+  const els = document.querySelectorAll(HUD_SELECTOR);
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    if (typeof el.getBoundingClientRect !== 'function') continue;
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) continue;
+    if (typeof getComputedStyle === 'function') {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    }
+    const n = st.hud.length;
+    const q = st.hudPool[n] || (st.hudPool[n] = { l: 0, t: 0, r: 0, b: 0 });
+    q.l = r.left - ox; q.t = r.top - oy; q.r = r.right - ox; q.b = r.bottom - oy;
+    st.hud.push(q);
+  }
+  return st.hud;
+}
+
+// Per renderer: this frame's and last frame's entries (two pools, swapped
+// each frame, each with its own decision map so its decision objects are
+// reused), and which decision each tag drew from last frame.
+const _glue = new WeakMap();
+function glueFor(renderer) {
+  let st = _glue.get(renderer);
+  if (!st) {
+    st = {
+      frame: undefined,
+      cur: [], last: [], curPool: [], lastPool: [], curDec: new Map(), lastDec: new Map(),
+      byTag: new WeakMap(), hud: [], hudPool: [], hudAt: -Infinity,
+    };
+    _glue.set(renderer, st);
+  }
+  return st;
+}
+
+function newFrame(st, renderer, frame) {
+  st.frame = frame;
+  const arr = st.last; st.last = st.cur; st.cur = arr;
+  for (let i = 0; i < arr.length; i++) arr[i].tag = null; // recycled: let go of old tags
+  arr.length = 0;
+  const pool = st.lastPool; st.lastPool = st.curPool; st.curPool = pool;
+  const dec = st.lastDec; st.lastDec = st.curDec; st.curDec = dec;
+  // st.lastDec is the map these entries' pool filled two frames ago
+  declutterTags(st.last, hudRects(st, renderer), st.lastDec);
+  for (let i = 0; i < st.last.length; i++) {
+    const e = st.last[i];
+    const d = st.lastDec.get(e);
+    d.frame = frame; d.tag = e.tag; // whose decision, for which frame
+    st.byTag.set(e.tag, d);
+  }
+}
+
+// The one-line stand-in for a two-line tag that dropped its rank line: the
+// name alone, on the wide pill, in the tag's mood. Built on first use.
+function paintShort(tag) {
+  const ud = tag.userData;
+  if (!ud.shortCtx) {
+    if (typeof document === 'undefined') return;
+    const c = document.createElement('canvas');
+    c.width = TAG_W;
+    c.height = TAG_H;
+    ud.shortCanvas = c;
+    ud.shortCtx = c.getContext('2d');
+    ud.shortMap = new THREE.CanvasTexture(c);
+    // the scene's disposal frees material.map only, which is one of the two
+    if (tag.material && typeof tag.material.addEventListener === 'function') {
+      tag.material.addEventListener('dispose', () => {
+        if (ud.shortMap) ud.shortMap.dispose();
+        if (ud.fullMap) ud.fullMap.dispose();
+      });
+    }
+  }
+  paintTag(ud.shortCtx, ud.tagName, ud.cross === true, ud.legend === true, true);
+  ud.shortCross = ud.cross === true;
+  ud.shortMap.needsUpdate = true;
+}
+
+const DROP_FX = TAG_SCALE_X / SUB_TAG_SCALE_X;
+const DROP_FY = TAG_SCALE_Y / SUB_TAG_SCALE_Y;
+
+function applyDecision(tag, d, k, camera) {
+  const ud = tag.userData;
+  const mat = tag.material;
+  let drop = !!(d && d.dropSub && !d.hide && ud.sub && mat);
+  if (drop) {
+    if (!ud.shortMap || ud.shortCross !== (ud.cross === true)) paintShort(tag);
+    if (!ud.shortMap) drop = false;
+    else if (mat.map !== ud.shortMap) {
+      if (!ud.fullMap) ud.fullMap = mat.map;
+      mat.map = ud.shortMap;
+    }
+  }
+  if (!drop && ud.fullMap && mat && mat.map !== ud.fullMap) mat.map = ud.fullMap;
+  if (!d) return;
+  const mw = tag.matrixWorld;
+  if (d.hide) { mw.makeScale(0, 0, 0); return; }
+  if (!drop && !(d.lift > 0)) return;
+  const me = mw.elements;
+  let up = d.lift > 0 && k > 0 ? d.lift / k : 0;
+  if (drop) {
+    const sy = Math.hypot(me[4], me[5], me[6]);
+    for (let i = 0; i < 3; i++) { me[i] *= DROP_FX; me[4 + i] *= DROP_FY; }
+    up -= (sy * (1 - DROP_FY)) / 2; // lower edge kept
+  }
+  // up the screen: the camera's own up axis (a sprite's height runs along it)
+  const ce = camera.matrixWorld.elements;
+  const len = Math.hypot(ce[4], ce[5], ce[6]) || 1;
+  const s = up / len;
+  me[12] += ce[4] * s; me[13] += ce[5] * s; me[14] += ce[6] * s;
+}
+
 function fitOnRender(renderer, _scene, camera) {
   if (!renderer || typeof renderer.getSize !== 'function') return;
   renderer.getSize(_size);
-  fitTagToView(this, camera, _size.x, _size.y);
+  const frame = renderer.info && renderer.info.render ? renderer.info.render.frame : undefined;
+  if (typeof frame !== 'number') {
+    fitTagToView(this, camera, _size.x, _size.y);
+    return;
+  }
+  const st = glueFor(renderer);
+  if (frame !== st.frame) newFrame(st, renderer, frame);
+  const n = st.cur.length;
+  const e = st.curPool[n] || (st.curPool[n] = { rect: { l: 0, t: 0, r: 0, b: 0, depth: 0, k: 0 }, depth: 0, sub: false, tag: null });
+  e.rect.depth = NaN;
+  fitTagToView(this, camera, _size.x, _size.y, -Infinity, e.rect);
+  let d = st.byTag.get(this);
+  if (d && (d.frame !== frame || d.tag !== this)) d = undefined;
+  if (!(e.rect.depth > 0)) { applyDecision(this, undefined, 0, camera); return; } // off screen
+  // A tag faded all the way out takes no room.
+  if (!(this.material && this.material.opacity <= 0)) {
+    e.depth = e.rect.depth;
+    e.sub = !!this.userData.sub;
+    e.tag = this;
+    st.cur.push(e);
+  }
+  applyDecision(this, d, e.rect.k, camera);
 }
 
 // For a chat bubble (chatbubble.js): fit it like a tag, and keep it above
@@ -575,7 +836,12 @@ export function setNameTagMood(tag, { cross = false } = {}) {
   // floating above a tail that has just come back down.
   tag.position.y = (next ? CROSS_TAG_Y : TAG_Y) + (sub ? SUB_LIFT : 0);
   if (tag.userData.restY !== undefined) tag.userData.restY = tag.position.y; // uprightTag's height
-  // The one line that actually gets the new pixels onto the GPU.
-  if (tag.material && tag.material.map) tag.material.map.needsUpdate = true;
+  // The one line that actually gets the new pixels onto the GPU. (On the full
+  // texture: while a decluttered tag wears its one-line stand-in, that is not
+  // the material's map.)
+  const full = tag.userData.fullMap || (tag.material && tag.material.map);
+  if (full) full.needsUpdate = true;
+  // The stand-in follows the mood too, so a swap never shows a stale colour.
+  if (tag.userData.shortMap) paintShort(tag);
   return tag;
 }
