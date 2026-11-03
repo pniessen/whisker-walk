@@ -3,6 +3,25 @@ import { skyBackground } from './render/sky.js';
 import { FLAT_GROUND, groundOf } from './ground.js';
 import { standSpot } from './keepout.js';
 import { mulberry32, seedFromCode } from './rng.js';
+import { tintDuskLawn, duskLawnColor } from './render/dusk.js';
+
+// How a sunset walk lights the ground (polish-light). Before this only the sky,
+// fog and sun colour changed, so lawns and trees sat in noon light under an
+// orange sky. Frozen so a test (and the next person) can read the numbers.
+export const SUNSET_LOOK = Object.freeze({
+  sunColor: 0xffa860,   // a deeper amber than the old 0xffb060, so the lit side reads warm
+  sunIntensity: 2.4,    // brighter than the old 1.5: a low sun lights less ground per lux; 2.0 read olive in the Woods
+  elevationDeg: 15,     // down from rig.js's ~19 deg: longer shadows. Not lower: below ~15 deg the
+                        // shadow fit's depth range (shadowfit.js BACKOFF 80) clips at radius 20
+  hemiSky: 0xffc89a,    // the fill's sky side takes the peach of the horizon
+  hemiGround: 0x8a6a48, // the fill's bounce goes half-way to a warm earth brown
+  hemiScale: 0.85,      // a little less fill, so the sun's warm side and the shade differ more
+  envScale: 0.7,        // the neutral image light dims, or it greys the amber back to noon
+  // The lawn tint (render/dusk.js's duskLawnColor): a touch less saturated, a
+  // little darker, and warmer per channel. dusk.js calls the per-channel
+  // multiplier `cool`; here it warms (red up, blue down).
+  lawnTint: Object.freeze({ desat: 0.12, dark: 0.95, cool: Object.freeze([1.1, 0.97, 0.8]) }),
+});
 
 export function rollWeather(rng) {
   const r = rng();
@@ -279,8 +298,67 @@ export function createWeather(scene, sun, condition, rng, reducedMotion = false,
     // there is no round-trip to get right here the way there is for rain.
     scene.background = skyBackground(0xf0a060, 0xf8c890);
     scene.fog = new THREE.Fog(0xf8c890, 40, 130);
-    sun.color.set(0xffb060);
-    sun.intensity = 1.5;
+    const S = SUNSET_LOOK;
+    sun.color.set(S.sunColor);
+    sun.intensity = S.sunIntensity;
+    // The sun drops lower on the same bearing, same distance from its target.
+    // render/shadowfit.js reads the direction once, after this, and owns the
+    // position from then on, so the low sun holds for the walk. Not in the
+    // Gorge (any non-flat ground): a low sun would bury the canyon floor in shade.
+    if (ground === FLAT_GROUND && sun.position) {
+      const target = sun.target?.position ?? new THREE.Vector3();
+      const d = sun.position.clone().sub(target);
+      const dist = d.length();
+      const flat = Math.hypot(d.x, d.z);
+      if (dist > 0 && flat > 0) {
+        const el = THREE.MathUtils.degToRad(S.elevationDeg);
+        const k = (dist * Math.cos(el)) / flat;
+        sun.position.set(target.x + d.x * k, target.y + dist * Math.sin(el), target.z + d.z * k);
+      }
+    }
+    // Warm fill, a little dimmer image light: the shade goes amber too.
+    const fill = opts.fill ?? null;
+    const prevFill = fill
+      ? { color: fill.color.clone(), ground: fill.groundColor?.clone() ?? null, intensity: fill.intensity }
+      : null;
+    if (fill) {
+      fill.color.set(S.hemiSky);
+      fill.groundColor?.lerp(new THREE.Color(S.hemiGround), 0.5);
+      fill.intensity = prevFill.intensity * S.hemiScale;
+    }
+    const prevEnv = typeof scene.environmentIntensity === 'number' ? scene.environmentIntensity : null;
+    if (prevEnv !== null) scene.environmentIntensity = prevEnv * S.envScale;
+    // Lawns, paths and the far horizon band go amber through dusk.js's per-walk
+    // clones (the shared originals are never written).
+    const look = { lawnTint: S.lawnTint };
+    const lawnList = [...(opts.wet ?? [])];
+    for (const c of scene.children ?? []) {
+      if (c.isMesh && c.name === 'horizonBand' && !lawnList.includes(c)) lawnList.push(c);
+    }
+    const lawn = tintDuskLawn({ ground: lawnList, grass: null, look });
+    // The grass blades (walk.js, after this): tinted in place, once, back to the bit.
+    const tints = [];
+    let disposed = false;
+    api.tintWet = (material) => {
+      if (disposed || !material?.color || tints.some((t) => t.material === material)) return;
+      tints.push({ material, color: material.color.clone() });
+      material.color.copy(duskLawnColor(material.color, look));
+    };
+    // The sky and the sun stay sunset for the rest of the walk (both are
+    // per-walk); what is shared or reused goes back as found, once.
+    api.dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      for (const t of tints) t.material.color.copy(t.color);
+      tints.length = 0;
+      lawn.dispose();
+      if (fill) {
+        fill.color.copy(prevFill.color);
+        if (prevFill.ground) fill.groundColor.copy(prevFill.ground);
+        fill.intensity = prevFill.intensity;
+      }
+      if (prevEnv !== null) scene.environmentIntensity = prevEnv;
+    };
     return api;
   }
 

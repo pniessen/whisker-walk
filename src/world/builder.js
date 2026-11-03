@@ -2460,6 +2460,10 @@ export function lampPost(x, z) {
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 10),
     litMaterial(0xfff2c0, { emissive: 0x8a7a40 }));
   lamp.position.y = 3.3;
+  // render/dusk.js lights the globe at dusk (a material swap, so the globe
+  // must survive render/mergeprops.js's merge as its own mesh).
+  lamp.userData.lampGlobe = true;
+  lamp.userData.noMerge = true;
   g.add(lamp);
   g.position.set(x, 0, z);
   // The globe's height, for render/ambient.js's dusk moths (read off the
@@ -2484,10 +2488,75 @@ export function lampPost(x, z) {
 // body of water with a shoreline, and none of which a 0.8m disc can afford or
 // wants.
 // `y` is the ground under it (0 on a flat map; the rain's puddles pass it).
+//
+// The wet look (polish-light) lives in the shader, not in more objects: the
+// disc is still ONE mesh, ONE CircleGeometry and ONE material (the area builds
+// pin their Math.random draw counts through three's uuids). A dark centre,
+// a lighter sky sheen toward the rim, a soft oval glint, and an alpha that
+// reaches 0 at 0.94r — inside the 12-gon's inner apothem (cos 15deg = 0.966r),
+// so the polygon's corners never show. puddleShade() is the JS mirror.
+export const PUDDLE_LOOK = Object.freeze({
+  color: 0x5a7890, centreDark: 0.6, rimLight: 1.15,
+  fadeStart: 0.72, fadeEnd: 0.94, alpha: 0.9, glint: 0.55,
+});
+
+const smooth01 = (e0, e1, x) => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+
+// Colour multiplier `k` and opacity at normalised radius d (0 centre, 1 rim).
+export function puddleShade(d) {
+  const L = PUDDLE_LOOK;
+  const k = L.centreDark + (L.rimLight - L.centreDark) * smooth01(0, 0.85, d);
+  const alpha = L.alpha * (1 - smooth01(L.fadeStart, L.fadeEnd, d));
+  return { k, alpha };
+}
+
+const glsl = (n) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
+
 export function puddle(x, z, r = 0.8, y = 0) {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), surfMat(0x8ab8d8, 'water'));
+  const L = PUDDLE_LOOK;
+  const mat = surfMat(L.color, 'water');
+  mat.transparent = true;
+  mat.depthWrite = false;
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -1;
+  mat.polygonOffsetUnits = -1;
+  // CircleGeometry lies in its local XY plane (the mesh is turned flat below),
+  // so position.xy / r is the normalised radius. The uniform is per material:
+  // onBeforeCompile runs for every material even when the program is shared.
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPuddleR = { value: r };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+uniform float uPuddleR;
+varying vec2 vPud;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vPud = position.xy / uPuddleR;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec2 vPud;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float pudD = length(vPud);
+diffuseColor.rgb *= mix(${glsl(L.centreDark)}, ${glsl(L.rimLight)}, smoothstep(0.0, 0.85, pudD));
+diffuseColor.a *= ${glsl(L.alpha)} * (1.0 - smoothstep(${glsl(L.fadeStart)}, ${glsl(L.fadeEnd)}, pudD));`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+totalEmissiveRadiance += vec3(${glsl(L.glint)}) * (1.0 - smoothstep(0.0, 0.22, length((vPud - vec2(-0.32, 0.28)) * vec2(1.0, 2.2))));`);
+  };
+  mat.customProgramCacheKey = () => 'puddle-v1';
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), mat);
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y + 0.02, z);
+  m.userData.puddle = true;
+  // Transparent now, so it sorts with the other see-through ground layers:
+  // after the contact decals (-1) and paw prints (-2), but always before the
+  // rain rings, splash rings and dusk lamp pools (0) that sit on top of it.
+  m.renderOrder = -0.5;
+  // vPud reads the disc's OWN local XY: a merge would bake the world
+  // transform into position and break it (today a puddle is always a
+  // top-level mesh, which mergeprops skips anyway).
+  m.userData.noMerge = true;
   return m;
 }
 

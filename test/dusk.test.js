@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
-import { DUSK, duskLook, applyDusk, duskEnv, addCollarGlow, duskLawnColor, tintDuskLawn } from '../src/render/dusk.js';
+import { DUSK, duskLook, applyDusk, duskEnv, addCollarGlow, duskLawnColor, tintDuskLawn, LAMP_LOOK, createLampPools } from '../src/render/dusk.js';
 import {
   createSun, createFill, SUN_COLOR, SUN_INTENSITY, HEMI_SKY, HEMI_INTENSITY,
 } from '../src/render/rig.js';
@@ -223,5 +223,144 @@ describe('dusk lawns', () => {
     const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
     expect(src).toContain('tintDuskLawn(');
     expect(src).toContain('duskLawn.dispose()');
+  });
+});
+
+describe('dusk lamps', () => {
+  // The real builder.lampPost, under the headless canvas stub every world test
+  // uses (surface painters need getImageData and gradients to answer).
+  const loadBuilder = async () => {
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        width: 0,
+        height: 0,
+        getContext: () => new Proxy({}, {
+          get: (_t, key) => {
+            if (key === 'getImageData') return (_x, _y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+            if (key === 'createLinearGradient' || key === 'createRadialGradient') return () => ({ addColorStop: () => {} });
+            return () => {};
+          },
+          set: () => true,
+        }),
+      }),
+    });
+    return import('../src/world/builder.js');
+  };
+
+  it('lampPost stays two meshes, globe flagged lampGlobe + noMerge, pole unflagged', async () => {
+    const b = await loadBuilder();
+    const g = b.lampPost(1, 2);
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    expect(meshes).toHaveLength(2);
+    const globe = meshes.find((m) => m.geometry.type === 'SphereGeometry');
+    const pole = meshes.find((m) => m.geometry.type === 'CylinderGeometry');
+    expect(globe.userData.lampGlobe).toBe(true);
+    expect(globe.userData.noMerge).toBe(true);
+    expect(pole.userData.lampGlobe).toBeUndefined();
+    expect(g.userData.lampGlobeY).toBe(3.3);
+  });
+
+  it('applyDusk lights the globe and leaves the pole alone', async () => {
+    const b = await loadBuilder();
+    const scene = new THREE.Scene();
+    const g = b.lampPost(0, 0);
+    scene.add(g);
+    const globe = g.children.find((m) => m.userData.lampGlobe);
+    const pole = g.children.find((m) => !m.userData.lampGlobe);
+    const oldGlobe = globe.material;
+    const poleMat = pole.material;
+    let disposed = false;
+    oldGlobe.addEventListener('dispose', () => { disposed = true; });
+    applyDusk({ scene, sun: createSun(), fill: createFill(), areaData: area });
+    expect(globe.material).not.toBe(oldGlobe);
+    expect(disposed).toBe(true);
+    expect(globe.material.color.getHex()).toBe(LAMP_LOOK.globe);
+    expect(globe.material.emissive.getHex()).toBe(LAMP_LOOK.emissive);
+    expect(globe.material.emissiveIntensity).toBe(2.4);
+    expect(pole.material).toBe(poleMat);
+  });
+
+  it('createLampPools: one additive mesh, a 3-ring fan per lamp, on the ground under each lamp', async () => {
+    const b = await loadBuilder();
+    const scene = new THREE.Scene();
+    const spots = [[0, 0], [10, -4], [-6, 8], [3, 20]];
+    for (const [x, z] of spots) scene.add(b.lampPost(x, z));
+    const before = scene.children.length;
+    const mesh = createLampPools(scene);
+    expect(scene.children.length).toBe(before + 1);
+    expect(mesh.parent).toBe(scene);
+    expect(mesh.name).toBe('lampPools');
+    expect(mesh.userData.noCast).toBe(true);
+    expect(mesh.userData.dressing).toBe(true);
+    expect(mesh.castShadow).toBe(false);
+    expect(mesh.receiveShadow).toBe(false);
+    const S = LAMP_LOOK.poolSegments;
+    const geo = mesh.geometry;
+    // centre fan + inner→rim annulus (2 triangles per segment) = 3 × S
+    expect(geo.index.count / 3).toBe(spots.length * 3 * S);
+    const pos = geo.getAttribute('position');
+    const col = geo.getAttribute('color');
+    expect(pos.count).toBe(spots.length * (1 + 2 * S));
+    const per = 1 + 2 * S;
+    const centre = new THREE.Color(LAMP_LOOK.poolColor).multiplyScalar(LAMP_LOOK.poolStrength);
+    spots.forEach(([x, z], i) => {
+      const c = i * per;
+      expect(pos.getX(c)).toBeCloseTo(x, 6);
+      expect(pos.getZ(c)).toBeCloseTo(z, 6);
+      expect(pos.getY(c)).toBeCloseTo(LAMP_LOOK.poolLift, 6);
+      expect(col.getX(c)).toBeCloseTo(centre.r, 6);
+      expect(col.getY(c)).toBeCloseTo(centre.g, 6);
+      expect(col.getZ(c)).toBeCloseTo(centre.b, 6);
+      // inner ring at half radius, 0.45 of the centre
+      const r1 = Math.hypot(pos.getX(c + 1) - x, pos.getZ(c + 1) - z);
+      expect(r1).toBeCloseTo(LAMP_LOOK.poolRadius * 0.5, 6);
+      expect(col.getX(c + 1)).toBeCloseTo(centre.r * 0.45, 6);
+      // rim at full radius, black (additive: no light)
+      const r2 = Math.hypot(pos.getX(c + 1 + S) - x, pos.getZ(c + 1 + S) - z);
+      expect(r2).toBeCloseTo(LAMP_LOOK.poolRadius, 6);
+      expect([col.getX(c + 1 + S), col.getY(c + 1 + S), col.getZ(c + 1 + S)]).toEqual([0, 0, 0]);
+    });
+    // every triangle faces up (the material is front-sided)
+    const ix = geo.index;
+    const t = new THREE.Triangle();
+    const n = new THREE.Vector3();
+    const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    for (let k = 0; k < ix.count; k += 3) {
+      for (let j = 0; j < 3; j++) v[j].fromBufferAttribute(pos, ix.getX(k + j));
+      t.set(v[0], v[1], v[2]).getNormal(n);
+      expect(n.y).toBeGreaterThan(0.99);
+    }
+    const m = mesh.material;
+    expect(m.isMeshBasicMaterial).toBe(true);
+    expect(m.vertexColors).toBe(true);
+    expect(m.transparent).toBe(true);
+    expect(m.blending).toBe(THREE.AdditiveBlending);
+    expect(m.depthWrite).toBe(false);
+    expect(m.fog).toBe(false);
+    expect(m.polygonOffset).toBe(true);
+    expect(geo.boundingSphere).toBeTruthy();
+  });
+
+  it('createLampPools sits on a raised lamp\'s own ground', async () => {
+    const b = await loadBuilder();
+    const scene = new THREE.Scene();
+    const g = b.lampPost(2, 3);
+    g.position.y = 1.5;
+    scene.add(g);
+    const mesh = createLampPools(scene);
+    expect(mesh.geometry.getAttribute('position').getY(0)).toBeCloseTo(1.5 + LAMP_LOOK.poolLift, 6);
+  });
+
+  it('createLampPools on a scene with no lamps adds nothing and returns null', () => {
+    const scene = new THREE.Scene();
+    scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));
+    expect(createLampPools(scene)).toBeNull();
+    expect(scene.children).toHaveLength(1);
+  });
+
+  it('walk.js lays the pools on dusk walks outside the den', () => {
+    const src = readFileSync(new URL('../src/game/walk.js', import.meta.url), 'utf8');
+    expect(src).toContain('if (duskLookNow && !isDen) createLampPools(scene);');
   });
 });
