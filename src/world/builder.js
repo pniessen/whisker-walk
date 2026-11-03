@@ -7,6 +7,7 @@ import { withLocalUuids } from './localuuids.js';
 import { makeRustleMaterial } from '../render/rustle.js';
 import { createRockRelief, strataBand, noise3, CREST_BAND, RELIEF_DEPTH, ROCK_ROW, ROW_MIN } from './rockrelief.js';
 import { smoothNormals } from './rocknormals.js';
+import { patchRockMaterial, ROCK_SHADE, TALUS_TINT } from './rockshade.js';
 
 const mat = (color) => litMaterial(color);
 
@@ -3816,8 +3817,10 @@ export function toadstools(spots, seed) {
 //              sides, warm sand-grey, one plain material. Casts.
 //   lips       the low rock bands at the edges (G3), coloured as the rock.
 //              noCast: they are thin, and the sweep would cast anything wide.
-// `tint(x, y, z, rgb, recess) => [r, g, b]` (optional) recolours every rock
+// `tint(x, y, z, rgb, recess, foot) => [r, g, b]` (optional) recolours every rock
 // colour after rockColour (faces, lips, their dressing; not ledgeTops); give a `tintKey` for the cache.
+// The talus (rockshade.js TALUS_TINT) goes on after it, at the wall feet.
+// All three materials wear rockshade.js's shader patch.
 // The dressing (rockDressing, below) is appended to rockFaces and lips after
 // their shells: lip stones along every lip, boulders at the wall feet.
 // userData.shellTris counts the shells alone; userData.dressing counts
@@ -3934,13 +3937,15 @@ export function rockTerrain({
     geo.setAttribute('normal', new THREE.BufferAttribute(nor.slice(), 3));
     return geo;
   };
-  const rockMat = () => litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true });
+  // Every rock material wears the rock shader patch (rockshade.js): bedding,
+  // flutes, grain and darker overhangs, one shared program.
+  const rockMat = () => patchRockMaterial(litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true }));
   const group = new THREE.Group();
   group.name = 'rockTerrain';
   const rockFaces = new THREE.Mesh(geoOf(built.rockFaces), rockMat());
   rockFaces.name = 'rockFaces';
   rockFaces.castShadow = true;
-  const ledgeTops = new THREE.Mesh(geoOf(built.ledgeTops), surfNoMap(LEDGE_COLOR, 'cobble'));
+  const ledgeTops = new THREE.Mesh(geoOf(built.ledgeTops), patchRockMaterial(surfNoMap(LEDGE_COLOR, 'cobble'), { flutes: true }));
   ledgeTops.name = 'ledgeTops';
   ledgeTops.castShadow = true;
   const lips = new THREE.Mesh(geoOf(built.lips), rockMat());
@@ -4011,9 +4016,21 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
     const hue = band % 2 === 0 ? STRATA_WARM : STRATA_CREAM;
     return [tint.r * shade * hue[0], tint.g * shade * hue[1], tint.b * shade * hue[2]];
   };
-  const rockColour = recolour
-    ? (x, y, z, recess) => recolour(x, y, z, plainColour(x, y, z, recess), recess)
+  // Then the talus: the wall feet lean towards TALUS_TINT, patchily, fading
+  // out by talusHi metres over the walk. Applied last, after any `tint`, so
+  // the Narrows' feet carry it too. `foot` (rockrelief's at()) defaults to
+  // Infinity: the dressing's colours take none.
+  const talus = new THREE.Color(TALUS_TINT);
+  const tinted = recolour
+    ? (x, y, z, recess, foot) => recolour(x, y, z, plainColour(x, y, z, recess), recess, foot)
     : plainColour;
+  const rockColour = (x, y, z, recess, foot = Infinity) => {
+    const rgb = tinted(x, y, z, recess, foot);
+    const k = (1 - smoothstep(ROCK_SHADE.talusLo, ROCK_SHADE.talusHi, foot))
+      * (0.5 + 0.5 * noise3(x / 1.5, 0, z / 1.5, seed + 9));
+    if (!(k > 0)) return rgb;
+    return [rgb[0] + (talus.r - rgb[0]) * k, rgb[1] + (talus.g - rgb[1]) * k, rgb[2] + (talus.b - rgb[2]) * k];
+  };
 
   const bins = { rock: [], ledge: [], lip: [] };
   const tri = (out, a, c, d, nx, ny, nz) => {
@@ -4188,7 +4205,7 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
     const key = `${v[0]},${v[1]},${v[2]}`;
     let m = moves.get(key);
     if (!m) {
-      m = field ? field.at(v[0], v[1], v[2]) : { dx: 0, dy: 0, dz: 0, recess: 0 };
+      m = field ? field.at(v[0], v[1], v[2]) : { dx: 0, dy: 0, dz: 0, recess: 0, foot: Infinity };
       moves.set(key, m);
     }
     return m;
@@ -4211,7 +4228,7 @@ function rockArrays({ walks, masses, ceilings, seed, relief, keep, dressing, mou
       pos[3 * i] = v[0] + m.dx;
       pos[3 * i + 1] = v[1] + m.dy;
       pos[3 * i + 2] = v[2] + m.dz;
-      if (col) col.set(rockColour(v[0], v[1], v[2], m.recess), 3 * i);
+      if (col) col.set(rockColour(v[0], v[1], v[2], m.recess, m.foot), 3 * i);
     });
     pos.set(extra.pos, n);
     if (col) col.set(extra.col, n);

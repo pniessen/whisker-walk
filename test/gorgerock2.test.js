@@ -230,3 +230,49 @@ describe('Gorge rock, beauty pass 2: smooth shading', () => {
     });
   });
 });
+
+// Task 5: the rock shader and the talus at the wall feet.
+describe('Gorge rock, beauty pass 2: rock shader and talus', () => {
+  it('rockFaces, lips and ledgeTops wear the rock patch', async () => {
+    const { TALUS_TINT } = await import('../src/world/rockshade.js');
+    expect(TALUS_TINT).toBe(0x9d9384);
+    for (const name of ['rockFaces', 'lips', 'ledgeTops']) {
+      const mat = scene.getObjectByName(name).material;
+      expect(typeof mat.onBeforeCompile, name).toBe('function');
+      expect(mat.customProgramCacheKey(), name).toMatch(/^gorge-rock-v1/);
+      // ledgeTops wears the fluted patch too
+      expect(mat.customProgramCacheKey(), name).toBe('gorge-rock-v1');
+    }
+  });
+
+  it('wall feet take the talus tint', async () => {
+    const { TALUS_TINT } = await import('../src/world/rockshade.js');
+    const { createRockRelief } = await import('../src/world/rockrelief.js');
+    const { ROCK_WALKS, GORGE_ROCK_KEEP } = await import('../src/world/gorge.js');
+    const { MASSES, CEILINGS } = await import('../src/world/gorgeshape.js');
+    const { seedFromCode } = await import('../src/rng.js');
+    const field = createRockRelief({
+      walks: ROCK_WALKS, masses: MASSES, ceilings: CEILINGS, seed: seedFromCode('gorge-rock'), keep: GORGE_ROCK_KEEP,
+    });
+    const talus = new THREE.Color(TALUS_TINT);
+    const faces = scene.getObjectByName('rockFaces');
+    const p = faces.geometry.attributes.position.array;
+    const c = faces.geometry.attributes.color.array;
+    const shell = scene.getObjectByName('gorgeRock').userData.shellTris.rockFaces * 9;
+    const near = { low: [0, 0], mid: [0, 0] };
+    // Walls only (relief moves walls sideways, never up, so the foot is the same after it).
+    for (let i = 0; i < shell; i += 3) {
+      const t = Math.floor(i / 9);
+      const f = faceNormal(p, t);
+      if (!f || Math.abs(f[1]) >= 0.5) continue;
+      const { foot } = field.at(p[i], p[i + 1], p[i + 2]);
+      const bin = foot < 0.3 ? near.low : foot >= 2 && foot <= 4 ? near.mid : null;
+      if (!bin) continue;
+      bin[0] += Math.hypot(c[i] - talus.r, c[i + 1] - talus.g, c[i + 2] - talus.b);
+      bin[1]++;
+    }
+    expect(near.low[1]).toBeGreaterThan(500);
+    expect(near.mid[1]).toBeGreaterThan(500);
+    expect(near.low[0] / near.low[1]).toBeLessThan(near.mid[0] / near.mid[1]);
+  }, 120_000);
+});
