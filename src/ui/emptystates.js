@@ -54,13 +54,40 @@ const FRIENDS_PIC = svg(
   + `<path d="M60 26 C60 20 52 18 52 24 C52 28 57 31 60 34 C63 31 68 28 68 24 C68 18 60 20 60 26 Z" fill="${PINK}"/>`,
 );
 
+// A small cat sitting beside a food bowl with a fish in it, a heart above:
+// make a friend, then feed it.
+const COLONY_PIC = svg(
+  // tail curling round the back, then the sitting body and head
+  `<path d="M30 80 Q8 80 10 62" stroke="${CREAM}" stroke-width="6" fill="none" stroke-linecap="round"/>`
+  + `<path d="M22 82 Q22 58 38 58 Q54 58 54 82 Z" fill="${CREAM}"/>`
+  + `<path d="M26 40 L28 25 L37 33 Z" fill="${CREAM}"/>`
+  + `<path d="M40 33 L49 25 L51 40 Z" fill="${CREAM}"/>`
+  + `<path d="M29 36 L29.5 30 L34 33.5 Z" fill="${PINK}"/>`
+  + `<circle cx="39" cy="47" r="14" fill="${CREAM}"/>`
+  + `<path d="M31 45 Q34 42.5 37 45 M42 45 Q45 42.5 48 45" stroke="${NAVY}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`
+  + `<ellipse cx="39.5" cy="50.5" rx="2" ry="1.4" fill="${PINK}"/>`
+  // the bowl, with a fish lying in it
+  + `<path d="M64 66 H108 Q106 84 86 84 Q66 84 64 66 Z" fill="${SLATE}"/>`
+  + `<rect x="64" y="64" width="44" height="4" rx="2" fill="${MIST}"/>`
+  + `<ellipse cx="86" cy="62" rx="12" ry="5.5" fill="${GOLD}"/>`
+  + `<path d="M97 62 L106 56.5 L106 67.5 Z" fill="${GOLD}"/>`
+  + `<circle cx="78" cy="61" r="1.4" fill="${NAVY}"/>`
+  // a heart over the cat's side of the story
+  + `<path d="M60 26 C60 20 52 18 52 24 C52 28 57 31 60 34 C63 31 68 28 68 24 C68 18 60 20 60 26 Z" fill="${PINK}"/>`,
+);
+
 const EMPTY = {
   album: { pic: ALBUM_PIC, line: 'No photos yet. Snap one on your next walk! 📸' },
+  colony: {
+    pic: COLONY_PIC,
+    line: 'No colony cats yet — touch noses with a stray, then feed it 🐟',
+    extra: ' colony-empty',
+  },
   friends: { pic: FRIENDS_PIC, line: 'No cat friends yet. Go touch noses on a walk! 🐾' },
 };
 
 export function emptyStateHtml(kind) {
   const e = EMPTY[kind];
   if (!e) return '';
-  return `<div class="empty-state empty-${kind}">${e.pic}<p>${e.line}</p></div>`;
+  return `<div class="empty-state empty-${kind}${e.extra || ''}">${e.pic}<p>${e.line}</p></div>`;
 }
