@@ -5,6 +5,7 @@ import { WHITE_FUR, coatFromStyle, paintCoat, coatColourAt, undersideColourAt, U
 import { limbGeometry, paintLimb, legTopDir, footGeometry, plainPawGeometry, attachFolds } from './limbs.js';
 import { lookToStyle, sanitizeLook, COATS } from '../customcats.js';
 import { animateCat } from './animator.js';
+import { henFightState, HEN_POSE_TOP } from './henfight.js';
 import { setCatScars } from './scarmesh.js';
 import { ruffGeometry } from './ruff.js';
 import { GLASSES, GLASSES_FRAME, buildGlasses } from './glasses.js';
@@ -1726,13 +1727,15 @@ export function catBackY(group, state = 'follow') {
 const HEEL_IN = 0.25;
 export function catPivot(group) {
   const { body, legs } = group.userData.parts;
-  animateCat(group, 'roll', 0, 0);
+  const hagrid = group.userData.breed === 'hagrid';
+  animateCat(group, hagrid ? henFightState('roll') : 'roll', 0, 0);
   group.updateMatrixWorld(true);
   _toGroup.copy(group.matrixWorld).invert();
   _pt.setFromMatrixPosition(_m.multiplyMatrices(_toGroup, body.matrixWorld));
   const pivotY = _pt.y * group.scale.y;
   animateCat(group, 'follow', 0, 0);
-  const hind = legs.length >= 4 ? legs.slice(2) : legs;
+  // Hagrid's two real feet are legs[0..1]; the rest are empty dummy groups.
+  const hind = hagrid ? legs.slice(0, 2) : legs.length >= 4 ? legs.slice(2) : legs;
   let hindZ = 0;
   for (const leg of hind) {
     const b = localBox(group, leg.userData.paw ?? leg, true);
@@ -1744,11 +1747,14 @@ export function catPivot(group) {
 // Everything the fight needs to know about a cat's size, measured once:
 // `top` (the standing cat's highest point, accessories included), `backY`
 // and `pinnedBackY` (catBackY standing and pinned) and catPivot's hindZ and
-// pivotY. Leaves the cat standing ('follow' at t 0).
+// pivotY. Hagrid's also carry `poseTop` (henfight.js HEN_POSE_TOP: how far
+// his raised wings put his top up, for the fight camera). Leaves the cat
+// standing ('follow' at t 0).
 export function catDims(group) {
-  const pinnedBackY = catBackY(group, 'pinned');
+  const hagrid = group.userData.breed === 'hagrid';
+  const pinnedBackY = catBackY(group, hagrid ? henFightState('pinned') : 'pinned');
   const { hindZ, pivotY } = catPivot(group);
   const backY = catBackY(group);
   const top = localBox(group, group, true).max.y;
-  return { top, backY, pinnedBackY, hindZ, pivotY };
+  return hagrid ? { top, backY, pinnedBackY, hindZ, pivotY, poseTop: HEN_POSE_TOP } : { top, backY, pinnedBackY, hindZ, pivotY };
 }

@@ -45,7 +45,7 @@ function harness({
   answers = 'right', clanHome = true, picks = ['woods'], clan = 'moor', reducedMotion = false,
   special = null, ground = () => true, walkStamp = 'walk-1', log = null, startAt = 2.5, solo = false,
   terrain = undefined,
-  actions, ownedMoves = () => [], cat = null, player: playerIn = null, sExtra = {}, dt = DT, answerAt = 15,
+  actions, scars, ownedMoves = () => [], cat = null, player: playerIn = null, sExtra = {}, dt = DT, answerAt = 15,
   measureCat = () => ({ ...ME_DIMS }), onFrame = null,
 } = {}) {
   const calls = [];
@@ -97,7 +97,7 @@ function harness({
     playerSpecial: special, reducedMotion, now: () => clock.T, isGround: ground, player,
     runSpeed: RUN, clanHome, picks, ...(solo ? {} : { sendEvent: (ev) => { sent.push(ev); } }),
     ...(terrain === undefined ? {} : { terrain }),
-    ...(actions === undefined ? {} : { actions }), ownedMoves, onWon, onLost, measureCat,
+    ...(actions === undefined ? {} : { actions }), ...(scars === undefined ? {} : { scars }), ownedMoves, onWon, onLost, measureCat,
   });
   const frame = (step = dt) => { clock.T += step; cf.update(step, s); };
   const moves = [];
@@ -1086,6 +1086,30 @@ describe('the fight plays the actions', () => {
     // a special's roll scars the side or the hindquarters, by the cast id
     const rolled = play({ answers: 'rollingTumble', ownedMoves: () => ['rollingTumble'] });
     expect(rolled.h.onWon.mock.calls[0][0].site).toBe(siteFor('roll', CAST_ID));
+  });
+
+  test('actions with scars:false (Hagrid in the hen fight) fights in actions and never scars', () => {
+    const won = harness({ actions: true, scars: false, answers: 'right' });
+    won.challenge(); won.fight();
+    let staged = false;
+    won.runToEnd(() => { if (won.calls.some((c) => c.kind === 'stage' && c.raw && 'pitch' in c.raw && 'roll' in c.raw)) staged = true; });
+    expect(staged).toBe(true);
+    expect(won.onWon).toHaveBeenCalledTimes(1);
+    expect(won.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: null, together: false });
+    const lost = harness({ actions: true, scars: false, answers: 'wrong' });
+    lost.challenge(); lost.fight(); lost.runToEnd();
+    expect(lost.onLost).toHaveBeenCalledWith({ site: null });
+    expect(lost.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. Try again soon!');
+    // chased off together: no site either
+    const tog = harness({ actions: true, scars: false });
+    tog.challenge(); tog.fight();
+    tog.cf.chasedOffTogether(7, 'Pet');
+    expect(tog.onWon).toHaveBeenCalledWith({ visit: 7, castId: CAST_ID, site: null, together: true });
+    // and plain actions still scar
+    const scarred = harness({ actions: true, answers: 'wrong' });
+    scarred.challenge(); scarred.fight(); scarred.runToEnd();
+    expect(scarred.onLost.mock.calls[0][0].site).not.toBeNull();
+    expect(scarred.hud.toast).toHaveBeenLastCalledWith('Mossjaw shook it off and walked on. That scratch will heal in a few walks!');
   });
 
   test('Hagrid (actions:false) reports site null and plays today\'s tumble', () => {

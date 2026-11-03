@@ -3,6 +3,7 @@ import { TORSO, HEAD, PAW_HALF, SIT, SIT_TAIL, NAP_TAIL, LEGS, REF_RIG } from '.
 import { fitScars } from './scarmesh.js';
 import { HOOD, slideHoodTo } from './backitems.js';
 import { FOLDS, FOLD_BY_STATE, applyFold } from './limbs.js';
+import { isHenFightState, poseHen, syncHenRig } from './henfight.js';
 
 const GAIT_PHASE = [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5]; // 4-beat: FL, FR, BL, BR
 const CAT_BASE = { bodyY: TORSO.CENTRE_Y, bodyScale: [...TORSO.SCALE], headPos: [...HEAD.POS], tailRotX: -0.6 };
@@ -190,6 +191,8 @@ const ROLL = {
 // every other state ignores it, so existing callers are unchanged.
 export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amount = 1) {
   pose(cat, state, t, moveSpeed, reducedMotion, amount);
+  // Hagrid's fight wings (henfight.js): shown in a hen state, put away otherwise.
+  if (cat.userData.breed === 'hagrid') syncHenRig(cat, state);
   // Hagrid's comb (R11) is his ears: every ear write above is damped about the
   // rest (±0.22) by base.combGive, so a twitch is a small wobble and the
   // cross/fight ear-pin never splits the crest. At rest it is exactly ±0.22.
@@ -769,6 +772,9 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   const twitch = twitchWindow * Math.max(0, Math.sin(t * 9)) * 0.3;
   earL.rotation.z = 0.22 + twitch;
   earR.rotation.z = -0.22 - (twitchWindow ? 0 : Math.max(0, Math.sin(t * 9 + 2)) * (Math.sin(t * 0.53) > 0.97 ? 0.3 : 0));
+
+  // Hagrid fights like a hen (henfight.js): his own fight poses, nothing below.
+  if (cat.userData.breed === 'hagrid' && isHenFightState(state)) { poseHen(cat, state, t, reducedMotion); return; }
 
   // Swimming and wading (Task 5). Each writes its parts and returns before the
   // generic gait. waterlook.js sinks the whole group so the water hides the

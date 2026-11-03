@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createAvatarUpdater } from '../src/game/avatar.js';
 import { buildCat } from '../src/cat/model.js';
+import { wirePose } from '../src/fightactions.js';
 import { createProgression } from '../src/progression.js';
 import { createWaterState, stepWaterState } from '../src/waterstate.js';
 
@@ -38,8 +39,8 @@ function standInPlayer(cat) {
   return player;
 }
 
-function harness() {
-  const cat = buildCat('tabby');
+function harness(breed = 'tabby') {
+  const cat = buildCat(breed);
   const player = standInPlayer(cat);
   const sounds = [];
   const audio = {
@@ -239,5 +240,30 @@ describe('her own name tag in a fight', () => {
     h.s.fightPose = null;
     h.tick(1);
     expect([tag.position.x, tag.position.y, tag.position.z]).toEqual([0, 1.1, 0]);
+  });
+});
+
+// polish-hen Task 2: in a fight Hagrid is drawn in his hen states; the wire pose is unchanged.
+describe('the fight pose is drawn as a hen for Hagrid only', () => {
+  it('Hagrid in a fight takes the hen rig; the wire pose is the usual one', () => {
+    const h = harness('hagrid');
+    h.s.fight = {}; h.s.fightPose = 'rearUp';
+    h.tick(2);
+    expect(h.s.pose).toBe(wirePose('rearUp'));
+    expect(h.cat.userData.henRig).toBeTruthy();
+  });
+  it('a tabby in a fight is drawn as itself', () => {
+    const h = harness('tabby');
+    h.s.fight = {}; h.s.fightPose = 'rearUp';
+    h.tick(2);
+    expect(h.s.pose).toBe(wirePose('rearUp'));
+    expect(h.cat.userData.henRig).toBeUndefined();
+  });
+  it('Hagrid pouncing outside a fight is today\'s pounce, no hen rig', () => {
+    const h = harness('hagrid');
+    h.s.pounceTime = 0.3;
+    h.tick(2);
+    expect(h.s.pose).toBe('pounce');
+    expect(h.cat.userData.henRig).toBeUndefined();
   });
 });

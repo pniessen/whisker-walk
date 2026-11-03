@@ -23,7 +23,8 @@
 // of that fight (won, lost, aborted, or ended by a sibling's win) sends one
 // 'intruder-done'. Nothing is sent solo. See netevents.js for the receiving side.
 //
-// FIGHT MOVES AND SCARS (2026-11-01). With `actions` (every cat but Hagrid)
+// FIGHT MOVES AND SCARS (2026-11-01). With `actions` (every cat, Hagrid too;
+// he plays it as a hen, cat/henfight.js, and `scars` false keeps him unscarred)
 // each round's result plays as an action from fightactions.js (a leap and
 // scratch, a rear-up, a pin, a rolling tumble), after today's answer poses,
 // and the cats square up between rounds (an arch, a sidestep, a stare) where
@@ -34,7 +35,8 @@
 // group's rotation x/z and runs after this each frame). The end of a fight is
 // reported through onWon / onLost: game/fightrecord.js turns those into the
 // save writes, so this file still never holds progression. Without `actions`
-// (Hagrid, R6) the rounds are today's, verbatim, and every `site` is null.
+// the rounds are today's, verbatim, and every `site` is null; so is every
+// `site` without `scars` (Hagrid is never scarred, R6).
 // Specials (fightmoves.js) answer a clue like a button either way.
 import { createFight, edgeFor, CLUES, MOVES, NEUTRAL_POSE, TIMING } from '../fight.js';
 import {
@@ -205,6 +207,8 @@ const POSE_TOP = Object.freeze({
   pinned: 0, roll: 0,
 });
 const POSE_TOP_MAX = 0.2;
+// A cat whose dims carry its own `poseTop` (Hagrid: henfight.js HEN_POSE_TOP,
+// his wings raised in a hen pose) gets the larger of the two for that pose.
 // Samples over each action, beat and prelude: the pin's flight, the fastest
 // move, covers 0.03 m between two.
 const REACH_US = 240;
@@ -228,8 +232,9 @@ export function reachYFor(meDims, itDims, gap) {
     placeFrame(f, d, placed);
     const along = placed.dAlong;
     const side = placed.dSide - d.pivotY * Math.sin(f.roll || 0);
-    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0))
-      + (Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX) * d.top;
+    const catTop = Object.hasOwn(POSE_TOP, f.pose) ? POSE_TOP[f.pose] : POSE_TOP_MAX;
+    const ownTop = d.poseTop && Object.hasOwn(d.poseTop, f.pose) ? d.poseTop[f.pose] : 0;
+    const y = placed.y - d.pivotY * (1 - Math.cos(f.roll || 0)) + Math.max(catTop, ownTop) * d.top;
     if (!(y > 0)) return;
     const key = `${Math.round(along / REACH_CELL)},${Math.round(side / REACH_CELL)}`;
     const c = cells[who].get(key);
@@ -263,7 +268,9 @@ export function reachYFor(meDims, itDims, gap) {
 
 function cleanDims(d) {
   const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
-  return { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
+  const out = { top: n(d?.top), backY: n(d?.backY), pinnedBackY: n(d?.pinnedBackY), hindZ: n(d?.hindZ), pivotY: n(d?.pivotY) };
+  if (d?.poseTop && typeof d.poseTop === 'object') out.poseTop = d.poseTop;
+  return out;
 }
 
 
@@ -304,12 +311,14 @@ export function createClanFight({
   // `ground` below. null or flat is flat ground, and T is set only when it
   // has height, so a shipped map runs today's lines (R10, R11).
   terrain = null,
-  // Fight moves and scars (Task 6). `actions` false is Hagrid (R6): today's
-  // rounds verbatim. `ownedMoves` is read at each startFight; `onWon` /
+  // Fight moves and scars (Task 6). `actions` false: today's rounds verbatim.
+  // `scars` false (Hagrid, R6): the rounds play as actions but no `site` is
+  // ever reported and a loss toasts "Try again soon!". `ownedMoves` is read at each startFight; `onWon` /
   // `onLost` are called once at the end of a fight that was won or lost (never
   // for an abort); `measureCat(cat)` gives my cat's fight dims (src/cat/model.js
   // catDims), as intruders.measure(visit) gives the intruder's.
   actions = false,
+  scars = actions,
   ownedMoves = () => [],
   onWon = () => {},
   onLost = () => {},
@@ -594,7 +603,7 @@ export function createClanFight({
   // Where the deciding round's action scars the loser: the intruder (by its
   // cast id) when I won, her cat (never rolled) when I lost. Null for Hagrid.
   function siteOf(won) {
-    if (!actions || !lastRound) return null;
+    if (!(actions && scars) || !lastRound) return null;
     return siteFor(actionFor(lastRound).kind, won ? castId : null);
   }
 
@@ -620,7 +629,7 @@ export function createClanFight({
     intruders.release(v, playerId);
     locks.set(v, { away: false, until: now() + RECHALLENGE_DELAY });
     onLost({ site });
-    hud.toast(actions
+    hud.toast(actions && scars
       ? `${name} shook it off and walked on. That scratch will heal in a few walks!`
       : `${name} shook it off and walked on. Try again soon!`);
     sendDone(false);
@@ -928,7 +937,7 @@ export function createClanFight({
       log.awardOnce('intruder', `intruder-${v}`, `You chased off ${name}! 🛡️`);
       // R11: the intruder is scarred where the last round I won hit it, else
       // by a roll's site (its side or hindquarters, by its id).
-      const site = !actions ? null
+      const site = !(actions && scars) ? null
         : siteFor(lastWonRound ? actionFor(lastWonRound).kind : 'roll', castId);
       onWon({ visit: v, castId, site, together: true });
       hud.toast(`You and ${petName} chased ${name} off together! 🏃`);
