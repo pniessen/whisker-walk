@@ -81,6 +81,69 @@ describe('builder — additive surface pass', () => {
     expect(p.geometry.type).toBe('CircleGeometry');
   });
 
+  it('makes the puddle look wet: one disc, see-through, never z-fighting the ground', () => {
+    const p = b.puddle(3, 3, 0.8);
+    expect(p.isMesh).toBe(true);
+    expect(p.children.length).toBe(0);
+    expect(p.geometry.type).toBe('CircleGeometry');
+    expect(p.geometry.parameters.segments).toBe(12);
+    expect(Array.isArray(p.material)).toBe(false);
+    expect(p.material.map).toBeFalsy();
+    expect(p.material.transparent).toBe(true);
+    expect(p.material.depthWrite).toBe(false);
+    expect(p.material.polygonOffset).toBe(true);
+    expect(p.material.polygonOffsetFactor).toBeLessThan(0);
+    expect(p.material.polygonOffsetUnits).toBeLessThan(0);
+    expect(p.userData.puddle).toBe(true);
+    expect(p.material.customProgramCacheKey()).toBe('puddle-v1');
+  });
+
+  it('shades the puddle dark in the middle, sky-light toward the rim, and gone before the 12-gon edge', () => {
+    const L = b.PUDDLE_LOOK;
+    expect(Object.isFrozen(L)).toBe(true);
+    expect(b.puddleShade(0).k).toBeCloseTo(L.centreDark, 6);
+    expect(b.puddleShade(0.85).k).toBeGreaterThan(b.puddleShade(0).k);
+    expect(b.puddleShade(0.85).k).toBeCloseTo(L.rimLight, 6);
+    expect(b.puddleShade(0.3).alpha).toBeCloseTo(L.alpha, 6);
+    // The inner apothem of a 12-gon is cos(15deg) = 0.966r: transparent by then.
+    expect(b.puddleShade(0.96).alpha).toBe(0);
+    expect(b.puddleShade(Math.cos(Math.PI / 12)).alpha).toBe(0);
+    // Fades monotonically through the band.
+    expect(b.puddleShade(0.8).alpha).toBeLessThan(L.alpha);
+    expect(b.puddleShade(0.8).alpha).toBeGreaterThan(0);
+  });
+
+  it('patches the real standard shader at its anchors, with the radius as its own uniform', () => {
+    const p = b.puddle(0, 0, 1.3);
+    const shader = {
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      uniforms: {},
+    };
+    p.material.onBeforeCompile(shader);
+    expect(shader.uniforms.uPuddleR.value).toBe(1.3);
+    expect(shader.vertexShader).not.toBe(THREE.ShaderLib.standard.vertexShader);
+    expect(shader.fragmentShader).not.toBe(THREE.ShaderLib.standard.fragmentShader);
+    expect(shader.vertexShader).toContain('#include <begin_vertex>');
+    expect(shader.vertexShader).toMatch(/vPud\s*=\s*position\.xy\s*\/\s*uPuddleR/);
+    expect(shader.vertexShader).toMatch(/varying vec2 vPud;/);
+    expect(shader.fragmentShader).toMatch(/varying vec2 vPud;/);
+    expect(shader.fragmentShader).toContain('#include <color_fragment>');
+    expect(shader.fragmentShader).toContain('#include <emissivemap_fragment>');
+    expect(shader.fragmentShader).toContain('diffuseColor.a *=');
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance +=');
+    // The patch lands AFTER each anchor.
+    const f = shader.fragmentShader;
+    expect(f.indexOf('diffuseColor.a *=')).toBeGreaterThan(f.indexOf('#include <color_fragment>'));
+    expect(f.indexOf('totalEmissiveRadiance +=')).toBeGreaterThan(f.indexOf('#include <emissivemap_fragment>'));
+    // A second puddle of another size keeps its own radius (per-material uniform).
+    const q = b.puddle(0, 0, 0.5);
+    const s2 = { vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} };
+    q.material.onBeforeCompile(s2);
+    expect(s2.uniforms.uPuddleR.value).toBe(0.5);
+  });
+
   it('compensates a grass lawn for the tile mean, and only when it is textured', () => {
     // 0x6aa04e lifted by 1/0.955 — the world file's authored hex is untouched
     // and still lands on the colour it ships.
