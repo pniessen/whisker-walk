@@ -552,7 +552,9 @@ export function build(scene, { water = {}, wind } = {}) {
   // their own uuid stream; the ONE BufferGeometry it is copied into here, the
   // material and the mesh stand where the cylinder, its material and its mesh
   // stood, so the Woods' pinned Math.random draw count (11344) is unchanged.
-  const lookoutGeo = new THREE.BufferGeometry().copy(lookoutRockGeometry());
+  const lookoutSrc = lookoutRockGeometry();
+  const lookoutGeo = new THREE.BufferGeometry().copy(lookoutSrc);
+  lookoutSrc.dispose();
   const lookout = new THREE.Mesh(
     lookoutGeo,
     litMaterial(0xffffff, { ...surfaceProps('cobble'), vertexColors: true, flatShading: true }),

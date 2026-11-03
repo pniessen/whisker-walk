@@ -422,8 +422,10 @@ describe('horizonBand side tints and rooftops', () => {
     }))).toBe('923b0516f4882a6a');
   });
 
-  // polish-places Task 5 added `shoreLip`. Hashes taken from the code before
-  // it existed: the Woods', Pines' and Gorge's bands (water, keepLow, side
+  // polish-places Task 5 added `shoreLip`. The Pines' and Gorge's hashes were
+  // taken from the code before it existed; the Woods' (ad43278f378768ec) was
+  // taken after Task 2 (houses) and before Task 5, so it pins only what
+  // Task 5 must leave alone. The Woods', Pines' and Gorge's bands (water, keepLow, side
   // tints, near colour, an edge, the Gorge's rooftops) do not use it and must
   // be byte-identical.
   it('bands without shoreLip are unchanged', async () => {

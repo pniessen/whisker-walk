@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
-  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead, villagerPos,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
@@ -1197,8 +1197,45 @@ describe('a Twoleg steps out of its spawn (polish-places)', () => {
     expect(c.figure.children).toHaveLength(3);
     expect(c.figure.children[2]).toBe(c.group.userData.arm);
     expect(c.group.children).toEqual([c.figure]);
+    c.group.position.set(4, 0.3, 27);
+    c.group.rotation.y = 0.7;
+    c.group.updateMatrixWorld(true);
+    expect(world(c.figure).toArray()).toEqual(c.group.position.toArray());
+    for (const m of c.figure.children) {
+      m.updateMatrix();
+      const direct = c.group.matrixWorld.clone().multiply(m.matrix);
+      m.matrixWorld.elements.forEach((e, i) => expect(e).toBeCloseTo(direct.elements[i], 9));
+    }
     const off = createCritters(scene, [{ ...dad, standOff: { x: 2, z: 1 } }]).list[0];
     expect(meshPositions(off)).toEqual(meshPositions(c));
+  });
+
+  it('villagerPos is the figure for a standOff villager, the group otherwise', () => {
+    const off = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]).list[0];
+    const out = new THREE.Vector3();
+    expect(villagerPos(off, out)).toBe(out);
+    expect(out.toArray().map((v) => +v.toFixed(6))).toEqual([5.5, 0, 25.6]);
+    const plain = createCritters(scene, [dad]).list[0];
+    expect(villagerPos(plain, out).toArray()).toEqual([4, 0, 27]);
+    expect(villagerPos({ group: plain.group }, out).toArray()).toEqual([4, 0, 27]);
+  });
+
+  it('a standOff villager waves and is dismayed by what is near its figure, not its spawn', () => {
+    const crit = createCritters(scene, [{ ...dad, standOff: { x: 1.5, z: -1.4 } }]);
+    const c = crit.list[0];
+    const near = new THREE.Vector3(6.2, 0, 24.9); // 1 m from the figure, 3.3 m from the group
+    crit.dismayNear(near, 2);
+    expect(c.meowWaveT).toBe(1.5);
+    c.meowWaveT = 0;
+    crit.dismayNear(new THREE.Vector3(4, 0, 27), 1); // on the spawn, 2 m from the figure
+    expect(c.meowWaveT).toBe(0);
+  });
+
+  it('removing a villager hides its figure', () => {
+    const crit = createCritters(scene, [dad]);
+    const c = crit.list[0];
+    crit.dispose(); // removes every critter
+    expect(c.figure.visible).toBe(false);
   });
 
   it('other critters have no figure', () => {
