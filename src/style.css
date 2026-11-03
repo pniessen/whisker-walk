@@ -1639,11 +1639,11 @@ body.den-shop-open .chat-wheel { display: none !important; }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; /* over .touch-ui (1), the prompt (2), the chat wheel (5); under #overlay (10) */
   pointer-events: auto; touch-action: manipulation;
   display: flex; flex-direction: column; gap: 8px;
-  padding: 10px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+  padding: 8px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
   background: linear-gradient(to top, rgba(20,26,38,0.92), rgba(20,26,38,0.72));
   border-radius: 18px 18px 0 0; color: #fff; user-select: none; -webkit-user-select: none;
 }
-.fight-top { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-height: 120px; }
+.fight-top { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 100px; }
 .fight-pips { display: flex; gap: 18px; }
 .fight-side { display: flex; align-items: center; gap: 3px; font-size: 1.05rem; font-weight: 700; }
 .pip { display: inline-flex; opacity: 1; }
@@ -1659,10 +1659,18 @@ body.den-shop-open .chat-wheel { display: none !important; }
   font: inherit; font-size: 1.2rem; font-weight: 800; cursor: pointer;
 }
 .fight-move:active { transform: scale(0.97); }
-.fight-moves.idle .fight-move { opacity: 0.6; }
+.fight-moves.idle .fight-move {
+  background: rgba(242,193,78,.14); color: #ffd45a;
+  box-shadow: inset 0 0 0 2px rgba(255,212,90,.55);
+  animation: fight-wait 1.6s ease-in-out infinite alternate;
+}
+@keyframes fight-wait { from { opacity: .7; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .fight-moves.idle .fight-move { animation: none; opacity: .85; }
+}
 /* Owned special moves: a smaller row above the three big buttons (>= 48 px).
-   Expected portrait sheet with four specials (390x844, 34 px home bar): 10 pad
-   + 120 top + 52 specials + 88 moves + ~30 teach (2 lines) + 3x8 gaps + 46 pad
+   Expected portrait sheet with four specials (390x844, 34 px home bar): 8 pad
+   + 100 top + 52 specials + 88 moves + ~30 teach (2 lines) + 3x8 gaps + 46 pad
    = ~370 px <= 46vh (388). On 375x667 (46vh = 307) the short-portrait rule
    below trims the top block: ~280 px. */
 .fight-specials { display: flex; flex-direction: row; gap: 6px; width: 100%; }

@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { FIGHT_MOVES, teachFor } from '../src/fightmoves.js';
 import { renderChallengeHtml, renderFightHtml, createFightUi, FIGHT_TEACH } from '../src/ui/fightui.js';
@@ -452,5 +452,30 @@ describe('the specials row on a phone (style.css)', () => {
   });
   test('toasts follow the measured sheet', () => {
     expect(css).toMatch(/#hud\.fighting \.hud-toasts\s*\{[^}]*var\(--fight-sheet-h/);
+  });
+});
+
+describe('the fight sheet between beats (style.css)', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  const rule = (sel) => {
+    const at = css.indexOf(`${sel} {`);
+    return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+  };
+  it('waiting moves are outlined gold that breathes, never a dimmed khaki', () => {
+    const idle = rule('.fight-moves.idle .fight-move');
+    expect(idle).not.toContain('opacity: 0.6');
+    expect(idle).toContain('fight-wait');
+    expect(idle).toContain('#ffd45a');
+    expect(css).toContain('@keyframes fight-wait');
+    const at = css.indexOf('@media (prefers-reduced-motion: reduce) {\n  .fight-moves.idle .fight-move');
+    expect(at).toBeGreaterThan(-1);
+    const block = css.slice(at, css.indexOf('\n}\n', at));
+    expect(block).toMatch(/animation: none/);
+    expect(rule('.fight-move')).toMatch(/min-height: (8[89]|9\d)px/);
+  });
+  it('the top block is only as tall as the clue row, so a beat leaves no dead band', () => {
+    const top = rule('.fight-top');
+    expect(top).toContain('min-height: 100px');
+    expect(top).toContain('justify-content: center');
   });
 });
