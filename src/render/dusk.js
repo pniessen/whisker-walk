@@ -102,13 +102,52 @@ export function duskLawnColor(color, look) {
 // (the shared original is never written), the grass material is tinted in place
 // because it is per-walk and patched with onBeforeCompile, so it must not be
 // cloned. dispose() puts everything back exactly and is safe to call twice.
+//
+// Vertex-coloured meshes (the horizon bands with side tints, a near colour,
+// rooftops or an edge — their material is white and the colour lives in the
+// vertices): the effective colour is material × vertex, and tinting only the
+// material would darken and cool it but never desaturate it, because the
+// desaturation is not a per-channel multiply. So for those the FULL
+// duskLawnColor is applied per vertex to (material × vertex), into a clone of
+// the colour attribute, and the cloned material is set to white: the result is
+// exactly duskLawnColor(effective). The mesh keeps its geometry object; only
+// the 'color' attribute is swapped, and dispose() puts the original back. (A
+// geometry shared by two such meshes is tinted once, for the first; ground
+// meshes do not share band geometry today.)
+//
+// A ground mesh's descendants flagged userData.duskTint are tinted with it, by
+// the same rule (world/builder.js's 'horizonEdge', the hedges and walls round
+// the ground's edge, hangs off the band as a child; walk.js hands this the
+// band, a top-level mesh, and the edge comes with it).
 export function tintDuskLawn({ ground, grass, look }) {
   const swaps = [];
+  const attrSwaps = new Map();
+  const c = new THREE.Color();
+  const meshes = new Set();
   for (const mesh of ground ?? []) {
+    meshes.add(mesh);
+    mesh.traverse?.((o) => { if (o !== mesh && o.isMesh && o.userData?.duskTint) meshes.add(o); });
+  }
+  for (const mesh of meshes) {
     const orig = mesh.material;
     if (Array.isArray(orig) || !orig?.color) continue;
     const tinted = orig.clone();
-    tinted.color.copy(duskLawnColor(orig.color, look));
+    const geo = mesh.geometry;
+    const col = orig.vertexColors ? geo?.getAttribute?.('color') : null;
+    if (col && !attrSwaps.has(geo)) {
+      const tc = col.clone();
+      const m = orig.color;
+      for (let v = 0; v < tc.count; v++) {
+        c.setRGB(m.r * col.getX(v), m.g * col.getY(v), m.b * col.getZ(v));
+        const d = duskLawnColor(c, look);
+        tc.setXYZ(v, d.r, d.g, d.b);
+      }
+      geo.setAttribute('color', tc);
+      attrSwaps.set(geo, { orig: col, tinted: tc });
+      tinted.color.setRGB(1, 1, 1);
+    } else {
+      tinted.color.copy(duskLawnColor(orig.color, look));
+    }
     mesh.material = tinted;
     swaps.push({ mesh, orig, tinted });
   }
@@ -124,6 +163,15 @@ export function tintDuskLawn({ ground, grass, look }) {
         w.tinted.dispose();
       }
       swaps.length = 0;
+      for (const [geo, a] of attrSwaps) {
+        if (geo.getAttribute('color') !== a.tinted) continue;
+        // Free the tinted attribute's GPU buffer while it is still attached
+        // (the renderer frees a geometry's CURRENT attributes on dispose; the
+        // next render re-uploads with the original), then put it back.
+        geo.dispose();
+        geo.setAttribute('color', a.orig);
+      }
+      attrSwaps.clear();
       if (saved) grass.color.copy(saved);
     },
   };

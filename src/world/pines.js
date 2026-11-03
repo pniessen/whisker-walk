@@ -277,6 +277,10 @@ export const PINES_HORIZON = Object.freeze({
   color: 0x34503e, salt: 47,
   avoid: Object.freeze([LAKE, MIRE_NORTH, MIRE_WEST, MOOR_RIVER, MOOR_MOUTH]),
   sideTints: Object.freeze({ north: 0x3f5a46, east: 0x9a8a9c, south: 0x7f9a66, west: 0x4a5a44 }),
+  // Polish "edges": the strip past the ground's edge is the ground's own
+  // colour, and dark pine scrub with saplings runs round it, off the water.
+  nearColor: 0x56603e,
+  edge: Object.freeze({ half: 60, style: 'pinescrub', avoid: PINES_WATERS }),
 });
 
 // --- the things to find ------------------------------------------------------

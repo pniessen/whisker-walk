@@ -467,6 +467,21 @@ describe('horizonBand side tints and rooftops', () => {
       .toEqual(Array.from(withHeight.geometry.attributes.position.array));
   });
 
+  it('horizonBand with rooftops and no side tints is white, so the roofs are tinted once', () => {
+    const m = b.horizonBand({
+      kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5, color: 0x6a8a4a,
+      rooftops: { from: 0.1, to: 0.25, count: 6, height: 7 },
+    });
+    expect(m.material.color.getHex()).toBe(0xffffff);
+    expect(m.material.vertexColors).toBe(true);
+    // The ring's first vertex carries the band colour itself.
+    const c = m.geometry.attributes.color;
+    const band = new THREE.Color(0x6a8a4a);
+    expect(c.getX(0)).toBeCloseTo(band.r, 5);
+    expect(c.getY(0)).toBeCloseTo(band.g, 5);
+    expect(c.getZ(0)).toBeCloseTo(band.b, 5);
+  });
+
   it('horizonBand with rooftops and side tints is still one mesh, with colours', () => {
     const plain = b.horizonBand({ kind: 'hills', inner: 56, outer: 116, height: 7, salt: 5 });
     const m = b.horizonBand({

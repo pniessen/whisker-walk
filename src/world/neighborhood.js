@@ -41,6 +41,23 @@ import { sureClawsTreePerch, SURE_CLAWS_ID } from '../climbing.js';
 // Where a walk places the cat. Exported so rivalclans' tests can prove a rival disc never covers it.
 export const SPAWN = Object.freeze({ x: 0, z: 45 });
 
+// The horizon band (see the note at its scene.add in build). Polish "edges":
+// the strip past the lawn's edge is the lawn's own colour, and a clipped
+// hedge runs round the edge with a field gate where each street runs out
+// (the streets are 5 m wide on the axes, so each gap is 2.5 + 0.5 across).
+export const NEIGHBORHOOD_HORIZON = Object.freeze({
+  kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
+  color: 0x94bd84, salt: 11,
+  nearColor: 0x7cb860,
+  edge: Object.freeze({
+    half: 60, style: 'hedge',
+    gaps: Object.freeze([
+      Object.freeze({ x: 0, z: -60.6, r: 3 }), Object.freeze({ x: 0, z: 60.6, r: 3 }),
+      Object.freeze({ x: -60.6, z: 0, r: 3 }), Object.freeze({ x: 60.6, z: 0, r: 3 }),
+    ]),
+  }),
+});
+
 export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   b.applySky(scene, 0x9fd4e8, 0xcfe8f0);
   // The lawn, at last literally. 'grass' is a mottle-only tile at 3m, so at
@@ -78,10 +95,7 @@ export function build(scene, { water = {}, wind } = {}) { // `water`: see above
   // lifts it toward the sky — and fog only starts doing that at 40m, so the
   // near corner of the band would otherwise arrive at full lawn-green with no
   // aerial perspective at all. This is that perspective, painted in.
-  scene.add(b.horizonBand({
-    kind: 'hills', inner: 56, outer: 116, height: 7, wavelength: 34,
-    color: 0x94bd84, salt: 11,
-  }));
+  scene.add(b.horizonBand(NEIGHBORHOOD_HORIZON));
 
   const colliders = [];
   const addC = (x, z, r) => colliders.push({ x, z, r });

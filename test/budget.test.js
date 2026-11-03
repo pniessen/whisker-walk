@@ -111,7 +111,28 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 //                                               the Watch Rock and its finds; was
 //                                               138 / 101, before the canopy rule
 //                                               kept pines off the paths' bends)
-//   gorge             54       36      43051   (43 / 26 merged; part 4's camp
+//   gorge             60       36      59307   (polish-edges' red roofs on
+//                                               its rooftop blocks, +60 in
+//                                               the horizon band, no mesh; it
+//                                               was 59,247 after polish-gorgeway,
+//                                               from
+//                                               59 / 36 / 54,581: the
+//                                               narrowsDressing, +1 noCast mesh,
+//                                               1,066 tris (30 shelf and 33
+//                                               crest tufts, 16 crest shrubs and
+//                                               the 560-tri view out to the
+//                                               Moor); the corridors' tunnels,
+//                                               merged into each caveRoom:<id>
+//                                               (no new mesh), 2,935 tris (echo
+//                                               942, snug 931, glitter 1,062);
+//                                               lumpier chamber moss, +665.
+//                                               ONLY 693 TRIANGLES LEFT under
+//                                               the 60,000 ceiling (753 before
+//                                               the red roofs): the next Gorge
+//                                               build must trim or raise it,
+//                                               with a written reason.
+//                                               Earlier: 54 / 36 / 43051,
+//                                               43 / 26 merged; part 4's camp
 //                                               adds two meshes: the leader's
 //                                               rock (a caster, 36 tris) and the
 //                                               den's bedding (noCast, six discs
@@ -155,6 +176,38 @@ const { castsFromBox, isTransparentMat } = await import('../src/render/rig.js');
 // (docs/VISUAL-PASS.md) exists specifically to spend triangles here — rounded
 // box bevels, higher segment counts on trunks/bollards/lamp globes, a
 // horizon band — and none of it should have to renegotiate this ceiling.
+//
+// 2026-11-03, polish "edges": each green area's horizon band gained a ring of
+// low hedges (with field gates), scrub, reeds, pine scrub or a dry-stone wall
+// along the ground's edge and, where there is room, a sparse tree row past it.
+// It is ONE separate mesh per green area, 'horizonEdge' (a child of the band,
+// userData.noCast, so it is +1 mesh and +0 casters, and its triangles draw
+// once, not again in the shadow pass), built from hand-made low-poly pieces.
+// Its triangles count here like any other mesh's. The ceilings did not move
+// (a first cut merged into the band raised four of them; that was undone):
+// where there was not room for the whole ring, it runs only along the arc a
+// kid sees on turning round at the spawn (builder.js EDGE_STYLES `arcs`).
+//
+//   area          edge mesh   build total   ceiling   (ring)
+//   neighborhood      3,860        29,759    60,000   all round, tree row
+//   park              3,634        20,535    40,000   all round, tree row
+//   woods             3,484        53,873    60,000   all round, tree row
+//   pines             3,425        52,934    60,000   all round, tree row
+//   river               424        59,895    60,000   +x/+z corner arc only,
+//                                                     no trees (105 left)
+//   moor                756        59,761    60,000   +x/+z corner arc only,
+//                                                     no trees (239 left)
+//
+// THE RIVER AND THE MOOR ARE NOW WITHIN A FEW HUNDRED TRIANGLES OF THEIR
+// CEILINGS: the next build that adds triangles there must trim something,
+// or raise the ceiling with a written reason.
+//
+// The same pass gave the Seaside's cliff and overlook a finer face grid so
+// their gullies can be cut: the two rock boxes went from 2,292 triangles
+// (1,872 + 420) to 10,096 (7,776 + 2,320), and with the boats' cabins and
+// sails the Seaside's build is 23,740 (it was 15,724 with main's seaside.js),
+// still under its 30,000 ceiling. The Gorge's rooftop blocks gained red
+// pitched roofs: +60 triangles in its band, 59,307 in all (see its row).
 // ---------------------------------------------------------------------------
 
 // Counts what render/rig.js's assignShadowCasters would set, minus the

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import {
   createCritters, PREY_NOTICE, PREY_NOTICE_STALKED, HIDE_REACH, PREY_STARTLE, STILL_SPEED, CAT_SPEED_CAP,
-  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay,
+  GOAT_NOTICE, GOAT_DAY_SHARE, goatToday, goatForDay, twolegHead,
 } from '../src/critters.js';
 import { mulberry32 } from '../src/rng.js';
 import { gorgeGround, SHOULDER, CLIFFTOP } from '../src/world/gorgeshape.js';
@@ -1064,5 +1064,110 @@ describe('createCritters — the mountain goat (Gorge G9)', () => {
     const src = readFileSync('src/game/walk.js', 'utf8');
     expect(src).toMatch(/import \{[^}]*\bgoatForDay\b[^}]*\} from '\.\.\/critters\.js'/);
     expect(src).toMatch(/areaId === 'gorge'\) Object\.assign\(areaData, goatForDay\(areaData, /);
+  });
+});
+
+// Polish-edges Task 4 — the friendly neighbours are low-poly Twolegs (legs,
+// shoes, a coat, hands, a hat or hair) instead of a blue peg with a ball head.
+// Still three meshes (body, head, arm), each one merged vertex-coloured
+// geometry, so the draw calls and the Math.random draws are what they were.
+describe('villager Twolegs', () => {
+  const build = (x, z) => createCritters(scene, [{ type: 'villager', x, z }], { rng: mulberry32(7) }).list[0];
+
+  it('consumes exactly as many Math.random draws as the old peg (41, measured before the change)', () => {
+    const real = Math.random;
+    let n = 0;
+    Math.random = () => { n++; return real(); };
+    try {
+      createCritters(scene, [{ type: 'villager', x: 4, z: 0 }], { rng: mulberry32(7) });
+    } finally {
+      Math.random = real;
+    }
+    expect(n).toBe(41);
+  });
+
+  it('is three vertex-coloured meshes, one of them the arm, 1.55-1.75 m tall', () => {
+    const v = build(4, 0);
+    const g = v.group;
+    expect(g.children).toHaveLength(3);
+    expect(g.children.every((m) => m.isMesh)).toBe(true);
+    expect(g.children).toContain(g.userData.arm);
+    for (const m of g.children) {
+      expect(m.geometry.getAttribute('color')).toBeTruthy();
+      expect(m.material.vertexColors).toBe(true);
+    }
+    g.position.set(0, 0, 0);
+    g.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(g);
+    expect(bb.max.y - bb.min.y).toBeGreaterThanOrEqual(1.55);
+    expect(bb.max.y - bb.min.y).toBeLessThanOrEqual(1.75);
+  });
+
+  it('hangs the arm down at rest and raises it to wave', () => {
+    const v = build(4, 0);
+    const g = v.group;
+    const arm = g.userData.arm;
+    g.position.set(0, 0, 0);
+    const reach = (rz) => {
+      arm.rotation.z = rz;
+      g.updateMatrixWorld(true);
+      return new THREE.Box3().setFromObject(arm);
+    };
+    const rest = reach(0.4);
+    expect(rest.max.y).toBeLessThanOrEqual(arm.position.y + 0.06); // nothing above the shoulder
+    expect(rest.min.y).toBeLessThan(arm.position.y - 0.45);         // the hand down by the hip
+    const wave = reach(2.6);
+    expect(wave.max.y).toBeGreaterThan(arm.position.y + 0.3);       // the hand up in the air
+    expect(wave.max.x).toBeGreaterThan(arm.position.x + 0.2);       // and out to the side
+  });
+
+  it('hair never covers the eyes: every front hair vertex is above the eye tops', () => {
+    const HAIR = 0x123456;
+    const parts = twolegHead({ top: 'hair', hair: HAIR, skin: 0xe0b090 });
+    // parts: neck, head, two eyes, then the hair cap and the back fall.
+    let eyeTop = -Infinity;
+    for (const e of parts.slice(2, 4)) {
+      e.computeBoundingBox();
+      eyeTop = Math.max(eyeTop, e.boundingBox.max.y);
+    }
+    expect(eyeTop).toBeCloseTo(1.5075, 4);
+    const hair = new THREE.Color(HAIR);
+    let front = 0;
+    for (const p of parts.slice(4)) {
+      const pos = p.getAttribute('position');
+      const col = p.getAttribute('color');
+      expect(col.getX(0)).toBeCloseTo(hair.r, 6);
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getZ(i) >= -0.05) continue; // behind the face (the face looks down -z)
+        front++;
+        expect(pos.getY(i)).toBeGreaterThan(eyeTop);
+      }
+    }
+    expect(front).toBeGreaterThan(0);
+  });
+
+  it('chooses its look from its spawn, the same every time', () => {
+    const colours = (v) => Array.from(v.group.children[0].geometry.getAttribute('color').array);
+    // The coat's colour, read off a vertex of its shoulder rim (y 1.35, r 0.21).
+    const coat = (v) => {
+      const geo = v.group.children[0].geometry;
+      const p = geo.getAttribute('position');
+      const c = geo.getAttribute('color');
+      for (let i = 0; i < p.count; i++) {
+        if (Math.abs(p.getY(i) - 1.35) < 1e-4 && Math.abs(Math.hypot(p.getX(i), p.getZ(i)) - 0.21) < 1e-4) return [c.getX(i), c.getY(i), c.getZ(i)];
+      }
+      return null;
+    };
+    const a = build(4, 0);
+    const a2 = build(4, 0);
+    const b = build(10, 3); // hashes to another coat than (4, 0)
+    for (let i = 0; i < 3; i++) {
+      expect(Array.from(a.group.children[i].geometry.getAttribute('position').array))
+        .toEqual(Array.from(a2.group.children[i].geometry.getAttribute('position').array));
+    }
+    expect(colours(a)).toEqual(colours(a2));
+    expect(coat(a)).not.toBe(null);
+    expect(coat(b)).not.toBe(null);
+    expect(coat(a)).not.toEqual(coat(b));
   });
 });
