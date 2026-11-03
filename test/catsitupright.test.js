@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { buildCat } from '../src/cat/model.js';
-import { animateCat } from '../src/cat/animator.js';
-import { PRESETS, poseMeasure } from './helpers/catfingerprint.js';
+import { animateCat, refitNeck } from '../src/cat/animator.js';
+import { SIT } from '../src/cat/torso.js';
+import { PRESETS, poseMeasure, colourDistance } from './helpers/catfingerprint.js';
 
 // polish-sit Task 1 (2026-11-02): the sit (requestPet, perch) reads as the
 // classic Warrior Cats sit. The torso pitches NOSE-UP (three.js: + rotation.x
@@ -224,5 +225,150 @@ describe('the sitting tail lies round the paws (polish-sit Task 2)', () => {
     expect(tail.position.toArray()).toEqual([0, 0.6323986029234785, 0.237678121330541]);
     expect(tail.rotation.toArray().slice(0, 3)).toEqual([-0.1, 0, 0]);
     expect(tailPivots.map((p) => p.rotation.toArray().slice(0, 3))).toEqual([[0, 0.24168288887248796, 0], [0, 0.5, 0], [0, 0.5, 0], [0, 0.5, 0], [0, 0.5, 0]]);
+  });
+});
+
+// polish-sit Task 3: the group-hung body- and back-slot items (model.js tags
+// them userData.ridesBody) ride the posed torso in the sit (ruling R4): each
+// is placed by bodyPosed · bodyRest⁻¹ · itemRest, the body's rest being
+// (0, base.bodyY, 0), unrotated, at base.bodyScale. Every other state puts
+// them back where they were built.
+describe('the back and body items ride the upright sit (polish-sit Task 3)', () => {
+  const KITS = [{ back: 'backpack', body: 'cape' }, { back: 'wings', body: 'confetticape' }, { back: 'jetpack', body: 'cape' }];
+  const kitCat = (b, kit, simple) => buildCat(b, { collar: null, head: null, face: null, neck: null, feet: null, ...kit }, { simple });
+  const riders = (cat) => cat.children.filter((c) => c.userData.ridesBody);
+  const v = new THREE.Vector3();
+  const lowest = (obj, s) => {
+    let low = Infinity;
+    obj.traverse((m) => {
+      if (!m.isMesh) return;
+      const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) low = Math.min(low, v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld).y / s);
+    });
+    return low;
+  };
+
+  it.each(CASES)('%s (simple %s) %s: every item is carried by the posed torso, none in the ground', (b, simple, state) => {
+    for (const kit of KITS) {
+      const built = kitCat(b, kit, simple);
+      const bare = buildCat(b, undefined, { simple });
+      const cat = kitCat(b, kit, simple);
+      const items = riders(cat);
+      // every child the two slots added, and only those
+      expect(items.length, `${kit.back}+${kit.body}: tagged`).toBe(cat.children.length - bare.children.length);
+      expect(items.length).toBeGreaterThan(0);
+      animateCat(cat, state, 1.3, 0, false);
+      cat.updateMatrixWorld(true);
+      const { body } = cat.userData.parts;
+      const { bodyY, bodyScale } = cat.userData.base;
+      body.updateMatrix();
+      const carry = body.matrix.clone().multiply(new THREE.Matrix4().compose(
+        new THREE.Vector3(0, bodyY, 0), new THREE.Quaternion(), new THREE.Vector3(...bodyScale)).invert());
+      const builtItems = riders(built);
+      items.forEach((item, i) => {
+        const { hang } = item.userData;
+        if (hang) {
+          // a cape hangs from its clasp: its top edge's centre at the clasp's carried point
+          const want = builtItems[i].position.clone().add(new THREE.Vector3(...hang.clasp)).applyMatrix4(carry);
+          const top = new THREE.Vector3(0, hang.half, 0).applyQuaternion(item.quaternion).add(item.position);
+          expect(top.distanceTo(want), `${kit.body}: hangs from its clasp`).toBeLessThanOrEqual(0.01);
+        } else {
+          const want = builtItems[i].position.clone().applyMatrix4(carry);
+          expect(item.position.distanceTo(want), `${kit.back}+${kit.body} item ${i}: on the posed torso`).toBeLessThanOrEqual(0.01);
+        }
+        expect(lowest(item, cat.scale.x), `${kit.back}+${kit.body} item ${i}: above the ground`).toBeGreaterThanOrEqual(0);
+      });
+    }
+  });
+
+  it.each(CASES)('%s (simple %s) %s: the backpack sits on the fur, within 3 cm of it', (b, simple, state) => {
+    const cat = kitCat(b, { back: 'backpack' }, simple);
+    animateCat(cat, state, 1.3, 0, false);
+    cat.updateMatrixWorld(true);
+    const s = cat.scale.x, { body, underside } = cat.userData.parts;
+    const [pack] = riders(cat);
+    const p = pack.geometry.attributes.position, ray = new THREE.Raycaster();
+    let nearest = Infinity, hits = 0;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(pack.matrixWorld);
+      ray.set(new THREE.Vector3(v.x, v.y + 2, v.z), new THREE.Vector3(0, -1, 0));
+      const hit = ray.intersectObjects([body, underside], false)[0];
+      if (!hit) continue;
+      hits++;
+      nearest = Math.min(nearest, (v.y - hit.point.y) / s); // a corner in the fur counts as touching
+    }
+    expect(hits, 'over the back').toBeGreaterThan(0);
+    expect(nearest, 'the pack touches the fur').toBeLessThanOrEqual(0.03);
+    // and is not sunk in it: its centre is above the fur under it
+    const c = pack.getWorldPosition(new THREE.Vector3());
+    ray.set(new THREE.Vector3(c.x, c.y + 2, c.z), new THREE.Vector3(0, -1, 0));
+    expect(c.y - ray.intersectObjects([body, underside], false)[0].point.y, 'the centre outside the fur').toBeGreaterThan(0);
+  });
+
+  it.each(BREEDS.flatMap((b) => [false, true].map((simple) => [b, simple])))('%s (simple %s): sit → follow puts every item back as built; a follow never moves them', (b, simple) => {
+    for (const kit of [...KITS, { back: 'balloon', body: null }, { back: 'balloonbunch', body: 'confetticape' }]) {
+      const built = riders(kitCat(b, kit, simple)).map((c) => [c.position.toArray(), c.quaternion.toArray()]);
+      const fresh = kitCat(b, kit, simple);
+      for (const t of [0.4, 2.1]) {
+        animateCat(fresh, 'follow', t, 0, false);
+        expect(riders(fresh).map((c) => [c.position.toArray(), c.quaternion.toArray()]), `${kit.back} follow t ${t}`).toEqual(built);
+      }
+      for (const state of SITS) {
+        const cat = kitCat(b, kit, simple);
+        animateCat(cat, state, 1.3, 0, false);
+        expect(riders(cat).some((c, i) => c.position.distanceTo(new THREE.Vector3(...built[i][0])) > 0.01), `${kit.back} ${state}: moved`).toBe(true);
+        animateCat(cat, 'follow', 2.1, 0, false);
+        expect(riders(cat).map((c) => [c.position.toArray(), c.quaternion.toArray()]), `${kit.back} ${state} → follow`).toEqual(built);
+      }
+    }
+  });
+
+  // The sit lowers the chest (torso.js SIT.chestDrop) so it reads as a bib,
+  // not a collar under the chin; leaving the sit puts the underside back.
+  it.each(CASES)('%s (simple %s) %s: the chest sits SIT.chestDrop lower, and is put back after', (b, simple, state) => {
+    const cat = posed(b, state, simple);
+    const u = cat.userData.parts.underside, s = cat.scale.x;
+    const centre = () => { cat.updateMatrixWorld(true); return new THREE.Vector3().fromArray(u.userData.chestCentre).applyMatrix4(u.matrixWorld).divideScalar(s); };
+    const dropped = centre();
+    u.userData.drop = 0; refitNeck(cat, state);
+    const held = centre();
+    expect(held.y - dropped.y).toBeCloseTo(SIT.chestDrop, 9);
+    expect(Math.abs(held.x - dropped.x) + Math.abs(held.z - dropped.z)).toBeLessThan(1e-9);
+    animateCat(cat, state, 1.3, 0, false);
+    animateCat(cat, 'follow', 2.1, 0, false);
+    const fresh = buildCat(b, undefined, { simple });
+    animateCat(fresh, 'follow', 2.1, 0, false);
+    const fu = fresh.userData.parts.underside;
+    expect([u.position.toArray(), u.scale.toArray(), u.userData.drop]).toEqual([fu.position.toArray(), fu.scale.toArray(), fu.userData.drop]);
+  });
+
+  it('nothing outside the cat builder rides: Hagrid has no riders', () => {
+    const hen = buildCat('hagrid', { collar: null, head: null, face: null, neck: null, feet: null, back: 'backpack', body: 'cape' });
+    hen.traverse((o) => expect(o.userData.ridesBody).toBeUndefined());
+  });
+
+  // The chest bib faces the front camera standing and sitting: the chest
+  // vertices painted (within 0.05) the pale chest colour have a mean world
+  // normal pointing forward (z < -0.5; the cat faces -z). catcoat.test.js
+  // 'the bib faces the front camera' holds the same bib to 30° of the front.
+  // Not Robbie: his torso is painted white under the chest too (the cow
+  // flanks and bib), so his "pale" vertices are the whole chest ball, the
+  // underside included, and say nothing about where the bib looks.
+  it.each(BREEDS.filter((b) => b !== 'robbie').flatMap((b) => ['follow', ...SITS].map((s) => [b, s])))('%s %s: the bib faces forward', (b, state) => {
+    const cat = posed(b, state, false);
+    const { underside: u, body } = cat.userData.parts;
+    const pos = u.geometry.attributes.position, nor = u.geometry.attributes.normal, col = u.geometry.attributes.color;
+    const [a, z] = u.userData.ranges.chest;
+    const pale = new THREE.Color(body.userData.coat.chest), c = new THREE.Color();
+    const nm = new THREE.Matrix3().getNormalMatrix(u.matrixWorld), sum = new THREE.Vector3();
+    let n = 0;
+    for (let i = a; i < z; i++) {
+      c.setRGB(col.getX(i), col.getY(i), col.getZ(i));
+      if (colourDistance(c, pale) >= 0.05) continue;
+      sum.add(v.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize());
+      n++;
+    }
+    expect(n).toBeGreaterThan(0);
+    expect(sum.divideScalar(n).z).toBeLessThan(-0.5);
   });
 });

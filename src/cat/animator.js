@@ -179,6 +179,16 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   const { underside } = cat.userData.parts;
   if (underside) keepChestUnderHead(cat.userData.parts.body, underside);
   const base = cat.userData.base;
+  // The sit carries the body- and back-slot items on the posed torso (below,
+  // rideBody). Each remembers its rest here, before fitLongLegs first moves
+  // it; every other state puts it back there first, so fitLongLegs and the
+  // pose fit move it exactly as they always did.
+  const sitting = (state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds;
+  for (const item of cat.children) {
+    if (!item.userData.ridesBody) continue;
+    item.userData.rest ??= { position: item.position.clone(), quaternion: item.quaternion.clone() };
+    if (!sitting) restore(item);
+  }
   if (base?.legLift) fitLongLegs(cat);
   if (base?.poseFit?.[state]) applyPoseFit(cat, base.poseFit[state]);
   // The stalk's tail root rides the body (STALK_TAIL), once the body is where
@@ -193,13 +203,14 @@ export function animateCat(cat, state, t, moveSpeed, reducedMotion = false, amou
   // Task 2), once the pose fit has set the body down: the tail hangs on the
   // cat, so without this it stayed 18 cm off the pitched rump. Only y and z
   // are written (x stays 0); fitLongLegs and pose() put both back next frame.
-  if ((state === 'requestPet' || state === 'perch') && cat.userData.parts.legs[0].userData.folds) {
+  if (sitting) {
     const { tail, body } = cat.userData.parts;
     const [, sy, sz] = cat.userData.base.bodyScale;
     body.updateMatrix();
     _anchor.set(0, SIT_TAIL.ROOT[0] / sy, SIT_TAIL.ROOT[1] / sz).applyMatrix4(body.matrix);
     tail.position.y = _anchor.y;
     tail.position.z = _anchor.z;
+    rideBody(cat);
   }
   fitNeck(cat, state);
   // Last: a scar rides the head and torso where everything above left them.
@@ -237,13 +248,59 @@ function rideTail(cat) {
   tail.position.copy(_anchor);
 }
 
+// The sit's back and body items (polish-sit Task 3, ruling R4). The capes,
+// clasps, backpack, wings, jetpack and balloons hang on the cat, not on the
+// body (model.js tags them userData.ridesBody), so the upright sit's nose-up
+// pitch (SIT.pitch 0.75) left them floating behind the back. Here each is
+// carried by the posed body: position = bodyPosed · bodyRest⁻¹ · rest (the
+// body's rest being (0, base.bodyY, 0), unrotated, at base.bodyScale), turned
+// by the body's own rotation. Its rest (as built) is remembered by animateCat
+// before anything moves it, which also puts it back in every other state.
+//
+// A cape (userData.hang) is the one exception. It hangs 0.4 down from behind
+// the rump, and the rump is now on the ground: carried rigidly its centre
+// lands at y -0.005 and its hem 18 cm under the ground, swung in under the
+// cat. So it hangs from its clasp instead: its top edge's centre at the
+// clasp's carried point (y 0.257, z 0.195 on every preset), swung back from
+// its resting tilt (0.15) only as far as its hem needs to clear the ground
+// (CAPE_HEM_CLEAR; 0.95 rad here), so it falls from the clasp to the ground
+// behind her. Allocates nothing.
+const _ride = new THREE.Matrix4();
+const _rideAt = new THREE.Vector3();
+const _rideScale = new THREE.Vector3();
+const _hinge = new THREE.Vector3();
+const _XAXIS = new THREE.Vector3(1, 0, 0);
+const CAPE_REST_TILT = 0.15;   // model.js: cape.rotation.x = -0.15
+const CAPE_HEM_CLEAR = 0.025;  // the hem's centre over the ground: its 2 cm half-thickness, and 5 mm
+function rideBody(cat) {
+  const { body } = cat.userData.parts;
+  const { bodyY, bodyScale } = cat.userData.base;
+  body.updateMatrix();
+  _ride.compose(_rideAt.set(0, bodyY, 0), _noTurn, _rideScale.fromArray(bodyScale)).invert().premultiply(body.matrix);
+  for (const item of cat.children) {
+    if (!item.userData.ridesBody) continue;
+    const { rest, hang } = item.userData;
+    if (hang) {
+      _hinge.fromArray(hang.clasp).add(rest.position).applyMatrix4(_ride);
+      const tilt = Math.max(CAPE_REST_TILT, Math.acos(Math.min(1, (_hinge.y - CAPE_HEM_CLEAR) / (2 * hang.half))));
+      item.quaternion.setFromAxisAngle(_XAXIS, -tilt);
+      item.position.set(_hinge.x, _hinge.y - hang.half * Math.cos(tilt), _hinge.z + hang.half * Math.sin(tilt));
+      continue;
+    }
+    item.position.copy(rest.position).applyMatrix4(_ride);
+    item.quaternion.multiplyQuaternions(body.quaternion, rest.quaternion);
+  }
+}
+
 //
 // The sit flattens the underside (its own z scaled by SIT.chestDepth, set in
 // pose(); every other state leaves it at 1). Scaled about the underside's
 // origin that would slide the chest centre back too, so the position also
 // carries R_y(-θ)·(c − K·c), K the underside's scale: the chest centre lands
 // exactly where the unscaled underside put it (polish-catlooks, 2026-11-02).
-// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0).
+// At K = 1 that term is exactly zero (+ 0 turns its -0 into 0). The sit also
+// lowers the whole underside by SIT.chestDrop (userData.drop, which pose()
+// sets in the sit and zeroes in every other state; dropChest below).
 const _k = new THREE.Vector3();
 function keepChestUnderHead(body, underside) {
   const yaw = body.rotation.y;
@@ -253,6 +310,7 @@ function keepChestUnderHead(body, underside) {
   if (!yaw) {
     underside.rotation.y = 0;
     underside.position.copy(_k);
+    if (underside.userData.drop) dropChest(body, underside);
     return;
   }
   underside.rotation.y = -yaw;
@@ -263,6 +321,13 @@ function keepChestUnderHead(body, underside) {
   _c.applyQuaternion(_yaw);                                                             // R_y(-θ)·c
   _p.sub(_c).add(_k.applyQuaternion(_yaw));                                             // + R_y(-θ)·(c − K·c)
   underside.position.set(_p.x + 0, _p.y + 0, _p.z + 0);
+  if (underside.userData.drop) dropChest(body, underside);
+}
+// The sit lowers the underside by SIT.chestDrop, straight down in the cat's
+// frame: in the body's own frame that is S⁻¹·Q⁻¹·(0, -drop, 0).
+function dropChest(body, underside) {
+  _c.set(0, -underside.userData.drop, 0).applyQuaternion(_q.copy(body.quaternion).invert()).divide(body.scale);
+  underside.position.add(_c);
 }
 
 // The collar on the neck (COLLAR_ON_NECK). The neck joins the chest (the
@@ -500,7 +565,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
   }
   tail.position.z = tail.userData.rootZ ??= tail.position.z; // the stalk moves it (STALK_TAIL)
   const { underside } = cat.userData.parts;
-  if (underside) underside.scale.set(1, 1, 1); // the sit flattens it (SIT.chestDepth)
+  if (underside) { underside.scale.set(1, 1, 1); underside.userData.drop = 0; } // the sit flattens and lowers it (SIT.chestDepth, chestDrop)
   for (const p of tailPivots) p.rotation.set(c ? -c : 0, 0, 0); // never -0 (Hagrid)
   // The folds (body refinement Task 5, R1/R3): each leg takes its state's fold
   // (a write only when the fold changes). A rig with folds no longer squashes a
@@ -634,6 +699,7 @@ function pose(cat, state, t, moveSpeed, reducedMotion, amount) {
       // of its narrow chest, and its tucked thigh lay 2 mm under a hind scar
       // (1 on every other cat, which is left as it was).
       underside.scale.z = SIT.chestDepth;
+      underside.userData.drop = SIT.chestDrop;
       const k = bsx / TORSO.SCALE[0];
       if (k !== 1) for (const leg of legs) leg.position.x = leg.userData.hipX * k;
       for (let i = 0; i < 2; i++) {

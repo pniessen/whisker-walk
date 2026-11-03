@@ -79,6 +79,10 @@ const SCARF_COLOR = 0xd6602f;      // cozy rust knit, matches beanie
 const HOODIE_COLOR = 0x6a4c93;     // purple hoodie
 const CAPE_COLOR = 0xd8303c;       // superhero red
 const CAPE_ACCENT = 0xf2c14e;      // gold clasp
+// A cape (either) is 0.4 tall; its clasp sits `clasp` from the cape's centre.
+// In the sit the cape's top edge hangs from that clasp (animator.js rideBody):
+// half is how far up its own y the top edge lies.
+const CAPE_HANG = Object.freeze({ half: 0.2, clasp: Object.freeze([0, 0.2, -0.17]) });
 const WING_COLORS = [0xf29a8a, 0x9fc9a0]; // coral / sage, mirrored
 const SNEAKER_WHITE = 0xf2f2f2;
 const SNEAKER_ACCENT = 0xd8303c;
@@ -1329,6 +1333,12 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
   // pose. The cape hangs behind the rump, re-placed on the new one. The hood
   // and bunch sit relative to the head.
   const hoodItems = [];
+  // Everything the body and back slots hang on g (cape, confetti cape, clasps,
+  // backpack, wings, jetpack tanks and nozzles, balloon strings, knot and
+  // balloons) is tagged userData.ridesBody below: animator.js carries them on
+  // the posed torso in the sit (polish-sit Task 3, ruling R4). Not the hood
+  // items (added after), not the shells and buttons (they hang on the body).
+  const ridersFrom = g.children.length;
   const headRel = (dx, dy, dz) => [HEAD.POS[0] + dx * HEAD.SCALE, HEAD.POS[1] + dy * HEAD.SCALE, HEAD.POS[2] + dz * HEAD.SCALE];
   const coatShell = (color, paint) => {
     // A full shell is 32×32 (the torso itself is 40×40; the simple shell uses
@@ -1379,9 +1389,10 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const at = onBackMain(0, 0.28, 0.45);
     cape.position.set(...at);
     cape.rotation.x = -0.15;
+    cape.userData.hang = CAPE_HANG;
     g.add(cape);
     const clasp = ball(0.032, CAPE_ACCENT, 1, 1, 1, 6, 5);
-    clasp.position.set(...from(at, 0, 0.2, -0.17));
+    clasp.position.set(...from(at, ...CAPE_HANG.clasp));
     g.add(clasp);
   } else if (accessories.body === 'confetticape') {
     // a purple cape (not the hero's red) flecked with confetti dots on its outer face
@@ -1389,6 +1400,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     const at = onBackMain(0, 0.28, 0.45);
     capeGroup.position.set(...at);
     capeGroup.rotation.x = -0.15;
+    capeGroup.userData.hang = CAPE_HANG;
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.4, 0.04), mat(PRIZE_CAPE));
     capeGroup.add(cape);
     const dots = [[-0.09, 0.14], [0.06, 0.15], [0.11, 0.04], [-0.04, 0.05], [-0.11, -0.05], [0.03, -0.06], [0.1, -0.14], [-0.05, -0.15]];
@@ -1399,7 +1411,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     });
     g.add(capeGroup);
     const clasp = ball(0.032, PRIZE_GOLD, 1, 1, 1, 6, 5);
-    clasp.position.set(...from(at, 0, 0.2, -0.17));
+    clasp.position.set(...from(at, ...CAPE_HANG.clasp));
     g.add(clasp);
   } else if (accessories.body === 'raincoat') {
     coatShell(RAINCOAT_COLOR);
@@ -1481,6 +1493,7 @@ export function buildCat(breed, accessories = { collar: null, head: null, face: 
     g.add(balloon);
   }
 
+  for (const item of g.children.slice(ridersFrom)) item.userData.ridesBody = true;
   for (const item of hoodItems) g.add(item);
 
   // feet: small shells on the paw positions. Cuff and stripe hang from the paw.

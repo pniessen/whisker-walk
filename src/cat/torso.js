@@ -93,7 +93,8 @@ export const POSE_FIT = Object.freeze({
 //     0.02): the hind fold's top sits at the lowered hip (limbs.js).
 //   bodyZ (m, body.position.z): -0.06. Pitched about its centre the torso's
 //     shoulders swing back over the hips; moved forward, its rump's low point
-//     is at z +0.075 (behind the centre), its top (0.689) at z -0.20, and the
+//     is at z +0.075 (behind the centre), its top (0.689, the chest; 0.659 once
+//     chestDrop lowers it) at z -0.20, and the
 //     front hips sit inside the chest (top 0.61 over a 0.39 hip, its
 //     underside 0.21).
 //   headDY, headDZ (m, the head's offset from where it stands; were +0.06 and
@@ -107,6 +108,14 @@ export const POSE_FIT = Object.freeze({
 //     chest centre (keepChestUnderHead holds the centre put), so the chest does
 //     not bulge forward like a ball (polish-catlooks: 0.75 brought every build's
 //     front back 2.1-2.3 cm).
+//   chestDrop (m, straight down in the cat's frame; polish-sit Task 3): 0.03.
+//     The pitched torso carries the chest ball up under the chin, where it
+//     stood 3-10 cm proud of the torso as a band between head and body: from
+//     the front, with the shaded underside of the skull above it, it read as
+//     a collar on a cat wearing none. Lowered, the ball reads as a bib on the
+//     breast. 0.04 and 0.05 let the torso's top poke through between chin and
+//     chest (the Persian's front shot); the neck items still sit on the fur
+//     (catsit.test.js) and the rump on the ground (catsitupright.test.js).
 //   foreZ (metres, cat frame, - is forward): both front hips move forward by
 //     this: -0.06, the hips at z -0.30, inside the chest; the paws stand 8.3 cm
 //     behind the chest's front (the upper chest, y 0.46-0.48), as a sitting
@@ -116,7 +125,7 @@ export const POSE_FIT = Object.freeze({
 //     the hip-to-paw line 0.03 rad, Digit's longer leg 0.025). No swing means
 //     fitLongLegs leaves each leg its fitted length, so the soles stay on the
 //     ground at every legLen.
-export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, foreZ: -0.06, foreTilt: 0 });
+export const SIT = Object.freeze({ pitch: 0.75, bodyDY: -0.045, bodyZ: -0.06, headDY: 0.09, headDZ: 0.06, chestDepth: 0.75, chestDrop: 0.03, foreZ: -0.06, foreTilt: 0 });
 
 // polish-sit Task 2 (2026-11-02): the sitting tail lies round the paws, the
 // Warrior Cats sit's other half (animator.js; cats with folds only, Hagrid's
